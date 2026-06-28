@@ -7,7 +7,8 @@ import { loadSnapshots, saveSnapshots } from './sheets/snapshots.js';
 import { loadTransactions, mergeTransactions, saveImportMeta, loadImportMeta } from './sheets/transactions.js';
 import { loadConfig, onConfigChange, getCostBasisMethod } from './store/config.js';
 import { computePD } from './portfolio.js';
-import { parseCSV } from './csv.js';
+import { parseWithProfile, detectProfile, previewSummary } from './import/parse.js';
+import { builtInProfiles } from './import/profiles/index.js';
 import { renderNW } from './views/networth.js';
 import { renderPortfolio } from './views/portfolio.js';
 import { renderDCA } from './views/contributions.js';
@@ -258,12 +259,143 @@ async function handleCSVFile(file) {
   }
   showMsg('import-msg', 'Parsing…', true);
   const reader = new FileReader();
-  reader.onload = async e => {
+  reader.onload = e => {
+    const text = e.target.result;
+    const headerLine = text.trim().split('\n')[0] || '';
+
+    // Auto-detect profile
+    let profile = detectProfile(headerLine);
+
+    if (profile) {
+      // Profile detected — parse immediately and show preview
+      showImportPreview(text, profile);
+    } else {
+      // No match — show profile picker
+      showProfilePicker(text);
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+/** Show a dropdown to pick a profile when auto-detect fails. */
+function showProfilePicker(csvText) {
+  const container = document.getElementById('import-preview');
+  if (!container) return;
+
+  const options = builtInProfiles.map(p =>
+    `<option value="${esc(p.id)}">${esc(p.label)}</option>`
+  ).join('');
+
+  container.innerHTML = `
+    <div class="card" style="margin-top:.75rem">
+      <div class="card-title">Select import profile</div>
+      <p class="note" style="margin-bottom:.75rem">Could not auto-detect the CSV format. Please select the matching bank/broker profile:</p>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:.75rem">
+        <select id="profile-select" class="form-input" style="width:auto;max-width:260px">
+          ${options}
+        </select>
+        <button class="btn btn-primary btn-sm" id="btn-apply-profile">Parse with profile</button>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="btn-cancel-profile">Cancel</button>
+    </div>
+  `;
+  container.style.display = 'block';
+
+  document.getElementById('btn-apply-profile')?.addEventListener('click', () => {
+    const id = document.getElementById('profile-select')?.value;
+    const profile = builtInProfiles.find(p => p.id === id);
+    if (profile) showImportPreview(csvText, profile);
+  });
+  document.getElementById('btn-cancel-profile')?.addEventListener('click', () => {
+    container.innerHTML = '';
+    container.style.display = 'none';
+    showMsg('import-msg', 'Import cancelled.', false);
+  });
+}
+
+/** Parse CSV with profile and show a preview for confirmation. */
+function showImportPreview(csvText, profile) {
+  const parsed  = parseWithProfile(csvText, profile);
+  const summary = previewSummary(parsed);
+  const container = document.getElementById('import-preview');
+  if (!container) return;
+
+  // Build type counts string
+  const typeCounts = Object.entries(summary.byCounts)
+    .sort(([,a], [,b]) => b - a)
+    .map(([type, count]) => `<span style="font-weight:500">${count}</span> ${esc(type)}`)
+    .join(', ');
+
+  // Unmapped warning
+  let unmappedHtml = '';
+  if (summary.unmapped.length > 0) {
+    const totalUnmapped = summary.unmapped.reduce((s, u) => s + u.count, 0);
+    const unmappedList  = summary.unmapped.map(u => `<code>${esc(u.type)}</code> (${u.count})`).join(', ');
+    unmappedHtml = `
+      <div class="status-bar status-warn" style="margin:.6rem 0">
+        ⚠ ${totalUnmapped} row${totalUnmapped > 1 ? 's' : ''} with unmapped type${totalUnmapped > 1 ? 's' : ''}: ${unmappedList}
+      </div>
+    `;
+  }
+
+  // Sample table (first ~10 rows)
+  const sampleRows = summary.sample;
+  const sampleHtml = sampleRows.length > 0 ? `
+    <div style="overflow-x:auto;margin-top:.6rem;-webkit-overflow-scrolling:touch">
+      <table style="width:100%;font-size:11px;border-collapse:collapse">
+        <thead>
+          <tr style="color:#6b6a65;text-transform:uppercase;letter-spacing:.04em">
+            <th style="padding:4px 6px;text-align:left">Date</th>
+            <th style="padding:4px 6px;text-align:left">Type</th>
+            <th style="padding:4px 6px;text-align:left">Name</th>
+            <th style="padding:4px 6px;text-align:right">Shares</th>
+            <th style="padding:4px 6px;text-align:right">Amount</th>
+            <th style="padding:4px 6px;text-align:left">Currency</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sampleRows.map(tx => `
+            <tr style="border-top:1px solid #f1efe8">
+              <td style="padding:4px 6px">${esc(tx.date)}</td>
+              <td style="padding:4px 6px">${esc(tx.type)}</td>
+              <td style="padding:4px 6px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(tx.name)}</td>
+              <td style="padding:4px 6px;text-align:right">${tx.shares || ''}</td>
+              <td style="padding:4px 6px;text-align:right">${tx.amount}</td>
+              <td style="padding:4px 6px">${esc(tx.currency)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  ` : '';
+
+  container.innerHTML = `
+    <div class="card" style="margin-top:.75rem">
+      <div class="card-title">Import preview</div>
+      <div style="margin:.6rem 0;font-size:13px">
+        <span style="font-weight:500">Profile:</span> ${esc(profile.label)}
+      </div>
+      <div style="font-size:13px">
+        <span style="font-weight:500">${summary.total}</span> rows parsed: ${typeCounts}
+      </div>
+      ${unmappedHtml}
+      ${sampleHtml}
+      <div style="display:flex;gap:10px;margin-top:.85rem">
+        <button class="btn btn-primary" id="btn-confirm-import">Confirm import</button>
+        <button class="btn btn-ghost" id="btn-cancel-import">Cancel</button>
+      </div>
+    </div>
+  `;
+  container.style.display = 'block';
+
+  // Confirm handler — write to sheets
+  document.getElementById('btn-confirm-import')?.addEventListener('click', async () => {
+    container.innerHTML = '';
+    container.style.display = 'none';
     state.syncing = true;
     try {
-      const parsed  = parseCSV(e.target.result);
-      const merged  = await mergeTransactions(state.txs, parsed);
-      const today   = new Date().toISOString().slice(0, 10);
+      const merged = await mergeTransactions(state.txs, parsed.transactions);
+      const today  = new Date().toISOString().slice(0, 10);
       await saveImportMeta(today);
       state.txs        = merged;
       state.importMeta = { last_import: today };
@@ -275,8 +407,14 @@ async function handleCSVFile(file) {
     } finally {
       state.syncing = false;
     }
-  };
-  reader.readAsText(file, 'UTF-8');
+  });
+
+  // Cancel handler
+  document.getElementById('btn-cancel-import')?.addEventListener('click', () => {
+    container.innerHTML = '';
+    container.style.display = 'none';
+    showMsg('import-msg', 'Import cancelled.', false);
+  });
 }
 
 // ── Update subtitle ───────────────────────────────────────

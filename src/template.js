@@ -194,6 +194,7 @@ export function appTemplate() {
         <div style="font-size:11px;color:#6b6a65">or click to browse</div>
       </div>
       <div id="import-msg" style="font-size:12px;margin-top:.6rem;min-height:18px"></div>
+      <div id="import-preview" style="display:none"></div>
     </div>
 
     <hr class="divider">
