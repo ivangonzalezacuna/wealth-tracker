@@ -1,7 +1,7 @@
-import { ACCTS } from './constants.js';
+import { getACCTSList } from './constants.js';
 
 export function snapTotal(s) {
-  return ACCTS.reduce((sum, a) => sum + (s[a.key] || 0), 0);
+  return getACCTSList().reduce((sum, a) => sum + (s[a.key] || 0), 0);
 }
 
 export function fmt(n, d = 0) {
@@ -22,15 +22,6 @@ export function fmtDay(d) {
   return new Date(d + 'T12:00:00').toLocaleDateString('de-DE', {
     day: '2-digit', month: 'short', year: 'numeric',
   });
-}
-
-export function setChart(CH, id, cfg) {
-  if (CH[id]) { CH[id].destroy(); delete CH[id]; }
-  const el = document.getElementById(id);
-  if (el) {
-    const { Chart } = window._Chart;
-    CH[id] = new Chart(el, cfg);
-  }
 }
 
 export function showMsg(elId, text, ok) {

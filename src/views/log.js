@@ -1,4 +1,4 @@
-import { ACCTS } from '../constants.js';
+import { getACCTSList } from '../constants.js';
 import { snapTotal, fmt, fmtMon } from '../utils.js';
 
 export function renderLog(state) {
@@ -18,6 +18,7 @@ export function renderLog(state) {
 }
 
 export function renderSnapList(snaps, onEdit, onDel) {
+  const ACCTS = getACCTSList();
   const el = document.getElementById('snaps-list');
   if (!snaps.length) {
     el.innerHTML = '<div class="empty-state" style="padding:1.5rem;font-size:13px">No snapshots yet — add your first one above.</div>';

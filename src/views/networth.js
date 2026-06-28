@@ -1,10 +1,11 @@
 import { snapTotal, fmt, fmtMon } from '../utils.js';
-import { ACCTS } from '../constants.js';
+import { getACCTSList } from '../constants.js';
 import Chart from 'chart.js/auto';
 
 const CH = {};
 
 export function renderNW(snaps) {
+  const ACCTS = getACCTSList();
   const has = snaps.length > 0;
   document.getElementById('nw-empty').style.display   = has ? 'none'  : 'block';
   document.getElementById('nw-content').style.display = has ? 'block' : 'none';

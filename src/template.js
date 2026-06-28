@@ -1,59 +1,13 @@
 import { CONFIG } from './config.js';
 
-function refSection() {
-  const ta = CONFIG.targetAllocation;
-  const cp = CONFIG.closedPositions;
-  const rr = CONFIG.reinvestmentRules;
-
-  const legend = ta.slices.map(s =>
-    `<span class="leg-item"><span class="leg-sq" style="background:${s.color}"></span>${s.ticker} ${s.pct}%</span>`
-  ).join('\n          ');
-
-  const breakdown = ta.breakdown.map(b =>
-    `<div class="row"><div class="row-label">${b.label}</div><div class="row-val">${b.value}</div></div>`
-  ).join('\n        ');
-
-  const closedRows = cp.rows.map(r =>
-    `<div class="row"><div class="row-label">${r.label}</div><div class="row-val"><span class="badge b-closed">${r.badge}</span></div></div>`
-  ).join('\n    ');
-
-  const ruleRows = rr.rows.map(r =>
-    `<div class="row"><div class="row-label">${r.label}</div><div class="row-val">${r.value}</div></div>`
-  ).join('\n    ');
-
-  return `
-  <div class="card">
-    <div class="card-title">${ta.title}</div>
-    <div class="two-col" style="align-items:start">
-      <div>
-        <div class="legend" style="margin-bottom:.75rem">
-          ${legend}
-        </div>
-        <div class="chart-wrap" style="height:155px"><canvas id="c-ref-target"></canvas></div>
-      </div>
-      <div>
-        ${breakdown}
-        <p class="note">${ta.note}</p>
-      </div>
-    </div>
-  </div>
-  <div class="card">
-    <div class="card-title">${cp.title}</div>
-    ${closedRows}
-    <p class="note">${cp.note}</p>
-  </div>
-  <div class="card">
-    <div class="card-title">${rr.title}</div>
-    ${ruleRows}
-  </div>`;
-}
-
 function snapFormFields() {
   return CONFIG.accounts.map(a => {
-    const hint = a.form.hint ? ` <span style="font-weight:400;color:#898781">${a.form.hint}</span>` : '';
+    const label = a.form?.label || `${a.label} (€)`;
+    const hint = a.form?.hint ? ` <span style="font-weight:400;color:#898781">${a.form.hint}</span>` : '';
+    const placeholder = a.form?.placeholder || '';
     return `<div class="form-group">
-          <label class="form-label">${a.form.label}${hint}</label>
-          <input type="number" id="snap-${a.key}" class="form-input" placeholder="${a.form.placeholder || ''}">
+          <label class="form-label">${label}${hint}</label>
+          <input type="number" id="snap-${a.key}" class="form-input" placeholder="${placeholder}">
         </div>`;
   }).join('\n        ');
 }
@@ -111,7 +65,7 @@ export function appTemplate() {
 <div id="portfolio" class="section">
   <div id="port-empty" style="display:none"><div class="card"><div class="empty-state">
     <div style="font-size:2rem;margin-bottom:.75rem">📂</div>
-    <div style="font-weight:500;font-size:14px;color:#0b0b0b;margin-bottom:.4rem">No TR data imported</div>
+    <div style="font-weight:500;font-size:14px;color:#0b0b0b;margin-bottom:.4rem">No transaction data imported</div>
     <p style="font-size:13px;margin-bottom:1rem">Import your Transaktionsexport CSV to see exact cost basis, shares, and dividends.</p>
     <button class="btn btn-primary" data-goto="log">Import CSV →</button>
   </div></div></div>
@@ -139,7 +93,7 @@ export function appTemplate() {
 <div id="contributions" class="section">
   <div id="dca-empty" style="display:none"><div class="card"><div class="empty-state">
     <div style="font-size:2rem;margin-bottom:.5rem">📅</div>
-    <div style="font-weight:500;font-size:14px;color:#0b0b0b;margin-bottom:.75rem">No TR data imported</div>
+    <div style="font-weight:500;font-size:14px;color:#0b0b0b;margin-bottom:.75rem">No transaction data imported</div>
     <button class="btn btn-primary" data-goto="log">Import CSV →</button>
   </div></div></div>
   <div id="dca-content" style="display:none">
@@ -155,9 +109,9 @@ export function appTemplate() {
         <div class="tbl"><div id="dca-table"></div></div>
       </div>
       <div class="card">
-        <div class="card-title" id="dca-proj-title">5-year projection (7% return, €200/wk target)</div>
+        <div class="card-title" id="dca-proj-title">5-year projection</div>
         <div class="chart-wrap" style="height:180px"><canvas id="c-dca-proj"></canvas></div>
-        <p class="note">Starting from latest TR portfolio value. Target €${CONFIG.projection.weeklyTarget}/wk from there. Excludes taxes, fees, FX.</p>
+        <p class="note" id="dca-proj-note">Starting from latest portfolio value. Excludes taxes, fees, FX.</p>
       </div>
     </div>
   </div>
@@ -167,7 +121,7 @@ export function appTemplate() {
 <div id="dividends" class="section">
   <div id="div-empty" style="display:none"><div class="card"><div class="empty-state">
     <div style="font-size:2rem;margin-bottom:.5rem">💰</div>
-    <div style="font-weight:500;font-size:14px;color:#0b0b0b;margin-bottom:.75rem">No TR data imported</div>
+    <div style="font-weight:500;font-size:14px;color:#0b0b0b;margin-bottom:.75rem">No transaction data imported</div>
     <button class="btn btn-primary" data-goto="log">Import CSV →</button>
   </div></div></div>
   <div id="div-content" style="display:none">
@@ -185,7 +139,27 @@ export function appTemplate() {
 
 <!-- ════ REFERENCE ════ -->
 <div id="reference" class="section">
-  ${refSection()}
+  <div class="card">
+    <div class="card-title">Target allocation</div>
+    <div class="two-col" style="align-items:start">
+      <div>
+        <div id="ref-legend" class="legend" style="margin-bottom:.75rem"></div>
+        <div class="chart-wrap" style="height:155px"><canvas id="c-ref-target"></canvas></div>
+      </div>
+      <div>
+        <div id="ref-breakdown"></div>
+        <p class="note" id="ref-note"></p>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Closed positions</div>
+    <div id="ref-closed"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Settings &amp; rules</div>
+    <div id="ref-rules"></div>
+  </div>
 </div>
 
 <!-- ════ LOG ════ -->
@@ -204,12 +178,12 @@ export function appTemplate() {
     <div id="sync-status" class="status-bar" style="display:none"></div>
 
     <div class="card">
-      <div class="card-title">Import Trade Republic CSV</div>
-      <p class="note" style="margin-bottom:.85rem">In TR app: Settings → Documents → Transaction export. Drag your file here or click to browse. Parsed locally — data synced to your Google Sheet. Re-import anytime; duplicates handled automatically.</p>
+      <div class="card-title">Import CSV</div>
+      <p class="note" style="margin-bottom:.85rem">Import your transaction export CSV. Drag your file here or click to browse. Parsed locally — data synced to your Google Sheet. Re-import anytime; duplicates handled automatically.</p>
       <div class="drop-zone" id="drop-zone">
         <input type="file" id="csv-file-input" accept=".csv">
         <div style="font-size:2rem;margin-bottom:.4rem">📥</div>
-        <div style="font-weight:500;font-size:13px;color:#52514e;margin-bottom:.2rem">Drop Transaktionsexport.csv here</div>
+        <div style="font-weight:500;font-size:13px;color:#52514e;margin-bottom:.2rem">Drop CSV file here</div>
         <div style="font-size:11px;color:#898781">or click to browse</div>
       </div>
       <div id="import-msg" style="font-size:12px;margin-top:.6rem;min-height:18px"></div>

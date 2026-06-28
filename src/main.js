@@ -1,10 +1,11 @@
 import './styles.css';
 import { CONFIG } from './config.js';
-import { ACCTS } from './constants.js';
+import { getACCTSList } from './constants.js';
 import { appTemplate } from './template.js';
 import { getToken, signIn as gisSignIn, signOut, isSignedIn, trySilentSignIn } from './auth/google.js';
 import { loadSnapshots, saveSnapshots } from './sheets/snapshots.js';
 import { loadTransactions, mergeTransactions, saveImportMeta, loadImportMeta } from './sheets/transactions.js';
+import { loadConfig, onConfigChange } from './store/config.js';
 import { computePD } from './portfolio.js';
 import { parseCSV } from './csv.js';
 import { renderNW } from './views/networth.js';
@@ -105,7 +106,8 @@ function setAuthStatus(msg, isErr = false) {
 async function loadAllData() {
   setSyncStatus('loading');
   try {
-    const [snaps, txs, meta] = await Promise.all([
+    const [, snaps, txs, meta] = await Promise.all([
+      loadConfig(),
       loadSnapshots(),
       loadTransactions(),
       loadImportMeta(),
@@ -114,6 +116,7 @@ async function loadAllData() {
     state.txs        = txs;
     state.importMeta = meta;
     state.pd         = txs.length ? computePD(txs) : null;
+    onConfigChange(() => renderAll());
     renderAll();
     setSyncStatus('ok');
   } catch (err) {
@@ -159,7 +162,7 @@ async function saveSnapshot() {
   if (!date) { showMsg('snap-msg', 'Please select a month.', false); return; }
 
   const snap = { date };
-  for (const a of ACCTS) {
+  for (const a of getACCTSList()) {
     snap[a.key] = parseFloat(document.getElementById(`snap-${a.key}`).value) || 0;
   }
   snap.notes = document.getElementById('snap-notes').value.trim();
@@ -185,7 +188,7 @@ function editSnap(date) {
   const s = state.snaps.find(s => s.date === date);
   if (!s) return;
   document.getElementById('snap-date').value  = s.date;
-  for (const a of ACCTS) {
+  for (const a of getACCTSList()) {
     document.getElementById(`snap-${a.key}`).value = s[a.key] || '';
   }
   document.getElementById('snap-notes').value = s.notes || '';
@@ -210,7 +213,7 @@ async function delSnap(date) {
 }
 
 function clearSnapForm() {
-  for (const a of ACCTS) {
+  for (const a of getACCTSList()) {
     const el = document.getElementById(`snap-${a.key}`);
     if (el) el.value = '';
   }
