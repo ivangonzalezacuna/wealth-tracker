@@ -1,18 +1,20 @@
-import { getISIN, getMETAMap } from './constants.js';
-import { TxType } from './model/tx.js';
-import { computeCostBasis } from './model/costbasis.js';
+import { getISIN, getMETAMap } from './constants';
+import { TxType } from './model/tx';
+import { computeCostBasis } from './model/costbasis';
+import type { Transaction, PortfolioData, EtfPosition, DivHistEntry, IntHistEntry } from './types';
+
+interface ComputeOptions {
+  method?: 'avgco' | 'fifo';
+}
 
 /**
  * Compute portfolio data from canonical transactions.
- *
- * @param {import('./model/tx.js').Transaction[]} rows - transactions (need not be pre-sorted)
- * @param {{ method?: 'avgco' | 'fifo' }} [opts]
  */
-export function computePD(rows, opts = {}) {
+export function computePD(rows: Transaction[], opts: ComputeOptions = {}): PortfolioData {
   const method = opts.method || 'avgco';
 
-  const ISIN = getISIN();
-  const META = getMETAMap();
+  const ISIN = getISIN() as Record<string, string>;
+  const META = getMETAMap() as Record<string, { color?: string; acc?: boolean; active?: boolean }>;
 
   // Sort by date (stable for same-date events — preserves input order)
   const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));
@@ -21,11 +23,11 @@ export function computePD(rows, opts = {}) {
   const basisByIsin = computeCostBasis(sorted, method);
 
   // Build etfs map, divHist, intHist, monthly (BUYs only for DCA)
-  const etfs      = {};
-  const divHist   = [];
-  const intHist   = [];
-  const monthly   = {};
-  const monthlyBy = {};
+  const etfs: Record<string, EtfPosition> = {};
+  const divHist: DivHistEntry[] = [];
+  const intHist: IntHistEntry[] = [];
+  const monthly: Record<string, number> = {};
+  const monthlyBy: Record<string, Record<string, number>> = {};
   let totalInterest = 0;
 
   // Ensure all ISINs from basis engine are represented
@@ -86,7 +88,7 @@ export function computePD(rows, opts = {}) {
       etfs[sym].divNet  += tx.amount;
       etfs[sym].taxPaid += taxAbs;
       divHist.push({
-        date: tx.date, ticker: ticker || sym, name: tx.name,
+        date: tx.date, ticker: ticker || sym,
         gross: tx.amount + taxAbs, net: tx.amount, tax: taxAbs,
         color: meta.color || '#898781',
       });

@@ -1,17 +1,10 @@
-import { TxType } from '../../model/tx.js';
+import { TxType } from '../../model/tx';
+import type { ImportProfile } from '../../types';
 
 /**
  * Built-in import profile for Trade Republic Transaktionsexport CSV.
- *
- * This encoding is **byte-identical** to the hard-coded mapping in the
- * Phase-1 `src/csv.js` → `mapTRType()` + `parseCSV()`.
- *
- * TR CSV columns (semicolon-separated, German decimals):
- *   transaction_id ; date ; type ; category ; name ; symbol ; shares ; price ; amount ; fee ; tax ; currency ; fx_rate
- *
- * @type {import('../profile.js').ImportProfile}
  */
-export const tradeRepublicProfile = {
+export const tradeRepublicProfile: ImportProfile = {
   id:    'trade_republic',
   label: 'Trade Republic',
 
@@ -37,7 +30,7 @@ export const tradeRepublicProfile = {
   },
 
   /**
-   * Type mapping — compound keys (`TYPE|CATEGORY`) are tried first,
+   * Type mapping -- compound keys (`TYPE|CATEGORY`) are tried first,
    * then plain `TYPE`.  Matches the Phase-1 `mapTRType()` exactly.
    */
   typeMap: {

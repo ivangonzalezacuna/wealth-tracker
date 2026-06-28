@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { snapshotHeader, snapToRow, rowToSnap } from './snapshots.js';
+import { snapshotHeader, snapToRow, rowToSnap } from './snapshots';
 
 describe('snapshot persistence helpers', () => {
   const accts3 = [{ key: 'a' }, { key: 'b' }, { key: 'c' }];

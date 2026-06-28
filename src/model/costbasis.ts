@@ -1,16 +1,14 @@
-import { TxType } from './tx.js';
+import { TxType } from './tx';
+import type { Transaction, CostBasisResult } from '../types';
 
-/** Floating-point tolerance for treating shares as zero (→ exited). */
+/** Floating-point tolerance for treating shares as zero (-> exited). */
 const ZERO_THRESHOLD = 1e-6;
 
 /**
  * Average-cost basis engine.
  * Processes date-sorted canonical transactions for a single ISIN.
- *
- * @param {import('./tx.js').Transaction[]} txs - date-sorted transactions for one ISIN
- * @returns {{ shares: number, costBasis: number, realizedPnL: number, exited: boolean, buys: number, totalFees: number }}
  */
-function computeAvgCost(txs) {
+function computeAvgCost(txs: Transaction[]): CostBasisResult {
   let shares = 0;
   let costBasis = 0;
   let realizedPnL = 0;
@@ -49,16 +47,17 @@ function computeAvgCost(txs) {
   return { shares, costBasis, realizedPnL, exited, buys, totalFees };
 }
 
+interface Lot {
+  shares: number;
+  unitCost: number;
+}
+
 /**
  * FIFO cost basis engine.
  * Maintains a lots queue per ISIN; BUY pushes lots, SELL consumes oldest first.
- *
- * @param {import('./tx.js').Transaction[]} txs - date-sorted transactions for one ISIN
- * @returns {{ shares: number, costBasis: number, realizedPnL: number, exited: boolean, buys: number, totalFees: number }}
  */
-function computeFIFO(txs) {
-  /** @type {{ shares: number, unitCost: number }[]} */
-  const lots = [];
+function computeFIFO(txs: Transaction[]): CostBasisResult {
+  const lots: Lot[] = [];
   let realizedPnL = 0;
   let buys = 0;
   let totalFees = 0;
@@ -113,15 +112,10 @@ function computeFIFO(txs) {
 
 /**
  * Run the cost-basis engine on date-sorted canonical transactions grouped by ISIN.
- *
- * @param {import('./tx.js').Transaction[]} txs - all date-sorted canonical transactions
- * @param {'avgco' | 'fifo'} method - cost basis method
- * @returns {Record<string, { shares: number, costBasis: number, realizedPnL: number, exited: boolean, buys: number, totalFees: number }>}
  */
-export function computeCostBasis(txs, method = 'avgco') {
+export function computeCostBasis(txs: Transaction[], method: 'avgco' | 'fifo' = 'avgco'): Record<string, CostBasisResult> {
   // Group transactions by ISIN (symbol field)
-  /** @type {Record<string, import('./tx.js').Transaction[]>} */
-  const byIsin = {};
+  const byIsin: Record<string, Transaction[]> = {};
   for (const tx of txs) {
     if (tx.type !== TxType.BUY && tx.type !== TxType.SELL) continue;
     const key = tx.symbol || tx.isin || '';
@@ -131,8 +125,7 @@ export function computeCostBasis(txs, method = 'avgco') {
   }
 
   const engine = method === 'fifo' ? computeFIFO : computeAvgCost;
-  /** @type {Record<string, { shares: number, costBasis: number, realizedPnL: number, exited: boolean, buys: number, totalFees: number }>} */
-  const result = {};
+  const result: Record<string, CostBasisResult> = {};
   for (const [isin, isinTxs] of Object.entries(byIsin)) {
     result[isin] = engine(isinTxs);
   }

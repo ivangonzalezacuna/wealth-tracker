@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { TxType } from '../model/tx.js';
-import { parseWithProfile, detectProfile, previewSummary, parseNumber, parseDate } from './parse.js';
-import { tradeRepublicProfile } from './profiles/trade_republic.js';
-import { builtInProfiles } from './profiles/index.js';
-import { buildProfileFromMapping } from './profile.js';
-import { parseCSV } from '../csv.js';
+import { TxType } from '../model/tx';
+import { parseWithProfile, detectProfile, previewSummary, parseNumber, parseDate } from './parse';
+import { tradeRepublicProfile } from './profiles/trade_republic';
+import { builtInProfiles } from './profiles/index';
+import { buildProfileFromMapping } from './profile';
+import { parseCSV } from '../csv';
 
 // ── Fixtures ───────────────────────────────────────────────
 

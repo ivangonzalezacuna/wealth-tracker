@@ -1,6 +1,6 @@
 import Chart from 'chart.js/auto';
-import { getHoldings, getTotalWeeklyTarget, getSettings } from '../store/config.js';
-import { esc, safeColor } from '../utils.js';
+import { getHoldings, getTotalWeeklyTarget, getSettings } from '../store/config';
+import { esc, safeColor } from '../utils';
 
 let refChart = null;
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { txKey } from './transactions.js';
+import { txKey } from './transactions';
 
 // We can't easily test loadTransactions/mergeTransactions without mocking the
 // sheets API, but we CAN test the pure helpers that matter most:

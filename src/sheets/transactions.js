@@ -9,9 +9,9 @@
  * Backward compat: reads old 10-column format and migrates to 14 columns.
  */
 
-import { readRange, writeRange, appendRows, ensureSheets } from './api.js';
-import { SHEET_TABS } from '../constants.js';
-import { parseNum } from '../csv.js';
+import { readRange, writeRange, appendRows, ensureSheets } from './api';
+import { SHEET_TABS } from '../constants';
+import { parseNum } from '../csv';
 
 const TAB   = SHEET_TABS.TRANSACTIONS;
 const NEW_HDR = ['id','date','source','type','name','isin','shares','price','amount','fee','tax','currency','fxRate','note'];

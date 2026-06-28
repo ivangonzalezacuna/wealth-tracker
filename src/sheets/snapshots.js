@@ -8,8 +8,8 @@
  * misaligns saved rows (missing cols read as 0).
  */
 
-import { readRange, writeRange, clearRange, ensureSheets } from './api.js';
-import { SHEET_TABS, getACCTSList } from '../constants.js';
+import { readRange, writeRange, clearRange, ensureSheets } from './api';
+import { SHEET_TABS, getACCTSList } from '../constants';
 
 /** Convert a 1-based column index to A1-notation letters (1→A, 26→Z, 27→AA, etc.) */
 function colLetter(n) {

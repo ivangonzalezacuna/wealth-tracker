@@ -3,19 +3,20 @@
  * Keeps `parseCSV()` and `parseNum()` exports for backward compatibility.
  */
 
-import { parseWithProfile } from './import/parse.js';
-import { tradeRepublicProfile } from './import/profiles/trade_republic.js';
-import { parseNumber } from './import/parse.js';
+import { parseWithProfile } from './import/parse';
+import { tradeRepublicProfile } from './import/profiles/trade_republic';
+import { parseNumber } from './import/parse';
+import type { Transaction } from './types';
 
-/** Normalize a numeric string: handle German 1.234,56 format → 1234.56
+/** Normalize a numeric string: handle German 1.234,56 format -> 1234.56
  *  Re-exported for backward compat (used by sheets/transactions.js). */
-export function parseNum(s) {
+export function parseNum(s: string | null | undefined): number {
   return parseNumber(s, 'auto');
 }
 
 /** Parse a TR Transaktionsexport CSV string into transaction objects.
  *  Delegates to the generic engine with the Trade Republic profile. */
-export function parseCSV(text) {
+export function parseCSV(text: string): Transaction[] {
   const { transactions } = parseWithProfile(text, tradeRepublicProfile);
   return transactions;
 }

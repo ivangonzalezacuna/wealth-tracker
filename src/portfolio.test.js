@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { TxType } from './model/tx.js';
+import { TxType } from './model/tx';
 
 // Stub constants module so computePD doesn't reach into Google Sheets
-vi.mock('./constants.js', () => ({
+vi.mock('./constants', () => ({
   getISIN: () => ({
     IE00B4L5Y983: 'IWDA',
     IE00BKM4GZ66: 'EIMI',
@@ -13,7 +13,7 @@ vi.mock('./constants.js', () => ({
   }),
 }));
 
-const { computePD } = await import('./portfolio.js');
+const { computePD } = await import('./portfolio');
 
 /** Helpers */
 function buyTx(isin, date, shares, amount, fee = 0) {

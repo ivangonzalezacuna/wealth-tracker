@@ -1,6 +1,6 @@
-import { fmt, fmtMon, esc, safeColor } from '../utils.js';
-import { getISIN_ORDERList, getISIN, getMETAMap } from '../constants.js';
-import { getTotalWeeklyTarget, getAnnualReturnPct, getPrimaryInvestmentAccounts } from '../store/config.js';
+import { fmt, fmtMon, esc, safeColor } from '../utils';
+import { getISIN_ORDERList, getISIN, getMETAMap } from '../constants';
+import { getTotalWeeklyTarget, getAnnualReturnPct, getPrimaryInvestmentAccounts } from '../store/config';
 import Chart from 'chart.js/auto';
 
 const CH = {};

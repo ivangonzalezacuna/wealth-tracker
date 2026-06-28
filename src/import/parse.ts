@@ -5,13 +5,14 @@
  * The same parser works for any bank — behaviour is controlled entirely by the profile.
  */
 
-import { builtInProfiles } from './profiles/index.js';
+import { builtInProfiles } from './profiles/index';
+import type { ImportProfile, Transaction, DecimalMode, DateFormat, ParseResult, UnmappedType, PreviewSummary } from '../types';
 
 // ── Low-level CSV helpers (shared with legacy csv.js) ──────────
 
 /** Split a single CSV line respecting quoted fields. */
-export function csvLine(line, sep = ',') {
-  const r = []; let cur = '', inQ = false;
+export function csvLine(line: string, sep = ','): string[] {
+  const r: string[] = []; let cur = '', inQ = false;
   for (let i = 0; i < line.length; i++) {
     if (line[i] === '"') { inQ = !inQ; }
     else if (line[i] === sep && !inQ) { r.push(cur); cur = ''; }
@@ -22,7 +23,7 @@ export function csvLine(line, sep = ',') {
 }
 
 /** Detect whether the CSV uses semicolons or commas as delimiter. */
-export function detectSeparator(headerLine) {
+export function detectSeparator(headerLine: string): string {
   const bySemi  = csvLine(headerLine, ';');
   const byComma = csvLine(headerLine, ',');
   return bySemi.length > byComma.length ? ';' : ',';
@@ -32,27 +33,24 @@ export function detectSeparator(headerLine) {
 
 /**
  * Parse a numeric string with configurable decimal style.
- * @param {string} s      - raw value
- * @param {'auto'|'dot'|'comma'} mode - decimal interpretation
- * @returns {number}
  */
-export function parseNumber(s, mode = 'auto') {
+export function parseNumber(s: string | null | undefined, mode: DecimalMode = 'auto'): number {
   if (!s) return 0;
-  s = s.trim();
+  let str = s.trim();
 
-  if (mode === 'comma' || (mode === 'auto' && isGermanNumber(s))) {
+  if (mode === 'comma' || (mode === 'auto' && isGermanNumber(str))) {
     // German: dots are thousands, comma is decimal
-    s = s.replace(/\./g, '').replace(',', '.');
+    str = str.replace(/\./g, '').replace(',', '.');
   } else if (mode === 'dot') {
     // Standard: commas are thousands, dot is decimal
-    s = s.replace(/,/g, '');
+    str = str.replace(/,/g, '');
   }
   // mode === 'auto' and not German → assume dot-decimal (default parseFloat)
-  return parseFloat(s) || 0;
+  return parseFloat(str) || 0;
 }
 
 /** Detect German number format: 1.234,56 or plain 12,34. */
-function isGermanNumber(s) {
+function isGermanNumber(s: string): boolean {
   return /^-?\d{1,3}(\.\d{3})*,\d+$/.test(s) || /^-?\d+,\d+$/.test(s);
 }
 
@@ -60,43 +58,38 @@ function isGermanNumber(s) {
 
 /**
  * Parse a date string into ISO yyyy-mm-dd according to the given format.
- * Supports: YYYY-MM-DD, DD.MM.YYYY, DD/MM/YYYY, MM/DD/YYYY, ISO (passthrough).
- * @param {string} s
- * @param {string} fmt
- * @returns {string} ISO date string or empty string on failure
  */
-export function parseDate(s, fmt) {
+export function parseDate(s: string | null | undefined, fmt: string): string {
   if (!s) return '';
-  s = s.trim();
+  const str = s.trim();
 
   // If it already contains 'T', it's an ISO datetime — take the date part
-  if (s.includes('T')) return s.slice(0, 10);
+  if (str.includes('T')) return str.slice(0, 10);
 
   switch (fmt) {
     case 'YYYY-MM-DD':
     case 'ISO': {
-      // Validate rough shape
-      const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-      if (!m) return s; // best-effort passthrough
+      const m = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (!m) return str; // best-effort passthrough
       return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
     }
     case 'DD.MM.YYYY': {
-      const m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
-      if (!m) return s;
+      const m = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+      if (!m) return str;
       return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
     }
     case 'DD/MM/YYYY': {
-      const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-      if (!m) return s;
+      const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (!m) return str;
       return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
     }
     case 'MM/DD/YYYY': {
-      const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-      if (!m) return s;
+      const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (!m) return str;
       return `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
     }
     default:
-      return s; // unknown format — passthrough
+      return str; // unknown format — passthrough
   }
 }
 
@@ -107,7 +100,7 @@ export function parseDate(s, fmt) {
  * Tries compound key `TYPE|CATEGORY` first, then plain `TYPE`.
  * Returns the mapped value or `null` if unmapped.
  */
-function mapType(rawType, rawCategory, typeMap) {
+function mapType(rawType: string, rawCategory: string, typeMap: Record<string, string>): string | null {
   const t = (rawType || '').toUpperCase();
   const c = (rawCategory || '').toUpperCase();
 
@@ -127,16 +120,13 @@ function mapType(rawType, rawCategory, typeMap) {
 
 /**
  * Auto-detect the best matching profile for a header line.
- * @param {string} headerLine - raw first line of the CSV
- * @param {import('./profile.js').ImportProfile[]} [profiles] - profiles to search (defaults to built-ins)
- * @returns {import('./profile.js').ImportProfile|null}
  */
-export function detectProfile(headerLine, profiles) {
+export function detectProfile(headerLine: string, profiles?: ImportProfile[]): ImportProfile | null {
   const pool = profiles || builtInProfiles;
   const lower = headerLine.toLowerCase();
 
-  let bestProfile = null;
-  let bestScore   = 0;
+  let bestProfile: ImportProfile | null = null;
+  let bestScore = 0;
 
   for (const p of pool) {
     const hints = p.match?.headerIncludes;
@@ -158,25 +148,21 @@ export function detectProfile(headerLine, profiles) {
 
 /**
  * Parse CSV text using the given import profile.
- *
- * @param {string} text - raw CSV content
- * @param {import('./profile.js').ImportProfile} profile
- * @returns {{ transactions: import('../model/tx.js').Transaction[], unmapped: { type: string, count: number }[] }}
  */
-export function parseWithProfile(text, profile) {
+export function parseWithProfile(text: string, profile: ImportProfile): ParseResult {
   const lines = text.trim().split('\n');
   if (lines.length < 2) return { transactions: [], unmapped: [] };
 
   // Resolve delimiter
   const sep = profile.delimiter === 'auto'
     ? detectSeparator(lines[0])
-    : profile.delimiter;
+    : (profile.delimiter || ',');
 
   // Parse header
   const hdrs = csvLine(lines[0], sep).map(h => h.trim());
 
   // Build column index lookup: canonical field → column index
-  const colIdx = {};
+  const colIdx: Record<string, number> = {};
   for (const [canonical, source] of Object.entries(profile.columns)) {
     if (typeof source === 'number') {
       colIdx[canonical] = source;
@@ -186,14 +172,14 @@ export function parseWithProfile(text, profile) {
     }
   }
 
-  const transactions = [];
-  const unmappedCounts = {};
+  const transactions: Transaction[] = [];
+  const unmappedCounts: Record<string, number> = {};
 
   for (let i = 1; i < lines.length; i++) {
     if (!lines[i].trim()) continue;
 
     const vals = csvLine(lines[i], sep);
-    const get = (field) => {
+    const get = (field: string): string => {
       const idx = colIdx[field];
       return idx !== undefined ? (vals[idx] || '').trim() : '';
     };
@@ -225,6 +211,7 @@ export function parseWithProfile(text, profile) {
       category: rawCategory,
       type:     txType,
       name:     get('name'),
+      isin:     get('symbol'),
       symbol:   get('symbol'),
       shares:   parseNumber(get('shares'), profile.decimal),
       price:    parseNumber(get('price'), profile.decimal),
@@ -239,7 +226,7 @@ export function parseWithProfile(text, profile) {
   // Filter rows that somehow still have no date or type (shouldn't happen after above guards)
   const filtered = transactions.filter(t => t.date && t.type);
 
-  const unmapped = Object.entries(unmappedCounts)
+  const unmapped: UnmappedType[] = Object.entries(unmappedCounts)
     .map(([type, count]) => ({ type, count }))
     .sort((a, b) => b.count - a.count);
 
@@ -248,12 +235,10 @@ export function parseWithProfile(text, profile) {
 
 /**
  * Generate a preview summary for parsed results.
- * @param {{ transactions: import('../model/tx.js').Transaction[], unmapped: { type: string, count: number }[] }} parsed
- * @returns {{ total: number, byCounts: Record<string, number>, unmapped: { type: string, count: number }[], sample: import('../model/tx.js').Transaction[] }}
  */
-export function previewSummary(parsed) {
+export function previewSummary(parsed: ParseResult): PreviewSummary {
   const { transactions, unmapped } = parsed;
-  const byCounts = {};
+  const byCounts: Record<string, number> = {};
   for (const tx of transactions) {
     byCounts[tx.type] = (byCounts[tx.type] || 0) + 1;
   }

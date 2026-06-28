@@ -1,22 +1,22 @@
 import './styles.css';
-import { CONFIG } from './config.js';
-import { getACCTSList } from './constants.js';
-import { appTemplate } from './template.js';
-import { getToken, signIn as gisSignIn, signOut, isSignedIn, trySilentSignIn } from './auth/google.js';
-import { loadSnapshots, saveSnapshots } from './sheets/snapshots.js';
-import { loadTransactions, mergeTransactions, saveImportMeta, loadImportMeta } from './sheets/transactions.js';
-import { loadConfig, onConfigChange, getCostBasisMethod } from './store/config.js';
-import { computePD } from './portfolio.js';
-import { parseWithProfile, detectProfile, previewSummary } from './import/parse.js';
-import { builtInProfiles } from './import/profiles/index.js';
-import { renderNW } from './views/networth.js';
-import { renderPortfolio } from './views/portfolio.js';
-import { renderDCA } from './views/contributions.js';
-import { renderDividends } from './views/dividends.js';
-import { renderRef } from './views/reference.js';
-import { renderSettings } from './views/settings.js';
-import { renderLog } from './views/log.js';
-import { snapTotal, fmtMon, showMsg, esc } from './utils.js';
+import { CONFIG } from './config';
+import { getACCTSList } from './constants';
+import { appTemplate } from './template';
+import { getToken, signIn as gisSignIn, signOut, isSignedIn, trySilentSignIn } from './auth/google';
+import { loadSnapshots, saveSnapshots } from './sheets/snapshots';
+import { loadTransactions, mergeTransactions, saveImportMeta, loadImportMeta } from './sheets/transactions';
+import { loadConfig, onConfigChange, getCostBasisMethod } from './store/config';
+import { computePD } from './portfolio';
+import { parseWithProfile, detectProfile, previewSummary } from './import/parse';
+import { builtInProfiles } from './import/profiles/index';
+import { renderNW } from './views/networth';
+import { renderPortfolio } from './views/portfolio';
+import { renderDCA } from './views/contributions';
+import { renderDividends } from './views/dividends';
+import { renderRef } from './views/reference';
+import { renderSettings } from './views/settings';
+import { renderLog } from './views/log';
+import { snapTotal, fmtMon, showMsg, esc } from './utils';
 
 // ── App state ────────────────────────────────────────────
 const state = {

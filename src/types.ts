@@ -38,14 +38,14 @@ export interface Transaction {
 // ─── Account ─────────────────────────────────────────────────────
 
 export interface Account {
-  id: string;
+  id?: string;
   key?: string;
   label: string;
-  moneyType: string;
-  institution: string;
-  color: string;
-  isPrimaryInvestment: boolean;
-  order: number;
+  moneyType?: string;
+  institution?: string;
+  color?: string;
+  isPrimaryInvestment?: boolean;
+  order?: number;
 }
 
 // ─── Holding ─────────────────────────────────────────────────────
@@ -96,6 +96,7 @@ export interface ImportProfileColumns {
   tax?: string | number;
   currency?: string | number;
   fxRate?: string | number;
+  [key: string]: string | number | undefined;
 }
 
 export interface ImportProfileMatch {
@@ -133,16 +134,20 @@ export interface CostBasisResult {
 export interface EtfPosition {
   symbol: string;
   ticker: string;
+  name: string;
   color: string;
   acc: boolean;
+  active: boolean;
   shares: number;
   cost: number;
-  costBasis: number;
+  divNet: number;
+  taxPaid: number;
+  buys: number;
   realizedPnL: number;
   totalFees: number;
-  divNet: number;
-  divTax: number;
   exited: boolean;
+  costBasis?: number;
+  divTax?: number;
 }
 
 // ─── Dividend history entry ──────────────────────────────────────

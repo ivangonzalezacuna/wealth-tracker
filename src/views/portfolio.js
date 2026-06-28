@@ -1,7 +1,7 @@
-import { fmt, fmtMon, esc, safeColor } from '../utils.js';
-import { getISIN_ORDERList, getMETAMap } from '../constants.js';
-import { getPrimaryInvestmentAccounts } from '../store/config.js';
-import { splitHoldings } from '../model/holdings.js';
+import { fmt, fmtMon, esc, safeColor } from '../utils';
+import { getISIN_ORDERList, getMETAMap } from '../constants';
+import { getPrimaryInvestmentAccounts } from '../store/config';
+import { splitHoldings } from '../model/holdings';
 import Chart from 'chart.js/auto';
 
 const CH = {};

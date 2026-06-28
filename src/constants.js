@@ -4,10 +4,10 @@
  * After loadConfig(), they return live data from the sheet.
  */
 
-import { CONFIG } from './config.js';
+import { CONFIG } from './config';
 import {
   isConfigLoaded, getACCTS, getISINMap, getMETA, getISIN_ORDER,
-} from './store/config.js';
+} from './store/config';
 
 // ISIN → ticker (live from store when loaded, else from static config)
 export function getISIN() {

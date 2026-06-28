@@ -1,4 +1,4 @@
-import { fmt, fmtDay, esc, safeColor } from '../utils.js';
+import { fmt, fmtDay, esc, safeColor } from '../utils';
 
 export function renderDividends(pd) {
   const hasPD  = !!pd;

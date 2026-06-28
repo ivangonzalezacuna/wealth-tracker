@@ -1,6 +1,6 @@
-import { getAccounts, getHoldings, getSettings, setAccounts, setHoldings, setSettings, setSetting, isConfigLoaded, getCostBasisMethod } from '../store/config.js';
-import { loadTransactions } from '../sheets/transactions.js';
-import { showMsg } from '../utils.js';
+import { getAccounts, getHoldings, getSettings, setAccounts, setHoldings, setSettings, setSetting, isConfigLoaded, getCostBasisMethod } from '../store/config';
+import { loadTransactions } from '../sheets/transactions';
+import { showMsg } from '../utils';
 
 /**
  * Render the Settings section — user-friendly forms for Accounts, Holdings, Settings.

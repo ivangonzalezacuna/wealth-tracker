@@ -1,5 +1,5 @@
-import { getACCTSList } from '../constants.js';
-import { snapTotal, fmt, fmtMon, esc } from '../utils.js';
+import { getACCTSList } from '../constants';
+import { snapTotal, fmt, fmtMon, esc } from '../utils';
 
 const PAGE_SIZE = 12;
 let _snapPage = 1;

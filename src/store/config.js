@@ -9,8 +9,8 @@
  *   ConfigHistory  — timestamp | device | entity | summary
  */
 
-import { readRange, writeRange, appendRows, ensureSheets } from '../sheets/api.js';
-import { CONFIG } from '../config.js';
+import { readRange, writeRange, appendRows, ensureSheets } from '../sheets/api';
+import { CONFIG } from '../config';
 
 // ── Sheet tab names ──────────────────────────────────────
 const TABS = {

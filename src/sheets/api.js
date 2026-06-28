@@ -3,7 +3,7 @@
  * All calls go through getToken() so auth is handled transparently.
  */
 
-import { getToken } from '../auth/google.js';
+import { getToken } from '../auth/google';
 
 const SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID;
 const BASE     = 'https://sheets.googleapis.com/v4/spreadsheets';

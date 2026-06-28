@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { computeCostBasis, _computeAvgCost, _computeFIFO } from './costbasis.js';
-import { TxType } from './tx.js';
+import { computeCostBasis, _computeAvgCost, _computeFIFO } from './costbasis';
+import { TxType } from './tx';
 
 /** Helper to build a minimal BUY transaction. */
 function buy(date, shares, amount, fee = 0) {

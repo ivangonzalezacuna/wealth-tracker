@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitHoldings } from './holdings.js';
+import { splitHoldings } from './holdings';
 
 describe('splitHoldings', () => {
   it('fully-sold ISIN lands in exited', () => {

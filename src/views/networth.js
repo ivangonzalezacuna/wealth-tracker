@@ -1,5 +1,5 @@
-import { snapTotal, fmt, fmtMon, esc, safeColor } from '../utils.js';
-import { getACCTSList } from '../constants.js';
+import { snapTotal, fmt, fmtMon, esc, safeColor } from '../utils';
+import { getACCTSList } from '../constants';
 import Chart from 'chart.js/auto';
 
 const CH = {};
