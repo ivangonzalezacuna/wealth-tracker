@@ -1,5 +1,5 @@
 import { getACCTSList } from '../constants.js';
-import { snapTotal, fmt, fmtMon } from '../utils.js';
+import { snapTotal, fmt, fmtMon, esc } from '../utils.js';
 
 const PAGE_SIZE = 12;
 let _snapPage = 1;
@@ -98,7 +98,7 @@ export function renderSnapList(snaps, onEdit, onDel) {
   const shown = ACCTS.slice(0, 3);
   el.innerHTML = `
     <div class="snap-row" style="color:#6b6a65;font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-bottom:6px">
-      <div>Month</div><div>Net worth</div>${shown.map(a => `<div>${a.label}</div>`).join('')}<div></div>
+      <div>Month</div><div>Net worth</div>${shown.map(a => `<div>${esc(a.label)}</div>`).join('')}<div></div>
     </div>
     ${pageItems.map(s => {
       const total = snapTotal(s);
@@ -111,7 +111,7 @@ export function renderSnapList(snaps, onEdit, onDel) {
           <button class="btn btn-sm btn-danger js-del-snap" data-date="${s.date}">✕</button>
         </div>
       </div>
-      ${s.notes ? `<div style="font-size:11px;color:#6b6a65;font-style:italic;padding:0 0 6px;border-bottom:1px solid #f1efe8">${s.notes}</div>` : ''}`;
+      ${s.notes ? `<div style="font-size:11px;color:#6b6a65;font-style:italic;padding:0 0 6px;border-bottom:1px solid #f1efe8">${esc(s.notes)}</div>` : ''}`;
     }).join('')}
   `;
 

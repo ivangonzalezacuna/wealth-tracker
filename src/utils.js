@@ -31,3 +31,9 @@ export function showMsg(elId, text, ok) {
   el.style.color = ok ? '#0F6E56' : '#A32D2D';
   if (ok) setTimeout(() => { el.textContent = ''; }, 3500);
 }
+
+/** Escape HTML special characters to prevent XSS via innerHTML. */
+export function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}

@@ -1,5 +1,6 @@
 import Chart from 'chart.js/auto';
 import { getHoldings, getTotalWeeklyTarget, getSettings } from '../store/config.js';
+import { esc } from '../utils.js';
 
 let refChart = null;
 
@@ -28,7 +29,7 @@ export function renderRef() {
   const legendEl = document.getElementById('ref-legend');
   if (legendEl) {
     legendEl.innerHTML = slices.map(s =>
-      `<span class="leg-item"><span class="leg-sq" style="background:${s.color}"></span>${s.ticker} ${s.pct}%</span>`
+      `<span class="leg-item"><span class="leg-sq" style="background:${s.color}"></span>${esc(s.ticker)} ${s.pct}%</span>`
     ).join('');
   }
 
@@ -68,8 +69,8 @@ export function renderRef() {
       closedEl.innerHTML = closed.map(h => {
         const successor = h.foldInto ? holdings.find(x => x.isin === h.foldInto) : null;
         const label = successor
-          ? `${h.ticker} → ${successor.ticker}`
-          : `${h.ticker} (closed)`;
+          ? `${esc(h.ticker)} → ${esc(successor.ticker)}`
+          : `${esc(h.ticker)} (closed)`;
         return `<div class="row"><div class="row-label">${label}</div><div class="row-val"><span class="badge b-closed">no new money</span></div></div>`;
       }).join('') +
       '<p class="note">These positions fade naturally as new contributions grow the active positions.</p>';
@@ -88,7 +89,7 @@ export function renderRef() {
         const idx = k.replace('rule_', '').replace('_label', '');
         const label = settings[k];
         const value = settings[`rule_${idx}_value`] || '';
-        return `<div class="row"><div class="row-label">${label}</div><div class="row-val">${value}</div></div>`;
+        return `<div class="row"><div class="row-label">${esc(label)}</div><div class="row-val">${esc(value)}</div></div>`;
       }).join('');
     } else {
       rulesEl.innerHTML = '<p class="note">No rules configured. Add rules in Settings.</p>';
