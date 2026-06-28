@@ -226,11 +226,18 @@ function attachHoldingListeners(root) {
         showMsg('holds-msg', 'No BUY transactions found. Import a CSV first.', false);
         return;
       }
-      // Extract unique ISIN→name mapping from transactions
+      // Determine cutoff: ISINs with buys in the last 3 months are "active"
+      const latestDate = buys.reduce((max, t) => t.date > max ? t.date : max, '');
+      const cutoff = subtractMonths(latestDate, 3);
+      // Extract unique ISIN→name mapping and track latest tx date per ISIN
       const isinMap = {};
+      const isinLatest = {};
       for (const tx of buys) {
         if (!isinMap[tx.symbol]) {
           isinMap[tx.symbol] = tx.name || '';
+        }
+        if (!isinLatest[tx.symbol] || tx.date > isinLatest[tx.symbol]) {
+          isinLatest[tx.symbol] = tx.date;
         }
       }
       // Merge with existing holdings (skip already-configured ISINs)
@@ -240,13 +247,14 @@ function attachHoldingListeners(root) {
       for (const [isin, name] of Object.entries(isinMap)) {
         if (existing.has(isin)) continue;
         const parsed = parseHoldingName(name, isin);
+        const isActive = (isinLatest[isin] || '') >= cutoff;
         holds.push({
           isin,
           ticker:      parsed.ticker,
           name:        '',
           color:       randomColor(),
           acc:         parsed.acc,
-          active:      true,
+          active:      isActive,
           weeklyTarget: 0,
           assetClass:  parsed.assetClass,
           region:      parsed.region,
@@ -571,4 +579,11 @@ function parseHoldingName(name, isin) {
   }
 
   return { ticker, acc, assetClass, region };
+}
+
+/** Subtract N months from a YYYY-MM-DD date string, returning YYYY-MM-DD. */
+function subtractMonths(dateStr, months) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setMonth(d.getMonth() - months);
+  return d.toISOString().slice(0, 10);
 }
