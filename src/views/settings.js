@@ -226,11 +226,11 @@ function attachHoldingListeners(root) {
         showMsg('holds-msg', 'No BUY transactions found. Import a CSV first.', false);
         return;
       }
-      // Extract unique ISIN→ticker mapping from transactions
+      // Extract unique ISIN→name mapping from transactions
       const isinMap = {};
       for (const tx of buys) {
         if (!isinMap[tx.symbol]) {
-          isinMap[tx.symbol] = tx.name || tx.symbol.slice(-4);
+          isinMap[tx.symbol] = tx.name || '';
         }
       }
       // Merge with existing holdings (skip already-configured ISINs)
@@ -239,20 +239,19 @@ function attachHoldingListeners(root) {
       let added = 0;
       for (const [isin, name] of Object.entries(isinMap)) {
         if (existing.has(isin)) continue;
-        // Derive ticker from the name (last word, or last 4 chars of ISIN)
-        const ticker = name.split(/\s+/).pop() || isin.slice(-4);
+        const parsed = parseHoldingName(name, isin);
         holds.push({
           isin,
-          ticker,
-          name: '',
-          color: randomColor(),
-          acc: true,
-          active: true,
+          ticker:      parsed.ticker,
+          name:        '',
+          color:       randomColor(),
+          acc:         parsed.acc,
+          active:      true,
           weeklyTarget: 0,
-          assetClass: 'equity',
-          region: 'developed',
-          foldInto: '',
-          order: holds.length + 1,
+          assetClass:  parsed.assetClass,
+          region:      parsed.region,
+          foldInto:    '',
+          order:       holds.length + 1,
         });
         added++;
       }
@@ -501,4 +500,75 @@ function randomColor() {
   else { r = c; g = 0; b = x; }
   const toHex = v => Math.round((v + m) * 255).toString(16).padStart(2, '0');
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+/**
+ * Parse an ETF name from a Trade Republic CSV to infer holding metadata.
+ * Typical names:
+ *   "iShares Core MSCI World UCITS ETF USD (Acc)"
+ *   "iShares Core MSCI EM IMI UCITS ETF USD (Acc)"
+ *   "iShares € Aggregate Bond UCITS ETF EUR (Dist)"
+ *   "Vanguard FTSE All-World UCITS ETF (USD) Accumulating"
+ *   "Xtrackers MSCI Emerging Markets UCITS ETF 1C"
+ */
+function parseHoldingName(name, isin) {
+  const upper = (name || '').toUpperCase();
+
+  // ── Acc vs Dist ──
+  // Check for explicit (Acc)/(Dist) or Accumulating/Distributing keywords
+  let acc = true; // default to accumulating
+  if (/\(DIST\)|DISTRIBUTING/i.test(name)) {
+    acc = false;
+  } else if (/\(ACC\)|ACCUMULATING/i.test(name)) {
+    acc = true;
+  }
+
+  // ── Asset class ──
+  let assetClass = 'equity';
+  if (/BOND|AGGREGATE|FIXED.?INCOME|TREASURY|GOVT/i.test(name)) {
+    assetClass = 'bond';
+  } else if (/REIT|REAL.?ESTATE|PROPERTY/i.test(name)) {
+    assetClass = 'reit';
+  } else if (/GOLD|COMMODITY|COMMODITIES/i.test(name)) {
+    assetClass = 'commodity';
+  }
+
+  // ── Region ──
+  let region = 'developed';
+  if (/EMERGING|EM IMI/i.test(name) || /\bEM\b/.test(upper)) {
+    region = 'emerging';
+  } else if (/ALL.?WORLD|ACWI/i.test(name)) {
+    region = 'global';
+  } else if (/EUROPE|EURO\b|STOXX|€/i.test(name)) {
+    region = 'europe';
+  } else if (/S&P.?500|NASDAQ|US\b|USA\b|AMERICA/i.test(name)) {
+    region = 'us';
+  } else if (/GLOBAL|AGGREGATE|WORLD/i.test(name)) {
+    region = 'global';
+  }
+
+  // ── Ticker ──
+  // Try to extract a recognizable ticker: the short word before "UCITS"
+  // or the word(s) right after the provider name that look like an index abbreviation
+  let ticker = isin.slice(-4); // fallback
+  // Strategy: find the word just before "UCITS" or "ETF" that looks like a ticker
+  // Common pattern: "iShares Core MSCI World UCITS ETF" → we want something meaningful
+  // Better: strip the provider prefix, strip "(Acc)"/"(Dist)", strip "UCITS ETF ..."
+  const cleaned = name
+    .replace(/\(Acc\)|\(Dist\)|Accumulating|Distributing/gi, '')
+    .replace(/UCITS\s+ETF.*/i, '')
+    .replace(/^(iShares|Vanguard|Xtrackers|Amundi|SPDR|Invesco|Lyxor|WisdomTree|UBS|HSBC|BNP)\s*(Core\s*)?/i, '')
+    .trim();
+  if (cleaned) {
+    // Build a compact ticker-like abbreviation from remaining words
+    const words = cleaned.split(/\s+/).filter(w => w.length > 0);
+    if (words.length <= 3) {
+      ticker = words.join(' ');
+    } else {
+      // Take initials of long names
+      ticker = words.map(w => w[0]).join('').toUpperCase();
+    }
+  }
+
+  return { ticker, acc, assetClass, region };
 }
