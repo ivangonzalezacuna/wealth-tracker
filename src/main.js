@@ -1,4 +1,6 @@
 import './styles.css';
+import { CONFIG } from './config.js';
+import { ACCTS } from './constants.js';
 import { appTemplate } from './template.js';
 import { getToken, signIn as gisSignIn, signOut, isSignedIn, trySilentSignIn } from './auth/google.js';
 import { loadSnapshots, saveSnapshots } from './sheets/snapshots.js';
@@ -152,15 +154,11 @@ async function saveSnapshot() {
   const date = document.getElementById('snap-date').value;
   if (!date) { showMsg('snap-msg', 'Please select a month.', false); return; }
 
-  const snap = {
-    date,
-    tr_portfolio: parseFloat(document.getElementById('snap-tr').value)     || 0,
-    tr_cash:      parseFloat(document.getElementById('snap-tr-cash').value) || 0,
-    n26:          parseFloat(document.getElementById('snap-n26').value)      || 0,
-    bav:          parseFloat(document.getElementById('snap-bav').value)      || 0,
-    avd:          parseFloat(document.getElementById('snap-avd').value)      || 0,
-    notes:        document.getElementById('snap-notes').value.trim(),
-  };
+  const snap = { date };
+  for (const a of ACCTS) {
+    snap[a.key] = parseFloat(document.getElementById(`snap-${a.key}`).value) || 0;
+  }
+  snap.notes = document.getElementById('snap-notes').value.trim();
 
   showMsg('snap-msg', 'Saving…', true);
   try {
@@ -179,13 +177,11 @@ async function saveSnapshot() {
 function editSnap(date) {
   const s = state.snaps.find(s => s.date === date);
   if (!s) return;
-  document.getElementById('snap-date').value     = s.date;
-  document.getElementById('snap-tr').value       = s.tr_portfolio || '';
-  document.getElementById('snap-tr-cash').value  = s.tr_cash      || '';
-  document.getElementById('snap-n26').value      = s.n26          || '';
-  document.getElementById('snap-bav').value      = s.bav          || '';
-  document.getElementById('snap-avd').value      = s.avd          || '';
-  document.getElementById('snap-notes').value    = s.notes        || '';
+  document.getElementById('snap-date').value  = s.date;
+  for (const a of ACCTS) {
+    document.getElementById(`snap-${a.key}`).value = s[a.key] || '';
+  }
+  document.getElementById('snap-notes').value = s.notes || '';
   showSection('log', document.querySelector('.nav button[data-section="log"]'));
   document.getElementById('snap-date')?.scrollIntoView({ behavior: 'smooth' });
 }
@@ -203,10 +199,12 @@ async function delSnap(date) {
 }
 
 function clearSnapForm() {
-  ['snap-tr','snap-tr-cash','snap-n26','snap-bav','snap-avd','snap-notes'].forEach(id => {
-    const el = document.getElementById(id);
+  for (const a of ACCTS) {
+    const el = document.getElementById(`snap-${a.key}`);
     if (el) el.value = '';
-  });
+  }
+  const notes = document.getElementById('snap-notes');
+  if (notes) notes.value = '';
 }
 
 // ── CSV import ────────────────────────────────────────────
@@ -266,7 +264,7 @@ function updateSub() {
   const el = document.getElementById('app-sub');
   if (el) el.textContent = parts.length > 0
     ? parts.join(' · ')
-    : 'ETF portfolio · N26 savings · Ginkgo bAV · Net worth tracker';
+    : CONFIG.app.subtitle;
 }
 
 // ── Render all ────────────────────────────────────────────

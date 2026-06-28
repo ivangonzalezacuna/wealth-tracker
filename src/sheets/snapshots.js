@@ -1,39 +1,34 @@
 /**
  * Snapshot persistence — one row per month in the "Snapshots" tab.
  *
- * Sheet layout (row 1 = header):
- * date | tr_portfolio | tr_cash | n26 | bav | avd | notes
+ * Columns are derived from your configured accounts:
+ *   date | <account keys…> | notes
+ *
+ * Reads by header name, so adding/removing accounts later never
+ * misaligns saved rows (missing cols read as 0).
  */
 
 import { readRange, writeRange, clearRange, ensureSheets } from './api.js';
-import { SHEET_TABS } from '../constants.js';
+import { SHEET_TABS, ACCTS } from '../constants.js';
 
-const TAB  = SHEET_TABS.SNAPSHOTS;
-const HDR  = ['date','tr_portfolio','tr_cash','n26','bav','avd','notes'];
-const RANGE = `${TAB}!A:G`;
+const TAB   = SHEET_TABS.SNAPSHOTS;
+const HDR   = ['date', ...ACCTS.map(a => a.key), 'notes'];
+const COLS  = HDR.length;
+const RANGE = `${TAB}!A:${String.fromCharCode(64 + COLS)}`;
 
-function rowToSnap(row) {
-  return {
-    date:         row[0] || '',
-    tr_portfolio: parseFloat(row[1]) || 0,
-    tr_cash:      parseFloat(row[2]) || 0,
-    n26:          parseFloat(row[3]) || 0,
-    bav:          parseFloat(row[4]) || 0,
-    avd:          parseFloat(row[5]) || 0,
-    notes:        row[6] || '',
-  };
+function rowToSnap(row, hdr) {
+  const snap = { date: row[hdr.indexOf('date')] || '' };
+  for (const a of ACCTS) {
+    const idx = hdr.indexOf(a.key);
+    snap[a.key] = idx >= 0 ? (parseFloat(row[idx]) || 0) : 0;
+  }
+  const ni = hdr.indexOf('notes');
+  snap.notes = ni >= 0 ? (row[ni] || '') : '';
+  return snap;
 }
 
 function snapToRow(s) {
-  return [
-    s.date,
-    s.tr_portfolio || 0,
-    s.tr_cash      || 0,
-    s.n26          || 0,
-    s.bav          || 0,
-    s.avd          || 0,
-    s.notes        || '',
-  ];
+  return [s.date, ...ACCTS.map(a => s[a.key] || 0), s.notes || ''];
 }
 
 /** Load all snapshots from the sheet, sorted ascending by date. */
@@ -41,11 +36,12 @@ export async function loadSnapshots() {
   await ensureSheets([TAB]);
   const rows = await readRange(RANGE);
   if (!rows.length) return [];
-  // Skip header row
-  const data = rows[0][0] === 'date' ? rows.slice(1) : rows;
+  // Use actual header from sheet for column mapping
+  const hdr = rows[0].map(c => (c || '').toString().trim().toLowerCase());
+  const data = rows.slice(1);
   return data
-    .filter(r => r[0])
-    .map(rowToSnap)
+    .filter(r => r[hdr.indexOf('date')])
+    .map(r => rowToSnap(r, hdr))
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 

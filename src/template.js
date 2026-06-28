@@ -1,8 +1,68 @@
+import { CONFIG } from './config.js';
+
+function refSection() {
+  const ta = CONFIG.targetAllocation;
+  const cp = CONFIG.closedPositions;
+  const rr = CONFIG.reinvestmentRules;
+
+  const legend = ta.slices.map(s =>
+    `<span class="leg-item"><span class="leg-sq" style="background:${s.color}"></span>${s.ticker} ${s.pct}%</span>`
+  ).join('\n          ');
+
+  const breakdown = ta.breakdown.map(b =>
+    `<div class="row"><div class="row-label">${b.label}</div><div class="row-val">${b.value}</div></div>`
+  ).join('\n        ');
+
+  const closedRows = cp.rows.map(r =>
+    `<div class="row"><div class="row-label">${r.label}</div><div class="row-val"><span class="badge b-closed">${r.badge}</span></div></div>`
+  ).join('\n    ');
+
+  const ruleRows = rr.rows.map(r =>
+    `<div class="row"><div class="row-label">${r.label}</div><div class="row-val">${r.value}</div></div>`
+  ).join('\n    ');
+
+  return `
+  <div class="card">
+    <div class="card-title">${ta.title}</div>
+    <div class="two-col" style="align-items:start">
+      <div>
+        <div class="legend" style="margin-bottom:.75rem">
+          ${legend}
+        </div>
+        <div class="chart-wrap" style="height:155px"><canvas id="c-ref-target"></canvas></div>
+      </div>
+      <div>
+        ${breakdown}
+        <p class="note">${ta.note}</p>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">${cp.title}</div>
+    ${closedRows}
+    <p class="note">${cp.note}</p>
+  </div>
+  <div class="card">
+    <div class="card-title">${rr.title}</div>
+    ${ruleRows}
+  </div>`;
+}
+
+function snapFormFields() {
+  return CONFIG.accounts.map(a => {
+    const hint = a.form.hint ? ` <span style="font-weight:400;color:#898781">${a.form.hint}</span>` : '';
+    return `<div class="form-group">
+          <label class="form-label">${a.form.label}${hint}</label>
+          <input type="number" id="snap-${a.key}" class="form-input" placeholder="${a.form.placeholder || ''}">
+        </div>`;
+  }).join('\n        ');
+}
+
 export function appTemplate() {
   return `
 <header>
-  <h1>Finance Dashboard</h1>
-  <div class="sub" id="app-sub">ETF portfolio · N26 savings · Ginkgo bAV · Net worth tracker</div>
+  <h1>${CONFIG.app.title}</h1>
+  <div class="sub" id="app-sub">${CONFIG.app.subtitle}</div>
   <div id="auth-bar">
     <span id="auth-status" class="auth-status"></span>
     <button id="btn-signout" class="btn btn-ghost btn-sm" style="display:none">Sign out</button>
@@ -95,9 +155,9 @@ export function appTemplate() {
         <div class="tbl"><div id="dca-table"></div></div>
       </div>
       <div class="card">
-        <div class="card-title">5-year projection (7% return, €200/wk target)</div>
+        <div class="card-title" id="dca-proj-title">5-year projection (7% return, €200/wk target)</div>
         <div class="chart-wrap" style="height:180px"><canvas id="c-dca-proj"></canvas></div>
-        <p class="note">Starting from latest TR portfolio value. Target €200/wk from there. Excludes taxes, fees, FX.</p>
+        <p class="note">Starting from latest TR portfolio value. Target €${CONFIG.projection.weeklyTarget}/wk from there. Excludes taxes, fees, FX.</p>
       </div>
     </div>
   </div>
@@ -125,44 +185,7 @@ export function appTemplate() {
 
 <!-- ════ REFERENCE ════ -->
 <div id="reference" class="section">
-  <div class="card">
-    <div class="card-title">Target allocation — steady state</div>
-    <div class="two-col" style="align-items:start">
-      <div>
-        <div class="legend" style="margin-bottom:.75rem">
-          <span class="leg-item"><span class="leg-sq" style="background:#2a78d6"></span>IWDA 45%</span>
-          <span class="leg-item"><span class="leg-sq" style="background:#1baf7a"></span>SUSW 15%</span>
-          <span class="leg-item"><span class="leg-sq" style="background:#eda100"></span>EIMI 20%</span>
-          <span class="leg-item"><span class="leg-sq" style="background:#4a3aa7"></span>AGGH 20%</span>
-        </div>
-        <div class="chart-wrap" style="height:155px"><canvas id="c-ref-target"></canvas></div>
-      </div>
-      <div>
-        <div class="row"><div class="row-label">Equity (IWDA + SUSW + EIMI)</div><div class="row-val">80%</div></div>
-        <div class="row"><div class="row-label">Bonds (AGGH)</div><div class="row-val">20%</div></div>
-        <div class="row"><div class="row-label">Developed equity</div><div class="row-val">60%</div></div>
-        <div class="row"><div class="row-label">Emerging equity</div><div class="row-val">20%</div></div>
-        <div class="row"><div class="row-label">EM as % of equity</div><div class="row-val">25%</div></div>
-        <p class="note">Weekly target: IWDA €90 · SUSW €30 · EIMI €40 · AGGH €40</p>
-      </div>
-    </div>
-  </div>
-  <div class="card">
-    <div class="card-title">Closed positions — diluting naturally</div>
-    <div class="row"><div class="row-label">IEEM → EIMI (both EM)</div><div class="row-val"><span class="badge b-closed">no new money</span></div></div>
-    <div class="row"><div class="row-label">IEAC → AGGH (both bonds)</div><div class="row-val"><span class="badge b-closed">no new money</span></div></div>
-    <div class="row"><div class="row-label">EIBX → AGGH (both bonds)</div><div class="row-val"><span class="badge b-closed">no new money</span></div></div>
-    <p class="note">No action needed — they fade toward &lt;1% as new contributions grow the active positions. Selling may trigger Abgeltungsteuer. Fold in only for a clean 4-fund portfolio.</p>
-  </div>
-  <div class="card">
-    <div class="card-title">Reinvestment rules</div>
-    <div class="row"><div class="row-label">Net pay raise → ETFs</div><div class="row-val">50%</div></div>
-    <div class="row"><div class="row-label">Net pay raise → bAV top-up (toward SV-frei ceiling)</div><div class="row-val">25%</div></div>
-    <div class="row"><div class="row-label">Net pay raise → lifestyle / buffer</div><div class="row-val">25%</div></div>
-    <div class="row"><div class="row-label">Rent decrease → ETFs</div><div class="row-val">60–70%</div></div>
-    <div class="row"><div class="row-label">bAV SV-frei ceiling (2026)</div><div class="row-val">€338 / month</div></div>
-    <div class="row"><div class="row-label">AVD start date</div><div class="row-val">January 2027</div></div>
-  </div>
+  ${refSection()}
 </div>
 
 <!-- ════ LOG ════ -->
@@ -206,26 +229,7 @@ export function appTemplate() {
           <label class="form-label">Notes (optional)</label>
           <input type="text" id="snap-notes" class="form-input" placeholder="e.g. catch-up done, got raise…">
         </div>
-        <div class="form-group">
-          <label class="form-label">TR ETF portfolio — total value (€)</label>
-          <input type="number" id="snap-tr" class="form-input" placeholder="TR home screen total">
-        </div>
-        <div class="form-group">
-          <label class="form-label">TR Cash / savings (€)</label>
-          <input type="number" id="snap-tr-cash" class="form-input" placeholder="0 if fully invested">
-        </div>
-        <div class="form-group">
-          <label class="form-label">N26 — total balance (€) <span style="font-weight:400;color:#898781">current + savings</span></label>
-          <input type="number" id="snap-n26" class="form-input" placeholder="N26 current + savings">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Ginkgo bAV (€)</label>
-          <input type="number" id="snap-bav" class="form-input" placeholder="from Ginkgo statement">
-        </div>
-        <div class="form-group">
-          <label class="form-label">AVD (€) — optional</label>
-          <input type="number" id="snap-avd" class="form-input" placeholder="when set up Jan 2027">
-        </div>
+        ${snapFormFields()}
       </div>
       <div style="display:flex;align-items:center;gap:14px;margin-top:.25rem">
         <button class="btn btn-primary" id="btn-save-snap">Save snapshot</button>

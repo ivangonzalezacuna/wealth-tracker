@@ -1,3 +1,4 @@
+import { ACCTS } from '../constants.js';
 import { snapTotal, fmt, fmtMon } from '../utils.js';
 
 export function renderLog(state) {
@@ -22,19 +23,19 @@ export function renderSnapList(snaps, onEdit, onDel) {
     el.innerHTML = '<div class="empty-state" style="padding:1.5rem;font-size:13px">No snapshots yet — add your first one above.</div>';
     return;
   }
+  // Show first 3 accounts in the compact table header
+  const shown = ACCTS.slice(0, 3);
   const sorted = [...snaps].reverse();
   el.innerHTML = `
     <div class="snap-row" style="color:#898781;font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-bottom:6px">
-      <div>Month</div><div>Net worth</div><div>TR ETF</div><div>N26</div><div>bAV</div><div></div>
+      <div>Month</div><div>Net worth</div>${shown.map(a => `<div>${a.label}</div>`).join('')}<div></div>
     </div>
     ${sorted.map(s => {
       const total = snapTotal(s);
       return `<div class="snap-row" data-date="${s.date}">
         <div style="font-weight:500;font-size:12px">${fmtMon(s.date)}</div>
         <div style="font-weight:500">${fmt(total)}</div>
-        <div style="color:#52514e">${s.tr_portfolio ? fmt(s.tr_portfolio) : '—'}</div>
-        <div style="color:#52514e">${s.n26 ? fmt(s.n26) : '—'}</div>
-        <div style="color:#52514e">${s.bav ? fmt(s.bav) : '—'}</div>
+        ${shown.map(a => `<div style="color:#52514e">${s[a.key] ? fmt(s[a.key]) : '—'}</div>`).join('')}
         <div class="snap-btns">
           <button class="btn btn-sm btn-outline js-edit-snap" data-date="${s.date}">Edit</button>
           <button class="btn btn-sm btn-danger js-del-snap" data-date="${s.date}">✕</button>
