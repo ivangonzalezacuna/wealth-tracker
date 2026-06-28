@@ -5,7 +5,7 @@ import { appTemplate } from './template.js';
 import { getToken, signIn as gisSignIn, signOut, isSignedIn, trySilentSignIn } from './auth/google.js';
 import { loadSnapshots, saveSnapshots } from './sheets/snapshots.js';
 import { loadTransactions, mergeTransactions, saveImportMeta, loadImportMeta } from './sheets/transactions.js';
-import { loadConfig, onConfigChange } from './store/config.js';
+import { loadConfig, onConfigChange, getCostBasisMethod } from './store/config.js';
 import { computePD } from './portfolio.js';
 import { parseCSV } from './csv.js';
 import { renderNW } from './views/networth.js';
@@ -117,8 +117,12 @@ async function loadAllData() {
     state.snaps      = snaps;
     state.txs        = txs;
     state.importMeta = meta;
-    state.pd         = txs.length ? computePD(txs) : null;
-    onConfigChange(() => renderAll());
+    state.pd         = txs.length ? computePD(txs, { method: getCostBasisMethod() }) : null;
+    onConfigChange(() => {
+      // Re-compute with potentially changed cost basis method
+      if (state.txs.length) state.pd = computePD(state.txs, { method: getCostBasisMethod() });
+      renderAll();
+    });
     renderAll();
     setSyncStatus('ok');
   } catch (err) {
@@ -263,7 +267,7 @@ async function handleCSVFile(file) {
       await saveImportMeta(today);
       state.txs        = merged;
       state.importMeta = { last_import: today };
-      state.pd         = computePD(merged);
+      state.pd         = computePD(merged, { method: getCostBasisMethod() });
       showMsg('import-msg', `✓ ${merged.length} transactions synced to Google Sheets`, true);
       renderAll();
     } catch (err) {
