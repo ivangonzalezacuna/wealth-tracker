@@ -1,17 +1,24 @@
 /**
  * Transaction persistence — stores parsed CSV rows in "Transactions" tab.
- * On re-import, deduplicates by transaction_id.
+ * On re-import, deduplicates by transaction key and appends only new rows.
+ * Never clears/rewrites — append-only to prevent data loss on partial failures.
  *
  * Sheet layout (row 1 = header):
  * id | date | category | type | name | symbol | shares | price | amount | tax
  */
 
-import { readRange, writeRange, clearRange, ensureSheets } from './api.js';
+import { readRange, writeRange, appendRows, ensureSheets } from './api.js';
 import { SHEET_TABS } from '../constants.js';
 
 const TAB   = SHEET_TABS.TRANSACTIONS;
 const HDR   = ['id','date','category','type','name','symbol','shares','price','amount','tax'];
 const RANGE = `${TAB}!A:J`;
+
+/** Build a deduplication key for a transaction. Uses id when present,
+ *  otherwise a delimited composite to avoid same-day/same-amount collisions. */
+function txKey(t) {
+  return t.id || `${t.date}|${t.type}|${t.symbol}|${t.amount}`;
+}
 
 function rowToTx(row) {
   return {
@@ -43,21 +50,25 @@ export async function loadTransactions() {
 }
 
 /**
- * Merge new transactions with existing ones (dedup by id).
- * Saves full merged set back to sheet.
- * Returns total count after merge.
+ * Merge new transactions with existing ones (append-only, never clears).
+ * Deduplicates using txKey — only genuinely new rows are appended.
+ * Returns the full merged set sorted by date.
  */
 export async function mergeTransactions(existing, incoming) {
-  const seen = new Map(existing.map(t => [t.id || t.date + t.amount, t]));
-  for (const t of incoming) {
-    const key = t.id || t.date + t.amount;
-    seen.set(key, t);
+  const seen = new Set(existing.map(txKey));
+  const newTxs = incoming.filter(t => !seen.has(txKey(t)));
+
+  if (newTxs.length > 0) {
+    await ensureSheets([TAB]);
+    // Ensure header exists if sheet is empty
+    if (existing.length === 0) {
+      await writeRange(`${TAB}!A1`, [HDR]);
+    }
+    const sortedNew = [...newTxs].sort((a, b) => a.date.localeCompare(b.date));
+    await appendRows(RANGE, sortedNew.map(txToRow));
   }
-  const merged = [...seen.values()].sort((a, b) => a.date.localeCompare(b.date));
-  await ensureSheets([TAB]);
-  await clearRange(RANGE);
-  const values = [HDR, ...merged.map(txToRow)];
-  await writeRange(`${TAB}!A1`, values);
+
+  const merged = [...existing, ...newTxs].sort((a, b) => a.date.localeCompare(b.date));
   return merged;
 }
 
