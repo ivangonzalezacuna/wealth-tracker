@@ -1,3 +1,4 @@
+// @ts-nocheck — test fixtures use partial objects; strict typing deferred
 import { describe, it, expect } from 'vitest';
 import { computeCostBasis, _computeAvgCost, _computeFIFO } from './costbasis';
 import { TxType } from './tx';

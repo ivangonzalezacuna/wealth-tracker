@@ -1,6 +1,6 @@
 import { CONFIG } from './config';
 
-export function appTemplate() {
+export function appTemplate(): string {
   return `
 <header>
   <h1>${CONFIG.app.title}</h1>

@@ -11,12 +11,10 @@
 
 import { readRange, writeRange, appendRows, ensureSheets } from '../sheets/api';
 import { CONFIG } from '../config';
+import type { StaticAccount, StaticHolding, TargetSlice } from '../config';
 import type { Account, Holding, Settings } from '../types';
 
-// Type assertions for static CONFIG (arrays are empty by default, typed for migration logic)
-interface StaticAccount { key: string; label: string; color: string }
-interface StaticHolding { isin: string; ticker: string; color: string; acc: boolean; active: boolean }
-interface TargetSlice { ticker: string; pct: number }
+// Type for reinvestment rules from static config
 interface ReinvestmentRule { label: string; value: string }
 
 // ── Sheet tab names ──────────────────────────────────────
@@ -241,10 +239,10 @@ function parseSettings(rows: string[][]): Settings {
 // ── First-run migration ──────────────────────────────────
 
 async function seedFromConfig(): Promise<void> {
-  const staticAccounts = CONFIG.accounts as StaticAccount[];
-  const staticHoldings = CONFIG.holdings as StaticHolding[];
-  const slices = (CONFIG.targetAllocation?.slices || []) as TargetSlice[];
-  const rules = (CONFIG.reinvestmentRules?.rows || []) as ReinvestmentRule[];
+  const staticAccounts = CONFIG.accounts;
+  const staticHoldings = CONFIG.holdings;
+  const slices = CONFIG.targetAllocation?.slices || [];
+  const rules = CONFIG.reinvestmentRules?.rows || [];
 
   // Seed Accounts from CONFIG.accounts (preserving existing keys as ids)
   const accounts: Account[] = staticAccounts.map((a, i) => ({

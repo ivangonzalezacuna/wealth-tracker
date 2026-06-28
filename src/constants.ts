@@ -5,26 +5,13 @@
  */
 
 import { CONFIG } from './config';
+import type { StaticHolding, StaticAccount } from './config';
 import {
   isConfigLoaded, getACCTS, getISINMap, getMETA, getISIN_ORDER,
 } from './store/config';
 
-interface StaticHolding {
-  isin: string;
-  ticker: string;
-  color: string;
-  acc: boolean;
-  active: boolean;
-}
-
-interface StaticAccount {
-  key: string;
-  label: string;
-  color: string;
-}
-
-const holdings = CONFIG.holdings as StaticHolding[];
-const accounts = CONFIG.accounts as StaticAccount[];
+const holdings: StaticHolding[] = CONFIG.holdings;
+const accounts: StaticAccount[] = CONFIG.accounts;
 
 interface HoldingMeta {
   color: string;

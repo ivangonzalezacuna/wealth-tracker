@@ -10,7 +10,47 @@
  *  them empty and configure everything through the Settings UI after sign-in.
  */
 
-export const CONFIG = {
+export interface StaticAccountForm {
+  label: string;
+  placeholder: string;
+}
+
+export interface StaticAccount {
+  key: string;
+  label: string;
+  color: string;
+  form: StaticAccountForm;
+}
+
+export interface StaticHolding {
+  isin: string;
+  ticker: string;
+  color: string;
+  acc: boolean;
+  active: boolean;
+  weeklyTarget?: number;
+  assetClass?: string;
+  region?: string;
+  foldInto?: string;
+}
+
+export interface TargetSlice {
+  isin?: string;
+  ticker?: string;
+  pct: number;
+}
+
+export interface AppConfig {
+  app: { title: string; subtitle: string };
+  accounts: StaticAccount[];
+  holdings: StaticHolding[];
+  targetAllocation: { slices: TargetSlice[] };
+  closedPositions: { rows: { from: string; to: string }[] };
+  reinvestmentRules: { rows: { label: string; value: string }[] };
+  projection: { annualReturnPct: number; weeklyTarget: number };
+}
+
+export const CONFIG: AppConfig = {
   // ── App header ─────────────────────────────────────────────
   app: {
     title:    'Finance Dashboard',

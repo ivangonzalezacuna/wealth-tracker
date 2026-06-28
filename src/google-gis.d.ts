@@ -24,6 +24,7 @@ declare namespace google.accounts.oauth2 {
   }
 
   interface TokenClient {
+    callback: (response: TokenResponse) => void;
     requestAccessToken(overrideConfig?: { prompt?: string }): void;
   }
 
