@@ -1,10 +1,11 @@
 import './styles.css';
 import { CONFIG } from './config.js';
-import { ACCTS } from './constants.js';
+import { getACCTSList } from './constants.js';
 import { appTemplate } from './template.js';
 import { getToken, signIn as gisSignIn, signOut, isSignedIn, trySilentSignIn } from './auth/google.js';
 import { loadSnapshots, saveSnapshots } from './sheets/snapshots.js';
 import { loadTransactions, mergeTransactions, saveImportMeta, loadImportMeta } from './sheets/transactions.js';
+import { loadConfig, onConfigChange } from './store/config.js';
 import { computePD } from './portfolio.js';
 import { parseCSV } from './csv.js';
 import { renderNW } from './views/networth.js';
@@ -12,8 +13,9 @@ import { renderPortfolio } from './views/portfolio.js';
 import { renderDCA } from './views/contributions.js';
 import { renderDividends } from './views/dividends.js';
 import { renderRef } from './views/reference.js';
+import { renderSettings } from './views/settings.js';
 import { renderLog } from './views/log.js';
-import { snapTotal, fmtMon, showMsg } from './utils.js';
+import { snapTotal, fmtMon, showMsg, esc } from './utils.js';
 
 // ── App state ────────────────────────────────────────────
 const state = {
@@ -53,6 +55,7 @@ function showSection(id, btn) {
   btn?.classList.add('active');
   // Render reference chart on demand (canvas must be visible)
   if (id === 'reference') renderRef();
+  if (id === 'settings') renderSettings();
 }
 
 // ── Auth ─────────────────────────────────────────────────
@@ -105,7 +108,8 @@ function setAuthStatus(msg, isErr = false) {
 async function loadAllData() {
   setSyncStatus('loading');
   try {
-    const [snaps, txs, meta] = await Promise.all([
+    const [, snaps, txs, meta] = await Promise.all([
+      loadConfig(),
       loadSnapshots(),
       loadTransactions(),
       loadImportMeta(),
@@ -114,6 +118,7 @@ async function loadAllData() {
     state.txs        = txs;
     state.importMeta = meta;
     state.pd         = txs.length ? computePD(txs) : null;
+    onConfigChange(() => renderAll());
     renderAll();
     setSyncStatus('ok');
   } catch (err) {
@@ -151,16 +156,21 @@ async function saveSnapshot() {
     showMsg('snap-msg', 'Please sign in first.', false);
     return;
   }
+  if (state.syncing) {
+    showMsg('snap-msg', 'A save is already in progress.', false);
+    return;
+  }
   const date = document.getElementById('snap-date').value;
   if (!date) { showMsg('snap-msg', 'Please select a month.', false); return; }
 
   const snap = { date };
-  for (const a of ACCTS) {
+  for (const a of getACCTSList()) {
     snap[a.key] = parseFloat(document.getElementById(`snap-${a.key}`).value) || 0;
   }
   snap.notes = document.getElementById('snap-notes').value.trim();
 
   showMsg('snap-msg', 'Saving…', true);
+  state.syncing = true;
   try {
     const idx = state.snaps.findIndex(s => s.date === date);
     if (idx >= 0) state.snaps[idx] = snap;
@@ -171,6 +181,8 @@ async function saveSnapshot() {
     renderAll();
   } catch (err) {
     showMsg('snap-msg', 'Error: ' + err.message, false);
+  } finally {
+    state.syncing = false;
   }
 }
 
@@ -178,7 +190,7 @@ function editSnap(date) {
   const s = state.snaps.find(s => s.date === date);
   if (!s) return;
   document.getElementById('snap-date').value  = s.date;
-  for (const a of ACCTS) {
+  for (const a of getACCTSList()) {
     document.getElementById(`snap-${a.key}`).value = s[a.key] || '';
   }
   document.getElementById('snap-notes').value = s.notes || '';
@@ -188,18 +200,22 @@ function editSnap(date) {
 
 async function delSnap(date) {
   if (!isSignedIn()) return;
+  if (state.syncing) return;
   if (!confirm(`Delete snapshot for ${fmtMon(date)}?`)) return;
   state.snaps = state.snaps.filter(s => s.date !== date);
+  state.syncing = true;
   try {
     await saveSnapshots(state.snaps);
     renderAll();
   } catch (err) {
     showMsg('snap-msg', 'Delete failed: ' + err.message, false);
+  } finally {
+    state.syncing = false;
   }
 }
 
 function clearSnapForm() {
-  for (const a of ACCTS) {
+  for (const a of getACCTSList()) {
     const el = document.getElementById(`snap-${a.key}`);
     if (el) el.value = '';
   }
@@ -232,9 +248,14 @@ async function handleCSVFile(file) {
     showMsg('import-msg', 'Please sign in before importing.', false);
     return;
   }
+  if (state.syncing) {
+    showMsg('import-msg', 'A sync is already in progress.', false);
+    return;
+  }
   showMsg('import-msg', 'Parsing…', true);
   const reader = new FileReader();
   reader.onload = async e => {
+    state.syncing = true;
     try {
       const parsed  = parseCSV(e.target.result);
       const merged  = await mergeTransactions(state.txs, parsed);
@@ -247,6 +268,8 @@ async function handleCSVFile(file) {
       renderAll();
     } catch (err) {
       showMsg('import-msg', 'Error: ' + err.message, false);
+    } finally {
+      state.syncing = false;
     }
   };
   reader.readAsText(file, 'UTF-8');
@@ -267,8 +290,30 @@ function updateSub() {
     : CONFIG.app.subtitle;
 }
 
+// ── Snapshot form (dynamic account fields) ────────────────
+function renderSnapForm() {
+  const el = document.getElementById('snap-acct-fields');
+  if (!el) return;
+  const accts = getACCTSList();
+  if (accts.length === 0) {
+    el.innerHTML = '<p class="note">No accounts configured yet. Add accounts in the <a href="#" data-goto="settings" class="goto-settings">Settings</a> tab.</p>';
+    el.querySelector('.goto-settings')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      showSection('settings', document.querySelector('.nav button[data-section="settings"]'));
+    });
+    return;
+  }
+  el.innerHTML = accts.map(a => `
+    <div class="form-group">
+      <label class="form-label">${esc(a.label)} (€)</label>
+      <input type="number" id="snap-${esc(a.key)}" class="form-input" placeholder="total value">
+    </div>
+  `).join('');
+}
+
 // ── Render all ────────────────────────────────────────────
 function renderAll() {
+  renderSnapForm();
   renderNW(state.snaps);
   renderPortfolio(state.pd, state.snaps);
   renderDCA(state.pd, state.snaps);

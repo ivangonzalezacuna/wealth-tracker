@@ -1,43 +1,33 @@
 /**
  * ─────────────────────────────────────────────────────────────
- *  USER CONFIGURATION  —  edit this file, nothing else.
+ *  STATIC DEFAULTS — used before the config store loads from Google Sheets.
  * ─────────────────────────────────────────────────────────────
- *  Everything personal lives here: your accounts, your holdings,
- *  your target allocation and your reference notes. The rest of
- *  the app derives from this object, so adapting the dashboard to
- *  a different person means changing only this file.
+ *  On first sign-in, the config store seeds its sheet tabs from these values.
+ *  After that, all data lives in the Accounts / Holdings / Settings sheets
+ *  and is managed via the Settings UI tab.
  *
- *  The defaults below reproduce the original setup exactly.
+ *  You can add example accounts/holdings here for initial setup, or leave
+ *  them empty and configure everything through the Settings UI after sign-in.
  */
 
 export const CONFIG = {
   // ── App header ─────────────────────────────────────────────
   app: {
     title:    'Finance Dashboard',
-    subtitle: 'ETF portfolio · N26 savings · Ginkgo bAV · Net worth tracker',
+    subtitle: 'ETF portfolio · Net worth tracker',
   },
 
   // ── Accounts tracked in each monthly snapshot ──────────────
-  //  key   — stable id; also the column name in the Snapshots sheet.
-  //          Safe to add/remove accounts later. Avoid RENAMING a key
-  //          once data exists (rename = new column = old data ignored).
+  //  key   — stable id; column name in the Snapshots sheet.
   //  label — shown in the UI and charts.
   //  color — chart colour.
-  //  form  — how the input renders on the Log tab:
-  //            label       (defaults to "<label> (€)")
-  //            hint        (small grey text after the label, optional)
-  //            placeholder (input placeholder, optional)
+  //  form  — how the input renders on the Log tab.
   accounts: [
-    { key: 'tr_portfolio', label: 'TR ETF', color: '#2a78d6',
-      form: { label: 'TR ETF portfolio — total value (€)', placeholder: 'TR home screen total' } },
-    { key: 'n26', label: 'N26', color: '#1baf7a',
-      form: { label: 'N26 — total balance (€)', hint: 'current + savings', placeholder: 'N26 current + savings' } },
-    { key: 'bav', label: 'bAV', color: '#eda100',
-      form: { label: 'Ginkgo bAV (€)', placeholder: 'from Ginkgo statement' } },
-    { key: 'avd', label: 'AVD', color: '#4a3aa7',
-      form: { label: 'AVD (€) — optional', placeholder: 'when set up Jan 2027' } },
-    { key: 'tr_cash', label: 'TR Cash', color: '#e87ba4',
-      form: { label: 'TR Cash / savings (€)', placeholder: '0 if fully invested' } },
+    // Example:
+    // { key: 'broker_etf', label: 'Broker ETF', color: '#2a78d6',
+    //   form: { label: 'Broker ETF portfolio (€)', placeholder: 'total value' } },
+    // { key: 'savings', label: 'Savings', color: '#1baf7a',
+    //   form: { label: 'Savings account (€)', placeholder: 'balance' } },
   ],
 
   // ── Holdings: map each ISIN to display metadata ────────────
@@ -45,61 +35,28 @@ export const CONFIG = {
   //  acc    — accumulating (true) vs distributing (false)
   //  active — receiving new contributions (true) vs closed (false)
   holdings: [
-    { isin: 'IE00B4L5Y983', ticker: 'IWDA', color: '#2a78d6', acc: true,  active: true  },
-    { isin: 'IE00BYX2JD69', ticker: 'SUSW', color: '#1baf7a', acc: true,  active: true  },
-    { isin: 'IE00BKM4GZ66', ticker: 'EIMI', color: '#eda100', acc: true,  active: true  },
-    { isin: 'IE00BDBRDM35', ticker: 'AGGH', color: '#4a3aa7', acc: true,  active: true  },
-    { isin: 'IE00B0M63177', ticker: 'IEEM', color: '#e34948', acc: false, active: false },
-    { isin: 'IE00B3F81R35', ticker: 'IEAC', color: '#e87ba4', acc: false, active: false },
-    { isin: 'IE00BGJWWW40', ticker: 'EIBX', color: '#eb6834', acc: false, active: false },
+    // Example:
+    // { isin: 'IE00B4L5Y983', ticker: 'IWDA', color: '#2a78d6', acc: true, active: true },
   ],
 
-  // ── Reference tab: target allocation (steady state) ────────
+  // ── Target allocation (used by first-run migration only) ───
   targetAllocation: {
-    title: 'Target allocation — steady state',
-    slices: [
-      { ticker: 'IWDA', pct: 45, color: '#2a78d6' },
-      { ticker: 'SUSW', pct: 15, color: '#1baf7a' },
-      { ticker: 'EIMI', pct: 20, color: '#eda100' },
-      { ticker: 'AGGH', pct: 20, color: '#4a3aa7' },
-    ],
-    breakdown: [
-      { label: 'Equity (IWDA + SUSW + EIMI)', value: '80%' },
-      { label: 'Bonds (AGGH)',                value: '20%' },
-      { label: 'Developed equity',            value: '60%' },
-      { label: 'Emerging equity',             value: '20%' },
-      { label: 'EM as % of equity',           value: '25%' },
-    ],
-    note: 'Weekly target: IWDA €90 · SUSW €30 · EIMI €40 · AGGH €40',
+    slices: [],
   },
 
-  // ── Reference tab: closed / diluting positions ─────────────
+  // ── Closed positions (migrated to Holdings foldInto field) ─
   closedPositions: {
-    title: 'Closed positions — diluting naturally',
-    rows: [
-      { label: 'IEEM → EIMI (both EM)',    badge: 'no new money' },
-      { label: 'IEAC → AGGH (both bonds)', badge: 'no new money' },
-      { label: 'EIBX → AGGH (both bonds)', badge: 'no new money' },
-    ],
-    note: 'No action needed — they fade toward below 1% as new contributions grow the active positions. Selling may trigger Abgeltungsteuer. Fold in only for a clean 4-fund portfolio.',
+    rows: [],
   },
 
-  // ── Reference tab: reinvestment rules / key facts ──────────
+  // ── Reinvestment rules (migrated to Settings key-value) ────
   reinvestmentRules: {
-    title: 'Reinvestment rules',
-    rows: [
-      { label: 'Net pay raise → ETFs',                                value: '50%' },
-      { label: 'Net pay raise → bAV top-up (toward SV-frei ceiling)', value: '25%' },
-      { label: 'Net pay raise → lifestyle / buffer',                  value: '25%' },
-      { label: 'Rent decrease → ETFs',                                value: '60–70%' },
-      { label: 'bAV SV-frei ceiling (2026)',                          value: '€338 / month' },
-      { label: 'AVD start date',                                      value: 'January 2027' },
-    ],
+    rows: [],
   },
 
-  // ── Contributions tab: 5-year projection assumptions ───────
+  // ── 5-year projection assumptions ─────────────────────────
   projection: {
-    annualReturnPct: 7,    // assumed annual return, %
-    weeklyTarget:    200,  // long-term target contribution, € / week
+    annualReturnPct: 7,
+    weeklyTarget:    200,
   },
 };

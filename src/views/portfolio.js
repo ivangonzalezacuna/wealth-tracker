@@ -1,23 +1,37 @@
 import { fmt, fmtMon } from '../utils.js';
-import { ISIN_ORDER, META } from '../constants.js';
+import { getISIN_ORDERList, getMETAMap } from '../constants.js';
+import { getPrimaryInvestmentAccounts } from '../store/config.js';
 import Chart from 'chart.js/auto';
 
 const CH = {};
 
+/** Get the current market value of the primary investment account from a snapshot. */
+function getPrimaryInvestmentValue(snap) {
+  if (!snap) return null;
+  const primAccts = getPrimaryInvestmentAccounts();
+  if (primAccts.length > 0) {
+    return primAccts.reduce((sum, a) => sum + (snap[a.id] || 0), 0) || null;
+  }
+  // Fallback: look for any account with moneyType 'investment'
+  return null;
+}
+
 export function renderPortfolio(pd, snaps) {
+  const ISIN_ORDER = getISIN_ORDERList();
+  const META = getMETAMap();
   const has = pd && Object.keys(pd.etfs).length > 0;
   document.getElementById('port-empty').style.display   = has ? 'none'  : 'block';
   document.getElementById('port-content').style.display = has ? 'block' : 'none';
   if (!has) return;
 
   const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
-  const curVal  = latSnap ? (latSnap.tr_portfolio || 0) : null;
+  const curVal  = getPrimaryInvestmentValue(latSnap);
   const gain    = curVal !== null ? curVal - pd.totalInv : null;
   const gainPct = gain !== null && pd.totalInv > 0 ? gain / pd.totalInv * 100 : null;
 
   document.getElementById('port-kpis').innerHTML = `
     <div class="kpi"><div class="kpi-label">Total invested</div><div class="kpi-val">${fmt(pd.totalInv)}</div><div class="kpi-sub">exact from CSV</div></div>
-    <div class="kpi"><div class="kpi-label">Current TR value</div>
+    <div class="kpi"><div class="kpi-label">Current value</div>
       <div class="kpi-val">${curVal !== null ? fmt(curVal) : '—'}</div>
       <div class="kpi-sub">${curVal !== null ? 'from ' + fmtMon(latSnap.date) + ' snapshot' : 'add a snapshot'}</div></div>
     <div class="kpi"><div class="kpi-label">Total gain</div>
@@ -38,7 +52,7 @@ export function renderPortfolio(pd, snaps) {
         <span style="font-weight:500;font-size:12px">${e.ticker}</span>
         <span class="badge ${m.active ? 'b-active' : 'b-closed'}" style="margin-left:4px">${m.active ? 'active' : 'closed'}</span>
         <span class="badge ${e.acc ? 'b-acc' : 'b-dist'}" style="margin-left:4px">${e.acc ? 'Acc' : 'Dist'}</span>
-        <div style="font-size:11px;color:#898781">${e.symbol}</div>
+        <div style="font-size:11px;color:#6b6a65">${e.symbol}</div>
       </div>
       <div><div style="font-weight:500">${fmt(e.cost)}</div>
         <div class="bar-wrap" style="max-width:80px"><div class="bar-fill" style="width:${pct.toFixed(0)}%;background:${e.color}"></div></div>
@@ -46,7 +60,7 @@ export function renderPortfolio(pd, snaps) {
       <div style="color:#52514e">${e.shares.toFixed(4)}</div>
       <div style="color:#52514e">${avg > 0 ? '€' + avg.toFixed(2) : '—'}</div>
       <div style="color:#52514e">${pct.toFixed(1)}%</div>
-      <div style="color:${e.divNet > 0 ? '#0F6E56' : '#898781'}">${e.divNet > 0 ? fmt(e.divNet, 2) : '—'}</div>
+      <div style="color:${e.divNet > 0 ? '#0F6E56' : '#6b6a65'}">${e.divNet > 0 ? fmt(e.divNet, 2) : '—'}</div>
     </div>`;
   }).join('');
 
@@ -79,7 +93,7 @@ export function renderPortfolio(pd, snaps) {
     <div class="row"><div class="row-label">Total invested</div><div class="row-val">${fmt(pd.totalInv)}</div></div>
     <div class="row"><div class="row-label">Dividends (net)</div><div class="row-val ok">${fmt(pd.totalDivNet, 2)}</div></div>
     <div class="row"><div class="row-label">Tax withheld on dividends</div><div class="row-val">${fmt(pd.totalTax, 2)}</div></div>
-    <div class="row"><div class="row-label">TR interest earned</div><div class="row-val ok">${fmt(pd.totalInterest, 2)}</div></div>
+    <div class="row"><div class="row-label">Interest earned</div><div class="row-val ok">${fmt(pd.totalInterest, 2)}</div></div>
     ${gain !== null ? `<div class="row" style="border-top:1px solid #d3d1c7;margin-top:4px">
       <div class="row-label" style="font-weight:500">Portfolio gain</div>
       <div class="row-val ${gain >= 0 ? 'pos' : 'neg'}" style="font-weight:500">

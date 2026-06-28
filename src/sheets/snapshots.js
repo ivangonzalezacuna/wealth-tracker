@@ -11,10 +11,21 @@
 import { readRange, writeRange, clearRange, ensureSheets } from './api.js';
 import { SHEET_TABS, ACCTS } from '../constants.js';
 
+/** Convert a 1-based column index to A1-notation letters (1→A, 26→Z, 27→AA, etc.) */
+function colLetter(n) {
+  let s = '';
+  while (n > 0) {
+    n--;
+    s = String.fromCharCode(65 + (n % 26)) + s;
+    n = Math.floor(n / 26);
+  }
+  return s;
+}
+
 const TAB   = SHEET_TABS.SNAPSHOTS;
 const HDR   = ['date', ...ACCTS.map(a => a.key), 'notes'];
 const COLS  = HDR.length;
-const RANGE = `${TAB}!A:${String.fromCharCode(64 + COLS)}`;
+const RANGE = `${TAB}!A:${colLetter(COLS)}`;
 
 function rowToSnap(row, hdr) {
   const snap = { date: row[hdr.indexOf('date')] || '' };

@@ -1,10 +1,11 @@
-import { snapTotal, fmt, fmtMon } from '../utils.js';
-import { ACCTS } from '../constants.js';
+import { snapTotal, fmt, fmtMon, esc, safeColor } from '../utils.js';
+import { getACCTSList } from '../constants.js';
 import Chart from 'chart.js/auto';
 
 const CH = {};
 
 export function renderNW(snaps) {
+  const ACCTS = getACCTSList();
   const has = snaps.length > 0;
   document.getElementById('nw-empty').style.display   = has ? 'none'  : 'block';
   document.getElementById('nw-content').style.display = has ? 'block' : 'none';
@@ -27,7 +28,7 @@ export function renderNW(snaps) {
     </div>
     ${activeA.map(a => `
       <div class="kpi">
-        <div class="kpi-label">${a.label}</div>
+        <div class="kpi-label">${esc(a.label)}</div>
         <div class="kpi-val">${fmt(s[a.key] || 0)}</div>
         <div class="kpi-sub">${total > 0 ? Math.round((s[a.key] || 0) / total * 100) : 0}% of total</div>
       </div>`).join('')}
@@ -37,7 +38,7 @@ export function renderNW(snaps) {
   const labels = snaps.map(sn => fmtMon(sn.date));
 
   document.getElementById('nw-chart-legend').innerHTML =
-    chartA.map(a => `<span class="leg-item"><span class="leg-sq" style="background:${a.color}"></span>${a.label}</span>`).join('');
+    chartA.map(a => `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(a.color)}"></span>${esc(a.label)}</span>`).join('');
 
   document.getElementById('nw-chart-title').textContent = snaps.length === 1
     ? 'Account breakdown — ' + fmtMon(snaps[0].date) + ' (add more snapshots to see growth over time)'
@@ -106,20 +107,20 @@ export function renderNW(snaps) {
   });
 
   document.getElementById('nw-donut-legend').innerHTML =
-    bkA.map(a => `<span class="leg-item"><span class="leg-sq" style="background:${a.color}"></span>${a.label} ${total > 0 ? Math.round((s[a.key] || 0) / total * 100) : 0}%</span>`).join('');
+    bkA.map(a => `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(a.color)}"></span>${esc(a.label)} ${total > 0 ? Math.round((s[a.key] || 0) / total * 100) : 0}%</span>`).join('');
 
   let det = bkA.map(a =>
-    `<div class="row"><div class="row-label">${a.label}</div><div class="row-val">${fmt(s[a.key] || 0)}</div></div>`
+    `<div class="row"><div class="row-label">${esc(a.label)}</div><div class="row-val">${fmt(s[a.key] || 0)}</div></div>`
   ).join('');
   det += `<div class="row" style="border-top:1px solid #d3d1c7;margin-top:4px">
     <div class="row-label" style="font-weight:500">Total</div>
     <div class="row-val" style="font-weight:500">${fmt(total)}</div></div>`;
   if (prev) {
     const c = total - prevT;
-    det += `<div class="row"><div class="row-label" style="color:#898781;font-size:12px">vs ${fmtMon(prev.date)}</div>
+    det += `<div class="row"><div class="row-label" style="color:#6b6a65;font-size:12px">vs ${fmtMon(prev.date)}</div>
       <div class="row-val ${c >= 0 ? 'pos' : 'neg'}">${c >= 0 ? '+' : ''}${fmt(c)}</div></div>`;
   }
-  if (s.notes) det += `<p class="note" style="margin-top:.5rem">📝 ${s.notes}</p>`;
+  if (s.notes) det += `<p class="note" style="margin-top:.5rem">${esc(s.notes)}</p>`;
   document.getElementById('nw-detail').innerHTML = det;
 }
 

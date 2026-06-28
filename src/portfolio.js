@@ -1,4 +1,4 @@
-import { ISIN, META } from './constants.js';
+import { getISIN, getMETAMap } from './constants.js';
 
 export function computePD(rows) {
   const etfs      = {};
@@ -7,6 +7,9 @@ export function computePD(rows) {
   const monthly   = {};
   const monthlyBy = {};
   let totalInterest = 0;
+
+  const ISIN = getISIN();
+  const META = getMETAMap();
 
   for (const tx of rows) {
     const ticker = ISIN[tx.symbol] || '';
