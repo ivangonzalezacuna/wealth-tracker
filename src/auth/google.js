@@ -1,28 +1,54 @@
 /**
- * Google OAuth2 — implicit / token flow.
- * No client secret needed. Token lives in memory only (never persisted).
+ * Google OAuth2 — implicit / token flow via full-page redirect.
+ * Works on mobile (no popup). Token lives in memory only (never persisted).
  */
 
-const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
+const CLIENT_ID    = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const SCOPES       = 'https://www.googleapis.com/auth/spreadsheets';
+const REDIRECT_URI = window.location.origin;
 
-let _token     = null;   // { access_token, expires_at }
-let _resolvers = [];     // queued promises waiting for token
+let _token = null;   // { access_token, expires_at }
+
+// ── Bootstrap: grab token from URL hash on redirect back ─────
+(function _parseHashToken() {
+  const hash = window.location.hash;
+  if (!hash) return;
+
+  const params      = new URLSearchParams(hash.substring(1));
+  const accessToken = params.get('access_token');
+  const expiresIn   = params.get('expires_in');
+
+  if (accessToken && expiresIn) {
+    _token = {
+      access_token: accessToken,
+      expires_at:   Date.now() + Number(expiresIn) * 1000,
+    };
+    // Clear the hash so tokens don't linger in the URL / browser history
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+})();
 
 // ── Public API ────────────────────────────────────────────
 
-/** Returns a valid access token, triggering sign-in popup if needed. */
+/** Returns a valid access token, redirecting to Google sign-in if needed. */
 export async function getToken() {
   if (_token && Date.now() < _token.expires_at - 60_000) return _token.access_token;
-  return _requestToken();
+  _redirectToGoogle();
+  // The redirect will navigate away; this promise never resolves in the
+  // current page load, but callers already handle the interrupted flow.
+  return new Promise(() => {});
 }
 
 /** Sign out — clears token and reloads so auth UI resets. */
 export function signOut() {
+  const revokeToken = _token?.access_token;
   _token = null;
-  if (window.google?.accounts?.oauth2) {
-    // Revoke via Google Identity Services if loaded
-    window.google.accounts.oauth2.revoke(_token?.access_token || '', () => {});
+  if (revokeToken) {
+    // Best-effort revoke via Google's endpoint
+    fetch(`https://oauth2.googleapis.com/revoke?token=${revokeToken}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    }).catch(() => {});
   }
   window.location.reload();
 }
@@ -34,45 +60,13 @@ export function isSignedIn() {
 
 // ── Internal ──────────────────────────────────────────────
 
-function _requestToken() {
-  return new Promise((resolve, reject) => {
-    _resolvers.push({ resolve, reject });
-    if (_resolvers.length > 1) return; // already waiting
-
-    _loadGIS().then(() => {
-      const client = window.google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope:     SCOPES,
-        callback:  (resp) => {
-          if (resp.error) {
-            const err = new Error(resp.error_description || resp.error);
-            _resolvers.forEach(r => r.reject(err));
-            _resolvers = [];
-            return;
-          }
-          _token = {
-            access_token: resp.access_token,
-            expires_at:   Date.now() + resp.expires_in * 1000,
-          };
-          _resolvers.forEach(r => r.resolve(_token.access_token));
-          _resolvers = [];
-        },
-      });
-      client.requestAccessToken({ prompt: _token ? '' : 'none' });
-    }).catch(err => {
-      _resolvers.forEach(r => r.reject(err));
-      _resolvers = [];
-    });
+function _redirectToGoogle() {
+  const params = new URLSearchParams({
+    client_id:     CLIENT_ID,
+    redirect_uri:  REDIRECT_URI,
+    response_type: 'token',
+    scope:         SCOPES,
+    prompt:        'consent',
   });
-}
-
-function _loadGIS() {
-  if (window.google?.accounts?.oauth2) return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = 'https://accounts.google.com/gsi/client';
-    s.onload  = resolve;
-    s.onerror = () => reject(new Error('Failed to load Google Identity Services'));
-    document.head.appendChild(s);
-  });
+  window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
 }
