@@ -2,7 +2,7 @@ import { getAccounts, getHoldings, getSettings, setAccounts, setHoldings, setSet
 import { showMsg } from '../utils.js';
 
 /**
- * Render the Settings section — editable tables for Accounts, Holdings, Settings.
+ * Render the Settings section — user-friendly forms for Accounts, Holdings, Settings.
  * Only shown after config is loaded (sign-in required).
  */
 export function renderSettings() {
@@ -21,36 +21,35 @@ export function renderSettings() {
   el.innerHTML = `
     ${renderAccountsCard(accounts)}
     ${renderHoldingsCard(holdings)}
-    ${renderSettingsCard(settings)}
+    ${renderProjectionCard(settings)}
+    ${renderRulesCard(settings)}
   `;
 
   attachAccountListeners(el);
   attachHoldingListeners(el);
-  attachSettingsListeners(el);
+  attachProjectionListeners(el);
+  attachRulesListeners(el);
 }
 
 // ── Accounts ──────────────────────────────────────────────
 
+const ACCOUNT_TYPES = [
+  { value: 'investment', label: 'Investment' },
+  { value: 'savings',    label: 'Savings' },
+  { value: 'pension',    label: 'Pension' },
+  { value: 'cash',       label: 'Cash' },
+];
+
 function renderAccountsCard(accounts) {
-  const rows = accounts.map((a, i) => `
-    <div class="tbl-row settings-acct-row" style="grid-template-columns:1.2fr 1fr 1fr 1.5fr .8fr .6fr .5fr" data-idx="${i}">
-      <div><input class="form-input form-input-sm" data-field="id" value="${esc(a.id)}" placeholder="key"></div>
-      <div><input class="form-input form-input-sm" data-field="moneyType" value="${esc(a.moneyType)}" placeholder="investment|savings|pension|cash"></div>
-      <div><input class="form-input form-input-sm" data-field="institution" value="${esc(a.institution)}" placeholder="Institution"></div>
-      <div><input class="form-input form-input-sm" data-field="label" value="${esc(a.label)}" placeholder="Display label"></div>
-      <div><input class="form-input form-input-sm" data-field="color" value="${esc(a.color)}" type="color" style="padding:2px;height:30px"></div>
-      <div><label style="font-size:11px;cursor:pointer"><input type="checkbox" data-field="isPrimaryInvestment" ${a.isPrimaryInvestment ? 'checked' : ''}> Primary</label></div>
-      <div><button class="btn btn-sm btn-danger js-del-acct" data-idx="${i}">✕</button></div>
-    </div>
-  `).join('');
+  const rows = accounts.map((a, i) => renderAccountRow(a, i)).join('');
 
   return `
     <div class="card">
       <div class="card-title">Accounts</div>
-      <p class="note" style="margin-bottom:.75rem">Accounts tracked in monthly snapshots. The "id" is the stable column key — avoid renaming once data exists.</p>
+      <p class="note" style="margin-bottom:.75rem">Accounts tracked in each monthly net-worth snapshot. Add one row per bank account or portfolio.</p>
       <div class="tbl" id="settings-accounts-tbl">
-        <div class="tbl-row th" style="grid-template-columns:1.2fr 1fr 1fr 1.5fr .8fr .6fr .5fr">
-          <div>ID</div><div>Type</div><div>Institution</div><div>Label</div><div>Color</div><div>Primary</div><div></div>
+        <div class="tbl-row th" style="grid-template-columns:1.8fr 1fr 1.2fr .8fr .6fr .4fr">
+          <div>Name</div><div>Type</div><div>Institution</div><div>Color</div><div>Primary</div><div></div>
         </div>
         ${rows}
       </div>
@@ -59,6 +58,23 @@ function renderAccountsCard(accounts) {
         <button class="btn btn-primary btn-sm" id="btn-save-accts">Save accounts</button>
         <span id="accts-msg" style="font-size:12px;line-height:28px"></span>
       </div>
+    </div>`;
+}
+
+function renderAccountRow(a, i) {
+  const typeOptions = ACCOUNT_TYPES.map(t =>
+    `<option value="${t.value}" ${a.moneyType === t.value ? 'selected' : ''}>${t.label}</option>`
+  ).join('');
+
+  return `
+    <div class="tbl-row settings-acct-row" style="grid-template-columns:1.8fr 1fr 1.2fr .8fr .6fr .4fr" data-idx="${i}">
+      <div><input class="form-input form-input-sm" data-field="label" value="${esc(a.label)}" placeholder="e.g. Main ETF portfolio"></div>
+      <div><select class="form-input form-input-sm" data-field="moneyType">${typeOptions}</select></div>
+      <div><input class="form-input form-input-sm" data-field="institution" value="${esc(a.institution)}" placeholder="e.g. Trade Republic"></div>
+      <div><input class="form-input form-input-sm" data-field="color" value="${esc(a.color)}" type="color" style="padding:2px;height:30px"></div>
+      <div><label style="font-size:11px;cursor:pointer"><input type="checkbox" data-field="isPrimaryInvestment" ${a.isPrimaryInvestment ? 'checked' : ''}> Primary</label></div>
+      <div><button class="btn btn-sm btn-danger js-del-acct" data-idx="${i}">✕</button></div>
+      <input type="hidden" data-field="id" value="${esc(a.id)}">
     </div>`;
 }
 
@@ -71,9 +87,15 @@ function attachAccountListeners(root) {
 
   root.querySelector('#btn-save-accts')?.addEventListener('click', async () => {
     const accounts = collectAccounts(root);
-    if (accounts.some(a => !a.id)) {
-      showMsg('accts-msg', 'Each account needs an id.', false);
+    if (accounts.some(a => !a.label)) {
+      showMsg('accts-msg', 'Each account needs a name.', false);
       return;
+    }
+    // Auto-generate IDs for accounts that don't have one
+    for (const a of accounts) {
+      if (!a.id) {
+        a.id = generateId(a.label);
+      }
     }
     try {
       await setAccounts(accounts);
@@ -108,24 +130,12 @@ function collectAccounts(root) {
 function rerenderAccountsTable(root, accounts) {
   const tbl = root.querySelector('#settings-accounts-tbl');
   if (!tbl) return;
-  const rows = accounts.map((a, i) => `
-    <div class="tbl-row settings-acct-row" style="grid-template-columns:1.2fr 1fr 1fr 1.5fr .8fr .6fr .5fr" data-idx="${i}">
-      <div><input class="form-input form-input-sm" data-field="id" value="${esc(a.id)}" placeholder="key"></div>
-      <div><input class="form-input form-input-sm" data-field="moneyType" value="${esc(a.moneyType)}" placeholder="investment|savings|pension|cash"></div>
-      <div><input class="form-input form-input-sm" data-field="institution" value="${esc(a.institution)}" placeholder="Institution"></div>
-      <div><input class="form-input form-input-sm" data-field="label" value="${esc(a.label)}" placeholder="Display label"></div>
-      <div><input class="form-input form-input-sm" data-field="color" value="${esc(a.color)}" type="color" style="padding:2px;height:30px"></div>
-      <div><label style="font-size:11px;cursor:pointer"><input type="checkbox" data-field="isPrimaryInvestment" ${a.isPrimaryInvestment ? 'checked' : ''}> Primary</label></div>
-      <div><button class="btn btn-sm btn-danger js-del-acct" data-idx="${i}">✕</button></div>
-    </div>
-  `).join('');
-  // Keep header, replace rows
+  const rows = accounts.map((a, i) => renderAccountRow(a, i)).join('');
   tbl.innerHTML = `
-    <div class="tbl-row th" style="grid-template-columns:1.2fr 1fr 1fr 1.5fr .8fr .6fr .5fr">
-      <div>ID</div><div>Type</div><div>Institution</div><div>Label</div><div>Color</div><div>Primary</div><div></div>
+    <div class="tbl-row th" style="grid-template-columns:1.8fr 1fr 1.2fr .8fr .6fr .4fr">
+      <div>Name</div><div>Type</div><div>Institution</div><div>Color</div><div>Primary</div><div></div>
     </div>
     ${rows}`;
-  // Re-attach delete listeners
   tbl.querySelectorAll('.js-del-acct').forEach(btn => {
     btn.addEventListener('click', () => {
       const accs = collectAccounts(root);
@@ -137,29 +147,33 @@ function rerenderAccountsTable(root, accounts) {
 
 // ── Holdings ──────────────────────────────────────────────
 
+const ASSET_CLASSES = [
+  { value: 'equity', label: 'Equity' },
+  { value: 'bond',   label: 'Bond' },
+  { value: 'reit',   label: 'REIT' },
+  { value: 'commodity', label: 'Commodity' },
+  { value: 'other',  label: 'Other' },
+];
+
+const REGIONS = [
+  { value: 'developed', label: 'Developed' },
+  { value: 'emerging',  label: 'Emerging' },
+  { value: 'global',    label: 'Global' },
+  { value: 'europe',    label: 'Europe' },
+  { value: 'us',        label: 'US' },
+  { value: 'other',     label: 'Other' },
+];
+
 function renderHoldingsCard(holdings) {
-  const rows = holdings.map((h, i) => `
-    <div class="tbl-row settings-hold-row" style="grid-template-columns:1.5fr 1fr .7fr .5fr .5fr .8fr .8fr .7fr 1fr .4fr" data-idx="${i}">
-      <div><input class="form-input form-input-sm" data-field="isin" value="${esc(h.isin)}" placeholder="ISIN"></div>
-      <div><input class="form-input form-input-sm" data-field="ticker" value="${esc(h.ticker)}" placeholder="Ticker"></div>
-      <div><input class="form-input form-input-sm" data-field="color" value="${esc(h.color)}" type="color" style="padding:2px;height:30px"></div>
-      <div><label style="font-size:11px;cursor:pointer"><input type="checkbox" data-field="acc" ${h.acc ? 'checked' : ''}> Acc</label></div>
-      <div><label style="font-size:11px;cursor:pointer"><input type="checkbox" data-field="active" ${h.active ? 'checked' : ''}> Active</label></div>
-      <div><input class="form-input form-input-sm" data-field="weeklyTarget" value="${h.weeklyTarget || ''}" type="number" placeholder="0" style="width:60px"></div>
-      <div><input class="form-input form-input-sm" data-field="assetClass" value="${esc(h.assetClass)}" placeholder="equity|bond"></div>
-      <div><input class="form-input form-input-sm" data-field="region" value="${esc(h.region)}" placeholder="region"></div>
-      <div><input class="form-input form-input-sm" data-field="foldInto" value="${esc(h.foldInto)}" placeholder="ISIN"></div>
-      <div><button class="btn btn-sm btn-danger js-del-hold" data-idx="${i}">✕</button></div>
-    </div>
-  `).join('');
+  const rows = holdings.map((h, i) => renderHoldingRow(h, i)).join('');
 
   return `
     <div class="card">
-      <div class="card-title">Holdings</div>
-      <p class="note" style="margin-bottom:.75rem">ETF holdings with target allocation, asset class, and succession mapping.</p>
+      <div class="card-title">Holdings (ETFs)</div>
+      <p class="note" style="margin-bottom:.75rem">ETF positions in your portfolio. Active holdings receive weekly contributions. Closed positions can be folded into a successor fund.</p>
       <div class="tbl" id="settings-holdings-tbl" style="overflow-x:auto">
-        <div class="tbl-row th" style="grid-template-columns:1.5fr 1fr .7fr .5fr .5fr .8fr .8fr .7fr 1fr .4fr">
-          <div>ISIN</div><div>Ticker</div><div>Color</div><div>Acc</div><div>Active</div><div>Weekly€</div><div>Class</div><div>Region</div><div>Fold into</div><div></div>
+        <div class="tbl-row th" style="grid-template-columns:1.3fr .9fr .7fr .6fr .6fr .8fr .8fr .7fr 1.1fr .4fr">
+          <div>ISIN</div><div>Ticker</div><div>Color</div><div>Accum.</div><div>Active</div><div>Weekly (€)</div><div>Asset class</div><div>Region</div><div>Successor ISIN</div><div></div>
         </div>
         ${rows}
       </div>
@@ -168,6 +182,29 @@ function renderHoldingsCard(holdings) {
         <button class="btn btn-primary btn-sm" id="btn-save-holds">Save holdings</button>
         <span id="holds-msg" style="font-size:12px;line-height:28px"></span>
       </div>
+    </div>`;
+}
+
+function renderHoldingRow(h, i) {
+  const classOptions = ASSET_CLASSES.map(c =>
+    `<option value="${c.value}" ${h.assetClass === c.value ? 'selected' : ''}>${c.label}</option>`
+  ).join('');
+  const regionOptions = REGIONS.map(r =>
+    `<option value="${r.value}" ${h.region === r.value ? 'selected' : ''}>${r.label}</option>`
+  ).join('');
+
+  return `
+    <div class="tbl-row settings-hold-row" style="grid-template-columns:1.3fr .9fr .7fr .6fr .6fr .8fr .8fr .7fr 1.1fr .4fr" data-idx="${i}">
+      <div><input class="form-input form-input-sm" data-field="isin" value="${esc(h.isin)}" placeholder="e.g. IE00B4L5Y983"></div>
+      <div><input class="form-input form-input-sm" data-field="ticker" value="${esc(h.ticker)}" placeholder="e.g. IWDA"></div>
+      <div><input class="form-input form-input-sm" data-field="color" value="${esc(h.color)}" type="color" style="padding:2px;height:30px"></div>
+      <div><label style="font-size:11px;cursor:pointer"><input type="checkbox" data-field="acc" ${h.acc ? 'checked' : ''}> Yes</label></div>
+      <div><label style="font-size:11px;cursor:pointer"><input type="checkbox" data-field="active" ${h.active ? 'checked' : ''}> Yes</label></div>
+      <div><input class="form-input form-input-sm" data-field="weeklyTarget" value="${h.weeklyTarget || ''}" type="number" min="0" placeholder="0" style="width:70px"></div>
+      <div><select class="form-input form-input-sm" data-field="assetClass">${classOptions}</select></div>
+      <div><select class="form-input form-input-sm" data-field="region">${regionOptions}</select></div>
+      <div><input class="form-input form-input-sm" data-field="foldInto" value="${esc(h.foldInto)}" placeholder="ISIN of successor"></div>
+      <div><button class="btn btn-sm btn-danger js-del-hold" data-idx="${i}">✕</button></div>
     </div>`;
 }
 
@@ -181,7 +218,7 @@ function attachHoldingListeners(root) {
   root.querySelector('#btn-save-holds')?.addEventListener('click', async () => {
     const holds = collectHoldings(root);
     if (holds.some(h => !h.isin || !h.ticker)) {
-      showMsg('holds-msg', 'Each holding needs ISIN and ticker.', false);
+      showMsg('holds-msg', 'Each holding needs an ISIN and ticker.', false);
       return;
     }
     try {
@@ -221,23 +258,10 @@ function collectHoldings(root) {
 function rerenderHoldingsTable(root, holdings) {
   const tbl = root.querySelector('#settings-holdings-tbl');
   if (!tbl) return;
-  const rows = holdings.map((h, i) => `
-    <div class="tbl-row settings-hold-row" style="grid-template-columns:1.5fr 1fr .7fr .5fr .5fr .8fr .8fr .7fr 1fr .4fr" data-idx="${i}">
-      <div><input class="form-input form-input-sm" data-field="isin" value="${esc(h.isin)}" placeholder="ISIN"></div>
-      <div><input class="form-input form-input-sm" data-field="ticker" value="${esc(h.ticker)}" placeholder="Ticker"></div>
-      <div><input class="form-input form-input-sm" data-field="color" value="${esc(h.color)}" type="color" style="padding:2px;height:30px"></div>
-      <div><label style="font-size:11px;cursor:pointer"><input type="checkbox" data-field="acc" ${h.acc ? 'checked' : ''}> Acc</label></div>
-      <div><label style="font-size:11px;cursor:pointer"><input type="checkbox" data-field="active" ${h.active ? 'checked' : ''}> Active</label></div>
-      <div><input class="form-input form-input-sm" data-field="weeklyTarget" value="${h.weeklyTarget || ''}" type="number" placeholder="0" style="width:60px"></div>
-      <div><input class="form-input form-input-sm" data-field="assetClass" value="${esc(h.assetClass)}" placeholder="equity|bond"></div>
-      <div><input class="form-input form-input-sm" data-field="region" value="${esc(h.region)}" placeholder="region"></div>
-      <div><input class="form-input form-input-sm" data-field="foldInto" value="${esc(h.foldInto)}" placeholder="ISIN"></div>
-      <div><button class="btn btn-sm btn-danger js-del-hold" data-idx="${i}">✕</button></div>
-    </div>
-  `).join('');
+  const rows = holdings.map((h, i) => renderHoldingRow(h, i)).join('');
   tbl.innerHTML = `
-    <div class="tbl-row th" style="grid-template-columns:1.5fr 1fr .7fr .5fr .5fr .8fr .8fr .7fr 1fr .4fr">
-      <div>ISIN</div><div>Ticker</div><div>Color</div><div>Acc</div><div>Active</div><div>Weekly€</div><div>Class</div><div>Region</div><div>Fold into</div><div></div>
+    <div class="tbl-row th" style="grid-template-columns:1.3fr .9fr .7fr .6fr .6fr .8fr .8fr .7fr 1.1fr .4fr">
+      <div>ISIN</div><div>Ticker</div><div>Color</div><div>Accum.</div><div>Active</div><div>Weekly (€)</div><div>Asset class</div><div>Region</div><div>Successor ISIN</div><div></div>
     </div>
     ${rows}`;
   tbl.querySelectorAll('.js-del-hold').forEach(btn => {
@@ -249,94 +273,149 @@ function rerenderHoldingsTable(root, holdings) {
   });
 }
 
-// ── Settings (key/value) ──────────────────────────────────
+// ── Projection settings ──────────────────────────────────
 
-function renderSettingsCard(settings) {
-  const entries = Object.entries(settings);
-  const rows = entries.map(([k, v], i) => `
-    <div class="tbl-row settings-kv-row" style="grid-template-columns:1.5fr 2fr .4fr" data-idx="${i}">
-      <div><input class="form-input form-input-sm" data-field="key" value="${esc(k)}"></div>
-      <div><input class="form-input form-input-sm" data-field="value" value="${esc(v)}"></div>
-      <div><button class="btn btn-sm btn-danger js-del-kv" data-idx="${i}">✕</button></div>
+function renderProjectionCard(settings) {
+  const annualReturn = settings.annualReturnPct || '7';
+
+  return `
+    <div class="card">
+      <div class="card-title">Projection assumptions</div>
+      <p class="note" style="margin-bottom:.75rem">Parameters used to calculate your 5-year portfolio projection on the Overview tab.</p>
+      <div class="form-grid" style="max-width:500px">
+        <div class="form-group">
+          <label class="form-label">Expected annual return (%)</label>
+          <input class="form-input" id="set-annual-return" type="number" min="0" max="30" step="0.1" value="${esc(annualReturn)}" placeholder="7">
+          <span class="note">Historical average for diversified ETF portfolios is ~7%</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:.75rem">
+        <button class="btn btn-primary btn-sm" id="btn-save-projection">Save projection settings</button>
+        <span id="proj-msg" style="font-size:12px;line-height:28px"></span>
+      </div>
+    </div>`;
+}
+
+function attachProjectionListeners(root) {
+  root.querySelector('#btn-save-projection')?.addEventListener('click', async () => {
+    const annualReturn = root.querySelector('#set-annual-return')?.value || '7';
+    try {
+      await setSettings({ annualReturnPct: annualReturn });
+      showMsg('proj-msg', 'Saved', true);
+    } catch (err) {
+      showMsg('proj-msg', 'Error: ' + err.message, false);
+    }
+  });
+}
+
+// ── Reinvestment rules ───────────────────────────────────
+
+function renderRulesCard(settings) {
+  // Extract rules from settings: rule_1_label, rule_1_value, rule_2_label, ...
+  const rules = [];
+  for (let i = 1; i <= 20; i++) {
+    const label = settings[`rule_${i}_label`];
+    const value = settings[`rule_${i}_value`];
+    if (label !== undefined || value !== undefined) {
+      rules.push({ label: label || '', value: value || '' });
+    }
+  }
+
+  const rows = rules.map((r, i) => `
+    <div class="tbl-row settings-rule-row" style="grid-template-columns:1.5fr 2fr .4fr" data-idx="${i}">
+      <div><input class="form-input form-input-sm" data-field="label" value="${esc(r.label)}" placeholder="e.g. Dividends reinvested"></div>
+      <div><input class="form-input form-input-sm" data-field="value" value="${esc(r.value)}" placeholder="e.g. into IWDA weekly"></div>
+      <div><button class="btn btn-sm btn-danger js-del-rule" data-idx="${i}">✕</button></div>
     </div>
   `).join('');
 
   return `
     <div class="card">
-      <div class="card-title">Settings &amp; rules</div>
-      <p class="note" style="margin-bottom:.75rem">Key-value pairs: projection parameters (annualReturnPct), reinvestment rules (rule_N_label / rule_N_value), and any custom notes.</p>
-      <div class="tbl" id="settings-kv-tbl">
+      <div class="card-title">Reinvestment rules</div>
+      <p class="note" style="margin-bottom:.75rem">Notes about how dividends and proceeds from sold positions are reinvested. These are displayed on the Overview tab as reminders.</p>
+      <div class="tbl" id="settings-rules-tbl">
         <div class="tbl-row th" style="grid-template-columns:1.5fr 2fr .4fr">
-          <div>Key</div><div>Value</div><div></div>
+          <div>Description</div><div>Action</div><div></div>
         </div>
         ${rows}
       </div>
       <div style="display:flex;gap:10px;margin-top:.75rem">
-        <button class="btn btn-outline btn-sm" id="btn-add-kv">+ Add setting</button>
-        <button class="btn btn-primary btn-sm" id="btn-save-kv">Save settings</button>
-        <span id="kv-msg" style="font-size:12px;line-height:28px"></span>
+        <button class="btn btn-outline btn-sm" id="btn-add-rule">+ Add rule</button>
+        <button class="btn btn-primary btn-sm" id="btn-save-rules">Save rules</button>
+        <span id="rules-msg" style="font-size:12px;line-height:28px"></span>
       </div>
     </div>`;
 }
 
-function attachSettingsListeners(root) {
-  root.querySelector('#btn-add-kv')?.addEventListener('click', () => {
-    const kvs = collectKVs(root);
-    kvs.push({ key: '', value: '' });
-    rerenderKVTable(root, kvs);
+function attachRulesListeners(root) {
+  root.querySelector('#btn-add-rule')?.addEventListener('click', () => {
+    const rules = collectRules(root);
+    rules.push({ label: '', value: '' });
+    rerenderRulesTable(root, rules);
   });
 
-  root.querySelector('#btn-save-kv')?.addEventListener('click', async () => {
-    const kvs = collectKVs(root);
-    const obj = {};
-    for (const { key, value } of kvs) {
-      if (key) obj[key] = value;
+  root.querySelector('#btn-save-rules')?.addEventListener('click', async () => {
+    const rules = collectRules(root);
+    const currentSettings = getSettings();
+    const updates = {};
+    // Mark existing rule keys for deletion
+    for (const key of Object.keys(currentSettings)) {
+      if (/^rule_\d+_(label|value)$/.test(key)) {
+        updates[key] = null;
+      }
     }
+    // Write new rules (overrides null for reused slots)
+    rules.forEach((r, i) => {
+      if (r.label || r.value) {
+        updates[`rule_${i + 1}_label`] = r.label;
+        updates[`rule_${i + 1}_value`] = r.value;
+      }
+    });
     try {
-      await setSettings(obj);
-      showMsg('kv-msg', 'Saved', true);
+      await setSettings(updates);
+      showMsg('rules-msg', 'Saved', true);
     } catch (err) {
-      showMsg('kv-msg', 'Error: ' + err.message, false);
+      showMsg('rules-msg', 'Error: ' + err.message, false);
     }
   });
 
-  root.querySelectorAll('.js-del-kv').forEach(btn => {
+  root.querySelectorAll('.js-del-rule').forEach(btn => {
     btn.addEventListener('click', () => {
-      const kvs = collectKVs(root);
-      kvs.splice(parseInt(btn.dataset.idx), 1);
-      rerenderKVTable(root, kvs);
+      const rules = collectRules(root);
+      rules.splice(parseInt(btn.dataset.idx), 1);
+      rerenderRulesTable(root, rules);
     });
   });
 }
 
-function collectKVs(root) {
-  const rows = root.querySelectorAll('.settings-kv-row');
+function collectRules(root) {
+  const rows = root.querySelectorAll('.settings-rule-row');
   return [...rows].map(row => ({
-    key:   row.querySelector('[data-field="key"]').value.trim(),
+    label: row.querySelector('[data-field="label"]').value.trim(),
     value: row.querySelector('[data-field="value"]').value.trim(),
   }));
 }
 
-function rerenderKVTable(root, kvs) {
-  const tbl = root.querySelector('#settings-kv-tbl');
+function rerenderRulesTable(root, rules) {
+  const tbl = root.querySelector('#settings-rules-tbl');
   if (!tbl) return;
-  const rows = kvs.map(({ key, value }, i) => `
-    <div class="tbl-row settings-kv-row" style="grid-template-columns:1.5fr 2fr .4fr" data-idx="${i}">
-      <div><input class="form-input form-input-sm" data-field="key" value="${esc(key)}"></div>
-      <div><input class="form-input form-input-sm" data-field="value" value="${esc(value)}"></div>
-      <div><button class="btn btn-sm btn-danger js-del-kv" data-idx="${i}">✕</button></div>
+  const rows = rules.map((r, i) => `
+    <div class="tbl-row settings-rule-row" style="grid-template-columns:1.5fr 2fr .4fr" data-idx="${i}">
+      <div><input class="form-input form-input-sm" data-field="label" value="${esc(r.label)}" placeholder="e.g. Dividends reinvested"></div>
+      <div><input class="form-input form-input-sm" data-field="value" value="${esc(r.value)}" placeholder="e.g. into IWDA weekly"></div>
+      <div><button class="btn btn-sm btn-danger js-del-rule" data-idx="${i}">✕</button></div>
     </div>
   `).join('');
   tbl.innerHTML = `
     <div class="tbl-row th" style="grid-template-columns:1.5fr 2fr .4fr">
-      <div>Key</div><div>Value</div><div></div>
+      <div>Description</div><div>Action</div><div></div>
     </div>
     ${rows}`;
-  tbl.querySelectorAll('.js-del-kv').forEach(btn => {
+  tbl.querySelectorAll('.js-del-rule').forEach(btn => {
     btn.addEventListener('click', () => {
-      const k = collectKVs(root);
-      k.splice(parseInt(btn.dataset.idx), 1);
-      rerenderKVTable(root, k);
+      const r = collectRules(root);
+      r.splice(parseInt(btn.dataset.idx), 1);
+      rerenderRulesTable(root, r);
     });
   });
 }
@@ -346,4 +425,13 @@ function rerenderKVTable(root, kvs) {
 function esc(s) {
   if (!s) return '';
   return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Generate a stable snake_case ID from a label. */
+function generateId(label) {
+  return label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '')
+    .slice(0, 30);
 }

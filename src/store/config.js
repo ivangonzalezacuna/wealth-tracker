@@ -143,7 +143,13 @@ export async function setSetting(key, value) {
 }
 
 export async function setSettings(settings) {
-  _settings = { ..._settings, ...settings };
+  for (const [k, v] of Object.entries(settings)) {
+    if (v === null || v === undefined) {
+      delete _settings[k];
+    } else {
+      _settings[k] = v;
+    }
+  }
   await persistSettings();
   await logChange('Settings', `updated ${Object.keys(settings).join(', ')}`);
   if (_onChange) _onChange();
