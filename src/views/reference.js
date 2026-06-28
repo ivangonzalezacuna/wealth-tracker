@@ -1,6 +1,6 @@
 import Chart from 'chart.js/auto';
 import { getHoldings, getTotalWeeklyTarget, getSettings } from '../store/config.js';
-import { esc } from '../utils.js';
+import { esc, safeColor } from '../utils.js';
 
 let refChart = null;
 
@@ -29,7 +29,7 @@ export function renderRef() {
   const legendEl = document.getElementById('ref-legend');
   if (legendEl) {
     legendEl.innerHTML = slices.map(s =>
-      `<span class="leg-item"><span class="leg-sq" style="background:${s.color}"></span>${esc(s.ticker)} ${s.pct}%</span>`
+      `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(s.color)}"></span>${esc(s.ticker)} ${s.pct}%</span>`
     ).join('');
   }
 

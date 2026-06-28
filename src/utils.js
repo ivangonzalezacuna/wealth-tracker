@@ -37,3 +37,13 @@ export function esc(s) {
   if (!s) return '';
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
+
+/** Sanitize a CSS color value — only allow safe patterns. */
+export function safeColor(c) {
+  if (!c) return '#888';
+  const s = String(c).trim();
+  if (/^#[0-9a-fA-F]{3,8}$/.test(s)) return s;
+  if (/^(rgb|hsl)a?\([0-9,.\s%]+\)$/.test(s)) return s;
+  if (/^[a-zA-Z]{1,20}$/.test(s)) return s;
+  return '#888';
+}

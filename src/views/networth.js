@@ -1,4 +1,4 @@
-import { snapTotal, fmt, fmtMon, esc } from '../utils.js';
+import { snapTotal, fmt, fmtMon, esc, safeColor } from '../utils.js';
 import { getACCTSList } from '../constants.js';
 import Chart from 'chart.js/auto';
 
@@ -38,7 +38,7 @@ export function renderNW(snaps) {
   const labels = snaps.map(sn => fmtMon(sn.date));
 
   document.getElementById('nw-chart-legend').innerHTML =
-    chartA.map(a => `<span class="leg-item"><span class="leg-sq" style="background:${a.color}"></span>${esc(a.label)}</span>`).join('');
+    chartA.map(a => `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(a.color)}"></span>${esc(a.label)}</span>`).join('');
 
   document.getElementById('nw-chart-title').textContent = snaps.length === 1
     ? 'Account breakdown — ' + fmtMon(snaps[0].date) + ' (add more snapshots to see growth over time)'
@@ -107,7 +107,7 @@ export function renderNW(snaps) {
   });
 
   document.getElementById('nw-donut-legend').innerHTML =
-    bkA.map(a => `<span class="leg-item"><span class="leg-sq" style="background:${a.color}"></span>${esc(a.label)} ${total > 0 ? Math.round((s[a.key] || 0) / total * 100) : 0}%</span>`).join('');
+    bkA.map(a => `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(a.color)}"></span>${esc(a.label)} ${total > 0 ? Math.round((s[a.key] || 0) / total * 100) : 0}%</span>`).join('');
 
   let det = bkA.map(a =>
     `<div class="row"><div class="row-label">${esc(a.label)}</div><div class="row-val">${fmt(s[a.key] || 0)}</div></div>`
