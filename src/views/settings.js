@@ -31,6 +31,7 @@ export function renderSettings() {
   attachProjectionListeners(el);
   attachRulesListeners(el);
   attachColorPickerSync(el);
+  attachCardCollapseListeners(el);
 }
 
 // ── Accounts ──────────────────────────────────────────────
@@ -46,16 +47,21 @@ function renderAccountsCard(accounts) {
   const rows = accounts.map((a, i) => renderAccountRow(a, i)).join('');
 
   return `
-    <div class="card">
-      <div class="card-title">Accounts</div>
-      <p class="note" style="margin-bottom:.75rem">Accounts tracked in each monthly net-worth snapshot. Add one row per bank account or portfolio.</p>
-      <div id="settings-accounts-tbl" class="settings-items">
-        ${rows}
+    <div class="card card-collapsible">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Accounts</div>
+        <span class="card-chevron"></span>
       </div>
-      <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
-        <button class="btn btn-outline btn-sm" id="btn-add-acct">+ Add account</button>
-        <button class="btn btn-primary btn-sm" id="btn-save-accts">Save accounts</button>
-        <span id="accts-msg" style="font-size:12px;line-height:28px"></span>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.75rem">Accounts tracked in each monthly net-worth snapshot. Add one row per bank account or portfolio.</p>
+        <div id="settings-accounts-tbl" class="settings-items">
+          ${rows}
+        </div>
+        <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" id="btn-add-acct">+ Add account</button>
+          <button class="btn btn-primary btn-sm" id="btn-save-accts">Save accounts</button>
+          <span id="accts-msg" style="font-size:12px;line-height:28px"></span>
+        </div>
       </div>
     </div>`;
 }
@@ -186,17 +192,22 @@ function renderHoldingsCard(holdings) {
   const rows = holdings.map((h, i) => renderHoldingRow(h, i)).join('');
 
   return `
-    <div class="card">
-      <div class="card-title">Holdings (ETFs)</div>
-      <p class="note" style="margin-bottom:.75rem">ETF positions in your portfolio. Active holdings receive weekly contributions. Closed positions can be folded into a successor fund.</p>
-      <div id="settings-holdings-tbl" class="settings-items">
-        ${rows}
+    <div class="card card-collapsible">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Holdings (ETFs)</div>
+        <span class="card-chevron"></span>
       </div>
-      <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
-        <button class="btn btn-outline btn-sm" id="btn-add-hold">+ Add holding</button>
-        <button class="btn btn-outline btn-sm" id="btn-autofill-holds">Auto-fill from transactions</button>
-        <button class="btn btn-primary btn-sm" id="btn-save-holds">Save holdings</button>
-        <span id="holds-msg" style="font-size:12px;line-height:28px"></span>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.75rem">ETF positions in your portfolio. Active holdings receive weekly contributions. Closed positions can be folded into a successor fund.</p>
+        <div id="settings-holdings-tbl" class="settings-items">
+          ${rows}
+        </div>
+        <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" id="btn-add-hold">+ Add holding</button>
+          <button class="btn btn-outline btn-sm" id="btn-autofill-holds">Auto-fill from transactions</button>
+          <button class="btn btn-primary btn-sm" id="btn-save-holds">Save holdings</button>
+          <span id="holds-msg" style="font-size:12px;line-height:28px"></span>
+        </div>
       </div>
     </div>`;
 }
@@ -382,19 +393,24 @@ function renderProjectionCard(settings) {
   const annualReturn = settings.annualReturnPct || '7';
 
   return `
-    <div class="card">
-      <div class="card-title">Projection assumptions</div>
-      <p class="note" style="margin-bottom:.75rem">Parameters used to calculate your 5-year portfolio projection on the Overview tab.</p>
-      <div class="form-grid" style="max-width:500px">
-        <div class="form-group">
-          <label class="form-label">Expected annual return (%)</label>
-          <input class="form-input" id="set-annual-return" type="number" min="0" max="30" step="0.1" value="${esc(annualReturn)}" placeholder="7">
-          <span class="note">Historical average for diversified ETF portfolios is ~7%</span>
-        </div>
+    <div class="card card-collapsible">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Projection assumptions</div>
+        <span class="card-chevron"></span>
       </div>
-      <div style="display:flex;gap:10px;margin-top:.75rem">
-        <button class="btn btn-primary btn-sm" id="btn-save-projection">Save projection settings</button>
-        <span id="proj-msg" style="font-size:12px;line-height:28px"></span>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.75rem">Parameters used to calculate your 5-year portfolio projection on the Overview tab.</p>
+        <div class="form-grid" style="max-width:500px">
+          <div class="form-group">
+            <label class="form-label">Expected annual return (%)</label>
+            <input class="form-input" id="set-annual-return" type="number" min="0" max="30" step="0.1" value="${esc(annualReturn)}" placeholder="7">
+            <span class="note">Historical average for diversified ETF portfolios is ~7%</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:.75rem">
+          <button class="btn btn-primary btn-sm" id="btn-save-projection">Save projection settings</button>
+          <span id="proj-msg" style="font-size:12px;line-height:28px"></span>
+        </div>
       </div>
     </div>`;
 }
@@ -441,16 +457,21 @@ function renderRulesCard(settings) {
   `).join('');
 
   return `
-    <div class="card">
-      <div class="card-title">Reinvestment rules</div>
-      <p class="note" style="margin-bottom:.75rem">Notes about how dividends and proceeds from sold positions are reinvested. These are displayed on the Overview tab as reminders.</p>
-      <div id="settings-rules-tbl" class="settings-items">
-        ${rows}
+    <div class="card card-collapsible">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Reinvestment rules</div>
+        <span class="card-chevron"></span>
       </div>
-      <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
-        <button class="btn btn-outline btn-sm" id="btn-add-rule">+ Add rule</button>
-        <button class="btn btn-primary btn-sm" id="btn-save-rules">Save rules</button>
-        <span id="rules-msg" style="font-size:12px;line-height:28px"></span>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.75rem">Notes about how dividends and proceeds from sold positions are reinvested. These are displayed on the Overview tab as reminders.</p>
+        <div id="settings-rules-tbl" class="settings-items">
+          ${rows}
+        </div>
+        <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" id="btn-add-rule">+ Add rule</button>
+          <button class="btn btn-primary btn-sm" id="btn-save-rules">Save rules</button>
+          <span id="rules-msg" style="font-size:12px;line-height:28px"></span>
+        </div>
       </div>
     </div>`;
 }
@@ -544,6 +565,16 @@ function attachColorPickerSync(root) {
     hex.addEventListener('input', () => {
       const v = hex.value.trim();
       if (/^#[0-9a-fA-F]{6}$/.test(v)) swatch.value = v;
+    });
+  });
+}
+
+/** Attach click listeners to card headers for collapsing/expanding. */
+function attachCardCollapseListeners(root) {
+  root.querySelectorAll('.js-card-toggle').forEach(header => {
+    header.addEventListener('click', () => {
+      const card = header.closest('.card-collapsible');
+      if (card) card.classList.toggle('collapsed');
     });
   });
 }

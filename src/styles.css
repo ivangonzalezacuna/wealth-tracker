@@ -26,7 +26,15 @@ h1{font-size:20px;font-weight:500;margin-bottom:.2rem}
 
 /* Cards */
 .card{background:#fff;border:1px solid #e1e0d9;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem}
-.card-title{font-size:11px;font-weight:500;color:#52514e;margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.06em}
+.card-title{font-size:11px;font-weight:500;color:#52514e;margin-bottom:0;text-transform:uppercase;letter-spacing:.06em}
+
+/* Collapsible cards */
+.card-collapsible .card-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:.25rem 0;user-select:none;-webkit-user-select:none}
+.card-collapsible .card-body{margin-top:.75rem;overflow:hidden;transition:max-height .25s ease,opacity .2s ease;max-height:2000px;opacity:1}
+.card-collapsible.collapsed .card-body{max-height:0;opacity:0;margin-top:0}
+.card-chevron{width:18px;height:18px;display:flex;align-items:center;justify-content:center;transition:transform .25s ease;flex-shrink:0}
+.card-chevron::before{content:'';border:solid #52514e;border-width:0 2px 2px 0;display:inline-block;padding:3px;transform:rotate(45deg);margin-top:-3px}
+.card-collapsible.collapsed .card-chevron{transform:rotate(-90deg)}
 
 /* Rows */
 .row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f1efe8;font-size:13px;gap:12px;align-items:center}
