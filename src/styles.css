@@ -98,6 +98,7 @@ h1{font-size:20px;font-weight:500;margin-bottom:.2rem}
 .divider{border:none;border-top:1px solid #e1e0d9;margin:1.5rem 0}
 .status-bar{font-size:12px;padding:8px 12px;border-radius:6px;margin-bottom:1rem}
 .status-ok{background:#E1F5EE;color:#085041}
+.status-info{background:#e8f0fe;color:#1a4d8f}
 .status-empty{background:#f1efe8;color:#52514e}
 .status-warn{background:#FEF3CD;color:#856404}
 .status-err{background:#fde8e8;color:#A32D2D}
