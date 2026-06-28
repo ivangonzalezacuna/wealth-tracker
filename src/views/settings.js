@@ -292,7 +292,7 @@ function attachHoldingListeners(root) {
     showMsg('holds-msg', 'Loading transactions…', true);
     try {
       const txs = await loadTransactions();
-      const buys = txs.filter(t => t.type === 'BUY' && t.category === 'TRADING' && t.symbol);
+      const buys = txs.filter(t => t.type === 'BUY' && (t.isin || t.symbol));
       if (buys.length === 0) {
         showMsg('holds-msg', 'No BUY transactions found. Import a CSV first.', false);
         return;
@@ -304,11 +304,12 @@ function attachHoldingListeners(root) {
       const isinMap = {};
       const isinLatest = {};
       for (const tx of buys) {
-        if (!isinMap[tx.symbol]) {
-          isinMap[tx.symbol] = tx.name || '';
+        const sym = tx.isin || tx.symbol;
+        if (!isinMap[sym]) {
+          isinMap[sym] = tx.name || '';
         }
-        if (!isinLatest[tx.symbol] || tx.date > isinLatest[tx.symbol]) {
-          isinLatest[tx.symbol] = tx.date;
+        if (!isinLatest[sym] || tx.date > isinLatest[sym]) {
+          isinLatest[sym] = tx.date;
         }
       }
       // Merge with existing holdings (skip already-configured ISINs)
