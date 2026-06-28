@@ -184,5 +184,13 @@ h1{font-size:20px;font-weight:500;margin-bottom:.2rem}
 /* Ensure color inputs don't overflow on mobile */
 input[type="color"]{min-width:32px;max-width:48px}
 
-/* Settings table rows: ensure minimum readable width */
-#settings-holdings-tbl,#settings-accounts-tbl{min-width:600px}
+/* ── Settings card items ───────────────────────────────── */
+.settings-items{display:flex;flex-direction:column;gap:10px}
+.settings-item{background:#fafaf8;border:1px solid #e1e0d9;border-radius:8px;padding:.75rem}
+.settings-item-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;gap:8px}
+.settings-item-title{font-size:13px;font-weight:500;color:#0b0b0b;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.settings-item-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.settings-field{display:flex;flex-direction:column;gap:3px}
+.settings-field-label{font-size:11px;color:#6b6a65;font-weight:500}
+.settings-field-inline{flex-direction:row;align-items:center;gap:6px}
+@media(max-width:480px){.settings-item-fields{grid-template-columns:1fr}}

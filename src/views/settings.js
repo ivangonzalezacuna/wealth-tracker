@@ -48,13 +48,10 @@ function renderAccountsCard(accounts) {
     <div class="card">
       <div class="card-title">Accounts</div>
       <p class="note" style="margin-bottom:.75rem">Accounts tracked in each monthly net-worth snapshot. Add one row per bank account or portfolio.</p>
-      <div class="tbl" id="settings-accounts-tbl">
-        <div class="tbl-row th" style="grid-template-columns:1.8fr 1fr 1.2fr .8fr .6fr .4fr">
-          <div>Name</div><div>Type</div><div>Institution</div><div>Color</div><div>Primary</div><div></div>
-        </div>
+      <div id="settings-accounts-tbl" class="settings-items">
         ${rows}
       </div>
-      <div style="display:flex;gap:10px;margin-top:.75rem">
+      <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
         <button class="btn btn-outline btn-sm" id="btn-add-acct">+ Add account</button>
         <button class="btn btn-primary btn-sm" id="btn-save-accts">Save accounts</button>
         <span id="accts-msg" style="font-size:12px;line-height:28px"></span>
@@ -68,13 +65,32 @@ function renderAccountRow(a, i) {
   ).join('');
 
   return `
-    <div class="tbl-row settings-acct-row" style="grid-template-columns:1.8fr 1fr 1.2fr .8fr .6fr .4fr" data-idx="${i}">
-      <div><input class="form-input form-input-sm" data-field="label" value="${esc(a.label)}" placeholder="e.g. Main ETF portfolio"></div>
-      <div><select class="form-input form-input-sm" data-field="moneyType">${typeOptions}</select></div>
-      <div><input class="form-input form-input-sm" data-field="institution" value="${esc(a.institution)}" placeholder="e.g. Trade Republic"></div>
-      <div><input class="form-input form-input-sm" data-field="color" value="${esc(a.color)}" type="color" style="padding:2px;height:30px"></div>
-      <div><label style="font-size:11px;cursor:pointer"><input type="checkbox" data-field="isPrimaryInvestment" ${a.isPrimaryInvestment ? 'checked' : ''}> Primary</label></div>
-      <div><button class="btn btn-sm btn-danger js-del-acct" data-idx="${i}">✕</button></div>
+    <div class="settings-item settings-acct-row" data-idx="${i}">
+      <div class="settings-item-header">
+        <span class="settings-item-title">${esc(a.label) || 'New account'}</span>
+        <button class="btn btn-sm btn-danger js-del-acct" data-idx="${i}">✕</button>
+      </div>
+      <div class="settings-item-fields">
+        <div class="settings-field">
+          <label class="settings-field-label">Name</label>
+          <input class="form-input form-input-sm" data-field="label" value="${esc(a.label)}" placeholder="e.g. Main ETF portfolio">
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Type</label>
+          <select class="form-input form-input-sm" data-field="moneyType">${typeOptions}</select>
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Institution</label>
+          <input class="form-input form-input-sm" data-field="institution" value="${esc(a.institution)}" placeholder="e.g. Trade Republic">
+        </div>
+        <div class="settings-field settings-field-inline">
+          <label class="settings-field-label">Color</label>
+          <input class="form-input form-input-sm" data-field="color" value="${esc(a.color)}" type="color" style="padding:2px;height:30px;width:48px">
+        </div>
+        <div class="settings-field settings-field-inline">
+          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="isPrimaryInvestment" ${a.isPrimaryInvestment ? 'checked' : ''}> Primary investment</label>
+        </div>
+      </div>
       <input type="hidden" data-field="id" value="${esc(a.id)}">
     </div>`;
 }
@@ -132,11 +148,7 @@ function rerenderAccountsTable(root, accounts) {
   const tbl = root.querySelector('#settings-accounts-tbl');
   if (!tbl) return;
   const rows = accounts.map((a, i) => renderAccountRow(a, i)).join('');
-  tbl.innerHTML = `
-    <div class="tbl-row th" style="grid-template-columns:1.8fr 1fr 1.2fr .8fr .6fr .4fr">
-      <div>Name</div><div>Type</div><div>Institution</div><div>Color</div><div>Primary</div><div></div>
-    </div>
-    ${rows}`;
+  tbl.innerHTML = rows;
   tbl.querySelectorAll('.js-del-acct').forEach(btn => {
     btn.addEventListener('click', () => {
       const accs = collectAccounts(root);
@@ -172,10 +184,7 @@ function renderHoldingsCard(holdings) {
     <div class="card">
       <div class="card-title">Holdings (ETFs)</div>
       <p class="note" style="margin-bottom:.75rem">ETF positions in your portfolio. Active holdings receive weekly contributions. Closed positions can be folded into a successor fund.</p>
-      <div class="tbl" id="settings-holdings-tbl" style="overflow-x:auto">
-        <div class="tbl-row th" style="grid-template-columns:1.3fr .9fr .7fr .6fr .6fr .8fr .8fr .7fr 1.1fr .4fr">
-          <div>ISIN</div><div>Ticker</div><div>Color</div><div>Accum.</div><div>Active</div><div>Weekly (€)</div><div>Asset class</div><div>Region</div><div>Successor ISIN</div><div></div>
-        </div>
+      <div id="settings-holdings-tbl" class="settings-items">
         ${rows}
       </div>
       <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
@@ -195,18 +204,52 @@ function renderHoldingRow(h, i) {
     `<option value="${r.value}" ${h.region === r.value ? 'selected' : ''}>${r.label}</option>`
   ).join('');
 
+  const statusBadge = h.active
+    ? '<span class="badge b-active">Active</span>'
+    : '<span class="badge b-closed">Closed</span>';
+
   return `
-    <div class="tbl-row settings-hold-row" style="grid-template-columns:1.3fr .9fr .7fr .6fr .6fr .8fr .8fr .7fr 1.1fr .4fr" data-idx="${i}">
-      <div><input class="form-input form-input-sm" data-field="isin" value="${esc(h.isin)}" placeholder="e.g. IE00B4L5Y983"></div>
-      <div><input class="form-input form-input-sm" data-field="ticker" value="${esc(h.ticker)}" placeholder="e.g. IWDA"></div>
-      <div><input class="form-input form-input-sm" data-field="color" value="${esc(h.color)}" type="color" style="padding:2px;height:30px"></div>
-      <div><label style="font-size:11px;cursor:pointer"><input type="checkbox" data-field="acc" ${h.acc ? 'checked' : ''}> Yes</label></div>
-      <div><label style="font-size:11px;cursor:pointer"><input type="checkbox" data-field="active" ${h.active ? 'checked' : ''}> Yes</label></div>
-      <div><input class="form-input form-input-sm" data-field="weeklyTarget" value="${h.weeklyTarget || ''}" type="number" min="0" placeholder="0" style="width:70px"></div>
-      <div><select class="form-input form-input-sm" data-field="assetClass">${classOptions}</select></div>
-      <div><select class="form-input form-input-sm" data-field="region">${regionOptions}</select></div>
-      <div><input class="form-input form-input-sm" data-field="foldInto" value="${esc(h.foldInto)}" placeholder="ISIN of successor"></div>
-      <div><button class="btn btn-sm btn-danger js-del-hold" data-idx="${i}">✕</button></div>
+    <div class="settings-item settings-hold-row" data-idx="${i}">
+      <div class="settings-item-header">
+        <span class="settings-item-title">${esc(h.ticker) || esc(h.isin) || 'New holding'} ${statusBadge}</span>
+        <button class="btn btn-sm btn-danger js-del-hold" data-idx="${i}">✕</button>
+      </div>
+      <div class="settings-item-fields">
+        <div class="settings-field">
+          <label class="settings-field-label">ISIN</label>
+          <input class="form-input form-input-sm" data-field="isin" value="${esc(h.isin)}" placeholder="e.g. IE00B4L5Y983">
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Ticker</label>
+          <input class="form-input form-input-sm" data-field="ticker" value="${esc(h.ticker)}" placeholder="e.g. IWDA">
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Asset class</label>
+          <select class="form-input form-input-sm" data-field="assetClass">${classOptions}</select>
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Region</label>
+          <select class="form-input form-input-sm" data-field="region">${regionOptions}</select>
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Weekly target (€)</label>
+          <input class="form-input form-input-sm" data-field="weeklyTarget" value="${h.weeklyTarget || ''}" type="number" min="0" placeholder="0">
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Successor ISIN</label>
+          <input class="form-input form-input-sm" data-field="foldInto" value="${esc(h.foldInto)}" placeholder="ISIN of successor">
+        </div>
+        <div class="settings-field settings-field-inline">
+          <label class="settings-field-label">Color</label>
+          <input class="form-input form-input-sm" data-field="color" value="${esc(h.color)}" type="color" style="padding:2px;height:30px;width:48px">
+        </div>
+        <div class="settings-field settings-field-inline">
+          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="acc" ${h.acc ? 'checked' : ''}> Accumulating</label>
+        </div>
+        <div class="settings-field settings-field-inline">
+          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="active" ${h.active ? 'checked' : ''}> Active</label>
+        </div>
+      </div>
     </div>`;
 }
 
@@ -314,11 +357,7 @@ function rerenderHoldingsTable(root, holdings) {
   const tbl = root.querySelector('#settings-holdings-tbl');
   if (!tbl) return;
   const rows = holdings.map((h, i) => renderHoldingRow(h, i)).join('');
-  tbl.innerHTML = `
-    <div class="tbl-row th" style="grid-template-columns:1.3fr .9fr .7fr .6fr .6fr .8fr .8fr .7fr 1.1fr .4fr">
-      <div>ISIN</div><div>Ticker</div><div>Color</div><div>Accum.</div><div>Active</div><div>Weekly (€)</div><div>Asset class</div><div>Region</div><div>Successor ISIN</div><div></div>
-    </div>
-    ${rows}`;
+  tbl.innerHTML = rows;
   tbl.querySelectorAll('.js-del-hold').forEach(btn => {
     btn.addEventListener('click', () => {
       const h = collectHoldings(root);
@@ -377,10 +416,18 @@ function renderRulesCard(settings) {
   }
 
   const rows = rules.map((r, i) => `
-    <div class="tbl-row settings-rule-row" style="grid-template-columns:1.5fr 2fr .4fr" data-idx="${i}">
-      <div><input class="form-input form-input-sm" data-field="label" value="${esc(r.label)}" placeholder="e.g. Dividends reinvested"></div>
-      <div><input class="form-input form-input-sm" data-field="value" value="${esc(r.value)}" placeholder="e.g. into IWDA weekly"></div>
-      <div><button class="btn btn-sm btn-danger js-del-rule" data-idx="${i}">✕</button></div>
+    <div class="settings-item settings-rule-row" data-idx="${i}">
+      <div class="settings-item-fields" style="grid-template-columns:1fr">
+        <div class="settings-field">
+          <label class="settings-field-label">Description</label>
+          <input class="form-input form-input-sm" data-field="label" value="${esc(r.label)}" placeholder="e.g. Dividends reinvested">
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Action</label>
+          <input class="form-input form-input-sm" data-field="value" value="${esc(r.value)}" placeholder="e.g. into IWDA weekly">
+        </div>
+      </div>
+      <div style="text-align:right;margin-top:4px"><button class="btn btn-sm btn-danger js-del-rule" data-idx="${i}">✕ Remove</button></div>
     </div>
   `).join('');
 
@@ -388,13 +435,10 @@ function renderRulesCard(settings) {
     <div class="card">
       <div class="card-title">Reinvestment rules</div>
       <p class="note" style="margin-bottom:.75rem">Notes about how dividends and proceeds from sold positions are reinvested. These are displayed on the Overview tab as reminders.</p>
-      <div class="tbl" id="settings-rules-tbl">
-        <div class="tbl-row th" style="grid-template-columns:1.5fr 2fr .4fr">
-          <div>Description</div><div>Action</div><div></div>
-        </div>
+      <div id="settings-rules-tbl" class="settings-items">
         ${rows}
       </div>
-      <div style="display:flex;gap:10px;margin-top:.75rem">
+      <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
         <button class="btn btn-outline btn-sm" id="btn-add-rule">+ Add rule</button>
         <button class="btn btn-primary btn-sm" id="btn-save-rules">Save rules</button>
         <span id="rules-msg" style="font-size:12px;line-height:28px"></span>
@@ -455,17 +499,21 @@ function rerenderRulesTable(root, rules) {
   const tbl = root.querySelector('#settings-rules-tbl');
   if (!tbl) return;
   const rows = rules.map((r, i) => `
-    <div class="tbl-row settings-rule-row" style="grid-template-columns:1.5fr 2fr .4fr" data-idx="${i}">
-      <div><input class="form-input form-input-sm" data-field="label" value="${esc(r.label)}" placeholder="e.g. Dividends reinvested"></div>
-      <div><input class="form-input form-input-sm" data-field="value" value="${esc(r.value)}" placeholder="e.g. into IWDA weekly"></div>
-      <div><button class="btn btn-sm btn-danger js-del-rule" data-idx="${i}">✕</button></div>
+    <div class="settings-item settings-rule-row" data-idx="${i}">
+      <div class="settings-item-fields" style="grid-template-columns:1fr">
+        <div class="settings-field">
+          <label class="settings-field-label">Description</label>
+          <input class="form-input form-input-sm" data-field="label" value="${esc(r.label)}" placeholder="e.g. Dividends reinvested">
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Action</label>
+          <input class="form-input form-input-sm" data-field="value" value="${esc(r.value)}" placeholder="e.g. into IWDA weekly">
+        </div>
+      </div>
+      <div style="text-align:right;margin-top:4px"><button class="btn btn-sm btn-danger js-del-rule" data-idx="${i}">✕ Remove</button></div>
     </div>
   `).join('');
-  tbl.innerHTML = `
-    <div class="tbl-row th" style="grid-template-columns:1.5fr 2fr .4fr">
-      <div>Description</div><div>Action</div><div></div>
-    </div>
-    ${rows}`;
+  tbl.innerHTML = rows;
   tbl.querySelectorAll('.js-del-rule').forEach(btn => {
     btn.addEventListener('click', () => {
       const r = collectRules(root);
