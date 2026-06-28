@@ -65,6 +65,7 @@ h1{font-size:20px;font-weight:500;margin-bottom:.2rem}
 .form-label{font-size:12px;color:#52514e;margin-bottom:5px;display:block;font-weight:500}
 .form-input{width:100%;padding:8px 10px;border:1px solid #e1e0d9;border-radius:6px;font-size:13px;background:#f8f8f6;color:#0b0b0b;outline:none;transition:border .15s}
 .form-input:focus{border-color:#378ADD;background:#fff}
+.form-input-sm{padding:5px 7px;font-size:12px}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media(max-width:520px){.form-grid{grid-template-columns:1fr}}
 

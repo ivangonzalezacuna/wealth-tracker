@@ -13,6 +13,7 @@ import { renderPortfolio } from './views/portfolio.js';
 import { renderDCA } from './views/contributions.js';
 import { renderDividends } from './views/dividends.js';
 import { renderRef } from './views/reference.js';
+import { renderSettings } from './views/settings.js';
 import { renderLog } from './views/log.js';
 import { snapTotal, fmtMon, showMsg } from './utils.js';
 
@@ -54,6 +55,7 @@ function showSection(id, btn) {
   btn?.classList.add('active');
   // Render reference chart on demand (canvas must be visible)
   if (id === 'reference') renderRef();
+  if (id === 'settings') renderSettings();
 }
 
 // ── Auth ─────────────────────────────────────────────────

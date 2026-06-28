@@ -29,6 +29,7 @@ export function appTemplate() {
   <button data-section="contributions">Contributions</button>
   <button data-section="dividends">Dividends</button>
   <button data-section="reference">Reference</button>
+  <button data-section="settings">Settings</button>
   <button data-section="log" class="log-btn">＋ Log</button>
 </nav>
 
@@ -160,6 +161,11 @@ export function appTemplate() {
     <div class="card-title">Settings &amp; rules</div>
     <div id="ref-rules"></div>
   </div>
+</div>
+
+<!-- ════ SETTINGS ════ -->
+<div id="settings" class="section">
+  <div id="settings-content"></div>
 </div>
 
 <!-- ════ LOG ════ -->
