@@ -113,3 +113,12 @@ h1{font-size:20px;font-weight:500;margin-bottom:.2rem}
 .metric-val.ok{color:#0F6E56}.metric-val.warn{color:#BA7517}.metric-val.neg{color:#A32D2D}
 .metric-exp{font-size:12px;color:#52514e;line-height:1.55}
 .metric-exp b{color:#0b0b0b}
+
+/* Filtering, pagination, chart controls */
+.filter-bar{display:flex;align-items:center;gap:8px;margin-bottom:.75rem;flex-wrap:wrap}
+.pagination{display:flex;align-items:center;gap:6px;margin-top:.75rem;font-size:12px;color:#52514e}
+.pagination button{cursor:pointer}
+.pagination .page-info{margin:0 4px}
+.chart-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;flex-wrap:wrap}
+.range-toggle{display:flex;gap:4px}
+.range-toggle .btn.active{background:#e6f1fb;color:#185FA5;border-color:#378ADD}

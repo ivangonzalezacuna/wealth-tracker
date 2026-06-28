@@ -4,6 +4,11 @@ import { getTotalWeeklyTarget, getAnnualReturnPct, getPrimaryInvestmentAccounts 
 import Chart from 'chart.js/auto';
 
 const CH = {};
+const DCA_PAGE_SIZE = 12;
+let _dcaPage = 1;
+let _dcaYear = '';
+let _dcaRange = 'all'; // '12', '24', 'all'
+let _lastPd = null;
 
 /** Get the primary investment value from a snapshot. */
 function getPrimaryInvestmentValue(snap) {
@@ -24,6 +29,8 @@ export function renderDCA(pd, snaps) {
   document.getElementById('dca-content').style.display = has ? 'block' : 'none';
   if (!has) return;
 
+  _lastPd = pd;
+
   const total  = pd.totalInv;
   const n      = pd.months.length;
   const avg    = n > 0 ? total / n : 0;
@@ -40,29 +47,9 @@ export function renderDCA(pd, snaps) {
   const allSyms = [...new Set(pd.months.flatMap(m => Object.keys(pd.monthlyBy[m] || {})))];
   const ordSyms = ISIN_ORDER.filter(s => allSyms.includes(s)).concat(allSyms.filter(s => !ISIN_ORDER.includes(s)));
 
-  const datasets = ordSyms.map(sym => {
-    const t = ISIN[sym] || sym;
-    const m = META[t]   || {};
-    return {
-      label: t,
-      data: pd.months.map(mo => (pd.monthlyBy[mo] || {})[sym] || 0),
-      backgroundColor: m.color || '#898781',
-      borderRadius: 3, borderSkipped: false,
-    };
-  });
-
-  if (CH['c-dca-bar']) CH['c-dca-bar'].destroy();
-  CH['c-dca-bar'] = new Chart(document.getElementById('c-dca-bar'), {
-    type: 'bar',
-    data: { labels: pd.months.map(fmtMon), datasets },
-    options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { stacked: true, grid: { display: false }, ticks: { color: '#52514e', font: { size: 10 } } },
-        y: { stacked: true, grid: { color: '#e1e0d9' }, ticks: { color: '#898781', callback: v => '€' + v } },
-      },
-    },
-  });
+  // Chart with range toggle
+  renderDCAChart(pd, ordSyms, ISIN, META);
+  attachRangeToggle(pd, ordSyms, ISIN, META);
 
   document.getElementById('dca-legend').innerHTML = ordSyms.map(sym => {
     const t = ISIN[sym] || sym;
@@ -70,21 +57,12 @@ export function renderDCA(pd, snaps) {
     return `<span class="leg-item"><span class="leg-sq" style="background:${m.color || '#898781'}"></span>${t}</span>`;
   }).join('');
 
-  const tRows = pd.months.slice().reverse().map(m =>
-    `<div class="tbl-row" style="grid-template-columns:1fr 1fr">
-      <div style="color:#52514e">${fmtMon(m)}</div>
-      <div style="font-weight:500;text-align:right">${fmt(pd.monthly[m])}</div>
-    </div>`).join('');
+  // DCA table with filtering + pagination
+  populateDCAYearFilter(pd.months);
+  attachDCAFilterListeners(pd);
+  renderDCATable(pd);
 
-  document.getElementById('dca-table').innerHTML = `
-    <div class="tbl-row th" style="grid-template-columns:1fr 1fr"><div>Month</div><div style="text-align:right">Invested</div></div>
-    ${tRows}
-    <div class="tbl-row" style="grid-template-columns:1fr 1fr;border-top:1px solid #d3d1c7;margin-top:4px">
-      <div style="font-weight:500">Total</div>
-      <div style="font-weight:500;text-align:right">${fmt(total)}</div>
-    </div>`;
-
-  // 5-year projection — uses real weekly target from config store
+  // 5-year projection
   const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
   const startV  = getPrimaryInvestmentValue(latSnap) || pd.totalInv;
   const annualReturnPct = getAnnualReturnPct();
@@ -114,5 +92,142 @@ export function renderDCA(pd, snaps) {
         x: { grid: { display: false }, ticks: { color: '#52514e' } },
       },
     },
+  });
+}
+
+// ── Chart with range toggle ──────────────────────────────
+
+function renderDCAChart(pd, ordSyms, ISIN, META) {
+  // Apply range filter to months
+  let months = pd.months;
+  if (_dcaRange !== 'all') {
+    const limit = parseInt(_dcaRange);
+    months = months.slice(-limit);
+  }
+
+  const datasets = ordSyms.map(sym => {
+    const t = ISIN[sym] || sym;
+    const m = META[t]   || {};
+    return {
+      label: t,
+      data: months.map(mo => (pd.monthlyBy[mo] || {})[sym] || 0),
+      backgroundColor: m.color || '#898781',
+      borderRadius: 3, borderSkipped: false,
+    };
+  });
+
+  // Adaptive x-axis: show every Nth label to avoid crowding
+  const maxLabels = 18;
+  const step = Math.ceil(months.length / maxLabels);
+
+  if (CH['c-dca-bar']) CH['c-dca-bar'].destroy();
+  CH['c-dca-bar'] = new Chart(document.getElementById('c-dca-bar'), {
+    type: 'bar',
+    data: { labels: months.map(fmtMon), datasets },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: {
+          color: '#52514e', font: { size: 10 },
+          maxRotation: 45, autoSkip: false,
+          callback: function(val, idx) { return idx % step === 0 ? this.getLabelForValue(val) : ''; },
+        }},
+        y: { stacked: true, grid: { color: '#e1e0d9' }, ticks: { color: '#898781', callback: v => '€' + v } },
+      },
+    },
+  });
+}
+
+function attachRangeToggle(pd, ordSyms, ISIN, META) {
+  const toggle = document.getElementById('dca-range-toggle');
+  if (!toggle || toggle._bound) return;
+  toggle._bound = true;
+  toggle.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-range]');
+    if (!btn) return;
+    _dcaRange = btn.dataset.range;
+    toggle.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderDCAChart(_lastPd || pd, ordSyms, ISIN, META);
+  });
+}
+
+// ── DCA table with filtering + pagination ────────────────
+
+function populateDCAYearFilter(months) {
+  const select = document.getElementById('dca-year-filter');
+  if (!select) return;
+  const years = [...new Set(months.map(m => m.slice(0, 4)))].sort().reverse();
+  const current = select.value;
+  select.innerHTML = '<option value="">All years</option>' +
+    years.map(y => `<option value="${y}" ${y === current ? 'selected' : ''}>${y}</option>`).join('');
+}
+
+function attachDCAFilterListeners(pd) {
+  const yearEl = document.getElementById('dca-year-filter');
+  if (yearEl && !yearEl._bound) {
+    yearEl._bound = true;
+    yearEl.addEventListener('change', () => {
+      _dcaYear = yearEl.value;
+      _dcaPage = 1;
+      renderDCATable(pd);
+    });
+  }
+}
+
+function renderDCATable(pd) {
+  const el = document.getElementById('dca-table');
+  if (!el) return;
+
+  // Filter months
+  let months = [...pd.months].reverse();
+  if (_dcaYear) {
+    months = months.filter(m => m.startsWith(_dcaYear));
+  }
+
+  // Calculate filtered total
+  const filteredTotal = months.reduce((sum, m) => sum + (pd.monthly[m] || 0), 0);
+
+  // Pagination
+  const totalPages = Math.ceil(months.length / DCA_PAGE_SIZE);
+  if (_dcaPage > totalPages) _dcaPage = Math.max(1, totalPages);
+  const start = (_dcaPage - 1) * DCA_PAGE_SIZE;
+  const pageMonths = months.slice(start, start + DCA_PAGE_SIZE);
+
+  const tRows = pageMonths.map(m =>
+    `<div class="tbl-row" style="grid-template-columns:1fr 1fr">
+      <div style="color:#52514e">${fmtMon(m)}</div>
+      <div style="font-weight:500;text-align:right">${fmt(pd.monthly[m])}</div>
+    </div>`).join('');
+
+  el.innerHTML = `
+    <div class="tbl-row th" style="grid-template-columns:1fr 1fr"><div>Month</div><div style="text-align:right">Invested</div></div>
+    ${tRows}
+    <div class="tbl-row" style="grid-template-columns:1fr 1fr;border-top:1px solid #d3d1c7;margin-top:4px">
+      <div style="font-weight:500">${_dcaYear ? 'Year total' : 'Total'}</div>
+      <div style="font-weight:500;text-align:right">${fmt(filteredTotal)}</div>
+    </div>`;
+
+  // Pagination controls
+  renderDCAPagination(totalPages, pd);
+}
+
+function renderDCAPagination(totalPages, pd) {
+  const el = document.getElementById('dca-pagination');
+  if (!el) return;
+  if (totalPages <= 1) {
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = `
+    <button class="btn btn-sm btn-ghost js-dca-prev" ${_dcaPage <= 1 ? 'disabled' : ''}>←</button>
+    <span class="page-info">${_dcaPage} / ${totalPages}</span>
+    <button class="btn btn-sm btn-ghost js-dca-next" ${_dcaPage >= totalPages ? 'disabled' : ''}>→</button>
+  `;
+  el.querySelector('.js-dca-prev')?.addEventListener('click', () => {
+    if (_dcaPage > 1) { _dcaPage--; renderDCATable(pd); }
+  });
+  el.querySelector('.js-dca-next')?.addEventListener('click', () => {
+    if (_dcaPage < totalPages) { _dcaPage++; renderDCATable(pd); }
   });
 }

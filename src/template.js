@@ -101,13 +101,26 @@ export function appTemplate() {
     <div class="kpi-row" id="dca-kpis"></div>
     <div class="card">
       <div class="card-title">Monthly invested — stacked by ETF (savings plan executions)</div>
-      <div id="dca-legend" class="legend"></div>
+      <div class="chart-controls">
+        <div id="dca-legend" class="legend"></div>
+        <div class="range-toggle" id="dca-range-toggle">
+          <button class="btn btn-sm btn-ghost" data-range="12">12M</button>
+          <button class="btn btn-sm btn-ghost" data-range="24">24M</button>
+          <button class="btn btn-sm btn-ghost active" data-range="all">All</button>
+        </div>
+      </div>
       <div class="chart-wrap" style="height:260px"><canvas id="c-dca-bar"></canvas></div>
     </div>
     <div class="two-col">
       <div class="card">
         <div class="card-title">Month-by-month</div>
+        <div class="filter-bar">
+          <select id="dca-year-filter" class="form-input form-input-sm" style="width:auto;display:inline-block">
+            <option value="">All years</option>
+          </select>
+        </div>
         <div class="tbl"><div id="dca-table"></div></div>
+        <div id="dca-pagination" class="pagination"></div>
       </div>
       <div class="card">
         <div class="card-title" id="dca-proj-title">5-year projection</div>
@@ -219,7 +232,14 @@ export function appTemplate() {
 
     <div class="card">
       <div class="card-title">Snapshot history</div>
+      <div class="filter-bar" id="snap-filter-bar">
+        <select id="snap-year-filter" class="form-input form-input-sm" style="width:auto;display:inline-block">
+          <option value="">All years</option>
+        </select>
+        <input type="text" id="snap-search" class="form-input form-input-sm" placeholder="Search notes…" style="width:140px;display:inline-block;margin-left:6px">
+      </div>
       <div id="snaps-list"></div>
+      <div id="snap-pagination" class="pagination"></div>
     </div>
   </div>
 </div>
