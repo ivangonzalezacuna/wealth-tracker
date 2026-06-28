@@ -1,0 +1,834 @@
+// @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
+import { getAccounts, getHoldings, getSettings, setAccounts, setHoldings, setSettings, setSetting, isConfigLoaded, getCostBasisMethod } from '../store/config';
+import { loadTransactions } from '../sheets/transactions';
+import { showMsg } from '../utils';
+import type { Account, Holding, Settings } from '../types';
+
+/**
+ * Render the Settings section — user-friendly forms for Accounts, Holdings, Settings.
+ * Only shown after config is loaded (sign-in required).
+ */
+export function renderSettings(): void {
+  const el = document.getElementById('settings-content');
+  if (!el) return;
+
+  if (!isConfigLoaded()) {
+    el.innerHTML = '<p class="note">Sign in and load data to manage settings.</p>';
+    return;
+  }
+
+  const accounts = getAccounts();
+  const holdings = getHoldings();
+  const settings = getSettings();
+
+  el.innerHTML = `
+    ${renderAccountsCard(accounts)}
+    ${renderHoldingsCard(holdings)}
+    ${renderCostBasisCard(settings)}
+    ${renderProjectionCard(settings)}
+    ${renderRulesCard(settings)}
+  `;
+
+  attachAccountListeners(el);
+  attachHoldingListeners(el);
+  attachCostBasisListeners(el);
+  attachProjectionListeners(el);
+  attachRulesListeners(el);
+  attachColorPickerSync(el);
+  attachCardCollapseListeners(el);
+}
+
+// ── Accounts ──────────────────────────────────────────────
+
+const ACCOUNT_TYPES = [
+  { value: 'investment', label: 'Investment' },
+  { value: 'savings',    label: 'Savings' },
+  { value: 'pension',    label: 'Pension' },
+  { value: 'cash',       label: 'Cash' },
+];
+
+function renderAccountsCard(accounts: Account[]): string {
+  const rows = accounts.map((a, i) => renderAccountRow(a, i)).join('');
+
+  return `
+    <div class="card card-collapsible">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Accounts</div>
+        <span class="card-chevron"></span>
+      </div>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.75rem">Accounts tracked in each monthly net-worth snapshot. Add one row per bank account or portfolio.</p>
+        <div id="settings-accounts-tbl" class="settings-items">
+          ${rows}
+        </div>
+        <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" id="btn-add-acct">+ Add account</button>
+          <button class="btn btn-primary btn-sm" id="btn-save-accts">Save accounts</button>
+          <span id="accts-msg" style="font-size:12px;line-height:28px"></span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderAccountRow(a: Account, i: number): string {
+  const typeOptions = ACCOUNT_TYPES.map(t =>
+    `<option value="${t.value}" ${a.moneyType === t.value ? 'selected' : ''}>${t.label}</option>`
+  ).join('');
+
+  return `
+    <div class="settings-item settings-acct-row item-collapsible" data-idx="${i}">
+      <div class="settings-item-header js-item-toggle">
+        <span class="settings-item-title">${esc(a.label) || 'New account'}</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="item-chevron"></span>
+          <button class="btn btn-sm btn-danger js-del-acct" data-idx="${i}">✕</button>
+        </div>
+      </div>
+      <div class="settings-item-fields">
+        <div class="settings-field">
+          <label class="settings-field-label">Name</label>
+          <input class="form-input form-input-sm" data-field="label" value="${esc(a.label)}" placeholder="e.g. Main ETF portfolio">
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Type</label>
+          <select class="form-input form-input-sm" data-field="moneyType">${typeOptions}</select>
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Institution</label>
+          <input class="form-input form-input-sm" data-field="institution" value="${esc(a.institution)}" placeholder="e.g. Trade Republic">
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Color</label>
+          <div class="color-picker-wrap">
+            <input type="color" class="color-picker-swatch" data-field="color" value="${esc(a.color)}">
+            <input class="form-input form-input-sm color-picker-hex" data-field="color-hex" value="${esc(a.color)}" placeholder="#888888" maxlength="7">
+          </div>
+        </div>
+        <div class="settings-field settings-field-inline">
+          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="isPrimaryInvestment" ${a.isPrimaryInvestment ? 'checked' : ''}> Primary investment</label>
+        </div>
+      </div>
+      <input type="hidden" data-field="id" value="${esc(a.id)}">
+    </div>`;
+}
+
+function attachAccountListeners(root: HTMLElement): void {
+  root.querySelector('#btn-add-acct')?.addEventListener('click', () => {
+    const accounts = collectAccounts(root);
+    accounts.push({ id: '', moneyType: 'cash', institution: '', label: '', color: '#888888', isPrimaryInvestment: false, order: accounts.length + 1 });
+    rerenderAccountsTable(root, accounts);
+  });
+
+  root.querySelector('#btn-save-accts')?.addEventListener('click', async () => {
+    const accounts = collectAccounts(root);
+    if (accounts.some(a => !a.label)) {
+      showMsg('accts-msg', 'Each account needs a name.', false);
+      return;
+    }
+    // Auto-generate IDs for accounts that don't have one
+    for (const a of accounts) {
+      if (!a.id) {
+        a.id = generateId(a.label);
+      }
+    }
+    try {
+      await setAccounts(accounts);
+      showMsg('accts-msg', 'Saved', true);
+    } catch (err) {
+      showMsg('accts-msg', 'Error: ' + err.message, false);
+    }
+  });
+
+  root.querySelectorAll('.js-del-acct').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const accounts = collectAccounts(root);
+      accounts.splice(parseInt(btn.dataset.idx), 1);
+      rerenderAccountsTable(root, accounts);
+    });
+  });
+}
+
+function collectAccounts(root: HTMLElement): Account[] {
+  const rows = root.querySelectorAll('.settings-acct-row');
+  return [...rows].map((row, i) => ({
+    id:                  row.querySelector('[data-field="id"]').value.trim(),
+    moneyType:           row.querySelector('[data-field="moneyType"]').value.trim(),
+    institution:         row.querySelector('[data-field="institution"]').value.trim(),
+    label:               row.querySelector('[data-field="label"]').value.trim(),
+    color:               row.querySelector('[data-field="color"]').value.trim(),
+    isPrimaryInvestment: row.querySelector('[data-field="isPrimaryInvestment"]').checked,
+    order:               i + 1,
+  }));
+}
+
+function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
+  const tbl = root.querySelector('#settings-accounts-tbl');
+  if (!tbl) return;
+  const rows = accounts.map((a, i) => renderAccountRow(a, i)).join('');
+  tbl.innerHTML = rows;
+  attachColorPickerSync(tbl);
+  attachItemCollapseListeners(tbl);
+  tbl.querySelectorAll('.js-del-acct').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const accs = collectAccounts(root);
+      accs.splice(parseInt(btn.dataset.idx), 1);
+      rerenderAccountsTable(root, accs);
+    });
+  });
+}
+
+// ── Holdings ──────────────────────────────────────────────
+
+let _holdingsSettingsFilter = 'all'; // 'all' | 'active' | 'closed'
+let _allHoldings: Holding[] | null = null; // cached full holdings list for filtered views
+
+const ASSET_CLASSES = [
+  { value: 'equity', label: 'Equity' },
+  { value: 'bond',   label: 'Bond' },
+  { value: 'reit',   label: 'REIT' },
+  { value: 'commodity', label: 'Commodity' },
+  { value: 'other',  label: 'Other' },
+];
+
+const REGIONS = [
+  { value: 'developed', label: 'Developed' },
+  { value: 'emerging',  label: 'Emerging' },
+  { value: 'global',    label: 'Global' },
+  { value: 'europe',    label: 'Europe' },
+  { value: 'us',        label: 'US' },
+  { value: 'other',     label: 'Other' },
+];
+
+function renderHoldingsCard(holdings: Holding[]): string {
+  // Cache the full list for merge-back when filter is active
+  _allHoldings = holdings.slice();
+
+  const activeCount = holdings.filter(h => h.active).length;
+  const closedCount = holdings.filter(h => !h.active).length;
+
+  // Apply filter
+  let filtered;
+  if (_holdingsSettingsFilter === 'active') {
+    filtered = holdings.filter(h => h.active);
+  } else if (_holdingsSettingsFilter === 'closed') {
+    filtered = holdings.filter(h => !h.active);
+  } else {
+    filtered = holdings;
+  }
+
+  const rows = filtered.map((h, i) => {
+    // Store original index so delete/edit operations target the right holding
+    const origIdx = holdings.indexOf(h);
+    return renderHoldingRow(h, origIdx);
+  }).join('');
+
+  return `
+    <div class="card card-collapsible">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Holdings (ETFs)</div>
+        <span class="card-chevron"></span>
+      </div>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.75rem">ETF positions in your portfolio. Active holdings receive weekly contributions. Closed positions can be folded into a successor fund.</p>
+        <div class="filter-bar" style="margin-bottom:8px">
+          <div class="range-toggle" id="hold-filter-toggle">
+            <button class="btn btn-sm btn-ghost ${_holdingsSettingsFilter === 'all' ? 'active' : ''}" data-hfilter="all">All (${holdings.length})</button>
+            <button class="btn btn-sm btn-ghost ${_holdingsSettingsFilter === 'active' ? 'active' : ''}" data-hfilter="active">Active (${activeCount})</button>
+            <button class="btn btn-sm btn-ghost ${_holdingsSettingsFilter === 'closed' ? 'active' : ''}" data-hfilter="closed">Closed (${closedCount})</button>
+          </div>
+        </div>
+        <div id="settings-holdings-tbl" class="settings-items">
+          ${rows}
+        </div>
+        <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" id="btn-add-hold">+ Add holding</button>
+          <button class="btn btn-outline btn-sm" id="btn-autofill-holds">Auto-fill from transactions</button>
+          <button class="btn btn-primary btn-sm" id="btn-save-holds">Save holdings</button>
+          <span id="holds-msg" style="font-size:12px;line-height:28px"></span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderHoldingRow(h: Holding, i: number): string {
+  const classOptions = ASSET_CLASSES.map(c =>
+    `<option value="${c.value}" ${h.assetClass === c.value ? 'selected' : ''}>${c.label}</option>`
+  ).join('');
+  const regionOptions = REGIONS.map(r =>
+    `<option value="${r.value}" ${h.region === r.value ? 'selected' : ''}>${r.label}</option>`
+  ).join('');
+
+  const statusBadge = h.active
+    ? '<span class="badge b-active">Active</span>'
+    : '<span class="badge b-closed">Closed</span>';
+
+  return `
+    <div class="settings-item settings-hold-row item-collapsible" data-idx="${i}">
+      <div class="settings-item-header js-item-toggle">
+        <span class="settings-item-title">${esc(h.ticker) || esc(h.isin) || 'New holding'} ${statusBadge}</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="item-chevron"></span>
+          <button class="btn btn-sm btn-danger js-del-hold" data-idx="${i}">✕</button>
+        </div>
+      </div>
+      <div class="settings-item-fields">
+        <div class="settings-field">
+          <label class="settings-field-label">ISIN</label>
+          <input class="form-input form-input-sm" data-field="isin" value="${esc(h.isin)}" placeholder="e.g. IE00B4L5Y983">
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Ticker</label>
+          <input class="form-input form-input-sm" data-field="ticker" value="${esc(h.ticker)}" placeholder="e.g. IWDA">
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Asset class</label>
+          <select class="form-input form-input-sm" data-field="assetClass">${classOptions}</select>
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Region</label>
+          <select class="form-input form-input-sm" data-field="region">${regionOptions}</select>
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Weekly target (€)</label>
+          <input class="form-input form-input-sm" data-field="weeklyTarget" value="${h.weeklyTarget || ''}" type="number" min="0" placeholder="0">
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Successor ISIN</label>
+          <input class="form-input form-input-sm" data-field="foldInto" value="${esc(h.foldInto)}" placeholder="ISIN of successor">
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Color</label>
+          <div class="color-picker-wrap">
+            <input type="color" class="color-picker-swatch" data-field="color" value="${esc(h.color)}">
+            <input class="form-input form-input-sm color-picker-hex" data-field="color-hex" value="${esc(h.color)}" placeholder="#888888" maxlength="7">
+          </div>
+        </div>
+        <div class="settings-field settings-field-inline">
+          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="acc" ${h.acc ? 'checked' : ''}> Accumulating</label>
+        </div>
+        <div class="settings-field settings-field-inline">
+          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="active" ${h.active ? 'checked' : ''}> Active</label>
+        </div>
+      </div>
+    </div>`;
+}
+
+function attachHoldingListeners(root: HTMLElement): void {
+  // Filter toggle
+  const filterToggle = root.querySelector('#hold-filter-toggle');
+  if (filterToggle) {
+    filterToggle.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('[data-hfilter]') as HTMLElement | null;
+      if (!btn) return;
+      _holdingsSettingsFilter = btn.dataset.hfilter || 'all';
+      renderSettings();
+    });
+  }
+
+  root.querySelector('#btn-add-hold')?.addEventListener('click', () => {
+    const holds = collectHoldings(root);
+    holds.push({ isin: '', ticker: '', name: '', color: '#888888', acc: true, active: true, weeklyTarget: 0, assetClass: 'equity', region: 'developed', foldInto: '', order: holds.length + 1 });
+    rerenderHoldingsTable(root, holds);
+  });
+
+  root.querySelector('#btn-autofill-holds')?.addEventListener('click', async () => {
+    showMsg('holds-msg', 'Loading transactions…', true);
+    try {
+      const txs = await loadTransactions();
+      const buys = txs.filter(t => t.type === 'BUY' && (t.isin || t.symbol));
+      if (buys.length === 0) {
+        showMsg('holds-msg', 'No BUY transactions found. Import a CSV first.', false);
+        return;
+      }
+      // Determine cutoff: ISINs with buys in the last 3 months are "active"
+      const latestDate = buys.reduce((max, t) => t.date > max ? t.date : max, '');
+      const cutoff = subtractMonths(latestDate, 3);
+      // Extract unique ISIN→name mapping and track latest tx date per ISIN
+      const isinMap = {};
+      const isinLatest = {};
+      for (const tx of buys) {
+        const sym = tx.isin || tx.symbol;
+        if (!isinMap[sym]) {
+          isinMap[sym] = tx.name || '';
+        }
+        if (!isinLatest[sym] || tx.date > isinLatest[sym]) {
+          isinLatest[sym] = tx.date;
+        }
+      }
+      // Merge with existing holdings (skip already-configured ISINs)
+      const holds = collectHoldings(root);
+      const existing = new Set(holds.map(h => h.isin));
+      let added = 0;
+      for (const [isin, name] of Object.entries(isinMap)) {
+        if (existing.has(isin)) continue;
+        const parsed = parseHoldingName(name, isin);
+        const isActive = (isinLatest[isin] || '') >= cutoff;
+        holds.push({
+          isin,
+          ticker:      parsed.ticker,
+          name:        '',
+          color:       randomColor(),
+          acc:         parsed.acc,
+          active:      isActive,
+          weeklyTarget: 0,
+          assetClass:  parsed.assetClass,
+          region:      parsed.region,
+          foldInto:    '',
+          order:       holds.length + 1,
+        });
+        added++;
+      }
+      rerenderHoldingsTable(root, holds);
+      showMsg('holds-msg', added > 0 ? `Added ${added} holding(s) from transactions. Review and save.` : 'All transaction ISINs already configured.', true);
+    } catch (err) {
+      showMsg('holds-msg', 'Error: ' + err.message, false);
+    }
+  });
+
+  root.querySelector('#btn-save-holds')?.addEventListener('click', async () => {
+    const holds = collectHoldings(root);
+    if (holds.some(h => !h.isin || !h.ticker)) {
+      showMsg('holds-msg', 'Each holding needs an ISIN and ticker.', false);
+      return;
+    }
+    try {
+      await setHoldings(holds);
+      showMsg('holds-msg', 'Saved', true);
+    } catch (err) {
+      showMsg('holds-msg', 'Error: ' + err.message, false);
+    }
+  });
+
+  root.querySelectorAll('.js-del-hold').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const holds = collectHoldings(root);
+      holds.splice(parseInt(btn.dataset.idx), 1);
+      rerenderHoldingsTable(root, holds);
+    });
+  });
+}
+
+function collectHoldings(root: HTMLElement): Holding[] {
+  const rows = root.querySelectorAll('.settings-hold-row');
+  const fromDOM = [...rows].map(row => ({
+    idx:          parseInt(row.dataset.idx),
+    isin:         row.querySelector('[data-field="isin"]').value.trim(),
+    ticker:       row.querySelector('[data-field="ticker"]').value.trim(),
+    name:         '',
+    color:        row.querySelector('[data-field="color"]').value.trim(),
+    acc:          row.querySelector('[data-field="acc"]').checked,
+    active:       row.querySelector('[data-field="active"]').checked,
+    weeklyTarget: parseFloat(row.querySelector('[data-field="weeklyTarget"]').value) || 0,
+    assetClass:   row.querySelector('[data-field="assetClass"]').value.trim(),
+    region:       row.querySelector('[data-field="region"]').value.trim(),
+    foldInto:     row.querySelector('[data-field="foldInto"]').value.trim(),
+  }));
+
+  // When no filter is active or no cached list, return DOM rows directly
+  if (_holdingsSettingsFilter === 'all' || !_allHoldings) {
+    return fromDOM.map((h, i) => { const { idx, ...rest } = h; return { ...rest, order: i + 1 }; });
+  }
+
+  // Merge DOM edits back into the full cached list
+  const merged = _allHoldings.slice();
+  for (const h of fromDOM) {
+    const { idx, ...rest } = h;
+    if (idx >= 0 && idx < merged.length) {
+      merged[idx] = { ...rest, order: idx + 1 };
+    }
+  }
+  // Re-number order
+  merged.forEach((h, i) => { h.order = i + 1; });
+  return merged;
+}
+
+function rerenderHoldingsTable(root: HTMLElement, holdings: Holding[]): void {
+  // Update cache and reset filter to show all when modifying
+  _allHoldings = holdings.slice();
+  _holdingsSettingsFilter = 'all';
+  const tbl = root.querySelector('#settings-holdings-tbl');
+  if (!tbl) return;
+  const rows = holdings.map((h, i) => renderHoldingRow(h, i)).join('');
+  tbl.innerHTML = rows;
+  // Update filter counts
+  const toggle = root.querySelector('#hold-filter-toggle');
+  if (toggle) {
+    const activeCount = holdings.filter(h => h.active).length;
+    const closedCount = holdings.filter(h => !h.active).length;
+    const btns = toggle.querySelectorAll('[data-hfilter]');
+    btns.forEach(b => {
+      b.classList.toggle('active', b.dataset.hfilter === 'all');
+      if (b.dataset.hfilter === 'all') b.textContent = `All (${holdings.length})`;
+      if (b.dataset.hfilter === 'active') b.textContent = `Active (${activeCount})`;
+      if (b.dataset.hfilter === 'closed') b.textContent = `Closed (${closedCount})`;
+    });
+  }
+  attachColorPickerSync(tbl);
+  attachItemCollapseListeners(tbl);
+  tbl.querySelectorAll('.js-del-hold').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const h = collectHoldings(root);
+      h.splice(parseInt(btn.dataset.idx), 1);
+      rerenderHoldingsTable(root, h);
+    });
+  });
+}
+
+// ── Cost-basis method ───────────────────────────────────
+
+function renderCostBasisCard(settings: Settings): string {
+  const current = getCostBasisMethod();
+
+  return `
+    <div class="card card-collapsible">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Cost-basis method</div>
+        <span class="card-chevron"></span>
+      </div>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.75rem">Choose how realized gains are calculated when you sell shares.</p>
+        <div class="form-grid" style="max-width:500px">
+          <div class="form-group">
+            <label class="form-label">Method</label>
+            <select class="form-input" id="set-cost-basis-method">
+              <option value="avgco" ${current === 'avgco' ? 'selected' : ''}>Average cost</option>
+              <option value="fifo" ${current === 'fifo' ? 'selected' : ''}>FIFO (first in, first out)</option>
+            </select>
+            <span class="note">FIFO matches the German Abgeltungsteuer ordering rule. Average cost is simpler but may diverge on partial sells.</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:.75rem">
+          <button class="btn btn-primary btn-sm" id="btn-save-cost-basis">Save cost-basis method</button>
+          <span id="costbasis-msg" style="font-size:12px;line-height:28px"></span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function attachCostBasisListeners(root: HTMLElement): void {
+  root.querySelector('#btn-save-cost-basis')?.addEventListener('click', async () => {
+    const method = root.querySelector('#set-cost-basis-method')?.value || 'avgco';
+    try {
+      await setSetting('costBasisMethod', method);
+      showMsg('costbasis-msg', 'Saved', true);
+    } catch (err) {
+      showMsg('costbasis-msg', 'Error: ' + err.message, false);
+    }
+  });
+}
+
+// ── Projection settings ──────────────────────────────────
+
+function renderProjectionCard(settings: Settings): string {
+  const annualReturn = settings.annualReturnPct || '7';
+
+  return `
+    <div class="card card-collapsible">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Projection assumptions</div>
+        <span class="card-chevron"></span>
+      </div>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.75rem">Parameters used to calculate your 5-year portfolio projection on the Overview tab.</p>
+        <div class="form-grid" style="max-width:500px">
+          <div class="form-group">
+            <label class="form-label">Expected annual return (%)</label>
+            <input class="form-input" id="set-annual-return" type="number" min="0" max="30" step="0.1" value="${esc(annualReturn)}" placeholder="7">
+            <span class="note">Historical average for diversified ETF portfolios is ~7%</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:.75rem">
+          <button class="btn btn-primary btn-sm" id="btn-save-projection">Save projection settings</button>
+          <span id="proj-msg" style="font-size:12px;line-height:28px"></span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function attachProjectionListeners(root: HTMLElement): void {
+  root.querySelector('#btn-save-projection')?.addEventListener('click', async () => {
+    const annualReturn = root.querySelector('#set-annual-return')?.value || '7';
+    try {
+      await setSettings({ annualReturnPct: annualReturn });
+      showMsg('proj-msg', 'Saved', true);
+    } catch (err) {
+      showMsg('proj-msg', 'Error: ' + err.message, false);
+    }
+  });
+}
+
+// ── Reinvestment rules ───────────────────────────────────
+
+function renderRulesCard(settings: Settings): string {
+  // Extract rules from settings: rule_1_label, rule_1_value, rule_2_label, ...
+  const rules = [];
+  for (let i = 1; i <= 20; i++) {
+    const label = settings[`rule_${i}_label`];
+    const value = settings[`rule_${i}_value`];
+    if (label !== undefined || value !== undefined) {
+      rules.push({ label: label || '', value: value || '' });
+    }
+  }
+
+  const rows = rules.map((r, i) => `
+    <div class="settings-item settings-rule-row" data-idx="${i}">
+      <div class="settings-item-fields" style="grid-template-columns:1fr">
+        <div class="settings-field">
+          <label class="settings-field-label">Description</label>
+          <input class="form-input form-input-sm" data-field="label" value="${esc(r.label)}" placeholder="e.g. Dividends reinvested">
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Action</label>
+          <input class="form-input form-input-sm" data-field="value" value="${esc(r.value)}" placeholder="e.g. into IWDA weekly">
+        </div>
+      </div>
+      <div style="text-align:right;margin-top:4px"><button class="btn btn-sm btn-danger js-del-rule" data-idx="${i}">✕ Remove</button></div>
+    </div>
+  `).join('');
+
+  return `
+    <div class="card card-collapsible">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Reinvestment rules</div>
+        <span class="card-chevron"></span>
+      </div>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.75rem">Notes about how dividends and proceeds from sold positions are reinvested. These are displayed on the Overview tab as reminders.</p>
+        <div id="settings-rules-tbl" class="settings-items">
+          ${rows}
+        </div>
+        <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" id="btn-add-rule">+ Add rule</button>
+          <button class="btn btn-primary btn-sm" id="btn-save-rules">Save rules</button>
+          <span id="rules-msg" style="font-size:12px;line-height:28px"></span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function attachRulesListeners(root: HTMLElement): void {
+  root.querySelector('#btn-add-rule')?.addEventListener('click', () => {
+    const rules = collectRules(root);
+    rules.push({ label: '', value: '' });
+    rerenderRulesTable(root, rules);
+  });
+
+  root.querySelector('#btn-save-rules')?.addEventListener('click', async () => {
+    const rules = collectRules(root);
+    const currentSettings = getSettings();
+    const updates = {};
+    // Mark existing rule keys for deletion
+    for (const key of Object.keys(currentSettings)) {
+      if (/^rule_\d+_(label|value)$/.test(key)) {
+        updates[key] = null;
+      }
+    }
+    // Write new rules (overrides null for reused slots)
+    rules.forEach((r, i) => {
+      if (r.label || r.value) {
+        updates[`rule_${i + 1}_label`] = r.label;
+        updates[`rule_${i + 1}_value`] = r.value;
+      }
+    });
+    try {
+      await setSettings(updates);
+      showMsg('rules-msg', 'Saved', true);
+    } catch (err) {
+      showMsg('rules-msg', 'Error: ' + err.message, false);
+    }
+  });
+
+  root.querySelectorAll('.js-del-rule').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const rules = collectRules(root);
+      rules.splice(parseInt(btn.dataset.idx), 1);
+      rerenderRulesTable(root, rules);
+    });
+  });
+}
+
+function collectRules(root: HTMLElement): { label: string; value: string }[] {
+  const rows = root.querySelectorAll('.settings-rule-row');
+  return [...rows].map(row => ({
+    label: row.querySelector('[data-field="label"]').value.trim(),
+    value: row.querySelector('[data-field="value"]').value.trim(),
+  }));
+}
+
+function rerenderRulesTable(root: HTMLElement, rules: { label: string; value: string }[]): void {
+  const tbl = root.querySelector('#settings-rules-tbl');
+  if (!tbl) return;
+  const rows = rules.map((r, i) => `
+    <div class="settings-item settings-rule-row" data-idx="${i}">
+      <div class="settings-item-fields" style="grid-template-columns:1fr">
+        <div class="settings-field">
+          <label class="settings-field-label">Description</label>
+          <input class="form-input form-input-sm" data-field="label" value="${esc(r.label)}" placeholder="e.g. Dividends reinvested">
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Action</label>
+          <input class="form-input form-input-sm" data-field="value" value="${esc(r.value)}" placeholder="e.g. into IWDA weekly">
+        </div>
+      </div>
+      <div style="text-align:right;margin-top:4px"><button class="btn btn-sm btn-danger js-del-rule" data-idx="${i}">✕ Remove</button></div>
+    </div>
+  `).join('');
+  tbl.innerHTML = rows;
+  tbl.querySelectorAll('.js-del-rule').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const r = collectRules(root);
+      r.splice(parseInt(btn.dataset.idx), 1);
+      rerenderRulesTable(root, r);
+    });
+  });
+}
+
+// ── Helpers ───────────────────────────────────────────────
+
+/** Attach two-way sync between color swatch and hex text inputs. */
+function attachColorPickerSync(root: HTMLElement): void {
+  root.querySelectorAll('.color-picker-wrap').forEach(wrap => {
+    const swatch = wrap.querySelector('.color-picker-swatch');
+    const hex = wrap.querySelector('.color-picker-hex');
+    if (!swatch || !hex) return;
+    swatch.addEventListener('input', () => { hex.value = swatch.value; });
+    hex.addEventListener('input', () => {
+      const v = hex.value.trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(v)) swatch.value = v;
+    });
+  });
+}
+
+/** Attach click listeners to card headers for collapsing/expanding. */
+function attachCardCollapseListeners(root: HTMLElement): void {
+  root.querySelectorAll('.js-card-toggle').forEach(header => {
+    header.addEventListener('click', () => {
+      const card = header.closest('.card-collapsible');
+      if (card) card.classList.toggle('collapsed');
+    });
+  });
+  attachItemCollapseListeners(root);
+}
+
+/** Attach click listeners to individual item headers for collapsing/expanding. */
+function attachItemCollapseListeners(root: HTMLElement): void {
+  root.querySelectorAll('.js-item-toggle').forEach(header => {
+    header.addEventListener('click', (e) => {
+      // Don't toggle when clicking the delete button
+      if (e.target.closest('.btn-danger')) return;
+      const item = header.closest('.item-collapsible');
+      if (item) item.classList.toggle('item-collapsed');
+    });
+  });
+}
+
+function esc(s: string | undefined | null): string {
+  if (!s) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Generate a stable snake_case ID from a label. */
+function generateId(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '')
+    .slice(0, 30);
+}
+
+/** Generate a random muted hex color for a new holding. */
+function randomColor(): string {
+  const h = Math.random() * 360;
+  const s = 0.45, l = 0.55;
+  // HSL to hex conversion
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+  let r, g, b;
+  if (h < 60) { r = c; g = x; b = 0; }
+  else if (h < 120) { r = x; g = c; b = 0; }
+  else if (h < 180) { r = 0; g = c; b = x; }
+  else if (h < 240) { r = 0; g = x; b = c; }
+  else if (h < 300) { r = x; g = 0; b = c; }
+  else { r = c; g = 0; b = x; }
+  const toHex = v => Math.round((v + m) * 255).toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+/**
+ * Parse an ETF name from a Trade Republic CSV to infer holding metadata.
+ * Typical names:
+ *   "iShares Core MSCI World UCITS ETF USD (Acc)"
+ *   "iShares Core MSCI EM IMI UCITS ETF USD (Acc)"
+ *   "iShares € Aggregate Bond UCITS ETF EUR (Dist)"
+ *   "Vanguard FTSE All-World UCITS ETF (USD) Accumulating"
+ *   "Xtrackers MSCI Emerging Markets UCITS ETF 1C"
+ */
+function parseHoldingName(name: string, isin: string): { ticker: string; acc: boolean; assetClass: string; region: string } {
+  const upper = (name || '').toUpperCase();
+
+  // ── Acc vs Dist ──
+  // Check for explicit (Acc)/(Dist) or Accumulating/Distributing keywords
+  let acc = true; // default to accumulating
+  if (/\(DIST\)|DISTRIBUTING/i.test(name)) {
+    acc = false;
+  } else if (/\(ACC\)|ACCUMULATING/i.test(name)) {
+    acc = true;
+  }
+
+  // ── Asset class ──
+  let assetClass = 'equity';
+  if (/BOND|AGGREGATE|FIXED.?INCOME|TREASURY|GOVT/i.test(name)) {
+    assetClass = 'bond';
+  } else if (/REIT|REAL.?ESTATE|PROPERTY/i.test(name)) {
+    assetClass = 'reit';
+  } else if (/GOLD|COMMODITY|COMMODITIES/i.test(name)) {
+    assetClass = 'commodity';
+  }
+
+  // ── Region ──
+  let region = 'developed';
+  if (/EMERGING|EM IMI/i.test(name) || /\bEM\b/.test(upper)) {
+    region = 'emerging';
+  } else if (/ALL.?WORLD|ACWI/i.test(name)) {
+    region = 'global';
+  } else if (/EUROPE|EURO\b|STOXX|€/i.test(name)) {
+    region = 'europe';
+  } else if (/S&P.?500|NASDAQ|US\b|USA\b|AMERICA/i.test(name)) {
+    region = 'us';
+  } else if (/GLOBAL|AGGREGATE|WORLD/i.test(name)) {
+    region = 'global';
+  }
+
+  // ── Ticker ──
+  // Try to extract a recognizable ticker: the short word before "UCITS"
+  // or the word(s) right after the provider name that look like an index abbreviation
+  let ticker = isin.slice(-4); // fallback
+  // Strategy: find the word just before "UCITS" or "ETF" that looks like a ticker
+  // Common pattern: "iShares Core MSCI World UCITS ETF" → we want something meaningful
+  // Better: strip the provider prefix, strip "(Acc)"/"(Dist)", strip "UCITS ETF ..."
+  const cleaned = name
+    .replace(/\(Acc\)|\(Dist\)|Accumulating|Distributing/gi, '')
+    .replace(/UCITS\s+ETF.*/i, '')
+    .replace(/^(iShares|Vanguard|Xtrackers|Amundi|SPDR|Invesco|Lyxor|WisdomTree|UBS|HSBC|BNP)\s*(Core\s*)?/i, '')
+    .trim();
+  if (cleaned) {
+    // Build a compact ticker-like abbreviation from remaining words
+    const words = cleaned.split(/\s+/).filter(w => w.length > 0);
+    if (words.length <= 3) {
+      ticker = words.join(' ');
+    } else {
+      // Take initials of long names
+      ticker = words.map(w => w[0]).join('').toUpperCase();
+    }
+  }
+
+  return { ticker, acc, assetClass, region };
+}
+
+/** Subtract N months from a YYYY-MM-DD date string, returning YYYY-MM-DD. */
+function subtractMonths(dateStr: string, months: number): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setMonth(d.getMonth() - months);
+  return d.toISOString().slice(0, 10);
+}
