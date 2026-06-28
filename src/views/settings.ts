@@ -27,6 +27,7 @@ export function renderSettings(): void {
     ${renderCostBasisCard(settings)}
     ${renderProjectionCard(settings)}
     ${renderRulesCard(settings)}
+    ${renderCacheCard()}
   `;
 
   attachAccountListeners(el);
@@ -34,6 +35,7 @@ export function renderSettings(): void {
   attachCostBasisListeners(el);
   attachProjectionListeners(el);
   attachRulesListeners(el);
+  attachCacheListeners(el);
   attachColorPickerSync(el);
   attachCardCollapseListeners(el);
 }
@@ -831,4 +833,36 @@ function subtractMonths(dateStr: string, months: number): string {
   const d = new Date(dateStr + 'T00:00:00');
   d.setMonth(d.getMonth() - months);
   return d.toISOString().slice(0, 10);
+}
+
+// ── Cache / Force resync ──────────────────────────────────
+
+function renderCacheCard(): string {
+  return `
+    <div class="card card-collapsible">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Cache &amp; sync</div>
+        <span class="card-chevron"></span>
+      </div>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.75rem">Data is cached locally in IndexedDB for offline access and fast boot. If you edited historical rows directly in Google Sheets, use Force full resync to rebuild the cache from scratch.</p>
+        <div style="display:flex;gap:10px;margin-top:.5rem;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" id="btn-force-resync">Force full resync</button>
+          <span id="resync-msg" style="font-size:12px;line-height:28px"></span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function attachCacheListeners(root: HTMLElement): void {
+  root.querySelector('#btn-force-resync')?.addEventListener('click', async () => {
+    const msgEl = root.querySelector('#resync-msg') as HTMLElement | null;
+    if (msgEl) { msgEl.textContent = 'Resyncing…'; msgEl.style.color = '#52514e'; }
+    try {
+      await (window as any).__forceFullResync();
+      if (msgEl) { msgEl.textContent = 'Done ✓'; msgEl.style.color = '#0F6E56'; }
+    } catch (err: any) {
+      if (msgEl) { msgEl.textContent = 'Error: ' + (err?.message || 'unknown'); msgEl.style.color = '#A32D2D'; }
+    }
+  });
 }

@@ -3,10 +3,10 @@ import './styles.css';
 import { CONFIG } from './config';
 import { getACCTSList } from './constants';
 import { appTemplate } from './template';
-import { getToken, signIn as gisSignIn, signOut, isSignedIn, trySilentSignIn } from './auth/google';
+import { signIn as gisSignIn, signOut, isSignedIn, trySilentSignIn } from './auth/google';
 import { loadSnapshots, saveSnapshots } from './sheets/snapshots';
 import { loadTransactions, mergeTransactions, saveImportMeta, loadImportMeta } from './sheets/transactions';
-import { loadConfig, onConfigChange, getCostBasisMethod } from './store/config';
+import { loadConfig, onConfigChange, getCostBasisMethod, getHoldings, getAccounts, getSettings } from './store/config';
 import { computePD } from './portfolio';
 import { parseWithProfile, detectProfile, previewSummary } from './import/parse';
 import { builtInProfiles } from './import/profiles/index';
@@ -17,7 +17,19 @@ import { renderDividends } from './views/dividends';
 import { renderRef } from './views/reference';
 import { renderSettings } from './views/settings';
 import { renderLog } from './views/log';
-import { snapTotal, fmtMon, showMsg, esc } from './utils';
+import { fmtMon, showMsg, esc } from './utils';
+import {
+  isCacheValid, clearCache,
+  getCachedConfig, setCachedConfig,
+  getCachedSnapshots, setCachedSnapshots,
+  getCachedTransactions, setCachedTransactions,
+  getCachedAggregates, setCachedAggregates,
+  getCachedImportMeta, setCachedImportMeta,
+  getSyncCursor, setSyncCursor,
+  getInputsHash, setInputsHash,
+  computeInputsHash, holdingsSignature,
+} from './cache/db';
+import { fetchDeltaTransactions, mergeDelta } from './cache/sync';
 
 // ── App state ────────────────────────────────────────────
 const state = {
@@ -26,6 +38,8 @@ const state = {
   pd:         null,
   importMeta: {},
   syncing:    false,
+  offline:    !navigator.onLine,
+  cacheLoaded: false,
 };
 
 // ── Boot ─────────────────────────────────────────────────
@@ -35,6 +49,7 @@ initSnapForm();
 initCSVDrop();
 initAuth();
 setDefaultMonth();
+initOnlineListeners();
 
 // ── Navigation ───────────────────────────────────────────
 function initNav() {
@@ -60,15 +75,31 @@ function showSection(id, btn) {
   if (id === 'settings') renderSettings();
 }
 
+// ── Online/offline listeners ─────────────────────────────
+function initOnlineListeners() {
+  window.addEventListener('online', () => {
+    state.offline = false;
+    setSyncStatus('ok', 'Back online');
+    // Trigger a background resync if signed in
+    if (isSignedIn()) syncInBackground();
+  });
+  window.addEventListener('offline', () => {
+    state.offline = true;
+    setSyncStatus('offline');
+  });
+}
+
 // ── Auth ─────────────────────────────────────────────────
 function initAuth() {
   document.getElementById('btn-signin')?.addEventListener('click', onSignInClick);
   document.getElementById('btn-signout')?.addEventListener('click', () => signOut());
 
-  // Silent boot: resume the session with no UI if the Google session is alive
-  trySilentSignIn().then((ok) => {
-    if (ok) { updateAuthUI(true); loadAllData(); }
-    else    { updateAuthUI(false); }
+  // Boot: first try to render from cache (instant), then authenticate and sync
+  bootFromCache().then(() => {
+    trySilentSignIn().then((ok) => {
+      if (ok) { updateAuthUI(true); syncInBackground(); }
+      else    { updateAuthUI(false); }
+    });
   });
 }
 
@@ -106,7 +137,158 @@ function setAuthStatus(msg, isErr = false) {
   if (el) { el.innerHTML = msg; el.style.color = isErr ? '#A32D2D' : '#52514e'; }
 }
 
-// ── Data loading ─────────────────────────────────────────
+// ── Cache-first boot ─────────────────────────────────────
+/**
+ * Attempt to render from IndexedDB cache immediately.
+ * This allows offline-first UX and instant second-boot.
+ */
+async function bootFromCache() {
+  try {
+    const valid = await isCacheValid();
+    if (!valid) return;
+
+    const [cachedConfig, cachedSnaps, cachedTxs, cachedMeta, cachedPd] = await Promise.all([
+      getCachedConfig(),
+      getCachedSnapshots(),
+      getCachedTransactions(),
+      getCachedImportMeta(),
+      getCachedAggregates(),
+    ]);
+
+    if (cachedSnaps || cachedTxs) {
+      state.snaps = cachedSnaps || [];
+      state.txs = cachedTxs || [];
+      state.importMeta = cachedMeta || {};
+      state.pd = cachedPd || null;
+      state.cacheLoaded = true;
+      renderAll();
+      setSyncStatus('cached');
+    }
+  } catch {
+    // Cache read failed — no problem, will do full network load
+  }
+}
+
+// ── Background sync ──────────────────────────────────────
+/**
+ * Sync data from Google Sheets in the background.
+ * Uses incremental sync for transactions (delta only).
+ */
+async function syncInBackground() {
+  if (state.offline) {
+    setSyncStatus('offline');
+    return;
+  }
+  setSyncStatus('syncing');
+  try {
+    // Load config + snapshots + import meta (small, always full-read)
+    const [, snaps, meta] = await Promise.all([
+      loadConfig(),
+      loadSnapshots(),
+      loadImportMeta(),
+    ]);
+
+    // Incremental transaction sync
+    let txs: any[];
+    const cursor = await getSyncCursor();
+    if (cursor && state.txs.length > 0) {
+      // Delta sync: fetch only new rows
+      const delta = await fetchDeltaTransactions(cursor);
+      if (delta !== null && delta.length === 0) {
+        // No new transactions — keep cached
+        txs = state.txs;
+      } else if (delta !== null) {
+        // Merge delta into cached transactions
+        const { merged, cursor: newCursor } = mergeDelta(state.txs, delta);
+        txs = merged;
+        await setSyncCursor(newCursor);
+      } else {
+        // Delta fetch failed — fall back to full load
+        txs = await loadTransactions();
+        await setSyncCursor({ lastDate: txs.length > 0 ? txs[txs.length - 1].date : '', rowCount: txs.length });
+      }
+    } else {
+      // No cursor or no cached txs — full load
+      txs = await loadTransactions();
+      await setSyncCursor({ lastDate: txs.length > 0 ? txs[txs.length - 1].date : '', rowCount: txs.length });
+    }
+
+    // Update state
+    state.snaps = snaps;
+    state.txs = txs;
+    state.importMeta = meta;
+
+    // Compute aggregates (with caching)
+    state.pd = await computeAggregatesWithCache(txs);
+
+    // Setup config change listener
+    onConfigChange(async () => {
+      if (state.txs.length) {
+        state.pd = await computeAggregatesWithCache(state.txs);
+      }
+      renderAll();
+    });
+
+    // Persist all data to cache for next boot
+    await Promise.all([
+      setCachedConfig({
+        accounts: getAccounts(),
+        holdings: getHoldings(),
+        settings: getSettings(),
+      }),
+      setCachedSnapshots(snaps),
+      setCachedTransactions(txs),
+      setCachedImportMeta(meta),
+    ]);
+
+    renderAll();
+    setSyncStatus('ok');
+  } catch (err) {
+    setSyncStatus('error', err.message);
+    // If we had cached data, keep showing it
+    if (!state.cacheLoaded) {
+      // No cache either — show error
+    }
+  }
+}
+
+// ── Cached aggregates with invalidation ──────────────────
+/**
+ * Compute aggregates only when inputs change.
+ * Uses an inputsHash to detect whether recomputation is needed.
+ */
+async function computeAggregatesWithCache(txs: any[]): Promise<any> {
+  if (!txs.length) return null;
+
+  const method = getCostBasisMethod();
+  const holdings = getHoldings();
+  const currentHash = computeInputsHash(
+    txs.length,
+    txs[txs.length - 1]?.date || '',
+    method,
+    holdingsSignature(holdings),
+  );
+
+  // Check if cached aggregates are still valid
+  const storedHash = await getInputsHash();
+  if (storedHash === currentHash) {
+    const cached = await getCachedAggregates();
+    if (cached) return cached;
+  }
+
+  // Recompute
+  const pd = computePD(txs, { method });
+
+  // Cache the result
+  await Promise.all([
+    setCachedAggregates(pd),
+    setInputsHash(currentHash),
+  ]);
+
+  return pd;
+}
+
+// ── Data loading (full, used for first sign-in or force resync) ──
 async function loadAllData() {
   setSyncStatus('loading');
   try {
@@ -120,9 +302,33 @@ async function loadAllData() {
     state.txs        = txs;
     state.importMeta = meta;
     state.pd         = txs.length ? computePD(txs, { method: getCostBasisMethod() }) : null;
-    onConfigChange(() => {
-      // Re-compute with potentially changed cost basis method
-      if (state.txs.length) state.pd = computePD(state.txs, { method: getCostBasisMethod() });
+
+    // Save sync cursor
+    await setSyncCursor({ lastDate: txs.length > 0 ? txs[txs.length - 1].date : '', rowCount: txs.length });
+
+    // Cache everything
+    await Promise.all([
+      setCachedConfig({
+        accounts: getAccounts(),
+        holdings: getHoldings(),
+        settings: getSettings(),
+      }),
+      setCachedSnapshots(snaps),
+      setCachedTransactions(txs),
+      setCachedImportMeta(meta),
+      state.pd ? setCachedAggregates(state.pd) : Promise.resolve(),
+      state.pd ? setInputsHash(computeInputsHash(
+        txs.length,
+        txs[txs.length - 1]?.date || '',
+        getCostBasisMethod(),
+        holdingsSignature(getHoldings()),
+      )) : Promise.resolve(),
+    ]);
+
+    onConfigChange(async () => {
+      if (state.txs.length) {
+        state.pd = await computeAggregatesWithCache(state.txs);
+      }
       renderAll();
     });
     renderAll();
@@ -132,12 +338,32 @@ async function loadAllData() {
   }
 }
 
+// ── Force full resync ────────────────────────────────────
+/**
+ * Clear the cache and do a clean full reload from Google Sheets.
+ * Exposed for the Settings UI "Force full resync" button.
+ */
+export async function forceFullResync() {
+  await clearCache();
+  state.snaps = [];
+  state.txs = [];
+  state.pd = null;
+  state.importMeta = {};
+  state.cacheLoaded = false;
+  await loadAllData();
+}
+// Make it available on window for the settings button
+(window as any).__forceFullResync = forceFullResync;
+
 function setSyncStatus(status, msg = '') {
   const el = document.getElementById('sync-status');
   if (!el) return;
   const map = {
     loading: ['status-warn',  '<span class="spinner"></span>Loading from Google Sheets…'],
+    syncing: ['status-warn',  '<span class="spinner"></span>Syncing…'],
+    cached:  ['status-info',  '📦 Showing cached data'],
     ok:      ['status-ok',    '✓ Synced with Google Sheets'],
+    offline: ['status-warn',  '📴 Offline — showing cached data'],
     error:   ['status-err',   '⚠ Sync error — ' + msg],
   };
   const [cls, text] = map[status] || ['status-empty', ''];
@@ -158,6 +384,11 @@ function setDefaultMonth() {
 }
 
 async function saveSnapshot() {
+  // Block writes when offline
+  if (state.offline || !navigator.onLine) {
+    showMsg('snap-msg', 'Cannot save while offline. Please reconnect and try again.', false);
+    return;
+  }
   if (!isSignedIn()) {
     showMsg('snap-msg', 'Please sign in first.', false);
     return;
@@ -182,6 +413,7 @@ async function saveSnapshot() {
     if (idx >= 0) state.snaps[idx] = snap;
     else { state.snaps.push(snap); state.snaps.sort((a, b) => a.date.localeCompare(b.date)); }
     await saveSnapshots(state.snaps);
+    await setCachedSnapshots(state.snaps);
     clearSnapForm();
     showMsg('snap-msg', 'Saved ✓', true);
     renderAll();
@@ -205,6 +437,11 @@ function editSnap(date) {
 }
 
 async function delSnap(date) {
+  // Block writes when offline
+  if (state.offline || !navigator.onLine) {
+    showMsg('snap-msg', 'Cannot delete while offline. Please reconnect and try again.', false);
+    return;
+  }
   if (!isSignedIn()) return;
   if (state.syncing) return;
   if (!confirm(`Delete snapshot for ${fmtMon(date)}?`)) return;
@@ -212,6 +449,7 @@ async function delSnap(date) {
   state.syncing = true;
   try {
     await saveSnapshots(state.snaps);
+    await setCachedSnapshots(state.snaps);
     renderAll();
   } catch (err) {
     showMsg('snap-msg', 'Delete failed: ' + err.message, false);
@@ -250,6 +488,11 @@ function initCSVDrop() {
 }
 
 async function handleCSVFile(file) {
+  // Block writes when offline
+  if (state.offline || !navigator.onLine) {
+    showMsg('import-msg', 'Cannot import while offline. Please reconnect and try again.', false);
+    return;
+  }
   if (!isSignedIn()) {
     showMsg('import-msg', 'Please sign in before importing.', false);
     return;
@@ -401,6 +644,21 @@ function showImportPreview(csvText, profile) {
       state.txs        = merged;
       state.importMeta = { last_import: today };
       state.pd         = computePD(merged, { method: getCostBasisMethod() });
+
+      // Update cache
+      await Promise.all([
+        setCachedTransactions(merged),
+        setCachedImportMeta({ last_import: today }),
+        setSyncCursor({ lastDate: merged.length > 0 ? merged[merged.length - 1].date : '', rowCount: merged.length }),
+        state.pd ? setCachedAggregates(state.pd) : Promise.resolve(),
+        state.pd ? setInputsHash(computeInputsHash(
+          merged.length,
+          merged[merged.length - 1]?.date || '',
+          getCostBasisMethod(),
+          holdingsSignature(getHoldings()),
+        )) : Promise.resolve(),
+      ]);
+
       showMsg('import-msg', `✓ ${merged.length} transactions synced to Google Sheets`, true);
       renderAll();
     } catch (err) {
