@@ -1,6 +1,6 @@
 import './styles.css';
 import { appTemplate } from './template.js';
-import { getToken, signOut, isSignedIn } from './auth/google.js';
+import { getToken, signIn as gisSignIn, signOut, isSignedIn, trySilentSignIn } from './auth/google.js';
 import { loadSnapshots, saveSnapshots } from './sheets/snapshots.js';
 import { loadTransactions, mergeTransactions, saveImportMeta, loadImportMeta } from './sheets/transactions.js';
 import { computePD } from './portfolio.js';
@@ -55,15 +55,20 @@ function showSection(id, btn) {
 
 // ── Auth ─────────────────────────────────────────────────
 function initAuth() {
-  document.getElementById('btn-signin')?.addEventListener('click', signIn);
+  document.getElementById('btn-signin')?.addEventListener('click', onSignInClick);
   document.getElementById('btn-signout')?.addEventListener('click', () => signOut());
-  updateAuthUI(false);
+
+  // Silent boot: resume the session with no UI if the Google session is alive
+  trySilentSignIn().then((ok) => {
+    if (ok) { updateAuthUI(true); loadAllData(); }
+    else    { updateAuthUI(false); }
+  });
 }
 
-async function signIn() {
+async function onSignInClick() {
   try {
     setAuthStatus('<span class="spinner"></span>Signing in…');
-    await getToken();
+    await gisSignIn();
     updateAuthUI(true);
     await loadAllData();
   } catch (err) {

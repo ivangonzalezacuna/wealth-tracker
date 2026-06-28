@@ -1,88 +1,108 @@
 /**
- * Google OAuth2 — implicit / token flow via full-page redirect.
- * Works on mobile (no popup). Token lives in memory only (never persisted).
+ * Google OAuth via Google Identity Services (GIS) token client.
+ * Silent background refresh — no full-page redirect, no repeated consent.
+ * Token kept in memory + localStorage (instant boot); ~1h lifetime, refreshed
+ * silently through the user's existing Google session.
  */
 
-const CLIENT_ID    = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-const SCOPES       = 'https://www.googleapis.com/auth/spreadsheets';
-const REDIRECT_URI = window.location.origin;
+const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
+const STORE_KEY = 'gtoken';
 
-let _token = null;   // { access_token, expires_at }
+let _token = null;          // { access_token, expires_at }
+let _tokenClient = null;
+let _gisReady = null;
+let _refreshTimer = null;
 
-// ── Restore token from sessionStorage (survives page reload) ─
+// ── restore cached token (survives reloads & app restarts) ──
 try {
-  const stored = sessionStorage.getItem('gtoken');
-  if (stored) {
-    const parsed = JSON.parse(stored);
-    // Only restore if not expired (with 60s buffer)
-    if (parsed?.expires_at && Date.now() < parsed.expires_at - 60_000) {
-      _token = parsed;
-    } else {
-      sessionStorage.removeItem('gtoken');
-    }
-  }
+  const s = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+  if (s?.expires_at && Date.now() < s.expires_at - 60_000) _token = s;
+  else localStorage.removeItem(STORE_KEY);
 } catch {}
 
-// ── Bootstrap: grab token from URL hash on redirect back ─────
-(function _parseHashToken() {
-  const hash = window.location.hash;
-  if (!hash) return;
+function _save(tok) {
+  _token = tok;
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(tok)); } catch {}
+  _scheduleRefresh(tok);
+}
 
-  const params      = new URLSearchParams(hash.substring(1));
-  const accessToken = params.get('access_token');
-  const expiresIn   = params.get('expires_in');
+// proactively refresh ~5 min before expiry so long-open sessions never fail
+function _scheduleRefresh(tok) {
+  clearTimeout(_refreshTimer);
+  const ms = tok.expires_at - Date.now() - 5 * 60_000;
+  if (ms > 0) _refreshTimer = setTimeout(() => _requestToken(false).catch(() => {}), ms);
+}
 
-  if (accessToken && expiresIn) {
-    _token = {
-      access_token: accessToken,
-      expires_at:   Date.now() + Number(expiresIn) * 1000,
-    };
-    sessionStorage.setItem('gtoken', JSON.stringify(_token));
-    // Clear the hash so tokens don't linger in the URL / browser history
-    window.history.replaceState({}, '', window.location.pathname);
-  }
-})();
+// ── load GIS script once, then init the token client ───────
+function _loadGis() {
+  if (_gisReady) return _gisReady;
+  _gisReady = new Promise((resolve, reject) => {
+    if (window.google?.accounts?.oauth2) return resolve();
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.async = true; s.defer = true;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('Failed to load Google Identity Services'));
+    document.head.appendChild(s);
+  }).then(() => {
+    _tokenClient = window.google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      callback: () => {},   // set per-request below
+    });
+  });
+  return _gisReady;
+}
 
-// ── Public API ────────────────────────────────────────────
+// interactive=false → silent (no UI) via existing session
+function _requestToken(interactive) {
+  return new Promise((resolve, reject) => {
+    _loadGis().then(() => {
+      _tokenClient.callback = (resp) => {
+        if (resp.error) return reject(new Error(resp.error));
+        _save({
+          access_token: resp.access_token,
+          expires_at: Date.now() + Number(resp.expires_in) * 1000,
+        });
+        resolve(_token.access_token);
+      };
+      try {
+        _tokenClient.requestAccessToken({ prompt: interactive ? 'consent' : '' });
+      } catch (e) { reject(e); }
+    }).catch(reject);
+  });
+}
 
-/** Returns a valid access token, redirecting to Google sign-in if needed. */
+/** Returns a valid token, refreshing silently when possible. */
 export async function getToken() {
   if (_token && Date.now() < _token.expires_at - 60_000) return _token.access_token;
-  _redirectToGoogle();
-  // The redirect will navigate away; this promise never resolves in the
-  // current page load, but callers already handle the interrupted flow.
-  return new Promise(() => {});
+  return _requestToken(false);
 }
 
-/** Sign out — clears token and reloads so auth UI resets. */
-export function signOut() {
-  const revokeToken = _token?.access_token;
-  _token = null;
-  sessionStorage.removeItem('gtoken');
-  if (revokeToken) {
-    // Best-effort revoke via Google's endpoint
-    fetch(`https://oauth2.googleapis.com/revoke?token=${revokeToken}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    }).catch(() => {});
-  }
-  window.location.reload();
+/** Interactive sign-in — must be called from a user gesture (button click). */
+export async function signIn() {
+  return _requestToken(true);
 }
 
-/** Returns true if we currently have a valid token. */
+/** Silent boot sign-in. Resolves true if a token is available without UI. */
+export async function trySilentSignIn() {
+  if (isSignedIn()) return true;
+  try { await _requestToken(false); return isSignedIn(); }
+  catch { return false; }
+}
+
 export function isSignedIn() {
   return _token !== null && Date.now() < _token.expires_at - 60_000;
 }
 
-// ── Internal ──────────────────────────────────────────────
-
-function _redirectToGoogle() {
-  const params = new URLSearchParams({
-    client_id:     CLIENT_ID,
-    redirect_uri:  REDIRECT_URI,
-    response_type: 'token',
-    scope:         SCOPES,
-    prompt:        'consent',
-  });
-  window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+export function signOut() {
+  const t = _token?.access_token;
+  _token = null;
+  clearTimeout(_refreshTimer);
+  localStorage.removeItem(STORE_KEY);
+  if (t && window.google?.accounts?.oauth2) {
+    window.google.accounts.oauth2.revoke(t, () => {});
+  }
+  window.location.reload();
 }
