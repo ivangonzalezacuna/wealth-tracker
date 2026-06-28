@@ -15,7 +15,7 @@ import { renderDividends } from './views/dividends.js';
 import { renderRef } from './views/reference.js';
 import { renderSettings } from './views/settings.js';
 import { renderLog } from './views/log.js';
-import { snapTotal, fmtMon, showMsg } from './utils.js';
+import { snapTotal, fmtMon, showMsg, esc } from './utils.js';
 
 // ── App state ────────────────────────────────────────────
 const state = {
@@ -290,8 +290,30 @@ function updateSub() {
     : CONFIG.app.subtitle;
 }
 
+// ── Snapshot form (dynamic account fields) ────────────────
+function renderSnapForm() {
+  const el = document.getElementById('snap-acct-fields');
+  if (!el) return;
+  const accts = getACCTSList();
+  if (accts.length === 0) {
+    el.innerHTML = '<p class="note">No accounts configured yet. Add accounts in the <a href="#" data-goto="settings" class="goto-settings">Settings</a> tab.</p>';
+    el.querySelector('.goto-settings')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      showSection('settings', document.querySelector('.nav button[data-section="settings"]'));
+    });
+    return;
+  }
+  el.innerHTML = accts.map(a => `
+    <div class="form-group">
+      <label class="form-label">${esc(a.label)} (€)</label>
+      <input type="number" id="snap-${esc(a.key)}" class="form-input" placeholder="total value">
+    </div>
+  `).join('');
+}
+
 // ── Render all ────────────────────────────────────────────
 function renderAll() {
+  renderSnapForm();
   renderNW(state.snaps);
   renderPortfolio(state.pd, state.snaps);
   renderDCA(state.pd, state.snaps);

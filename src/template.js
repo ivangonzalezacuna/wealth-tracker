@@ -1,17 +1,5 @@
 import { CONFIG } from './config.js';
 
-function snapFormFields() {
-  return CONFIG.accounts.map(a => {
-    const label = a.form?.label || `${a.label} (€)`;
-    const hint = a.form?.hint ? ` <span style="font-weight:400;color:#6b6a65">${a.form.hint}</span>` : '';
-    const placeholder = a.form?.placeholder || '';
-    return `<div class="form-group">
-          <label class="form-label">${label}${hint}</label>
-          <input type="number" id="snap-${a.key}" class="form-input" placeholder="${placeholder}">
-        </div>`;
-  }).join('\n        ');
-}
-
 export function appTemplate() {
   return `
 <header>
@@ -222,7 +210,7 @@ export function appTemplate() {
           <label class="form-label">Notes (optional)</label>
           <input type="text" id="snap-notes" class="form-input" placeholder="e.g. catch-up done, got raise…">
         </div>
-        ${snapFormFields()}
+        <div id="snap-acct-fields"></div>
       </div>
       <div style="display:flex;align-items:center;gap:14px;margin-top:.25rem">
         <button class="btn btn-primary" id="btn-save-snap">Save snapshot</button>
