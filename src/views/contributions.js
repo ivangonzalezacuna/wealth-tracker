@@ -1,4 +1,4 @@
-import { fmt, fmtMon, esc } from '../utils.js';
+import { fmt, fmtMon, esc, safeColor } from '../utils.js';
 import { getISIN_ORDERList, getISIN, getMETAMap } from '../constants.js';
 import { getTotalWeeklyTarget, getAnnualReturnPct, getPrimaryInvestmentAccounts } from '../store/config.js';
 import Chart from 'chart.js/auto';
@@ -54,7 +54,7 @@ export function renderDCA(pd, snaps) {
   document.getElementById('dca-legend').innerHTML = ordSyms.map(sym => {
     const t = ISIN[sym] || sym;
     const m = META[t]   || {};
-    return `<span class="leg-item"><span class="leg-sq" style="background:${m.color || '#898781'}"></span>${esc(t)}</span>`;
+    return `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(m.color || '#898781')}"></span>${esc(t)}</span>`;
   }).join('');
 
   // DCA table with filtering + pagination

@@ -1,4 +1,4 @@
-import { fmt, fmtMon } from '../utils.js';
+import { fmt, fmtMon, esc, safeColor } from '../utils.js';
 import { getISIN_ORDERList, getMETAMap } from '../constants.js';
 import { getPrimaryInvestmentAccounts } from '../store/config.js';
 import Chart from 'chart.js/auto';
@@ -49,13 +49,13 @@ export function renderPortfolio(pd, snaps) {
     const m   = META[e.ticker] || {};
     return `<div class="tbl-row" style="grid-template-columns:2.2fr 1fr 1fr 1fr 1fr 1fr">
       <div>
-        <span style="font-weight:500;font-size:12px">${e.ticker}</span>
+        <span style="font-weight:500;font-size:12px">${esc(e.ticker)}</span>
         <span class="badge ${m.active ? 'b-active' : 'b-closed'}" style="margin-left:4px">${m.active ? 'active' : 'closed'}</span>
         <span class="badge ${e.acc ? 'b-acc' : 'b-dist'}" style="margin-left:4px">${e.acc ? 'Acc' : 'Dist'}</span>
-        <div style="font-size:11px;color:#6b6a65">${e.symbol}</div>
+        <div style="font-size:11px;color:#6b6a65">${esc(e.symbol)}</div>
       </div>
       <div><div style="font-weight:500">${fmt(e.cost)}</div>
-        <div class="bar-wrap" style="max-width:80px"><div class="bar-fill" style="width:${pct.toFixed(0)}%;background:${e.color}"></div></div>
+        <div class="bar-wrap" style="max-width:80px"><div class="bar-fill" style="width:${pct.toFixed(0)}%;background:${safeColor(e.color)}"></div></div>
       </div>
       <div style="color:#52514e">${e.shares.toFixed(4)}</div>
       <div style="color:#52514e">${avg > 0 ? '€' + avg.toFixed(2) : '—'}</div>
@@ -87,7 +87,7 @@ export function renderPortfolio(pd, snaps) {
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } },
   });
   document.getElementById('port-donut-legend').innerHTML =
-    donutE.map(e => `<span class="leg-item"><span class="leg-sq" style="background:${e.color}"></span>${e.ticker} ${pd.totalInv > 0 ? (e.cost / pd.totalInv * 100).toFixed(0) : 0}%</span>`).join('');
+    donutE.map(e => `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(e.color)}"></span>${esc(e.ticker)} ${pd.totalInv > 0 ? (e.cost / pd.totalInv * 100).toFixed(0) : 0}%</span>`).join('');
 
   document.getElementById('port-summary').innerHTML = `
     <div class="row"><div class="row-label">Total invested</div><div class="row-val">${fmt(pd.totalInv)}</div></div>

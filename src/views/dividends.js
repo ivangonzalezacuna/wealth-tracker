@@ -1,4 +1,4 @@
-import { fmt, fmtDay } from '../utils.js';
+import { fmt, fmtDay, esc, safeColor } from '../utils.js';
 
 export function renderDividends(pd) {
   const hasPD  = !!pd;
@@ -19,8 +19,8 @@ export function renderDividends(pd) {
 
   const dRows = pd.divHist.map(d => `
     <div class="tbl-row" style="grid-template-columns:auto 1.5fr 1fr 1fr 1fr">
-      <span class="leg-sq" style="background:${d.color};display:inline-block;margin-top:2px"></span>
-      <div><div style="font-weight:500;font-size:12px">${d.ticker}</div>
+      <span class="leg-sq" style="background:${safeColor(d.color)};display:inline-block;margin-top:2px"></span>
+      <div><div style="font-weight:500;font-size:12px">${esc(d.ticker)}</div>
            <div style="font-size:11px;color:#6b6a65">${fmtDay(d.date)}</div></div>
       <div style="color:#52514e">${fmt(d.gross, 2)}</div>
       <div style="color:#A32D2D">−${fmt(d.tax, 2)}</div>
