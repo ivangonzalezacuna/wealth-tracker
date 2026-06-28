@@ -122,3 +122,67 @@ h1{font-size:20px;font-weight:500;margin-bottom:.2rem}
 .chart-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;flex-wrap:wrap}
 .range-toggle{display:flex;gap:4px}
 .range-toggle .btn.active{background:#e6f1fb;color:#185FA5;border-color:#378ADD}
+
+/* ── Mobile responsive ──────────────────────────────────── */
+@media(max-width:768px){
+  body{padding:1rem .75rem}
+  h1{font-size:18px}
+  .nav{gap:4px;padding-bottom:.75rem;margin-bottom:1rem}
+  .nav button{font-size:11px;padding:4px 10px}
+  .kpi-row{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:1rem}
+  .kpi{padding:.7rem .8rem}
+  .kpi-val{font-size:18px}
+  .card{padding:.85rem 1rem;margin-bottom:.75rem;border-radius:10px}
+  .chart-wrap{height:200px!important}
+  .two-col{gap:8px}
+  .drop-zone{padding:1.5rem 1rem}
+  .filter-bar{gap:6px}
+  .chart-controls{gap:8px}
+  .range-toggle .btn{font-size:10px;padding:2px 7px}
+}
+
+@media(max-width:480px){
+  body{padding:.75rem .5rem}
+  h1{font-size:16px}
+  .sub{font-size:12px}
+  .nav{gap:3px;padding-bottom:.6rem;margin-bottom:.75rem;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
+  .nav button{font-size:10px;padding:4px 8px;white-space:nowrap;flex-shrink:0}
+  .kpi-row{grid-template-columns:1fr 1fr;gap:6px;margin-bottom:.75rem}
+  .kpi{padding:.6rem .7rem}
+  .kpi-label{font-size:10px}
+  .kpi-val{font-size:16px}
+  .kpi-sub{font-size:11px}
+  .card{padding:.75rem .75rem;margin-bottom:.6rem;border-radius:8px}
+  .card-title{font-size:10px;margin-bottom:.5rem}
+  .chart-wrap{height:180px!important}
+  .two-col{grid-template-columns:1fr;gap:6px}
+  .form-grid{grid-template-columns:1fr;gap:8px}
+  .form-group{margin-bottom:.6rem}
+  .form-input{font-size:14px;padding:10px}
+  .btn{padding:10px 14px;font-size:13px}
+  .btn-sm{font-size:11px;padding:5px 10px}
+  .drop-zone{padding:1.25rem .75rem}
+  .snap-row{grid-template-columns:1fr 1fr;gap:6px;font-size:11px}
+  .snap-btns{grid-column:1/-1}
+  .row{font-size:12px;padding:6px 0;gap:8px}
+  .tbl-row{font-size:11px;gap:4px;padding:6px 0}
+  .th{font-size:10px}
+  .legend{font-size:11px;gap:6px}
+  .note{font-size:10px}
+  .status-bar{font-size:11px;padding:6px 10px}
+  .pagination{font-size:11px}
+  .badge{font-size:9px;padding:1px 5px}
+  .metric-name{font-size:12px}
+  .metric-val{font-size:12px}
+  .metric-exp{font-size:11px}
+  /* Settings tables: make scrollable on small screens */
+  .tbl{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -.75rem;padding:0 .75rem}
+  /* Auth bar */
+  #auth-bar{flex-wrap:wrap;gap:6px}
+}
+
+/* Ensure color inputs don't overflow on mobile */
+input[type="color"]{min-width:32px;max-width:48px}
+
+/* Settings table rows: ensure minimum readable width */
+#settings-holdings-tbl,#settings-accounts-tbl{min-width:600px}
