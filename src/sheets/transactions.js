@@ -9,6 +9,7 @@
 
 import { readRange, writeRange, appendRows, ensureSheets } from './api.js';
 import { SHEET_TABS } from '../constants.js';
+import { parseNum } from '../csv.js';
 
 const TAB   = SHEET_TABS.TRANSACTIONS;
 const HDR   = ['id','date','category','type','name','symbol','shares','price','amount','tax'];
@@ -28,10 +29,10 @@ function rowToTx(row) {
     type:     row[3] || '',
     name:     row[4] || '',
     symbol:   row[5] || '',
-    shares:   parseFloat(row[6]) || 0,
-    price:    parseFloat(row[7]) || 0,
-    amount:   parseFloat(row[8]) || 0,
-    tax:      parseFloat(row[9]) || 0,
+    shares:   parseNum(String(row[6])),
+    price:    parseNum(String(row[7])),
+    amount:   parseNum(String(row[8])),
+    tax:      parseNum(String(row[9])),
   };
 }
 

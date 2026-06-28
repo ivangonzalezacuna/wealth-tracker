@@ -18,7 +18,7 @@ function detectSeparator(headerLine) {
 }
 
 /** Normalize a numeric string: handle German 1.234,56 format → 1234.56 */
-function parseNum(s) {
+export function parseNum(s) {
   if (!s) return 0;
   s = s.trim();
   // German format: dots as thousands separators, comma as decimal
