@@ -177,6 +177,9 @@ function rerenderAccountsTable(root, accounts) {
 
 // ── Holdings ──────────────────────────────────────────────
 
+let _holdingsSettingsFilter = 'all'; // 'all' | 'active' | 'closed'
+let _allHoldings = null; // cached full holdings list for filtered views
+
 const ASSET_CLASSES = [
   { value: 'equity', label: 'Equity' },
   { value: 'bond',   label: 'Bond' },
@@ -195,7 +198,27 @@ const REGIONS = [
 ];
 
 function renderHoldingsCard(holdings) {
-  const rows = holdings.map((h, i) => renderHoldingRow(h, i)).join('');
+  // Cache the full list for merge-back when filter is active
+  _allHoldings = holdings.slice();
+
+  const activeCount = holdings.filter(h => h.active).length;
+  const closedCount = holdings.filter(h => !h.active).length;
+
+  // Apply filter
+  let filtered;
+  if (_holdingsSettingsFilter === 'active') {
+    filtered = holdings.filter(h => h.active);
+  } else if (_holdingsSettingsFilter === 'closed') {
+    filtered = holdings.filter(h => !h.active);
+  } else {
+    filtered = holdings;
+  }
+
+  const rows = filtered.map((h, i) => {
+    // Store original index so delete/edit operations target the right holding
+    const origIdx = holdings.indexOf(h);
+    return renderHoldingRow(h, origIdx);
+  }).join('');
 
   return `
     <div class="card card-collapsible">
@@ -205,6 +228,13 @@ function renderHoldingsCard(holdings) {
       </div>
       <div class="card-body">
         <p class="note" style="margin-bottom:.75rem">ETF positions in your portfolio. Active holdings receive weekly contributions. Closed positions can be folded into a successor fund.</p>
+        <div class="filter-bar" style="margin-bottom:8px">
+          <div class="range-toggle" id="hold-filter-toggle">
+            <button class="btn btn-sm btn-ghost ${_holdingsSettingsFilter === 'all' ? 'active' : ''}" data-hfilter="all">All (${holdings.length})</button>
+            <button class="btn btn-sm btn-ghost ${_holdingsSettingsFilter === 'active' ? 'active' : ''}" data-hfilter="active">Active (${activeCount})</button>
+            <button class="btn btn-sm btn-ghost ${_holdingsSettingsFilter === 'closed' ? 'active' : ''}" data-hfilter="closed">Closed (${closedCount})</button>
+          </div>
+        </div>
         <div id="settings-holdings-tbl" class="settings-items">
           ${rows}
         </div>
@@ -282,6 +312,17 @@ function renderHoldingRow(h, i) {
 }
 
 function attachHoldingListeners(root) {
+  // Filter toggle
+  const filterToggle = root.querySelector('#hold-filter-toggle');
+  if (filterToggle) {
+    filterToggle.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-hfilter]');
+      if (!btn) return;
+      _holdingsSettingsFilter = btn.dataset.hfilter;
+      renderSettings();
+    });
+  }
+
   root.querySelector('#btn-add-hold')?.addEventListener('click', () => {
     const holds = collectHoldings(root);
     holds.push({ isin: '', ticker: '', name: '', color: '#888888', acc: true, active: true, weeklyTarget: 0, assetClass: 'equity', region: 'developed', foldInto: '', order: holds.length + 1 });
@@ -367,7 +408,8 @@ function attachHoldingListeners(root) {
 
 function collectHoldings(root) {
   const rows = root.querySelectorAll('.settings-hold-row');
-  return [...rows].map((row, i) => ({
+  const fromDOM = [...rows].map(row => ({
+    idx:          parseInt(row.dataset.idx),
     isin:         row.querySelector('[data-field="isin"]').value.trim(),
     ticker:       row.querySelector('[data-field="ticker"]').value.trim(),
     name:         '',
@@ -378,15 +420,47 @@ function collectHoldings(root) {
     assetClass:   row.querySelector('[data-field="assetClass"]').value.trim(),
     region:       row.querySelector('[data-field="region"]').value.trim(),
     foldInto:     row.querySelector('[data-field="foldInto"]').value.trim(),
-    order:        i + 1,
   }));
+
+  // When no filter is active or no cached list, return DOM rows directly
+  if (_holdingsSettingsFilter === 'all' || !_allHoldings) {
+    return fromDOM.map((h, i) => { const { idx, ...rest } = h; return { ...rest, order: i + 1 }; });
+  }
+
+  // Merge DOM edits back into the full cached list
+  const merged = _allHoldings.slice();
+  for (const h of fromDOM) {
+    const { idx, ...rest } = h;
+    if (idx >= 0 && idx < merged.length) {
+      merged[idx] = { ...rest, order: idx + 1 };
+    }
+  }
+  // Re-number order
+  merged.forEach((h, i) => { h.order = i + 1; });
+  return merged;
 }
 
 function rerenderHoldingsTable(root, holdings) {
+  // Update cache and reset filter to show all when modifying
+  _allHoldings = holdings.slice();
+  _holdingsSettingsFilter = 'all';
   const tbl = root.querySelector('#settings-holdings-tbl');
   if (!tbl) return;
   const rows = holdings.map((h, i) => renderHoldingRow(h, i)).join('');
   tbl.innerHTML = rows;
+  // Update filter counts
+  const toggle = root.querySelector('#hold-filter-toggle');
+  if (toggle) {
+    const activeCount = holdings.filter(h => h.active).length;
+    const closedCount = holdings.filter(h => !h.active).length;
+    const btns = toggle.querySelectorAll('[data-hfilter]');
+    btns.forEach(b => {
+      b.classList.toggle('active', b.dataset.hfilter === 'all');
+      if (b.dataset.hfilter === 'all') b.textContent = `All (${holdings.length})`;
+      if (b.dataset.hfilter === 'active') b.textContent = `Active (${activeCount})`;
+      if (b.dataset.hfilter === 'closed') b.textContent = `Closed (${closedCount})`;
+    });
+  }
   attachColorPickerSync(tbl);
   attachItemCollapseListeners(tbl);
   tbl.querySelectorAll('.js-del-hold').forEach(btn => {
