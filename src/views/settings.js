@@ -72,10 +72,13 @@ function renderAccountRow(a, i) {
   ).join('');
 
   return `
-    <div class="settings-item settings-acct-row" data-idx="${i}">
-      <div class="settings-item-header">
+    <div class="settings-item settings-acct-row item-collapsible" data-idx="${i}">
+      <div class="settings-item-header js-item-toggle">
         <span class="settings-item-title">${esc(a.label) || 'New account'}</span>
-        <button class="btn btn-sm btn-danger js-del-acct" data-idx="${i}">✕</button>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="item-chevron"></span>
+          <button class="btn btn-sm btn-danger js-del-acct" data-idx="${i}">✕</button>
+        </div>
       </div>
       <div class="settings-item-fields">
         <div class="settings-field">
@@ -160,6 +163,7 @@ function rerenderAccountsTable(root, accounts) {
   const rows = accounts.map((a, i) => renderAccountRow(a, i)).join('');
   tbl.innerHTML = rows;
   attachColorPickerSync(tbl);
+  attachItemCollapseListeners(tbl);
   tbl.querySelectorAll('.js-del-acct').forEach(btn => {
     btn.addEventListener('click', () => {
       const accs = collectAccounts(root);
@@ -225,10 +229,13 @@ function renderHoldingRow(h, i) {
     : '<span class="badge b-closed">Closed</span>';
 
   return `
-    <div class="settings-item settings-hold-row" data-idx="${i}">
-      <div class="settings-item-header">
+    <div class="settings-item settings-hold-row item-collapsible" data-idx="${i}">
+      <div class="settings-item-header js-item-toggle">
         <span class="settings-item-title">${esc(h.ticker) || esc(h.isin) || 'New holding'} ${statusBadge}</span>
-        <button class="btn btn-sm btn-danger js-del-hold" data-idx="${i}">✕</button>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="item-chevron"></span>
+          <button class="btn btn-sm btn-danger js-del-hold" data-idx="${i}">✕</button>
+        </div>
       </div>
       <div class="settings-item-fields">
         <div class="settings-field">
@@ -378,6 +385,7 @@ function rerenderHoldingsTable(root, holdings) {
   const rows = holdings.map((h, i) => renderHoldingRow(h, i)).join('');
   tbl.innerHTML = rows;
   attachColorPickerSync(tbl);
+  attachItemCollapseListeners(tbl);
   tbl.querySelectorAll('.js-del-hold').forEach(btn => {
     btn.addEventListener('click', () => {
       const h = collectHoldings(root);
@@ -575,6 +583,19 @@ function attachCardCollapseListeners(root) {
     header.addEventListener('click', () => {
       const card = header.closest('.card-collapsible');
       if (card) card.classList.toggle('collapsed');
+    });
+  });
+  attachItemCollapseListeners(root);
+}
+
+/** Attach click listeners to individual item headers for collapsing/expanding. */
+function attachItemCollapseListeners(root) {
+  root.querySelectorAll('.js-item-toggle').forEach(header => {
+    header.addEventListener('click', (e) => {
+      // Don't toggle when clicking the delete button
+      if (e.target.closest('.btn-danger')) return;
+      const item = header.closest('.item-collapsible');
+      if (item) item.classList.toggle('item-collapsed');
     });
   });
 }

@@ -210,3 +210,12 @@ input[type="color"]{min-width:32px;max-width:48px}
 .settings-field-label{font-size:11px;color:#6b6a65;font-weight:500}
 .settings-field-inline{flex-direction:row;align-items:center;gap:6px}
 @media(max-width:480px){.settings-item-fields{grid-template-columns:1fr}}
+
+/* Collapsible individual items */
+.item-collapsible .settings-item-header{cursor:pointer;user-select:none;-webkit-user-select:none}
+.item-collapsible .settings-item-fields{overflow:hidden;transition:max-height .2s ease,opacity .15s ease;max-height:800px;opacity:1}
+.item-collapsible.item-collapsed .settings-item-header{margin-bottom:0}
+.item-collapsible.item-collapsed .settings-item-fields{max-height:0;opacity:0;margin:0;padding:0}
+.item-chevron{width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center;transition:transform .2s ease;flex-shrink:0}
+.item-chevron::before{content:'';border:solid #6b6a65;border-width:0 1.5px 1.5px 0;display:inline-block;padding:2.5px;transform:rotate(45deg);margin-top:-2px}
+.item-collapsible.item-collapsed .item-chevron{transform:rotate(-90deg)}
