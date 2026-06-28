@@ -177,7 +177,7 @@ export function appTemplate() {
       <div class="tbl"><div id="div-history"></div></div>
     </div>
     <div class="card">
-      <div class="card-title">TR savings interest (2.25% on cash balance)</div>
+      <div class="card-title">Cash / savings interest received</div>
       <div id="div-interest"></div>
     </div>
   </div>

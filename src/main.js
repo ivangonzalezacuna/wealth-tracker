@@ -151,6 +151,10 @@ async function saveSnapshot() {
     showMsg('snap-msg', 'Please sign in first.', false);
     return;
   }
+  if (state.syncing) {
+    showMsg('snap-msg', 'A save is already in progress.', false);
+    return;
+  }
   const date = document.getElementById('snap-date').value;
   if (!date) { showMsg('snap-msg', 'Please select a month.', false); return; }
 
@@ -161,6 +165,7 @@ async function saveSnapshot() {
   snap.notes = document.getElementById('snap-notes').value.trim();
 
   showMsg('snap-msg', 'Saving…', true);
+  state.syncing = true;
   try {
     const idx = state.snaps.findIndex(s => s.date === date);
     if (idx >= 0) state.snaps[idx] = snap;
@@ -171,6 +176,8 @@ async function saveSnapshot() {
     renderAll();
   } catch (err) {
     showMsg('snap-msg', 'Error: ' + err.message, false);
+  } finally {
+    state.syncing = false;
   }
 }
 
@@ -188,13 +195,17 @@ function editSnap(date) {
 
 async function delSnap(date) {
   if (!isSignedIn()) return;
+  if (state.syncing) return;
   if (!confirm(`Delete snapshot for ${fmtMon(date)}?`)) return;
   state.snaps = state.snaps.filter(s => s.date !== date);
+  state.syncing = true;
   try {
     await saveSnapshots(state.snaps);
     renderAll();
   } catch (err) {
     showMsg('snap-msg', 'Delete failed: ' + err.message, false);
+  } finally {
+    state.syncing = false;
   }
 }
 
@@ -232,9 +243,14 @@ async function handleCSVFile(file) {
     showMsg('import-msg', 'Please sign in before importing.', false);
     return;
   }
+  if (state.syncing) {
+    showMsg('import-msg', 'A sync is already in progress.', false);
+    return;
+  }
   showMsg('import-msg', 'Parsing…', true);
   const reader = new FileReader();
   reader.onload = async e => {
+    state.syncing = true;
     try {
       const parsed  = parseCSV(e.target.result);
       const merged  = await mergeTransactions(state.txs, parsed);
@@ -247,6 +263,8 @@ async function handleCSVFile(file) {
       renderAll();
     } catch (err) {
       showMsg('import-msg', 'Error: ' + err.message, false);
+    } finally {
+      state.syncing = false;
     }
   };
   reader.readAsText(file, 'UTF-8');
