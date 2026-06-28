@@ -9,7 +9,7 @@
  */
 
 import { readRange, writeRange, clearRange, ensureSheets } from './api.js';
-import { SHEET_TABS, ACCTS } from '../constants.js';
+import { SHEET_TABS, getACCTSList } from '../constants.js';
 
 /** Convert a 1-based column index to A1-notation letters (1→A, 26→Z, 27→AA, etc.) */
 function colLetter(n) {
@@ -22,48 +22,80 @@ function colLetter(n) {
   return s;
 }
 
-const TAB   = SHEET_TABS.SNAPSHOTS;
-const HDR   = ['date', ...ACCTS.map(a => a.key), 'notes'];
-const COLS  = HDR.length;
-const RANGE = `${TAB}!A:${colLetter(COLS)}`;
+const TAB = SHEET_TABS.SNAPSHOTS;
 
-function rowToSnap(row, hdr) {
-  const snap = { date: row[hdr.indexOf('date')] || '' };
-  for (const a of ACCTS) {
-    const idx = hdr.indexOf(a.key);
+/** Build the canonical header for a given account list. */
+export function snapshotHeader(accts) {
+  return ['date', ...accts.map(a => a.key), 'notes'];
+}
+
+/** Convert a snapshot object to a sheet row, ordered by accts. */
+export function snapToRow(snap, accts) {
+  return [snap.date, ...accts.map(a => snap[a.key] || 0), snap.notes || ''];
+}
+
+/** Convert a sheet row back to a snapshot object, reading by sheetHeader index. */
+export function rowToSnap(row, sheetHeader, accts) {
+  const snap = { date: row[sheetHeader.indexOf('date')] || '' };
+  for (const a of accts) {
+    const idx = sheetHeader.indexOf(a.key);
     snap[a.key] = idx >= 0 ? (parseFloat(row[idx]) || 0) : 0;
   }
-  const ni = hdr.indexOf('notes');
+  const ni = sheetHeader.indexOf('notes');
   snap.notes = ni >= 0 ? (row[ni] || '') : '';
   return snap;
 }
 
-function snapToRow(s) {
-  return [s.date, ...ACCTS.map(a => s[a.key] || 0), s.notes || ''];
-}
-
 /** Load all snapshots from the sheet, sorted ascending by date. */
 export async function loadSnapshots() {
+  const accts = getACCTSList();
+  const hdr = snapshotHeader(accts);
+  const range = `${TAB}!A:${colLetter(hdr.length)}`;
+
   await ensureSheets([TAB]);
-  const rows = await readRange(RANGE);
+  const rows = await readRange(range);
   if (!rows.length) return [];
   // Use actual header from sheet for column mapping
-  const hdr = rows[0].map(c => (c || '').toString().trim().toLowerCase());
+  const sheetHdr = rows[0].map(c => (c || '').toString().trim().toLowerCase());
   const data = rows.slice(1);
   return data
-    .filter(r => r[hdr.indexOf('date')])
-    .map(r => rowToSnap(r, hdr))
+    .filter(r => r[sheetHdr.indexOf('date')])
+    .map(r => rowToSnap(r, sheetHdr, accts))
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /**
  * Save all snapshots back to the sheet (full overwrite).
  * Always writes header + all rows sorted by date.
+ *
+ * Note: clearRange is not atomic with writeRange — a failure between them
+ * can corrupt the tab. Clearing the wider range minimises risk; a fully
+ * atomic snapshot write is a Phase 4 concern.
  */
 export async function saveSnapshots(snaps) {
+  const accts = getACCTSList();
+  const hdr = snapshotHeader(accts);
+  const liveColCount = hdr.length;
+
   await ensureSheets([TAB]);
-  await clearRange(RANGE);
+
+  // Read current sheet header to determine existing width
+  let existingWidth = 0;
+  try {
+    const existing = await readRange(`${TAB}!1:1`);
+    if (existing.length > 0) {
+      existingWidth = existing[0].length;
+    }
+  } catch {
+    // Sheet may be empty — that's fine
+  }
+
+  // Clear a range wide enough to wipe any previously-written columns,
+  // even if the account count has since shrunk.
+  const clearWidth = Math.max(liveColCount, existingWidth);
+  await clearRange(`${TAB}!A:${colLetter(clearWidth)}`);
+
   const sorted = [...snaps].sort((a, b) => a.date.localeCompare(b.date));
-  const values = [HDR, ...sorted.map(snapToRow)];
+  const values = [hdr, ...sorted.map(s => snapToRow(s, accts))];
   await writeRange(`${TAB}!A1`, values);
 }
