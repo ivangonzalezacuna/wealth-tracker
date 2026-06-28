@@ -1,12 +1,14 @@
+// @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
 import { getAccounts, getHoldings, getSettings, setAccounts, setHoldings, setSettings, setSetting, isConfigLoaded, getCostBasisMethod } from '../store/config';
 import { loadTransactions } from '../sheets/transactions';
 import { showMsg } from '../utils';
+import type { Account, Holding, Settings } from '../types';
 
 /**
  * Render the Settings section — user-friendly forms for Accounts, Holdings, Settings.
  * Only shown after config is loaded (sign-in required).
  */
-export function renderSettings() {
+export function renderSettings(): void {
   const el = document.getElementById('settings-content');
   if (!el) return;
 
@@ -45,7 +47,7 @@ const ACCOUNT_TYPES = [
   { value: 'cash',       label: 'Cash' },
 ];
 
-function renderAccountsCard(accounts) {
+function renderAccountsCard(accounts: Account[]): string {
   const rows = accounts.map((a, i) => renderAccountRow(a, i)).join('');
 
   return `
@@ -68,7 +70,7 @@ function renderAccountsCard(accounts) {
     </div>`;
 }
 
-function renderAccountRow(a, i) {
+function renderAccountRow(a: Account, i: number): string {
   const typeOptions = ACCOUNT_TYPES.map(t =>
     `<option value="${t.value}" ${a.moneyType === t.value ? 'selected' : ''}>${t.label}</option>`
   ).join('');
@@ -110,7 +112,7 @@ function renderAccountRow(a, i) {
     </div>`;
 }
 
-function attachAccountListeners(root) {
+function attachAccountListeners(root: HTMLElement): void {
   root.querySelector('#btn-add-acct')?.addEventListener('click', () => {
     const accounts = collectAccounts(root);
     accounts.push({ id: '', moneyType: 'cash', institution: '', label: '', color: '#888888', isPrimaryInvestment: false, order: accounts.length + 1 });
@@ -146,7 +148,7 @@ function attachAccountListeners(root) {
   });
 }
 
-function collectAccounts(root) {
+function collectAccounts(root: HTMLElement): Account[] {
   const rows = root.querySelectorAll('.settings-acct-row');
   return [...rows].map((row, i) => ({
     id:                  row.querySelector('[data-field="id"]').value.trim(),
@@ -159,7 +161,7 @@ function collectAccounts(root) {
   }));
 }
 
-function rerenderAccountsTable(root, accounts) {
+function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
   const tbl = root.querySelector('#settings-accounts-tbl');
   if (!tbl) return;
   const rows = accounts.map((a, i) => renderAccountRow(a, i)).join('');
@@ -178,7 +180,7 @@ function rerenderAccountsTable(root, accounts) {
 // ── Holdings ──────────────────────────────────────────────
 
 let _holdingsSettingsFilter = 'all'; // 'all' | 'active' | 'closed'
-let _allHoldings = null; // cached full holdings list for filtered views
+let _allHoldings: Holding[] | null = null; // cached full holdings list for filtered views
 
 const ASSET_CLASSES = [
   { value: 'equity', label: 'Equity' },
@@ -197,7 +199,7 @@ const REGIONS = [
   { value: 'other',     label: 'Other' },
 ];
 
-function renderHoldingsCard(holdings) {
+function renderHoldingsCard(holdings: Holding[]): string {
   // Cache the full list for merge-back when filter is active
   _allHoldings = holdings.slice();
 
@@ -248,7 +250,7 @@ function renderHoldingsCard(holdings) {
     </div>`;
 }
 
-function renderHoldingRow(h, i) {
+function renderHoldingRow(h: Holding, i: number): string {
   const classOptions = ASSET_CLASSES.map(c =>
     `<option value="${c.value}" ${h.assetClass === c.value ? 'selected' : ''}>${c.label}</option>`
   ).join('');
@@ -311,14 +313,14 @@ function renderHoldingRow(h, i) {
     </div>`;
 }
 
-function attachHoldingListeners(root) {
+function attachHoldingListeners(root: HTMLElement): void {
   // Filter toggle
   const filterToggle = root.querySelector('#hold-filter-toggle');
   if (filterToggle) {
     filterToggle.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-hfilter]');
+      const btn = (e.target as HTMLElement).closest('[data-hfilter]') as HTMLElement | null;
       if (!btn) return;
-      _holdingsSettingsFilter = btn.dataset.hfilter;
+      _holdingsSettingsFilter = btn.dataset.hfilter || 'all';
       renderSettings();
     });
   }
@@ -406,7 +408,7 @@ function attachHoldingListeners(root) {
   });
 }
 
-function collectHoldings(root) {
+function collectHoldings(root: HTMLElement): Holding[] {
   const rows = root.querySelectorAll('.settings-hold-row');
   const fromDOM = [...rows].map(row => ({
     idx:          parseInt(row.dataset.idx),
@@ -440,7 +442,7 @@ function collectHoldings(root) {
   return merged;
 }
 
-function rerenderHoldingsTable(root, holdings) {
+function rerenderHoldingsTable(root: HTMLElement, holdings: Holding[]): void {
   // Update cache and reset filter to show all when modifying
   _allHoldings = holdings.slice();
   _holdingsSettingsFilter = 'all';
@@ -474,7 +476,7 @@ function rerenderHoldingsTable(root, holdings) {
 
 // ── Cost-basis method ───────────────────────────────────
 
-function renderCostBasisCard(settings) {
+function renderCostBasisCard(settings: Settings): string {
   const current = getCostBasisMethod();
 
   return `
@@ -503,7 +505,7 @@ function renderCostBasisCard(settings) {
     </div>`;
 }
 
-function attachCostBasisListeners(root) {
+function attachCostBasisListeners(root: HTMLElement): void {
   root.querySelector('#btn-save-cost-basis')?.addEventListener('click', async () => {
     const method = root.querySelector('#set-cost-basis-method')?.value || 'avgco';
     try {
@@ -517,7 +519,7 @@ function attachCostBasisListeners(root) {
 
 // ── Projection settings ──────────────────────────────────
 
-function renderProjectionCard(settings) {
+function renderProjectionCard(settings: Settings): string {
   const annualReturn = settings.annualReturnPct || '7';
 
   return `
@@ -543,7 +545,7 @@ function renderProjectionCard(settings) {
     </div>`;
 }
 
-function attachProjectionListeners(root) {
+function attachProjectionListeners(root: HTMLElement): void {
   root.querySelector('#btn-save-projection')?.addEventListener('click', async () => {
     const annualReturn = root.querySelector('#set-annual-return')?.value || '7';
     try {
@@ -557,7 +559,7 @@ function attachProjectionListeners(root) {
 
 // ── Reinvestment rules ───────────────────────────────────
 
-function renderRulesCard(settings) {
+function renderRulesCard(settings: Settings): string {
   // Extract rules from settings: rule_1_label, rule_1_value, rule_2_label, ...
   const rules = [];
   for (let i = 1; i <= 20; i++) {
@@ -604,7 +606,7 @@ function renderRulesCard(settings) {
     </div>`;
 }
 
-function attachRulesListeners(root) {
+function attachRulesListeners(root: HTMLElement): void {
   root.querySelector('#btn-add-rule')?.addEventListener('click', () => {
     const rules = collectRules(root);
     rules.push({ label: '', value: '' });
@@ -645,7 +647,7 @@ function attachRulesListeners(root) {
   });
 }
 
-function collectRules(root) {
+function collectRules(root: HTMLElement): { label: string; value: string }[] {
   const rows = root.querySelectorAll('.settings-rule-row');
   return [...rows].map(row => ({
     label: row.querySelector('[data-field="label"]').value.trim(),
@@ -653,7 +655,7 @@ function collectRules(root) {
   }));
 }
 
-function rerenderRulesTable(root, rules) {
+function rerenderRulesTable(root: HTMLElement, rules: { label: string; value: string }[]): void {
   const tbl = root.querySelector('#settings-rules-tbl');
   if (!tbl) return;
   const rows = rules.map((r, i) => `
@@ -684,7 +686,7 @@ function rerenderRulesTable(root, rules) {
 // ── Helpers ───────────────────────────────────────────────
 
 /** Attach two-way sync between color swatch and hex text inputs. */
-function attachColorPickerSync(root) {
+function attachColorPickerSync(root: HTMLElement): void {
   root.querySelectorAll('.color-picker-wrap').forEach(wrap => {
     const swatch = wrap.querySelector('.color-picker-swatch');
     const hex = wrap.querySelector('.color-picker-hex');
@@ -698,7 +700,7 @@ function attachColorPickerSync(root) {
 }
 
 /** Attach click listeners to card headers for collapsing/expanding. */
-function attachCardCollapseListeners(root) {
+function attachCardCollapseListeners(root: HTMLElement): void {
   root.querySelectorAll('.js-card-toggle').forEach(header => {
     header.addEventListener('click', () => {
       const card = header.closest('.card-collapsible');
@@ -709,7 +711,7 @@ function attachCardCollapseListeners(root) {
 }
 
 /** Attach click listeners to individual item headers for collapsing/expanding. */
-function attachItemCollapseListeners(root) {
+function attachItemCollapseListeners(root: HTMLElement): void {
   root.querySelectorAll('.js-item-toggle').forEach(header => {
     header.addEventListener('click', (e) => {
       // Don't toggle when clicking the delete button
@@ -720,13 +722,13 @@ function attachItemCollapseListeners(root) {
   });
 }
 
-function esc(s) {
+function esc(s: string | undefined | null): string {
   if (!s) return '';
   return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 /** Generate a stable snake_case ID from a label. */
-function generateId(label) {
+function generateId(label: string): string {
   return label
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
@@ -735,7 +737,7 @@ function generateId(label) {
 }
 
 /** Generate a random muted hex color for a new holding. */
-function randomColor() {
+function randomColor(): string {
   const h = Math.random() * 360;
   const s = 0.45, l = 0.55;
   // HSL to hex conversion
@@ -762,7 +764,7 @@ function randomColor() {
  *   "Vanguard FTSE All-World UCITS ETF (USD) Accumulating"
  *   "Xtrackers MSCI Emerging Markets UCITS ETF 1C"
  */
-function parseHoldingName(name, isin) {
+function parseHoldingName(name: string, isin: string): { ticker: string; acc: boolean; assetClass: string; region: string } {
   const upper = (name || '').toUpperCase();
 
   // ── Acc vs Dist ──
@@ -825,7 +827,7 @@ function parseHoldingName(name, isin) {
 }
 
 /** Subtract N months from a YYYY-MM-DD date string, returning YYYY-MM-DD. */
-function subtractMonths(dateStr, months) {
+function subtractMonths(dateStr: string, months: number): string {
   const d = new Date(dateStr + 'T00:00:00');
   d.setMonth(d.getMonth() - months);
   return d.toISOString().slice(0, 10);

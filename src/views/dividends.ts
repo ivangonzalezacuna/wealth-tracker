@@ -1,6 +1,8 @@
+// @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
 import { fmt, fmtDay, esc, safeColor } from '../utils';
+import type { PortfolioData } from '../types';
 
-export function renderDividends(pd) {
+export function renderDividends(pd: PortfolioData | null): void {
   const hasPD  = !!pd;
   const hasDiv = hasPD && pd.divHist.length > 0;
 

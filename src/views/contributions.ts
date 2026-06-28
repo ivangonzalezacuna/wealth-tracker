@@ -1,26 +1,28 @@
+// @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
 import { fmt, fmtMon, esc, safeColor } from '../utils';
 import { getISIN_ORDERList, getISIN, getMETAMap } from '../constants';
 import { getTotalWeeklyTarget, getAnnualReturnPct, getPrimaryInvestmentAccounts } from '../store/config';
+import type { PortfolioData, Snapshot } from '../types';
 import Chart from 'chart.js/auto';
 
-const CH = {};
+const CH: Record<string, Chart> = {};
 const DCA_PAGE_SIZE = 12;
 let _dcaPage = 1;
 let _dcaYear = '';
 let _dcaRange = 'all'; // '12', '24', 'all'
-let _lastPd = null;
+let _lastPd: PortfolioData | null = null;
 
 /** Get the primary investment value from a snapshot. */
-function getPrimaryInvestmentValue(snap) {
+function getPrimaryInvestmentValue(snap: Snapshot | null): number | null {
   if (!snap) return null;
   const primAccts = getPrimaryInvestmentAccounts();
   if (primAccts.length > 0) {
-    return primAccts.reduce((sum, a) => sum + (snap[a.id] || 0), 0) || null;
+    return primAccts.reduce((sum, a) => sum + ((snap[a.id || ''] as number) || 0), 0) || null;
   }
   return null;
 }
 
-export function renderDCA(pd, snaps) {
+export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const ISIN_ORDER = getISIN_ORDERList();
   const ISIN = getISIN();
   const META = getMETAMap();
@@ -97,7 +99,7 @@ export function renderDCA(pd, snaps) {
 
 // ── Chart with range toggle ──────────────────────────────
 
-function renderDCAChart(pd, ordSyms, ISIN, META) {
+function renderDCAChart(pd: PortfolioData, ordSyms: string[], ISIN: Record<string, string>, META: Record<string, { color: string }>): void {
   // Apply range filter to months
   let months = pd.months;
   if (_dcaRange !== 'all') {
@@ -138,14 +140,14 @@ function renderDCAChart(pd, ordSyms, ISIN, META) {
   });
 }
 
-function attachRangeToggle(pd, ordSyms, ISIN, META) {
-  const toggle = document.getElementById('dca-range-toggle');
+function attachRangeToggle(pd: PortfolioData, ordSyms: string[], ISIN: Record<string, string>, META: Record<string, { color: string }>): void {
+  const toggle = document.getElementById('dca-range-toggle') as HTMLElement & { _bound?: boolean } | null;
   if (!toggle || toggle._bound) return;
   toggle._bound = true;
   toggle.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-range]');
+    const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
     if (!btn) return;
-    _dcaRange = btn.dataset.range;
+    _dcaRange = btn.dataset.range || 'all';
     toggle.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     renderDCAChart(_lastPd || pd, ordSyms, ISIN, META);
@@ -154,7 +156,7 @@ function attachRangeToggle(pd, ordSyms, ISIN, META) {
 
 // ── DCA table with filtering + pagination ────────────────
 
-function populateDCAYearFilter(months) {
+function populateDCAYearFilter(months: string[]): void {
   const select = document.getElementById('dca-year-filter');
   if (!select) return;
   const years = [...new Set(months.map(m => m.slice(0, 4)))].sort().reverse();
@@ -163,8 +165,8 @@ function populateDCAYearFilter(months) {
     years.map(y => `<option value="${y}" ${y === current ? 'selected' : ''}>${y}</option>`).join('');
 }
 
-function attachDCAFilterListeners(pd) {
-  const yearEl = document.getElementById('dca-year-filter');
+function attachDCAFilterListeners(pd: PortfolioData): void {
+  const yearEl = document.getElementById('dca-year-filter') as HTMLSelectElement & { _bound?: boolean } | null;
   if (yearEl && !yearEl._bound) {
     yearEl._bound = true;
     yearEl.addEventListener('change', () => {
@@ -175,7 +177,7 @@ function attachDCAFilterListeners(pd) {
   }
 }
 
-function renderDCATable(pd) {
+function renderDCATable(pd: PortfolioData): void {
   const el = document.getElementById('dca-table');
   if (!el) return;
 
@@ -212,7 +214,7 @@ function renderDCATable(pd) {
   renderDCAPagination(totalPages, pd);
 }
 
-function renderDCAPagination(totalPages, pd) {
+function renderDCAPagination(totalPages: number, pd: PortfolioData): void {
   const el = document.getElementById('dca-pagination');
   if (!el) return;
   if (totalPages <= 1) {

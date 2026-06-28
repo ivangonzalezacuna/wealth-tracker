@@ -12,6 +12,7 @@
 import { readRange, writeRange, appendRows, ensureSheets } from './api';
 import { SHEET_TABS } from '../constants';
 import { parseNum } from '../csv';
+import type { Transaction } from '../types';
 
 const TAB   = SHEET_TABS.TRANSACTIONS;
 const NEW_HDR = ['id','date','source','type','name','isin','shares','price','amount','fee','tax','currency','fxRate','note'];
@@ -23,7 +24,7 @@ const OLD_HDR = ['id','date','category','type','name','symbol','shares','price',
 /** Build a deduplication key for a transaction. Uses id when present,
  *  otherwise a delimited composite to avoid same-day/same-amount collisions.
  *  NOTE: txKey semantics are unchanged — new fields do NOT enter the key. */
-export function txKey(t) {
+export function txKey(t: Transaction): string {
   if (t.id) return t.id;
   const sym = t.isin || t.symbol || '';
   return `${t.date}|${t.type}|${sym}|${t.amount}`;
@@ -31,10 +32,8 @@ export function txKey(t) {
 
 /**
  * Detect whether a header row is the old 10-column format.
- * @param {string[]} hdr
- * @returns {boolean}
  */
-function isOldHeader(hdr) {
+function isOldHeader(hdr: string[]): boolean {
   if (!hdr || hdr.length < 10) return false;
   const norm = hdr.map(h => (h || '').trim().toLowerCase());
   return norm.includes('symbol') || norm.includes('category');
@@ -44,10 +43,8 @@ function isOldHeader(hdr) {
  * Map an old 10-col row to the new 14-col shape.
  * Old: id | date | category | type | name | symbol | shares | price | amount | tax
  * New: id | date | source | type | name | isin | shares | price | amount | fee | tax | currency | fxRate | note
- * @param {any[]} row
- * @returns {object}
  */
-function oldRowToTx(row) {
+function oldRowToTx(row: string[]): Transaction {
   return {
     id:       row[0] || '',
     date:     row[1] || '',
@@ -70,10 +67,8 @@ function oldRowToTx(row) {
 
 /**
  * Map a new 14-col row to a transaction object.
- * @param {any[]} row
- * @returns {object}
  */
-function newRowToTx(row) {
+function newRowToTx(row: string[]): Transaction {
   return {
     id:       row[0] || '',
     date:     row[1] || '',
@@ -93,7 +88,7 @@ function newRowToTx(row) {
   };
 }
 
-function txToRow(t) {
+function txToRow(t: Transaction): (string | number)[] {
   return [
     t.id, t.date, t.source || '', t.type, t.name, t.isin || t.symbol || '',
     t.shares, t.price, t.amount, t.fee || 0, t.tax || 0,
@@ -102,7 +97,7 @@ function txToRow(t) {
 }
 
 /** Load all transactions from sheet (auto-detects old/new format). */
-export async function loadTransactions() {
+export async function loadTransactions(): Promise<Transaction[]> {
   await ensureSheets([TAB]);
   const rows = await readRange(NEW_RANGE);
   if (!rows.length) return [];
@@ -120,7 +115,7 @@ export async function loadTransactions() {
  * Deduplicates using txKey — only genuinely new rows are appended.
  * Returns the full merged set sorted by date.
  */
-export async function mergeTransactions(existing, incoming) {
+export async function mergeTransactions(existing: Transaction[], incoming: Transaction[]): Promise<Transaction[]> {
   const seen = new Set(existing.map(txKey));
   const newTxs = incoming.filter(t => !seen.has(txKey(t)));
 
@@ -139,7 +134,7 @@ export async function mergeTransactions(existing, incoming) {
 }
 
 /** Save import date metadata to Meta tab. */
-export async function saveImportMeta(date) {
+export async function saveImportMeta(date: string): Promise<void> {
   await ensureSheets([SHEET_TABS.META_INFO]);
   await writeRange(`${SHEET_TABS.META_INFO}!A1:B2`, [
     ['key', 'value'],
@@ -148,11 +143,11 @@ export async function saveImportMeta(date) {
 }
 
 /** Load import metadata. */
-export async function loadImportMeta() {
+export async function loadImportMeta(): Promise<Record<string, string>> {
   try {
     await ensureSheets([SHEET_TABS.META_INFO]);
     const rows = await readRange(`${SHEET_TABS.META_INFO}!A:B`);
-    const meta = {};
+    const meta: Record<string, string> = {};
     for (const row of rows.slice(1)) {
       if (row[0]) meta[row[0]] = row[1] || '';
     }

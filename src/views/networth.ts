@@ -1,10 +1,12 @@
+// @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
 import { snapTotal, fmt, fmtMon, esc, safeColor } from '../utils';
 import { getACCTSList } from '../constants';
+import type { Snapshot } from '../types';
 import Chart from 'chart.js/auto';
 
-const CH = {};
+const CH: Record<string, Chart> = {};
 
-export function renderNW(snaps) {
+export function renderNW(snaps: Snapshot[]): void {
   const ACCTS = getACCTSList();
   const has = snaps.length > 0;
   document.getElementById('nw-empty').style.display   = has ? 'none'  : 'block';
@@ -124,6 +126,6 @@ export function renderNW(snaps) {
   document.getElementById('nw-detail').innerHTML = det;
 }
 
-function _destroyChart(id) {
+function _destroyChart(id: string): void {
   if (CH[id]) { CH[id].destroy(); delete CH[id]; }
 }

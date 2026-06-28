@@ -1,14 +1,24 @@
+// @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
 import { getACCTSList } from '../constants';
 import { snapTotal, fmt, fmtMon, esc } from '../utils';
+import type { Snapshot, Transaction } from '../types';
+
+interface LogState {
+  txs: Transaction[];
+  snaps: Snapshot[];
+  importMeta: Record<string, string> | null;
+  onEditSnap: (date: string) => void;
+  onDelSnap: (date: string) => void;
+}
 
 const PAGE_SIZE = 12;
 let _snapPage = 1;
 let _snapYear = '';
 let _snapSearch = '';
-let _lastOnEdit = null;
-let _lastOnDel = null;
+let _lastOnEdit: ((date: string) => void) | null = null;
+let _lastOnDel: ((date: string) => void) | null = null;
 
-export function renderLog(state) {
+export function renderLog(state: LogState): void {
   const { txs, snaps, importMeta } = state;
 
   // Import status bar
@@ -30,7 +40,7 @@ export function renderLog(state) {
   renderSnapList(snaps, state.onEditSnap, state.onDelSnap);
 }
 
-function populateYearFilter(snaps) {
+function populateYearFilter(snaps: Snapshot[]): void {
   const select = document.getElementById('snap-year-filter');
   if (!select) return;
   const years = [...new Set(snaps.map(s => s.date.slice(0, 4)))].sort().reverse();
@@ -39,9 +49,9 @@ function populateYearFilter(snaps) {
     years.map(y => `<option value="${y}" ${y === current ? 'selected' : ''}>${y}</option>`).join('');
 }
 
-function attachFilterListeners(snaps) {
-  const yearEl = document.getElementById('snap-year-filter');
-  const searchEl = document.getElementById('snap-search');
+function attachFilterListeners(snaps: Snapshot[]): void {
+  const yearEl = document.getElementById('snap-year-filter') as HTMLSelectElement & { _bound?: boolean } | null;
+  const searchEl = document.getElementById('snap-search') as HTMLInputElement & { _bound?: boolean } | null;
 
   if (yearEl && !yearEl._bound) {
     yearEl._bound = true;
@@ -61,7 +71,7 @@ function attachFilterListeners(snaps) {
   }
 }
 
-export function renderSnapList(snaps, onEdit, onDel) {
+export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void, onDel: (date: string) => void): void {
   const ACCTS = getACCTSList();
   const el = document.getElementById('snaps-list');
   if (!snaps.length) {
@@ -130,7 +140,7 @@ export function renderSnapList(snaps, onEdit, onDel) {
   });
 }
 
-function renderPagination(containerId, page, totalPages, onPageChange) {
+function renderPagination(containerId: string, page: number, totalPages: number, onPageChange: (page: number) => void): void {
   const el = document.getElementById(containerId);
   if (!el) return;
   if (totalPages <= 1) {
@@ -150,7 +160,7 @@ function renderPagination(containerId, page, totalPages, onPageChange) {
   });
 }
 
-function hidePagination() {
+function hidePagination(): void {
   const el = document.getElementById('snap-pagination');
   if (el) el.innerHTML = '';
 }

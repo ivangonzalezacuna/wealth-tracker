@@ -11,6 +11,13 @@
 
 import { readRange, writeRange, appendRows, ensureSheets } from '../sheets/api';
 import { CONFIG } from '../config';
+import type { Account, Holding, Settings } from '../types';
+
+// Type assertions for static CONFIG (arrays are empty by default, typed for migration logic)
+interface StaticAccount { key: string; label: string; color: string }
+interface StaticHolding { isin: string; ticker: string; color: string; acc: boolean; active: boolean }
+interface TargetSlice { ticker: string; pct: number }
+interface ReinvestmentRule { label: string; value: string }
 
 // ── Sheet tab names ──────────────────────────────────────
 const TABS = {
@@ -18,38 +25,50 @@ const TABS = {
   HOLDINGS:       'Holdings',
   SETTINGS:       'Settings',
   CONFIG_HISTORY: 'ConfigHistory',
-};
+} as const;
+
+interface HoldingMeta {
+  color: string;
+  acc: boolean;
+  active: boolean;
+}
+
+interface AccountEntry {
+  key: string;
+  label: string;
+  color: string;
+}
 
 // ── In-memory state ──────────────────────────────────────
-let _accounts = [];
-let _holdings = [];
-let _settings = {};
+let _accounts: Account[] = [];
+let _holdings: Holding[] = [];
+let _settings: Settings = {};
 let _loaded   = false;
-let _onChange  = null;  // re-render callback
+let _onChange: (() => void) | null = null;
 
 // ── Public accessors (read at render time) ───────────────
 
-export function getAccounts() { return _accounts; }
-export function getHoldings() { return _holdings; }
-export function getSettings() { return _settings; }
-export function isConfigLoaded() { return _loaded; }
+export function getAccounts(): Account[] { return _accounts; }
+export function getHoldings(): Holding[] { return _holdings; }
+export function getSettings(): Settings { return _settings; }
+export function isConfigLoaded(): boolean { return _loaded; }
 
 /** Get ACCTS-compatible array for backward compat (key/label/color). */
-export function getACCTS() {
+export function getACCTS(): AccountEntry[] {
   return _accounts.map(a => ({
-    key:   a.id,
+    key:   a.id || a.key || '',
     label: a.label || `${a.moneyType} · ${a.institution}`,
-    color: a.color,
+    color: a.color || '',
   }));
 }
 
 /** Get ISIN → ticker map from holdings. */
-export function getISINMap() {
+export function getISINMap(): Record<string, string> {
   return Object.fromEntries(_holdings.map(h => [h.isin, h.ticker]));
 }
 
 /** Get ticker → metadata map from holdings. */
-export function getMETA() {
+export function getMETA(): Record<string, HoldingMeta> {
   return Object.fromEntries(_holdings.map(h => [h.ticker, {
     color:  h.color,
     acc:    h.acc,
@@ -58,39 +77,39 @@ export function getMETA() {
 }
 
 /** Get ISINs in display order. */
-export function getISIN_ORDER() {
+export function getISIN_ORDER(): string[] {
   return _holdings.map(h => h.isin);
 }
 
 /** Get the account(s) marked as primary investment. */
-export function getPrimaryInvestmentAccounts() {
+export function getPrimaryInvestmentAccounts(): Account[] {
   return _accounts.filter(a => a.isPrimaryInvestment);
 }
 
 /** Computed: total weekly target from all active holdings. */
-export function getTotalWeeklyTarget() {
+export function getTotalWeeklyTarget(): number {
   return _holdings
     .filter(h => h.active && h.weeklyTarget > 0)
     .reduce((s, h) => s + h.weeklyTarget, 0);
 }
 
 /** Computed: annual return pct from settings. */
-export function getAnnualReturnPct() {
-  return parseFloat(_settings.annualReturnPct) || 7;
+export function getAnnualReturnPct(): number {
+  return parseFloat(_settings.annualReturnPct || '') || 7;
 }
 
 /** Computed: cost basis method from settings. */
-export function getCostBasisMethod() {
+export function getCostBasisMethod(): 'fifo' | 'avgco' {
   const v = (_settings.costBasisMethod || '').toLowerCase();
   return v === 'fifo' ? 'fifo' : 'avgco';
 }
 
 // ── Register re-render callback ──────────────────────────
-export function onConfigChange(fn) { _onChange = fn; }
+export function onConfigChange(fn: () => void): void { _onChange = fn; }
 
 // ── Load config from sheets ──────────────────────────────
 
-export async function loadConfig() {
+export async function loadConfig(): Promise<void> {
   await ensureSheets(Object.values(TABS));
 
   const [accRows, holdRows, setRows] = await Promise.all([
@@ -113,12 +132,12 @@ export async function loadConfig() {
 
 // ── Persist updates ──────────────────────────────────────
 
-export async function setAccounts(accounts) {
+export async function setAccounts(accounts: Account[]): Promise<void> {
   _accounts = accounts;
   await ensureSheets([TABS.ACCOUNTS]);
   const hdr = ['id','moneyType','institution','label','color','isPrimaryInvestment','order'];
   const rows = accounts.map(a => [
-    a.id, a.moneyType, a.institution, a.label || '', a.color || '',
+    a.id || a.key || '', a.moneyType || '', a.institution || '', a.label || '', a.color || '',
     a.isPrimaryInvestment ? 'true' : 'false', a.order ?? '',
   ]);
   await writeRange(`${TABS.ACCOUNTS}!A1`, [hdr, ...rows]);
@@ -126,7 +145,7 @@ export async function setAccounts(accounts) {
   if (_onChange) _onChange();
 }
 
-export async function setHoldings(holdings) {
+export async function setHoldings(holdings: Holding[]): Promise<void> {
   _holdings = holdings;
   await ensureSheets([TABS.HOLDINGS]);
   const hdr = ['isin','ticker','name','color','acc','active','weeklyTarget','assetClass','region','foldInto','order'];
@@ -141,14 +160,14 @@ export async function setHoldings(holdings) {
   if (_onChange) _onChange();
 }
 
-export async function setSetting(key, value) {
+export async function setSetting(key: string, value: string): Promise<void> {
   _settings[key] = value;
   await persistSettings();
   await logChange('Settings', `${key} = ${value}`);
   if (_onChange) _onChange();
 }
 
-export async function setSettings(settings) {
+export async function setSettings(settings: Record<string, string | null | undefined>): Promise<void> {
   for (const [k, v] of Object.entries(settings)) {
     if (v === null || v === undefined) {
       delete _settings[k];
@@ -161,7 +180,7 @@ export async function setSettings(settings) {
   if (_onChange) _onChange();
 }
 
-async function persistSettings() {
+async function persistSettings(): Promise<void> {
   await ensureSheets([TABS.SETTINGS]);
   const hdr = ['key', 'value'];
   const rows = Object.entries(_settings).map(([k, v]) => [k, String(v)]);
@@ -170,7 +189,7 @@ async function persistSettings() {
 
 // ── ConfigHistory audit log ──────────────────────────────
 
-async function logChange(entity, summary) {
+async function logChange(entity: string, summary: string): Promise<void> {
   await ensureSheets([TABS.CONFIG_HISTORY]);
   const timestamp = new Date().toISOString();
   await appendRows(`${TABS.CONFIG_HISTORY}!A:D`, [[timestamp, 'web', entity, summary]]);
@@ -178,7 +197,7 @@ async function logChange(entity, summary) {
 
 // ── Parsing helpers ──────────────────────────────────────
 
-function parseAccounts(rows) {
+function parseAccounts(rows: string[][]): Account[] {
   if (!rows.length) return [];
   const hdr = rows[0].map(c => (c || '').trim().toLowerCase());
   return rows.slice(1).filter(r => r[hdr.indexOf('id')]).map(r => ({
@@ -189,10 +208,10 @@ function parseAccounts(rows) {
     color:               r[hdr.indexOf('color')] || '',
     isPrimaryInvestment: (r[hdr.indexOf('isprimaryinvestment')] || '').toLowerCase() === 'true',
     order:               parseInt(r[hdr.indexOf('order')]) || 0,
-  })).sort((a, b) => a.order - b.order);
+  })).sort((a, b) => (a.order || 0) - (b.order || 0));
 }
 
-function parseHoldings(rows) {
+function parseHoldings(rows: string[][]): Holding[] {
   if (!rows.length) return [];
   const hdr = rows[0].map(c => (c || '').trim().toLowerCase());
   return rows.slice(1).filter(r => r[hdr.indexOf('isin')]).map(r => ({
@@ -210,9 +229,9 @@ function parseHoldings(rows) {
   })).sort((a, b) => a.order - b.order);
 }
 
-function parseSettings(rows) {
+function parseSettings(rows: string[][]): Settings {
   if (!rows.length) return {};
-  const settings = {};
+  const settings: Settings = {};
   for (const row of rows.slice(1)) {
     if (row[0]) settings[row[0].trim()] = (row[1] || '').trim();
   }
@@ -221,9 +240,14 @@ function parseSettings(rows) {
 
 // ── First-run migration ──────────────────────────────────
 
-async function seedFromConfig() {
+async function seedFromConfig(): Promise<void> {
+  const staticAccounts = CONFIG.accounts as StaticAccount[];
+  const staticHoldings = CONFIG.holdings as StaticHolding[];
+  const slices = (CONFIG.targetAllocation?.slices || []) as TargetSlice[];
+  const rules = (CONFIG.reinvestmentRules?.rows || []) as ReinvestmentRule[];
+
   // Seed Accounts from CONFIG.accounts (preserving existing keys as ids)
-  const accounts = CONFIG.accounts.map((a, i) => ({
+  const accounts: Account[] = staticAccounts.map((a, i) => ({
     id:                  a.key,
     moneyType:           a.key === 'tr_portfolio' ? 'investment'
                        : a.key === 'n26' ? 'savings'
@@ -243,9 +267,9 @@ async function seedFromConfig() {
   }));
 
   // Seed Holdings from CONFIG.holdings
-  const holdings = CONFIG.holdings.map((h, i) => {
+  const holdings: Holding[] = staticHoldings.map((h, i) => {
     // Determine weekly target from targetAllocation note
-    const slice = (CONFIG.targetAllocation?.slices || []).find(s => s.ticker === h.ticker);
+    const slice = slices.find(s => s.ticker === h.ticker);
     let weeklyTarget = 0;
     if (slice && h.active) {
       // Calculate from the note pattern or proportional from total
@@ -288,17 +312,15 @@ async function seedFromConfig() {
   });
 
   // Seed Settings
-  const settings = {
+  const settings: Settings = {
     annualReturnPct: String(CONFIG.projection?.annualReturnPct || 7),
   };
 
   // Add reinvestment rules as settings
-  if (CONFIG.reinvestmentRules?.rows) {
-    CONFIG.reinvestmentRules.rows.forEach((r, i) => {
-      settings[`rule_${i + 1}_label`] = r.label;
-      settings[`rule_${i + 1}_value`] = r.value;
-    });
-  }
+  rules.forEach((r, i) => {
+    settings[`rule_${i + 1}_label`] = r.label;
+    settings[`rule_${i + 1}_value`] = r.value;
+  });
 
   _accounts = accounts;
   _holdings = holdings;

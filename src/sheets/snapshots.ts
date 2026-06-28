@@ -10,9 +10,16 @@
 
 import { readRange, writeRange, clearRange, ensureSheets } from './api';
 import { SHEET_TABS, getACCTSList } from '../constants';
+import type { Snapshot } from '../types';
+
+interface AccountRef {
+  key: string;
+  label: string;
+  color: string;
+}
 
 /** Convert a 1-based column index to A1-notation letters (1→A, 26→Z, 27→AA, etc.) */
-function colLetter(n) {
+function colLetter(n: number): string {
   let s = '';
   while (n > 0) {
     n--;
@@ -25,18 +32,18 @@ function colLetter(n) {
 const TAB = SHEET_TABS.SNAPSHOTS;
 
 /** Build the canonical header for a given account list. */
-export function snapshotHeader(accts) {
+export function snapshotHeader(accts: AccountRef[]): string[] {
   return ['date', ...accts.map(a => a.key), 'notes'];
 }
 
 /** Convert a snapshot object to a sheet row, ordered by accts. */
-export function snapToRow(snap, accts) {
-  return [snap.date, ...accts.map(a => snap[a.key] || 0), snap.notes || ''];
+export function snapToRow(snap: Snapshot, accts: AccountRef[]): (string | number)[] {
+  return [snap.date, ...accts.map(a => (snap[a.key] as number) || 0), snap.notes || ''];
 }
 
 /** Convert a sheet row back to a snapshot object, reading by sheetHeader index. */
-export function rowToSnap(row, sheetHeader, accts) {
-  const snap = { date: row[sheetHeader.indexOf('date')] || '' };
+export function rowToSnap(row: string[], sheetHeader: string[], accts: AccountRef[]): Snapshot {
+  const snap: Snapshot = { date: row[sheetHeader.indexOf('date')] || '' };
   for (const a of accts) {
     const idx = sheetHeader.indexOf(a.key);
     snap[a.key] = idx >= 0 ? (parseFloat(row[idx]) || 0) : 0;
@@ -47,7 +54,7 @@ export function rowToSnap(row, sheetHeader, accts) {
 }
 
 /** Load all snapshots from the sheet, sorted ascending by date. */
-export async function loadSnapshots() {
+export async function loadSnapshots(): Promise<Snapshot[]> {
   const accts = getACCTSList();
   const hdr = snapshotHeader(accts);
   const range = `${TAB}!A:${colLetter(hdr.length)}`;
@@ -61,7 +68,7 @@ export async function loadSnapshots() {
   return data
     .filter(r => r[sheetHdr.indexOf('date')])
     .map(r => rowToSnap(r, sheetHdr, accts))
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .sort((a, b) => (a.date as string).localeCompare(b.date as string));
 }
 
 /**
@@ -72,7 +79,7 @@ export async function loadSnapshots() {
  * can corrupt the tab. Clearing the wider range minimises risk; a fully
  * atomic snapshot write is a Phase 4 concern.
  */
-export async function saveSnapshots(snaps) {
+export async function saveSnapshots(snaps: Snapshot[]): Promise<void> {
   const accts = getACCTSList();
   const hdr = snapshotHeader(accts);
   const liveColCount = hdr.length;
@@ -95,7 +102,7 @@ export async function saveSnapshots(snaps) {
   const clearWidth = Math.max(liveColCount, existingWidth);
   await clearRange(`${TAB}!A:${colLetter(clearWidth)}`);
 
-  const sorted = [...snaps].sort((a, b) => a.date.localeCompare(b.date));
+  const sorted = [...snaps].sort((a, b) => (a.date as string).localeCompare(b.date as string));
   const values = [hdr, ...sorted.map(s => snapToRow(s, accts))];
   await writeRange(`${TAB}!A1`, values);
 }

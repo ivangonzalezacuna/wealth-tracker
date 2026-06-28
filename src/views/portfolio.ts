@@ -1,26 +1,28 @@
+// @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
 import { fmt, fmtMon, esc, safeColor } from '../utils';
 import { getISIN_ORDERList, getMETAMap } from '../constants';
 import { getPrimaryInvestmentAccounts } from '../store/config';
 import { splitHoldings } from '../model/holdings';
+import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 import Chart from 'chart.js/auto';
 
-const CH = {};
+const CH: Record<string, Chart> = {};
 
 // Module-level filter state (survives re-renders)
 let _showExited = false;
 let _holdingsFilter = 'held'; // 'held' | 'closed' | 'all'
 
 /** Get the current market value of the primary investment account from a snapshot. */
-function getPrimaryInvestmentValue(snap) {
+function getPrimaryInvestmentValue(snap: Snapshot | null): number | null {
   if (!snap) return null;
   const primAccts = getPrimaryInvestmentAccounts();
   if (primAccts.length > 0) {
-    return primAccts.reduce((sum, a) => sum + (snap[a.id] || 0), 0) || null;
+    return primAccts.reduce((sum, a) => sum + ((snap[a.id || ''] as number) || 0), 0) || null;
   }
   return null;
 }
 
-export function renderPortfolio(pd, snaps) {
+export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const ISIN_ORDER = getISIN_ORDERList();
   const META = getMETAMap();
   const has = pd && Object.keys(pd.etfs).length > 0;
@@ -121,9 +123,9 @@ export function renderPortfolio(pd, snaps) {
   const filterToggle = document.getElementById('port-filter-toggle');
   if (filterToggle) {
     filterToggle.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-filter]');
+      const btn = (e.target as HTMLElement).closest('[data-filter]') as HTMLElement | null;
       if (!btn) return;
-      _holdingsFilter = btn.dataset.filter;
+      _holdingsFilter = btn.dataset.filter || 'held';
       renderPortfolio(pd, snaps);
     });
   }
