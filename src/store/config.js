@@ -79,6 +79,12 @@ export function getAnnualReturnPct() {
   return parseFloat(_settings.annualReturnPct) || 7;
 }
 
+/** Computed: cost basis method from settings. */
+export function getCostBasisMethod() {
+  const v = (_settings.costBasisMethod || '').toLowerCase();
+  return v === 'fifo' ? 'fifo' : 'avgco';
+}
+
 // ── Register re-render callback ──────────────────────────
 export function onConfigChange(fn) { _onChange = fn; }
 

@@ -1,4 +1,4 @@
-import { getAccounts, getHoldings, getSettings, setAccounts, setHoldings, setSettings, isConfigLoaded } from '../store/config.js';
+import { getAccounts, getHoldings, getSettings, setAccounts, setHoldings, setSettings, setSetting, isConfigLoaded, getCostBasisMethod } from '../store/config.js';
 import { loadTransactions } from '../sheets/transactions.js';
 import { showMsg } from '../utils.js';
 
@@ -22,12 +22,14 @@ export function renderSettings() {
   el.innerHTML = `
     ${renderAccountsCard(accounts)}
     ${renderHoldingsCard(holdings)}
+    ${renderCostBasisCard(settings)}
     ${renderProjectionCard(settings)}
     ${renderRulesCard(settings)}
   `;
 
   attachAccountListeners(el);
   attachHoldingListeners(el);
+  attachCostBasisListeners(el);
   attachProjectionListeners(el);
   attachRulesListeners(el);
   attachColorPickerSync(el);
@@ -392,6 +394,49 @@ function rerenderHoldingsTable(root, holdings) {
       h.splice(parseInt(btn.dataset.idx), 1);
       rerenderHoldingsTable(root, h);
     });
+  });
+}
+
+// ── Cost-basis method ───────────────────────────────────
+
+function renderCostBasisCard(settings) {
+  const current = getCostBasisMethod();
+
+  return `
+    <div class="card card-collapsible">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Cost-basis method</div>
+        <span class="card-chevron"></span>
+      </div>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.75rem">Choose how realized gains are calculated when you sell shares.</p>
+        <div class="form-grid" style="max-width:500px">
+          <div class="form-group">
+            <label class="form-label">Method</label>
+            <select class="form-input" id="set-cost-basis-method">
+              <option value="avgco" ${current === 'avgco' ? 'selected' : ''}>Average cost</option>
+              <option value="fifo" ${current === 'fifo' ? 'selected' : ''}>FIFO (first in, first out)</option>
+            </select>
+            <span class="note">FIFO matches the German Abgeltungsteuer ordering rule. Average cost is simpler but may diverge on partial sells.</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:.75rem">
+          <button class="btn btn-primary btn-sm" id="btn-save-cost-basis">Save cost-basis method</button>
+          <span id="costbasis-msg" style="font-size:12px;line-height:28px"></span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function attachCostBasisListeners(root) {
+  root.querySelector('#btn-save-cost-basis')?.addEventListener('click', async () => {
+    const method = root.querySelector('#set-cost-basis-method')?.value || 'avgco';
+    try {
+      await setSetting('costBasisMethod', method);
+      showMsg('costbasis-msg', 'Saved', true);
+    } catch (err) {
+      showMsg('costbasis-msg', 'Error: ' + err.message, false);
+    }
   });
 }
 
