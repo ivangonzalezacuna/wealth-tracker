@@ -1,4 +1,5 @@
 import { getAccounts, getHoldings, getSettings, setAccounts, setHoldings, setSettings, isConfigLoaded } from '../store/config.js';
+import { loadTransactions } from '../sheets/transactions.js';
 import { showMsg } from '../utils.js';
 
 /**
@@ -177,8 +178,9 @@ function renderHoldingsCard(holdings) {
         </div>
         ${rows}
       </div>
-      <div style="display:flex;gap:10px;margin-top:.75rem">
+      <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
         <button class="btn btn-outline btn-sm" id="btn-add-hold">+ Add holding</button>
+        <button class="btn btn-outline btn-sm" id="btn-autofill-holds">Auto-fill from transactions</button>
         <button class="btn btn-primary btn-sm" id="btn-save-holds">Save holdings</button>
         <span id="holds-msg" style="font-size:12px;line-height:28px"></span>
       </div>
@@ -213,6 +215,52 @@ function attachHoldingListeners(root) {
     const holds = collectHoldings(root);
     holds.push({ isin: '', ticker: '', name: '', color: '#888888', acc: true, active: true, weeklyTarget: 0, assetClass: 'equity', region: 'developed', foldInto: '', order: holds.length + 1 });
     rerenderHoldingsTable(root, holds);
+  });
+
+  root.querySelector('#btn-autofill-holds')?.addEventListener('click', async () => {
+    showMsg('holds-msg', 'Loading transactions…', true);
+    try {
+      const txs = await loadTransactions();
+      const buys = txs.filter(t => t.type === 'BUY' && t.category === 'TRADING' && t.symbol);
+      if (buys.length === 0) {
+        showMsg('holds-msg', 'No BUY transactions found. Import a CSV first.', false);
+        return;
+      }
+      // Extract unique ISIN→ticker mapping from transactions
+      const isinMap = {};
+      for (const tx of buys) {
+        if (!isinMap[tx.symbol]) {
+          isinMap[tx.symbol] = tx.name || tx.symbol.slice(-4);
+        }
+      }
+      // Merge with existing holdings (skip already-configured ISINs)
+      const holds = collectHoldings(root);
+      const existing = new Set(holds.map(h => h.isin));
+      let added = 0;
+      for (const [isin, name] of Object.entries(isinMap)) {
+        if (existing.has(isin)) continue;
+        // Derive ticker from the name (last word, or last 4 chars of ISIN)
+        const ticker = name.split(/\s+/).pop() || isin.slice(-4);
+        holds.push({
+          isin,
+          ticker,
+          name: '',
+          color: randomColor(),
+          acc: true,
+          active: true,
+          weeklyTarget: 0,
+          assetClass: 'equity',
+          region: 'developed',
+          foldInto: '',
+          order: holds.length + 1,
+        });
+        added++;
+      }
+      rerenderHoldingsTable(root, holds);
+      showMsg('holds-msg', added > 0 ? `Added ${added} holding(s) from transactions. Review and save.` : 'All transaction ISINs already configured.', true);
+    } catch (err) {
+      showMsg('holds-msg', 'Error: ' + err.message, false);
+    }
   });
 
   root.querySelector('#btn-save-holds')?.addEventListener('click', async () => {
@@ -434,4 +482,23 @@ function generateId(label) {
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_|_$/g, '')
     .slice(0, 30);
+}
+
+/** Generate a random muted hex color for a new holding. */
+function randomColor() {
+  const h = Math.random() * 360;
+  const s = 0.45, l = 0.55;
+  // HSL to hex conversion
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+  let r, g, b;
+  if (h < 60) { r = c; g = x; b = 0; }
+  else if (h < 120) { r = x; g = c; b = 0; }
+  else if (h < 180) { r = 0; g = c; b = x; }
+  else if (h < 240) { r = 0; g = x; b = c; }
+  else if (h < 300) { r = x; g = 0; b = c; }
+  else { r = c; g = 0; b = x; }
+  const toHex = v => Math.round((v + m) * 255).toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
