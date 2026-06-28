@@ -117,7 +117,7 @@ export function renderNW(snaps) {
     <div class="row-val" style="font-weight:500">${fmt(total)}</div></div>`;
   if (prev) {
     const c = total - prevT;
-    det += `<div class="row"><div class="row-label" style="color:#898781;font-size:12px">vs ${fmtMon(prev.date)}</div>
+    det += `<div class="row"><div class="row-label" style="color:#6b6a65;font-size:12px">vs ${fmtMon(prev.date)}</div>
       <div class="row-val ${c >= 0 ? 'pos' : 'neg'}">${c >= 0 ? '+' : ''}${fmt(c)}</div></div>`;
   }
   if (s.notes) det += `<p class="note" style="margin-top:.5rem">📝 ${s.notes}</p>`;

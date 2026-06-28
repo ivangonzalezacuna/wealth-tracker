@@ -52,7 +52,7 @@ export function renderPortfolio(pd, snaps) {
         <span style="font-weight:500;font-size:12px">${e.ticker}</span>
         <span class="badge ${m.active ? 'b-active' : 'b-closed'}" style="margin-left:4px">${m.active ? 'active' : 'closed'}</span>
         <span class="badge ${e.acc ? 'b-acc' : 'b-dist'}" style="margin-left:4px">${e.acc ? 'Acc' : 'Dist'}</span>
-        <div style="font-size:11px;color:#898781">${e.symbol}</div>
+        <div style="font-size:11px;color:#6b6a65">${e.symbol}</div>
       </div>
       <div><div style="font-weight:500">${fmt(e.cost)}</div>
         <div class="bar-wrap" style="max-width:80px"><div class="bar-fill" style="width:${pct.toFixed(0)}%;background:${e.color}"></div></div>
@@ -60,7 +60,7 @@ export function renderPortfolio(pd, snaps) {
       <div style="color:#52514e">${e.shares.toFixed(4)}</div>
       <div style="color:#52514e">${avg > 0 ? '€' + avg.toFixed(2) : '—'}</div>
       <div style="color:#52514e">${pct.toFixed(1)}%</div>
-      <div style="color:${e.divNet > 0 ? '#0F6E56' : '#898781'}">${e.divNet > 0 ? fmt(e.divNet, 2) : '—'}</div>
+      <div style="color:${e.divNet > 0 ? '#0F6E56' : '#6b6a65'}">${e.divNet > 0 ? fmt(e.divNet, 2) : '—'}</div>
     </div>`;
   }).join('');
 

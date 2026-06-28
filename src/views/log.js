@@ -83,7 +83,7 @@ export function renderSnapList(snaps, onEdit, onDel) {
   }
 
   if (filtered.length === 0) {
-    el.innerHTML = '<div class="empty-state" style="padding:1rem;font-size:12px;color:#898781">No matching snapshots.</div>';
+    el.innerHTML = '<div class="empty-state" style="padding:1rem;font-size:12px;color:#6b6a65">No matching snapshots.</div>';
     hidePagination();
     return;
   }
@@ -97,7 +97,7 @@ export function renderSnapList(snaps, onEdit, onDel) {
   // Show first 3 accounts in the compact table header
   const shown = ACCTS.slice(0, 3);
   el.innerHTML = `
-    <div class="snap-row" style="color:#898781;font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-bottom:6px">
+    <div class="snap-row" style="color:#6b6a65;font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-bottom:6px">
       <div>Month</div><div>Net worth</div>${shown.map(a => `<div>${a.label}</div>`).join('')}<div></div>
     </div>
     ${pageItems.map(s => {
@@ -111,7 +111,7 @@ export function renderSnapList(snaps, onEdit, onDel) {
           <button class="btn btn-sm btn-danger js-del-snap" data-date="${s.date}">✕</button>
         </div>
       </div>
-      ${s.notes ? `<div style="font-size:11px;color:#898781;font-style:italic;padding:0 0 6px;border-bottom:1px solid #f1efe8">${s.notes}</div>` : ''}`;
+      ${s.notes ? `<div style="font-size:11px;color:#6b6a65;font-style:italic;padding:0 0 6px;border-bottom:1px solid #f1efe8">${s.notes}</div>` : ''}`;
     }).join('')}
   `;
 

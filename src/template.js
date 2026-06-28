@@ -3,7 +3,7 @@ import { CONFIG } from './config.js';
 function snapFormFields() {
   return CONFIG.accounts.map(a => {
     const label = a.form?.label || `${a.label} (€)`;
-    const hint = a.form?.hint ? ` <span style="font-weight:400;color:#898781">${a.form.hint}</span>` : '';
+    const hint = a.form?.hint ? ` <span style="font-weight:400;color:#6b6a65">${a.form.hint}</span>` : '';
     const placeholder = a.form?.placeholder || '';
     return `<div class="form-group">
           <label class="form-label">${label}${hint}</label>
@@ -74,7 +74,7 @@ export function appTemplate() {
     <div class="kpi-row" id="port-kpis"></div>
     <div class="card">
       <div class="card-title">Holdings — exact positions from CSV</div>
-      <div class="tbl"><div id="port-table"></div></div>
+      <div class="tbl" role="table" aria-label="Holdings"><div id="port-table"></div></div>
     </div>
     <div class="two-col">
       <div class="card">
@@ -119,7 +119,7 @@ export function appTemplate() {
             <option value="">All years</option>
           </select>
         </div>
-        <div class="tbl"><div id="dca-table"></div></div>
+        <div class="tbl" role="table" aria-label="Monthly contributions"><div id="dca-table"></div></div>
         <div id="dca-pagination" class="pagination"></div>
       </div>
       <div class="card">
@@ -142,7 +142,7 @@ export function appTemplate() {
     <div class="kpi-row" id="div-kpis"></div>
     <div class="card">
       <div class="card-title">Dividend payments received (most recent first)</div>
-      <div class="tbl"><div id="div-history"></div></div>
+      <div class="tbl" role="table" aria-label="Dividend history"><div id="div-history"></div></div>
     </div>
     <div class="card">
       <div class="card-title">Cash / savings interest received</div>
@@ -203,7 +203,7 @@ export function appTemplate() {
         <input type="file" id="csv-file-input" accept=".csv">
         <div style="font-size:2rem;margin-bottom:.4rem">📥</div>
         <div style="font-weight:500;font-size:13px;color:#52514e;margin-bottom:.2rem">Drop CSV file here</div>
-        <div style="font-size:11px;color:#898781">or click to browse</div>
+        <div style="font-size:11px;color:#6b6a65">or click to browse</div>
       </div>
       <div id="import-msg" style="font-size:12px;margin-top:.6rem;min-height:18px"></div>
     </div>
@@ -238,7 +238,7 @@ export function appTemplate() {
         </select>
         <input type="text" id="snap-search" class="form-input form-input-sm" placeholder="Search notes…" style="width:140px;display:inline-block;margin-left:6px">
       </div>
-      <div id="snaps-list"></div>
+      <div id="snaps-list" role="table" aria-label="Snapshot history"></div>
       <div id="snap-pagination" class="pagination"></div>
     </div>
   </div>
