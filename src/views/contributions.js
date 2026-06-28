@@ -1,5 +1,6 @@
 import { fmt, fmtMon } from '../utils.js';
 import { ISIN_ORDER, ISIN, META } from '../constants.js';
+import { CONFIG } from '../config.js';
 import Chart from 'chart.js/auto';
 
 const CH = {};
@@ -73,7 +74,7 @@ export function renderDCA(pd, snaps) {
   // 5-year projection
   const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
   const startV  = latSnap ? (latSnap.tr_portfolio || pd.totalInv) : pd.totalInv;
-  const rate = 7 / 100 / 52, contrib = 200;
+  const rate = CONFIG.projection.annualReturnPct / 100 / 52, contrib = CONFIG.projection.weeklyTarget;
   let v = startV;
   const pts = [v];
   for (let i = 1; i <= 260; i++) {
@@ -82,6 +83,8 @@ export function renderDCA(pd, snaps) {
   }
 
   if (CH['c-dca-proj']) CH['c-dca-proj'].destroy();
+  const projTitle = document.getElementById('dca-proj-title');
+  if (projTitle) projTitle.textContent = `5-year projection (${CONFIG.projection.annualReturnPct}% return, €${CONFIG.projection.weeklyTarget}/wk target)`;
   CH['c-dca-proj'] = new Chart(document.getElementById('c-dca-proj'), {
     type: 'line',
     data: { labels: ['Now','Yr 1','Yr 2','Yr 3','Yr 4','Yr 5'],

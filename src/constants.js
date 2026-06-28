@@ -1,40 +1,26 @@
-export const ISIN = {
-  'IE00B4L5Y983': 'IWDA',
-  'IE00BYX2JD69': 'SUSW',
-  'IE00BKM4GZ66': 'EIMI',
-  'IE00BDBRDM35': 'AGGH',
-  'IE00B0M63177': 'IEEM',
-  'IE00B3F81R35': 'IEAC',
-  'IE00BGJWWW40': 'EIBX',
-};
+/**
+ * Derived constants. These are computed from src/config.js so the rest
+ * of the app can keep importing ISIN / META / ISIN_ORDER / ACCTS unchanged.
+ * To customise anything here, edit config.js — not this file.
+ */
 
-export const META = {
-  IWDA: { color: '#2a78d6', acc: true,  active: true  },
-  SUSW: { color: '#1baf7a', acc: true,  active: true  },
-  EIMI: { color: '#eda100', acc: true,  active: true  },
-  AGGH: { color: '#4a3aa7', acc: true,  active: true  },
-  IEEM: { color: '#e34948', acc: false, active: false },
-  IEAC: { color: '#e87ba4', acc: false, active: false },
-  EIBX: { color: '#eb6834', acc: false, active: false },
-};
+import { CONFIG } from './config.js';
 
-export const ISIN_ORDER = [
-  'IE00B4L5Y983',
-  'IE00BYX2JD69',
-  'IE00BKM4GZ66',
-  'IE00BDBRDM35',
-  'IE00B0M63177',
-  'IE00B3F81R35',
-  'IE00BGJWWW40',
-];
+// ISIN → ticker
+export const ISIN = Object.fromEntries(
+  CONFIG.holdings.map(h => [h.isin, h.ticker]),
+);
 
-export const ACCTS = [
-  { key: 'tr_portfolio', label: 'TR ETF',  color: '#2a78d6' },
-  { key: 'n26',          label: 'N26',      color: '#1baf7a' },
-  { key: 'bav',          label: 'bAV',      color: '#eda100' },
-  { key: 'avd',          label: 'AVD',      color: '#4a3aa7' },
-  { key: 'tr_cash',      label: 'TR Cash',  color: '#e87ba4' },
-];
+// ticker → { color, acc, active }
+export const META = Object.fromEntries(
+  CONFIG.holdings.map(h => [h.ticker, { color: h.color, acc: h.acc, active: h.active }]),
+);
+
+// ISINs in display order
+export const ISIN_ORDER = CONFIG.holdings.map(h => h.isin);
+
+// Snapshot accounts (key / label / color)
+export const ACCTS = CONFIG.accounts.map(a => ({ key: a.key, label: a.label, color: a.color }));
 
 // Google Sheets tab names
 export const SHEET_TABS = {

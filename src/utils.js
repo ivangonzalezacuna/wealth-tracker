@@ -1,5 +1,7 @@
+import { ACCTS } from './constants.js';
+
 export function snapTotal(s) {
-  return (s.tr_portfolio || 0) + (s.tr_cash || 0) + (s.n26 || 0) + (s.bav || 0) + (s.avd || 0);
+  return ACCTS.reduce((sum, a) => sum + (s[a.key] || 0), 0);
 }
 
 export function fmt(n, d = 0) {

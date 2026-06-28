@@ -1,4 +1,5 @@
 import Chart from 'chart.js/auto';
+import { CONFIG } from '../config.js';
 
 let refChart = null;
 
@@ -6,13 +7,15 @@ export function renderRef() {
   if (refChart) { refChart.destroy(); refChart = null; }
   const el = document.getElementById('c-ref-target');
   if (!el) return;
+
+  const slices = CONFIG.targetAllocation.slices;
   refChart = new Chart(el, {
     type: 'doughnut',
     data: {
-      labels: ['IWDA', 'SUSW', 'EIMI', 'AGGH'],
+      labels: slices.map(s => s.ticker),
       datasets: [{
-        data: [45, 15, 20, 20],
-        backgroundColor: ['#2a78d6', '#1baf7a', '#eda100', '#4a3aa7'],
+        data: slices.map(s => s.pct),
+        backgroundColor: slices.map(s => s.color),
         borderWidth: 3, borderColor: '#fff',
       }],
     },
