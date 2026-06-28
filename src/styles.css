@@ -184,6 +184,14 @@ h1{font-size:20px;font-weight:500;margin-bottom:.2rem}
 /* Ensure color inputs don't overflow on mobile */
 input[type="color"]{min-width:32px;max-width:48px}
 
+/* ── Color picker ──────────────────────────────────────── */
+.color-picker-wrap{display:flex;align-items:center;gap:8px}
+.color-picker-swatch{width:36px;height:36px;border:2px solid #e1e0d9;border-radius:8px;padding:0;cursor:pointer;-webkit-appearance:none;appearance:none;background:none}
+.color-picker-swatch::-webkit-color-swatch-wrapper{padding:2px}
+.color-picker-swatch::-webkit-color-swatch{border:none;border-radius:4px}
+.color-picker-swatch::-moz-color-swatch{border:none;border-radius:4px}
+.color-picker-hex{width:80px;font-family:monospace;font-size:12px;text-transform:uppercase}
+
 /* ── Settings card items ───────────────────────────────── */
 .settings-items{display:flex;flex-direction:column;gap:10px}
 .settings-item{background:#fafaf8;border:1px solid #e1e0d9;border-radius:8px;padding:.75rem}

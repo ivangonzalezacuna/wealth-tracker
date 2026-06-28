@@ -30,6 +30,7 @@ export function renderSettings() {
   attachHoldingListeners(el);
   attachProjectionListeners(el);
   attachRulesListeners(el);
+  attachColorPickerSync(el);
 }
 
 // ── Accounts ──────────────────────────────────────────────
@@ -83,9 +84,12 @@ function renderAccountRow(a, i) {
           <label class="settings-field-label">Institution</label>
           <input class="form-input form-input-sm" data-field="institution" value="${esc(a.institution)}" placeholder="e.g. Trade Republic">
         </div>
-        <div class="settings-field settings-field-inline">
+        <div class="settings-field">
           <label class="settings-field-label">Color</label>
-          <input class="form-input form-input-sm" data-field="color" value="${esc(a.color)}" type="color" style="padding:2px;height:30px;width:48px">
+          <div class="color-picker-wrap">
+            <input type="color" class="color-picker-swatch" data-field="color" value="${esc(a.color)}">
+            <input class="form-input form-input-sm color-picker-hex" data-field="color-hex" value="${esc(a.color)}" placeholder="#888888" maxlength="7">
+          </div>
         </div>
         <div class="settings-field settings-field-inline">
           <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="isPrimaryInvestment" ${a.isPrimaryInvestment ? 'checked' : ''}> Primary investment</label>
@@ -149,6 +153,7 @@ function rerenderAccountsTable(root, accounts) {
   if (!tbl) return;
   const rows = accounts.map((a, i) => renderAccountRow(a, i)).join('');
   tbl.innerHTML = rows;
+  attachColorPickerSync(tbl);
   tbl.querySelectorAll('.js-del-acct').forEach(btn => {
     btn.addEventListener('click', () => {
       const accs = collectAccounts(root);
@@ -239,9 +244,12 @@ function renderHoldingRow(h, i) {
           <label class="settings-field-label">Successor ISIN</label>
           <input class="form-input form-input-sm" data-field="foldInto" value="${esc(h.foldInto)}" placeholder="ISIN of successor">
         </div>
-        <div class="settings-field settings-field-inline">
+        <div class="settings-field">
           <label class="settings-field-label">Color</label>
-          <input class="form-input form-input-sm" data-field="color" value="${esc(h.color)}" type="color" style="padding:2px;height:30px;width:48px">
+          <div class="color-picker-wrap">
+            <input type="color" class="color-picker-swatch" data-field="color" value="${esc(h.color)}">
+            <input class="form-input form-input-sm color-picker-hex" data-field="color-hex" value="${esc(h.color)}" placeholder="#888888" maxlength="7">
+          </div>
         </div>
         <div class="settings-field settings-field-inline">
           <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="acc" ${h.acc ? 'checked' : ''}> Accumulating</label>
@@ -358,6 +366,7 @@ function rerenderHoldingsTable(root, holdings) {
   if (!tbl) return;
   const rows = holdings.map((h, i) => renderHoldingRow(h, i)).join('');
   tbl.innerHTML = rows;
+  attachColorPickerSync(tbl);
   tbl.querySelectorAll('.js-del-hold').forEach(btn => {
     btn.addEventListener('click', () => {
       const h = collectHoldings(root);
@@ -524,6 +533,20 @@ function rerenderRulesTable(root, rules) {
 }
 
 // ── Helpers ───────────────────────────────────────────────
+
+/** Attach two-way sync between color swatch and hex text inputs. */
+function attachColorPickerSync(root) {
+  root.querySelectorAll('.color-picker-wrap').forEach(wrap => {
+    const swatch = wrap.querySelector('.color-picker-swatch');
+    const hex = wrap.querySelector('.color-picker-hex');
+    if (!swatch || !hex) return;
+    swatch.addEventListener('input', () => { hex.value = swatch.value; });
+    hex.addEventListener('input', () => {
+      const v = hex.value.trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(v)) swatch.value = v;
+    });
+  });
+}
 
 function esc(s) {
   if (!s) return '';
