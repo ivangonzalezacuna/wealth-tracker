@@ -238,6 +238,20 @@ function _renderNWHistChart(
   view: Snapshot[],
   chartA: Array<{ key: string; label: string; color: string }>,
 ): void {
+  if (view.length < 2) {
+    _destroyChart('c-nw-hist');
+    const parent = document.getElementById('c-nw-hist')?.parentElement;
+    if (parent && !parent.querySelector('.chart-no-data')) {
+      const msg = document.createElement('div');
+      msg.className = 'chart-no-data';
+      msg.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;font-size:13px;color:var(--ink-3)';
+      msg.textContent = 'Not enough data for this range';
+      parent.appendChild(msg);
+    }
+    return;
+  }
+  document.getElementById('c-nw-hist')?.parentElement?.querySelector('.chart-no-data')?.remove();
+
   const C = resolvedT();
   const labels = view.map(sn => fmtMon(sn.date));
   const totalSeries = view.map(sn => snapTotal(sn));
@@ -283,7 +297,7 @@ function _renderNWHistChart(
     options: { responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false },
         tooltip: { mode: 'index', intersect: false,
-          backgroundColor: '#fff', borderColor: C.line, borderWidth: 1,
+          backgroundColor: C.surface, borderColor: C.line, borderWidth: 1,
           titleColor: C.ink, bodyColor: C.ink2, padding: 10, cornerRadius: 8,
           callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtEur2(ctx.raw as number)}` },
         },
@@ -310,17 +324,16 @@ function _bindLegendToggle(chart: Chart): void {
   if (!legendEl) return;
   const items = legendEl.querySelectorAll('.leg-item');
   items.forEach((item, i) => {
+    if (i === 0) return; // Total — always visible, never dimmed or clickable
     (item as HTMLElement).style.cursor = 'pointer';
-    if (i === 0) return; // Total — always visible
-    const dsIdx = i; // dataset index (0=total, 1..n=accounts)
+    (item as HTMLElement).style.opacity = '0.4';
+    const dsIdx = i;
     (item as HTMLElement).addEventListener('click', () => {
       const meta = chart.getDatasetMeta(dsIdx);
       meta.hidden = !meta.hidden;
       (item as HTMLElement).style.opacity = meta.hidden ? '0.4' : '1';
       chart.update();
     });
-    // Initial dimmed state
-    (item as HTMLElement).style.opacity = '0.4';
   });
 }
 
@@ -442,7 +455,7 @@ function _renderForecastChart(snaps: Snapshot[], currentTotal: number): void {
         legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
         tooltip: {
           mode: 'index', intersect: false,
-          backgroundColor: '#fff', borderColor: C.line, borderWidth: 1,
+          backgroundColor: C.surface, borderColor: C.line, borderWidth: 1,
           titleColor: C.ink, bodyColor: C.ink2, padding: 10, cornerRadius: 8,
           callbacks: { label: ctx => ctx.raw != null ? ` ${ctx.dataset.label}: ${fmtEur(ctx.raw as number)}` : '' },
         },

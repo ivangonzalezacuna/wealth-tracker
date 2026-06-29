@@ -130,14 +130,14 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
       const total = snapTotal(s);
       return `<div class="snap-row snap-row--wide" role="row" style="grid-template-columns:${gridCols}" data-date="${s.date}">
         <div role="cell" style="font-weight:500;font-size:12px">${fmtMon(s.date)}</div>
-        <div role="cell" style="font-weight:500">${fmtEur2(total)}</div>
-        ${shown.map(a => `<div role="cell" style="color:${T.ink2}">${s[a.key] ? fmtEur2(s[a.key]) : '—'}</div>`).join('')}
+        <div role="cell" style="font-weight:500;font-size:14px">${fmtEur2(total)}</div>
+        ${shown.map(a => `<div role="cell" style="color:${T.ink3};font-size:12px">${s[a.key] ? fmtEur2(s[a.key]) : '—'}</div>`).join('')}
         <div class="snap-btns">
           <button class="btn btn-sm btn-outline js-edit-snap" data-date="${s.date}">Edit</button>
           <button class="btn btn-sm btn-danger js-del-snap" data-date="${s.date}">✕</button>
         </div>
       </div>
-      ${s.notes ? `<div style="font-size:11px;color:${T.ink3};font-style:italic;padding:0 0 6px;border-bottom:1px solid ${T.surface3}">${esc(s.notes)}</div>` : ''}`;
+      ${s.notes ? `<div style="font-size:11px;color:${T.ink3};font-style:italic;padding:0 0 6px;margin-top:2px">${esc(s.notes)}</div>` : ''}`;
     }).join('')}
     </div></div>
   `;
