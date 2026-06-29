@@ -1,9 +1,10 @@
 // @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
 import { fmt, fmtMon, esc, safeColor } from '../utils';
 import { getISIN_ORDERList, getMETAMap } from '../constants';
-import { getAccounts } from '../store/config';
+import { getAccounts, getHoldings } from '../store/config';
 import { primaryInvestmentValue } from '../model/accounts';
 import { splitHoldings } from '../model/holdings';
+import { computeDrift, maxDrift } from '../model/drift';
 import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 import Chart from 'chart.js/auto';
 import { T } from '../theme';
@@ -168,4 +169,50 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
         ${gain >= 0 ? '+' : ''}${fmt(gain, 2)} (${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(1)}%)</div></div>` : ''}
     <p class="note">Cost basis exact from CSV. Current value from latest snapshot (${latSnap ? fmtMon(latSnap.date) : 'none yet'}). Mixed-currency positions compute in account currency (no FX conversion).</p>
   `;
+
+  // ── Drift / rebalance card ──
+  _renderDriftCard(pd);
+}
+
+// ── Drift / rebalance card ──
+
+function _renderDriftCard(pd: PortfolioData): void {
+  const driftEl = document.getElementById('port-drift');
+  if (!driftEl) return;
+
+  const holdings = getHoldings();
+  const drift = computeDrift(holdings, pd.etfs, pd.totalInv);
+
+  if (drift.length === 0) {
+    driftEl.innerHTML = '';
+    return;
+  }
+
+  const max = maxDrift(drift);
+  const statusColor = max > 10 ? T.neg : max > 5 ? T.warn : T.pos;
+  const statusLabel = max > 10 ? 'High drift' : max > 5 ? 'Moderate drift' : 'On target';
+
+  const rows = drift.map(d => {
+    const driftColor = d.driftPct > 5 ? T.neg : d.driftPct < -5 ? T.neg : d.driftPct > 2 ? T.warn : d.driftPct < -2 ? T.warn : T.pos;
+    return `
+      <div class="tbl-row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
+        <div><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${safeColor(d.color)};margin-right:6px"></span>${esc(d.ticker)}</div>
+        <div style="text-align:right">${d.targetPct.toFixed(1)}%</div>
+        <div style="text-align:right">${d.actualPct.toFixed(1)}%</div>
+        <div style="text-align:right;color:${driftColor}">${d.driftPct >= 0 ? '+' : ''}${d.driftPct.toFixed(1)}%</div>
+        <div style="text-align:right;color:${d.deltaValue >= 0 ? T.ink3 : T.ink2}">${d.deltaValue >= 0 ? '+' : ''}${fmt(d.deltaValue, 0)}</div>
+      </div>`;
+  }).join('');
+
+  driftEl.innerHTML = `
+    <div class="card">
+      <div class="card-title">Allocation drift <span style="font-size:12px;font-weight:400;color:${statusColor};margin-left:8px">${statusLabel} (max ${max.toFixed(1)}%)</span></div>
+      <div class="tbl" role="table" aria-label="Allocation drift">
+        <div class="tbl-row th" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
+          <div>ETF</div><div style="text-align:right">Target</div><div style="text-align:right">Actual</div><div style="text-align:right">Drift</div><div style="text-align:right">Delta</div>
+        </div>
+        ${rows}
+      </div>
+      <p class="note" style="margin-top:.5rem">Target derived from contribution weights. Actual from cost basis. Delta = amount to sell/buy to reach target.</p>
+    </div>`;
 }
