@@ -18,10 +18,10 @@ const TR_CSV_SEMI = [
   'tx-004;2024-03-15;DIVIDEND;;iShares MSCI World;IE00B4L5Y983;0;0;12,50;0;-2,00;EUR;',
   'tx-005;2024-04-01;INTEREST_PAYMENT;;Cash Interest;;0;0;3,75;0;0;EUR;',
   'tx-006;2024-04-15;FEE;;Platform Fee;;0;0;-1,00;0;0;EUR;',
-  'tx-007;2024-05-01;TAX;;Tax Refund;;0;0;5,00;0;0;EUR;',
-  'tx-008;2024-05-15;DEPOSIT;;Bank Transfer;;0;0;1000,00;0;0;EUR;',
-  'tx-009;2024-06-01;WITHDRAWAL;;Cash Out;;0;0;-200,00;0;0;EUR;',
-  'tx-010;2024-06-15;TRANSFER;;Portfolio Transfer;;0;0;0;0;0;EUR;',
+  'tx-007;2024-05-01;TAX_OPTIMIZATION;;Tax Refund;;0;0;5,00;0;3,44;EUR;',
+  'tx-008;2024-05-15;CUSTOMER_INPAYMENT;;Bank Transfer;;0;0;1000,00;0;0;EUR;',
+  'tx-009;2024-06-01;CUSTOMER_OUTPAYMENT;;Cash Out;;0;0;-200,00;0;0;EUR;',
+  'tx-010;2024-06-15;TRANSFER_INBOUND;;Portfolio Transfer;;0;0;500,00;0;0;EUR;',
 ].join('\n');
 
 /** Comma-delimited TR CSV with dot decimals. */
@@ -91,7 +91,6 @@ describe('TR profile regression (parseWithProfile vs legacy parseCSV)', () => {
     expect(types).toContain(TxType.TAX);
     expect(types).toContain(TxType.DEPOSIT);
     expect(types).toContain(TxType.WITHDRAWAL);
-    expect(types).toContain(TxType.TRANSFER);
   });
 
   it('source is stamped as trade_republic', () => {
@@ -437,5 +436,56 @@ describe('edge cases', () => {
     const { transactions } = parseWithProfile(csv, tradeRepublicProfile);
     expect(transactions).toHaveLength(1);
     expect(transactions[0].name).toBe('iShares MSCI World, Acc');
+  });
+});
+
+// ── TR real deposit/tax type mappings (Commit 1C) ────────
+
+describe('TR real deposit/tax/withdrawal type mappings', () => {
+  const mkCsv = (type: string) => [
+    'transaction_id;date;type;category;name;symbol;shares;price;amount;fee;tax;currency;fx_rate',
+    `tx-new;2024-07-01;${type};;Test Row;;0;0;100;0;0;EUR;`,
+  ].join('\n');
+
+  it('CUSTOMER_INPAYMENT maps to DEPOSIT (mapped, not unmapped)', () => {
+    const { transactions, unmapped } = parseWithProfile(mkCsv('CUSTOMER_INPAYMENT'), tradeRepublicProfile);
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0].type).toBe(TxType.DEPOSIT);
+    expect(unmapped).toHaveLength(0);
+  });
+
+  it('TRANSFER_INBOUND maps to DEPOSIT (mapped, not unmapped)', () => {
+    const { transactions, unmapped } = parseWithProfile(mkCsv('TRANSFER_INBOUND'), tradeRepublicProfile);
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0].type).toBe(TxType.DEPOSIT);
+    expect(unmapped).toHaveLength(0);
+  });
+
+  it('TRANSFER_INSTANT_INBOUND maps to DEPOSIT (mapped, not unmapped)', () => {
+    const { transactions, unmapped } = parseWithProfile(mkCsv('TRANSFER_INSTANT_INBOUND'), tradeRepublicProfile);
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0].type).toBe(TxType.DEPOSIT);
+    expect(unmapped).toHaveLength(0);
+  });
+
+  it('TAX_OPTIMIZATION maps to TAX (mapped, not unmapped)', () => {
+    const { transactions, unmapped } = parseWithProfile(mkCsv('TAX_OPTIMIZATION'), tradeRepublicProfile);
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0].type).toBe(TxType.TAX);
+    expect(unmapped).toHaveLength(0);
+  });
+
+  it('CUSTOMER_OUTPAYMENT maps to WITHDRAWAL', () => {
+    const { transactions, unmapped } = parseWithProfile(mkCsv('CUSTOMER_OUTPAYMENT'), tradeRepublicProfile);
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0].type).toBe(TxType.WITHDRAWAL);
+    expect(unmapped).toHaveLength(0);
+  });
+
+  it('TRANSFER_OUTBOUND maps to WITHDRAWAL', () => {
+    const { transactions, unmapped } = parseWithProfile(mkCsv('TRANSFER_OUTBOUND'), tradeRepublicProfile);
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0].type).toBe(TxType.WITHDRAWAL);
+    expect(unmapped).toHaveLength(0);
   });
 });

@@ -47,3 +47,37 @@ describe('snapshot persistence helpers', () => {
     expect(snapshotHeader(accts3)).toEqual(['date', 'a', 'b', 'c', 'notes']);
   });
 });
+
+describe('rowToSnap locale-safe parsing (Commit 1B)', () => {
+  const accts = [{ key: 'tr_portfolio' }, { key: 'n26' }];
+  const hdr = ['date', 'tr_portfolio', 'n26', 'notes'];
+
+  it('parses German-comma balance string "1.234,56" as 1234.56', () => {
+    const row = ['2026-03', '1.234,56', '500', ''];
+    const snap = rowToSnap(row, hdr, accts);
+    expect(snap.tr_portfolio).toBeCloseTo(1234.56);
+    expect(snap.n26).toBe(500);
+  });
+
+  it('passes through numeric cells (UNFORMATTED_VALUE) unchanged', () => {
+    const row = ['2026-03', 1234.56, 500, ''];
+    const snap = rowToSnap(row, hdr, accts);
+    expect(snap.tr_portfolio).toBe(1234.56);
+    expect(snap.n26).toBe(500);
+  });
+
+  it('parses "12.345,67" (German) as 12345.67 — the regression fix', () => {
+    const row = ['2026-03', '12.345,67', '100', ''];
+    const snap = rowToSnap(row, hdr, accts);
+    expect(snap.tr_portfolio).toBeCloseTo(12345.67);
+  });
+
+  it('both "1.234,56" (German string) and 1234.56 (number) round-trip to same value', () => {
+    const row1 = ['2026-03', '1.234,56', '0', ''];
+    const row2 = ['2026-03', 1234.56, 0, ''];
+    const snap1 = rowToSnap(row1, hdr, accts);
+    const snap2 = rowToSnap(row2, hdr, accts);
+    expect(snap1.tr_portfolio).toBeCloseTo(snap2.tr_portfolio);
+    expect(snap1.tr_portfolio).toBeCloseTo(1234.56);
+  });
+});

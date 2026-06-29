@@ -114,7 +114,12 @@ function renderDCAChart(pd: PortfolioData, ordSyms: string[], ISIN: Record<strin
       label: t,
       data: months.map(mo => (pd.monthlyBy[mo] || {})[sym] || 0),
       backgroundColor: m.color || '#898781',
-      borderRadius: 3, borderSkipped: false,
+      borderRadius: (ctx) => {
+        const ds = ctx.chart.data.datasets, i = ctx.datasetIndex, j = ctx.dataIndex;
+        const isTop = !ds.some((d, k) => k > i && ((d.data[j] as number) || 0) > 0);
+        return isTop ? { topLeft: 3, topRight: 3 } : 0;
+      },
+      borderSkipped: false,
     };
   });
 

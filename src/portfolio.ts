@@ -29,6 +29,7 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
   const monthly: Record<string, number> = {};
   const monthlyBy: Record<string, Record<string, number>> = {};
   let totalInterest = 0;
+  let taxRefunds = 0;
 
   // Ensure all ISINs from basis engine are represented
   for (const [sym, basis] of Object.entries(basisByIsin)) {
@@ -96,6 +97,12 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
     } else if (tx.type === TxType.INTEREST || tx.type === 'INTEREST_PAYMENT') {
       totalInterest += tx.amount;
       intHist.push({ date: tx.date, amount: tx.amount });
+
+    } else if (tx.type === TxType.TAX) {
+      // TAX rows: positive tax field = refund (reduces net tax); negative = additional charge.
+      // Sign convention: taxPaid accumulates absolute charges; refunds subtract.
+      // e.g. TAX_OPTIMIZATION with tax: +3.44 means a refund → reduces totalTax by 3.44.
+      taxRefunds += (tx.tax || 0);
     }
   }
 
@@ -104,7 +111,7 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
 
   const totalInv      = Object.values(etfs).reduce((s, e) => s + e.cost, 0);
   const totalDivNet   = Object.values(etfs).reduce((s, e) => s + e.divNet, 0);
-  const totalTax      = Object.values(etfs).reduce((s, e) => s + e.taxPaid, 0);
+  const totalTax      = Object.values(etfs).reduce((s, e) => s + e.taxPaid, 0) - taxRefunds;
   const totalFees     = Object.values(etfs).reduce((s, e) => s + (e.totalFees || 0), 0);
   const realizedPnL   = Object.values(etfs).reduce((s, e) => s + (e.realizedPnL || 0), 0);
   const months        = Object.keys(monthly).sort();

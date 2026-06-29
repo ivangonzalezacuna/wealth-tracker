@@ -34,17 +34,19 @@ export const tradeRepublicProfile: ImportProfile = {
    * then plain `TYPE`.  Matches the Phase-1 `mapTRType()` exactly.
    */
   typeMap: {
-    'BUY|TRADING':   TxType.BUY,
-    'SELL|TRADING':  TxType.SELL,
-    'BUY':           TxType.BUY,
-    'SELL':          TxType.SELL,
-    'DIVIDEND':      TxType.DIVIDEND,
-    'INTEREST_PAYMENT': TxType.INTEREST,
-    'FEE':           TxType.FEE,
-    'TAX':           TxType.TAX,
-    'DEPOSIT':       TxType.DEPOSIT,
-    'WITHDRAWAL':    TxType.WITHDRAWAL,
-    'TRANSFER':      TxType.TRANSFER,
+    'BUY|TRADING':              TxType.BUY,
+    'SELL|TRADING':             TxType.SELL,
+    'BUY':                      TxType.BUY,
+    'SELL':                     TxType.SELL,
+    'DIVIDEND':                 TxType.DIVIDEND,
+    'INTEREST_PAYMENT':         TxType.INTEREST,
+    'FEE':                      TxType.FEE,
+    'CUSTOMER_INPAYMENT':       TxType.DEPOSIT,
+    'TRANSFER_INBOUND':         TxType.DEPOSIT,
+    'TRANSFER_INSTANT_INBOUND': TxType.DEPOSIT,
+    'CUSTOMER_OUTPAYMENT':      TxType.WITHDRAWAL,
+    'TRANSFER_OUTBOUND':        TxType.WITHDRAWAL,
+    'TAX_OPTIMIZATION':         TxType.TAX,
   },
 
   match: {

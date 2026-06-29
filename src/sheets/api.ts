@@ -17,9 +17,9 @@ async function _headers(): Promise<Record<string, string>> {
 }
 
 /** Read a range, returns 2D array of values (empty array if sheet is empty). */
-export async function readRange(range: string): Promise<string[][]> {
+export async function readRange(range: string): Promise<(string | number | boolean)[][]> {
   const h   = await _headers();
-  const url = `${BASE}/${SHEET_ID}/values/${encodeURIComponent(range)}`;
+  const url = `${BASE}/${SHEET_ID}/values/${encodeURIComponent(range)}?valueRenderOption=UNFORMATTED_VALUE`;
   const res = await fetch(url, { headers: h });
   if (!res.ok) throw new Error(`Sheets read error: ${res.status} ${await res.text()}`);
   const data = await res.json();

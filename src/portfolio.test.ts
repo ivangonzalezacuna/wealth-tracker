@@ -166,4 +166,40 @@ describe('computePD', () => {
     expect(pd.divHist).toEqual([]);
     expect(pd.intHist).toEqual([]);
   });
+
+  it('DEPOSIT rows do not enter DCA monthly (Commit 1C)', () => {
+    const txs = [
+      buyTx('IE00B4L5Y983', '2024-01-15', 10, 1000),
+      {
+        type: TxType.DEPOSIT, date: '2024-01-20', symbol: '', isin: '', name: 'Bank Transfer',
+        shares: 0, amount: 500, fee: 0, tax: 0, currency: 'EUR',
+      },
+    ];
+    const pd = computePD(txs);
+
+    // monthly should only include the BUY (1000), not the DEPOSIT (500)
+    expect(pd.monthly['2024-01']).toBeCloseTo(1000);
+    expect(pd.months).toEqual(['2024-01']);
+  });
+
+  it('TAX refund (positive tax) reduces net tax to zero (Commit 1D)', () => {
+    const txs = [
+      buyTx('IE00B4L5Y983', '2024-01-01', 10, 1000),
+      interestTx('2024-01-31', 100),
+      // Dividend with -3.44 tax withheld
+      {
+        type: TxType.DIVIDEND, date: '2024-06-01', symbol: 'IE00B4L5Y983', isin: 'IE00B4L5Y983',
+        name: 'ETF', shares: 0, amount: 10, fee: 0, tax: -3.44, currency: 'EUR',
+      },
+      // TAX refund of +3.44 (TAX_OPTIMIZATION)
+      {
+        type: TxType.TAX, date: '2024-07-01', symbol: '', isin: '', name: 'Tax Refund',
+        shares: 0, amount: 3.44, fee: 0, tax: 3.44, currency: 'EUR',
+      },
+    ];
+    const pd = computePD(txs);
+
+    // Net tax: 3.44 (from div) - 3.44 (refund) = 0
+    expect(pd.totalTax).toBeCloseTo(0);
+  });
 });

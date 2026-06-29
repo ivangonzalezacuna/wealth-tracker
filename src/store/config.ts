@@ -195,43 +195,49 @@ async function logChange(entity: string, summary: string): Promise<void> {
 
 // ── Parsing helpers ──────────────────────────────────────
 
-function parseAccounts(rows: string[][]): Account[] {
+/** Normalize a value that may arrive as boolean or string to a boolean. */
+const toBool = (v: unknown) => v === true || String(v ?? '').trim().toLowerCase() === 'true';
+
+/** Normalize a value that may arrive as number or string to a number. */
+const toNum = (v: unknown) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || 0);
+
+function parseAccounts(rows: (string | number | boolean)[][]): Account[] {
   if (!rows.length) return [];
-  const hdr = rows[0].map(c => (c || '').trim().toLowerCase());
+  const hdr = rows[0].map(c => (c || '').toString().trim().toLowerCase());
   return rows.slice(1).filter(r => r[hdr.indexOf('id')]).map(r => ({
-    id:                  r[hdr.indexOf('id')] || '',
-    moneyType:           r[hdr.indexOf('moneytype')] || '',
-    institution:         r[hdr.indexOf('institution')] || '',
-    label:               r[hdr.indexOf('label')] || '',
-    color:               r[hdr.indexOf('color')] || '',
-    isPrimaryInvestment: (r[hdr.indexOf('isprimaryinvestment')] || '').toLowerCase() === 'true',
-    order:               parseInt(r[hdr.indexOf('order')]) || 0,
+    id:                  String(r[hdr.indexOf('id')] ?? ''),
+    moneyType:           String(r[hdr.indexOf('moneytype')] ?? ''),
+    institution:         String(r[hdr.indexOf('institution')] ?? ''),
+    label:               String(r[hdr.indexOf('label')] ?? ''),
+    color:               String(r[hdr.indexOf('color')] ?? ''),
+    isPrimaryInvestment: toBool(r[hdr.indexOf('isprimaryinvestment')]),
+    order:               toNum(r[hdr.indexOf('order')]),
   })).sort((a, b) => (a.order || 0) - (b.order || 0));
 }
 
-function parseHoldings(rows: string[][]): Holding[] {
+function parseHoldings(rows: (string | number | boolean)[][]): Holding[] {
   if (!rows.length) return [];
-  const hdr = rows[0].map(c => (c || '').trim().toLowerCase());
+  const hdr = rows[0].map(c => (c || '').toString().trim().toLowerCase());
   return rows.slice(1).filter(r => r[hdr.indexOf('isin')]).map(r => ({
-    isin:         r[hdr.indexOf('isin')] || '',
-    ticker:       r[hdr.indexOf('ticker')] || '',
-    name:         r[hdr.indexOf('name')] || '',
-    color:        r[hdr.indexOf('color')] || '',
-    acc:          (r[hdr.indexOf('acc')] || '').toLowerCase() === 'true',
-    active:       (r[hdr.indexOf('active')] || '').toLowerCase() === 'true',
-    weeklyTarget: parseFloat(r[hdr.indexOf('weeklytarget')]) || 0,
-    assetClass:   r[hdr.indexOf('assetclass')] || '',
-    region:       r[hdr.indexOf('region')] || '',
-    foldInto:     r[hdr.indexOf('foldinto')] || '',
-    order:        parseInt(r[hdr.indexOf('order')]) || 0,
+    isin:         String(r[hdr.indexOf('isin')] ?? ''),
+    ticker:       String(r[hdr.indexOf('ticker')] ?? ''),
+    name:         String(r[hdr.indexOf('name')] ?? ''),
+    color:        String(r[hdr.indexOf('color')] ?? ''),
+    acc:          toBool(r[hdr.indexOf('acc')]),
+    active:       toBool(r[hdr.indexOf('active')]),
+    weeklyTarget: toNum(r[hdr.indexOf('weeklytarget')]),
+    assetClass:   String(r[hdr.indexOf('assetclass')] ?? ''),
+    region:       String(r[hdr.indexOf('region')] ?? ''),
+    foldInto:     String(r[hdr.indexOf('foldinto')] ?? ''),
+    order:        toNum(r[hdr.indexOf('order')]),
   })).sort((a, b) => a.order - b.order);
 }
 
-function parseSettings(rows: string[][]): Settings {
+function parseSettings(rows: (string | number | boolean)[][]): Settings {
   if (!rows.length) return {};
   const settings: Settings = {};
   for (const row of rows.slice(1)) {
-    if (row[0]) settings[row[0].trim()] = (row[1] || '').trim();
+    if (row[0]) settings[String(row[0]).trim()] = String(row[1] ?? '').trim();
   }
   return settings;
 }

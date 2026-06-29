@@ -10,6 +10,7 @@
 
 import { readRange, writeRange, clearRange, ensureSheets } from './api';
 import { SHEET_TABS, getACCTSList } from '../constants';
+import { parseNum } from '../csv';
 import type { Snapshot } from '../types';
 
 interface AccountRef {
@@ -42,14 +43,14 @@ export function snapToRow(snap: Snapshot, accts: AccountRef[]): (string | number
 }
 
 /** Convert a sheet row back to a snapshot object, reading by sheetHeader index. */
-export function rowToSnap(row: string[], sheetHeader: string[], accts: AccountRef[]): Snapshot {
-  const snap: Snapshot = { date: row[sheetHeader.indexOf('date')] || '' };
+export function rowToSnap(row: (string | number | boolean)[], sheetHeader: string[], accts: AccountRef[]): Snapshot {
+  const snap: Snapshot = { date: String(row[sheetHeader.indexOf('date')] ?? '') };
   for (const a of accts) {
     const idx = sheetHeader.indexOf(a.key);
-    snap[a.key] = idx >= 0 ? (parseFloat(row[idx]) || 0) : 0;
+    snap[a.key] = idx >= 0 ? (typeof row[idx] === 'number' ? row[idx] : parseNum(String(row[idx] ?? ''))) || 0 : 0;
   }
   const ni = sheetHeader.indexOf('notes');
-  snap.notes = ni >= 0 ? (row[ni] || '') : '';
+  snap.notes = ni >= 0 ? String(row[ni] ?? '') : '';
   return snap;
 }
 

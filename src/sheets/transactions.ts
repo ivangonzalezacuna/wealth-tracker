@@ -11,7 +11,7 @@
 
 import { readRange, writeRange, appendRows, ensureSheets } from './api';
 import { SHEET_TABS } from '../constants';
-import { parseNum } from '../csv';
+import { newRowToTx, oldRowToTx } from '../model/txRow';
 import type { Transaction } from '../types';
 
 const TAB   = SHEET_TABS.TRANSACTIONS;
@@ -33,59 +33,10 @@ export function txKey(t: Transaction): string {
 /**
  * Detect whether a header row is the old 10-column format.
  */
-function isOldHeader(hdr: string[]): boolean {
+function isOldHeader(hdr: (string | number | boolean)[]): boolean {
   if (!hdr || hdr.length < 10) return false;
-  const norm = hdr.map(h => (h || '').trim().toLowerCase());
+  const norm = hdr.map(h => (h || '').toString().trim().toLowerCase());
   return norm.includes('symbol') || norm.includes('category');
-}
-
-/**
- * Map an old 10-col row to the new 14-col shape.
- * Old: id | date | category | type | name | symbol | shares | price | amount | tax
- * New: id | date | source | type | name | isin | shares | price | amount | fee | tax | currency | fxRate | note
- */
-function oldRowToTx(row: string[]): Transaction {
-  return {
-    id:       row[0] || '',
-    date:     row[1] || '',
-    source:   'trade_republic',
-    category: row[2] || '',
-    type:     row[3] || '',
-    name:     row[4] || '',
-    isin:     row[5] || '',
-    symbol:   row[5] || '',
-    shares:   parseNum(String(row[6] ?? '')),
-    price:    parseNum(String(row[7] ?? '')),
-    amount:   parseNum(String(row[8] ?? '')),
-    fee:      0,
-    tax:      parseNum(String(row[9] ?? '')),
-    currency: 'EUR',
-    fxRate:   0,
-    note:     '',
-  };
-}
-
-/**
- * Map a new 14-col row to a transaction object.
- */
-function newRowToTx(row: string[]): Transaction {
-  return {
-    id:       row[0] || '',
-    date:     row[1] || '',
-    source:   row[2] || '',
-    type:     row[3] || '',
-    name:     row[4] || '',
-    isin:     row[5] || '',
-    symbol:   row[5] || '',
-    shares:   parseNum(String(row[6] ?? '')),
-    price:    parseNum(String(row[7] ?? '')),
-    amount:   parseNum(String(row[8] ?? '')),
-    fee:      parseNum(String(row[9] ?? '')),
-    tax:      parseNum(String(row[10] ?? '')),
-    currency: row[11] || 'EUR',
-    fxRate:   parseNum(String(row[12] ?? '')),
-    note:     row[13] || '',
-  };
 }
 
 function txToRow(t: Transaction): (string | number)[] {
@@ -149,7 +100,7 @@ export async function loadImportMeta(): Promise<Record<string, string>> {
     const rows = await readRange(`${SHEET_TABS.META_INFO}!A:B`);
     const meta: Record<string, string> = {};
     for (const row of rows.slice(1)) {
-      if (row[0]) meta[row[0]] = row[1] || '';
+      if (row[0]) meta[String(row[0])] = String(row[1] ?? '');
     }
     return meta;
   } catch {
