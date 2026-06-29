@@ -122,7 +122,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     <div class="kpi"><div class="kpi-label">Total invested</div><div class="kpi-val">${fmt(pd.totalInv)}</div><div class="kpi-sub">net of sells</div></div>
     <div class="kpi"><div class="kpi-label">Current value</div>
       <div class="kpi-val">${curVal !== null ? fmt(curVal, 2) : '—'}</div>
-      <div class="kpi-sub">${curVal !== null ? 'from ' + fmtMon(latSnap.date) + ' snapshot' : 'add a snapshot'}</div></div>
+      <div class="kpi-sub">${curVal !== null ? 'from ' + fmtMon(latSnap.date) + ' snapshot' : (latSnap ? 'no primary investment account flagged' : 'add a snapshot')}</div></div>
     <div class="kpi"><div class="kpi-label">Unrealized gain</div>
       <div class="kpi-val ${gain !== null && gain >= 0 ? 'pos' : 'neg'}">${gain !== null ? (gain >= 0 ? '+' : '') + fmt(gain, 2) : '—'}</div>
       <div class="kpi-sub">${gainPct !== null ? (gainPct >= 0 ? '+' : '') + gainPct.toFixed(1) + '%' : ''}</div></div>
