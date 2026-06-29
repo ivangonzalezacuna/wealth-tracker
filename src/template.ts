@@ -81,6 +81,7 @@ export function appTemplate(): string {
       <div class="card">
         <div class="card-title">Holdings — exact positions from CSV</div>
         <div class="tbl" role="table" aria-label="Holdings"><div id="port-table"></div></div>
+        <div id="port-pagination" class="pagination"></div>
       </div>
       <div class="two-col">
         <div class="card">
@@ -146,10 +147,12 @@ export function appTemplate(): string {
       <div class="card">
         <div class="card-title">Dividend payments received (most recent first)</div>
         <div class="tbl" role="table" aria-label="Dividend history"><div id="div-history"></div></div>
+        <div id="div-pagination" class="pagination"></div>
       </div>
       <div class="card">
         <div class="card-title">Cash / savings interest received</div>
         <div id="div-interest"></div>
+        <div id="int-pagination" class="pagination"></div>
       </div>
     </div>
   </div>

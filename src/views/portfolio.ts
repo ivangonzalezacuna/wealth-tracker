@@ -14,6 +14,8 @@ const CH: Record<string, Chart> = {};
 // Module-level filter state (survives re-renders)
 let _showExited = false;
 let _holdingsFilter = 'held'; // 'held' | 'closed' | 'all'
+const HOLD_PAGE_SIZE = 10;
+let _holdPage = 1;
 
 /**
  * Render only the holdings table (filter-dependent portion).
@@ -41,6 +43,11 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     displayList = held;
   }
 
+  // Pagination
+  const totalPages = Math.ceil(displayList.length / HOLD_PAGE_SIZE);
+  if (_holdPage > totalPages) _holdPage = Math.max(1, totalPages);
+  const pageItems = displayList.slice((_holdPage - 1) * HOLD_PAGE_SIZE, _holdPage * HOLD_PAGE_SIZE);
+
   // Filter controls
   const filterHtml = `
     <div class="filter-bar" style="margin-bottom:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
@@ -53,7 +60,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
 
   const gridCols = 'grid-template-columns:2.2fr 1fr 1fr 1fr 1fr 1fr 1fr';
 
-  const rows = displayList.map(e => {
+  const rows = pageItems.map(e => {
     const pct = pd.totalInv > 0 ? e.cost / pd.totalInv * 100 : 0;
     const avg = e.shares > 0 ? e.cost / e.shares : 0;
     const m   = META[e.ticker] || {};
@@ -102,9 +109,33 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
       const btn = (e.target as HTMLElement).closest('[data-filter]') as HTMLElement | null;
       if (!btn) return;
       _holdingsFilter = btn.dataset.filter || 'held';
+      _holdPage = 1;
       renderHoldingsTable(pd, snaps);
     });
   }
+
+  // Holdings pagination controls
+  renderHoldPagination(totalPages, pd, snaps);
+}
+
+function renderHoldPagination(totalPages: number, pd: PortfolioData, snaps: Snapshot[]): void {
+  const el = document.getElementById('port-pagination');
+  if (!el) return;
+  if (totalPages <= 1) {
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = `
+    <button class="btn btn-sm btn-ghost js-hold-prev" ${_holdPage <= 1 ? 'disabled' : ''}>←</button>
+    <span class="page-info">${_holdPage} / ${totalPages}</span>
+    <button class="btn btn-sm btn-ghost js-hold-next" ${_holdPage >= totalPages ? 'disabled' : ''}>→</button>
+  `;
+  el.querySelector('.js-hold-prev')?.addEventListener('click', () => {
+    if (_holdPage > 1) { _holdPage--; renderHoldingsTable(pd, snaps); }
+  });
+  el.querySelector('.js-hold-next')?.addEventListener('click', () => {
+    if (_holdPage < totalPages) { _holdPage++; renderHoldingsTable(pd, snaps); }
+  });
 }
 
 export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): void {
@@ -114,6 +145,8 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   document.getElementById('port-empty').style.display   = has ? 'none'  : 'block';
   document.getElementById('port-content').style.display = has ? 'block' : 'none';
   if (!has) return;
+
+  _holdPage = 1;
 
   const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
   const curVal  = primaryInvestmentValue(latSnap, getAccounts());

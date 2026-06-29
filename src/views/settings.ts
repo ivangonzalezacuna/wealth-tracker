@@ -395,8 +395,11 @@ function attachHoldingListeners(root: HTMLElement): void {
     rerenderHoldingsTable(root, holds);
   });
 
-  root.querySelector('#btn-autofill-holds')?.addEventListener('click', async () => {
-    showMsg('holds-msg', 'Loading transactions…', true);
+  root.querySelector('#btn-autofill-holds')?.addEventListener('click', async (e) => {
+    const btn = (e.currentTarget as HTMLButtonElement);
+    btn.disabled = true;
+    const origText = btn.textContent || '';
+    btn.innerHTML = '<span class="spinner"></span> Loading\u2026';
     try {
       const txs = await loadTransactions();
       const buys = txs.filter(t => t.type === 'BUY' && (t.isin || t.symbol));
@@ -447,6 +450,9 @@ function attachHoldingListeners(root: HTMLElement): void {
       showMsg('holds-msg', added > 0 ? `Added ${added} holding(s) from transactions. Review and save.` : 'All transaction ISINs already configured.', true);
     } catch (err) {
       showMsg('holds-msg', 'Error: ' + err.message, false);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = origText;
     }
   });
 
