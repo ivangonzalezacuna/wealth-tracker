@@ -172,7 +172,21 @@ export function appTemplate(): string {
   </div>
 
   <div id="log-content">
-    <div class="card">
+    <div class="card" id="csv-import-card">
+      <div class="card-title">Import transactions</div>
+      <p class="note" style="margin-bottom:.85rem">Import your transaction export CSV. Drag your file here or click to browse. Parsed locally — data synced to your Google Sheet. Re-import anytime; duplicates handled automatically.</p>
+      <div class="drop-zone" id="drop-zone">
+        <input type="file" id="csv-file-input" accept=".csv">
+        <div style="font-size:2rem;margin-bottom:.4rem">📥</div>
+        <div style="font-weight:500;font-size:13px;color:var(--ink-2);margin-bottom:.2rem">Drop CSV file here</div>
+        <div style="font-size:11px;color:var(--ink-3)">or click to browse</div>
+      </div>
+      <div id="import-msg" style="font-size:12px;margin-top:.6rem;min-height:18px"></div>
+      <div id="import-preview" style="display:none"></div>
+      <div id="import-status" class="status-bar status-empty" style="margin-top:1rem">No CSV imported yet</div>
+    </div>
+
+    <div class="card" id="balance-card">
       <div class="card-title">Monthly update</div>
       <p class="note" style="margin-bottom:.85rem">Enter total account balances once a month (~2 min). Same month overwrites the previous entry.</p>
       <div class="form-grid">
@@ -187,20 +201,6 @@ export function appTemplate(): string {
         <div id="snap-acct-fields"></div>
       </div>
 
-      <div class="sub-section" style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--line)">
-        <div style="font-weight:500;font-size:13px;color:var(--ink-2);margin-bottom:.6rem">Add this month's transactions (optional)</div>
-        <p class="note" style="margin-bottom:.85rem">Import your transaction export CSV. Drag your file here or click to browse. Parsed locally — data synced to your Google Sheet. Re-import anytime; duplicates handled automatically.</p>
-        <div class="drop-zone" id="drop-zone">
-          <input type="file" id="csv-file-input" accept=".csv">
-          <div style="font-size:2rem;margin-bottom:.4rem">📥</div>
-          <div style="font-weight:500;font-size:13px;color:var(--ink-2);margin-bottom:.2rem">Drop CSV file here</div>
-          <div style="font-size:11px;color:var(--ink-3)">or click to browse</div>
-        </div>
-        <div id="import-msg" style="font-size:12px;margin-top:.6rem;min-height:18px"></div>
-        <div id="import-preview" style="display:none"></div>
-      </div>
-
-      <div id="import-status" class="status-bar status-empty" style="margin-top:1rem">No CSV imported yet</div>
       <div style="display:flex;align-items:center;gap:14px;margin-top:.85rem">
         <button class="btn btn-primary" id="btn-save-snap">Save monthly update</button>
         <span id="snap-msg" style="font-size:12px;min-height:18px"></span>
