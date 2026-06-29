@@ -7,6 +7,7 @@ export function appTemplate(): string {
   <div class="sub" id="app-sub">${CONFIG.app.subtitle}</div>
   <div id="auth-bar">
     <span id="auth-status" class="auth-status"></span>
+    <button id="btn-signin-global" class="btn btn-primary btn-sm" style="display:none">Sign in</button>
     <button id="btn-signout" class="btn btn-ghost btn-sm" style="display:none">Sign out</button>
   </div>
 </header>
@@ -17,6 +18,10 @@ export function appTemplate(): string {
   <button data-section="settings">Settings</button>
   <button data-section="log" class="log-btn">＋ Log</button>
 </nav>
+<div id="sync-status" class="status-bar" style="display:none"></div>
+<div id="sync-now-wrap" style="text-align:right;margin-top:-4px;margin-bottom:8px;display:none">
+  <button id="btn-sync-now" class="btn btn-ghost btn-sm" title="Incremental sync — does not clear cache">Sync now</button>
+</div>
 
 <!-- ════ NET WORTH ════ -->
 <div id="networth" class="section active">
@@ -168,7 +173,6 @@ export function appTemplate(): string {
 
   <div id="log-content">
     <div id="import-status" class="status-bar status-empty">No CSV imported yet</div>
-    <div id="sync-status" class="status-bar" style="display:none"></div>
 
     <div class="card">
       <div class="card-title">Import CSV</div>
