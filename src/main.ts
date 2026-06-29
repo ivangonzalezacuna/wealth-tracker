@@ -19,6 +19,7 @@ import { renderSettings } from './views/settings';
 import { renderLog } from './views/log';
 import { fmtMon, showMsg as _showMsgBase, esc, currentMonth } from './utils';
 import { parseNum } from './csv';
+import { navHash, parseNavHash } from './nav';
 import {
   isCacheValid, clearCache,
   getCachedConfig, setCachedConfig,
@@ -119,6 +120,19 @@ function initNav() {
     const btn = (e.target as HTMLElement).closest('[data-subview]') as HTMLElement | null;
     if (btn) showPortfolioSubview(btn.dataset.subview!);
   });
+
+  // Hash-based initial routing
+  resolveInitialSection();
+}
+
+function resolveInitialSection(): void {
+  const { section: targetSection, subview } = parseNavHash(window.location.hash);
+  const targetBtn = document.querySelector(
+    `.nav button[data-section="${targetSection}"]`) as HTMLElement | null;
+  showSection(targetSection, targetBtn);
+  if (targetSection === 'portfolio') {
+    showPortfolioSubview(subview || 'holdings');
+  }
 }
 
 function showSection(id, btn) {
@@ -130,6 +144,7 @@ function showSection(id, btn) {
   if (_dirty.has(id)) { _dirty.delete(id); renderSection(id); }
   else if (id === 'settings') { renderSection('settings'); } // settings reflects live config; always repaint
   if (id === 'portfolio') showPortfolioSubview(_portfolioSubview);
+  history.replaceState(null, '', navHash(id, id === 'portfolio' ? _portfolioSubview : undefined));
 }
 
 // ── Online/offline listeners ─────────────────────────────
@@ -936,6 +951,7 @@ function showPortfolioSubview(sub: string): void {
   document.querySelectorAll('#portfolio-subnav [data-subview]').forEach(b =>
     b.classList.toggle('active', (b as HTMLElement).dataset.subview === sub));
   renderPortfolioSubview(sub);
+  history.replaceState(null, '', navHash('portfolio', sub));
 }
 
 function renderPortfolioSubview(sub: string): void {
