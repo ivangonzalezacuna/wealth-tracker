@@ -91,12 +91,28 @@ code, .isin, .tx-id, .acct-key {
 /* Holdings table — grid layout */
 #port-table .hold-row,
 #port-table .hold-total {
-  grid-template-columns: auto 1fr 1fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: minmax(72px, 22%) 1fr 1fr 1fr 1fr 1fr 1fr;
+}
+/* Holdings rows: align-items start so bar-wrap doesn't displace sibling cells */
+#port-table .hold-row,
+#port-table .hold-total {
+  align-items: start;
+}
+/* Numeric cell top-padding to optically align with ticker text under start alignment */
+#port-table .hold-row > *:not(:first-child),
+#port-table .hold-total > *:not(:first-child),
+#port-table .th.hold-row > * {
+  padding-top: 3px;
 }
 
 /* ETF cell elements */
-.hold-etf-cell { cursor: pointer; display: flex; align-items: center; gap: 5px; min-width: 0; }
-.hold-ticker { font-weight: 500; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hold-etf-cell { cursor: pointer; display: flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; }
+.hold-ticker { font-weight: 500; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 1 0; }
+#port-table .th.hold-row > *:first-child {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .hold-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
 /* Holdings detail panel */
@@ -115,7 +131,7 @@ code, .isin, .tx-id, .acct-key {
 .hold-detail-isin  { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-2); user-select: all; letter-spacing: 0.02em; }
 
 /* Bar */
-.bar-wrap{background:var(--surface-3);border-radius:4px;height:5px;overflow:hidden;margin-top:3px;min-width:40px}
+.bar-wrap{background:var(--surface-3);border-radius:4px;height:4px;overflow:hidden;margin-top:2px;width:100%}
 .bar-fill{height:100%;border-radius:4px}
 
 /* Charts */
@@ -215,7 +231,7 @@ code, .isin, .tx-id, .acct-key {
 @media (max-width: 599px) {
   #port-table .hold-row,
   #port-table .hold-total {
-    grid-template-columns: auto 1fr 1fr 1fr;
+    grid-template-columns: minmax(64px, 30%) 1fr 1fr 1fr;
   }
   /* Hide: Shares(3), Avg Price(4), Realized P&L(6) */
   #port-table .hold-row > *:nth-child(3),
@@ -224,6 +240,21 @@ code, .isin, .tx-id, .acct-key {
   #port-table .hold-total > *:nth-child(3),
   #port-table .hold-total > *:nth-child(4),
   #port-table .hold-total > *:nth-child(6) { display: none; }
+  /* Holdings table mobile density */
+  #port-table .hold-row,
+  #port-table .hold-total {
+    gap: 5px;
+    font-size: 11px;
+    padding: 6px 0;
+  }
+  #port-table .th.hold-row {
+    font-size: 10px;
+  }
+  #port-table .hold-row > *:not(:first-child),
+  #port-table .hold-total > *:not(:first-child),
+  #port-table .th.hold-row > * {
+    padding-top: 2px;
+  }
 }
 
 @media(max-width:480px){
@@ -261,6 +292,16 @@ code, .isin, .tx-id, .acct-key {
   .tbl{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -.75rem;padding:0 .75rem}
   /* Auth bar */
   #auth-bar{flex-wrap:wrap;gap:6px}
+  /* Holdings table smallest phones */
+  #port-table .hold-row,
+  #port-table .hold-total {
+    grid-template-columns: minmax(56px, 28%) 1fr 1fr 1fr;
+    gap: 4px;
+    font-size: 10px;
+  }
+  #port-table .th.hold-row {
+    font-size: 9px;
+  }
 }
 
 /* Ensure color inputs don't overflow on mobile */
