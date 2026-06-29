@@ -507,7 +507,7 @@ let _bannerDismissed = false;
 function renderSetupBanner(): void {
   const el = document.getElementById('setup-banner');
   if (!el) return;
-  if (isInitialLoad()) { el.style.display = 'none'; return; }
+  if (isInitialLoad() || isSyncBusy()) { el.style.display = 'none'; return; }
   if (_bannerDismissed) { el.style.display = 'none'; return; }
 
   const step = getSetupState({
@@ -972,19 +972,31 @@ function renderSection(id: string): void {
     if (section && !section.querySelector('.section-loading')) {
       const overlay = document.createElement('div');
       overlay.className = 'section-loading';
-      overlay.innerHTML = '<span class="spinner"></span>';
-      overlay.style.cssText = 'display:flex;align-items:center;padding:2rem 1rem';
+      overlay.innerHTML = '<span class="spinner"></span> Loading\u2026';
+      overlay.style.cssText = 'display:flex;align-items:center;gap:0.5rem;padding:2rem 1rem;font-size:13px;color:var(--ink-2)';
       section.prepend(overlay);
     }
     return;
   }
   // Remove any leftover overlay
   document.getElementById(id)?.querySelector('.section-loading')?.remove();
-  switch (id) {
-    case 'networth':      renderNW(state.pd, state.snaps); break;
-    case 'portfolio':     renderPortfolioSubview(_portfolioSubview); break;
-    case 'settings':      renderSettings(); break;
-    case 'log':           renderLog({ txs: state.txs, snaps: state.snaps, importMeta: state.importMeta, onEditSnap: editSnap, onDelSnap: delSnap }); break;
+  try {
+    switch (id) {
+      case 'networth':      renderNW(state.pd, state.snaps); break;
+      case 'portfolio':     renderPortfolioSubview(_portfolioSubview); break;
+      case 'settings':      renderSettings(); break;
+      case 'log':           renderLog({ txs: state.txs, snaps: state.snaps, importMeta: state.importMeta, onEditSnap: editSnap, onDelSnap: delSnap }); break;
+    }
+  } catch (err: unknown) {
+    console.error(`[renderSection] error in section "${id}":`, err);
+    const section = document.getElementById(id);
+    if (section && !section.querySelector('.section-error')) {
+      const msg = document.createElement('div');
+      msg.className = 'section-error';
+      msg.style.cssText = 'padding:1.5rem 1rem;font-size:13px;color:var(--neg)';
+      msg.textContent = 'Something went wrong rendering this section. Try a Force full resync from Settings, or reload the page.';
+      section.prepend(msg);
+    }
   }
 }
 

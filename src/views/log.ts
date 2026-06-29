@@ -94,8 +94,21 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
   }
 
   if (filtered.length === 0) {
-    el.innerHTML = '<div class="empty-state" style="padding:1rem;font-size:12px;color:' + T.ink3 + '">No matching snapshots.</div>';
+    el.innerHTML = `<div class="empty-state" style="padding:1rem;font-size:12px;color:${T.ink3}">
+      No matching snapshots.
+      <button class="btn btn-ghost btn-sm js-clear-snap-filters" style="margin-left:6px;font-size:12px">Clear filters</button>
+    </div>`;
     hidePagination();
+    el.querySelector('.js-clear-snap-filters')?.addEventListener('click', () => {
+      _snapSearch = '';
+      _snapYear = '';
+      _snapPage = 1;
+      const yearEl = document.getElementById('snap-year-filter') as HTMLSelectElement | null;
+      const searchEl = document.getElementById('snap-search') as HTMLInputElement | null;
+      if (yearEl) yearEl.value = '';
+      if (searchEl) searchEl.value = '';
+      renderSnapList(snaps, onEdit, onDel);
+    });
     return;
   }
 

@@ -146,9 +146,11 @@ function attachRangeToggle(pd: PortfolioData, ordSyms: string[], ISIN: Record<st
     const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
     if (!btn) return;
     _dcaRange = btn.dataset.range || 'all';
+    _dcaPage = 1;
     toggle.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     renderDCAChart(_lastPd || pd, ordSyms, ISIN, META);
+    renderDCATable(_lastPd || pd);
   });
 }
 
