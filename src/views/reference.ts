@@ -1,6 +1,7 @@
 // @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
 import Chart from 'chart.js/auto';
-import { getHoldings, getTotalWeeklyTarget, getSettings } from '../store/config';
+import { getHoldings, getTotalWeeklyTarget, getTotalAnnualContrib, getSettings } from '../store/config';
+import { INTERVAL_LABELS, annualizeContrib } from '../model/contributions';
 import { esc, safeColor } from '../utils';
 
 let refChart: Chart | null = null;
@@ -10,18 +11,19 @@ export function renderRef(): void {
   const el = document.getElementById('c-ref-target');
   if (!el) return;
 
-  // Derive target allocation slices from active holdings with weeklyTarget > 0
+  // Derive target allocation slices from active holdings with contribAmount > 0
   const holdings = getHoldings();
-  const totalWeekly = getTotalWeeklyTarget();
-  const activeWithTarget = holdings.filter(h => h.active && h.weeklyTarget > 0);
+  const totalAnnual = getTotalAnnualContrib();
+  const activeWithTarget = holdings.filter(h => h.active && h.contribAmount > 0);
 
   if (activeWithTarget.length === 0) return;
 
   const slices = activeWithTarget.map(h => ({
     ticker: h.ticker,
-    pct: totalWeekly > 0 ? Math.round(h.weeklyTarget / totalWeekly * 100) : 0,
+    pct: totalAnnual > 0 ? Math.round(annualizeContrib(h.contribAmount, h.interval) / totalAnnual * 100) : 0,
     color: h.color,
-    weeklyTarget: h.weeklyTarget,
+    contribAmount: h.contribAmount,
+    interval: h.interval,
     assetClass: h.assetClass,
     region: h.region,
   }));
@@ -37,17 +39,17 @@ export function renderRef(): void {
   // Render breakdown (derived from holdings assetClass/region)
   const breakdownEl = document.getElementById('ref-breakdown');
   if (breakdownEl) {
-    const equityWt = slices.filter(s => s.assetClass === 'equity').reduce((sum, s) => sum + s.weeklyTarget, 0);
-    const bondWt = slices.filter(s => s.assetClass === 'bond').reduce((sum, s) => sum + s.weeklyTarget, 0);
-    const devWt = slices.filter(s => s.assetClass === 'equity' && s.region === 'developed').reduce((sum, s) => sum + s.weeklyTarget, 0);
-    const emWt = slices.filter(s => s.assetClass === 'equity' && s.region === 'emerging').reduce((sum, s) => sum + s.weeklyTarget, 0);
+    const equityWt = slices.filter(s => s.assetClass === 'equity').reduce((sum, s) => sum + annualizeContrib(s.contribAmount, s.interval), 0);
+    const bondWt = slices.filter(s => s.assetClass === 'bond').reduce((sum, s) => sum + annualizeContrib(s.contribAmount, s.interval), 0);
+    const devWt = slices.filter(s => s.assetClass === 'equity' && s.region === 'developed').reduce((sum, s) => sum + annualizeContrib(s.contribAmount, s.interval), 0);
+    const emWt = slices.filter(s => s.assetClass === 'equity' && s.region === 'emerging').reduce((sum, s) => sum + annualizeContrib(s.contribAmount, s.interval), 0);
 
     const pctOf = (part: number, whole: number) => whole > 0 ? Math.round(part / whole * 100) : 0;
     const lines = [];
-    if (equityWt > 0) lines.push({ label: 'Equity', value: `${pctOf(equityWt, totalWeekly)}%` });
-    if (bondWt > 0) lines.push({ label: 'Bonds', value: `${pctOf(bondWt, totalWeekly)}%` });
-    if (devWt > 0) lines.push({ label: 'Developed equity', value: `${pctOf(devWt, totalWeekly)}%` });
-    if (emWt > 0) lines.push({ label: 'Emerging equity', value: `${pctOf(emWt, totalWeekly)}%` });
+    if (equityWt > 0) lines.push({ label: 'Equity', value: `${pctOf(equityWt, totalAnnual)}%` });
+    if (bondWt > 0) lines.push({ label: 'Bonds', value: `${pctOf(bondWt, totalAnnual)}%` });
+    if (devWt > 0) lines.push({ label: 'Developed equity', value: `${pctOf(devWt, totalAnnual)}%` });
+    if (emWt > 0) lines.push({ label: 'Emerging equity', value: `${pctOf(emWt, totalAnnual)}%` });
     if (emWt > 0 && equityWt > 0) lines.push({ label: 'EM as % of equity', value: `${pctOf(emWt, equityWt)}%` });
 
     breakdownEl.innerHTML = lines.map(b =>
@@ -55,11 +57,13 @@ export function renderRef(): void {
     ).join('');
   }
 
-  // Render weekly target note
+  // Render contribution note with cadence info
   const noteEl = document.getElementById('ref-note');
   if (noteEl) {
-    const parts = slices.map(s => `${s.ticker} €${s.weeklyTarget}`);
-    noteEl.textContent = `Weekly target: ${parts.join(' · ')} = €${totalWeekly}/wk`;
+    const shortInterval: Record<string, string> = { weekly: '/wk', biweekly: '/2wk', monthly: '/mo', quarterly: '/qtr' };
+    const parts = slices.map(s => `${s.ticker} €${s.contribAmount}${shortInterval[s.interval] || ''}`);
+    const annualTotal = Math.round(totalAnnual);
+    noteEl.textContent = `Contributions: ${parts.join(' · ')} (€${annualTotal}/yr)`;
   }
 
   // Render closed positions (derived from inactive holdings with foldInto)

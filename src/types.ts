@@ -48,6 +48,10 @@ export interface Account {
   order?: number;
 }
 
+// ─── Contribution cadence ────────────────────────────────────────
+
+export type ContribInterval = 'weekly' | 'biweekly' | 'monthly' | 'quarterly';
+
 // ─── Holding ─────────────────────────────────────────────────────
 
 export interface Holding {
@@ -57,7 +61,8 @@ export interface Holding {
   color: string;
   acc: boolean;
   active: boolean;
-  weeklyTarget: number;
+  contribAmount: number;   // amount per execution
+  interval: ContribInterval; // execution cadence
   assetClass: string;
   region: string;
   foldInto: string;
