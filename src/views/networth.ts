@@ -58,7 +58,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   }
 
   document.getElementById('nw-kpis').innerHTML = `
-    <div class="kpi">
+    <div class="kpi kpi-lead">
       <div class="kpi-label">Net worth</div>
       <div class="kpi-val">${fmtEur2(total)}</div>
       <div class="kpi-sub">${chg !== null
