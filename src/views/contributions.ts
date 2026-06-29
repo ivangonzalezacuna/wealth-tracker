@@ -1,7 +1,8 @@
 // @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
 import { fmt, fmtMon, esc, safeColor } from '../utils';
 import { getISIN_ORDERList, getISIN, getMETAMap } from '../constants';
-import { getTotalWeeklyTarget, getAnnualReturnPct, getPrimaryInvestmentAccounts } from '../store/config';
+import { getTotalWeeklyTarget, getAnnualReturnPct, getAccounts } from '../store/config';
+import { primaryInvestmentValue } from '../model/accounts';
 import type { PortfolioData, Snapshot } from '../types';
 import Chart from 'chart.js/auto';
 
@@ -11,16 +12,6 @@ let _dcaPage = 1;
 let _dcaYear = '';
 let _dcaRange = 'all'; // '12', '24', 'all'
 let _lastPd: PortfolioData | null = null;
-
-/** Get the primary investment value from a snapshot. */
-function getPrimaryInvestmentValue(snap: Snapshot | null): number | null {
-  if (!snap) return null;
-  const primAccts = getPrimaryInvestmentAccounts();
-  if (primAccts.length > 0) {
-    return primAccts.reduce((sum, a) => sum + ((snap[a.id || ''] as number) || 0), 0) || null;
-  }
-  return null;
-}
 
 export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const ISIN_ORDER = getISIN_ORDERList();
@@ -66,7 +57,7 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
 
   // 5-year projection
   const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
-  const startV  = getPrimaryInvestmentValue(latSnap) || pd.totalInv;
+  const startV  = primaryInvestmentValue(latSnap, getAccounts()) || pd.totalInv;
   const annualReturnPct = getAnnualReturnPct();
   const weeklyTarget = getTotalWeeklyTarget() || 200;
   const rate = annualReturnPct / 100 / 52, contrib = weeklyTarget;
