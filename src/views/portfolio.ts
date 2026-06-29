@@ -1,7 +1,8 @@
 // @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
 import { fmt, fmtMon, esc, safeColor } from '../utils';
 import { getISIN_ORDERList, getMETAMap } from '../constants';
-import { getPrimaryInvestmentAccounts } from '../store/config';
+import { getAccounts } from '../store/config';
+import { primaryInvestmentValue } from '../model/accounts';
 import { splitHoldings } from '../model/holdings';
 import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 import Chart from 'chart.js/auto';
@@ -11,16 +12,6 @@ const CH: Record<string, Chart> = {};
 // Module-level filter state (survives re-renders)
 let _showExited = false;
 let _holdingsFilter = 'held'; // 'held' | 'closed' | 'all'
-
-/** Get the current market value of the primary investment account from a snapshot. */
-function getPrimaryInvestmentValue(snap: Snapshot | null): number | null {
-  if (!snap) return null;
-  const primAccts = getPrimaryInvestmentAccounts();
-  if (primAccts.length > 0) {
-    return primAccts.reduce((sum, a) => sum + ((snap[a.id || ''] as number) || 0), 0) || null;
-  }
-  return null;
-}
 
 /**
  * Render only the holdings table (filter-dependent portion).
@@ -123,7 +114,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   if (!has) return;
 
   const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
-  const curVal  = getPrimaryInvestmentValue(latSnap);
+  const curVal  = primaryInvestmentValue(latSnap, getAccounts());
   const gain    = curVal !== null ? curVal - pd.totalInv : null;
   const gainPct = gain !== null && pd.totalInv > 0 ? gain / pd.totalInv * 100 : null;
 

@@ -1,6 +1,7 @@
 // @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
 import { getAccounts, getHoldings, getSettings, setAccounts, setHoldings, setSettings, setSetting, isConfigLoaded, getCostBasisMethod } from '../store/config';
 import { loadTransactions } from '../sheets/transactions';
+import { validatePrimaryInvestment } from '../model/accounts';
 import { showMsg } from '../utils';
 import type { Account, Holding, Settings } from '../types';
 
@@ -127,6 +128,8 @@ function attachAccountListeners(root: HTMLElement): void {
       showMsg('accts-msg', 'Each account needs a name.', false);
       return;
     }
+    const primErr = validatePrimaryInvestment(accounts);
+    if (primErr) { showMsg('accts-msg', primErr, false); return; }
     // Auto-generate IDs for accounts that don't have one
     for (const a of accounts) {
       if (!a.id) {

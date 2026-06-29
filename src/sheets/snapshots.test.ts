@@ -1,6 +1,6 @@
 // @ts-nocheck — test fixtures use partial objects; strict typing deferred
 import { describe, it, expect } from 'vitest';
-import { snapshotHeader, snapToRow, rowToSnap } from './snapshots';
+import { snapshotHeader, snapToRow, rowToSnap, parseSnapshotRows } from './snapshots';
 
 describe('snapshot persistence helpers', () => {
   const accts3 = [{ key: 'a' }, { key: 'b' }, { key: 'c' }];
@@ -79,5 +79,40 @@ describe('rowToSnap locale-safe parsing (Commit 1B)', () => {
     const snap2 = rowToSnap(row2, hdr, accts);
     expect(snap1.tr_portfolio).toBeCloseTo(snap2.tr_portfolio);
     expect(snap1.tr_portfolio).toBeCloseTo(1234.56);
+  });
+});
+
+describe('parseSnapshotRows — header-driven, config-independent', () => {
+  it('derives account keys from the sheet header (no account list needed)', () => {
+    const rows = [
+      ['date', 'tr_portfolio', 'n26', 'savings', 'notes'],
+      ['2026-06', '12345,67', '2.500,00', '8000', 'x'],
+    ];
+    const snaps = parseSnapshotRows(rows);
+    expect(snaps).toHaveLength(1);
+    expect(snaps[0].tr_portfolio).toBeCloseTo(12345.67);
+    expect(snaps[0].n26).toBeCloseTo(2500);
+    expect(snaps[0].savings).toBe(8000);
+    expect(snaps[0].notes).toBe('x');
+  });
+
+  it('returns [] when date column is missing', () => {
+    const rows = [['account_a', 'account_b', 'notes'], ['100', '200', '']];
+    expect(parseSnapshotRows(rows)).toEqual([]);
+  });
+
+  it('sorts multiple rows ascending by date', () => {
+    const rows = [
+      ['date', 'a', 'notes'],
+      ['2026-03', '300', ''],
+      ['2026-01', '100', ''],
+      ['2026-02', '200', ''],
+    ];
+    const snaps = parseSnapshotRows(rows);
+    expect(snaps.map(s => s.date)).toEqual(['2026-01', '2026-02', '2026-03']);
+  });
+
+  it('returns [] for empty rows', () => {
+    expect(parseSnapshotRows([])).toEqual([]);
   });
 });

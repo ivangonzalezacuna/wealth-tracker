@@ -13,6 +13,22 @@ import { SHEET_TABS, getACCTSList } from '../constants';
 import { parseNum } from '../csv';
 import type { Snapshot } from '../types';
 
+/** Pure: raw sheet rows → snapshots. Account keys come from the sheet header,
+ *  so this is independent of whether the config store has loaded yet. */
+export function parseSnapshotRows(rows: (string | number | boolean)[][]): Snapshot[] {
+  if (!rows.length) return [];
+  const sheetHdr = rows[0].map(c => (c ?? '').toString().trim().toLowerCase());
+  const dateIdx = sheetHdr.indexOf('date');
+  if (dateIdx < 0) return [];
+  const accts = sheetHdr
+    .filter(h => h && h !== 'date' && h !== 'notes')
+    .map(key => ({ key, label: key, color: '' }));
+  return rows.slice(1)
+    .filter(r => r[dateIdx])
+    .map(r => rowToSnap(r, sheetHdr, accts))
+    .sort((a, b) => (a.date as string).localeCompare(b.date as string));
+}
+
 interface AccountRef {
   key: string;
   label: string;
@@ -56,20 +72,9 @@ export function rowToSnap(row: (string | number | boolean)[], sheetHeader: strin
 
 /** Load all snapshots from the sheet, sorted ascending by date. */
 export async function loadSnapshots(): Promise<Snapshot[]> {
-  const accts = getACCTSList();
-  const hdr = snapshotHeader(accts);
-  const range = `${TAB}!A:${colLetter(hdr.length)}`;
-
   await ensureSheets([TAB]);
-  const rows = await readRange(range);
-  if (!rows.length) return [];
-  // Use actual header from sheet for column mapping
-  const sheetHdr = rows[0].map(c => (c || '').toString().trim().toLowerCase());
-  const data = rows.slice(1);
-  return data
-    .filter(r => r[sheetHdr.indexOf('date')])
-    .map(r => rowToSnap(r, sheetHdr, accts))
-    .sort((a, b) => (a.date as string).localeCompare(b.date as string));
+  const rows = await readRange(TAB); // whole used range — width-independent
+  return parseSnapshotRows(rows);
 }
 
 /**

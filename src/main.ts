@@ -181,9 +181,9 @@ async function syncInBackground() {
   }
   setSyncStatus('syncing');
   try {
-    // Load config + snapshots + import meta (small, always full-read)
-    const [, snaps, meta] = await Promise.all([
-      loadConfig(),
+    // Load config first (snapshots & other reads depend on it)
+    await loadConfig();
+    const [snaps, meta] = await Promise.all([
       loadSnapshots(),
       loadImportMeta(),
     ]);
@@ -292,8 +292,8 @@ async function computeAggregatesWithCache(txs: any[]): Promise<any> {
 async function loadAllData() {
   setSyncStatus('loading');
   try {
-    const [, snaps, txs, meta] = await Promise.all([
-      loadConfig(),
+    await loadConfig();
+    const [snaps, txs, meta] = await Promise.all([
       loadSnapshots(),
       loadTransactions(),
       loadImportMeta(),
@@ -427,13 +427,22 @@ async function saveSnapshot() {
 function editSnap(date) {
   const s = state.snaps.find(s => s.date === date);
   if (!s) return;
-  document.getElementById('snap-date').value  = s.date;
+
+  renderSnapForm(); // idempotent — guarantees the input fields exist
+
+  const dateEl = document.getElementById('snap-date');
+  if (dateEl) dateEl.value = s.date;
+
   for (const a of getACCTSList()) {
-    document.getElementById(`snap-${a.key}`).value = s[a.key] || '';
+    const el = document.getElementById(`snap-${a.key}`);
+    if (el) el.value = s[a.key] != null ? s[a.key] : '';
   }
-  document.getElementById('snap-notes').value = s.notes || '';
+
+  const notesEl = document.getElementById('snap-notes');
+  if (notesEl) notesEl.value = s.notes || '';
+
   showSection('log', document.querySelector('.nav button[data-section="log"]'));
-  document.getElementById('snap-date')?.scrollIntoView({ behavior: 'smooth' });
+  dateEl?.scrollIntoView({ behavior: 'smooth' });
 }
 
 async function delSnap(date) {
