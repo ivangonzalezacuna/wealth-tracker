@@ -33,9 +33,9 @@ export function txKey(t: Transaction): string {
 /**
  * Detect whether a header row is the old 10-column format.
  */
-function isOldHeader(hdr: string[]): boolean {
+function isOldHeader(hdr: (string | number | boolean)[]): boolean {
   if (!hdr || hdr.length < 10) return false;
-  const norm = hdr.map(h => (h || '').trim().toLowerCase());
+  const norm = hdr.map(h => (h || '').toString().trim().toLowerCase());
   return norm.includes('symbol') || norm.includes('category');
 }
 
@@ -44,16 +44,16 @@ function isOldHeader(hdr: string[]): boolean {
  * Old: id | date | category | type | name | symbol | shares | price | amount | tax
  * New: id | date | source | type | name | isin | shares | price | amount | fee | tax | currency | fxRate | note
  */
-function oldRowToTx(row: string[]): Transaction {
+function oldRowToTx(row: (string | number | boolean)[]): Transaction {
   return {
-    id:       row[0] || '',
-    date:     row[1] || '',
+    id:       String(row[0] ?? ''),
+    date:     String(row[1] ?? ''),
     source:   'trade_republic',
-    category: row[2] || '',
-    type:     row[3] || '',
-    name:     row[4] || '',
-    isin:     row[5] || '',
-    symbol:   row[5] || '',
+    category: String(row[2] ?? ''),
+    type:     String(row[3] ?? ''),
+    name:     String(row[4] ?? ''),
+    isin:     String(row[5] ?? ''),
+    symbol:   String(row[5] ?? ''),
     shares:   parseNum(String(row[6] ?? '')),
     price:    parseNum(String(row[7] ?? '')),
     amount:   parseNum(String(row[8] ?? '')),
@@ -68,23 +68,23 @@ function oldRowToTx(row: string[]): Transaction {
 /**
  * Map a new 14-col row to a transaction object.
  */
-function newRowToTx(row: string[]): Transaction {
+function newRowToTx(row: (string | number | boolean)[]): Transaction {
   return {
-    id:       row[0] || '',
-    date:     row[1] || '',
-    source:   row[2] || '',
-    type:     row[3] || '',
-    name:     row[4] || '',
-    isin:     row[5] || '',
-    symbol:   row[5] || '',
+    id:       String(row[0] ?? ''),
+    date:     String(row[1] ?? ''),
+    source:   String(row[2] ?? ''),
+    type:     String(row[3] ?? ''),
+    name:     String(row[4] ?? ''),
+    isin:     String(row[5] ?? ''),
+    symbol:   String(row[5] ?? ''),
     shares:   parseNum(String(row[6] ?? '')),
     price:    parseNum(String(row[7] ?? '')),
     amount:   parseNum(String(row[8] ?? '')),
     fee:      parseNum(String(row[9] ?? '')),
     tax:      parseNum(String(row[10] ?? '')),
-    currency: row[11] || 'EUR',
+    currency: String(row[11] ?? '') || 'EUR',
     fxRate:   parseNum(String(row[12] ?? '')),
-    note:     row[13] || '',
+    note:     String(row[13] ?? ''),
   };
 }
 
@@ -149,7 +149,7 @@ export async function loadImportMeta(): Promise<Record<string, string>> {
     const rows = await readRange(`${SHEET_TABS.META_INFO}!A:B`);
     const meta: Record<string, string> = {};
     for (const row of rows.slice(1)) {
-      if (row[0]) meta[row[0]] = row[1] || '';
+      if (row[0]) meta[String(row[0])] = String(row[1] ?? '');
     }
     return meta;
   } catch {

@@ -24,23 +24,23 @@ const RANGE = `${TAB}!A:N`;
  * Duplicated from sheets/transactions to avoid circular import issues;
  * kept in sync with the canonical parser there.
  */
-function rowToTx(row: string[]): Transaction {
+function rowToTx(row: (string | number | boolean)[]): Transaction {
   return {
-    id:       row[0] || '',
-    date:     row[1] || '',
-    source:   row[2] || '',
-    type:     row[3] || '',
-    name:     row[4] || '',
-    isin:     row[5] || '',
-    symbol:   row[5] || '',
+    id:       String(row[0] ?? ''),
+    date:     String(row[1] ?? ''),
+    source:   String(row[2] ?? ''),
+    type:     String(row[3] ?? ''),
+    name:     String(row[4] ?? ''),
+    isin:     String(row[5] ?? ''),
+    symbol:   String(row[5] ?? ''),
     shares:   parseNum(String(row[6] ?? '')),
     price:    parseNum(String(row[7] ?? '')),
     amount:   parseNum(String(row[8] ?? '')),
     fee:      parseNum(String(row[9] ?? '')),
     tax:      parseNum(String(row[10] ?? '')),
-    currency: row[11] || 'EUR',
+    currency: String(row[11] ?? '') || 'EUR',
     fxRate:   parseNum(String(row[12] ?? '')),
-    note:     row[13] || '',
+    note:     String(row[13] ?? ''),
   };
 }
 
