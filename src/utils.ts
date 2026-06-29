@@ -42,7 +42,7 @@ export function showMsg(elId: string, text: string, ok: boolean): void {
   if (!el) return;
   el.textContent = text;
   el.style.color = ok ? '#0F6E56' : '#A32D2D';
-  if (ok) setTimeout(() => { el.textContent = ''; }, 3500);
+  if (ok) setTimeout(() => { el.textContent = ''; }, 6000);
 }
 
 /** Escape HTML special characters to prevent XSS via innerHTML. */
