@@ -12,37 +12,12 @@
 import { readRange, ensureSheets } from '../sheets/api';
 import { SHEET_TABS } from '../constants';
 import { txKey } from '../sheets/transactions';
-import { parseNum } from '../csv';
+import { newRowToTx } from '../model/txRow';
 import type { Transaction } from '../types';
 import type { SyncCursor } from './db';
 
 const TAB = SHEET_TABS.TRANSACTIONS;
 const RANGE = `${TAB}!A:N`;
-
-/**
- * Parse a 14-column row into a Transaction.
- * Duplicated from sheets/transactions to avoid circular import issues;
- * kept in sync with the canonical parser there.
- */
-function rowToTx(row: (string | number | boolean)[]): Transaction {
-  return {
-    id:       String(row[0] ?? ''),
-    date:     String(row[1] ?? ''),
-    source:   String(row[2] ?? ''),
-    type:     String(row[3] ?? ''),
-    name:     String(row[4] ?? ''),
-    isin:     String(row[5] ?? ''),
-    symbol:   String(row[5] ?? ''),
-    shares:   parseNum(String(row[6] ?? '')),
-    price:    parseNum(String(row[7] ?? '')),
-    amount:   parseNum(String(row[8] ?? '')),
-    fee:      parseNum(String(row[9] ?? '')),
-    tax:      parseNum(String(row[10] ?? '')),
-    currency: String(row[11] ?? '') || 'EUR',
-    fxRate:   parseNum(String(row[12] ?? '')),
-    note:     String(row[13] ?? ''),
-  };
-}
 
 /**
  * Fetch only transactions newer than the cursor.
@@ -60,7 +35,7 @@ export async function fetchDeltaTransactions(cursor: SyncCursor): Promise<Transa
     const rows = await readRange(tailRange);
     if (!rows || rows.length === 0) return [];
     // Filter out empty rows and parse
-    return rows.filter(r => r[1]).map(rowToTx);
+    return rows.filter(r => r[1]).map(newRowToTx);
   } catch {
     // Network error or other failure — return null to signal full sync needed
     return null;

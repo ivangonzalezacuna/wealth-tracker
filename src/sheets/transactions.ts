@@ -11,7 +11,7 @@
 
 import { readRange, writeRange, appendRows, ensureSheets } from './api';
 import { SHEET_TABS } from '../constants';
-import { parseNum } from '../csv';
+import { newRowToTx, oldRowToTx } from '../model/txRow';
 import type { Transaction } from '../types';
 
 const TAB   = SHEET_TABS.TRANSACTIONS;
@@ -37,55 +37,6 @@ function isOldHeader(hdr: (string | number | boolean)[]): boolean {
   if (!hdr || hdr.length < 10) return false;
   const norm = hdr.map(h => (h || '').toString().trim().toLowerCase());
   return norm.includes('symbol') || norm.includes('category');
-}
-
-/**
- * Map an old 10-col row to the new 14-col shape.
- * Old: id | date | category | type | name | symbol | shares | price | amount | tax
- * New: id | date | source | type | name | isin | shares | price | amount | fee | tax | currency | fxRate | note
- */
-function oldRowToTx(row: (string | number | boolean)[]): Transaction {
-  return {
-    id:       String(row[0] ?? ''),
-    date:     String(row[1] ?? ''),
-    source:   'trade_republic',
-    category: String(row[2] ?? ''),
-    type:     String(row[3] ?? ''),
-    name:     String(row[4] ?? ''),
-    isin:     String(row[5] ?? ''),
-    symbol:   String(row[5] ?? ''),
-    shares:   parseNum(String(row[6] ?? '')),
-    price:    parseNum(String(row[7] ?? '')),
-    amount:   parseNum(String(row[8] ?? '')),
-    fee:      0,
-    tax:      parseNum(String(row[9] ?? '')),
-    currency: 'EUR',
-    fxRate:   0,
-    note:     '',
-  };
-}
-
-/**
- * Map a new 14-col row to a transaction object.
- */
-function newRowToTx(row: (string | number | boolean)[]): Transaction {
-  return {
-    id:       String(row[0] ?? ''),
-    date:     String(row[1] ?? ''),
-    source:   String(row[2] ?? ''),
-    type:     String(row[3] ?? ''),
-    name:     String(row[4] ?? ''),
-    isin:     String(row[5] ?? ''),
-    symbol:   String(row[5] ?? ''),
-    shares:   parseNum(String(row[6] ?? '')),
-    price:    parseNum(String(row[7] ?? '')),
-    amount:   parseNum(String(row[8] ?? '')),
-    fee:      parseNum(String(row[9] ?? '')),
-    tax:      parseNum(String(row[10] ?? '')),
-    currency: String(row[11] ?? '') || 'EUR',
-    fxRate:   parseNum(String(row[12] ?? '')),
-    note:     String(row[13] ?? ''),
-  };
 }
 
 function txToRow(t: Transaction): (string | number)[] {
