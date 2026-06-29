@@ -45,7 +45,10 @@ const state = {
 // ── Render-on-show state ─────────────────────────────────
 let _activeSection = 'networth';
 const _dirty = new Set<string>();
-const ALL_SECTIONS = ['networth', 'portfolio', 'contributions', 'dividends', 'settings', 'log'] as const;
+const ALL_SECTIONS = ['networth', 'portfolio', 'settings', 'log'] as const;
+
+// ── Portfolio sub-view state ─────────────────────────────
+let _portfolioSubview: 'holdings' | 'contributions' | 'dividends' = 'holdings';
 
 // ── Boot ─────────────────────────────────────────────────
 document.getElementById('app').innerHTML = appTemplate();
@@ -68,6 +71,12 @@ function initNav() {
       showSection(target, navBtn);
     });
   });
+  // Wire portfolio sub-nav (once)
+  const subnav = document.getElementById('portfolio-subnav');
+  subnav?.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('[data-subview]') as HTMLElement | null;
+    if (btn) showPortfolioSubview(btn.dataset.subview!);
+  });
 }
 
 function showSection(id, btn) {
@@ -78,6 +87,7 @@ function showSection(id, btn) {
   _activeSection = id;
   if (_dirty.has(id)) { _dirty.delete(id); renderSection(id); }
   else if (id === 'settings') { renderSection('settings'); } // settings reflects live config; always repaint
+  if (id === 'portfolio') showPortfolioSubview(_portfolioSubview);
 }
 
 // ── Online/offline listeners ─────────────────────────────
@@ -737,13 +747,29 @@ function renderSnapForm() {
   }
 }
 
+// ── Portfolio sub-view helpers ─────────────────────────────
+function showPortfolioSubview(sub: string): void {
+  _portfolioSubview = sub as typeof _portfolioSubview;
+  ['holdings', 'contributions', 'dividends'].forEach(s => {
+    const el = document.getElementById(`subview-${s}`);
+    if (el) el.style.display = s === sub ? 'block' : 'none';
+  });
+  document.querySelectorAll('#portfolio-subnav [data-subview]').forEach(b =>
+    b.classList.toggle('active', (b as HTMLElement).dataset.subview === sub));
+  renderPortfolioSubview(sub);
+}
+
+function renderPortfolioSubview(sub: string): void {
+  if (sub === 'holdings')           renderPortfolio(state.pd, state.snaps);
+  else if (sub === 'contributions') renderDCA(state.pd, state.snaps);
+  else if (sub === 'dividends')     renderDividends(state.pd);
+}
+
 // ── Section dispatcher ────────────────────────────────────
 function renderSection(id: string): void {
   switch (id) {
     case 'networth':      renderNW(state.pd, state.snaps); break;
-    case 'portfolio':     renderPortfolio(state.pd, state.snaps); break;
-    case 'contributions': renderDCA(state.pd, state.snaps); break;
-    case 'dividends':     renderDividends(state.pd); break;
+    case 'portfolio':     renderPortfolioSubview(_portfolioSubview); break;
     case 'settings':      renderSettings(); break;
     case 'log':           renderLog({ txs: state.txs, snaps: state.snaps, importMeta: state.importMeta, onEditSnap: editSnap, onDelSnap: delSnap }); break;
   }

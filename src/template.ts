@@ -14,8 +14,6 @@ export function appTemplate(): string {
 <nav class="nav">
   <button class="active" data-section="networth">Net worth</button>
   <button data-section="portfolio">Portfolio</button>
-  <button data-section="contributions">Contributions</button>
-  <button data-section="dividends">Dividends</button>
   <button data-section="settings">Settings</button>
   <button data-section="log" class="log-btn">＋ Log</button>
 </nav>
@@ -61,90 +59,93 @@ export function appTemplate(): string {
 
 <!-- ════ PORTFOLIO ════ -->
 <div id="portfolio" class="section">
-  <div id="port-empty" style="display:none"><div class="card"><div class="empty-state">
-    <div style="font-size:2rem;margin-bottom:.75rem">📂</div>
-    <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.4rem">No transaction data imported</div>
-    <p style="font-size:13px;margin-bottom:1rem">Import your Transaktionsexport CSV to see exact cost basis, shares, and dividends.</p>
-    <button class="btn btn-primary" data-goto="log">Import CSV →</button>
-  </div></div></div>
-  <div id="port-content" style="display:none">
-    <div class="kpi-row" id="port-kpis"></div>
-    <div class="card">
-      <div class="card-title">Holdings — exact positions from CSV</div>
-      <div class="tbl" role="table" aria-label="Holdings"><div id="port-table"></div></div>
-    </div>
-    <div class="two-col">
-      <div class="card">
-        <div class="card-title">Cost basis allocation</div>
-        <div id="port-donut-legend" class="legend"></div>
-        <div class="chart-wrap chart-h-sm"><canvas id="c-port-donut"></canvas></div>
-      </div>
-      <div class="card">
-        <div class="card-title">Summary</div>
-        <div id="port-summary"></div>
-      </div>
-    </div>
-    <div id="port-drift"></div>
+  <div class="subnav range-toggle" id="portfolio-subnav">
+    <button class="btn btn-sm btn-ghost active" data-subview="holdings">Holdings</button>
+    <button class="btn btn-sm btn-ghost" data-subview="contributions">Contributions</button>
+    <button class="btn btn-sm btn-ghost" data-subview="dividends">Dividends</button>
   </div>
-</div>
-
-<!-- ════ CONTRIBUTIONS ════ -->
-<div id="contributions" class="section">
-  <div id="dca-empty" style="display:none"><div class="card"><div class="empty-state">
-    <div style="font-size:2rem;margin-bottom:.5rem">📅</div>
-    <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.75rem">No transaction data imported</div>
-    <button class="btn btn-primary" data-goto="log">Import CSV →</button>
-  </div></div></div>
-  <div id="dca-content" style="display:none">
-    <div class="kpi-row" id="dca-kpis"></div>
-    <div class="card">
-      <div class="card-title">Monthly invested — stacked by ETF (savings plan executions)</div>
-      <div class="chart-controls">
-        <div id="dca-legend" class="legend"></div>
-        <div class="range-toggle" id="dca-range-toggle">
-          <button class="btn btn-sm btn-ghost" data-range="12">12M</button>
-          <button class="btn btn-sm btn-ghost" data-range="24">24M</button>
-          <button class="btn btn-sm btn-ghost active" data-range="all">All</button>
+  <div class="subview" id="subview-holdings" style="display:block">
+    <div id="port-empty" style="display:none"><div class="card"><div class="empty-state">
+      <div style="font-size:2rem;margin-bottom:.75rem">📂</div>
+      <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.4rem">No transaction data imported</div>
+      <p style="font-size:13px;margin-bottom:1rem">Import your Transaktionsexport CSV to see exact cost basis, shares, and dividends.</p>
+      <button class="btn btn-primary" data-goto="log">Import CSV →</button>
+    </div></div></div>
+    <div id="port-content" style="display:none">
+      <div class="kpi-row" id="port-kpis"></div>
+      <div class="card">
+        <div class="card-title">Holdings — exact positions from CSV</div>
+        <div class="tbl" role="table" aria-label="Holdings"><div id="port-table"></div></div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">Cost basis allocation</div>
+          <div id="port-donut-legend" class="legend"></div>
+          <div class="chart-wrap chart-h-sm"><canvas id="c-port-donut"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Summary</div>
+          <div id="port-summary"></div>
         </div>
       </div>
-      <div class="chart-wrap chart-h-lg"><canvas id="c-dca-bar"></canvas></div>
+      <div id="port-drift"></div>
     </div>
-    <div class="two-col">
+  </div>
+  <div class="subview" id="subview-contributions" style="display:none">
+    <div id="dca-empty" style="display:none"><div class="card"><div class="empty-state">
+      <div style="font-size:2rem;margin-bottom:.5rem">📅</div>
+      <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.75rem">No transaction data imported</div>
+      <button class="btn btn-primary" data-goto="log">Import CSV →</button>
+    </div></div></div>
+    <div id="dca-content" style="display:none">
+      <div class="kpi-row" id="dca-kpis"></div>
       <div class="card">
-        <div class="card-title">Month-by-month</div>
-        <div class="filter-bar">
-          <select id="dca-year-filter" class="form-input form-input-sm" style="width:auto;display:inline-block">
-            <option value="">All years</option>
-          </select>
+        <div class="card-title">Monthly invested — stacked by ETF (savings plan executions)</div>
+        <div class="chart-controls">
+          <div id="dca-legend" class="legend"></div>
+          <div class="range-toggle" id="dca-range-toggle">
+            <button class="btn btn-sm btn-ghost" data-range="12">12M</button>
+            <button class="btn btn-sm btn-ghost" data-range="24">24M</button>
+            <button class="btn btn-sm btn-ghost active" data-range="all">All</button>
+          </div>
         </div>
-        <div class="tbl" role="table" aria-label="Monthly contributions"><div id="dca-table"></div></div>
-        <div id="dca-pagination" class="pagination"></div>
+        <div class="chart-wrap chart-h-lg"><canvas id="c-dca-bar"></canvas></div>
       </div>
-      <div class="card">
-        <div class="card-title" id="dca-proj-title">5-year projection</div>
-        <div class="chart-wrap chart-h-md"><canvas id="c-dca-proj"></canvas></div>
-        <p class="note" id="dca-proj-note">Starting from latest portfolio value. Excludes taxes, fees, FX.</p>
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">Month-by-month</div>
+          <div class="filter-bar">
+            <select id="dca-year-filter" class="form-input form-input-sm" style="width:auto;display:inline-block">
+              <option value="">All years</option>
+            </select>
+          </div>
+          <div class="tbl" role="table" aria-label="Monthly contributions"><div id="dca-table"></div></div>
+          <div id="dca-pagination" class="pagination"></div>
+        </div>
+        <div class="card">
+          <div class="card-title" id="dca-proj-title">5-year projection</div>
+          <div class="chart-wrap chart-h-md"><canvas id="c-dca-proj"></canvas></div>
+          <p class="note" id="dca-proj-note">Starting from latest portfolio value. Excludes taxes, fees, FX.</p>
+        </div>
       </div>
     </div>
   </div>
-</div>
-
-<!-- ════ DIVIDENDS ════ -->
-<div id="dividends" class="section">
-  <div id="div-empty" style="display:none"><div class="card"><div class="empty-state">
-    <div style="font-size:2rem;margin-bottom:.5rem">💰</div>
-    <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.75rem">No transaction data imported</div>
-    <button class="btn btn-primary" data-goto="log">Import CSV →</button>
-  </div></div></div>
-  <div id="div-content" style="display:none">
-    <div class="kpi-row" id="div-kpis"></div>
-    <div class="card">
-      <div class="card-title">Dividend payments received (most recent first)</div>
-      <div class="tbl" role="table" aria-label="Dividend history"><div id="div-history"></div></div>
-    </div>
-    <div class="card">
-      <div class="card-title">Cash / savings interest received</div>
-      <div id="div-interest"></div>
+  <div class="subview" id="subview-dividends" style="display:none">
+    <div id="div-empty" style="display:none"><div class="card"><div class="empty-state">
+      <div style="font-size:2rem;margin-bottom:.5rem">💰</div>
+      <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.75rem">No transaction data imported</div>
+      <button class="btn btn-primary" data-goto="log">Import CSV →</button>
+    </div></div></div>
+    <div id="div-content" style="display:none">
+      <div class="kpi-row" id="div-kpis"></div>
+      <div class="card">
+        <div class="card-title">Dividend payments received (most recent first)</div>
+        <div class="tbl" role="table" aria-label="Dividend history"><div id="div-history"></div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Cash / savings interest received</div>
+        <div id="div-interest"></div>
+      </div>
     </div>
   </div>
 </div>

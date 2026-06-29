@@ -35,6 +35,10 @@ h1{font-size:20px;font-weight:500;margin-bottom:.2rem}
 /* Sections */
 .section{display:none}.section.active{display:block}
 
+/* Portfolio sub-navigation */
+.subnav{margin-bottom:1rem}
+.subview{display:none}
+
 /* KPIs */
 .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:1.5rem}
 .kpi{background:var(--surface-3);border-radius:var(--radius-md);padding:.85rem 1rem}
