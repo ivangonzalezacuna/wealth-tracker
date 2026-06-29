@@ -548,8 +548,8 @@ async function saveSnapshot() {
     await upsertSnapshot(snap);
     await setCachedSnapshots(state.snaps);
     clearSnapForm();
-    showMsg('snap-msg', 'Saved ✓', true);
     renderAll();
+    showMsg('snap-msg', 'Saved ✓', true);
   } catch (err) {
     showMsg('snap-msg', 'Error: ' + err.message, false);
   } finally {
@@ -815,8 +815,8 @@ function showImportPreview(csvText, profile) {
         )) : Promise.resolve(),
       ]);
 
-      showMsg('import-msg', `✓ ${merged.length} transactions synced to Google Sheets`, true);
       renderAll();
+      showMsg('import-msg', `✓ ${merged.length} transactions synced to Google Sheets`, true);
     } catch (err) {
       showMsg('import-msg', 'Error: ' + err.message, false);
     } finally {

@@ -38,11 +38,16 @@ export function fmtDay(d: string): string {
 }
 
 export function showMsg(elId: string, text: string, ok: boolean): void {
-  const el = document.getElementById(elId);
-  if (!el) return;
-  el.textContent = text;
-  el.style.color = ok ? '#0F6E56' : '#A32D2D';
-  if (ok) setTimeout(() => { el.textContent = ''; }, 6000);
+  const write = () => {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.textContent = text;
+    el.style.color = ok ? '#0F6E56' : '#A32D2D';
+    if (ok) setTimeout(() => { if (el.textContent === text) el.textContent = ''; }, 3500);
+  };
+  // Write immediately, and again after a frame to survive async re-renders
+  write();
+  requestAnimationFrame(write);
 }
 
 /** Escape HTML special characters to prevent XSS via innerHTML. */
