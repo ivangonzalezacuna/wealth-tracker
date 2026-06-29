@@ -233,5 +233,12 @@ input[type="color"]{min-width:32px;max-width:48px}
 .item-chevron::before{content:'';border:solid var(--ink-3);border-width:0 1.5px 1.5px 0;display:inline-block;padding:2.5px;transform:rotate(45deg);margin-top:-2px}
 .item-collapsible.item-collapsed .item-chevron{transform:rotate(-90deg)}
 
+/* ── Setup banner (onboarding) ────────────────────────── */
+.setup-card{background:var(--brand-weak);border-color:var(--brand-border)}
+.setup-step{display:inline-flex;align-items:center;gap:4px;color:var(--ink-3)}
+.setup-step.step-done{color:var(--pos)}
+.setup-step.step-current{color:var(--brand);font-weight:500}
+.step-check{font-size:11px;width:16px;text-align:center}
+
 /* ── Dark mode scaffolding (no values yet) ────────────── */
 /* @media (prefers-color-scheme: dark) { :root { dark overrides go here } } */
