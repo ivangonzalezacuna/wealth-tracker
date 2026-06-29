@@ -8,7 +8,7 @@
  * misaligns saved rows (missing cols read as 0).
  */
 
-import { readRange, writeRange, clearRange, ensureSheets } from './api';
+import { readRange, writeRange, appendRows, clearRange, ensureSheets } from './api';
 import { SHEET_TABS, getACCTSList } from '../constants';
 import { parseNum } from '../csv';
 import type { Snapshot } from '../types';
@@ -36,7 +36,7 @@ interface AccountRef {
 }
 
 /** Convert a 1-based column index to A1-notation letters (1→A, 26→Z, 27→AA, etc.) */
-function colLetter(n: number): string {
+export function colLetter(n: number): string {
   let s = '';
   while (n > 0) {
     n--;
@@ -47,6 +47,27 @@ function colLetter(n: number): string {
 }
 
 const TAB = SHEET_TABS.SNAPSHOTS;
+
+/** Given the sheet's current header (lowercased keys) and the live account keys,
+ *  return the header to persist: existing order preserved, missing account keys
+ *  appended before `notes`. Pure; no I/O. */
+export function reconcileSnapshotHeader(currentHeader: string[], liveKeys: string[]): string[] {
+  const cur = currentHeader.map(h => (h ?? '').toString().trim().toLowerCase());
+  if (cur.length === 0 || cur[0] !== 'date') return ['date', ...liveKeys, 'notes'];
+  const hasNotes = cur.includes('notes');
+  const body = cur.filter(h => h !== 'date' && h !== 'notes');
+  for (const k of liveKeys) if (!body.includes(k)) body.push(k);
+  return ['date', ...body, ...(hasNotes ? ['notes'] : ['notes'])];
+}
+
+/** Build a sheet row for `snap` aligned to `header` (array of column keys incl. 'date'/'notes'). */
+export function snapToRowForHeader(snap: Snapshot, header: string[]): (string | number)[] {
+  return header.map(col => {
+    if (col === 'date')  return snap.date;
+    if (col === 'notes') return snap.notes || '';
+    return (snap[col] as number) || 0;
+  });
+}
 
 /** Build the canonical header for a given account list. */
 export function snapshotHeader(accts: AccountRef[]): string[] {
@@ -78,12 +99,55 @@ export async function loadSnapshots(): Promise<Snapshot[]> {
 }
 
 /**
- * Save all snapshots back to the sheet (full overwrite).
- * Always writes header + all rows sorted by date.
+ * Per-row upsert: write a single snapshot month in place (or append).
+ * Never calls clearRange — a failure touches at most the single row being saved.
+ * This is the monthly save path.
+ */
+export async function upsertSnapshot(snap: Snapshot): Promise<void> {
+  await ensureSheets([TAB]);
+
+  // 1. Read current header row
+  let current: (string | number | boolean)[] = [];
+  try {
+    const hdrRows = await readRange(`${TAB}!1:1`);
+    if (hdrRows.length > 0) current = hdrRows[0];
+  } catch {
+    // Sheet may be empty — that's fine
+  }
+
+  // 2. Compute desired header (append-only)
+  const liveKeys = getACCTSList().map(a => a.key);
+  const desired = reconcileSnapshotHeader(current.map(String), liveKeys);
+
+  // 3. Write header only if it changed (new column appended, or empty sheet)
+  const currentNorm = current.map(c => String(c).trim().toLowerCase());
+  if (JSON.stringify(currentNorm) !== JSON.stringify(desired)) {
+    await writeRange(`${TAB}!A1`, [desired]);
+  }
+
+  // 4. Find the row for this month's date
+  const col = await readRange(`${TAB}!A:A`);
+  const rowIdx = col.findIndex((r, i) => i > 0 && String(r[0]) === snap.date);
+
+  // 5. Build the row aligned to the desired header
+  const row = snapToRowForHeader(snap, desired);
+
+  // 6. Update in place or append
+  if (rowIdx > 0) {
+    // rowIdx is 0-based over all rows incl. header; sheet row = rowIdx + 1
+    await writeRange(`${TAB}!A${rowIdx + 1}:${colLetter(desired.length)}${rowIdx + 1}`, [row]);
+  } else {
+    // Append — new month
+    await appendRows(`${TAB}!A:${colLetter(desired.length)}`, [row]);
+  }
+}
+
+/**
+ * Save all snapshots back to the sheet (full overwrite — write-first-safe).
+ * Writes the full table first, then clears only stale cells beyond the new extent.
  *
- * Note: clearRange is not atomic with writeRange — a failure between them
- * can corrupt the tab. Clearing the wider range minimises risk; a fully
- * atomic snapshot write is a Phase 4 concern.
+ * NOTE: The monthly save path uses `upsertSnapshot` instead.
+ * This function is for deliberate full rebuilds or delete operations only.
  */
 export async function saveSnapshots(snaps: Snapshot[]): Promise<void> {
   const accts = getACCTSList();
@@ -92,8 +156,9 @@ export async function saveSnapshots(snaps: Snapshot[]): Promise<void> {
 
   await ensureSheets([TAB]);
 
-  // Read current sheet header to determine existing width
+  // Read current sheet dimensions
   let existingWidth = 0;
+  let existingHeight = 0;
   try {
     const existing = await readRange(`${TAB}!1:1`);
     if (existing.length > 0) {
@@ -102,13 +167,25 @@ export async function saveSnapshots(snaps: Snapshot[]): Promise<void> {
   } catch {
     // Sheet may be empty — that's fine
   }
+  try {
+    const colA = await readRange(`${TAB}!A:A`);
+    existingHeight = colA.length;
+  } catch {
+    // Sheet may be empty — that's fine
+  }
 
-  // Clear a range wide enough to wipe any previously-written columns,
-  // even if the account count has since shrunk.
-  const clearWidth = Math.max(liveColCount, existingWidth);
-  await clearRange(`${TAB}!A:${colLetter(clearWidth)}`);
-
+  // Write full table first (overwrite in place)
   const sorted = [...snaps].sort((a, b) => (a.date as string).localeCompare(b.date as string));
   const values = [hdr, ...sorted.map(s => snapToRow(s, accts))];
   await writeRange(`${TAB}!A1`, values);
+
+  // Clear only stale cells beyond the new extent
+  const newRows = values.length;
+  const staleBelow = Math.max(existingHeight - newRows, 0);
+  if (staleBelow > 0) {
+    await clearRange(`${TAB}!A${newRows + 1}:${colLetter(Math.max(liveColCount, existingWidth))}${existingHeight}`);
+  }
+  if (existingWidth > liveColCount) {
+    await clearRange(`${TAB}!${colLetter(liveColCount + 1)}1:${colLetter(existingWidth)}${existingHeight}`);
+  }
 }
