@@ -533,21 +533,9 @@ async function saveSnapshot() {
   }
 
   const snap = { date };
-  const accts = getACCTSList();
-  if (accts.length === 0) {
-    showMsg('snap-msg', 'Add accounts in Settings first.', false);
-    return;
-  }
-  let hasAnyValue = false;
-  for (const a of accts) {
+  for (const a of getACCTSList()) {
     const el = document.getElementById(`snap-${a.key}`) as HTMLInputElement | null;
-    const val = parseNum(String(el?.value ?? ''));
-    snap[a.key] = val;
-    if (val > 0) hasAnyValue = true;
-  }
-  if (!hasAnyValue) {
-    showMsg('snap-msg', 'Enter at least one account balance.', false);
-    return;
+    snap[a.key] = parseNum(String(el?.value ?? ''));
   }
   snap.notes = document.getElementById('snap-notes').value.trim();
 
