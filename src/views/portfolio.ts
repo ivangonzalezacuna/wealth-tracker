@@ -68,13 +68,12 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     const rpnl = e.realizedPnL || 0;
 
     return `<div class="tbl-row" role="row" style="${gridCols}${isExited ? ';opacity:0.6' : ''}">
-      <div role="cell">
+      <div role="cell" class="ticker-cell" data-isin="${esc(e.symbol)}">
         <span style="font-weight:500;font-size:12px">${esc(e.ticker)}</span>
         ${isExited
           ? '<span class="badge b-closed" style="margin-left:4px">exited</span>'
           : `<span class="badge ${m.active ? 'b-active' : 'b-closed'}" style="margin-left:4px">${m.active ? 'active' : 'closed'}</span>`}
         <span class="badge ${e.acc ? 'b-acc' : 'b-dist'}" style="margin-left:4px">${e.acc ? 'Acc' : 'Dist'}</span>
-        <div style="font-size:11px;color:${T.ink3}">${esc(e.symbol)}</div>
       </div>
       <div role="cell"><div style="font-weight:500">${fmtEur(e.cost)}</div>
         ${!isExited ? `<div class="bar-wrap" style="max-width:80px"><div class="bar-fill" style="width:${pct.toFixed(0)}%;background:${safeColor(e.color)}"></div></div>` : ''}
@@ -111,6 +110,27 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
       _holdingsFilter = btn.dataset.filter || 'held';
       _holdPage = 1;
       renderHoldingsTable(pd, snaps);
+    });
+  }
+
+  // ISIN tap-to-reveal (delegated on #port-table)
+  const table = document.getElementById('port-table') as HTMLElement & { _isinReveal_bound?: boolean } | null;
+  if (table && !table._isinReveal_bound) {
+    table._isinReveal_bound = true;
+    table.addEventListener('click', (e) => {
+      const cell = (e.target as HTMLElement).closest('.ticker-cell') as HTMLElement | null;
+      const existing = table.querySelector('.isin-reveal') as HTMLElement | null;
+      const wasThisCell = existing && cell && existing.parentElement === cell;
+      existing?.remove();
+      if (cell && !wasThisCell) {
+        const isin = cell.dataset.isin;
+        if (isin) {
+          const span = document.createElement('span');
+          span.className = 'isin-reveal';
+          span.textContent = isin;
+          cell.appendChild(span);
+        }
+      }
     });
   }
 
