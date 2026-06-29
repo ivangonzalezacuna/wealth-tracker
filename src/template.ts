@@ -18,7 +18,7 @@ export function appTemplate(): string {
   <button class="active" data-section="networth">Net worth</button>
   <button data-section="portfolio">Portfolio</button>
   <button data-section="settings">Settings</button>
-  <button data-section="log" class="log-btn">+ Log</button>
+  <button data-section="log" class="log-btn">＋ Update</button>
 </nav>
 
 <div id="setup-banner" style="display:none"></div>

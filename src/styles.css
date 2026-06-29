@@ -138,6 +138,7 @@ code, .isin, .tx-id, .acct-key {
 .divider{border:none;border-top:1px solid var(--line);margin:1.5rem 0}
 .status-bar{font-size:12px;padding:8px 12px;border-radius:var(--radius-sm);margin-bottom:1rem}
 .status-pill{font-size:var(--fs-7);display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.status-pill.status-ok{background:var(--surface-3);color:var(--ink-2)}
 .status-ok{background:var(--ok-bg);color:var(--ok-fg)}
 .status-info{background:var(--info-bg);color:var(--info-fg)}
 .status-empty{background:var(--surface-3);color:var(--ink-2)}

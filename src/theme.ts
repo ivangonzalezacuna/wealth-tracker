@@ -19,7 +19,7 @@ export function resolvedT(): Record<keyof typeof T, string> {
   if (!dark) return T;
   return {
     ...T,
-    bg: '#141210', surface3: '#2a2825', line: '#302e2b', line2: '#3d3b37',
+    bg: '#141210', surface: '#1d1b18', surface3: '#2a2825', line: '#302e2b', line2: '#3d3b37',
     ink: '#f2f0ec', ink2: '#b8b5ae', ink3: '#8a8780', ink4: '#5c5a55',
     brand: '#4e9de0', brandBorder: '#3a7fc7', brandWeak: '#1a2e42', brandChart: '#4e9de0',
     pos: '#2db88a', neg: '#e06060', warn: '#d4a020', white: '#fff',
