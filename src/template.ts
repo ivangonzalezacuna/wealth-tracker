@@ -33,7 +33,14 @@ export function appTemplate(): string {
     <div class="kpi-row" id="nw-kpis"></div>
     <div class="card">
       <div class="card-title" id="nw-chart-title">Net worth — stacked by account</div>
-      <div id="nw-chart-legend" class="legend"></div>
+      <div class="chart-controls">
+        <div id="nw-chart-legend" class="legend"></div>
+        <div class="range-toggle" id="nw-range-toggle">
+          <button class="btn btn-sm btn-ghost" data-range="12">1Y</button>
+          <button class="btn btn-sm btn-ghost" data-range="36">3Y</button>
+          <button class="btn btn-sm btn-ghost active" data-range="all">All</button>
+        </div>
+      </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-hist"></canvas></div>
     </div>
     <div class="two-col">
@@ -47,6 +54,7 @@ export function appTemplate(): string {
         <div id="nw-detail"></div>
       </div>
     </div>
+    <div id="nw-growth-split"></div>
   </div>
 </div>
 

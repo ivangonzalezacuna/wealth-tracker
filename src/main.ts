@@ -736,7 +736,7 @@ function renderSnapForm() {
 // ── Render all ────────────────────────────────────────────
 function renderAll() {
   renderSnapForm();
-  renderNW(state.snaps);
+  renderNW(state.pd, state.snaps);
   renderPortfolio(state.pd, state.snaps);
   renderDCA(state.pd, state.snaps);
   renderDividends(state.pd);
