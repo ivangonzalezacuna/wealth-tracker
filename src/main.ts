@@ -361,7 +361,6 @@ async function syncInBackground() {
       setCachedImportMeta(meta),
     ]);
 
-    renderAll();
     setSyncStatus('ok');
   } catch (err) {
     setSyncStatus('error', err.message);
@@ -372,6 +371,7 @@ async function syncInBackground() {
   } finally {
     setSyncing(false);
     _lastSyncAt = Date.now();
+    renderAll();
   }
 }
 
@@ -456,7 +456,6 @@ async function loadAllData() {
       }
       renderAll();
     });
-    renderAll();
     setSyncStatus('ok');
   } catch (err) {
     setSyncStatus('error', err.message);
@@ -464,6 +463,7 @@ async function loadAllData() {
     _initialLoad = false;
     setSyncing(false);
     _lastSyncAt = Date.now();
+    renderAll();
   }
 }
 

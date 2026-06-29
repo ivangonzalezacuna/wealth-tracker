@@ -46,21 +46,21 @@ function renderDivTable(pd: PortfolioData): void {
     <div class="tbl-row" role="row" style="grid-template-columns:auto 1.5fr 1fr 1fr 1fr">
       <span class="leg-sq" style="background:${safeColor(d.color)};display:inline-block;margin-top:2px"></span>
       <div role="cell"><div style="font-weight:500;font-size:12px">${esc(d.ticker)}</div>
-           <div style="font-size:11px;color:${T.ink3}">${fmtDay(d.date)}</div></div>
-      <div role="cell" style="color:${T.ink2}">${fmtEur2(d.gross)}</div>
-      <div role="cell" style="color:${T.neg}" aria-label="Tax −${d.tax.toFixed(2)}">−${fmtEur2(d.tax)}</div>
-      <div role="cell" style="color:${T.pos};font-weight:500">${fmtEur2(d.net)}</div>
+           <div style="font-size:11px;color:var(--ink-3)">${fmtDay(d.date)}</div></div>
+      <div role="cell" style="color:var(--ink-2)">${fmtEur2(d.gross)}</div>
+      <div role="cell" style="color:var(--neg)" aria-label="Tax −${d.tax.toFixed(2)}">−${fmtEur2(d.tax)}</div>
+      <div role="cell" style="color:var(--pos);font-weight:500">${fmtEur2(d.net)}</div>
     </div>`).join('');
 
   document.getElementById('div-history').innerHTML = hasDiv ? `
     <div class="tbl-row th" role="row" style="grid-template-columns:auto 1.5fr 1fr 1fr 1fr">
       <div></div><div role="columnheader">ETF / Date</div><div role="columnheader">Gross</div><div role="columnheader">Tax</div><div role="columnheader">Net</div>
     </div>${dRows}
-    <div class="tbl-row" style="grid-template-columns:auto 1.5fr 1fr 1fr 1fr;border-top:1px solid ${T.line2};margin-top:4px">
+    <div class="tbl-row" style="grid-template-columns:auto 1.5fr 1fr 1fr 1fr;border-top:1px solid var(--line-2);margin-top:4px">
       <div></div><div style="font-weight:500">Total</div>
       <div style="font-weight:500">${fmtEur2(totalGross)}</div>
-      <div style="color:${T.neg}">−${fmtEur2(pd.totalTax)}</div>
-      <div style="color:${T.pos};font-weight:500">${fmtEur2(pd.totalDivNet)}</div>
+      <div style="color:var(--neg)">−${fmtEur2(pd.totalTax)}</div>
+      <div style="color:var(--pos);font-weight:500">${fmtEur2(pd.totalDivNet)}</div>
     </div>` : '<p class="note">No dividends found in imported transactions yet.</p>';
 
   renderDivPagination(totalPages, pd);
@@ -96,7 +96,7 @@ function renderIntTable(pd: PortfolioData): void {
     ? pageItems.map(i =>
         `<div class="row"><div class="row-label">${fmtDay(i.date)}</div><div class="row-val ok">${fmtEur2(i.amount)}</div></div>`
       ).join('') +
-      `<div class="row" style="border-top:1px solid ${T.line2};margin-top:4px">
+      `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px">
         <div class="row-label" style="font-weight:500">Total interest</div>
         <div class="row-val ok" style="font-weight:500">${fmtEur2(pd.totalInterest)}</div></div>`
     : '<p class="note">No interest payments found in imported transactions.</p>';

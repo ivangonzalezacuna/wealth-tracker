@@ -155,12 +155,12 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   let det = bkA.map(a =>
     `<div class="row"><div class="row-label">${esc(a.label)}</div><div class="row-val">${fmtEur2(s[a.key] || 0)}</div></div>`
   ).join('');
-  det += `<div class="row" style="border-top:1px solid ${T.line2};margin-top:4px">
+  det += `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px">
     <div class="row-label" style="font-weight:500">Total</div>
     <div class="row-val" style="font-weight:500">${fmtEur2(total)}</div></div>`;
   if (prev) {
     const c = total - prevT;
-    det += `<div class="row"><div class="row-label" style="color:${T.ink3};font-size:12px">vs ${fmtMon(prev.date)}</div>
+    det += `<div class="row"><div class="row-label" style="color:var(--ink-3);font-size:12px">vs ${fmtMon(prev.date)}</div>
       <div class="row-val ${c >= 0 ? 'pos' : 'neg'}">${c >= 0 ? '+' : ''}${fmtEur2(c)}</div></div>`;
   }
   if (s.notes) det += `<p class="note" style="margin-top:.5rem">${esc(s.notes)}</p>`;
@@ -217,8 +217,8 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
               <span>${pctComplete}% complete</span>
               <span>${fmtEur(total)} / ${fmtEur(target)}</span>
             </div>
-            <div style="height:8px;background:${T.surface3};border-radius:4px;overflow:hidden">
-              <div style="width:${pctComplete}%;height:100%;background:${pctComplete >= 100 ? T.pos : T.brand};border-radius:4px;transition:width .3s"></div>
+            <div style="height:8px;background:var(--surface-3);border-radius:4px;overflow:hidden">
+              <div style="width:${pctComplete}%;height:100%;background:${pctComplete >= 100 ? 'var(--pos)' : 'var(--brand)'};border-radius:4px;transition:width .3s"></div>
             </div>
           </div>
           <div class="row"><div class="row-label">ETA</div><div class="row-val" style="font-size:12px">${etaText}</div></div>
@@ -255,7 +255,6 @@ function _renderNWHistChart(
   const C = resolvedT();
   const labels = view.map(sn => fmtMon(sn.date));
   const totalSeries = view.map(sn => snapTotal(sn));
-  const manyAccounts = chartA.length > 4;
 
   const accountDatasets = chartA.map(a => ({
     label: a.label,
@@ -269,7 +268,7 @@ function _renderNWHistChart(
     pointHoverRadius: 5,
     pointBackgroundColor: a.color,
     order: 2,
-    hidden: manyAccounts, // hide per-account lines when > 4 accounts
+    hidden: false, // all lines visible by default; legend allows toggling
   }));
   const totalDataset = {
     label: 'Total net worth',
@@ -311,10 +310,8 @@ function _renderNWHistChart(
   });
   CH['c-nw-hist'] = chart;
 
-  // If many accounts, make legend swatches clickable to toggle datasets
-  if (manyAccounts) {
-    _bindLegendToggle(chart);
-  }
+  // Make legend swatches clickable to toggle datasets
+  _bindLegendToggle(chart);
 }
 
 // ── Legend click toggle for many-account mode ──
@@ -326,10 +323,10 @@ function _bindLegendToggle(chart: Chart): void {
   items.forEach((item, i) => {
     if (i === 0) return; // Total — always visible, never dimmed or clickable
     (item as HTMLElement).style.cursor = 'pointer';
-    (item as HTMLElement).style.opacity = '0.4';
     const dsIdx = i;
+    const meta = chart.getDatasetMeta(dsIdx);
+    (item as HTMLElement).style.opacity = meta.hidden ? '0.4' : '1';
     (item as HTMLElement).addEventListener('click', () => {
-      const meta = chart.getDatasetMeta(dsIdx);
       meta.hidden = !meta.hidden;
       (item as HTMLElement).style.opacity = meta.hidden ? '0.4' : '1';
       chart.update();
