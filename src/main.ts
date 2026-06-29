@@ -7,6 +7,7 @@ import { signIn as gisSignIn, signOut, isSignedIn, trySilentSignIn } from './aut
 import { loadSnapshots, saveSnapshots, upsertSnapshot } from './sheets/snapshots';
 import { loadTransactions, mergeTransactions, saveImportMeta, loadImportMeta } from './sheets/transactions';
 import { loadConfig, onConfigChange, getCostBasisMethod, getHoldings, getAccounts, getSettings } from './store/config';
+import { getSetupState } from './model/setup';
 import { computePD } from './portfolio';
 import { parseWithProfile, detectProfile, previewSummary } from './import/parse';
 import { builtInProfiles } from './import/profiles/index';
@@ -182,6 +183,7 @@ function updateAuthUI(signedIn) {
     syncNowBtn?.style.setProperty('display', 'none');
     setAuthStatus('Not signed in');
   }
+  renderSetupBanner();
 }
 
 function setAuthStatus(msg, isErr = false) {
@@ -433,9 +435,74 @@ function setSyncStatus(status, msg = '') {
   el.style.display = status ? 'inline-flex' : 'none';
 }
 
+// ── Setup banner (onboarding checklist) ───────────────────
+let _bannerDismissed = false;
+
+function renderSetupBanner(): void {
+  const el = document.getElementById('setup-banner');
+  if (!el) return;
+  if (_bannerDismissed) { el.style.display = 'none'; return; }
+
+  const step = getSetupState({
+    signedIn: isSignedIn(),
+    accountCount: getAccounts().length,
+    snapshotCount: state.snaps.length,
+  });
+
+  if (step === 'done') { el.style.display = 'none'; return; }
+
+  const steps = [
+    { id: 'signin', label: 'Sign in', done: step !== 'signin' },
+    { id: 'accounts', label: 'Add accounts', done: step === 'first-update' || step === 'done' },
+    { id: 'first-update', label: 'First monthly update', done: step === 'done' },
+  ];
+
+  const stepsHtml = steps.map(s => `
+    <span class="setup-step ${s.done ? 'step-done' : ''} ${s.id === step ? 'step-current' : ''}">
+      <span class="step-check">${s.done ? '✓' : s.id === step ? '→' : '○'}</span>
+      ${s.label}
+    </span>
+  `).join('');
+
+  let ctaHtml = '';
+  if (step === 'signin') {
+    ctaHtml = '<button class="btn btn-primary btn-sm" id="setup-cta">Sign in to start</button>';
+  } else if (step === 'accounts') {
+    ctaHtml = '<button class="btn btn-primary btn-sm" id="setup-cta">Add your accounts</button>';
+  } else if (step === 'first-update') {
+    ctaHtml = '<button class="btn btn-primary btn-sm" id="setup-cta">Log your first month</button>';
+  }
+
+  el.innerHTML = `
+    <div class="card setup-card" style="margin-bottom:1rem;padding:.75rem 1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+      <div style="font-weight:500;font-size:13px;color:var(--ink)">Get started</div>
+      <div class="setup-steps" style="display:flex;gap:.75rem;font-size:12px">${stepsHtml}</div>
+      <div style="margin-left:auto;display:flex;gap:.5rem;align-items:center">
+        ${ctaHtml}
+        <button class="btn btn-ghost btn-sm" id="setup-dismiss" title="Dismiss">✕</button>
+      </div>
+    </div>
+  `;
+  el.style.display = 'block';
+
+  document.getElementById('setup-cta')?.addEventListener('click', () => {
+    if (step === 'signin') onSignInClick();
+    else if (step === 'accounts') {
+      showSection('settings', document.querySelector('.nav button[data-section="settings"]'));
+    }
+    else if (step === 'first-update') {
+      showSection('log', document.querySelector('.nav button[data-section="log"]'));
+    }
+  });
+  document.getElementById('setup-dismiss')?.addEventListener('click', () => {
+    _bannerDismissed = true;
+    el.style.display = 'none';
+  });
+}
+
 // ── Snapshot form ─────────────────────────────────────────
 function initSnapForm() {
-  document.getElementById('btn-save-snap')?.addEventListener('click', saveSnapshot);
+  document.getElementById('btn-save-snap')?.addEventListener('click', saveMonthlyUpdate);
 }
 
 function setDefaultMonth() {
@@ -481,13 +548,23 @@ async function saveSnapshot() {
     await upsertSnapshot(snap);
     await setCachedSnapshots(state.snaps);
     clearSnapForm();
-    showMsg('snap-msg', 'Saved ✓', true);
     renderAll();
+    showMsg('snap-msg', 'Saved ✓', true);
   } catch (err) {
     showMsg('snap-msg', 'Error: ' + err.message, false);
   } finally {
     setSyncing(false);
   }
+}
+
+/**
+ * saveMonthlyUpdate — single orchestrator for the "Monthly update" flow.
+ * Saves balances (snapshot) via the existing upsert path.
+ * CSV import remains a separate confirm action within the same card.
+ * Both paths run under the unified sync lock.
+ */
+async function saveMonthlyUpdate() {
+  await saveSnapshot();
 }
 
 function editSnap(date) {
@@ -738,8 +815,8 @@ function showImportPreview(csvText, profile) {
         )) : Promise.resolve(),
       ]);
 
-      showMsg('import-msg', `✓ ${merged.length} transactions synced to Google Sheets`, true);
       renderAll();
+      showMsg('import-msg', `✓ ${merged.length} transactions synced to Google Sheets`, true);
     } catch (err) {
       showMsg('import-msg', 'Error: ' + err.message, false);
     } finally {
@@ -829,6 +906,7 @@ function renderSection(id: string): void {
 function renderAll() {
   updateSub();
   renderSnapForm();                 // cheap, keep eager (Log form fields)
+  renderSetupBanner();              // update onboarding checklist
   _dirty.clear();
   for (const s of ALL_SECTIONS) _dirty.add(s);
   _dirty.delete(_activeSection);

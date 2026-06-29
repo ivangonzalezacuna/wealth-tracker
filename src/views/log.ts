@@ -28,7 +28,7 @@ export function renderLog(state: LogState): void {
     el.textContent = `\u2713 ${txs.length} transactions synced — last imported ${importMeta.last_import}`;
     el.className = 'status-bar status-ok';
   } else {
-    el.textContent = 'No CSV imported yet — upload your transaction export below';
+    el.textContent = 'No CSV imported yet';
     el.className = 'status-bar status-empty';
   }
 

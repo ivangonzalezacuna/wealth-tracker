@@ -137,9 +137,12 @@ export async function loadConfig(): Promise<void> {
   _holdings = parseHoldings(holdRows);
   _settings = parseSettings(setRows);
 
-  // First-run migration: if tabs are empty, seed from config.js
-  if (_accounts.length === 0 && _holdings.length === 0) {
-    await seedFromConfig();
+  // First-run migration: seed each tab independently when empty.
+  // This fixes the bug where accounts never seed because holdings already exist.
+  const needSeedAccounts = _accounts.length === 0 && CONFIG.accounts.length > 0;
+  const needSeedHoldings = _holdings.length === 0 && CONFIG.holdings.length > 0;
+  if (needSeedAccounts || needSeedHoldings) {
+    await seedFromConfig(needSeedAccounts, needSeedHoldings);
   }
 
   _loaded = true;
@@ -273,97 +276,72 @@ function parseSettings(rows: (string | number | boolean)[][]): Settings {
 
 // ── First-run migration ──────────────────────────────────
 
-async function seedFromConfig(): Promise<void> {
+async function seedFromConfig(seedAccounts: boolean, seedHoldings: boolean): Promise<void> {
   const staticAccounts = CONFIG.accounts;
   const staticHoldings = CONFIG.holdings;
   const slices = CONFIG.targetAllocation?.slices || [];
   const rules = CONFIG.reinvestmentRules?.rows || [];
 
-  // Seed Accounts from CONFIG.accounts (preserving existing keys as ids)
-  const accounts: Account[] = staticAccounts.map((a, i) => ({
-    id:                  a.key,
-    moneyType:           a.key === 'tr_portfolio' ? 'investment'
-                       : a.key === 'n26' ? 'savings'
-                       : a.key === 'bav' ? 'pension'
-                       : a.key === 'tr_cash' ? 'savings'
-                       : 'cash',
-    institution:         a.key === 'tr_portfolio' ? 'Trade Republic'
-                       : a.key === 'n26' ? 'N26'
-                       : a.key === 'bav' ? 'Ginkgo'
-                       : a.key === 'avd' ? 'AVD'
-                       : a.key === 'tr_cash' ? 'Trade Republic'
-                       : '',
-    label:               a.label,
-    color:               a.color,
-    isPrimaryInvestment: a.key === 'tr_portfolio',
-    order:               i + 1,
-  }));
+  // Seed Accounts from CONFIG.accounts when requested and source is non-empty
+  if (seedAccounts && staticAccounts.length > 0) {
+    const accounts: Account[] = staticAccounts.map((a, i) => ({
+      id:                  a.key,
+      moneyType:           'cash',
+      institution:         '',
+      label:               a.label,
+      color:               a.color,
+      isPrimaryInvestment: false,
+      order:               i + 1,
+    }));
+    _accounts = accounts;
+    await setAccounts(accounts);
+  }
 
-  // Seed Holdings from CONFIG.holdings
-  const holdings: Holding[] = staticHoldings.map((h, i) => {
-    // Determine contribution amount from targetAllocation or static config
-    const slice = slices.find(s => s.ticker === h.ticker);
-    let contribAmount = h.contribAmount || 0;
-    if (!contribAmount && slice && h.active) {
-      // Calculate proportional from total weekly target
-      const totalWeekly = CONFIG.projection?.weeklyTarget || 200;
-      contribAmount = Math.round(totalWeekly * slice.pct / 100);
-    }
-    const interval: ContribInterval = h.interval || 'weekly';
+  // Seed Holdings from CONFIG.holdings when requested and source is non-empty
+  if (seedHoldings && staticHoldings.length > 0) {
+    const holdings: Holding[] = staticHoldings.map((h, i) => {
+      const slice = slices.find(s => s.ticker === h.ticker);
+      let contribAmount = h.contribAmount || 0;
+      if (!contribAmount && slice && h.active) {
+        const totalWeekly = CONFIG.projection?.weeklyTarget || 200;
+        contribAmount = Math.round(totalWeekly * slice.pct / 100);
+      }
+      const interval: ContribInterval = h.interval || 'weekly';
+      const assetClass = h.assetClass || 'equity';
+      const region = h.region || 'developed';
+      const foldInto = h.foldInto || '';
 
-    // Determine asset class and region
-    let assetClass = 'equity';
-    let region = 'developed';
-    if (['AGGH','IEAC','EIBX'].includes(h.ticker)) {
-      assetClass = 'bond';
-      region = 'global';
-    } else if (['EIMI','IEEM'].includes(h.ticker)) {
-      region = 'emerging';
-    } else if (['SUSW'].includes(h.ticker)) {
-      region = 'global';
-    }
+      return {
+        isin:         h.isin,
+        ticker:       h.ticker,
+        name:         '',
+        color:        h.color,
+        acc:          h.acc,
+        active:       h.active,
+        contribAmount,
+        interval,
+        assetClass,
+        region,
+        foldInto,
+        order:        i + 1,
+      };
+    });
+    _holdings = holdings;
+    await setHoldings(holdings);
+  }
 
-    // Determine foldInto for closed positions
-    let foldInto = '';
-    if (!h.active) {
-      if (h.ticker === 'IEEM') foldInto = 'IE00BKM4GZ66'; // → EIMI
-      else if (h.ticker === 'IEAC' || h.ticker === 'EIBX') foldInto = 'IE00BDBRDM35'; // → AGGH
-    }
-
-    return {
-      isin:         h.isin,
-      ticker:       h.ticker,
-      name:         '',
-      color:        h.color,
-      acc:          h.acc,
-      active:       h.active,
-      contribAmount,
-      interval,
-      assetClass,
-      region,
-      foldInto,
-      order:        i + 1,
+  // Seed Settings (only on first-run when both were empty)
+  if (seedAccounts && seedHoldings) {
+    const settings: Settings = {
+      annualReturnPct: String(CONFIG.projection?.annualReturnPct || 7),
     };
-  });
+    rules.forEach((r, i) => {
+      settings[`rule_${i + 1}_label`] = r.label;
+      settings[`rule_${i + 1}_value`] = r.value;
+    });
+    _settings = settings;
+    await persistSettings();
+  }
 
-  // Seed Settings
-  const settings: Settings = {
-    annualReturnPct: String(CONFIG.projection?.annualReturnPct || 7),
-  };
-
-  // Add reinvestment rules as settings
-  rules.forEach((r, i) => {
-    settings[`rule_${i + 1}_label`] = r.label;
-    settings[`rule_${i + 1}_value`] = r.value;
-  });
-
-  _accounts = accounts;
-  _holdings = holdings;
-  _settings = settings;
-
-  // Persist
-  await setAccounts(accounts);
-  await setHoldings(holdings);
-  await persistSettings();
-  await logChange('Migration', 'Seeded config from config.js defaults');
+  await logChange('Migration', `Seeded config from config.js defaults (accounts=${seedAccounts}, holdings=${seedHoldings})`);
 }
