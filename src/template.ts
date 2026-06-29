@@ -18,7 +18,7 @@ export function appTemplate(): string {
   <button class="active" data-section="networth">Net worth</button>
   <button data-section="portfolio">Portfolio</button>
   <button data-section="settings">Settings</button>
-  <button data-section="log" class="log-btn">＋ Update</button>
+  <button data-section="log" class="log-btn">+ Log</button>
 </nav>
 
 <div id="setup-banner" style="display:none"></div>
@@ -33,7 +33,7 @@ export function appTemplate(): string {
   </div></div></div>
   <div id="nw-content" style="display:none">
     <div class="kpi-row" id="nw-kpis"></div>
-    <div class="card">
+    <div class="card card-primary">
       <div class="card-title" id="nw-chart-title">Net worth — stacked by account</div>
       <div class="chart-controls">
         <div id="nw-chart-legend" class="legend"></div>
@@ -105,7 +105,7 @@ export function appTemplate(): string {
     </div></div></div>
     <div id="dca-content" style="display:none">
       <div class="kpi-row" id="dca-kpis"></div>
-      <div class="card">
+      <div class="card card-primary">
         <div class="card-title">Monthly invested — stacked by ETF (savings plan executions)</div>
         <div class="chart-controls">
           <div id="dca-legend" class="legend"></div>
