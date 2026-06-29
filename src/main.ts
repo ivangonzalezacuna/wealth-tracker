@@ -19,6 +19,7 @@ import { renderSettings } from './views/settings';
 import { renderLog } from './views/log';
 import { fmtMon, showMsg as _showMsgBase, esc, currentMonth } from './utils';
 import { parseNum } from './csv';
+import { navHash, parseNavHash } from './nav';
 import {
   isCacheValid, clearCache,
   getCachedConfig, setCachedConfig,
@@ -119,6 +120,19 @@ function initNav() {
     const btn = (e.target as HTMLElement).closest('[data-subview]') as HTMLElement | null;
     if (btn) showPortfolioSubview(btn.dataset.subview!);
   });
+
+  // Hash-based initial routing
+  resolveInitialSection();
+}
+
+function resolveInitialSection(): void {
+  const { section: targetSection, subview } = parseNavHash(window.location.hash);
+  const targetBtn = document.querySelector(
+    `.nav button[data-section="${targetSection}"]`) as HTMLElement | null;
+  showSection(targetSection, targetBtn);
+  if (targetSection === 'portfolio') {
+    showPortfolioSubview(subview || 'holdings');
+  }
 }
 
 function showSection(id, btn) {
@@ -130,6 +144,7 @@ function showSection(id, btn) {
   if (_dirty.has(id)) { _dirty.delete(id); renderSection(id); }
   else if (id === 'settings') { renderSection('settings'); } // settings reflects live config; always repaint
   if (id === 'portfolio') showPortfolioSubview(_portfolioSubview);
+  history.replaceState(null, '', navHash(id, id === 'portfolio' ? _portfolioSubview : undefined));
 }
 
 // ── Online/offline listeners ─────────────────────────────
@@ -768,6 +783,52 @@ function showImportPreview(csvText, profile) {
   const container = document.getElementById('import-preview');
   if (!container) return;
 
+  // Confirm handler — write to sheets
+  async function confirmImport() {
+    if (isSyncBusy()) {
+      showMsg('import-msg', 'A sync or save is in progress — try again in a moment.', false);
+      return;
+    }
+    container.innerHTML = '';
+    container.style.display = 'none';
+    setSyncing(true);
+    try {
+      const merged = await mergeTransactions(state.txs, parsed.transactions);
+      const today  = new Date().toISOString().slice(0, 10);
+      await saveImportMeta(today);
+      state.txs        = merged;
+      state.importMeta = { last_import: today };
+      state.pd         = computePD(merged, { method: getCostBasisMethod() });
+
+      // Update cache
+      await Promise.all([
+        setCachedTransactions(merged),
+        setCachedImportMeta({ last_import: today }),
+        setSyncCursor({ lastDate: merged.length > 0 ? merged[merged.length - 1].date : '', rowCount: merged.length }),
+        state.pd ? setCachedAggregates(state.pd) : Promise.resolve(),
+        state.pd ? setInputsHash(computeInputsHash(
+          merged.length,
+          merged[merged.length - 1]?.date || '',
+          getCostBasisMethod(),
+          holdingsSignature(getHoldings()),
+        )) : Promise.resolve(),
+      ]);
+
+      renderAll();
+      showMsg('import-msg', `✓ ${merged.length} transactions synced to Google Sheets`, true);
+    } catch (err) {
+      showMsg('import-msg', 'Error: ' + err.message, false);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  // Auto-confirm when no unmapped types (clean import)
+  if (summary.unmapped.length === 0) {
+    confirmImport();
+    return;
+  }
+
   // Build type counts string
   const typeCounts = Object.entries(summary.byCounts)
     .sort(([,a], [,b]) => b - a)
@@ -775,16 +836,13 @@ function showImportPreview(csvText, profile) {
     .join(', ');
 
   // Unmapped warning
-  let unmappedHtml = '';
-  if (summary.unmapped.length > 0) {
-    const totalUnmapped = summary.unmapped.reduce((s, u) => s + u.count, 0);
-    const unmappedList  = summary.unmapped.map(u => `<code>${esc(u.type)}</code> (${u.count})`).join(', ');
-    unmappedHtml = `
-      <div class="status-bar status-warn" style="margin:.6rem 0">
-        ⚠ ${totalUnmapped} row${totalUnmapped > 1 ? 's' : ''} with unmapped type${totalUnmapped > 1 ? 's' : ''}: ${unmappedList}
-      </div>
-    `;
-  }
+  const totalUnmapped = summary.unmapped.reduce((s, u) => s + u.count, 0);
+  const unmappedList  = summary.unmapped.map(u => `<code>${esc(u.type)}</code> (${u.count})`).join(', ');
+  const unmappedHtml = `
+    <div class="status-bar status-warn" style="margin:.6rem 0">
+      ⚠ ${totalUnmapped} row${totalUnmapped > 1 ? 's' : ''} with unmapped type${totalUnmapped > 1 ? 's' : ''}: ${unmappedList}
+    </div>
+  `;
 
   // Sample table (first ~10 rows)
   const sampleRows = summary.sample;
@@ -836,45 +894,7 @@ function showImportPreview(csvText, profile) {
   `;
   container.style.display = 'block';
 
-  // Confirm handler — write to sheets
-  document.getElementById('btn-confirm-import')?.addEventListener('click', async () => {
-    if (isSyncBusy()) {
-      showMsg('import-msg', 'A sync or save is in progress — try again in a moment.', false);
-      return;
-    }
-    container.innerHTML = '';
-    container.style.display = 'none';
-    setSyncing(true);
-    try {
-      const merged = await mergeTransactions(state.txs, parsed.transactions);
-      const today  = new Date().toISOString().slice(0, 10);
-      await saveImportMeta(today);
-      state.txs        = merged;
-      state.importMeta = { last_import: today };
-      state.pd         = computePD(merged, { method: getCostBasisMethod() });
-
-      // Update cache
-      await Promise.all([
-        setCachedTransactions(merged),
-        setCachedImportMeta({ last_import: today }),
-        setSyncCursor({ lastDate: merged.length > 0 ? merged[merged.length - 1].date : '', rowCount: merged.length }),
-        state.pd ? setCachedAggregates(state.pd) : Promise.resolve(),
-        state.pd ? setInputsHash(computeInputsHash(
-          merged.length,
-          merged[merged.length - 1]?.date || '',
-          getCostBasisMethod(),
-          holdingsSignature(getHoldings()),
-        )) : Promise.resolve(),
-      ]);
-
-      renderAll();
-      showMsg('import-msg', `✓ ${merged.length} transactions synced to Google Sheets`, true);
-    } catch (err) {
-      showMsg('import-msg', 'Error: ' + err.message, false);
-    } finally {
-      setSyncing(false);
-    }
-  });
+  document.getElementById('btn-confirm-import')?.addEventListener('click', () => confirmImport());
 
   // Cancel handler
   document.getElementById('btn-cancel-import')?.addEventListener('click', () => {
@@ -936,6 +956,7 @@ function showPortfolioSubview(sub: string): void {
   document.querySelectorAll('#portfolio-subnav [data-subview]').forEach(b =>
     b.classList.toggle('active', (b as HTMLElement).dataset.subview === sub));
   renderPortfolioSubview(sub);
+  history.replaceState(null, '', navHash('portfolio', sub));
 }
 
 function renderPortfolioSubview(sub: string): void {
