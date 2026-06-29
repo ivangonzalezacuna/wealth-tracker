@@ -7,7 +7,7 @@ import { monthlyGrowthSplit, cagr, findYoYSnapshot } from '../model/insights';
 import { forecastMonthsToTarget, formatMonthsEta, forecastSeries } from '../model/forecast';
 import type { Snapshot, PortfolioData } from '../types';
 import Chart from 'chart.js/auto';
-import { T } from '../theme';
+import { T, resolvedT } from '../theme';
 
 const CH: Record<string, Chart> = {};
 let _nwRange: '12' | '36' | 'all' = 'all';
@@ -127,14 +127,15 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   _attachNWRangeToggle(snaps, chartA);
 
   const bkA = ACCTS.filter(a => (s[a.key] || 0) > 0);
+  const C = resolvedT();
   _destroyChart('c-nw-donut');
   CH['c-nw-donut'] = new Chart(document.getElementById('c-nw-donut'), {
     type: 'doughnut',
     data: { labels: bkA.map(a => a.label), datasets: [{
       data: bkA.map(a => s[a.key] || 0), backgroundColor: bkA.map(a => a.color),
-      borderWidth: 3, borderColor: T.white,
+      borderWidth: 3, borderColor: C.white,
     }]},
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false } } },
   });
 
   document.getElementById('nw-donut-legend').innerHTML =
@@ -226,6 +227,7 @@ function _renderNWHistChart(
   view: Snapshot[],
   chartA: Array<{ key: string; label: string; color: string }>,
 ): void {
+  const C = resolvedT();
   const labels = view.map(sn => fmtMon(sn.date));
   const totalSeries = view.map(sn => snapTotal(sn));
   const manyAccounts = chartA.length > 4;
@@ -235,7 +237,7 @@ function _renderNWHistChart(
     data: view.map(sn => (sn[a.key] as number) || 0),
     borderColor: a.color,
     backgroundColor: a.color,
-    borderWidth: 1.5,
+    borderWidth: 1,
     fill: false,
     tension: 0,
     pointRadius: 2.5,
@@ -247,20 +249,20 @@ function _renderNWHistChart(
   const totalDataset = {
     label: 'Total net worth',
     data: totalSeries,
-    borderColor: T.brand,
-    backgroundColor: T.brand,
+    borderColor: C.brand,
+    backgroundColor: C.brand,
     borderWidth: 2.5,
     fill: false,
     tension: 0,
-    pointRadius: 3.5,
+    pointRadius: 5,
     pointHoverRadius: 6,
-    pointBackgroundColor: T.brand,
+    pointBackgroundColor: C.brand,
     order: 0, // drawn on top
   };
 
   // Legend: Total swatch first, then per-account swatches
   document.getElementById('nw-chart-legend').innerHTML =
-    `<span class="leg-item"><span class="leg-sq" style="background:${T.brand}"></span>Total net worth</span>` +
+    `<span class="leg-item"><span class="leg-sq" style="background:${C.brand}"></span>Total net worth</span>` +
     chartA.map(a => `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(a.color)}"></span>${esc(a.label)}</span>`).join('');
 
   _destroyChart('c-nw-hist');
@@ -270,13 +272,15 @@ function _renderNWHistChart(
     options: { responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false },
         tooltip: { mode: 'index', intersect: false,
+          backgroundColor: '#fff', borderColor: C.line, borderWidth: 1,
+          titleColor: C.ink, bodyColor: C.ink2, padding: 10, cornerRadius: 8,
           callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtEur2(ctx.raw as number)}` },
         },
       },
       scales: {
-        y: { grid: { color: T.line },
-             ticks: { color: T.ink4, callback: v => '€' + ((v as number) / 1000).toFixed(0) + 'k' } },
-        x: { grid: { display: false }, ticks: { color: T.ink2, font: { size: 10 }, maxRotation: 0, autoSkip: true } },
+        y: { grid: { color: C.line, drawBorder: false },
+             ticks: { color: C.ink4, callback: (v) => (v as number) >= 1000 ? '€' + ((v as number) / 1000).toFixed(0) + 'k' : '€' + v } },
+        x: { grid: { display: false }, ticks: { color: C.ink2, font: { size: 10 }, maxRotation: 0, autoSkip: true } },
       },
     },
   });
@@ -332,6 +336,7 @@ function _attachNWRangeToggle(
 // ── Forecast chart ──
 
 function _renderForecastChart(snaps: Snapshot[], currentTotal: number): void {
+  const C = resolvedT();
   const forecastEl = document.getElementById('nw-forecast');
   if (!forecastEl) return;
 
@@ -367,7 +372,7 @@ function _renderForecastChart(snaps: Snapshot[], currentTotal: number): void {
     ? [{
         label: 'Target',
         data: labels.map(() => target),
-        borderColor: T.pos,
+        borderColor: C.pos,
         borderWidth: 1.5,
         borderDash: [6, 4],
         pointRadius: 0,
@@ -394,11 +399,11 @@ function _renderForecastChart(snaps: Snapshot[], currentTotal: number): void {
         {
           label: 'Actual',
           data: histDataFull,
-          borderColor: T.brand,
-          backgroundColor: T.brand,
+          borderColor: C.brand,
+          backgroundColor: C.brand,
           borderWidth: 2.5,
           pointRadius: 3,
-          pointBackgroundColor: T.brand,
+          pointBackgroundColor: C.brand,
           fill: false,
           tension: 0,
           spanGaps: false,
@@ -407,7 +412,7 @@ function _renderForecastChart(snaps: Snapshot[], currentTotal: number): void {
         {
           label: 'Forecast',
           data: fcDataFull,
-          borderColor: T.brandChart,
+          borderColor: C.brandChart,
           backgroundColor: 'rgba(42,120,214,0.07)',
           borderWidth: 2,
           borderDash: [5, 3],
@@ -426,14 +431,16 @@ function _renderForecastChart(snaps: Snapshot[], currentTotal: number): void {
         legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
         tooltip: {
           mode: 'index', intersect: false,
+          backgroundColor: '#fff', borderColor: C.line, borderWidth: 1,
+          titleColor: C.ink, bodyColor: C.ink2, padding: 10, cornerRadius: 8,
           callbacks: { label: ctx => ctx.raw != null ? ` ${ctx.dataset.label}: ${fmtEur(ctx.raw as number)}` : '' },
         },
       },
       scales: {
-        y: { grid: { color: T.line },
-          ticks: { color: T.ink4, callback: v => '\u20AC' + ((v as number) / 1000).toFixed(0) + 'k' } },
+        y: { grid: { color: C.line, drawBorder: false },
+          ticks: { color: C.ink4, callback: (v) => (v as number) >= 1000 ? '\u20AC' + ((v as number) / 1000).toFixed(0) + 'k' : '\u20AC' + v } },
         x: { grid: { display: false },
-          ticks: { color: T.ink2, font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
+          ticks: { color: C.ink2, font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
       },
     },
   });

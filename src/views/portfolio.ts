@@ -7,7 +7,7 @@ import { splitHoldings } from '../model/holdings';
 import { computeDrift, maxDrift } from '../model/drift';
 import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 import Chart from 'chart.js/auto';
-import { T } from '../theme';
+import { T, resolvedT } from '../theme';
 
 const CH: Record<string, Chart> = {};
 
@@ -176,14 +176,15 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
 
   // Donut chart — only held positions with cost > 0
   const donutE = held.filter(e => e.cost > 0);
+  const C = resolvedT();
   if (CH['c-port-donut']) { CH['c-port-donut'].destroy(); }
   CH['c-port-donut'] = new Chart(document.getElementById('c-port-donut'), {
     type: 'doughnut',
     data: { labels: donutE.map(e => e.ticker), datasets: [{
       data: donutE.map(e => e.cost), backgroundColor: donutE.map(e => e.color),
-      borderWidth: 3, borderColor: T.white,
+      borderWidth: 3, borderColor: C.white,
     }]},
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false } } },
   });
   document.getElementById('port-donut-legend').innerHTML =
     donutE.map(e => `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(e.color)}"></span>${esc(e.ticker)} ${pd.totalInv > 0 ? (e.cost / pd.totalInv * 100).toFixed(0) : 0}%</span>`).join('');

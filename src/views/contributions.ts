@@ -5,7 +5,7 @@ import { getTotalWeeklyTarget, getTotalAnnualContrib, getAnnualReturnPct, getAcc
 import { primaryInvestmentValue } from '../model/accounts';
 import type { PortfolioData, Snapshot } from '../types';
 import Chart from 'chart.js/auto';
-import { T } from '../theme';
+import { T, resolvedT } from '../theme';
 
 const CH: Record<string, Chart> = {};
 const DCA_PAGE_SIZE = 12;
@@ -70,6 +70,7 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   }
 
   const weeklyEquiv = Math.round(annualContrib / 52);
+  const C2 = resolvedT();
   if (CH['c-dca-proj']) CH['c-dca-proj'].destroy();
   const projTitle = document.getElementById('dca-proj-title');
   if (projTitle) projTitle.textContent = `5-year projection (${annualReturnPct}% return, €${weeklyEquiv}/wk equiv.)`;
@@ -77,14 +78,16 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
     type: 'line',
     data: { labels: ['Now','Yr 1','Yr 2','Yr 3','Yr 4','Yr 5'],
       datasets: [{ label: 'Projected', data: pts,
-        borderColor: T.brandChart, backgroundColor: 'rgba(42,120,214,0.07)',
-        borderWidth: 2, pointRadius: 4, pointBackgroundColor: T.brandChart,
+        borderColor: C2.brandChart, backgroundColor: 'rgba(42,120,214,0.07)',
+        borderWidth: 2, pointRadius: 4, pointBackgroundColor: C2.brandChart,
         fill: true, tension: 0.35 }]},
     options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: { legend: { display: false },
+        tooltip: { backgroundColor: '#fff', borderColor: C2.line, borderWidth: 1, titleColor: C2.ink, bodyColor: C2.ink2, padding: 10, cornerRadius: 8 },
+      },
       scales: {
-        y: { grid: { color: T.line }, ticks: { color: T.ink4, callback: v => '€' + Math.round(v / 1000) + 'k' } },
-        x: { grid: { display: false }, ticks: { color: T.ink2 } },
+        y: { grid: { color: C2.line, drawBorder: false }, ticks: { color: C2.ink4, callback: (v) => (v as number) >= 1000 ? '€' + Math.round((v as number) / 1000) + 'k' : '€' + v } },
+        x: { grid: { display: false }, ticks: { color: C2.ink2 } },
       },
     },
   });
@@ -93,6 +96,7 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
 // ── Chart with range toggle ──────────────────────────────
 
 function renderDCAChart(pd: PortfolioData, ordSyms: string[], ISIN: Record<string, string>, META: Record<string, { color: string }>): void {
+  const C = resolvedT();
   // Apply range filter to months
   let months = pd.months;
   if (_dcaRange !== 'all') {
@@ -106,11 +110,11 @@ function renderDCAChart(pd: PortfolioData, ordSyms: string[], ISIN: Record<strin
     return {
       label: t,
       data: months.map(mo => (pd.monthlyBy[mo] || {})[sym] || 0),
-      backgroundColor: m.color || T.ink4,
+      backgroundColor: m.color || C.ink4,
       borderRadius: (ctx) => {
         const ds = ctx.chart.data.datasets, i = ctx.datasetIndex, j = ctx.dataIndex;
         const isTop = !ds.some((d, k) => k > i && ((d.data[j] as number) || 0) > 0);
-        return isTop ? { topLeft: 3, topRight: 3 } : 0;
+        return isTop ? { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 } : 0;
       },
       borderSkipped: false,
     };
@@ -125,14 +129,16 @@ function renderDCAChart(pd: PortfolioData, ordSyms: string[], ISIN: Record<strin
     type: 'bar',
     data: { labels: months.map(fmtMon), datasets },
     options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: { legend: { display: false },
+        tooltip: { backgroundColor: '#fff', borderColor: C.line, borderWidth: 1, titleColor: C.ink, bodyColor: C.ink2, padding: 10, cornerRadius: 8 },
+      },
       scales: {
         x: { stacked: true, grid: { display: false }, ticks: {
-          color: T.ink2, font: { size: 10 },
+          color: C.ink2, font: { size: 10 },
           maxRotation: 45, autoSkip: false,
           callback: function(val, idx) { return idx % step === 0 ? this.getLabelForValue(val) : ''; },
         }},
-        y: { stacked: true, grid: { color: T.line }, ticks: { color: T.ink4, callback: v => '€' + v } },
+        y: { stacked: true, grid: { color: C.line, drawBorder: false }, ticks: { color: C.ink4, callback: (v) => (v as number) >= 1000 ? '€' + ((v as number) / 1000).toFixed(0) + 'k' : '€' + v } },
       },
     },
   });
