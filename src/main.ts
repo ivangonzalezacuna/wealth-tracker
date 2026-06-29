@@ -18,6 +18,7 @@ import { renderRef } from './views/reference';
 import { renderSettings } from './views/settings';
 import { renderLog } from './views/log';
 import { fmtMon, showMsg, esc } from './utils';
+import { parseNum } from './csv';
 import {
   isCacheValid, clearCache,
   getCachedConfig, setCachedConfig,
@@ -402,7 +403,8 @@ async function saveSnapshot() {
 
   const snap = { date };
   for (const a of getACCTSList()) {
-    snap[a.key] = parseFloat(document.getElementById(`snap-${a.key}`).value) || 0;
+    const el = document.getElementById(`snap-${a.key}`) as HTMLInputElement | null;
+    snap[a.key] = parseNum(String(el?.value ?? ''));
   }
   snap.notes = document.getElementById('snap-notes').value.trim();
 
@@ -716,7 +718,7 @@ function renderSnapForm() {
   el.innerHTML = accts.map(a => `
     <div class="form-group">
       <label class="form-label">${esc(a.label)} (€)</label>
-      <input type="number" id="snap-${esc(a.key)}" class="form-input" placeholder="total value">
+      <input type="text" inputmode="decimal" id="snap-${esc(a.key)}" class="form-input" placeholder="total value">
     </div>
   `).join('');
 }

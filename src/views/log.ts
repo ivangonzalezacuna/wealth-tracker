@@ -114,8 +114,8 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
       const total = snapTotal(s);
       return `<div class="snap-row" data-date="${s.date}">
         <div style="font-weight:500;font-size:12px">${fmtMon(s.date)}</div>
-        <div style="font-weight:500">${fmt(total)}</div>
-        ${shown.map(a => `<div style="color:#52514e">${s[a.key] ? fmt(s[a.key]) : '—'}</div>`).join('')}
+        <div style="font-weight:500">${fmt(total, 2)}</div>
+        ${shown.map(a => `<div style="color:#52514e">${s[a.key] ? fmt(s[a.key], 2) : '—'}</div>`).join('')}
         <div class="snap-btns">
           <button class="btn btn-sm btn-outline js-edit-snap" data-date="${s.date}">Edit</button>
           <button class="btn btn-sm btn-danger js-del-snap" data-date="${s.date}">✕</button>

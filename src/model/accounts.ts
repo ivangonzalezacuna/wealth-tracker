@@ -18,5 +18,23 @@ export function primaryInvestmentValue(snap: Snapshot | null, accounts: Account[
   if (!snap) return null;
   const primary = accounts.filter(a => a.isPrimaryInvestment);
   if (!primary.length) return null;
-  return primary.reduce((sum, a) => sum + ((snap[a.id || ''] as number) || 0), 0) || null;
+
+  // Reloaded snapshots are keyed by the lowercased sheet header
+  // (parseSnapshotRows). Build a case-insensitive numeric view so id
+  // casing never silently breaks the lookup.
+  const byLowerKey: Record<string, number> = {};
+  for (const [k, v] of Object.entries(snap)) {
+    if (typeof v === 'number') byLowerKey[k.toLowerCase()] = v;
+  }
+
+  let found = false;
+  let sum = 0;
+  for (const a of primary) {
+    const key = (a.id || '').toLowerCase();
+    if (key in byLowerKey) {
+      found = true;
+      sum += byLowerKey[key];
+    }
+  }
+  return found ? sum : null;
 }

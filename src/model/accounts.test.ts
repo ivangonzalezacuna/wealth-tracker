@@ -72,4 +72,30 @@ describe('primaryInvestmentValue', () => {
     const snap: Snapshot = { date: '2026-06', tr: 10000, cash: 5000 };
     expect(primaryInvestmentValue(snap, accounts)).toBe(10000);
   });
+
+  it('matches snapshot keys case-insensitively (reloaded lowercased header)', () => {
+    const accounts: Account[] = [
+      { id: 'TR_Portfolio', label: 'TR', moneyType: 'investment', isPrimaryInvestment: true },
+    ];
+    // After parseSnapshotRows, keys are lowercased
+    const snap: Snapshot = { date: '2026-06', tr_portfolio: 12345.67 };
+    expect(primaryInvestmentValue(snap, accounts)).toBeCloseTo(12345.67);
+  });
+
+  it('returns 0 (not null) when primary account value is 0', () => {
+    const accounts: Account[] = [
+      { id: 'tr', label: 'TR', moneyType: 'investment', isPrimaryInvestment: true },
+    ];
+    const snap: Snapshot = { date: '2026-06', tr: 0 };
+    expect(primaryInvestmentValue(snap, accounts)).toBe(0);
+  });
+
+  it('returns null when primary account column is missing from snapshot', () => {
+    const accounts: Account[] = [
+      { id: 'tr', label: 'TR', moneyType: 'investment', isPrimaryInvestment: true },
+    ];
+    // Snapshot has no 'tr' key at all
+    const snap: Snapshot = { date: '2026-06', cash: 5000 };
+    expect(primaryInvestmentValue(snap, accounts)).toBeNull();
+  });
 });
