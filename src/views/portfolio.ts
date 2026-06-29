@@ -6,6 +6,7 @@ import { primaryInvestmentValue } from '../model/accounts';
 import { splitHoldings } from '../model/holdings';
 import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 import Chart from 'chart.js/auto';
+import { T } from '../theme';
 
 const CH: Record<string, Chart> = {};
 
@@ -65,16 +66,16 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
           ? '<span class="badge b-closed" style="margin-left:4px">exited</span>'
           : `<span class="badge ${m.active ? 'b-active' : 'b-closed'}" style="margin-left:4px">${m.active ? 'active' : 'closed'}</span>`}
         <span class="badge ${e.acc ? 'b-acc' : 'b-dist'}" style="margin-left:4px">${e.acc ? 'Acc' : 'Dist'}</span>
-        <div style="font-size:11px;color:#6b6a65">${esc(e.symbol)}</div>
+        <div style="font-size:11px;color:${T.ink3}">${esc(e.symbol)}</div>
       </div>
       <div><div style="font-weight:500">${fmt(e.cost)}</div>
         ${!isExited ? `<div class="bar-wrap" style="max-width:80px"><div class="bar-fill" style="width:${pct.toFixed(0)}%;background:${safeColor(e.color)}"></div></div>` : ''}
       </div>
-      <div style="color:#52514e">${e.shares.toFixed(4)}</div>
-      <div style="color:#52514e">${avg > 0 ? '\u20AC' + avg.toFixed(2) : '—'}</div>
-      <div style="color:#52514e">${pct.toFixed(1)}%</div>
-      <div style="color:${rpnl >= 0 ? '#0F6E56' : '#A32D2D'}">${rpnl !== 0 ? (rpnl >= 0 ? '+' : '') + fmt(rpnl, 2) : '—'}</div>
-      <div style="color:${e.divNet > 0 ? '#0F6E56' : '#6b6a65'}">${e.divNet > 0 ? fmt(e.divNet, 2) : '—'}</div>
+      <div style="color:${T.ink2}">${e.shares.toFixed(4)}</div>
+      <div style="color:${T.ink2}">${avg > 0 ? '\u20AC' + avg.toFixed(2) : '—'}</div>
+      <div style="color:${T.ink2}">${pct.toFixed(1)}%</div>
+      <div style="color:${rpnl >= 0 ? T.pos : T.neg}">${rpnl !== 0 ? (rpnl >= 0 ? '+' : '') + fmt(rpnl, 2) : '—'}</div>
+      <div style="color:${e.divNet > 0 ? T.pos : T.ink3}">${e.divNet > 0 ? fmt(e.divNet, 2) : '—'}</div>
     </div>`;
   }).join('');
 
@@ -83,13 +84,13 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     <div class="tbl-row th" style="${gridCols}">
       <div>ETF</div><div>Cost basis</div><div>Shares</div><div>Avg price</div><div>% of cost</div><div>Realized P&amp;L</div><div>Div (net)</div>
     </div>${rows}
-    <div class="tbl-row" style="${gridCols};border-top:1px solid #d3d1c7;margin-top:4px">
+    <div class="tbl-row" style="${gridCols};border-top:1px solid ${T.line2};margin-top:4px">
       <div style="font-weight:500">Total</div>
       <div style="font-weight:500">${fmt(pd.totalInv)}</div>
       <div></div><div></div>
       <div style="font-weight:500">100%</div>
-      <div style="color:${pd.realizedPnL >= 0 ? '#0F6E56' : '#A32D2D'};font-weight:500">${(pd.realizedPnL >= 0 ? '+' : '') + fmt(pd.realizedPnL, 2)}</div>
-      <div style="color:#0F6E56;font-weight:500">${fmt(pd.totalDivNet, 2)}</div>
+      <div style="color:${pd.realizedPnL >= 0 ? T.pos : T.neg};font-weight:500">${(pd.realizedPnL >= 0 ? '+' : '') + fmt(pd.realizedPnL, 2)}</div>
+      <div style="color:${T.pos};font-weight:500">${fmt(pd.totalDivNet, 2)}</div>
     </div>`;
 
   // Bind filter listeners once (Commit 2G: _bound guard prevents stacking)
@@ -146,7 +147,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     type: 'doughnut',
     data: { labels: donutE.map(e => e.ticker), datasets: [{
       data: donutE.map(e => e.cost), backgroundColor: donutE.map(e => e.color),
-      borderWidth: 3, borderColor: '#fff',
+      borderWidth: 3, borderColor: T.white,
     }]},
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } },
   });
@@ -161,7 +162,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     <div class="row"><div class="row-label">Dividends (net)</div><div class="row-val ok">${fmt(pd.totalDivNet, 2)}</div></div>
     <div class="row"><div class="row-label">Tax withheld on dividends</div><div class="row-val">${fmt(pd.totalTax, 2)}</div></div>
     <div class="row"><div class="row-label">Interest earned</div><div class="row-val ok">${fmt(pd.totalInterest, 2)}</div></div>
-    ${gain !== null ? `<div class="row" style="border-top:1px solid #d3d1c7;margin-top:4px">
+    ${gain !== null ? `<div class="row" style="border-top:1px solid ${T.line2};margin-top:4px">
       <div class="row-label" style="font-weight:500">Unrealized gain</div>
       <div class="row-val ${gain >= 0 ? 'pos' : 'neg'}" style="font-weight:500">
         ${gain >= 0 ? '+' : ''}${fmt(gain, 2)} (${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(1)}%)</div></div>` : ''}
