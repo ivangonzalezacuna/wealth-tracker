@@ -3,6 +3,7 @@ import Chart from 'chart.js/auto';
 import { getHoldings, getTotalWeeklyTarget, getTotalAnnualContrib, getSettings } from '../store/config';
 import { INTERVAL_LABELS, annualizeContrib } from '../model/contributions';
 import { esc, safeColor } from '../utils';
+import { T } from '../theme';
 
 let refChart: Chart | null = null;
 
@@ -109,7 +110,7 @@ export function renderRef(): void {
       datasets: [{
         data: slices.map(s => s.pct),
         backgroundColor: slices.map(s => s.color),
-        borderWidth: 3, borderColor: '#fff',
+        borderWidth: 3, borderColor: T.white,
       }],
     },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } },

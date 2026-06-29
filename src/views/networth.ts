@@ -3,6 +3,7 @@ import { snapTotal, fmt, fmtMon, esc, safeColor } from '../utils';
 import { getACCTSList } from '../constants';
 import type { Snapshot } from '../types';
 import Chart from 'chart.js/auto';
+import { T } from '../theme';
 
 const CH: Record<string, Chart> = {};
 
@@ -61,8 +62,8 @@ export function renderNW(snaps: Snapshot[]): void {
         plugins: { legend: { display: false },
           tooltip: { callbacks: { label: ctx => ` ${fmt(ctx.raw)}` } } },
         scales: {
-          x: { grid: { color: '#e1e0d9' }, ticks: { color: '#898781', callback: v => '€' + (v / 1000).toFixed(0) + 'k' } },
-          y: { grid: { display: false }, ticks: { color: '#52514e', font: { size: 12 } } },
+          x: { grid: { color: T.line }, ticks: { color: T.ink4, callback: v => '€' + (v / 1000).toFixed(0) + 'k' } },
+          y: { grid: { display: false }, ticks: { color: T.ink2, font: { size: 12 } } },
         },
       },
     });
@@ -89,9 +90,9 @@ export function renderNW(snaps: Snapshot[]): void {
           },
         },
         scales: {
-          y: { stacked: true, grid: { color: '#e1e0d9' },
-               ticks: { color: '#898781', callback: v => '€' + (v / 1000).toFixed(0) + 'k' } },
-          x: { grid: { display: false }, ticks: { color: '#52514e', font: { size: 10 } } },
+          y: { stacked: true, grid: { color: T.line },
+               ticks: { color: T.ink4, callback: v => '€' + (v / 1000).toFixed(0) + 'k' } },
+          x: { grid: { display: false }, ticks: { color: T.ink2, font: { size: 10 } } },
         },
       },
     });
@@ -103,7 +104,7 @@ export function renderNW(snaps: Snapshot[]): void {
     type: 'doughnut',
     data: { labels: bkA.map(a => a.label), datasets: [{
       data: bkA.map(a => s[a.key] || 0), backgroundColor: bkA.map(a => a.color),
-      borderWidth: 3, borderColor: '#fff',
+      borderWidth: 3, borderColor: T.white,
     }]},
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } },
   });
@@ -114,12 +115,12 @@ export function renderNW(snaps: Snapshot[]): void {
   let det = bkA.map(a =>
     `<div class="row"><div class="row-label">${esc(a.label)}</div><div class="row-val">${fmt(s[a.key] || 0, 2)}</div></div>`
   ).join('');
-  det += `<div class="row" style="border-top:1px solid #d3d1c7;margin-top:4px">
+  det += `<div class="row" style="border-top:1px solid ${T.line2};margin-top:4px">
     <div class="row-label" style="font-weight:500">Total</div>
     <div class="row-val" style="font-weight:500">${fmt(total, 2)}</div></div>`;
   if (prev) {
     const c = total - prevT;
-    det += `<div class="row"><div class="row-label" style="color:#6b6a65;font-size:12px">vs ${fmtMon(prev.date)}</div>
+    det += `<div class="row"><div class="row-label" style="color:${T.ink3};font-size:12px">vs ${fmtMon(prev.date)}</div>
       <div class="row-val ${c >= 0 ? 'pos' : 'neg'}">${c >= 0 ? '+' : ''}${fmt(c, 2)}</div></div>`;
   }
   if (s.notes) det += `<p class="note" style="margin-top:.5rem">${esc(s.notes)}</p>`;

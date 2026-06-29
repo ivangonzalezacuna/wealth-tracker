@@ -2,6 +2,7 @@
 import { getACCTSList } from '../constants';
 import { snapTotal, fmt, fmtMon, esc } from '../utils';
 import type { Snapshot, Transaction } from '../types';
+import { T } from '../theme';
 
 interface LogState {
   txs: Transaction[];
@@ -93,7 +94,7 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
   }
 
   if (filtered.length === 0) {
-    el.innerHTML = '<div class="empty-state" style="padding:1rem;font-size:12px;color:#6b6a65">No matching snapshots.</div>';
+    el.innerHTML = '<div class="empty-state" style="padding:1rem;font-size:12px;color:' + T.ink3 + '">No matching snapshots.</div>';
     hidePagination();
     return;
   }
@@ -109,7 +110,7 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
   const gridCols = `auto 1fr ${shown.map(() => '1fr').join(' ')} auto`;
   el.innerHTML = `
     <div class="tbl"><div class="tbl-inner">
-    <div class="snap-row snap-row--wide" style="grid-template-columns:${gridCols};color:#6b6a65;font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-bottom:6px">
+    <div class="snap-row snap-row--wide" style="grid-template-columns:${gridCols};color:${T.ink3};font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-bottom:6px">
       <div>Month</div><div>Net worth</div>${shown.map(a => `<div>${esc(a.label)}</div>`).join('')}<div></div>
     </div>
     ${pageItems.map(s => {
@@ -117,13 +118,13 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
       return `<div class="snap-row snap-row--wide" style="grid-template-columns:${gridCols}" data-date="${s.date}">
         <div style="font-weight:500;font-size:12px">${fmtMon(s.date)}</div>
         <div style="font-weight:500">${fmt(total, 2)}</div>
-        ${shown.map(a => `<div style="color:#52514e">${s[a.key] ? fmt(s[a.key], 2) : '—'}</div>`).join('')}
+        ${shown.map(a => `<div style="color:${T.ink2}">${s[a.key] ? fmt(s[a.key], 2) : '—'}</div>`).join('')}
         <div class="snap-btns">
           <button class="btn btn-sm btn-outline js-edit-snap" data-date="${s.date}">Edit</button>
           <button class="btn btn-sm btn-danger js-del-snap" data-date="${s.date}">✕</button>
         </div>
       </div>
-      ${s.notes ? `<div style="font-size:11px;color:#6b6a65;font-style:italic;padding:0 0 6px;border-bottom:1px solid #f1efe8">${esc(s.notes)}</div>` : ''}`;
+      ${s.notes ? `<div style="font-size:11px;color:${T.ink3};font-style:italic;padding:0 0 6px;border-bottom:1px solid ${T.surface3}">${esc(s.notes)}</div>` : ''}`;
     }).join('')}
     </div></div>
   `;

@@ -25,7 +25,7 @@ export function appTemplate(): string {
 <div id="networth" class="section active">
   <div id="nw-empty" style="display:none"><div class="card"><div class="empty-state">
     <div style="font-size:2.4rem;margin-bottom:.75rem">📊</div>
-    <div style="font-weight:500;font-size:14px;color:#0b0b0b;margin-bottom:.4rem">No snapshots yet</div>
+    <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.4rem">No snapshots yet</div>
     <p style="font-size:13px;margin-bottom:1.25rem;max-width:340px;margin-left:auto;margin-right:auto">Log your first monthly entry to start tracking net worth across all accounts. Takes ~2 minutes per month.</p>
     <button class="btn btn-primary" data-goto="log">Add first snapshot →</button>
   </div></div></div>
@@ -34,13 +34,13 @@ export function appTemplate(): string {
     <div class="card">
       <div class="card-title" id="nw-chart-title">Net worth — stacked by account</div>
       <div id="nw-chart-legend" class="legend"></div>
-      <div class="chart-wrap" style="height:260px"><canvas id="c-nw-hist"></canvas></div>
+      <div class="chart-wrap chart-h-lg"><canvas id="c-nw-hist"></canvas></div>
     </div>
     <div class="two-col">
       <div class="card">
         <div class="card-title">Account breakdown</div>
         <div id="nw-donut-legend" class="legend"></div>
-        <div class="chart-wrap" style="height:165px"><canvas id="c-nw-donut"></canvas></div>
+        <div class="chart-wrap chart-h-sm"><canvas id="c-nw-donut"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">Latest snapshot</div>
@@ -54,7 +54,7 @@ export function appTemplate(): string {
 <div id="portfolio" class="section">
   <div id="port-empty" style="display:none"><div class="card"><div class="empty-state">
     <div style="font-size:2rem;margin-bottom:.75rem">📂</div>
-    <div style="font-weight:500;font-size:14px;color:#0b0b0b;margin-bottom:.4rem">No transaction data imported</div>
+    <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.4rem">No transaction data imported</div>
     <p style="font-size:13px;margin-bottom:1rem">Import your Transaktionsexport CSV to see exact cost basis, shares, and dividends.</p>
     <button class="btn btn-primary" data-goto="log">Import CSV →</button>
   </div></div></div>
@@ -68,7 +68,7 @@ export function appTemplate(): string {
       <div class="card">
         <div class="card-title">Cost basis allocation</div>
         <div id="port-donut-legend" class="legend"></div>
-        <div class="chart-wrap" style="height:165px"><canvas id="c-port-donut"></canvas></div>
+        <div class="chart-wrap chart-h-sm"><canvas id="c-port-donut"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">Summary</div>
@@ -82,7 +82,7 @@ export function appTemplate(): string {
 <div id="contributions" class="section">
   <div id="dca-empty" style="display:none"><div class="card"><div class="empty-state">
     <div style="font-size:2rem;margin-bottom:.5rem">📅</div>
-    <div style="font-weight:500;font-size:14px;color:#0b0b0b;margin-bottom:.75rem">No transaction data imported</div>
+    <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.75rem">No transaction data imported</div>
     <button class="btn btn-primary" data-goto="log">Import CSV →</button>
   </div></div></div>
   <div id="dca-content" style="display:none">
@@ -97,7 +97,7 @@ export function appTemplate(): string {
           <button class="btn btn-sm btn-ghost active" data-range="all">All</button>
         </div>
       </div>
-      <div class="chart-wrap" style="height:260px"><canvas id="c-dca-bar"></canvas></div>
+      <div class="chart-wrap chart-h-lg"><canvas id="c-dca-bar"></canvas></div>
     </div>
     <div class="two-col">
       <div class="card">
@@ -112,7 +112,7 @@ export function appTemplate(): string {
       </div>
       <div class="card">
         <div class="card-title" id="dca-proj-title">5-year projection</div>
-        <div class="chart-wrap" style="height:180px"><canvas id="c-dca-proj"></canvas></div>
+        <div class="chart-wrap chart-h-md"><canvas id="c-dca-proj"></canvas></div>
         <p class="note" id="dca-proj-note">Starting from latest portfolio value. Excludes taxes, fees, FX.</p>
       </div>
     </div>
@@ -123,7 +123,7 @@ export function appTemplate(): string {
 <div id="dividends" class="section">
   <div id="div-empty" style="display:none"><div class="card"><div class="empty-state">
     <div style="font-size:2rem;margin-bottom:.5rem">💰</div>
-    <div style="font-weight:500;font-size:14px;color:#0b0b0b;margin-bottom:.75rem">No transaction data imported</div>
+    <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.75rem">No transaction data imported</div>
     <button class="btn btn-primary" data-goto="log">Import CSV →</button>
   </div></div></div>
   <div id="div-content" style="display:none">
@@ -174,8 +174,8 @@ export function appTemplate(): string {
   <div id="auth-prompt" class="card" style="display:none">
     <div class="empty-state">
       <div style="font-size:2rem;margin-bottom:.75rem">🔐</div>
-      <div style="font-weight:500;font-size:14px;color:#0b0b0b;margin-bottom:.5rem">Sign in to sync data</div>
-      <p style="font-size:13px;margin-bottom:1.25rem;color:#52514e">Your data is stored in your own Google Sheet. Sign in once and it syncs across all devices.</p>
+      <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.5rem">Sign in to sync data</div>
+      <p style="font-size:13px;margin-bottom:1.25rem;color:var(--ink-2)">Your data is stored in your own Google Sheet. Sign in once and it syncs across all devices.</p>
       <button id="btn-signin" class="btn btn-primary">Sign in with Google</button>
     </div>
   </div>
@@ -190,8 +190,8 @@ export function appTemplate(): string {
       <div class="drop-zone" id="drop-zone">
         <input type="file" id="csv-file-input" accept=".csv">
         <div style="font-size:2rem;margin-bottom:.4rem">📥</div>
-        <div style="font-weight:500;font-size:13px;color:#52514e;margin-bottom:.2rem">Drop CSV file here</div>
-        <div style="font-size:11px;color:#6b6a65">or click to browse</div>
+        <div style="font-weight:500;font-size:13px;color:var(--ink-2);margin-bottom:.2rem">Drop CSV file here</div>
+        <div style="font-size:11px;color:var(--ink-3)">or click to browse</div>
       </div>
       <div id="import-msg" style="font-size:12px;margin-top:.6rem;min-height:18px"></div>
       <div id="import-preview" style="display:none"></div>

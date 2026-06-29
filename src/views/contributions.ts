@@ -5,6 +5,7 @@ import { getTotalWeeklyTarget, getTotalAnnualContrib, getAnnualReturnPct, getAcc
 import { primaryInvestmentValue } from '../model/accounts';
 import type { PortfolioData, Snapshot } from '../types';
 import Chart from 'chart.js/auto';
+import { T } from '../theme';
 
 const CH: Record<string, Chart> = {};
 const DCA_PAGE_SIZE = 12;
@@ -47,7 +48,7 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   document.getElementById('dca-legend').innerHTML = ordSyms.map(sym => {
     const t = ISIN[sym] || sym;
     const m = META[t]   || {};
-    return `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(m.color || '#898781')}"></span>${esc(t)}</span>`;
+    return `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(m.color || T.ink4)}"></span>${esc(t)}</span>`;
   }).join('');
 
   // DCA table with filtering + pagination
@@ -76,14 +77,14 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
     type: 'line',
     data: { labels: ['Now','Yr 1','Yr 2','Yr 3','Yr 4','Yr 5'],
       datasets: [{ label: 'Projected', data: pts,
-        borderColor: '#2a78d6', backgroundColor: 'rgba(42,120,214,0.07)',
-        borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#2a78d6',
+        borderColor: T.brandChart, backgroundColor: 'rgba(42,120,214,0.07)',
+        borderWidth: 2, pointRadius: 4, pointBackgroundColor: T.brandChart,
         fill: true, tension: 0.35 }]},
     options: { responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        y: { grid: { color: '#e1e0d9' }, ticks: { color: '#898781', callback: v => '€' + Math.round(v / 1000) + 'k' } },
-        x: { grid: { display: false }, ticks: { color: '#52514e' } },
+        y: { grid: { color: T.line }, ticks: { color: T.ink4, callback: v => '€' + Math.round(v / 1000) + 'k' } },
+        x: { grid: { display: false }, ticks: { color: T.ink2 } },
       },
     },
   });
@@ -105,7 +106,7 @@ function renderDCAChart(pd: PortfolioData, ordSyms: string[], ISIN: Record<strin
     return {
       label: t,
       data: months.map(mo => (pd.monthlyBy[mo] || {})[sym] || 0),
-      backgroundColor: m.color || '#898781',
+      backgroundColor: m.color || T.ink4,
       borderRadius: (ctx) => {
         const ds = ctx.chart.data.datasets, i = ctx.datasetIndex, j = ctx.dataIndex;
         const isTop = !ds.some((d, k) => k > i && ((d.data[j] as number) || 0) > 0);
@@ -127,11 +128,11 @@ function renderDCAChart(pd: PortfolioData, ordSyms: string[], ISIN: Record<strin
       plugins: { legend: { display: false } },
       scales: {
         x: { stacked: true, grid: { display: false }, ticks: {
-          color: '#52514e', font: { size: 10 },
+          color: T.ink2, font: { size: 10 },
           maxRotation: 45, autoSkip: false,
           callback: function(val, idx) { return idx % step === 0 ? this.getLabelForValue(val) : ''; },
         }},
-        y: { stacked: true, grid: { color: '#e1e0d9' }, ticks: { color: '#898781', callback: v => '€' + v } },
+        y: { stacked: true, grid: { color: T.line }, ticks: { color: T.ink4, callback: v => '€' + v } },
       },
     },
   });
@@ -195,14 +196,14 @@ function renderDCATable(pd: PortfolioData): void {
 
   const tRows = pageMonths.map(m =>
     `<div class="tbl-row" style="grid-template-columns:1fr 1fr">
-      <div style="color:#52514e">${fmtMon(m)}</div>
+      <div style="color:${T.ink2}">${fmtMon(m)}</div>
       <div style="font-weight:500;text-align:right">${fmt(pd.monthly[m])}</div>
     </div>`).join('');
 
   el.innerHTML = `
     <div class="tbl-row th" style="grid-template-columns:1fr 1fr"><div>Month</div><div style="text-align:right">Invested</div></div>
     ${tRows}
-    <div class="tbl-row" style="grid-template-columns:1fr 1fr;border-top:1px solid #d3d1c7;margin-top:4px">
+    <div class="tbl-row" style="grid-template-columns:1fr 1fr;border-top:1px solid ${T.line2};margin-top:4px">
       <div style="font-weight:500">${_dcaYear ? 'Year total' : 'Total'}</div>
       <div style="font-weight:500;text-align:right">${fmt(filteredTotal)}</div>
     </div>`;

@@ -5,6 +5,7 @@ import { validatePrimaryInvestment } from '../model/accounts';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { showMsg } from '../utils';
 import type { Account, Holding, Settings, ContribInterval } from '../types';
+import { T } from '../theme';
 
 /**
  * Render the Settings section — user-friendly forms for Accounts, Holdings, Settings.
@@ -870,12 +871,12 @@ function renderCacheCard(): string {
 function attachCacheListeners(root: HTMLElement): void {
   root.querySelector('#btn-force-resync')?.addEventListener('click', async () => {
     const msgEl = root.querySelector('#resync-msg') as HTMLElement | null;
-    if (msgEl) { msgEl.textContent = 'Resyncing…'; msgEl.style.color = '#52514e'; }
+    if (msgEl) { msgEl.textContent = 'Resyncing…'; msgEl.style.color = T.ink2; }
     try {
       await (window as any).__forceFullResync();
-      if (msgEl) { msgEl.textContent = 'Done ✓'; msgEl.style.color = '#0F6E56'; }
+      if (msgEl) { msgEl.textContent = 'Done ✓'; msgEl.style.color = T.pos; }
     } catch (err: any) {
-      if (msgEl) { msgEl.textContent = 'Error: ' + (err?.message || 'unknown'); msgEl.style.color = '#A32D2D'; }
+      if (msgEl) { msgEl.textContent = 'Error: ' + (err?.message || 'unknown'); msgEl.style.color = T.neg; }
     }
   });
 }
