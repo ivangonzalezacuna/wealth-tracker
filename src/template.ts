@@ -16,7 +16,6 @@ export function appTemplate(): string {
   <button data-section="portfolio">Portfolio</button>
   <button data-section="contributions">Contributions</button>
   <button data-section="dividends">Dividends</button>
-  <button data-section="reference">Reference</button>
   <button data-section="settings">Settings</button>
   <button data-section="log" class="log-btn">＋ Log</button>
 </nav>
@@ -147,31 +146,6 @@ export function appTemplate(): string {
       <div class="card-title">Cash / savings interest received</div>
       <div id="div-interest"></div>
     </div>
-  </div>
-</div>
-
-<!-- ════ REFERENCE ════ -->
-<div id="reference" class="section">
-  <div class="card">
-    <div class="card-title">Target allocation</div>
-    <div class="two-col" style="align-items:start">
-      <div>
-        <div id="ref-legend" class="legend" style="margin-bottom:.75rem"></div>
-        <div class="chart-wrap" style="height:155px"><canvas id="c-ref-target"></canvas></div>
-      </div>
-      <div>
-        <div id="ref-breakdown"></div>
-        <p class="note" id="ref-note"></p>
-      </div>
-    </div>
-  </div>
-  <div class="card">
-    <div class="card-title">Closed positions</div>
-    <div id="ref-closed"></div>
-  </div>
-  <div class="card">
-    <div class="card-title">Settings &amp; rules</div>
-    <div id="ref-rules"></div>
   </div>
 </div>
 

@@ -13,6 +13,11 @@ export function fmt(n: number, d = 0): string {
   });
 }
 
+/** Whole-euro display (no decimals). */
+export const fmtEur  = (n: number) => fmt(n);
+/** Euro display with cents (2 decimals). */
+export const fmtEur2 = (n: number) => fmt(n, 2);
+
 /** Current month as 'YYYY-MM' (local time) — the max allowed snapshot month. */
 export function currentMonth(): string {
   const d = new Date();

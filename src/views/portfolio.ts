@@ -1,5 +1,5 @@
 // @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
-import { fmt, fmtMon, esc, safeColor } from '../utils';
+import { fmtEur, fmtEur2, fmtMon, esc, safeColor } from '../utils';
 import { getISIN_ORDERList, getMETAMap } from '../constants';
 import { getAccounts, getHoldings } from '../store/config';
 import { primaryInvestmentValue } from '../model/accounts';
@@ -60,8 +60,8 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     const isExited = e.exited || e.shares < 1e-6;
     const rpnl = e.realizedPnL || 0;
 
-    return `<div class="tbl-row" style="${gridCols}${isExited ? ';opacity:0.6' : ''}">
-      <div>
+    return `<div class="tbl-row" role="row" style="${gridCols}${isExited ? ';opacity:0.6' : ''}">
+      <div role="cell">
         <span style="font-weight:500;font-size:12px">${esc(e.ticker)}</span>
         ${isExited
           ? '<span class="badge b-closed" style="margin-left:4px">exited</span>'
@@ -69,29 +69,29 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
         <span class="badge ${e.acc ? 'b-acc' : 'b-dist'}" style="margin-left:4px">${e.acc ? 'Acc' : 'Dist'}</span>
         <div style="font-size:11px;color:${T.ink3}">${esc(e.symbol)}</div>
       </div>
-      <div><div style="font-weight:500">${fmt(e.cost)}</div>
+      <div role="cell"><div style="font-weight:500">${fmtEur(e.cost)}</div>
         ${!isExited ? `<div class="bar-wrap" style="max-width:80px"><div class="bar-fill" style="width:${pct.toFixed(0)}%;background:${safeColor(e.color)}"></div></div>` : ''}
       </div>
-      <div style="color:${T.ink2}">${e.shares.toFixed(4)}</div>
-      <div style="color:${T.ink2}">${avg > 0 ? '\u20AC' + avg.toFixed(2) : '—'}</div>
-      <div style="color:${T.ink2}">${pct.toFixed(1)}%</div>
-      <div style="color:${rpnl >= 0 ? T.pos : T.neg}">${rpnl !== 0 ? (rpnl >= 0 ? '+' : '') + fmt(rpnl, 2) : '—'}</div>
-      <div style="color:${e.divNet > 0 ? T.pos : T.ink3}">${e.divNet > 0 ? fmt(e.divNet, 2) : '—'}</div>
+      <div role="cell" style="color:${T.ink2}">${e.shares.toFixed(4)}</div>
+      <div role="cell" style="color:${T.ink2}">${avg > 0 ? '\u20AC' + avg.toFixed(2) : '—'}</div>
+      <div role="cell" style="color:${T.ink2}">${pct.toFixed(1)}%</div>
+      <div role="cell" style="color:${rpnl >= 0 ? T.pos : T.neg}" aria-label="Realized P&L ${rpnl !== 0 ? (rpnl >= 0 ? '+' : '') + rpnl.toFixed(2) : 'none'}">${rpnl !== 0 ? (rpnl >= 0 ? '+' : '') + fmtEur2(rpnl) : '—'}</div>
+      <div role="cell" style="color:${e.divNet > 0 ? T.pos : T.ink3}">${e.divNet > 0 ? fmtEur2(e.divNet) : '—'}</div>
     </div>`;
   }).join('');
 
   document.getElementById('port-table').innerHTML = `
     ${filterHtml}
-    <div class="tbl-row th" style="${gridCols}">
-      <div>ETF</div><div>Cost basis</div><div>Shares</div><div>Avg price</div><div>% of cost</div><div>Realized P&amp;L</div><div>Div (net)</div>
+    <div class="tbl-row th" role="row" style="${gridCols}">
+      <div role="columnheader">ETF</div><div role="columnheader">Cost basis</div><div role="columnheader">Shares</div><div role="columnheader">Avg price</div><div role="columnheader">% of cost</div><div role="columnheader">Realized P&amp;L</div><div role="columnheader">Div (net)</div>
     </div>${rows}
-    <div class="tbl-row" style="${gridCols};border-top:1px solid ${T.line2};margin-top:4px">
+    <div class="tbl-row" role="row" style="${gridCols};border-top:1px solid ${T.line2};margin-top:4px">
       <div style="font-weight:500">Total</div>
-      <div style="font-weight:500">${fmt(pd.totalInv)}</div>
+      <div style="font-weight:500">${fmtEur(pd.totalInv)}</div>
       <div></div><div></div>
       <div style="font-weight:500">100%</div>
-      <div style="color:${pd.realizedPnL >= 0 ? T.pos : T.neg};font-weight:500">${(pd.realizedPnL >= 0 ? '+' : '') + fmt(pd.realizedPnL, 2)}</div>
-      <div style="color:${T.pos};font-weight:500">${fmt(pd.totalDivNet, 2)}</div>
+      <div style="color:${pd.realizedPnL >= 0 ? T.pos : T.neg};font-weight:500">${(pd.realizedPnL >= 0 ? '+' : '') + fmtEur2(pd.realizedPnL)}</div>
+      <div style="color:${T.pos};font-weight:500">${fmtEur2(pd.totalDivNet)}</div>
     </div>`;
 
   // Bind filter listeners once (Commit 2G: _bound guard prevents stacking)
@@ -121,15 +121,15 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   const gainPct = gain !== null && pd.totalInv > 0 ? gain / pd.totalInv * 100 : null;
 
   document.getElementById('port-kpis').innerHTML = `
-    <div class="kpi"><div class="kpi-label">Total invested</div><div class="kpi-val">${fmt(pd.totalInv)}</div><div class="kpi-sub">net of sells</div></div>
+    <div class="kpi"><div class="kpi-label">Total invested</div><div class="kpi-val">${fmtEur(pd.totalInv)}</div><div class="kpi-sub">net of sells</div></div>
     <div class="kpi"><div class="kpi-label">Current value</div>
-      <div class="kpi-val">${curVal !== null ? fmt(curVal, 2) : '—'}</div>
+      <div class="kpi-val">${curVal !== null ? fmtEur2(curVal) : '—'}</div>
       <div class="kpi-sub">${curVal !== null ? 'from ' + fmtMon(latSnap.date) + ' snapshot' : (latSnap ? 'no primary investment account flagged' : 'add a snapshot')}</div></div>
     <div class="kpi"><div class="kpi-label">Unrealized gain</div>
-      <div class="kpi-val ${gain !== null && gain >= 0 ? 'pos' : 'neg'}">${gain !== null ? (gain >= 0 ? '+' : '') + fmt(gain, 2) : '—'}</div>
+      <div class="kpi-val ${gain !== null && gain >= 0 ? 'pos' : 'neg'}">${gain !== null ? (gain >= 0 ? '+' : '') + fmtEur2(gain) : '—'}</div>
       <div class="kpi-sub">${gainPct !== null ? (gainPct >= 0 ? '+' : '') + gainPct.toFixed(1) + '%' : ''}</div></div>
     <div class="kpi"><div class="kpi-label">Realized P&amp;L</div>
-      <div class="kpi-val ${pd.realizedPnL >= 0 ? 'pos' : 'neg'}">${(pd.realizedPnL >= 0 ? '+' : '') + fmt(pd.realizedPnL, 2)}</div>
+      <div class="kpi-val ${pd.realizedPnL >= 0 ? 'pos' : 'neg'}">${(pd.realizedPnL >= 0 ? '+' : '') + fmtEur2(pd.realizedPnL)}</div>
       <div class="kpi-sub">from sells</div></div>
   `;
 
@@ -157,16 +157,16 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
 
   // TODO Phase: consolidation — populate foldInto on first SELL (IEEM→CMEIU, CECBE+EGB7Y→GABE)
   document.getElementById('port-summary').innerHTML = `
-    <div class="row"><div class="row-label">Total invested (net)</div><div class="row-val">${fmt(pd.totalInv)}</div></div>
-    <div class="row"><div class="row-label">Realized P&amp;L</div><div class="row-val ${pd.realizedPnL >= 0 ? 'ok' : 'neg'}">${(pd.realizedPnL >= 0 ? '+' : '') + fmt(pd.realizedPnL, 2)}</div></div>
-    <div class="row"><div class="row-label">Total fees</div><div class="row-val">${fmt(pd.totalFees, 2)}</div></div>
-    <div class="row"><div class="row-label">Dividends (net)</div><div class="row-val ok">${fmt(pd.totalDivNet, 2)}</div></div>
-    <div class="row"><div class="row-label">Tax withheld on dividends</div><div class="row-val">${fmt(pd.totalTax, 2)}</div></div>
-    <div class="row"><div class="row-label">Interest earned</div><div class="row-val ok">${fmt(pd.totalInterest, 2)}</div></div>
+    <div class="row"><div class="row-label">Total invested (net)</div><div class="row-val">${fmtEur(pd.totalInv)}</div></div>
+    <div class="row"><div class="row-label">Realized P&amp;L</div><div class="row-val ${pd.realizedPnL >= 0 ? 'ok' : 'neg'}">${(pd.realizedPnL >= 0 ? '+' : '') + fmtEur2(pd.realizedPnL)}</div></div>
+    <div class="row"><div class="row-label">Total fees</div><div class="row-val">${fmtEur2(pd.totalFees)}</div></div>
+    <div class="row"><div class="row-label">Dividends (net)</div><div class="row-val ok">${fmtEur2(pd.totalDivNet)}</div></div>
+    <div class="row"><div class="row-label">Tax withheld on dividends</div><div class="row-val">${fmtEur2(pd.totalTax)}</div></div>
+    <div class="row"><div class="row-label">Interest earned</div><div class="row-val ok">${fmtEur2(pd.totalInterest)}</div></div>
     ${gain !== null ? `<div class="row" style="border-top:1px solid ${T.line2};margin-top:4px">
       <div class="row-label" style="font-weight:500">Unrealized gain</div>
       <div class="row-val ${gain >= 0 ? 'pos' : 'neg'}" style="font-weight:500">
-        ${gain >= 0 ? '+' : ''}${fmt(gain, 2)} (${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(1)}%)</div></div>` : ''}
+        ${gain >= 0 ? '+' : ''}${fmtEur2(gain)} (${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(1)}%)</div></div>` : ''}
     <p class="note">Cost basis exact from CSV. Current value from latest snapshot (${latSnap ? fmtMon(latSnap.date) : 'none yet'}). Mixed-currency positions compute in account currency (no FX conversion).</p>
   `;
 
@@ -195,12 +195,12 @@ function _renderDriftCard(pd: PortfolioData): void {
   const rows = drift.map(d => {
     const driftColor = d.driftPct > 5 ? T.neg : d.driftPct < -5 ? T.neg : d.driftPct > 2 ? T.warn : d.driftPct < -2 ? T.warn : T.pos;
     return `
-      <div class="tbl-row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
-        <div><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${safeColor(d.color)};margin-right:6px"></span>${esc(d.ticker)}</div>
-        <div style="text-align:right">${d.targetPct.toFixed(1)}%</div>
-        <div style="text-align:right">${d.actualPct.toFixed(1)}%</div>
-        <div style="text-align:right;color:${driftColor}">${d.driftPct >= 0 ? '+' : ''}${d.driftPct.toFixed(1)}%</div>
-        <div style="text-align:right;color:${d.deltaValue >= 0 ? T.ink3 : T.ink2}">${d.deltaValue >= 0 ? '+' : ''}${fmt(d.deltaValue, 0)}</div>
+      <div class="tbl-row" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
+        <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${safeColor(d.color)};margin-right:6px"></span>${esc(d.ticker)}</div>
+        <div role="cell" style="text-align:right">${d.targetPct.toFixed(1)}%</div>
+        <div role="cell" style="text-align:right">${d.actualPct.toFixed(1)}%</div>
+        <div role="cell" style="text-align:right;color:${driftColor}" aria-label="Drift ${d.driftPct >= 0 ? '+' : ''}${d.driftPct.toFixed(1)}%">${d.driftPct >= 0 ? '+' : ''}${d.driftPct.toFixed(1)}%</div>
+        <div role="cell" style="text-align:right;color:${d.deltaValue >= 0 ? T.ink3 : T.ink2}">${d.deltaValue >= 0 ? '+' : ''}${fmtEur(d.deltaValue)}</div>
       </div>`;
   }).join('');
 
@@ -208,8 +208,8 @@ function _renderDriftCard(pd: PortfolioData): void {
     <div class="card">
       <div class="card-title">Allocation drift <span style="font-size:12px;font-weight:400;color:${statusColor};margin-left:8px">${statusLabel} (max ${max.toFixed(1)}%)</span></div>
       <div class="tbl" role="table" aria-label="Allocation drift">
-        <div class="tbl-row th" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
-          <div>ETF</div><div style="text-align:right">Target</div><div style="text-align:right">Actual</div><div style="text-align:right">Drift</div><div style="text-align:right">Delta</div>
+        <div class="tbl-row th" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
+          <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right">Target</div><div role="columnheader" style="text-align:right">Actual</div><div role="columnheader" style="text-align:right">Drift</div><div role="columnheader" style="text-align:right">Delta</div>
         </div>
         ${rows}
       </div>
