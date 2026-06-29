@@ -4,7 +4,7 @@ import { CONFIG } from './config';
 import { getACCTSList } from './constants';
 import { appTemplate } from './template';
 import { signIn as gisSignIn, signOut, isSignedIn, trySilentSignIn } from './auth/google';
-import { loadSnapshots, saveSnapshots } from './sheets/snapshots';
+import { loadSnapshots, saveSnapshots, upsertSnapshot } from './sheets/snapshots';
 import { loadTransactions, mergeTransactions, saveImportMeta, loadImportMeta } from './sheets/transactions';
 import { loadConfig, onConfigChange, getCostBasisMethod, getHoldings, getAccounts, getSettings } from './store/config';
 import { computePD } from './portfolio';
@@ -38,7 +38,6 @@ const state = {
   txs:        [],
   pd:         null,
   importMeta: {},
-  syncing:    false,
   offline:    !navigator.onLine,
   cacheLoaded: false,
 };
@@ -51,10 +50,12 @@ const ALL_SECTIONS = ['networth', 'portfolio', 'settings', 'log'] as const;
 // ── Portfolio sub-view state ─────────────────────────────
 let _portfolioSubview: 'holdings' | 'contributions' | 'dividends' = 'holdings';
 
-// ── Auto-resync guard ────────────────────────────────────
+// ── Unified sync/write lock ──────────────────────────────
 let _syncing = false;
 let _lastSyncAt = 0;
 const AUTO_RESYNC_MIN_INTERVAL_MS = 2 * 60_000; // 2 minutes
+function setSyncing(v: boolean): void { _syncing = v; }
+function isSyncBusy(): boolean { return _syncing; }
 
 // ── Boot ─────────────────────────────────────────────────
 document.getElementById('app').innerHTML = appTemplate();
@@ -121,7 +122,7 @@ function autoResyncIfNeeded(): void {
   if (shouldAutoResync({
     signedIn: isSignedIn(),
     online: navigator.onLine,
-    syncing: _syncing,
+    syncing: isSyncBusy(),
     lastSyncAt: _lastSyncAt,
     now: Date.now(),
     minIntervalMs: AUTO_RESYNC_MIN_INTERVAL_MS,
@@ -136,7 +137,7 @@ function initAuth() {
   document.getElementById('btn-signin-global')?.addEventListener('click', onSignInClick);
   document.getElementById('btn-signout')?.addEventListener('click', () => signOut());
   document.getElementById('btn-sync-now')?.addEventListener('click', () => {
-    if (!_syncing) syncInBackground();
+    if (!isSyncBusy()) syncInBackground();
   });
 
   // Boot: first try to render from cache (instant), then authenticate and sync
@@ -231,7 +232,7 @@ async function syncInBackground() {
     setSyncStatus('offline');
     return;
   }
-  _syncing = true;
+  setSyncing(true);
   setSyncStatus('syncing');
   try {
     // Load config first (snapshots & other reads depend on it)
@@ -303,7 +304,7 @@ async function syncInBackground() {
       // No cache either — show error
     }
   } finally {
-    _syncing = false;
+    setSyncing(false);
     _lastSyncAt = Date.now();
   }
 }
@@ -347,6 +348,7 @@ async function computeAggregatesWithCache(txs: any[]): Promise<any> {
 // ── Data loading (full, used for first sign-in or force resync) ──
 async function loadAllData() {
   setSyncStatus('loading');
+  setSyncing(true);
   try {
     await loadConfig();
     const [snaps, txs, meta] = await Promise.all([
@@ -391,6 +393,9 @@ async function loadAllData() {
     setSyncStatus('ok');
   } catch (err) {
     setSyncStatus('error', err.message);
+  } finally {
+    setSyncing(false);
+    _lastSyncAt = Date.now();
   }
 }
 
@@ -449,8 +454,8 @@ async function saveSnapshot() {
     showMsg('snap-msg', 'Please sign in first.', false);
     return;
   }
-  if (state.syncing) {
-    showMsg('snap-msg', 'A save is already in progress.', false);
+  if (isSyncBusy()) {
+    showMsg('snap-msg', 'A sync or save is in progress — try again in a moment.', false);
     return;
   }
   const date = document.getElementById('snap-date').value;
@@ -468,12 +473,12 @@ async function saveSnapshot() {
   snap.notes = document.getElementById('snap-notes').value.trim();
 
   showMsg('snap-msg', 'Saving…', true);
-  state.syncing = true;
+  setSyncing(true);
   try {
     const idx = state.snaps.findIndex(s => s.date === date);
     if (idx >= 0) state.snaps[idx] = snap;
     else { state.snaps.push(snap); state.snaps.sort((a, b) => a.date.localeCompare(b.date)); }
-    await saveSnapshots(state.snaps);
+    await upsertSnapshot(snap);
     await setCachedSnapshots(state.snaps);
     clearSnapForm();
     showMsg('snap-msg', 'Saved ✓', true);
@@ -481,7 +486,7 @@ async function saveSnapshot() {
   } catch (err) {
     showMsg('snap-msg', 'Error: ' + err.message, false);
   } finally {
-    state.syncing = false;
+    setSyncing(false);
   }
 }
 
@@ -513,10 +518,10 @@ async function delSnap(date) {
     return;
   }
   if (!isSignedIn()) return;
-  if (state.syncing) return;
+  if (isSyncBusy()) return;
   if (!confirm(`Delete snapshot for ${fmtMon(date)}?`)) return;
   state.snaps = state.snaps.filter(s => s.date !== date);
-  state.syncing = true;
+  setSyncing(true);
   try {
     await saveSnapshots(state.snaps);
     await setCachedSnapshots(state.snaps);
@@ -524,7 +529,7 @@ async function delSnap(date) {
   } catch (err) {
     showMsg('snap-msg', 'Delete failed: ' + err.message, false);
   } finally {
-    state.syncing = false;
+    setSyncing(false);
   }
 }
 
@@ -567,7 +572,7 @@ async function handleCSVFile(file) {
     showMsg('import-msg', 'Please sign in before importing.', false);
     return;
   }
-  if (state.syncing) {
+  if (isSyncBusy()) {
     showMsg('import-msg', 'A sync is already in progress.', false);
     return;
   }
@@ -704,9 +709,13 @@ function showImportPreview(csvText, profile) {
 
   // Confirm handler — write to sheets
   document.getElementById('btn-confirm-import')?.addEventListener('click', async () => {
+    if (isSyncBusy()) {
+      showMsg('import-msg', 'A sync or save is in progress — try again in a moment.', false);
+      return;
+    }
     container.innerHTML = '';
     container.style.display = 'none';
-    state.syncing = true;
+    setSyncing(true);
     try {
       const merged = await mergeTransactions(state.txs, parsed.transactions);
       const today  = new Date().toISOString().slice(0, 10);
@@ -734,7 +743,7 @@ function showImportPreview(csvText, profile) {
     } catch (err) {
       showMsg('import-msg', 'Error: ' + err.message, false);
     } finally {
-      state.syncing = false;
+      setSyncing(false);
     }
   });
 
