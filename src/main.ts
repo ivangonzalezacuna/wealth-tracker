@@ -3,7 +3,7 @@ import './styles.css';
 import { CONFIG } from './config';
 import { getACCTSList } from './constants';
 import { appTemplate } from './template';
-import { signIn as gisSignIn, signOut, isSignedIn, trySilentSignIn } from './auth/google';
+import { signIn as gisSignIn, signOut, isSignedIn } from './auth/google';
 import { loadSnapshots, saveSnapshots, upsertSnapshot } from './sheets/snapshots';
 import { loadTransactions, mergeTransactions, saveImportMeta, loadImportMeta } from './sheets/transactions';
 import { loadConfig, onConfigChange, getCostBasisMethod, getHoldings, getAccounts, getSettings } from './store/config';
@@ -17,7 +17,7 @@ import { renderDCA } from './views/contributions';
 import { renderDividends } from './views/dividends';
 import { renderSettings } from './views/settings';
 import { renderLog } from './views/log';
-import { fmtMon, showMsg, esc, currentMonth } from './utils';
+import { fmtMon, showMsg as _showMsgBase, esc, currentMonth } from './utils';
 import { parseNum } from './csv';
 import {
   isCacheValid, clearCache,
@@ -57,6 +57,40 @@ let _lastSyncAt = 0;
 const AUTO_RESYNC_MIN_INTERVAL_MS = 2 * 60_000; // 2 minutes
 function setSyncing(v: boolean): void { _syncing = v; }
 function isSyncBusy(): boolean { return _syncing; }
+
+/** True when data is shown from cache but no valid auth token exists. */
+function isReadOnly(): boolean {
+  return state.cacheLoaded && !isSignedIn();
+}
+
+function applyReadOnlyMode(): void {
+  const readOnly = isReadOnly();
+  const writeIds = [
+    'btn-save-snap', 'btn-confirm-import', 'btn-sync-now',
+  ];
+  const hint = 'Sign in to enable editing';
+  for (const id of writeIds) {
+    const el = document.getElementById(id) as HTMLButtonElement | null;
+    if (!el) continue;
+    el.disabled = readOnly;
+    el.title    = readOnly ? hint : '';
+  }
+}
+
+// ── Initial load overlay state ───────────────────────────
+let _initialLoad = false;
+function isInitialLoad(): boolean { return _initialLoad; }
+
+// ── Message persistence across renderAll ─────────────────
+let _pendingMsg: { id: string; text: string; ok: boolean } | null = null;
+let _pendingMsgTimer: ReturnType<typeof setTimeout> | null = null;
+
+function showMsg(id: string, msg: string, ok: boolean): void {
+  _showMsgBase(id, msg, ok);
+  if (_pendingMsgTimer) clearTimeout(_pendingMsgTimer);
+  _pendingMsg = { id, text: msg, ok };
+  _pendingMsgTimer = setTimeout(() => { _pendingMsg = null; }, 5000);
+}
 
 // ── Boot ─────────────────────────────────────────────────
 document.getElementById('app').innerHTML = appTemplate();
@@ -141,12 +175,17 @@ function initAuth() {
     if (!isSyncBusy()) syncInBackground();
   });
 
-  // Boot: first try to render from cache (instant), then authenticate and sync
+  // Boot: render from cache instantly, then check for a stored token.
+  // If a valid token is already in memory (restored from localStorage at module
+  // load), proceed transparently. If not, wait for the user to click Sign in —
+  // never fire a GIS network call at boot without a prior explicit auth.
   bootFromCache().then(() => {
-    trySilentSignIn().then((ok) => {
-      if (ok) { updateAuthUI(true); syncInBackground(); }
-      else    { updateAuthUI(false); }
-    });
+    if (isSignedIn()) {
+      updateAuthUI(true);
+      syncInBackground();
+    } else {
+      updateAuthUI(false);
+    }
   });
 }
 
@@ -176,13 +215,23 @@ function updateAuthUI(signedIn) {
     syncNowBtn?.style.setProperty('display', 'inline-block');
     setAuthStatus('✓ Signed in');
   } else {
-    prompt?.style.setProperty('display', 'block');
-    content?.style.setProperty('display', 'none');
+    if (state.cacheLoaded) {
+      // Read-only mode: show data but block writes
+      prompt?.style.setProperty('display', 'none');
+      content?.style.setProperty('display', 'block');
+      signinGlobal?.style.setProperty('display', 'inline-block');
+      syncNowBtn?.style.setProperty('display', 'none');
+      setAuthStatus('📦 Read-only — sign in to sync');
+    } else {
+      prompt?.style.setProperty('display', 'block');
+      content?.style.setProperty('display', 'none');
+      signinGlobal?.style.setProperty('display', 'inline-block');
+      syncNowBtn?.style.setProperty('display', 'none');
+      setAuthStatus('Not signed in');
+    }
     signoutBtn?.style.setProperty('display', 'none');
-    signinGlobal?.style.setProperty('display', 'inline-block');
-    syncNowBtn?.style.setProperty('display', 'none');
-    setAuthStatus('Not signed in');
   }
+  applyReadOnlyMode();
   renderSetupBanner();
 }
 
@@ -349,6 +398,7 @@ async function computeAggregatesWithCache(txs: any[]): Promise<any> {
 
 // ── Data loading (full, used for first sign-in or force resync) ──
 async function loadAllData() {
+  _initialLoad = !state.cacheLoaded;
   setSyncStatus('loading');
   setSyncing(true);
   try {
@@ -396,6 +446,7 @@ async function loadAllData() {
   } catch (err) {
     setSyncStatus('error', err.message);
   } finally {
+    _initialLoad = false;
     setSyncing(false);
     _lastSyncAt = Date.now();
   }
@@ -441,6 +492,7 @@ let _bannerDismissed = false;
 function renderSetupBanner(): void {
   const el = document.getElementById('setup-banner');
   if (!el) return;
+  if (isInitialLoad()) { el.style.display = 'none'; return; }
   if (_bannerDismissed) { el.style.display = 'none'; return; }
 
   const step = getSetupState({
@@ -894,6 +946,19 @@ function renderPortfolioSubview(sub: string): void {
 
 // ── Section dispatcher ────────────────────────────────────
 function renderSection(id: string): void {
+  if (isInitialLoad()) {
+    const section = document.getElementById(id);
+    if (section && !section.querySelector('.section-loading')) {
+      const overlay = document.createElement('div');
+      overlay.className = 'section-loading';
+      overlay.innerHTML = '<span class="spinner"></span>';
+      overlay.style.cssText = 'display:flex;align-items:center;padding:2rem 1rem';
+      section.prepend(overlay);
+    }
+    return;
+  }
+  // Remove any leftover overlay
+  document.getElementById(id)?.querySelector('.section-loading')?.remove();
   switch (id) {
     case 'networth':      renderNW(state.pd, state.snaps); break;
     case 'portfolio':     renderPortfolioSubview(_portfolioSubview); break;
@@ -911,4 +976,10 @@ function renderAll() {
   for (const s of ALL_SECTIONS) _dirty.add(s);
   _dirty.delete(_activeSection);
   renderSection(_activeSection);
+  applyReadOnlyMode();
+  // Re-inject transient feedback message if still within its display window
+  if (_pendingMsg) {
+    const el = document.getElementById(_pendingMsg.id);
+    if (el) { el.textContent = _pendingMsg.text; el.style.color = _pendingMsg.ok ? 'var(--pos)' : 'var(--neg)'; }
+  }
 }
