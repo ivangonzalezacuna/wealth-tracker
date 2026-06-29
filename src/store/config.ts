@@ -100,6 +100,19 @@ export function getAnnualReturnPct(): number {
   return parseFloat(_settings.annualReturnPct || '') || 7;
 }
 
+/** Goal: target net worth (number or null if unset). */
+export function getTargetNetWorth(): number | null {
+  const raw = (_settings.targetNetWorth || '').replace(/\./g, '').replace(',', '.');
+  const n = parseFloat(raw);
+  return isNaN(n) || n <= 0 ? null : n;
+}
+
+/** Goal: target date as YYYY-MM string (or null if unset). */
+export function getTargetDate(): string | null {
+  const v = (_settings.targetDate || '').trim();
+  return /^\d{4}-\d{2}$/.test(v) ? v : null;
+}
+
 /** Computed: cost basis method from settings. */
 export function getCostBasisMethod(): 'fifo' | 'avgco' {
   const v = (_settings.costBasisMethod || '').toLowerCase();

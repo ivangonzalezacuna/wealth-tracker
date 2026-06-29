@@ -1,5 +1,5 @@
 // @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
-import { getAccounts, getHoldings, getSettings, setAccounts, setHoldings, setSettings, setSetting, isConfigLoaded, getCostBasisMethod } from '../store/config';
+import { getAccounts, getHoldings, getSettings, setAccounts, setHoldings, setSettings, setSetting, isConfigLoaded, getCostBasisMethod, getTargetNetWorth, getTargetDate } from '../store/config';
 import { loadTransactions } from '../sheets/transactions';
 import { validatePrimaryInvestment } from '../model/accounts';
 import { INTERVAL_LABELS } from '../model/contributions';
@@ -29,6 +29,7 @@ export function renderSettings(): void {
     ${renderHoldingsCard(holdings)}
     ${renderCostBasisCard(settings)}
     ${renderProjectionCard(settings)}
+    ${renderGoalCard(settings)}
     ${renderRulesCard(settings)}
     ${renderCacheCard()}
   `;
@@ -37,6 +38,7 @@ export function renderSettings(): void {
   attachHoldingListeners(el);
   attachCostBasisListeners(el);
   attachProjectionListeners(el);
+  attachGoalListeners(el);
   attachRulesListeners(el);
   attachCacheListeners(el);
   attachColorPickerSync(el);
@@ -569,6 +571,53 @@ function attachProjectionListeners(root: HTMLElement): void {
       showMsg('proj-msg', 'Saved', true);
     } catch (err) {
       showMsg('proj-msg', 'Error: ' + err.message, false);
+    }
+  });
+}
+
+// ── Goal / target net worth ──────────────────────────────
+
+function renderGoalCard(settings: Settings): string {
+  const targetNW = settings.targetNetWorth || '';
+  const targetDate = settings.targetDate || '';
+
+  return `
+    <div class="card card-collapsible">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Goal</div>
+        <span class="card-chevron"></span>
+      </div>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.75rem">Set a net-worth target to track progress on the Net Worth tab. Optionally set a target date to see if you're on track.</p>
+        <div class="form-grid" style="max-width:500px">
+          <div class="form-group">
+            <label class="form-label">Target net worth (\u20AC)</label>
+            <input class="form-input" id="set-target-nw" type="text" inputmode="decimal" value="${esc(targetNW)}" placeholder="e.g. 100000 or 100.000">
+            <span class="note">Supports German format (100.000,00) or plain numbers.</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Target date (optional)</label>
+            <input class="form-input" id="set-target-date" type="month" value="${esc(targetDate)}">
+            <span class="note">Leave empty for ETA-only mode (no deadline).</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:.75rem">
+          <button class="btn btn-primary btn-sm" id="btn-save-goal">Save goal</button>
+          <span id="goal-msg" style="font-size:12px;line-height:28px"></span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function attachGoalListeners(root: HTMLElement): void {
+  root.querySelector('#btn-save-goal')?.addEventListener('click', async () => {
+    const nwVal = root.querySelector('#set-target-nw')?.value || '';
+    const dateVal = root.querySelector('#set-target-date')?.value || '';
+    try {
+      await setSettings({ targetNetWorth: nwVal, targetDate: dateVal });
+      showMsg('goal-msg', 'Saved', true);
+    } catch (err) {
+      showMsg('goal-msg', 'Error: ' + err.message, false);
     }
   });
 }

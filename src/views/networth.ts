@@ -1,9 +1,10 @@
 // @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
 import { snapTotal, fmt, fmtMon, esc, safeColor } from '../utils';
 import { getACCTSList } from '../constants';
-import { getAccounts } from '../store/config';
+import { getAccounts, getTotalAnnualContrib, getAnnualReturnPct, getTargetNetWorth, getTargetDate } from '../store/config';
 import { primaryInvestmentValue } from '../model/accounts';
 import { monthlyGrowthSplit, cagr, findYoYSnapshot } from '../model/insights';
+import { forecastMonthsToTarget, formatMonthsEta, forecastSeries } from '../model/forecast';
 import type { Snapshot, PortfolioData } from '../types';
 import Chart from 'chart.js/auto';
 import { T } from '../theme';
@@ -156,6 +157,67 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   // Growth split card
   const growthEl = document.getElementById('nw-growth-split');
   if (growthEl) growthEl.innerHTML = growthSplitHtml;
+
+  // ── Goal progress card ──
+  const goalEl = document.getElementById('nw-goal');
+  if (goalEl) {
+    const target = getTargetNetWorth();
+    if (target !== null) {
+      const pctComplete = Math.min(100, Math.round(total / target * 100));
+      const remaining = Math.max(0, target - total);
+      const annualContrib = getTotalAnnualContrib();
+      const annualReturn = getAnnualReturnPct();
+      const etaMonths = forecastMonthsToTarget(total, target, annualContrib, annualReturn);
+      const targetDate = getTargetDate();
+
+      let etaText = '';
+      if (total >= target) {
+        etaText = '<span class="pos" style="font-weight:500">Goal reached!</span>';
+      } else if (etaMonths !== null) {
+        const etaFormatted = formatMonthsEta(etaMonths);
+        // Calculate target date from ETA
+        const now = new Date();
+        const etaDate = new Date(now.getFullYear(), now.getMonth() + etaMonths, 1);
+        const etaDateStr = `${etaDate.getFullYear()}-${String(etaDate.getMonth() + 1).padStart(2, '0')}`;
+        const etaDateFmt = fmtMon(etaDateStr);
+
+        if (targetDate) {
+          // Compare ETA with target date
+          const isOnTrack = etaDateStr <= targetDate;
+          etaText = isOnTrack
+            ? `<span class="pos">On track for ${fmtMon(targetDate)}</span> (ETA ${etaFormatted} \u2014 ${etaDateFmt})`
+            : `<span class="neg">Behind schedule</span> (ETA ${etaFormatted} \u2014 ${etaDateFmt}, target was ${fmtMon(targetDate)})`;
+        } else {
+          etaText = `ETA ${etaFormatted} (${etaDateFmt})`;
+        }
+      } else {
+        etaText = 'Unable to estimate (set contributions or return rate)';
+      }
+
+      goalEl.innerHTML = `
+        <div class="card">
+          <div class="card-title">Goal</div>
+          <div class="row"><div class="row-label">Target</div><div class="row-val">${fmt(target, 0)}</div></div>
+          <div class="row"><div class="row-label">Current</div><div class="row-val">${fmt(total, 0)}</div></div>
+          <div class="row"><div class="row-label">Remaining</div><div class="row-val">${fmt(remaining, 0)}</div></div>
+          <div style="margin:.75rem 0">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+              <span>${pctComplete}% complete</span>
+              <span>${fmt(total, 0)} / ${fmt(target, 0)}</span>
+            </div>
+            <div style="height:8px;background:${T.surface3};border-radius:4px;overflow:hidden">
+              <div style="width:${pctComplete}%;height:100%;background:${pctComplete >= 100 ? T.pos : T.brand};border-radius:4px;transition:width .3s"></div>
+            </div>
+          </div>
+          <div class="row"><div class="row-label">ETA</div><div class="row-val" style="font-size:12px">${etaText}</div></div>
+        </div>`;
+    } else {
+      goalEl.innerHTML = '';
+    }
+  }
+
+  // ── Forecast chart ──
+  _renderForecastChart(snaps, total);
 }
 
 // ── History chart helper (lines + dots, total line) ──
@@ -264,6 +326,116 @@ function _attachNWRangeToggle(
     btn.classList.add('active');
     const view = _nwRange === 'all' ? snaps : snaps.slice(-parseInt(_nwRange));
     _renderNWHistChart(view, chartA);
+  });
+}
+
+// ── Forecast chart ──
+
+function _renderForecastChart(snaps: Snapshot[], currentTotal: number): void {
+  const forecastEl = document.getElementById('nw-forecast');
+  if (!forecastEl) return;
+
+  const annualContrib = getTotalAnnualContrib();
+  const annualReturn = getAnnualReturnPct();
+
+  // Need at least some data and positive contributions/return to show forecast
+  if (snaps.length === 0 || (annualContrib <= 0 && annualReturn <= 0)) {
+    forecastEl.innerHTML = '';
+    return;
+  }
+
+  const latestDate = snaps[snaps.length - 1].date;
+  const forecastMonths = 60; // 5-year forecast
+  const series = forecastSeries(currentTotal, annualContrib, annualReturn, forecastMonths, latestDate);
+
+  // Build combined history + forecast for a seamless line chart
+  const historySlice = snaps.slice(-12); // last 12 months of actual data
+  const histLabels = historySlice.map(sn => fmtMon(sn.date));
+  const histValues = historySlice.map(sn => snapTotal(sn));
+
+  const fcLabels = series.map(p => fmtMon(p.month));
+  const fcValues = series.map(p => p.value);
+
+  // Combined labels: history + forecast
+  const labels = [...histLabels, ...fcLabels];
+  const histDataFull = [...histValues, ...new Array(fcValues.length).fill(null)];
+  const fcDataFull = [...new Array(histValues.length - 1).fill(null), histValues[histValues.length - 1], ...fcValues];
+
+  // Target line (horizontal) if goal is set
+  const target = getTargetNetWorth();
+  const targetLine = target !== null
+    ? [{
+        label: 'Target',
+        data: labels.map(() => target),
+        borderColor: T.pos,
+        borderWidth: 1.5,
+        borderDash: [6, 4],
+        pointRadius: 0,
+        fill: false,
+        order: 3,
+      }]
+    : [];
+
+  const weeklyEquiv = Math.round(annualContrib / 52);
+
+  forecastEl.innerHTML = `
+    <div class="card">
+      <div class="card-title">Forecast \u2014 5 years (${annualReturn}% return, \u20AC${weeklyEquiv}/wk equiv.)</div>
+      <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast"></canvas></div>
+      <p class="note">Projection assumes constant contributions and ${annualReturn}% annual return. Does not account for taxes, fees, or FX.</p>
+    </div>`;
+
+  _destroyChart('c-nw-forecast');
+  CH['c-nw-forecast'] = new Chart(document.getElementById('c-nw-forecast'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Actual',
+          data: histDataFull,
+          borderColor: T.brand,
+          backgroundColor: T.brand,
+          borderWidth: 2.5,
+          pointRadius: 3,
+          pointBackgroundColor: T.brand,
+          fill: false,
+          tension: 0,
+          spanGaps: false,
+          order: 1,
+        },
+        {
+          label: 'Forecast',
+          data: fcDataFull,
+          borderColor: T.brandChart,
+          backgroundColor: 'rgba(42,120,214,0.07)',
+          borderWidth: 2,
+          borderDash: [5, 3],
+          pointRadius: 0,
+          fill: true,
+          tension: 0.3,
+          spanGaps: false,
+          order: 2,
+        },
+        ...targetLine,
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: {
+          mode: 'index', intersect: false,
+          callbacks: { label: ctx => ctx.raw != null ? ` ${ctx.dataset.label}: ${fmt(ctx.raw as number, 0)}` : '' },
+        },
+      },
+      scales: {
+        y: { grid: { color: T.line },
+          ticks: { color: T.ink4, callback: v => '\u20AC' + ((v as number) / 1000).toFixed(0) + 'k' } },
+        x: { grid: { display: false },
+          ticks: { color: T.ink2, font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
+      },
+    },
   });
 }
 

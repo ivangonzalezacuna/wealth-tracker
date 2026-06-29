@@ -55,6 +55,8 @@ export function appTemplate(): string {
       </div>
     </div>
     <div id="nw-growth-split"></div>
+    <div id="nw-goal"></div>
+    <div id="nw-forecast"></div>
   </div>
 </div>
 
@@ -83,6 +85,7 @@ export function appTemplate(): string {
         <div id="port-summary"></div>
       </div>
     </div>
+    <div id="port-drift"></div>
   </div>
 </div>
 
