@@ -165,21 +165,21 @@ function updateAuthUI(signedIn) {
   const content  = document.getElementById('log-content');
   const signoutBtn = document.getElementById('btn-signout');
   const signinGlobal = document.getElementById('btn-signin-global');
-  const syncNowWrap = document.getElementById('sync-now-wrap');
+  const syncNowBtn = document.getElementById('btn-sync-now');
 
   if (signedIn) {
     prompt?.style.setProperty('display', 'none');
     content?.style.setProperty('display', 'block');
     signoutBtn?.style.setProperty('display', 'inline-block');
     signinGlobal?.style.setProperty('display', 'none');
-    syncNowWrap?.style.setProperty('display', 'block');
-    setAuthStatus('✓ Signed in · data synced to Google Sheets');
+    syncNowBtn?.style.setProperty('display', 'inline-block');
+    setAuthStatus('✓ Signed in');
   } else {
     prompt?.style.setProperty('display', 'block');
     content?.style.setProperty('display', 'none');
     signoutBtn?.style.setProperty('display', 'none');
     signinGlobal?.style.setProperty('display', 'inline-block');
-    syncNowWrap?.style.setProperty('display', 'none');
+    syncNowBtn?.style.setProperty('display', 'none');
     setAuthStatus('Not signed in');
   }
 }
@@ -423,14 +423,14 @@ function setSyncStatus(status, msg = '') {
     loading: ['status-warn',  '<span class="spinner"></span>Loading from Google Sheets…'],
     syncing: ['status-warn',  '<span class="spinner"></span>Syncing…'],
     cached:  ['status-info',  '📦 Showing cached data'],
-    ok:      ['status-ok',    '✓ Synced with Google Sheets'],
+    ok:      ['status-ok',    '✓ Synced'],
     offline: ['status-warn',  '📴 Offline — showing cached data'],
     error:   ['status-err',   '⚠ Sync error — ' + msg],
   };
   const [cls, text] = map[status] || ['status-empty', ''];
-  el.className  = 'status-bar ' + cls;
+  el.className  = 'status-pill ' + cls;
   el.innerHTML  = text;
-  el.style.display = status ? 'block' : 'none';
+  el.style.display = status ? 'inline-flex' : 'none';
 }
 
 // ── Snapshot form ─────────────────────────────────────────

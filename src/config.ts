@@ -64,7 +64,7 @@ export const CONFIG: AppConfig = {
   //  key   — stable id; column name in the Snapshots sheet.
   //  label — shown in the UI and charts.
   //  color — chart colour.
-  //  form  — how the input renders on the Log tab.
+  //  form  — how the input renders on the Update tab.
   accounts: [
     // Example:
     // { key: 'broker_etf', label: 'Broker ETF', color: '#2a78d6',

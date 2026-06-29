@@ -7,6 +7,8 @@ export function appTemplate(): string {
   <div class="sub" id="app-sub">${CONFIG.app.subtitle}</div>
   <div id="auth-bar">
     <span id="auth-status" class="auth-status"></span>
+    <span id="sync-status" class="status-pill" style="display:none"></span>
+    <button id="btn-sync-now" class="btn btn-ghost btn-sm" style="display:none" title="Incremental sync — does not clear cache">Sync now</button>
     <button id="btn-signin-global" class="btn btn-primary btn-sm" style="display:none">Sign in</button>
     <button id="btn-signout" class="btn btn-ghost btn-sm" style="display:none">Sign out</button>
   </div>
@@ -16,12 +18,8 @@ export function appTemplate(): string {
   <button class="active" data-section="networth">Net worth</button>
   <button data-section="portfolio">Portfolio</button>
   <button data-section="settings">Settings</button>
-  <button data-section="log" class="log-btn">＋ Log</button>
+  <button data-section="log" class="log-btn">＋ Update</button>
 </nav>
-<div id="sync-status" class="status-bar" style="display:none"></div>
-<div id="sync-now-wrap" style="text-align:right;margin-top:-4px;margin-bottom:8px;display:none">
-  <button id="btn-sync-now" class="btn btn-ghost btn-sm" title="Incremental sync — does not clear cache">Sync now</button>
-</div>
 
 <!-- ════ NET WORTH ════ -->
 <div id="networth" class="section active">
