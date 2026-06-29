@@ -2,8 +2,9 @@
 import { getAccounts, getHoldings, getSettings, setAccounts, setHoldings, setSettings, setSetting, isConfigLoaded, getCostBasisMethod } from '../store/config';
 import { loadTransactions } from '../sheets/transactions';
 import { validatePrimaryInvestment } from '../model/accounts';
+import { INTERVAL_LABELS } from '../model/contributions';
 import { showMsg } from '../utils';
-import type { Account, Holding, Settings } from '../types';
+import type { Account, Holding, Settings, ContribInterval } from '../types';
 
 /**
  * Render the Settings section — user-friendly forms for Accounts, Holdings, Settings.
@@ -262,6 +263,9 @@ function renderHoldingRow(h: Holding, i: number): string {
   const regionOptions = REGIONS.map(r =>
     `<option value="${r.value}" ${h.region === r.value ? 'selected' : ''}>${r.label}</option>`
   ).join('');
+  const intervalOptions = Object.entries(INTERVAL_LABELS).map(([val, label]) =>
+    `<option value="${val}" ${h.interval === val ? 'selected' : ''}>${label}</option>`
+  ).join('');
 
   const statusBadge = h.active
     ? '<span class="badge b-active">Active</span>'
@@ -294,8 +298,12 @@ function renderHoldingRow(h: Holding, i: number): string {
           <select class="form-input form-input-sm" data-field="region">${regionOptions}</select>
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Weekly target (€)</label>
-          <input class="form-input form-input-sm" data-field="weeklyTarget" value="${h.weeklyTarget || ''}" type="number" min="0" placeholder="0">
+          <label class="settings-field-label">Contribution (€)</label>
+          <input class="form-input form-input-sm" data-field="contribAmount" value="${h.contribAmount || ''}" type="number" min="0" placeholder="0">
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Interval</label>
+          <select class="form-input form-input-sm" data-field="interval">${intervalOptions}</select>
         </div>
         <div class="settings-field">
           <label class="settings-field-label">Successor ISIN</label>
@@ -332,7 +340,7 @@ function attachHoldingListeners(root: HTMLElement): void {
 
   root.querySelector('#btn-add-hold')?.addEventListener('click', () => {
     const holds = collectHoldings(root);
-    holds.push({ isin: '', ticker: '', name: '', color: '#888888', acc: true, active: true, weeklyTarget: 0, assetClass: 'equity', region: 'developed', foldInto: '', order: holds.length + 1 });
+    holds.push({ isin: '', ticker: '', name: '', color: '#888888', acc: true, active: true, contribAmount: 0, interval: 'weekly' as ContribInterval, assetClass: 'equity', region: 'developed', foldInto: '', order: holds.length + 1 });
     rerenderHoldingsTable(root, holds);
   });
 
@@ -375,7 +383,8 @@ function attachHoldingListeners(root: HTMLElement): void {
           color:       randomColor(),
           acc:         parsed.acc,
           active:      isActive,
-          weeklyTarget: 0,
+          contribAmount: 0,
+          interval:    'weekly' as ContribInterval,
           assetClass:  parsed.assetClass,
           region:      parsed.region,
           foldInto:    '',
@@ -423,7 +432,8 @@ function collectHoldings(root: HTMLElement): Holding[] {
     color:        row.querySelector('[data-field="color"]').value.trim(),
     acc:          row.querySelector('[data-field="acc"]').checked,
     active:       row.querySelector('[data-field="active"]').checked,
-    weeklyTarget: parseFloat(row.querySelector('[data-field="weeklyTarget"]').value) || 0,
+    contribAmount: parseFloat(row.querySelector('[data-field="contribAmount"]').value) || 0,
+    interval:     (row.querySelector('[data-field="interval"]').value.trim() || 'weekly') as ContribInterval,
     assetClass:   row.querySelector('[data-field="assetClass"]').value.trim(),
     region:       row.querySelector('[data-field="region"]').value.trim(),
     foldInto:     row.querySelector('[data-field="foldInto"]').value.trim(),

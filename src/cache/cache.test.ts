@@ -147,10 +147,10 @@ describe('Cache: aggregate cache with inputsHash', () => {
 
   it('holdingsSignature changes when holdings config changes', () => {
     const holdings1 = [
-      { isin: 'IE001', ticker: 'A', name: '', color: '', acc: true, active: true, weeklyTarget: 0, assetClass: '', region: '', foldInto: '', order: 1 },
+      { isin: 'IE001', ticker: 'A', name: '', color: '', acc: true, active: true, contribAmount: 0, interval: 'weekly' as const, assetClass: '', region: '', foldInto: '', order: 1 },
     ];
     const holdings2 = [
-      { isin: 'IE001', ticker: 'A', name: '', color: '', acc: true, active: false, weeklyTarget: 0, assetClass: '', region: '', foldInto: '', order: 1 },
+      { isin: 'IE001', ticker: 'A', name: '', color: '', acc: true, active: false, contribAmount: 0, interval: 'weekly' as const, assetClass: '', region: '', foldInto: '', order: 1 },
     ];
     expect(holdingsSignature(holdings1)).not.toBe(holdingsSignature(holdings2));
   });

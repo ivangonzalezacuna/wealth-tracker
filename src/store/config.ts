@@ -4,7 +4,7 @@
  *
  * Sheet tabs:
  *   Accounts       — id | moneyType | institution | label | color | isPrimaryInvestment | order
- *   Holdings       — isin | ticker | name | color | acc | active | weeklyTarget | assetClass | region | foldInto | order
+ *   Holdings       — isin | ticker | name | color | acc | active | contribAmount | interval | assetClass | region | foldInto | order
  *   Settings       — key | value
  *   ConfigHistory  — timestamp | device | entity | summary
  */
@@ -12,7 +12,8 @@
 import { readRange, writeRange, appendRows, ensureSheets } from '../sheets/api';
 import { CONFIG } from '../config';
 import type { StaticAccount, StaticHolding, TargetSlice } from '../config';
-import type { Account, Holding, Settings } from '../types';
+import type { Account, Holding, Settings, ContribInterval } from '../types';
+import { totalAnnualContrib } from '../model/contributions';
 
 // Type for reinvestment rules from static config
 interface ReinvestmentRule { label: string; value: string }
@@ -84,11 +85,14 @@ export function getPrimaryInvestmentAccounts(): Account[] {
   return _accounts.filter(a => a.isPrimaryInvestment);
 }
 
-/** Computed: total weekly target from all active holdings. */
+/** Computed: total annualized contribution from all active holdings. */
+export function getTotalAnnualContrib(): number {
+  return totalAnnualContrib(_holdings);
+}
+
+/** Computed: total weekly target from all active holdings (legacy convenience). */
 export function getTotalWeeklyTarget(): number {
-  return _holdings
-    .filter(h => h.active && h.weeklyTarget > 0)
-    .reduce((s, h) => s + h.weeklyTarget, 0);
+  return getTotalAnnualContrib() / 52;
 }
 
 /** Computed: annual return pct from settings. */
@@ -112,7 +116,7 @@ export async function loadConfig(): Promise<void> {
 
   const [accRows, holdRows, setRows] = await Promise.all([
     readRange(`${TABS.ACCOUNTS}!A:G`),
-    readRange(`${TABS.HOLDINGS}!A:K`),
+    readRange(`${TABS.HOLDINGS}!A:L`),
     readRange(`${TABS.SETTINGS}!A:B`),
   ]);
 
@@ -146,11 +150,11 @@ export async function setAccounts(accounts: Account[]): Promise<void> {
 export async function setHoldings(holdings: Holding[]): Promise<void> {
   _holdings = holdings;
   await ensureSheets([TABS.HOLDINGS]);
-  const hdr = ['isin','ticker','name','color','acc','active','weeklyTarget','assetClass','region','foldInto','order'];
+  const hdr = ['isin','ticker','name','color','acc','active','contribAmount','interval','assetClass','region','foldInto','order'];
   const rows = holdings.map(h => [
     h.isin, h.ticker, h.name || '', h.color || '',
     h.acc ? 'true' : 'false', h.active ? 'true' : 'false',
-    h.weeklyTarget ?? 0, h.assetClass || '', h.region || '',
+    h.contribAmount ?? 0, h.interval || 'weekly', h.assetClass || '', h.region || '',
     h.foldInto || '', h.order ?? '',
   ]);
   await writeRange(`${TABS.HOLDINGS}!A1`, [hdr, ...rows]);
@@ -218,19 +222,31 @@ function parseAccounts(rows: (string | number | boolean)[][]): Account[] {
 function parseHoldings(rows: (string | number | boolean)[][]): Holding[] {
   if (!rows.length) return [];
   const hdr = rows[0].map(c => (c || '').toString().trim().toLowerCase());
-  return rows.slice(1).filter(r => r[hdr.indexOf('isin')]).map(r => ({
-    isin:         String(r[hdr.indexOf('isin')] ?? ''),
-    ticker:       String(r[hdr.indexOf('ticker')] ?? ''),
-    name:         String(r[hdr.indexOf('name')] ?? ''),
-    color:        String(r[hdr.indexOf('color')] ?? ''),
-    acc:          toBool(r[hdr.indexOf('acc')]),
-    active:       toBool(r[hdr.indexOf('active')]),
-    weeklyTarget: toNum(r[hdr.indexOf('weeklytarget')]),
-    assetClass:   String(r[hdr.indexOf('assetclass')] ?? ''),
-    region:       String(r[hdr.indexOf('region')] ?? ''),
-    foldInto:     String(r[hdr.indexOf('foldinto')] ?? ''),
-    order:        toNum(r[hdr.indexOf('order')]),
-  })).sort((a, b) => a.order - b.order);
+  return rows.slice(1).filter(r => r[hdr.indexOf('isin')]).map(r => {
+    // Backward compat: if old 'weeklytarget' column exists but no 'contribamount', use it
+    const hasNewAmount = hdr.indexOf('contribamount') >= 0;
+    const amount = hasNewAmount
+      ? toNum(r[hdr.indexOf('contribamount')])
+      : toNum(r[hdr.indexOf('weeklytarget')]);
+    const interval: ContribInterval =
+      (hdr.indexOf('interval') >= 0 && r[hdr.indexOf('interval')]
+        ? String(r[hdr.indexOf('interval')]).trim().toLowerCase()
+        : 'weekly') as ContribInterval;
+    return {
+      isin:         String(r[hdr.indexOf('isin')] ?? ''),
+      ticker:       String(r[hdr.indexOf('ticker')] ?? ''),
+      name:         String(r[hdr.indexOf('name')] ?? ''),
+      color:        String(r[hdr.indexOf('color')] ?? ''),
+      acc:          toBool(r[hdr.indexOf('acc')]),
+      active:       toBool(r[hdr.indexOf('active')]),
+      contribAmount: amount,
+      interval:     (['weekly','biweekly','monthly','quarterly'].includes(interval) ? interval : 'weekly') as ContribInterval,
+      assetClass:   String(r[hdr.indexOf('assetclass')] ?? ''),
+      region:       String(r[hdr.indexOf('region')] ?? ''),
+      foldInto:     String(r[hdr.indexOf('foldinto')] ?? ''),
+      order:        toNum(r[hdr.indexOf('order')]),
+    };
+  }).sort((a, b) => a.order - b.order);
 }
 
 function parseSettings(rows: (string | number | boolean)[][]): Settings {
@@ -272,14 +288,15 @@ async function seedFromConfig(): Promise<void> {
 
   // Seed Holdings from CONFIG.holdings
   const holdings: Holding[] = staticHoldings.map((h, i) => {
-    // Determine weekly target from targetAllocation note
+    // Determine contribution amount from targetAllocation or static config
     const slice = slices.find(s => s.ticker === h.ticker);
-    let weeklyTarget = 0;
-    if (slice && h.active) {
-      // Calculate from the note pattern or proportional from total
+    let contribAmount = h.contribAmount || 0;
+    if (!contribAmount && slice && h.active) {
+      // Calculate proportional from total weekly target
       const totalWeekly = CONFIG.projection?.weeklyTarget || 200;
-      weeklyTarget = Math.round(totalWeekly * slice.pct / 100);
+      contribAmount = Math.round(totalWeekly * slice.pct / 100);
     }
+    const interval: ContribInterval = h.interval || 'weekly';
 
     // Determine asset class and region
     let assetClass = 'equity';
@@ -307,7 +324,8 @@ async function seedFromConfig(): Promise<void> {
       color:        h.color,
       acc:          h.acc,
       active:       h.active,
-      weeklyTarget,
+      contribAmount,
+      interval,
       assetClass,
       region,
       foldInto,
