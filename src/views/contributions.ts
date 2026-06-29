@@ -1,7 +1,7 @@
 // @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
 import { fmt, fmtMon, esc, safeColor } from '../utils';
 import { getISIN_ORDERList, getISIN, getMETAMap } from '../constants';
-import { getTotalWeeklyTarget, getAnnualReturnPct, getAccounts } from '../store/config';
+import { getTotalWeeklyTarget, getTotalAnnualContrib, getAnnualReturnPct, getAccounts } from '../store/config';
 import { primaryInvestmentValue } from '../model/accounts';
 import type { PortfolioData, Snapshot } from '../types';
 import Chart from 'chart.js/auto';
@@ -56,22 +56,23 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   attachDCAFilterListeners(pd);
   renderDCATable(pd);
 
-  // 5-year projection
+  // 5-year projection using annualized contributions
   const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
   const startV  = primaryInvestmentValue(latSnap, getAccounts()) || pd.totalInv;
   const annualReturnPct = getAnnualReturnPct();
-  const weeklyTarget = getTotalWeeklyTarget() || 200;
-  const rate = annualReturnPct / 100 / 52, contrib = weeklyTarget;
+  const annualContrib = getTotalAnnualContrib() || (200 * 52);
+  const annualRate = annualReturnPct / 100;
   let v = startV;
   const pts = [v];
-  for (let i = 1; i <= 260; i++) {
-    v = Math.round((v + contrib) * (1 + rate));
-    if (i % 52 === 0) pts.push(v);
+  for (let yr = 1; yr <= 5; yr++) {
+    v = Math.round((v + annualContrib) * (1 + annualRate));
+    pts.push(v);
   }
 
+  const weeklyEquiv = Math.round(annualContrib / 52);
   if (CH['c-dca-proj']) CH['c-dca-proj'].destroy();
   const projTitle = document.getElementById('dca-proj-title');
-  if (projTitle) projTitle.textContent = `5-year projection (${annualReturnPct}% return, €${weeklyTarget}/wk target)`;
+  if (projTitle) projTitle.textContent = `5-year projection (${annualReturnPct}% return, €${weeklyEquiv}/wk equiv.)`;
   CH['c-dca-proj'] = new Chart(document.getElementById('c-dca-proj'), {
     type: 'line',
     data: { labels: ['Now','Yr 1','Yr 2','Yr 3','Yr 4','Yr 5'],

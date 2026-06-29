@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fmt } from './utils';
+import { fmt, currentMonth } from './utils';
 
 describe('fmt', () => {
   it('renders 2-decimal cents with comma separator (de-DE)', () => {
@@ -19,5 +19,17 @@ describe('fmt', () => {
   it('starts with euro sign', () => {
     expect(fmt(100)).toMatch(/^€/);
     expect(fmt(100, 2)).toMatch(/^€/);
+  });
+});
+
+describe('currentMonth', () => {
+  it('returns YYYY-MM format', () => {
+    expect(currentMonth()).toMatch(/^\d{4}-\d{2}$/);
+  });
+
+  it('matches locally-computed YYYY-MM', () => {
+    const d = new Date();
+    const expected = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    expect(currentMonth()).toBe(expected);
   });
 });

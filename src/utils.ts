@@ -13,6 +13,12 @@ export function fmt(n: number, d = 0): string {
   });
 }
 
+/** Current month as 'YYYY-MM' (local time) — the max allowed snapshot month. */
+export function currentMonth(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export function fmtMon(d: string): string {
   if (!d) return '—';
   const [y, m] = d.split('-');

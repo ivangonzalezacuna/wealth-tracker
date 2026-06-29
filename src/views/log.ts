@@ -105,15 +105,17 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
   const start = (_snapPage - 1) * PAGE_SIZE;
   const pageItems = filtered.slice(start, start + PAGE_SIZE);
 
-  // Show first 3 accounts in the compact table header
-  const shown = ACCTS.slice(0, 3);
+  // Show all accounts in the table header
+  const shown = ACCTS;
+  const gridCols = `auto 1fr ${shown.map(() => '1fr').join(' ')} auto`;
   el.innerHTML = `
-    <div class="snap-row" style="color:${T.ink3};font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-bottom:6px">
+    <div class="tbl"><div class="tbl-inner">
+    <div class="snap-row snap-row--wide" style="grid-template-columns:${gridCols};color:${T.ink3};font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-bottom:6px">
       <div>Month</div><div>Net worth</div>${shown.map(a => `<div>${esc(a.label)}</div>`).join('')}<div></div>
     </div>
     ${pageItems.map(s => {
       const total = snapTotal(s);
-      return `<div class="snap-row" data-date="${s.date}">
+      return `<div class="snap-row snap-row--wide" style="grid-template-columns:${gridCols}" data-date="${s.date}">
         <div style="font-weight:500;font-size:12px">${fmtMon(s.date)}</div>
         <div style="font-weight:500">${fmt(total, 2)}</div>
         ${shown.map(a => `<div style="color:${T.ink2}">${s[a.key] ? fmt(s[a.key], 2) : '—'}</div>`).join('')}
@@ -124,6 +126,7 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
       </div>
       ${s.notes ? `<div style="font-size:11px;color:${T.ink3};font-style:italic;padding:0 0 6px;border-bottom:1px solid ${T.surface3}">${esc(s.notes)}</div>` : ''}`;
     }).join('')}
+    </div></div>
   `;
 
   // Pagination controls
