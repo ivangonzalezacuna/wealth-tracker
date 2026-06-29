@@ -181,8 +181,8 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   CH['c-port-donut'] = new Chart(document.getElementById('c-port-donut'), {
     type: 'doughnut',
     data: { labels: donutE.map(e => e.ticker), datasets: [{
-      data: donutE.map(e => e.cost), backgroundColor: donutE.map(e => e.color),
-      borderWidth: 3, borderColor: C.white,
+      data: donutE.map(e => e.cost), backgroundColor: donutE.map(e => safeColor(e.color)),
+      borderWidth: 2, borderColor: C.surface,
     }]},
     options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false } } },
   });

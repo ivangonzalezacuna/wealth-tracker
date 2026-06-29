@@ -95,6 +95,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
     ? 'Account breakdown — ' + fmtMon(snaps[0].date) + ' (add more snapshots to see growth over time)'
     : 'Net worth over time — total + per account';
 
+  const C = resolvedT();
   _destroyChart('c-nw-hist');
   if (snaps.length === 1) {
     // Legend for single-snapshot: per-account only
@@ -106,16 +107,27 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
       data: {
         labels: chartA.map(a => a.label),
         datasets: [{ data: chartA.map(a => s[a.key] || 0),
-          backgroundColor: chartA.map(a => a.color + 'cc'),
-          borderColor: chartA.map(a => a.color),
+          backgroundColor: chartA.map(a => safeColor(a.color)),
+          borderColor: chartA.map(a => safeColor(a.color)),
           borderWidth: 1, borderRadius: 5, borderSkipped: false }],
       },
       options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false },
-          tooltip: { callbacks: { label: ctx => ` ${fmtEur(ctx.raw)}` } } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: C.surface,
+            borderColor: C.line,
+            borderWidth: 1,
+            titleColor: C.ink,
+            bodyColor: C.ink2,
+            padding: 10,
+            cornerRadius: 8,
+            callbacks: { label: ctx => ` ${fmtEur(ctx.raw as number)}` },
+          },
+        },
         scales: {
-          x: { grid: { color: T.line }, ticks: { color: T.ink4, callback: v => '€' + (v / 1000).toFixed(0) + 'k' } },
-          y: { grid: { display: false }, ticks: { color: T.ink2, font: { size: 12 } } },
+          x: { grid: { color: C.line }, ticks: { color: C.ink4, callback: (v: number) => '€' + (v / 1000).toFixed(0) + 'k' } },
+          y: { grid: { display: false }, ticks: { color: C.ink2, font: { size: 12 } } },
         },
       },
     });
@@ -127,13 +139,12 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   _attachNWRangeToggle(snaps, chartA);
 
   const bkA = ACCTS.filter(a => (s[a.key] || 0) > 0);
-  const C = resolvedT();
   _destroyChart('c-nw-donut');
   CH['c-nw-donut'] = new Chart(document.getElementById('c-nw-donut'), {
     type: 'doughnut',
     data: { labels: bkA.map(a => a.label), datasets: [{
-      data: bkA.map(a => s[a.key] || 0), backgroundColor: bkA.map(a => a.color),
-      borderWidth: 3, borderColor: C.white,
+      data: bkA.map(a => s[a.key] || 0), backgroundColor: bkA.map(a => safeColor(a.color)),
+      borderWidth: 2, borderColor: C.surface,
     }]},
     options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false } } },
   });
