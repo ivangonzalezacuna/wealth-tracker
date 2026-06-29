@@ -22,31 +22,13 @@ function getPrimaryInvestmentValue(snap: Snapshot | null): number | null {
   return null;
 }
 
-export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): void {
+/**
+ * Render only the holdings table (filter-dependent portion).
+ * Called on filter toggle without recreating the donut, KPIs, or summary.
+ */
+function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   const ISIN_ORDER = getISIN_ORDERList();
   const META = getMETAMap();
-  const has = pd && Object.keys(pd.etfs).length > 0;
-  document.getElementById('port-empty').style.display   = has ? 'none'  : 'block';
-  document.getElementById('port-content').style.display = has ? 'block' : 'none';
-  if (!has) return;
-
-  const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
-  const curVal  = getPrimaryInvestmentValue(latSnap);
-  const gain    = curVal !== null ? curVal - pd.totalInv : null;
-  const gainPct = gain !== null && pd.totalInv > 0 ? gain / pd.totalInv * 100 : null;
-
-  document.getElementById('port-kpis').innerHTML = `
-    <div class="kpi"><div class="kpi-label">Total invested</div><div class="kpi-val">${fmt(pd.totalInv)}</div><div class="kpi-sub">net of sells</div></div>
-    <div class="kpi"><div class="kpi-label">Current value</div>
-      <div class="kpi-val">${curVal !== null ? fmt(curVal) : '—'}</div>
-      <div class="kpi-sub">${curVal !== null ? 'from ' + fmtMon(latSnap.date) + ' snapshot' : 'add a snapshot'}</div></div>
-    <div class="kpi"><div class="kpi-label">Unrealized gain</div>
-      <div class="kpi-val ${gain !== null && gain >= 0 ? 'pos' : 'neg'}">${gain !== null ? (gain >= 0 ? '+' : '') + fmt(gain) : '—'}</div>
-      <div class="kpi-sub">${gainPct !== null ? (gainPct >= 0 ? '+' : '') + gainPct.toFixed(1) + '%' : ''}</div></div>
-    <div class="kpi"><div class="kpi-label">Realized P&amp;L</div>
-      <div class="kpi-val ${pd.realizedPnL >= 0 ? 'pos' : 'neg'}">${(pd.realizedPnL >= 0 ? '+' : '') + fmt(pd.realizedPnL, 2)}</div>
-      <div class="kpi-sub">from sells</div></div>
-  `;
 
   // Build full ordered ETF list
   const allEtfs = ISIN_ORDER.map(s => pd.etfs[s]).filter(Boolean)
@@ -119,16 +101,52 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
       <div style="color:#0F6E56;font-weight:500">${fmt(pd.totalDivNet, 2)}</div>
     </div>`;
 
-  // Attach filter listeners
-  const filterToggle = document.getElementById('port-filter-toggle');
-  if (filterToggle) {
+  // Bind filter listeners once (Commit 2G: _bound guard prevents stacking)
+  const filterToggle = document.getElementById('port-filter-toggle') as HTMLElement & { _bound?: boolean } | null;
+  if (filterToggle && !filterToggle._bound) {
+    filterToggle._bound = true;
     filterToggle.addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest('[data-filter]') as HTMLElement | null;
       if (!btn) return;
       _holdingsFilter = btn.dataset.filter || 'held';
-      renderPortfolio(pd, snaps);
+      renderHoldingsTable(pd, snaps);
     });
   }
+}
+
+export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): void {
+  const ISIN_ORDER = getISIN_ORDERList();
+  const META = getMETAMap();
+  const has = pd && Object.keys(pd.etfs).length > 0;
+  document.getElementById('port-empty').style.display   = has ? 'none'  : 'block';
+  document.getElementById('port-content').style.display = has ? 'block' : 'none';
+  if (!has) return;
+
+  const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
+  const curVal  = getPrimaryInvestmentValue(latSnap);
+  const gain    = curVal !== null ? curVal - pd.totalInv : null;
+  const gainPct = gain !== null && pd.totalInv > 0 ? gain / pd.totalInv * 100 : null;
+
+  document.getElementById('port-kpis').innerHTML = `
+    <div class="kpi"><div class="kpi-label">Total invested</div><div class="kpi-val">${fmt(pd.totalInv)}</div><div class="kpi-sub">net of sells</div></div>
+    <div class="kpi"><div class="kpi-label">Current value</div>
+      <div class="kpi-val">${curVal !== null ? fmt(curVal) : '—'}</div>
+      <div class="kpi-sub">${curVal !== null ? 'from ' + fmtMon(latSnap.date) + ' snapshot' : 'add a snapshot'}</div></div>
+    <div class="kpi"><div class="kpi-label">Unrealized gain</div>
+      <div class="kpi-val ${gain !== null && gain >= 0 ? 'pos' : 'neg'}">${gain !== null ? (gain >= 0 ? '+' : '') + fmt(gain) : '—'}</div>
+      <div class="kpi-sub">${gainPct !== null ? (gainPct >= 0 ? '+' : '') + gainPct.toFixed(1) + '%' : ''}</div></div>
+    <div class="kpi"><div class="kpi-label">Realized P&amp;L</div>
+      <div class="kpi-val ${pd.realizedPnL >= 0 ? 'pos' : 'neg'}">${(pd.realizedPnL >= 0 ? '+' : '') + fmt(pd.realizedPnL, 2)}</div>
+      <div class="kpi-sub">from sells</div></div>
+  `;
+
+  // Render holdings table (filter-dependent)
+  renderHoldingsTable(pd, snaps);
+
+  // Build full ordered ETF list for donut (held positions only)
+  const allEtfs = ISIN_ORDER.map(s => pd.etfs[s]).filter(Boolean)
+    .concat(Object.values(pd.etfs).filter(e => !ISIN_ORDER.includes(e.symbol)));
+  const { held } = splitHoldings(allEtfs);
 
   // Donut chart — only held positions with cost > 0
   const donutE = held.filter(e => e.cost > 0);
@@ -144,6 +162,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   document.getElementById('port-donut-legend').innerHTML =
     donutE.map(e => `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(e.color)}"></span>${esc(e.ticker)} ${pd.totalInv > 0 ? (e.cost / pd.totalInv * 100).toFixed(0) : 0}%</span>`).join('');
 
+  // TODO Phase: consolidation — populate foldInto on first SELL (IEEM→CMEIU, CECBE+EGB7Y→GABE)
   document.getElementById('port-summary').innerHTML = `
     <div class="row"><div class="row-label">Total invested (net)</div><div class="row-val">${fmt(pd.totalInv)}</div></div>
     <div class="row"><div class="row-label">Realized P&amp;L</div><div class="row-val ${pd.realizedPnL >= 0 ? 'ok' : 'neg'}">${(pd.realizedPnL >= 0 ? '+' : '') + fmt(pd.realizedPnL, 2)}</div></div>
