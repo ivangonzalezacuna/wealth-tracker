@@ -79,7 +79,7 @@ export function appTemplate(): string {
     <div id="port-content" style="display:none">
       <div class="kpi-row" id="port-kpis"></div>
       <div class="card">
-        <div class="card-title">Holdings — exact positions from CSV</div>
+        <div class="card-title">Holdings — cost basis &amp; performance</div>
         <div class="tbl" role="table" aria-label="Holdings"><div id="port-table"></div></div>
         <div id="port-pagination" class="pagination"></div>
       </div>

@@ -94,7 +94,7 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
   }
 
   if (filtered.length === 0) {
-    el.innerHTML = `<div class="empty-state" style="padding:1rem;font-size:12px;color:${T.ink3}">
+    el.innerHTML = `<div class="empty-state" style="padding:1rem;font-size:12px;color:var(--ink-3)">
       No matching snapshots.
       <button class="btn btn-ghost btn-sm js-clear-snap-filters" style="margin-left:6px;font-size:12px">Clear filters</button>
     </div>`;
@@ -123,7 +123,7 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
   const gridCols = `auto 1fr ${shown.map(() => '1fr').join(' ')} auto`;
   el.innerHTML = `
     <div class="tbl"><div class="tbl-inner">
-    <div class="snap-row snap-row--wide" role="row" style="grid-template-columns:${gridCols};color:${T.ink3};font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-bottom:6px">
+    <div class="snap-row snap-row--wide" role="row" style="grid-template-columns:${gridCols};color:var(--ink-3);font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-bottom:6px">
       <div role="columnheader">Month</div><div role="columnheader">Net worth</div>${shown.map(a => `<div role="columnheader">${esc(a.label)}</div>`).join('')}<div></div>
     </div>
     ${pageItems.map(s => {
@@ -131,13 +131,13 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
       return `<div class="snap-row snap-row--wide" role="row" style="grid-template-columns:${gridCols}" data-date="${s.date}">
         <div role="cell" style="font-weight:500;font-size:12px">${fmtMon(s.date)}</div>
         <div role="cell" style="font-weight:500;font-size:14px">${fmtEur2(total)}</div>
-        ${shown.map(a => `<div role="cell" style="color:${T.ink3};font-size:12px">${s[a.key] ? fmtEur2(s[a.key]) : '—'}</div>`).join('')}
+        ${shown.map(a => `<div role="cell" style="color:var(--ink-3);font-size:12px">${s[a.key] ? fmtEur2(s[a.key]) : '—'}</div>`).join('')}
         <div class="snap-btns">
           <button class="btn btn-sm btn-outline js-edit-snap" data-date="${s.date}">Edit</button>
           <button class="btn btn-sm btn-danger js-del-snap" data-date="${s.date}">✕</button>
         </div>
       </div>
-      ${s.notes ? `<div style="font-size:11px;color:${T.ink3};font-style:italic;padding:0 0 6px;margin-top:2px">${esc(s.notes)}</div>` : ''}`;
+      ${s.notes ? `<div style="font-size:11px;color:var(--ink-3);font-style:italic;padding:0 0 6px;margin-top:2px">${esc(s.notes)}</div>` : ''}`;
     }).join('')}
     </div></div>
   `;

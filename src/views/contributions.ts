@@ -48,7 +48,7 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   document.getElementById('dca-legend').innerHTML = ordSyms.map(sym => {
     const t = ISIN[sym] || sym;
     const m = META[t]   || {};
-    return `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(m.color || T.ink4)}"></span>${esc(t)}</span>`;
+    return `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(m.color) || 'var(--ink-4)'}"></span>${esc(t)}</span>`;
   }).join('');
 
   // DCA table with filtering + pagination
@@ -83,7 +83,7 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
         fill: true, tension: 0.35 }]},
     options: { responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false },
-        tooltip: { backgroundColor: '#fff', borderColor: C2.line, borderWidth: 1, titleColor: C2.ink, bodyColor: C2.ink2, padding: 10, cornerRadius: 8 },
+        tooltip: { backgroundColor: C2.surface, borderColor: C2.line, borderWidth: 1, titleColor: C2.ink, bodyColor: C2.ink2, padding: 10, cornerRadius: 8 },
       },
       scales: {
         y: { grid: { color: C2.line, drawBorder: false }, ticks: { color: C2.ink4, callback: (v) => (v as number) >= 1000 ? '€' + Math.round((v as number) / 1000) + 'k' : '€' + v } },
@@ -130,7 +130,7 @@ function renderDCAChart(pd: PortfolioData, ordSyms: string[], ISIN: Record<strin
     data: { labels: months.map(fmtMon), datasets },
     options: { responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false },
-        tooltip: { backgroundColor: '#fff', borderColor: C.line, borderWidth: 1, titleColor: C.ink, bodyColor: C.ink2, padding: 10, cornerRadius: 8 },
+        tooltip: { backgroundColor: C.surface, borderColor: C.line, borderWidth: 1, titleColor: C.ink, bodyColor: C.ink2, padding: 10, cornerRadius: 8 },
       },
       scales: {
         x: { stacked: true, grid: { display: false }, ticks: {
@@ -204,14 +204,14 @@ function renderDCATable(pd: PortfolioData): void {
 
   const tRows = pageMonths.map(m =>
     `<div class="tbl-row" role="row" style="grid-template-columns:1fr 1fr">
-      <div role="cell" style="color:${T.ink2}">${fmtMon(m)}</div>
+      <div role="cell" style="color:var(--ink-2)">${fmtMon(m)}</div>
       <div role="cell" style="font-weight:500;text-align:right">${fmtEur(pd.monthly[m])}</div>
     </div>`).join('');
 
   el.innerHTML = `
     <div class="tbl-row th" role="row" style="grid-template-columns:1fr 1fr"><div role="columnheader">Month</div><div role="columnheader" style="text-align:right">Invested</div></div>
     ${tRows}
-    <div class="tbl-row" role="row" style="grid-template-columns:1fr 1fr;border-top:1px solid ${T.line2};margin-top:4px">
+    <div class="tbl-row" role="row" style="grid-template-columns:1fr 1fr;border-top:1px solid var(--line-2);margin-top:4px">
       <div style="font-weight:500">${_dcaYear ? 'Year total' : 'Total'}</div>
       <div style="font-weight:500;text-align:right">${fmtEur(filteredTotal)}</div>
     </div>`;

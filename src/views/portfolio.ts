@@ -58,8 +58,6 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
       </div>
     </div>`;
 
-  const gridCols = 'grid-template-columns:2.2fr 1fr 1fr 1fr 1fr 1fr 1fr';
-
   const rows = pageItems.map(e => {
     const pct = pd.totalInv > 0 ? e.cost / pd.totalInv * 100 : 0;
     const avg = e.shares > 0 ? e.cost / e.shares : 0;
@@ -67,37 +65,39 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     const isExited = e.exited || e.shares < 1e-6;
     const rpnl = e.realizedPnL || 0;
 
-    return `<div class="tbl-row" role="row" style="${gridCols}${isExited ? ';opacity:0.6' : ''}">
-      <div role="cell" class="ticker-cell" data-isin="${esc(e.symbol)}">
-        <span style="font-weight:500;font-size:12px">${esc(e.ticker)}</span>
-        ${isExited
-          ? '<span class="badge b-closed" style="margin-left:4px">exited</span>'
-          : `<span class="badge ${m.active ? 'b-active' : 'b-closed'}" style="margin-left:4px">${m.active ? 'active' : 'closed'}</span>`}
-        <span class="badge ${e.acc ? 'b-acc' : 'b-dist'}" style="margin-left:4px">${e.acc ? 'Acc' : 'Dist'}</span>
+    return `<div class="tbl-row hold-row" role="row"${isExited ? ' style="opacity:0.6"' : ''}>
+      <div role="cell" class="hold-etf-cell"
+           data-isin="${esc(e.symbol)}"
+           data-active="${m.active ? '1' : '0'}"
+           data-acc="${e.acc ? '1' : '0'}"
+           data-shares="${e.shares.toFixed(4)}"
+           data-avg="${avg > 0 ? avg.toFixed(2) : ''}">
+        <span class="hold-ticker">${esc(e.ticker)}</span>
+        <span class="hold-dot" style="background:${safeColor(e.color)};opacity:${isExited ? '0.45' : '1'}"></span>
       </div>
-      <div role="cell"><div style="font-weight:500">${fmtEur(e.cost)}</div>
-        ${!isExited ? `<div class="bar-wrap" style="max-width:80px"><div class="bar-fill" style="width:${pct.toFixed(0)}%;background:${safeColor(e.color)}"></div></div>` : ''}
+      <div role="cell" style="text-align:right;font-weight:500">${fmtEur(e.cost)}
+        ${!isExited ? `<div class="bar-wrap"><div class="bar-fill" style="width:${pct.toFixed(0)}%;background:${safeColor(e.color)}"></div></div>` : ''}
       </div>
-      <div role="cell" style="color:${T.ink2}">${e.shares.toFixed(4)}</div>
-      <div role="cell" style="color:${T.ink2}">${avg > 0 ? '\u20AC' + avg.toFixed(2) : '—'}</div>
-      <div role="cell" style="color:${T.ink2}">${pct.toFixed(1)}%</div>
-      <div role="cell" style="color:${rpnl >= 0 ? T.pos : T.neg}" aria-label="Realized P&L ${rpnl !== 0 ? (rpnl >= 0 ? '+' : '') + rpnl.toFixed(2) : 'none'}">${rpnl !== 0 ? (rpnl >= 0 ? '+' : '') + fmtEur2(rpnl) : '—'}</div>
-      <div role="cell" style="color:${e.divNet > 0 ? T.pos : T.ink3}">${e.divNet > 0 ? fmtEur2(e.divNet) : '—'}</div>
+      <div role="cell" style="text-align:right;color:var(--ink-2)">${e.shares.toFixed(4)}</div>
+      <div role="cell" style="text-align:right;color:var(--ink-2)">${avg > 0 ? '\u20AC' + avg.toFixed(2) : '—'}</div>
+      <div role="cell" style="text-align:right;color:var(--ink-2)">${pct.toFixed(1)}%</div>
+      <div role="cell" style="text-align:right;color:${rpnl >= 0 ? 'var(--pos)' : 'var(--neg)'}" aria-label="Realized P&L ${rpnl !== 0 ? (rpnl >= 0 ? '+' : '') + rpnl.toFixed(2) : 'none'}">${rpnl === 0 ? '—' : (rpnl > 0 ? '+' : '') + fmtEur2(rpnl)}</div>
+      <div role="cell" style="text-align:right;color:${e.divNet > 0 ? 'var(--pos)' : 'var(--ink-3)'}">${e.divNet > 0 ? fmtEur2(e.divNet) : '—'}</div>
     </div>`;
   }).join('');
 
   document.getElementById('port-table').innerHTML = `
     ${filterHtml}
-    <div class="tbl-row th" role="row" style="${gridCols}">
-      <div role="columnheader">ETF</div><div role="columnheader">Cost basis</div><div role="columnheader">Shares</div><div role="columnheader">Avg price</div><div role="columnheader">% of cost</div><div role="columnheader">Realized P&amp;L</div><div role="columnheader">Div (net)</div>
+    <div class="tbl-row th hold-row" role="row">
+      <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right">Cost basis</div><div role="columnheader" style="text-align:right">Shares</div><div role="columnheader" style="text-align:right">Avg price</div><div role="columnheader" style="text-align:right">% of cost</div><div role="columnheader" style="text-align:right">Realized P&amp;L</div><div role="columnheader" style="text-align:right">Div (net)</div>
     </div>${rows}
-    <div class="tbl-row" role="row" style="${gridCols};border-top:1px solid ${T.line2};margin-top:4px">
+    <div class="tbl-row hold-total" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
       <div style="font-weight:500">Total</div>
-      <div style="font-weight:500">${fmtEur(pd.totalInv)}</div>
+      <div style="font-weight:500;text-align:right">${fmtEur(pd.totalInv)}</div>
       <div></div><div></div>
-      <div style="font-weight:500">100%</div>
-      <div style="color:${pd.realizedPnL >= 0 ? T.pos : T.neg};font-weight:500">${(pd.realizedPnL >= 0 ? '+' : '') + fmtEur2(pd.realizedPnL)}</div>
-      <div style="color:${T.pos};font-weight:500">${fmtEur2(pd.totalDivNet)}</div>
+      <div style="font-weight:500;text-align:right">100%</div>
+      <div style="text-align:right;color:${pd.realizedPnL >= 0 ? 'var(--pos)' : 'var(--neg)'};font-weight:500">${pd.realizedPnL === 0 ? fmtEur2(0) : (pd.realizedPnL > 0 ? '+' : '') + fmtEur2(pd.realizedPnL)}</div>
+      <div style="text-align:right;color:var(--pos);font-weight:500">${fmtEur2(pd.totalDivNet)}</div>
     </div>`;
 
   // Bind filter listeners once (Commit 2G: _bound guard prevents stacking)
@@ -113,24 +113,34 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     });
   }
 
-  // ISIN tap-to-reveal (delegated on #port-table)
-  const table = document.getElementById('port-table') as HTMLElement & { _isinReveal_bound?: boolean } | null;
-  if (table && !table._isinReveal_bound) {
-    table._isinReveal_bound = true;
-    table.addEventListener('click', (e) => {
-      const cell = (e.target as HTMLElement).closest('.ticker-cell') as HTMLElement | null;
-      const existing = table.querySelector('.isin-reveal') as HTMLElement | null;
-      const wasThisCell = existing && cell && existing.parentElement === cell;
-      existing?.remove();
-      if (cell && !wasThisCell) {
-        const isin = cell.dataset.isin;
-        if (isin) {
-          const span = document.createElement('span');
-          span.className = 'isin-reveal';
-          span.textContent = isin;
-          cell.appendChild(span);
-        }
+  // Row tap-to-expand detail panel (delegated on #port-table)
+  const tbl = document.getElementById('port-table') as HTMLElement & { _rowDetail_bound?: boolean } | null;
+  if (tbl && !tbl._rowDetail_bound) {
+    tbl._rowDetail_bound = true;
+    tbl.addEventListener('click', (e) => {
+      const row = (e.target as HTMLElement).closest('.hold-row') as HTMLElement | null;
+      if (!row) return;
+      const existing = tbl.querySelector('.hold-detail') as HTMLElement | null;
+      if (existing) {
+        const wasThis = existing.previousElementSibling === row;
+        existing.remove();
+        if (wasThis) return;
       }
+      const cell = row.querySelector('.hold-etf-cell') as HTMLElement | null;
+      if (!cell) return;
+      const isin   = cell.dataset.isin   || '—';
+      const active = cell.dataset.active === '1' ? 'Active' : 'Closed';
+      const acc    = cell.dataset.acc    === '1' ? 'Acc' : 'Dist';
+      const shares = cell.dataset.shares || '—';
+      const avg    = cell.dataset.avg    ? '€' + cell.dataset.avg : '—';
+      const panel  = document.createElement('div');
+      panel.className = 'hold-detail';
+      panel.innerHTML = `
+        <div><span class="hold-detail-label">ISIN</span><span class="hold-detail-value hold-detail-isin">${isin}</span></div>
+        <div><span class="hold-detail-label">Status</span><span class="hold-detail-value">${active} · ${acc}</span></div>
+        <div><span class="hold-detail-label">Shares</span><span class="hold-detail-value">${shares}</span></div>
+        <div><span class="hold-detail-label">Avg price</span><span class="hold-detail-value">${avg}</span></div>`;
+      row.insertAdjacentElement('afterend', panel);
     });
   }
 
@@ -182,7 +192,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
       <div class="kpi-val ${gain !== null && gain >= 0 ? 'pos' : 'neg'}">${gain !== null ? (gain >= 0 ? '+' : '') + fmtEur2(gain) : '—'}</div>
       <div class="kpi-sub">${gainPct !== null ? (gainPct >= 0 ? '+' : '') + gainPct.toFixed(1) + '%' : ''}</div></div>
     <div class="kpi"><div class="kpi-label">Realized P&amp;L</div>
-      <div class="kpi-val ${pd.realizedPnL >= 0 ? 'pos' : 'neg'}">${(pd.realizedPnL >= 0 ? '+' : '') + fmtEur2(pd.realizedPnL)}</div>
+      <div class="kpi-val ${pd.realizedPnL >= 0 ? 'pos' : 'neg'}">${pd.realizedPnL === 0 ? fmtEur2(0) : (pd.realizedPnL > 0 ? '+' : '') + fmtEur2(pd.realizedPnL)}</div>
       <div class="kpi-sub">from sells</div></div>
   `;
 
@@ -204,7 +214,9 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
       data: donutE.map(e => e.cost), backgroundColor: donutE.map(e => safeColor(e.color)),
       borderWidth: 2, borderColor: C.surface,
     }]},
-    options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false } } },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false },
+      tooltip: { backgroundColor: C.surface, borderColor: C.line, borderWidth: 1, titleColor: C.ink, bodyColor: C.ink2, padding: 10, cornerRadius: 8 },
+    } },
   });
   document.getElementById('port-donut-legend').innerHTML =
     donutE.map(e => `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(e.color)}"></span>${esc(e.ticker)} ${pd.totalInv > 0 ? (e.cost / pd.totalInv * 100).toFixed(0) : 0}%</span>`).join('');
@@ -212,12 +224,12 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   // TODO Phase: consolidation — populate foldInto on first SELL (IEEM→CMEIU, CECBE+EGB7Y→GABE)
   document.getElementById('port-summary').innerHTML = `
     <div class="row"><div class="row-label">Total invested (net)</div><div class="row-val">${fmtEur(pd.totalInv)}</div></div>
-    <div class="row"><div class="row-label">Realized P&amp;L</div><div class="row-val ${pd.realizedPnL >= 0 ? 'ok' : 'neg'}">${(pd.realizedPnL >= 0 ? '+' : '') + fmtEur2(pd.realizedPnL)}</div></div>
+    <div class="row"><div class="row-label">Realized P&amp;L</div><div class="row-val ${pd.realizedPnL >= 0 ? 'ok' : 'neg'}">${pd.realizedPnL === 0 ? fmtEur2(0) : (pd.realizedPnL > 0 ? '+' : '') + fmtEur2(pd.realizedPnL)}</div></div>
     <div class="row"><div class="row-label">Total fees</div><div class="row-val">${fmtEur2(pd.totalFees)}</div></div>
     <div class="row"><div class="row-label">Dividends (net)</div><div class="row-val ok">${fmtEur2(pd.totalDivNet)}</div></div>
     <div class="row"><div class="row-label">Tax withheld on dividends</div><div class="row-val">${fmtEur2(pd.totalTax)}</div></div>
     <div class="row"><div class="row-label">Interest earned</div><div class="row-val ok">${fmtEur2(pd.totalInterest)}</div></div>
-    ${gain !== null ? `<div class="row" style="border-top:1px solid ${T.line2};margin-top:4px">
+    ${gain !== null ? `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px">
       <div class="row-label" style="font-weight:500">Unrealized gain</div>
       <div class="row-val ${gain >= 0 ? 'pos' : 'neg'}" style="font-weight:500">
         ${gain >= 0 ? '+' : ''}${fmtEur2(gain)} (${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(1)}%)</div></div>` : ''}
@@ -243,18 +255,18 @@ function _renderDriftCard(pd: PortfolioData): void {
   }
 
   const max = maxDrift(drift);
-  const statusColor = max > 10 ? T.neg : max > 5 ? T.warn : T.pos;
+  const statusColor = max > 10 ? 'var(--neg)' : max > 5 ? 'var(--warn)' : 'var(--pos)';
   const statusLabel = max > 10 ? 'High drift' : max > 5 ? 'Moderate drift' : 'On target';
 
   const rows = drift.map(d => {
-    const driftColor = d.driftPct > 5 ? T.neg : d.driftPct < -5 ? T.neg : d.driftPct > 2 ? T.warn : d.driftPct < -2 ? T.warn : T.pos;
+    const driftColor = d.driftPct > 5 ? 'var(--neg)' : d.driftPct < -5 ? 'var(--neg)' : d.driftPct > 2 ? 'var(--warn)' : d.driftPct < -2 ? 'var(--warn)' : 'var(--pos)';
     return `
       <div class="tbl-row" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
         <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${safeColor(d.color)};margin-right:6px"></span>${esc(d.ticker)}</div>
         <div role="cell" style="text-align:right">${d.targetPct.toFixed(1)}%</div>
         <div role="cell" style="text-align:right">${d.actualPct.toFixed(1)}%</div>
         <div role="cell" style="text-align:right;color:${driftColor}" aria-label="Drift ${d.driftPct >= 0 ? '+' : ''}${d.driftPct.toFixed(1)}%">${d.driftPct >= 0 ? '+' : ''}${d.driftPct.toFixed(1)}%</div>
-        <div role="cell" style="text-align:right;color:${d.deltaValue >= 0 ? T.ink3 : T.ink2}">${d.deltaValue >= 0 ? '+' : ''}${fmtEur(d.deltaValue)}</div>
+        <div role="cell" style="text-align:right;color:${d.deltaValue >= 0 ? 'var(--ink-3)' : 'var(--ink-2)'}">${d.deltaValue >= 0 ? '+' : ''}${fmtEur(d.deltaValue)}</div>
       </div>`;
   }).join('');
 
