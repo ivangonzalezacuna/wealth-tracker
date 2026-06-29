@@ -14,7 +14,6 @@ import { renderNW } from './views/networth';
 import { renderPortfolio } from './views/portfolio';
 import { renderDCA } from './views/contributions';
 import { renderDividends } from './views/dividends';
-import { renderRef } from './views/reference';
 import { renderSettings } from './views/settings';
 import { renderLog } from './views/log';
 import { fmtMon, showMsg, esc, currentMonth } from './utils';
@@ -71,8 +70,6 @@ function showSection(id, btn) {
   document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
   document.getElementById(id)?.classList.add('active');
   btn?.classList.add('active');
-  // Render reference chart on demand (canvas must be visible)
-  if (id === 'reference') renderRef();
   if (id === 'settings') renderSettings();
 }
 

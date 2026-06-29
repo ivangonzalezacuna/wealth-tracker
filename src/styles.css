@@ -133,16 +133,6 @@ h1{font-size:20px;font-weight:500;margin-bottom:.2rem}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* Risk metrics */
-.metric{padding:10px 0;border-bottom:1px solid var(--surface-3)}
-.metric:last-child{border-bottom:none}
-.metric-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:4px}
-.metric-name{font-size:13px;font-weight:500;color:var(--ink)}
-.metric-val{font-size:13px;font-weight:500;flex-shrink:0}
-.metric-val.ok{color:var(--pos)}.metric-val.warn{color:var(--warn)}.metric-val.neg{color:var(--neg)}
-.metric-exp{font-size:12px;color:var(--ink-2);line-height:1.55}
-.metric-exp b{color:var(--ink)}
-
 /* Filtering, pagination, chart controls */
 .filter-bar{display:flex;align-items:center;gap:8px;margin-bottom:.75rem;flex-wrap:wrap}
 .pagination{display:flex;align-items:center;gap:6px;margin-top:.75rem;font-size:12px;color:var(--ink-2)}
@@ -201,9 +191,6 @@ h1{font-size:20px;font-weight:500;margin-bottom:.2rem}
   .status-bar{font-size:11px;padding:6px 10px}
   .pagination{font-size:11px}
   .badge{font-size:9px;padding:1px 5px}
-  .metric-name{font-size:12px}
-  .metric-val{font-size:12px}
-  .metric-exp{font-size:11px}
   /* Settings tables: make scrollable on small screens */
   .tbl{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -.75rem;padding:0 .75rem}
   /* Auth bar */
