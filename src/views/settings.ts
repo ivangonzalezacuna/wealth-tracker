@@ -7,6 +7,9 @@ import { showMsg } from '../utils';
 import type { Account, Holding, Settings, ContribInterval } from '../types';
 import { T } from '../theme';
 
+/** Persisted card collapse state — survives re-renders within the session. */
+const _collapsedCards = new Set<string>();
+
 /**
  * Render the Settings section — user-friendly forms for Accounts, Holdings, Settings.
  * Only shown after config is loaded (sign-in required).
@@ -43,6 +46,12 @@ export function renderSettings(): void {
   attachCacheListeners(el);
   attachColorPickerSync(el);
   attachCardCollapseListeners(el);
+
+  // Reapply persisted collapse state after re-render
+  el.querySelectorAll('.card-collapsible').forEach(card => {
+    const key = (card as HTMLElement).dataset.cardKey;
+    if (key && _collapsedCards.has(key)) card.classList.add('collapsed');
+  });
 }
 
 // ── Accounts ──────────────────────────────────────────────
@@ -58,7 +67,7 @@ function renderAccountsCard(accounts: Account[]): string {
   const rows = accounts.map((a, i) => renderAccountRow(a, i)).join('');
 
   return `
-    <div class="card card-collapsible">
+    <div class="card card-collapsible" data-card-key="accounts">
       <div class="card-header js-card-toggle">
         <div class="card-title">Accounts</div>
         <span class="card-chevron"></span>
@@ -232,7 +241,7 @@ function renderHoldingsCard(holdings: Holding[]): string {
   }).join('');
 
   return `
-    <div class="card card-collapsible">
+    <div class="card card-collapsible" data-card-key="holdings">
       <div class="card-header js-card-toggle">
         <div class="card-title">Holdings (ETFs)</div>
         <span class="card-chevron"></span>
@@ -329,15 +338,54 @@ function renderHoldingRow(h: Holding, i: number): string {
     </div>`;
 }
 
+/**
+ * Scoped repaint: rewrite only the holdings table rows and filter-button
+ * active state. Does NOT touch sibling cards, so collapse state is preserved.
+ */
+function applyHoldingsFilter(root: HTMLElement): void {
+  const all = _allHoldings ?? getHoldings();
+  let filtered: Holding[];
+  if (_holdingsSettingsFilter === 'active') filtered = all.filter(h => h.active);
+  else if (_holdingsSettingsFilter === 'closed') filtered = all.filter(h => !h.active);
+  else filtered = all;
+
+  const tbl = root.querySelector('#settings-holdings-tbl');
+  if (tbl) {
+    tbl.innerHTML = filtered.map(h => {
+      const origIdx = all.indexOf(h);
+      return renderHoldingRow(h, origIdx);
+    }).join('');
+    attachColorPickerSync(tbl as HTMLElement);
+    attachItemCollapseListeners(tbl as HTMLElement);
+    (tbl as HTMLElement).querySelectorAll('.js-del-hold').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const holds = collectHoldings(root);
+        holds.splice(parseInt((btn as HTMLElement).dataset.idx!), 1);
+        rerenderHoldingsTable(root, holds);
+      });
+    });
+  }
+
+  // Update filter-button active state and counts
+  const activeCount = all.filter(h => h.active).length;
+  const closedCount = all.filter(h => !h.active).length;
+  root.querySelectorAll('#hold-filter-toggle [data-hfilter]').forEach(b => {
+    b.classList.toggle('active', (b as HTMLElement).dataset.hfilter === _holdingsSettingsFilter);
+    if ((b as HTMLElement).dataset.hfilter === 'all') b.textContent = `All (${all.length})`;
+    if ((b as HTMLElement).dataset.hfilter === 'active') b.textContent = `Active (${activeCount})`;
+    if ((b as HTMLElement).dataset.hfilter === 'closed') b.textContent = `Closed (${closedCount})`;
+  });
+}
+
 function attachHoldingListeners(root: HTMLElement): void {
-  // Filter toggle
+  // Filter toggle — scoped repaint, does NOT rebuild sibling cards
   const filterToggle = root.querySelector('#hold-filter-toggle');
   if (filterToggle) {
     filterToggle.addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest('[data-hfilter]') as HTMLElement | null;
       if (!btn) return;
       _holdingsSettingsFilter = btn.dataset.hfilter || 'all';
-      renderSettings();
+      applyHoldingsFilter(root);
     });
   }
 
@@ -498,7 +546,7 @@ function renderCostBasisCard(settings: Settings): string {
   const current = getCostBasisMethod();
 
   return `
-    <div class="card card-collapsible">
+    <div class="card card-collapsible" data-card-key="cost-basis">
       <div class="card-header js-card-toggle">
         <div class="card-title">Cost-basis method</div>
         <span class="card-chevron"></span>
@@ -541,7 +589,7 @@ function renderProjectionCard(settings: Settings): string {
   const annualReturn = settings.annualReturnPct || '7';
 
   return `
-    <div class="card card-collapsible">
+    <div class="card card-collapsible" data-card-key="projection">
       <div class="card-header js-card-toggle">
         <div class="card-title">Projection assumptions</div>
         <span class="card-chevron"></span>
@@ -582,7 +630,7 @@ function renderGoalCard(settings: Settings): string {
   const targetDate = settings.targetDate || '';
 
   return `
-    <div class="card card-collapsible">
+    <div class="card card-collapsible" data-card-key="goal">
       <div class="card-header js-card-toggle">
         <div class="card-title">Goal</div>
         <span class="card-chevron"></span>
@@ -652,7 +700,7 @@ function renderRulesCard(settings: Settings): string {
   `).join('');
 
   return `
-    <div class="card card-collapsible">
+    <div class="card card-collapsible" data-card-key="rules">
       <div class="card-header js-card-toggle">
         <div class="card-title">Reinvestment rules</div>
         <span class="card-chevron"></span>
@@ -768,8 +816,11 @@ function attachColorPickerSync(root: HTMLElement): void {
 function attachCardCollapseListeners(root: HTMLElement): void {
   root.querySelectorAll('.js-card-toggle').forEach(header => {
     header.addEventListener('click', () => {
-      const card = header.closest('.card-collapsible');
-      if (card) card.classList.toggle('collapsed');
+      const card = header.closest('.card-collapsible') as HTMLElement | null;
+      if (!card) return;
+      card.classList.toggle('collapsed');
+      const key = card.dataset.cardKey;
+      if (key) { card.classList.contains('collapsed') ? _collapsedCards.add(key) : _collapsedCards.delete(key); }
     });
   });
   attachItemCollapseListeners(root);
@@ -902,7 +953,7 @@ function subtractMonths(dateStr: string, months: number): string {
 
 function renderCacheCard(): string {
   return `
-    <div class="card card-collapsible">
+    <div class="card card-collapsible" data-card-key="cache">
       <div class="card-header js-card-toggle">
         <div class="card-title">Cache &amp; sync</div>
         <span class="card-chevron"></span>

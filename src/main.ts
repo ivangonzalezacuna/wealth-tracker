@@ -30,6 +30,7 @@ import {
   computeInputsHash, holdingsSignature,
 } from './cache/db';
 import { fetchDeltaTransactions, mergeDelta } from './cache/sync';
+import { shouldAutoResync } from './sync/policy';
 
 // ── App state ────────────────────────────────────────────
 const state = {
@@ -49,6 +50,11 @@ const ALL_SECTIONS = ['networth', 'portfolio', 'settings', 'log'] as const;
 
 // ── Portfolio sub-view state ─────────────────────────────
 let _portfolioSubview: 'holdings' | 'contributions' | 'dividends' = 'holdings';
+
+// ── Auto-resync guard ────────────────────────────────────
+let _syncing = false;
+let _lastSyncAt = 0;
+const AUTO_RESYNC_MIN_INTERVAL_MS = 2 * 60_000; // 2 minutes
 
 // ── Boot ─────────────────────────────────────────────────
 document.getElementById('app').innerHTML = appTemplate();
@@ -95,19 +101,43 @@ function initOnlineListeners() {
   window.addEventListener('online', () => {
     state.offline = false;
     setSyncStatus('ok', 'Back online');
-    // Trigger a background resync if signed in
-    if (isSignedIn()) syncInBackground();
+    // Trigger a guarded background resync if conditions are met
+    autoResyncIfNeeded();
   });
   window.addEventListener('offline', () => {
     state.offline = true;
     setSyncStatus('offline');
   });
+
+  // Auto-resync when user returns to the tab (visibility or focus)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') autoResyncIfNeeded();
+  });
+  window.addEventListener('focus', () => autoResyncIfNeeded());
+}
+
+/** Trigger syncInBackground only when shouldAutoResync passes. */
+function autoResyncIfNeeded(): void {
+  if (shouldAutoResync({
+    signedIn: isSignedIn(),
+    online: navigator.onLine,
+    syncing: _syncing,
+    lastSyncAt: _lastSyncAt,
+    now: Date.now(),
+    minIntervalMs: AUTO_RESYNC_MIN_INTERVAL_MS,
+  })) {
+    syncInBackground();
+  }
 }
 
 // ── Auth ─────────────────────────────────────────────────
 function initAuth() {
   document.getElementById('btn-signin')?.addEventListener('click', onSignInClick);
+  document.getElementById('btn-signin-global')?.addEventListener('click', onSignInClick);
   document.getElementById('btn-signout')?.addEventListener('click', () => signOut());
+  document.getElementById('btn-sync-now')?.addEventListener('click', () => {
+    if (!_syncing) syncInBackground();
+  });
 
   // Boot: first try to render from cache (instant), then authenticate and sync
   bootFromCache().then(() => {
@@ -133,16 +163,22 @@ function updateAuthUI(signedIn) {
   const prompt   = document.getElementById('auth-prompt');
   const content  = document.getElementById('log-content');
   const signoutBtn = document.getElementById('btn-signout');
+  const signinGlobal = document.getElementById('btn-signin-global');
+  const syncNowWrap = document.getElementById('sync-now-wrap');
 
   if (signedIn) {
     prompt?.style.setProperty('display', 'none');
     content?.style.setProperty('display', 'block');
     signoutBtn?.style.setProperty('display', 'inline-block');
+    signinGlobal?.style.setProperty('display', 'none');
+    syncNowWrap?.style.setProperty('display', 'block');
     setAuthStatus('✓ Signed in · data synced to Google Sheets');
   } else {
     prompt?.style.setProperty('display', 'block');
     content?.style.setProperty('display', 'none');
     signoutBtn?.style.setProperty('display', 'none');
+    signinGlobal?.style.setProperty('display', 'inline-block');
+    syncNowWrap?.style.setProperty('display', 'none');
     setAuthStatus('Not signed in');
   }
 }
@@ -190,10 +226,12 @@ async function bootFromCache() {
  * Uses incremental sync for transactions (delta only).
  */
 async function syncInBackground() {
+  if (_syncing) return; // re-entrancy guard
   if (state.offline) {
     setSyncStatus('offline');
     return;
   }
+  _syncing = true;
   setSyncStatus('syncing');
   try {
     // Load config first (snapshots & other reads depend on it)
@@ -264,6 +302,9 @@ async function syncInBackground() {
     if (!state.cacheLoaded) {
       // No cache either — show error
     }
+  } finally {
+    _syncing = false;
+    _lastSyncAt = Date.now();
   }
 }
 
