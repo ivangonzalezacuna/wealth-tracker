@@ -1,5 +1,5 @@
 // @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
-import { fmt, fmtMon, esc, safeColor } from '../utils';
+import { fmtEur, fmtMon, esc, safeColor } from '../utils';
 import { getISIN_ORDERList, getISIN, getMETAMap } from '../constants';
 import { getTotalWeeklyTarget, getTotalAnnualContrib, getAnnualReturnPct, getAccounts } from '../store/config';
 import { primaryInvestmentValue } from '../model/accounts';
@@ -32,10 +32,10 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const lastAmt = pd.monthly[lastM] || 0;
 
   document.getElementById('dca-kpis').innerHTML = `
-    <div class="kpi"><div class="kpi-label">Total invested</div><div class="kpi-val">${fmt(total)}</div><div class="kpi-sub">all savings plans</div></div>
+    <div class="kpi"><div class="kpi-label">Total invested</div><div class="kpi-val">${fmtEur(total)}</div><div class="kpi-sub">all savings plans</div></div>
     <div class="kpi"><div class="kpi-label">Active months</div><div class="kpi-val">${n}</div><div class="kpi-sub">${fmtMon(pd.months[0])} → ${fmtMon(lastM)}</div></div>
-    <div class="kpi"><div class="kpi-label">Avg / month</div><div class="kpi-val">${fmt(avg)}</div></div>
-    <div class="kpi"><div class="kpi-label">Latest month</div><div class="kpi-val">${fmt(lastAmt)}</div><div class="kpi-sub">${fmtMon(lastM)}</div></div>
+    <div class="kpi"><div class="kpi-label">Avg / month</div><div class="kpi-val">${fmtEur(avg)}</div></div>
+    <div class="kpi"><div class="kpi-label">Latest month</div><div class="kpi-val">${fmtEur(lastAmt)}</div><div class="kpi-sub">${fmtMon(lastM)}</div></div>
   `;
 
   const allSyms = [...new Set(pd.months.flatMap(m => Object.keys(pd.monthlyBy[m] || {})))];
@@ -195,17 +195,17 @@ function renderDCATable(pd: PortfolioData): void {
   const pageMonths = months.slice(start, start + DCA_PAGE_SIZE);
 
   const tRows = pageMonths.map(m =>
-    `<div class="tbl-row" style="grid-template-columns:1fr 1fr">
-      <div style="color:${T.ink2}">${fmtMon(m)}</div>
-      <div style="font-weight:500;text-align:right">${fmt(pd.monthly[m])}</div>
+    `<div class="tbl-row" role="row" style="grid-template-columns:1fr 1fr">
+      <div role="cell" style="color:${T.ink2}">${fmtMon(m)}</div>
+      <div role="cell" style="font-weight:500;text-align:right">${fmtEur(pd.monthly[m])}</div>
     </div>`).join('');
 
   el.innerHTML = `
-    <div class="tbl-row th" style="grid-template-columns:1fr 1fr"><div>Month</div><div style="text-align:right">Invested</div></div>
+    <div class="tbl-row th" role="row" style="grid-template-columns:1fr 1fr"><div role="columnheader">Month</div><div role="columnheader" style="text-align:right">Invested</div></div>
     ${tRows}
-    <div class="tbl-row" style="grid-template-columns:1fr 1fr;border-top:1px solid ${T.line2};margin-top:4px">
+    <div class="tbl-row" role="row" style="grid-template-columns:1fr 1fr;border-top:1px solid ${T.line2};margin-top:4px">
       <div style="font-weight:500">${_dcaYear ? 'Year total' : 'Total'}</div>
-      <div style="font-weight:500;text-align:right">${fmt(filteredTotal)}</div>
+      <div style="font-weight:500;text-align:right">${fmtEur(filteredTotal)}</div>
     </div>`;
 
   // Pagination controls

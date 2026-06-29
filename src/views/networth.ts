@@ -1,5 +1,5 @@
 // @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
-import { snapTotal, fmt, fmtMon, esc, safeColor } from '../utils';
+import { snapTotal, fmtEur, fmtEur2, fmtMon, esc, safeColor } from '../utils';
 import { getACCTSList } from '../constants';
 import { getAccounts, getTotalAnnualContrib, getAnnualReturnPct, getTargetNetWorth, getTargetDate } from '../store/config';
 import { primaryInvestmentValue } from '../model/accounts';
@@ -51,30 +51,30 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
     growthSplitHtml = `
       <div class="card">
         <div class="card-title">This month's change</div>
-        <div class="row"><div class="row-label">Total change</div><div class="row-val ${(primaryNow - primaryPrev) >= 0 ? 'pos' : 'neg'}">${(primaryNow - primaryPrev) >= 0 ? '+' : ''}${fmt(primaryNow - primaryPrev, 2)}</div></div>
-        <div class="row"><div class="row-label">Contributed</div><div class="row-val">${fmt(split.contributed, 2)}</div></div>
-        <div class="row"><div class="row-label">Market movement</div><div class="row-val ${split.market >= 0 ? 'pos' : 'neg'}">${split.market >= 0 ? '+' : ''}${fmt(split.market, 2)}</div></div>
+        <div class="row"><div class="row-label">Total change</div><div class="row-val ${(primaryNow - primaryPrev) >= 0 ? 'pos' : 'neg'}">${(primaryNow - primaryPrev) >= 0 ? '+' : ''}${fmtEur2(primaryNow - primaryPrev)}</div></div>
+        <div class="row"><div class="row-label">Contributed</div><div class="row-val">${fmtEur2(split.contributed)}</div></div>
+        <div class="row"><div class="row-label">Market movement</div><div class="row-val ${split.market >= 0 ? 'pos' : 'neg'}">${split.market >= 0 ? '+' : ''}${fmtEur2(split.market)}</div></div>
       </div>`;
   }
 
   document.getElementById('nw-kpis').innerHTML = `
     <div class="kpi">
       <div class="kpi-label">Net worth</div>
-      <div class="kpi-val">${fmt(total, 2)}</div>
+      <div class="kpi-val">${fmtEur2(total)}</div>
       <div class="kpi-sub">${chg !== null
-        ? (chg >= 0 ? '+' : '') + fmt(chg, 2) + (chgPct !== null ? ' (' + (chgPct >= 0 ? '+' : '') + chgPct.toFixed(1) + '%)' : '') + ' vs ' + fmtMon(prev.date)
+        ? (chg >= 0 ? '+' : '') + fmtEur2(chg) + (chgPct !== null ? ' (' + (chgPct >= 0 ? '+' : '') + chgPct.toFixed(1) + '%)' : '') + ' vs ' + fmtMon(prev.date)
         : fmtMon(s.date)}</div>
     </div>
     ${activeA.map(a => `
       <div class="kpi">
         <div class="kpi-label">${esc(a.label)}</div>
-        <div class="kpi-val">${fmt(s[a.key] || 0, 2)}</div>
+        <div class="kpi-val">${fmtEur2(s[a.key] || 0)}</div>
         <div class="kpi-sub">${total > 0 ? Math.round((s[a.key] || 0) / total * 100) : 0}% of total</div>
       </div>`).join('')}
     ${yoyAbs !== null ? `
       <div class="kpi">
         <div class="kpi-label">YoY</div>
-        <div class="kpi-val ${yoyAbs >= 0 ? 'pos' : 'neg'}">${yoyAbs >= 0 ? '+' : ''}${fmt(yoyAbs, 2)}</div>
+        <div class="kpi-val ${yoyAbs >= 0 ? 'pos' : 'neg'}">${yoyAbs >= 0 ? '+' : ''}${fmtEur2(yoyAbs)}</div>
         <div class="kpi-sub">${yoyPct !== null ? (yoyPct >= 0 ? '+' : '') + yoyPct.toFixed(1) + '%' : '—'} vs ${fmtMon(yoyData.snap.date)}</div>
       </div>` : ''}
     ${cagrVal !== null ? `
@@ -112,7 +112,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
       },
       options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false },
-          tooltip: { callbacks: { label: ctx => ` ${fmt(ctx.raw)}` } } },
+          tooltip: { callbacks: { label: ctx => ` ${fmtEur(ctx.raw)}` } } },
         scales: {
           x: { grid: { color: T.line }, ticks: { color: T.ink4, callback: v => '€' + (v / 1000).toFixed(0) + 'k' } },
           y: { grid: { display: false }, ticks: { color: T.ink2, font: { size: 12 } } },
@@ -141,15 +141,15 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
     bkA.map(a => `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(a.color)}"></span>${esc(a.label)} ${total > 0 ? Math.round((s[a.key] || 0) / total * 100) : 0}%</span>`).join('');
 
   let det = bkA.map(a =>
-    `<div class="row"><div class="row-label">${esc(a.label)}</div><div class="row-val">${fmt(s[a.key] || 0, 2)}</div></div>`
+    `<div class="row"><div class="row-label">${esc(a.label)}</div><div class="row-val">${fmtEur2(s[a.key] || 0)}</div></div>`
   ).join('');
   det += `<div class="row" style="border-top:1px solid ${T.line2};margin-top:4px">
     <div class="row-label" style="font-weight:500">Total</div>
-    <div class="row-val" style="font-weight:500">${fmt(total, 2)}</div></div>`;
+    <div class="row-val" style="font-weight:500">${fmtEur2(total)}</div></div>`;
   if (prev) {
     const c = total - prevT;
     det += `<div class="row"><div class="row-label" style="color:${T.ink3};font-size:12px">vs ${fmtMon(prev.date)}</div>
-      <div class="row-val ${c >= 0 ? 'pos' : 'neg'}">${c >= 0 ? '+' : ''}${fmt(c, 2)}</div></div>`;
+      <div class="row-val ${c >= 0 ? 'pos' : 'neg'}">${c >= 0 ? '+' : ''}${fmtEur2(c)}</div></div>`;
   }
   if (s.notes) det += `<p class="note" style="margin-top:.5rem">${esc(s.notes)}</p>`;
   document.getElementById('nw-detail').innerHTML = det;
@@ -197,13 +197,13 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
       goalEl.innerHTML = `
         <div class="card">
           <div class="card-title">Goal</div>
-          <div class="row"><div class="row-label">Target</div><div class="row-val">${fmt(target, 0)}</div></div>
-          <div class="row"><div class="row-label">Current</div><div class="row-val">${fmt(total, 0)}</div></div>
-          <div class="row"><div class="row-label">Remaining</div><div class="row-val">${fmt(remaining, 0)}</div></div>
+          <div class="row"><div class="row-label">Target</div><div class="row-val">${fmtEur(target)}</div></div>
+          <div class="row"><div class="row-label">Current</div><div class="row-val">${fmtEur(total)}</div></div>
+          <div class="row"><div class="row-label">Remaining</div><div class="row-val">${fmtEur(remaining)}</div></div>
           <div style="margin:.75rem 0">
             <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
               <span>${pctComplete}% complete</span>
-              <span>${fmt(total, 0)} / ${fmt(target, 0)}</span>
+              <span>${fmtEur(total)} / ${fmtEur(target)}</span>
             </div>
             <div style="height:8px;background:${T.surface3};border-radius:4px;overflow:hidden">
               <div style="width:${pctComplete}%;height:100%;background:${pctComplete >= 100 ? T.pos : T.brand};border-radius:4px;transition:width .3s"></div>
@@ -270,7 +270,7 @@ function _renderNWHistChart(
     options: { responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false },
         tooltip: { mode: 'index', intersect: false,
-          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.raw as number, 2)}` },
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtEur2(ctx.raw as number)}` },
         },
       },
       scales: {
@@ -426,7 +426,7 @@ function _renderForecastChart(snaps: Snapshot[], currentTotal: number): void {
         legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
         tooltip: {
           mode: 'index', intersect: false,
-          callbacks: { label: ctx => ctx.raw != null ? ` ${ctx.dataset.label}: ${fmt(ctx.raw as number, 0)}` : '' },
+          callbacks: { label: ctx => ctx.raw != null ? ` ${ctx.dataset.label}: ${fmtEur(ctx.raw as number)}` : '' },
         },
       },
       scales: {

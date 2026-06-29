@@ -1,6 +1,6 @@
 // @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
 import { getACCTSList } from '../constants';
-import { snapTotal, fmt, fmtMon, esc } from '../utils';
+import { snapTotal, fmtEur2, fmtMon, esc } from '../utils';
 import type { Snapshot, Transaction } from '../types';
 import { T } from '../theme';
 
@@ -110,15 +110,15 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
   const gridCols = `auto 1fr ${shown.map(() => '1fr').join(' ')} auto`;
   el.innerHTML = `
     <div class="tbl"><div class="tbl-inner">
-    <div class="snap-row snap-row--wide" style="grid-template-columns:${gridCols};color:${T.ink3};font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-bottom:6px">
-      <div>Month</div><div>Net worth</div>${shown.map(a => `<div>${esc(a.label)}</div>`).join('')}<div></div>
+    <div class="snap-row snap-row--wide" role="row" style="grid-template-columns:${gridCols};color:${T.ink3};font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-bottom:6px">
+      <div role="columnheader">Month</div><div role="columnheader">Net worth</div>${shown.map(a => `<div role="columnheader">${esc(a.label)}</div>`).join('')}<div></div>
     </div>
     ${pageItems.map(s => {
       const total = snapTotal(s);
-      return `<div class="snap-row snap-row--wide" style="grid-template-columns:${gridCols}" data-date="${s.date}">
-        <div style="font-weight:500;font-size:12px">${fmtMon(s.date)}</div>
-        <div style="font-weight:500">${fmt(total, 2)}</div>
-        ${shown.map(a => `<div style="color:${T.ink2}">${s[a.key] ? fmt(s[a.key], 2) : '—'}</div>`).join('')}
+      return `<div class="snap-row snap-row--wide" role="row" style="grid-template-columns:${gridCols}" data-date="${s.date}">
+        <div role="cell" style="font-weight:500;font-size:12px">${fmtMon(s.date)}</div>
+        <div role="cell" style="font-weight:500">${fmtEur2(total)}</div>
+        ${shown.map(a => `<div role="cell" style="color:${T.ink2}">${s[a.key] ? fmtEur2(s[a.key]) : '—'}</div>`).join('')}
         <div class="snap-btns">
           <button class="btn btn-sm btn-outline js-edit-snap" data-date="${s.date}">Edit</button>
           <button class="btn btn-sm btn-danger js-del-snap" data-date="${s.date}">✕</button>

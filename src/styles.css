@@ -165,7 +165,7 @@ h1{font-size:20px;font-weight:500;margin-bottom:.2rem}
   h1{font-size:16px}
   .sub{font-size:12px}
   .nav{gap:3px;padding-bottom:.6rem;margin-bottom:.75rem;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
-  .nav button{font-size:10px;padding:4px 8px;white-space:nowrap;flex-shrink:0}
+  .nav button{font-size:10px;padding:8px 8px;white-space:nowrap;flex-shrink:0;min-height:32px}
   .kpi-row{grid-template-columns:1fr 1fr;gap:6px;margin-bottom:.75rem}
   .kpi{padding:.6rem .7rem}
   .kpi-label{font-size:10px}
