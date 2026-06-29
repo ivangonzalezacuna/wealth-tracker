@@ -17,7 +17,7 @@ import { renderDividends } from './views/dividends';
 import { renderRef } from './views/reference';
 import { renderSettings } from './views/settings';
 import { renderLog } from './views/log';
-import { fmtMon, showMsg, esc } from './utils';
+import { fmtMon, showMsg, esc, currentMonth } from './utils';
 import { parseNum } from './csv';
 import {
   isCacheValid, clearCache,
@@ -379,9 +379,9 @@ function initSnapForm() {
 }
 
 function setDefaultMonth() {
-  const now = new Date();
-  const el  = document.getElementById('snap-date');
-  if (el) el.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const cur = currentMonth();
+  const el  = document.getElementById('snap-date') as HTMLInputElement | null;
+  if (el) { el.value = cur; el.max = cur; }
 }
 
 async function saveSnapshot() {
@@ -400,6 +400,10 @@ async function saveSnapshot() {
   }
   const date = document.getElementById('snap-date').value;
   if (!date) { showMsg('snap-msg', 'Please select a month.', false); return; }
+  if (date > currentMonth()) {
+    showMsg('snap-msg', 'Cannot log a future month.', false);
+    return;
+  }
 
   const snap = { date };
   for (const a of getACCTSList()) {
@@ -721,6 +725,12 @@ function renderSnapForm() {
       <input type="text" inputmode="decimal" id="snap-${esc(a.key)}" class="form-input" placeholder="total value">
     </div>
   `).join('');
+
+  const dateEl = document.getElementById('snap-date') as HTMLInputElement | null;
+  if (dateEl) {
+    dateEl.max = currentMonth();
+    if (!dateEl.value) dateEl.value = currentMonth();
+  }
 }
 
 // ── Render all ────────────────────────────────────────────
