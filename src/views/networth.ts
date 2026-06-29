@@ -23,15 +23,15 @@ export function renderNW(snaps: Snapshot[]): void {
   document.getElementById('nw-kpis').innerHTML = `
     <div class="kpi">
       <div class="kpi-label">Net worth</div>
-      <div class="kpi-val">${fmt(total)}</div>
+      <div class="kpi-val">${fmt(total, 2)}</div>
       <div class="kpi-sub">${chg !== null
-        ? (chg >= 0 ? '+' : '') + fmt(chg) + ' vs ' + fmtMon(prev.date)
+        ? (chg >= 0 ? '+' : '') + fmt(chg, 2) + ' vs ' + fmtMon(prev.date)
         : fmtMon(s.date)}</div>
     </div>
     ${activeA.map(a => `
       <div class="kpi">
         <div class="kpi-label">${esc(a.label)}</div>
-        <div class="kpi-val">${fmt(s[a.key] || 0)}</div>
+        <div class="kpi-val">${fmt(s[a.key] || 0, 2)}</div>
         <div class="kpi-sub">${total > 0 ? Math.round((s[a.key] || 0) / total * 100) : 0}% of total</div>
       </div>`).join('')}
   `;
@@ -112,15 +112,15 @@ export function renderNW(snaps: Snapshot[]): void {
     bkA.map(a => `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(a.color)}"></span>${esc(a.label)} ${total > 0 ? Math.round((s[a.key] || 0) / total * 100) : 0}%</span>`).join('');
 
   let det = bkA.map(a =>
-    `<div class="row"><div class="row-label">${esc(a.label)}</div><div class="row-val">${fmt(s[a.key] || 0)}</div></div>`
+    `<div class="row"><div class="row-label">${esc(a.label)}</div><div class="row-val">${fmt(s[a.key] || 0, 2)}</div></div>`
   ).join('');
   det += `<div class="row" style="border-top:1px solid #d3d1c7;margin-top:4px">
     <div class="row-label" style="font-weight:500">Total</div>
-    <div class="row-val" style="font-weight:500">${fmt(total)}</div></div>`;
+    <div class="row-val" style="font-weight:500">${fmt(total, 2)}</div></div>`;
   if (prev) {
     const c = total - prevT;
     det += `<div class="row"><div class="row-label" style="color:#6b6a65;font-size:12px">vs ${fmtMon(prev.date)}</div>
-      <div class="row-val ${c >= 0 ? 'pos' : 'neg'}">${c >= 0 ? '+' : ''}${fmt(c)}</div></div>`;
+      <div class="row-val ${c >= 0 ? 'pos' : 'neg'}">${c >= 0 ? '+' : ''}${fmt(c, 2)}</div></div>`;
   }
   if (s.notes) det += `<p class="note" style="margin-top:.5rem">${esc(s.notes)}</p>`;
   document.getElementById('nw-detail').innerHTML = det;

@@ -121,10 +121,10 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   document.getElementById('port-kpis').innerHTML = `
     <div class="kpi"><div class="kpi-label">Total invested</div><div class="kpi-val">${fmt(pd.totalInv)}</div><div class="kpi-sub">net of sells</div></div>
     <div class="kpi"><div class="kpi-label">Current value</div>
-      <div class="kpi-val">${curVal !== null ? fmt(curVal) : '—'}</div>
+      <div class="kpi-val">${curVal !== null ? fmt(curVal, 2) : '—'}</div>
       <div class="kpi-sub">${curVal !== null ? 'from ' + fmtMon(latSnap.date) + ' snapshot' : 'add a snapshot'}</div></div>
     <div class="kpi"><div class="kpi-label">Unrealized gain</div>
-      <div class="kpi-val ${gain !== null && gain >= 0 ? 'pos' : 'neg'}">${gain !== null ? (gain >= 0 ? '+' : '') + fmt(gain) : '—'}</div>
+      <div class="kpi-val ${gain !== null && gain >= 0 ? 'pos' : 'neg'}">${gain !== null ? (gain >= 0 ? '+' : '') + fmt(gain, 2) : '—'}</div>
       <div class="kpi-sub">${gainPct !== null ? (gainPct >= 0 ? '+' : '') + gainPct.toFixed(1) + '%' : ''}</div></div>
     <div class="kpi"><div class="kpi-label">Realized P&amp;L</div>
       <div class="kpi-val ${pd.realizedPnL >= 0 ? 'pos' : 'neg'}">${(pd.realizedPnL >= 0 ? '+' : '') + fmt(pd.realizedPnL, 2)}</div>
@@ -164,7 +164,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     ${gain !== null ? `<div class="row" style="border-top:1px solid #d3d1c7;margin-top:4px">
       <div class="row-label" style="font-weight:500">Unrealized gain</div>
       <div class="row-val ${gain >= 0 ? 'pos' : 'neg'}" style="font-weight:500">
-        ${gain >= 0 ? '+' : ''}${fmt(gain)} (${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(1)}%)</div></div>` : ''}
+        ${gain >= 0 ? '+' : ''}${fmt(gain, 2)} (${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(1)}%)</div></div>` : ''}
     <p class="note">Cost basis exact from CSV. Current value from latest snapshot (${latSnap ? fmtMon(latSnap.date) : 'none yet'}). Mixed-currency positions compute in account currency (no FX conversion).</p>
   `;
 }
