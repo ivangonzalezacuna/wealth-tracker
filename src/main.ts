@@ -42,6 +42,11 @@ const state = {
   cacheLoaded: false,
 };
 
+// ── Render-on-show state ─────────────────────────────────
+let _activeSection = 'networth';
+const _dirty = new Set<string>();
+const ALL_SECTIONS = ['networth', 'portfolio', 'contributions', 'dividends', 'settings', 'log'] as const;
+
 // ── Boot ─────────────────────────────────────────────────
 document.getElementById('app').innerHTML = appTemplate();
 initNav();
@@ -70,7 +75,9 @@ function showSection(id, btn) {
   document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
   document.getElementById(id)?.classList.add('active');
   btn?.classList.add('active');
-  if (id === 'settings') renderSettings();
+  _activeSection = id;
+  if (_dirty.has(id)) { _dirty.delete(id); renderSection(id); }
+  else if (id === 'settings') { renderSection('settings'); } // settings reflects live config; always repaint
 }
 
 // ── Online/offline listeners ─────────────────────────────
@@ -730,19 +737,24 @@ function renderSnapForm() {
   }
 }
 
+// ── Section dispatcher ────────────────────────────────────
+function renderSection(id: string): void {
+  switch (id) {
+    case 'networth':      renderNW(state.pd, state.snaps); break;
+    case 'portfolio':     renderPortfolio(state.pd, state.snaps); break;
+    case 'contributions': renderDCA(state.pd, state.snaps); break;
+    case 'dividends':     renderDividends(state.pd); break;
+    case 'settings':      renderSettings(); break;
+    case 'log':           renderLog({ txs: state.txs, snaps: state.snaps, importMeta: state.importMeta, onEditSnap: editSnap, onDelSnap: delSnap }); break;
+  }
+}
+
 // ── Render all ────────────────────────────────────────────
 function renderAll() {
-  renderSnapForm();
-  renderNW(state.pd, state.snaps);
-  renderPortfolio(state.pd, state.snaps);
-  renderDCA(state.pd, state.snaps);
-  renderDividends(state.pd);
-  renderLog({
-    txs:        state.txs,
-    snaps:      state.snaps,
-    importMeta: state.importMeta,
-    onEditSnap: editSnap,
-    onDelSnap:  delSnap,
-  });
   updateSub();
+  renderSnapForm();                 // cheap, keep eager (Log form fields)
+  _dirty.clear();
+  for (const s of ALL_SECTIONS) _dirty.add(s);
+  _dirty.delete(_activeSection);
+  renderSection(_activeSection);
 }
