@@ -7,9 +7,6 @@ export const T = {
   pos: '#0F6E56', neg: '#A32D2D', warn: '#BA7517', white: '#fff',
 } as const;
 
-/** Runtime-resolved theme context — returns current token set (supports future dark mode). */
-export function resolvedT(): typeof T { return T; }
-
 /** Standard Chart.js axis/grid styling so views don't re-type it. */
 export const chartAxis = {
   grid: { color: T.line },
