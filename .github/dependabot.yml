@@ -10,22 +10,31 @@ updates:
       timezone: 'Europe/Berlin'
     open-pull-requests-limit: 10
     groups:
-      # Build tooling: Vite, the PWA plugin, TypeScript, esbuild-adjacent tooling.
-      # These tend to release in lockstep and are safe to review together.
-      build-tooling:
+      # Vite + Vitest ecosystem: vitest peer-depends on specific vite major
+      # ranges, so these must always be bumped together — including majors —
+      # to avoid broken pipelines.
+      vite-vitest:
         patterns:
           - 'vite'
           - 'vite-*'
+          - 'vitest'
+          - '@vitest/*'
+        update-types:
+          - 'major'
+          - 'minor'
+          - 'patch'
+      # Build tooling: TypeScript, type definitions, etc.
+      build-tooling:
+        patterns:
           - 'typescript'
           - '@types/*'
         update-types:
           - 'minor'
           - 'patch'
-      # Test tooling: Vitest and its ecosystem, jsdom.
+      # Test tooling: jsdom and other test-only deps (not vitest, which is
+      # grouped with vite above).
       test-tooling:
         patterns:
-          - 'vitest'
-          - '@vitest/*'
           - 'jsdom'
         update-types:
           - 'minor'
@@ -38,9 +47,10 @@ updates:
         update-types:
           - 'minor'
           - 'patch'
-    # Major bumps are excluded from every group above (each omits "major"
-    # from update-types) so they always arrive as individual, clearly
-    # flagged PRs instead of being bundled into a routine grouped update.
+    # Major bumps for build-tooling, test-tooling, and runtime-deps are
+    # excluded from those groups (each omits "major" from update-types) so
+    # they arrive as individual PRs. The vite-vitest group intentionally
+    # includes majors since these packages must stay version-aligned.
 
   # GitHub Actions versions (the workflows added in Commits 2-3 of this phase)
   - package-ecosystem: 'github-actions'
