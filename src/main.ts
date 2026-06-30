@@ -35,6 +35,7 @@ import { fetchDeltaTransactions, mergeDelta } from './cache/sync';
 import { shouldAutoResync } from './sync/policy';
 import { loadCollapseState } from './ui/collapseState';
 import { restoreCollapseFromSheet, backupCollapseToSheet } from './ui/collapseSync';
+import { confirmDialog } from './ui/confirmDialog';
 
 // ── App state ────────────────────────────────────────────
 const state = {
@@ -264,7 +265,13 @@ function updateAuthUI(signedIn) {
 
 function setAuthStatus(msg, isErr = false) {
   const el = document.getElementById('auth-status');
-  if (el) { el.innerHTML = msg; el.style.color = isErr ? '#A32D2D' : '#52514e'; }
+  if (!el) return;
+  if (isErr) {
+    el.textContent = msg;
+  } else {
+    el.innerHTML = msg;
+  }
+  el.style.color = isErr ? '#A32D2D' : '#52514e';
 }
 
 // ── Cache-first boot ─────────────────────────────────────
@@ -679,7 +686,13 @@ async function delSnap(date) {
   }
   if (!isSignedIn()) return;
   if (isSyncBusy()) return;
-  if (!confirm(`Delete snapshot for ${fmtMon(date)}?`)) return;
+  const ok = await confirmDialog({
+    title: `Delete snapshot for ${fmtMon(date)}?`,
+    body: 'This cannot be undone.',
+    confirmLabel: 'Delete',
+    danger: true,
+  });
+  if (!ok) return;
   state.snaps = state.snaps.filter(s => s.date !== date);
   setSyncing(true);
   try {
