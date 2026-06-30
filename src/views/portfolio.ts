@@ -8,6 +8,7 @@ import { computeDrift, maxDrift } from '../model/drift';
 import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 import Chart from 'chart.js/auto';
 import { T, resolvedT } from '../theme';
+import { infoTip, attachInfoTips } from '../ui/infoTip';
 
 const CH: Record<string, Chart> = {};
 
@@ -90,7 +91,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   document.getElementById('port-table').innerHTML = `
     ${filterHtml}
     <div class="tbl-row th hold-row" role="row">
-      <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right">Cost basis</div><div role="columnheader" style="text-align:right">Shares</div><div role="columnheader" style="text-align:right">Avg price</div><div role="columnheader" style="text-align:right">% of cost</div><div role="columnheader" style="text-align:right">Realized P&amp;L</div><div role="columnheader" style="text-align:right">Div (net)</div>
+      <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right">Cost basis${infoTip('Total amount invested in this position (buys minus sells), net of realized gains/losses.')}</div><div role="columnheader" style="text-align:right">Shares</div><div role="columnheader" style="text-align:right">Avg price</div><div role="columnheader" style="text-align:right">% of cost</div><div role="columnheader" style="text-align:right">Realized P&amp;L</div><div role="columnheader" style="text-align:right">Div (net)</div>
     </div>${rows}
     <div class="tbl-row hold-total" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
       <div style="font-weight:500">Total</div>
@@ -152,6 +153,10 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
 
   // Holdings pagination controls
   renderHoldPagination(totalPages, pd, snaps);
+
+  // Attach info-tip listeners to the freshly-rendered table
+  const portTable = document.getElementById('port-table');
+  if (portTable) attachInfoTips(portTable);
 }
 
 function renderHoldPagination(totalPages: number, pd: PortfolioData, snaps: Snapshot[]): void {
