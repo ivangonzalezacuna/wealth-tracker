@@ -91,7 +91,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   document.getElementById('port-table').innerHTML = `
     ${filterHtml}
     <div class="tbl-row th hold-row" role="row">
-      <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right">Cost basis${infoTip('Total amount invested (net of sells). Calculated from your imported CSV transactions using the method chosen in Settings.')}</div><div role="columnheader" style="text-align:right">Shares</div><div role="columnheader" style="text-align:right">Avg price</div><div role="columnheader" style="text-align:right">% of cost</div><div role="columnheader" style="text-align:right">Realized P&amp;L</div><div role="columnheader" style="text-align:right">Div (net)</div>
+      <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right"><span class="th-label">Cost basis${infoTip('Total amount invested (net of sells). Calculated from your imported CSV transactions using the method chosen in Settings.')}</span></div><div role="columnheader" style="text-align:right">Shares</div><div role="columnheader" style="text-align:right">Avg price</div><div role="columnheader" style="text-align:right">% of cost</div><div role="columnheader" style="text-align:right">Realized P&amp;L</div><div role="columnheader" style="text-align:right">Div (net)</div>
     </div>${rows}
     <div class="tbl-row hold-total" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
       <div style="font-weight:500">Total</div>
