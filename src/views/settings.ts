@@ -9,6 +9,49 @@ import { T } from '../theme';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 
+/** Card key -> render fn, used by repaintCard() to scope a re-render to one card. */
+type CardKey = 'accounts' | 'holdings' | 'cost-basis' | 'projection' | 'goal' | 'rules' | 'cache';
+
+/** Re-render exactly one Settings card in place; re-attach only its own
+ *  listeners; reapply its persisted collapse state. Touches no sibling card. */
+function repaintCard(key: CardKey): void {
+  const id = `settings-card-${key}`;
+  const existing = document.getElementById(id);
+  if (!existing) return; // settings not currently rendered - nothing to do
+
+  const accounts = getAccounts();
+  const holdings = getHoldings();
+  const settings  = getSettings();
+
+  let html: string;
+  switch (key) {
+    case 'accounts':    html = renderAccountsCard(accounts); break;
+    case 'holdings':    html = renderHoldingsCard(holdings); break;
+    case 'cost-basis':  html = renderCostBasisCard(settings); break;
+    case 'projection':  html = renderProjectionCard(settings); break;
+    case 'goal':        html = renderGoalCard(settings); break;
+    case 'rules':       html = renderRulesCard(settings); break;
+    case 'cache':        html = renderCacheCard(); break;
+  }
+
+  existing.outerHTML = html;
+  const fresh = document.getElementById(id);
+  if (!fresh) return;
+
+  switch (key) {
+    case 'accounts':   attachAccountListeners(fresh); break;
+    case 'holdings':   attachHoldingListeners(fresh); attachColorPickerSync(fresh); break;
+    case 'cost-basis': attachCostBasisListeners(fresh); break;
+    case 'projection': attachProjectionListeners(fresh); break;
+    case 'goal':       attachGoalListeners(fresh); break;
+    case 'rules':      attachRulesListeners(fresh); break;
+    case 'cache':      attachCacheListeners(fresh); break;
+  }
+  attachCardCollapseListeners(fresh);
+  if (isCollapsed('card:' + key)) fresh.classList.add('collapsed');
+  attachInfoTips(fresh);
+}
+
 /**
  * Render the Settings section — user-friendly forms for Accounts, Holdings, Settings.
  * Only shown after config is loaded (sign-in required).
@@ -68,7 +111,7 @@ function renderAccountsCard(accounts: Account[]): string {
   const rows = accounts.map((a, i) => renderAccountRow(a, i)).join('');
 
   return `
-    <div class="card card-collapsible" data-card-key="accounts">
+    <div class="card card-collapsible" id="settings-card-accounts" data-card-key="accounts">
       <div class="card-header js-card-toggle">
         <div class="card-title">Accounts</div>
         <span class="card-chevron"></span>
@@ -244,13 +287,13 @@ function renderHoldingsCard(holdings: Holding[]): string {
   }).join('');
 
   return `
-    <div class="card card-collapsible" data-card-key="holdings">
+    <div class="card card-collapsible" id="settings-card-holdings" data-card-key="holdings">
       <div class="card-header js-card-toggle">
         <div class="card-title">Holdings (ETFs)</div>
         <span class="card-chevron"></span>
       </div>
       <div class="card-body">
-        <p class="note" style="margin-bottom:.75rem">ETF positions in your portfolio. Active holdings receive weekly contributions. Closed positions can be folded into a successor fund.</p>
+        <p class="note" style="margin-bottom:.75rem">ETF positions in your portfolio. Active holdings receive contributions on their configured schedule (weekly, biweekly, monthly, or quarterly). Closed positions can be folded into a successor fund.</p>
         <div class="filter-bar" style="margin-bottom:8px">
           <div class="range-toggle" id="hold-filter-toggle">
             <button class="btn btn-sm btn-ghost ${_holdingsSettingsFilter === 'all' ? 'active' : ''}" data-hfilter="all">All (${holdings.length})</button>
@@ -558,7 +601,7 @@ function renderCostBasisCard(settings: Settings): string {
   const current = getCostBasisMethod();
 
   return `
-    <div class="card card-collapsible" data-card-key="cost-basis">
+    <div class="card card-collapsible" id="settings-card-cost-basis" data-card-key="cost-basis">
       <div class="card-header js-card-toggle">
         <div class="card-title">Cost-basis method</div>
         <span class="card-chevron"></span>
@@ -601,7 +644,7 @@ function renderProjectionCard(settings: Settings): string {
   const annualReturn = settings.annualReturnPct || '7';
 
   return `
-    <div class="card card-collapsible" data-card-key="projection">
+    <div class="card card-collapsible" id="settings-card-projection" data-card-key="projection">
       <div class="card-header js-card-toggle">
         <div class="card-title">Projection assumptions</div>
         <span class="card-chevron"></span>
@@ -642,7 +685,7 @@ function renderGoalCard(settings: Settings): string {
   const targetDate = settings.targetDate || '';
 
   return `
-    <div class="card card-collapsible" data-card-key="goal">
+    <div class="card card-collapsible" id="settings-card-goal" data-card-key="goal">
       <div class="card-header js-card-toggle">
         <div class="card-title">Goal</div>
         <span class="card-chevron"></span>
@@ -712,7 +755,7 @@ function renderRulesCard(settings: Settings): string {
   `).join('');
 
   return `
-    <div class="card card-collapsible" data-card-key="rules">
+    <div class="card card-collapsible" id="settings-card-rules" data-card-key="rules">
       <div class="card-header js-card-toggle">
         <div class="card-title">Reinvestment rules</div>
         <span class="card-chevron"></span>
@@ -916,8 +959,9 @@ function randomColor(): string {
 }
 
 /**
- * Parse an ETF name from a Trade Republic CSV to infer holding metadata.
- * Typical names:
+ * Parse an ETF/fund name (from any imported broker's transaction data) to
+ * infer holding metadata. Operates on the canonical Transaction.name field -
+ * not broker-specific. Typical names:
  *   "iShares Core MSCI World UCITS ETF USD (Acc)"
  *   "iShares Core MSCI EM IMI UCITS ETF USD (Acc)"
  *   "iShares € Aggregate Bond UCITS ETF EUR (Dist)"
@@ -997,7 +1041,7 @@ function subtractMonths(dateStr: string, months: number): string {
 
 function renderCacheCard(): string {
   return `
-    <div class="card card-collapsible" data-card-key="cache">
+    <div class="card card-collapsible" id="settings-card-cache" data-card-key="cache">
       <div class="card-header js-card-toggle">
         <div class="card-title">Cache &amp; sync</div>
         <span class="card-chevron"></span>

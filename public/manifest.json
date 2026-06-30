@@ -3,11 +3,12 @@
   "short_name": "Finance",
   "description": "Personal ETF portfolio and net worth tracker",
   "start_url": "/",
+  "id": "/",
   "display": "standalone",
   "background_color": "#f8f8f6",
   "theme_color": "#185FA5",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/android-chrome-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }
