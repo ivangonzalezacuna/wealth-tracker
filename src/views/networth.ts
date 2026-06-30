@@ -140,14 +140,37 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
 
   const bkA = ACCTS.filter(a => (s[a.key] || 0) > 0);
   _destroyChart('c-nw-donut');
-  CH['c-nw-donut'] = new Chart(document.getElementById('c-nw-donut'), {
-    type: 'doughnut',
-    data: { labels: bkA.map(a => a.label), datasets: [{
-      data: bkA.map(a => s[a.key] || 0), backgroundColor: bkA.map(a => safeColor(a.color)),
-      borderWidth: 2, borderColor: C.surface,
-    }]},
-    options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false } } },
-  });
+
+  // Hide account breakdown card when single snapshot (c-nw-hist already shows same data as bar)
+  const nwDonutCard = document.getElementById('c-nw-donut')?.closest('.card') as HTMLElement | null;
+  if (nwDonutCard) nwDonutCard.style.display = snaps.length === 1 ? 'none' : '';
+
+  if (snaps.length > 1) {
+    CH['c-nw-donut'] = new Chart(document.getElementById('c-nw-donut'), {
+      type: 'bar',
+      data: {
+        labels: bkA.map(a => a.label),
+        datasets: [{ data: bkA.map(a => s[a.key] || 0),
+          backgroundColor: bkA.map(a => safeColor(a.color)),
+          borderColor: bkA.map(a => safeColor(a.color)),
+          borderWidth: 1, borderRadius: 5, borderSkipped: false }],
+      },
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: C.surface, borderColor: C.line, borderWidth: 1,
+            titleColor: C.ink, bodyColor: C.ink2, padding: 10, cornerRadius: 8,
+            callbacks: { label: ctx => ` ${fmtEur(ctx.raw as number)}` },
+          },
+        },
+        scales: {
+          x: { grid: { color: C.line }, ticks: { color: C.ink4, callback: (v: number) => '€' + (v / 1000).toFixed(0) + 'k' } },
+          y: { grid: { display: false }, ticks: { color: C.ink2, font: { size: 12 } } },
+        },
+      },
+    });
+  }
 
   document.getElementById('nw-donut-legend').innerHTML =
     bkA.map(a => `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(a.color)}"></span>${esc(a.label)} ${total > 0 ? Math.round((s[a.key] || 0) / total * 100) : 0}%</span>`).join('');

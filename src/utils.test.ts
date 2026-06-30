@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fmt, currentMonth } from './utils';
+import { fmt, fmtShares, currentMonth } from './utils';
 
 describe('fmt', () => {
   it('renders 2-decimal cents with comma separator (de-DE)', () => {
@@ -31,5 +31,20 @@ describe('currentMonth', () => {
     const d = new Date();
     const expected = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     expect(currentMonth()).toBe(expected);
+  });
+});
+
+describe('fmtShares', () => {
+  it('uses comma as decimal separator (de-DE)', () => {
+    expect(fmtShares(1.2345)).toBe('1,2345');
+  });
+
+  it('uses dot as thousands separator for large share counts', () => {
+    expect(fmtShares(1234.5)).toContain('.');
+    expect(fmtShares(1234.5)).toContain(',5');
+  });
+
+  it('drops trailing zero fraction for whole share counts', () => {
+    expect(fmtShares(5)).toBe('5');
   });
 });

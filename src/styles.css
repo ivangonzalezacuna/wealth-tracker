@@ -128,6 +128,8 @@ code, .isin, .tx-id, .acct-key {
 }
 .hold-detail-label { color: var(--ink-3); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; display: block; }
 .hold-detail-value { color: var(--ink); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; display: block; }
+.hold-detail-value.pos { color: var(--pos); }
+.hold-detail-value.neg { color: var(--neg); }
 .hold-detail-isin  { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-2); user-select: all; letter-spacing: 0.02em; }
 
 /* Bar */

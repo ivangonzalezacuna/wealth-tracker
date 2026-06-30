@@ -18,6 +18,14 @@ export const fmtEur  = (n: number) => fmt(n);
 /** Euro display with cents (2 decimals). */
 export const fmtEur2 = (n: number) => fmt(n, 2);
 
+/** Share-count display, de-DE locale (comma decimal), up to 4 fraction digits, no trailing zeros. */
+export function fmtShares(n: number): string {
+  return Number(n).toLocaleString('de-DE', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 4,
+  });
+}
+
 /** Current month as 'YYYY-MM' (local time) — the max allowed snapshot month. */
 export function currentMonth(): string {
   const d = new Date();
