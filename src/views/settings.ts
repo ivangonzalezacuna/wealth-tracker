@@ -7,6 +7,7 @@ import { showMsg } from '../utils';
 import type { Account, Holding, Settings, ContribInterval } from '../types';
 import { T } from '../theme';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
+import { infoTip, attachInfoTips } from '../ui/infoTip';
 
 /**
  * Render the Settings section — user-friendly forms for Accounts, Holdings, Settings.
@@ -50,6 +51,8 @@ export function renderSettings(): void {
     const key = (card as HTMLElement).dataset.cardKey;
     if (key && isCollapsed('card:' + key)) card.classList.add('collapsed');
   });
+
+  attachInfoTips(el);
 }
 
 // ── Accounts ──────────────────────────────────────────────
@@ -121,7 +124,7 @@ function renderAccountRow(a: Account, i: number): string {
           </div>
         </div>
         <div class="settings-field settings-field-inline">
-          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="isPrimaryInvestment" ${a.isPrimaryInvestment ? 'checked' : ''}> Primary investment</label>
+          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="isPrimaryInvestment" ${a.isPrimaryInvestment ? 'checked' : ''}> Primary investment${infoTip('Used to split net-worth growth into contributions vs market returns. Only investment-type accounts (broker, depot) should be marked.')}</label>
         </div>
       </div>
       <input type="hidden" data-field="id" value="${esc(a.id)}">
@@ -297,7 +300,7 @@ function renderHoldingRow(h: Holding, i: number): string {
       </div>
       <div class="settings-item-fields">
         <div class="settings-field">
-          <label class="settings-field-label">ISIN</label>
+          <label class="settings-field-label">ISIN${infoTip('International Securities Identification Number — 12-character unique identifier for a financial instrument.')}</label>
           <input class="form-input form-input-sm" data-field="isin" value="${esc(h.isin)}" placeholder="e.g. IE00B4L5Y983">
         </div>
         <div class="settings-field">
@@ -321,7 +324,7 @@ function renderHoldingRow(h: Holding, i: number): string {
           <select class="form-input form-input-sm" data-field="interval">${intervalOptions}</select>
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Successor ISIN</label>
+          <label class="settings-field-label">Successor ISIN${infoTip('When an ETF merges into another, enter the new ISIN here. Transactions are consolidated under the successor.')}</label>
           <input class="form-input form-input-sm" data-field="foldInto" value="${esc(h.foldInto)}" placeholder="ISIN of successor">
         </div>
         <div class="settings-field">
@@ -332,7 +335,7 @@ function renderHoldingRow(h: Holding, i: number): string {
           </div>
         </div>
         <div class="settings-field settings-field-inline">
-          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="acc" ${h.acc ? 'checked' : ''}> Accumulating</label>
+          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="acc" ${h.acc ? 'checked' : ''}> Accumulating${infoTip('Acc (accumulating) ETFs reinvest dividends internally. Dist (distributing) ETFs pay dividends to your account.')}</label>
         </div>
         <div class="settings-field settings-field-inline">
           <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="active" ${h.active ? 'checked' : ''}> Active</label>
@@ -557,7 +560,7 @@ function renderCostBasisCard(settings: Settings): string {
   return `
     <div class="card card-collapsible" data-card-key="cost-basis">
       <div class="card-header js-card-toggle">
-        <div class="card-title">Cost-basis method</div>
+        <div class="card-title">Cost-basis method${infoTip('Determines how cost is allocated when selling partial positions. Affects realized gain/loss calculations.')}</div>
         <span class="card-chevron"></span>
       </div>
       <div class="card-body">
@@ -569,7 +572,7 @@ function renderCostBasisCard(settings: Settings): string {
               <option value="avgco" ${current === 'avgco' ? 'selected' : ''}>Average cost</option>
               <option value="fifo" ${current === 'fifo' ? 'selected' : ''}>FIFO (first in, first out)</option>
             </select>
-            <span class="note">FIFO matches the German Abgeltungsteuer ordering rule. Average cost is simpler but may diverge on partial sells.</span>
+            <span class="note">FIFO matches the German Abgeltungsteuer${infoTip('German flat-rate capital gains tax (25% + solidarity surcharge). Uses FIFO ordering.')} ordering rule. Average cost is simpler but may diverge on partial sells.</span>
           </div>
         </div>
         <div style="display:flex;gap:10px;margin-top:.75rem">

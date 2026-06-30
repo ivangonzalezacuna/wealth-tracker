@@ -7,6 +7,7 @@ import type { PortfolioData, Snapshot } from '../types';
 import Chart from 'chart.js/auto';
 import { T, resolvedT } from '../theme';
 import { bindLegendToggle } from './chartLegend';
+import { infoTip, attachInfoTips } from '../ui/infoTip';
 
 const CH: Record<string, Chart> = {};
 const DCA_PAGE_SIZE = 12;
@@ -33,7 +34,7 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const lastAmt = pd.monthly[lastM] || 0;
 
   document.getElementById('dca-kpis').innerHTML = `
-    <div class="kpi"><div class="kpi-label">Total invested</div><div class="kpi-val">${fmtEur(total)}</div><div class="kpi-sub">all savings plans</div></div>
+    <div class="kpi"><div class="kpi-label">Total invested${infoTip('Sum of all savings plan (DCA) executions — money spent buying ETF shares via recurring purchase orders.')}</div><div class="kpi-val">${fmtEur(total)}</div><div class="kpi-sub">all savings plans</div></div>
     <div class="kpi"><div class="kpi-label">Active months</div><div class="kpi-val">${n}</div><div class="kpi-sub">${fmtMon(pd.months[0])} → ${fmtMon(lastM)}</div></div>
     <div class="kpi"><div class="kpi-label">Avg / month</div><div class="kpi-val">${fmtEur(avg)}</div></div>
     <div class="kpi"><div class="kpi-label">Latest month</div><div class="kpi-val">${fmtEur(lastAmt)}</div><div class="kpi-sub">${fmtMon(lastM)}</div></div>
@@ -88,6 +89,8 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
       },
     },
   });
+
+  attachInfoTips(document.getElementById('subview-contributions')!);
 }
 
 // ── Chart with range toggle ──────────────────────────────

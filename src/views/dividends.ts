@@ -2,6 +2,7 @@
 import { fmtEur2, fmtDay, esc, safeColor } from '../utils';
 import type { PortfolioData } from '../types';
 import { T } from '../theme';
+import { infoTip, attachInfoTips } from '../ui/infoTip';
 
 const DIV_PAGE_SIZE = 12;
 let _divPage = 1;
@@ -27,10 +28,10 @@ export function renderDividends(pd: PortfolioData | null): void {
   const totalGross = pd.divHist.reduce((s, d) => s + d.gross, 0);
 
   document.getElementById('div-kpis').innerHTML = `
-    <div class="kpi"><div class="kpi-label">Gross dividends</div><div class="kpi-val">${fmtEur2(totalGross)}</div></div>
-    <div class="kpi"><div class="kpi-label">Tax withheld</div><div class="kpi-val neg">−${fmtEur2(pd.totalTax)}</div><div class="kpi-sub">Abgeltungsteuer</div></div>
+    <div class="kpi"><div class="kpi-label">Gross dividends${infoTip('Total dividends before tax. Includes all distribution payments from ETFs and stocks.')}</div><div class="kpi-val">${fmtEur2(totalGross)}</div></div>
+    <div class="kpi"><div class="kpi-label">Tax withheld${infoTip('German Abgeltungsteuer: 25% flat tax + 5.5% solidarity surcharge on capital gains and dividends.')}</div><div class="kpi-val neg">−${fmtEur2(pd.totalTax)}</div><div class="kpi-sub">Abgeltungsteuer</div></div>
     <div class="kpi"><div class="kpi-label">Net received</div><div class="kpi-val pos">${fmtEur2(pd.totalDivNet)}</div></div>
-    <div class="kpi"><div class="kpi-label">TR interest</div><div class="kpi-val pos">${fmtEur2(pd.totalInterest)}</div><div class="kpi-sub">on cash savings</div></div>
+    <div class="kpi"><div class="kpi-label">TR interest${infoTip('Interest earned on uninvested cash held in your Trade Republic account.')}</div><div class="kpi-val pos">${fmtEur2(pd.totalInterest)}</div><div class="kpi-sub">on cash savings</div></div>
   `;
 
   populateDivYearFilter(pd.divHist);
@@ -40,6 +41,8 @@ export function renderDividends(pd: PortfolioData | null): void {
   populateIntYearFilter(pd.intHist);
   attachIntFilterListeners(pd);
   renderIntTable(pd);
+
+  attachInfoTips(document.getElementById('subview-dividends')!);
 }
 
 function renderDivTable(pd: PortfolioData): void {

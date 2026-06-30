@@ -8,6 +8,7 @@ import { computeDrift, maxDrift } from '../model/drift';
 import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 import Chart from 'chart.js/auto';
 import { T, resolvedT } from '../theme';
+import { infoTip, attachInfoTips } from '../ui/infoTip';
 
 const CH: Record<string, Chart> = {};
 
@@ -90,7 +91,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   document.getElementById('port-table').innerHTML = `
     ${filterHtml}
     <div class="tbl-row th hold-row" role="row">
-      <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right">Cost basis</div><div role="columnheader" style="text-align:right">Shares</div><div role="columnheader" style="text-align:right">Avg price</div><div role="columnheader" style="text-align:right">% of cost</div><div role="columnheader" style="text-align:right">Realized P&amp;L</div><div role="columnheader" style="text-align:right">Div (net)</div>
+      <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right">Cost basis${infoTip('Total amount invested in this position (purchase price x shares bought).')}</div><div role="columnheader" style="text-align:right">Shares</div><div role="columnheader" style="text-align:right">Avg price${infoTip('Average cost per share, calculated using the selected cost-basis method (FIFO or average cost).')}</div><div role="columnheader" style="text-align:right">% of cost</div><div role="columnheader" style="text-align:right">Realized P&amp;L${infoTip('Profit or loss from shares already sold. Calculated as sale price minus cost basis of sold shares.')}</div><div role="columnheader" style="text-align:right">Div (net)${infoTip('Dividends received after tax (Abgeltungsteuer) was withheld.')}</div>
     </div>${rows}
     <div class="tbl-row hold-total" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
       <div style="font-weight:500">Total</div>
@@ -258,6 +259,8 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
 
   // ── Drift / rebalance card ──
   _renderDriftCard(pd);
+
+  attachInfoTips(document.getElementById('portfolio')!);
 }
 
 // ── Drift / rebalance card ──
@@ -292,7 +295,7 @@ function _renderDriftCard(pd: PortfolioData): void {
 
   driftEl.innerHTML = `
     <div class="card">
-      <div class="card-title">Allocation drift <span style="font-size:12px;font-weight:400;color:${statusColor};margin-left:8px">${statusLabel} (max ${max.toFixed(1)}%)</span></div>
+      <div class="card-title">Allocation drift${infoTip('How far your current allocation has drifted from your target. Larger drift means more rebalancing needed.')} <span style="font-size:12px;font-weight:400;color:${statusColor};margin-left:8px">${statusLabel} (max ${max.toFixed(1)}%)</span></div>
       <div class="tbl" role="table" aria-label="Allocation drift">
         <div class="tbl-row th" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
           <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right">Target</div><div role="columnheader" style="text-align:right">Actual</div><div role="columnheader" style="text-align:right">Drift</div><div role="columnheader" style="text-align:right">Delta</div>
