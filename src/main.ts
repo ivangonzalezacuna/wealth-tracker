@@ -139,6 +139,15 @@ function resolveInitialSection(): void {
 }
 
 function showSection(id, btn) {
+  const alreadyActive = _activeSection === id && document.getElementById(id)?.classList.contains('active');
+  // Settings always repaints (mirrors live config edits — see Phase 13); every
+  // other section is a true no-op when re-clicking the tab it's already on.
+  if (alreadyActive && id !== 'settings') {
+    // Still worth a defensive re-sync of the hash in case it drifted (e.g. via
+    // popstate or a stale deep link) — cheap, no DOM/render cost.
+    history.replaceState(null, '', navHash(id, id === 'portfolio' ? _portfolioSubview : undefined));
+    return;
+  }
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
   document.getElementById(id)?.classList.add('active');
@@ -954,7 +963,13 @@ function renderSnapForm() {
 }
 
 // ── Portfolio sub-view helpers ─────────────────────────────
-function showPortfolioSubview(sub: string): void {
+function showPortfolioSubview(sub: string, force = false): void {
+  const alreadyActive = !force && _portfolioSubview === sub &&
+    document.getElementById(`subview-${sub}`)?.style.display === 'block';
+  if (alreadyActive) {
+    history.replaceState(null, '', navHash('portfolio', sub));
+    return;
+  }
   _portfolioSubview = sub as typeof _portfolioSubview;
   ['holdings', 'contributions', 'dividends'].forEach(s => {
     const el = document.getElementById(`subview-${s}`);
