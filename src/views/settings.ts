@@ -6,9 +6,8 @@ import { INTERVAL_LABELS } from '../model/contributions';
 import { showMsg } from '../utils';
 import type { Account, Holding, Settings, ContribInterval } from '../types';
 import { T } from '../theme';
-
-/** Persisted card collapse state — survives re-renders within the session. */
-const _collapsedCards = new Set<string>();
+import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
+import { infoTip, attachInfoTips } from '../ui/infoTip';
 
 /**
  * Render the Settings section — user-friendly forms for Accounts, Holdings, Settings.
@@ -50,8 +49,10 @@ export function renderSettings(): void {
   // Reapply persisted collapse state after re-render
   el.querySelectorAll('.card-collapsible').forEach(card => {
     const key = (card as HTMLElement).dataset.cardKey;
-    if (key && _collapsedCards.has(key)) card.classList.add('collapsed');
+    if (key && isCollapsed('card:' + key)) card.classList.add('collapsed');
   });
+
+  attachInfoTips(el);
 }
 
 // ── Accounts ──────────────────────────────────────────────
@@ -123,7 +124,7 @@ function renderAccountRow(a: Account, i: number): string {
           </div>
         </div>
         <div class="settings-field settings-field-inline">
-          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="isPrimaryInvestment" ${a.isPrimaryInvestment ? 'checked' : ''}> Primary investment</label>
+          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="isPrimaryInvestment" ${a.isPrimaryInvestment ? 'checked' : ''}> Primary investment${infoTip('Used to split net-worth growth into contributions vs market returns. Only investment-type accounts (broker, depot) should be marked.')}</label>
         </div>
       </div>
       <input type="hidden" data-field="id" value="${esc(a.id)}">
@@ -299,7 +300,7 @@ function renderHoldingRow(h: Holding, i: number): string {
       </div>
       <div class="settings-item-fields">
         <div class="settings-field">
-          <label class="settings-field-label">ISIN</label>
+          <label class="settings-field-label">ISIN${infoTip('International Securities Identification Number — 12-character unique ID for a financial instrument.')}</label>
           <input class="form-input form-input-sm" data-field="isin" value="${esc(h.isin)}" placeholder="e.g. IE00B4L5Y983">
         </div>
         <div class="settings-field">
@@ -323,7 +324,7 @@ function renderHoldingRow(h: Holding, i: number): string {
           <select class="form-input form-input-sm" data-field="interval">${intervalOptions}</select>
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Successor ISIN</label>
+          <label class="settings-field-label">Successor ISIN${infoTip('When an ETF merges into another, enter the new ISIN here. Transactions are consolidated under the successor.')}</label>
           <input class="form-input form-input-sm" data-field="foldInto" value="${esc(h.foldInto)}" placeholder="ISIN of successor">
         </div>
         <div class="settings-field">
@@ -334,7 +335,7 @@ function renderHoldingRow(h: Holding, i: number): string {
           </div>
         </div>
         <div class="settings-field settings-field-inline">
-          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="acc" ${h.acc ? 'checked' : ''}> Accumulating</label>
+          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="acc" ${h.acc ? 'checked' : ''}> Accumulating${infoTip('Acc (accumulating) ETFs reinvest dividends internally. Dist (distributing) ETFs pay dividends to your account.')}</label>
         </div>
         <div class="settings-field settings-field-inline">
           <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="active" ${h.active ? 'checked' : ''}> Active</label>
@@ -829,9 +830,13 @@ function attachCardCollapseListeners(root: HTMLElement): void {
     header.addEventListener('click', () => {
       const card = header.closest('.card-collapsible') as HTMLElement | null;
       if (!card) return;
-      card.classList.toggle('collapsed');
       const key = card.dataset.cardKey;
-      if (key) { card.classList.contains('collapsed') ? _collapsedCards.add(key) : _collapsedCards.delete(key); }
+      if (key) {
+        const collapsed = toggleCollapsed('card:' + key);
+        card.classList.toggle('collapsed', collapsed);
+      } else {
+        card.classList.toggle('collapsed');
+      }
     });
   });
   attachItemCollapseListeners(root);
@@ -843,10 +848,38 @@ function attachItemCollapseListeners(root: HTMLElement): void {
     header.addEventListener('click', (e) => {
       // Don't toggle when clicking the delete button
       if (e.target.closest('.btn-danger')) return;
-      const item = header.closest('.item-collapsible');
-      if (item) item.classList.toggle('item-collapsed');
+      const item = header.closest('.item-collapsible') as HTMLElement | null;
+      if (!item) return;
+      item.classList.toggle('item-collapsed');
+      // Persist via stable key if available
+      const stableKey = _itemStableKey(item);
+      if (stableKey) {
+        toggleCollapsed(stableKey);
+      }
     });
   });
+  // Reapply persisted item collapse state
+  root.querySelectorAll('.item-collapsible').forEach(item => {
+    const stableKey = _itemStableKey(item as HTMLElement);
+    if (stableKey && isCollapsed(stableKey)) {
+      item.classList.add('item-collapsed');
+    }
+  });
+}
+
+/** Derive a stable persistence key for a settings item row. */
+function _itemStableKey(item: HTMLElement): string | null {
+  // Account rows: use the hidden id field
+  if (item.classList.contains('settings-acct-row')) {
+    const id = item.querySelector('[data-field="id"]')?.value;
+    return id ? 'item:acct:' + id : null;
+  }
+  // Holding rows: use the ISIN field
+  if (item.classList.contains('settings-hold-row')) {
+    const isin = item.querySelector('[data-field="isin"]')?.value;
+    return isin ? 'item:hold:' + isin : null;
+  }
+  return null;
 }
 
 function esc(s: string | undefined | null): string {

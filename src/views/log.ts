@@ -3,6 +3,7 @@ import { getACCTSList } from '../constants';
 import { snapTotal, fmtEur2, fmtMon, esc, safeColor } from '../utils';
 import type { Snapshot, Transaction } from '../types';
 import { T } from '../theme';
+import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 
 interface LogState {
   txs: Transaction[];
@@ -156,34 +157,27 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
       const existing = listEl.querySelector('.snap-detail') as HTMLElement | null;
       if (existing) {
         const wasThis = existing.previousElementSibling === row;
+        const prevDate = existing.previousElementSibling?.dataset?.date;
         existing.remove();
+        if (prevDate) toggleCollapsed('snap:' + prevDate); // mark collapsed
         if (wasThis) return;
       }
       const date = row.dataset.date;
       const snap = snaps.find(s => s.date === date);
       if (!snap) return;
-      const accts = getACCTSList();
-      const rows = accts.filter(a => (snap[a.key] || 0) > 0).map(a =>
-        `<div><span class="hold-detail-label">${esc(a.label)}</span><span class="hold-detail-value">${fmtEur2(snap[a.key] as number)}</span></div>`
-      ).join('');
-      const panel = document.createElement('div');
-      panel.className = 'hold-detail snap-detail';
-      panel.innerHTML = `
-        ${rows}
-        ${snap.notes ? `<div class="snap-detail-note"><span class="hold-detail-label">Note</span><span class="hold-detail-value">${esc(snap.notes)}</span></div>` : ''}
-        <div class="snap-detail-actions">
-          <button class="btn btn-sm btn-outline js-edit-snap" data-date="${date}">Edit</button>
-          <button class="btn btn-sm btn-danger js-del-snap" data-date="${date}">Delete</button>
-        </div>`;
-      row.insertAdjacentElement('afterend', panel);
-      panel.querySelector('.js-edit-snap')?.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        onEdit(date!);
-      });
-      panel.querySelector('.js-del-snap')?.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        onDel(date!);
-      });
+      if (date) toggleCollapsed('snap:' + date); // mark expanded
+      _expandSnapRow(row, snap, date!, listEl, onEdit, onDel);
+    });
+  }
+
+  // Restore previously expanded snap row (if still on this page)
+  if (listEl) {
+    listEl.querySelectorAll('.snap-row-compact:not(.th)').forEach(row => {
+      const date = (row as HTMLElement).dataset.date;
+      if (date && isCollapsed('snap:' + date)) {
+        const snap = snaps.find(s => s.date === date);
+        if (snap) _expandSnapRow(row as HTMLElement, snap, date, listEl, onEdit, onDel);
+      }
     });
   }
 
@@ -191,6 +185,32 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
   renderPagination('snap-pagination', _snapPage, totalPages, (page) => {
     _snapPage = page;
     renderSnapList(snaps, onEdit, onDel);
+  });
+}
+
+/** Expand a snapshot row into its detail panel. */
+function _expandSnapRow(row: HTMLElement, snap: any, date: string, listEl: HTMLElement, onEdit: (d: string) => void, onDel: (d: string) => void): void {
+  const accts = getACCTSList();
+  const detailRows = accts.filter(a => (snap[a.key] || 0) > 0).map(a =>
+    `<div><span class="hold-detail-label">${esc(a.label)}</span><span class="hold-detail-value">${fmtEur2(snap[a.key] as number)}</span></div>`
+  ).join('');
+  const panel = document.createElement('div');
+  panel.className = 'hold-detail snap-detail';
+  panel.innerHTML = `
+    ${detailRows}
+    ${snap.notes ? `<div class="snap-detail-note"><span class="hold-detail-label">Note</span><span class="hold-detail-value">${esc(snap.notes)}</span></div>` : ''}
+    <div class="snap-detail-actions">
+      <button class="btn btn-sm btn-outline js-edit-snap" data-date="${date}">Edit</button>
+      <button class="btn btn-sm btn-danger js-del-snap" data-date="${date}">Delete</button>
+    </div>`;
+  row.insertAdjacentElement('afterend', panel);
+  panel.querySelector('.js-edit-snap')?.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    onEdit(date);
+  });
+  panel.querySelector('.js-del-snap')?.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    onDel(date);
   });
 }
 
