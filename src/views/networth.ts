@@ -75,13 +75,13 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
       </div>`).join('')}
     ${yoyAbs !== null ? `
       <div class="kpi">
-        <div class="kpi-label">YoY${infoTip('Year-over-Year: change in total net worth compared to the same month one year ago.')}</div>
+        <div class="kpi-label">YoY${infoTip('Year-over-Year: Change in total net worth compared to the same month one year ago.')}</div>
         <div class="kpi-val ${yoyAbs >= 0 ? 'pos' : 'neg'}">${yoyAbs >= 0 ? '+' : ''}${fmtEur2(yoyAbs)}</div>
         <div class="kpi-sub">${yoyPct !== null ? (yoyPct >= 0 ? '+' : '') + yoyPct.toFixed(1) + '%' : '—'} vs ${fmtMon(yoyData.snap.date)}</div>
       </div>` : ''}
     ${cagrVal !== null ? `
       <div class="kpi">
-        <div class="kpi-label">CAGR${infoTip('Compound Annual Growth Rate: annualized average return over the full tracking period.')}</div>
+        <div class="kpi-label">CAGR${infoTip('Compound Annual Growth Rate: Annualized average return over the full tracking period.')}</div>
         <div class="kpi-val ${cagrVal >= 0 ? 'pos' : 'neg'}">${(cagrVal >= 0 ? '+' : '') + (cagrVal * 100).toFixed(1)}%</div>
         <div class="kpi-sub">${monthsSpan} months</div>
       </div>` : ''}

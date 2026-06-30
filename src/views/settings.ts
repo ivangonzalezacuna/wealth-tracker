@@ -300,7 +300,7 @@ function renderHoldingRow(h: Holding, i: number): string {
       </div>
       <div class="settings-item-fields">
         <div class="settings-field">
-          <label class="settings-field-label">ISIN${infoTip('International Securities Identification Number — 12-character unique identifier for a financial instrument.')}</label>
+          <label class="settings-field-label">ISIN${infoTip('International Securities Identification Number — 12-character unique ID for a financial instrument.')}</label>
           <input class="form-input form-input-sm" data-field="isin" value="${esc(h.isin)}" placeholder="e.g. IE00B4L5Y983">
         </div>
         <div class="settings-field">
