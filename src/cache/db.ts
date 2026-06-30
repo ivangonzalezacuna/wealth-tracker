@@ -29,6 +29,7 @@ const KEYS = {
   SYNC_CURSOR: 'meta:syncCursor',
   SCHEMA_VERSION: 'meta:schemaVersion',
   INPUTS_HASH: 'meta:inputsHash',
+  UI_COLLAPSE_STATE: 'ui:collapseState',
 } as const;
 
 // ── Sync cursor type ─────────────────────────────────────────────
@@ -216,6 +217,30 @@ export function holdingsSignature(holdings: Holding[]): string {
     .map(h => `${h.isin}:${h.active}:${h.acc}:${h.foldInto}`)
     .sort()
     .join(',');
+}
+
+// ── UI collapse state ─────────────────────────────────────────────
+
+/** Record of section/key → true (collapsed) or absent (expanded). */
+export type CollapseState = Record<string, boolean>;
+
+/**
+ * Get persisted UI collapse state.
+ * NOTE: intentionally does NOT gate on isCacheValid() — UI preferences
+ * should survive a CACHE_VERSION bump that invalidates financial data.
+ */
+export async function getCollapseState(): Promise<CollapseState | null> {
+  try {
+    return (await get<CollapseState>(KEYS.UI_COLLAPSE_STATE, cacheStore)) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setCollapseState(state: CollapseState): Promise<void> {
+  try {
+    await set(KEYS.UI_COLLAPSE_STATE, state, cacheStore);
+  } catch { /* degrade */ }
 }
 
 // ── Clear all cache (force full resync) ──────────────────────────

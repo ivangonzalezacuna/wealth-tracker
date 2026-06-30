@@ -6,9 +6,7 @@ import { INTERVAL_LABELS } from '../model/contributions';
 import { showMsg } from '../utils';
 import type { Account, Holding, Settings, ContribInterval } from '../types';
 import { T } from '../theme';
-
-/** Persisted card collapse state — survives re-renders within the session. */
-const _collapsedCards = new Set<string>();
+import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 
 /**
  * Render the Settings section — user-friendly forms for Accounts, Holdings, Settings.
@@ -50,7 +48,7 @@ export function renderSettings(): void {
   // Reapply persisted collapse state after re-render
   el.querySelectorAll('.card-collapsible').forEach(card => {
     const key = (card as HTMLElement).dataset.cardKey;
-    if (key && _collapsedCards.has(key)) card.classList.add('collapsed');
+    if (key && isCollapsed('card:' + key)) card.classList.add('collapsed');
   });
 }
 
@@ -829,9 +827,13 @@ function attachCardCollapseListeners(root: HTMLElement): void {
     header.addEventListener('click', () => {
       const card = header.closest('.card-collapsible') as HTMLElement | null;
       if (!card) return;
-      card.classList.toggle('collapsed');
       const key = card.dataset.cardKey;
-      if (key) { card.classList.contains('collapsed') ? _collapsedCards.add(key) : _collapsedCards.delete(key); }
+      if (key) {
+        const collapsed = toggleCollapsed('card:' + key);
+        card.classList.toggle('collapsed', collapsed);
+      } else {
+        card.classList.toggle('collapsed');
+      }
     });
   });
   attachItemCollapseListeners(root);
@@ -843,10 +845,38 @@ function attachItemCollapseListeners(root: HTMLElement): void {
     header.addEventListener('click', (e) => {
       // Don't toggle when clicking the delete button
       if (e.target.closest('.btn-danger')) return;
-      const item = header.closest('.item-collapsible');
-      if (item) item.classList.toggle('item-collapsed');
+      const item = header.closest('.item-collapsible') as HTMLElement | null;
+      if (!item) return;
+      item.classList.toggle('item-collapsed');
+      // Persist via stable key if available
+      const stableKey = _itemStableKey(item);
+      if (stableKey) {
+        toggleCollapsed(stableKey);
+      }
     });
   });
+  // Reapply persisted item collapse state
+  root.querySelectorAll('.item-collapsible').forEach(item => {
+    const stableKey = _itemStableKey(item as HTMLElement);
+    if (stableKey && isCollapsed(stableKey)) {
+      item.classList.add('item-collapsed');
+    }
+  });
+}
+
+/** Derive a stable persistence key for a settings item row. */
+function _itemStableKey(item: HTMLElement): string | null {
+  // Account rows: use the hidden id field
+  if (item.classList.contains('settings-acct-row')) {
+    const id = item.querySelector('[data-field="id"]')?.value;
+    return id ? 'item:acct:' + id : null;
+  }
+  // Holding rows: use the ISIN field
+  if (item.classList.contains('settings-hold-row')) {
+    const isin = item.querySelector('[data-field="isin"]')?.value;
+    return isin ? 'item:hold:' + isin : null;
+  }
+  return null;
 }
 
 function esc(s: string | undefined | null): string {

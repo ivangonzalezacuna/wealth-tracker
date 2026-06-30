@@ -33,6 +33,7 @@ import {
 } from './cache/db';
 import { fetchDeltaTransactions, mergeDelta } from './cache/sync';
 import { shouldAutoResync } from './sync/policy';
+import { loadCollapseState } from './ui/collapseState';
 
 // ── App state ────────────────────────────────────────────
 const state = {
@@ -95,6 +96,7 @@ function showMsg(id: string, msg: string, ok: boolean): void {
 
 // ── Boot ─────────────────────────────────────────────────
 document.getElementById('app').innerHTML = appTemplate();
+loadCollapseState(); // fire-and-forget: loads persisted UI collapse state from IDB
 initNav();
 initSnapForm();
 initCSVDrop();
