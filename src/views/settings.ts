@@ -1,5 +1,17 @@
 // @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
-import { getAccounts, getHoldings, getSettings, setAccounts, setHoldings, setSettings, setSetting, isConfigLoaded, getCostBasisMethod, getTargetNetWorth, getTargetDate } from '../store/config';
+import {
+  getAccounts,
+  getHoldings,
+  getSettings,
+  setAccounts,
+  setHoldings,
+  setSettings,
+  setSetting,
+  isConfigLoaded,
+  getCostBasisMethod,
+  getTargetNetWorth,
+  getTargetDate,
+} from '../store/config';
 import { loadTransactions } from '../sheets/transactions';
 import { validatePrimaryInvestment } from '../model/accounts';
 import { validateHoldings } from '../model/holdings';
@@ -23,17 +35,31 @@ function repaintCard(key: CardKey): void {
 
   const accounts = getAccounts();
   const holdings = getHoldings();
-  const settings  = getSettings();
+  const settings = getSettings();
 
   let html: string;
   switch (key) {
-    case 'accounts':    html = renderAccountsCard(accounts); break;
-    case 'holdings':    html = renderHoldingsCard(holdings); break;
-    case 'cost-basis':  html = renderCostBasisCard(settings); break;
-    case 'projection':  html = renderProjectionCard(settings); break;
-    case 'goal':        html = renderGoalCard(settings); break;
-    case 'rules':       html = renderRulesCard(settings); break;
-    case 'cache':        html = renderCacheCard(); break;
+    case 'accounts':
+      html = renderAccountsCard(accounts);
+      break;
+    case 'holdings':
+      html = renderHoldingsCard(holdings);
+      break;
+    case 'cost-basis':
+      html = renderCostBasisCard(settings);
+      break;
+    case 'projection':
+      html = renderProjectionCard(settings);
+      break;
+    case 'goal':
+      html = renderGoalCard(settings);
+      break;
+    case 'rules':
+      html = renderRulesCard(settings);
+      break;
+    case 'cache':
+      html = renderCacheCard();
+      break;
   }
 
   existing.outerHTML = html;
@@ -41,13 +67,28 @@ function repaintCard(key: CardKey): void {
   if (!fresh) return;
 
   switch (key) {
-    case 'accounts':   attachAccountListeners(fresh); break;
-    case 'holdings':   attachHoldingListeners(fresh); attachColorPickerSync(fresh); break;
-    case 'cost-basis': attachCostBasisListeners(fresh); break;
-    case 'projection': attachProjectionListeners(fresh); break;
-    case 'goal':       attachGoalListeners(fresh); break;
-    case 'rules':      attachRulesListeners(fresh); break;
-    case 'cache':      attachCacheListeners(fresh); break;
+    case 'accounts':
+      attachAccountListeners(fresh);
+      break;
+    case 'holdings':
+      attachHoldingListeners(fresh);
+      attachColorPickerSync(fresh);
+      break;
+    case 'cost-basis':
+      attachCostBasisListeners(fresh);
+      break;
+    case 'projection':
+      attachProjectionListeners(fresh);
+      break;
+    case 'goal':
+      attachGoalListeners(fresh);
+      break;
+    case 'rules':
+      attachRulesListeners(fresh);
+      break;
+    case 'cache':
+      attachCacheListeners(fresh);
+      break;
   }
   attachCardCollapseListeners(fresh);
   if (isCollapsed('card:' + key)) fresh.classList.add('collapsed');
@@ -92,7 +133,7 @@ export function renderSettings(): void {
   attachCardCollapseListeners(el);
 
   // Reapply persisted collapse state after re-render
-  el.querySelectorAll('.card-collapsible').forEach(card => {
+  el.querySelectorAll('.card-collapsible').forEach((card) => {
     const key = (card as HTMLElement).dataset.cardKey;
     if (key && isCollapsed('card:' + key)) card.classList.add('collapsed');
   });
@@ -104,9 +145,9 @@ export function renderSettings(): void {
 
 const ACCOUNT_TYPES = [
   { value: 'investment', label: 'Investment' },
-  { value: 'savings',    label: 'Savings' },
-  { value: 'pension',    label: 'Pension' },
-  { value: 'cash',       label: 'Cash' },
+  { value: 'savings', label: 'Savings' },
+  { value: 'pension', label: 'Pension' },
+  { value: 'cash', label: 'Cash' },
 ];
 
 function renderAccountsCard(accounts: Account[]): string {
@@ -133,8 +174,9 @@ function renderAccountsCard(accounts: Account[]): string {
 }
 
 function renderAccountRow(a: Account, i: number): string {
-  const typeOptions = ACCOUNT_TYPES.map(t =>
-    `<option value="${t.value}" ${a.moneyType === t.value ? 'selected' : ''}>${t.label}</option>`
+  const typeOptions = ACCOUNT_TYPES.map(
+    (t) =>
+      `<option value="${t.value}" ${a.moneyType === t.value ? 'selected' : ''}>${t.label}</option>`,
   ).join('');
 
   return `
@@ -142,7 +184,7 @@ function renderAccountRow(a: Account, i: number): string {
       <div class="settings-item-header js-item-toggle">
         <span class="leg-sq" style="background:${esc(a.color) || 'var(--ink-4)'};flex-shrink:0"></span>
         <span class="settings-item-title">${esc(a.label) || 'New account'}</span>
-        <span style="font-size:11px;color:var(--ink-3);white-space:nowrap" class="settings-item-meta">${esc(ACCOUNT_TYPES.find(t => t.value === a.moneyType)?.label || a.moneyType)}${a.isPrimaryInvestment ? ' \u00B7 Primary' : ''}</span>
+        <span style="font-size:11px;color:var(--ink-3);white-space:nowrap" class="settings-item-meta">${esc(ACCOUNT_TYPES.find((t) => t.value === a.moneyType)?.label || a.moneyType)}${a.isPrimaryInvestment ? ' \u00B7 Primary' : ''}</span>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           <span class="item-chevron"></span>
           <button class="btn btn-sm btn-danger js-del-acct" data-idx="${i}">\u2715</button>
@@ -179,18 +221,29 @@ function renderAccountRow(a: Account, i: number): string {
 function attachAccountListeners(root: HTMLElement): void {
   root.querySelector('#btn-add-acct')?.addEventListener('click', () => {
     const accounts = collectAccounts(root);
-    accounts.push({ id: '', moneyType: 'cash', institution: '', label: '', color: '#888888', isPrimaryInvestment: false, order: accounts.length + 1 });
+    accounts.push({
+      id: '',
+      moneyType: 'cash',
+      institution: '',
+      label: '',
+      color: '#888888',
+      isPrimaryInvestment: false,
+      order: accounts.length + 1,
+    });
     rerenderAccountsTable(root, accounts);
   });
 
   root.querySelector('#btn-save-accts')?.addEventListener('click', async () => {
     const accounts = collectAccounts(root);
-    if (accounts.some(a => !a.label)) {
+    if (accounts.some((a) => !a.label)) {
       showMsg('accts-msg', 'Each account needs a name.', false);
       return;
     }
     const primErr = validatePrimaryInvestment(accounts);
-    if (primErr) { showMsg('accts-msg', primErr, false); return; }
+    if (primErr) {
+      showMsg('accts-msg', primErr, false);
+      return;
+    }
     // Auto-generate IDs for accounts that don't have one
     for (const a of accounts) {
       if (!a.id) {
@@ -205,7 +258,7 @@ function attachAccountListeners(root: HTMLElement): void {
     }
   });
 
-  root.querySelectorAll('.js-del-acct').forEach(btn => {
+  root.querySelectorAll('.js-del-acct').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const accounts = collectAccounts(root);
       const idx = parseInt(btn.dataset.idx);
@@ -226,13 +279,13 @@ function attachAccountListeners(root: HTMLElement): void {
 function collectAccounts(root: HTMLElement): Account[] {
   const rows = root.querySelectorAll('.settings-acct-row');
   return [...rows].map((row, i) => ({
-    id:                  row.querySelector('[data-field="id"]').value.trim(),
-    moneyType:           row.querySelector('[data-field="moneyType"]').value.trim(),
-    institution:         row.querySelector('[data-field="institution"]').value.trim(),
-    label:               row.querySelector('[data-field="label"]').value.trim(),
-    color:               row.querySelector('[data-field="color"]').value.trim(),
+    id: row.querySelector('[data-field="id"]').value.trim(),
+    moneyType: row.querySelector('[data-field="moneyType"]').value.trim(),
+    institution: row.querySelector('[data-field="institution"]').value.trim(),
+    label: row.querySelector('[data-field="label"]').value.trim(),
+    color: row.querySelector('[data-field="color"]').value.trim(),
     isPrimaryInvestment: row.querySelector('[data-field="isPrimaryInvestment"]').checked,
-    order:               i + 1,
+    order: i + 1,
   }));
 }
 
@@ -243,7 +296,7 @@ function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
   tbl.innerHTML = rows;
   attachColorPickerSync(tbl);
   attachItemCollapseListeners(tbl);
-  tbl.querySelectorAll('.js-del-acct').forEach(btn => {
+  tbl.querySelectorAll('.js-del-acct').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const accs = collectAccounts(root);
       const idx = parseInt(btn.dataset.idx);
@@ -268,43 +321,45 @@ let _allHoldings: Holding[] | null = null; // cached full holdings list for filt
 
 const ASSET_CLASSES = [
   { value: 'equity', label: 'Equity' },
-  { value: 'bond',   label: 'Bond' },
-  { value: 'reit',   label: 'REIT' },
+  { value: 'bond', label: 'Bond' },
+  { value: 'reit', label: 'REIT' },
   { value: 'commodity', label: 'Commodity' },
-  { value: 'other',  label: 'Other' },
+  { value: 'other', label: 'Other' },
 ];
 
 const REGIONS = [
   { value: 'developed', label: 'Developed' },
-  { value: 'emerging',  label: 'Emerging' },
-  { value: 'global',    label: 'Global' },
-  { value: 'europe',    label: 'Europe' },
-  { value: 'us',        label: 'US' },
-  { value: 'other',     label: 'Other' },
+  { value: 'emerging', label: 'Emerging' },
+  { value: 'global', label: 'Global' },
+  { value: 'europe', label: 'Europe' },
+  { value: 'us', label: 'US' },
+  { value: 'other', label: 'Other' },
 ];
 
 function renderHoldingsCard(holdings: Holding[]): string {
   // Cache the full list for merge-back when filter is active
   _allHoldings = holdings.slice();
 
-  const activeCount = holdings.filter(h => h.active).length;
-  const closedCount = holdings.filter(h => !h.active).length;
+  const activeCount = holdings.filter((h) => h.active).length;
+  const closedCount = holdings.filter((h) => !h.active).length;
 
   // Apply filter
   let filtered;
   if (_holdingsSettingsFilter === 'active') {
-    filtered = holdings.filter(h => h.active);
+    filtered = holdings.filter((h) => h.active);
   } else if (_holdingsSettingsFilter === 'closed') {
-    filtered = holdings.filter(h => !h.active);
+    filtered = holdings.filter((h) => !h.active);
   } else {
     filtered = holdings;
   }
 
-  const rows = filtered.map((h, i) => {
-    // Store original index so delete/edit operations target the right holding
-    const origIdx = holdings.indexOf(h);
-    return renderHoldingRow(h, origIdx);
-  }).join('');
+  const rows = filtered
+    .map((h, i) => {
+      // Store original index so delete/edit operations target the right holding
+      const origIdx = holdings.indexOf(h);
+      return renderHoldingRow(h, origIdx);
+    })
+    .join('');
 
   return `
     <div class="card card-collapsible" id="settings-card-holdings" data-card-key="holdings">
@@ -335,15 +390,20 @@ function renderHoldingsCard(holdings: Holding[]): string {
 }
 
 function renderHoldingRow(h: Holding, i: number): string {
-  const classOptions = ASSET_CLASSES.map(c =>
-    `<option value="${c.value}" ${h.assetClass === c.value ? 'selected' : ''}>${c.label}</option>`
+  const classOptions = ASSET_CLASSES.map(
+    (c) =>
+      `<option value="${c.value}" ${h.assetClass === c.value ? 'selected' : ''}>${c.label}</option>`,
   ).join('');
-  const regionOptions = REGIONS.map(r =>
-    `<option value="${r.value}" ${h.region === r.value ? 'selected' : ''}>${r.label}</option>`
+  const regionOptions = REGIONS.map(
+    (r) =>
+      `<option value="${r.value}" ${h.region === r.value ? 'selected' : ''}>${r.label}</option>`,
   ).join('');
-  const intervalOptions = Object.entries(INTERVAL_LABELS).map(([val, label]) =>
-    `<option value="${val}" ${h.interval === val ? 'selected' : ''}>${label}</option>`
-  ).join('');
+  const intervalOptions = Object.entries(INTERVAL_LABELS)
+    .map(
+      ([val, label]) =>
+        `<option value="${val}" ${h.interval === val ? 'selected' : ''}>${label}</option>`,
+    )
+    .join('');
 
   const statusBadge = h.active
     ? '<span class="badge b-active">Active</span>'
@@ -414,19 +474,21 @@ function renderHoldingRow(h: Holding, i: number): string {
 function applyHoldingsFilter(root: HTMLElement): void {
   const all = _allHoldings ?? getHoldings();
   let filtered: Holding[];
-  if (_holdingsSettingsFilter === 'active') filtered = all.filter(h => h.active);
-  else if (_holdingsSettingsFilter === 'closed') filtered = all.filter(h => !h.active);
+  if (_holdingsSettingsFilter === 'active') filtered = all.filter((h) => h.active);
+  else if (_holdingsSettingsFilter === 'closed') filtered = all.filter((h) => !h.active);
   else filtered = all;
 
   const tbl = root.querySelector('#settings-holdings-tbl');
   if (tbl) {
-    tbl.innerHTML = filtered.map(h => {
-      const origIdx = all.indexOf(h);
-      return renderHoldingRow(h, origIdx);
-    }).join('');
+    tbl.innerHTML = filtered
+      .map((h) => {
+        const origIdx = all.indexOf(h);
+        return renderHoldingRow(h, origIdx);
+      })
+      .join('');
     attachColorPickerSync(tbl as HTMLElement);
     attachItemCollapseListeners(tbl as HTMLElement);
-    (tbl as HTMLElement).querySelectorAll('.js-del-hold').forEach(btn => {
+    (tbl as HTMLElement).querySelectorAll('.js-del-hold').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const holds = collectHoldings(root);
         const idx = parseInt((btn as HTMLElement).dataset.idx!);
@@ -445,9 +507,9 @@ function applyHoldingsFilter(root: HTMLElement): void {
   }
 
   // Update filter-button active state and counts
-  const activeCount = all.filter(h => h.active).length;
-  const closedCount = all.filter(h => !h.active).length;
-  root.querySelectorAll('#hold-filter-toggle [data-hfilter]').forEach(b => {
+  const activeCount = all.filter((h) => h.active).length;
+  const closedCount = all.filter((h) => !h.active).length;
+  root.querySelectorAll('#hold-filter-toggle [data-hfilter]').forEach((b) => {
     b.classList.toggle('active', (b as HTMLElement).dataset.hfilter === _holdingsSettingsFilter);
     if ((b as HTMLElement).dataset.hfilter === 'all') b.textContent = `All (${all.length})`;
     if ((b as HTMLElement).dataset.hfilter === 'active') b.textContent = `Active (${activeCount})`;
@@ -469,24 +531,37 @@ function attachHoldingListeners(root: HTMLElement): void {
 
   root.querySelector('#btn-add-hold')?.addEventListener('click', () => {
     const holds = collectHoldings(root);
-    holds.push({ isin: '', ticker: '', name: '', color: '#888888', acc: true, active: true, contribAmount: 0, interval: 'weekly' as ContribInterval, assetClass: 'equity', region: 'developed', foldInto: '', order: holds.length + 1 });
+    holds.push({
+      isin: '',
+      ticker: '',
+      name: '',
+      color: '#888888',
+      acc: true,
+      active: true,
+      contribAmount: 0,
+      interval: 'weekly' as ContribInterval,
+      assetClass: 'equity',
+      region: 'developed',
+      foldInto: '',
+      order: holds.length + 1,
+    });
     rerenderHoldingsTable(root, holds);
   });
 
   root.querySelector('#btn-autofill-holds')?.addEventListener('click', async (e) => {
-    const btn = (e.currentTarget as HTMLButtonElement);
+    const btn = e.currentTarget as HTMLButtonElement;
     btn.disabled = true;
     const origText = btn.textContent || '';
     btn.innerHTML = '<span class="spinner"></span> Loading\u2026';
     try {
       const txs = await loadTransactions();
-      const buys = txs.filter(t => t.type === 'BUY' && (t.isin || t.symbol));
+      const buys = txs.filter((t) => t.type === 'BUY' && (t.isin || t.symbol));
       if (buys.length === 0) {
         showMsg('holds-msg', 'No BUY transactions found. Import a CSV first.', false);
         return;
       }
       // Determine cutoff: ISINs with buys in the last 3 months are "active"
-      const latestDate = buys.reduce((max, t) => t.date > max ? t.date : max, '');
+      const latestDate = buys.reduce((max, t) => (t.date > max ? t.date : max), '');
       const cutoff = subtractMonths(latestDate, 3);
       // Extract unique ISIN→name mapping and track latest tx date per ISIN
       const isinMap = {};
@@ -502,7 +577,7 @@ function attachHoldingListeners(root: HTMLElement): void {
       }
       // Merge with existing holdings (skip already-configured ISINs)
       const holds = collectHoldings(root);
-      const existing = new Set(holds.map(h => h.isin));
+      const existing = new Set(holds.map((h) => h.isin));
       let added = 0;
       for (const [isin, name] of Object.entries(isinMap)) {
         if (existing.has(isin)) continue;
@@ -510,22 +585,28 @@ function attachHoldingListeners(root: HTMLElement): void {
         const isActive = (isinLatest[isin] || '') >= cutoff;
         holds.push({
           isin,
-          ticker:      parsed.ticker,
-          name:        '',
-          color:       randomColor(),
-          acc:         parsed.acc,
-          active:      isActive,
+          ticker: parsed.ticker,
+          name: '',
+          color: randomColor(),
+          acc: parsed.acc,
+          active: isActive,
           contribAmount: 0,
-          interval:    'weekly' as ContribInterval,
-          assetClass:  parsed.assetClass,
-          region:      parsed.region,
-          foldInto:    '',
-          order:       holds.length + 1,
+          interval: 'weekly' as ContribInterval,
+          assetClass: parsed.assetClass,
+          region: parsed.region,
+          foldInto: '',
+          order: holds.length + 1,
         });
         added++;
       }
       rerenderHoldingsTable(root, holds);
-      showMsg('holds-msg', added > 0 ? `Added ${added} holding(s) from transactions. Review and save.` : 'All transaction ISINs already configured.', true);
+      showMsg(
+        'holds-msg',
+        added > 0
+          ? `Added ${added} holding(s) from transactions. Review and save.`
+          : 'All transaction ISINs already configured.',
+        true,
+      );
     } catch (err) {
       showMsg('holds-msg', 'Error: ' + err.message, false);
     } finally {
@@ -536,7 +617,7 @@ function attachHoldingListeners(root: HTMLElement): void {
 
   root.querySelector('#btn-save-holds')?.addEventListener('click', async () => {
     const holds = collectHoldings(root);
-    if (holds.some(h => !h.isin || !h.ticker)) {
+    if (holds.some((h) => !h.isin || !h.ticker)) {
       showMsg('holds-msg', 'Each holding needs an ISIN and ticker.', false);
       return;
     }
@@ -553,7 +634,7 @@ function attachHoldingListeners(root: HTMLElement): void {
     }
   });
 
-  root.querySelectorAll('.js-del-hold').forEach(btn => {
+  root.querySelectorAll('.js-del-hold').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const holds = collectHoldings(root);
       const idx = parseInt(btn.dataset.idx);
@@ -573,24 +654,28 @@ function attachHoldingListeners(root: HTMLElement): void {
 
 function collectHoldings(root: HTMLElement): Holding[] {
   const rows = root.querySelectorAll('.settings-hold-row');
-  const fromDOM = [...rows].map(row => ({
-    idx:          parseInt(row.dataset.idx),
-    isin:         row.querySelector('[data-field="isin"]').value.trim(),
-    ticker:       row.querySelector('[data-field="ticker"]').value.trim(),
-    name:         '',
-    color:        row.querySelector('[data-field="color"]').value.trim(),
-    acc:          row.querySelector('[data-field="acc"]').checked,
-    active:       row.querySelector('[data-field="active"]').checked,
+  const fromDOM = [...rows].map((row) => ({
+    idx: parseInt(row.dataset.idx),
+    isin: row.querySelector('[data-field="isin"]').value.trim(),
+    ticker: row.querySelector('[data-field="ticker"]').value.trim(),
+    name: '',
+    color: row.querySelector('[data-field="color"]').value.trim(),
+    acc: row.querySelector('[data-field="acc"]').checked,
+    active: row.querySelector('[data-field="active"]').checked,
     contribAmount: parseFloat(row.querySelector('[data-field="contribAmount"]').value) || 0,
-    interval:     (row.querySelector('[data-field="interval"]').value.trim() || 'weekly') as ContribInterval,
-    assetClass:   row.querySelector('[data-field="assetClass"]').value.trim(),
-    region:       row.querySelector('[data-field="region"]').value.trim(),
-    foldInto:     row.querySelector('[data-field="foldInto"]').value.trim(),
+    interval: (row.querySelector('[data-field="interval"]').value.trim() ||
+      'weekly') as ContribInterval,
+    assetClass: row.querySelector('[data-field="assetClass"]').value.trim(),
+    region: row.querySelector('[data-field="region"]').value.trim(),
+    foldInto: row.querySelector('[data-field="foldInto"]').value.trim(),
   }));
 
   // When no filter is active or no cached list, return DOM rows directly
   if (_holdingsSettingsFilter === 'all' || !_allHoldings) {
-    return fromDOM.map((h, i) => { const { idx, ...rest } = h; return { ...rest, order: i + 1 }; });
+    return fromDOM.map((h, i) => {
+      const { idx, ...rest } = h;
+      return { ...rest, order: i + 1 };
+    });
   }
 
   // Merge DOM edits back into the full cached list
@@ -602,7 +687,9 @@ function collectHoldings(root: HTMLElement): Holding[] {
     }
   }
   // Re-number order
-  merged.forEach((h, i) => { h.order = i + 1; });
+  merged.forEach((h, i) => {
+    h.order = i + 1;
+  });
   return merged;
 }
 
@@ -617,10 +704,10 @@ function rerenderHoldingsTable(root: HTMLElement, holdings: Holding[]): void {
   // Update filter counts
   const toggle = root.querySelector('#hold-filter-toggle');
   if (toggle) {
-    const activeCount = holdings.filter(h => h.active).length;
-    const closedCount = holdings.filter(h => !h.active).length;
+    const activeCount = holdings.filter((h) => h.active).length;
+    const closedCount = holdings.filter((h) => !h.active).length;
     const btns = toggle.querySelectorAll('[data-hfilter]');
-    btns.forEach(b => {
+    btns.forEach((b) => {
       b.classList.toggle('active', b.dataset.hfilter === 'all');
       if (b.dataset.hfilter === 'all') b.textContent = `All (${holdings.length})`;
       if (b.dataset.hfilter === 'active') b.textContent = `Active (${activeCount})`;
@@ -629,7 +716,7 @@ function rerenderHoldingsTable(root: HTMLElement, holdings: Holding[]): void {
   }
   attachColorPickerSync(tbl);
   attachItemCollapseListeners(tbl);
-  tbl.querySelectorAll('.js-del-hold').forEach(btn => {
+  tbl.querySelectorAll('.js-del-hold').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const h = collectHoldings(root);
       const idx = parseInt(btn.dataset.idx);
@@ -790,7 +877,9 @@ function renderRulesCard(settings: Settings): string {
     }
   }
 
-  const rows = rules.map((r, i) => `
+  const rows = rules
+    .map(
+      (r, i) => `
     <div class="settings-item settings-rule-row" data-idx="${i}">
       <div class="settings-item-fields" style="grid-template-columns:1fr">
         <div class="settings-field">
@@ -804,7 +893,9 @@ function renderRulesCard(settings: Settings): string {
       </div>
       <div style="text-align:right;margin-top:4px"><button class="btn btn-sm btn-danger js-del-rule" data-idx="${i}">✕ Remove</button></div>
     </div>
-  `).join('');
+  `,
+    )
+    .join('');
 
   return `
     <div class="card card-collapsible" id="settings-card-rules" data-card-key="rules">
@@ -858,7 +949,7 @@ function attachRulesListeners(root: HTMLElement): void {
     }
   });
 
-  root.querySelectorAll('.js-del-rule').forEach(btn => {
+  root.querySelectorAll('.js-del-rule').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const rules = collectRules(root);
       const idx = parseInt(btn.dataset.idx);
@@ -876,7 +967,7 @@ function attachRulesListeners(root: HTMLElement): void {
 
 function collectRules(root: HTMLElement): { label: string; value: string }[] {
   const rows = root.querySelectorAll('.settings-rule-row');
-  return [...rows].map(row => ({
+  return [...rows].map((row) => ({
     label: row.querySelector('[data-field="label"]').value.trim(),
     value: row.querySelector('[data-field="value"]').value.trim(),
   }));
@@ -885,7 +976,9 @@ function collectRules(root: HTMLElement): { label: string; value: string }[] {
 function rerenderRulesTable(root: HTMLElement, rules: { label: string; value: string }[]): void {
   const tbl = root.querySelector('#settings-rules-tbl');
   if (!tbl) return;
-  const rows = rules.map((r, i) => `
+  const rows = rules
+    .map(
+      (r, i) => `
     <div class="settings-item settings-rule-row" data-idx="${i}">
       <div class="settings-item-fields" style="grid-template-columns:1fr">
         <div class="settings-field">
@@ -899,9 +992,11 @@ function rerenderRulesTable(root: HTMLElement, rules: { label: string; value: st
       </div>
       <div style="text-align:right;margin-top:4px"><button class="btn btn-sm btn-danger js-del-rule" data-idx="${i}">✕ Remove</button></div>
     </div>
-  `).join('');
+  `,
+    )
+    .join('');
   tbl.innerHTML = rows;
-  tbl.querySelectorAll('.js-del-rule').forEach(btn => {
+  tbl.querySelectorAll('.js-del-rule').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const r = collectRules(root);
       const idx = parseInt(btn.dataset.idx);
@@ -921,11 +1016,13 @@ function rerenderRulesTable(root: HTMLElement, rules: { label: string; value: st
 
 /** Attach two-way sync between color swatch and hex text inputs. */
 function attachColorPickerSync(root: HTMLElement): void {
-  root.querySelectorAll('.color-picker-wrap').forEach(wrap => {
+  root.querySelectorAll('.color-picker-wrap').forEach((wrap) => {
     const swatch = wrap.querySelector('.color-picker-swatch');
     const hex = wrap.querySelector('.color-picker-hex');
     if (!swatch || !hex) return;
-    swatch.addEventListener('input', () => { hex.value = swatch.value; });
+    swatch.addEventListener('input', () => {
+      hex.value = swatch.value;
+    });
     hex.addEventListener('input', () => {
       const v = hex.value.trim();
       if (/^#[0-9a-fA-F]{6}$/.test(v)) swatch.value = v;
@@ -935,7 +1032,7 @@ function attachColorPickerSync(root: HTMLElement): void {
 
 /** Attach click listeners to card headers for collapsing/expanding. */
 function attachCardCollapseListeners(root: HTMLElement): void {
-  root.querySelectorAll('.js-card-toggle').forEach(header => {
+  root.querySelectorAll('.js-card-toggle').forEach((header) => {
     header.addEventListener('click', () => {
       const card = header.closest('.card-collapsible') as HTMLElement | null;
       if (!card) return;
@@ -953,7 +1050,7 @@ function attachCardCollapseListeners(root: HTMLElement): void {
 
 /** Attach click listeners to individual item headers for collapsing/expanding. */
 function attachItemCollapseListeners(root: HTMLElement): void {
-  root.querySelectorAll('.js-item-toggle').forEach(header => {
+  root.querySelectorAll('.js-item-toggle').forEach((header) => {
     header.addEventListener('click', (e) => {
       // Don't toggle when clicking the delete button
       if (e.target.closest('.btn-danger')) return;
@@ -968,7 +1065,7 @@ function attachItemCollapseListeners(root: HTMLElement): void {
     });
   });
   // Reapply persisted item collapse state
-  root.querySelectorAll('.item-collapsible').forEach(item => {
+  root.querySelectorAll('.item-collapsible').forEach((item) => {
     const stableKey = _itemStableKey(item as HTMLElement);
     if (stableKey && isCollapsed(stableKey)) {
       item.classList.add('item-collapsed');
@@ -993,7 +1090,11 @@ function _itemStableKey(item: HTMLElement): string | null {
 
 function esc(s: string | undefined | null): string {
   if (!s) return '';
-  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 /** Generate a stable snake_case ID from a label. */
@@ -1008,19 +1109,42 @@ function generateId(label: string): string {
 /** Generate a random muted hex color for a new holding. */
 function randomColor(): string {
   const h = Math.random() * 360;
-  const s = 0.45, l = 0.55;
+  const s = 0.45,
+    l = 0.55;
   // HSL to hex conversion
   const c = (1 - Math.abs(2 * l - 1)) * s;
-  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
   const m = l - c / 2;
   let r, g, b;
-  if (h < 60) { r = c; g = x; b = 0; }
-  else if (h < 120) { r = x; g = c; b = 0; }
-  else if (h < 180) { r = 0; g = c; b = x; }
-  else if (h < 240) { r = 0; g = x; b = c; }
-  else if (h < 300) { r = x; g = 0; b = c; }
-  else { r = c; g = 0; b = x; }
-  const toHex = v => Math.round((v + m) * 255).toString(16).padStart(2, '0');
+  if (h < 60) {
+    r = c;
+    g = x;
+    b = 0;
+  } else if (h < 120) {
+    r = x;
+    g = c;
+    b = 0;
+  } else if (h < 180) {
+    r = 0;
+    g = c;
+    b = x;
+  } else if (h < 240) {
+    r = 0;
+    g = x;
+    b = c;
+  } else if (h < 300) {
+    r = x;
+    g = 0;
+    b = c;
+  } else {
+    r = c;
+    g = 0;
+    b = x;
+  }
+  const toHex = (v) =>
+    Math.round((v + m) * 255)
+      .toString(16)
+      .padStart(2, '0');
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
@@ -1034,7 +1158,10 @@ function randomColor(): string {
  *   "Vanguard FTSE All-World UCITS ETF (USD) Accumulating"
  *   "Xtrackers MSCI Emerging Markets UCITS ETF 1C"
  */
-function parseHoldingName(name: string, isin: string): { ticker: string; acc: boolean; assetClass: string; region: string } {
+function parseHoldingName(
+  name: string,
+  isin: string,
+): { ticker: string; acc: boolean; assetClass: string; region: string } {
   const upper = (name || '').toUpperCase();
 
   // ── Acc vs Dist ──
@@ -1080,16 +1207,22 @@ function parseHoldingName(name: string, isin: string): { ticker: string; acc: bo
   const cleaned = name
     .replace(/\(Acc\)|\(Dist\)|Accumulating|Distributing/gi, '')
     .replace(/UCITS\s+ETF.*/i, '')
-    .replace(/^(iShares|Vanguard|Xtrackers|Amundi|SPDR|Invesco|Lyxor|WisdomTree|UBS|HSBC|BNP)\s*(Core\s*)?/i, '')
+    .replace(
+      /^(iShares|Vanguard|Xtrackers|Amundi|SPDR|Invesco|Lyxor|WisdomTree|UBS|HSBC|BNP)\s*(Core\s*)?/i,
+      '',
+    )
     .trim();
   if (cleaned) {
     // Build a compact ticker-like abbreviation from remaining words
-    const words = cleaned.split(/\s+/).filter(w => w.length > 0);
+    const words = cleaned.split(/\s+/).filter((w) => w.length > 0);
     if (words.length <= 3) {
       ticker = words.join(' ');
     } else {
       // Take initials of long names
-      ticker = words.map(w => w[0]).join('').toUpperCase();
+      ticker = words
+        .map((w) => w[0])
+        .join('')
+        .toUpperCase();
     }
   }
 
@@ -1126,12 +1259,21 @@ function attachCacheListeners(root: HTMLElement): void {
   root.querySelector('#btn-force-resync')?.addEventListener('click', async () => {
     const msgEl = root.querySelector('#resync-msg') as HTMLElement | null;
     const C = resolvedT();
-    if (msgEl) { msgEl.textContent = 'Resyncing…'; msgEl.style.color = C.ink2; }
+    if (msgEl) {
+      msgEl.textContent = 'Resyncing…';
+      msgEl.style.color = C.ink2;
+    }
     try {
       await (window as any).__forceFullResync();
-      if (msgEl) { msgEl.textContent = 'Done ✓'; msgEl.style.color = C.pos; }
+      if (msgEl) {
+        msgEl.textContent = 'Done ✓';
+        msgEl.style.color = C.pos;
+      }
     } catch (err: any) {
-      if (msgEl) { msgEl.textContent = 'Error: ' + (err?.message || 'unknown'); msgEl.style.color = C.neg; }
+      if (msgEl) {
+        msgEl.textContent = 'Error: ' + (err?.message || 'unknown');
+        msgEl.style.color = C.neg;
+      }
     }
   });
 }

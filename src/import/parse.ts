@@ -6,17 +6,30 @@
  */
 
 import { builtInProfiles } from './profiles/index';
-import type { ImportProfile, Transaction, DecimalMode, DateFormat, ParseResult, UnmappedType, PreviewSummary } from '../types';
+import type {
+  ImportProfile,
+  Transaction,
+  DecimalMode,
+  DateFormat,
+  ParseResult,
+  UnmappedType,
+  PreviewSummary,
+} from '../types';
 
 // ── Low-level CSV helpers (shared with legacy csv.js) ──────────
 
 /** Split a single CSV line respecting quoted fields. */
 export function csvLine(line: string, sep = ','): string[] {
-  const r: string[] = []; let cur = '', inQ = false;
+  const r: string[] = [];
+  let cur = '',
+    inQ = false;
   for (let i = 0; i < line.length; i++) {
-    if (line[i] === '"') { inQ = !inQ; }
-    else if (line[i] === sep && !inQ) { r.push(cur); cur = ''; }
-    else cur += line[i];
+    if (line[i] === '"') {
+      inQ = !inQ;
+    } else if (line[i] === sep && !inQ) {
+      r.push(cur);
+      cur = '';
+    } else cur += line[i];
   }
   r.push(cur);
   return r;
@@ -24,7 +37,7 @@ export function csvLine(line: string, sep = ','): string[] {
 
 /** Detect whether the CSV uses semicolons or commas as delimiter. */
 export function detectSeparator(headerLine: string): string {
-  const bySemi  = csvLine(headerLine, ';');
+  const bySemi = csvLine(headerLine, ';');
   const byComma = csvLine(headerLine, ',');
   return bySemi.length > byComma.length ? ';' : ',';
 }
@@ -100,7 +113,11 @@ export function parseDate(s: string | null | undefined, fmt: string): string {
  * Tries compound key `TYPE|CATEGORY` first, then plain `TYPE`.
  * Returns the mapped value or `null` if unmapped.
  */
-function mapType(rawType: string, rawCategory: string, typeMap: Record<string, string>): string | null {
+function mapType(
+  rawType: string,
+  rawCategory: string,
+  typeMap: Record<string, string>,
+): string | null {
   const t = (rawType || '').toUpperCase();
   const c = (rawCategory || '').toUpperCase();
 
@@ -121,7 +138,10 @@ function mapType(rawType: string, rawCategory: string, typeMap: Record<string, s
 /**
  * Auto-detect the best matching profile for a header line.
  */
-export function detectProfile(headerLine: string, profiles?: ImportProfile[]): ImportProfile | null {
+export function detectProfile(
+  headerLine: string,
+  profiles?: ImportProfile[],
+): ImportProfile | null {
   const pool = profiles || builtInProfiles;
   const lower = headerLine.toLowerCase();
 
@@ -137,7 +157,7 @@ export function detectProfile(headerLine: string, profiles?: ImportProfile[]): I
       if (lower.includes(h.toLowerCase())) hits++;
     }
     if (hits === hints.length && hits > bestScore) {
-      bestScore   = hits;
+      bestScore = hits;
       bestProfile = p;
     }
   }
@@ -154,12 +174,10 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
   if (lines.length < 2) return { transactions: [], unmapped: [] };
 
   // Resolve delimiter
-  const sep = profile.delimiter === 'auto'
-    ? detectSeparator(lines[0])
-    : (profile.delimiter || ',');
+  const sep = profile.delimiter === 'auto' ? detectSeparator(lines[0]) : profile.delimiter || ',';
 
   // Parse header
-  const hdrs = csvLine(lines[0], sep).map(h => h.trim());
+  const hdrs = csvLine(lines[0], sep).map((h) => h.trim());
 
   // Build column index lookup: canonical field → column index
   const colIdx: Record<string, number> = {};
@@ -167,7 +185,7 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
     if (typeof source === 'number') {
       colIdx[canonical] = source;
     } else {
-      const idx = hdrs.findIndex(h => h === source);
+      const idx = hdrs.findIndex((h) => h === source);
       if (idx >= 0) colIdx[canonical] = idx;
     }
   }
@@ -190,7 +208,7 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
     if (!date) continue;
 
     // Type mapping
-    const rawType     = get('type');
+    const rawType = get('type');
     const rawCategory = get('category');
     const canonicalType = mapType(rawType, rawCategory, profile.typeMap);
 
@@ -205,26 +223,26 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
     const txType = canonicalType || (rawType || '').toUpperCase() || 'UNKNOWN';
 
     transactions.push({
-      id:       get('id'),
+      id: get('id'),
       date,
-      source:   profile.id,
+      source: profile.id,
       category: rawCategory,
-      type:     txType,
-      name:     get('name'),
-      isin:     get('symbol'),
-      symbol:   get('symbol'),
-      shares:   parseNumber(get('shares'), profile.decimal),
-      price:    parseNumber(get('price'), profile.decimal),
-      amount:   parseNumber(get('amount'), profile.decimal),
-      fee:      parseNumber(get('fee'), profile.decimal),
-      tax:      parseNumber(get('tax'), profile.decimal),
+      type: txType,
+      name: get('name'),
+      isin: get('symbol'),
+      symbol: get('symbol'),
+      shares: parseNumber(get('shares'), profile.decimal),
+      price: parseNumber(get('price'), profile.decimal),
+      amount: parseNumber(get('amount'), profile.decimal),
+      fee: parseNumber(get('fee'), profile.decimal),
+      tax: parseNumber(get('tax'), profile.decimal),
       currency: get('currency') || profile.defaultCurrency,
-      fxRate:   parseNumber(get('fxRate'), profile.decimal),
+      fxRate: parseNumber(get('fxRate'), profile.decimal),
     });
   }
 
   // Filter rows that somehow still have no date or type (shouldn't happen after above guards)
-  const filtered = transactions.filter(t => t.date && t.type);
+  const filtered = transactions.filter((t) => t.date && t.type);
 
   const unmapped: UnmappedType[] = Object.entries(unmappedCounts)
     .map(([type, count]) => ({ type, count }))
@@ -243,9 +261,9 @@ export function previewSummary(parsed: ParseResult): PreviewSummary {
     byCounts[tx.type] = (byCounts[tx.type] || 0) + 1;
   }
   return {
-    total:    transactions.length,
+    total: transactions.length,
     byCounts,
     unmapped,
-    sample:   transactions.slice(0, 10),
+    sample: transactions.slice(0, 10),
   };
 }

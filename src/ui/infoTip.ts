@@ -17,7 +17,11 @@
  */
 export function infoTip(text: string): string {
   // Escape for safe HTML attribute embedding
-  const escaped = text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
   return `<span class="info-tip" data-tip="${escaped}" aria-label="${escaped}" tabindex="0">?</span>`;
 }
 
@@ -26,7 +30,7 @@ export function infoTip(text: string): string {
  * Safe to call multiple times — already-bound tips are skipped.
  */
 export function attachInfoTips(root: HTMLElement | Document = document): void {
-  root.querySelectorAll('.info-tip:not([data-tip-bound])').forEach(el => {
+  root.querySelectorAll('.info-tip:not([data-tip-bound])').forEach((el) => {
     (el as HTMLElement).dataset.tipBound = '1';
 
     // Single tap on mobile / click on desktop — show/hide
@@ -56,7 +60,13 @@ export function attachInfoTips(root: HTMLElement | Document = document): void {
 /** Track if the device has seen a touch event (sticky after first touch). */
 let _hasTouch = false;
 if (typeof window !== 'undefined') {
-  window.addEventListener('touchstart', () => { _hasTouch = true; }, { once: true, passive: true });
+  window.addEventListener(
+    'touchstart',
+    () => {
+      _hasTouch = true;
+    },
+    { once: true, passive: true },
+  );
 }
 
 function _isTouchEvent(_e: MouseEvent): boolean {
@@ -117,7 +127,7 @@ function _positionPopover(trigger: HTMLElement, pop: HTMLElement): void {
 }
 
 function _dismissAll(): void {
-  document.querySelectorAll('.info-tip-pop').forEach(p => p.remove());
+  document.querySelectorAll('.info-tip-pop').forEach((p) => p.remove());
 }
 
 // Global: dismiss any open popovers on outside click

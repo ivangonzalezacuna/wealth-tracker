@@ -27,9 +27,7 @@ export function cagr(first: number, last: number, months: number): number | null
  * Find the snapshot nearest to 12 months before the latest snapshot.
  * Returns null when fewer than 13 snapshots' months of history exist.
  */
-export function findYoYSnapshot(
-  snaps: Snapshot[],
-): { snap: Snapshot; total: number } | null {
+export function findYoYSnapshot(snaps: Snapshot[]): { snap: Snapshot; total: number } | null {
   if (snaps.length < 2) return null;
 
   const latest = snaps[snaps.length - 1];
@@ -38,21 +36,25 @@ export function findYoYSnapshot(
 
   // Target date = 12 months before latest
   const targetYear = latestDate.year - (latestDate.month <= 12 ? 1 : 0);
-  const targetMonth = latestDate.month <= 12
-    ? latestDate.month // same month, previous year
-    : latestDate.month - 12;
+  const targetMonth =
+    latestDate.month <= 12
+      ? latestDate.month // same month, previous year
+      : latestDate.month - 12;
 
   // Adjusted: simply subtract 12 months
-  const tY = latestDate.month > 12
-    ? latestDate.year
-    : (latestDate.month - 12 > 0 ? latestDate.year : latestDate.year - 1);
+  const tY =
+    latestDate.month > 12
+      ? latestDate.year
+      : latestDate.month - 12 > 0
+        ? latestDate.year
+        : latestDate.year - 1;
   const tM = ((latestDate.month - 1 - 12 + 120) % 12) + 1;
   const targetVal = tY * 12 + tM;
 
   // Check that we have enough span: need >= 13 months between first and latest
   const firstDate = parseYearMonth(snaps[0].date);
   if (!firstDate) return null;
-  const span = (latestDate.year * 12 + latestDate.month) - (firstDate.year * 12 + firstDate.month);
+  const span = latestDate.year * 12 + latestDate.month - (firstDate.year * 12 + firstDate.month);
   if (span < 12) return null;
 
   // Find the snapshot closest to the target month

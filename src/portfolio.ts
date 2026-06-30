@@ -34,29 +34,29 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
   // Ensure all ISINs from basis engine are represented
   for (const [sym, basis] of Object.entries(basisByIsin)) {
     const ticker = ISIN[sym] || '';
-    const meta   = META[ticker] || {};
+    const meta = META[ticker] || {};
     etfs[sym] = {
-      symbol:      sym,
-      ticker:      ticker || sym.slice(-4),
-      name:        '',
-      color:       meta.color || '#898781',
-      acc:         meta.acc !== false,
-      active:      meta.active !== false,
-      cost:        basis.costBasis,
-      shares:      basis.shares,
-      divNet:      0,
-      taxPaid:     0,
-      buys:        basis.buys,
+      symbol: sym,
+      ticker: ticker || sym.slice(-4),
+      name: '',
+      color: meta.color || '#898781',
+      acc: meta.acc !== false,
+      active: meta.active !== false,
+      cost: basis.costBasis,
+      shares: basis.shares,
+      divNet: 0,
+      taxPaid: 0,
+      buys: basis.buys,
       realizedPnL: basis.realizedPnL,
-      totalFees:   basis.totalFees,
-      exited:      basis.exited,
+      totalFees: basis.totalFees,
+      exited: basis.exited,
     };
   }
 
   for (const tx of sorted) {
-    const sym    = tx.symbol || tx.isin || '';
+    const sym = tx.symbol || tx.isin || '';
     const ticker = ISIN[sym] || '';
-    const meta   = META[ticker] || {};
+    const meta = META[ticker] || {};
 
     if (tx.type === TxType.BUY) {
       // Ensure entry exists (basis engine already created it, but fill name)
@@ -66,57 +66,76 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
       // DCA monthly — BUYs only
       const cost = Math.abs(tx.amount);
       const m = tx.date.slice(0, 7);
-      monthly[m]   = (monthly[m] || 0) + cost;
+      monthly[m] = (monthly[m] || 0) + cost;
       if (!monthlyBy[m]) monthlyBy[m] = {};
       monthlyBy[m][sym] = (monthlyBy[m][sym] || 0) + cost;
-
     } else if (tx.type === TxType.SELL) {
       // Fill name for SELL events too
       if (etfs[sym] && !etfs[sym].name && tx.name) etfs[sym].name = tx.name;
-
     } else if (tx.type === TxType.DIVIDEND) {
       if (!etfs[sym]) {
         etfs[sym] = {
-          symbol: sym, ticker, name: tx.name,
+          symbol: sym,
+          ticker,
+          name: tx.name,
           color: meta.color || '#898781',
-          acc: false, active: false,
-          cost: 0, shares: 0, divNet: 0, taxPaid: 0, buys: 0,
-          realizedPnL: 0, totalFees: 0, exited: false,
+          acc: false,
+          active: false,
+          cost: 0,
+          shares: 0,
+          divNet: 0,
+          taxPaid: 0,
+          buys: 0,
+          realizedPnL: 0,
+          totalFees: 0,
+          exited: false,
         };
       }
       if (!etfs[sym].name && tx.name) etfs[sym].name = tx.name;
       const taxAbs = Math.abs(tx.tax || 0);
-      etfs[sym].divNet  += tx.amount;
+      etfs[sym].divNet += tx.amount;
       etfs[sym].taxPaid += taxAbs;
       divHist.push({
-        date: tx.date, ticker: ticker || sym,
-        gross: tx.amount + taxAbs, net: tx.amount, tax: taxAbs,
+        date: tx.date,
+        ticker: ticker || sym,
+        gross: tx.amount + taxAbs,
+        net: tx.amount,
+        tax: taxAbs,
         color: meta.color || '#898781',
       });
-
     } else if (tx.type === TxType.INTEREST || tx.type === 'INTEREST_PAYMENT') {
       totalInterest += tx.amount;
       intHist.push({ date: tx.date, amount: tx.amount });
-
     } else if (tx.type === TxType.TAX) {
       // TAX rows: positive tax field = refund (reduces net tax); negative = additional charge.
       // Sign convention: taxPaid accumulates absolute charges; refunds subtract.
       // e.g. TAX_OPTIMIZATION with tax: +3.44 means a refund → reduces totalTax by 3.44.
-      taxRefunds += (tx.tax || 0);
+      taxRefunds += tx.tax || 0;
     }
   }
 
   divHist.sort((a, b) => b.date.localeCompare(a.date));
   intHist.sort((a, b) => b.date.localeCompare(a.date));
 
-  const totalInv      = Object.values(etfs).reduce((s, e) => s + e.cost, 0);
-  const totalDivNet   = Object.values(etfs).reduce((s, e) => s + e.divNet, 0);
-  const totalTax      = Object.values(etfs).reduce((s, e) => s + e.taxPaid, 0) - taxRefunds;
-  const totalFees     = Object.values(etfs).reduce((s, e) => s + (e.totalFees || 0), 0);
-  const realizedPnL   = Object.values(etfs).reduce((s, e) => s + (e.realizedPnL || 0), 0);
-  const months        = Object.keys(monthly).sort();
+  const totalInv = Object.values(etfs).reduce((s, e) => s + e.cost, 0);
+  const totalDivNet = Object.values(etfs).reduce((s, e) => s + e.divNet, 0);
+  const totalTax = Object.values(etfs).reduce((s, e) => s + e.taxPaid, 0) - taxRefunds;
+  const totalFees = Object.values(etfs).reduce((s, e) => s + (e.totalFees || 0), 0);
+  const realizedPnL = Object.values(etfs).reduce((s, e) => s + (e.realizedPnL || 0), 0);
+  const months = Object.keys(monthly).sort();
 
-  return { etfs, divHist, intHist, monthly, monthlyBy, months,
-           totalInv, totalDivNet, totalTax, totalInterest,
-           totalFees, realizedPnL };
+  return {
+    etfs,
+    divHist,
+    intHist,
+    monthly,
+    monthlyBy,
+    months,
+    totalInv,
+    totalDivNet,
+    totalTax,
+    totalInterest,
+    totalFees,
+    realizedPnL,
+  };
 }

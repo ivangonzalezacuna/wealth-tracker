@@ -4,8 +4,22 @@ import { txKey } from '../sheets/transactions';
 
 describe('txRow shared parsers (Commit 3H)', () => {
   it('newRowToTx parses a 14-col row correctly', () => {
-    const row = ['tx-001', '2024-01-15', 'trade_republic', 'BUY', 'iShares MSCI World',
-      'IE00B4L5Y983', '10', '75.50', '-755', '-1.5', '0', 'EUR', '', 'note text'];
+    const row = [
+      'tx-001',
+      '2024-01-15',
+      'trade_republic',
+      'BUY',
+      'iShares MSCI World',
+      'IE00B4L5Y983',
+      '10',
+      '75.50',
+      '-755',
+      '-1.5',
+      '0',
+      'EUR',
+      '',
+      'note text',
+    ];
     const tx = newRowToTx(row);
 
     expect(tx.id).toBe('tx-001');
@@ -25,8 +39,18 @@ describe('txRow shared parsers (Commit 3H)', () => {
   });
 
   it('oldRowToTx parses a 10-col row correctly', () => {
-    const row = ['tx-001', '2024-01-15', 'TRADING', 'BUY', 'iShares MSCI World',
-      'IE00B4L5Y983', '10', '75.50', '-755', '0'];
+    const row = [
+      'tx-001',
+      '2024-01-15',
+      'TRADING',
+      'BUY',
+      'iShares MSCI World',
+      'IE00B4L5Y983',
+      '10',
+      '75.50',
+      '-755',
+      '0',
+    ];
     const tx = oldRowToTx(row);
 
     expect(tx.id).toBe('tx-001');
@@ -41,10 +65,34 @@ describe('txRow shared parsers (Commit 3H)', () => {
   });
 
   it('14-col and equivalent 10-col rows produce equal txKey', () => {
-    const newRow = ['tx-001', '2024-01-15', 'trade_republic', 'BUY', 'iShares MSCI World',
-      'IE00B4L5Y983', '10', '75.50', '-755', '-1.5', '0', 'EUR', '', ''];
-    const oldRow = ['tx-001', '2024-01-15', 'TRADING', 'BUY', 'iShares MSCI World',
-      'IE00B4L5Y983', '10', '75.50', '-755', '0'];
+    const newRow = [
+      'tx-001',
+      '2024-01-15',
+      'trade_republic',
+      'BUY',
+      'iShares MSCI World',
+      'IE00B4L5Y983',
+      '10',
+      '75.50',
+      '-755',
+      '-1.5',
+      '0',
+      'EUR',
+      '',
+      '',
+    ];
+    const oldRow = [
+      'tx-001',
+      '2024-01-15',
+      'TRADING',
+      'BUY',
+      'iShares MSCI World',
+      'IE00B4L5Y983',
+      '10',
+      '75.50',
+      '-755',
+      '0',
+    ];
 
     const tx14 = newRowToTx(newRow);
     const tx10 = oldRowToTx(oldRow);
@@ -55,8 +103,22 @@ describe('txRow shared parsers (Commit 3H)', () => {
   });
 
   it('German-comma numerics parse correctly in 14-col row', () => {
-    const row = ['tx-002', '2024-02-01', 'trade_republic', 'BUY', 'iShares EM',
-      'IE00BKM4GZ66', '5', '42,20', '-211,00', '0', '0', 'EUR', '', ''];
+    const row = [
+      'tx-002',
+      '2024-02-01',
+      'trade_republic',
+      'BUY',
+      'iShares EM',
+      'IE00BKM4GZ66',
+      '5',
+      '42,20',
+      '-211,00',
+      '0',
+      '0',
+      'EUR',
+      '',
+      '',
+    ];
     const tx = newRowToTx(row);
 
     expect(tx.shares).toBeCloseTo(5);
@@ -65,8 +127,22 @@ describe('txRow shared parsers (Commit 3H)', () => {
   });
 
   it('handles numeric cell values (UNFORMATTED_VALUE mode)', () => {
-    const row = ['tx-003', '2024-03-01', 'trade_republic', 'BUY', 'Test ETF',
-      'IE00TEST', 10, 75.5, -755, -1.5, 0, 'EUR', 0, ''];
+    const row = [
+      'tx-003',
+      '2024-03-01',
+      'trade_republic',
+      'BUY',
+      'Test ETF',
+      'IE00TEST',
+      10,
+      75.5,
+      -755,
+      -1.5,
+      0,
+      'EUR',
+      0,
+      '',
+    ];
     const tx = newRowToTx(row);
 
     expect(tx.shares).toBeCloseTo(10);

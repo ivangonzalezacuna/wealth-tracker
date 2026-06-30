@@ -10,7 +10,9 @@ const localStorageMock = {
   setItem: (key: string, value: string) => storage.set(key, value),
   removeItem: (key: string) => storage.delete(key),
   clear: () => storage.clear(),
-  get length() { return storage.size; },
+  get length() {
+    return storage.size;
+  },
   key: (_i: number) => null as string | null,
 };
 vi.stubGlobal('localStorage', localStorageMock);
@@ -30,10 +32,13 @@ describe('isSignedIn', () => {
 
   it('returns true when a valid non-expired token exists in localStorage', async () => {
     const futureExpiry = Date.now() + 3600_000; // 1 hour from now
-    storage.set('gtoken', JSON.stringify({
-      access_token: 'test-token',
-      expires_at: futureExpiry,
-    }));
+    storage.set(
+      'gtoken',
+      JSON.stringify({
+        access_token: 'test-token',
+        expires_at: futureExpiry,
+      }),
+    );
 
     const { isSignedIn } = await import('./google');
     expect(isSignedIn()).toBe(true);
@@ -46,10 +51,13 @@ describe('isSignedIn', () => {
 
   it('returns false when token is expired', async () => {
     const pastExpiry = Date.now() - 1000; // already expired
-    storage.set('gtoken', JSON.stringify({
-      access_token: 'test-token',
-      expires_at: pastExpiry,
-    }));
+    storage.set(
+      'gtoken',
+      JSON.stringify({
+        access_token: 'test-token',
+        expires_at: pastExpiry,
+      }),
+    );
 
     const { isSignedIn } = await import('./google');
     expect(isSignedIn()).toBe(false);
@@ -57,22 +65,30 @@ describe('isSignedIn', () => {
 
   it('returns false when token expires within 60s margin', async () => {
     const nearExpiry = Date.now() + 30_000; // expires in 30s, within 60s margin
-    storage.set('gtoken', JSON.stringify({
-      access_token: 'test-token',
-      expires_at: nearExpiry,
-    }));
+    storage.set(
+      'gtoken',
+      JSON.stringify({
+        access_token: 'test-token',
+        expires_at: nearExpiry,
+      }),
+    );
 
     const { isSignedIn } = await import('./google');
     expect(isSignedIn()).toBe(false);
   });
 
   it('does not make any network call when checking isSignedIn', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.reject('should not be called'));
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() => Promise.reject('should not be called'));
     const futureExpiry = Date.now() + 3600_000;
-    storage.set('gtoken', JSON.stringify({
-      access_token: 'test-token',
-      expires_at: futureExpiry,
-    }));
+    storage.set(
+      'gtoken',
+      JSON.stringify({
+        access_token: 'test-token',
+        expires_at: futureExpiry,
+      }),
+    );
 
     const { isSignedIn } = await import('./google');
     isSignedIn();

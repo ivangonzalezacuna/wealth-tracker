@@ -1,56 +1,56 @@
 version: 2
 updates:
   # JS/TS dependencies (Yarn, migrated in this same phase's Commit 1)
-  - package-ecosystem: "npm"
-    directory: "/"
+  - package-ecosystem: 'npm'
+    directory: '/'
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-      timezone: "Europe/Berlin"
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+      timezone: 'Europe/Berlin'
     open-pull-requests-limit: 10
     groups:
       # Build tooling: Vite, the PWA plugin, TypeScript, esbuild-adjacent tooling.
       # These tend to release in lockstep and are safe to review together.
       build-tooling:
         patterns:
-          - "vite"
-          - "vite-*"
-          - "typescript"
-          - "@types/*"
+          - 'vite'
+          - 'vite-*'
+          - 'typescript'
+          - '@types/*'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'
       # Test tooling: Vitest and its ecosystem, jsdom.
       test-tooling:
         patterns:
-          - "vitest"
-          - "@vitest/*"
-          - "jsdom"
+          - 'vitest'
+          - '@vitest/*'
+          - 'jsdom'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'
       # Runtime dependencies: chart.js, idb-keyval — anything actually shipped
       # to the browser, kept in its own group since these warrant closer
       # individual attention (visible runtime behavior) versus build-only tools.
       runtime-deps:
-        dependency-type: "production"
+        dependency-type: 'production'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'
     # Major bumps are excluded from every group above (each omits "major"
     # from update-types) so they always arrive as individual, clearly
     # flagged PRs instead of being bundled into a routine grouped update.
 
   # GitHub Actions versions (the workflows added in Commits 2-3 of this phase)
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: 'github-actions'
+    directory: '/'
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-      timezone: "Europe/Berlin"
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+      timezone: 'Europe/Berlin'
     groups:
       actions-deps:
         patterns:
-          - "*"
+          - '*'

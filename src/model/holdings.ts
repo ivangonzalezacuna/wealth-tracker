@@ -22,7 +22,8 @@ export function splitHoldings<T extends HoldingLike>(etfList: T[]): { held: T[];
 
   for (const etf of etfList) {
     // A position is exited ONLY when shares ~= 0 (fully sold)
-    const isExited = etf.exited === true || (etf.shares != null && Math.abs(etf.shares) < ZERO_THRESHOLD);
+    const isExited =
+      etf.exited === true || (etf.shares != null && Math.abs(etf.shares) < ZERO_THRESHOLD);
     if (isExited) {
       exited.push(etf);
     } else {
@@ -46,7 +47,7 @@ const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/;
 const TICKER_RE = /^[A-Z0-9][A-Z0-9 .\-]{0,9}$/;
 
 export interface HoldingValidationError {
-  index: number;       // index into the holdings array (matches collectHoldings order)
+  index: number; // index into the holdings array (matches collectHoldings order)
   field: 'isin' | 'ticker';
   message: string;
 }
@@ -67,12 +68,20 @@ export function validateHoldings(holdings: Holding[]): HoldingValidationError[] 
 
     // ISIN format
     if (!ISIN_RE.test(h.isin)) {
-      errors.push({ index: i, field: 'isin', message: `Row ${i + 1}: ISIN "${h.isin}" is not a valid 12-character ISO 6166 identifier.` });
+      errors.push({
+        index: i,
+        field: 'isin',
+        message: `Row ${i + 1}: ISIN "${h.isin}" is not a valid 12-character ISO 6166 identifier.`,
+      });
     } else {
       // Duplicate check (only if format is valid)
       const prev = seenIsin.get(h.isin);
       if (prev !== undefined) {
-        errors.push({ index: i, field: 'isin', message: `Row ${i + 1}: duplicate ISIN "${h.isin}" (first seen in row ${prev + 1}).` });
+        errors.push({
+          index: i,
+          field: 'isin',
+          message: `Row ${i + 1}: duplicate ISIN "${h.isin}" (first seen in row ${prev + 1}).`,
+        });
       } else {
         seenIsin.set(h.isin, i);
       }
@@ -80,7 +89,11 @@ export function validateHoldings(holdings: Holding[]): HoldingValidationError[] 
 
     // Ticker shape
     if (!TICKER_RE.test(h.ticker)) {
-      errors.push({ index: i, field: 'ticker', message: `Row ${i + 1}: Ticker "${h.ticker}" must be 1–10 characters (letters, digits, spaces, dots, hyphens).` });
+      errors.push({
+        index: i,
+        field: 'ticker',
+        message: `Row ${i + 1}: Ticker "${h.ticker}" must be 1–10 characters (letters, digits, spaces, dots, hyphens).`,
+      });
     }
   }
 

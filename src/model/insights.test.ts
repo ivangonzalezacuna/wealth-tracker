@@ -61,10 +61,7 @@ describe('findYoYSnapshot', () => {
   });
 
   it('returns null when history span < 12 months', () => {
-    const snaps: Snapshot[] = [
-      { date: '2026-01' },
-      { date: '2026-06' },
-    ];
+    const snaps: Snapshot[] = [{ date: '2026-01' }, { date: '2026-06' }];
     expect(findYoYSnapshot(snaps)).toBeNull();
   });
 

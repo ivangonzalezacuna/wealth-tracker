@@ -25,33 +25,40 @@ export function bindLegendToggle(
 
   function applyVisualState(): void {
     items.forEach((item, i) => {
-      if (skip.has(i)) { item.style.opacity = '1'; return; }
+      if (skip.has(i)) {
+        item.style.opacity = '1';
+        return;
+      }
       const meta = chart.getDatasetMeta(i);
       item.style.opacity = meta.hidden ? '0.35' : '1';
     });
   }
 
   function isAllVisible(): boolean {
-    const eligible = items.map((_, i) => i).filter(i => !skip.has(i));
-    return eligible.every(i => !chart.getDatasetMeta(i).hidden);
+    const eligible = items.map((_, i) => i).filter((i) => !skip.has(i));
+    return eligible.every((i) => !chart.getDatasetMeta(i).hidden);
   }
 
   function handleClick(targetIdx: number): void {
-    const eligible = items.map((_, i) => i).filter(i => !skip.has(i));
+    const eligible = items.map((_, i) => i).filter((i) => !skip.has(i));
     const targetMeta = chart.getDatasetMeta(targetIdx);
 
     if (isAllVisible()) {
       // All visible → isolate to clicked item
-      eligible.forEach(i => { chart.getDatasetMeta(i).hidden = i !== targetIdx; });
+      eligible.forEach((i) => {
+        chart.getDatasetMeta(i).hidden = i !== targetIdx;
+      });
     } else if (targetMeta.hidden) {
       // Item is hidden → show it (add it back)
       targetMeta.hidden = false;
     } else {
       // Item is visible → hide it, unless it's the last visible one
-      const visibleCount = eligible.filter(i => !chart.getDatasetMeta(i).hidden).length;
+      const visibleCount = eligible.filter((i) => !chart.getDatasetMeta(i).hidden).length;
       if (visibleCount <= 1) {
         // Last visible item clicked → restore all
-        eligible.forEach(i => { chart.getDatasetMeta(i).hidden = false; });
+        eligible.forEach((i) => {
+          chart.getDatasetMeta(i).hidden = false;
+        });
       } else {
         targetMeta.hidden = true;
       }
@@ -74,9 +81,11 @@ export function bindLegendToggle(
  *  full chart rebuild (range/year/page change) so legend state can never
  *  silently survive a rebuild it doesn't apply to. */
 export function resetLegendVisibility(legendEl: HTMLElement, chart: Chart): void {
-  chart.data.datasets.forEach((_, i) => { chart.getDatasetMeta(i).hidden = false; });
+  chart.data.datasets.forEach((_, i) => {
+    chart.getDatasetMeta(i).hidden = false;
+  });
   chart.update();
-  legendEl.querySelectorAll('.leg-item').forEach(item => {
+  legendEl.querySelectorAll('.leg-item').forEach((item) => {
     (item as HTMLElement).style.opacity = '1';
   });
 }

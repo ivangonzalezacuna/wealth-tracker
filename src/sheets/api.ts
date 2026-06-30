@@ -6,19 +6,19 @@
 import { getToken } from '../auth/google';
 
 const SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID;
-const BASE     = 'https://sheets.googleapis.com/v4/spreadsheets';
+const BASE = 'https://sheets.googleapis.com/v4/spreadsheets';
 
 async function _headers(): Promise<Record<string, string>> {
   const token = await getToken();
   return {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type':  'application/json',
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
   };
 }
 
 /** Read a range, returns 2D array of values (empty array if sheet is empty). */
 export async function readRange(range: string): Promise<(string | number | boolean)[][]> {
-  const h   = await _headers();
+  const h = await _headers();
   const url = `${BASE}/${SHEET_ID}/values/${encodeURIComponent(range)}?valueRenderOption=UNFORMATTED_VALUE`;
   const res = await fetch(url, { headers: h });
   if (!res.ok) throw new Error(`Sheets read error: ${res.status} ${await res.text()}`);
@@ -27,26 +27,32 @@ export async function readRange(range: string): Promise<(string | number | boole
 }
 
 /** Overwrite a range with a 2D array of values. */
-export async function writeRange(range: string, values: (string | number | boolean)[][]): Promise<unknown> {
-  const h   = await _headers();
+export async function writeRange(
+  range: string,
+  values: (string | number | boolean)[][],
+): Promise<unknown> {
+  const h = await _headers();
   const url = `${BASE}/${SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=RAW`;
   const res = await fetch(url, {
-    method:  'PUT',
+    method: 'PUT',
     headers: h,
-    body:    JSON.stringify({ range, majorDimension: 'ROWS', values }),
+    body: JSON.stringify({ range, majorDimension: 'ROWS', values }),
   });
   if (!res.ok) throw new Error(`Sheets write error: ${res.status} ${await res.text()}`);
   return res.json();
 }
 
 /** Append rows to the end of a range. */
-export async function appendRows(range: string, values: (string | number | boolean)[][]): Promise<unknown> {
-  const h   = await _headers();
+export async function appendRows(
+  range: string,
+  values: (string | number | boolean)[][],
+): Promise<unknown> {
+  const h = await _headers();
   const url = `${BASE}/${SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
   const res = await fetch(url, {
-    method:  'POST',
+    method: 'POST',
     headers: h,
-    body:    JSON.stringify({ range, majorDimension: 'ROWS', values }),
+    body: JSON.stringify({ range, majorDimension: 'ROWS', values }),
   });
   if (!res.ok) throw new Error(`Sheets append error: ${res.status} ${await res.text()}`);
   return res.json();
@@ -54,7 +60,7 @@ export async function appendRows(range: string, values: (string | number | boole
 
 /** Clear a range. */
 export async function clearRange(range: string): Promise<unknown> {
-  const h   = await _headers();
+  const h = await _headers();
   const url = `${BASE}/${SHEET_ID}/values/${encodeURIComponent(range)}:clear`;
   const res = await fetch(url, { method: 'POST', headers: h });
   if (!res.ok) throw new Error(`Sheets clear error: ${res.status} ${await res.text()}`);
@@ -66,22 +72,24 @@ export async function clearRange(range: string): Promise<unknown> {
  * Creates any missing tabs on first run.
  */
 export async function ensureSheets(tabNames: string[]): Promise<void> {
-  const h      = await _headers();
-  const metaR  = await fetch(`${BASE}/${SHEET_ID}`, { headers: h });
+  const h = await _headers();
+  const metaR = await fetch(`${BASE}/${SHEET_ID}`, { headers: h });
   if (!metaR.ok) throw new Error(`Cannot read spreadsheet metadata: ${metaR.status}`);
-  const meta    = await metaR.json();
-  const existing = (meta.sheets || []).map((s: { properties: { title: string } }) => s.properties.title);
-  const missing  = tabNames.filter(n => !existing.includes(n));
+  const meta = await metaR.json();
+  const existing = (meta.sheets || []).map(
+    (s: { properties: { title: string } }) => s.properties.title,
+  );
+  const missing = tabNames.filter((n) => !existing.includes(n));
   if (!missing.length) return;
 
-  const requests = missing.map(title => ({
+  const requests = missing.map((title) => ({
     addSheet: { properties: { title } },
   }));
   const batchUrl = `${BASE}/${SHEET_ID}:batchUpdate`;
   const res = await fetch(batchUrl, {
-    method:  'POST',
+    method: 'POST',
     headers: h,
-    body:    JSON.stringify({ requests }),
+    body: JSON.stringify({ requests }),
   });
   if (!res.ok) throw new Error(`Cannot create sheets: ${res.status} ${await res.text()}`);
 }

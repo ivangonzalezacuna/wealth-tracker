@@ -28,18 +28,26 @@ describe('shouldAutoResync', () => {
   });
 
   it('returns false when interval has not elapsed', () => {
-    expect(shouldAutoResync({ ...BASE, lastSyncAt: 100_000, now: 200_000, minIntervalMs: 120_000 })).toBe(false);
+    expect(
+      shouldAutoResync({ ...BASE, lastSyncAt: 100_000, now: 200_000, minIntervalMs: 120_000 }),
+    ).toBe(false);
   });
 
   it('returns true when exactly at the interval boundary', () => {
-    expect(shouldAutoResync({ ...BASE, lastSyncAt: 80_000, now: 200_000, minIntervalMs: 120_000 })).toBe(true);
+    expect(
+      shouldAutoResync({ ...BASE, lastSyncAt: 80_000, now: 200_000, minIntervalMs: 120_000 }),
+    ).toBe(true);
   });
 
   it('returns true when well past the interval', () => {
-    expect(shouldAutoResync({ ...BASE, lastSyncAt: 0, now: 1_000_000, minIntervalMs: 120_000 })).toBe(true);
+    expect(
+      shouldAutoResync({ ...BASE, lastSyncAt: 0, now: 1_000_000, minIntervalMs: 120_000 }),
+    ).toBe(true);
   });
 
   it('returns false when multiple conditions fail simultaneously', () => {
-    expect(shouldAutoResync({ ...BASE, signedIn: false, online: false, syncing: true })).toBe(false);
+    expect(shouldAutoResync({ ...BASE, signedIn: false, online: false, syncing: true })).toBe(
+      false,
+    );
   });
 });

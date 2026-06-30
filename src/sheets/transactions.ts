@@ -14,12 +14,38 @@ import { SHEET_TABS } from '../constants';
 import { newRowToTx, oldRowToTx } from '../model/txRow';
 import type { Transaction } from '../types';
 
-const TAB   = SHEET_TABS.TRANSACTIONS;
-const NEW_HDR = ['id','date','source','type','name','isin','shares','price','amount','fee','tax','currency','fxRate','note'];
+const TAB = SHEET_TABS.TRANSACTIONS;
+const NEW_HDR = [
+  'id',
+  'date',
+  'source',
+  'type',
+  'name',
+  'isin',
+  'shares',
+  'price',
+  'amount',
+  'fee',
+  'tax',
+  'currency',
+  'fxRate',
+  'note',
+];
 const NEW_RANGE = `${TAB}!A:N`;
 
 /** Old 10-column header for migration detection. */
-const OLD_HDR = ['id','date','category','type','name','symbol','shares','price','amount','tax'];
+const OLD_HDR = [
+  'id',
+  'date',
+  'category',
+  'type',
+  'name',
+  'symbol',
+  'shares',
+  'price',
+  'amount',
+  'tax',
+];
 
 /** Build a deduplication key for a transaction. Uses id when present,
  *  otherwise a delimited composite to avoid same-day/same-amount collisions.
@@ -35,15 +61,26 @@ export function txKey(t: Transaction): string {
  */
 function isOldHeader(hdr: (string | number | boolean)[]): boolean {
   if (!hdr || hdr.length < 10) return false;
-  const norm = hdr.map(h => (h || '').toString().trim().toLowerCase());
+  const norm = hdr.map((h) => (h || '').toString().trim().toLowerCase());
   return norm.includes('symbol') || norm.includes('category');
 }
 
 function txToRow(t: Transaction): (string | number)[] {
   return [
-    t.id, t.date, t.source || '', t.type, t.name, t.isin || t.symbol || '',
-    t.shares, t.price, t.amount, t.fee || 0, t.tax || 0,
-    t.currency || 'EUR', t.fxRate || '', t.note || '',
+    t.id,
+    t.date,
+    t.source || '',
+    t.type,
+    t.name,
+    t.isin || t.symbol || '',
+    t.shares,
+    t.price,
+    t.amount,
+    t.fee || 0,
+    t.tax || 0,
+    t.currency || 'EUR',
+    t.fxRate || '',
+    t.note || '',
   ];
 }
 
@@ -54,11 +91,11 @@ export async function loadTransactions(): Promise<Transaction[]> {
   if (!rows.length) return [];
 
   const hdr = rows[0];
-  const dataRows = (hdr && (hdr[0] || '').toString().toLowerCase() === 'id') ? rows.slice(1) : rows;
+  const dataRows = hdr && (hdr[0] || '').toString().toLowerCase() === 'id' ? rows.slice(1) : rows;
   const useOld = isOldHeader(hdr);
 
   const parser = useOld ? oldRowToTx : newRowToTx;
-  return dataRows.filter(r => r[1]).map(parser);
+  return dataRows.filter((r) => r[1]).map(parser);
 }
 
 /**
@@ -66,9 +103,12 @@ export async function loadTransactions(): Promise<Transaction[]> {
  * Deduplicates using txKey — only genuinely new rows are appended.
  * Returns the full merged set sorted by date.
  */
-export async function mergeTransactions(existing: Transaction[], incoming: Transaction[]): Promise<Transaction[]> {
+export async function mergeTransactions(
+  existing: Transaction[],
+  incoming: Transaction[],
+): Promise<Transaction[]> {
   const seen = new Set(existing.map(txKey));
-  const newTxs = incoming.filter(t => !seen.has(txKey(t)));
+  const newTxs = incoming.filter((t) => !seen.has(txKey(t)));
 
   if (newTxs.length > 0) {
     await ensureSheets([TAB]);

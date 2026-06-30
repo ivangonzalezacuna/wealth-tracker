@@ -38,7 +38,9 @@ export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
     const cancelBtn = overlay.querySelector('.js-confirm-cancel') as HTMLElement;
     okBtn.addEventListener('click', () => _dismiss(true));
     cancelBtn.addEventListener('click', () => _dismiss(false));
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) _dismiss(false); });
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) _dismiss(false);
+    });
     document.addEventListener('keydown', _onKeydown);
 
     // Focus the cancel button by default (safer default for destructive actions)
@@ -66,5 +68,9 @@ function _dismiss(result: boolean): void {
 }
 
 function _esc(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }

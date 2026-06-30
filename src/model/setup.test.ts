@@ -12,7 +12,9 @@ describe('getSetupState', () => {
   });
 
   it('returns "first-update" when signed in with accounts but no snapshots', () => {
-    expect(getSetupState({ signedIn: true, accountCount: 2, snapshotCount: 0 })).toBe('first-update');
+    expect(getSetupState({ signedIn: true, accountCount: 2, snapshotCount: 0 })).toBe(
+      'first-update',
+    );
   });
 
   it('returns "done" when signed in with accounts and at least one snapshot', () => {

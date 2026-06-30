@@ -13,7 +13,13 @@ import { txKey } from './transactions';
 
 describe('txKey', () => {
   it('uses id when present', () => {
-    const tx = { id: 'abc-123', date: '2024-01-01', type: 'BUY', isin: 'IE00B4L5Y983', amount: -500 };
+    const tx = {
+      id: 'abc-123',
+      date: '2024-01-01',
+      type: 'BUY',
+      isin: 'IE00B4L5Y983',
+      amount: -500,
+    };
     expect(txKey(tx)).toBe('abc-123');
   });
 
@@ -31,13 +37,24 @@ describe('txKey', () => {
     // Old format row would have: id, date, category, type, name, symbol, shares, price, amount, tax
     // After migration, the tx object would have isin=symbol value, same type, same amount
     const oldStyleTx = {
-      id: '', date: '2024-01-15', type: 'BUY',
-      symbol: 'IE00B4L5Y983', isin: 'IE00B4L5Y983', amount: -1000,
+      id: '',
+      date: '2024-01-15',
+      type: 'BUY',
+      symbol: 'IE00B4L5Y983',
+      isin: 'IE00B4L5Y983',
+      amount: -1000,
     };
     const newStyleTx = {
-      id: '', date: '2024-01-15', type: 'BUY',
-      isin: 'IE00B4L5Y983', symbol: 'IE00B4L5Y983', amount: -1000,
-      source: 'trade_republic', fee: 0, currency: 'EUR', fxRate: 0,
+      id: '',
+      date: '2024-01-15',
+      type: 'BUY',
+      isin: 'IE00B4L5Y983',
+      symbol: 'IE00B4L5Y983',
+      amount: -1000,
+      source: 'trade_republic',
+      fee: 0,
+      currency: 'EUR',
+      fxRate: 0,
     };
     expect(txKey(oldStyleTx)).toBe(txKey(newStyleTx));
   });
@@ -66,7 +83,18 @@ describe('old 10-col migration shape', () => {
 
   it('old row defaults are correct', () => {
     // Simulate oldRowToTx output (based on the function logic we read)
-    const oldRow = ['tx-001', '2024-01-15', 'TRADING', 'BUY', 'iShares MSCI World', 'IE00B4L5Y983', '10', '75.50', '-755.00', '-2.50'];
+    const oldRow = [
+      'tx-001',
+      '2024-01-15',
+      'TRADING',
+      'BUY',
+      'iShares MSCI World',
+      'IE00B4L5Y983',
+      '10',
+      '75.50',
+      '-755.00',
+      '-2.50',
+    ];
 
     // Manual application of oldRowToTx logic
     const tx = {

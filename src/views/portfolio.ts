@@ -27,8 +27,9 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   const META = getMETAMap();
 
   // Build full ordered ETF list
-  const allEtfs = ISIN_ORDER.map(s => pd.etfs[s]).filter(Boolean)
-    .concat(Object.values(pd.etfs).filter(e => !ISIN_ORDER.includes(e.symbol)));
+  const allEtfs = ISIN_ORDER.map((s) => pd.etfs[s])
+    .filter(Boolean)
+    .concat(Object.values(pd.etfs).filter((e) => !ISIN_ORDER.includes(e.symbol)));
 
   // Split into held / exited
   const { held, exited } = splitHoldings(allEtfs);
@@ -59,14 +60,15 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
       </div>
     </div>`;
 
-  const rows = pageItems.map(e => {
-    const pct = pd.totalInv > 0 ? e.cost / pd.totalInv * 100 : 0;
-    const avg = e.shares > 0 ? e.cost / e.shares : 0;
-    const m   = META[e.ticker] || {};
-    const isExited = e.exited || e.shares < 1e-6;
-    const rpnl = e.realizedPnL || 0;
+  const rows = pageItems
+    .map((e) => {
+      const pct = pd.totalInv > 0 ? (e.cost / pd.totalInv) * 100 : 0;
+      const avg = e.shares > 0 ? e.cost / e.shares : 0;
+      const m = META[e.ticker] || {};
+      const isExited = e.exited || e.shares < 1e-6;
+      const rpnl = e.realizedPnL || 0;
 
-    return `<div class="tbl-row hold-row" role="row"${isExited ? ' style="opacity:0.6"' : ''}>
+      return `<div class="tbl-row hold-row" role="row"${isExited ? ' style="opacity:0.6"' : ''}>
       <div role="cell" class="hold-etf-cell"
            data-isin="${esc(e.symbol)}"
            data-active="${m.active ? '1' : '0'}"
@@ -86,7 +88,8 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
       <div role="cell" style="text-align:right;color:${rpnl >= 0 ? 'var(--pos)' : 'var(--neg)'}" aria-label="Realized P&L ${rpnl !== 0 ? (rpnl >= 0 ? '+' : '') + rpnl.toFixed(2) : 'none'}">${rpnl === 0 ? '—' : (rpnl > 0 ? '+' : '') + fmtEur2(rpnl)}</div>
       <div role="cell" style="text-align:right;color:${e.divNet > 0 ? 'var(--pos)' : 'var(--ink-3)'}">${e.divNet > 0 ? fmtEur2(e.divNet) : '—'}</div>
     </div>`;
-  }).join('');
+    })
+    .join('');
 
   document.getElementById('port-table').innerHTML = `
     ${filterHtml}
@@ -107,7 +110,8 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   if (portTable) attachInfoTips(portTable);
 
   // Bind filter listeners once (Commit 2G: _bound guard prevents stacking)
-  const filterToggle = document.getElementById('port-filter-toggle') as HTMLElement & { _bound?: boolean } | null;
+  const filterToggle = document.getElementById('port-filter-toggle') as
+    (HTMLElement & { _bound?: boolean }) | null;
   if (filterToggle && !filterToggle._bound) {
     filterToggle._bound = true;
     filterToggle.addEventListener('click', (e) => {
@@ -120,7 +124,8 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   }
 
   // Row tap-to-expand detail panel (delegated on #port-table)
-  const tbl = document.getElementById('port-table') as HTMLElement & { _rowDetail_bound?: boolean } | null;
+  const tbl = document.getElementById('port-table') as
+    (HTMLElement & { _rowDetail_bound?: boolean }) | null;
   if (tbl && !tbl._rowDetail_bound) {
     tbl._rowDetail_bound = true;
     tbl.addEventListener('click', (e) => {
@@ -134,15 +139,15 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
       }
       const cell = row.querySelector('.hold-etf-cell') as HTMLElement | null;
       if (!cell) return;
-      const isin   = cell.dataset.isin   || '—';
+      const isin = cell.dataset.isin || '—';
       const active = cell.dataset.active === '1' ? 'Active' : 'Closed';
-      const acc    = cell.dataset.acc    === '1' ? 'Accumulating' : 'Distributing';
+      const acc = cell.dataset.acc === '1' ? 'Accumulating' : 'Distributing';
       const shares = cell.dataset.shares || '—';
-      const avg    = cell.dataset.avg || '—';
+      const avg = cell.dataset.avg || '—';
       const rpnlNum = parseFloat(cell.dataset.rpnl || '0');
       const rpnl = rpnlNum === 0 ? '—' : (rpnlNum > 0 ? '+' : '') + fmtEur2(rpnlNum);
       const rpnlClass = rpnlNum >= 0 ? 'pos' : 'neg';
-      const panel  = document.createElement('div');
+      const panel = document.createElement('div');
       panel.className = 'hold-detail';
       panel.innerHTML = `
         <div><span class="hold-detail-label">ISIN</span><span class="hold-detail-value hold-detail-isin">${isin}</span></div>
@@ -172,10 +177,16 @@ function renderHoldPagination(totalPages: number, pd: PortfolioData, snaps: Snap
     <button class="btn btn-sm btn-ghost js-hold-next" ${_holdPage >= totalPages ? 'disabled' : ''}>→</button>
   `;
   el.querySelector('.js-hold-prev')?.addEventListener('click', () => {
-    if (_holdPage > 1) { _holdPage--; renderHoldingsTable(pd, snaps); }
+    if (_holdPage > 1) {
+      _holdPage--;
+      renderHoldingsTable(pd, snaps);
+    }
   });
   el.querySelector('.js-hold-next')?.addEventListener('click', () => {
-    if (_holdPage < totalPages) { _holdPage++; renderHoldingsTable(pd, snaps); }
+    if (_holdPage < totalPages) {
+      _holdPage++;
+      renderHoldingsTable(pd, snaps);
+    }
   });
 }
 
@@ -183,22 +194,22 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   const ISIN_ORDER = getISIN_ORDERList();
   const META = getMETAMap();
   const has = pd && Object.keys(pd.etfs).length > 0;
-  document.getElementById('port-empty').style.display   = has ? 'none'  : 'block';
+  document.getElementById('port-empty').style.display = has ? 'none' : 'block';
   document.getElementById('port-content').style.display = has ? 'block' : 'none';
   if (!has) return;
 
   _holdPage = 1;
 
   const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
-  const curVal  = primaryInvestmentValue(latSnap, getAccounts());
-  const gain    = curVal !== null ? curVal - pd.totalInv : null;
-  const gainPct = gain !== null && pd.totalInv > 0 ? gain / pd.totalInv * 100 : null;
+  const curVal = primaryInvestmentValue(latSnap, getAccounts());
+  const gain = curVal !== null ? curVal - pd.totalInv : null;
+  const gainPct = gain !== null && pd.totalInv > 0 ? (gain / pd.totalInv) * 100 : null;
 
   document.getElementById('port-kpis').innerHTML = `
     <div class="kpi"><div class="kpi-label">Total invested</div><div class="kpi-val">${fmtEur(pd.totalInv)}</div><div class="kpi-sub">net of sells</div></div>
     <div class="kpi"><div class="kpi-label">Current value</div>
       <div class="kpi-val">${curVal !== null ? fmtEur2(curVal) : '—'}</div>
-      <div class="kpi-sub">${curVal !== null ? 'from ' + fmtMon(latSnap.date) + ' snapshot' : (latSnap ? 'no primary investment account flagged' : 'add a snapshot')}</div></div>
+      <div class="kpi-sub">${curVal !== null ? 'from ' + fmtMon(latSnap.date) + ' snapshot' : latSnap ? 'no primary investment account flagged' : 'add a snapshot'}</div></div>
     <div class="kpi"><div class="kpi-label">Unrealized gain</div>
       <div class="kpi-val ${gain !== null && gain >= 0 ? 'pos' : 'neg'}">${gain !== null ? (gain >= 0 ? '+' : '') + fmtEur2(gain) : '—'}</div>
       <div class="kpi-sub">${gainPct !== null ? (gainPct >= 0 ? '+' : '') + gainPct.toFixed(1) + '%' : ''}</div></div>
@@ -211,40 +222,64 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   renderHoldingsTable(pd, snaps);
 
   // Build full ordered ETF list for donut (held positions only)
-  const allEtfs = ISIN_ORDER.map(s => pd.etfs[s]).filter(Boolean)
-    .concat(Object.values(pd.etfs).filter(e => !ISIN_ORDER.includes(e.symbol)));
+  const allEtfs = ISIN_ORDER.map((s) => pd.etfs[s])
+    .filter(Boolean)
+    .concat(Object.values(pd.etfs).filter((e) => !ISIN_ORDER.includes(e.symbol)));
   const { held } = splitHoldings(allEtfs);
 
   // Bar chart — only held positions with cost > 0
-  const donutE = held.filter(e => e.cost > 0);
+  const donutE = held.filter((e) => e.cost > 0);
   const C = resolvedT();
-  if (CH['c-port-donut']) { CH['c-port-donut'].destroy(); }
+  if (CH['c-port-donut']) {
+    CH['c-port-donut'].destroy();
+  }
   CH['c-port-donut'] = new Chart(document.getElementById('c-port-donut'), {
     type: 'bar',
     data: {
-      labels: donutE.map(e => e.ticker),
-      datasets: [{ data: donutE.map(e => e.cost),
-        backgroundColor: donutE.map(e => safeColor(e.color)),
-        borderColor: donutE.map(e => safeColor(e.color)),
-        borderWidth: 1, borderRadius: 5, borderSkipped: false }],
+      labels: donutE.map((e) => e.ticker),
+      datasets: [
+        {
+          data: donutE.map((e) => e.cost),
+          backgroundColor: donutE.map((e) => safeColor(e.color)),
+          borderColor: donutE.map((e) => safeColor(e.color)),
+          borderWidth: 1,
+          borderRadius: 5,
+          borderSkipped: false,
+        },
+      ],
     },
-    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: C.surface, borderColor: C.line, borderWidth: 1,
-          titleColor: C.ink, bodyColor: C.ink2, padding: 10, cornerRadius: 8,
-          callbacks: { label: ctx => ` ${fmtEur(ctx.raw as number)}` },
+          backgroundColor: C.surface,
+          borderColor: C.line,
+          borderWidth: 1,
+          titleColor: C.ink,
+          bodyColor: C.ink2,
+          padding: 10,
+          cornerRadius: 8,
+          callbacks: { label: (ctx) => ` ${fmtEur(ctx.raw as number)}` },
         },
       },
       scales: {
-        x: { grid: { color: C.line }, ticks: { color: C.ink4, callback: (v: number) => '€' + (v / 1000).toFixed(0) + 'k' } },
+        x: {
+          grid: { color: C.line },
+          ticks: { color: C.ink4, callback: (v: number) => '€' + (v / 1000).toFixed(0) + 'k' },
+        },
         y: { grid: { display: false }, ticks: { color: C.ink2, font: { size: 12 } } },
       },
     },
   });
-  document.getElementById('port-donut-legend').innerHTML =
-    donutE.map(e => `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(e.color)}"></span>${esc(e.ticker)} ${pd.totalInv > 0 ? (e.cost / pd.totalInv * 100).toFixed(0) : 0}%</span>`).join('');
+  document.getElementById('port-donut-legend').innerHTML = donutE
+    .map(
+      (e) =>
+        `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(e.color)}"></span>${esc(e.ticker)} ${pd.totalInv > 0 ? ((e.cost / pd.totalInv) * 100).toFixed(0) : 0}%</span>`,
+    )
+    .join('');
 
   // TODO Phase: consolidation — populate foldInto on first SELL (IEEM→CMEIU, CECBE+EGB7Y→GABE)
   document.getElementById('port-summary').innerHTML = `
@@ -254,10 +289,14 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     <div class="row"><div class="row-label">Dividends (net)</div><div class="row-val ok">${fmtEur2(pd.totalDivNet)}</div></div>
     <div class="row"><div class="row-label">Tax withheld on dividends</div><div class="row-val">${fmtEur2(pd.totalTax)}</div></div>
     <div class="row"><div class="row-label">Interest earned</div><div class="row-val ok">${fmtEur2(pd.totalInterest)}</div></div>
-    ${gain !== null ? `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px">
+    ${
+      gain !== null
+        ? `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px">
       <div class="row-label" style="font-weight:500">Unrealized gain</div>
       <div class="row-val ${gain >= 0 ? 'pos' : 'neg'}" style="font-weight:500">
-        ${gain >= 0 ? '+' : ''}${fmtEur2(gain)} (${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(1)}%)</div></div>` : ''}
+        ${gain >= 0 ? '+' : ''}${fmtEur2(gain)} (${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(1)}%)</div></div>`
+        : ''
+    }
     <p class="note">Cost basis exact from CSV. Current value from latest snapshot (${latSnap ? fmtMon(latSnap.date) : 'none yet'}). Mixed-currency positions compute in account currency (no FX conversion).</p>
   `;
 
@@ -283,9 +322,19 @@ function _renderDriftCard(pd: PortfolioData): void {
   const statusColor = max > 10 ? 'var(--neg)' : max > 5 ? 'var(--warn)' : 'var(--pos)';
   const statusLabel = max > 10 ? 'High drift' : max > 5 ? 'Moderate drift' : 'On target';
 
-  const rows = drift.map(d => {
-    const driftColor = d.driftPct > 5 ? 'var(--neg)' : d.driftPct < -5 ? 'var(--neg)' : d.driftPct > 2 ? 'var(--warn)' : d.driftPct < -2 ? 'var(--warn)' : 'var(--pos)';
-    return `
+  const rows = drift
+    .map((d) => {
+      const driftColor =
+        d.driftPct > 5
+          ? 'var(--neg)'
+          : d.driftPct < -5
+            ? 'var(--neg)'
+            : d.driftPct > 2
+              ? 'var(--warn)'
+              : d.driftPct < -2
+                ? 'var(--warn)'
+                : 'var(--pos)';
+      return `
       <div class="tbl-row" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
         <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${safeColor(d.color)};margin-right:6px"></span>${esc(d.ticker)}</div>
         <div role="cell" style="text-align:right">${d.targetPct.toFixed(1)}%</div>
@@ -293,7 +342,8 @@ function _renderDriftCard(pd: PortfolioData): void {
         <div role="cell" style="text-align:right;color:${driftColor}" aria-label="Drift ${d.driftPct >= 0 ? '+' : ''}${d.driftPct.toFixed(1)}%">${d.driftPct >= 0 ? '+' : ''}${d.driftPct.toFixed(1)}%</div>
         <div role="cell" style="text-align:right;color:${d.deltaValue >= 0 ? 'var(--ink-3)' : 'var(--ink-2)'}">${d.deltaValue >= 0 ? '+' : ''}${fmtEur(d.deltaValue)}</div>
       </div>`;
-  }).join('');
+    })
+    .join('');
 
   driftEl.innerHTML = `
     <div class="card">

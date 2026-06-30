@@ -16,13 +16,16 @@ import type { Account, Holding, Settings, ContribInterval } from '../types';
 import { totalAnnualContrib } from '../model/contributions';
 
 // Type for reinvestment rules from static config
-interface ReinvestmentRule { label: string; value: string }
+interface ReinvestmentRule {
+  label: string;
+  value: string;
+}
 
 // ── Sheet tab names ──────────────────────────────────────
 const TABS = {
-  ACCOUNTS:       'Accounts',
-  HOLDINGS:       'Holdings',
-  SETTINGS:       'Settings',
+  ACCOUNTS: 'Accounts',
+  HOLDINGS: 'Holdings',
+  SETTINGS: 'Settings',
   CONFIG_HISTORY: 'ConfigHistory',
 } as const;
 
@@ -42,20 +45,28 @@ interface AccountEntry {
 let _accounts: Account[] = [];
 let _holdings: Holding[] = [];
 let _settings: Settings = {};
-let _loaded   = false;
+let _loaded = false;
 let _onChange: (() => void) | null = null;
 
 // ── Public accessors (read at render time) ───────────────
 
-export function getAccounts(): Account[] { return _accounts; }
-export function getHoldings(): Holding[] { return _holdings; }
-export function getSettings(): Settings { return _settings; }
-export function isConfigLoaded(): boolean { return _loaded; }
+export function getAccounts(): Account[] {
+  return _accounts;
+}
+export function getHoldings(): Holding[] {
+  return _holdings;
+}
+export function getSettings(): Settings {
+  return _settings;
+}
+export function isConfigLoaded(): boolean {
+  return _loaded;
+}
 
 /** Get ACCTS-compatible array for backward compat (key/label/color). */
 export function getACCTS(): AccountEntry[] {
-  return _accounts.map(a => ({
-    key:   a.id || a.key || '',
+  return _accounts.map((a) => ({
+    key: a.id || a.key || '',
     label: a.label || `${a.moneyType} · ${a.institution}`,
     color: a.color || '',
   }));
@@ -63,26 +74,31 @@ export function getACCTS(): AccountEntry[] {
 
 /** Get ISIN → ticker map from holdings. */
 export function getISINMap(): Record<string, string> {
-  return Object.fromEntries(_holdings.map(h => [h.isin, h.ticker]));
+  return Object.fromEntries(_holdings.map((h) => [h.isin, h.ticker]));
 }
 
 /** Get ticker → metadata map from holdings. */
 export function getMETA(): Record<string, HoldingMeta> {
-  return Object.fromEntries(_holdings.map(h => [h.ticker, {
-    color:  h.color,
-    acc:    h.acc,
-    active: h.active,
-  }]));
+  return Object.fromEntries(
+    _holdings.map((h) => [
+      h.ticker,
+      {
+        color: h.color,
+        acc: h.acc,
+        active: h.active,
+      },
+    ]),
+  );
 }
 
 /** Get ISINs in display order. */
 export function getISIN_ORDER(): string[] {
-  return _holdings.map(h => h.isin);
+  return _holdings.map((h) => h.isin);
 }
 
 /** Get the account(s) marked as primary investment. */
 export function getPrimaryInvestmentAccounts(): Account[] {
-  return _accounts.filter(a => a.isPrimaryInvestment);
+  return _accounts.filter((a) => a.isPrimaryInvestment);
 }
 
 /** Computed: total annualized contribution from all active holdings. */
@@ -120,7 +136,9 @@ export function getCostBasisMethod(): 'fifo' | 'avgco' {
 }
 
 // ── Register re-render callback ──────────────────────────
-export function onConfigChange(fn: () => void): void { _onChange = fn; }
+export function onConfigChange(fn: () => void): void {
+  _onChange = fn;
+}
 
 // ── Load config from sheets ──────────────────────────────
 
@@ -153,10 +171,15 @@ export async function loadConfig(): Promise<void> {
 export async function setAccounts(accounts: Account[]): Promise<void> {
   _accounts = accounts;
   await ensureSheets([TABS.ACCOUNTS]);
-  const hdr = ['id','moneyType','institution','label','color','isPrimaryInvestment','order'];
-  const rows = accounts.map(a => [
-    a.id || a.key || '', a.moneyType || '', a.institution || '', a.label || '', a.color || '',
-    a.isPrimaryInvestment ? 'true' : 'false', a.order ?? '',
+  const hdr = ['id', 'moneyType', 'institution', 'label', 'color', 'isPrimaryInvestment', 'order'];
+  const rows = accounts.map((a) => [
+    a.id || a.key || '',
+    a.moneyType || '',
+    a.institution || '',
+    a.label || '',
+    a.color || '',
+    a.isPrimaryInvestment ? 'true' : 'false',
+    a.order ?? '',
   ]);
   await writeRange(`${TABS.ACCOUNTS}!A1`, [hdr, ...rows]);
   await logChange('Accounts', `updated ${accounts.length} accounts`);
@@ -166,12 +189,33 @@ export async function setAccounts(accounts: Account[]): Promise<void> {
 export async function setHoldings(holdings: Holding[]): Promise<void> {
   _holdings = holdings;
   await ensureSheets([TABS.HOLDINGS]);
-  const hdr = ['isin','ticker','name','color','acc','active','contribAmount','interval','assetClass','region','foldInto','order'];
-  const rows = holdings.map(h => [
-    h.isin, h.ticker, h.name || '', h.color || '',
-    h.acc ? 'true' : 'false', h.active ? 'true' : 'false',
-    h.contribAmount ?? 0, h.interval || 'weekly', h.assetClass || '', h.region || '',
-    h.foldInto || '', h.order ?? '',
+  const hdr = [
+    'isin',
+    'ticker',
+    'name',
+    'color',
+    'acc',
+    'active',
+    'contribAmount',
+    'interval',
+    'assetClass',
+    'region',
+    'foldInto',
+    'order',
+  ];
+  const rows = holdings.map((h) => [
+    h.isin,
+    h.ticker,
+    h.name || '',
+    h.color || '',
+    h.acc ? 'true' : 'false',
+    h.active ? 'true' : 'false',
+    h.contribAmount ?? 0,
+    h.interval || 'weekly',
+    h.assetClass || '',
+    h.region || '',
+    h.foldInto || '',
+    h.order ?? '',
   ]);
   await writeRange(`${TABS.HOLDINGS}!A1`, [hdr, ...rows]);
   await logChange('Holdings', `updated ${holdings.length} holdings`);
@@ -185,7 +229,9 @@ export async function setSetting(key: string, value: string): Promise<void> {
   if (_onChange) _onChange();
 }
 
-export async function setSettings(settings: Record<string, string | null | undefined>): Promise<void> {
+export async function setSettings(
+  settings: Record<string, string | null | undefined>,
+): Promise<void> {
   for (const [k, v] of Object.entries(settings)) {
     if (v === null || v === undefined) {
       delete _settings[k];
@@ -216,53 +262,68 @@ async function logChange(entity: string, summary: string): Promise<void> {
 // ── Parsing helpers ──────────────────────────────────────
 
 /** Normalize a value that may arrive as boolean or string to a boolean. */
-const toBool = (v: unknown) => v === true || String(v ?? '').trim().toLowerCase() === 'true';
+const toBool = (v: unknown) =>
+  v === true ||
+  String(v ?? '')
+    .trim()
+    .toLowerCase() === 'true';
 
 /** Normalize a value that may arrive as number or string to a number. */
 const toNum = (v: unknown) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || 0);
 
 function parseAccounts(rows: (string | number | boolean)[][]): Account[] {
   if (!rows.length) return [];
-  const hdr = rows[0].map(c => (c || '').toString().trim().toLowerCase());
-  return rows.slice(1).filter(r => r[hdr.indexOf('id')]).map(r => ({
-    id:                  String(r[hdr.indexOf('id')] ?? ''),
-    moneyType:           String(r[hdr.indexOf('moneytype')] ?? ''),
-    institution:         String(r[hdr.indexOf('institution')] ?? ''),
-    label:               String(r[hdr.indexOf('label')] ?? ''),
-    color:               String(r[hdr.indexOf('color')] ?? ''),
-    isPrimaryInvestment: toBool(r[hdr.indexOf('isprimaryinvestment')]),
-    order:               toNum(r[hdr.indexOf('order')]),
-  })).sort((a, b) => (a.order || 0) - (b.order || 0));
+  const hdr = rows[0].map((c) => (c || '').toString().trim().toLowerCase());
+  return rows
+    .slice(1)
+    .filter((r) => r[hdr.indexOf('id')])
+    .map((r) => ({
+      id: String(r[hdr.indexOf('id')] ?? ''),
+      moneyType: String(r[hdr.indexOf('moneytype')] ?? ''),
+      institution: String(r[hdr.indexOf('institution')] ?? ''),
+      label: String(r[hdr.indexOf('label')] ?? ''),
+      color: String(r[hdr.indexOf('color')] ?? ''),
+      isPrimaryInvestment: toBool(r[hdr.indexOf('isprimaryinvestment')]),
+      order: toNum(r[hdr.indexOf('order')]),
+    }))
+    .sort((a, b) => (a.order || 0) - (b.order || 0));
 }
 
 function parseHoldings(rows: (string | number | boolean)[][]): Holding[] {
   if (!rows.length) return [];
-  const hdr = rows[0].map(c => (c || '').toString().trim().toLowerCase());
-  return rows.slice(1).filter(r => r[hdr.indexOf('isin')]).map(r => {
-    // Backward compat: if old 'weeklytarget' column exists but no 'contribamount', use it
-    const hasNewAmount = hdr.indexOf('contribamount') >= 0;
-    const amount = hasNewAmount
-      ? toNum(r[hdr.indexOf('contribamount')])
-      : toNum(r[hdr.indexOf('weeklytarget')]);
-    const interval: ContribInterval =
-      (hdr.indexOf('interval') >= 0 && r[hdr.indexOf('interval')]
-        ? String(r[hdr.indexOf('interval')]).trim().toLowerCase()
-        : 'weekly') as ContribInterval;
-    return {
-      isin:         String(r[hdr.indexOf('isin')] ?? ''),
-      ticker:       String(r[hdr.indexOf('ticker')] ?? ''),
-      name:         String(r[hdr.indexOf('name')] ?? ''),
-      color:        String(r[hdr.indexOf('color')] ?? ''),
-      acc:          toBool(r[hdr.indexOf('acc')]),
-      active:       toBool(r[hdr.indexOf('active')]),
-      contribAmount: amount,
-      interval:     (['weekly','biweekly','monthly','quarterly'].includes(interval) ? interval : 'weekly') as ContribInterval,
-      assetClass:   String(r[hdr.indexOf('assetclass')] ?? ''),
-      region:       String(r[hdr.indexOf('region')] ?? ''),
-      foldInto:     String(r[hdr.indexOf('foldinto')] ?? ''),
-      order:        toNum(r[hdr.indexOf('order')]),
-    };
-  }).sort((a, b) => a.order - b.order);
+  const hdr = rows[0].map((c) => (c || '').toString().trim().toLowerCase());
+  return rows
+    .slice(1)
+    .filter((r) => r[hdr.indexOf('isin')])
+    .map((r) => {
+      // Backward compat: if old 'weeklytarget' column exists but no 'contribamount', use it
+      const hasNewAmount = hdr.indexOf('contribamount') >= 0;
+      const amount = hasNewAmount
+        ? toNum(r[hdr.indexOf('contribamount')])
+        : toNum(r[hdr.indexOf('weeklytarget')]);
+      const interval: ContribInterval = (
+        hdr.indexOf('interval') >= 0 && r[hdr.indexOf('interval')]
+          ? String(r[hdr.indexOf('interval')]).trim().toLowerCase()
+          : 'weekly'
+      ) as ContribInterval;
+      return {
+        isin: String(r[hdr.indexOf('isin')] ?? ''),
+        ticker: String(r[hdr.indexOf('ticker')] ?? ''),
+        name: String(r[hdr.indexOf('name')] ?? ''),
+        color: String(r[hdr.indexOf('color')] ?? ''),
+        acc: toBool(r[hdr.indexOf('acc')]),
+        active: toBool(r[hdr.indexOf('active')]),
+        contribAmount: amount,
+        interval: (['weekly', 'biweekly', 'monthly', 'quarterly'].includes(interval)
+          ? interval
+          : 'weekly') as ContribInterval,
+        assetClass: String(r[hdr.indexOf('assetclass')] ?? ''),
+        region: String(r[hdr.indexOf('region')] ?? ''),
+        foldInto: String(r[hdr.indexOf('foldinto')] ?? ''),
+        order: toNum(r[hdr.indexOf('order')]),
+      };
+    })
+    .sort((a, b) => a.order - b.order);
 }
 
 function parseSettings(rows: (string | number | boolean)[][]): Settings {
@@ -285,13 +346,13 @@ async function seedFromConfig(seedAccounts: boolean, seedHoldings: boolean): Pro
   // Seed Accounts from CONFIG.accounts when requested and source is non-empty
   if (seedAccounts && staticAccounts.length > 0) {
     const accounts: Account[] = staticAccounts.map((a, i) => ({
-      id:                  a.key,
-      moneyType:           'cash',
-      institution:         '',
-      label:               a.label,
-      color:               a.color,
+      id: a.key,
+      moneyType: 'cash',
+      institution: '',
+      label: a.label,
+      color: a.color,
       isPrimaryInvestment: false,
-      order:               i + 1,
+      order: i + 1,
     }));
     _accounts = accounts;
     await setAccounts(accounts);
@@ -300,11 +361,11 @@ async function seedFromConfig(seedAccounts: boolean, seedHoldings: boolean): Pro
   // Seed Holdings from CONFIG.holdings when requested and source is non-empty
   if (seedHoldings && staticHoldings.length > 0) {
     const holdings: Holding[] = staticHoldings.map((h, i) => {
-      const slice = slices.find(s => s.ticker === h.ticker);
+      const slice = slices.find((s) => s.ticker === h.ticker);
       let contribAmount = h.contribAmount || 0;
       if (!contribAmount && slice && h.active) {
         const totalWeekly = CONFIG.projection?.weeklyTarget || 200;
-        contribAmount = Math.round(totalWeekly * slice.pct / 100);
+        contribAmount = Math.round((totalWeekly * slice.pct) / 100);
       }
       const interval: ContribInterval = h.interval || 'weekly';
       const assetClass = h.assetClass || 'equity';
@@ -312,18 +373,18 @@ async function seedFromConfig(seedAccounts: boolean, seedHoldings: boolean): Pro
       const foldInto = h.foldInto || '';
 
       return {
-        isin:         h.isin,
-        ticker:       h.ticker,
-        name:         '',
-        color:        h.color,
-        acc:          h.acc,
-        active:       h.active,
+        isin: h.isin,
+        ticker: h.ticker,
+        name: '',
+        color: h.color,
+        acc: h.acc,
+        active: h.active,
         contribAmount,
         interval,
         assetClass,
         region,
         foldInto,
-        order:        i + 1,
+        order: i + 1,
       };
     });
     _holdings = holdings;
@@ -343,5 +404,8 @@ async function seedFromConfig(seedAccounts: boolean, seedHoldings: boolean): Pro
     await persistSettings();
   }
 
-  await logChange('Migration', `Seeded config from config.js defaults (accounts=${seedAccounts}, holdings=${seedHoldings})`);
+  await logChange(
+    'Migration',
+    `Seeded config from config.js defaults (accounts=${seedAccounts}, holdings=${seedHoldings})`,
+  );
 }

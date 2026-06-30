@@ -81,7 +81,7 @@ describe('TR profile regression (parseWithProfile vs legacy parseCSV)', () => {
 
   it('all canonical types are mapped correctly from TR', () => {
     const { transactions } = parseWithProfile(TR_CSV_SEMI, tradeRepublicProfile);
-    const types = transactions.map(t => t.type);
+    const types = transactions.map((t) => t.type);
 
     expect(types).toContain(TxType.BUY);
     expect(types).toContain(TxType.SELL);
@@ -168,14 +168,16 @@ describe('parseDate', () => {
 
 describe('detectProfile', () => {
   it('detects Trade Republic from real TR header (semicolon)', () => {
-    const header = 'transaction_id;date;type;category;name;symbol;shares;price;amount;fee;tax;currency;fx_rate';
+    const header =
+      'transaction_id;date;type;category;name;symbol;shares;price;amount;fee;tax;currency;fx_rate';
     const profile = detectProfile(header);
     expect(profile).not.toBeNull();
     expect(profile.id).toBe('trade_republic');
   });
 
   it('detects Trade Republic from comma-delimited header', () => {
-    const header = 'transaction_id,date,type,category,name,symbol,shares,price,amount,fee,tax,currency,fx_rate';
+    const header =
+      'transaction_id,date,type,category,name,symbol,shares,price,amount,fee,tax,currency,fx_rate';
     const profile = detectProfile(header);
     expect(profile).not.toBeNull();
     expect(profile.id).toBe('trade_republic');
@@ -188,7 +190,8 @@ describe('detectProfile', () => {
   });
 
   it('is case-insensitive for header matching', () => {
-    const header = 'TRANSACTION_ID;DATE;TYPE;CATEGORY;NAME;SYMBOL;SHARES;PRICE;AMOUNT;FEE;TAX;CURRENCY;FX_RATE';
+    const header =
+      'TRANSACTION_ID;DATE;TYPE;CATEGORY;NAME;SYMBOL;SHARES;PRICE;AMOUNT;FEE;TAX;CURRENCY;FX_RATE';
     const profile = detectProfile(header);
     expect(profile).not.toBeNull();
     expect(profile.id).toBe('trade_republic');
@@ -207,18 +210,18 @@ describe('unmapped types handling', () => {
     // Unmapped: STOCK_SPLIT|CORPORATE_ACTION (2 rows) + REBATE (1 row)
     expect(unmapped.length).toBeGreaterThanOrEqual(2);
 
-    const stockSplit = unmapped.find(u => u.type.includes('STOCK_SPLIT'));
+    const stockSplit = unmapped.find((u) => u.type.includes('STOCK_SPLIT'));
     expect(stockSplit).toBeDefined();
     expect(stockSplit.count).toBe(2);
 
-    const rebate = unmapped.find(u => u.type === 'REBATE');
+    const rebate = unmapped.find((u) => u.type === 'REBATE');
     expect(rebate).toBeDefined();
     expect(rebate.count).toBe(1);
   });
 
   it('unmapped rows have type preserved uppercased', () => {
     const { transactions } = parseWithProfile(TR_CSV_WITH_UNMAPPED, tradeRepublicProfile);
-    const stockSplits = transactions.filter(t => t.type === 'STOCK_SPLIT');
+    const stockSplits = transactions.filter((t) => t.type === 'STOCK_SPLIT');
     expect(stockSplits).toHaveLength(2);
   });
 });
@@ -259,23 +262,23 @@ describe('previewSummary', () => {
 
 describe('adding a second bank requires only a profile object', () => {
   const fakeBankProfile = {
-    id:              'fake_bank',
-    label:           'Fake Bank DE',
-    delimiter:       ';',
-    decimal:         'comma',
-    dateFormat:      'DD.MM.YYYY',
+    id: 'fake_bank',
+    label: 'Fake Bank DE',
+    delimiter: ';',
+    decimal: 'comma',
+    dateFormat: 'DD.MM.YYYY',
     defaultCurrency: 'EUR',
     columns: {
-      id:     'Ref',
-      date:   'Datum',
-      type:   'Typ',
-      name:   'Bezeichnung',
+      id: 'Ref',
+      date: 'Datum',
+      type: 'Typ',
+      name: 'Bezeichnung',
       amount: 'Betrag',
     },
     typeMap: {
-      'KAUF':     TxType.BUY,
-      'VERKAUF':  TxType.SELL,
-      'DIVIDENDE': TxType.DIVIDEND,
+      KAUF: TxType.BUY,
+      VERKAUF: TxType.SELL,
+      DIVIDENDE: TxType.DIVIDEND,
     },
     match: {
       headerIncludes: ['Ref', 'Datum', 'Typ', 'Bezeichnung', 'Betrag'],
@@ -327,19 +330,19 @@ describe('adding a second bank requires only a profile object', () => {
 
 describe('column mapping by numeric index', () => {
   const indexProfile = {
-    id:              'index_test',
-    label:           'Index Test',
-    delimiter:       ',',
-    decimal:         'dot',
-    dateFormat:      'YYYY-MM-DD',
+    id: 'index_test',
+    label: 'Index Test',
+    delimiter: ',',
+    decimal: 'dot',
+    dateFormat: 'YYYY-MM-DD',
     defaultCurrency: 'USD',
     columns: {
-      date:   0,
-      type:   1,
-      name:   2,
+      date: 0,
+      type: 1,
+      name: 2,
       amount: 3,
     },
-    typeMap: { 'BUY': TxType.BUY },
+    typeMap: { BUY: TxType.BUY },
   };
 
   it('resolves columns by numeric index', () => {
@@ -350,7 +353,7 @@ describe('column mapping by numeric index', () => {
     expect(transactions[0].date).toBe('2024-06-01');
     expect(transactions[0].type).toBe(TxType.BUY);
     expect(transactions[0].name).toBe('Test Stock');
-    expect(transactions[0].amount).toBeCloseTo(-100.50);
+    expect(transactions[0].amount).toBeCloseTo(-100.5);
     expect(transactions[0].currency).toBe('USD');
   });
 });
@@ -361,10 +364,10 @@ describe('buildProfileFromMapping', () => {
   it('produces a valid ImportProfile shape', () => {
     const headers = ['Date', 'Type', 'Name', 'Amount', 'Currency'];
     const mapping = {
-      columns:  { date: 'Date', type: 'Type', name: 'Name', amount: 'Amount', currency: 'Currency' },
-      typeMap:  { 'BUY': TxType.BUY, 'SELL': TxType.SELL },
-      label:    'My Custom Bank',
-      decimal:  'dot',
+      columns: { date: 'Date', type: 'Type', name: 'Name', amount: 'Amount', currency: 'Currency' },
+      typeMap: { BUY: TxType.BUY, SELL: TxType.SELL },
+      label: 'My Custom Bank',
+      decimal: 'dot',
       dateFormat: 'MM/DD/YYYY',
     };
 
@@ -407,7 +410,8 @@ describe('edge cases', () => {
   });
 
   it('handles header-only CSV', () => {
-    const csv = 'transaction_id;date;type;category;name;symbol;shares;price;amount;fee;tax;currency;fx_rate\n';
+    const csv =
+      'transaction_id;date;type;category;name;symbol;shares;price;amount;fee;tax;currency;fx_rate\n';
     const { transactions } = parseWithProfile(csv, tradeRepublicProfile);
     expect(transactions).toHaveLength(0);
   });
@@ -442,48 +446,67 @@ describe('edge cases', () => {
 // ── TR real deposit/tax type mappings (Commit 1C) ────────
 
 describe('TR real deposit/tax/withdrawal type mappings', () => {
-  const mkCsv = (type: string) => [
-    'transaction_id;date;type;category;name;symbol;shares;price;amount;fee;tax;currency;fx_rate',
-    `tx-new;2024-07-01;${type};;Test Row;;0;0;100;0;0;EUR;`,
-  ].join('\n');
+  const mkCsv = (type: string) =>
+    [
+      'transaction_id;date;type;category;name;symbol;shares;price;amount;fee;tax;currency;fx_rate',
+      `tx-new;2024-07-01;${type};;Test Row;;0;0;100;0;0;EUR;`,
+    ].join('\n');
 
   it('CUSTOMER_INPAYMENT maps to DEPOSIT (mapped, not unmapped)', () => {
-    const { transactions, unmapped } = parseWithProfile(mkCsv('CUSTOMER_INPAYMENT'), tradeRepublicProfile);
+    const { transactions, unmapped } = parseWithProfile(
+      mkCsv('CUSTOMER_INPAYMENT'),
+      tradeRepublicProfile,
+    );
     expect(transactions).toHaveLength(1);
     expect(transactions[0].type).toBe(TxType.DEPOSIT);
     expect(unmapped).toHaveLength(0);
   });
 
   it('TRANSFER_INBOUND maps to DEPOSIT (mapped, not unmapped)', () => {
-    const { transactions, unmapped } = parseWithProfile(mkCsv('TRANSFER_INBOUND'), tradeRepublicProfile);
+    const { transactions, unmapped } = parseWithProfile(
+      mkCsv('TRANSFER_INBOUND'),
+      tradeRepublicProfile,
+    );
     expect(transactions).toHaveLength(1);
     expect(transactions[0].type).toBe(TxType.DEPOSIT);
     expect(unmapped).toHaveLength(0);
   });
 
   it('TRANSFER_INSTANT_INBOUND maps to DEPOSIT (mapped, not unmapped)', () => {
-    const { transactions, unmapped } = parseWithProfile(mkCsv('TRANSFER_INSTANT_INBOUND'), tradeRepublicProfile);
+    const { transactions, unmapped } = parseWithProfile(
+      mkCsv('TRANSFER_INSTANT_INBOUND'),
+      tradeRepublicProfile,
+    );
     expect(transactions).toHaveLength(1);
     expect(transactions[0].type).toBe(TxType.DEPOSIT);
     expect(unmapped).toHaveLength(0);
   });
 
   it('TAX_OPTIMIZATION maps to TAX (mapped, not unmapped)', () => {
-    const { transactions, unmapped } = parseWithProfile(mkCsv('TAX_OPTIMIZATION'), tradeRepublicProfile);
+    const { transactions, unmapped } = parseWithProfile(
+      mkCsv('TAX_OPTIMIZATION'),
+      tradeRepublicProfile,
+    );
     expect(transactions).toHaveLength(1);
     expect(transactions[0].type).toBe(TxType.TAX);
     expect(unmapped).toHaveLength(0);
   });
 
   it('CUSTOMER_OUTPAYMENT maps to WITHDRAWAL', () => {
-    const { transactions, unmapped } = parseWithProfile(mkCsv('CUSTOMER_OUTPAYMENT'), tradeRepublicProfile);
+    const { transactions, unmapped } = parseWithProfile(
+      mkCsv('CUSTOMER_OUTPAYMENT'),
+      tradeRepublicProfile,
+    );
     expect(transactions).toHaveLength(1);
     expect(transactions[0].type).toBe(TxType.WITHDRAWAL);
     expect(unmapped).toHaveLength(0);
   });
 
   it('TRANSFER_OUTBOUND maps to WITHDRAWAL', () => {
-    const { transactions, unmapped } = parseWithProfile(mkCsv('TRANSFER_OUTBOUND'), tradeRepublicProfile);
+    const { transactions, unmapped } = parseWithProfile(
+      mkCsv('TRANSFER_OUTBOUND'),
+      tradeRepublicProfile,
+    );
     expect(transactions).toHaveLength(1);
     expect(transactions[0].type).toBe(TxType.WITHDRAWAL);
     expect(unmapped).toHaveLength(0);

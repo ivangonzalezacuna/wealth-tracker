@@ -21,7 +21,7 @@ interface StoredToken {
 }
 
 const CLIENT_ID: string = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
+const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
 const STORE_KEY = 'gtoken';
 
 let _token: StoredToken | null = null;
@@ -34,11 +34,17 @@ try {
   const s = JSON.parse(localStorage.getItem(STORE_KEY) || 'null') as StoredToken | null;
   if (s?.expires_at && Date.now() < s.expires_at - 60_000) _token = s;
   else localStorage.removeItem(STORE_KEY);
-} catch { /* ignore parse errors */ }
+} catch {
+  /* ignore parse errors */
+}
 
 function _save(tok: StoredToken): void {
   _token = tok;
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(tok)); } catch { /* quota */ }
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(tok));
+  } catch {
+    /* quota */
+  }
   _scheduleRefresh(tok);
 }
 
@@ -46,7 +52,10 @@ function _save(tok: StoredToken): void {
 function _scheduleRefresh(tok: StoredToken): void {
   if (_refreshTimer) clearTimeout(_refreshTimer);
   const ms = tok.expires_at - Date.now() - 5 * 60_000;
-  if (ms > 0) _refreshTimer = setTimeout(() => { _requestToken(false).catch(() => {}); }, ms);
+  if (ms > 0)
+    _refreshTimer = setTimeout(() => {
+      _requestToken(false).catch(() => {});
+    }, ms);
 }
 
 // ── load GIS script once, then init the token client ───────
@@ -56,7 +65,8 @@ function _loadGis(): Promise<void> {
     if (window.google?.accounts?.oauth2) return resolve();
     const s = document.createElement('script');
     s.src = 'https://accounts.google.com/gsi/client';
-    s.async = true; s.defer = true;
+    s.async = true;
+    s.defer = true;
     s.onload = () => resolve();
     s.onerror = () => reject(new Error('Failed to load Google Identity Services'));
     document.head.appendChild(s);
@@ -64,7 +74,7 @@ function _loadGis(): Promise<void> {
     _tokenClient = window.google!.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
       scope: SCOPES,
-      callback: () => {},   // set per-request below
+      callback: () => {}, // set per-request below
     });
   });
   return _gisReady;
@@ -73,19 +83,23 @@ function _loadGis(): Promise<void> {
 // interactive=false → silent (no UI) via existing session
 function _requestToken(interactive: boolean): Promise<string> {
   return new Promise<string>((resolve, reject) => {
-    _loadGis().then(() => {
-      _tokenClient!.callback = (resp: google.accounts.oauth2.TokenResponse) => {
-        if (resp.error) return reject(new Error(resp.error));
-        _save({
-          access_token: resp.access_token,
-          expires_at: Date.now() + Number(resp.expires_in) * 1000,
-        });
-        resolve(_token!.access_token);
-      };
-      try {
-        _tokenClient!.requestAccessToken({ prompt: interactive ? 'consent' : '' });
-      } catch (e) { reject(e); }
-    }).catch(reject);
+    _loadGis()
+      .then(() => {
+        _tokenClient!.callback = (resp: google.accounts.oauth2.TokenResponse) => {
+          if (resp.error) return reject(new Error(resp.error));
+          _save({
+            access_token: resp.access_token,
+            expires_at: Date.now() + Number(resp.expires_in) * 1000,
+          });
+          resolve(_token!.access_token);
+        };
+        try {
+          _tokenClient!.requestAccessToken({ prompt: interactive ? 'consent' : '' });
+        } catch (e) {
+          reject(e);
+        }
+      })
+      .catch(reject);
   });
 }
 
@@ -103,8 +117,12 @@ export async function signIn(): Promise<string> {
 /** Silent boot sign-in. Resolves true if a token is available without UI. */
 export async function trySilentSignIn(): Promise<boolean> {
   if (isSignedIn()) return true;
-  try { await _requestToken(false); return isSignedIn(); }
-  catch { return false; }
+  try {
+    await _requestToken(false);
+    return isSignedIn();
+  } catch {
+    return false;
+  }
 }
 
 export function isSignedIn(): boolean {

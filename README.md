@@ -30,6 +30,7 @@ cp .env.example .env.local
 ```
 
 Edit `.env.local`:
+
 ```
 VITE_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 VITE_GOOGLE_SHEET_ID=your-google-sheet-id
@@ -48,6 +49,7 @@ Open `http://localhost:5173` — sign in with Google and you're ready.
 ### 4. Google Sheet structure
 
 On first sign-in the app will automatically create three tabs in your sheet:
+
 - **Snapshots** — one row per monthly net worth entry
 - **Transactions** — imported TR CSV data
 - **Meta** — import metadata
@@ -62,14 +64,15 @@ You can inspect, back up, or export from the sheet directly at any time.
 
 In Netlify: **Site settings → Environment variables → Add variable**
 
-| Key | Value |
-|-----|-------|
+| Key                     | Value                |
+| ----------------------- | -------------------- |
 | `VITE_GOOGLE_CLIENT_ID` | Your OAuth Client ID |
-| `VITE_GOOGLE_SHEET_ID` | Your Google Sheet ID |
+| `VITE_GOOGLE_SHEET_ID`  | Your Google Sheet ID |
 
 ### Build settings
 
 Netlify auto-detects from `netlify.toml`:
+
 - Build command: `yarn build`
 - Publish directory: `dist`
 
@@ -86,6 +89,7 @@ https://your-app.netlify.app
 ## Data portability
 
 All data lives in **your Google Sheet**. To migrate away:
+
 - Export the sheet as CSV/Excel at any time
 - The app has no vendor lock-in beyond Google Drive
 

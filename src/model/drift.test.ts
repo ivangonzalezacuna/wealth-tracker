@@ -43,7 +43,7 @@ function makePosition(overrides: Partial<EtfPosition> = {}): EtfPosition {
 describe('computeDrift', () => {
   it('returns empty for zero totalValue', () => {
     const holdings = [makeHolding()];
-    const positions = { 'IE00B4L5Y983': makePosition() };
+    const positions = { IE00B4L5Y983: makePosition() };
     expect(computeDrift(holdings, positions, 0)).toEqual([]);
   });
 
@@ -55,7 +55,7 @@ describe('computeDrift', () => {
 
   it('computes drift for a single holding', () => {
     const holdings = [makeHolding({ contribAmount: 50, interval: 'weekly' })];
-    const positions = { 'IE00B4L5Y983': makePosition({ cost: 10000 }) };
+    const positions = { IE00B4L5Y983: makePosition({ cost: 10000 }) };
     const drift = computeDrift(holdings, positions, 10000);
     expect(drift).toHaveLength(1);
     expect(drift[0].targetPct).toBe(100);
@@ -65,20 +65,20 @@ describe('computeDrift', () => {
 
   it('computes drift for multiple holdings', () => {
     const holdings = [
-      makeHolding({ isin: 'A', ticker: 'ETF_A', contribAmount: 50, interval: 'weekly' }),  // 50*52 = 2600
-      makeHolding({ isin: 'B', ticker: 'ETF_B', contribAmount: 50, interval: 'weekly' }),  // 50*52 = 2600
+      makeHolding({ isin: 'A', ticker: 'ETF_A', contribAmount: 50, interval: 'weekly' }), // 50*52 = 2600
+      makeHolding({ isin: 'B', ticker: 'ETF_B', contribAmount: 50, interval: 'weekly' }), // 50*52 = 2600
     ];
     // Target is 50/50, actual is 70/30
     const positions = {
-      'A': makePosition({ symbol: 'A', cost: 7000 }),
-      'B': makePosition({ symbol: 'B', cost: 3000 }),
+      A: makePosition({ symbol: 'A', cost: 7000 }),
+      B: makePosition({ symbol: 'B', cost: 3000 }),
     };
     const drift = computeDrift(holdings, positions, 10000);
     expect(drift).toHaveLength(2);
 
     // Sorted by |drift| desc
-    const etfA = drift.find(d => d.ticker === 'ETF_A')!;
-    const etfB = drift.find(d => d.ticker === 'ETF_B')!;
+    const etfA = drift.find((d) => d.ticker === 'ETF_A')!;
+    const etfB = drift.find((d) => d.ticker === 'ETF_B')!;
 
     expect(etfA.targetPct).toBe(50);
     expect(etfA.actualPct).toBe(70);
@@ -109,8 +109,26 @@ describe('maxDrift', () => {
 
   it('returns max absolute drift', () => {
     const entries = [
-      { ticker: 'A', color: '#000', targetPct: 50, actualPct: 70, driftPct: 20, actualValue: 7000, targetValue: 5000, deltaValue: 2000 },
-      { ticker: 'B', color: '#000', targetPct: 50, actualPct: 30, driftPct: -20, actualValue: 3000, targetValue: 5000, deltaValue: -2000 },
+      {
+        ticker: 'A',
+        color: '#000',
+        targetPct: 50,
+        actualPct: 70,
+        driftPct: 20,
+        actualValue: 7000,
+        targetValue: 5000,
+        deltaValue: 2000,
+      },
+      {
+        ticker: 'B',
+        color: '#000',
+        targetPct: 50,
+        actualPct: 30,
+        driftPct: -20,
+        actualValue: 3000,
+        targetValue: 5000,
+        deltaValue: -2000,
+      },
     ];
     expect(maxDrift(entries)).toBe(20);
   });

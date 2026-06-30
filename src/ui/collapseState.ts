@@ -26,7 +26,9 @@ export async function loadCollapseState(): Promise<void> {
   try {
     const stored = await getCollapseState();
     if (stored) _state = stored;
-  } catch { /* degrade: start with empty state */ }
+  } catch {
+    /* degrade: start with empty state */
+  }
   _loaded = true;
 }
 
