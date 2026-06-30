@@ -172,9 +172,16 @@ function attachRangeToggle(pd: PortfolioData, ordSyms: string[], ISIN: Record<st
     _dcaPage = 1;
     toggle.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    renderDCAChart(_lastPd || pd, ordSyms, ISIN, META);
-    _rebuildDCALegend(ordSyms, ISIN, META);
-    renderDCATable(_lastPd || pd);
+    // Recompute ordSyms/ISIN/META from current data to avoid stale closures
+    const currentPd = _lastPd || pd;
+    const freshISIN = getISIN();
+    const freshMETA = getMETAMap();
+    const freshISIN_ORDER = getISIN_ORDERList();
+    const allSyms = [...new Set(currentPd.months.flatMap(m => Object.keys(currentPd.monthlyBy[m] || {})))];
+    const freshOrdSyms = freshISIN_ORDER.filter(s => allSyms.includes(s)).concat(allSyms.filter(s => !freshISIN_ORDER.includes(s)));
+    renderDCAChart(currentPd, freshOrdSyms, freshISIN, freshMETA);
+    _rebuildDCALegend(freshOrdSyms, freshISIN, freshMETA);
+    renderDCATable(currentPd);
   });
 }
 
