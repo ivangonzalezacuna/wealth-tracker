@@ -18,7 +18,7 @@ Personal ETF portfolio and net worth tracker — PWA, synced to Google Sheets.
 ```bash
 git clone <your-repo-url>
 cd finance-dashboard
-npm install
+yarn install
 ```
 
 ### 2. Local environment
@@ -40,7 +40,7 @@ VITE_GOOGLE_SHEET_ID=your-google-sheet-id
 ### 3. Run locally
 
 ```bash
-npm run dev
+yarn dev
 ```
 
 Open `http://localhost:5173` — sign in with Google and you're ready.
@@ -70,7 +70,7 @@ In Netlify: **Site settings → Environment variables → Add variable**
 ### Build settings
 
 Netlify auto-detects from `netlify.toml`:
-- Build command: `npm run build`
+- Build command: `yarn build`
 - Publish directory: `dist`
 
 ### Google OAuth — add Netlify origin

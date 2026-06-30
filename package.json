@@ -2,6 +2,7 @@
   "name": "finance-dashboard",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "yarn@4.17.0",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
