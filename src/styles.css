@@ -132,6 +132,37 @@ code, .isin, .tx-id, .acct-key {
 .hold-detail-value.neg { color: var(--neg); }
 .hold-detail-isin  { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-2); user-select: all; letter-spacing: 0.02em; }
 
+/* Snapshot history — compact row */
+.snap-row-compact {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--surface-3);
+  cursor: pointer;
+  min-height: 40px;
+}
+.snap-row-compact:last-child { border-bottom: none; }
+.snap-row-compact.th {
+  cursor: default;
+  color: var(--ink-3);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  min-height: auto;
+  padding-bottom: 6px;
+}
+.snap-month-cell { display: flex; align-items: center; gap: 5px; font-weight: 500; font-size: 12px; }
+.snap-note-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--brand); flex-shrink: 0; }
+.snap-segbar { display: flex; gap: 2px; justify-content: flex-end; min-width: 48px; }
+.snap-seg { width: 6px; height: 14px; border-radius: 1px; flex-shrink: 0; }
+
+/* Snapshot detail panel — extends .hold-detail */
+.snap-detail { grid-template-columns: repeat(2, 1fr); }
+.snap-detail-note { grid-column: 1 / -1; }
+.snap-detail-actions { grid-column: 1 / -1; display: flex; gap: 8px; margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--line); }
+
 /* Bar */
 .bar-wrap{background:var(--surface-3);border-radius:4px;height:4px;overflow:hidden;margin-top:2px;width:100%}
 .bar-fill{height:100%;border-radius:4px}
@@ -188,16 +219,6 @@ code, .isin, .tx-id, .acct-key {
 .status-empty{background:var(--surface-3);color:var(--ink-2)}
 .status-warn{background:var(--warn-bg);color:var(--warn-fg)}
 .status-err{background:var(--err-bg);color:var(--err-fg)}
-
-/* Snapshot list */
-.snap-row{display:grid;gap:8px;padding:8px 0;border-bottom:1px solid var(--surface-3);font-size:12px;align-items:start}
-.snap-row:last-child{border-bottom:none}
-#snaps-list .snap-row--wide + .snap-row--wide { border-top: 1px solid var(--line); }
-.snap-btns{display:flex;gap:5px;justify-content:flex-end}
-@media(min-width:600px){
-  .snap-btns { grid-column: auto; display:flex; align-items:center; justify-content:flex-end; gap:4px; }
-}
-@media(max-width:560px){.snap-row.snap-row--wide{grid-template-columns:1fr 1fr !important}.snap-btns{grid-column:1/-1}}
 
 /* Spinner */
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
@@ -280,8 +301,6 @@ code, .isin, .tx-id, .acct-key {
   .btn{padding:10px 14px;font-size:13px}
   .btn-sm{font-size:11px;padding:5px 10px}
   .drop-zone{padding:1.25rem .75rem}
-  .snap-row.snap-row--wide{grid-template-columns:1fr 1fr !important;gap:6px;font-size:11px}
-  .snap-btns{grid-column:1/-1}
   .row{font-size:12px;padding:6px 0;gap:8px}
   .tbl-row{font-size:11px;gap:4px;padding:6px 0}
   .th{font-size:10px}

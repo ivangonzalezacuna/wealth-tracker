@@ -1,6 +1,6 @@
 // @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
 import { getACCTSList } from '../constants';
-import { snapTotal, fmtEur2, fmtMon, esc } from '../utils';
+import { snapTotal, fmtEur2, fmtMon, esc, safeColor } from '../utils';
 import type { Snapshot, Transaction } from '../types';
 import { T } from '../theme';
 
@@ -118,42 +118,79 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
   const start = (_snapPage - 1) * PAGE_SIZE;
   const pageItems = filtered.slice(start, start + PAGE_SIZE);
 
-  // Show all accounts in the table header
+  // Compact row layout — fixed 3-column (Month / Net worth / segment indicator)
   const shown = ACCTS;
-  const gridCols = `auto 1fr ${shown.map(() => '1fr').join(' ')} auto`;
   el.innerHTML = `
-    <div class="tbl"><div class="tbl-inner">
-    <div class="snap-row snap-row--wide" role="row" style="grid-template-columns:${gridCols};color:var(--ink-3);font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-bottom:6px">
-      <div role="columnheader">Month</div><div role="columnheader">Net worth</div>${shown.map(a => `<div role="columnheader">${esc(a.label)}</div>`).join('')}<div></div>
+    <div class="snap-row-compact th" role="row">
+      <div role="columnheader">Month</div>
+      <div role="columnheader" style="text-align:right">Net worth</div>
+      <div role="columnheader"></div>
     </div>
     ${pageItems.map(s => {
       const total = snapTotal(s);
-      return `<div class="snap-row snap-row--wide" role="row" style="grid-template-columns:${gridCols}" data-date="${s.date}">
-        <div role="cell" style="font-weight:500;font-size:12px">${fmtMon(s.date)}</div>
-        <div role="cell" style="font-weight:500;font-size:14px">${fmtEur2(total)}</div>
-        ${shown.map(a => `<div role="cell" style="color:var(--ink-3);font-size:12px">${s[a.key] ? fmtEur2(s[a.key]) : '—'}</div>`).join('')}
-        <div class="snap-btns">
-          <button class="btn btn-sm btn-outline js-edit-snap" data-date="${s.date}">Edit</button>
-          <button class="btn btn-sm btn-danger js-del-snap" data-date="${s.date}">✕</button>
+      const segments = shown
+        .filter(a => (s[a.key] || 0) > 0)
+        .map(a => `<span class="snap-seg" style="background:${safeColor(a.color)}" title="${esc(a.label)}"></span>`)
+        .join('');
+      return `<div class="snap-row-compact" role="row" data-date="${s.date}">
+        <div role="cell" class="snap-month-cell">
+          <span class="snap-month">${fmtMon(s.date)}</span>
+          ${s.notes ? '<span class="snap-note-dot" title="Has a note"></span>' : ''}
         </div>
-      </div>
-      ${s.notes ? `<div style="font-size:11px;color:var(--ink-3);font-style:italic;padding:0 0 6px;margin-top:2px">${esc(s.notes)}</div>` : ''}`;
+        <div role="cell" style="text-align:right;font-weight:500;font-size:14px">${fmtEur2(total)}</div>
+        <div role="cell" class="snap-segbar">${segments}</div>
+      </div>`;
     }).join('')}
-    </div></div>
   `;
+
+  // Row tap-to-expand detail panel (delegated on #snaps-list)
+  const listEl = document.getElementById('snaps-list') as HTMLElement & { _rowDetail_bound?: boolean } | null;
+  if (listEl && !listEl._rowDetail_bound) {
+    listEl._rowDetail_bound = true;
+    listEl.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      // Ignore clicks landing on action buttons inside an already-open panel
+      if (target.closest('.js-edit-snap') || target.closest('.js-del-snap')) return;
+      const row = target.closest('.snap-row-compact:not(.th)') as HTMLElement | null;
+      if (!row) return;
+      const existing = listEl.querySelector('.snap-detail') as HTMLElement | null;
+      if (existing) {
+        const wasThis = existing.previousElementSibling === row;
+        existing.remove();
+        if (wasThis) return;
+      }
+      const date = row.dataset.date;
+      const snap = snaps.find(s => s.date === date);
+      if (!snap) return;
+      const accts = getACCTSList();
+      const rows = accts.filter(a => (snap[a.key] || 0) > 0).map(a =>
+        `<div><span class="hold-detail-label">${esc(a.label)}</span><span class="hold-detail-value">${fmtEur2(snap[a.key] as number)}</span></div>`
+      ).join('');
+      const panel = document.createElement('div');
+      panel.className = 'hold-detail snap-detail';
+      panel.innerHTML = `
+        ${rows}
+        ${snap.notes ? `<div class="snap-detail-note"><span class="hold-detail-label">Note</span><span class="hold-detail-value">${esc(snap.notes)}</span></div>` : ''}
+        <div class="snap-detail-actions">
+          <button class="btn btn-sm btn-outline js-edit-snap" data-date="${date}">Edit</button>
+          <button class="btn btn-sm btn-danger js-del-snap" data-date="${date}">Delete</button>
+        </div>`;
+      row.insertAdjacentElement('afterend', panel);
+      panel.querySelector('.js-edit-snap')?.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        onEdit(date!);
+      });
+      panel.querySelector('.js-del-snap')?.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        onDel(date!);
+      });
+    });
+  }
 
   // Pagination controls
   renderPagination('snap-pagination', _snapPage, totalPages, (page) => {
     _snapPage = page;
     renderSnapList(snaps, onEdit, onDel);
-  });
-
-  // Attach event listeners
-  el.querySelectorAll('.js-edit-snap').forEach(btn => {
-    btn.addEventListener('click', () => onEdit(btn.dataset.date));
-  });
-  el.querySelectorAll('.js-del-snap').forEach(btn => {
-    btn.addEventListener('click', () => onDel(btn.dataset.date));
   });
 }
 
