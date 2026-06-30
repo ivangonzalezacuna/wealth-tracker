@@ -20,6 +20,8 @@ import { infoTip, attachInfoTips } from '../ui/infoTip';
 
 const CH: Record<string, Chart> = {};
 let _nwRange: '12' | '36' | 'all' = 'all';
+let _nwGrowthRange: '12' | '36' | 'all' = 'all';
+let _nwGrowthPoints: MonthlyGrowthPoint[] = [];
 
 export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const ACCTS = getACCTSList();
@@ -54,6 +56,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const growthPoints = pd
     ? monthlyGrowthHistory(snaps, accounts, pd.monthly, primaryInvestmentValue)
     : [];
+  _nwGrowthPoints = growthPoints;
 
   document.getElementById('nw-kpis').innerHTML = `
     <div class="kpi kpi-lead">
@@ -171,7 +174,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   }
 
   // Bind range toggle once
-  _attachNWRangeToggle(snaps, chartA, growthPoints);
+  _attachNWRangeToggle(snaps, chartA);
 
   const bkA = ACCTS.filter((a) => (s[a.key] || 0) > 0);
 
@@ -193,7 +196,10 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   document.getElementById('nw-detail').innerHTML = det;
 
   // Growth breakdown chart
-  _renderGrowthChart(growthPoints);
+  _renderGrowthChart();
+
+  // Bind growth range toggle once
+  _attachNWGrowthRangeToggle();
 
   // ── Goal progress card ──
   const goalEl = document.getElementById('nw-goal');
@@ -376,15 +382,15 @@ function _bindLegendToggle(chart: Chart): void {
   bindLegendToggle(legendEl, chart, { skipIndex: [0] });
 }
 
-// ── Growth breakdown chart (contributed vs market, all months) ──
+// ── Growth breakdown chart (contributed vs market) ──
 
-function _renderGrowthChart(points: MonthlyGrowthPoint[]): void {
+function _renderGrowthChart(): void {
   const C = resolvedT();
   const el = document.getElementById('c-nw-growth');
   if (!el) return;
   _destroyChart('c-nw-growth');
 
-  if (points.length === 0) {
+  if (_nwGrowthPoints.length === 0) {
     // No resolvable history yet (e.g. no primary-investment account set, or <2 snapshots).
     // Hide the parent card rather than render an empty chart.
     const card = el.closest('.card') as HTMLElement | null;
@@ -394,21 +400,24 @@ function _renderGrowthChart(points: MonthlyGrowthPoint[]): void {
   const card = el.closest('.card') as HTMLElement | null;
   if (card) card.style.display = '';
 
+  const view =
+    _nwGrowthRange === 'all' ? _nwGrowthPoints : _nwGrowthPoints.slice(-parseInt(_nwGrowthRange));
+
   CH['c-nw-growth'] = new Chart(el as HTMLCanvasElement, {
     type: 'bar',
     data: {
-      labels: points.map((p) => fmtMon(p.month)),
+      labels: view.map((p) => fmtMon(p.month)),
       datasets: [
         {
           label: 'Contributed',
-          data: points.map((p) => p.contributed),
+          data: view.map((p) => p.contributed),
           backgroundColor: C.brand,
           stack: 'growth',
         },
         {
           label: 'Market movement',
-          data: points.map((p) => p.market),
-          backgroundColor: points.map((p) => (p.market >= 0 ? C.pos : C.neg)),
+          data: view.map((p) => p.market),
+          backgroundColor: view.map((p) => (p.market >= 0 ? C.pos : C.neg)),
           stack: 'growth',
         },
       ],
@@ -417,7 +426,7 @@ function _renderGrowthChart(points: MonthlyGrowthPoint[]): void {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+        legend: { display: false },
         tooltip: {
           mode: 'index',
           intersect: false,
@@ -453,6 +462,34 @@ function _renderGrowthChart(points: MonthlyGrowthPoint[]): void {
       },
     },
   });
+
+  // Build custom HTML legend and bind toggle
+  const legendEl = document.getElementById('nw-growth-legend');
+  if (legendEl) {
+    legendEl.innerHTML =
+      `<span class="leg-item"><span class="leg-sq" style="background:${C.brand}"></span>Contributed</span>` +
+      `<span class="leg-item"><span class="leg-sq" style="background:${C.pos}"></span>Market movement</span>`;
+    bindLegendToggle(legendEl, CH['c-nw-growth'], { skipIndex: [] });
+  }
+}
+
+// ── Growth range toggle binding ──
+
+function _attachNWGrowthRangeToggle(): void {
+  const toggle = document.getElementById('nw-growth-range-toggle') as
+    (HTMLElement & { _bound?: boolean }) | null;
+  if (!toggle || toggle._bound) return;
+  toggle._bound = true;
+  toggle.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
+    if (!btn) return;
+    const newRange = (btn.dataset.range as '12' | '36' | 'all') || 'all';
+    if (newRange === _nwGrowthRange) return;
+    _nwGrowthRange = newRange;
+    toggle.querySelectorAll('.btn').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    _renderGrowthChart();
+  });
 }
 
 // ── Range toggle binding ──
@@ -460,7 +497,6 @@ function _renderGrowthChart(points: MonthlyGrowthPoint[]): void {
 function _attachNWRangeToggle(
   snaps: Snapshot[],
   chartA: Array<{ key: string; label: string; color: string }>,
-  growthPoints: MonthlyGrowthPoint[],
 ): void {
   const toggle = document.getElementById('nw-range-toggle') as
     (HTMLElement & { _bound?: boolean }) | null;
@@ -476,8 +512,6 @@ function _attachNWRangeToggle(
     btn.classList.add('active');
     const view = _nwRange === 'all' ? snaps : snaps.slice(-parseInt(_nwRange));
     _renderNWHistChart(view, chartA);
-    const growthView = _nwRange === 'all' ? growthPoints : growthPoints.slice(-parseInt(_nwRange));
-    _renderGrowthChart(growthView);
   });
 }
 
