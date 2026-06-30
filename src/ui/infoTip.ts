@@ -123,4 +123,7 @@ function _dismissAll(): void {
 // Global: dismiss any open popovers on outside click
 if (typeof document !== 'undefined') {
   document.addEventListener('click', _dismissAll);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') _dismissAll();
+  });
 }

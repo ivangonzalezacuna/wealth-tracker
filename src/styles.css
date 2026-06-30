@@ -389,3 +389,13 @@ input[type="color"]{min-width:32px;max-width:48px}
 .info-tip{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--surface-3);color:var(--ink-3);font-size:9px;font-weight:600;font-style:normal;cursor:help;vertical-align:middle;margin-left:4px;user-select:none;-webkit-user-select:none;flex-shrink:0;border:1px solid var(--line)}
 .info-tip:hover,.info-tip:focus{background:var(--brand-weak);color:var(--brand);border-color:var(--brand-border);outline:none}
 .info-tip-pop{position:fixed;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:var(--radius-sm);padding:6px 10px;font-size:11px;font-weight:400;font-style:normal;line-height:1.4;white-space:normal;width:max-content;max-width:240px;z-index:9999;box-shadow:0 2px 8px rgba(0,0,0,.12);pointer-events:none;text-transform:none;letter-spacing:normal;text-align:left}
+
+/* ── Confirm dialog overlay ──────────────────────────── */
+.confirm-overlay{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;padding:1rem}
+.confirm-card{background:var(--surface);border:1px solid var(--line-2);border-radius:8px;padding:1.25rem;max-width:360px;width:100%;box-shadow:0 8px 24px rgba(0,0,0,0.18)}
+.confirm-title{font-weight:600;font-size:15px;color:var(--ink);margin-bottom:6px}
+.confirm-body{font-size:13px;color:var(--ink-2);margin-bottom:14px;line-height:1.4}
+.confirm-actions{display:flex;justify-content:flex-end;gap:8px}
+@keyframes confirm-fade{from{opacity:0}to{opacity:1}}
+.confirm-overlay{animation:confirm-fade .12s ease-out}
+@media(prefers-reduced-motion:reduce){.confirm-overlay{animation:none}}

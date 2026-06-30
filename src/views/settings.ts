@@ -9,6 +9,7 @@ import type { Account, Holding, Settings, ContribInterval } from '../types';
 import { resolvedT } from '../theme';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
+import { confirmDialog } from '../ui/confirmDialog';
 
 /** Card key -> render fn, used by repaintCard() to scope a re-render to one card. */
 type CardKey = 'accounts' | 'holdings' | 'cost-basis' | 'projection' | 'goal' | 'rules' | 'cache';
@@ -205,9 +206,18 @@ function attachAccountListeners(root: HTMLElement): void {
   });
 
   root.querySelectorAll('.js-del-acct').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const accounts = collectAccounts(root);
-      accounts.splice(parseInt(btn.dataset.idx), 1);
+      const idx = parseInt(btn.dataset.idx);
+      const a = accounts[idx];
+      const ok = await confirmDialog({
+        title: `Remove ${esc(a?.label || 'this account')}?`,
+        body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected.',
+        confirmLabel: 'Remove',
+        danger: true,
+      });
+      if (!ok) return;
+      accounts.splice(idx, 1);
       rerenderAccountsTable(root, accounts);
     });
   });
@@ -234,9 +244,18 @@ function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
   attachColorPickerSync(tbl);
   attachItemCollapseListeners(tbl);
   tbl.querySelectorAll('.js-del-acct').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const accs = collectAccounts(root);
-      accs.splice(parseInt(btn.dataset.idx), 1);
+      const idx = parseInt(btn.dataset.idx);
+      const a = accs[idx];
+      const ok = await confirmDialog({
+        title: `Remove ${esc(a?.label || 'this account')}?`,
+        body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected.',
+        confirmLabel: 'Remove',
+        danger: true,
+      });
+      if (!ok) return;
+      accs.splice(idx, 1);
       rerenderAccountsTable(root, accs);
     });
   });
@@ -408,9 +427,18 @@ function applyHoldingsFilter(root: HTMLElement): void {
     attachColorPickerSync(tbl as HTMLElement);
     attachItemCollapseListeners(tbl as HTMLElement);
     (tbl as HTMLElement).querySelectorAll('.js-del-hold').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const holds = collectHoldings(root);
-        holds.splice(parseInt((btn as HTMLElement).dataset.idx!), 1);
+        const idx = parseInt((btn as HTMLElement).dataset.idx!);
+        const h = holds[idx];
+        const ok = await confirmDialog({
+          title: `Remove ${esc(h?.ticker || h?.isin || 'this holding')}?`,
+          body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected.',
+          confirmLabel: 'Remove',
+          danger: true,
+        });
+        if (!ok) return;
+        holds.splice(idx, 1);
         rerenderHoldingsTable(root, holds);
       });
     });
@@ -526,9 +554,18 @@ function attachHoldingListeners(root: HTMLElement): void {
   });
 
   root.querySelectorAll('.js-del-hold').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const holds = collectHoldings(root);
-      holds.splice(parseInt(btn.dataset.idx), 1);
+      const idx = parseInt(btn.dataset.idx);
+      const h = holds[idx];
+      const ok = await confirmDialog({
+        title: `Remove ${esc(h?.ticker || h?.isin || 'this holding')}?`,
+        body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected.',
+        confirmLabel: 'Remove',
+        danger: true,
+      });
+      if (!ok) return;
+      holds.splice(idx, 1);
       rerenderHoldingsTable(root, holds);
     });
   });
@@ -593,9 +630,18 @@ function rerenderHoldingsTable(root: HTMLElement, holdings: Holding[]): void {
   attachColorPickerSync(tbl);
   attachItemCollapseListeners(tbl);
   tbl.querySelectorAll('.js-del-hold').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const h = collectHoldings(root);
-      h.splice(parseInt(btn.dataset.idx), 1);
+      const idx = parseInt(btn.dataset.idx);
+      const hold = h[idx];
+      const ok = await confirmDialog({
+        title: `Remove ${esc(hold?.ticker || hold?.isin || 'this holding')}?`,
+        body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected.',
+        confirmLabel: 'Remove',
+        danger: true,
+      });
+      if (!ok) return;
+      h.splice(idx, 1);
       rerenderHoldingsTable(root, h);
     });
   });
@@ -813,9 +859,16 @@ function attachRulesListeners(root: HTMLElement): void {
   });
 
   root.querySelectorAll('.js-del-rule').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const rules = collectRules(root);
-      rules.splice(parseInt(btn.dataset.idx), 1);
+      const idx = parseInt(btn.dataset.idx);
+      const ok = await confirmDialog({
+        title: 'Remove this rule?',
+        confirmLabel: 'Remove',
+        danger: true,
+      });
+      if (!ok) return;
+      rules.splice(idx, 1);
       rerenderRulesTable(root, rules);
     });
   });
@@ -849,9 +902,16 @@ function rerenderRulesTable(root: HTMLElement, rules: { label: string; value: st
   `).join('');
   tbl.innerHTML = rows;
   tbl.querySelectorAll('.js-del-rule').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const r = collectRules(root);
-      r.splice(parseInt(btn.dataset.idx), 1);
+      const idx = parseInt(btn.dataset.idx);
+      const ok = await confirmDialog({
+        title: 'Remove this rule?',
+        confirmLabel: 'Remove',
+        danger: true,
+      });
+      if (!ok) return;
+      r.splice(idx, 1);
       rerenderRulesTable(root, r);
     });
   });
