@@ -24,7 +24,7 @@ import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { confirmDialog } from '../ui/confirmDialog';
 
 /** Card key -> render fn, used by repaintCard() to scope a re-render to one card. */
-type CardKey = 'accounts' | 'holdings' | 'cost-basis' | 'projection' | 'goal' | 'rules' | 'cache';
+type CardKey = 'accounts' | 'holdings' | 'cost-basis' | 'goal' | 'rules' | 'cache';
 
 /** Re-render exactly one Settings card in place; re-attach only its own
  *  listeners; reapply its persisted collapse state. Touches no sibling card. */
@@ -47,9 +47,6 @@ function repaintCard(key: CardKey): void {
       break;
     case 'cost-basis':
       html = renderCostBasisCard(settings);
-      break;
-    case 'projection':
-      html = renderProjectionCard(settings);
       break;
     case 'goal':
       html = renderGoalCard(settings);
@@ -76,9 +73,6 @@ function repaintCard(key: CardKey): void {
       break;
     case 'cost-basis':
       attachCostBasisListeners(fresh);
-      break;
-    case 'projection':
-      attachProjectionListeners(fresh);
       break;
     case 'goal':
       attachGoalListeners(fresh);
@@ -116,7 +110,6 @@ export function renderSettings(): void {
     ${renderAccountsCard(accounts)}
     ${renderHoldingsCard(holdings)}
     ${renderCostBasisCard(settings)}
-    ${renderProjectionCard(settings)}
     ${renderGoalCard(settings)}
     ${renderRulesCard(settings)}
     ${renderCacheCard()}
@@ -125,7 +118,6 @@ export function renderSettings(): void {
   attachAccountListeners(el);
   attachHoldingListeners(el);
   attachCostBasisListeners(el);
-  attachProjectionListeners(el);
   attachGoalListeners(el);
   attachRulesListeners(el);
   attachCacheListeners(el);
@@ -210,6 +202,25 @@ function renderAccountRow(a: Account, i: number): string {
             <input class="form-input form-input-sm color-picker-hex" data-field="color-hex" value="${esc(a.color)}" placeholder="#888888" maxlength="7">
           </div>
         </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Annual return assumption (%)${infoTip('Used for this account\'s slice of the 5-year forecast on the Net Worth tab. Cash/savings are typically 0% unless they earn interest.')}</label>
+          <input class="form-input form-input-sm" data-field="annualReturnPct" type="number" min="0" max="30" step="0.1" value="${esc(String(a.annualReturnPct ?? 0))}">
+        </div>
+        ${
+          a.isPrimaryInvestment
+            ? `<p class="note" style="grid-column:1/-1">Contribution amount for the primary investment account comes from the ETF contribution plan in the Holdings card below, not from this account row.</p>`
+            : `
+        <div class="settings-field">
+          <label class="settings-field-label">Recurring contribution (\u20AC per execution)</label>
+          <input class="form-input form-input-sm" data-field="contribAmount" type="number" min="0" step="1" value="${esc(String(a.contribAmount ?? 0))}">
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Contribution interval</label>
+          <select class="form-input form-input-sm" data-field="contribInterval">
+            ${Object.entries(INTERVAL_LABELS).map(([k, label]) => `<option value="${k}" ${a.contribInterval === k ? 'selected' : ''}>${label}</option>`).join('')}
+          </select>
+        </div>`
+        }
         <div class="settings-field settings-field-inline">
           <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="isPrimaryInvestment" ${a.isPrimaryInvestment ? 'checked' : ''}> Primary investment${infoTip('Used to split net-worth growth into contributions vs market returns. Only investment-type accounts (broker, depot) should be marked.')}</label>
         </div>
@@ -278,15 +289,24 @@ function attachAccountListeners(root: HTMLElement): void {
 
 function collectAccounts(root: HTMLElement): Account[] {
   const rows = root.querySelectorAll('.settings-acct-row');
-  return [...rows].map((row, i) => ({
-    id: row.querySelector('[data-field="id"]').value.trim(),
-    moneyType: row.querySelector('[data-field="moneyType"]').value.trim(),
-    institution: row.querySelector('[data-field="institution"]').value.trim(),
-    label: row.querySelector('[data-field="label"]').value.trim(),
-    color: row.querySelector('[data-field="color"]').value.trim(),
-    isPrimaryInvestment: row.querySelector('[data-field="isPrimaryInvestment"]').checked,
-    order: i + 1,
-  }));
+  return [...rows].map((row, i) => {
+    const isPrimary = row.querySelector('[data-field="isPrimaryInvestment"]').checked;
+    const contribEl = row.querySelector('[data-field="contribAmount"]');
+    const intervalEl = row.querySelector('[data-field="contribInterval"]');
+    return {
+      id: row.querySelector('[data-field="id"]').value.trim(),
+      moneyType: row.querySelector('[data-field="moneyType"]').value.trim(),
+      institution: row.querySelector('[data-field="institution"]').value.trim(),
+      label: row.querySelector('[data-field="label"]').value.trim(),
+      color: row.querySelector('[data-field="color"]').value.trim(),
+      isPrimaryInvestment: isPrimary,
+      order: i + 1,
+      annualReturnPct: parseFloat(row.querySelector('[data-field="annualReturnPct"]').value) || 0,
+      // Primary investment row has no contribution inputs (2A) — default to 0/monthly rather than reading a missing element.
+      contribAmount: isPrimary ? 0 : parseFloat(contribEl?.value) || 0,
+      contribInterval: isPrimary ? 'monthly' : (intervalEl?.value || 'monthly'),
+    };
+  });
 }
 
 function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
@@ -773,46 +793,6 @@ function attachCostBasisListeners(root: HTMLElement): void {
       showMsg('costbasis-msg', 'Saved', true);
     } catch (err) {
       showMsg('costbasis-msg', 'Error: ' + err.message, false);
-    }
-  });
-}
-
-// ── Projection settings ──────────────────────────────────
-
-function renderProjectionCard(settings: Settings): string {
-  const annualReturn = settings.annualReturnPct || '7';
-
-  return `
-    <div class="card card-collapsible" id="settings-card-projection" data-card-key="projection">
-      <div class="card-header js-card-toggle">
-        <div class="card-title">Projection assumptions</div>
-        <span class="card-chevron"></span>
-      </div>
-      <div class="card-body">
-        <p class="note" style="margin-bottom:.75rem">Parameters used to calculate your 5-year portfolio projection on the Overview tab.</p>
-        <div class="form-grid" style="max-width:500px">
-          <div class="form-group">
-            <label class="form-label">Expected annual return (%)</label>
-            <input class="form-input" id="set-annual-return" type="number" min="0" max="30" step="0.1" value="${esc(annualReturn)}" placeholder="7">
-            <span class="note">Historical average for diversified ETF portfolios is ~7%</span>
-          </div>
-        </div>
-        <div style="display:flex;gap:10px;margin-top:.75rem">
-          <button class="btn btn-primary btn-sm" id="btn-save-projection">Save projection settings</button>
-          <span id="proj-msg" style="font-size:12px;line-height:28px"></span>
-        </div>
-      </div>
-    </div>`;
-}
-
-function attachProjectionListeners(root: HTMLElement): void {
-  root.querySelector('#btn-save-projection')?.addEventListener('click', async () => {
-    const annualReturn = root.querySelector('#set-annual-return')?.value || '7';
-    try {
-      await setSettings({ annualReturnPct: annualReturn });
-      showMsg('proj-msg', 'Saved', true);
-    } catch (err) {
-      showMsg('proj-msg', 'Error: ' + err.message, false);
     }
   });
 }

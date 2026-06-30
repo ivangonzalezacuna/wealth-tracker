@@ -105,12 +105,11 @@ describe('Settings scoped re-render (repaintCard)', () => {
     renderSettings();
   });
 
-  it('all seven card IDs are present after renderSettings()', () => {
+  it('all six card IDs are present after renderSettings()', () => {
     const ids = [
       'settings-card-accounts',
       'settings-card-holdings',
       'settings-card-cost-basis',
-      'settings-card-projection',
       'settings-card-goal',
       'settings-card-rules',
       'settings-card-cache',
@@ -179,7 +178,6 @@ describe('Settings scoped re-render (repaintCard)', () => {
     expect(keys).toContain('accounts');
     expect(keys).toContain('holdings');
     expect(keys).toContain('cost-basis');
-    expect(keys).toContain('projection');
     expect(keys).toContain('goal');
     expect(keys).toContain('rules');
     expect(keys).toContain('cache');
