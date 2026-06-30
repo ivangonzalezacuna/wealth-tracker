@@ -1,6 +1,6 @@
 {
-  "name": "Finance Dashboard",
-  "short_name": "Finance",
+  "name": "Wealth Tracker",
+  "short_name": "Wealth Tracker",
   "description": "Personal ETF portfolio and net worth tracker",
   "start_url": "/",
   "id": "/",

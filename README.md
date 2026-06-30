@@ -1,4 +1,4 @@
-# Finance Dashboard
+# Wealth Tracker
 
 Personal ETF portfolio and net worth tracker — PWA, synced to Google Sheets.
 
