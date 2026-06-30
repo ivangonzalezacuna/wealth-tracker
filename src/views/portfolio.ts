@@ -1,5 +1,5 @@
 // @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
-import { fmtEur, fmtEur2, fmtMon, esc, safeColor } from '../utils';
+import { fmtEur, fmtEur2, fmtMon, fmtShares, esc, safeColor } from '../utils';
 import { getISIN_ORDERList, getMETAMap } from '../constants';
 import { getAccounts, getHoldings } from '../store/config';
 import { primaryInvestmentValue } from '../model/accounts';
@@ -70,16 +70,17 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
            data-isin="${esc(e.symbol)}"
            data-active="${m.active ? '1' : '0'}"
            data-acc="${e.acc ? '1' : '0'}"
-           data-shares="${e.shares.toFixed(4)}"
-           data-avg="${avg > 0 ? avg.toFixed(2) : ''}">
+           data-shares="${fmtShares(e.shares)}"
+           data-avg="${avg > 0 ? fmtEur2(avg) : ''}"
+           data-rpnl="${rpnl}">
         <span class="hold-ticker">${esc(e.ticker)}</span>
         <span class="hold-dot" style="background:${safeColor(e.color)};opacity:${isExited ? '0.45' : '1'}"></span>
       </div>
       <div role="cell" style="text-align:right;font-weight:500">${fmtEur(e.cost)}
         ${!isExited ? `<div class="bar-wrap"><div class="bar-fill" style="width:${pct.toFixed(0)}%;background:${safeColor(e.color)}"></div></div>` : ''}
       </div>
-      <div role="cell" style="text-align:right;color:var(--ink-2)">${e.shares.toFixed(4)}</div>
-      <div role="cell" style="text-align:right;color:var(--ink-2)">${avg > 0 ? '\u20AC' + avg.toFixed(2) : '—'}</div>
+      <div role="cell" style="text-align:right;color:var(--ink-2)">${fmtShares(e.shares)}</div>
+      <div role="cell" style="text-align:right;color:var(--ink-2)">${avg > 0 ? fmtEur2(avg) : '—'}</div>
       <div role="cell" style="text-align:right;color:var(--ink-2)">${pct.toFixed(1)}%</div>
       <div role="cell" style="text-align:right;color:${rpnl >= 0 ? 'var(--pos)' : 'var(--neg)'}" aria-label="Realized P&L ${rpnl !== 0 ? (rpnl >= 0 ? '+' : '') + rpnl.toFixed(2) : 'none'}">${rpnl === 0 ? '—' : (rpnl > 0 ? '+' : '') + fmtEur2(rpnl)}</div>
       <div role="cell" style="text-align:right;color:${e.divNet > 0 ? 'var(--pos)' : 'var(--ink-3)'}">${e.divNet > 0 ? fmtEur2(e.divNet) : '—'}</div>
@@ -130,16 +131,21 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
       if (!cell) return;
       const isin   = cell.dataset.isin   || '—';
       const active = cell.dataset.active === '1' ? 'Active' : 'Closed';
-      const acc    = cell.dataset.acc    === '1' ? 'Acc' : 'Dist';
+      const acc    = cell.dataset.acc    === '1' ? 'Accumulating' : 'Distributing';
       const shares = cell.dataset.shares || '—';
-      const avg    = cell.dataset.avg    ? '€' + cell.dataset.avg : '—';
+      const avg    = cell.dataset.avg || '—';
+      const rpnlNum = parseFloat(cell.dataset.rpnl || '0');
+      const rpnl = rpnlNum === 0 ? '—' : (rpnlNum > 0 ? '+' : '') + fmtEur2(rpnlNum);
+      const rpnlClass = rpnlNum >= 0 ? 'pos' : 'neg';
       const panel  = document.createElement('div');
       panel.className = 'hold-detail';
       panel.innerHTML = `
         <div><span class="hold-detail-label">ISIN</span><span class="hold-detail-value hold-detail-isin">${isin}</span></div>
-        <div><span class="hold-detail-label">Status</span><span class="hold-detail-value">${active} · ${acc}</span></div>
+        <div><span class="hold-detail-label">Status</span><span class="hold-detail-value">${active}</span></div>
+        <div><span class="hold-detail-label">Type</span><span class="hold-detail-value">${acc}</span></div>
         <div><span class="hold-detail-label">Shares</span><span class="hold-detail-value">${shares}</span></div>
-        <div><span class="hold-detail-label">Avg price</span><span class="hold-detail-value">${avg}</span></div>`;
+        <div><span class="hold-detail-label">Avg price</span><span class="hold-detail-value">${avg}</span></div>
+        <div><span class="hold-detail-label">Realized P&L</span><span class="hold-detail-value ${rpnlClass}">${rpnl}</span></div>`;
       row.insertAdjacentElement('afterend', panel);
     });
   }
@@ -204,19 +210,33 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     .concat(Object.values(pd.etfs).filter(e => !ISIN_ORDER.includes(e.symbol)));
   const { held } = splitHoldings(allEtfs);
 
-  // Donut chart — only held positions with cost > 0
+  // Bar chart — only held positions with cost > 0
   const donutE = held.filter(e => e.cost > 0);
   const C = resolvedT();
   if (CH['c-port-donut']) { CH['c-port-donut'].destroy(); }
   CH['c-port-donut'] = new Chart(document.getElementById('c-port-donut'), {
-    type: 'doughnut',
-    data: { labels: donutE.map(e => e.ticker), datasets: [{
-      data: donutE.map(e => e.cost), backgroundColor: donutE.map(e => safeColor(e.color)),
-      borderWidth: 2, borderColor: C.surface,
-    }]},
-    options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false },
-      tooltip: { backgroundColor: C.surface, borderColor: C.line, borderWidth: 1, titleColor: C.ink, bodyColor: C.ink2, padding: 10, cornerRadius: 8 },
-    } },
+    type: 'bar',
+    data: {
+      labels: donutE.map(e => e.ticker),
+      datasets: [{ data: donutE.map(e => e.cost),
+        backgroundColor: donutE.map(e => safeColor(e.color)),
+        borderColor: donutE.map(e => safeColor(e.color)),
+        borderWidth: 1, borderRadius: 5, borderSkipped: false }],
+    },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: C.surface, borderColor: C.line, borderWidth: 1,
+          titleColor: C.ink, bodyColor: C.ink2, padding: 10, cornerRadius: 8,
+          callbacks: { label: ctx => ` ${fmtEur(ctx.raw as number)}` },
+        },
+      },
+      scales: {
+        x: { grid: { color: C.line }, ticks: { color: C.ink4, callback: (v: number) => '€' + (v / 1000).toFixed(0) + 'k' } },
+        y: { grid: { display: false }, ticks: { color: C.ink2, font: { size: 12 } } },
+      },
+    },
   });
   document.getElementById('port-donut-legend').innerHTML =
     donutE.map(e => `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(e.color)}"></span>${esc(e.ticker)} ${pd.totalInv > 0 ? (e.cost / pd.totalInv * 100).toFixed(0) : 0}%</span>`).join('');
