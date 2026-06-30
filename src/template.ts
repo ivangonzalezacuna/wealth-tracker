@@ -146,11 +146,21 @@ export function appTemplate(): string {
       <div class="kpi-row" id="div-kpis"></div>
       <div class="card">
         <div class="card-title">Dividend payments received (most recent first)</div>
+        <div class="filter-bar">
+          <select id="div-year-filter" class="form-input form-input-sm" style="width:auto;display:inline-block">
+            <option value="">All years</option>
+          </select>
+        </div>
         <div class="tbl" role="table" aria-label="Dividend history"><div id="div-history"></div></div>
         <div id="div-pagination" class="pagination"></div>
       </div>
       <div class="card">
         <div class="card-title">Cash / savings interest received</div>
+        <div class="filter-bar">
+          <select id="int-year-filter" class="form-input form-input-sm" style="width:auto;display:inline-block">
+            <option value="">All years</option>
+          </select>
+        </div>
         <div id="div-interest"></div>
         <div id="int-pagination" class="pagination"></div>
       </div>

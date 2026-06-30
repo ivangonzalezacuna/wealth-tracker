@@ -6,6 +6,8 @@ import { T } from '../theme';
 const DIV_PAGE_SIZE = 12;
 let _divPage = 1;
 let _intPage = 1;
+let _divYear = '';
+let _intYear = '';
 let _lastPd: PortfolioData | null = null;
 
 export function renderDividends(pd: PortfolioData | null): void {
@@ -19,6 +21,8 @@ export function renderDividends(pd: PortfolioData | null): void {
   _lastPd = pd;
   _divPage = 1;
   _intPage = 1;
+  _divYear = '';
+  _intYear = '';
 
   const totalGross = pd.divHist.reduce((s, d) => s + d.gross, 0);
 
@@ -29,15 +33,22 @@ export function renderDividends(pd: PortfolioData | null): void {
     <div class="kpi"><div class="kpi-label">TR interest</div><div class="kpi-val pos">${fmtEur2(pd.totalInterest)}</div><div class="kpi-sub">on cash savings</div></div>
   `;
 
+  populateDivYearFilter(pd.divHist);
+  attachDivFilterListeners(pd);
   renderDivTable(pd);
+
+  populateIntYearFilter(pd.intHist);
+  attachIntFilterListeners(pd);
   renderIntTable(pd);
 }
 
 function renderDivTable(pd: PortfolioData): void {
-  const hasDiv = pd.divHist.length > 0;
-  const totalGross = pd.divHist.reduce((s, d) => s + d.gross, 0);
+  const list = _divYear ? pd.divHist.filter(d => d.date.startsWith(_divYear)) : pd.divHist;
+  const hasDiv = list.length > 0;
+  const totalGross = list.reduce((s, d) => s + d.gross, 0);
+  const totalTax = list.reduce((s, d) => s + d.tax, 0);
+  const totalNet = list.reduce((s, d) => s + d.net, 0);
 
-  const list = pd.divHist;
   const totalPages = Math.ceil(list.length / DIV_PAGE_SIZE);
   if (_divPage > totalPages) _divPage = Math.max(1, totalPages);
   const pageItems = list.slice((_divPage - 1) * DIV_PAGE_SIZE, _divPage * DIV_PAGE_SIZE);
@@ -57,10 +68,10 @@ function renderDivTable(pd: PortfolioData): void {
       <div></div><div role="columnheader">ETF / Date</div><div role="columnheader">Gross</div><div role="columnheader">Tax</div><div role="columnheader">Net</div>
     </div>${dRows}
     <div class="tbl-row" style="grid-template-columns:auto 1.5fr 1fr 1fr 1fr;border-top:1px solid var(--line-2);margin-top:4px">
-      <div></div><div style="font-weight:500">Total</div>
+      <div></div><div style="font-weight:500">${_divYear ? 'Year total' : 'Total'}</div>
       <div style="font-weight:500">${fmtEur2(totalGross)}</div>
-      <div style="color:var(--neg)">−${fmtEur2(pd.totalTax)}</div>
-      <div style="color:var(--pos);font-weight:500">${fmtEur2(pd.totalDivNet)}</div>
+      <div style="color:var(--neg)">−${fmtEur2(totalTax)}</div>
+      <div style="color:var(--pos);font-weight:500">${fmtEur2(totalNet)}</div>
     </div>` : '<p class="note">No dividends found in imported transactions yet.</p>';
 
   renderDivPagination(totalPages, pd);
@@ -87,7 +98,8 @@ function renderDivPagination(totalPages: number, pd: PortfolioData): void {
 }
 
 function renderIntTable(pd: PortfolioData): void {
-  const list = pd.intHist;
+  const list = _intYear ? pd.intHist.filter(i => i.date.startsWith(_intYear)) : pd.intHist;
+  const totalInterest = list.reduce((s, i) => s + i.amount, 0);
   const totalPages = Math.ceil(list.length / DIV_PAGE_SIZE);
   if (_intPage > totalPages) _intPage = Math.max(1, totalPages);
   const pageItems = list.slice((_intPage - 1) * DIV_PAGE_SIZE, _intPage * DIV_PAGE_SIZE);
@@ -97,8 +109,8 @@ function renderIntTable(pd: PortfolioData): void {
         `<div class="row"><div class="row-label">${fmtDay(i.date)}</div><div class="row-val ok">${fmtEur2(i.amount)}</div></div>`
       ).join('') +
       `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px">
-        <div class="row-label" style="font-weight:500">Total interest</div>
-        <div class="row-val ok" style="font-weight:500">${fmtEur2(pd.totalInterest)}</div></div>`
+        <div class="row-label" style="font-weight:500">${_intYear ? 'Year total' : 'Total interest'}</div>
+        <div class="row-val ok" style="font-weight:500">${fmtEur2(totalInterest)}</div></div>`
     : '<p class="note">No interest payments found in imported transactions.</p>';
 
   renderIntPagination(totalPages, pd);
@@ -122,4 +134,46 @@ function renderIntPagination(totalPages: number, pd: PortfolioData): void {
   el.querySelector('.js-int-next')?.addEventListener('click', () => {
     if (_intPage < totalPages) { _intPage++; renderIntTable(_lastPd || pd); }
   });
+}
+
+function populateDivYearFilter(divHist: PortfolioData['divHist']): void {
+  const select = document.getElementById('div-year-filter');
+  if (!select) return;
+  const years = [...new Set(divHist.map(d => d.date.slice(0, 4)))].sort().reverse();
+  const current = (select as HTMLSelectElement).value;
+  select.innerHTML = '<option value="">All years</option>' +
+    years.map(y => `<option value="${y}" ${y === current ? 'selected' : ''}>${y}</option>`).join('');
+}
+
+function attachDivFilterListeners(pd: PortfolioData): void {
+  const yearEl = document.getElementById('div-year-filter') as HTMLSelectElement & { _bound?: boolean } | null;
+  if (yearEl && !yearEl._bound) {
+    yearEl._bound = true;
+    yearEl.addEventListener('change', () => {
+      _divYear = yearEl.value;
+      _divPage = 1;
+      renderDivTable(_lastPd || pd);
+    });
+  }
+}
+
+function populateIntYearFilter(intHist: PortfolioData['intHist']): void {
+  const select = document.getElementById('int-year-filter');
+  if (!select) return;
+  const years = [...new Set(intHist.map(i => i.date.slice(0, 4)))].sort().reverse();
+  const current = (select as HTMLSelectElement).value;
+  select.innerHTML = '<option value="">All years</option>' +
+    years.map(y => `<option value="${y}" ${y === current ? 'selected' : ''}>${y}</option>`).join('');
+}
+
+function attachIntFilterListeners(pd: PortfolioData): void {
+  const yearEl = document.getElementById('int-year-filter') as HTMLSelectElement & { _bound?: boolean } | null;
+  if (yearEl && !yearEl._bound) {
+    yearEl._bound = true;
+    yearEl.addEventListener('change', () => {
+      _intYear = yearEl.value;
+      _intPage = 1;
+      renderIntTable(_lastPd || pd);
+    });
+  }
 }
