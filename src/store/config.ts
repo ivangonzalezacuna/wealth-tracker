@@ -186,8 +186,16 @@ export async function setAccounts(accounts: Account[]): Promise<void> {
   _accounts = accounts;
   await ensureSheets([TABS.ACCOUNTS]);
   const hdr = [
-    'id', 'moneyType', 'institution', 'label', 'color', 'isPrimaryInvestment', 'order',
-    'annualReturnPct', 'contribAmount', 'contribInterval',
+    'id',
+    'moneyType',
+    'institution',
+    'label',
+    'color',
+    'isPrimaryInvestment',
+    'order',
+    'annualReturnPct',
+    'contribAmount',
+    'contribInterval',
   ];
   const rows = accounts.map((a) => [
     a.id || a.key || '',
@@ -308,7 +316,9 @@ export function parseAccounts(rows: (string | number | boolean)[][]): Account[] 
       annualReturnPct: toNum(r[hdr.indexOf('annualreturnpct')]),
       contribAmount: toNum(r[hdr.indexOf('contribamount')]),
       contribInterval: (VALID_INTERVALS.has(
-        String(r[hdr.indexOf('contribinterval')] ?? '').trim().toLowerCase(),
+        String(r[hdr.indexOf('contribinterval')] ?? '')
+          .trim()
+          .toLowerCase(),
       )
         ? String(r[hdr.indexOf('contribinterval')]).trim().toLowerCase()
         : 'monthly') as ContribInterval,

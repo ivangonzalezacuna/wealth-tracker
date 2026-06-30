@@ -9,7 +9,13 @@ vi.mock('../sheets/api', () => ({
 }));
 
 vi.mock('../config', () => ({
-  CONFIG: { accounts: [], holdings: [], projection: {}, targetAllocation: {}, reinvestmentRules: {} },
+  CONFIG: {
+    accounts: [],
+    holdings: [],
+    projection: {},
+    targetAllocation: {},
+    reinvestmentRules: {},
+  },
 }));
 
 import { parseAccounts, setAccounts } from './config';
@@ -34,8 +40,16 @@ describe('parseAccounts', () => {
   it('new-format sheet parses annualReturnPct, contribAmount, contribInterval correctly', () => {
     const rows: (string | number | boolean)[][] = [
       [
-        'id', 'moneyType', 'institution', 'label', 'color', 'isPrimaryInvestment', 'order',
-        'annualReturnPct', 'contribAmount', 'contribInterval',
+        'id',
+        'moneyType',
+        'institution',
+        'label',
+        'color',
+        'isPrimaryInvestment',
+        'order',
+        'annualReturnPct',
+        'contribAmount',
+        'contribInterval',
       ],
       ['acct1', 'investment', 'TR', 'Main', '#111', true, 1, 5, 200, 'quarterly'],
     ];
@@ -49,8 +63,16 @@ describe('parseAccounts', () => {
   it('coerces an invalid contribInterval string to monthly', () => {
     const rows: (string | number | boolean)[][] = [
       [
-        'id', 'moneyType', 'institution', 'label', 'color', 'isPrimaryInvestment', 'order',
-        'annualReturnPct', 'contribAmount', 'contribInterval',
+        'id',
+        'moneyType',
+        'institution',
+        'label',
+        'color',
+        'isPrimaryInvestment',
+        'order',
+        'annualReturnPct',
+        'contribAmount',
+        'contribInterval',
       ],
       ['acct1', 'investment', 'TR', 'Main', '#111', true, 1, 7, 100, 'daily'],
     ];

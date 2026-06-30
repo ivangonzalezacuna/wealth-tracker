@@ -203,7 +203,7 @@ function renderAccountRow(a: Account, i: number): string {
           </div>
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Annual return assumption (%)${infoTip('Used for this account\'s slice of the 5-year forecast on the Net Worth tab. Cash/savings are typically 0% unless they earn interest.')}</label>
+          <label class="settings-field-label">Annual return assumption (%)${infoTip("Used for this account's slice of the 5-year forecast on the Net Worth tab. Cash/savings are typically 0% unless they earn interest.")}</label>
           <input class="form-input form-input-sm" data-field="annualReturnPct" type="number" min="0" max="30" step="0.1" value="${esc(String(a.annualReturnPct ?? 0))}">
         </div>
         ${
@@ -217,7 +217,12 @@ function renderAccountRow(a: Account, i: number): string {
         <div class="settings-field">
           <label class="settings-field-label">Contribution interval</label>
           <select class="form-input form-input-sm" data-field="contribInterval">
-            ${Object.entries(INTERVAL_LABELS).map(([k, label]) => `<option value="${k}" ${a.contribInterval === k ? 'selected' : ''}>${label}</option>`).join('')}
+            ${Object.entries(INTERVAL_LABELS)
+              .map(
+                ([k, label]) =>
+                  `<option value="${k}" ${a.contribInterval === k ? 'selected' : ''}>${label}</option>`,
+              )
+              .join('')}
           </select>
         </div>`
         }
@@ -304,7 +309,7 @@ function collectAccounts(root: HTMLElement): Account[] {
       annualReturnPct: parseFloat(row.querySelector('[data-field="annualReturnPct"]').value) || 0,
       // Primary investment row has no contribution inputs (2A) — default to 0/monthly rather than reading a missing element.
       contribAmount: isPrimary ? 0 : parseFloat(contribEl?.value) || 0,
-      contribInterval: isPrimary ? 'monthly' : (intervalEl?.value || 'monthly'),
+      contribInterval: isPrimary ? 'monthly' : intervalEl?.value || 'monthly',
     };
   });
 }
