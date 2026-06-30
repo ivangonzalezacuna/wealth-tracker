@@ -51,7 +51,19 @@ export function appTemplate(): string {
         <div id="nw-detail"></div>
       </div>
     </div>
-    <div id="nw-growth-split"></div>
+    <div class="card">
+      <div class="card-title">Growth breakdown — contributed vs market</div>
+      <div class="chart-controls">
+        <div id="nw-growth-legend" class="legend"></div>
+        <div class="range-toggle" id="nw-growth-range-toggle">
+          <button class="btn btn-sm btn-ghost" data-range="12">1Y</button>
+          <button class="btn btn-sm btn-ghost" data-range="36">3Y</button>
+          <button class="btn btn-sm btn-ghost active" data-range="all">All</button>
+        </div>
+      </div>
+      <div class="chart-wrap chart-h-md"><canvas id="c-nw-growth"></canvas></div>
+      <p class="note">Market movement is the residual after subtracting contributions from the total change — it is approximate and sensitive to how close your snapshot date lands to month-end.</p>
+    </div>
     <div id="nw-goal"></div>
     <div id="nw-forecast"></div>
   </div>

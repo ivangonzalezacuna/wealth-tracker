@@ -1,4 +1,4 @@
-import type { Snapshot } from '../types';
+import type { Snapshot, Account } from '../types';
 import { snapTotal } from '../utils';
 
 /** Split monthly delta into contributed vs market movement. */
@@ -74,6 +74,50 @@ export function findYoYSnapshot(snaps: Snapshot[]): { snap: Snapshot; total: num
 
   if (!bestSnap) return null;
   return { snap: bestSnap, total: snapTotal(bestSnap) };
+}
+
+/**
+ * Build a month-by-month contributed-vs-market history across the full
+ * snapshot array. One point per consecutive snapshot pair where both
+ * snapshots have a resolvable primary-investment balance.
+ *
+ * Pairs with no primary-investment value on either side (e.g. before any
+ * account was flagged isPrimaryInvestment) are silently skipped — they
+ * contribute no data point rather than a zeroed/misleading one.
+ */
+export interface MonthlyGrowthPoint {
+  month: string; // YYYY-MM, the later snapshot's date
+  contributed: number;
+  market: number;
+  total: number; // contributed + market, i.e. the raw snapshot-to-snapshot delta
+}
+
+export function monthlyGrowthHistory(
+  snaps: { date: string; [k: string]: number | string | undefined }[],
+  accounts: Account[],
+  monthlyContrib: Record<string, number>,
+  primaryValueFn: (
+    snap: { date: string; [k: string]: number | string | undefined },
+    accounts: Account[],
+  ) => number | null,
+): MonthlyGrowthPoint[] {
+  const points: MonthlyGrowthPoint[] = [];
+  for (let i = 1; i < snaps.length; i++) {
+    const prev = snaps[i - 1];
+    const cur = snaps[i];
+    const primaryPrev = primaryValueFn(prev, accounts);
+    const primaryNow = primaryValueFn(cur, accounts);
+    if (primaryPrev === null || primaryNow === null) continue;
+    const contrib = monthlyContrib[cur.date] || 0;
+    const split = monthlyGrowthSplit(primaryNow, primaryPrev, contrib);
+    points.push({
+      month: cur.date,
+      contributed: split.contributed,
+      market: split.market,
+      total: primaryNow - primaryPrev,
+    });
+  }
+  return points;
 }
 
 function parseYearMonth(d: string): { year: number; month: number } | null {
