@@ -6,6 +6,7 @@ import { primaryInvestmentValue } from '../model/accounts';
 import type { PortfolioData, Snapshot } from '../types';
 import Chart from 'chart.js/auto';
 import { T, resolvedT } from '../theme';
+import { bindIsolateLegend, resetLegendVisibility } from './chartLegend';
 
 const CH: Record<string, Chart> = {};
 const DCA_PAGE_SIZE = 12;
@@ -146,21 +147,10 @@ function renderDCAChart(pd: PortfolioData, ordSyms: string[], ISIN: Record<strin
 }
 
 function _bindDCALegendToggle(ordSyms: string[]): void {
-  const legend = document.getElementById('dca-legend') as HTMLElement & { _bound?: boolean } | null;
-  if (!legend || legend._bound) return;
-  legend._bound = true;
-  legend.addEventListener('click', (e) => {
-    const item = (e.target as HTMLElement).closest('.leg-item') as HTMLElement | null;
-    if (!item) return;
-    const sym = item.dataset.sym;
-    const idx = ordSyms.indexOf(sym || '');
-    const chart = CH['c-dca-bar'];
-    if (!chart || idx < 0) return;
-    const meta = chart.getDatasetMeta(idx);
-    meta.hidden = meta.hidden === null ? !chart.data.datasets[idx].hidden : !meta.hidden;
-    item.style.opacity = meta.hidden ? '0.4' : '1';
-    chart.update();
-  });
+  const legend = document.getElementById('dca-legend');
+  const chart = CH['c-dca-bar'];
+  if (!legend || !chart) return;
+  bindIsolateLegend(legend, chart, { skipIndex: [] }); // no Total dataset in the DCA stack
 }
 
 function attachRangeToggle(pd: PortfolioData, ordSyms: string[], ISIN: Record<string, string>, META: Record<string, { color: string }>): void {
@@ -175,6 +165,8 @@ function attachRangeToggle(pd: PortfolioData, ordSyms: string[], ISIN: Record<st
     toggle.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     renderDCAChart(_lastPd || pd, ordSyms, ISIN, META);
+    const legendEl = document.getElementById('dca-legend');
+    if (legendEl && CH['c-dca-bar']) resetLegendVisibility(legendEl, CH['c-dca-bar']);
     renderDCATable(_lastPd || pd);
   });
 }

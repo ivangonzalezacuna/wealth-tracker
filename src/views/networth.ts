@@ -8,6 +8,7 @@ import { forecastMonthsToTarget, formatMonthsEta, forecastSeries } from '../mode
 import type { Snapshot, PortfolioData } from '../types';
 import Chart from 'chart.js/auto';
 import { T, resolvedT } from '../theme';
+import { bindIsolateLegend, resetLegendVisibility } from './chartLegend';
 
 const CH: Record<string, Chart> = {};
 let _nwRange: '12' | '36' | 'all' = 'all';
@@ -139,41 +140,6 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   _attachNWRangeToggle(snaps, chartA);
 
   const bkA = ACCTS.filter(a => (s[a.key] || 0) > 0);
-  _destroyChart('c-nw-donut');
-
-  // Hide account breakdown card when single snapshot (c-nw-hist already shows same data as bar)
-  const nwDonutCard = document.getElementById('c-nw-donut')?.closest('.card') as HTMLElement | null;
-  if (nwDonutCard) nwDonutCard.style.display = snaps.length === 1 ? 'none' : '';
-
-  if (snaps.length > 1) {
-    CH['c-nw-donut'] = new Chart(document.getElementById('c-nw-donut'), {
-      type: 'bar',
-      data: {
-        labels: bkA.map(a => a.label),
-        datasets: [{ data: bkA.map(a => s[a.key] || 0),
-          backgroundColor: bkA.map(a => safeColor(a.color)),
-          borderColor: bkA.map(a => safeColor(a.color)),
-          borderWidth: 1, borderRadius: 5, borderSkipped: false }],
-      },
-      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: C.surface, borderColor: C.line, borderWidth: 1,
-            titleColor: C.ink, bodyColor: C.ink2, padding: 10, cornerRadius: 8,
-            callbacks: { label: ctx => ` ${fmtEur(ctx.raw as number)}` },
-          },
-        },
-        scales: {
-          x: { grid: { color: C.line }, ticks: { color: C.ink4, callback: (v: number) => '€' + (v / 1000).toFixed(0) + 'k' } },
-          y: { grid: { display: false }, ticks: { color: C.ink2, font: { size: 12 } } },
-        },
-      },
-    });
-  }
-
-  document.getElementById('nw-donut-legend').innerHTML =
-    bkA.map(a => `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(a.color)}"></span>${esc(a.label)} ${total > 0 ? Math.round((s[a.key] || 0) / total * 100) : 0}%</span>`).join('');
 
   let det = bkA.map(a =>
     `<div class="row"><div class="row-label">${esc(a.label)}</div><div class="row-val">${fmtEur2(s[a.key] || 0)}</div></div>`
@@ -342,19 +308,9 @@ function _renderNWHistChart(
 function _bindLegendToggle(chart: Chart): void {
   const legendEl = document.getElementById('nw-chart-legend');
   if (!legendEl) return;
-  const items = legendEl.querySelectorAll('.leg-item');
-  items.forEach((item, i) => {
-    if (i === 0) return; // Total — always visible, never dimmed or clickable
-    (item as HTMLElement).style.cursor = 'pointer';
-    const dsIdx = i;
-    const meta = chart.getDatasetMeta(dsIdx);
-    (item as HTMLElement).style.opacity = meta.hidden ? '0.4' : '1';
-    (item as HTMLElement).addEventListener('click', () => {
-      meta.hidden = !meta.hidden;
-      (item as HTMLElement).style.opacity = meta.hidden ? '0.4' : '1';
-      chart.update();
-    });
-  });
+  // Index 0 = Total — always visible, never isolatable (matches Phase 25's rule
+  // that Total must never be hideable).
+  bindIsolateLegend(legendEl, chart, { skipIndex: [0] });
 }
 
 // ── Range toggle binding ──
@@ -374,6 +330,8 @@ function _attachNWRangeToggle(
     btn.classList.add('active');
     const view = _nwRange === 'all' ? snaps : snaps.slice(-parseInt(_nwRange));
     _renderNWHistChart(view, chartA);
+    const legendEl = document.getElementById('nw-chart-legend');
+    if (legendEl && CH['c-nw-hist']) resetLegendVisibility(legendEl, CH['c-nw-hist']);
   });
 }
 

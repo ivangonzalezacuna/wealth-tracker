@@ -47,11 +47,6 @@ export function appTemplate(): string {
     </div>
     <div class="two-col">
       <div class="card">
-        <div class="card-title">Account breakdown</div>
-        <div id="nw-donut-legend" class="legend"></div>
-        <div class="chart-wrap chart-h-sm"><canvas id="c-nw-donut"></canvas></div>
-      </div>
-      <div class="card">
         <div class="card-title">Latest snapshot</div>
         <div id="nw-detail"></div>
       </div>
