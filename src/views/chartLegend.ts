@@ -1,10 +1,15 @@
 import type { Chart } from 'chart.js';
 
 /**
- * Binds independent toggle-on-click behavior to a legend's .leg-item children.
- * - Click an item: toggles that dataset's visibility independently.
- *   Multiple datasets can be visible or hidden at the same time.
- * - If all eligible items end up hidden, restore all to visible.
+ * Binds legend click behavior to a legend's .leg-item children.
+ *
+ * Behavior:
+ * - From "all visible" state: clicking an item ISOLATES to it (hides all
+ *   others, shows only the clicked one).
+ * - From "partial" state (some items hidden): clicking a HIDDEN item adds
+ *   it back (makes it visible again).
+ * - Clicking a VISIBLE item in partial state hides it (unless it's the last
+ *   visible one, in which case restore all).
  * - skipIndex: dataset indices that are never clickable/togglable (e.g. a
  *   "Total" line that must always stay visible) — pass [] if none.
  * - Always call this after any full chart rebuild, so legend DOM and
@@ -26,15 +31,30 @@ export function bindLegendToggle(
     });
   }
 
-  function toggle(targetIdx: number): void {
-    const meta = chart.getDatasetMeta(targetIdx);
-    meta.hidden = !meta.hidden;
-
-    // If all eligible items are now hidden, restore all to visible
+  function isAllVisible(): boolean {
     const eligible = items.map((_, i) => i).filter(i => !skip.has(i));
-    const allHidden = eligible.every(i => !!chart.getDatasetMeta(i).hidden);
-    if (allHidden) {
-      eligible.forEach(i => { chart.getDatasetMeta(i).hidden = false; });
+    return eligible.every(i => !chart.getDatasetMeta(i).hidden);
+  }
+
+  function handleClick(targetIdx: number): void {
+    const eligible = items.map((_, i) => i).filter(i => !skip.has(i));
+    const targetMeta = chart.getDatasetMeta(targetIdx);
+
+    if (isAllVisible()) {
+      // All visible → isolate to clicked item
+      eligible.forEach(i => { chart.getDatasetMeta(i).hidden = i !== targetIdx; });
+    } else if (targetMeta.hidden) {
+      // Item is hidden → show it (add it back)
+      targetMeta.hidden = false;
+    } else {
+      // Item is visible → hide it, unless it's the last visible one
+      const visibleCount = eligible.filter(i => !chart.getDatasetMeta(i).hidden).length;
+      if (visibleCount <= 1) {
+        // Last visible item clicked → restore all
+        eligible.forEach(i => { chart.getDatasetMeta(i).hidden = false; });
+      } else {
+        targetMeta.hidden = true;
+      }
     }
 
     chart.update();
@@ -44,7 +64,7 @@ export function bindLegendToggle(
   items.forEach((item, i) => {
     if (skip.has(i)) return;
     item.style.cursor = 'pointer';
-    item.addEventListener('click', () => toggle(i));
+    item.addEventListener('click', () => handleClick(i));
   });
 
   applyVisualState();

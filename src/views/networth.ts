@@ -325,7 +325,9 @@ function _attachNWRangeToggle(
   toggle.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
     if (!btn) return;
-    _nwRange = btn.dataset.range as '12' | '36' | 'all' || 'all';
+    const newRange = btn.dataset.range as '12' | '36' | 'all' || 'all';
+    if (newRange === _nwRange) return; // already on this range — no-op
+    _nwRange = newRange;
     toggle.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     const view = _nwRange === 'all' ? snaps : snaps.slice(-parseInt(_nwRange));

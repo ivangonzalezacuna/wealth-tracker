@@ -34,60 +34,57 @@ describe('bindLegendToggle', () => {
     chart = createMockChart(4);
   });
 
-  it('clicking item A hides only A (others stay visible)', () => {
+  it('from all-visible: clicking item A isolates to A (hides others)', () => {
     bindLegendToggle(legendEl, chart as any);
     const items = legendEl.querySelectorAll('.leg-item') as NodeListOf<HTMLElement>;
     items[1].click();
-
-    expect(chart._metas[0].hidden).toBe(false);
-    expect(chart._metas[1].hidden).toBe(true);
-    expect(chart._metas[2].hidden).toBe(false);
-    expect(chart._metas[3].hidden).toBe(false);
-    expect(chart.update).toHaveBeenCalled();
-    expect(items[1].style.opacity).toBe('0.35');
-    expect(items[0].style.opacity).toBe('1');
-  });
-
-  it('clicking A again (already hidden) restores A', () => {
-    bindLegendToggle(legendEl, chart as any);
-    const items = legendEl.querySelectorAll('.leg-item') as NodeListOf<HTMLElement>;
-
-    // First click hides
-    items[1].click();
-    expect(chart._metas[1].hidden).toBe(true);
-
-    // Second click restores
-    items[1].click();
-    expect(chart._metas[1].hidden).toBe(false);
-    expect(items[1].style.opacity).toBe('1');
-  });
-
-  it('clicking multiple items hides them independently', () => {
-    bindLegendToggle(legendEl, chart as any);
-    const items = legendEl.querySelectorAll('.leg-item') as NodeListOf<HTMLElement>;
-
-    items[0].click(); // hide 0
-    items[2].click(); // hide 2
 
     expect(chart._metas[0].hidden).toBe(true);
     expect(chart._metas[1].hidden).toBe(false);
     expect(chart._metas[2].hidden).toBe(true);
-    expect(chart._metas[3].hidden).toBe(false);
-    expect(items[0].style.opacity).toBe('0.35');
-    expect(items[2].style.opacity).toBe('0.35');
+    expect(chart._metas[3].hidden).toBe(true);
+    expect(chart.update).toHaveBeenCalled();
     expect(items[1].style.opacity).toBe('1');
-    expect(items[3].style.opacity).toBe('1');
+    expect(items[0].style.opacity).toBe('0.35');
   });
 
-  it('if all eligible items would be hidden, restores all to visible', () => {
+  it('from isolated state: clicking a hidden item adds it back', () => {
     bindLegendToggle(legendEl, chart as any);
     const items = legendEl.querySelectorAll('.leg-item') as NodeListOf<HTMLElement>;
 
-    // Hide all but one, then hide the last one
-    items[0].click();
-    items[1].click();
-    items[2].click();
-    items[3].click(); // would hide all — should restore all
+    items[1].click(); // isolate to 1
+    items[2].click(); // add back 2
+
+    expect(chart._metas[0].hidden).toBe(true);
+    expect(chart._metas[1].hidden).toBe(false);
+    expect(chart._metas[2].hidden).toBe(false);
+    expect(chart._metas[3].hidden).toBe(true);
+    expect(items[1].style.opacity).toBe('1');
+    expect(items[2].style.opacity).toBe('1');
+    expect(items[0].style.opacity).toBe('0.35');
+  });
+
+  it('from partial state: clicking a visible item hides it', () => {
+    bindLegendToggle(legendEl, chart as any);
+    const items = legendEl.querySelectorAll('.leg-item') as NodeListOf<HTMLElement>;
+
+    items[1].click(); // isolate to 1
+    items[2].click(); // add back 2 → now 1 and 2 visible
+
+    items[1].click(); // hide 1 → only 2 visible
+
+    expect(chart._metas[0].hidden).toBe(true);
+    expect(chart._metas[1].hidden).toBe(true);
+    expect(chart._metas[2].hidden).toBe(false);
+    expect(chart._metas[3].hidden).toBe(true);
+  });
+
+  it('clicking last visible item restores all', () => {
+    bindLegendToggle(legendEl, chart as any);
+    const items = legendEl.querySelectorAll('.leg-item') as NodeListOf<HTMLElement>;
+
+    items[1].click(); // isolate to 1
+    items[1].click(); // click the sole visible → restore all
 
     expect(chart._metas[0].hidden).toBe(false);
     expect(chart._metas[1].hidden).toBe(false);
@@ -95,25 +92,23 @@ describe('bindLegendToggle', () => {
     expect(chart._metas[3].hidden).toBe(false);
     expect(items[0].style.opacity).toBe('1');
     expect(items[1].style.opacity).toBe('1');
-    expect(items[2].style.opacity).toBe('1');
-    expect(items[3].style.opacity).toBe('1');
   });
 
   it('skipIndex items are never toggled and stay opacity 1', () => {
     bindLegendToggle(legendEl, chart as any, { skipIndex: [0] });
     const items = legendEl.querySelectorAll('.leg-item') as NodeListOf<HTMLElement>;
 
-    items[1].click(); // hide 1
+    items[1].click(); // isolate to 1
 
     // Index 0 is skipped — never hidden
     expect(chart._metas[0].hidden).toBe(false);
     expect(items[0].style.opacity).toBe('1');
     expect(items[0].style.cursor).not.toBe('pointer');
 
-    // Only 1 is hidden
-    expect(chart._metas[1].hidden).toBe(true);
-    expect(chart._metas[2].hidden).toBe(false);
-    expect(chart._metas[3].hidden).toBe(false);
+    // Others (eligible) are hidden
+    expect(chart._metas[1].hidden).toBe(false);
+    expect(chart._metas[2].hidden).toBe(true);
+    expect(chart._metas[3].hidden).toBe(true);
   });
 
   it('skipIndex items are not clickable', () => {
@@ -144,19 +139,22 @@ describe('bindLegendToggle', () => {
     expect(items[0].style.opacity).toBe('1');
   });
 
-  it('all-hidden guard respects skipIndex', () => {
+  it('isolate respects skipIndex', () => {
     bindLegendToggle(legendEl, chart as any, { skipIndex: [0] });
     const items = legendEl.querySelectorAll('.leg-item') as NodeListOf<HTMLElement>;
 
-    // Hide all eligible (1, 2, 3)
-    items[1].click();
-    items[2].click();
-    items[3].click(); // would hide all eligible — should restore all eligible
+    items[1].click(); // isolate among eligible (1,2,3) → only 1 visible
 
     expect(chart._metas[0].hidden).toBe(false); // skip — always visible
     expect(chart._metas[1].hidden).toBe(false);
-    expect(chart._metas[2].hidden).toBe(false);
+    expect(chart._metas[2].hidden).toBe(true);
+    expect(chart._metas[3].hidden).toBe(true);
+
+    // Click hidden item to add it back
+    items[3].click();
+    expect(chart._metas[1].hidden).toBe(false);
     expect(chart._metas[3].hidden).toBe(false);
+    expect(chart._metas[2].hidden).toBe(true);
   });
 });
 
@@ -165,7 +163,7 @@ describe('resetLegendVisibility', () => {
     const chart = createMockChart(3);
     const legendEl = createLegendEl(3);
 
-    // Simulate prior toggle state
+    // Simulate prior state
     chart._metas[0].hidden = true;
     chart._metas[2].hidden = true;
     const items = legendEl.querySelectorAll('.leg-item') as NodeListOf<HTMLElement>;

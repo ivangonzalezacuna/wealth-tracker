@@ -166,7 +166,9 @@ function attachRangeToggle(pd: PortfolioData, ordSyms: string[], ISIN: Record<st
   toggle.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
     if (!btn) return;
-    _dcaRange = btn.dataset.range || 'all';
+    const newRange = btn.dataset.range || 'all';
+    if (newRange === _dcaRange) return; // already on this range — no-op
+    _dcaRange = newRange;
     _dcaPage = 1;
     toggle.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
