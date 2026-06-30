@@ -94,7 +94,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   document.getElementById('port-table').innerHTML = `
     ${filterHtml}
     <div class="tbl-row th hold-row" role="row">
-      <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right"><span class="th-label">Cost basis${infoTip('Total amount invested (net of sells). Calculated from your imported CSV transactions using the method chosen in Settings.')}</span></div><div role="columnheader" style="text-align:right">Shares</div><div role="columnheader" style="text-align:right">Avg price</div><div role="columnheader" style="text-align:right">% of cost</div><div role="columnheader" style="text-align:right">Realized P&amp;L</div><div role="columnheader" style="text-align:right">Div (net)</div>
+      <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right"><span class="th-label">Cost basis${infoTip('Total amount invested (net of sells). Calculated from your imported CSV transactions using the method chosen in Settings.')}</span></div><div role="columnheader" style="text-align:right">Shares</div><div role="columnheader" style="text-align:right">Avg price</div><div role="columnheader" style="text-align:right">% of cost</div><div role="columnheader" style="text-align:right"><span class="th-label">Realized P&amp;L${infoTip('Gain or loss already locked in from shares you have sold (proceeds minus their cost basis, fees included). Separate from unrealized gain on shares still held. Changes if you switch the cost-basis method in Settings.')}</span></div><div role="columnheader" style="text-align:right">Div (net)</div>
     </div>${rows}
     <div class="tbl-row hold-total" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
       <div style="font-weight:500">Total</div>
@@ -213,10 +213,14 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     <div class="kpi"><div class="kpi-label">Unrealized gain</div>
       <div class="kpi-val ${gain !== null && gain >= 0 ? 'pos' : 'neg'}">${gain !== null ? (gain >= 0 ? '+' : '') + fmtEur2(gain) : '—'}</div>
       <div class="kpi-sub">${gainPct !== null ? (gainPct >= 0 ? '+' : '') + gainPct.toFixed(1) + '%' : ''}</div></div>
-    <div class="kpi"><div class="kpi-label">Realized P&amp;L</div>
+    <div class="kpi"><div class="kpi-label">Realized P&amp;L${infoTip('Gain or loss already locked in from shares you have sold. Distinct from the unrealized gain on positions you still hold.')}</div>
       <div class="kpi-val ${pd.realizedPnL >= 0 ? 'pos' : 'neg'}">${pd.realizedPnL === 0 ? fmtEur2(0) : (pd.realizedPnL > 0 ? '+' : '') + fmtEur2(pd.realizedPnL)}</div>
       <div class="kpi-sub">from sells</div></div>
   `;
+
+  // Attach info-tips in the KPI row
+  const portKpis = document.getElementById('port-kpis');
+  if (portKpis) attachInfoTips(portKpis);
 
   // Render holdings table (filter-dependent)
   renderHoldingsTable(pd, snaps);
