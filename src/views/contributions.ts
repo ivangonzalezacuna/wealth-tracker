@@ -48,8 +48,9 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   document.getElementById('dca-legend').innerHTML = ordSyms.map(sym => {
     const t = ISIN[sym] || sym;
     const m = META[t]   || {};
-    return `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(m.color) || 'var(--ink-4)'}"></span>${esc(t)}</span>`;
+    return `<span class="leg-item" data-sym="${esc(sym)}" style="cursor:pointer"><span class="leg-sq" style="background:${safeColor(m.color) || 'var(--ink-4)'}"></span>${esc(t)}</span>`;
   }).join('');
+  _bindDCALegendToggle(ordSyms);
 
   // DCA table with filtering + pagination
   populateDCAYearFilter(pd.months);
@@ -141,6 +142,24 @@ function renderDCAChart(pd: PortfolioData, ordSyms: string[], ISIN: Record<strin
         y: { stacked: true, grid: { color: C.line, drawBorder: false }, ticks: { color: C.ink4, callback: (v) => (v as number) >= 1000 ? '€' + ((v as number) / 1000).toFixed(0) + 'k' : '€' + v } },
       },
     },
+  });
+}
+
+function _bindDCALegendToggle(ordSyms: string[]): void {
+  const legend = document.getElementById('dca-legend') as HTMLElement & { _bound?: boolean } | null;
+  if (!legend || legend._bound) return;
+  legend._bound = true;
+  legend.addEventListener('click', (e) => {
+    const item = (e.target as HTMLElement).closest('.leg-item') as HTMLElement | null;
+    if (!item) return;
+    const sym = item.dataset.sym;
+    const idx = ordSyms.indexOf(sym || '');
+    const chart = CH['c-dca-bar'];
+    if (!chart || idx < 0) return;
+    const meta = chart.getDatasetMeta(idx);
+    meta.hidden = meta.hidden === null ? !chart.data.datasets[idx].hidden : !meta.hidden;
+    item.style.opacity = meta.hidden ? '0.4' : '1';
+    chart.update();
   });
 }
 

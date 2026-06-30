@@ -94,10 +94,12 @@ function renderAccountRow(a: Account, i: number): string {
   return `
     <div class="settings-item settings-acct-row item-collapsible" data-idx="${i}">
       <div class="settings-item-header js-item-toggle">
+        <span class="leg-sq" style="background:${esc(a.color) || 'var(--ink-4)'};flex-shrink:0"></span>
         <span class="settings-item-title">${esc(a.label) || 'New account'}</span>
-        <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:11px;color:var(--ink-3);white-space:nowrap" class="settings-item-meta">${esc(ACCOUNT_TYPES.find(t => t.value === a.moneyType)?.label || a.moneyType)}${a.isPrimaryInvestment ? ' \u00B7 Primary' : ''}</span>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           <span class="item-chevron"></span>
-          <button class="btn btn-sm btn-danger js-del-acct" data-idx="${i}">✕</button>
+          <button class="btn btn-sm btn-danger js-del-acct" data-idx="${i}">\u2715</button>
         </div>
       </div>
       <div class="settings-item-fields">
@@ -286,10 +288,13 @@ function renderHoldingRow(h: Holding, i: number): string {
   return `
     <div class="settings-item settings-hold-row item-collapsible" data-idx="${i}">
       <div class="settings-item-header js-item-toggle">
-        <span class="settings-item-title">${esc(h.ticker) || esc(h.isin) || 'New holding'} ${statusBadge}</span>
-        <div style="display:flex;align-items:center;gap:6px">
+        <span class="leg-sq" style="background:${esc(h.color) || 'var(--ink-4)'};flex-shrink:0"></span>
+        <span class="settings-item-title">${esc(h.ticker) || esc(h.isin) || 'New holding'}</span>
+        <span style="font-size:11px;color:var(--ink-3);white-space:nowrap" class="settings-item-meta">${h.acc ? 'Acc' : 'Dist'}</span>
+        ${statusBadge}
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           <span class="item-chevron"></span>
-          <button class="btn btn-sm btn-danger js-del-hold" data-idx="${i}">✕</button>
+          <button class="btn btn-sm btn-danger js-del-hold" data-idx="${i}">\u2715</button>
         </div>
       </div>
       <div class="settings-item-fields">

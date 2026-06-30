@@ -318,10 +318,12 @@ input[type="color"]{min-width:32px;max-width:48px}
 .color-picker-hex{width:80px;font-family:monospace;font-size:12px;text-transform:uppercase}
 
 /* ── Settings card items ───────────────────────────────── */
-.settings-items{display:flex;flex-direction:column;gap:10px}
-.settings-item{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-md);padding:.75rem}
-.settings-item-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;gap:8px}
-.settings-item-title{font-size:13px;font-weight:500;color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.settings-items{display:flex;flex-direction:column;gap:4px}
+.settings-item{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-md);padding:0 .75rem}
+.settings-item-header{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:40px;margin-bottom:0}
+.settings-item:not(.item-collapsed) .settings-item-header{border-bottom:1px solid var(--line);margin-bottom:.6rem}
+.settings-item.item-collapsible:not(.item-collapsed){padding:.75rem}
+.settings-item-title{font-size:13px;font-weight:500;color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto}
 .settings-item-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .settings-field{display:flex;flex-direction:column;gap:3px}
 .settings-field-label{font-size:11px;color:var(--ink-3);font-weight:500}
