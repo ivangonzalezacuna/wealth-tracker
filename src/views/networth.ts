@@ -8,7 +8,7 @@ import {
   getTargetDate,
 } from '../store/config';
 import { primaryInvestmentValue } from '../model/accounts';
-import { annualizeContrib } from '../model/contributions';
+import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import { cagr, findYoYSnapshot, monthlyGrowthHistory } from '../model/insights';
 import type { MonthlyGrowthPoint } from '../model/insights';
 import {
@@ -611,10 +611,33 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
         ]
       : [];
 
+  // Build per-account configuration summary
+  const acctSummaryLines = accounts
+    .map((a, idx) => {
+      const inp = accountInputs[idx];
+      const retStr = `${a.annualReturnPct ?? 0}% return`;
+      let contribStr: string;
+      if (a.isPrimaryInvestment && (a.moneyType || '').toLowerCase() === 'investment') {
+        contribStr =
+          inp.annualContrib > 0
+            ? `${fmtEur(Math.round(inp.annualContrib))}/yr (from Holdings)`
+            : 'no contributions configured';
+      } else {
+        const amt = a.contribAmount ?? 0;
+        const interval = a.contribInterval || 'monthly';
+        contribStr =
+          amt > 0
+            ? `${fmtEur(amt)} ${esc((INTERVAL_LABELS[interval] || interval).toLowerCase())}`
+            : 'no contributions';
+      }
+      return `<span style="color:var(--ink-2)">${esc(a.label || 'Account')}: ${retStr}, ${contribStr}</span>`;
+    })
+    .join('<br>');
+
   forecastEl.innerHTML = `
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-        <div class="card-title" style="margin:0">Forecast \u2014 ${FC_LABELS[_fcRange]} (per-account return assumptions)</div>
+        <div class="card-title" style="margin:0">Forecast \u2014 ${FC_LABELS[_fcRange]}</div>
         <div class="chart-controls">
           <div class="range-toggle" id="nw-forecast-range-toggle">
             <button class="btn btn-sm btn-ghost ${_fcRange === '60' ? 'active' : ''}" data-range="60">5Y</button>
@@ -624,7 +647,11 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
         </div>
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast"></canvas></div>
-      <p class="note">Projection assumes constant contributions and applies each account\u2019s own return-rate assumption (set per account in Settings \u2192 Accounts) \u2014 idle cash and savings are not assumed to grow unless you\u2019ve set a rate for them. Does not account for taxes, fees, or FX.</p>
+      <div class="note" style="line-height:1.6">
+        <div style="margin-bottom:4px">Assumptions per account (Settings \u2192 Accounts):</div>
+        ${acctSummaryLines}
+        <div style="margin-top:6px;color:var(--ink-4)">Does not account for taxes, fees, or FX.</div>
+      </div>
     </div>`;
 
   _destroyChart('c-nw-forecast');

@@ -206,10 +206,10 @@ function renderAccountRow(a: Account, i: number): string {
           <label class="settings-field-label">Annual return assumption (%)${infoTip("Used for this account's slice of the 5-year forecast on the Net Worth tab. Cash/savings are typically 0% unless they earn interest.")}</label>
           <input class="form-input form-input-sm" data-field="annualReturnPct" type="number" min="0" max="30" step="0.1" value="${esc(String(a.annualReturnPct ?? 0))}">
         </div>
-        ${
-          a.isPrimaryInvestment
-            ? `<p class="note" style="grid-column:1/-1">Contribution amount for the primary investment account comes from the ETF contribution plan in the Holdings card below, not from this account row.</p>`
-            : `
+        <div class="js-contrib-note" style="${a.isPrimaryInvestment ? '' : 'display:none'}">
+          <p class="note" style="grid-column:1/-1">Contribution amount for the primary investment account comes from the ETF contribution plan in the Holdings card below, not from this account row.</p>
+        </div>
+        <div class="js-contrib-fields" style="${a.isPrimaryInvestment ? 'display:none' : 'display:contents'}">
         <div class="settings-field">
           <label class="settings-field-label">Recurring contribution (\u20AC per execution)</label>
           <input class="form-input form-input-sm" data-field="contribAmount" type="number" min="0" step="1" value="${esc(String(a.contribAmount ?? 0))}">
@@ -224,8 +224,8 @@ function renderAccountRow(a: Account, i: number): string {
               )
               .join('')}
           </select>
-        </div>`
-        }
+        </div>
+        </div>
         <div class="settings-field settings-field-inline">
           <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="isPrimaryInvestment" ${a.isPrimaryInvestment ? 'checked' : ''}> Primary investment${infoTip('Used to split net-worth growth into contributions vs market returns. Only investment-type accounts (broker, depot) should be marked.')}</label>
         </div>
@@ -234,7 +234,22 @@ function renderAccountRow(a: Account, i: number): string {
     </div>`;
 }
 
+/** Bind change listeners on isPrimaryInvestment checkboxes to dynamically show/hide contribution fields. */
+function attachPrimaryToggleListeners(scope: Element): void {
+  scope.querySelectorAll('[data-field="isPrimaryInvestment"]').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      const row = cb.closest('.settings-acct-row');
+      if (!row) return;
+      const note = row.querySelector('.js-contrib-note') as HTMLElement | null;
+      const fields = row.querySelector('.js-contrib-fields') as HTMLElement | null;
+      if (note) note.style.display = cb.checked ? '' : 'none';
+      if (fields) fields.style.display = cb.checked ? 'none' : 'contents';
+    });
+  });
+}
+
 function attachAccountListeners(root: HTMLElement): void {
+  attachPrimaryToggleListeners(root);
   root.querySelector('#btn-add-acct')?.addEventListener('click', () => {
     const accounts = collectAccounts(root);
     accounts.push({
@@ -307,9 +322,13 @@ function collectAccounts(root: HTMLElement): Account[] {
       isPrimaryInvestment: isPrimary,
       order: i + 1,
       annualReturnPct: parseFloat(row.querySelector('[data-field="annualReturnPct"]').value) || 0,
-      // Primary investment row has no contribution inputs (2A) — default to 0/monthly rather than reading a missing element.
+      // Primary investment contribution comes from Holdings, so zero out its per-account fields.
       contribAmount: isPrimary ? 0 : parseFloat(contribEl?.value) || 0,
-      contribInterval: isPrimary ? 'monthly' : intervalEl?.value || 'monthly',
+      contribInterval: isPrimary
+        ? 'monthly'
+        : contribEl
+          ? intervalEl?.value || 'monthly'
+          : 'monthly',
     };
   });
 }
@@ -320,6 +339,7 @@ function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
   const rows = accounts.map((a, i) => renderAccountRow(a, i)).join('');
   tbl.innerHTML = rows;
   attachColorPickerSync(tbl);
+  attachPrimaryToggleListeners(tbl);
   attachItemCollapseListeners(tbl);
   tbl.querySelectorAll('.js-del-acct').forEach((btn) => {
     btn.addEventListener('click', async () => {
