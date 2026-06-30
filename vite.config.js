@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   build: {
@@ -8,4 +9,17 @@ export default defineConfig({
   resolve: {
     extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json'],
   },
+  plugins: [
+    VitePWA({
+      registerType: 'autoUpdate',
+      injectRegister: 'auto',
+      manifest: false, // public/manifest.json already exists
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        navigateFallback: '/index.html',
+        cleanupOutdatedCaches: true,
+      },
+      devOptions: { enabled: false },
+    }),
+  ],
 });
