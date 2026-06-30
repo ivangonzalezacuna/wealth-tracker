@@ -159,6 +159,15 @@ describe('forecastMultiAccountSeries', () => {
       expect(multi[i].value).toBe(single[i].value);
     }
   });
+
+  it('20-year (240 months) forecast returns 240 points with correct final month', () => {
+    const accounts = [{ current: 50_000, annualContrib: 6_000, annualReturnPct: 7 }];
+    const startDate = '2024-06';
+    const series = forecastMultiAccountSeries(accounts, 240, startDate);
+    expect(series).toHaveLength(240);
+    // 240 months from 2024-06 → 2044-06
+    expect(series[239].month).toBe('2044-06');
+  });
 });
 
 describe('forecastMonthsToTargetMulti', () => {
