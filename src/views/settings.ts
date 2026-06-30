@@ -293,7 +293,7 @@ function renderHoldingsCard(holdings: Holding[]): string {
         <span class="card-chevron"></span>
       </div>
       <div class="card-body">
-        <p class="note" style="margin-bottom:.75rem">ETF positions in your portfolio. Active holdings receive weekly contributions. Closed positions can be folded into a successor fund.</p>
+        <p class="note" style="margin-bottom:.75rem">ETF positions in your portfolio. Active holdings receive contributions on their configured schedule (weekly, biweekly, monthly, or quarterly). Closed positions can be folded into a successor fund.</p>
         <div class="filter-bar" style="margin-bottom:8px">
           <div class="range-toggle" id="hold-filter-toggle">
             <button class="btn btn-sm btn-ghost ${_holdingsSettingsFilter === 'all' ? 'active' : ''}" data-hfilter="all">All (${holdings.length})</button>
@@ -959,8 +959,9 @@ function randomColor(): string {
 }
 
 /**
- * Parse an ETF name from a Trade Republic CSV to infer holding metadata.
- * Typical names:
+ * Parse an ETF/fund name (from any imported broker's transaction data) to
+ * infer holding metadata. Operates on the canonical Transaction.name field -
+ * not broker-specific. Typical names:
  *   "iShares Core MSCI World UCITS ETF USD (Acc)"
  *   "iShares Core MSCI EM IMI UCITS ETF USD (Acc)"
  *   "iShares € Aggregate Bond UCITS ETF EUR (Dist)"
