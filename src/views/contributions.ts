@@ -6,7 +6,7 @@ import { primaryInvestmentValue } from '../model/accounts';
 import type { PortfolioData, Snapshot } from '../types';
 import Chart from 'chart.js/auto';
 import { T, resolvedT } from '../theme';
-import { bindIsolateLegend, resetLegendVisibility } from './chartLegend';
+import { bindLegendToggle } from './chartLegend';
 
 const CH: Record<string, Chart> = {};
 const DCA_PAGE_SIZE = 12;
@@ -46,12 +46,7 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   renderDCAChart(pd, ordSyms, ISIN, META);
   attachRangeToggle(pd, ordSyms, ISIN, META);
 
-  document.getElementById('dca-legend').innerHTML = ordSyms.map(sym => {
-    const t = ISIN[sym] || sym;
-    const m = META[t]   || {};
-    return `<span class="leg-item" data-sym="${esc(sym)}" style="cursor:pointer"><span class="leg-sq" style="background:${safeColor(m.color) || 'var(--ink-4)'}"></span>${esc(t)}</span>`;
-  }).join('');
-  _bindDCALegendToggle(ordSyms);
+  _rebuildDCALegend(ordSyms, ISIN, META);
 
   // DCA table with filtering + pagination
   populateDCAYearFilter(pd.months);
@@ -146,11 +141,22 @@ function renderDCAChart(pd: PortfolioData, ordSyms: string[], ISIN: Record<strin
   });
 }
 
+function _rebuildDCALegend(ordSyms: string[], ISIN: Record<string, string>, META: Record<string, { color: string }>): void {
+  const legendEl = document.getElementById('dca-legend');
+  if (!legendEl) return;
+  legendEl.innerHTML = ordSyms.map(sym => {
+    const t = ISIN[sym] || sym;
+    const m = META[t]   || {};
+    return `<span class="leg-item" data-sym="${esc(sym)}" style="cursor:pointer"><span class="leg-sq" style="background:${safeColor(m.color) || 'var(--ink-4)'}"></span>${esc(t)}</span>`;
+  }).join('');
+  _bindDCALegendToggle(ordSyms);
+}
+
 function _bindDCALegendToggle(ordSyms: string[]): void {
   const legend = document.getElementById('dca-legend');
   const chart = CH['c-dca-bar'];
   if (!legend || !chart) return;
-  bindIsolateLegend(legend, chart, { skipIndex: [] }); // no Total dataset in the DCA stack
+  bindLegendToggle(legend, chart, { skipIndex: [] }); // no Total dataset in the DCA stack
 }
 
 function attachRangeToggle(pd: PortfolioData, ordSyms: string[], ISIN: Record<string, string>, META: Record<string, { color: string }>): void {
@@ -165,8 +171,7 @@ function attachRangeToggle(pd: PortfolioData, ordSyms: string[], ISIN: Record<st
     toggle.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     renderDCAChart(_lastPd || pd, ordSyms, ISIN, META);
-    const legendEl = document.getElementById('dca-legend');
-    if (legendEl && CH['c-dca-bar']) resetLegendVisibility(legendEl, CH['c-dca-bar']);
+    _rebuildDCALegend(ordSyms, ISIN, META);
     renderDCATable(_lastPd || pd);
   });
 }

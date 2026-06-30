@@ -8,7 +8,7 @@ import { forecastMonthsToTarget, formatMonthsEta, forecastSeries } from '../mode
 import type { Snapshot, PortfolioData } from '../types';
 import Chart from 'chart.js/auto';
 import { T, resolvedT } from '../theme';
-import { bindIsolateLegend, resetLegendVisibility } from './chartLegend';
+import { bindLegendToggle } from './chartLegend';
 
 const CH: Record<string, Chart> = {};
 let _nwRange: '12' | '36' | 'all' = 'all';
@@ -308,9 +308,9 @@ function _renderNWHistChart(
 function _bindLegendToggle(chart: Chart): void {
   const legendEl = document.getElementById('nw-chart-legend');
   if (!legendEl) return;
-  // Index 0 = Total — always visible, never isolatable (matches Phase 25's rule
+  // Index 0 = Total — always visible, never togglable (matches Phase 25's rule
   // that Total must never be hideable).
-  bindIsolateLegend(legendEl, chart, { skipIndex: [0] });
+  bindLegendToggle(legendEl, chart, { skipIndex: [0] });
 }
 
 // ── Range toggle binding ──
@@ -330,8 +330,6 @@ function _attachNWRangeToggle(
     btn.classList.add('active');
     const view = _nwRange === 'all' ? snaps : snaps.slice(-parseInt(_nwRange));
     _renderNWHistChart(view, chartA);
-    const legendEl = document.getElementById('nw-chart-legend');
-    if (legendEl && CH['c-nw-hist']) resetLegendVisibility(legendEl, CH['c-nw-hist']);
   });
 }
 

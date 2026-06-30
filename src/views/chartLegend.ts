@@ -1,15 +1,16 @@
 import type { Chart } from 'chart.js';
 
 /**
- * Binds isolate-on-click behavior to a legend's .leg-item children.
- * - Click an item: if it is the only currently-visible dataset, restore all
- *   (toggle back to default). Otherwise, isolate to just that dataset.
- * - skipIndex: dataset indices that are never clickable/isolatable (e.g. a
+ * Binds independent toggle-on-click behavior to a legend's .leg-item children.
+ * - Click an item: toggles that dataset's visibility independently.
+ *   Multiple datasets can be visible or hidden at the same time.
+ * - If all eligible items end up hidden, restore all to visible.
+ * - skipIndex: dataset indices that are never clickable/togglable (e.g. a
  *   "Total" line that must always stay visible) — pass [] if none.
  * - Always call this after any full chart rebuild, so legend DOM and
  *   chart dataset visibility cannot drift apart.
  */
-export function bindIsolateLegend(
+export function bindLegendToggle(
   legendEl: HTMLElement,
   chart: Chart,
   opts: { skipIndex?: number[] } = {},
@@ -25,18 +26,17 @@ export function bindIsolateLegend(
     });
   }
 
-  function isolate(targetIdx: number): void {
+  function toggle(targetIdx: number): void {
+    const meta = chart.getDatasetMeta(targetIdx);
+    meta.hidden = !meta.hidden;
+
+    // If all eligible items are now hidden, restore all to visible
     const eligible = items.map((_, i) => i).filter(i => !skip.has(i));
-    const onlyTargetVisible = eligible.every(i => {
-      const hidden = chart.getDatasetMeta(i).hidden;
-      return i === targetIdx ? !hidden : !!hidden;
-    });
-    if (onlyTargetVisible) {
-      // Already isolated to this one — clicking again restores all
+    const allHidden = eligible.every(i => !!chart.getDatasetMeta(i).hidden);
+    if (allHidden) {
       eligible.forEach(i => { chart.getDatasetMeta(i).hidden = false; });
-    } else {
-      eligible.forEach(i => { chart.getDatasetMeta(i).hidden = i !== targetIdx; });
     }
+
     chart.update();
     applyVisualState();
   }
@@ -44,7 +44,7 @@ export function bindIsolateLegend(
   items.forEach((item, i) => {
     if (skip.has(i)) return;
     item.style.cursor = 'pointer';
-    item.addEventListener('click', () => isolate(i));
+    item.addEventListener('click', () => toggle(i));
   });
 
   applyVisualState();
