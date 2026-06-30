@@ -2,10 +2,11 @@
 import { getAccounts, getHoldings, getSettings, setAccounts, setHoldings, setSettings, setSetting, isConfigLoaded, getCostBasisMethod, getTargetNetWorth, getTargetDate } from '../store/config';
 import { loadTransactions } from '../sheets/transactions';
 import { validatePrimaryInvestment } from '../model/accounts';
+import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { showMsg } from '../utils';
 import type { Account, Holding, Settings, ContribInterval } from '../types';
-import { T } from '../theme';
+import { resolvedT } from '../theme';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 
@@ -509,6 +510,11 @@ function attachHoldingListeners(root: HTMLElement): void {
     const holds = collectHoldings(root);
     if (holds.some(h => !h.isin || !h.ticker)) {
       showMsg('holds-msg', 'Each holding needs an ISIN and ticker.', false);
+      return;
+    }
+    const valErrors = validateHoldings(holds);
+    if (valErrors.length > 0) {
+      showMsg('holds-msg', valErrors[0].message, false);
       return;
     }
     try {
@@ -1059,12 +1065,13 @@ function renderCacheCard(): string {
 function attachCacheListeners(root: HTMLElement): void {
   root.querySelector('#btn-force-resync')?.addEventListener('click', async () => {
     const msgEl = root.querySelector('#resync-msg') as HTMLElement | null;
-    if (msgEl) { msgEl.textContent = 'Resyncing…'; msgEl.style.color = T.ink2; }
+    const C = resolvedT();
+    if (msgEl) { msgEl.textContent = 'Resyncing…'; msgEl.style.color = C.ink2; }
     try {
       await (window as any).__forceFullResync();
-      if (msgEl) { msgEl.textContent = 'Done ✓'; msgEl.style.color = T.pos; }
+      if (msgEl) { msgEl.textContent = 'Done ✓'; msgEl.style.color = C.pos; }
     } catch (err: any) {
-      if (msgEl) { msgEl.textContent = 'Error: ' + (err?.message || 'unknown'); msgEl.style.color = T.neg; }
+      if (msgEl) { msgEl.textContent = 'Error: ' + (err?.message || 'unknown'); msgEl.style.color = C.neg; }
     }
   });
 }

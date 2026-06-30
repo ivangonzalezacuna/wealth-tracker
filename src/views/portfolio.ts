@@ -8,6 +8,7 @@ import { computeDrift, maxDrift } from '../model/drift';
 import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 import Chart from 'chart.js/auto';
 import { T, resolvedT } from '../theme';
+import { infoTip, attachInfoTips } from '../ui/infoTip';
 
 const CH: Record<string, Chart> = {};
 
@@ -90,7 +91,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   document.getElementById('port-table').innerHTML = `
     ${filterHtml}
     <div class="tbl-row th hold-row" role="row">
-      <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right">Cost basis</div><div role="columnheader" style="text-align:right">Shares</div><div role="columnheader" style="text-align:right">Avg price</div><div role="columnheader" style="text-align:right">% of cost</div><div role="columnheader" style="text-align:right">Realized P&amp;L</div><div role="columnheader" style="text-align:right">Div (net)</div>
+      <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right">Cost basis${infoTip('Total amount invested (net of sells). Calculated from your imported CSV transactions using the method chosen in Settings.')}</div><div role="columnheader" style="text-align:right">Shares</div><div role="columnheader" style="text-align:right">Avg price</div><div role="columnheader" style="text-align:right">% of cost</div><div role="columnheader" style="text-align:right">Realized P&amp;L</div><div role="columnheader" style="text-align:right">Div (net)</div>
     </div>${rows}
     <div class="tbl-row hold-total" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
       <div style="font-weight:500">Total</div>
@@ -100,6 +101,10 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
       <div style="text-align:right;color:${pd.realizedPnL >= 0 ? 'var(--pos)' : 'var(--neg)'};font-weight:500">${pd.realizedPnL === 0 ? fmtEur2(0) : (pd.realizedPnL > 0 ? '+' : '') + fmtEur2(pd.realizedPnL)}</div>
       <div style="text-align:right;color:var(--pos);font-weight:500">${fmtEur2(pd.totalDivNet)}</div>
     </div>`;
+
+  // Attach info-tips in the freshly-rendered table header
+  const portTable = document.getElementById('port-table');
+  if (portTable) attachInfoTips(portTable);
 
   // Bind filter listeners once (Commit 2G: _bound guard prevents stacking)
   const filterToggle = document.getElementById('port-filter-toggle') as HTMLElement & { _bound?: boolean } | null;
