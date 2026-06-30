@@ -560,7 +560,7 @@ function renderCostBasisCard(settings: Settings): string {
   return `
     <div class="card card-collapsible" data-card-key="cost-basis">
       <div class="card-header js-card-toggle">
-        <div class="card-title">Cost-basis method${infoTip('Determines how cost is allocated when selling partial positions. Affects realized gain/loss calculations.')}</div>
+        <div class="card-title">Cost-basis method</div>
         <span class="card-chevron"></span>
       </div>
       <div class="card-body">
@@ -572,7 +572,7 @@ function renderCostBasisCard(settings: Settings): string {
               <option value="avgco" ${current === 'avgco' ? 'selected' : ''}>Average cost</option>
               <option value="fifo" ${current === 'fifo' ? 'selected' : ''}>FIFO (first in, first out)</option>
             </select>
-            <span class="note">FIFO matches the German Abgeltungsteuer${infoTip('German flat-rate capital gains tax (25% + solidarity surcharge). Uses FIFO ordering.')} ordering rule. Average cost is simpler but may diverge on partial sells.</span>
+            <span class="note">FIFO matches the German Abgeltungsteuer ordering rule. Average cost is simpler but may diverge on partial sells.</span>
           </div>
         </div>
         <div style="display:flex;gap:10px;margin-top:.75rem">
