@@ -106,7 +106,9 @@ export async function getCachedSnapshots(): Promise<Snapshot[] | null> {
 export async function setCachedSnapshots(snaps: Snapshot[]): Promise<void> {
   try {
     await set(KEYS.SNAPSHOTS, snaps, cacheStore);
-  } catch { /* degrade */ }
+  } catch {
+    /* degrade */
+  }
 }
 
 // ── Transactions ─────────────────────────────────────────────────
@@ -123,7 +125,9 @@ export async function getCachedTransactions(): Promise<Transaction[] | null> {
 export async function setCachedTransactions(txs: Transaction[]): Promise<void> {
   try {
     await set(KEYS.TRANSACTIONS, txs, cacheStore);
-  } catch { /* degrade */ }
+  } catch {
+    /* degrade */
+  }
 }
 
 // ── Aggregates (computePD output) ────────────────────────────────
@@ -140,7 +144,9 @@ export async function getCachedAggregates(): Promise<PortfolioData | null> {
 export async function setCachedAggregates(pd: PortfolioData): Promise<void> {
   try {
     await set(KEYS.AGGREGATES, pd, cacheStore);
-  } catch { /* degrade */ }
+  } catch {
+    /* degrade */
+  }
 }
 
 // ── Import metadata ──────────────────────────────────────────────
@@ -157,7 +163,9 @@ export async function getCachedImportMeta(): Promise<Record<string, string> | nu
 export async function setCachedImportMeta(meta: Record<string, string>): Promise<void> {
   try {
     await set(KEYS.IMPORT_META, meta, cacheStore);
-  } catch { /* degrade */ }
+  } catch {
+    /* degrade */
+  }
 }
 
 // ── Sync cursor ──────────────────────────────────────────────────
@@ -174,7 +182,9 @@ export async function getSyncCursor(): Promise<SyncCursor | null> {
 export async function setSyncCursor(cursor: SyncCursor): Promise<void> {
   try {
     await set(KEYS.SYNC_CURSOR, cursor, cacheStore);
-  } catch { /* degrade */ }
+  } catch {
+    /* degrade */
+  }
 }
 
 // ── Inputs hash (for aggregate invalidation) ─────────────────────
@@ -191,7 +201,9 @@ export async function getInputsHash(): Promise<string | null> {
 export async function setInputsHash(hash: string): Promise<void> {
   try {
     await set(KEYS.INPUTS_HASH, hash, cacheStore);
-  } catch { /* degrade */ }
+  } catch {
+    /* degrade */
+  }
 }
 
 // ── Compute inputs hash ──────────────────────────────────────────
@@ -214,7 +226,7 @@ export function computeInputsHash(
  */
 export function holdingsSignature(holdings: Holding[]): string {
   return holdings
-    .map(h => `${h.isin}:${h.active}:${h.acc}:${h.foldInto}`)
+    .map((h) => `${h.isin}:${h.active}:${h.acc}:${h.foldInto}`)
     .sort()
     .join(',');
 }
@@ -240,7 +252,9 @@ export async function getCollapseState(): Promise<CollapseState | null> {
 export async function setCollapseState(state: CollapseState): Promise<void> {
   try {
     await set(KEYS.UI_COLLAPSE_STATE, state, cacheStore);
-  } catch { /* degrade */ }
+  } catch {
+    /* degrade */
+  }
 }
 
 // ── Clear all cache (force full resync) ──────────────────────────
@@ -248,5 +262,7 @@ export async function setCollapseState(state: CollapseState): Promise<void> {
 export async function clearCache(): Promise<void> {
   try {
     await clear(cacheStore);
-  } catch { /* degrade */ }
+  } catch {
+    /* degrade */
+  }
 }

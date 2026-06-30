@@ -36,13 +36,19 @@ function computeAvgCost(txs: Transaction[]): CostBasisResult {
       costBasis -= soldCost;
 
       // Clamp to avoid floating-point negative
-      if (shares < ZERO_THRESHOLD) { shares = 0; costBasis = 0; }
+      if (shares < ZERO_THRESHOLD) {
+        shares = 0;
+        costBasis = 0;
+      }
       if (costBasis < 0) costBasis = 0;
     }
   }
 
   const exited = shares < ZERO_THRESHOLD;
-  if (exited) { shares = 0; costBasis = 0; }
+  if (exited) {
+    shares = 0;
+    costBasis = 0;
+  }
 
   return { shares, costBasis, realizedPnL, exited, buys, totalFees };
 }
@@ -94,9 +100,10 @@ function computeFIFO(txs: Transaction[]): CostBasisResult {
       }
 
       // Proportional proceeds if we couldn't sell all (defensive)
-      const effectiveProceeds = totalSharesSold > ZERO_THRESHOLD
-        ? proceeds * ((totalSharesSold - Math.max(sharesSold, 0)) / totalSharesSold)
-        : 0;
+      const effectiveProceeds =
+        totalSharesSold > ZERO_THRESHOLD
+          ? proceeds * ((totalSharesSold - Math.max(sharesSold, 0)) / totalSharesSold)
+          : 0;
       realizedPnL += effectiveProceeds - consumedCost;
     }
   }
@@ -105,7 +112,10 @@ function computeFIFO(txs: Transaction[]): CostBasisResult {
   let costBasis = lots.reduce((s, l) => s + l.shares * l.unitCost, 0);
 
   const exited = shares < ZERO_THRESHOLD;
-  if (exited) { shares = 0; costBasis = 0; }
+  if (exited) {
+    shares = 0;
+    costBasis = 0;
+  }
 
   return { shares, costBasis, realizedPnL, exited, buys, totalFees };
 }
@@ -113,7 +123,10 @@ function computeFIFO(txs: Transaction[]): CostBasisResult {
 /**
  * Run the cost-basis engine on date-sorted canonical transactions grouped by ISIN.
  */
-export function computeCostBasis(txs: Transaction[], method: 'avgco' | 'fifo' = 'avgco'): Record<string, CostBasisResult> {
+export function computeCostBasis(
+  txs: Transaction[],
+  method: 'avgco' | 'fifo' = 'avgco',
+): Record<string, CostBasisResult> {
   // Group transactions by ISIN (symbol field)
   const byIsin: Record<string, Transaction[]> = {};
   for (const tx of txs) {

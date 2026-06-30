@@ -35,7 +35,7 @@ export async function fetchDeltaTransactions(cursor: SyncCursor): Promise<Transa
     const rows = await readRange(tailRange);
     if (!rows || rows.length === 0) return [];
     // Filter out empty rows and parse
-    return rows.filter(r => r[1]).map(newRowToTx);
+    return rows.filter((r) => r[1]).map(newRowToTx);
   } catch {
     // Network error or other failure — return null to signal full sync needed
     return null;
@@ -52,7 +52,7 @@ export function mergeDelta(
   delta: Transaction[],
 ): { merged: Transaction[]; newCount: number; cursor: SyncCursor } {
   const seen = new Set(cached.map(txKey));
-  const genuinelyNew = delta.filter(t => !seen.has(txKey(t)));
+  const genuinelyNew = delta.filter((t) => !seen.has(txKey(t)));
   const merged = [...cached, ...genuinelyNew].sort((a, b) => a.date.localeCompare(b.date));
   const lastDate = merged.length > 0 ? merged[merged.length - 1].date : '';
   return {

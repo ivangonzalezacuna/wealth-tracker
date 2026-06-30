@@ -14,7 +14,9 @@ export function navHash(section: string, subview?: string): string {
 export function parseNavHash(hash: string): { section: string; subview: string | null } {
   const cleaned = hash.replace(/^#/, '');
   const [section, subview] = cleaned.split('/');
-  const validSection = (VALID_SECTIONS as readonly string[]).includes(section) ? section : 'networth';
+  const validSection = (VALID_SECTIONS as readonly string[]).includes(section)
+    ? section
+    : 'networth';
   if (validSection === 'portfolio') {
     const validSubview = (VALID_SUBVIEWS as readonly string[]).includes(subview) ? subview : null;
     return { section: validSection, subview: validSubview };

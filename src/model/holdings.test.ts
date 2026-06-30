@@ -4,9 +4,7 @@ import { splitHoldings, validateHoldings } from './holdings';
 
 describe('splitHoldings', () => {
   it('fully-sold ISIN lands in exited', () => {
-    const list = [
-      { ticker: 'SOLD', shares: 0, exited: true, active: true },
-    ];
+    const list = [{ ticker: 'SOLD', shares: 0, exited: true, active: true }];
     const { held, exited } = splitHoldings(list);
     expect(exited).toHaveLength(1);
     expect(exited[0].ticker).toBe('SOLD');
@@ -14,9 +12,7 @@ describe('splitHoldings', () => {
   });
 
   it('active:false ISIN with remaining shares stays in held', () => {
-    const list = [
-      { ticker: 'CLOSED', shares: 5, exited: false, active: false },
-    ];
+    const list = [{ ticker: 'CLOSED', shares: 5, exited: false, active: false }];
     const { held, exited } = splitHoldings(list);
     expect(held).toHaveLength(1);
     expect(held[0].ticker).toBe('CLOSED');
@@ -24,9 +20,7 @@ describe('splitHoldings', () => {
   });
 
   it('normal active position stays in held', () => {
-    const list = [
-      { ticker: 'IWDA', shares: 100, exited: false, active: true },
-    ];
+    const list = [{ ticker: 'IWDA', shares: 100, exited: false, active: true }];
     const { held, exited } = splitHoldings(list);
     expect(held).toHaveLength(1);
     expect(held[0].ticker).toBe('IWDA');
@@ -42,15 +36,13 @@ describe('splitHoldings', () => {
     ];
     const { held, exited } = splitHoldings(list);
     expect(held).toHaveLength(2);
-    expect(held.map(h => h.ticker)).toEqual(['IWDA', 'AGGH']);
+    expect(held.map((h) => h.ticker)).toEqual(['IWDA', 'AGGH']);
     expect(exited).toHaveLength(2);
-    expect(exited.map(h => h.ticker)).toEqual(['IEEM', 'IEAC']);
+    expect(exited.map((h) => h.ticker)).toEqual(['IEEM', 'IEAC']);
   });
 
   it('treats shares below 1e-6 as zero (exited)', () => {
-    const list = [
-      { ticker: 'TINY', shares: 1e-7, active: true },
-    ];
+    const list = [{ ticker: 'TINY', shares: 1e-7, active: true }];
     const { held, exited } = splitHoldings(list);
     expect(exited).toHaveLength(1);
     expect(held).toHaveLength(0);
@@ -65,9 +57,18 @@ describe('splitHoldings', () => {
 
 describe('validateHoldings', () => {
   const validHolding = (overrides = {}) => ({
-    isin: 'IE00B4L5Y983', ticker: 'IWDA', name: '', color: '#888',
-    acc: true, active: true, contribAmount: 0, interval: 'weekly',
-    assetClass: 'equity', region: 'developed', foldInto: '', order: 1,
+    isin: 'IE00B4L5Y983',
+    ticker: 'IWDA',
+    name: '',
+    color: '#888',
+    acc: true,
+    active: true,
+    contribAmount: 0,
+    interval: 'weekly',
+    assetClass: 'equity',
+    region: 'developed',
+    foldInto: '',
+    order: 1,
     ...overrides,
   });
 
@@ -90,25 +91,25 @@ describe('validateHoldings', () => {
   it('rejects ISIN with lowercase letters', () => {
     const holdings = [validHolding({ isin: 'ie00B4L5Y983' })];
     const errors = validateHoldings(holdings);
-    expect(errors.some(e => e.field === 'isin')).toBe(true);
+    expect(errors.some((e) => e.field === 'isin')).toBe(true);
   });
 
   it('rejects ISIN that does not end with a digit', () => {
     const holdings = [validHolding({ isin: 'IE00B4L5Y98A' })];
     const errors = validateHoldings(holdings);
-    expect(errors.some(e => e.field === 'isin')).toBe(true);
+    expect(errors.some((e) => e.field === 'isin')).toBe(true);
   });
 
   it('rejects fund name in ticker field', () => {
     const holdings = [validHolding({ ticker: 'MSCI EM USD Acc' })];
     const errors = validateHoldings(holdings);
-    expect(errors.some(e => e.field === 'ticker')).toBe(true);
+    expect(errors.some((e) => e.field === 'ticker')).toBe(true);
   });
 
   it('rejects empty ticker', () => {
     const holdings = [validHolding({ ticker: '' })];
     const errors = validateHoldings(holdings);
-    expect(errors.some(e => e.field === 'ticker')).toBe(true);
+    expect(errors.some((e) => e.field === 'ticker')).toBe(true);
   });
 
   it('accepts ticker with dots and hyphens', () => {
@@ -124,7 +125,7 @@ describe('validateHoldings', () => {
   it('rejects ticker longer than 10 characters', () => {
     const holdings = [validHolding({ ticker: 'VERYLONGTIK' })];
     const errors = validateHoldings(holdings);
-    expect(errors.some(e => e.field === 'ticker')).toBe(true);
+    expect(errors.some((e) => e.field === 'ticker')).toBe(true);
   });
 
   it('detects duplicate ISINs', () => {

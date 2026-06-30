@@ -17,15 +17,16 @@ import type { Snapshot } from '../types';
  *  so this is independent of whether the config store has loaded yet. */
 export function parseSnapshotRows(rows: (string | number | boolean)[][]): Snapshot[] {
   if (!rows.length) return [];
-  const sheetHdr = rows[0].map(c => (c ?? '').toString().trim().toLowerCase());
+  const sheetHdr = rows[0].map((c) => (c ?? '').toString().trim().toLowerCase());
   const dateIdx = sheetHdr.indexOf('date');
   if (dateIdx < 0) return [];
   const accts = sheetHdr
-    .filter(h => h && h !== 'date' && h !== 'notes')
-    .map(key => ({ key, label: key, color: '' }));
-  return rows.slice(1)
-    .filter(r => r[dateIdx])
-    .map(r => rowToSnap(r, sheetHdr, accts))
+    .filter((h) => h && h !== 'date' && h !== 'notes')
+    .map((key) => ({ key, label: key, color: '' }));
+  return rows
+    .slice(1)
+    .filter((r) => r[dateIdx])
+    .map((r) => rowToSnap(r, sheetHdr, accts))
     .sort((a, b) => (a.date as string).localeCompare(b.date as string));
 }
 
@@ -52,18 +53,18 @@ const TAB = SHEET_TABS.SNAPSHOTS;
  *  return the header to persist: existing order preserved, missing account keys
  *  appended before `notes`. Pure; no I/O. */
 export function reconcileSnapshotHeader(currentHeader: string[], liveKeys: string[]): string[] {
-  const cur = currentHeader.map(h => (h ?? '').toString().trim().toLowerCase());
+  const cur = currentHeader.map((h) => (h ?? '').toString().trim().toLowerCase());
   if (cur.length === 0 || cur[0] !== 'date') return ['date', ...liveKeys, 'notes'];
   const hasNotes = cur.includes('notes');
-  const body = cur.filter(h => h !== 'date' && h !== 'notes');
+  const body = cur.filter((h) => h !== 'date' && h !== 'notes');
   for (const k of liveKeys) if (!body.includes(k)) body.push(k);
   return ['date', ...body, ...(hasNotes ? ['notes'] : ['notes'])];
 }
 
 /** Build a sheet row for `snap` aligned to `header` (array of column keys incl. 'date'/'notes'). */
 export function snapToRowForHeader(snap: Snapshot, header: string[]): (string | number)[] {
-  return header.map(col => {
-    if (col === 'date')  return snap.date;
+  return header.map((col) => {
+    if (col === 'date') return snap.date;
     if (col === 'notes') return snap.notes || '';
     return (snap[col] as number) || 0;
   });
@@ -71,20 +72,27 @@ export function snapToRowForHeader(snap: Snapshot, header: string[]): (string | 
 
 /** Build the canonical header for a given account list. */
 export function snapshotHeader(accts: AccountRef[]): string[] {
-  return ['date', ...accts.map(a => a.key), 'notes'];
+  return ['date', ...accts.map((a) => a.key), 'notes'];
 }
 
 /** Convert a snapshot object to a sheet row, ordered by accts. */
 export function snapToRow(snap: Snapshot, accts: AccountRef[]): (string | number)[] {
-  return [snap.date, ...accts.map(a => (snap[a.key] as number) || 0), snap.notes || ''];
+  return [snap.date, ...accts.map((a) => (snap[a.key] as number) || 0), snap.notes || ''];
 }
 
 /** Convert a sheet row back to a snapshot object, reading by sheetHeader index. */
-export function rowToSnap(row: (string | number | boolean)[], sheetHeader: string[], accts: AccountRef[]): Snapshot {
+export function rowToSnap(
+  row: (string | number | boolean)[],
+  sheetHeader: string[],
+  accts: AccountRef[],
+): Snapshot {
   const snap: Snapshot = { date: String(row[sheetHeader.indexOf('date')] ?? '') };
   for (const a of accts) {
     const idx = sheetHeader.indexOf(a.key);
-    snap[a.key] = idx >= 0 ? (typeof row[idx] === 'number' ? row[idx] : parseNum(String(row[idx] ?? ''))) || 0 : 0;
+    snap[a.key] =
+      idx >= 0
+        ? (typeof row[idx] === 'number' ? row[idx] : parseNum(String(row[idx] ?? ''))) || 0
+        : 0;
   }
   const ni = sheetHeader.indexOf('notes');
   snap.notes = ni >= 0 ? String(row[ni] ?? '') : '';
@@ -116,11 +124,11 @@ export async function upsertSnapshot(snap: Snapshot): Promise<void> {
   }
 
   // 2. Compute desired header (append-only)
-  const liveKeys = getACCTSList().map(a => a.key);
+  const liveKeys = getACCTSList().map((a) => a.key);
   const desired = reconcileSnapshotHeader(current.map(String), liveKeys);
 
   // 3. Write header only if it changed (new column appended, or empty sheet)
-  const currentNorm = current.map(c => String(c).trim().toLowerCase());
+  const currentNorm = current.map((c) => String(c).trim().toLowerCase());
   if (JSON.stringify(currentNorm) !== JSON.stringify(desired)) {
     await writeRange(`${TAB}!A1`, [desired]);
   }
@@ -176,16 +184,20 @@ export async function saveSnapshots(snaps: Snapshot[]): Promise<void> {
 
   // Write full table first (overwrite in place)
   const sorted = [...snaps].sort((a, b) => (a.date as string).localeCompare(b.date as string));
-  const values = [hdr, ...sorted.map(s => snapToRow(s, accts))];
+  const values = [hdr, ...sorted.map((s) => snapToRow(s, accts))];
   await writeRange(`${TAB}!A1`, values);
 
   // Clear only stale cells beyond the new extent
   const newRows = values.length;
   const staleBelow = Math.max(existingHeight - newRows, 0);
   if (staleBelow > 0) {
-    await clearRange(`${TAB}!A${newRows + 1}:${colLetter(Math.max(liveColCount, existingWidth))}${existingHeight}`);
+    await clearRange(
+      `${TAB}!A${newRows + 1}:${colLetter(Math.max(liveColCount, existingWidth))}${existingHeight}`,
+    );
   }
   if (existingWidth > liveColCount) {
-    await clearRange(`${TAB}!${colLetter(liveColCount + 1)}1:${colLetter(existingWidth)}${existingHeight}`);
+    await clearRange(
+      `${TAB}!${colLetter(liveColCount + 1)}1:${colLetter(existingWidth)}${existingHeight}`,
+    );
   }
 }

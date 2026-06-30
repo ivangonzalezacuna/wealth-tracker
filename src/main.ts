@@ -5,8 +5,20 @@ import { getACCTSList } from './constants';
 import { appTemplate } from './template';
 import { signIn as gisSignIn, signOut, isSignedIn } from './auth/google';
 import { loadSnapshots, saveSnapshots, upsertSnapshot } from './sheets/snapshots';
-import { loadTransactions, mergeTransactions, saveImportMeta, loadImportMeta } from './sheets/transactions';
-import { loadConfig, onConfigChange, getCostBasisMethod, getHoldings, getAccounts, getSettings } from './store/config';
+import {
+  loadTransactions,
+  mergeTransactions,
+  saveImportMeta,
+  loadImportMeta,
+} from './sheets/transactions';
+import {
+  loadConfig,
+  onConfigChange,
+  getCostBasisMethod,
+  getHoldings,
+  getAccounts,
+  getSettings,
+} from './store/config';
 import { getSetupState } from './model/setup';
 import { computePD } from './portfolio';
 import { parseWithProfile, detectProfile, previewSummary } from './import/parse';
@@ -21,15 +33,24 @@ import { fmtMon, showMsg as _showMsgBase, esc, currentMonth } from './utils';
 import { parseNum } from './csv';
 import { navHash, parseNavHash } from './nav';
 import {
-  isCacheValid, clearCache,
-  getCachedConfig, setCachedConfig,
-  getCachedSnapshots, setCachedSnapshots,
-  getCachedTransactions, setCachedTransactions,
-  getCachedAggregates, setCachedAggregates,
-  getCachedImportMeta, setCachedImportMeta,
-  getSyncCursor, setSyncCursor,
-  getInputsHash, setInputsHash,
-  computeInputsHash, holdingsSignature,
+  isCacheValid,
+  clearCache,
+  getCachedConfig,
+  setCachedConfig,
+  getCachedSnapshots,
+  setCachedSnapshots,
+  getCachedTransactions,
+  setCachedTransactions,
+  getCachedAggregates,
+  setCachedAggregates,
+  getCachedImportMeta,
+  setCachedImportMeta,
+  getSyncCursor,
+  setSyncCursor,
+  getInputsHash,
+  setInputsHash,
+  computeInputsHash,
+  holdingsSignature,
 } from './cache/db';
 import { fetchDeltaTransactions, mergeDelta } from './cache/sync';
 import { shouldAutoResync } from './sync/policy';
@@ -39,11 +60,11 @@ import { confirmDialog } from './ui/confirmDialog';
 
 // ── App state ────────────────────────────────────────────
 const state = {
-  snaps:      [],
-  txs:        [],
-  pd:         null,
+  snaps: [],
+  txs: [],
+  pd: null,
   importMeta: {},
-  offline:    !navigator.onLine,
+  offline: !navigator.onLine,
   cacheLoaded: false,
 };
 
@@ -59,8 +80,12 @@ let _portfolioSubview: 'holdings' | 'contributions' | 'dividends' = 'holdings';
 let _syncing = false;
 let _lastSyncAt = 0;
 const AUTO_RESYNC_MIN_INTERVAL_MS = 2 * 60_000; // 2 minutes
-function setSyncing(v: boolean): void { _syncing = v; }
-function isSyncBusy(): boolean { return _syncing; }
+function setSyncing(v: boolean): void {
+  _syncing = v;
+}
+function isSyncBusy(): boolean {
+  return _syncing;
+}
 
 /** True when data is shown from cache but no valid auth token exists. */
 function isReadOnly(): boolean {
@@ -69,21 +94,21 @@ function isReadOnly(): boolean {
 
 function applyReadOnlyMode(): void {
   const readOnly = isReadOnly();
-  const writeIds = [
-    'btn-save-snap', 'btn-confirm-import', 'btn-sync-now',
-  ];
+  const writeIds = ['btn-save-snap', 'btn-confirm-import', 'btn-sync-now'];
   const hint = 'Sign in to enable editing';
   for (const id of writeIds) {
     const el = document.getElementById(id) as HTMLButtonElement | null;
     if (!el) continue;
     el.disabled = readOnly;
-    el.title    = readOnly ? hint : '';
+    el.title = readOnly ? hint : '';
   }
 }
 
 // ── Initial load overlay state ───────────────────────────
 let _initialLoad = false;
-function isInitialLoad(): boolean { return _initialLoad; }
+function isInitialLoad(): boolean {
+  return _initialLoad;
+}
 
 // ── Message persistence across renderAll ─────────────────
 let _pendingMsg: { id: string; text: string; ok: boolean } | null = null;
@@ -93,7 +118,9 @@ function showMsg(id: string, msg: string, ok: boolean): void {
   _showMsgBase(id, msg, ok);
   if (_pendingMsgTimer) clearTimeout(_pendingMsgTimer);
   _pendingMsg = { id, text: msg, ok };
-  _pendingMsgTimer = setTimeout(() => { _pendingMsg = null; }, 5000);
+  _pendingMsgTimer = setTimeout(() => {
+    _pendingMsg = null;
+  }, 5000);
 }
 
 // ── Boot ─────────────────────────────────────────────────
@@ -108,10 +135,10 @@ initOnlineListeners();
 
 // ── Navigation ───────────────────────────────────────────
 function initNav() {
-  document.querySelectorAll('.nav button[data-section]').forEach(btn => {
+  document.querySelectorAll('.nav button[data-section]').forEach((btn) => {
     btn.addEventListener('click', () => showSection(btn.dataset.section, btn));
   });
-  document.querySelectorAll('[data-goto]').forEach(btn => {
+  document.querySelectorAll('[data-goto]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const target = btn.dataset.goto;
       const navBtn = document.querySelector(`.nav button[data-section="${target}"]`);
@@ -132,7 +159,8 @@ function initNav() {
 function resolveInitialSection(): void {
   const { section: targetSection, subview } = parseNavHash(window.location.hash);
   const targetBtn = document.querySelector(
-    `.nav button[data-section="${targetSection}"]`) as HTMLElement | null;
+    `.nav button[data-section="${targetSection}"]`,
+  ) as HTMLElement | null;
   showSection(targetSection, targetBtn);
   if (targetSection === 'portfolio') {
     showPortfolioSubview(subview || 'holdings');
@@ -140,7 +168,8 @@ function resolveInitialSection(): void {
 }
 
 function showSection(id, btn) {
-  const alreadyActive = _activeSection === id && document.getElementById(id)?.classList.contains('active');
+  const alreadyActive =
+    _activeSection === id && document.getElementById(id)?.classList.contains('active');
   // Settings always repaints (mirrors live config edits — see Phase 13); every
   // other section is a true no-op when re-clicking the tab it's already on.
   if (alreadyActive && id !== 'settings') {
@@ -149,13 +178,17 @@ function showSection(id, btn) {
     history.replaceState(null, '', navHash(id, id === 'portfolio' ? _portfolioSubview : undefined));
     return;
   }
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.section').forEach((s) => s.classList.remove('active'));
+  document.querySelectorAll('.nav button').forEach((b) => b.classList.remove('active'));
   document.getElementById(id)?.classList.add('active');
   btn?.classList.add('active');
   _activeSection = id;
-  if (_dirty.has(id)) { _dirty.delete(id); renderSection(id); }
-  else if (id === 'settings') { renderSection('settings'); } // settings reflects live config; always repaint
+  if (_dirty.has(id)) {
+    _dirty.delete(id);
+    renderSection(id);
+  } else if (id === 'settings') {
+    renderSection('settings');
+  } // settings reflects live config; always repaint
   if (id === 'portfolio') showPortfolioSubview(_portfolioSubview);
   history.replaceState(null, '', navHash(id, id === 'portfolio' ? _portfolioSubview : undefined));
 }
@@ -182,14 +215,16 @@ function initOnlineListeners() {
 
 /** Trigger syncInBackground only when shouldAutoResync passes. */
 function autoResyncIfNeeded(): void {
-  if (shouldAutoResync({
-    signedIn: isSignedIn(),
-    online: navigator.onLine,
-    syncing: isSyncBusy(),
-    lastSyncAt: _lastSyncAt,
-    now: Date.now(),
-    minIntervalMs: AUTO_RESYNC_MIN_INTERVAL_MS,
-  })) {
+  if (
+    shouldAutoResync({
+      signedIn: isSignedIn(),
+      online: navigator.onLine,
+      syncing: isSyncBusy(),
+      lastSyncAt: _lastSyncAt,
+      now: Date.now(),
+      minIntervalMs: AUTO_RESYNC_MIN_INTERVAL_MS,
+    })
+  ) {
     syncInBackground();
   }
 }
@@ -229,8 +264,8 @@ async function onSignInClick() {
 }
 
 function updateAuthUI(signedIn) {
-  const prompt   = document.getElementById('auth-prompt');
-  const content  = document.getElementById('log-content');
+  const prompt = document.getElementById('auth-prompt');
+  const content = document.getElementById('log-content');
   const signoutBtn = document.getElementById('btn-signout');
   const signinGlobal = document.getElementById('btn-signin-global');
   const syncNowBtn = document.getElementById('btn-sync-now');
@@ -323,10 +358,7 @@ async function syncInBackground() {
     // Load config first (snapshots & other reads depend on it)
     await loadConfig();
     restoreCollapseFromSheet(); // restore UI prefs if IDB was empty (new device)
-    const [snaps, meta] = await Promise.all([
-      loadSnapshots(),
-      loadImportMeta(),
-    ]);
+    const [snaps, meta] = await Promise.all([loadSnapshots(), loadImportMeta()]);
 
     // Incremental transaction sync
     let txs: any[];
@@ -345,12 +377,18 @@ async function syncInBackground() {
       } else {
         // Delta fetch failed — fall back to full load
         txs = await loadTransactions();
-        await setSyncCursor({ lastDate: txs.length > 0 ? txs[txs.length - 1].date : '', rowCount: txs.length });
+        await setSyncCursor({
+          lastDate: txs.length > 0 ? txs[txs.length - 1].date : '',
+          rowCount: txs.length,
+        });
       }
     } else {
       // No cursor or no cached txs — full load
       txs = await loadTransactions();
-      await setSyncCursor({ lastDate: txs.length > 0 ? txs[txs.length - 1].date : '', rowCount: txs.length });
+      await setSyncCursor({
+        lastDate: txs.length > 0 ? txs[txs.length - 1].date : '',
+        rowCount: txs.length,
+      });
     }
 
     // Update state
@@ -424,10 +462,7 @@ async function computeAggregatesWithCache(txs: any[]): Promise<any> {
   const pd = computePD(txs, { method });
 
   // Cache the result
-  await Promise.all([
-    setCachedAggregates(pd),
-    setInputsHash(currentHash),
-  ]);
+  await Promise.all([setCachedAggregates(pd), setInputsHash(currentHash)]);
 
   return pd;
 }
@@ -445,13 +480,16 @@ async function loadAllData() {
       loadTransactions(),
       loadImportMeta(),
     ]);
-    state.snaps      = snaps;
-    state.txs        = txs;
+    state.snaps = snaps;
+    state.txs = txs;
     state.importMeta = meta;
-    state.pd         = txs.length ? computePD(txs, { method: getCostBasisMethod() }) : null;
+    state.pd = txs.length ? computePD(txs, { method: getCostBasisMethod() }) : null;
 
     // Save sync cursor
-    await setSyncCursor({ lastDate: txs.length > 0 ? txs[txs.length - 1].date : '', rowCount: txs.length });
+    await setSyncCursor({
+      lastDate: txs.length > 0 ? txs[txs.length - 1].date : '',
+      rowCount: txs.length,
+    });
 
     // Cache everything
     await Promise.all([
@@ -464,12 +502,16 @@ async function loadAllData() {
       setCachedTransactions(txs),
       setCachedImportMeta(meta),
       state.pd ? setCachedAggregates(state.pd) : Promise.resolve(),
-      state.pd ? setInputsHash(computeInputsHash(
-        txs.length,
-        txs[txs.length - 1]?.date || '',
-        getCostBasisMethod(),
-        holdingsSignature(getHoldings()),
-      )) : Promise.resolve(),
+      state.pd
+        ? setInputsHash(
+            computeInputsHash(
+              txs.length,
+              txs[txs.length - 1]?.date || '',
+              getCostBasisMethod(),
+              holdingsSignature(getHoldings()),
+            ),
+          )
+        : Promise.resolve(),
     ]);
 
     onConfigChange(async () => {
@@ -511,16 +553,16 @@ function setSyncStatus(status, msg = '') {
   const el = document.getElementById('sync-status');
   if (!el) return;
   const map = {
-    loading: ['status-warn',  '<span class="spinner"></span>Loading from Google Sheets…'],
-    syncing: ['status-warn',  '<span class="spinner"></span>Syncing…'],
-    cached:  ['status-info',  '📦 Showing cached data'],
-    ok:      ['status-ok',    '✓ Synced'],
-    offline: ['status-warn',  '📴 Offline — showing cached data'],
-    error:   ['status-err',   '⚠ Sync error — ' + msg],
+    loading: ['status-warn', '<span class="spinner"></span>Loading from Google Sheets…'],
+    syncing: ['status-warn', '<span class="spinner"></span>Syncing…'],
+    cached: ['status-info', '📦 Showing cached data'],
+    ok: ['status-ok', '✓ Synced'],
+    offline: ['status-warn', '📴 Offline — showing cached data'],
+    error: ['status-err', '⚠ Sync error — ' + msg],
   };
   const [cls, text] = map[status] || ['status-empty', ''];
-  el.className  = 'status-pill ' + cls;
-  el.innerHTML  = text;
+  el.className = 'status-pill ' + cls;
+  el.innerHTML = text;
   el.style.display = status ? 'inline-flex' : 'none';
 }
 
@@ -530,8 +572,14 @@ let _bannerDismissed = false;
 function renderSetupBanner(): void {
   const el = document.getElementById('setup-banner');
   if (!el) return;
-  if (isInitialLoad() || isSyncBusy()) { el.style.display = 'none'; return; }
-  if (_bannerDismissed) { el.style.display = 'none'; return; }
+  if (isInitialLoad() || isSyncBusy()) {
+    el.style.display = 'none';
+    return;
+  }
+  if (_bannerDismissed) {
+    el.style.display = 'none';
+    return;
+  }
 
   const step = getSetupState({
     signedIn: isSignedIn(),
@@ -539,7 +587,10 @@ function renderSetupBanner(): void {
     snapshotCount: state.snaps.length,
   });
 
-  if (step === 'done') { el.style.display = 'none'; return; }
+  if (step === 'done') {
+    el.style.display = 'none';
+    return;
+  }
 
   const steps = [
     { id: 'signin', label: 'Sign in', done: step !== 'signin' },
@@ -547,12 +598,16 @@ function renderSetupBanner(): void {
     { id: 'first-update', label: 'First monthly update', done: step === 'done' },
   ];
 
-  const stepsHtml = steps.map(s => `
+  const stepsHtml = steps
+    .map(
+      (s) => `
     <span class="setup-step ${s.done ? 'step-done' : ''} ${s.id === step ? 'step-current' : ''}">
       <span class="step-check">${s.done ? '✓' : s.id === step ? '→' : '○'}</span>
       ${s.label}
     </span>
-  `).join('');
+  `,
+    )
+    .join('');
 
   let ctaHtml = '';
   if (step === 'signin') {
@@ -579,8 +634,7 @@ function renderSetupBanner(): void {
     if (step === 'signin') onSignInClick();
     else if (step === 'accounts') {
       showSection('settings', document.querySelector('.nav button[data-section="settings"]'));
-    }
-    else if (step === 'first-update') {
+    } else if (step === 'first-update') {
       showSection('log', document.querySelector('.nav button[data-section="log"]'));
     }
   });
@@ -597,8 +651,11 @@ function initSnapForm() {
 
 function setDefaultMonth() {
   const cur = currentMonth();
-  const el  = document.getElementById('snap-date') as HTMLInputElement | null;
-  if (el) { el.value = cur; el.max = cur; }
+  const el = document.getElementById('snap-date') as HTMLInputElement | null;
+  if (el) {
+    el.value = cur;
+    el.max = cur;
+  }
 }
 
 async function saveSnapshot() {
@@ -616,7 +673,10 @@ async function saveSnapshot() {
     return;
   }
   const date = document.getElementById('snap-date').value;
-  if (!date) { showMsg('snap-msg', 'Please select a month.', false); return; }
+  if (!date) {
+    showMsg('snap-msg', 'Please select a month.', false);
+    return;
+  }
   if (date > currentMonth()) {
     showMsg('snap-msg', 'Cannot log a future month.', false);
     return;
@@ -632,9 +692,12 @@ async function saveSnapshot() {
   showMsg('snap-msg', 'Saving…', true);
   setSyncing(true);
   try {
-    const idx = state.snaps.findIndex(s => s.date === date);
+    const idx = state.snaps.findIndex((s) => s.date === date);
     if (idx >= 0) state.snaps[idx] = snap;
-    else { state.snaps.push(snap); state.snaps.sort((a, b) => a.date.localeCompare(b.date)); }
+    else {
+      state.snaps.push(snap);
+      state.snaps.sort((a, b) => a.date.localeCompare(b.date));
+    }
     await upsertSnapshot(snap);
     await setCachedSnapshots(state.snaps);
     clearSnapForm();
@@ -658,7 +721,7 @@ async function saveMonthlyUpdate() {
 }
 
 function editSnap(date) {
-  const s = state.snaps.find(s => s.date === date);
+  const s = state.snaps.find((s) => s.date === date);
   if (!s) return;
 
   renderSnapForm(); // idempotent — guarantees the input fields exist
@@ -693,7 +756,7 @@ async function delSnap(date) {
     danger: true,
   });
   if (!ok) return;
-  state.snaps = state.snaps.filter(s => s.date !== date);
+  state.snaps = state.snaps.filter((s) => s.date !== date);
   setSyncing(true);
   try {
     await saveSnapshots(state.snaps);
@@ -718,17 +781,21 @@ function clearSnapForm() {
 // ── CSV import ────────────────────────────────────────────
 function initCSVDrop() {
   const zone = document.getElementById('drop-zone');
-  const inp  = document.getElementById('csv-file-input');
+  const inp = document.getElementById('csv-file-input');
 
   if (!zone || !inp) return;
 
   inp.addEventListener('change', () => {
     if (inp.files[0]) handleCSVFile(inp.files[0]);
   });
-  zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('over'); });
-  zone.addEventListener('dragleave', ()  => zone.classList.remove('over'));
-  zone.addEventListener('drop', e => {
-    e.preventDefault(); zone.classList.remove('over');
+  zone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    zone.classList.add('over');
+  });
+  zone.addEventListener('dragleave', () => zone.classList.remove('over'));
+  zone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    zone.classList.remove('over');
     const f = e.dataTransfer.files[0];
     if (f?.name.toLowerCase().endsWith('.csv')) handleCSVFile(f);
     else showMsg('import-msg', 'Please drop a .csv file', false);
@@ -751,7 +818,7 @@ async function handleCSVFile(file) {
   }
   showMsg('import-msg', 'Parsing…', true);
   const reader = new FileReader();
-  reader.onload = e => {
+  reader.onload = (e) => {
     const text = e.target.result;
     const headerLine = text.trim().split('\n')[0] || '';
 
@@ -774,9 +841,9 @@ function showProfilePicker(csvText) {
   const container = document.getElementById('import-preview');
   if (!container) return;
 
-  const options = builtInProfiles.map(p =>
-    `<option value="${esc(p.id)}">${esc(p.label)}</option>`
-  ).join('');
+  const options = builtInProfiles
+    .map((p) => `<option value="${esc(p.id)}">${esc(p.label)}</option>`)
+    .join('');
 
   container.innerHTML = `
     <div class="card" style="margin-top:.75rem">
@@ -795,7 +862,7 @@ function showProfilePicker(csvText) {
 
   document.getElementById('btn-apply-profile')?.addEventListener('click', () => {
     const id = document.getElementById('profile-select')?.value;
-    const profile = builtInProfiles.find(p => p.id === id);
+    const profile = builtInProfiles.find((p) => p.id === id);
     if (profile) showImportPreview(csvText, profile);
   });
   document.getElementById('btn-cancel-profile')?.addEventListener('click', () => {
@@ -807,7 +874,7 @@ function showProfilePicker(csvText) {
 
 /** Parse CSV with profile and show a preview for confirmation. */
 function showImportPreview(csvText, profile) {
-  const parsed  = parseWithProfile(csvText, profile);
+  const parsed = parseWithProfile(csvText, profile);
   const summary = previewSummary(parsed);
   const container = document.getElementById('import-preview');
   if (!container) return;
@@ -823,24 +890,31 @@ function showImportPreview(csvText, profile) {
     setSyncing(true);
     try {
       const merged = await mergeTransactions(state.txs, parsed.transactions);
-      const today  = new Date().toISOString().slice(0, 10);
+      const today = new Date().toISOString().slice(0, 10);
       await saveImportMeta(today);
-      state.txs        = merged;
+      state.txs = merged;
       state.importMeta = { last_import: today };
-      state.pd         = computePD(merged, { method: getCostBasisMethod() });
+      state.pd = computePD(merged, { method: getCostBasisMethod() });
 
       // Update cache
       await Promise.all([
         setCachedTransactions(merged),
         setCachedImportMeta({ last_import: today }),
-        setSyncCursor({ lastDate: merged.length > 0 ? merged[merged.length - 1].date : '', rowCount: merged.length }),
+        setSyncCursor({
+          lastDate: merged.length > 0 ? merged[merged.length - 1].date : '',
+          rowCount: merged.length,
+        }),
         state.pd ? setCachedAggregates(state.pd) : Promise.resolve(),
-        state.pd ? setInputsHash(computeInputsHash(
-          merged.length,
-          merged[merged.length - 1]?.date || '',
-          getCostBasisMethod(),
-          holdingsSignature(getHoldings()),
-        )) : Promise.resolve(),
+        state.pd
+          ? setInputsHash(
+              computeInputsHash(
+                merged.length,
+                merged[merged.length - 1]?.date || '',
+                getCostBasisMethod(),
+                holdingsSignature(getHoldings()),
+              ),
+            )
+          : Promise.resolve(),
       ]);
 
       renderAll();
@@ -860,13 +934,15 @@ function showImportPreview(csvText, profile) {
 
   // Build type counts string
   const typeCounts = Object.entries(summary.byCounts)
-    .sort(([,a], [,b]) => b - a)
+    .sort(([, a], [, b]) => b - a)
     .map(([type, count]) => `<span style="font-weight:500">${count}</span> ${esc(type)}`)
     .join(', ');
 
   // Unmapped warning
   const totalUnmapped = summary.unmapped.reduce((s, u) => s + u.count, 0);
-  const unmappedList  = summary.unmapped.map(u => `<code>${esc(u.type)}</code> (${u.count})`).join(', ');
+  const unmappedList = summary.unmapped
+    .map((u) => `<code>${esc(u.type)}</code> (${u.count})`)
+    .join(', ');
   const unmappedHtml = `
     <div class="status-bar status-warn" style="margin:.6rem 0">
       ⚠ ${totalUnmapped} row${totalUnmapped > 1 ? 's' : ''} with unmapped type${totalUnmapped > 1 ? 's' : ''}: ${unmappedList}
@@ -875,7 +951,9 @@ function showImportPreview(csvText, profile) {
 
   // Sample table (first ~10 rows)
   const sampleRows = summary.sample;
-  const sampleHtml = sampleRows.length > 0 ? `
+  const sampleHtml =
+    sampleRows.length > 0
+      ? `
     <div style="overflow-x:auto;margin-top:.6rem;-webkit-overflow-scrolling:touch">
       <table style="width:100%;font-size:11px;border-collapse:collapse">
         <thead>
@@ -889,7 +967,9 @@ function showImportPreview(csvText, profile) {
           </tr>
         </thead>
         <tbody>
-          ${sampleRows.map(tx => `
+          ${sampleRows
+            .map(
+              (tx) => `
             <tr style="border-top:1px solid #f1efe8">
               <td style="padding:4px 6px">${esc(tx.date)}</td>
               <td style="padding:4px 6px">${esc(tx.type)}</td>
@@ -898,11 +978,14 @@ function showImportPreview(csvText, profile) {
               <td style="padding:4px 6px;text-align:right">${tx.amount}</td>
               <td style="padding:4px 6px">${esc(tx.currency)}</td>
             </tr>
-          `).join('')}
+          `,
+            )
+            .join('')}
         </tbody>
       </table>
     </div>
-  ` : '';
+  `
+      : '';
 
   container.innerHTML = `
     <div class="card" style="margin-top:.75rem">
@@ -940,12 +1023,12 @@ function updateSub() {
     parts.push(`CSV: ${state.importMeta.last_import}`);
   }
   if (state.snaps.length > 0) {
-    parts.push(`${state.snaps.length} snapshot${state.snaps.length > 1 ? 's' : ''} · latest ${fmtMon(state.snaps[state.snaps.length - 1].date)}`);
+    parts.push(
+      `${state.snaps.length} snapshot${state.snaps.length > 1 ? 's' : ''} · latest ${fmtMon(state.snaps[state.snaps.length - 1].date)}`,
+    );
   }
   const el = document.getElementById('app-sub');
-  if (el) el.textContent = parts.length > 0
-    ? parts.join(' · ')
-    : CONFIG.app.subtitle;
+  if (el) el.textContent = parts.length > 0 ? parts.join(' · ') : CONFIG.app.subtitle;
 }
 
 // ── Snapshot form (dynamic account fields) ────────────────
@@ -954,19 +1037,24 @@ function renderSnapForm() {
   if (!el) return;
   const accts = getACCTSList();
   if (accts.length === 0) {
-    el.innerHTML = '<p class="note">No accounts configured yet. Add accounts in the <a href="#" data-goto="settings" class="goto-settings">Settings</a> tab.</p>';
+    el.innerHTML =
+      '<p class="note">No accounts configured yet. Add accounts in the <a href="#" data-goto="settings" class="goto-settings">Settings</a> tab.</p>';
     el.querySelector('.goto-settings')?.addEventListener('click', (e) => {
       e.preventDefault();
       showSection('settings', document.querySelector('.nav button[data-section="settings"]'));
     });
     return;
   }
-  el.innerHTML = accts.map(a => `
+  el.innerHTML = accts
+    .map(
+      (a) => `
     <div class="form-group">
       <label class="form-label">${esc(a.label)} (€)</label>
       <input type="text" inputmode="decimal" id="snap-${esc(a.key)}" class="form-input" placeholder="total value">
     </div>
-  `).join('');
+  `,
+    )
+    .join('');
 
   const dateEl = document.getElementById('snap-date') as HTMLInputElement | null;
   if (dateEl) {
@@ -977,27 +1065,30 @@ function renderSnapForm() {
 
 // ── Portfolio sub-view helpers ─────────────────────────────
 function showPortfolioSubview(sub: string, force = false): void {
-  const alreadyActive = !force && _portfolioSubview === sub &&
+  const alreadyActive =
+    !force &&
+    _portfolioSubview === sub &&
     document.getElementById(`subview-${sub}`)?.style.display === 'block';
   if (alreadyActive) {
     history.replaceState(null, '', navHash('portfolio', sub));
     return;
   }
   _portfolioSubview = sub as typeof _portfolioSubview;
-  ['holdings', 'contributions', 'dividends'].forEach(s => {
+  ['holdings', 'contributions', 'dividends'].forEach((s) => {
     const el = document.getElementById(`subview-${s}`);
     if (el) el.style.display = s === sub ? 'block' : 'none';
   });
-  document.querySelectorAll('#portfolio-subnav [data-subview]').forEach(b =>
-    b.classList.toggle('active', (b as HTMLElement).dataset.subview === sub));
+  document
+    .querySelectorAll('#portfolio-subnav [data-subview]')
+    .forEach((b) => b.classList.toggle('active', (b as HTMLElement).dataset.subview === sub));
   renderPortfolioSubview(sub);
   history.replaceState(null, '', navHash('portfolio', sub));
 }
 
 function renderPortfolioSubview(sub: string): void {
-  if (sub === 'holdings')           renderPortfolio(state.pd, state.snaps);
+  if (sub === 'holdings') renderPortfolio(state.pd, state.snaps);
   else if (sub === 'contributions') renderDCA(state.pd, state.snaps);
-  else if (sub === 'dividends')     renderDividends(state.pd);
+  else if (sub === 'dividends') renderDividends(state.pd);
 }
 
 // ── Section dispatcher ────────────────────────────────────
@@ -1008,7 +1099,8 @@ function renderSection(id: string): void {
       const overlay = document.createElement('div');
       overlay.className = 'section-loading';
       overlay.innerHTML = '<span class="spinner"></span> Loading\u2026';
-      overlay.style.cssText = 'display:flex;align-items:center;gap:0.5rem;padding:2rem 1rem;font-size:13px;color:var(--ink-2)';
+      overlay.style.cssText =
+        'display:flex;align-items:center;gap:0.5rem;padding:2rem 1rem;font-size:13px;color:var(--ink-2)';
       section.prepend(overlay);
     }
     return;
@@ -1017,10 +1109,24 @@ function renderSection(id: string): void {
   document.getElementById(id)?.querySelector('.section-loading')?.remove();
   try {
     switch (id) {
-      case 'networth':      renderNW(state.pd, state.snaps); break;
-      case 'portfolio':     renderPortfolioSubview(_portfolioSubview); break;
-      case 'settings':      renderSettings(); break;
-      case 'log':           renderLog({ txs: state.txs, snaps: state.snaps, importMeta: state.importMeta, onEditSnap: editSnap, onDelSnap: delSnap }); break;
+      case 'networth':
+        renderNW(state.pd, state.snaps);
+        break;
+      case 'portfolio':
+        renderPortfolioSubview(_portfolioSubview);
+        break;
+      case 'settings':
+        renderSettings();
+        break;
+      case 'log':
+        renderLog({
+          txs: state.txs,
+          snaps: state.snaps,
+          importMeta: state.importMeta,
+          onEditSnap: editSnap,
+          onDelSnap: delSnap,
+        });
+        break;
     }
   } catch (err: unknown) {
     console.error(`[renderSection] error in section "${id}":`, err);
@@ -1029,7 +1135,8 @@ function renderSection(id: string): void {
       const msg = document.createElement('div');
       msg.className = 'section-error';
       msg.style.cssText = 'padding:1.5rem 1rem;font-size:13px;color:var(--neg)';
-      msg.textContent = 'Something went wrong rendering this section. Try a Force full resync from Settings, or reload the page.';
+      msg.textContent =
+        'Something went wrong rendering this section. Try a Force full resync from Settings, or reload the page.';
       section.prepend(msg);
     }
   }
@@ -1038,8 +1145,8 @@ function renderSection(id: string): void {
 // ── Render all ────────────────────────────────────────────
 function renderAll() {
   updateSub();
-  renderSnapForm();                 // cheap, keep eager (Log form fields)
-  renderSetupBanner();              // update onboarding checklist
+  renderSnapForm(); // cheap, keep eager (Log form fields)
+  renderSetupBanner(); // update onboarding checklist
   _dirty.clear();
   for (const s of ALL_SECTIONS) _dirty.add(s);
   _dirty.delete(_activeSection);
@@ -1048,6 +1155,9 @@ function renderAll() {
   // Re-inject transient feedback message if still within its display window
   if (_pendingMsg) {
     const el = document.getElementById(_pendingMsg.id);
-    if (el) { el.textContent = _pendingMsg.text; el.style.color = _pendingMsg.ok ? 'var(--pos)' : 'var(--neg)'; }
+    if (el) {
+      el.textContent = _pendingMsg.text;
+      el.style.color = _pendingMsg.ok ? 'var(--pos)' : 'var(--neg)';
+    }
   }
 }

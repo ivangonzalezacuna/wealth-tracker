@@ -7,14 +7,17 @@ export function snapTotal(s: Snapshot): number {
 }
 
 export function fmt(n: number, d = 0): string {
-  return '€' + Number(n).toLocaleString('de-DE', {
-    minimumFractionDigits: d,
-    maximumFractionDigits: d,
-  });
+  return (
+    '€' +
+    Number(n).toLocaleString('de-DE', {
+      minimumFractionDigits: d,
+      maximumFractionDigits: d,
+    })
+  );
 }
 
 /** Whole-euro display (no decimals). */
-export const fmtEur  = (n: number) => fmt(n);
+export const fmtEur = (n: number) => fmt(n);
 /** Euro display with cents (2 decimals). */
 export const fmtEur2 = (n: number) => fmt(n, 2);
 
@@ -35,13 +38,19 @@ export function currentMonth(): string {
 export function fmtMon(d: string): string {
   if (!d) return '—';
   const [y, m] = d.split('-');
-  return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m - 1] + ' ' + y;
+  return (
+    ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][+m - 1] +
+    ' ' +
+    y
+  );
 }
 
 export function fmtDay(d: string): string {
   if (!d) return '—';
   return new Date(d + 'T12:00:00').toLocaleDateString('de-DE', {
-    day: '2-digit', month: 'short', year: 'numeric',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
   });
 }
 
@@ -51,7 +60,10 @@ export function showMsg(elId: string, text: string, ok: boolean): void {
     if (!el) return;
     el.textContent = text;
     el.style.color = ok ? '#0F6E56' : '#A32D2D';
-    if (ok) setTimeout(() => { if (el.textContent === text) el.textContent = ''; }, 3500);
+    if (ok)
+      setTimeout(() => {
+        if (el.textContent === text) el.textContent = '';
+      }, 3500);
   };
   // Write immediately, and again after a frame to survive async re-renders
   write();
@@ -61,7 +73,11 @@ export function showMsg(elId: string, text: string, ok: boolean): void {
 /** Escape HTML special characters to prevent XSS via innerHTML. */
 export function esc(s: string | null | undefined): string {
   if (!s) return '';
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 /** Sanitize a CSS color value — only allow safe patterns. */

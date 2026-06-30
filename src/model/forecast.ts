@@ -70,7 +70,10 @@ export function forecastSeries(
   for (let i = 0; i < months; i++) {
     // Advance month
     mon++;
-    if (mon > 12) { mon = 1; year++; }
+    if (mon > 12) {
+      mon = 1;
+      year++;
+    }
     value = (value + monthlyContrib) * (1 + monthlyRate);
     result.push({
       month: `${year}-${String(mon).padStart(2, '0')}`,

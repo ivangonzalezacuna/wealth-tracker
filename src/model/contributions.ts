@@ -24,6 +24,6 @@ export function annualizeContrib(amount: number, interval: ContribInterval): num
 /** Sum annualized contributions across all active holdings. */
 export function totalAnnualContrib(holdings: Holding[]): number {
   return holdings
-    .filter(h => h.active && h.contribAmount > 0)
+    .filter((h) => h.active && h.contribAmount > 0)
     .reduce((sum, h) => sum + annualizeContrib(h.contribAmount, h.interval), 0);
 }

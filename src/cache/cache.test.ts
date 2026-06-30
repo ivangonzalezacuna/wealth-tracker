@@ -11,9 +11,18 @@ const mockStore = new Map<string, any>();
 vi.mock('idb-keyval', () => ({
   createStore: () => 'mock-store',
   get: (key: string) => Promise.resolve(mockStore.get(key)),
-  set: (key: string, value: any) => { mockStore.set(key, value); return Promise.resolve(); },
-  del: (key: string) => { mockStore.delete(key); return Promise.resolve(); },
-  clear: () => { mockStore.clear(); return Promise.resolve(); },
+  set: (key: string, value: any) => {
+    mockStore.set(key, value);
+    return Promise.resolve();
+  },
+  del: (key: string) => {
+    mockStore.delete(key);
+    return Promise.resolve();
+  },
+  clear: () => {
+    mockStore.clear();
+    return Promise.resolve();
+  },
 }));
 
 // ── Import modules under test ────────────────────────────────────
@@ -78,7 +87,7 @@ describe('Cache: delta merge', () => {
     expect(result.cursor.rowCount).toBe(5);
     expect(result.cursor.lastDate).toBe('2024-05-15');
     // Verify no duplicates
-    const ids = result.merged.map(t => t.id);
+    const ids = result.merged.map((t) => t.id);
     expect(new Set(ids).size).toBe(5);
   });
 
@@ -147,10 +156,36 @@ describe('Cache: aggregate cache with inputsHash', () => {
 
   it('holdingsSignature changes when holdings config changes', () => {
     const holdings1 = [
-      { isin: 'IE001', ticker: 'A', name: '', color: '', acc: true, active: true, contribAmount: 0, interval: 'weekly' as const, assetClass: '', region: '', foldInto: '', order: 1 },
+      {
+        isin: 'IE001',
+        ticker: 'A',
+        name: '',
+        color: '',
+        acc: true,
+        active: true,
+        contribAmount: 0,
+        interval: 'weekly' as const,
+        assetClass: '',
+        region: '',
+        foldInto: '',
+        order: 1,
+      },
     ];
     const holdings2 = [
-      { isin: 'IE001', ticker: 'A', name: '', color: '', acc: true, active: false, contribAmount: 0, interval: 'weekly' as const, assetClass: '', region: '', foldInto: '', order: 1 },
+      {
+        isin: 'IE001',
+        ticker: 'A',
+        name: '',
+        color: '',
+        acc: true,
+        active: false,
+        contribAmount: 0,
+        interval: 'weekly' as const,
+        assetClass: '',
+        region: '',
+        foldInto: '',
+        order: 1,
+      },
     ];
     expect(holdingsSignature(holdings1)).not.toBe(holdingsSignature(holdings2));
   });

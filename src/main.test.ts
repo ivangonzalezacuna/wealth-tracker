@@ -77,8 +77,11 @@ describe('showPortfolioSubview idempotent guard', () => {
   });
 
   function isSubviewAlreadyActive(sub: string, force = false): boolean {
-    return !force && _portfolioSubview === sub &&
-      document.getElementById(`subview-${sub}`)?.style.display === 'block';
+    return (
+      !force &&
+      _portfolioSubview === sub &&
+      document.getElementById(`subview-${sub}`)?.style.display === 'block'
+    );
   }
 
   it('detects already-active sub-view (holdings on holdings)', () => {
@@ -104,7 +107,9 @@ describe('showPortfolioSubview idempotent guard', () => {
     const renderSpy = vi.fn();
 
     function showPortfolioSubview(sub: string, force = false): void {
-      const alreadyActive = !force && _portfolioSubview === sub &&
+      const alreadyActive =
+        !force &&
+        _portfolioSubview === sub &&
         document.getElementById(`subview-${sub}`)?.style.display === 'block';
       if (alreadyActive) return;
       _portfolioSubview = sub;

@@ -45,15 +45,24 @@ describe('parseNavHash', () => {
   });
 
   it('returns portfolio with contributions subview', () => {
-    expect(parseNavHash('portfolio/contributions')).toEqual({ section: 'portfolio', subview: 'contributions' });
+    expect(parseNavHash('portfolio/contributions')).toEqual({
+      section: 'portfolio',
+      subview: 'contributions',
+    });
   });
 
   it('returns portfolio with dividends subview', () => {
-    expect(parseNavHash('#portfolio/dividends')).toEqual({ section: 'portfolio', subview: 'dividends' });
+    expect(parseNavHash('#portfolio/dividends')).toEqual({
+      section: 'portfolio',
+      subview: 'dividends',
+    });
   });
 
   it('returns portfolio with holdings subview', () => {
-    expect(parseNavHash('#portfolio/holdings')).toEqual({ section: 'portfolio', subview: 'holdings' });
+    expect(parseNavHash('#portfolio/holdings')).toEqual({
+      section: 'portfolio',
+      subview: 'holdings',
+    });
   });
 
   it('returns networth for unknown section', () => {

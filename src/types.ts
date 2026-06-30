@@ -61,7 +61,7 @@ export interface Holding {
   color: string;
   acc: boolean;
   active: boolean;
-  contribAmount: number;   // amount per execution
+  contribAmount: number; // amount per execution
   interval: ContribInterval; // execution cadence
   assetClass: string;
   region: string;

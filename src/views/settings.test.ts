@@ -8,10 +8,31 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Minimal account / holding / settings shapes sufficient for renderSettings
 const MOCK_ACCOUNTS = [
-  { id: 'acct1', moneyType: 'investment', institution: 'TR', label: 'Main', color: '#111111', isPrimaryInvestment: true, order: 1 },
+  {
+    id: 'acct1',
+    moneyType: 'investment',
+    institution: 'TR',
+    label: 'Main',
+    color: '#111111',
+    isPrimaryInvestment: true,
+    order: 1,
+  },
 ];
 const MOCK_HOLDINGS = [
-  { isin: 'IE00TEST', ticker: 'IWDA', name: '', color: '#222222', acc: true, active: true, contribAmount: 50, interval: 'weekly', assetClass: 'equity', region: 'developed', foldInto: '', order: 1 },
+  {
+    isin: 'IE00TEST',
+    ticker: 'IWDA',
+    name: '',
+    color: '#222222',
+    acc: true,
+    active: true,
+    contribAmount: 50,
+    interval: 'weekly',
+    assetClass: 'equity',
+    region: 'developed',
+    foldInto: '',
+    order: 1,
+  },
 ];
 const MOCK_SETTINGS = { annualReturnPct: '7', costBasisMethod: 'avgco' };
 
@@ -60,7 +81,12 @@ vi.mock('../model/accounts', () => ({
 }));
 
 vi.mock('../model/contributions', () => ({
-  INTERVAL_LABELS: { weekly: 'Weekly', biweekly: 'Biweekly', monthly: 'Monthly', quarterly: 'Quarterly' },
+  INTERVAL_LABELS: {
+    weekly: 'Weekly',
+    biweekly: 'Biweekly',
+    monthly: 'Monthly',
+    quarterly: 'Quarterly',
+  },
 }));
 
 import { renderSettings } from './settings';
@@ -81,8 +107,13 @@ describe('Settings scoped re-render (repaintCard)', () => {
 
   it('all seven card IDs are present after renderSettings()', () => {
     const ids = [
-      'settings-card-accounts', 'settings-card-holdings', 'settings-card-cost-basis',
-      'settings-card-projection', 'settings-card-goal', 'settings-card-rules', 'settings-card-cache',
+      'settings-card-accounts',
+      'settings-card-holdings',
+      'settings-card-cost-basis',
+      'settings-card-projection',
+      'settings-card-goal',
+      'settings-card-rules',
+      'settings-card-cache',
     ];
     for (const id of ids) {
       expect(document.getElementById(id), `missing #${id}`).not.toBeNull();
@@ -144,7 +175,7 @@ describe('Settings scoped re-render (repaintCard)', () => {
 
   it('data-card-key attributes are preserved alongside new ids', () => {
     const cards = document.querySelectorAll('.card-collapsible');
-    const keys = [...cards].map(c => (c as HTMLElement).dataset.cardKey);
+    const keys = [...cards].map((c) => (c as HTMLElement).dataset.cardKey);
     expect(keys).toContain('accounts');
     expect(keys).toContain('holdings');
     expect(keys).toContain('cost-basis');

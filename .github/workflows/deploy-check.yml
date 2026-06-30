@@ -1,0 +1,37 @@
+name: Deploy safety check
+
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1' # weekly, Monday 06:00 UTC
+
+jobs:
+  audit:
+    name: Dependency vulnerability audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Audit dependencies
+        run: yarn npm audit --severity high
+        continue-on-error: true
+        id: audit
+
+      - name: Report audit outcome
+        if: steps.audit.outcome == 'failure'
+        run: |
+          echo "::warning::High or critical severity vulnerabilities found in dependencies. Review 'yarn npm audit' output above before deploying."

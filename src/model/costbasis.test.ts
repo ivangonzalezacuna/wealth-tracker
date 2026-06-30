@@ -5,34 +5,49 @@ import { TxType } from './tx';
 
 /** Helper to build a minimal BUY transaction. */
 function buy(date, shares, amount, fee = 0) {
-  return { type: TxType.BUY, date, symbol: 'IE00B4L5Y983', shares, amount: -amount, fee, tax: 0, currency: 'EUR' };
+  return {
+    type: TxType.BUY,
+    date,
+    symbol: 'IE00B4L5Y983',
+    shares,
+    amount: -amount,
+    fee,
+    tax: 0,
+    currency: 'EUR',
+  };
 }
 
 /** Helper to build a minimal SELL transaction. */
 function sell(date, shares, amount, fee = 0) {
-  return { type: TxType.SELL, date, symbol: 'IE00B4L5Y983', shares: -shares, amount, fee, tax: 0, currency: 'EUR' };
+  return {
+    type: TxType.SELL,
+    date,
+    symbol: 'IE00B4L5Y983',
+    shares: -shares,
+    amount,
+    fee,
+    tax: 0,
+    currency: 'EUR',
+  };
 }
 
 describe('costbasis: average cost', () => {
   it('handles two buys and a partial sell', () => {
     const txs = [
-      buy('2024-01-01', 10, 1000),   // avg = 100
-      buy('2024-02-01', 10, 1200),   // avg = (1000+1200)/20 = 110
-      sell('2024-03-01', 5, 600),     // sold 5 @ avg 110 = 550 cost; realized = 600-550 = 50
+      buy('2024-01-01', 10, 1000), // avg = 100
+      buy('2024-02-01', 10, 1200), // avg = (1000+1200)/20 = 110
+      sell('2024-03-01', 5, 600), // sold 5 @ avg 110 = 550 cost; realized = 600-550 = 50
     ];
     const r = _computeAvgCost(txs);
     expect(r.shares).toBeCloseTo(15);
-    expect(r.costBasis).toBeCloseTo(1650);  // 2200 - 550
+    expect(r.costBasis).toBeCloseTo(1650); // 2200 - 550
     expect(r.realizedPnL).toBeCloseTo(50);
     expect(r.exited).toBe(false);
     expect(r.buys).toBe(2);
   });
 
   it('sell-all marks position as exited', () => {
-    const txs = [
-      buy('2024-01-01', 10, 1000),
-      sell('2024-02-01', 10, 1100),
-    ];
+    const txs = [buy('2024-01-01', 10, 1000), sell('2024-02-01', 10, 1100)];
     const r = _computeAvgCost(txs);
     expect(r.shares).toBe(0);
     expect(r.costBasis).toBe(0);
@@ -60,9 +75,7 @@ describe('costbasis: average cost', () => {
   });
 
   it('sell with no shares is safely ignored', () => {
-    const txs = [
-      sell('2024-01-01', 10, 1100),
-    ];
+    const txs = [sell('2024-01-01', 10, 1100)];
     const r = _computeAvgCost(txs);
     expect(r.shares).toBe(0);
     expect(r.costBasis).toBe(0);
@@ -74,9 +87,9 @@ describe('costbasis: average cost', () => {
 describe('costbasis: FIFO', () => {
   it('handles two buys and a partial sell (FIFO order)', () => {
     const txs = [
-      buy('2024-01-01', 10, 1000),   // lot 1: 10 @ 100
-      buy('2024-02-01', 10, 1200),   // lot 2: 10 @ 120
-      sell('2024-03-01', 5, 600),     // FIFO: sell 5 from lot 1 @ 100 = 500 cost; realized = 600-500 = 100
+      buy('2024-01-01', 10, 1000), // lot 1: 10 @ 100
+      buy('2024-02-01', 10, 1200), // lot 2: 10 @ 120
+      sell('2024-03-01', 5, 600), // FIFO: sell 5 from lot 1 @ 100 = 500 cost; realized = 600-500 = 100
     ];
     const r = _computeFIFO(txs);
     expect(r.shares).toBeCloseTo(15);
@@ -88,10 +101,7 @@ describe('costbasis: FIFO', () => {
   });
 
   it('sell-all marks position as exited', () => {
-    const txs = [
-      buy('2024-01-01', 10, 1000),
-      sell('2024-02-01', 10, 1100),
-    ];
+    const txs = [buy('2024-01-01', 10, 1000), sell('2024-02-01', 10, 1100)];
     const r = _computeFIFO(txs);
     expect(r.shares).toBe(0);
     expect(r.costBasis).toBe(0);
@@ -109,9 +119,7 @@ describe('costbasis: FIFO', () => {
   });
 
   it('sell with no shares is safely ignored (no lots)', () => {
-    const txs = [
-      sell('2024-01-01', 10, 1100),
-    ];
+    const txs = [sell('2024-01-01', 10, 1100)];
     const r = _computeFIFO(txs);
     expect(r.shares).toBe(0);
     expect(r.realizedPnL).toBe(0);
@@ -122,9 +130,9 @@ describe('costbasis: FIFO', () => {
 describe('costbasis: avgco vs fifo divergence', () => {
   it('same sequence yields different realized P&L', () => {
     const txs = [
-      buy('2024-01-01', 10, 1000),   // lot 1: 10 @ 100
-      buy('2024-02-01', 10, 1500),   // lot 2: 10 @ 150
-      sell('2024-03-01', 10, 1400),   // sell 10
+      buy('2024-01-01', 10, 1000), // lot 1: 10 @ 100
+      buy('2024-02-01', 10, 1500), // lot 2: 10 @ 150
+      sell('2024-03-01', 10, 1400), // sell 10
     ];
 
     // Average cost: avg = (1000+1500)/20 = 125; sold 10 @ 125 = 1250; realized = 1400-1250 = 150
@@ -147,9 +155,33 @@ describe('costbasis: avgco vs fifo divergence', () => {
 describe('computeCostBasis (multi-ISIN)', () => {
   it('groups by symbol and computes independently', () => {
     const txs = [
-      { type: TxType.BUY, date: '2024-01-01', symbol: 'A', shares: 10, amount: -1000, fee: 0, tax: 0 },
-      { type: TxType.BUY, date: '2024-01-01', symbol: 'B', shares: 5, amount: -500, fee: 0, tax: 0 },
-      { type: TxType.SELL, date: '2024-02-01', symbol: 'A', shares: -10, amount: 1100, fee: 0, tax: 0 },
+      {
+        type: TxType.BUY,
+        date: '2024-01-01',
+        symbol: 'A',
+        shares: 10,
+        amount: -1000,
+        fee: 0,
+        tax: 0,
+      },
+      {
+        type: TxType.BUY,
+        date: '2024-01-01',
+        symbol: 'B',
+        shares: 5,
+        amount: -500,
+        fee: 0,
+        tax: 0,
+      },
+      {
+        type: TxType.SELL,
+        date: '2024-02-01',
+        symbol: 'A',
+        shares: -10,
+        amount: 1100,
+        fee: 0,
+        tax: 0,
+      },
     ];
     const result = computeCostBasis(txs, 'avgco');
     expect(result['A'].exited).toBe(true);

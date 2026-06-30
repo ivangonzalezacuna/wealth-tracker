@@ -19,26 +19,58 @@ const { computePD } = await import('./portfolio');
 /** Helpers */
 function buyTx(isin, date, shares, amount, fee = 0) {
   return {
-    type: TxType.BUY, date, symbol: isin, isin, name: `ETF ${isin.slice(-4)}`,
-    shares, amount: -Math.abs(amount), fee, tax: 0, currency: 'EUR',
+    type: TxType.BUY,
+    date,
+    symbol: isin,
+    isin,
+    name: `ETF ${isin.slice(-4)}`,
+    shares,
+    amount: -Math.abs(amount),
+    fee,
+    tax: 0,
+    currency: 'EUR',
   };
 }
 function sellTx(isin, date, shares, amount, fee = 0) {
   return {
-    type: TxType.SELL, date, symbol: isin, isin, name: `ETF ${isin.slice(-4)}`,
-    shares: -Math.abs(shares), amount: Math.abs(amount), fee, tax: 0, currency: 'EUR',
+    type: TxType.SELL,
+    date,
+    symbol: isin,
+    isin,
+    name: `ETF ${isin.slice(-4)}`,
+    shares: -Math.abs(shares),
+    amount: Math.abs(amount),
+    fee,
+    tax: 0,
+    currency: 'EUR',
   };
 }
 function divTx(isin, date, net, tax = 0) {
   return {
-    type: TxType.DIVIDEND, date, symbol: isin, isin, name: `ETF ${isin.slice(-4)}`,
-    shares: 0, amount: net, fee: 0, tax: -Math.abs(tax), currency: 'EUR',
+    type: TxType.DIVIDEND,
+    date,
+    symbol: isin,
+    isin,
+    name: `ETF ${isin.slice(-4)}`,
+    shares: 0,
+    amount: net,
+    fee: 0,
+    tax: -Math.abs(tax),
+    currency: 'EUR',
   };
 }
 function interestTx(date, amount) {
   return {
-    type: TxType.INTEREST, date, symbol: '', isin: '', name: 'Interest',
-    shares: 0, amount, fee: 0, tax: 0, currency: 'EUR',
+    type: TxType.INTEREST,
+    date,
+    symbol: '',
+    isin: '',
+    name: 'Interest',
+    shares: 0,
+    amount,
+    fee: 0,
+    tax: 0,
+    currency: 'EUR',
   };
 }
 
@@ -85,10 +117,7 @@ describe('computePD', () => {
   });
 
   it('accumulates interest', () => {
-    const txs = [
-      interestTx('2024-01-31', 3.5),
-      interestTx('2024-02-28', 4.2),
-    ];
+    const txs = [interestTx('2024-01-31', 3.5), interestTx('2024-02-28', 4.2)];
     const pd = computePD(txs);
 
     expect(pd.totalInterest).toBeCloseTo(7.7);
@@ -171,8 +200,16 @@ describe('computePD', () => {
     const txs = [
       buyTx('IE00B4L5Y983', '2024-01-15', 10, 1000),
       {
-        type: TxType.DEPOSIT, date: '2024-01-20', symbol: '', isin: '', name: 'Bank Transfer',
-        shares: 0, amount: 500, fee: 0, tax: 0, currency: 'EUR',
+        type: TxType.DEPOSIT,
+        date: '2024-01-20',
+        symbol: '',
+        isin: '',
+        name: 'Bank Transfer',
+        shares: 0,
+        amount: 500,
+        fee: 0,
+        tax: 0,
+        currency: 'EUR',
       },
     ];
     const pd = computePD(txs);
@@ -188,13 +225,29 @@ describe('computePD', () => {
       interestTx('2024-01-31', 100),
       // Dividend with -3.44 tax withheld
       {
-        type: TxType.DIVIDEND, date: '2024-06-01', symbol: 'IE00B4L5Y983', isin: 'IE00B4L5Y983',
-        name: 'ETF', shares: 0, amount: 10, fee: 0, tax: -3.44, currency: 'EUR',
+        type: TxType.DIVIDEND,
+        date: '2024-06-01',
+        symbol: 'IE00B4L5Y983',
+        isin: 'IE00B4L5Y983',
+        name: 'ETF',
+        shares: 0,
+        amount: 10,
+        fee: 0,
+        tax: -3.44,
+        currency: 'EUR',
       },
       // TAX refund of +3.44 (TAX_OPTIMIZATION)
       {
-        type: TxType.TAX, date: '2024-07-01', symbol: '', isin: '', name: 'Tax Refund',
-        shares: 0, amount: 3.44, fee: 0, tax: 3.44, currency: 'EUR',
+        type: TxType.TAX,
+        date: '2024-07-01',
+        symbol: '',
+        isin: '',
+        name: 'Tax Refund',
+        shares: 0,
+        amount: 3.44,
+        fee: 0,
+        tax: 3.44,
+        currency: 'EUR',
       },
     ];
     const pd = computePD(txs);

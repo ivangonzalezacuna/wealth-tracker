@@ -31,9 +31,11 @@ export function computeDrift(
   if (totalValue <= 0) return [];
 
   // Target allocation: based on annualized contribution weights
-  const activeWithTarget = holdings.filter(h => h.active && h.contribAmount > 0);
+  const activeWithTarget = holdings.filter((h) => h.active && h.contribAmount > 0);
   const totalAnnual = activeWithTarget.reduce(
-    (sum, h) => sum + annualizeContrib(h.contribAmount, h.interval), 0);
+    (sum, h) => sum + annualizeContrib(h.contribAmount, h.interval),
+    0,
+  );
   if (totalAnnual <= 0) return [];
 
   const result: DriftEntry[] = [];
@@ -48,7 +50,7 @@ export function computeDrift(
     const actualPct = totalValue > 0 ? (actualValue / totalValue) * 100 : 0;
 
     const driftPct = actualPct - targetPct;
-    const targetValue = totalValue * targetPct / 100;
+    const targetValue = (totalValue * targetPct) / 100;
     const deltaValue = actualValue - targetValue;
 
     result.push({
@@ -73,5 +75,5 @@ export function computeDrift(
  */
 export function maxDrift(entries: DriftEntry[]): number {
   if (entries.length === 0) return 0;
-  return Math.max(...entries.map(e => Math.abs(e.driftPct)));
+  return Math.max(...entries.map((e) => Math.abs(e.driftPct)));
 }

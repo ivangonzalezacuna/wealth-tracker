@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { annualizeContrib, totalAnnualContrib, INTERVAL_PER_YEAR, INTERVAL_LABELS } from './contributions';
+import {
+  annualizeContrib,
+  totalAnnualContrib,
+  INTERVAL_PER_YEAR,
+  INTERVAL_LABELS,
+} from './contributions';
 import type { Holding, ContribInterval } from '../types';
 
 function makeHolding(overrides: Partial<Holding> = {}): Holding {
@@ -64,15 +69,15 @@ describe('annualizeContrib', () => {
 describe('totalAnnualContrib', () => {
   it('sums annualized contributions from active holdings', () => {
     const holdings: Holding[] = [
-      makeHolding({ contribAmount: 50, interval: 'weekly' }),    // 50×52 = 2600
-      makeHolding({ contribAmount: 100, interval: 'monthly' }),  // 100×12 = 1200
+      makeHolding({ contribAmount: 50, interval: 'weekly' }), // 50×52 = 2600
+      makeHolding({ contribAmount: 100, interval: 'monthly' }), // 100×12 = 1200
     ];
     expect(totalAnnualContrib(holdings)).toBe(3800);
   });
 
   it('ignores inactive holdings', () => {
     const holdings: Holding[] = [
-      makeHolding({ contribAmount: 50, interval: 'weekly', active: true }),   // 2600
+      makeHolding({ contribAmount: 50, interval: 'weekly', active: true }), // 2600
       makeHolding({ contribAmount: 100, interval: 'weekly', active: false }), // excluded
     ];
     expect(totalAnnualContrib(holdings)).toBe(2600);
@@ -81,7 +86,7 @@ describe('totalAnnualContrib', () => {
   it('ignores holdings with zero contribAmount', () => {
     const holdings: Holding[] = [
       makeHolding({ contribAmount: 0, interval: 'weekly', active: true }),
-      makeHolding({ contribAmount: 50, interval: 'biweekly' }),  // 50×26 = 1300
+      makeHolding({ contribAmount: 50, interval: 'biweekly' }), // 50×26 = 1300
     ];
     expect(totalAnnualContrib(holdings)).toBe(1300);
   });
@@ -92,10 +97,10 @@ describe('totalAnnualContrib', () => {
 
   it('handles mixed intervals correctly', () => {
     const holdings: Holding[] = [
-      makeHolding({ contribAmount: 50, interval: 'weekly' }),       // 2600
-      makeHolding({ contribAmount: 100, interval: 'biweekly' }),    // 2600
-      makeHolding({ contribAmount: 200, interval: 'monthly' }),     // 2400
-      makeHolding({ contribAmount: 600, interval: 'quarterly' }),   // 2400
+      makeHolding({ contribAmount: 50, interval: 'weekly' }), // 2600
+      makeHolding({ contribAmount: 100, interval: 'biweekly' }), // 2600
+      makeHolding({ contribAmount: 200, interval: 'monthly' }), // 2400
+      makeHolding({ contribAmount: 600, interval: 'quarterly' }), // 2400
     ];
     expect(totalAnnualContrib(holdings)).toBe(10000);
   });

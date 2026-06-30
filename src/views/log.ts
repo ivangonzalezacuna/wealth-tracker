@@ -45,15 +45,20 @@ export function renderLog(state: LogState): void {
 function populateYearFilter(snaps: Snapshot[]): void {
   const select = document.getElementById('snap-year-filter');
   if (!select) return;
-  const years = [...new Set(snaps.map(s => s.date.slice(0, 4)))].sort().reverse();
+  const years = [...new Set(snaps.map((s) => s.date.slice(0, 4)))].sort().reverse();
   const current = select.value;
-  select.innerHTML = '<option value="">All years</option>' +
-    years.map(y => `<option value="${y}" ${y === current ? 'selected' : ''}>${y}</option>`).join('');
+  select.innerHTML =
+    '<option value="">All years</option>' +
+    years
+      .map((y) => `<option value="${y}" ${y === current ? 'selected' : ''}>${y}</option>`)
+      .join('');
 }
 
 function attachFilterListeners(snaps: Snapshot[]): void {
-  const yearEl = document.getElementById('snap-year-filter') as HTMLSelectElement & { _bound?: boolean } | null;
-  const searchEl = document.getElementById('snap-search') as HTMLInputElement & { _bound?: boolean } | null;
+  const yearEl = document.getElementById('snap-year-filter') as
+    (HTMLSelectElement & { _bound?: boolean }) | null;
+  const searchEl = document.getElementById('snap-search') as
+    (HTMLInputElement & { _bound?: boolean }) | null;
 
   if (yearEl && !yearEl._bound) {
     yearEl._bound = true;
@@ -73,11 +78,16 @@ function attachFilterListeners(snaps: Snapshot[]): void {
   }
 }
 
-export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void, onDel: (date: string) => void): void {
+export function renderSnapList(
+  snaps: Snapshot[],
+  onEdit: (date: string) => void,
+  onDel: (date: string) => void,
+): void {
   const ACCTS = getACCTSList();
   const el = document.getElementById('snaps-list');
   if (!snaps.length) {
-    el.innerHTML = '<div class="empty-state" style="padding:1.5rem;font-size:13px">No snapshots yet — add your first one above.</div>';
+    el.innerHTML =
+      '<div class="empty-state" style="padding:1.5rem;font-size:13px">No snapshots yet — add your first one above.</div>';
     hidePagination();
     return;
   }
@@ -85,12 +95,13 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
   // Apply filters
   let filtered = [...snaps].reverse();
   if (_snapYear) {
-    filtered = filtered.filter(s => s.date.startsWith(_snapYear));
+    filtered = filtered.filter((s) => s.date.startsWith(_snapYear));
   }
   if (_snapSearch) {
-    filtered = filtered.filter(s =>
-      (s.notes || '').toLowerCase().includes(_snapSearch) ||
-      fmtMon(s.date).toLowerCase().includes(_snapSearch)
+    filtered = filtered.filter(
+      (s) =>
+        (s.notes || '').toLowerCase().includes(_snapSearch) ||
+        fmtMon(s.date).toLowerCase().includes(_snapSearch),
     );
   }
 
@@ -127,13 +138,17 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
       <div role="columnheader" style="text-align:right">Net worth</div>
       <div role="columnheader"></div>
     </div>
-    ${pageItems.map(s => {
-      const total = snapTotal(s);
-      const segments = shown
-        .filter(a => (s[a.key] || 0) > 0)
-        .map(a => `<span class="snap-seg" style="background:${safeColor(a.color)}" title="${esc(a.label)}"></span>`)
-        .join('');
-      return `<div class="snap-row-compact" role="row" data-date="${s.date}">
+    ${pageItems
+      .map((s) => {
+        const total = snapTotal(s);
+        const segments = shown
+          .filter((a) => (s[a.key] || 0) > 0)
+          .map(
+            (a) =>
+              `<span class="snap-seg" style="background:${safeColor(a.color)}" title="${esc(a.label)}"></span>`,
+          )
+          .join('');
+        return `<div class="snap-row-compact" role="row" data-date="${s.date}">
         <div role="cell" class="snap-month-cell">
           <span class="snap-month">${fmtMon(s.date)}</span>
           ${s.notes ? '<span class="snap-note-dot" title="Has a note"></span>' : ''}
@@ -141,11 +156,13 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
         <div role="cell" style="text-align:right;font-weight:500;font-size:14px">${fmtEur2(total)}</div>
         <div role="cell" class="snap-segbar">${segments}</div>
       </div>`;
-    }).join('')}
+      })
+      .join('')}
   `;
 
   // Row tap-to-expand detail panel (delegated on #snaps-list)
-  const listEl = document.getElementById('snaps-list') as HTMLElement & { _rowDetail_bound?: boolean } | null;
+  const listEl = document.getElementById('snaps-list') as
+    (HTMLElement & { _rowDetail_bound?: boolean }) | null;
   if (listEl && !listEl._rowDetail_bound) {
     listEl._rowDetail_bound = true;
     listEl.addEventListener('click', (e) => {
@@ -163,7 +180,7 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
         if (wasThis) return;
       }
       const date = row.dataset.date;
-      const snap = snaps.find(s => s.date === date);
+      const snap = snaps.find((s) => s.date === date);
       if (!snap) return;
       if (date) toggleCollapsed('snap:' + date); // mark expanded
       _expandSnapRow(row, snap, date!, listEl, onEdit, onDel);
@@ -172,10 +189,10 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
 
   // Restore previously expanded snap row (if still on this page)
   if (listEl) {
-    listEl.querySelectorAll('.snap-row-compact:not(.th)').forEach(row => {
+    listEl.querySelectorAll('.snap-row-compact:not(.th)').forEach((row) => {
       const date = (row as HTMLElement).dataset.date;
       if (date && isCollapsed('snap:' + date)) {
-        const snap = snaps.find(s => s.date === date);
+        const snap = snaps.find((s) => s.date === date);
         if (snap) _expandSnapRow(row as HTMLElement, snap, date, listEl, onEdit, onDel);
       }
     });
@@ -189,11 +206,22 @@ export function renderSnapList(snaps: Snapshot[], onEdit: (date: string) => void
 }
 
 /** Expand a snapshot row into its detail panel. */
-function _expandSnapRow(row: HTMLElement, snap: any, date: string, listEl: HTMLElement, onEdit: (d: string) => void, onDel: (d: string) => void): void {
+function _expandSnapRow(
+  row: HTMLElement,
+  snap: any,
+  date: string,
+  listEl: HTMLElement,
+  onEdit: (d: string) => void,
+  onDel: (d: string) => void,
+): void {
   const accts = getACCTSList();
-  const detailRows = accts.filter(a => (snap[a.key] || 0) > 0).map(a =>
-    `<div><span class="hold-detail-label">${esc(a.label)}</span><span class="hold-detail-value">${fmtEur2(snap[a.key] as number)}</span></div>`
-  ).join('');
+  const detailRows = accts
+    .filter((a) => (snap[a.key] || 0) > 0)
+    .map(
+      (a) =>
+        `<div><span class="hold-detail-label">${esc(a.label)}</span><span class="hold-detail-value">${fmtEur2(snap[a.key] as number)}</span></div>`,
+    )
+    .join('');
   const panel = document.createElement('div');
   panel.className = 'hold-detail snap-detail';
   panel.innerHTML = `
@@ -214,7 +242,12 @@ function _expandSnapRow(row: HTMLElement, snap: any, date: string, listEl: HTMLE
   });
 }
 
-function renderPagination(containerId: string, page: number, totalPages: number, onPageChange: (page: number) => void): void {
+function renderPagination(
+  containerId: string,
+  page: number,
+  totalPages: number,
+  onPageChange: (page: number) => void,
+): void {
   const el = document.getElementById(containerId);
   if (!el) return;
   if (totalPages <= 1) {

@@ -4,9 +4,7 @@ import type { Account, Snapshot } from '../types';
 
 describe('validatePrimaryInvestment', () => {
   it('returns null when no account is primary', () => {
-    const accounts: Account[] = [
-      { label: 'Cash', moneyType: 'cash', isPrimaryInvestment: false },
-    ];
+    const accounts: Account[] = [{ label: 'Cash', moneyType: 'cash', isPrimaryInvestment: false }];
     expect(validatePrimaryInvestment(accounts)).toBeNull();
   });
 
