@@ -34,6 +34,7 @@ import {
 import { fetchDeltaTransactions, mergeDelta } from './cache/sync';
 import { shouldAutoResync } from './sync/policy';
 import { loadCollapseState } from './ui/collapseState';
+import { restoreCollapseFromSheet, backupCollapseToSheet } from './ui/collapseSync';
 
 // ── App state ────────────────────────────────────────────
 const state = {
@@ -305,6 +306,7 @@ async function syncInBackground() {
   try {
     // Load config first (snapshots & other reads depend on it)
     await loadConfig();
+    restoreCollapseFromSheet(); // restore UI prefs if IDB was empty (new device)
     const [snaps, meta] = await Promise.all([
       loadSnapshots(),
       loadImportMeta(),
@@ -364,6 +366,7 @@ async function syncInBackground() {
     ]);
 
     setSyncStatus('ok');
+    backupCollapseToSheet(); // opportunistic backup (fire-and-forget)
   } catch (err) {
     setSyncStatus('error', err.message);
     // If we had cached data, keep showing it
@@ -420,6 +423,7 @@ async function loadAllData() {
   setSyncing(true);
   try {
     await loadConfig();
+    restoreCollapseFromSheet(); // restore UI prefs if IDB was empty
     const [snaps, txs, meta] = await Promise.all([
       loadSnapshots(),
       loadTransactions(),
@@ -459,6 +463,7 @@ async function loadAllData() {
       renderAll();
     });
     setSyncStatus('ok');
+    backupCollapseToSheet(); // opportunistic backup (fire-and-forget)
   } catch (err) {
     setSyncStatus('error', err.message);
   } finally {
