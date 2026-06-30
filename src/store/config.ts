@@ -13,7 +13,10 @@ import { readRange, writeRange, appendRows, ensureSheets } from '../sheets/api';
 import { CONFIG } from '../config';
 import type { StaticAccount, StaticHolding, TargetSlice } from '../config';
 import type { Account, Holding, Settings, ContribInterval } from '../types';
-import { totalAnnualContrib } from '../model/contributions';
+import { totalAnnualContrib, INTERVAL_PER_YEAR } from '../model/contributions';
+
+// Valid contribution intervals, derived from the canonical INTERVAL_PER_YEAR map
+const VALID_INTERVALS = new Set(Object.keys(INTERVAL_PER_YEAR));
 
 // Type for reinvestment rules from static config
 interface ReinvestmentRule {
@@ -146,7 +149,7 @@ export async function loadConfig(): Promise<void> {
   await ensureSheets(Object.values(TABS));
 
   const [accRows, holdRows, setRows] = await Promise.all([
-    readRange(`${TABS.ACCOUNTS}!A:G`),
+    readRange(`${TABS.ACCOUNTS}!A:J`),
     readRange(`${TABS.HOLDINGS}!A:L`),
     readRange(`${TABS.SETTINGS}!A:B`),
   ]);
@@ -163,6 +166,17 @@ export async function loadConfig(): Promise<void> {
     await seedFromConfig(needSeedAccounts, needSeedHoldings);
   }
 
+  // Phase 40 migration: seed the primary investment account's per-account
+  // rate from the legacy global Setting, once, if not already set.
+  const legacyRate = parseFloat(_settings.annualReturnPct || '');
+  if (!isNaN(legacyRate) && legacyRate > 0) {
+    const primary = _accounts.filter((a) => a.isPrimaryInvestment && !a.annualReturnPct);
+    if (primary.length > 0) {
+      primary.forEach((a) => (a.annualReturnPct = legacyRate));
+      await setAccounts(_accounts);
+    }
+  }
+
   _loaded = true;
 }
 
@@ -171,7 +185,10 @@ export async function loadConfig(): Promise<void> {
 export async function setAccounts(accounts: Account[]): Promise<void> {
   _accounts = accounts;
   await ensureSheets([TABS.ACCOUNTS]);
-  const hdr = ['id', 'moneyType', 'institution', 'label', 'color', 'isPrimaryInvestment', 'order'];
+  const hdr = [
+    'id', 'moneyType', 'institution', 'label', 'color', 'isPrimaryInvestment', 'order',
+    'annualReturnPct', 'contribAmount', 'contribInterval',
+  ];
   const rows = accounts.map((a) => [
     a.id || a.key || '',
     a.moneyType || '',
@@ -180,6 +197,9 @@ export async function setAccounts(accounts: Account[]): Promise<void> {
     a.color || '',
     a.isPrimaryInvestment ? 'true' : 'false',
     a.order ?? '',
+    a.annualReturnPct ?? 0,
+    a.contribAmount ?? 0,
+    a.contribInterval || 'monthly',
   ]);
   await writeRange(`${TABS.ACCOUNTS}!A1`, [hdr, ...rows]);
   await logChange('Accounts', `updated ${accounts.length} accounts`);
@@ -271,7 +291,7 @@ const toBool = (v: unknown) =>
 /** Normalize a value that may arrive as number or string to a number. */
 const toNum = (v: unknown) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || 0);
 
-function parseAccounts(rows: (string | number | boolean)[][]): Account[] {
+export function parseAccounts(rows: (string | number | boolean)[][]): Account[] {
   if (!rows.length) return [];
   const hdr = rows[0].map((c) => (c || '').toString().trim().toLowerCase());
   return rows
@@ -285,6 +305,13 @@ function parseAccounts(rows: (string | number | boolean)[][]): Account[] {
       color: String(r[hdr.indexOf('color')] ?? ''),
       isPrimaryInvestment: toBool(r[hdr.indexOf('isprimaryinvestment')]),
       order: toNum(r[hdr.indexOf('order')]),
+      annualReturnPct: toNum(r[hdr.indexOf('annualreturnpct')]),
+      contribAmount: toNum(r[hdr.indexOf('contribamount')]),
+      contribInterval: (VALID_INTERVALS.has(
+        String(r[hdr.indexOf('contribinterval')] ?? '').trim().toLowerCase(),
+      )
+        ? String(r[hdr.indexOf('contribinterval')]).trim().toLowerCase()
+        : 'monthly') as ContribInterval,
     }))
     .sort((a, b) => (a.order || 0) - (b.order || 0));
 }
