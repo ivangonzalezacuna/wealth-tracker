@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { monthlyGrowthSplit, cagr, findYoYSnapshot } from './insights';
+import { monthlyGrowthSplit, cagr, findYoYSnapshot, monthlyGrowthHistory } from './insights';
 import type { Snapshot } from '../types';
 
 describe('monthlyGrowthSplit', () => {
@@ -103,5 +103,52 @@ describe('findYoYSnapshot', () => {
     expect(result).not.toBeNull();
     // 12 months before 2026-01 = 2025-01
     expect(result!.snap.date).toBe('2025-01');
+  });
+});
+
+describe('monthlyGrowthHistory', () => {
+  const accounts = [{ id: 'tr', label: 'TR', moneyType: 'investment', isPrimaryInvestment: true }];
+  const primaryValueFn = (snap: any) => snap.tr ?? null;
+
+  it('produces one point per consecutive snapshot pair', () => {
+    const snaps = [
+      { date: '2026-01', tr: 10000 },
+      { date: '2026-02', tr: 10500 },
+      { date: '2026-03', tr: 11200 },
+    ];
+    const monthly = { '2026-02': 400, '2026-03': 500 };
+    const points = monthlyGrowthHistory(snaps, accounts, monthly, primaryValueFn);
+    expect(points).toHaveLength(2);
+    expect(points[0]).toEqual({ month: '2026-02', contributed: 400, market: 100, total: 500 });
+    expect(points[1]).toEqual({ month: '2026-03', contributed: 500, market: 200, total: 700 });
+  });
+
+  it('skips pairs where either snapshot has no resolvable primary value', () => {
+    const fn = (snap: any) => (snap.date === '2026-01' ? null : (snap.tr ?? null));
+    const snaps = [
+      { date: '2026-01', tr: 10000 },
+      { date: '2026-02', tr: 10500 },
+    ];
+    const points = monthlyGrowthHistory(snaps, accounts, {}, fn);
+    expect(points).toHaveLength(0);
+  });
+
+  it('returns empty array for a single snapshot', () => {
+    const points = monthlyGrowthHistory(
+      [{ date: '2026-01', tr: 10000 }],
+      accounts,
+      {},
+      primaryValueFn,
+    );
+    expect(points).toHaveLength(0);
+  });
+
+  it('handles a negative (down) month correctly', () => {
+    const snaps = [
+      { date: '2026-01', tr: 10000 },
+      { date: '2026-02', tr: 9800 },
+    ];
+    const points = monthlyGrowthHistory(snaps, accounts, { '2026-02': 400 }, primaryValueFn);
+    expect(points[0]).toEqual({ month: '2026-02', contributed: 400, market: -600, total: -200 });
   });
 });

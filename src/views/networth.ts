@@ -9,7 +9,8 @@ import {
   getTargetDate,
 } from '../store/config';
 import { primaryInvestmentValue } from '../model/accounts';
-import { monthlyGrowthSplit, cagr, findYoYSnapshot } from '../model/insights';
+import { cagr, findYoYSnapshot, monthlyGrowthHistory } from '../model/insights';
+import type { MonthlyGrowthPoint } from '../model/insights';
 import { forecastMonthsToTarget, formatMonthsEta, forecastSeries } from '../model/forecast';
 import type { Snapshot, PortfolioData } from '../types';
 import Chart from 'chart.js/auto';
@@ -49,22 +50,10 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const cagrVal = cagr(firstTotal, total, monthsSpan);
 
   // ── Growth split (contributions vs market) ──
-  let growthSplitHtml = '';
   const accounts = getAccounts();
-  const primaryNow = primaryInvestmentValue(s, accounts);
-  const primaryPrev = prev ? primaryInvestmentValue(prev, accounts) : null;
-  if (primaryNow !== null && primaryPrev !== null && pd) {
-    const latestMonth = s.date;
-    const contribThisMonth = _buyContribForMonth(pd, latestMonth);
-    const split = monthlyGrowthSplit(primaryNow, primaryPrev, contribThisMonth);
-    growthSplitHtml = `
-      <div class="card">
-        <div class="card-title">This month's change</div>
-        <div class="row"><div class="row-label">Total change</div><div class="row-val ${primaryNow - primaryPrev >= 0 ? 'pos' : 'neg'}">${primaryNow - primaryPrev >= 0 ? '+' : ''}${fmtEur2(primaryNow - primaryPrev)}</div></div>
-        <div class="row"><div class="row-label">Contributed</div><div class="row-val">${fmtEur2(split.contributed)}</div></div>
-        <div class="row"><div class="row-label">Market movement</div><div class="row-val ${split.market >= 0 ? 'pos' : 'neg'}">${split.market >= 0 ? '+' : ''}${fmtEur2(split.market)}</div></div>
-      </div>`;
-  }
+  const growthPoints = pd
+    ? monthlyGrowthHistory(snaps, accounts, pd.monthly, primaryInvestmentValue)
+    : [];
 
   document.getElementById('nw-kpis').innerHTML = `
     <div class="kpi kpi-lead">
@@ -182,7 +171,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   }
 
   // Bind range toggle once
-  _attachNWRangeToggle(snaps, chartA);
+  _attachNWRangeToggle(snaps, chartA, growthPoints);
 
   const bkA = ACCTS.filter((a) => (s[a.key] || 0) > 0);
 
@@ -203,9 +192,8 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   if (s.notes) det += `<p class="note" style="margin-top:.5rem">${esc(s.notes)}</p>`;
   document.getElementById('nw-detail').innerHTML = det;
 
-  // Growth split card
-  const growthEl = document.getElementById('nw-growth-split');
-  if (growthEl) growthEl.innerHTML = growthSplitHtml;
+  // Growth breakdown chart
+  _renderGrowthChart(growthPoints);
 
   // ── Goal progress card ──
   const goalEl = document.getElementById('nw-goal');
@@ -388,11 +376,91 @@ function _bindLegendToggle(chart: Chart): void {
   bindLegendToggle(legendEl, chart, { skipIndex: [0] });
 }
 
+// ── Growth breakdown chart (contributed vs market, all months) ──
+
+function _renderGrowthChart(points: MonthlyGrowthPoint[]): void {
+  const C = resolvedT();
+  const el = document.getElementById('c-nw-growth');
+  if (!el) return;
+  _destroyChart('c-nw-growth');
+
+  if (points.length === 0) {
+    // No resolvable history yet (e.g. no primary-investment account set, or <2 snapshots).
+    // Hide the parent card rather than render an empty chart.
+    const card = el.closest('.card') as HTMLElement | null;
+    if (card) card.style.display = 'none';
+    return;
+  }
+  const card = el.closest('.card') as HTMLElement | null;
+  if (card) card.style.display = '';
+
+  CH['c-nw-growth'] = new Chart(el as HTMLCanvasElement, {
+    type: 'bar',
+    data: {
+      labels: points.map((p) => fmtMon(p.month)),
+      datasets: [
+        {
+          label: 'Contributed',
+          data: points.map((p) => p.contributed),
+          backgroundColor: C.brand,
+          stack: 'growth',
+        },
+        {
+          label: 'Market movement',
+          data: points.map((p) => p.market),
+          backgroundColor: points.map((p) => (p.market >= 0 ? C.pos : C.neg)),
+          stack: 'growth',
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+          backgroundColor: C.surface,
+          borderColor: C.line,
+          borderWidth: 1,
+          titleColor: C.ink,
+          bodyColor: C.ink2,
+          padding: 10,
+          cornerRadius: 8,
+          callbacks: {
+            label: (ctx) => ` ${ctx.dataset.label}: ${fmtEur2(ctx.raw as number)}`,
+            footer: (items) =>
+              ` Total: ${fmtEur2(items.reduce((s, i) => s + (i.raw as number), 0))}`,
+          },
+          footerFont: { weight: 'bold' },
+        },
+      },
+      scales: {
+        y: {
+          stacked: true,
+          grid: { color: C.line, drawBorder: false },
+          ticks: {
+            color: C.ink4,
+            callback: (v) => '\u20AC' + (v as number).toFixed(0),
+          },
+        },
+        x: {
+          stacked: true,
+          grid: { display: false },
+          ticks: { color: C.ink2, font: { size: 10 }, maxRotation: 0, autoSkip: true },
+        },
+      },
+    },
+  });
+}
+
 // ── Range toggle binding ──
 
 function _attachNWRangeToggle(
   snaps: Snapshot[],
   chartA: Array<{ key: string; label: string; color: string }>,
+  growthPoints: MonthlyGrowthPoint[],
 ): void {
   const toggle = document.getElementById('nw-range-toggle') as
     (HTMLElement & { _bound?: boolean }) | null;
@@ -408,6 +476,8 @@ function _attachNWRangeToggle(
     btn.classList.add('active');
     const view = _nwRange === 'all' ? snaps : snaps.slice(-parseInt(_nwRange));
     _renderNWHistChart(view, chartA);
+    const growthView = _nwRange === 'all' ? growthPoints : growthPoints.slice(-parseInt(_nwRange));
+    _renderGrowthChart(growthView);
   });
 }
 
@@ -578,9 +648,4 @@ function _monthsDiff(a: string, b: string): number {
   const [ay, am] = a.split('-').map(Number);
   const [by, bm] = b.split('-').map(Number);
   return (by - ay) * 12 + (bm - am);
-}
-
-/** Sum of BUY amounts for a given month from PortfolioData. */
-function _buyContribForMonth(pd: PortfolioData, month: string): number {
-  return pd.monthly[month] || 0;
 }
