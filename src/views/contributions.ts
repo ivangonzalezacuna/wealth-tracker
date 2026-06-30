@@ -6,6 +6,7 @@ import { primaryInvestmentValue } from '../model/accounts';
 import type { PortfolioData, Snapshot } from '../types';
 import Chart from 'chart.js/auto';
 import { T, resolvedT } from '../theme';
+import { bindLegendToggle } from './chartLegend';
 
 const CH: Record<string, Chart> = {};
 const DCA_PAGE_SIZE = 12;
@@ -45,12 +46,7 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   renderDCAChart(pd, ordSyms, ISIN, META);
   attachRangeToggle(pd, ordSyms, ISIN, META);
 
-  document.getElementById('dca-legend').innerHTML = ordSyms.map(sym => {
-    const t = ISIN[sym] || sym;
-    const m = META[t]   || {};
-    return `<span class="leg-item" data-sym="${esc(sym)}" style="cursor:pointer"><span class="leg-sq" style="background:${safeColor(m.color) || 'var(--ink-4)'}"></span>${esc(t)}</span>`;
-  }).join('');
-  _bindDCALegendToggle(ordSyms);
+  _rebuildDCALegend(ordSyms, ISIN, META);
 
   // DCA table with filtering + pagination
   populateDCAYearFilter(pd.months);
@@ -145,22 +141,22 @@ function renderDCAChart(pd: PortfolioData, ordSyms: string[], ISIN: Record<strin
   });
 }
 
+function _rebuildDCALegend(ordSyms: string[], ISIN: Record<string, string>, META: Record<string, { color: string }>): void {
+  const legendEl = document.getElementById('dca-legend');
+  if (!legendEl) return;
+  legendEl.innerHTML = ordSyms.map(sym => {
+    const t = ISIN[sym] || sym;
+    const m = META[t]   || {};
+    return `<span class="leg-item" data-sym="${esc(sym)}" style="cursor:pointer"><span class="leg-sq" style="background:${safeColor(m.color) || 'var(--ink-4)'}"></span>${esc(t)}</span>`;
+  }).join('');
+  _bindDCALegendToggle(ordSyms);
+}
+
 function _bindDCALegendToggle(ordSyms: string[]): void {
-  const legend = document.getElementById('dca-legend') as HTMLElement & { _bound?: boolean } | null;
-  if (!legend || legend._bound) return;
-  legend._bound = true;
-  legend.addEventListener('click', (e) => {
-    const item = (e.target as HTMLElement).closest('.leg-item') as HTMLElement | null;
-    if (!item) return;
-    const sym = item.dataset.sym;
-    const idx = ordSyms.indexOf(sym || '');
-    const chart = CH['c-dca-bar'];
-    if (!chart || idx < 0) return;
-    const meta = chart.getDatasetMeta(idx);
-    meta.hidden = meta.hidden === null ? !chart.data.datasets[idx].hidden : !meta.hidden;
-    item.style.opacity = meta.hidden ? '0.4' : '1';
-    chart.update();
-  });
+  const legend = document.getElementById('dca-legend');
+  const chart = CH['c-dca-bar'];
+  if (!legend || !chart) return;
+  bindLegendToggle(legend, chart, { skipIndex: [] }); // no Total dataset in the DCA stack
 }
 
 function attachRangeToggle(pd: PortfolioData, ordSyms: string[], ISIN: Record<string, string>, META: Record<string, { color: string }>): void {
@@ -170,12 +166,22 @@ function attachRangeToggle(pd: PortfolioData, ordSyms: string[], ISIN: Record<st
   toggle.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
     if (!btn) return;
-    _dcaRange = btn.dataset.range || 'all';
+    const newRange = btn.dataset.range || 'all';
+    if (newRange === _dcaRange) return; // already on this range — no-op
+    _dcaRange = newRange;
     _dcaPage = 1;
     toggle.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    renderDCAChart(_lastPd || pd, ordSyms, ISIN, META);
-    renderDCATable(_lastPd || pd);
+    // Recompute ordSyms/ISIN/META from current data to avoid stale closures
+    const currentPd = _lastPd || pd;
+    const freshISIN = getISIN();
+    const freshMETA = getMETAMap();
+    const freshISIN_ORDER = getISIN_ORDERList();
+    const allSyms = [...new Set(currentPd.months.flatMap(m => Object.keys(currentPd.monthlyBy[m] || {})))];
+    const freshOrdSyms = freshISIN_ORDER.filter(s => allSyms.includes(s)).concat(allSyms.filter(s => !freshISIN_ORDER.includes(s)));
+    renderDCAChart(currentPd, freshOrdSyms, freshISIN, freshMETA);
+    _rebuildDCALegend(freshOrdSyms, freshISIN, freshMETA);
+    renderDCATable(currentPd);
   });
 }
 
