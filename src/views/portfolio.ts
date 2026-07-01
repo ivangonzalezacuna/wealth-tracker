@@ -9,6 +9,8 @@ import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 import Chart from 'chart.js/auto';
 import { T, resolvedT } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
+import type { SortState } from './tableSort';
+import { applySort, sortableHeader, bindSortableHeader } from './tableSort';
 
 const CH: Record<string, Chart> = {};
 
@@ -17,6 +19,7 @@ let _showExited = false;
 let _holdingsFilter = 'held'; // 'held' | 'closed' | 'all'
 const HOLD_PAGE_SIZE = 10;
 let _holdPage = 1;
+let _holdSort: SortState = { key: null, dir: null };
 
 /**
  * Render only the holdings table (filter-dependent portion).
@@ -45,10 +48,21 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     displayList = held;
   }
 
+  // Apply sort (before pagination)
+  const sorted = applySort(displayList, _holdSort, {
+    ticker: (e) => e.ticker || '',
+    cost: (e) => e.cost || 0,
+    shares: (e) => e.shares || 0,
+    avgPrice: (e) => (e.shares > 0 ? e.cost / e.shares : 0),
+    pctOfCost: (e) => (pd.totalInv > 0 ? e.cost / pd.totalInv : 0),
+    realizedPnL: (e) => e.realizedPnL || 0,
+    divNet: (e) => e.divNet || 0,
+  });
+
   // Pagination
-  const totalPages = Math.ceil(displayList.length / HOLD_PAGE_SIZE);
+  const totalPages = Math.ceil(sorted.length / HOLD_PAGE_SIZE);
   if (_holdPage > totalPages) _holdPage = Math.max(1, totalPages);
-  const pageItems = displayList.slice((_holdPage - 1) * HOLD_PAGE_SIZE, _holdPage * HOLD_PAGE_SIZE);
+  const pageItems = sorted.slice((_holdPage - 1) * HOLD_PAGE_SIZE, _holdPage * HOLD_PAGE_SIZE);
 
   // Filter controls
   const filterHtml = `
@@ -93,8 +107,14 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
 
   document.getElementById('port-table').innerHTML = `
     ${filterHtml}
-    <div class="tbl-row th hold-row" role="row">
-      <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right"><span class="th-label">Cost basis${infoTip('Total amount invested (net of sells). Calculated from your imported CSV transactions using the method chosen in Settings.')}</span></div><div role="columnheader" style="text-align:right">Shares</div><div role="columnheader" style="text-align:right">Avg price</div><div role="columnheader" style="text-align:right">% of cost</div><div role="columnheader" style="text-align:right"><span class="th-label">Realized P&amp;L${infoTip('Gain or loss already locked in from shares you have sold (proceeds minus their cost basis, fees included). Separate from unrealized gain on shares still held. Changes if you switch the cost-basis method in Settings.')}</span></div><div role="columnheader" style="text-align:right">Div (net)</div>
+    <div class="tbl-row th hold-row" role="row" id="port-table-header">
+      ${sortableHeader('ETF', 'ticker', _holdSort)}
+      <div role="columnheader" class="sortable-th${_holdSort.key === 'cost' ? ' sort-active' : ''}" data-sort-key="cost" aria-sort="${_holdSort.key === 'cost' ? (_holdSort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}" style="text-align:right"><span class="sort-arrow">${_holdSort.key === 'cost' ? (_holdSort.dir === 'asc' ? '\u25b2' : '\u25bc') : ''}</span><span class="th-label">Cost basis${infoTip('Total amount invested (net of sells). Calculated from your imported CSV transactions using the method chosen in Settings.')}</span></div>
+      ${sortableHeader('Shares', 'shares', _holdSort, 'right')}
+      ${sortableHeader('Avg price', 'avgPrice', _holdSort, 'right')}
+      ${sortableHeader('% of cost', 'pctOfCost', _holdSort, 'right')}
+      <div role="columnheader" class="sortable-th${_holdSort.key === 'realizedPnL' ? ' sort-active' : ''}" data-sort-key="realizedPnL" aria-sort="${_holdSort.key === 'realizedPnL' ? (_holdSort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}" style="text-align:right"><span class="sort-arrow">${_holdSort.key === 'realizedPnL' ? (_holdSort.dir === 'asc' ? '\u25b2' : '\u25bc') : ''}</span><span class="th-label">Realized P&amp;L${infoTip('Gain or loss already locked in from shares you have sold (proceeds minus their cost basis, fees included). Separate from unrealized gain on shares still held. Changes if you switch the cost-basis method in Settings.')}</span></div>
+      ${sortableHeader('Div (net)', 'divNet', _holdSort, 'right')}
     </div>${rows}
     <div class="tbl-row hold-total" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
       <div style="font-weight:500">Total</div>
@@ -109,6 +129,16 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   const portTable = document.getElementById('port-table');
   if (portTable) attachInfoTips(portTable);
 
+  // Bind sort handler on header row
+  const holdHeaderEl = document.getElementById('port-table-header');
+  if (holdHeaderEl) {
+    bindSortableHeader(holdHeaderEl, _holdSort, (newState) => {
+      _holdSort = newState;
+      _holdPage = 1;
+      renderHoldingsTable(pd, snaps);
+    });
+  }
+
   // Bind filter listeners once (Commit 2G: _bound guard prevents stacking)
   const filterToggle = document.getElementById('port-filter-toggle') as
     (HTMLElement & { _bound?: boolean }) | null;
@@ -119,6 +149,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
       if (!btn) return;
       _holdingsFilter = btn.dataset.filter || 'held';
       _holdPage = 1;
+      _holdSort = { key: null, dir: null };
       renderHoldingsTable(pd, snaps);
     });
   }

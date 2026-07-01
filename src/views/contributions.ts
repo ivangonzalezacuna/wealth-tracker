@@ -7,12 +7,15 @@ import type { PortfolioData, Snapshot, Account } from '../types';
 import Chart from 'chart.js/auto';
 import { T, resolvedT } from '../theme';
 import { bindLegendToggle } from './chartLegend';
+import type { SortState } from './tableSort';
+import { applySort, sortableHeader, bindSortableHeader } from './tableSort';
 
 const CH: Record<string, Chart> = {};
 const DCA_PAGE_SIZE = 12;
 let _dcaPage = 1;
 let _dcaYear = '';
 let _dcaRange = 'all'; // '12', '36', 'all'
+let _dcaTblSort: SortState = { key: null, dir: null };
 let _lastPd: PortfolioData | null = null;
 let _dcaFcRange: '60' | '120' | '240' = '60'; // 5y / 10y / 20y forecast horizon
 
@@ -476,14 +479,19 @@ function renderDCATable(pd: PortfolioData): void {
     months = months.filter((m) => m.startsWith(_dcaYear));
   }
 
+  // Apply sort (before pagination)
+  const sorted = applySort(months, _dcaTblSort, {
+    invested: (m) => pd.monthly[m] || 0,
+  });
+
   // Calculate filtered total
   const filteredTotal = months.reduce((sum, m) => sum + (pd.monthly[m] || 0), 0);
 
   // Pagination
-  const totalPages = Math.ceil(months.length / DCA_PAGE_SIZE);
+  const totalPages = Math.ceil(sorted.length / DCA_PAGE_SIZE);
   if (_dcaPage > totalPages) _dcaPage = Math.max(1, totalPages);
   const start = (_dcaPage - 1) * DCA_PAGE_SIZE;
-  const pageMonths = months.slice(start, start + DCA_PAGE_SIZE);
+  const pageMonths = sorted.slice(start, start + DCA_PAGE_SIZE);
 
   const tRows = pageMonths
     .map(
@@ -496,12 +504,22 @@ function renderDCATable(pd: PortfolioData): void {
     .join('');
 
   el.innerHTML = `
-    <div class="tbl-row th" role="row" style="grid-template-columns:1fr 1fr"><div role="columnheader">Month</div><div role="columnheader" style="text-align:right">Invested</div></div>
+    <div class="tbl-row th" role="row" style="grid-template-columns:1fr 1fr" id="dca-table-header"><div role="columnheader">Month</div>${sortableHeader('Invested', 'invested', _dcaTblSort, 'right')}</div>
     ${tRows}
     <div class="tbl-row" role="row" style="grid-template-columns:1fr 1fr;border-top:1px solid var(--line-2);margin-top:4px">
       <div style="font-weight:500">${_dcaYear ? 'Year total' : 'Total'}</div>
       <div style="font-weight:500;text-align:right">${fmtEur(filteredTotal)}</div>
     </div>`;
+
+  // Bind sort handler on header row
+  const dcaHeaderEl = document.getElementById('dca-table-header');
+  if (dcaHeaderEl) {
+    bindSortableHeader(dcaHeaderEl, _dcaTblSort, (newState) => {
+      _dcaTblSort = newState;
+      _dcaPage = 1;
+      renderDCATable(pd);
+    });
+  }
 
   // Pagination controls
   renderDCAPagination(totalPages, pd);

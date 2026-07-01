@@ -3,12 +3,16 @@ import { fmtEur2, fmtDay, esc, safeColor } from '../utils';
 import type { PortfolioData } from '../types';
 import { T } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
+import type { SortState } from './tableSort';
+import { applySort, sortableHeader, bindSortableHeader } from './tableSort';
 
 const DIV_PAGE_SIZE = 12;
 let _divPage = 1;
 let _intPage = 1;
 let _divYear = '';
 let _intYear = '';
+let _divTblSort: SortState = { key: null, dir: null };
+let _intTblSort: SortState = { key: null, dir: null };
 let _lastPd: PortfolioData | null = null;
 
 export function renderDividends(pd: PortfolioData | null): void {
@@ -52,9 +56,16 @@ function renderDivTable(pd: PortfolioData): void {
   const totalTax = list.reduce((s, d) => s + d.tax, 0);
   const totalNet = list.reduce((s, d) => s + d.net, 0);
 
-  const totalPages = Math.ceil(list.length / DIV_PAGE_SIZE);
+  // Apply sort (before pagination)
+  const sorted = applySort(list, _divTblSort, {
+    gross: (d) => d.gross,
+    tax: (d) => d.tax,
+    net: (d) => d.net,
+  });
+
+  const totalPages = Math.ceil(sorted.length / DIV_PAGE_SIZE);
   if (_divPage > totalPages) _divPage = Math.max(1, totalPages);
-  const pageItems = list.slice((_divPage - 1) * DIV_PAGE_SIZE, _divPage * DIV_PAGE_SIZE);
+  const pageItems = sorted.slice((_divPage - 1) * DIV_PAGE_SIZE, _divPage * DIV_PAGE_SIZE);
 
   const dRows = pageItems
     .map(
@@ -63,25 +74,35 @@ function renderDivTable(pd: PortfolioData): void {
       <span class="leg-sq" style="background:${safeColor(d.color)};display:inline-block;margin-top:2px"></span>
       <div role="cell"><div style="font-weight:500;font-size:12px">${esc(d.ticker)}</div>
            <div style="font-size:11px;color:var(--ink-3)">${fmtDay(d.date)}</div></div>
-      <div role="cell" style="color:var(--ink-2)">${fmtEur2(d.gross)}</div>
-      <div role="cell" style="color:var(--neg)" aria-label="Tax −${d.tax.toFixed(2)}">−${fmtEur2(d.tax)}</div>
-      <div role="cell" style="color:var(--pos);font-weight:500">${fmtEur2(d.net)}</div>
+      <div role="cell" style="text-align:right;color:var(--ink-2)">${fmtEur2(d.gross)}</div>
+      <div role="cell" style="text-align:right;color:var(--neg)" aria-label="Tax −${d.tax.toFixed(2)}">−${fmtEur2(d.tax)}</div>
+      <div role="cell" style="text-align:right;color:var(--pos);font-weight:500">${fmtEur2(d.net)}</div>
     </div>`,
     )
     .join('');
 
   document.getElementById('div-history').innerHTML = hasDiv
     ? `
-    <div class="tbl-row th" role="row" style="grid-template-columns:auto 1.5fr 1fr 1fr 1fr">
-      <div></div><div role="columnheader">ETF / Date</div><div role="columnheader">Gross</div><div role="columnheader">Tax</div><div role="columnheader">Net</div>
+    <div class="tbl-row th" role="row" style="grid-template-columns:auto 1.5fr 1fr 1fr 1fr" id="div-table-header">
+      <div></div><div role="columnheader">ETF / Date</div>${sortableHeader('Gross', 'gross', _divTblSort, 'right')}${sortableHeader('Tax', 'tax', _divTblSort, 'right')}${sortableHeader('Net', 'net', _divTblSort, 'right')}
     </div>${dRows}
     <div class="tbl-row" style="grid-template-columns:auto 1.5fr 1fr 1fr 1fr;border-top:1px solid var(--line-2);margin-top:4px">
       <div></div><div style="font-weight:500">${_divYear ? 'Year total' : 'Total'}</div>
-      <div style="font-weight:500">${fmtEur2(totalGross)}</div>
-      <div style="color:var(--neg)">−${fmtEur2(totalTax)}</div>
-      <div style="color:var(--pos);font-weight:500">${fmtEur2(totalNet)}</div>
+      <div style="text-align:right;font-weight:500">${fmtEur2(totalGross)}</div>
+      <div style="text-align:right;color:var(--neg)">−${fmtEur2(totalTax)}</div>
+      <div style="text-align:right;color:var(--pos);font-weight:500">${fmtEur2(totalNet)}</div>
     </div>`
     : '<p class="note">No dividends found in imported transactions yet.</p>';
+
+  // Bind sort handler on header row
+  const divHeaderEl = document.getElementById('div-table-header');
+  if (divHeaderEl) {
+    bindSortableHeader(divHeaderEl, _divTblSort, (newState) => {
+      _divTblSort = newState;
+      _divPage = 1;
+      renderDivTable(pd);
+    });
+  }
 
   renderDivPagination(totalPages, pd);
 }
@@ -115,13 +136,20 @@ function renderDivPagination(totalPages: number, pd: PortfolioData): void {
 function renderIntTable(pd: PortfolioData): void {
   const list = _intYear ? pd.intHist.filter((i) => i.date.startsWith(_intYear)) : pd.intHist;
   const totalInterest = list.reduce((s, i) => s + i.amount, 0);
-  const totalPages = Math.ceil(list.length / DIV_PAGE_SIZE);
+
+  // Apply sort (before pagination)
+  const sorted = applySort(list, _intTblSort, {
+    amount: (i) => i.amount,
+  });
+
+  const totalPages = Math.ceil(sorted.length / DIV_PAGE_SIZE);
   if (_intPage > totalPages) _intPage = Math.max(1, totalPages);
-  const pageItems = list.slice((_intPage - 1) * DIV_PAGE_SIZE, _intPage * DIV_PAGE_SIZE);
+  const pageItems = sorted.slice((_intPage - 1) * DIV_PAGE_SIZE, _intPage * DIV_PAGE_SIZE);
 
   document.getElementById('div-interest').innerHTML =
     list.length > 0
-      ? pageItems
+      ? `<div class="row" id="int-table-header" style="border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:2px"><div role="columnheader">Date</div>${sortableHeader('Amount', 'amount', _intTblSort, 'right')}</div>` +
+        pageItems
           .map(
             (i) =>
               `<div class="row"><div class="row-label">${fmtDay(i.date)}</div><div class="row-val ok">${fmtEur2(i.amount)}</div></div>`,
@@ -131,6 +159,16 @@ function renderIntTable(pd: PortfolioData): void {
         <div class="row-label" style="font-weight:500">${_intYear ? 'Year total' : 'Total interest'}</div>
         <div class="row-val ok" style="font-weight:500">${fmtEur2(totalInterest)}</div></div>`
       : '<p class="note">No interest payments found in imported transactions.</p>';
+
+  // Bind sort handler on header row
+  const intHeaderEl = document.getElementById('int-table-header');
+  if (intHeaderEl) {
+    bindSortableHeader(intHeaderEl, _intTblSort, (newState) => {
+      _intTblSort = newState;
+      _intPage = 1;
+      renderIntTable(pd);
+    });
+  }
 
   renderIntPagination(totalPages, pd);
 }

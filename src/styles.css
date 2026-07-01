@@ -341,6 +341,31 @@ code,
   letter-spacing: 0.04em;
 }
 
+/* Sortable table headers */
+.sortable-th {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  position: relative;
+}
+.sortable-th:hover {
+  color: var(--ink);
+}
+.sort-arrow {
+  display: inline-block;
+  width: 9px;
+  font-size: 9px;
+  text-align: center;
+  color: var(--brand);
+  vertical-align: baseline;
+}
+.sortable-th[style*='text-align:right'] .sort-arrow {
+  margin-left: -9px;
+}
+.sort-active {
+  color: var(--ink);
+}
+
 /* Holdings table - grid layout */
 #port-table .hold-row,
 #port-table .hold-total {
