@@ -1160,6 +1160,7 @@ function renderSection(id: string): void {
           importMeta: state.importMeta,
           onEditSnap: editSnap,
           onDelSnap: delSnap,
+          readOnly: isReadOnly(),
         });
         break;
     }

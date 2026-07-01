@@ -11,6 +11,7 @@ interface LogState {
   importMeta: Record<string, string> | null;
   onEditSnap: (date: string) => void;
   onDelSnap: (date: string) => void;
+  readOnly?: boolean;
 }
 
 const PAGE_SIZE = 12;
@@ -19,6 +20,7 @@ let _snapYear = '';
 let _snapSearch = '';
 let _lastOnEdit: ((date: string) => void) | null = null;
 let _lastOnDel: ((date: string) => void) | null = null;
+let _readOnly = false;
 
 export function renderLog(state: LogState): void {
   const { txs, snaps, importMeta } = state;
@@ -35,6 +37,7 @@ export function renderLog(state: LogState): void {
 
   _lastOnEdit = state.onEditSnap;
   _lastOnDel = state.onDelSnap;
+  _readOnly = !!state.readOnly;
 
   // Populate year filter options
   populateYearFilter(snaps);
@@ -227,10 +230,14 @@ function _expandSnapRow(
   panel.innerHTML = `
     ${detailRows}
     ${snap.notes ? `<div class="snap-detail-note"><span class="hold-detail-label">Note</span><span class="hold-detail-value">${esc(snap.notes)}</span></div>` : ''}
-    <div class="snap-detail-actions">
+    ${
+      _readOnly
+        ? ''
+        : `<div class="snap-detail-actions">
       <button class="btn btn-sm btn-outline js-edit-snap" data-date="${date}">Edit</button>
       <button class="btn btn-sm btn-danger js-del-snap" data-date="${date}">Delete</button>
-    </div>`;
+    </div>`
+    }`;
   row.insertAdjacentElement('afterend', panel);
   panel.querySelector('.js-edit-snap')?.addEventListener('click', (ev) => {
     ev.stopPropagation();
