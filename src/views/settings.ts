@@ -24,6 +24,16 @@ import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { confirmDialog } from '../ui/confirmDialog';
 import { isSignedIn } from '../auth/google';
 
+/** Build <option> HTML for an interval <select>, marking `selected` the matching value. */
+function intervalOptionsHtml(selected: ContribInterval): string {
+  return Object.entries(INTERVAL_LABELS)
+    .map(
+      ([val, label]) =>
+        `<option value="${val}" ${selected === val ? 'selected' : ''}>${label}</option>`,
+    )
+    .join('');
+}
+
 /** Card key -> render fn, used by repaintCard() to scope a re-render to one card. */
 type CardKey = 'accounts' | 'holdings' | 'cost-basis' | 'goal' | 'rules' | 'cache';
 
@@ -218,12 +228,7 @@ function renderAccountRow(a: Account, i: number): string {
         <div class="settings-field">
           <label class="settings-field-label">Contribution interval${infoTip('How often the recurring contribution above is added: weekly, every two weeks, monthly, or quarterly.')}</label>
           <select class="form-input form-input-sm" data-field="contribInterval">
-            ${Object.entries(INTERVAL_LABELS)
-              .map(
-                ([k, label]) =>
-                  `<option value="${k}" ${a.contribInterval === k ? 'selected' : ''}>${label}</option>`,
-              )
-              .join('')}
+            ${intervalOptionsHtml(a.contribInterval || 'monthly')}
           </select>
         </div>
         </div>
@@ -444,12 +449,7 @@ function renderHoldingRow(h: Holding, i: number): string {
     (r) =>
       `<option value="${r.value}" ${h.region === r.value ? 'selected' : ''}>${r.label}</option>`,
   ).join('');
-  const intervalOptions = Object.entries(INTERVAL_LABELS)
-    .map(
-      ([val, label]) =>
-        `<option value="${val}" ${h.interval === val ? 'selected' : ''}>${label}</option>`,
-    )
-    .join('');
+  const intervalOptions = intervalOptionsHtml(h.contribInterval || 'weekly');
 
   const statusBadge = h.active
     ? '<span class="badge b-active">Active</span>'
@@ -490,7 +490,7 @@ function renderHoldingRow(h: Holding, i: number): string {
         </div>
         <div class="settings-field">
           <label class="settings-field-label">Interval${infoTip('How often the contribution above is added: weekly, every two weeks, monthly, or quarterly.')}</label>
-          <select class="form-input form-input-sm" data-field="interval">${intervalOptions}</select>
+          <select class="form-input form-input-sm" data-field="contribInterval">${intervalOptions}</select>
         </div>
         <div class="settings-field">
           <label class="settings-field-label">Successor ISIN${infoTip('When an ETF merges into another, enter the new ISIN here. Transactions are consolidated under the successor.')}</label>
@@ -585,7 +585,7 @@ function attachHoldingListeners(root: HTMLElement): void {
       acc: true,
       active: true,
       contribAmount: 0,
-      interval: 'weekly' as ContribInterval,
+      contribInterval: 'weekly' as ContribInterval,
       assetClass: 'equity',
       region: 'developed',
       foldInto: '',
@@ -637,7 +637,7 @@ function attachHoldingListeners(root: HTMLElement): void {
           acc: parsed.acc,
           active: isActive,
           contribAmount: 0,
-          interval: 'weekly' as ContribInterval,
+          contribInterval: 'weekly' as ContribInterval,
           assetClass: parsed.assetClass,
           region: parsed.region,
           foldInto: '',
@@ -709,7 +709,7 @@ function collectHoldings(root: HTMLElement): Holding[] {
     acc: row.querySelector('[data-field="acc"]').checked,
     active: row.querySelector('[data-field="active"]').checked,
     contribAmount: parseFloat(row.querySelector('[data-field="contribAmount"]').value) || 0,
-    interval: (row.querySelector('[data-field="interval"]').value.trim() ||
+    contribInterval: (row.querySelector('[data-field="contribInterval"]').value.trim() ||
       'weekly') as ContribInterval,
     assetClass: row.querySelector('[data-field="assetClass"]').value.trim(),
     region: row.querySelector('[data-field="region"]').value.trim(),

@@ -11,7 +11,7 @@ function makeHolding(overrides: Partial<Holding> = {}): Holding {
     acc: true,
     active: true,
     contribAmount: 50,
-    interval: 'weekly',
+    contribInterval: 'weekly',
     assetClass: 'equity',
     region: 'developed',
     foldInto: '',
@@ -54,7 +54,7 @@ describe('computeDrift', () => {
   });
 
   it('computes drift for a single holding', () => {
-    const holdings = [makeHolding({ contribAmount: 50, interval: 'weekly' })];
+    const holdings = [makeHolding({ contribAmount: 50, contribInterval: 'weekly' })];
     const positions = { IE00B4L5Y983: makePosition({ cost: 10000 }) };
     const drift = computeDrift(holdings, positions, 10000);
     expect(drift).toHaveLength(1);
@@ -65,8 +65,8 @@ describe('computeDrift', () => {
 
   it('computes drift for multiple holdings', () => {
     const holdings = [
-      makeHolding({ isin: 'A', ticker: 'ETF_A', contribAmount: 50, interval: 'weekly' }), // 50*52 = 2600
-      makeHolding({ isin: 'B', ticker: 'ETF_B', contribAmount: 50, interval: 'weekly' }), // 50*52 = 2600
+      makeHolding({ isin: 'A', ticker: 'ETF_A', contribAmount: 50, contribInterval: 'weekly' }), // 50*52 = 2600
+      makeHolding({ isin: 'B', ticker: 'ETF_B', contribAmount: 50, contribInterval: 'weekly' }), // 50*52 = 2600
     ];
     // Target is 50/50, actual is 70/30
     const positions = {
@@ -91,7 +91,7 @@ describe('computeDrift', () => {
 
   it('handles missing positions (actual = 0)', () => {
     const holdings = [
-      makeHolding({ isin: 'A', ticker: 'ETF_A', contribAmount: 100, interval: 'monthly' }),
+      makeHolding({ isin: 'A', ticker: 'ETF_A', contribAmount: 100, contribInterval: 'monthly' }),
     ];
     const positions = {}; // no position data
     const drift = computeDrift(holdings, positions, 10000);

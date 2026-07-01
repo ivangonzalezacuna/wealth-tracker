@@ -136,7 +136,7 @@ describe('hydrateConfigFromCache (Phase 41)', () => {
         acc: true,
         active: true,
         contribAmount: 100,
-        interval: 'weekly' as const,
+        contribInterval: 'weekly' as const,
         assetClass: 'equity',
         region: 'developed',
         foldInto: '',
