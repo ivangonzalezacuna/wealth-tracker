@@ -58,7 +58,7 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
 
   // ── Contributions forecast (cumulative cash invested) ──
   const accounts = getAccounts();
-  _renderDCAForecast(pd, snaps, accounts);
+  _renderDCAForecast(pd, accounts);
 }
 
 // ── Forecast helpers ──────────────────────────────────────
@@ -69,7 +69,7 @@ const DCA_FC_LABELS: Record<string, string> = {
   '240': '20 years',
 };
 
-function _renderDCAForecast(pd: PortfolioData, snaps: Snapshot[], accounts: Account[]): void {
+function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
   const projCard = document.getElementById('dca-proj-card');
   if (!projCard) return;
 
@@ -92,49 +92,30 @@ function _renderDCAForecast(pd: PortfolioData, snaps: Snapshot[], accounts: Acco
     return;
   }
 
-  // Determine forecast start: the month of the last snapshot
-  const lastSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
-  const startMonth = lastSnap ? lastSnap.date : null;
-
-  // Historical: cumulative monthly contributions from CSV up to the start month
+  // Historical: cumulative monthly contributions from CSV
   const histMonths = pd.months; // already sorted chronologically
   const histCumulative: number[] = [];
   let cumSum = 0;
   for (const m of histMonths) {
     cumSum += pd.monthly[m] || 0;
     histCumulative.push(cumSum);
-    // Stop accumulating history at or past the snapshot month
-    if (startMonth && m >= startMonth) break;
   }
 
-  // Base cash is the cumulative sum of CSV contributions; 0 if no CSV data
+  // Base cash is the cumulative sum of all CSV contributions; 0 if no CSV data
   const baseCash = histMonths.length > 0 ? cumSum : 0;
 
-  // Determine the actual start month for projection (snapshot month, or last CSV month)
-  const fcStartMonth =
-    startMonth || (histMonths.length > 0 ? histMonths[histMonths.length - 1] : null);
-  if (!fcStartMonth) {
+  // Forecast starts from the last CSV month
+  const lastMonth = histMonths.length > 0 ? histMonths[histMonths.length - 1] : null;
+  if (!lastMonth) {
     projCard.innerHTML = '';
     return;
   }
 
-  // Trim historical arrays to only include up to the start month
-  // If startMonth is beyond CSV data, include all CSV months
-  const histEndIdx = startMonth
-    ? Math.min(
-        histMonths.findIndex((m) => m >= startMonth),
-        histMonths.length - 1,
-      )
-    : histMonths.length - 1;
-  const effectiveEndIdx = histEndIdx >= 0 ? histEndIdx : histMonths.length - 1;
-  const trimmedHistMonths = histMonths.slice(0, effectiveEndIdx + 1);
-  const trimmedHistCumulative = histCumulative.slice(0, effectiveEndIdx + 1);
-
-  // Forecast: project forward from the start month
+  // Forecast: project forward from the last CSV month
   const forecastMonths = parseInt(_dcaFcRange);
   const fcLabels: string[] = [];
   const fcValues: number[] = [];
-  let [year, mon] = fcStartMonth.split('-').map(Number);
+  let [year, mon] = lastMonth.split('-').map(Number);
   let runningTotal = baseCash;
   for (let i = 0; i < forecastMonths; i++) {
     mon++;
@@ -148,12 +129,12 @@ function _renderDCAForecast(pd: PortfolioData, snaps: Snapshot[], accounts: Acco
   }
 
   // Combined chart: history (actual) + forecast (projected)
-  const histLabels = trimmedHistMonths.map((m) => fmtMon(m));
+  const histLabels = histMonths.map((m) => fmtMon(m));
   const labels = [...histLabels, ...fcLabels];
-  const histDataFull = [...trimmedHistCumulative, ...new Array(fcValues.length).fill(null)];
+  const histDataFull = [...histCumulative, ...new Array(fcValues.length).fill(null)];
   const fcDataFull = [
-    ...new Array(trimmedHistCumulative.length - 1).fill(null),
-    trimmedHistCumulative[trimmedHistCumulative.length - 1] ?? 0,
+    ...new Array(histCumulative.length - 1).fill(null),
+    histCumulative[histCumulative.length - 1] ?? 0,
     ...fcValues,
   ];
 
@@ -279,14 +260,10 @@ function _renderDCAForecast(pd: PortfolioData, snaps: Snapshot[], accounts: Acco
     },
   });
 
-  _attachDCAForecastRangeToggle(pd, snaps, accounts);
+  _attachDCAForecastRangeToggle(pd, accounts);
 }
 
-function _attachDCAForecastRangeToggle(
-  pd: PortfolioData,
-  snaps: Snapshot[],
-  accounts: Account[],
-): void {
+function _attachDCAForecastRangeToggle(pd: PortfolioData, accounts: Account[]): void {
   const toggle = document.getElementById('dca-forecast-range-toggle') as
     (HTMLElement & { _bound?: boolean }) | null;
   if (!toggle || toggle._bound) return;
@@ -297,7 +274,7 @@ function _attachDCAForecastRangeToggle(
     const newRange = (btn.dataset.range as '60' | '120' | '240') || '60';
     if (newRange === _dcaFcRange) return;
     _dcaFcRange = newRange;
-    _renderDCAForecast(pd, snaps, accounts);
+    _renderDCAForecast(pd, accounts);
   });
 }
 
