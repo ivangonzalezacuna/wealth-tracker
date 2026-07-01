@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { bindLegendToggle, resetLegendVisibility } from './chartLegend';
+import { bindLegendToggle, resetLegendVisibility, renderLegendHtml } from './chartLegend';
 
 function createMockChart(datasetCount: number) {
   const metas = Array.from({ length: datasetCount }, () => ({ hidden: false }));
@@ -179,5 +179,41 @@ describe('resetLegendVisibility', () => {
     expect(items[0].style.opacity).toBe('1');
     expect(items[1].style.opacity).toBe('1');
     expect(items[2].style.opacity).toBe('1');
+  });
+});
+
+describe('renderLegendHtml', () => {
+  it('returns empty string for empty array', () => {
+    expect(renderLegendHtml([])).toBe('');
+  });
+
+  it('renders one .leg-item for a single entry', () => {
+    const html = renderLegendHtml([{ label: 'Total', color: '#185FA5' }]);
+    expect(html).toContain('class="leg-item"');
+    expect(html).toContain('class="leg-sq"');
+    expect(html).toContain('background:#185FA5');
+    expect(html).toContain('Total');
+  });
+
+  it('renders multiple items joined with no separator', () => {
+    const html = renderLegendHtml([
+      { label: 'A', color: '#111' },
+      { label: 'B', color: '#222' },
+    ]);
+    // Two leg-item spans, no text between them
+    expect(html.match(/class="leg-item"/g)?.length).toBe(2);
+    expect(html).not.toContain('</span> <span');
+  });
+
+  it('HTML-escapes the label', () => {
+    const html = renderLegendHtml([{ label: '<script>alert(1)</script>', color: '#000' }]);
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('&lt;script&gt;');
+  });
+
+  it('passes color through safeColor', () => {
+    // Invalid color falls back to #888
+    const html = renderLegendHtml([{ label: 'X', color: 'javascript:evil()' }]);
+    expect(html).toContain('background:#888');
   });
 });

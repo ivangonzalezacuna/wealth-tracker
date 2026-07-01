@@ -1,4 +1,25 @@
 import type { Chart } from 'chart.js';
+import { esc, safeColor } from '../utils';
+
+/** One legend item's display data. */
+export interface LegendItem {
+  label: string;
+  color: string;
+}
+
+/**
+ * Builds the standard `.leg-item`/`.leg-sq` legend markup for a list of
+ * items, in order. Shared by every chart legend in the app so the markup
+ * shape can never drift between charts.
+ */
+export function renderLegendHtml(items: LegendItem[]): string {
+  return items
+    .map(
+      (it) =>
+        `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(it.color)}"></span>${esc(it.label)}</span>`,
+    )
+    .join('');
+}
 
 /**
  * Binds legend click behavior to a legend's .leg-item children.

@@ -20,7 +20,7 @@ import type { AccountForecastInput } from '../model/forecast';
 import type { Snapshot, PortfolioData, Account } from '../types';
 import Chart from 'chart.js/auto';
 import { T, resolvedT } from '../theme';
-import { bindLegendToggle } from './chartLegend';
+import { bindLegendToggle, renderLegendHtml } from './chartLegend';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 
 const CH: Record<string, Chart> = {};
@@ -139,12 +139,9 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   _destroyChart('c-nw-hist');
   if (snaps.length === 1) {
     // Legend for single-snapshot: per-account only
-    document.getElementById('nw-chart-legend').innerHTML = chartA
-      .map(
-        (a) =>
-          `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(a.color)}"></span>${esc(a.label)}</span>`,
-      )
-      .join('');
+    document.getElementById('nw-chart-legend').innerHTML = renderLegendHtml(
+      chartA.map((a) => ({ label: a.label, color: a.color })),
+    );
 
     CH['c-nw-hist'] = new Chart(document.getElementById('c-nw-hist'), {
       type: 'bar',
@@ -336,14 +333,10 @@ function _renderNWHistChart(
   };
 
   // Legend: Total swatch first, then per-account swatches
-  document.getElementById('nw-chart-legend').innerHTML =
-    `<span class="leg-item"><span class="leg-sq" style="background:${C.brand}"></span>Total net worth</span>` +
-    chartA
-      .map(
-        (a) =>
-          `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(a.color)}"></span>${esc(a.label)}</span>`,
-      )
-      .join('');
+  document.getElementById('nw-chart-legend').innerHTML = renderLegendHtml([
+    { label: 'Total net worth', color: C.brand },
+    ...chartA.map((a) => ({ label: a.label, color: a.color })),
+  ]);
 
   _destroyChart('c-nw-hist');
   const chart = new Chart(document.getElementById('c-nw-hist'), {
@@ -483,9 +476,10 @@ function _renderGrowthChart(): void {
   // Build custom HTML legend and bind toggle
   const legendEl = document.getElementById('nw-growth-legend');
   if (legendEl) {
-    legendEl.innerHTML =
-      `<span class="leg-item"><span class="leg-sq" style="background:${C.brand}"></span>Contributed</span>` +
-      `<span class="leg-item"><span class="leg-sq" style="background:${C.pos}"></span>Market movement</span>`;
+    legendEl.innerHTML = renderLegendHtml([
+      { label: 'Contributed', color: C.brand },
+      { label: 'Market movement', color: C.pos },
+    ]);
     bindLegendToggle(legendEl, CH['c-nw-growth'], { skipIndex: [] });
   }
 }
@@ -738,12 +732,9 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   const fcLegendEl = document.getElementById('nw-forecast-legend');
   if (fcLegendEl) {
     const datasets = CH['c-nw-forecast'].data.datasets;
-    fcLegendEl.innerHTML = datasets
-      .map(
-        (ds) =>
-          `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(ds.borderColor as string)}"></span>${esc(ds.label)}</span>`,
-      )
-      .join('');
+    fcLegendEl.innerHTML = renderLegendHtml(
+      datasets.map((ds) => ({ label: ds.label as string, color: ds.borderColor as string })),
+    );
     bindLegendToggle(fcLegendEl, CH['c-nw-forecast']);
   }
 

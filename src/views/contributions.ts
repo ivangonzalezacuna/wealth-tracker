@@ -6,7 +6,7 @@ import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import type { PortfolioData, Snapshot, Account } from '../types';
 import Chart from 'chart.js/auto';
 import { T, resolvedT } from '../theme';
-import { bindLegendToggle } from './chartLegend';
+import { bindLegendToggle, renderLegendHtml } from './chartLegend';
 import type { SortState } from './tableSort';
 import { applySort, sortableHeader, bindSortableHeader } from './tableSort';
 import { renderPagination } from './pagination';
@@ -271,12 +271,9 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
   const dcaFcLegendEl = document.getElementById('dca-forecast-legend');
   if (dcaFcLegendEl) {
     const datasets = CH['c-dca-proj'].data.datasets;
-    dcaFcLegendEl.innerHTML = datasets
-      .map(
-        (ds) =>
-          `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(ds.borderColor as string)}"></span>${esc(ds.label)}</span>`,
-      )
-      .join('');
+    dcaFcLegendEl.innerHTML = renderLegendHtml(
+      datasets.map((ds) => ({ label: ds.label as string, color: ds.borderColor as string })),
+    );
     bindLegendToggle(dcaFcLegendEl, CH['c-dca-proj']);
   }
 
@@ -390,13 +387,13 @@ function _rebuildDCALegend(
 ): void {
   const legendEl = document.getElementById('dca-legend');
   if (!legendEl) return;
-  legendEl.innerHTML = ordSyms
-    .map((sym) => {
+  legendEl.innerHTML = renderLegendHtml(
+    ordSyms.map((sym) => {
       const t = ISIN[sym] || sym;
       const m = META[t] || {};
-      return `<span class="leg-item" data-sym="${esc(sym)}" style="cursor:pointer"><span class="leg-sq" style="background:${safeColor(m.color) || 'var(--ink-4)'}"></span>${esc(t)}</span>`;
-    })
-    .join('');
+      return { label: t, color: m.color || 'var(--ink-4)' };
+    }),
+  );
   _bindDCALegendToggle(ordSyms);
 }
 
