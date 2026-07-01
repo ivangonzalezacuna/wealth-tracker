@@ -50,28 +50,28 @@ describe('applySort', () => {
     expect(items).toEqual(original);
   });
 
-  it('sorts strings via localeCompare ascending', () => {
-    const state: SortState = { key: 'name', dir: 'asc' };
+  it('sorts strings A→Z on first click (desc)', () => {
+    const state: SortState = { key: 'name', dir: 'desc' };
     const result = applySort(items, state, getters);
     expect(result.map((i) => i.name)).toEqual(['Alice', 'Bob', 'Charlie']);
   });
 
-  it('sorts strings via localeCompare descending', () => {
-    const state: SortState = { key: 'name', dir: 'desc' };
+  it('sorts strings Z→A on second click (asc)', () => {
+    const state: SortState = { key: 'name', dir: 'asc' };
     const result = applySort(items, state, getters);
     expect(result.map((i) => i.name)).toEqual(['Charlie', 'Bob', 'Alice']);
   });
 
-  it('sorts numbers ascending', () => {
-    const state: SortState = { key: 'cost', dir: 'asc' };
-    const result = applySort(items, state, getters);
-    expect(result.map((i) => i.cost)).toEqual([10, 20, 30]);
-  });
-
-  it('sorts numbers descending', () => {
+  it('sorts numbers high→low on first click (desc)', () => {
     const state: SortState = { key: 'cost', dir: 'desc' };
     const result = applySort(items, state, getters);
     expect(result.map((i) => i.cost)).toEqual([30, 20, 10]);
+  });
+
+  it('sorts numbers low→high on second click (asc)', () => {
+    const state: SortState = { key: 'cost', dir: 'asc' };
+    const result = applySort(items, state, getters);
+    expect(result.map((i) => i.cost)).toEqual([10, 20, 30]);
   });
 });
 

@@ -19,7 +19,11 @@ export function advanceSort(current: SortState, clickedKey: string): SortState {
  *  a comparable value per item. Returns `items` unchanged (same reference's
  *  contents, new array) when state.key is null — this is what makes "click a
  *  third time" restore the table's original default order: the caller must
- *  always pass the same pre-sort default-ordered array in, every render. */
+ *  always pass the same pre-sort default-ordered array in, every render.
+ *
+ *  Sort semantics: first click = 'desc' which means high→low for numbers
+ *  and A→Z for strings. Strings use the inverted multiplier so that the
+ *  natural localeCompare order (A→Z) aligns with the first click. */
 export function applySort<T>(
   items: T[],
   state: SortState,
@@ -27,12 +31,13 @@ export function applySort<T>(
 ): T[] {
   if (!state.key || !state.dir || !getters[state.key]) return items.slice();
   const getter = getters[state.key];
-  const dir = state.dir === 'asc' ? 1 : -1;
+  const numDir = state.dir === 'asc' ? 1 : -1;
+  const strDir = -numDir; // strings: desc = A→Z, asc = Z→A
   return items.slice().sort((a, b) => {
     const av = getter(a);
     const bv = getter(b);
-    if (typeof av === 'string' && typeof bv === 'string') return av.localeCompare(bv) * dir;
-    return ((av as number) - (bv as number)) * dir;
+    if (typeof av === 'string' && typeof bv === 'string') return av.localeCompare(bv) * strDir;
+    return ((av as number) - (bv as number)) * numDir;
   });
 }
 
