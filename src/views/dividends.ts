@@ -1,10 +1,12 @@
 // @ts-nocheck - DOM-heavy view; full strict typing deferred to framework migration
 import { fmtEur2, fmtDay, esc, safeColor } from '../utils';
-import type { PortfolioData } from '../types';
+import type { PortfolioData, DivHistEntry, IntHistEntry } from '../types';
 import { T } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import type { SortState } from './tableSort';
-import { applySort, sortableHeader, bindSortableHeader } from './tableSort';
+import { applySort, bindSortableHeader } from './tableSort';
+import type { ColumnDef } from './tableColumns';
+import { renderTableHeader, renderTableRow, getSortGetters } from './tableColumns';
 import { renderPagination } from './pagination';
 
 const DIV_PAGE_SIZE = 12;
@@ -50,6 +52,47 @@ export function renderDividends(pd: PortfolioData | null): void {
   attachInfoTips(document.getElementById('subview-dividends')!);
 }
 
+function dividendColumns(): ColumnDef<DivHistEntry>[] {
+  return [
+    {
+      key: 'swatch',
+      label: '',
+      raw: true,
+      cell: (d) =>
+        `<span class="leg-sq" style="background:${safeColor(d.color)};display:inline-block;margin-top:2px"></span>`,
+    },
+    {
+      key: 'date',
+      label: 'ETF / Date',
+      sortValue: (d) => d.date,
+      cell: (d) =>
+        `<div style="font-weight:500;font-size:12px">${esc(d.ticker)}</div><div style="font-size:11px;color:var(--ink-3)">${fmtDay(d.date)}</div>`,
+    },
+    {
+      key: 'gross',
+      label: 'Gross',
+      align: 'right',
+      sortValue: (d) => d.gross,
+      cell: (d) => `<span style="color:var(--ink-2)">${fmtEur2(d.gross)}</span>`,
+    },
+    {
+      key: 'tax',
+      label: 'Tax',
+      align: 'right',
+      sortValue: (d) => d.tax,
+      cell: (d) =>
+        `<span style="color:var(--neg)" aria-label="Tax \u2212${d.tax.toFixed(2)}">\u2212${fmtEur2(d.tax)}</span>`,
+    },
+    {
+      key: 'net',
+      label: 'Net',
+      align: 'right',
+      sortValue: (d) => d.net,
+      cell: (d) => `<span style="color:var(--pos);font-weight:500">${fmtEur2(d.net)}</span>`,
+    },
+  ];
+}
+
 function renderDivTable(pd: PortfolioData): void {
   const list = _divYear ? pd.divHist.filter((d) => d.date.startsWith(_divYear)) : pd.divHist;
   const hasDiv = list.length > 0;
@@ -57,12 +100,11 @@ function renderDivTable(pd: PortfolioData): void {
   const totalTax = list.reduce((s, d) => s + d.tax, 0);
   const totalNet = list.reduce((s, d) => s + d.net, 0);
 
+  // Column definitions
+  const columns = dividendColumns();
+
   // Apply sort (before pagination)
-  const sorted = applySort(list, _divTblSort, {
-    gross: (d) => d.gross,
-    tax: (d) => d.tax,
-    net: (d) => d.net,
-  });
+  const sorted = applySort(list, _divTblSort, getSortGetters(columns));
 
   const totalPages = Math.ceil(sorted.length / DIV_PAGE_SIZE);
   if (_divPage > totalPages) _divPage = Math.max(1, totalPages);
@@ -72,12 +114,7 @@ function renderDivTable(pd: PortfolioData): void {
     .map(
       (d) => `
     <div class="tbl-row" role="row" style="grid-template-columns:auto 1.5fr 1fr 1fr 1fr">
-      <span class="leg-sq" style="background:${safeColor(d.color)};display:inline-block;margin-top:2px"></span>
-      <div role="cell"><div style="font-weight:500;font-size:12px">${esc(d.ticker)}</div>
-           <div style="font-size:11px;color:var(--ink-3)">${fmtDay(d.date)}</div></div>
-      <div role="cell" style="text-align:right;color:var(--ink-2)">${fmtEur2(d.gross)}</div>
-      <div role="cell" style="text-align:right;color:var(--neg)" aria-label="Tax −${d.tax.toFixed(2)}">−${fmtEur2(d.tax)}</div>
-      <div role="cell" style="text-align:right;color:var(--pos);font-weight:500">${fmtEur2(d.net)}</div>
+      ${renderTableRow(columns, d)}
     </div>`,
     )
     .join('');
@@ -85,12 +122,12 @@ function renderDivTable(pd: PortfolioData): void {
   document.getElementById('div-history').innerHTML = hasDiv
     ? `
     <div class="tbl-row th" role="row" style="grid-template-columns:auto 1.5fr 1fr 1fr 1fr" id="div-table-header">
-      <div></div><div role="columnheader">ETF / Date</div>${sortableHeader('Gross', 'gross', _divTblSort, 'right')}${sortableHeader('Tax', 'tax', _divTblSort, 'right')}${sortableHeader('Net', 'net', _divTblSort, 'right')}
+      ${renderTableHeader(columns, _divTblSort)}
     </div>${dRows}
     <div class="tbl-row" style="grid-template-columns:auto 1.5fr 1fr 1fr 1fr;border-top:1px solid var(--line-2);margin-top:4px">
       <div></div><div style="font-weight:500">${_divYear ? 'Year total' : 'Total'}</div>
       <div style="text-align:right;font-weight:500">${fmtEur2(totalGross)}</div>
-      <div style="text-align:right;color:var(--neg)">−${fmtEur2(totalTax)}</div>
+      <div style="text-align:right;color:var(--neg)">\u2212${fmtEur2(totalTax)}</div>
       <div style="text-align:right;color:var(--pos);font-weight:500">${fmtEur2(totalNet)}</div>
     </div>`
     : '<p class="note">No dividends found in imported transactions yet.</p>';
@@ -115,14 +152,34 @@ function renderDivPagination(totalPages: number, pd: PortfolioData): void {
   });
 }
 
+function intColumns(): ColumnDef<IntHistEntry>[] {
+  return [
+    {
+      key: 'date',
+      label: 'Date',
+      cell: (i) => fmtDay(i.date),
+      cellClass: () => 'row-label',
+    },
+    {
+      key: 'amount',
+      label: 'Amount',
+      align: 'right',
+      sortValue: (i) => i.amount,
+      cell: (i) => fmtEur2(i.amount),
+      cellClass: () => 'row-val ok',
+    },
+  ];
+}
+
 function renderIntTable(pd: PortfolioData): void {
   const list = _intYear ? pd.intHist.filter((i) => i.date.startsWith(_intYear)) : pd.intHist;
   const totalInterest = list.reduce((s, i) => s + i.amount, 0);
 
+  // Column definitions
+  const columns = intColumns();
+
   // Apply sort (before pagination)
-  const sorted = applySort(list, _intTblSort, {
-    amount: (i) => i.amount,
-  });
+  const sorted = applySort(list, _intTblSort, getSortGetters(columns));
 
   const totalPages = Math.ceil(sorted.length / DIV_PAGE_SIZE);
   if (_intPage > totalPages) _intPage = Math.max(1, totalPages);
@@ -130,13 +187,8 @@ function renderIntTable(pd: PortfolioData): void {
 
   document.getElementById('div-interest').innerHTML =
     list.length > 0
-      ? `<div class="row" id="int-table-header" style="border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:2px"><div role="columnheader">Date</div>${sortableHeader('Amount', 'amount', _intTblSort, 'right')}</div>` +
-        pageItems
-          .map(
-            (i) =>
-              `<div class="row"><div class="row-label">${fmtDay(i.date)}</div><div class="row-val ok">${fmtEur2(i.amount)}</div></div>`,
-          )
-          .join('') +
+      ? `<div class="row" id="int-table-header" style="border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:2px">${renderTableHeader(columns, _intTblSort)}</div>` +
+        pageItems.map((i) => `<div class="row">${renderTableRow(columns, i)}</div>`).join('') +
         `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px">
         <div class="row-label" style="font-weight:500">${_intYear ? 'Year total' : 'Total interest'}</div>
         <div class="row-val ok" style="font-weight:500">${fmtEur2(totalInterest)}</div></div>`

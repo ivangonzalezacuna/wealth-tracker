@@ -12,6 +12,8 @@ import { infoTip, attachInfoTips } from '../ui/infoTip';
 import type { SortState } from './tableSort';
 import { applySort, sortableHeader, bindSortableHeader } from './tableSort';
 import { renderPagination } from './pagination';
+import type { ColumnDef } from './tableColumns';
+import { renderTableHeader, renderTableRow, getSortGetters } from './tableColumns';
 
 const CH: Record<string, Chart> = {};
 
@@ -22,6 +24,101 @@ const HOLD_PAGE_SIZE = 10;
 let _holdPage = 1;
 let _holdSort: SortState = { key: null, dir: null };
 
+// mobile-visible column count must match styles.css's #port-table mobile grid-template-columns track count
+/** Single source of truth for the Holdings table's columns: header label,
+ *  alignment, sort behavior, InfoTip, mobile visibility, and cell content
+ *  are all declared once here instead of independently in three separate
+ *  hand-written template strings. `detail: true` marks a column whose value
+ *  also belongs in the tap-to-expand detail panel -- this prevents a repeat
+ *  of Phase 27a's bug where Realized P&L was silently missing because nothing
+ *  forced the two to stay in sync. */
+function holdingsColumns(pd: PortfolioData): ColumnDef<EtfPosition>[] {
+  const META = getMETAMap();
+  return [
+    {
+      key: 'ticker',
+      label: 'ETF',
+      sortValue: (e) => e.ticker || '',
+      cellClass: () => 'hold-etf-cell',
+      cell: (e) => {
+        const m = META[e.ticker] || {};
+        const isExited = e.exited || e.shares < 1e-6;
+        return `<span class="hold-ticker">${esc(e.ticker)}</span><span class="hold-dot" style="background:${safeColor(e.color)};opacity:${isExited ? '0.45' : '1'}"></span>`;
+      },
+    },
+    {
+      key: 'cost',
+      label: 'Cost basis',
+      align: 'right',
+      sortValue: (e) => e.cost || 0,
+      tip: 'Total amount invested (net of sells). Calculated from your imported CSV transactions using the method chosen in Settings.',
+      cellAttrs: (e) => 'style="text-align:right;font-weight:500"',
+      cell: (e) => {
+        const pct = pd.totalInv > 0 ? (e.cost / pd.totalInv) * 100 : 0;
+        const isExited = e.exited || e.shares < 1e-6;
+        return `${fmtEur(e.cost)}${!isExited ? `\n        <div class="bar-wrap"><div class="bar-fill" style="width:${pct.toFixed(0)}%;background:${safeColor(e.color)}"></div></div>` : ''}`;
+      },
+    },
+    {
+      key: 'shares',
+      label: 'Shares',
+      align: 'right',
+      mobileHidden: true,
+      detail: true,
+      sortValue: (e) => e.shares || 0,
+      cellAttrs: () => 'style="text-align:right;color:var(--ink-2)"',
+      cell: (e) => fmtShares(e.shares),
+    },
+    {
+      key: 'avgPrice',
+      label: 'Avg price',
+      align: 'right',
+      mobileHidden: true,
+      detail: true,
+      sortValue: (e) => (e.shares > 0 ? e.cost / e.shares : 0),
+      cellAttrs: () => 'style="text-align:right;color:var(--ink-2)"',
+      cell: (e) => {
+        const avg = e.shares > 0 ? e.cost / e.shares : 0;
+        return avg > 0 ? fmtEur2(avg) : '-';
+      },
+    },
+    {
+      key: 'pctOfCost',
+      label: '% of cost',
+      align: 'right',
+      sortValue: (e) => (pd.totalInv > 0 ? e.cost / pd.totalInv : 0),
+      cellAttrs: () => 'style="text-align:right;color:var(--ink-2)"',
+      cell: (e) => (pd.totalInv > 0 ? (e.cost / pd.totalInv) * 100 : 0).toFixed(1) + '%',
+    },
+    {
+      key: 'realizedPnL',
+      label: 'Realized P&amp;L',
+      align: 'right',
+      mobileHidden: true,
+      detail: true,
+      sortValue: (e) => e.realizedPnL || 0,
+      tip: 'Gain or loss already locked in from shares you have sold (proceeds minus their cost basis, fees included). Separate from unrealized gain on shares still held. Changes if you switch the cost-basis method in Settings.',
+      cellAttrs: (e) => {
+        const rpnl = e.realizedPnL || 0;
+        return `style="text-align:right;color:${rpnl >= 0 ? 'var(--pos)' : 'var(--neg)'}" aria-label="Realized P&L ${rpnl !== 0 ? (rpnl >= 0 ? '+' : '') + rpnl.toFixed(2) : 'none'}"`;
+      },
+      cell: (e) => {
+        const rpnl = e.realizedPnL || 0;
+        return rpnl === 0 ? '-' : (rpnl > 0 ? '+' : '') + fmtEur2(rpnl);
+      },
+    },
+    {
+      key: 'divNet',
+      label: 'Div (net)',
+      align: 'right',
+      sortValue: (e) => e.divNet || 0,
+      cellAttrs: (e) =>
+        `style="text-align:right;color:${e.divNet > 0 ? 'var(--pos)' : 'var(--ink-3)'}"`,
+      cell: (e) => (e.divNet > 0 ? fmtEur2(e.divNet) : '-'),
+    },
+  ];
+}
+
 /**
  * Render only the holdings table (filter-dependent portion).
  * Called on filter toggle without recreating the donut, KPIs, or summary.
@@ -29,6 +126,7 @@ let _holdSort: SortState = { key: null, dir: null };
 function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   const ISIN_ORDER = getISIN_ORDERList();
   const META = getMETAMap();
+  const columns = holdingsColumns(pd);
 
   // Build full ordered ETF list
   const allEtfs = ISIN_ORDER.map((s) => pd.etfs[s])
@@ -50,20 +148,13 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   }
 
   // Apply sort (before pagination)
-  const sorted = applySort(displayList, _holdSort, {
-    ticker: (e) => e.ticker || '',
-    cost: (e) => e.cost || 0,
-    shares: (e) => e.shares || 0,
-    avgPrice: (e) => (e.shares > 0 ? e.cost / e.shares : 0),
-    pctOfCost: (e) => (pd.totalInv > 0 ? e.cost / pd.totalInv : 0),
-    realizedPnL: (e) => e.realizedPnL || 0,
-    divNet: (e) => e.divNet || 0,
-  });
+  const sorted = applySort(displayList, _holdSort, getSortGetters(columns));
 
   // Pagination
   const totalPages = Math.ceil(sorted.length / HOLD_PAGE_SIZE);
   if (_holdPage > totalPages) _holdPage = Math.max(1, totalPages);
   const pageItems = sorted.slice((_holdPage - 1) * HOLD_PAGE_SIZE, _holdPage * HOLD_PAGE_SIZE);
+  const pageItemsByKey = new Map(pageItems.map((e) => [e.symbol, e]));
 
   // Filter controls
   const filterHtml = `
@@ -77,45 +168,17 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
 
   const rows = pageItems
     .map((e) => {
-      const pct = pd.totalInv > 0 ? (e.cost / pd.totalInv) * 100 : 0;
-      const avg = e.shares > 0 ? e.cost / e.shares : 0;
-      const m = META[e.ticker] || {};
       const isExited = e.exited || e.shares < 1e-6;
-      const rpnl = e.realizedPnL || 0;
-
-      return `<div class="tbl-row hold-row" role="row"${isExited ? ' style="opacity:0.6"' : ''}>
-      <div role="cell" class="hold-etf-cell"
-           data-isin="${esc(e.symbol)}"
-           data-active="${m.active ? '1' : '0'}"
-           data-acc="${e.acc ? '1' : '0'}"
-           data-shares="${fmtShares(e.shares)}"
-           data-avg="${avg > 0 ? fmtEur2(avg) : ''}"
-           data-rpnl="${rpnl}">
-        <span class="hold-ticker">${esc(e.ticker)}</span>
-        <span class="hold-dot" style="background:${safeColor(e.color)};opacity:${isExited ? '0.45' : '1'}"></span>
-      </div>
-      <div role="cell" style="text-align:right;font-weight:500">${fmtEur(e.cost)}
-        ${!isExited ? `<div class="bar-wrap"><div class="bar-fill" style="width:${pct.toFixed(0)}%;background:${safeColor(e.color)}"></div></div>` : ''}
-      </div>
-      <div role="cell" style="text-align:right;color:var(--ink-2)">${fmtShares(e.shares)}</div>
-      <div role="cell" style="text-align:right;color:var(--ink-2)">${avg > 0 ? fmtEur2(avg) : '-'}</div>
-      <div role="cell" style="text-align:right;color:var(--ink-2)">${pct.toFixed(1)}%</div>
-      <div role="cell" style="text-align:right;color:${rpnl >= 0 ? 'var(--pos)' : 'var(--neg)'}" aria-label="Realized P&L ${rpnl !== 0 ? (rpnl >= 0 ? '+' : '') + rpnl.toFixed(2) : 'none'}">${rpnl === 0 ? '-' : (rpnl > 0 ? '+' : '') + fmtEur2(rpnl)}</div>
-      <div role="cell" style="text-align:right;color:${e.divNet > 0 ? 'var(--pos)' : 'var(--ink-3)'}">${e.divNet > 0 ? fmtEur2(e.divNet) : '-'}</div>
-    </div>`;
+      return `<div class="tbl-row hold-row" role="row"${isExited ? ' style="opacity:0.6"' : ''} data-etf-key="${esc(e.symbol)}">
+    ${renderTableRow(columns, e)}
+  </div>`;
     })
     .join('');
 
   document.getElementById('port-table').innerHTML = `
     ${filterHtml}
     <div class="tbl-row th hold-row" role="row" id="port-table-header">
-      ${sortableHeader('ETF', 'ticker', _holdSort)}
-      <div role="columnheader" class="sortable-th${_holdSort.key === 'cost' ? ' sort-active' : ''}" data-sort-key="cost" aria-sort="${_holdSort.key === 'cost' ? (_holdSort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}" style="text-align:right"><span class="sort-arrow">${_holdSort.key === 'cost' ? (_holdSort.dir === 'asc' ? '\u25b2' : '\u25bc') : ''}</span><span class="th-label">Cost basis${infoTip('Total amount invested (net of sells). Calculated from your imported CSV transactions using the method chosen in Settings.')}</span></div>
-      ${sortableHeader('Shares', 'shares', _holdSort, 'right')}
-      ${sortableHeader('Avg price', 'avgPrice', _holdSort, 'right')}
-      ${sortableHeader('% of cost', 'pctOfCost', _holdSort, 'right')}
-      <div role="columnheader" class="sortable-th${_holdSort.key === 'realizedPnL' ? ' sort-active' : ''}" data-sort-key="realizedPnL" aria-sort="${_holdSort.key === 'realizedPnL' ? (_holdSort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}" style="text-align:right"><span class="sort-arrow">${_holdSort.key === 'realizedPnL' ? (_holdSort.dir === 'asc' ? '\u25b2' : '\u25bc') : ''}</span><span class="th-label">Realized P&amp;L${infoTip('Gain or loss already locked in from shares you have sold (proceeds minus their cost basis, fees included). Separate from unrealized gain on shares still held. Changes if you switch the cost-basis method in Settings.')}</span></div>
-      ${sortableHeader('Div (net)', 'divNet', _holdSort, 'right')}
+      ${renderTableHeader(columns, _holdSort)}
     </div>${rows}
     <div class="tbl-row hold-total" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
       <div style="font-weight:500">Total</div>
@@ -160,8 +223,8 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     (HTMLElement & { _rowDetail_bound?: boolean }) | null;
   if (tbl && !tbl._rowDetail_bound) {
     tbl._rowDetail_bound = true;
-    tbl.addEventListener('click', (e) => {
-      const row = (e.target as HTMLElement).closest('.hold-row') as HTMLElement | null;
+    tbl.addEventListener('click', (ev) => {
+      const row = (ev.target as HTMLElement).closest('.hold-row') as HTMLElement | null;
       if (!row) return;
       const existing = tbl.querySelector('.hold-detail') as HTMLElement | null;
       if (existing) {
@@ -169,25 +232,28 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
         existing.remove();
         if (wasThis) return;
       }
-      const cell = row.querySelector('.hold-etf-cell') as HTMLElement | null;
-      if (!cell) return;
-      const isin = cell.dataset.isin || '-';
-      const active = cell.dataset.active === '1' ? 'Active' : 'Closed';
-      const acc = cell.dataset.acc === '1' ? 'Accumulating' : 'Distributing';
-      const shares = cell.dataset.shares || '-';
-      const avg = cell.dataset.avg || '-';
-      const rpnlNum = parseFloat(cell.dataset.rpnl || '0');
-      const rpnl = rpnlNum === 0 ? '-' : (rpnlNum > 0 ? '+' : '') + fmtEur2(rpnlNum);
-      const rpnlClass = rpnlNum >= 0 ? 'pos' : 'neg';
+      const etfKey = row.dataset.etfKey;
+      const e = etfKey ? pageItemsByKey.get(etfKey) : undefined;
+      if (!e) return;
+      const meta = getMETAMap()[e.ticker] || {};
+      const active = meta.active ? 'Active' : 'Closed';
+      const acc = e.acc ? 'Accumulating' : 'Distributing';
+      const detailCols = columns.filter((c) => c.detail);
+      const detailColRows = detailCols
+        .map((c) => {
+          const value = c.cell ? c.cell(e) : '';
+          const rpnl = e.realizedPnL || 0;
+          const valueClass = c.key === 'realizedPnL' ? (rpnl >= 0 ? ' pos' : ' neg') : '';
+          return `<div><span class="hold-detail-label">${c.label}</span><span class="hold-detail-value${valueClass}">${value}</span></div>`;
+        })
+        .join('');
       const panel = document.createElement('div');
       panel.className = 'hold-detail';
       panel.innerHTML = `
-        <div><span class="hold-detail-label">ISIN</span><span class="hold-detail-value hold-detail-isin">${isin}</span></div>
+        <div><span class="hold-detail-label">ISIN</span><span class="hold-detail-value hold-detail-isin">${esc(e.symbol)}</span></div>
         <div><span class="hold-detail-label">Status</span><span class="hold-detail-value">${active}</span></div>
         <div><span class="hold-detail-label">Type</span><span class="hold-detail-value">${acc}</span></div>
-        <div><span class="hold-detail-label">Shares</span><span class="hold-detail-value">${shares}</span></div>
-        <div><span class="hold-detail-label">Avg price</span><span class="hold-detail-value">${avg}</span></div>
-        <div><span class="hold-detail-label">Realized P&L</span><span class="hold-detail-value ${rpnlClass}">${rpnl}</span></div>`;
+        ${detailColRows}`;
       row.insertAdjacentElement('afterend', panel);
     });
   }
