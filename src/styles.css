@@ -366,6 +366,15 @@ code,
   color: var(--ink);
 }
 
+/* Attribute-based mobile column hiding -- replaces per-table nth-child
+   selectors. Any table migrated to tableColumns.ts gets this for free;
+   safe against column reordering, unlike positional nth-child. */
+@media (max-width: 599px) {
+  [data-mobile-hidden='1'] {
+    display: none;
+  }
+}
+
 /* Holdings table - grid layout */
 #port-table .hold-row,
 #port-table .hold-total {
