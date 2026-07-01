@@ -346,16 +346,17 @@ code,
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
+  position: relative;
 }
 .sortable-th:hover {
   color: var(--ink);
 }
 .sort-arrow {
-  display: inline-block;
-  width: 9px;
   font-size: 9px;
-  text-align: center;
   color: var(--brand);
+}
+.sort-arrow:empty {
+  display: none;
 }
 .sort-active {
   color: var(--ink);

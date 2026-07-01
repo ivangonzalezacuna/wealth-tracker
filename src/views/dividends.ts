@@ -74,9 +74,9 @@ function renderDivTable(pd: PortfolioData): void {
       <span class="leg-sq" style="background:${safeColor(d.color)};display:inline-block;margin-top:2px"></span>
       <div role="cell"><div style="font-weight:500;font-size:12px">${esc(d.ticker)}</div>
            <div style="font-size:11px;color:var(--ink-3)">${fmtDay(d.date)}</div></div>
-      <div role="cell" style="color:var(--ink-2)">${fmtEur2(d.gross)}</div>
-      <div role="cell" style="color:var(--neg)" aria-label="Tax −${d.tax.toFixed(2)}">−${fmtEur2(d.tax)}</div>
-      <div role="cell" style="color:var(--pos);font-weight:500">${fmtEur2(d.net)}</div>
+      <div role="cell" style="text-align:right;color:var(--ink-2)">${fmtEur2(d.gross)}</div>
+      <div role="cell" style="text-align:right;color:var(--neg)" aria-label="Tax −${d.tax.toFixed(2)}">−${fmtEur2(d.tax)}</div>
+      <div role="cell" style="text-align:right;color:var(--pos);font-weight:500">${fmtEur2(d.net)}</div>
     </div>`,
     )
     .join('');
@@ -88,9 +88,9 @@ function renderDivTable(pd: PortfolioData): void {
     </div>${dRows}
     <div class="tbl-row" style="grid-template-columns:auto 1.5fr 1fr 1fr 1fr;border-top:1px solid var(--line-2);margin-top:4px">
       <div></div><div style="font-weight:500">${_divYear ? 'Year total' : 'Total'}</div>
-      <div style="font-weight:500">${fmtEur2(totalGross)}</div>
-      <div style="color:var(--neg)">−${fmtEur2(totalTax)}</div>
-      <div style="color:var(--pos);font-weight:500">${fmtEur2(totalNet)}</div>
+      <div style="text-align:right;font-weight:500">${fmtEur2(totalGross)}</div>
+      <div style="text-align:right;color:var(--neg)">−${fmtEur2(totalTax)}</div>
+      <div style="text-align:right;color:var(--pos);font-weight:500">${fmtEur2(totalNet)}</div>
     </div>`
     : '<p class="note">No dividends found in imported transactions yet.</p>';
 
