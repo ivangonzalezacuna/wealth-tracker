@@ -359,6 +359,9 @@ code,
   color: var(--brand);
   vertical-align: baseline;
 }
+.sortable-th[style*='text-align:right'] .sort-arrow {
+  margin-left: -9px;
+}
 .sort-active {
   color: var(--ink);
 }
