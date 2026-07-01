@@ -312,8 +312,8 @@ function _renderNWHistChart(
     borderWidth: 1,
     fill: false,
     tension: 0,
-    pointRadius: 2.5,
-    pointHoverRadius: 5,
+    pointRadius: 0,
+    pointHoverRadius: 4,
     pointBackgroundColor: a.color,
     order: 2,
     hidden: false, // all lines visible by default; legend allows toggling
@@ -326,8 +326,8 @@ function _renderNWHistChart(
     borderWidth: 2.5,
     fill: false,
     tension: 0,
-    pointRadius: 5,
-    pointHoverRadius: 6,
+    pointRadius: 0,
+    pointHoverRadius: 5,
     pointBackgroundColor: C.brand,
     order: 0, // drawn on top
   };
@@ -659,7 +659,8 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           borderColor: C.brand,
           backgroundColor: C.brand,
           borderWidth: 2.5,
-          pointRadius: 3,
+          pointRadius: 0,
+          pointHoverRadius: 4,
           pointBackgroundColor: C.brand,
           fill: false,
           tension: 0,
