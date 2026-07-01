@@ -352,11 +352,12 @@ code,
   color: var(--ink);
 }
 .sort-arrow {
+  display: inline-block;
+  width: 9px;
   font-size: 9px;
+  text-align: center;
   color: var(--brand);
-}
-.sort-arrow:empty {
-  display: none;
+  vertical-align: baseline;
 }
 .sort-active {
   color: var(--ink);
