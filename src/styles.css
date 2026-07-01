@@ -360,10 +360,7 @@ code,
   vertical-align: baseline;
 }
 .sortable-th[style*='text-align:right'] .sort-arrow {
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  margin-left: -9px;
 }
 .sort-active {
   color: var(--ink);
