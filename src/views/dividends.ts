@@ -5,6 +5,7 @@ import { T } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import type { SortState } from './tableSort';
 import { applySort, sortableHeader, bindSortableHeader } from './tableSort';
+import { renderPagination } from './pagination';
 
 const DIV_PAGE_SIZE = 12;
 let _divPage = 1;
@@ -108,28 +109,9 @@ function renderDivTable(pd: PortfolioData): void {
 }
 
 function renderDivPagination(totalPages: number, pd: PortfolioData): void {
-  const el = document.getElementById('div-pagination');
-  if (!el) return;
-  if (totalPages <= 1) {
-    el.innerHTML = '';
-    return;
-  }
-  el.innerHTML = `
-    <button class="btn btn-sm btn-ghost js-div-prev" ${_divPage <= 1 ? 'disabled' : ''}>←</button>
-    <span class="page-info">${_divPage} / ${totalPages}</span>
-    <button class="btn btn-sm btn-ghost js-div-next" ${_divPage >= totalPages ? 'disabled' : ''}>→</button>
-  `;
-  el.querySelector('.js-div-prev')?.addEventListener('click', () => {
-    if (_divPage > 1) {
-      _divPage--;
-      renderDivTable(_lastPd || pd);
-    }
-  });
-  el.querySelector('.js-div-next')?.addEventListener('click', () => {
-    if (_divPage < totalPages) {
-      _divPage++;
-      renderDivTable(_lastPd || pd);
-    }
+  renderPagination('div-pagination', _divPage, totalPages, (p) => {
+    _divPage = p;
+    renderDivTable(_lastPd || pd);
   });
 }
 
@@ -174,28 +156,9 @@ function renderIntTable(pd: PortfolioData): void {
 }
 
 function renderIntPagination(totalPages: number, pd: PortfolioData): void {
-  const el = document.getElementById('int-pagination');
-  if (!el) return;
-  if (totalPages <= 1) {
-    el.innerHTML = '';
-    return;
-  }
-  el.innerHTML = `
-    <button class="btn btn-sm btn-ghost js-int-prev" ${_intPage <= 1 ? 'disabled' : ''}>←</button>
-    <span class="page-info">${_intPage} / ${totalPages}</span>
-    <button class="btn btn-sm btn-ghost js-int-next" ${_intPage >= totalPages ? 'disabled' : ''}>→</button>
-  `;
-  el.querySelector('.js-int-prev')?.addEventListener('click', () => {
-    if (_intPage > 1) {
-      _intPage--;
-      renderIntTable(_lastPd || pd);
-    }
-  });
-  el.querySelector('.js-int-next')?.addEventListener('click', () => {
-    if (_intPage < totalPages) {
-      _intPage++;
-      renderIntTable(_lastPd || pd);
-    }
+  renderPagination('int-pagination', _intPage, totalPages, (p) => {
+    _intPage = p;
+    renderIntTable(_lastPd || pd);
   });
 }
 

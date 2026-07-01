@@ -9,6 +9,7 @@ import { T, resolvedT } from '../theme';
 import { bindLegendToggle } from './chartLegend';
 import type { SortState } from './tableSort';
 import { applySort, sortableHeader, bindSortableHeader } from './tableSort';
+import { renderPagination } from './pagination';
 
 const CH: Record<string, Chart> = {};
 const DCA_PAGE_SIZE = 12;
@@ -526,27 +527,8 @@ function renderDCATable(pd: PortfolioData): void {
 }
 
 function renderDCAPagination(totalPages: number, pd: PortfolioData): void {
-  const el = document.getElementById('dca-pagination');
-  if (!el) return;
-  if (totalPages <= 1) {
-    el.innerHTML = '';
-    return;
-  }
-  el.innerHTML = `
-    <button class="btn btn-sm btn-ghost js-dca-prev" ${_dcaPage <= 1 ? 'disabled' : ''}>←</button>
-    <span class="page-info">${_dcaPage} / ${totalPages}</span>
-    <button class="btn btn-sm btn-ghost js-dca-next" ${_dcaPage >= totalPages ? 'disabled' : ''}>→</button>
-  `;
-  el.querySelector('.js-dca-prev')?.addEventListener('click', () => {
-    if (_dcaPage > 1) {
-      _dcaPage--;
-      renderDCATable(pd);
-    }
-  });
-  el.querySelector('.js-dca-next')?.addEventListener('click', () => {
-    if (_dcaPage < totalPages) {
-      _dcaPage++;
-      renderDCATable(pd);
-    }
+  renderPagination('dca-pagination', _dcaPage, totalPages, (p) => {
+    _dcaPage = p;
+    renderDCATable(pd);
   });
 }
