@@ -351,8 +351,10 @@ code,
   color: var(--ink);
 }
 .sort-arrow {
+  display: inline-block;
+  width: 9px;
   font-size: 9px;
-  margin: 0 2px;
+  text-align: center;
   color: var(--brand);
 }
 .sort-active {
