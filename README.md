@@ -1,15 +1,15 @@
 # Wealth Tracker
 
-Personal ETF portfolio and net worth tracker — PWA, synced to Google Sheets.
+Personal ETF portfolio and net worth tracker. PWA, synced to Google Sheets.
 
 ## Stack
 
-- **Vite** — build tool
-- **Vanilla JS** — no framework
-- **Chart.js** — charts
-- **Google Sheets API** — database (your own sheet, your own data)
-- **Google OAuth2** — authentication
-- **Netlify** — hosting
+- **Vite** - build tool
+- **Vanilla JS** - no framework
+- **Chart.js** - charts
+- **Google Sheets API** - database (your own sheet, your own data)
+- **Google OAuth2** - authentication
+- **Netlify** - hosting
 
 ## First-time setup
 
@@ -44,15 +44,15 @@ VITE_GOOGLE_SHEET_ID=your-google-sheet-id
 yarn dev
 ```
 
-Open `http://localhost:5173` — sign in with Google and you're ready.
+Open `http://localhost:5173`, sign in with Google and you're ready.
 
 ### 4. Google Sheet structure
 
 On first sign-in the app will automatically create three tabs in your sheet:
 
-- **Snapshots** — one row per monthly net worth entry
-- **Transactions** — imported TR CSV data
-- **Meta** — import metadata
+- **Snapshots** - one row per monthly net worth entry
+- **Transactions** - imported TR CSV data
+- **Meta** - import metadata
 
 You can inspect, back up, or export from the sheet directly at any time.
 
@@ -76,9 +76,9 @@ Netlify auto-detects from `netlify.toml`:
 - Build command: `yarn build`
 - Publish directory: `dist`
 
-### Google OAuth — add Netlify origin
+### Google OAuth: add Netlify origin
 
-In Google Cloud Console → Credentials → your OAuth Client ID → **Authorized JavaScript origins** — add your Netlify URL:
+In Google Cloud Console → Credentials → your OAuth Client ID → **Authorized JavaScript origins**, add your Netlify URL:
 
 ```
 https://your-app.netlify.app
@@ -100,7 +100,7 @@ All data lives in **your Google Sheet**. To migrate away:
 1. Open the app on any device
 2. Go to **＋ Log** tab
 3. Enter account balances (takes ~2 min)
-4. Hit **Save snapshot** — synced instantly to Google Sheets
+4. Hit **Save snapshot** (synced instantly to Google Sheets)
 5. Re-import TR CSV whenever you want updated cost basis / dividend data
 
 ---
@@ -109,4 +109,4 @@ All data lives in **your Google Sheet**. To migrate away:
 
 1. Open the app in Chrome on Android
 2. Tap the three-dot menu → **Add to Home screen**
-3. The app installs as a PWA — works offline for viewing, syncs when online
+3. The app installs as a PWA (works offline for viewing, syncs when online)

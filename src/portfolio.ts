@@ -16,7 +16,7 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
   const ISIN = getISIN() as Record<string, string>;
   const META = getMETAMap() as Record<string, { color?: string; acc?: boolean; active?: boolean }>;
 
-  // Sort by date (stable for same-date events — preserves input order)
+  // Sort by date (stable for same-date events - preserves input order)
   const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));
 
   // Run cost-basis engine on BUY+SELL events
@@ -63,8 +63,8 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
       if (etfs[sym]) {
         if (!etfs[sym].name && tx.name) etfs[sym].name = tx.name;
       }
-      // DCA monthly — BUYs only. Fee is included so this figure matches
-      // pd.totalInv (costbasis.ts uses |amount| + fee) — the fee is cash
+      // DCA monthly - BUYs only. Fee is included so this figure matches
+      // pd.totalInv (costbasis.ts uses |amount| + fee) - the fee is cash
       // that genuinely left the account for this purchase.
       const cost = Math.abs(tx.amount) + Math.abs(tx.fee || 0);
       const m = tx.date.slice(0, 7);

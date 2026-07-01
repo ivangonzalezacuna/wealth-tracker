@@ -1,5 +1,5 @@
 /**
- * Lightweight styled confirmation dialog — replaces native confirm().
+ * Lightweight styled confirmation dialog - replaces native confirm().
  * Promise-based: resolves true on confirm, false on cancel/dismiss/Escape.
  * Single instance at a time; calling while one is open replaces it.
  */

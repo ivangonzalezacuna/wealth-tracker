@@ -82,7 +82,7 @@ export function findYoYSnapshot(snaps: Snapshot[]): { snap: Snapshot; total: num
  * snapshots have a resolvable primary-investment balance.
  *
  * Pairs with no primary-investment value on either side (e.g. before any
- * account was flagged isPrimaryInvestment) are silently skipped — they
+ * account was flagged isPrimaryInvestment) are silently skipped - they
  * contribute no data point rather than a zeroed/misleading one.
  */
 export interface MonthlyGrowthPoint {

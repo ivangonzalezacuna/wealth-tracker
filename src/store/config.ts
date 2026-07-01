@@ -1,12 +1,12 @@
 /**
- * Runtime config store — loaded from Google Sheets at boot.
+ * Runtime config store - loaded from Google Sheets at boot.
  * Replaces static config.js imports with async accessors.
  *
  * Sheet tabs:
- *   Accounts       — id | moneyType | institution | label | color | isPrimaryInvestment | order
- *   Holdings       — isin | ticker | name | color | acc | active | contribAmount | interval | assetClass | region | foldInto | order
- *   Settings       — key | value
- *   ConfigHistory  — timestamp | device | entity | summary
+ *   Accounts       - id | moneyType | institution | label | color | isPrimaryInvestment | order
+ *   Holdings       - isin | ticker | name | color | acc | active | contribAmount | interval | assetClass | region | foldInto | order
+ *   Settings       - key | value
+ *   ConfigHistory  - timestamp | device | entity | summary
  */
 
 import { readRange, writeRange, appendRows, ensureSheets } from '../sheets/api';
@@ -113,11 +113,6 @@ export function getTotalAnnualContrib(): number {
 /** Computed: total weekly target from all active holdings (legacy convenience). */
 export function getTotalWeeklyTarget(): number {
   return getTotalAnnualContrib() / 52;
-}
-
-/** Computed: annual return pct from settings. */
-export function getAnnualReturnPct(): number {
-  return parseFloat(_settings.annualReturnPct || '') || 7;
 }
 
 /** Goal: target net worth (number or null if unset). */

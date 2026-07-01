@@ -1,4 +1,4 @@
-// @ts-nocheck — test fixtures use partial objects; strict typing deferred
+// @ts-nocheck - test fixtures use partial objects; strict typing deferred
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { txKey } from './transactions';
 

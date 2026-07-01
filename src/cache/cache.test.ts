@@ -75,7 +75,7 @@ describe('Cache: delta merge', () => {
       makeTx('tx3', '2024-03-15'),
     ];
     const delta = [
-      makeTx('tx3', '2024-03-15'), // duplicate — should be skipped
+      makeTx('tx3', '2024-03-15'), // duplicate - should be skipped
       makeTx('tx4', '2024-04-15'),
       makeTx('tx5', '2024-05-15'),
     ];
@@ -256,7 +256,7 @@ describe('Cache: cold boot from cache (offline)', () => {
     const txs = [makeTx('tx1', '2024-01-15'), makeTx('tx2', '2024-02-15')];
     mockStore.set('transactions', txs);
 
-    // Read from cache — no network/Sheets calls needed
+    // Read from cache - no network/Sheets calls needed
     const valid = await isCacheValid();
     expect(valid).toBe(true);
 

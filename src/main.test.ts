@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-// @ts-nocheck — mirrors production file's @ts-nocheck; test fixtures use partial objects
+// @ts-nocheck - mirrors production file's @ts-nocheck; test fixtures use partial objects
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 /**
@@ -116,7 +116,7 @@ describe('showPortfolioSubview idempotent guard', () => {
       renderSpy(sub);
     }
 
-    // First call — should render
+    // First call - should render
     // Reset DOM to simulate initial state where display is 'none'
     document.getElementById('subview-holdings')!.style.display = 'none';
     _portfolioSubview = 'contributions'; // start from different sub-view
@@ -126,11 +126,11 @@ describe('showPortfolioSubview idempotent guard', () => {
     // Simulate that after render, display is set to 'block'
     document.getElementById('subview-holdings')!.style.display = 'block';
 
-    // Second call — should be no-op
+    // Second call - should be no-op
     showPortfolioSubview('holdings');
     expect(renderSpy).toHaveBeenCalledTimes(1); // still 1, not 2
 
-    // Third call — still no-op
+    // Third call - still no-op
     showPortfolioSubview('holdings');
     expect(renderSpy).toHaveBeenCalledTimes(1); // still 1
 

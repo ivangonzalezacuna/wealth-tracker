@@ -1,4 +1,4 @@
-// @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
+// @ts-nocheck - DOM-heavy view; full strict typing deferred to framework migration
 import { fmtEur2, fmtDay, esc, safeColor } from '../utils';
 import type { PortfolioData } from '../types';
 import { T } from '../theme';

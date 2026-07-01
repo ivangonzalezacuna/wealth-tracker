@@ -1,4 +1,4 @@
-// @ts-nocheck — test fixtures use partial objects; strict typing deferred
+// @ts-nocheck - test fixtures use partial objects; strict typing deferred
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   snapshotHeader,
@@ -73,7 +73,7 @@ describe('rowToSnap locale-safe parsing (Commit 1B)', () => {
     expect(snap.n26).toBe(500);
   });
 
-  it('parses "12.345,67" (German) as 12345.67 — the regression fix', () => {
+  it('parses "12.345,67" (German) as 12345.67 - the regression fix', () => {
     const row = ['2026-03', '12.345,67', '100', ''];
     const snap = rowToSnap(row, hdr, accts);
     expect(snap.tr_portfolio).toBeCloseTo(12345.67);
@@ -89,7 +89,7 @@ describe('rowToSnap locale-safe parsing (Commit 1B)', () => {
   });
 });
 
-describe('parseSnapshotRows — header-driven, config-independent', () => {
+describe('parseSnapshotRows - header-driven, config-independent', () => {
   it('derives account keys from the sheet header (no account list needed)', () => {
     const rows = [
       ['date', 'tr_portfolio', 'n26', 'savings', 'notes'],
@@ -190,7 +190,7 @@ describe('snapToRowForHeader', () => {
   });
 });
 
-describe('upsertSnapshot — integration with mocked API', () => {
+describe('upsertSnapshot - integration with mocked API', () => {
   let mockReadRange: ReturnType<typeof vi.fn>;
   let mockWriteRange: ReturnType<typeof vi.fn>;
   let mockAppendRows: ReturnType<typeof vi.fn>;

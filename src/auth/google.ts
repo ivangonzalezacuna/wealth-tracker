@@ -1,6 +1,6 @@
 /**
  * Google OAuth via Google Identity Services (GIS) token client.
- * Silent background refresh — no full-page redirect, no repeated consent.
+ * Silent background refresh - no full-page redirect, no repeated consent.
  * Token kept in memory + localStorage (instant boot); ~1h lifetime, refreshed
  * silently through the user's existing Google session.
  */
@@ -109,7 +109,7 @@ export async function getToken(): Promise<string> {
   return _requestToken(false);
 }
 
-/** Interactive sign-in — must be called from a user gesture (button click). */
+/** Interactive sign-in - must be called from a user gesture (button click). */
 export async function signIn(): Promise<string> {
   return _requestToken(true);
 }

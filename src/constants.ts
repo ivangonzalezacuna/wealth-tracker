@@ -1,5 +1,5 @@
 /**
- * Derived constants — backed by the runtime config store.
+ * Derived constants - backed by the runtime config store.
  * Before loadConfig() completes, getters return values from config.js defaults.
  * After loadConfig(), they return live data from the sheet.
  */

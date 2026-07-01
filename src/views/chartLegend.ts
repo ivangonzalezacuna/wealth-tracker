@@ -11,7 +11,7 @@ import type { Chart } from 'chart.js';
  * - Clicking a VISIBLE item in partial state hides it (unless it's the last
  *   visible one, in which case restore all).
  * - skipIndex: dataset indices that are never clickable/togglable (e.g. a
- *   "Total" line that must always stay visible) — pass [] if none.
+ *   "Total" line that must always stay visible) - pass [] if none.
  * - Always call this after any full chart rebuild, so legend DOM and
  *   chart dataset visibility cannot drift apart.
  */

@@ -111,7 +111,7 @@ describe('forecastSeries', () => {
 });
 
 describe('forecastMultiAccountSeries', () => {
-  it('two accounts: investment at 7% + cash at 0% — totals equal sum of independent compounding', () => {
+  it('two accounts: investment at 7% + cash at 0% - totals equal sum of independent compounding', () => {
     const investStart = 40_000;
     const cashStart = 10_000;
     const investContrib = 2_400; // annual
@@ -195,12 +195,12 @@ describe('forecastMonthsToTargetMulti', () => {
     ).toBeNull();
   });
 
-  it('cash at 0% + investment at 7% with contributions reaches target — the bug regression test', () => {
+  it('cash at 0% + investment at 7% with contributions reaches target - the bug regression test', () => {
     // Scenario: 10k cash (0%), 40k investment (7%, 2400/yr contrib), target 100k
     const multiMonths = forecastMonthsToTargetMulti(
       [
-        { current: 10_000, annualContrib: 0, annualReturnPct: 0 }, // cash — sits flat
-        { current: 40_000, annualContrib: 2_400, annualReturnPct: 7 }, // investment — grows
+        { current: 10_000, annualContrib: 0, annualReturnPct: 0 }, // cash - sits flat
+        { current: 40_000, annualContrib: 2_400, annualReturnPct: 7 }, // investment - grows
       ],
       100_000,
     );
@@ -211,7 +211,7 @@ describe('forecastMonthsToTargetMulti', () => {
     expect(multiMonths).not.toBeNull();
     expect(buggyMonths).not.toBeNull();
     // The correct multi-account ETA must be >= the buggy single-rate ETA,
-    // because the 10k cash never compounds — so it takes longer (or equal) to reach the goal.
+    // because the 10k cash never compounds - so it takes longer (or equal) to reach the goal.
     // With meaningful cash weight (10k/50k = 20%), it should be strictly greater.
     expect(multiMonths!).toBeGreaterThan(buggyMonths!);
   });

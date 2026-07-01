@@ -1,5 +1,5 @@
 /**
- * Legacy CSV parser — thin wrapper around the generic import engine.
+ * Legacy CSV parser - thin wrapper around the generic import engine.
  * Keeps `parseCSV()` and `parseNum()` exports for backward compatibility.
  */
 

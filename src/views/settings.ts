@@ -1,4 +1,4 @@
-// @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
+// @ts-nocheck - DOM-heavy view; full strict typing deferred to framework migration
 import {
   getAccounts,
   getHoldings,
@@ -91,7 +91,7 @@ function repaintCard(key: CardKey): void {
 }
 
 /**
- * Render the Settings section — user-friendly forms for Accounts, Holdings, Settings.
+ * Render the Settings section - user-friendly forms for Accounts, Holdings, Settings.
  * Only shown after config is loaded (sign-in required).
  */
 export function renderSettings(): void {
@@ -212,11 +212,11 @@ function renderAccountRow(a: Account, i: number): string {
         </div>
         <div class="js-contrib-fields" style="${a.isPrimaryInvestment ? 'display:none' : 'display:contents'}">
         <div class="settings-field">
-          <label class="settings-field-label">Recurring contribution (\u20AC per execution)</label>
+          <label class="settings-field-label">Recurring contribution (\u20AC per execution)${infoTip("How much moves into this account each time, at the interval set below. Used in the Net Worth forecast alongside this account's return rate.")}</label>
           <input class="form-input form-input-sm" data-field="contribAmount" type="number" min="0" step="1" value="${esc(String(a.contribAmount ?? 0))}">
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Contribution interval</label>
+          <label class="settings-field-label">Contribution interval${infoTip('How often the recurring contribution above is added: weekly, every two weeks, monthly, or quarterly.')}</label>
           <select class="form-input form-input-sm" data-field="contribInterval">
             ${Object.entries(INTERVAL_LABELS)
               .map(
@@ -469,7 +469,7 @@ function renderHoldingRow(h: Holding, i: number): string {
       </div>
       <div class="settings-item-fields">
         <div class="settings-field">
-          <label class="settings-field-label">ISIN${infoTip('International Securities Identification Number — 12-character unique ID for a financial instrument.')}</label>
+          <label class="settings-field-label">ISIN${infoTip('International Securities Identification Number: 12-character unique ID for a financial instrument.')}</label>
           <input class="form-input form-input-sm" data-field="isin" value="${esc(h.isin)}" placeholder="e.g. IE00B4L5Y983">
         </div>
         <div class="settings-field">
@@ -477,19 +477,19 @@ function renderHoldingRow(h: Holding, i: number): string {
           <input class="form-input form-input-sm" data-field="ticker" value="${esc(h.ticker)}" placeholder="e.g. IWDA">
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Asset class</label>
+          <label class="settings-field-label">Asset class${infoTip('The category this holding belongs to. Used to group and describe your allocation; does not affect any calculation.')}</label>
           <select class="form-input form-input-sm" data-field="assetClass">${classOptions}</select>
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Region</label>
+          <label class="settings-field-label">Region${infoTip('The geographic focus of this holding. Used to describe your allocation; does not affect any calculation.')}</label>
           <select class="form-input form-input-sm" data-field="region">${regionOptions}</select>
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Contribution (€)</label>
+          <label class="settings-field-label">Contribution (\u20AC)${infoTip("The amount contributed to this specific ETF each time, at the interval set below. Sets this holding's share of the Contributions forecast and Allocation drift target.")}</label>
           <input class="form-input form-input-sm" data-field="contribAmount" value="${h.contribAmount || ''}" type="number" min="0" placeholder="0">
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Interval</label>
+          <label class="settings-field-label">Interval${infoTip('How often the contribution above is added: weekly, every two weeks, monthly, or quarterly.')}</label>
           <select class="form-input form-input-sm" data-field="interval">${intervalOptions}</select>
         </div>
         <div class="settings-field">
@@ -564,7 +564,7 @@ function applyHoldingsFilter(root: HTMLElement): void {
 }
 
 function attachHoldingListeners(root: HTMLElement): void {
-  // Filter toggle — scoped repaint, does NOT rebuild sibling cards
+  // Filter toggle - scoped repaint, does NOT rebuild sibling cards
   const filterToggle = root.querySelector('#hold-filter-toggle');
   if (filterToggle) {
     filterToggle.addEventListener('click', (e) => {

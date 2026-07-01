@@ -1,5 +1,5 @@
 /**
- * Drift helpers — compare actual allocation vs target and produce rebalance signals.
+ * Drift helpers - compare actual allocation vs target and produce rebalance signals.
  */
 import type { Holding, EtfPosition } from '../types';
 import { annualizeContrib } from './contributions';

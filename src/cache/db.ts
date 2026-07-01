@@ -11,7 +11,7 @@ import { createStore, get, set, del, clear } from 'idb-keyval';
 import type { Transaction, Snapshot, PortfolioData, Settings } from '../types';
 import type { Account, Holding } from '../types';
 
-// ── Schema version — bump when cached shapes change ──────────────
+// ── Schema version - bump when cached shapes change ──────────────
 export const CACHE_VERSION = 1;
 
 // ── Custom idb-keyval store (separate DB for our data) ───────────
@@ -88,7 +88,7 @@ export async function setCachedConfig(config: CachedConfig): Promise<void> {
       set(KEYS.SCHEMA_VERSION, CACHE_VERSION, cacheStore),
     ]);
   } catch {
-    // Quota or other IDB error — degrade gracefully
+    // Quota or other IDB error - degrade gracefully
   }
 }
 
@@ -238,7 +238,7 @@ export type CollapseState = Record<string, boolean>;
 
 /**
  * Get persisted UI collapse state.
- * NOTE: intentionally does NOT gate on isCacheValid() — UI preferences
+ * NOTE: intentionally does NOT gate on isCacheValid() - UI preferences
  * should survive a CACHE_VERSION bump that invalidates financial data.
  */
 export async function getCollapseState(): Promise<CollapseState | null> {

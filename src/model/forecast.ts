@@ -1,5 +1,5 @@
 /**
- * Forecast helpers — pure functions for projecting net worth growth.
+ * Forecast helpers - pure functions for projecting net worth growth.
  */
 
 /**

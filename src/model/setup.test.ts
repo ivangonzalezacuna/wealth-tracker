@@ -26,7 +26,7 @@ describe('getSetupState', () => {
     expect(getSetupState({ signedIn: true, accountCount: 0, snapshotCount: 3 })).toBe('accounts');
   });
 
-  // Phase 41 — cacheLoaded tests
+  // Phase 41 - cacheLoaded tests
   it('cached-but-unauthenticated with full data returns "done" (Phase 41)', () => {
     expect(
       getSetupState({ signedIn: false, cacheLoaded: true, accountCount: 3, snapshotCount: 5 }),
