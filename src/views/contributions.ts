@@ -6,9 +6,10 @@ import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import type { PortfolioData, Snapshot, Account } from '../types';
 import Chart from 'chart.js/auto';
 import { T, resolvedT } from '../theme';
-import { bindLegendToggle } from './chartLegend';
+import { bindLegendToggle, renderLegendHtml } from './chartLegend';
 import type { SortState } from './tableSort';
 import { applySort, sortableHeader, bindSortableHeader } from './tableSort';
+import { renderPagination } from './pagination';
 
 const CH: Record<string, Chart> = {};
 const DCA_PAGE_SIZE = 12;
@@ -270,12 +271,9 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
   const dcaFcLegendEl = document.getElementById('dca-forecast-legend');
   if (dcaFcLegendEl) {
     const datasets = CH['c-dca-proj'].data.datasets;
-    dcaFcLegendEl.innerHTML = datasets
-      .map(
-        (ds) =>
-          `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(ds.borderColor as string)}"></span>${esc(ds.label)}</span>`,
-      )
-      .join('');
+    dcaFcLegendEl.innerHTML = renderLegendHtml(
+      datasets.map((ds) => ({ label: ds.label as string, color: ds.borderColor as string })),
+    );
     bindLegendToggle(dcaFcLegendEl, CH['c-dca-proj']);
   }
 
@@ -389,13 +387,13 @@ function _rebuildDCALegend(
 ): void {
   const legendEl = document.getElementById('dca-legend');
   if (!legendEl) return;
-  legendEl.innerHTML = ordSyms
-    .map((sym) => {
+  legendEl.innerHTML = renderLegendHtml(
+    ordSyms.map((sym) => {
       const t = ISIN[sym] || sym;
       const m = META[t] || {};
-      return `<span class="leg-item" data-sym="${esc(sym)}" style="cursor:pointer"><span class="leg-sq" style="background:${safeColor(m.color) || 'var(--ink-4)'}"></span>${esc(t)}</span>`;
-    })
-    .join('');
+      return { label: t, color: m.color || 'var(--ink-4)' };
+    }),
+  );
   _bindDCALegendToggle(ordSyms);
 }
 
@@ -526,27 +524,8 @@ function renderDCATable(pd: PortfolioData): void {
 }
 
 function renderDCAPagination(totalPages: number, pd: PortfolioData): void {
-  const el = document.getElementById('dca-pagination');
-  if (!el) return;
-  if (totalPages <= 1) {
-    el.innerHTML = '';
-    return;
-  }
-  el.innerHTML = `
-    <button class="btn btn-sm btn-ghost js-dca-prev" ${_dcaPage <= 1 ? 'disabled' : ''}>←</button>
-    <span class="page-info">${_dcaPage} / ${totalPages}</span>
-    <button class="btn btn-sm btn-ghost js-dca-next" ${_dcaPage >= totalPages ? 'disabled' : ''}>→</button>
-  `;
-  el.querySelector('.js-dca-prev')?.addEventListener('click', () => {
-    if (_dcaPage > 1) {
-      _dcaPage--;
-      renderDCATable(pd);
-    }
-  });
-  el.querySelector('.js-dca-next')?.addEventListener('click', () => {
-    if (_dcaPage < totalPages) {
-      _dcaPage++;
-      renderDCATable(pd);
-    }
+  renderPagination('dca-pagination', _dcaPage, totalPages, (p) => {
+    _dcaPage = p;
+    renderDCATable(pd);
   });
 }

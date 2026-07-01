@@ -19,12 +19,6 @@ export const T = {
   white: '#fff',
 } as const;
 
-/** Standard Chart.js axis/grid styling so views don't re-type it. */
-export const chartAxis = {
-  grid: { color: T.line },
-  ticks: { color: T.ink4 },
-};
-
 /** Runtime dark-mode resolution for Chart.js context at render-time. */
 export function resolvedT(): Record<keyof typeof T, string> {
   const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;

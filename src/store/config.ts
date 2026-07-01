@@ -4,7 +4,7 @@
  *
  * Sheet tabs:
  *   Accounts       - id | moneyType | institution | label | color | isPrimaryInvestment | order
- *   Holdings       - isin | ticker | name | color | acc | active | contribAmount | interval | assetClass | region | foldInto | order
+ *   Holdings       - isin | ticker | name | color | acc | active | contribAmount | contribInterval | assetClass | region | foldInto | order
  *   Settings       - key | value
  *   ConfigHistory  - timestamp | device | entity | summary
  */
@@ -241,7 +241,7 @@ export async function setHoldings(holdings: Holding[]): Promise<void> {
     'acc',
     'active',
     'contribAmount',
-    'interval',
+    'contribInterval',
     'assetClass',
     'region',
     'foldInto',
@@ -255,7 +255,7 @@ export async function setHoldings(holdings: Holding[]): Promise<void> {
     h.acc ? 'true' : 'false',
     h.active ? 'true' : 'false',
     h.contribAmount ?? 0,
-    h.interval || 'weekly',
+    h.contribInterval || 'weekly',
     h.assetClass || '',
     h.region || '',
     h.foldInto || '',
@@ -354,9 +354,16 @@ function parseHoldings(rows: (string | number | boolean)[][]): Holding[] {
       const amount = hasNewAmount
         ? toNum(r[hdr.indexOf('contribamount')])
         : toNum(r[hdr.indexOf('weeklytarget')]);
-      const interval: ContribInterval = (
-        hdr.indexOf('interval') >= 0 && r[hdr.indexOf('interval')]
-          ? String(r[hdr.indexOf('interval')]).trim().toLowerCase()
+      // Backward compat: read 'contribinterval' first, fall back to legacy 'interval' column
+      const intervalIdx =
+        hdr.indexOf('contribinterval') >= 0
+          ? hdr.indexOf('contribinterval')
+          : hdr.indexOf('interval');
+      const rawInterval: string =
+        intervalIdx >= 0 && r[intervalIdx] ? String(r[intervalIdx]).trim().toLowerCase() : 'weekly';
+      const contribInterval: ContribInterval = (
+        ['weekly', 'biweekly', 'monthly', 'quarterly'].includes(rawInterval)
+          ? rawInterval
           : 'weekly'
       ) as ContribInterval;
       return {
@@ -367,9 +374,7 @@ function parseHoldings(rows: (string | number | boolean)[][]): Holding[] {
         acc: toBool(r[hdr.indexOf('acc')]),
         active: toBool(r[hdr.indexOf('active')]),
         contribAmount: amount,
-        interval: (['weekly', 'biweekly', 'monthly', 'quarterly'].includes(interval)
-          ? interval
-          : 'weekly') as ContribInterval,
+        contribInterval,
         assetClass: String(r[hdr.indexOf('assetclass')] ?? ''),
         region: String(r[hdr.indexOf('region')] ?? ''),
         foldInto: String(r[hdr.indexOf('foldinto')] ?? ''),
@@ -420,7 +425,7 @@ async function seedFromConfig(seedAccounts: boolean, seedHoldings: boolean): Pro
         const totalWeekly = CONFIG.projection?.weeklyTarget || 200;
         contribAmount = Math.round((totalWeekly * slice.pct) / 100);
       }
-      const interval: ContribInterval = h.interval || 'weekly';
+      const contribInterval: ContribInterval = h.interval || 'weekly';
       const assetClass = h.assetClass || 'equity';
       const region = h.region || 'developed';
       const foldInto = h.foldInto || '';
@@ -433,7 +438,7 @@ async function seedFromConfig(seedAccounts: boolean, seedHoldings: boolean): Pro
         acc: h.acc,
         active: h.active,
         contribAmount,
-        interval,
+        contribInterval,
         assetClass,
         region,
         foldInto,

@@ -11,6 +11,7 @@ import { T, resolvedT } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import type { SortState } from './tableSort';
 import { applySort, sortableHeader, bindSortableHeader } from './tableSort';
+import { renderPagination } from './pagination';
 
 const CH: Record<string, Chart> = {};
 
@@ -196,28 +197,9 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
 }
 
 function renderHoldPagination(totalPages: number, pd: PortfolioData, snaps: Snapshot[]): void {
-  const el = document.getElementById('port-pagination');
-  if (!el) return;
-  if (totalPages <= 1) {
-    el.innerHTML = '';
-    return;
-  }
-  el.innerHTML = `
-    <button class="btn btn-sm btn-ghost js-hold-prev" ${_holdPage <= 1 ? 'disabled' : ''}>←</button>
-    <span class="page-info">${_holdPage} / ${totalPages}</span>
-    <button class="btn btn-sm btn-ghost js-hold-next" ${_holdPage >= totalPages ? 'disabled' : ''}>→</button>
-  `;
-  el.querySelector('.js-hold-prev')?.addEventListener('click', () => {
-    if (_holdPage > 1) {
-      _holdPage--;
-      renderHoldingsTable(pd, snaps);
-    }
-  });
-  el.querySelector('.js-hold-next')?.addEventListener('click', () => {
-    if (_holdPage < totalPages) {
-      _holdPage++;
-      renderHoldingsTable(pd, snaps);
-    }
+  renderPagination('port-pagination', _holdPage, totalPages, (p) => {
+    _holdPage = p;
+    renderHoldingsTable(pd, snaps);
   });
 }
 

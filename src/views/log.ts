@@ -6,6 +6,7 @@ import { T } from '../theme';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 import type { SortState } from './tableSort';
 import { applySort, sortableHeader, bindSortableHeader } from './tableSort';
+import { renderPagination } from './pagination';
 
 interface LogState {
   txs: Transaction[];
@@ -267,31 +268,6 @@ function _expandSnapRow(
   panel.querySelector('.js-del-snap')?.addEventListener('click', (ev) => {
     ev.stopPropagation();
     onDel(date);
-  });
-}
-
-function renderPagination(
-  containerId: string,
-  page: number,
-  totalPages: number,
-  onPageChange: (page: number) => void,
-): void {
-  const el = document.getElementById(containerId);
-  if (!el) return;
-  if (totalPages <= 1) {
-    el.innerHTML = '';
-    return;
-  }
-  el.innerHTML = `
-    <button class="btn btn-sm btn-ghost js-page-prev" ${page <= 1 ? 'disabled' : ''}>←</button>
-    <span class="page-info">${page} / ${totalPages}</span>
-    <button class="btn btn-sm btn-ghost js-page-next" ${page >= totalPages ? 'disabled' : ''}>→</button>
-  `;
-  el.querySelector('.js-page-prev')?.addEventListener('click', () => {
-    if (page > 1) onPageChange(page - 1);
-  });
-  el.querySelector('.js-page-next')?.addEventListener('click', () => {
-    if (page < totalPages) onPageChange(page + 1);
   });
 }
 

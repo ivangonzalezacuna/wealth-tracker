@@ -33,7 +33,7 @@ export function computeDrift(
   // Target allocation: based on annualized contribution weights
   const activeWithTarget = holdings.filter((h) => h.active && h.contribAmount > 0);
   const totalAnnual = activeWithTarget.reduce(
-    (sum, h) => sum + annualizeContrib(h.contribAmount, h.interval),
+    (sum, h) => sum + annualizeContrib(h.contribAmount, h.contribInterval),
     0,
   );
   if (totalAnnual <= 0) return [];
@@ -41,7 +41,7 @@ export function computeDrift(
   const result: DriftEntry[] = [];
 
   for (const h of activeWithTarget) {
-    const annual = annualizeContrib(h.contribAmount, h.interval);
+    const annual = annualizeContrib(h.contribAmount, h.contribInterval);
     const targetPct = (annual / totalAnnual) * 100;
 
     // Find the matching position by ISIN
