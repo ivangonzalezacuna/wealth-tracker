@@ -46,6 +46,9 @@ export interface Account {
   color?: string;
   isPrimaryInvestment?: boolean;
   order?: number;
+  annualReturnPct?: number; // per-account forecast growth assumption, default 0
+  contribAmount?: number; // recurring contribution amount per execution, default 0
+  contribInterval?: ContribInterval; // default 'monthly'; ignored for the primary investment account
 }
 
 // ─── Contribution cadence ────────────────────────────────────────

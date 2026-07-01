@@ -4,15 +4,20 @@ import { getACCTSList } from '../constants';
 import {
   getAccounts,
   getTotalAnnualContrib,
-  getAnnualReturnPct,
   getTargetNetWorth,
   getTargetDate,
 } from '../store/config';
 import { primaryInvestmentValue } from '../model/accounts';
+import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import { cagr, findYoYSnapshot, monthlyGrowthHistory } from '../model/insights';
 import type { MonthlyGrowthPoint } from '../model/insights';
-import { forecastMonthsToTarget, formatMonthsEta, forecastSeries } from '../model/forecast';
-import type { Snapshot, PortfolioData } from '../types';
+import {
+  formatMonthsEta,
+  forecastMultiAccountSeries,
+  forecastMonthsToTargetMulti,
+} from '../model/forecast';
+import type { AccountForecastInput } from '../model/forecast';
+import type { Snapshot, PortfolioData, Account } from '../types';
 import Chart from 'chart.js/auto';
 import { T, resolvedT } from '../theme';
 import { bindLegendToggle } from './chartLegend';
@@ -22,6 +27,19 @@ const CH: Record<string, Chart> = {};
 let _nwRange: '12' | '36' | 'all' = 'all';
 let _nwGrowthRange: '12' | '36' | 'all' = 'all';
 let _nwGrowthPoints: MonthlyGrowthPoint[] = [];
+let _fcRange: '60' | '120' | '240' = '60'; // 5y / 10y / 20y forecast horizon
+
+function _buildAccountForecastInputs(snap: Snapshot, accounts: Account[]): AccountForecastInput[] {
+  return accounts.map((a) => {
+    const current = (snap[a.id || ''] as number) || 0;
+    const annualReturnPct = a.annualReturnPct || 0;
+    const annualContrib =
+      a.isPrimaryInvestment && (a.moneyType || '').toLowerCase() === 'investment'
+        ? getTotalAnnualContrib()
+        : annualizeContrib(a.contribAmount || 0, a.contribInterval || 'monthly');
+    return { current, annualContrib, annualReturnPct };
+  });
+}
 
 export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const ACCTS = getACCTSList();
@@ -208,9 +226,8 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
     if (target !== null) {
       const pctComplete = Math.min(100, Math.round((total / target) * 100));
       const remaining = Math.max(0, target - total);
-      const annualContrib = getTotalAnnualContrib();
-      const annualReturn = getAnnualReturnPct();
-      const etaMonths = forecastMonthsToTarget(total, target, annualContrib, annualReturn);
+      const accountInputs = _buildAccountForecastInputs(s, accounts);
+      const etaMonths = forecastMonthsToTargetMulti(accountInputs, target);
       const targetDate = getTargetDate();
 
       let etaText = '';
@@ -260,7 +277,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   }
 
   // ── Forecast chart ──
-  _renderForecastChart(snaps, total);
+  _renderForecastChart(snaps, accounts);
 
   attachInfoTips(document.getElementById('networth')!);
 }
@@ -515,31 +532,49 @@ function _attachNWRangeToggle(
   });
 }
 
+// ── Forecast range toggle binding ──
+
+function _attachForecastRangeToggle(snaps: Snapshot[], accounts: Account[]): void {
+  const toggle = document.getElementById('nw-forecast-range-toggle') as
+    (HTMLElement & { _bound?: boolean }) | null;
+  if (!toggle || toggle._bound) return;
+  toggle._bound = true;
+  toggle.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
+    if (!btn) return;
+    const newRange = (btn.dataset.range as '60' | '120' | '240') || '60';
+    if (newRange === _fcRange) return;
+    _fcRange = newRange;
+    _renderForecastChart(snaps, accounts);
+  });
+}
+
 // ── Forecast chart ──
 
-function _renderForecastChart(snaps: Snapshot[], currentTotal: number): void {
+const FC_LABELS: Record<string, string> = { '60': '5 years', '120': '10 years', '240': '20 years' };
+
+function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   const C = resolvedT();
   const forecastEl = document.getElementById('nw-forecast');
   if (!forecastEl) return;
 
-  const annualContrib = getTotalAnnualContrib();
-  const annualReturn = getAnnualReturnPct();
-
-  // Need at least some data and positive contributions/return to show forecast
-  if (snaps.length === 0 || (annualContrib <= 0 && annualReturn <= 0)) {
+  if (snaps.length === 0) {
+    forecastEl.innerHTML = '';
+    return;
+  }
+  const latestSnap = snaps[snaps.length - 1];
+  const accountInputs = _buildAccountForecastInputs(latestSnap, accounts);
+  const hasGrowthPotential = accountInputs.some(
+    (a) => a.annualContrib > 0 || a.annualReturnPct > 0,
+  );
+  if (!hasGrowthPotential) {
     forecastEl.innerHTML = '';
     return;
   }
 
-  const latestDate = snaps[snaps.length - 1].date;
-  const forecastMonths = 60; // 5-year forecast
-  const series = forecastSeries(
-    currentTotal,
-    annualContrib,
-    annualReturn,
-    forecastMonths,
-    latestDate,
-  );
+  const latestDate = latestSnap.date;
+  const forecastMonths = parseInt(_fcRange);
+  const series = forecastMultiAccountSeries(accountInputs, forecastMonths, latestDate);
 
   // Build combined history + forecast for a seamless line chart
   const historySlice = snaps.slice(-12); // last 12 months of actual data
@@ -576,13 +611,47 @@ function _renderForecastChart(snaps: Snapshot[], currentTotal: number): void {
         ]
       : [];
 
-  const weeklyEquiv = Math.round(annualContrib / 52);
+  // Build per-account configuration summary
+  const acctSummaryLines = accounts
+    .map((a, idx) => {
+      const inp = accountInputs[idx];
+      const retStr = `${a.annualReturnPct ?? 0}% return`;
+      let contribStr: string;
+      if (a.isPrimaryInvestment && (a.moneyType || '').toLowerCase() === 'investment') {
+        contribStr =
+          inp.annualContrib > 0
+            ? `${fmtEur(Math.round(inp.annualContrib))}/yr (from Holdings)`
+            : 'no contributions configured';
+      } else {
+        const amt = a.contribAmount ?? 0;
+        const interval = a.contribInterval || 'monthly';
+        contribStr =
+          amt > 0
+            ? `${fmtEur(amt)} ${esc((INTERVAL_LABELS[interval] || interval).toLowerCase())}`
+            : 'no contributions';
+      }
+      return `<span style="color:var(--ink-2)">${esc(a.label || 'Account')}: ${retStr}, ${contribStr}</span>`;
+    })
+    .join('<br>');
 
   forecastEl.innerHTML = `
     <div class="card">
-      <div class="card-title">Forecast \u2014 5 years (${annualReturn}% return, \u20AC${weeklyEquiv}/wk equiv.)</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div class="card-title" style="margin:0">Forecast \u2014 ${FC_LABELS[_fcRange]}</div>
+        <div class="chart-controls">
+          <div class="range-toggle" id="nw-forecast-range-toggle">
+            <button class="btn btn-sm btn-ghost ${_fcRange === '60' ? 'active' : ''}" data-range="60">5Y</button>
+            <button class="btn btn-sm btn-ghost ${_fcRange === '120' ? 'active' : ''}" data-range="120">10Y</button>
+            <button class="btn btn-sm btn-ghost ${_fcRange === '240' ? 'active' : ''}" data-range="240">20Y</button>
+          </div>
+        </div>
+      </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast"></canvas></div>
-      <p class="note">Projection assumes constant contributions and ${annualReturn}% annual return. Does not account for taxes, fees, or FX.</p>
+      <div class="note" style="line-height:1.6">
+        <div style="margin-bottom:4px">Assumptions per account (Settings \u2192 Accounts):</div>
+        ${acctSummaryLines}
+        <div style="margin-top:6px;color:var(--ink-4)">Does not account for taxes, fees, or FX.</div>
+      </div>
     </div>`;
 
   _destroyChart('c-nw-forecast');
@@ -665,6 +734,8 @@ function _renderForecastChart(snaps: Snapshot[], currentTotal: number): void {
       },
     },
   });
+
+  _attachForecastRangeToggle(snaps, accounts);
 }
 
 // ── Helpers ──

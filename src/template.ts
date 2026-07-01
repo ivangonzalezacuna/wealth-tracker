@@ -135,11 +135,7 @@ export function appTemplate(): string {
           <div class="tbl" role="table" aria-label="Monthly contributions"><div id="dca-table"></div></div>
           <div id="dca-pagination" class="pagination"></div>
         </div>
-        <div class="card">
-          <div class="card-title" id="dca-proj-title">5-year projection</div>
-          <div class="chart-wrap chart-h-md"><canvas id="c-dca-proj"></canvas></div>
-          <p class="note" id="dca-proj-note">Starting from latest portfolio value. Excludes taxes, fees, FX.</p>
-        </div>
+        <div id="dca-proj-card"></div>
       </div>
     </div>
   </div>
