@@ -5,13 +5,14 @@ export interface SortState {
   dir: SortDir;
 }
 
-/** Advances a column's sort state on click: none → asc → desc → none.
+/** Advances a column's sort state on click: none → desc → asc → none.
  *  Clicking a different column than the one currently active always
- *  starts that new column at 'asc', regardless of the old column's state. */
+ *  starts that new column at 'desc', regardless of the old column's state.
+ *  This means numbers sort high→low first, text sorts A→Z first. */
 export function advanceSort(current: SortState, clickedKey: string): SortState {
-  if (current.key !== clickedKey) return { key: clickedKey, dir: 'asc' };
-  if (current.dir === 'asc') return { key: clickedKey, dir: 'desc' };
-  return { key: null, dir: null }; // desc -> back to default order
+  if (current.key !== clickedKey) return { key: clickedKey, dir: 'desc' };
+  if (current.dir === 'desc') return { key: clickedKey, dir: 'asc' };
+  return { key: null, dir: null }; // asc -> back to default order
 }
 
 /** Sorts a copy of `items` by `state`, using `getters[state.key]` to extract
@@ -37,7 +38,9 @@ export function applySort<T>(
 
 /** Returns a sortable columnheader cell. `key` must match a getter key
  *  passed to applySort for this table. `align` mirrors the existing
- *  `style="text-align:right"` convention used on numeric columns. */
+ *  `style="text-align:right"` convention used on numeric columns.
+ *  For right-aligned columns the arrow appears before the label to avoid
+ *  text jumping. */
 export function sortableHeader(
   label: string,
   key: string,
@@ -45,10 +48,12 @@ export function sortableHeader(
   align: 'left' | 'right' = 'left',
 ): string {
   const active = state.key === key;
-  const arrow = active ? (state.dir === 'asc' ? ' \u25b2' : ' \u25bc') : '';
+  const arrow = active ? (state.dir === 'asc' ? '\u25b2' : '\u25bc') : '';
   const ariaSort = active ? (state.dir === 'asc' ? 'ascending' : 'descending') : 'none';
   const styleAttr = align === 'right' ? ' style="text-align:right"' : '';
-  return `<div role="columnheader" class="sortable-th${active ? ' sort-active' : ''}" data-sort-key="${key}" aria-sort="${ariaSort}"${styleAttr}>${label}<span class="sort-arrow">${arrow}</span></div>`;
+  const arrowSpan = `<span class="sort-arrow">${arrow}</span>`;
+  const content = align === 'right' ? `${arrowSpan}${label}` : `${label}${arrowSpan}`;
+  return `<div role="columnheader" class="sortable-th${active ? ' sort-active' : ''}" data-sort-key="${key}" aria-sort="${ariaSort}"${styleAttr}>${content}</div>`;
 }
 
 /** Binds delegated click handling to a header row's sortable cells.

@@ -58,8 +58,6 @@ function renderDivTable(pd: PortfolioData): void {
 
   // Apply sort (before pagination)
   const sorted = applySort(list, _divTblSort, {
-    date: (d) => d.date,
-    ticker: (d) => d.ticker || '',
     gross: (d) => d.gross,
     tax: (d) => d.tax,
     net: (d) => d.net,
@@ -86,7 +84,7 @@ function renderDivTable(pd: PortfolioData): void {
   document.getElementById('div-history').innerHTML = hasDiv
     ? `
     <div class="tbl-row th" role="row" style="grid-template-columns:auto 1.5fr 1fr 1fr 1fr" id="div-table-header">
-      <div></div>${sortableHeader('ETF / Date', 'date', _divTblSort)}${sortableHeader('Gross', 'gross', _divTblSort, 'right')}${sortableHeader('Tax', 'tax', _divTblSort, 'right')}${sortableHeader('Net', 'net', _divTblSort, 'right')}
+      <div></div><div role="columnheader">ETF / Date</div>${sortableHeader('Gross', 'gross', _divTblSort, 'right')}${sortableHeader('Tax', 'tax', _divTblSort, 'right')}${sortableHeader('Net', 'net', _divTblSort, 'right')}
     </div>${dRows}
     <div class="tbl-row" style="grid-template-columns:auto 1.5fr 1fr 1fr 1fr;border-top:1px solid var(--line-2);margin-top:4px">
       <div></div><div style="font-weight:500">${_divYear ? 'Year total' : 'Total'}</div>
@@ -141,7 +139,6 @@ function renderIntTable(pd: PortfolioData): void {
 
   // Apply sort (before pagination)
   const sorted = applySort(list, _intTblSort, {
-    date: (i) => i.date,
     amount: (i) => i.amount,
   });
 
@@ -151,7 +148,7 @@ function renderIntTable(pd: PortfolioData): void {
 
   document.getElementById('div-interest').innerHTML =
     list.length > 0
-      ? `<div class="row" id="int-table-header" style="border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:2px">${sortableHeader('Date', 'date', _intTblSort)}${sortableHeader('Amount', 'amount', _intTblSort, 'right')}</div>` +
+      ? `<div class="row" id="int-table-header" style="border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:2px"><div role="columnheader">Date</div>${sortableHeader('Amount', 'amount', _intTblSort, 'right')}</div>` +
         pageItems
           .map(
             (i) =>

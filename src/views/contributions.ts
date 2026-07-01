@@ -481,7 +481,6 @@ function renderDCATable(pd: PortfolioData): void {
 
   // Apply sort (before pagination)
   const sorted = applySort(months, _dcaTblSort, {
-    month: (m) => m,
     invested: (m) => pd.monthly[m] || 0,
   });
 
@@ -505,7 +504,7 @@ function renderDCATable(pd: PortfolioData): void {
     .join('');
 
   el.innerHTML = `
-    <div class="tbl-row th" role="row" style="grid-template-columns:1fr 1fr" id="dca-table-header">${sortableHeader('Month', 'month', _dcaTblSort)}${sortableHeader('Invested', 'invested', _dcaTblSort, 'right')}</div>
+    <div class="tbl-row th" role="row" style="grid-template-columns:1fr 1fr" id="dca-table-header"><div role="columnheader">Month</div>${sortableHeader('Invested', 'invested', _dcaTblSort, 'right')}</div>
     ${tRows}
     <div class="tbl-row" role="row" style="grid-template-columns:1fr 1fr;border-top:1px solid var(--line-2);margin-top:4px">
       <div style="font-weight:500">${_dcaYear ? 'Year total' : 'Total'}</div>

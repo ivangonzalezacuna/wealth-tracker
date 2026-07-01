@@ -351,7 +351,7 @@ code,
 }
 .sort-arrow {
   font-size: 9px;
-  margin-left: 3px;
+  margin: 0 2px;
   color: var(--brand);
 }
 .sort-active {
