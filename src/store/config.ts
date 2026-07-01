@@ -14,6 +14,7 @@ import { CONFIG } from '../config';
 import type { StaticAccount, StaticHolding, TargetSlice } from '../config';
 import type { Account, Holding, Settings, ContribInterval } from '../types';
 import { totalAnnualContrib, INTERVAL_PER_YEAR } from '../model/contributions';
+import type { CachedConfig } from '../cache/db';
 
 // Valid contribution intervals, derived from the canonical INTERVAL_PER_YEAR map
 const VALID_INTERVALS = new Set(Object.keys(INTERVAL_PER_YEAR));
@@ -141,6 +142,26 @@ export function getCostBasisMethod(): 'fifo' | 'avgco' {
 // ── Register re-render callback ──────────────────────────
 export function onConfigChange(fn: () => void): void {
   _onChange = fn;
+}
+
+// ── Cache hydration (offline/read-only boot) ─────────────
+/**
+ * Hydrate the in-memory config store from a cached (IndexedDB) config
+ * snapshot, without any network call. Used by bootFromCache() so
+ * getAccounts()/getHoldings()/getSettings()/isConfigLoaded() are correct
+ * immediately on a cache-only (offline or unauthenticated read-only) boot.
+ *
+ * Marks the store as loaded (_loaded = true) so downstream getters
+ * (isConfigLoaded, getSetupState callers, constants.ts fallbacks) treat
+ * this as live data rather than falling back to bundled static defaults.
+ * A subsequent loadConfig() (on sign-in / background sync) overwrites
+ * these values with the authoritative sheet contents as normal.
+ */
+export function hydrateConfigFromCache(cfg: CachedConfig): void {
+  _accounts = cfg.accounts || [];
+  _holdings = cfg.holdings || [];
+  _settings = cfg.settings || {};
+  _loaded = true;
 }
 
 // ── Load config from sheets ──────────────────────────────

@@ -22,6 +22,7 @@ import { resolvedT } from '../theme';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { confirmDialog } from '../ui/confirmDialog';
+import { isSignedIn } from '../auth/google';
 
 /** Card key -> render fn, used by repaintCard() to scope a re-render to one card. */
 type CardKey = 'accounts' | 'holdings' | 'cost-basis' | 'goal' | 'rules' | 'cache';
@@ -97,7 +98,7 @@ export function renderSettings(): void {
   const el = document.getElementById('settings-content');
   if (!el) return;
 
-  if (!isConfigLoaded()) {
+  if (!isConfigLoaded() || !isSignedIn()) {
     el.innerHTML = '<p class="note">Sign in and load data to manage settings.</p>';
     return;
   }

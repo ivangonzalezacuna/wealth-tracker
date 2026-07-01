@@ -25,4 +25,27 @@ describe('getSetupState', () => {
   it('edge: signed-in + 0 accounts + snapshots → still "accounts" (accounts gate precedes update)', () => {
     expect(getSetupState({ signedIn: true, accountCount: 0, snapshotCount: 3 })).toBe('accounts');
   });
+
+  // Phase 41 — cacheLoaded tests
+  it('cached-but-unauthenticated with full data returns "done" (Phase 41)', () => {
+    expect(
+      getSetupState({ signedIn: false, cacheLoaded: true, accountCount: 3, snapshotCount: 5 }),
+    ).toBe('done');
+  });
+
+  it('cached-but-unauthenticated with no accounts still returns "accounts" (Phase 41)', () => {
+    expect(
+      getSetupState({ signedIn: false, cacheLoaded: true, accountCount: 0, snapshotCount: 0 }),
+    ).toBe('accounts');
+  });
+
+  it('neither signed in nor cached returns "signin" (unchanged)', () => {
+    expect(
+      getSetupState({ signedIn: false, cacheLoaded: false, accountCount: 3, snapshotCount: 5 }),
+    ).toBe('signin');
+  });
+
+  it('omitting cacheLoaded preserves prior behavior (regression guard)', () => {
+    expect(getSetupState({ signedIn: false, accountCount: 3, snapshotCount: 5 })).toBe('signin');
+  });
 });

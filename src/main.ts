@@ -18,6 +18,7 @@ import {
   getHoldings,
   getAccounts,
   getSettings,
+  hydrateConfigFromCache,
 } from './store/config';
 import { getSetupState } from './model/setup';
 import { computePD } from './portfolio';
@@ -327,6 +328,14 @@ async function bootFromCache() {
       getCachedAggregates(),
     ]);
 
+    // Hydrate the config store first — getACCTSList()/getAccounts()/
+    // primaryInvestmentValue() etc. all depend on this being populated
+    // before renderAll() runs, or Net worth/Portfolio render as empty
+    // even though real cached data exists (Phase 41).
+    if (cachedConfig) {
+      hydrateConfigFromCache(cachedConfig);
+    }
+
     if (cachedSnaps || cachedTxs) {
       state.snaps = cachedSnaps || [];
       state.txs = cachedTxs || [];
@@ -585,6 +594,7 @@ function renderSetupBanner(): void {
     signedIn: isSignedIn(),
     accountCount: getAccounts().length,
     snapshotCount: state.snaps.length,
+    cacheLoaded: state.cacheLoaded,
   });
 
   if (step === 'done') {

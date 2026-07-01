@@ -18,7 +18,15 @@ vi.mock('../config', () => ({
   },
 }));
 
-import { parseAccounts, setAccounts } from './config';
+import {
+  parseAccounts,
+  setAccounts,
+  hydrateConfigFromCache,
+  getAccounts,
+  getHoldings,
+  getSettings,
+  isConfigLoaded,
+} from './config';
 import { writeRange } from '../sheets/api';
 
 describe('parseAccounts', () => {
@@ -103,5 +111,54 @@ describe('setAccounts', () => {
     const hdr = lastCall[1][0]; // first row is the header
     expect(hdr).toHaveLength(10);
     expect(hdr.slice(-3)).toEqual(['annualReturnPct', 'contribAmount', 'contribInterval']);
+  });
+});
+
+describe('hydrateConfigFromCache (Phase 41)', () => {
+  it('sets getAccounts/getHoldings/getSettings and marks isConfigLoaded true', () => {
+    const accounts = [
+      {
+        id: 'a1',
+        moneyType: 'investment',
+        institution: 'TR',
+        label: 'Main',
+        color: '#000',
+        isPrimaryInvestment: true,
+        order: 1,
+      },
+    ];
+    const holdings = [
+      {
+        isin: 'IE00B4L5Y983',
+        ticker: 'IWDA',
+        name: 'iShares MSCI World',
+        color: '#4a90d9',
+        acc: true,
+        active: true,
+        contribAmount: 100,
+        interval: 'weekly' as const,
+        assetClass: 'equity',
+        region: 'developed',
+        foldInto: '',
+        order: 1,
+      },
+    ];
+    const settings = { costBasisMethod: 'fifo' };
+
+    hydrateConfigFromCache({ accounts, holdings, settings });
+
+    expect(getAccounts()).toEqual(accounts);
+    expect(getHoldings()).toEqual(holdings);
+    expect(getSettings()).toEqual(settings);
+    expect(isConfigLoaded()).toBe(true);
+  });
+
+  it('empty config still sets isConfigLoaded to true', () => {
+    hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
+
+    expect(getAccounts()).toEqual([]);
+    expect(getHoldings()).toEqual([]);
+    expect(getSettings()).toEqual({});
+    expect(isConfigLoaded()).toBe(true);
   });
 });

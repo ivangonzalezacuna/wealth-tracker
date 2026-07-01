@@ -89,6 +89,10 @@ vi.mock('../model/contributions', () => ({
   },
 }));
 
+vi.mock('../auth/google', () => ({
+  isSignedIn: () => true,
+}));
+
 import { renderSettings } from './settings';
 import { isCollapsed } from '../ui/collapseState';
 
