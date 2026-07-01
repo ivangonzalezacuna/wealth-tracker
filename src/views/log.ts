@@ -4,6 +4,8 @@ import { snapTotal, fmtEur2, fmtMon, esc, safeColor } from '../utils';
 import type { Snapshot, Transaction } from '../types';
 import { T } from '../theme';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
+import type { SortState } from './tableSort';
+import { applySort, sortableHeader, bindSortableHeader } from './tableSort';
 
 interface LogState {
   txs: Transaction[];
@@ -18,6 +20,7 @@ const PAGE_SIZE = 12;
 let _snapPage = 1;
 let _snapYear = '';
 let _snapSearch = '';
+let _snapTblSort: SortState = { key: null, dir: null };
 let _lastOnEdit: ((date: string) => void) | null = null;
 let _lastOnDel: ((date: string) => void) | null = null;
 let _readOnly = false;
@@ -68,6 +71,7 @@ function attachFilterListeners(snaps: Snapshot[]): void {
     yearEl.addEventListener('change', () => {
       _snapYear = yearEl.value;
       _snapPage = 1;
+      _snapTblSort = { key: null, dir: null };
       renderSnapList(snaps, _lastOnEdit, _lastOnDel);
     });
   }
@@ -76,6 +80,7 @@ function attachFilterListeners(snaps: Snapshot[]): void {
     searchEl.addEventListener('input', () => {
       _snapSearch = searchEl.value.toLowerCase();
       _snapPage = 1;
+      _snapTblSort = { key: null, dir: null };
       renderSnapList(snaps, _lastOnEdit, _lastOnDel);
     });
   }
@@ -127,18 +132,24 @@ export function renderSnapList(
     return;
   }
 
+  // Apply sort (before pagination)
+  const sorted = applySort(filtered, _snapTblSort, {
+    month: (s) => s.date,
+    total: (s) => snapTotal(s),
+  });
+
   // Pagination
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
   if (_snapPage > totalPages) _snapPage = totalPages;
   const start = (_snapPage - 1) * PAGE_SIZE;
-  const pageItems = filtered.slice(start, start + PAGE_SIZE);
+  const pageItems = sorted.slice(start, start + PAGE_SIZE);
 
   // Compact row layout - fixed 3-column (Month / Net worth / segment indicator)
   const shown = ACCTS;
   el.innerHTML = `
-    <div class="snap-row-compact th" role="row">
-      <div role="columnheader">Month</div>
-      <div role="columnheader" style="text-align:right">Net worth</div>
+    <div class="snap-row-compact th" role="row" id="snap-table-header">
+      ${sortableHeader('Month', 'month', _snapTblSort)}
+      ${sortableHeader('Net worth', 'total', _snapTblSort, 'right')}
       <div role="columnheader"></div>
     </div>
     ${pageItems
@@ -162,6 +173,16 @@ export function renderSnapList(
       })
       .join('')}
   `;
+
+  // Bind sort handler on header row
+  const snapHeaderEl = document.getElementById('snap-table-header');
+  if (snapHeaderEl) {
+    bindSortableHeader(snapHeaderEl, _snapTblSort, (newState) => {
+      _snapTblSort = newState;
+      _snapPage = 1;
+      renderSnapList(snaps, onEdit, onDel);
+    });
+  }
 
   // Row tap-to-expand detail panel (delegated on #snaps-list)
   const listEl = document.getElementById('snaps-list') as
