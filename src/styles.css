@@ -917,10 +917,9 @@ code,
   #port-table .hold-total {
     grid-template-columns: minmax(64px, 30%) 1fr 1fr 1fr;
   }
-  /* Hide: Shares(3), Avg Price(4), Realized P&L(6) */
-  #port-table .hold-row > *:nth-child(3),
-  #port-table .hold-row > *:nth-child(4),
-  #port-table .hold-row > *:nth-child(6),
+  /* Column hiding for header/data rows handled by generic [data-mobile-hidden]
+     rule (Phase 45a) driven by ColumnDef.mobileHidden in holdingsColumns().
+     The totals row (not migrated to ColumnDef) still needs nth-child hide: */
   #port-table .hold-total > *:nth-child(3),
   #port-table .hold-total > *:nth-child(4),
   #port-table .hold-total > *:nth-child(6) {
