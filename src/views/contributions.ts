@@ -105,6 +105,11 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
   // This accounts for all BUY transactions. Falls back to 0 if no data.
   const baseCash = pd.totalInv || 0;
 
+  // Ensure the last historical point matches the authoritative total
+  if (histCumulative.length > 0) {
+    histCumulative[histCumulative.length - 1] = baseCash;
+  }
+
   // Forecast starts from the last CSV month
   const lastMonth = histMonths.length > 0 ? histMonths[histMonths.length - 1] : null;
   if (!lastMonth) {
@@ -130,10 +135,12 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
   }
 
   // Combined chart: history (actual) + forecast (projected)
+  // The actual line ends at the last CSV month; the forecast starts from the next month.
+  // For visual continuity, the forecast's first point connects from baseCash.
   const histLabels = histMonths.map((m) => fmtMon(m));
   const labels = [...histLabels, ...fcLabels];
   const histDataFull = [...histCumulative, ...new Array(fcValues.length).fill(null)];
-  const fcDataFull = [...new Array(histCumulative.length - 1).fill(null), baseCash, ...fcValues];
+  const fcDataFull = [...new Array(histCumulative.length).fill(null), ...fcValues];
 
   // Per-account contribution summary
   const acctSummaryLines = forecastAccounts
