@@ -1,4 +1,4 @@
-// @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
+// @ts-nocheck - DOM-heavy view; full strict typing deferred to framework migration
 import { snapTotal, fmtEur, fmtEur2, fmtMon, esc, safeColor } from '../utils';
 import { getACCTSList } from '../constants';
 import {
@@ -106,7 +106,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
       <div class="kpi">
         <div class="kpi-label">YoY${infoTip('Year-over-Year: Change in total net worth compared to the same month one year ago.')}</div>
         <div class="kpi-val ${yoyAbs >= 0 ? 'pos' : 'neg'}">${yoyAbs >= 0 ? '+' : ''}${fmtEur2(yoyAbs)}</div>
-        <div class="kpi-sub">${yoyPct !== null ? (yoyPct >= 0 ? '+' : '') + yoyPct.toFixed(1) + '%' : '—'} vs ${fmtMon(yoyData.snap.date)}</div>
+        <div class="kpi-sub">${yoyPct !== null ? (yoyPct >= 0 ? '+' : '') + yoyPct.toFixed(1) + '%' : '-'} vs ${fmtMon(yoyData.snap.date)}</div>
       </div>`
         : ''
     }
@@ -130,10 +130,10 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   // Chart title + legend + history chart
   document.getElementById('nw-chart-title').textContent =
     snaps.length === 1
-      ? 'Account breakdown — ' +
+      ? 'Account breakdown: ' +
         fmtMon(snaps[0].date) +
         ' (add more snapshots to see growth over time)'
-      : 'Net worth over time — total + per account';
+      : 'Net worth over time: total + per account';
 
   const C = resolvedT();
   _destroyChart('c-nw-hist');
@@ -245,8 +245,8 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
           // Compare ETA with target date
           const isOnTrack = etaDateStr <= targetDate;
           etaText = isOnTrack
-            ? `<span class="pos">On track for ${fmtMon(targetDate)}</span> (ETA ${etaFormatted} \u2014 ${etaDateFmt})`
-            : `<span class="neg">Behind schedule</span> (ETA ${etaFormatted} \u2014 ${etaDateFmt}, target was ${fmtMon(targetDate)})`;
+            ? `<span class="pos">On track for ${fmtMon(targetDate)}</span> (ETA ${etaFormatted}, ${etaDateFmt})`
+            : `<span class="neg">Behind schedule</span> (ETA ${etaFormatted}, ${etaDateFmt}; target was ${fmtMon(targetDate)})`;
         } else {
           etaText = `ETA ${etaFormatted} (${etaDateFmt})`;
         }
@@ -394,7 +394,7 @@ function _renderNWHistChart(
 function _bindLegendToggle(chart: Chart): void {
   const legendEl = document.getElementById('nw-chart-legend');
   if (!legendEl) return;
-  // Index 0 = Total — always visible, never togglable (matches Phase 25's rule
+  // Index 0 = Total - always visible, never togglable (matches Phase 25's rule
   // that Total must never be hideable).
   bindLegendToggle(legendEl, chart, { skipIndex: [0] });
 }
@@ -523,7 +523,7 @@ function _attachNWRangeToggle(
     const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
     if (!btn) return;
     const newRange = (btn.dataset.range as '12' | '36' | 'all') || 'all';
-    if (newRange === _nwRange) return; // already on this range — no-op
+    if (newRange === _nwRange) return; // already on this range - no-op
     _nwRange = newRange;
     toggle.querySelectorAll('.btn').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
@@ -636,14 +636,13 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
 
   forecastEl.innerHTML = `
     <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-        <div class="card-title" style="margin:0">Forecast \u2014 ${FC_LABELS[_fcRange]}</div>
-        <div class="chart-controls">
-          <div class="range-toggle" id="nw-forecast-range-toggle">
-            <button class="btn btn-sm btn-ghost ${_fcRange === '60' ? 'active' : ''}" data-range="60">5Y</button>
-            <button class="btn btn-sm btn-ghost ${_fcRange === '120' ? 'active' : ''}" data-range="120">10Y</button>
-            <button class="btn btn-sm btn-ghost ${_fcRange === '240' ? 'active' : ''}" data-range="240">20Y</button>
-          </div>
+      <div class="card-title">Forecast: ${FC_LABELS[_fcRange]} (per-account return assumptions)</div>
+      <div class="chart-controls">
+        <div id="nw-forecast-legend" class="legend"></div>
+        <div class="range-toggle" id="nw-forecast-range-toggle">
+          <button class="btn btn-sm btn-ghost ${_fcRange === '60' ? 'active' : ''}" data-range="60">5Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '120' ? 'active' : ''}" data-range="120">10Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '240' ? 'active' : ''}" data-range="240">20Y</button>
         </div>
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast"></canvas></div>
@@ -693,7 +692,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+        legend: { display: false },
         tooltip: {
           mode: 'index',
           intersect: false,
@@ -734,6 +733,19 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       },
     },
   });
+
+  // Build custom HTML legend for forecast chart
+  const fcLegendEl = document.getElementById('nw-forecast-legend');
+  if (fcLegendEl) {
+    const datasets = CH['c-nw-forecast'].data.datasets;
+    fcLegendEl.innerHTML = datasets
+      .map(
+        (ds) =>
+          `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(ds.borderColor as string)}"></span>${esc(ds.label)}</span>`,
+      )
+      .join('');
+    bindLegendToggle(fcLegendEl, CH['c-nw-forecast']);
+  }
 
   _attachForecastRangeToggle(snaps, accounts);
 }

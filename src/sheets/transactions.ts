@@ -1,7 +1,7 @@
 /**
- * Transaction persistence — stores parsed CSV rows in "Transactions" tab.
+ * Transaction persistence - stores parsed CSV rows in "Transactions" tab.
  * On re-import, deduplicates by transaction key and appends only new rows.
- * Never clears/rewrites — append-only to prevent data loss on partial failures.
+ * Never clears/rewrites - append-only to prevent data loss on partial failures.
  *
  * Sheet layout (row 1 = header):
  * id | date | source | type | name | isin | shares | price | amount | fee | tax | currency | fxRate | note
@@ -49,7 +49,7 @@ const OLD_HDR = [
 
 /** Build a deduplication key for a transaction. Uses id when present,
  *  otherwise a delimited composite to avoid same-day/same-amount collisions.
- *  NOTE: txKey semantics are unchanged — new fields do NOT enter the key. */
+ *  NOTE: txKey semantics are unchanged - new fields do NOT enter the key. */
 export function txKey(t: Transaction): string {
   if (t.id) return t.id;
   const sym = t.isin || t.symbol || '';
@@ -100,7 +100,7 @@ export async function loadTransactions(): Promise<Transaction[]> {
 
 /**
  * Merge new transactions with existing ones (append-only, never clears).
- * Deduplicates using txKey — only genuinely new rows are appended.
+ * Deduplicates using txKey - only genuinely new rows are appended.
  * Returns the full merged set sorted by date.
  */
 export async function mergeTransactions(

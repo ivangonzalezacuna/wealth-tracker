@@ -1,4 +1,4 @@
-// @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
+// @ts-nocheck - DOM-heavy view; full strict typing deferred to framework migration
 import { getACCTSList } from '../constants';
 import { snapTotal, fmtEur2, fmtMon, esc, safeColor } from '../utils';
 import type { Snapshot, Transaction } from '../types';
@@ -28,7 +28,7 @@ export function renderLog(state: LogState): void {
   // Import status bar
   const el = document.getElementById('import-status');
   if (importMeta?.last_import && txs.length) {
-    el.textContent = `\u2713 ${txs.length} transactions synced — last imported ${importMeta.last_import}`;
+    el.textContent = `\u2713 ${txs.length} transactions synced, last imported ${importMeta.last_import}`;
     el.className = 'status-bar status-ok';
   } else {
     el.textContent = 'No CSV imported yet';
@@ -90,7 +90,7 @@ export function renderSnapList(
   const el = document.getElementById('snaps-list');
   if (!snaps.length) {
     el.innerHTML =
-      '<div class="empty-state" style="padding:1.5rem;font-size:13px">No snapshots yet — add your first one above.</div>';
+      '<div class="empty-state" style="padding:1.5rem;font-size:13px">No snapshots yet. Add your first one above.</div>';
     hidePagination();
     return;
   }
@@ -133,7 +133,7 @@ export function renderSnapList(
   const start = (_snapPage - 1) * PAGE_SIZE;
   const pageItems = filtered.slice(start, start + PAGE_SIZE);
 
-  // Compact row layout — fixed 3-column (Month / Net worth / segment indicator)
+  // Compact row layout - fixed 3-column (Month / Net worth / segment indicator)
   const shown = ACCTS;
   el.innerHTML = `
     <div class="snap-row-compact th" role="row">

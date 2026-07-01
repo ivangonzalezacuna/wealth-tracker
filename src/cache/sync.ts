@@ -1,5 +1,5 @@
 /**
- * Incremental sync engine — fetches only new transactions since the last cursor.
+ * Incremental sync engine - fetches only new transactions since the last cursor.
  *
  * Transactions in the Google Sheet are append-only and date-sorted.
  * The sync cursor stores the last synced date + row count.
@@ -37,14 +37,14 @@ export async function fetchDeltaTransactions(cursor: SyncCursor): Promise<Transa
     // Filter out empty rows and parse
     return rows.filter((r) => r[1]).map(newRowToTx);
   } catch {
-    // Network error or other failure — return null to signal full sync needed
+    // Network error or other failure - return null to signal full sync needed
     return null;
   }
 }
 
 /**
  * Merge new delta transactions into an existing cached set.
- * Deduplicates using txKey — only genuinely new rows are appended.
+ * Deduplicates using txKey - only genuinely new rows are appended.
  * Returns { merged, newCount, cursor }.
  */
 export function mergeDelta(

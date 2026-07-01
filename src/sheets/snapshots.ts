@@ -1,5 +1,5 @@
 /**
- * Snapshot persistence — one row per month in the "Snapshots" tab.
+ * Snapshot persistence - one row per month in the "Snapshots" tab.
  *
  * Columns are derived from your configured accounts:
  *   date | <account keys…> | notes
@@ -102,13 +102,13 @@ export function rowToSnap(
 /** Load all snapshots from the sheet, sorted ascending by date. */
 export async function loadSnapshots(): Promise<Snapshot[]> {
   await ensureSheets([TAB]);
-  const rows = await readRange(TAB); // whole used range — width-independent
+  const rows = await readRange(TAB); // whole used range - width-independent
   return parseSnapshotRows(rows);
 }
 
 /**
  * Per-row upsert: write a single snapshot month in place (or append).
- * Never calls clearRange — a failure touches at most the single row being saved.
+ * Never calls clearRange - a failure touches at most the single row being saved.
  * This is the monthly save path.
  */
 export async function upsertSnapshot(snap: Snapshot): Promise<void> {
@@ -120,7 +120,7 @@ export async function upsertSnapshot(snap: Snapshot): Promise<void> {
     const hdrRows = await readRange(`${TAB}!1:1`);
     if (hdrRows.length > 0) current = hdrRows[0];
   } catch {
-    // Sheet may be empty — that's fine
+    // Sheet may be empty - that's fine
   }
 
   // 2. Compute desired header (append-only)
@@ -145,13 +145,13 @@ export async function upsertSnapshot(snap: Snapshot): Promise<void> {
     // rowIdx is 0-based over all rows incl. header; sheet row = rowIdx + 1
     await writeRange(`${TAB}!A${rowIdx + 1}:${colLetter(desired.length)}${rowIdx + 1}`, [row]);
   } else {
-    // Append — new month
+    // Append - new month
     await appendRows(`${TAB}!A:${colLetter(desired.length)}`, [row]);
   }
 }
 
 /**
- * Save all snapshots back to the sheet (full overwrite — write-first-safe).
+ * Save all snapshots back to the sheet (full overwrite - write-first-safe).
  * Writes the full table first, then clears only stale cells beyond the new extent.
  *
  * NOTE: The monthly save path uses `upsertSnapshot` instead.
@@ -173,13 +173,13 @@ export async function saveSnapshots(snaps: Snapshot[]): Promise<void> {
       existingWidth = existing[0].length;
     }
   } catch {
-    // Sheet may be empty — that's fine
+    // Sheet may be empty - that's fine
   }
   try {
     const colA = await readRange(`${TAB}!A:A`);
     existingHeight = colA.length;
   } catch {
-    // Sheet may be empty — that's fine
+    // Sheet may be empty - that's fine
   }
 
   // Write full table first (overwrite in place)

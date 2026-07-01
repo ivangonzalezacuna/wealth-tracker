@@ -27,20 +27,20 @@ export function infoTip(text: string): string {
 
 /**
  * Attach hover/click behaviour to all `.info-tip` elements within root.
- * Safe to call multiple times — already-bound tips are skipped.
+ * Safe to call multiple times - already-bound tips are skipped.
  */
 export function attachInfoTips(root: HTMLElement | Document = document): void {
   root.querySelectorAll('.info-tip:not([data-tip-bound])').forEach((el) => {
     (el as HTMLElement).dataset.tipBound = '1';
 
-    // Single tap on mobile / click on desktop — show/hide
+    // Single tap on mobile / click on desktop - show/hide
     el.addEventListener('click', (e) => {
       e.stopPropagation();
       e.preventDefault();
       _togglePopover(el as HTMLElement);
     });
 
-    // Desktop hover (non-touch) — show on enter, hide on leave
+    // Desktop hover (non-touch) - show on enter, hide on leave
     el.addEventListener('mouseenter', (e) => {
       // Skip hover behavior on touch devices (avoids double-fire)
       if (_isTouchEvent(e as MouseEvent)) return;
@@ -108,7 +108,7 @@ function _positionPopover(trigger: HTMLElement, pop: HTMLElement): void {
   pop.style.top = `${top}px`;
   pop.style.transform = 'translate(-50%, -100%)';
 
-  // After positioning, check if it overflows the viewport top — flip below if so
+  // After positioning, check if it overflows the viewport top - flip below if so
   requestAnimationFrame(() => {
     const popRect = pop.getBoundingClientRect();
     if (popRect.top < 4) {

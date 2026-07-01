@@ -1,4 +1,4 @@
-// @ts-nocheck — DOM-heavy entry point; full strict typing deferred to framework migration
+// @ts-nocheck - DOM-heavy entry point; full strict typing deferred to framework migration
 import './styles.css';
 import { CONFIG } from './config';
 import { getACCTSList } from './constants';
@@ -132,7 +132,7 @@ function applyReadOnlyMode(): void {
         roMsg = document.createElement('p');
         roMsg.className = 'note ro-msg';
         roMsg.style.marginTop = '0.5rem';
-        roMsg.textContent = '📦 Read-only mode — sign in to log monthly updates.';
+        roMsg.textContent = '📦 Read-only mode. Sign in to log monthly updates.';
         balanceCard.querySelector('.card-title')?.insertAdjacentElement('afterend', roMsg);
       }
       roMsg.style.display = '';
@@ -210,11 +210,11 @@ function resolveInitialSection(): void {
 function showSection(id, btn) {
   const alreadyActive =
     _activeSection === id && document.getElementById(id)?.classList.contains('active');
-  // Settings always repaints (mirrors live config edits — see Phase 13); every
+  // Settings always repaints (mirrors live config edits - see Phase 13); every
   // other section is a true no-op when re-clicking the tab it's already on.
   if (alreadyActive && id !== 'settings') {
     // Still worth a defensive re-sync of the hash in case it drifted (e.g. via
-    // popstate or a stale deep link) — cheap, no DOM/render cost.
+    // popstate or a stale deep link) - cheap, no DOM/render cost.
     history.replaceState(null, '', navHash(id, id === 'portfolio' ? _portfolioSubview : undefined));
     return;
   }
@@ -280,7 +280,7 @@ function initAuth() {
 
   // Boot: render from cache instantly, then check for a stored token.
   // If a valid token is already in memory (restored from localStorage at module
-  // load), proceed transparently. If not, wait for the user to click Sign in —
+  // load), proceed transparently. If not, wait for the user to click Sign in -
   // never fire a GIS network call at boot without a prior explicit auth.
   bootFromCache().then(() => {
     if (isSignedIn()) {
@@ -299,7 +299,7 @@ async function onSignInClick() {
     updateAuthUI(true);
     await loadAllData();
   } catch (err) {
-    setAuthStatus('Sign-in failed — ' + err.message, true);
+    setAuthStatus('Sign-in failed: ' + err.message, true);
   }
 }
 
@@ -324,7 +324,7 @@ function updateAuthUI(signedIn) {
       content?.style.setProperty('display', 'block');
       signinGlobal?.style.setProperty('display', 'inline-block');
       syncNowBtn?.style.setProperty('display', 'none');
-      setAuthStatus('📦 Read-only — sign in to sync');
+      setAuthStatus('📦 Read-only, sign in to sync');
     } else {
       prompt?.style.setProperty('display', 'block');
       content?.style.setProperty('display', 'none');
@@ -367,7 +367,7 @@ async function bootFromCache() {
       getCachedAggregates(),
     ]);
 
-    // Hydrate the config store first — getACCTSList()/getAccounts()/
+    // Hydrate the config store first - getACCTSList()/getAccounts()/
     // primaryInvestmentValue() etc. all depend on this being populated
     // before renderAll() runs, or Net worth/Portfolio render as empty
     // even though real cached data exists (Phase 41).
@@ -385,7 +385,7 @@ async function bootFromCache() {
       setSyncStatus('cached');
     }
   } catch {
-    // Cache read failed — no problem, will do full network load
+    // Cache read failed - no problem, will do full network load
   }
 }
 
@@ -415,7 +415,7 @@ async function syncInBackground() {
       // Delta sync: fetch only new rows
       const delta = await fetchDeltaTransactions(cursor);
       if (delta !== null && delta.length === 0) {
-        // No new transactions — keep cached
+        // No new transactions - keep cached
         txs = state.txs;
       } else if (delta !== null) {
         // Merge delta into cached transactions
@@ -423,7 +423,7 @@ async function syncInBackground() {
         txs = merged;
         await setSyncCursor(newCursor);
       } else {
-        // Delta fetch failed — fall back to full load
+        // Delta fetch failed - fall back to full load
         txs = await loadTransactions();
         await setSyncCursor({
           lastDate: txs.length > 0 ? txs[txs.length - 1].date : '',
@@ -431,7 +431,7 @@ async function syncInBackground() {
         });
       }
     } else {
-      // No cursor or no cached txs — full load
+      // No cursor or no cached txs - full load
       txs = await loadTransactions();
       await setSyncCursor({
         lastDate: txs.length > 0 ? txs[txs.length - 1].date : '',
@@ -473,7 +473,7 @@ async function syncInBackground() {
     setSyncStatus('error', err.message);
     // If we had cached data, keep showing it
     if (!state.cacheLoaded) {
-      // No cache either — show error
+      // No cache either - show error
     }
   } finally {
     setSyncing(false);
@@ -605,8 +605,8 @@ function setSyncStatus(status, msg = '') {
     syncing: ['status-warn', '<span class="spinner"></span>Syncing…'],
     cached: ['status-info', '📦 Showing cached data'],
     ok: ['status-ok', '✓ Synced'],
-    offline: ['status-warn', '📴 Offline — showing cached data'],
-    error: ['status-err', '⚠ Sync error — ' + msg],
+    offline: ['status-warn', '📴 Offline, showing cached data'],
+    error: ['status-err', '⚠ Sync error: ' + msg],
   };
   const [cls, text] = map[status] || ['status-empty', ''];
   el.className = 'status-pill ' + cls;
@@ -718,7 +718,7 @@ async function saveSnapshot() {
     return;
   }
   if (isSyncBusy()) {
-    showMsg('snap-msg', 'A sync or save is in progress — try again in a moment.', false);
+    showMsg('snap-msg', 'A sync or save is in progress. Try again in a moment.', false);
     return;
   }
   const date = document.getElementById('snap-date').value;
@@ -760,7 +760,7 @@ async function saveSnapshot() {
 }
 
 /**
- * saveMonthlyUpdate — single orchestrator for the "Monthly update" flow.
+ * saveMonthlyUpdate - single orchestrator for the "Monthly update" flow.
  * Saves balances (snapshot) via the existing upsert path.
  * CSV import remains a separate confirm action within the same card.
  * Both paths run under the unified sync lock.
@@ -773,7 +773,7 @@ function editSnap(date) {
   const s = state.snaps.find((s) => s.date === date);
   if (!s) return;
 
-  renderSnapForm(); // idempotent — guarantees the input fields exist
+  renderSnapForm(); // idempotent - guarantees the input fields exist
 
   const dateEl = document.getElementById('snap-date');
   if (dateEl) dateEl.value = s.date;
@@ -875,10 +875,10 @@ async function handleCSVFile(file) {
     let profile = detectProfile(headerLine);
 
     if (profile) {
-      // Profile detected — parse immediately and show preview
+      // Profile detected - parse immediately and show preview
       showImportPreview(text, profile);
     } else {
-      // No match — show profile picker
+      // No match - show profile picker
       showProfilePicker(text);
     }
   };
@@ -928,10 +928,10 @@ function showImportPreview(csvText, profile) {
   const container = document.getElementById('import-preview');
   if (!container) return;
 
-  // Confirm handler — write to sheets
+  // Confirm handler - write to sheets
   async function confirmImport() {
     if (isSyncBusy()) {
-      showMsg('import-msg', 'A sync or save is in progress — try again in a moment.', false);
+      showMsg('import-msg', 'A sync or save is in progress. Try again in a moment.', false);
       return;
     }
     container.innerHTML = '';

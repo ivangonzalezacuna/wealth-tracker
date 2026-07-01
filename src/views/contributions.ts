@@ -1,4 +1,4 @@
-// @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
+// @ts-nocheck - DOM-heavy view; full strict typing deferred to framework migration
 import { fmtEur, fmtMon, esc, safeColor } from '../utils';
 import { getISIN_ORDERList, getISIN, getMETAMap } from '../constants';
 import { getTotalAnnualContrib, getAccounts } from '../store/config';
@@ -12,7 +12,7 @@ const CH: Record<string, Chart> = {};
 const DCA_PAGE_SIZE = 12;
 let _dcaPage = 1;
 let _dcaYear = '';
-let _dcaRange = 'all'; // '12', '24', 'all'
+let _dcaRange = 'all'; // '12', '36', 'all'
 let _lastPd: PortfolioData | null = null;
 let _dcaFcRange: '60' | '120' | '240' = '60'; // 5y / 10y / 20y forecast horizon
 
@@ -166,14 +166,13 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
 
   projCard.innerHTML = `
     <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-        <div class="card-title" style="margin:0">Cumulative contributions \u2014 ${DCA_FC_LABELS[_dcaFcRange]}</div>
-        <div class="chart-controls">
-          <div class="range-toggle" id="dca-forecast-range-toggle">
-            <button class="btn btn-sm btn-ghost ${_dcaFcRange === '60' ? 'active' : ''}" data-range="60">5Y</button>
-            <button class="btn btn-sm btn-ghost ${_dcaFcRange === '120' ? 'active' : ''}" data-range="120">10Y</button>
-            <button class="btn btn-sm btn-ghost ${_dcaFcRange === '240' ? 'active' : ''}" data-range="240">20Y</button>
-          </div>
+      <div class="card-title">Cumulative contributions: ${DCA_FC_LABELS[_dcaFcRange]}</div>
+      <div class="chart-controls">
+        <div id="dca-forecast-legend" class="legend"></div>
+        <div class="range-toggle" id="dca-forecast-range-toggle">
+          <button class="btn btn-sm btn-ghost ${_dcaFcRange === '60' ? 'active' : ''}" data-range="60">5Y</button>
+          <button class="btn btn-sm btn-ghost ${_dcaFcRange === '120' ? 'active' : ''}" data-range="120">10Y</button>
+          <button class="btn btn-sm btn-ghost ${_dcaFcRange === '240' ? 'active' : ''}" data-range="240">20Y</button>
         </div>
       </div>
       <div class="chart-wrap chart-h-md"><canvas id="c-dca-proj"></canvas></div>
@@ -222,7 +221,7 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+        legend: { display: false },
         tooltip: {
           mode: 'index',
           intersect: false,
@@ -263,6 +262,19 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
       },
     },
   });
+
+  // Build custom HTML legend for DCA forecast chart
+  const dcaFcLegendEl = document.getElementById('dca-forecast-legend');
+  if (dcaFcLegendEl) {
+    const datasets = CH['c-dca-proj'].data.datasets;
+    dcaFcLegendEl.innerHTML = datasets
+      .map(
+        (ds) =>
+          `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(ds.borderColor as string)}"></span>${esc(ds.label)}</span>`,
+      )
+      .join('');
+    bindLegendToggle(dcaFcLegendEl, CH['c-dca-proj']);
+  }
 
   _attachDCAForecastRangeToggle(pd, accounts);
 }
@@ -405,7 +417,7 @@ function attachRangeToggle(
     const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
     if (!btn) return;
     const newRange = btn.dataset.range || 'all';
-    if (newRange === _dcaRange) return; // already on this range — no-op
+    if (newRange === _dcaRange) return; // already on this range - no-op
     _dcaRange = newRange;
     _dcaPage = 1;
     toggle.querySelectorAll('.btn').forEach((b) => b.classList.remove('active'));

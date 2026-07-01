@@ -1,6 +1,6 @@
 /**
  * Shared row→Transaction parsers.
- * Pure functions — no Sheets imports, no side-effects.
+ * Pure functions - no Sheets imports, no side-effects.
  *
  * Used by sheets/transactions.ts (initial load) and cache/sync.ts (delta sync).
  */

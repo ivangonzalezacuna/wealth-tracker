@@ -100,7 +100,7 @@ describe('bindLegendToggle', () => {
 
     items[1].click(); // isolate to 1
 
-    // Index 0 is skipped — never hidden
+    // Index 0 is skipped - never hidden
     expect(chart._metas[0].hidden).toBe(false);
     expect(items[0].style.opacity).toBe('1');
     expect(items[0].style.cursor).not.toBe('pointer');
@@ -145,7 +145,7 @@ describe('bindLegendToggle', () => {
 
     items[1].click(); // isolate among eligible (1,2,3) → only 1 visible
 
-    expect(chart._metas[0].hidden).toBe(false); // skip — always visible
+    expect(chart._metas[0].hidden).toBe(false); // skip - always visible
     expect(chart._metas[1].hidden).toBe(false);
     expect(chart._metas[2].hidden).toBe(true);
     expect(chart._metas[3].hidden).toBe(true);

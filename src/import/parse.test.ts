@@ -1,4 +1,4 @@
-// @ts-nocheck — test fixtures use partial objects; strict typing deferred
+// @ts-nocheck - test fixtures use partial objects; strict typing deferred
 import { describe, it, expect } from 'vitest';
 import { TxType } from '../model/tx';
 import { parseWithProfile, detectProfile, previewSummary, parseNumber, parseDate } from './parse';

@@ -29,14 +29,14 @@ export function fmtShares(n: number): string {
   });
 }
 
-/** Current month as 'YYYY-MM' (local time) — the max allowed snapshot month. */
+/** Current month as 'YYYY-MM' (local time) - the max allowed snapshot month. */
 export function currentMonth(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 export function fmtMon(d: string): string {
-  if (!d) return '—';
+  if (!d) return '-';
   const [y, m] = d.split('-');
   return (
     ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][+m - 1] +
@@ -46,7 +46,7 @@ export function fmtMon(d: string): string {
 }
 
 export function fmtDay(d: string): string {
-  if (!d) return '—';
+  if (!d) return '-';
   return new Date(d + 'T12:00:00').toLocaleDateString('de-DE', {
     day: '2-digit',
     month: 'short',
@@ -80,7 +80,7 @@ export function esc(s: string | null | undefined): string {
     .replace(/"/g, '&quot;');
 }
 
-/** Sanitize a CSS color value — only allow safe patterns. */
+/** Sanitize a CSS color value - only allow safe patterns. */
 export function safeColor(c: string | null | undefined): string {
   if (!c) return '#888';
   const s = String(c).trim();

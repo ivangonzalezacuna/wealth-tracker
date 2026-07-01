@@ -1,4 +1,4 @@
-// @ts-nocheck — DOM-heavy view; full strict typing deferred to framework migration
+// @ts-nocheck - DOM-heavy view; full strict typing deferred to framework migration
 import { fmtEur, fmtEur2, fmtMon, fmtShares, esc, safeColor } from '../utils';
 import { getISIN_ORDERList, getMETAMap } from '../constants';
 import { getAccounts, getHoldings } from '../store/config';
@@ -83,10 +83,10 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
         ${!isExited ? `<div class="bar-wrap"><div class="bar-fill" style="width:${pct.toFixed(0)}%;background:${safeColor(e.color)}"></div></div>` : ''}
       </div>
       <div role="cell" style="text-align:right;color:var(--ink-2)">${fmtShares(e.shares)}</div>
-      <div role="cell" style="text-align:right;color:var(--ink-2)">${avg > 0 ? fmtEur2(avg) : '—'}</div>
+      <div role="cell" style="text-align:right;color:var(--ink-2)">${avg > 0 ? fmtEur2(avg) : '-'}</div>
       <div role="cell" style="text-align:right;color:var(--ink-2)">${pct.toFixed(1)}%</div>
-      <div role="cell" style="text-align:right;color:${rpnl >= 0 ? 'var(--pos)' : 'var(--neg)'}" aria-label="Realized P&L ${rpnl !== 0 ? (rpnl >= 0 ? '+' : '') + rpnl.toFixed(2) : 'none'}">${rpnl === 0 ? '—' : (rpnl > 0 ? '+' : '') + fmtEur2(rpnl)}</div>
-      <div role="cell" style="text-align:right;color:${e.divNet > 0 ? 'var(--pos)' : 'var(--ink-3)'}">${e.divNet > 0 ? fmtEur2(e.divNet) : '—'}</div>
+      <div role="cell" style="text-align:right;color:${rpnl >= 0 ? 'var(--pos)' : 'var(--neg)'}" aria-label="Realized P&L ${rpnl !== 0 ? (rpnl >= 0 ? '+' : '') + rpnl.toFixed(2) : 'none'}">${rpnl === 0 ? '-' : (rpnl > 0 ? '+' : '') + fmtEur2(rpnl)}</div>
+      <div role="cell" style="text-align:right;color:${e.divNet > 0 ? 'var(--pos)' : 'var(--ink-3)'}">${e.divNet > 0 ? fmtEur2(e.divNet) : '-'}</div>
     </div>`;
     })
     .join('');
@@ -139,13 +139,13 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
       }
       const cell = row.querySelector('.hold-etf-cell') as HTMLElement | null;
       if (!cell) return;
-      const isin = cell.dataset.isin || '—';
+      const isin = cell.dataset.isin || '-';
       const active = cell.dataset.active === '1' ? 'Active' : 'Closed';
       const acc = cell.dataset.acc === '1' ? 'Accumulating' : 'Distributing';
-      const shares = cell.dataset.shares || '—';
-      const avg = cell.dataset.avg || '—';
+      const shares = cell.dataset.shares || '-';
+      const avg = cell.dataset.avg || '-';
       const rpnlNum = parseFloat(cell.dataset.rpnl || '0');
-      const rpnl = rpnlNum === 0 ? '—' : (rpnlNum > 0 ? '+' : '') + fmtEur2(rpnlNum);
+      const rpnl = rpnlNum === 0 ? '-' : (rpnlNum > 0 ? '+' : '') + fmtEur2(rpnlNum);
       const rpnlClass = rpnlNum >= 0 ? 'pos' : 'neg';
       const panel = document.createElement('div');
       panel.className = 'hold-detail';
@@ -208,10 +208,10 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   document.getElementById('port-kpis').innerHTML = `
     <div class="kpi"><div class="kpi-label">Total invested</div><div class="kpi-val">${fmtEur(pd.totalInv)}</div><div class="kpi-sub">net of sells</div></div>
     <div class="kpi"><div class="kpi-label">Current value</div>
-      <div class="kpi-val">${curVal !== null ? fmtEur2(curVal) : '—'}</div>
+      <div class="kpi-val">${curVal !== null ? fmtEur2(curVal) : '-'}</div>
       <div class="kpi-sub">${curVal !== null ? 'from ' + fmtMon(latSnap.date) + ' snapshot' : latSnap ? 'no primary investment account flagged' : 'add a snapshot'}</div></div>
     <div class="kpi"><div class="kpi-label">Unrealized gain</div>
-      <div class="kpi-val ${gain !== null && gain >= 0 ? 'pos' : 'neg'}">${gain !== null ? (gain >= 0 ? '+' : '') + fmtEur2(gain) : '—'}</div>
+      <div class="kpi-val ${gain !== null && gain >= 0 ? 'pos' : 'neg'}">${gain !== null ? (gain >= 0 ? '+' : '') + fmtEur2(gain) : '-'}</div>
       <div class="kpi-sub">${gainPct !== null ? (gainPct >= 0 ? '+' : '') + gainPct.toFixed(1) + '%' : ''}</div></div>
     <div class="kpi"><div class="kpi-label">Realized P&amp;L${infoTip('Gain or loss already locked in from shares you have sold. Distinct from the unrealized gain on positions you still hold.')}</div>
       <div class="kpi-val ${pd.realizedPnL >= 0 ? 'pos' : 'neg'}">${pd.realizedPnL === 0 ? fmtEur2(0) : (pd.realizedPnL > 0 ? '+' : '') + fmtEur2(pd.realizedPnL)}</div>
@@ -231,7 +231,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     .concat(Object.values(pd.etfs).filter((e) => !ISIN_ORDER.includes(e.symbol)));
   const { held } = splitHoldings(allEtfs);
 
-  // Bar chart — only held positions with cost > 0
+  // Bar chart - only held positions with cost > 0
   const donutE = held.filter((e) => e.cost > 0);
   const C = resolvedT();
   if (CH['c-port-donut']) {
@@ -285,7 +285,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     )
     .join('');
 
-  // TODO Phase: consolidation — populate foldInto on first SELL (IEEM→CMEIU, CECBE+EGB7Y→GABE)
+  // TODO Phase: consolidation - populate foldInto on first SELL (IEEM→CMEIU, CECBE+EGB7Y→GABE)
   document.getElementById('port-summary').innerHTML = `
     <div class="row"><div class="row-label">Total invested (net)</div><div class="row-val">${fmtEur(pd.totalInv)}</div></div>
     <div class="row"><div class="row-label">Realized P&amp;L</div><div class="row-val ${pd.realizedPnL >= 0 ? 'ok' : 'neg'}">${pd.realizedPnL === 0 ? fmtEur2(0) : (pd.realizedPnL > 0 ? '+' : '') + fmtEur2(pd.realizedPnL)}</div></div>

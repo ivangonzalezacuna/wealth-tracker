@@ -1,6 +1,6 @@
 /**
  * ─────────────────────────────────────────────────────────────
- *  STATIC DEFAULTS — used before the config store loads from Google Sheets.
+ *  STATIC DEFAULTS - used before the config store loads from Google Sheets.
  * ─────────────────────────────────────────────────────────────
  *  On first sign-in, the config store seeds its sheet tabs from these values.
  *  After that, all data lives in the Accounts / Holdings / Settings sheets
@@ -61,10 +61,10 @@ export const CONFIG: AppConfig = {
   },
 
   // ── Accounts tracked in each monthly snapshot ──────────────
-  //  key   — stable id; column name in the Snapshots sheet.
-  //  label — shown in the UI and charts.
-  //  color — chart colour.
-  //  form  — how the input renders on the Update tab.
+  //  key   - stable id; column name in the Snapshots sheet.
+  //  label - shown in the UI and charts.
+  //  color - chart colour.
+  //  form  - how the input renders on the Update tab.
   accounts: [
     // Example:
     // { key: 'broker_etf', label: 'Broker ETF', color: '#2a78d6',
@@ -75,8 +75,8 @@ export const CONFIG: AppConfig = {
 
   // ── Holdings: map each ISIN to display metadata ────────────
   //  Order here = display order across the whole app.
-  //  acc    — accumulating (true) vs distributing (false)
-  //  active — receiving new contributions (true) vs closed (false)
+  //  acc    - accumulating (true) vs distributing (false)
+  //  active - receiving new contributions (true) vs closed (false)
   holdings: [
     // Example:
     // { isin: 'IE00B4L5Y983', ticker: 'IWDA', color: '#2a78d6', acc: true, active: true },

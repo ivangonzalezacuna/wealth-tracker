@@ -1,4 +1,4 @@
-/** Single source of truth for chart colours — mirrors the CSS :root tokens in styles.css. */
+/** Single source of truth for chart colours - mirrors the CSS :root tokens in styles.css. */
 export const T = {
   bg: '#f5f4f0',
   surface: '#fff',

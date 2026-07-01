@@ -36,7 +36,7 @@ export function restoreCollapseFromSheet(): void {
       replaceCollapseState(parsed);
     }
   } catch {
-    // Malformed JSON — ignore, local state stays empty
+    // Malformed JSON - ignore, local state stays empty
   }
 }
 
@@ -53,6 +53,6 @@ export async function backupCollapseToSheet(): Promise<void> {
     if (settings[SETTINGS_KEY] === json) return;
     await setSetting(SETTINGS_KEY, json);
   } catch {
-    // Best-effort — don't block the sync flow
+    // Best-effort - don't block the sync flow
   }
 }

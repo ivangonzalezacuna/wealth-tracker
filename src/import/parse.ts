@@ -2,7 +2,7 @@
  * Generic profile-driven CSV parser.
  *
  * Consumes an ImportProfile (plain data) and produces canonical Transaction[].
- * The same parser works for any bank — behaviour is controlled entirely by the profile.
+ * The same parser works for any bank - behaviour is controlled entirely by the profile.
  */
 
 import { builtInProfiles } from './profiles/index';
@@ -76,7 +76,7 @@ export function parseDate(s: string | null | undefined, fmt: string): string {
   if (!s) return '';
   const str = s.trim();
 
-  // If it already contains 'T', it's an ISO datetime — take the date part
+  // If it already contains 'T', it's an ISO datetime - take the date part
   if (str.includes('T')) return str.slice(0, 10);
 
   switch (fmt) {
@@ -102,7 +102,7 @@ export function parseDate(s: string | null | undefined, fmt: string): string {
       return `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
     }
     default:
-      return str; // unknown format — passthrough
+      return str; // unknown format - passthrough
   }
 }
 
@@ -213,7 +213,7 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
     const canonicalType = mapType(rawType, rawCategory, profile.typeMap);
 
     if (canonicalType === null) {
-      // Unmapped — still include the row, tagged as unmapped
+      // Unmapped - still include the row, tagged as unmapped
       const sourceKey = rawCategory ? `${rawType}|${rawCategory}` : rawType;
       const upperKey = sourceKey.toUpperCase() || 'EMPTY';
       unmappedCounts[upperKey] = (unmappedCounts[upperKey] || 0) + 1;

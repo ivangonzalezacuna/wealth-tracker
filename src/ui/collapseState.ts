@@ -4,7 +4,7 @@
  * Manages a Record<string, boolean> where keys represent collapsible UI
  * elements (cards, item rows, snapshot rows) and `true` means collapsed.
  *
- * Primary store: IndexedDB (via cache/db.ts) — persists across reloads.
+ * Primary store: IndexedDB (via cache/db.ts) - persists across reloads.
  * Writes are debounced (300ms) so rapid toggle bursts don't thrash IDB.
  */
 
@@ -20,7 +20,7 @@ const DEBOUNCE_MS = 300;
 
 /**
  * Load persisted collapse state from IndexedDB into memory.
- * Call once at app boot (best-effort — gracefully degrades).
+ * Call once at app boot (best-effort - gracefully degrades).
  */
 export async function loadCollapseState(): Promise<void> {
   try {

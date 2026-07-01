@@ -8,7 +8,7 @@ export function appTemplate(): string {
   <div id="auth-bar">
     <span id="auth-status" class="auth-status"></span>
     <span id="sync-status" class="status-pill" style="display:none"></span>
-    <button id="btn-sync-now" class="btn btn-ghost btn-sm" style="display:none" title="Incremental sync — does not clear cache">Sync now</button>
+    <button id="btn-sync-now" class="btn btn-ghost btn-sm" style="display:none" title="Incremental sync (does not clear cache)">Sync now</button>
     <button id="btn-signin-global" class="btn btn-primary btn-sm" style="display:none">Sign in</button>
     <button id="btn-signout" class="btn btn-ghost btn-sm" style="display:none">Sign out</button>
   </div>
@@ -34,7 +34,7 @@ export function appTemplate(): string {
   <div id="nw-content" style="display:none">
     <div class="kpi-row" id="nw-kpis"></div>
     <div class="card card-primary">
-      <div class="card-title" id="nw-chart-title">Net worth — stacked by account</div>
+      <div class="card-title" id="nw-chart-title">Net worth: stacked by account</div>
       <div class="chart-controls">
         <div id="nw-chart-legend" class="legend"></div>
         <div class="range-toggle" id="nw-range-toggle">
@@ -52,7 +52,7 @@ export function appTemplate(): string {
       </div>
     </div>
     <div class="card">
-      <div class="card-title">Growth breakdown — contributed vs market</div>
+      <div class="card-title">Growth breakdown: contributed vs market</div>
       <div class="chart-controls">
         <div id="nw-growth-legend" class="legend"></div>
         <div class="range-toggle" id="nw-growth-range-toggle">
@@ -62,7 +62,7 @@ export function appTemplate(): string {
         </div>
       </div>
       <div class="chart-wrap chart-h-md"><canvas id="c-nw-growth"></canvas></div>
-      <p class="note">Market movement is the residual after subtracting contributions from the total change — it is approximate and sensitive to how close your snapshot date lands to month-end.</p>
+      <p class="note">Market movement is the residual after subtracting contributions from the total change. It is approximate and sensitive to how close your snapshot date lands to month-end.</p>
     </div>
     <div id="nw-goal"></div>
     <div id="nw-forecast"></div>
@@ -86,7 +86,7 @@ export function appTemplate(): string {
     <div id="port-content" style="display:none">
       <div class="kpi-row" id="port-kpis"></div>
       <div class="card">
-        <div class="card-title">Holdings — cost basis &amp; performance</div>
+        <div class="card-title">Holdings: cost basis &amp; performance</div>
         <div class="tbl" role="table" aria-label="Holdings"><div id="port-table"></div></div>
         <div id="port-pagination" class="pagination"></div>
       </div>
@@ -113,12 +113,12 @@ export function appTemplate(): string {
     <div id="dca-content" style="display:none">
       <div class="kpi-row" id="dca-kpis"></div>
       <div class="card card-primary">
-        <div class="card-title">Monthly invested — stacked by ETF (savings plan executions)</div>
+        <div class="card-title">Monthly invested: stacked by ETF (savings plan executions)</div>
         <div class="chart-controls">
           <div id="dca-legend" class="legend"></div>
           <div class="range-toggle" id="dca-range-toggle">
-            <button class="btn btn-sm btn-ghost" data-range="12">12M</button>
-            <button class="btn btn-sm btn-ghost" data-range="24">24M</button>
+            <button class="btn btn-sm btn-ghost" data-range="12">1Y</button>
+            <button class="btn btn-sm btn-ghost" data-range="36">3Y</button>
             <button class="btn btn-sm btn-ghost active" data-range="all">All</button>
           </div>
         </div>
@@ -190,7 +190,7 @@ export function appTemplate(): string {
   <div id="log-content">
     <div class="card" id="csv-import-card">
       <div class="card-title">Import transactions</div>
-      <p class="note" style="margin-bottom:.85rem">Import your transaction export CSV. Drag your file here or click to browse. Parsed locally — data synced to your Google Sheet. Re-import anytime; duplicates handled automatically.</p>
+      <p class="note" style="margin-bottom:.85rem">Import your transaction export CSV. Drag your file here or click to browse. Parsed locally; data synced to your Google Sheet. Re-import anytime; duplicates handled automatically.</p>
       <div class="drop-zone" id="drop-zone">
         <input type="file" id="csv-file-input" accept=".csv">
         <div style="font-size:2rem;margin-bottom:.4rem">📥</div>

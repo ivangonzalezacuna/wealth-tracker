@@ -1,5 +1,5 @@
 :root {
-  /* colour — Phase 9 token table */
+  /* colour - Phase 9 token table */
   --bg: #f5f4f0;
   --surface: #fff;
   --surface-2: #faf9f6;
@@ -341,7 +341,7 @@ code,
   letter-spacing: 0.04em;
 }
 
-/* Holdings table — grid layout */
+/* Holdings table - grid layout */
 #port-table .hold-row,
 #port-table .hold-total {
   grid-template-columns: minmax(72px, 22%) 1fr 1fr 1fr 1fr 1fr 1fr;
@@ -434,7 +434,7 @@ code,
   letter-spacing: 0.02em;
 }
 
-/* Snapshot history — compact row */
+/* Snapshot history - compact row */
 .snap-row-compact {
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -484,7 +484,7 @@ code,
   flex-shrink: 0;
 }
 
-/* Snapshot detail panel — extends .hold-detail */
+/* Snapshot detail panel - extends .hold-detail */
 .snap-detail {
   grid-template-columns: repeat(2, 1fr);
 }
