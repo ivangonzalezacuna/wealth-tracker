@@ -95,13 +95,38 @@ function isReadOnly(): boolean {
 
 function applyReadOnlyMode(): void {
   const readOnly = isReadOnly();
-  const writeIds = ['btn-save-snap', 'btn-confirm-import', 'btn-sync-now'];
   const hint = 'Sign in to enable editing';
+
+  // Disable write-action buttons
+  const writeIds = ['btn-save-snap', 'btn-confirm-import', 'btn-sync-now'];
   for (const id of writeIds) {
     const el = document.getElementById(id) as HTMLButtonElement | null;
     if (!el) continue;
     el.disabled = readOnly;
     el.title = readOnly ? hint : '';
+  }
+
+  // Disable CSV drop zone and file input
+  const zone = document.getElementById('drop-zone');
+  const csvInput = document.getElementById('csv-file-input') as HTMLInputElement | null;
+  if (zone) {
+    zone.classList.toggle('drop-zone-disabled', readOnly);
+    zone.title = readOnly ? hint : '';
+  }
+  if (csvInput) {
+    csvInput.disabled = readOnly;
+  }
+
+  // Disable monthly update form inputs
+  const snapDate = document.getElementById('snap-date') as HTMLInputElement | null;
+  const snapNotes = document.getElementById('snap-notes') as HTMLInputElement | null;
+  if (snapDate) snapDate.disabled = readOnly;
+  if (snapNotes) snapNotes.disabled = readOnly;
+  const acctFields = document.getElementById('snap-acct-fields');
+  if (acctFields) {
+    for (const inp of acctFields.querySelectorAll('input')) {
+      (inp as HTMLInputElement).disabled = readOnly;
+    }
   }
 }
 
