@@ -101,8 +101,9 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
     histCumulative.push(cumSum);
   }
 
-  // Base cash is the cumulative sum of all CSV contributions; 0 if no CSV data
-  const baseCash = histMonths.length > 0 ? cumSum : 0;
+  // Base cash: use the authoritative total invested from CSV (pd.totalInv).
+  // This accounts for all BUY transactions. Falls back to 0 if no data.
+  const baseCash = pd.totalInv || 0;
 
   // Forecast starts from the last CSV month
   const lastMonth = histMonths.length > 0 ? histMonths[histMonths.length - 1] : null;
@@ -132,11 +133,7 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
   const histLabels = histMonths.map((m) => fmtMon(m));
   const labels = [...histLabels, ...fcLabels];
   const histDataFull = [...histCumulative, ...new Array(fcValues.length).fill(null)];
-  const fcDataFull = [
-    ...new Array(histCumulative.length - 1).fill(null),
-    histCumulative[histCumulative.length - 1] ?? 0,
-    ...fcValues,
-  ];
+  const fcDataFull = [...new Array(histCumulative.length - 1).fill(null), baseCash, ...fcValues];
 
   // Per-account contribution summary
   const acctSummaryLines = forecastAccounts
