@@ -5,7 +5,9 @@ import type { Snapshot, Transaction } from '../types';
 import { T } from '../theme';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 import type { SortState } from './tableSort';
-import { applySort, sortableHeader, bindSortableHeader } from './tableSort';
+import { applySort, bindSortableHeader } from './tableSort';
+import type { ColumnDef } from './tableColumns';
+import { renderTableHeader, renderTableRow, getSortGetters } from './tableColumns';
 import { renderPagination } from './pagination';
 
 interface LogState {
@@ -87,12 +89,46 @@ function attachFilterListeners(snaps: Snapshot[]): void {
   }
 }
 
+function snapColumns(): ColumnDef<Snapshot>[] {
+  return [
+    {
+      key: 'month',
+      label: 'Month',
+      sortValue: (s) => s.date,
+      cell: (s) =>
+        `<span class="snap-month">${fmtMon(s.date)}</span>${s.notes ? '<span class="snap-note-dot" title="Has a note"></span>' : ''}`,
+      cellClass: () => 'snap-month-cell',
+    },
+    {
+      key: 'total',
+      label: 'Net worth',
+      align: 'right',
+      sortValue: (s) => snapTotal(s),
+      cell: (s) => `<span style="font-weight:500;font-size:14px">${fmtEur2(snapTotal(s))}</span>`,
+    },
+    {
+      key: 'segbar',
+      label: '',
+      cellClass: () => 'snap-segbar',
+      cell: (s) => {
+        const shown = getACCTSList();
+        return shown
+          .filter((a) => (s[a.key] || 0) > 0)
+          .map(
+            (a) =>
+              `<span class="snap-seg" style="background:${safeColor(a.color)}" title="${esc(a.label)}"></span>`,
+          )
+          .join('');
+      },
+    },
+  ];
+}
+
 export function renderSnapList(
   snaps: Snapshot[],
   onEdit: (date: string) => void,
   onDel: (date: string) => void,
 ): void {
-  const ACCTS = getACCTSList();
   const el = document.getElementById('snaps-list');
   if (!snaps.length) {
     el.innerHTML =
@@ -133,11 +169,11 @@ export function renderSnapList(
     return;
   }
 
+  // Column definitions
+  const columns = snapColumns();
+
   // Apply sort (before pagination)
-  const sorted = applySort(filtered, _snapTblSort, {
-    month: (s) => s.date,
-    total: (s) => snapTotal(s),
-  });
+  const sorted = applySort(filtered, _snapTblSort, getSortGetters(columns));
 
   // Pagination
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
@@ -146,32 +182,17 @@ export function renderSnapList(
   const pageItems = sorted.slice(start, start + PAGE_SIZE);
 
   // Compact row layout - fixed 3-column (Month / Net worth / segment indicator)
-  const shown = ACCTS;
   el.innerHTML = `
     <div class="snap-row-compact th" role="row" id="snap-table-header">
-      ${sortableHeader('Month', 'month', _snapTblSort)}
-      ${sortableHeader('Net worth', 'total', _snapTblSort, 'right')}
-      <div role="columnheader"></div>
+      ${renderTableHeader(columns, _snapTblSort)}
     </div>
     ${pageItems
-      .map((s) => {
-        const total = snapTotal(s);
-        const segments = shown
-          .filter((a) => (s[a.key] || 0) > 0)
-          .map(
-            (a) =>
-              `<span class="snap-seg" style="background:${safeColor(a.color)}" title="${esc(a.label)}"></span>`,
-          )
-          .join('');
-        return `<div class="snap-row-compact" role="row" data-date="${s.date}">
-        <div role="cell" class="snap-month-cell">
-          <span class="snap-month">${fmtMon(s.date)}</span>
-          ${s.notes ? '<span class="snap-note-dot" title="Has a note"></span>' : ''}
-        </div>
-        <div role="cell" style="text-align:right;font-weight:500;font-size:14px">${fmtEur2(total)}</div>
-        <div role="cell" class="snap-segbar">${segments}</div>
-      </div>`;
-      })
+      .map(
+        (s) =>
+          `<div class="snap-row-compact" role="row" data-date="${s.date}">
+        ${renderTableRow(columns, s)}
+      </div>`,
+      )
       .join('')}
   `;
 
