@@ -73,11 +73,9 @@ export function renderTableHeader<T>(columns: ColumnDef<T>[], state: SortState):
     .map((col) => {
       const mobileAttr = col.mobileHidden ? ' data-mobile-hidden="1"' : '';
       if (col.sortValue) {
-        // sortableHeader() does not currently accept an extra-attributes
-        // parameter; inject data-mobile-hidden by post-processing the
-        // single root element it returns (it always returns exactly one
-        // `<div ...>...</div>`, confirmed by its own implementation).
-        const html = sortableHeader(col.label, col.key, state, col.align);
+        // sortableHeader() handles the tip parameter (Phase 45b) for columns
+        // that carry an InfoTip alongside their sortable label.
+        const html = sortableHeader(col.label, col.key, state, col.align, col.tip);
         return mobileAttr ? html.replace('<div ', `<div${mobileAttr} `) : html;
       }
       const alignStyle = col.align === 'right' ? ' style="text-align:right"' : '';
@@ -94,7 +92,9 @@ export function renderTableRow<T>(columns: ColumnDef<T>[], row: T): string {
   return columns
     .map((col) => {
       if (col.raw) return col.cell ? col.cell(row) : '';
-      const alignStyle = col.align === 'right' ? ' style="text-align:right"' : '';
+      // When cellAttrs is defined, it is responsible for including text-align
+      // in the style attribute if needed (avoids duplicate style attrs).
+      const alignStyle = col.align === 'right' && !col.cellAttrs ? ' style="text-align:right"' : '';
       const mobileAttr = col.mobileHidden ? ' data-mobile-hidden="1"' : '';
       const cls = col.cellClass ? ` class="${col.cellClass(row)}"` : '';
       const attrs = col.cellAttrs ? ` ${col.cellAttrs(row)}` : '';
