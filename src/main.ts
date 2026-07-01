@@ -18,6 +18,7 @@ import {
   getHoldings,
   getAccounts,
   getSettings,
+  hydrateConfigFromCache,
 } from './store/config';
 import { getSetupState } from './model/setup';
 import { computePD } from './portfolio';
@@ -94,13 +95,52 @@ function isReadOnly(): boolean {
 
 function applyReadOnlyMode(): void {
   const readOnly = isReadOnly();
-  const writeIds = ['btn-save-snap', 'btn-confirm-import', 'btn-sync-now'];
   const hint = 'Sign in to enable editing';
+
+  // Disable write-action buttons
+  const writeIds = ['btn-save-snap', 'btn-confirm-import', 'btn-sync-now'];
   for (const id of writeIds) {
     const el = document.getElementById(id) as HTMLButtonElement | null;
     if (!el) continue;
     el.disabled = readOnly;
     el.title = readOnly ? hint : '';
+  }
+
+  // Disable CSV drop zone and file input
+  const zone = document.getElementById('drop-zone');
+  const csvInput = document.getElementById('csv-file-input') as HTMLInputElement | null;
+  if (zone) {
+    zone.classList.toggle('drop-zone-disabled', readOnly);
+    zone.title = readOnly ? hint : '';
+  }
+  if (csvInput) {
+    csvInput.disabled = readOnly;
+  }
+
+  // Collapse monthly update card in read-only mode
+  const balanceCard = document.getElementById('balance-card');
+  if (balanceCard) {
+    const formGrid = balanceCard.querySelector('.form-grid') as HTMLElement | null;
+    const saveRow = balanceCard.querySelector('#btn-save-snap')
+      ?.parentElement as HTMLElement | null;
+    let roMsg = balanceCard.querySelector('.ro-msg') as HTMLElement | null;
+
+    if (readOnly) {
+      if (formGrid) formGrid.style.display = 'none';
+      if (saveRow) saveRow.style.display = 'none';
+      if (!roMsg) {
+        roMsg = document.createElement('p');
+        roMsg.className = 'note ro-msg';
+        roMsg.style.marginTop = '0.5rem';
+        roMsg.textContent = '📦 Read-only mode — sign in to log monthly updates.';
+        balanceCard.querySelector('.card-title')?.insertAdjacentElement('afterend', roMsg);
+      }
+      roMsg.style.display = '';
+    } else {
+      if (formGrid) formGrid.style.display = '';
+      if (saveRow) saveRow.style.display = '';
+      if (roMsg) roMsg.style.display = 'none';
+    }
   }
 }
 
@@ -326,6 +366,14 @@ async function bootFromCache() {
       getCachedImportMeta(),
       getCachedAggregates(),
     ]);
+
+    // Hydrate the config store first — getACCTSList()/getAccounts()/
+    // primaryInvestmentValue() etc. all depend on this being populated
+    // before renderAll() runs, or Net worth/Portfolio render as empty
+    // even though real cached data exists (Phase 41).
+    if (cachedConfig) {
+      hydrateConfigFromCache(cachedConfig);
+    }
 
     if (cachedSnaps || cachedTxs) {
       state.snaps = cachedSnaps || [];
@@ -585,6 +633,7 @@ function renderSetupBanner(): void {
     signedIn: isSignedIn(),
     accountCount: getAccounts().length,
     snapshotCount: state.snaps.length,
+    cacheLoaded: state.cacheLoaded,
   });
 
   if (step === 'done') {
@@ -1125,6 +1174,7 @@ function renderSection(id: string): void {
           importMeta: state.importMeta,
           onEditSnap: editSnap,
           onDelSnap: delSnap,
+          readOnly: isReadOnly(),
         });
         break;
     }

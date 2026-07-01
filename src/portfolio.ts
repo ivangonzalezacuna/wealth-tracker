@@ -63,8 +63,10 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
       if (etfs[sym]) {
         if (!etfs[sym].name && tx.name) etfs[sym].name = tx.name;
       }
-      // DCA monthly — BUYs only
-      const cost = Math.abs(tx.amount);
+      // DCA monthly — BUYs only. Fee is included so this figure matches
+      // pd.totalInv (costbasis.ts uses |amount| + fee) — the fee is cash
+      // that genuinely left the account for this purchase.
+      const cost = Math.abs(tx.amount) + Math.abs(tx.fee || 0);
       const m = tx.date.slice(0, 7);
       monthly[m] = (monthly[m] || 0) + cost;
       if (!monthlyBy[m]) monthlyBy[m] = {};
