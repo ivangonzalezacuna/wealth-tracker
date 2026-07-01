@@ -117,15 +117,29 @@ function applyReadOnlyMode(): void {
     csvInput.disabled = readOnly;
   }
 
-  // Disable monthly update form inputs
-  const snapDate = document.getElementById('snap-date') as HTMLInputElement | null;
-  const snapNotes = document.getElementById('snap-notes') as HTMLInputElement | null;
-  if (snapDate) snapDate.disabled = readOnly;
-  if (snapNotes) snapNotes.disabled = readOnly;
-  const acctFields = document.getElementById('snap-acct-fields');
-  if (acctFields) {
-    for (const inp of acctFields.querySelectorAll('input')) {
-      (inp as HTMLInputElement).disabled = readOnly;
+  // Collapse monthly update card in read-only mode
+  const balanceCard = document.getElementById('balance-card');
+  if (balanceCard) {
+    const formGrid = balanceCard.querySelector('.form-grid') as HTMLElement | null;
+    const saveRow = balanceCard.querySelector('#btn-save-snap')
+      ?.parentElement as HTMLElement | null;
+    let roMsg = balanceCard.querySelector('.ro-msg') as HTMLElement | null;
+
+    if (readOnly) {
+      if (formGrid) formGrid.style.display = 'none';
+      if (saveRow) saveRow.style.display = 'none';
+      if (!roMsg) {
+        roMsg = document.createElement('p');
+        roMsg.className = 'note ro-msg';
+        roMsg.style.marginTop = '0.5rem';
+        roMsg.textContent = '📦 Read-only mode — sign in to log monthly updates.';
+        balanceCard.querySelector('.card-title')?.insertAdjacentElement('afterend', roMsg);
+      }
+      roMsg.style.display = '';
+    } else {
+      if (formGrid) formGrid.style.display = '';
+      if (saveRow) saveRow.style.display = '';
+      if (roMsg) roMsg.style.display = 'none';
     }
   }
 }
