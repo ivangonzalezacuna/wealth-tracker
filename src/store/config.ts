@@ -360,9 +360,7 @@ function parseHoldings(rows: (string | number | boolean)[][]): Holding[] {
           ? hdr.indexOf('contribinterval')
           : hdr.indexOf('interval');
       const rawInterval: string =
-        intervalIdx >= 0 && r[intervalIdx]
-          ? String(r[intervalIdx]).trim().toLowerCase()
-          : 'weekly';
+        intervalIdx >= 0 && r[intervalIdx] ? String(r[intervalIdx]).trim().toLowerCase() : 'weekly';
       const contribInterval: ContribInterval = (
         ['weekly', 'biweekly', 'monthly', 'quarterly'].includes(rawInterval)
           ? rawInterval
