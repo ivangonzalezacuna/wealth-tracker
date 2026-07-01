@@ -8,7 +8,9 @@ import Chart from 'chart.js/auto';
 import { T, resolvedT } from '../theme';
 import { bindLegendToggle, renderLegendHtml } from './chartLegend';
 import type { SortState } from './tableSort';
-import { applySort, sortableHeader, bindSortableHeader } from './tableSort';
+import { applySort, bindSortableHeader } from './tableSort';
+import type { ColumnDef } from './tableColumns';
+import { renderTableHeader, renderTableRow, getSortGetters } from './tableColumns';
 import { renderPagination } from './pagination';
 
 const CH: Record<string, Chart> = {};
@@ -467,6 +469,23 @@ function attachDCAFilterListeners(pd: PortfolioData): void {
   }
 }
 
+function dcaColumns(pd: PortfolioData): ColumnDef<string>[] {
+  return [
+    {
+      key: 'month',
+      label: 'Month',
+      cell: (m) => `<span style="color:var(--ink-2)">${fmtMon(m)}</span>`,
+    },
+    {
+      key: 'invested',
+      label: 'Invested',
+      align: 'right',
+      sortValue: (m) => pd.monthly[m] || 0,
+      cell: (m) => `<span style="font-weight:500">${fmtEur(pd.monthly[m])}</span>`,
+    },
+  ];
+}
+
 function renderDCATable(pd: PortfolioData): void {
   const el = document.getElementById('dca-table');
   if (!el) return;
@@ -477,10 +496,11 @@ function renderDCATable(pd: PortfolioData): void {
     months = months.filter((m) => m.startsWith(_dcaYear));
   }
 
+  // Column definitions
+  const columns = dcaColumns(pd);
+
   // Apply sort (before pagination)
-  const sorted = applySort(months, _dcaTblSort, {
-    invested: (m) => pd.monthly[m] || 0,
-  });
+  const sorted = applySort(months, _dcaTblSort, getSortGetters(columns));
 
   // Calculate filtered total
   const filteredTotal = months.reduce((sum, m) => sum + (pd.monthly[m] || 0), 0);
@@ -495,14 +515,13 @@ function renderDCATable(pd: PortfolioData): void {
     .map(
       (m) =>
         `<div class="tbl-row" role="row" style="grid-template-columns:1fr 1fr">
-      <div role="cell" style="color:var(--ink-2)">${fmtMon(m)}</div>
-      <div role="cell" style="font-weight:500;text-align:right">${fmtEur(pd.monthly[m])}</div>
+      ${renderTableRow(columns, m)}
     </div>`,
     )
     .join('');
 
   el.innerHTML = `
-    <div class="tbl-row th" role="row" style="grid-template-columns:1fr 1fr" id="dca-table-header"><div role="columnheader">Month</div>${sortableHeader('Invested', 'invested', _dcaTblSort, 'right')}</div>
+    <div class="tbl-row th" role="row" style="grid-template-columns:1fr 1fr" id="dca-table-header">${renderTableHeader(columns, _dcaTblSort)}</div>
     ${tRows}
     <div class="tbl-row" role="row" style="grid-template-columns:1fr 1fr;border-top:1px solid var(--line-2);margin-top:4px">
       <div style="font-weight:500">${_dcaYear ? 'Year total' : 'Total'}</div>
