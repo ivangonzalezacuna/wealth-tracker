@@ -76,15 +76,17 @@ describe('applySort', () => {
 });
 
 describe('sortableHeader', () => {
-  it('renders arrow only when state.key matches the cell key', () => {
+  it('renders visible arrow when state.key matches the cell key', () => {
     const active: SortState = { key: 'name', dir: 'asc' };
     const html = sortableHeader('Name', 'name', active);
     expect(html).toContain('\u25b2'); // up arrow
+    expect(html).not.toContain('visibility:hidden');
 
     const inactive: SortState = { key: 'cost', dir: 'asc' };
     const html2 = sortableHeader('Name', 'name', inactive);
-    expect(html2).not.toContain('\u25b2');
-    expect(html2).not.toContain('\u25bc');
+    expect(html2).toMatch(
+      /<span class="sort-arrow" style="visibility:hidden">[\u25b2\u25bc]<\/span>/,
+    );
   });
 
   it('aria-sort is "none" when inactive', () => {
