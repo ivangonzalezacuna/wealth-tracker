@@ -378,10 +378,12 @@ code,
 .sort-arrow {
   display: inline-block;
   width: 9px;
+  height: 9px;
+  line-height: 9px;
   font-size: 9px;
   text-align: center;
   color: var(--brand);
-  vertical-align: baseline;
+  vertical-align: middle;
 }
 .sortable-th[style*='text-align:right'] .sort-arrow {
   margin-left: -9px;

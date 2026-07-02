@@ -56,10 +56,10 @@ export function sortableHeader(
   tip?: string,
 ): string {
   const active = state.key === key;
-  const arrow = active ? (state.dir === 'asc' ? '\u25b2' : '\u25bc') : '';
+  const dirGlyph = active ? (state.dir === 'asc' ? '\u25b2' : '\u25bc') : '\u25bc';
   const ariaSort = active ? (state.dir === 'asc' ? 'ascending' : 'descending') : 'none';
   const styleAttr = align === 'right' ? ' style="text-align:right"' : '';
-  const arrowSpan = `<span class="sort-arrow">${arrow}</span>`;
+  const arrowSpan = `<span class="sort-arrow"${active ? '' : ' style="visibility:hidden"'}>${dirGlyph}</span>`;
   const labelHtml = tip ? `<span class="th-label">${label}${infoTip(tip)}</span>` : label;
   const content = align === 'right' ? `${arrowSpan}${labelHtml}` : `${labelHtml}${arrowSpan}`;
   return `<div role="columnheader" class="sortable-th${active ? ' sort-active' : ''}" data-sort-key="${key}" aria-sort="${ariaSort}"${styleAttr}>${content}</div>`;
