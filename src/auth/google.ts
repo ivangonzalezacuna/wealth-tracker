@@ -28,6 +28,7 @@ let _token: StoredToken | null = null;
 let _tokenClient: google.accounts.oauth2.TokenClient | null = null;
 let _gisReady: Promise<void> | null = null;
 let _refreshTimer: ReturnType<typeof setTimeout> | null = null;
+let _pendingReject: ((e: Error) => void) | null = null;
 
 // ── restore cached token (survives reloads & app restarts) ──
 try {
@@ -75,6 +76,12 @@ function _loadGis(): Promise<void> {
       client_id: CLIENT_ID,
       scope: SCOPES,
       callback: () => {}, // set per-request below
+      error_callback: (err) => {
+        _pendingReject?.(
+          new Error(err?.type === 'popup_closed' ? 'popup_closed' : err?.type || 'sign_in_error'),
+        );
+        _pendingReject = null;
+      },
     });
   });
   return _gisReady;
@@ -86,6 +93,7 @@ function _requestToken(interactive: boolean): Promise<string> {
     _loadGis()
       .then(() => {
         _tokenClient!.callback = (resp: google.accounts.oauth2.TokenResponse) => {
+          _pendingReject = null;
           if (resp.error) return reject(new Error(resp.error));
           _save({
             access_token: resp.access_token,
@@ -93,9 +101,11 @@ function _requestToken(interactive: boolean): Promise<string> {
           });
           resolve(_token!.access_token);
         };
+        _pendingReject = reject;
         try {
           _tokenClient!.requestAccessToken({ prompt: interactive ? 'consent' : '' });
         } catch (e) {
+          _pendingReject = null;
           reject(e);
         }
       })
