@@ -96,3 +96,119 @@ describe('isSignedIn', () => {
     fetchSpy.mockRestore();
   });
 });
+
+describe('signIn - error_callback / popup_closed handling', () => {
+  let _capturedConfig: any;
+  let _fakeClient: any;
+
+  beforeEach(() => {
+    storage.clear();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-15T12:00:00Z'));
+    vi.resetModules();
+
+    _capturedConfig = null;
+    _fakeClient = { callback: () => {}, requestAccessToken: () => {} };
+
+    // Stub window.google so _loadGis resolves immediately (early-return path)
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        ...globalThis.window,
+        google: {
+          accounts: {
+            oauth2: {
+              initTokenClient: (config: any) => {
+                _capturedConfig = config;
+                _fakeClient.callback = config.callback;
+                return _fakeClient;
+              },
+              revoke: () => {},
+            },
+          },
+        },
+      },
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    storage.clear();
+    vi.unstubAllGlobals();
+    vi.stubGlobal('localStorage', localStorageMock);
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', 'test-client-id');
+  });
+
+  it('signIn rejects with popup_closed when error_callback fires with type popup_closed', async () => {
+    const { signIn } = await import('./google');
+    const p = signIn();
+
+    // Allow microtasks (_loadGis promise chain) to settle
+    await vi.advanceTimersByTimeAsync(0);
+
+    // GIS fires error_callback with popup_closed
+    _capturedConfig.error_callback({ type: 'popup_closed' });
+
+    await expect(p).rejects.toThrow('popup_closed');
+  });
+
+  it('signIn resolves with access token when callback fires with valid response', async () => {
+    const { signIn } = await import('./google');
+    const p = signIn();
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    // The per-request callback is set on the fakeClient
+    _fakeClient.callback({
+      access_token: 'abc123',
+      expires_in: 3600,
+      token_type: 'Bearer',
+      scope: 'https://www.googleapis.com/auth/spreadsheets',
+    });
+
+    await expect(p).resolves.toBe('abc123');
+  });
+
+  it('callback after error_callback does not double-settle the promise', async () => {
+    const { signIn } = await import('./google');
+    const p = signIn();
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    // error_callback fires first
+    _capturedConfig.error_callback({ type: 'popup_closed' });
+    await expect(p).rejects.toThrow('popup_closed');
+
+    // Late callback fires — should not throw
+    expect(() => {
+      _fakeClient.callback({
+        access_token: 'late-token',
+        expires_in: 3600,
+        token_type: 'Bearer',
+        scope: 'https://www.googleapis.com/auth/spreadsheets',
+      });
+    }).not.toThrow();
+  });
+
+  it('error_callback after callback does not throw', async () => {
+    const { signIn } = await import('./google');
+    const p = signIn();
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    // callback fires first
+    _fakeClient.callback({
+      access_token: 'abc123',
+      expires_in: 3600,
+      token_type: 'Bearer',
+      scope: 'https://www.googleapis.com/auth/spreadsheets',
+    });
+    await expect(p).resolves.toBe('abc123');
+
+    // Late error_callback fires — should not throw
+    expect(() => {
+      _capturedConfig.error_callback({ type: 'popup_closed' });
+    }).not.toThrow();
+  });
+});

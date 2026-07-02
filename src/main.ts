@@ -58,6 +58,8 @@ import { shouldAutoResync } from './sync/policy';
 import { loadCollapseState } from './ui/collapseState';
 import { restoreCollapseFromSheet, backupCollapseToSheet } from './ui/collapseSync';
 import { confirmDialog } from './ui/confirmDialog';
+import { showSigninOverlay, hideSigninOverlay } from './ui/signinOverlay';
+import { withTimeout } from './sync/timeout';
 
 // ── App state ────────────────────────────────────────────
 const state = {
@@ -292,14 +294,29 @@ function initAuth() {
   });
 }
 
+const SIGNIN_TIMEOUT_MS = 90_000;
+
 async function onSignInClick() {
+  let cancelled = false;
+  showSigninOverlay(() => {
+    cancelled = true;
+  });
   try {
     setAuthStatus('<span class="spinner"></span>Signing in…');
-    await gisSignIn();
+    await withTimeout(gisSignIn(), SIGNIN_TIMEOUT_MS);
+    hideSigninOverlay();
     updateAuthUI(true);
     await loadAllData();
   } catch (err) {
-    setAuthStatus('Sign-in failed: ' + err.message, true);
+    hideSigninOverlay();
+    if (cancelled) return; // user already dismissed the overlay; don't also show an error
+    if (err.message === 'popup_closed') {
+      setAuthStatus('Sign-in cancelled', true);
+    } else if (err.message === 'signin_timeout') {
+      setAuthStatus('Sign-in timed out, please try again', true);
+    } else {
+      setAuthStatus('Sign-in failed: ' + err.message, true);
+    }
   }
 }
 
