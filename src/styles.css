@@ -334,6 +334,30 @@ code,
 .tbl-row:last-child {
   border-bottom: none;
 }
+.dca-row {
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+}
+.div-row {
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+}
+.int-row {
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+}
+#dca-table {
+  display: grid;
+  grid-template-columns: minmax(8ch, 1fr) minmax(9ch, 1fr);
+}
+#div-history {
+  display: grid;
+  grid-template-columns: 14px minmax(10ch, 1fr) minmax(7ch, 1fr) minmax(7ch, 1fr) minmax(7ch, 1fr);
+}
+#div-interest {
+  display: grid;
+  grid-template-columns: minmax(8ch, 1fr) minmax(9ch, 1fr);
+}
 .th {
   color: var(--ink-3);
   font-size: 11px;
@@ -376,9 +400,21 @@ code,
 }
 
 /* Holdings table - grid layout */
+.hold-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(8ch, 1fr) /* ETF */
+    minmax(8ch, 1fr) /* Cost basis */
+    minmax(8ch, 1fr) /* Shares */
+    minmax(7ch, 1fr) /* Avg price */
+    minmax(6ch, 1fr) /* % of cost */
+    minmax(9ch, 1fr) /* Realized P&L */
+    minmax(7ch, 1fr); /* Div (net) */
+}
 #port-table .hold-row,
 #port-table .hold-total {
-  grid-template-columns: minmax(72px, 22%) 1fr 1fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
 }
 /* Holdings rows: align-items start so bar-wrap doesn't displace sibling cells */
 #port-table .hold-row,
@@ -913,9 +949,12 @@ code,
 }
 
 @media (max-width: 599px) {
-  #port-table .hold-row,
-  #port-table .hold-total {
-    grid-template-columns: minmax(64px, 30%) 1fr 1fr 1fr;
+  .hold-grid {
+    grid-template-columns:
+      minmax(8ch, 1fr) /* ETF */
+      minmax(8ch, 1fr) /* Cost basis */
+      minmax(6ch, 1fr) /* % of cost */
+      minmax(7ch, 1fr); /* Div (net) */
   }
   /* Column hiding for header/data rows handled by generic [data-mobile-hidden]
      rule (Phase 45a) driven by ColumnDef.mobileHidden in holdingsColumns().
@@ -1060,9 +1099,15 @@ code,
     gap: 6px;
   }
   /* Holdings table smallest phones */
+  .hold-grid {
+    grid-template-columns:
+      minmax(8ch, 1fr) /* ETF */
+      minmax(8ch, 1fr) /* Cost basis */
+      minmax(6ch, 1fr) /* % of cost */
+      minmax(7ch, 1fr); /* Div (net) */
+  }
   #port-table .hold-row,
   #port-table .hold-total {
-    grid-template-columns: minmax(56px, 28%) 1fr 1fr 1fr;
     gap: 4px;
     font-size: 10px;
   }
