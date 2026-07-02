@@ -545,15 +545,15 @@ code,
 }
 .snap-segbar {
   display: flex;
-  gap: 2px;
-  justify-content: flex-end;
-  min-width: 48px;
+  gap: 1px;
+  width: 56px;
+  flex-shrink: 0;
 }
 .snap-seg {
-  width: 6px;
+  flex-grow: 0;
   height: 14px;
   border-radius: 1px;
-  flex-shrink: 0;
+  min-width: 2px;
 }
 
 /* Snapshot detail panel - extends .hold-detail */
