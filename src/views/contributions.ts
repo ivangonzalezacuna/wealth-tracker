@@ -514,16 +514,16 @@ function renderDCATable(pd: PortfolioData): void {
   const tRows = pageMonths
     .map(
       (m) =>
-        `<div class="tbl-row" role="row" style="grid-template-columns:1fr 1fr">
+        `<div class="tbl-row dca-row" role="row">
       ${renderTableRow(columns, m)}
     </div>`,
     )
     .join('');
 
   el.innerHTML = `
-    <div class="tbl-row th" role="row" style="grid-template-columns:1fr 1fr" id="dca-table-header">${renderTableHeader(columns, _dcaTblSort)}</div>
+    <div class="tbl-row th dca-row" role="row" id="dca-table-header">${renderTableHeader(columns, _dcaTblSort)}</div>
     ${tRows}
-    <div class="tbl-row" role="row" style="grid-template-columns:1fr 1fr;border-top:1px solid var(--line-2);margin-top:4px">
+    <div class="tbl-row dca-row" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
       <div style="font-weight:500">${_dcaYear ? 'Year total' : 'Total'}</div>
       <div style="font-weight:500;text-align:right">${fmtEur(filteredTotal)}</div>
     </div>`;

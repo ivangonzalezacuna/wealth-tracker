@@ -334,6 +334,9 @@ code,
 .tbl-row:last-child {
   border-bottom: none;
 }
+.dca-row { grid-template-columns: minmax(80px, 1fr) auto; }
+.div-row { grid-template-columns: auto minmax(90px, 1fr) auto auto auto; }
+.int-row { grid-template-columns: minmax(80px, 1fr) auto; }
 .th {
   color: var(--ink-3);
   font-size: 11px;
@@ -378,7 +381,7 @@ code,
 /* Holdings table - grid layout */
 #port-table .hold-row,
 #port-table .hold-total {
-  grid-template-columns: minmax(72px, 22%) 1fr 1fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: minmax(72px, 1fr) auto auto auto auto auto auto;
 }
 /* Holdings rows: align-items start so bar-wrap doesn't displace sibling cells */
 #port-table .hold-row,
@@ -915,7 +918,7 @@ code,
 @media (max-width: 599px) {
   #port-table .hold-row,
   #port-table .hold-total {
-    grid-template-columns: minmax(64px, 30%) 1fr 1fr 1fr;
+    grid-template-columns: minmax(64px, 1fr) auto auto auto;
   }
   /* Column hiding for header/data rows handled by generic [data-mobile-hidden]
      rule (Phase 45a) driven by ColumnDef.mobileHidden in holdingsColumns().
@@ -1062,7 +1065,7 @@ code,
   /* Holdings table smallest phones */
   #port-table .hold-row,
   #port-table .hold-total {
-    grid-template-columns: minmax(56px, 28%) 1fr 1fr 1fr;
+    grid-template-columns: minmax(56px, 1fr) auto auto auto;
     gap: 4px;
     font-size: 10px;
   }

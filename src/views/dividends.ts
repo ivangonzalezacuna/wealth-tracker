@@ -113,7 +113,7 @@ function renderDivTable(pd: PortfolioData): void {
   const dRows = pageItems
     .map(
       (d) => `
-    <div class="tbl-row" role="row" style="grid-template-columns:auto 1.5fr 1fr 1fr 1fr">
+    <div class="tbl-row div-row" role="row">
       ${renderTableRow(columns, d)}
     </div>`,
     )
@@ -121,10 +121,10 @@ function renderDivTable(pd: PortfolioData): void {
 
   document.getElementById('div-history').innerHTML = hasDiv
     ? `
-    <div class="tbl-row th" role="row" style="grid-template-columns:auto 1.5fr 1fr 1fr 1fr" id="div-table-header">
+    <div class="tbl-row th div-row" role="row" id="div-table-header">
       ${renderTableHeader(columns, _divTblSort)}
     </div>${dRows}
-    <div class="tbl-row" style="grid-template-columns:auto 1.5fr 1fr 1fr 1fr;border-top:1px solid var(--line-2);margin-top:4px">
+    <div class="tbl-row div-row" style="border-top:1px solid var(--line-2);margin-top:4px">
       <div></div><div style="font-weight:500">${_divYear ? 'Year total' : 'Total'}</div>
       <div style="text-align:right;font-weight:500">${fmtEur2(totalGross)}</div>
       <div style="text-align:right;color:var(--neg)">\u2212${fmtEur2(totalTax)}</div>
@@ -158,7 +158,7 @@ function intColumns(): ColumnDef<IntHistEntry>[] {
       key: 'date',
       label: 'Date',
       cell: (i) => fmtDay(i.date),
-      cellClass: () => 'row-label',
+      sortValue: (i) => i.date,
     },
     {
       key: 'amount',
@@ -166,7 +166,7 @@ function intColumns(): ColumnDef<IntHistEntry>[] {
       align: 'right',
       sortValue: (i) => i.amount,
       cell: (i) => fmtEur2(i.amount),
-      cellClass: () => 'row-val ok',
+      cellClass: () => 'ok',
     },
   ];
 }
@@ -187,11 +187,11 @@ function renderIntTable(pd: PortfolioData): void {
 
   document.getElementById('div-interest').innerHTML =
     list.length > 0
-      ? `<div class="row" id="int-table-header" style="border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:2px">${renderTableHeader(columns, _intTblSort)}</div>` +
-        pageItems.map((i) => `<div class="row">${renderTableRow(columns, i)}</div>`).join('') +
-        `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px">
-        <div class="row-label" style="font-weight:500">${_intYear ? 'Year total' : 'Total interest'}</div>
-        <div class="row-val ok" style="font-weight:500">${fmtEur2(totalInterest)}</div></div>`
+      ? `<div class="tbl-row th int-row" role="row" id="int-table-header" style="border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:2px">${renderTableHeader(columns, _intTblSort)}</div>` +
+        pageItems.map((i) => `<div class="tbl-row int-row" role="row">${renderTableRow(columns, i)}</div>`).join('') +
+        `<div class="tbl-row int-row" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
+        <div style="font-weight:500">${_intYear ? 'Year total' : 'Total interest'}</div>
+        <div style="font-weight:500;text-align:right;color:var(--pos)">${fmtEur2(totalInterest)}</div></div>`
       : '<p class="note">No interest payments found in imported transactions.</p>';
 
   // Bind sort handler on header row
