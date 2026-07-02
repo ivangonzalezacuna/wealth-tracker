@@ -474,7 +474,7 @@ code,
   padding: 8px 12px;
   margin: -2px 0 4px;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
   gap: 6px 12px;
   font-size: 11px;
 }
@@ -557,10 +557,9 @@ code,
   min-width: 2px;
 }
 
-/* Snapshot detail panel - extends .hold-detail */
-.snap-detail {
-  grid-template-columns: repeat(2, 1fr);
-}
+/* Snapshot detail panel - extends .hold-detail; no longer needs its own
+   grid-template-columns override now that .hold-detail sizes columns to
+   content via auto-fit/minmax (Phase 46e). */
 .snap-detail-note {
   grid-column: 1 / -1;
 }
