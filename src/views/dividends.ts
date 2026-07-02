@@ -64,7 +64,6 @@ function dividendColumns(): ColumnDef<DivHistEntry>[] {
     {
       key: 'date',
       label: 'ETF / Date',
-      sortValue: (d) => d.date,
       cell: (d) =>
         `<div style="font-weight:500;font-size:12px">${esc(d.ticker)}</div><div style="font-size:11px;color:var(--ink-3)">${fmtDay(d.date)}</div>`,
     },
