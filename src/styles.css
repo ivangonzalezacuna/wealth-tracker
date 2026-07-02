@@ -348,15 +348,15 @@ code,
 }
 #dca-table {
   display: grid;
-  grid-template-columns: minmax(80px, 1fr) auto;
+  grid-template-columns: minmax(8ch, 1fr) minmax(9ch, 1fr);
 }
 #div-history {
   display: grid;
-  grid-template-columns: auto minmax(90px, 1fr) auto auto auto;
+  grid-template-columns: 14px minmax(10ch, 1fr) minmax(7ch, 1fr) minmax(7ch, 1fr) minmax(7ch, 1fr);
 }
 #div-interest {
   display: grid;
-  grid-template-columns: minmax(80px, 1fr) auto;
+  grid-template-columns: minmax(8ch, 1fr) minmax(9ch, 1fr);
 }
 .th {
   color: var(--ink-3);
@@ -402,7 +402,14 @@ code,
 /* Holdings table - grid layout */
 .hold-grid {
   display: grid;
-  grid-template-columns: minmax(72px, 1fr) auto auto auto auto auto auto;
+  grid-template-columns:
+    minmax(8ch, 1fr) /* ETF */
+    minmax(8ch, 1fr) /* Cost basis */
+    minmax(8ch, 1fr) /* Shares */
+    minmax(7ch, 1fr) /* Avg price */
+    minmax(6ch, 1fr) /* % of cost */
+    minmax(9ch, 1fr) /* Realized P&L */
+    minmax(7ch, 1fr); /* Div (net) */
 }
 #port-table .hold-row,
 #port-table .hold-total {
@@ -943,7 +950,11 @@ code,
 
 @media (max-width: 599px) {
   .hold-grid {
-    grid-template-columns: minmax(64px, 1fr) auto auto auto;
+    grid-template-columns:
+      minmax(8ch, 1fr) /* ETF */
+      minmax(8ch, 1fr) /* Cost basis */
+      minmax(6ch, 1fr) /* % of cost */
+      minmax(7ch, 1fr); /* Div (net) */
   }
   /* Column hiding for header/data rows handled by generic [data-mobile-hidden]
      rule (Phase 45a) driven by ColumnDef.mobileHidden in holdingsColumns().
@@ -1089,7 +1100,11 @@ code,
   }
   /* Holdings table smallest phones */
   .hold-grid {
-    grid-template-columns: minmax(56px, 1fr) auto auto auto;
+    grid-template-columns:
+      minmax(8ch, 1fr) /* ETF */
+      minmax(8ch, 1fr) /* Cost basis */
+      minmax(6ch, 1fr) /* % of cost */
+      minmax(7ch, 1fr); /* Div (net) */
   }
   #port-table .hold-row,
   #port-table .hold-total {
