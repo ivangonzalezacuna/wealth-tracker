@@ -334,9 +334,30 @@ code,
 .tbl-row:last-child {
   border-bottom: none;
 }
-.dca-row { grid-template-columns: minmax(80px, 1fr) auto; }
-.div-row { grid-template-columns: auto minmax(90px, 1fr) auto auto auto; }
-.int-row { grid-template-columns: minmax(80px, 1fr) auto; }
+.dca-row {
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+}
+.div-row {
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+}
+.int-row {
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+}
+#dca-table {
+  display: grid;
+  grid-template-columns: minmax(80px, 1fr) auto;
+}
+#div-history {
+  display: grid;
+  grid-template-columns: auto minmax(90px, 1fr) auto auto auto;
+}
+#div-interest {
+  display: grid;
+  grid-template-columns: minmax(80px, 1fr) auto;
+}
 .th {
   color: var(--ink-3);
   font-size: 11px;
@@ -379,9 +400,14 @@ code,
 }
 
 /* Holdings table - grid layout */
+.hold-grid {
+  display: grid;
+  grid-template-columns: minmax(72px, 1fr) auto auto auto auto auto auto;
+}
 #port-table .hold-row,
 #port-table .hold-total {
-  grid-template-columns: minmax(72px, 1fr) auto auto auto auto auto auto;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
 }
 /* Holdings rows: align-items start so bar-wrap doesn't displace sibling cells */
 #port-table .hold-row,
@@ -916,8 +942,7 @@ code,
 }
 
 @media (max-width: 599px) {
-  #port-table .hold-row,
-  #port-table .hold-total {
+  .hold-grid {
     grid-template-columns: minmax(64px, 1fr) auto auto auto;
   }
   /* Column hiding for header/data rows handled by generic [data-mobile-hidden]
@@ -1063,9 +1088,11 @@ code,
     gap: 6px;
   }
   /* Holdings table smallest phones */
+  .hold-grid {
+    grid-template-columns: minmax(56px, 1fr) auto auto auto;
+  }
   #port-table .hold-row,
   #port-table .hold-total {
-    grid-template-columns: minmax(56px, 1fr) auto auto auto;
     gap: 4px;
     font-size: 10px;
   }

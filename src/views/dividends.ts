@@ -188,7 +188,9 @@ function renderIntTable(pd: PortfolioData): void {
   document.getElementById('div-interest').innerHTML =
     list.length > 0
       ? `<div class="tbl-row th int-row" role="row" id="int-table-header" style="border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:2px">${renderTableHeader(columns, _intTblSort)}</div>` +
-        pageItems.map((i) => `<div class="tbl-row int-row" role="row">${renderTableRow(columns, i)}</div>`).join('') +
+        pageItems
+          .map((i) => `<div class="tbl-row int-row" role="row">${renderTableRow(columns, i)}</div>`)
+          .join('') +
         `<div class="tbl-row int-row" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
         <div style="font-weight:500">${_intYear ? 'Year total' : 'Total interest'}</div>
         <div style="font-weight:500;text-align:right;color:var(--pos)">${fmtEur2(totalInterest)}</div></div>`
