@@ -474,6 +474,7 @@ function dcaColumns(pd: PortfolioData): ColumnDef<string>[] {
     {
       key: 'month',
       label: 'Month',
+      sortValue: (m) => m,
       cell: (m) => `<span style="color:var(--ink-2)">${fmtMon(m)}</span>`,
     },
     {

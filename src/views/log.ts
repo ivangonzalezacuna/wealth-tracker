@@ -116,10 +116,12 @@ function snapColumns(): ColumnDef<Snapshot>[] {
         if (total <= 0) return '';
         return shown
           .filter((a) => (s[a.key] || 0) > 0)
-          .map((a) => {
-            const share = (s[a.key] || 0) / total;
-            return `<span class="snap-seg" style="flex-grow:${share.toFixed(4)};background:${safeColor(a.color)}" title="${esc(a.label)}: ${fmtEur2(s[a.key] || 0)}"></span>`;
-          })
+          .map((a) => ({ a, share: (s[a.key] || 0) / total }))
+          .sort((x, y) => y.share - x.share)
+          .map(
+            ({ a, share }) =>
+              `<span class="snap-seg" style="flex-grow:${share.toFixed(4)};background:${safeColor(a.color)}" title="${esc(a.label)}: ${fmtEur2(s[a.key] || 0)}"></span>`,
+          )
           .join('');
       },
     },
