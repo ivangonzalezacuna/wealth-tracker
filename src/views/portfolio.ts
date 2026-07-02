@@ -246,7 +246,8 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
           const value = c.cell ? c.cell(e) : '';
           const rpnl = e.realizedPnL || 0;
           const valueClass = c.key === 'realizedPnL' ? (rpnl >= 0 ? ' pos' : ' neg') : '';
-          return `<div><span class="hold-detail-label">${c.label}</span><span class="hold-detail-value${valueClass}">${value}</span></div>`;
+          const rowClass = c.mobileHidden ? ' class="hold-detail-mobile-only"' : '';
+          return `<div${rowClass}><span class="hold-detail-label">${c.label}</span><span class="hold-detail-value${valueClass}">${value}</span></div>`;
         })
         .join('');
       const panel = document.createElement('div');

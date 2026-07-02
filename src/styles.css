@@ -401,6 +401,17 @@ code,
   }
 }
 
+/* Detail panel: fields that duplicate a mobileHidden table column
+   (Shares, Avg price, Realized P&L) only need to show in the panel when
+   their table column is actually hidden. Mirrors the breakpoint above --
+   table column hides at <=599px, so the panel's duplicate row hides at
+   >=600px. ISIN/Status/Type have no table column and are unaffected. */
+@media (min-width: 600px) {
+  .hold-detail-mobile-only {
+    display: none;
+  }
+}
+
 /* Holdings table - grid layout */
 .hold-grid {
   display: grid;
@@ -473,10 +484,15 @@ code,
   border-radius: var(--radius-sm);
   padding: 8px 12px;
   margin: -2px 0 4px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
   gap: 6px 12px;
   font-size: 11px;
+}
+.hold-detail > div {
+  flex: 0 1 auto;
+  min-width: 90px;
 }
 .hold-detail-label {
   color: var(--ink-3);
@@ -557,15 +573,14 @@ code,
   min-width: 2px;
 }
 
-/* Snapshot detail panel - extends .hold-detail */
-.snap-detail {
-  grid-template-columns: repeat(2, 1fr);
-}
+/* Snapshot detail panel - extends .hold-detail; no longer needs its own
+   grid-template-columns override now that .hold-detail sizes columns to
+   content via auto-fit/minmax (Phase 46e). */
 .snap-detail-note {
-  grid-column: 1 / -1;
+  flex-basis: 100%;
 }
 .snap-detail-actions {
-  grid-column: 1 / -1;
+  flex-basis: 100%;
   display: flex;
   gap: 8px;
   margin-top: 4px;
