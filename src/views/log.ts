@@ -112,12 +112,14 @@ function snapColumns(): ColumnDef<Snapshot>[] {
       cellClass: () => 'snap-segbar',
       cell: (s) => {
         const shown = getACCTSList();
+        const total = snapTotal(s);
+        if (total <= 0) return '';
         return shown
           .filter((a) => (s[a.key] || 0) > 0)
-          .map(
-            (a) =>
-              `<span class="snap-seg" style="background:${safeColor(a.color)}" title="${esc(a.label)}"></span>`,
-          )
+          .map((a) => {
+            const share = (s[a.key] || 0) / total;
+            return `<span class="snap-seg" style="flex-grow:${share.toFixed(4)};background:${safeColor(a.color)}" title="${esc(a.label)}: ${fmtEur2(s[a.key] || 0)}"></span>`;
+          })
           .join('');
       },
     },
