@@ -1239,6 +1239,9 @@ input[type='color'] {
   gap: 3px;
   flex: 1 1 180px;
 }
+.settings-field:not(.settings-field-inline) > *:last-child {
+  margin-top: auto;
+}
 .settings-field-label {
   font-size: 11px;
   color: var(--ink-3);
