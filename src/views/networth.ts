@@ -1,5 +1,16 @@
 // @ts-nocheck - DOM-heavy view; full strict typing deferred to framework migration
-import { snapTotal, fmtEur, fmtEur2, fmtMon, esc, safeColor } from '../utils';
+import {
+  snapTotal,
+  fmtEur,
+  fmtEur2,
+  fmtMon,
+  fmtEurNeg,
+  fmtPctNeg,
+  fmtEurSigned,
+  fmtPctSigned,
+  esc,
+  safeColor,
+} from '../utils';
 import { getACCTSList } from '../constants';
 import {
   getAccounts,
@@ -82,9 +93,8 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
       <div class="kpi-val">${fmtEur2(total)}</div>
       <div class="kpi-sub">${
         chg !== null
-          ? (chg >= 0 ? '+' : '') +
-            fmtEur2(chg) +
-            (chgPct !== null ? ' (' + (chgPct >= 0 ? '+' : '') + chgPct.toFixed(1) + '%)' : '') +
+          ? fmtEurSigned(chg, 2) +
+            (chgPct !== null ? ' (' + fmtPctSigned(chgPct) + ')' : '') +
             ' vs ' +
             fmtMon(prev.date)
           : fmtMon(s.date)
@@ -105,8 +115,8 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
         ? `
       <div class="kpi">
         <div class="kpi-label">YoY${infoTip('Year-over-Year: Change in total net worth compared to the same month one year ago.')}</div>
-        <div class="kpi-val ${yoyAbs >= 0 ? 'pos' : 'neg'}">${yoyAbs >= 0 ? '+' : ''}${fmtEur2(yoyAbs)}</div>
-        <div class="kpi-sub">${yoyPct !== null ? (yoyPct >= 0 ? '+' : '') + yoyPct.toFixed(1) + '%' : '-'} vs ${fmtMon(yoyData.snap.date)}</div>
+        <div class="kpi-val ${yoyAbs >= 0 ? 'pos' : 'neg'}">${fmtEurSigned(yoyAbs, 2)}</div>
+        <div class="kpi-sub">${yoyPct !== null ? fmtPctSigned(yoyPct) : '-'} vs ${fmtMon(yoyData.snap.date)}</div>
       </div>`
         : ''
     }
@@ -115,7 +125,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
         ? `
       <div class="kpi">
         <div class="kpi-label">CAGR${infoTip('Compound Annual Growth Rate: Annualized average return over the full tracking period.')}</div>
-        <div class="kpi-val ${cagrVal >= 0 ? 'pos' : 'neg'}">${(cagrVal >= 0 ? '+' : '') + (cagrVal * 100).toFixed(1)}%</div>
+        <div class="kpi-val ${cagrVal >= 0 ? 'pos' : 'neg'}">${fmtPctNeg(cagrVal * 100)}</div>
         <div class="kpi-sub">${monthsSpan} months</div>
       </div>`
         : ''
@@ -205,7 +215,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   if (prev) {
     const c = total - prevT;
     det += `<div class="row"><div class="row-label" style="color:var(--ink-3);font-size:12px">vs ${fmtMon(prev.date)}</div>
-      <div class="row-val ${c >= 0 ? 'pos' : 'neg'}">${c >= 0 ? '+' : ''}${fmtEur2(c)}</div></div>`;
+      <div class="row-val ${c >= 0 ? 'pos' : 'neg'}">${fmtEurSigned(c, 2)}</div></div>`;
   }
   if (s.notes) det += `<p class="note" style="margin-top:.5rem">${esc(s.notes)}</p>`;
   document.getElementById('nw-detail').innerHTML = det;
@@ -448,9 +458,13 @@ function _renderGrowthChart(): void {
           padding: 10,
           cornerRadius: 8,
           callbacks: {
-            label: (ctx) => ` ${ctx.dataset.label}: ${fmtEur2(ctx.raw as number)}`,
+            label: (ctx) =>
+              ` ${ctx.dataset.label}: ${ctx.dataset.label === 'Contributed' ? fmtEur2(ctx.raw as number) : fmtEurSigned(ctx.raw as number, 2)}`,
             footer: (items) =>
-              ` Total: ${fmtEur2(items.reduce((s, i) => s + (i.raw as number), 0))}`,
+              ` Total: ${fmtEurSigned(
+                items.reduce((s, i) => s + (i.raw as number), 0),
+                2,
+              )}`,
           },
           footerFont: { weight: 'bold' },
         },

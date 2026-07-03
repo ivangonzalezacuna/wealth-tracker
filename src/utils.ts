@@ -21,6 +21,49 @@ export const fmtEur = (n: number) => fmt(n);
 /** Euro display with cents (2 decimals). */
 export const fmtEur2 = (n: number) => fmt(n, 2);
 
+/**
+ * Tier B (Phase 50): real minus sign (U+2212, not a hyphen, not
+ * toLocaleString's embedded '-') for negative, nothing for positive/zero -
+ * never a '+'. For standalone signed totals/rates (Realized P&L, Unrealized
+ * gain, CAGR), not comparisons - see fmtEurSigned for those, and
+ * fmtEur2(Math.abs(n)) + a colour class for values where even the minus is
+ * redundant with context (e.g. tax withheld).
+ */
+export function fmtEurNeg(n: number, d = 0): string {
+  return n < 0 ? '\u2212' + fmt(Math.abs(n), d) : fmt(n, d);
+}
+
+/** Percent counterpart to fmtEurNeg (Tier B). */
+export function fmtPctNeg(n: number, d = 1): string {
+  const abs = Math.abs(n).toLocaleString('de-DE', {
+    minimumFractionDigits: d,
+    maximumFractionDigits: d,
+  });
+  return n < 0 ? '\u2212' + abs + '%' : abs + '%';
+}
+
+/**
+ * Tier C (Phase 50): full signed display - '+' for positive, real minus
+ * (U+2212) for negative, nothing for exactly zero. Use only for values
+ * explicitly framed as a comparison/delta in the surrounding UI text (e.g.
+ * "vs last month", drift "amount to sell/buy to reach target") - not for
+ * standalone totals, which use fmtEurNeg instead (Tier B).
+ */
+export function fmtEurSigned(n: number, d = 0): string {
+  const sign = n > 0 ? '+' : n < 0 ? '\u2212' : '';
+  return sign + fmt(Math.abs(n), d);
+}
+
+/** Percent counterpart to fmtEurSigned (Tier C). */
+export function fmtPctSigned(n: number, d = 1): string {
+  const sign = n > 0 ? '+' : n < 0 ? '\u2212' : '';
+  const abs = Math.abs(n).toLocaleString('de-DE', {
+    minimumFractionDigits: d,
+    maximumFractionDigits: d,
+  });
+  return sign + abs + '%';
+}
+
 /** Share-count display, de-DE locale (comma decimal), up to 4 fraction digits, no trailing zeros. */
 export function fmtShares(n: number): string {
   return Number(n).toLocaleString('de-DE', {
