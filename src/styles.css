@@ -1244,7 +1244,7 @@ input[type='color'] {
 }
 .settings-item-fields > .settings-field-inline,
 .settings-item-fields > .settings-field-checkbox-group {
-  align-self: flex-end;
+  align-self: center;
 }
 .settings-field-label {
   font-size: 11px;
@@ -1252,9 +1252,6 @@ input[type='color'] {
   font-weight: 500;
 }
 .settings-field-inline {
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
 }
 .settings-field-inline .settings-field-label {
   display: flex;
@@ -1271,11 +1268,16 @@ input[type='color'] {
 }
 .settings-field-checkbox-group {
   display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 0 1 auto;
+}
+.settings-field-checkbox-row {
+  display: flex;
   flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 20px;
-  flex: 0 1 auto;
 }
 @media (max-width: 480px) {
   .settings-item-fields > .settings-field {

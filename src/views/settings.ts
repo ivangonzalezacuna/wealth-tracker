@@ -233,6 +233,7 @@ function renderAccountRow(a: Account, i: number): string {
         </div>
         </div>
         <div class="settings-field settings-field-inline">
+          <span class="settings-field-label" aria-hidden="true">&nbsp;</span>
           <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="isPrimaryInvestment" ${a.isPrimaryInvestment ? 'checked' : ''}> Primary investment${infoTip('Used to split net-worth growth into contributions vs market returns. Only investment-type accounts (broker, depot) should be marked.')}</label>
         </div>
       </div>
@@ -504,11 +505,14 @@ function renderHoldingRow(h: Holding, i: number): string {
           </div>
         </div>
         <div class="settings-field-checkbox-group">
-          <div class="settings-field settings-field-inline">
-            <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="acc" ${h.acc ? 'checked' : ''}> Accumulating${infoTip('Acc (accumulating) ETFs reinvest dividends internally. Dist (distributing) ETFs pay dividends to your account.')}</label>
-          </div>
-          <div class="settings-field settings-field-inline">
-            <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="active" ${h.active ? 'checked' : ''}> Active</label>
+          <span class="settings-field-label" aria-hidden="true">&nbsp;</span>
+          <div class="settings-field-checkbox-row">
+            <div class="settings-field settings-field-inline">
+              <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="acc" ${h.acc ? 'checked' : ''}> Accumulating${infoTip('Acc (accumulating) ETFs reinvest dividends internally. Dist (distributing) ETFs pay dividends to your account.')}</label>
+            </div>
+            <div class="settings-field settings-field-inline">
+              <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="active" ${h.active ? 'checked' : ''}> Active</label>
+            </div>
           </div>
         </div>
       </div>
