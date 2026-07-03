@@ -58,6 +58,60 @@ You can inspect, back up, or export from the sheet directly at any time.
 
 ---
 
+## Adding support for a new bank
+
+Only Trade Republic is supported today, but the import engine is bank-agnostic.
+Adding a second bank does **not** require touching the parser — you add one
+data file and register it.
+
+1. **Create a profile** at `src/import/profiles/<bank>.ts` exporting an
+   `ImportProfile` object:
+   ```ts
+   export const myBankProfile: ImportProfile = {
+     id: 'my_bank',
+     label: 'My Bank',
+     delimiter: 'auto', // or ',' / ';' / '\t'
+     decimal: 'auto', // 'dot' | 'comma' | 'auto'
+     dateFormat: 'DD.MM.YYYY', // or 'YYYY-MM-DD' / 'DD/MM/YYYY' / 'MM/DD/YYYY'
+     defaultCurrency: 'EUR',
+     columns: {
+       date: 'Datum', // header name OR numeric column index
+       type: 'Typ',
+       name: 'Bezeichnung',
+       amount: 'Betrag',
+       // ...map every canonical field the source CSV provides
+     },
+     typeMap: {
+       // source type string -> canonical TxType
+       KAUF: TxType.BUY,
+       VERKAUF: TxType.SELL,
+     },
+     match: {
+       // header substrings used to auto-detect this profile from the
+       // first line of an uploaded CSV
+       headerIncludes: ['Datum', 'Typ', 'Betrag'],
+     },
+   };
+   ```
+2. **Register it** in `src/import/profiles/index.ts`:
+   ```ts
+   export const builtInProfiles: ImportProfile[] = [tradeRepublicProfile, myBankProfile];
+   ```
+3. **Done.** `detectProfile()` picks the new profile automatically from the
+   CSV header on next import; `parseWithProfile()` handles parsing with no
+   further changes. Rows whose source `type` isn't in `typeMap` are surfaced
+   as "unmapped" in the import preview rather than silently dropped.
+4. **Add a test** in `src/import/parse.test.ts` — see the existing
+   `fakeBankProfile` fixture for the pattern (a minimal profile + a
+   handful of CSV rows asserted against expected canonical output).
+
+An interactive column-mapper (build a profile from the UI instead of hand-
+writing one) isn't built yet, but `buildProfileFromMapping()` in
+`src/import/profile.ts` already produces the same `ImportProfile` shape —
+it's the extension point a future mapper UI would call into.
+
+---
+
 ## Netlify deployment
 
 ### Environment variables

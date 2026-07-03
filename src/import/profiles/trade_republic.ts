@@ -29,10 +29,7 @@ export const tradeRepublicProfile: ImportProfile = {
     fxRate: 'fx_rate',
   },
 
-  /**
-   * Type mapping -- compound keys (`TYPE|CATEGORY`) are tried first,
-   * then plain `TYPE`.  Matches the Phase-1 `mapTRType()` exactly.
-   */
+  /** Compound keys (`TYPE|CATEGORY`) are tried first, then plain `TYPE`. */
   typeMap: {
     'BUY|TRADING': TxType.BUY,
     'SELL|TRADING': TxType.SELL,

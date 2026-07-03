@@ -67,7 +67,7 @@ export function isConfigLoaded(): boolean {
   return _loaded;
 }
 
-/** Get ACCTS-compatible array for backward compat (key/label/color). */
+/** Map accounts to the {key,label,color} shape used by chart legends. */
 export function getACCTS(): AccountEntry[] {
   return _accounts.map((a) => ({
     key: a.id || a.key || '',
