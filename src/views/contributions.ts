@@ -374,7 +374,9 @@ function renderDCAChart(
           ticks: {
             color: C.ink4,
             callback: (v) =>
-              (v as number) >= 1000 ? '€' + ((v as number) / 1000).toFixed(0) + 'k' : '€' + v,
+              (v as number) >= 1000
+                ? ((v as number) / 1000).toFixed(0) + 'k\u00A0€'
+                : v + '\u00A0€',
           },
         },
       },

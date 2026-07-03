@@ -188,7 +188,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
         scales: {
           x: {
             grid: { color: C.line },
-            ticks: { color: C.ink4, callback: (v: number) => '€' + (v / 1000).toFixed(0) + 'k' },
+            ticks: { color: C.ink4, callback: (v: number) => (v / 1000).toFixed(0) + 'k\u00A0€' },
           },
           y: { grid: { display: false }, ticks: { color: C.ink2, font: { size: 12 } } },
         },
@@ -376,7 +376,9 @@ function _renderNWHistChart(
           ticks: {
             color: C.ink4,
             callback: (v) =>
-              (v as number) >= 1000 ? '€' + ((v as number) / 1000).toFixed(0) + 'k' : '€' + v,
+              (v as number) >= 1000
+                ? ((v as number) / 1000).toFixed(0) + 'k\u00A0€'
+                : v + '\u00A0€',
           },
         },
         x: {
