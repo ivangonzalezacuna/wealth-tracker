@@ -8,6 +8,32 @@ import { getToken } from '../auth/google';
 const SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID;
 const BASE = 'https://sheets.googleapis.com/v4/spreadsheets';
 
+/**
+ * Escape a single outbound cell value against formula injection.
+ * Sheets itself never executes formulas from this app (writes use
+ * valueInputOption=RAW), but a downstream re-open of an exported CSV in
+ * Excel/LibreOffice applies its own leading-character heuristics on
+ * import, regardless of how the value was originally stored. Prefixing
+ * a leading '=', '+', '-', or '@' with an apostrophe is the standard
+ * mitigation (OWASP CSV Injection guidance) and is inert everywhere
+ * else: Sheets/Excel treat a leading apostrophe as "force text", it is
+ * never shown to the user.
+ * Only strings are touched — numbers/booleans (all real amounts in this
+ * app) pass through unchanged, so this can never corrupt a numeric cell.
+ */
+export function sanitizeForSheets(v: string | number | boolean): string | number | boolean {
+  if (typeof v !== 'string') return v;
+  if (/^[=+\-@]/.test(v)) return `'${v}`;
+  return v;
+}
+
+/** Apply sanitizeForSheets to every cell in a 2D values array. Pure. */
+export function sanitizeRows(
+  values: (string | number | boolean)[][],
+): (string | number | boolean)[][] {
+  return values.map((row) => row.map(sanitizeForSheets));
+}
+
 async function _headers(): Promise<Record<string, string>> {
   const token = await getToken();
   return {
@@ -36,7 +62,7 @@ export async function writeRange(
   const res = await fetch(url, {
     method: 'PUT',
     headers: h,
-    body: JSON.stringify({ range, majorDimension: 'ROWS', values }),
+    body: JSON.stringify({ range, majorDimension: 'ROWS', values: sanitizeRows(values) }),
   });
   if (!res.ok) throw new Error(`Sheets write error: ${res.status} ${await res.text()}`);
   return res.json();
@@ -52,7 +78,7 @@ export async function appendRows(
   const res = await fetch(url, {
     method: 'POST',
     headers: h,
-    body: JSON.stringify({ range, majorDimension: 'ROWS', values }),
+    body: JSON.stringify({ range, majorDimension: 'ROWS', values: sanitizeRows(values) }),
   });
   if (!res.ok) throw new Error(`Sheets append error: ${res.status} ${await res.text()}`);
   return res.json();
