@@ -25,6 +25,7 @@ import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { confirmDialog } from '../ui/confirmDialog';
 import { isSignedIn } from '../auth/google';
+import { isBackupStale } from '../backup/exportImport';
 
 /** Build <option> HTML for an interval <select>, marking `selected` the matching value. */
 function intervalOptionsHtml(selected: ContribInterval): string {
@@ -1319,6 +1320,14 @@ function attachCacheListeners(root: HTMLElement): void {
 // ── Backup & restore ──────────────────────────────────────
 
 function renderBackupCard(): string {
+  const lastBackupAt = getSettings()['last_backup_at'];
+  const stale = isBackupStale(lastBackupAt);
+  const nudgeText = !lastBackupAt
+    ? "You haven't taken a backup yet. Consider exporting one."
+    : 'Last backup was over 30 days ago. Consider exporting one.';
+  const nudgeHtml = stale
+    ? `<p class="note" style="margin-bottom:.75rem;color:var(--ink-2)">${nudgeText}</p>`
+    : '';
   return `
     <div class="card card-collapsible" id="settings-card-backup" data-card-key="backup">
       <div class="card-header js-card-toggle">
@@ -1327,6 +1336,7 @@ function renderBackupCard(): string {
       </div>
       <div class="card-body">
         <p class="note" style="margin-bottom:.85rem">Export everything as one file you can keep somewhere safe. If anything happens to your Sheet, restore from that file.</p>
+        ${nudgeHtml}
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-outline btn-sm" id="btn-export-backup">Export backup</button>
           <button class="btn btn-ghost btn-sm" id="btn-restore-backup">Restore from file\u2026</button>
@@ -1342,6 +1352,7 @@ function attachBackupListeners(root: HTMLElement): void {
   root.querySelector('#btn-export-backup')?.addEventListener('click', async () => {
     try {
       await (window as any).__exportBackup();
+      repaintCard('backup');
       const m = msg();
       if (m) {
         m.textContent = 'Backup downloaded.';

@@ -77,3 +77,14 @@ export function summarizeBackup(b: BackupFile): string {
   const when = isNaN(date.getTime()) ? b.exportedAt : date.toLocaleDateString('de-DE');
   return `Backup from ${when}: ${accounts.length} accounts, ${holdings.length} holdings, ${snapshots.length} snapshots, ${transactions.length} transactions. This will replace everything currently in your Google Sheet.`;
 }
+
+// ── Backup staleness ──────────────────────────────────────
+
+const BACKUP_REMINDER_DAYS = 30;
+
+export function isBackupStale(lastBackupAt: string | undefined, now: Date = new Date()): boolean {
+  if (!lastBackupAt) return true;
+  const last = new Date(lastBackupAt).getTime();
+  if (isNaN(last)) return true;
+  return (now.getTime() - last) / 86_400_000 >= BACKUP_REMINDER_DAYS;
+}

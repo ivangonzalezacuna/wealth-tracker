@@ -5,6 +5,7 @@ import {
   validateBackup,
   summarizeBackup,
   migrateBackup,
+  isBackupStale,
   MIGRATIONS,
   BACKUP_SCHEMA_VERSION,
 } from './exportImport';
@@ -213,5 +214,37 @@ describe('migrateBackup', () => {
     // With no MIGRATIONS entries, it should just return the same data
     const result = migrateBackup(b);
     expect(result.data).toEqual(b.data);
+  });
+});
+
+describe('isBackupStale', () => {
+  const now = new Date('2026-07-01T12:00:00.000Z');
+
+  it('undefined → true (never backed up)', () => {
+    expect(isBackupStale(undefined, now)).toBe(true);
+  });
+
+  it('40 days ago → true', () => {
+    const fortyDaysAgo = new Date(now.getTime() - 40 * 86_400_000).toISOString();
+    expect(isBackupStale(fortyDaysAgo, now)).toBe(true);
+  });
+
+  it('5 days ago → false', () => {
+    const fiveDaysAgo = new Date(now.getTime() - 5 * 86_400_000).toISOString();
+    expect(isBackupStale(fiveDaysAgo, now)).toBe(false);
+  });
+
+  it('malformed string → true', () => {
+    expect(isBackupStale('not-a-date', now)).toBe(true);
+  });
+
+  it('exactly 30 days → true (threshold is >=)', () => {
+    const thirtyDays = new Date(now.getTime() - 30 * 86_400_000).toISOString();
+    expect(isBackupStale(thirtyDays, now)).toBe(true);
+  });
+
+  it('29 days ago → false', () => {
+    const twentyNine = new Date(now.getTime() - 29 * 86_400_000).toISOString();
+    expect(isBackupStale(twentyNine, now)).toBe(false);
   });
 });

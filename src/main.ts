@@ -23,6 +23,7 @@ import {
   setHoldings,
   replaceSettings,
   hydrateConfigFromCache,
+  setSetting,
 } from './store/config';
 import {
   buildBackup,
@@ -642,6 +643,7 @@ export async function exportBackup(): Promise<void> {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+  await setSetting('last_backup_at', new Date().toISOString());
 }
 (window as any).__exportBackup = exportBackup;
 

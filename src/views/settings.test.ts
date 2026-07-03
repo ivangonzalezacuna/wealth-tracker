@@ -95,8 +95,13 @@ vi.mock('../auth/google', () => ({
   isSignedIn: () => true,
 }));
 
+vi.mock('../backup/exportImport', () => ({
+  isBackupStale: vi.fn(() => true),
+}));
+
 import { renderSettings, generateId } from './settings';
 import { isCollapsed } from '../ui/collapseState';
+import { isBackupStale } from '../backup/exportImport';
 
 // ── Test setup ──────────────────────────────────────────────────
 
@@ -228,5 +233,29 @@ describe('generateId (collision-free)', () => {
     const longLabel = 'A'.repeat(50);
     const result = generateId(longLabel, taken);
     expect(result.length).toBeLessThanOrEqual(30);
+  });
+});
+
+describe('Backup card nudge', () => {
+  beforeEach(() => {
+    _collapseState = {};
+    setupDOM();
+  });
+
+  it('shows reminder text when backup is stale', () => {
+    (isBackupStale as ReturnType<typeof vi.fn>).mockReturnValue(true);
+    renderSettings();
+    const backupCard = document.getElementById('settings-card-backup');
+    expect(backupCard).not.toBeNull();
+    expect(backupCard!.textContent).toContain("You haven't taken a backup yet");
+  });
+
+  it('does not show reminder when backup is fresh', () => {
+    (isBackupStale as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    renderSettings();
+    const backupCard = document.getElementById('settings-card-backup');
+    expect(backupCard).not.toBeNull();
+    expect(backupCard!.textContent).not.toContain("You haven't taken a backup yet");
+    expect(backupCard!.textContent).not.toContain('30 days ago');
   });
 });
