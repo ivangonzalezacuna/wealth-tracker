@@ -27,6 +27,8 @@ import {
   getSettings,
   isConfigLoaded,
   replaceSettings,
+  getRetiredAccountIds,
+  retireAccountIds,
 } from './config';
 import { writeRange } from '../sheets/api';
 
@@ -188,5 +190,43 @@ describe('replaceSettings', () => {
     await replaceSettings(newSettings);
 
     expect(getSettings()).toEqual(newSettings);
+  });
+});
+
+describe('getRetiredAccountIds / retireAccountIds', () => {
+  it('returns [] when no retired ids are stored', () => {
+    hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
+    expect(getRetiredAccountIds()).toEqual([]);
+  });
+
+  it('round-trips retired ids through settings', async () => {
+    hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
+    await retireAccountIds(['old_acct_1', 'old_acct_2']);
+    expect(getRetiredAccountIds()).toEqual(expect.arrayContaining(['old_acct_1', 'old_acct_2']));
+    expect(getRetiredAccountIds()).toHaveLength(2);
+  });
+
+  it('deduplicates ids', async () => {
+    hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
+    await retireAccountIds(['dup']);
+    await retireAccountIds(['dup', 'new']);
+    const ids = getRetiredAccountIds();
+    expect(ids.filter((id) => id === 'dup')).toHaveLength(1);
+    expect(ids).toContain('new');
+  });
+
+  it('returns [] on malformed JSON in settings', () => {
+    hydrateConfigFromCache({
+      accounts: [],
+      holdings: [],
+      settings: { retired_account_ids: 'not-json' },
+    });
+    expect(getRetiredAccountIds()).toEqual([]);
+  });
+
+  it('does nothing when passed an empty array', async () => {
+    hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
+    await retireAccountIds([]);
+    expect(getRetiredAccountIds()).toEqual([]);
   });
 });

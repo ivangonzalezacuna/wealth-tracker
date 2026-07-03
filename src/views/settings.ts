@@ -11,6 +11,8 @@ import {
   getCostBasisMethod,
   getTargetNetWorth,
   getTargetDate,
+  getRetiredAccountIds,
+  retireAccountIds,
 } from '../store/config';
 import { loadTransactions } from '../sheets/transactions';
 import { validatePrimaryInvestment } from '../model/accounts';
@@ -291,9 +293,14 @@ function attachAccountListeners(root: HTMLElement): void {
       return;
     }
     // Auto-generate IDs for accounts that don't have one
+    const taken = new Set([
+      ...accounts.filter((a) => a.id).map((a) => a.id),
+      ...getRetiredAccountIds(),
+    ]);
     for (const a of accounts) {
       if (!a.id) {
-        a.id = generateId(a.label);
+        a.id = generateId(a.label, taken);
+        taken.add(a.id);
       }
     }
     try {
@@ -311,11 +318,12 @@ function attachAccountListeners(root: HTMLElement): void {
       const a = accounts[idx];
       const ok = await confirmDialog({
         title: `Remove ${esc(a?.label || 'this account')}?`,
-        body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected.',
+        body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected, and its old data column stays reserved so a future account never accidentally reuses it.',
         confirmLabel: 'Remove',
         danger: true,
       });
       if (!ok) return;
+      if (a?.id) await retireAccountIds([a.id]);
       accounts.splice(idx, 1);
       rerenderAccountsTable(root, accounts);
     });
@@ -363,11 +371,12 @@ function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
       const a = accs[idx];
       const ok = await confirmDialog({
         title: `Remove ${esc(a?.label || 'this account')}?`,
-        body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected.',
+        body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected, and its old data column stays reserved so a future account never accidentally reuses it.',
         confirmLabel: 'Remove',
         danger: true,
       });
       if (!ok) return;
+      if (a?.id) await retireAccountIds([a.id]);
       accs.splice(idx, 1);
       rerenderAccountsTable(root, accs);
     });
@@ -1117,13 +1126,22 @@ function esc(s: string | undefined | null): string {
     .replace(/>/g, '&gt;');
 }
 
-/** Generate a stable snake_case ID from a label. */
-function generateId(label: string): string {
+/** Generate a stable snake_case slug from a label. */
+export function slugify(label: string): string {
   return label
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_|_$/g, '')
     .slice(0, 30);
+}
+
+/** Generate a collision-free ID from a label, avoiding any id in `taken`. */
+export function generateId(label: string, taken: Set<string>): string {
+  const base = slugify(label);
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base}_${n}`)) n++;
+  return `${base}_${n}`;
 }
 
 /** Generate a random muted hex color for a new holding. */

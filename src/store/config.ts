@@ -290,6 +290,27 @@ async function logChange(entity: string, summary: string): Promise<void> {
   await appendRows(`${TABS.CONFIG_HISTORY}!A:D`, [[timestamp, 'web', entity, summary]]);
 }
 
+// ── Retired account IDs ──────────────────────────────────
+
+const RETIRED_IDS_KEY = 'retired_account_ids';
+
+export function getRetiredAccountIds(): string[] {
+  try {
+    return JSON.parse(_settings[RETIRED_IDS_KEY] || '[]');
+  } catch {
+    return [];
+  }
+}
+
+/** Called once per deleted account from Settings, so no future account can
+ *  reuse (and inherit the Snapshots column of) a retired id. */
+export async function retireAccountIds(ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  const existing = new Set(getRetiredAccountIds());
+  for (const id of ids) if (id) existing.add(id);
+  await setSetting(RETIRED_IDS_KEY, JSON.stringify([...existing]));
+}
+
 // ── Parsing helpers ──────────────────────────────────────
 
 /** Normalize a value that may arrive as boolean or string to a boolean. */
