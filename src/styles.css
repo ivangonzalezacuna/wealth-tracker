@@ -1256,8 +1256,21 @@ input[type='color'] {
 .settings-field-compact {
   flex: 0 1 auto;
 }
+.settings-field-checkbox-group {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 20px;
+  flex: 0 1 auto;
+}
 @media (max-width: 480px) {
   .settings-item-fields > .settings-field {
+    flex-basis: 100%;
+  }
+}
+@media (max-width: 480px) {
+  .settings-item-fields > .settings-field-checkbox-group {
     flex-basis: 100%;
   }
 }

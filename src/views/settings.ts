@@ -503,11 +503,13 @@ function renderHoldingRow(h: Holding, i: number): string {
             <input class="form-input form-input-sm color-picker-hex" data-field="color-hex" value="${esc(h.color)}" placeholder="#888888" maxlength="7">
           </div>
         </div>
-        <div class="settings-field settings-field-inline">
-          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="acc" ${h.acc ? 'checked' : ''}> Accumulating${infoTip('Acc (accumulating) ETFs reinvest dividends internally. Dist (distributing) ETFs pay dividends to your account.')}</label>
-        </div>
-        <div class="settings-field settings-field-inline">
-          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="active" ${h.active ? 'checked' : ''}> Active</label>
+        <div class="settings-field-checkbox-group">
+          <div class="settings-field settings-field-inline">
+            <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="acc" ${h.acc ? 'checked' : ''}> Accumulating${infoTip('Acc (accumulating) ETFs reinvest dividends internally. Dist (distributing) ETFs pay dividends to your account.')}</label>
+          </div>
+          <div class="settings-field settings-field-inline">
+            <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="active" ${h.active ? 'checked' : ''}> Active</label>
+          </div>
         </div>
       </div>
     </div>`;
