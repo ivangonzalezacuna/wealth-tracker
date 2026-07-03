@@ -23,6 +23,7 @@ interface StoredToken {
 const CLIENT_ID: string = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
 const STORE_KEY = 'gtoken';
+const GRANTED_KEY = 'ggranted'; // "this browser has completed a real consent grant"
 
 let _token: StoredToken | null = null;
 let _tokenClient: google.accounts.oauth2.TokenClient | null = null;
@@ -43,6 +44,7 @@ function _save(tok: StoredToken): void {
   _token = tok;
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(tok));
+    localStorage.setItem(GRANTED_KEY, '1');
   } catch {
     /* quota */
   }
@@ -103,7 +105,10 @@ function _requestToken(interactive: boolean): Promise<string> {
         };
         _pendingReject = reject;
         try {
-          _tokenClient!.requestAccessToken({ prompt: interactive ? 'consent' : '' });
+          const hasGrantedBefore = interactive && localStorage.getItem(GRANTED_KEY) === '1';
+          _tokenClient!.requestAccessToken({
+            prompt: interactive ? (hasGrantedBefore ? '' : 'consent') : '',
+          });
         } catch (e) {
           _pendingReject = null;
           reject(e);
@@ -121,7 +126,16 @@ export async function getToken(): Promise<string> {
 
 /** Interactive sign-in - must be called from a user gesture (button click). */
 export async function signIn(): Promise<string> {
-  return _requestToken(true);
+  try {
+    return await _requestToken(true);
+  } catch (err) {
+    // The light-touch prompt may have failed because GRANTED_KEY was stale
+    // (e.g. access revoked outside this app). Clear it so the next manual
+    // attempt escalates to a full consent prompt instead of repeating the
+    // same failing request.
+    localStorage.removeItem(GRANTED_KEY);
+    throw err;
+  }
 }
 
 /** Silent boot sign-in. Resolves true if a token is available without UI. */
@@ -144,6 +158,7 @@ export function signOut(): void {
   _token = null;
   if (_refreshTimer) clearTimeout(_refreshTimer);
   localStorage.removeItem(STORE_KEY);
+  localStorage.removeItem(GRANTED_KEY);
   if (t && window.google?.accounts?.oauth2) {
     window.google.accounts.oauth2.revoke(t, () => {});
   }
