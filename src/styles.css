@@ -178,7 +178,7 @@ code,
 /* KPIs */
 .kpi-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
   gap: 10px;
   margin-bottom: 1.5rem;
 }
@@ -188,6 +188,7 @@ code,
   border-radius: var(--radius-md);
   padding: 0.85rem 1rem;
   min-width: 0;
+  container-type: inline-size;
 }
 .kpi-lead {
   grid-column: 1 / -1;
@@ -211,7 +212,17 @@ code,
 .kpi-val {
   font-size: 22px;
   font-weight: 500;
-  overflow-wrap: break-word;
+  white-space: nowrap;
+}
+@container (max-width: 175px) {
+  .kpi-val {
+    font-size: 18px;
+  }
+}
+@container (max-width: 145px) {
+  .kpi-val {
+    font-size: 15px;
+  }
 }
 .kpi-val.pos {
   color: var(--pos);
