@@ -177,7 +177,7 @@ describe('snapToRowForHeader', () => {
     expect(snapToRowForHeader(snap, header)).toEqual(['2026-01', 200, 100, 'hi']);
   });
 
-  it('missing account key in snap defaults to 0', () => {
+  it('missing account key in snap defaults to 0 (no liveKeys arg — backward compat)', () => {
     const snap = { date: '2026-01', a: 100, notes: '' };
     const header = ['date', 'a', 'b', 'notes'];
     expect(snapToRowForHeader(snap, header)).toEqual(['2026-01', 100, 0, '']);
@@ -187,6 +187,27 @@ describe('snapToRowForHeader', () => {
     const snap = { date: '2026-03', x: 42, notes: 'test note' };
     const header = ['date', 'x', 'notes'];
     expect(snapToRowForHeader(snap, header)).toEqual(['2026-03', 42, 'test note']);
+  });
+
+  it('live key absent from snap → 0; orphaned key absent from snap → empty string', () => {
+    const snap = { date: '2026-01', notes: '' };
+    const header = ['date', 'live_acct', 'orphaned_acct', 'notes'];
+    const liveKeys = ['live_acct'];
+    expect(snapToRowForHeader(snap, header, liveKeys)).toEqual(['2026-01', 0, '', '']);
+  });
+
+  it('snap has explicit 0 for a live key → still 0 (real zero not blanked)', () => {
+    const snap = { date: '2026-01', live_acct: 0, notes: '' };
+    const header = ['date', 'live_acct', 'notes'];
+    const liveKeys = ['live_acct'];
+    expect(snapToRowForHeader(snap, header, liveKeys)).toEqual(['2026-01', 0, '']);
+  });
+
+  it('snap has value for orphaned key → value preserved', () => {
+    const snap = { date: '2026-01', orphaned: 500, notes: '' };
+    const header = ['date', 'orphaned', 'notes'];
+    const liveKeys = [];
+    expect(snapToRowForHeader(snap, header, liveKeys)).toEqual(['2026-01', 500, '']);
   });
 });
 
@@ -288,5 +309,21 @@ describe('upsertSnapshot - integration with mocked API', () => {
     // Row appended (not written to specific row)
     expect(mockAppendRows).toHaveBeenCalledTimes(1);
     expect(mockAppendRows.mock.calls[0][1][0]).toEqual(['2026-05', 10, 20, 'first']);
+  });
+
+  it('orphaned column in header → written row has empty string there', async () => {
+    // Header has [date, a, b, orphaned, notes] but live keys are only [a, b]
+    mockReadRange
+      .mockResolvedValueOnce([['date', 'a', 'b', 'orphaned', 'notes']]) // header read
+      .mockResolvedValueOnce([['date'], ['2026-01']]); // A:A column read
+
+    const { upsertSnapshot } = await import('./snapshots');
+    await upsertSnapshot({ date: '2026-01', a: 100, b: 200, notes: '' });
+
+    // The row written should have '' for the orphaned column, not 0
+    const writeCalls = mockWriteRange.mock.calls;
+    const rowWrite = writeCalls.find((c) => c[0].includes('A2'));
+    expect(rowWrite).toBeDefined();
+    expect(rowWrite[1][0]).toEqual(['2026-01', 100, 200, '', '']);
   });
 });

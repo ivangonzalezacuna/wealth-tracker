@@ -62,11 +62,21 @@ export function reconcileSnapshotHeader(currentHeader: string[], liveKeys: strin
 }
 
 /** Build a sheet row for `snap` aligned to `header` (array of column keys incl. 'date'/'notes'). */
-export function snapToRowForHeader(snap: Snapshot, header: string[]): (string | number)[] {
+export function snapToRowForHeader(
+  snap: Snapshot,
+  header: string[],
+  liveKeys: string[] = [],
+): (string | number)[] {
+  const hasLiveKeys = liveKeys.length > 0;
   return header.map((col) => {
     if (col === 'date') return snap.date;
     if (col === 'notes') return snap.notes || '';
-    return (snap[col] as number) || 0;
+    if (snap[col] !== undefined) return (snap[col] as number) || 0;
+    // Absent from this snapshot: '' for a retired column (never imply a
+    // deleted account had a real €0 balance), 0 for a live account with
+    // simply no value yet.
+    if (!hasLiveKeys) return 0;
+    return liveKeys.includes(col) ? 0 : '';
   });
 }
 
@@ -138,7 +148,7 @@ export async function upsertSnapshot(snap: Snapshot): Promise<void> {
   const rowIdx = col.findIndex((r, i) => i > 0 && String(r[0]) === snap.date);
 
   // 5. Build the row aligned to the desired header
-  const row = snapToRowForHeader(snap, desired);
+  const row = snapToRowForHeader(snap, desired, liveKeys);
 
   // 6. Update in place or append
   if (rowIdx > 0) {
