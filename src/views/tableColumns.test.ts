@@ -199,7 +199,7 @@ describe('round-trip proof', () => {
       label: 'Amount',
       align: 'right',
       sortValue: (r) => r.amount,
-      cell: (r) => `€${r.amount}`,
+      cell: (r) => `${r.amount}\u00A0€`,
     },
     {
       key: 'pct',
@@ -248,7 +248,7 @@ describe('round-trip proof', () => {
     expect(cells[0].getAttribute('style')).toBeNull();
 
     // Second cell: right-aligned amount
-    expect(cells[1].textContent).toBe('€150');
+    expect(cells[1].textContent).toBe('150\u00A0€');
     expect(cells[1].getAttribute('style')).toContain('text-align:right');
 
     // Third cell: right-aligned, mobile-hidden

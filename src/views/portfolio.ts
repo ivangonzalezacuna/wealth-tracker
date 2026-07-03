@@ -365,7 +365,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
       scales: {
         x: {
           grid: { color: C.line },
-          ticks: { color: C.ink4, callback: (v: number) => '€' + (v / 1000).toFixed(0) + 'k' },
+          ticks: { color: C.ink4, callback: (v: number) => (v / 1000).toFixed(0) + 'k\u00A0€' },
         },
         y: { grid: { display: false }, ticks: { color: C.ink2, font: { size: 12 } } },
       },

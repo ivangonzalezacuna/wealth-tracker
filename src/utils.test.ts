@@ -25,9 +25,10 @@ describe('fmt', () => {
     expect(result).not.toContain('56');
   });
 
-  it('starts with euro sign', () => {
-    expect(fmt(100)).toMatch(/^€/);
-    expect(fmt(100, 2)).toMatch(/^€/);
+  it('ends with euro sign, German-locale placement (amount before symbol)', () => {
+    expect(fmt(100)).toMatch(/€$/);
+    expect(fmt(100, 2)).toMatch(/€$/);
+    expect(fmt(100)).not.toMatch(/^€/);
   });
 });
 
