@@ -26,6 +26,7 @@ import {
   getHoldings,
   getSettings,
   isConfigLoaded,
+  replaceSettings,
 } from './config';
 import { writeRange } from '../sheets/api';
 
@@ -160,5 +161,32 @@ describe('hydrateConfigFromCache (Phase 41)', () => {
     expect(getHoldings()).toEqual([]);
     expect(getSettings()).toEqual({});
     expect(isConfigLoaded()).toBe(true);
+  });
+});
+
+describe('replaceSettings', () => {
+  it('fully replaces settings - pre-existing keys not in new object are gone', async () => {
+    // Seed with some initial settings
+    hydrateConfigFromCache({
+      accounts: [],
+      holdings: [],
+      settings: { oldKey: 'oldValue', costBasisMethod: 'fifo' },
+    });
+    expect(getSettings().oldKey).toBe('oldValue');
+
+    // Replace with entirely new settings
+    await replaceSettings({ costBasisMethod: 'avgco', newKey: 'newValue' });
+
+    const result = getSettings();
+    expect(result.costBasisMethod).toBe('avgco');
+    expect(result.newKey).toBe('newValue');
+    expect(result.oldKey).toBeUndefined();
+  });
+
+  it('getSettings() returns exactly the new object after replace', async () => {
+    const newSettings = { costBasisMethod: 'fifo', targetNetWorth: '100000' };
+    await replaceSettings(newSettings);
+
+    expect(getSettings()).toEqual(newSettings);
   });
 });

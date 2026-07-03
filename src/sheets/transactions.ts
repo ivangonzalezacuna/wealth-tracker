@@ -1,6 +1,6 @@
 /** Transaction persistence (append-only). Deduplicates on re-import. Reads old 10-col format. */
 
-import { readRange, writeRange, appendRows, ensureSheets } from './api';
+import { readRange, writeRange, appendRows, clearRange, ensureSheets } from './api';
 import { SHEET_TABS } from '../constants';
 import { newRowToTx, oldRowToTx } from '../model/txRow';
 import type { Transaction } from '../types';
@@ -113,6 +113,23 @@ export async function mergeTransactions(
 
   const merged = [...existing, ...newTxs].sort((a, b) => a.date.localeCompare(b.date));
   return merged;
+}
+
+/** Full overwrite of the Transactions tab - used only by backup restore.
+ *  Distinct from mergeTransactions (dedup-append, routine CSV import). */
+export async function restoreTransactions(txs: Transaction[]): Promise<void> {
+  await ensureSheets([TAB]);
+  let existingHeight = 0;
+  try {
+    existingHeight = (await readRange(`${TAB}!A:A`)).length;
+  } catch {
+    /* empty sheet */
+  }
+  const sorted = [...txs].sort((a, b) => a.date.localeCompare(b.date));
+  const values = [NEW_HDR, ...sorted.map(txToRow)];
+  await writeRange(NEW_RANGE, values);
+  const staleBelow = Math.max(existingHeight - values.length, 0);
+  if (staleBelow > 0) await clearRange(`${TAB}!A${values.length + 1}:N${existingHeight}`);
 }
 
 /** Save import date metadata to Meta tab. */

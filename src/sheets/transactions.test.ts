@@ -166,3 +166,137 @@ describe('old 10-col migration shape', () => {
     expect(txKey(tx1)).toBe('unique-id-1');
   });
 });
+
+describe('restoreTransactions', () => {
+  let mockReadRange: ReturnType<typeof vi.fn>;
+  let mockWriteRange: ReturnType<typeof vi.fn>;
+  let mockClearRange: ReturnType<typeof vi.fn>;
+  let mockEnsureSheets: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    vi.resetModules();
+
+    mockReadRange = vi.fn();
+    mockWriteRange = vi.fn().mockResolvedValue({});
+    mockClearRange = vi.fn().mockResolvedValue({});
+    mockEnsureSheets = vi.fn().mockResolvedValue(undefined);
+
+    vi.doMock('./api', () => ({
+      readRange: mockReadRange,
+      writeRange: mockWriteRange,
+      appendRows: vi.fn().mockResolvedValue({}),
+      clearRange: mockClearRange,
+      ensureSheets: mockEnsureSheets,
+    }));
+
+    vi.doMock('../constants', () => ({
+      SHEET_TABS: { SNAPSHOTS: 'Snapshots', TRANSACTIONS: 'Transactions', META_INFO: 'Meta' },
+      getACCTSList: () => [],
+    }));
+  });
+
+  it('writes header+rows via writeRange, no clearRange when new data is longer', async () => {
+    // Existing sheet has 3 rows (header + 2 data rows)
+    mockReadRange.mockResolvedValueOnce([['id'], ['tx1'], ['tx2']]);
+
+    const { restoreTransactions } = await import('./transactions');
+    const txs = [
+      {
+        id: 'a',
+        date: '2025-01-01',
+        source: '',
+        type: 'BUY',
+        name: 'X',
+        isin: 'IE1',
+        symbol: '',
+        shares: 1,
+        price: 10,
+        amount: -10,
+        fee: 0,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 0,
+        note: '',
+      },
+      {
+        id: 'b',
+        date: '2025-02-01',
+        source: '',
+        type: 'SELL',
+        name: 'Y',
+        isin: 'IE2',
+        symbol: '',
+        shares: 2,
+        price: 20,
+        amount: 40,
+        fee: 0,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 0,
+        note: '',
+      },
+      {
+        id: 'c',
+        date: '2025-03-01',
+        source: '',
+        type: 'BUY',
+        name: 'Z',
+        isin: 'IE3',
+        symbol: '',
+        shares: 3,
+        price: 30,
+        amount: -90,
+        fee: 0,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 0,
+        note: '',
+      },
+    ];
+
+    await restoreTransactions(txs);
+
+    expect(mockWriteRange).toHaveBeenCalledTimes(1);
+    const [range, values] = mockWriteRange.mock.calls[0];
+    expect(range).toContain('Transactions');
+    // header + 3 data rows = 4 rows total, existing was 3, so no clearRange needed
+    expect(values).toHaveLength(4);
+    expect(values[0][0]).toBe('id'); // header
+    expect(mockClearRange).not.toHaveBeenCalled();
+  });
+
+  it('calls clearRange when existing sheet is taller than new data', async () => {
+    // Existing sheet has 10 rows
+    mockReadRange.mockResolvedValueOnce(Array(10).fill(['x']));
+
+    const { restoreTransactions } = await import('./transactions');
+    const txs = [
+      {
+        id: 'a',
+        date: '2025-01-01',
+        source: '',
+        type: 'BUY',
+        name: 'X',
+        isin: 'IE1',
+        symbol: '',
+        shares: 1,
+        price: 10,
+        amount: -10,
+        fee: 0,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 0,
+        note: '',
+      },
+    ];
+
+    await restoreTransactions(txs);
+
+    expect(mockWriteRange).toHaveBeenCalledTimes(1);
+    // header + 1 row = 2 rows; existing was 10, so stale = 8 rows need clearing
+    expect(mockClearRange).toHaveBeenCalledTimes(1);
+    const clearArg = mockClearRange.mock.calls[0][0];
+    expect(clearArg).toContain('A3'); // rows 3..10 should be cleared
+    expect(clearArg).toContain('N10');
+  });
+});

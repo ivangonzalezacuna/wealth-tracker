@@ -35,7 +35,7 @@ function intervalOptionsHtml(selected: ContribInterval): string {
 }
 
 /** Card key -> render fn, used by repaintCard() to scope a re-render to one card. */
-type CardKey = 'accounts' | 'holdings' | 'cost-basis' | 'goal' | 'rules' | 'cache';
+type CardKey = 'accounts' | 'holdings' | 'cost-basis' | 'goal' | 'rules' | 'cache' | 'backup';
 
 /** Re-render exactly one Settings card in place; re-attach only its own
  *  listeners; reapply its persisted collapse state. Touches no sibling card. */
@@ -68,6 +68,9 @@ function repaintCard(key: CardKey): void {
     case 'cache':
       html = renderCacheCard();
       break;
+    case 'backup':
+      html = renderBackupCard();
+      break;
   }
 
   existing.outerHTML = html;
@@ -93,6 +96,9 @@ function repaintCard(key: CardKey): void {
       break;
     case 'cache':
       attachCacheListeners(fresh);
+      break;
+    case 'backup':
+      attachBackupListeners(fresh);
       break;
   }
   attachCardCollapseListeners(fresh);
@@ -124,6 +130,7 @@ export function renderSettings(): void {
     ${renderGoalCard(settings)}
     ${renderRulesCard(settings)}
     ${renderCacheCard()}
+    ${renderBackupCard()}
   `;
 
   attachAccountListeners(el);
@@ -132,6 +139,7 @@ export function renderSettings(): void {
   attachGoalListeners(el);
   attachRulesListeners(el);
   attachCacheListeners(el);
+  attachBackupListeners(el);
   attachColorPickerSync(el);
   attachCardCollapseListeners(el);
 
@@ -1285,6 +1293,68 @@ function attachCacheListeners(root: HTMLElement): void {
       if (msgEl) {
         msgEl.textContent = 'Error: ' + (err?.message || 'unknown');
         msgEl.style.color = C.neg;
+      }
+    }
+  });
+}
+
+// ── Backup & restore ──────────────────────────────────────
+
+function renderBackupCard(): string {
+  return `
+    <div class="card card-collapsible" id="settings-card-backup" data-card-key="backup">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Backup &amp; restore</div>
+        <span class="card-chevron"></span>
+      </div>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.85rem">Export everything as one file you can keep somewhere safe. If anything happens to your Sheet, restore from that file.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-outline btn-sm" id="btn-export-backup">Export backup</button>
+          <button class="btn btn-ghost btn-sm" id="btn-restore-backup">Restore from file\u2026</button>
+          <input type="file" id="backup-file-input" accept="application/json" style="display:none">
+        </div>
+        <div id="backup-msg" style="font-size:12px;margin-top:.6rem;min-height:18px"></div>
+      </div>
+    </div>`;
+}
+
+function attachBackupListeners(root: HTMLElement): void {
+  const msg = () => document.getElementById('backup-msg');
+  root.querySelector('#btn-export-backup')?.addEventListener('click', async () => {
+    try {
+      await (window as any).__exportBackup();
+      const m = msg();
+      if (m) {
+        m.textContent = 'Backup downloaded.';
+        m.style.color = 'var(--pos)';
+      }
+    } catch (err: any) {
+      const m = msg();
+      if (m) {
+        m.textContent = 'Export failed: ' + err.message;
+        m.style.color = 'var(--neg)';
+      }
+    }
+  });
+  const fileInput = root.querySelector('#backup-file-input') as HTMLInputElement | null;
+  root.querySelector('#btn-restore-backup')?.addEventListener('click', () => fileInput?.click());
+  fileInput?.addEventListener('change', async () => {
+    const file = fileInput.files?.[0];
+    fileInput.value = '';
+    if (!file) return;
+    try {
+      const result = await (window as any).__restoreFromBackup(file);
+      const m = msg();
+      if (m) {
+        m.textContent = result === 'cancelled' ? 'Restore cancelled.' : 'Restore complete.';
+        m.style.color = result === 'cancelled' ? 'var(--ink-2)' : 'var(--pos)';
+      }
+    } catch (err: any) {
+      const m = msg();
+      if (m) {
+        m.textContent = 'Restore failed: ' + err.message;
+        m.style.color = 'var(--neg)';
       }
     }
   });

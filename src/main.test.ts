@@ -3,6 +3,7 @@
  */
 // @ts-nocheck - mirrors production file's @ts-nocheck; test fixtures use partial objects
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { validateBackup } from './backup/exportImport';
 
 /**
  * main.ts has heavy module-level side effects (DOM manipulation, auth init,
@@ -137,5 +138,105 @@ describe('showPortfolioSubview idempotent guard', () => {
     // But switching to a different sub-view should render
     showPortfolioSubview('contributions');
     expect(renderSpy).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ── restoreFromBackup guard logic ─────────────────────────
+// Same isolation approach: reproduce the exact guard conditions
+// from restoreFromBackup without importing main.ts directly.
+
+describe('restoreFromBackup guard logic', () => {
+  function restoreGuard(opts: {
+    offline: boolean;
+    signedIn: boolean;
+    syncBusy: boolean;
+    fileContent: string;
+  }): string | null {
+    if (opts.offline || !navigator.onLine) return 'Cannot restore while offline.';
+    if (!opts.signedIn) return 'Sign in first.';
+    if (opts.syncBusy) return 'A sync or save is in progress.';
+
+    let raw: unknown;
+    try {
+      raw = JSON.parse(opts.fileContent);
+    } catch {
+      return 'That file is not valid JSON.';
+    }
+    const backup = validateBackup(raw);
+    if (!backup) return 'That file is not a recognized Wealth Tracker backup.';
+    return null; // passes all guards
+  }
+
+  it('rejects when offline', () => {
+    const err = restoreGuard({
+      offline: true,
+      signedIn: true,
+      syncBusy: false,
+      fileContent: '{}',
+    });
+    expect(err).toContain('offline');
+  });
+
+  it('rejects when not signed in', () => {
+    const err = restoreGuard({
+      offline: false,
+      signedIn: false,
+      syncBusy: false,
+      fileContent: '{}',
+    });
+    expect(err).toContain('Sign in');
+  });
+
+  it('rejects when sync is busy', () => {
+    const err = restoreGuard({
+      offline: false,
+      signedIn: true,
+      syncBusy: true,
+      fileContent: '{}',
+    });
+    expect(err).toContain('sync or save');
+  });
+
+  it('rejects invalid JSON', () => {
+    const err = restoreGuard({
+      offline: false,
+      signedIn: true,
+      syncBusy: false,
+      fileContent: 'not json {{',
+    });
+    expect(err).toContain('not valid JSON');
+  });
+
+  it('rejects valid JSON that fails validateBackup', () => {
+    const err = restoreGuard({
+      offline: false,
+      signedIn: true,
+      syncBusy: false,
+      fileContent: JSON.stringify({ app: 'other', data: {} }),
+    });
+    expect(err).toContain('not a recognized');
+  });
+
+  it('passes all guards with a valid backup', () => {
+    const validBackup = JSON.stringify({
+      schemaVersion: 1,
+      app: 'wealth-tracker',
+      exportedAt: '2026-01-01T00:00:00Z',
+      data: {
+        accounts: [],
+        holdings: [],
+        settings: {},
+        snapshots: [],
+        transactions: [],
+        importMeta: {},
+      },
+    });
+    const err = restoreGuard({
+      offline: false,
+      signedIn: true,
+      syncBusy: false,
+      fileContent: validBackup,
+    });
+    expect(err).toBeNull();
   });
 });

@@ -8,6 +8,7 @@ import { loadSnapshots, saveSnapshots, upsertSnapshot } from './sheets/snapshots
 import {
   loadTransactions,
   mergeTransactions,
+  restoreTransactions,
   saveImportMeta,
   loadImportMeta,
 } from './sheets/transactions';
@@ -18,8 +19,17 @@ import {
   getHoldings,
   getAccounts,
   getSettings,
+  setAccounts,
+  setHoldings,
+  replaceSettings,
   hydrateConfigFromCache,
 } from './store/config';
+import {
+  buildBackup,
+  backupFilename,
+  validateBackup,
+  summarizeBackup,
+} from './backup/exportImport';
 import { getSetupState } from './model/setup';
 import { computePD } from './portfolio';
 import { parseWithProfile, detectProfile, previewSummary } from './import/parse';
@@ -610,6 +620,92 @@ export async function forceFullResync() {
 }
 // Make it available on window for the settings button
 (window as any).__forceFullResync = forceFullResync;
+
+// ── Backup export ─────────────────────────────────────────
+export async function exportBackup(): Promise<void> {
+  const backup = buildBackup({
+    accounts: getAccounts(),
+    holdings: getHoldings(),
+    settings: getSettings(),
+    snapshots: state.snaps,
+    transactions: state.txs,
+    importMeta: state.importMeta,
+  });
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = backupFilename();
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+(window as any).__exportBackup = exportBackup;
+
+// ── Backup restore ────────────────────────────────────────
+export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done'> {
+  if (state.offline || !navigator.onLine)
+    throw new Error('Cannot restore while offline. Please reconnect and try again.');
+  if (!isSignedIn()) throw new Error('Sign in first.');
+  if (isSyncBusy()) throw new Error('A sync or save is in progress. Try again in a moment.');
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(await file.text());
+  } catch {
+    throw new Error('That file is not valid JSON.');
+  }
+  const backup = validateBackup(raw);
+  if (!backup) throw new Error('That file is not a recognized Wealth Tracker backup.');
+
+  const ok = await confirmDialog({
+    title: 'Restore from backup?',
+    body: summarizeBackup(backup),
+    confirmLabel: 'Restore',
+    danger: true,
+  });
+  if (!ok) return 'cancelled';
+
+  setSyncing(true);
+  try {
+    const { accounts, holdings, settings, snapshots, transactions, importMeta } = backup.data;
+    await setAccounts(accounts);
+    await setHoldings(holdings);
+    await replaceSettings(settings);
+    await saveSnapshots(snapshots);
+    await restoreTransactions(transactions);
+    if (importMeta.last_import) await saveImportMeta(importMeta.last_import);
+
+    state.snaps = snapshots;
+    state.txs = transactions;
+    state.importMeta = importMeta;
+    state.pd = transactions.length
+      ? computePD(transactions, { method: getCostBasisMethod() })
+      : null;
+
+    await Promise.all([
+      setCachedConfig({
+        accounts: getAccounts(),
+        holdings: getHoldings(),
+        settings: getSettings(),
+      }),
+      setCachedSnapshots(snapshots),
+      setCachedTransactions(transactions),
+      setCachedImportMeta(importMeta),
+      setSyncCursor({
+        lastDate: transactions.length ? transactions[transactions.length - 1].date : '',
+        rowCount: transactions.length,
+      }),
+    ]);
+    renderAll();
+    return 'done';
+  } finally {
+    setSyncing(false);
+    _lastSyncAt = Date.now();
+  }
+}
+(window as any).__restoreFromBackup = restoreFromBackup;
 
 function setSyncStatus(status, msg = '') {
   const el = document.getElementById('sync-status');

@@ -267,6 +267,14 @@ export async function setSettings(
   if (_onChange) _onChange();
 }
 
+/** Full replace of the Settings tab - used only by backup restore. */
+export async function replaceSettings(settings: Settings): Promise<void> {
+  _settings = { ...settings };
+  await persistSettings();
+  await logChange('Settings', 'restored from backup');
+  if (_onChange) _onChange();
+}
+
 async function persistSettings(): Promise<void> {
   await ensureSheets([TABS.SETTINGS]);
   const hdr = ['key', 'value'];
