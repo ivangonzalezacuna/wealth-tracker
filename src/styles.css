@@ -1242,6 +1242,10 @@ input[type='color'] {
 .settings-field:not(.settings-field-inline) > *:last-child {
   margin-top: auto;
 }
+.settings-item-fields > .settings-field-inline,
+.settings-item-fields > .settings-field-checkbox-group {
+  align-self: flex-end;
+}
 .settings-field-label {
   font-size: 11px;
   color: var(--ink-3);
@@ -1251,6 +1255,15 @@ input[type='color'] {
   flex-direction: row;
   align-items: center;
   gap: 6px;
+}
+.settings-field-inline .settings-field-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.settings-field-inline .settings-field-label input[type='checkbox'] {
+  margin: 0;
+  flex-shrink: 0;
 }
 .settings-field-inline,
 .settings-field-compact {
