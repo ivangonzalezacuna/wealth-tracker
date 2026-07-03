@@ -197,17 +197,12 @@ export async function saveSnapshots(snaps: Snapshot[]): Promise<void> {
   const values = [hdr, ...sorted.map((s) => snapToRow(s, accts))];
   await writeRange(`${TAB}!A1`, values);
 
-  // Clear only stale cells beyond the new extent
+  // Clear only stale rows beyond the new extent
   const newRows = values.length;
   const staleBelow = Math.max(existingHeight - newRows, 0);
   if (staleBelow > 0) {
     await clearRange(
       `${TAB}!A${newRows + 1}:${colLetter(Math.max(liveColCount, existingWidth))}${existingHeight}`,
-    );
-  }
-  if (existingWidth > liveColCount) {
-    await clearRange(
-      `${TAB}!${colLetter(liveColCount + 1)}1:${colLetter(existingWidth)}${existingHeight}`,
     );
   }
 }

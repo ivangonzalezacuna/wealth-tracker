@@ -327,3 +327,82 @@ describe('upsertSnapshot - integration with mocked API', () => {
     expect(rowWrite[1][0]).toEqual(['2026-01', 100, 200, '', '']);
   });
 });
+
+describe('saveSnapshots - no silent column purge', () => {
+  let mockReadRange: ReturnType<typeof vi.fn>;
+  let mockWriteRange: ReturnType<typeof vi.fn>;
+  let mockAppendRows: ReturnType<typeof vi.fn>;
+  let mockClearRange: ReturnType<typeof vi.fn>;
+  let mockEnsureSheets: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    vi.resetModules();
+
+    mockReadRange = vi.fn();
+    mockWriteRange = vi.fn().mockResolvedValue({});
+    mockAppendRows = vi.fn().mockResolvedValue({});
+    mockClearRange = vi.fn().mockResolvedValue({});
+    mockEnsureSheets = vi.fn().mockResolvedValue(undefined);
+
+    vi.doMock('./api', () => ({
+      readRange: mockReadRange,
+      writeRange: mockWriteRange,
+      appendRows: mockAppendRows,
+      clearRange: mockClearRange,
+      ensureSheets: mockEnsureSheets,
+    }));
+
+    vi.doMock('../constants', () => ({
+      SHEET_TABS: { SNAPSHOTS: 'Snapshots', TRANSACTIONS: 'Transactions', META_INFO: 'Meta' },
+      getACCTSList: () => [
+        { key: 'a', label: 'A', color: '' },
+        { key: 'b', label: 'B', color: '' },
+      ],
+    }));
+  });
+
+  it('sheet wider than live accounts → clearRange NOT called for orphaned columns', async () => {
+    // Existing sheet has 5 columns (date, a, b, orphaned, notes) but live is only (date, a, b, notes)
+    mockReadRange
+      .mockResolvedValueOnce([['date', 'a', 'b', 'orphaned', 'notes']]) // header read (5 cols)
+      .mockResolvedValueOnce([['date'], ['2026-01'], ['2026-02']]); // A:A (3 rows)
+
+    const { saveSnapshots } = await import('./snapshots');
+    await saveSnapshots([
+      { date: '2026-01', a: 100, b: 200, notes: '' },
+      { date: '2026-02', a: 300, b: 400, notes: '' },
+    ]);
+
+    // writeRange called with only live-width data (4 columns: date, a, b, notes)
+    expect(mockWriteRange).toHaveBeenCalledTimes(1);
+    const writtenValues = mockWriteRange.mock.calls[0][1];
+    expect(writtenValues[0]).toEqual(['date', 'a', 'b', 'notes']); // header
+    expect(writtenValues[0]).toHaveLength(4);
+
+    // clearRange should NOT have been called for orphaned column range
+    // (it may be called for stale rows below, but never for columns beyond live width)
+    for (const call of mockClearRange.mock.calls) {
+      const range = call[0] as string;
+      // Should never clear column E1:E... (the orphaned column)
+      expect(range).not.toMatch(/!E1:/);
+    }
+  });
+
+  it('stale rows below are still cleared (existing behavior preserved)', async () => {
+    // Sheet has 4 rows (header + 3 data rows) but we're saving only 2 data rows
+    mockReadRange
+      .mockResolvedValueOnce([['date', 'a', 'b', 'notes']]) // header read (4 cols)
+      .mockResolvedValueOnce([['date'], ['2026-01'], ['2026-02'], ['2026-03']]); // A:A (4 rows)
+
+    const { saveSnapshots } = await import('./snapshots');
+    await saveSnapshots([
+      { date: '2026-01', a: 100, b: 200, notes: '' },
+      { date: '2026-02', a: 300, b: 400, notes: '' },
+    ]);
+
+    // clearRange should be called for the stale row (row 4)
+    expect(mockClearRange).toHaveBeenCalledTimes(1);
+    const clearCall = mockClearRange.mock.calls[0][0] as string;
+    expect(clearCall).toContain('A4'); // clear from row 4
+  });
+});
