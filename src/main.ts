@@ -62,10 +62,11 @@ import {
   setInputsHash,
   computeInputsHash,
   holdingsSignature,
+  setCollapseState,
 } from './cache/db';
 import { fetchDeltaTransactions, mergeDelta } from './cache/sync';
 import { shouldAutoResync } from './sync/policy';
-import { loadCollapseState } from './ui/collapseState';
+import { loadCollapseState, replaceCollapseState } from './ui/collapseState';
 import { restoreCollapseFromSheet, backupCollapseToSheet } from './ui/collapseSync';
 import { confirmDialog } from './ui/confirmDialog';
 import { showSigninOverlay, hideSigninOverlay } from './ui/signinOverlay';
@@ -673,6 +674,21 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
     await setAccounts(accounts);
     await setHoldings(holdings);
     await replaceSettings(settings);
+
+    // Reapply collapse/expand UI state from the backup
+    const rawCollapse = settings['ui_collapse_state'];
+    if (rawCollapse) {
+      try {
+        const parsed = JSON.parse(rawCollapse);
+        if (parsed && typeof parsed === 'object') {
+          replaceCollapseState(parsed);
+          await setCollapseState(parsed);
+        }
+      } catch {
+        /* malformed — leave current collapse state as-is */
+      }
+    }
+
     await saveSnapshots(snapshots);
     await restoreTransactions(transactions);
     if (importMeta.last_import) await saveImportMeta(importMeta.last_import);

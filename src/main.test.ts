@@ -240,3 +240,83 @@ describe('restoreFromBackup guard logic', () => {
     expect(err).toBeNull();
   });
 });
+
+describe('restoreFromBackup collapse state reapply logic', () => {
+  // Tests the logic added to restoreFromBackup that reapplies collapse state.
+  // Isolated the same way as the guard logic tests above.
+  function applyCollapseFromSettings(
+    settings: Record<string, string>,
+    replaceCollapseStateMock: (state: Record<string, boolean>) => void,
+    setCollapseStateMock: (state: Record<string, boolean>) => Promise<void>,
+  ): { called: boolean; threw: boolean } {
+    const rawCollapse = settings['ui_collapse_state'];
+    if (!rawCollapse) return { called: false, threw: false };
+    try {
+      const parsed = JSON.parse(rawCollapse);
+      if (parsed && typeof parsed === 'object') {
+        replaceCollapseStateMock(parsed);
+        setCollapseStateMock(parsed);
+        return { called: true, threw: false };
+      }
+      return { called: false, threw: false };
+    } catch {
+      return { called: false, threw: false };
+    }
+  }
+
+  it('calls both functions with parsed object when ui_collapse_state is valid JSON', () => {
+    const replaceMock = vi.fn();
+    const setMock = vi.fn().mockResolvedValue(undefined);
+    const collapseObj = { 'card:accounts': true, 'card:holdings': false };
+
+    const result = applyCollapseFromSettings(
+      { ui_collapse_state: JSON.stringify(collapseObj) },
+      replaceMock,
+      setMock,
+    );
+
+    expect(result.called).toBe(true);
+    expect(replaceMock).toHaveBeenCalledTimes(1);
+    expect(replaceMock).toHaveBeenCalledWith(collapseObj);
+    expect(setMock).toHaveBeenCalledTimes(1);
+    expect(setMock).toHaveBeenCalledWith(collapseObj);
+  });
+
+  it('does not call either function when ui_collapse_state key is missing', () => {
+    const replaceMock = vi.fn();
+    const setMock = vi.fn().mockResolvedValue(undefined);
+
+    const result = applyCollapseFromSettings({}, replaceMock, setMock);
+
+    expect(result.called).toBe(false);
+    expect(replaceMock).not.toHaveBeenCalled();
+    expect(setMock).not.toHaveBeenCalled();
+  });
+
+  it('does not call either function when JSON is malformed, and does not throw', () => {
+    const replaceMock = vi.fn();
+    const setMock = vi.fn().mockResolvedValue(undefined);
+
+    const result = applyCollapseFromSettings(
+      { ui_collapse_state: 'not valid json {{{' },
+      replaceMock,
+      setMock,
+    );
+
+    expect(result.called).toBe(false);
+    expect(result.threw).toBe(false);
+    expect(replaceMock).not.toHaveBeenCalled();
+    expect(setMock).not.toHaveBeenCalled();
+  });
+
+  it('does not call functions when parsed value is null', () => {
+    const replaceMock = vi.fn();
+    const setMock = vi.fn().mockResolvedValue(undefined);
+
+    const result = applyCollapseFromSettings({ ui_collapse_state: 'null' }, replaceMock, setMock);
+
+    expect(result.called).toBe(false);
+    expect(replaceMock).not.toHaveBeenCalled();
+    expect(setMock).not.toHaveBeenCalled();
+  });
+});
