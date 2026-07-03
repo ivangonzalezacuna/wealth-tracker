@@ -206,7 +206,7 @@ function renderAccountRow(a: Account, i: number): string {
           <label class="settings-field-label">Institution</label>
           <input class="form-input form-input-sm" data-field="institution" value="${esc(a.institution)}" placeholder="e.g. Trade Republic">
         </div>
-        <div class="settings-field">
+        <div class="settings-field settings-field-compact">
           <label class="settings-field-label">Color</label>
           <div class="color-picker-wrap">
             <input type="color" class="color-picker-swatch" data-field="color" value="${esc(a.color)}">
@@ -217,8 +217,8 @@ function renderAccountRow(a: Account, i: number): string {
           <label class="settings-field-label">Annual return assumption (%)${infoTip("Used for this account's slice of the 5-year forecast on the Net Worth tab. Cash/savings are typically 0% unless they earn interest.")}</label>
           <input class="form-input form-input-sm" data-field="annualReturnPct" type="number" min="0" max="30" step="0.1" value="${esc(String(a.annualReturnPct ?? 0))}">
         </div>
-        <div class="js-contrib-note" style="${a.isPrimaryInvestment ? '' : 'display:none'}">
-          <p class="note" style="grid-column:1/-1">Contribution amount for the primary investment account comes from the ETF contribution plan in the Holdings card below, not from this account row.</p>
+        <div class="js-contrib-note" style="${a.isPrimaryInvestment ? 'flex-basis:100%' : 'display:none'}">
+          <p class="note">Contribution amount for the primary investment account comes from the ETF contribution plan in the Holdings card below, not from this account row.</p>
         </div>
         <div class="js-contrib-fields" style="${a.isPrimaryInvestment ? 'display:none' : 'display:contents'}">
         <div class="settings-field">
@@ -233,6 +233,7 @@ function renderAccountRow(a: Account, i: number): string {
         </div>
         </div>
         <div class="settings-field settings-field-inline">
+          <span class="settings-field-label" aria-hidden="true">&nbsp;</span>
           <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="isPrimaryInvestment" ${a.isPrimaryInvestment ? 'checked' : ''}> Primary investment${infoTip('Used to split net-worth growth into contributions vs market returns. Only investment-type accounts (broker, depot) should be marked.')}</label>
         </div>
       </div>
@@ -496,18 +497,23 @@ function renderHoldingRow(h: Holding, i: number): string {
           <label class="settings-field-label">Successor ISIN${infoTip('When an ETF merges into another, enter the new ISIN here. Transactions are consolidated under the successor.')}</label>
           <input class="form-input form-input-sm" data-field="foldInto" value="${esc(h.foldInto)}" placeholder="ISIN of successor">
         </div>
-        <div class="settings-field">
+        <div class="settings-field settings-field-compact">
           <label class="settings-field-label">Color</label>
           <div class="color-picker-wrap">
             <input type="color" class="color-picker-swatch" data-field="color" value="${esc(h.color)}">
             <input class="form-input form-input-sm color-picker-hex" data-field="color-hex" value="${esc(h.color)}" placeholder="#888888" maxlength="7">
           </div>
         </div>
-        <div class="settings-field settings-field-inline">
-          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="acc" ${h.acc ? 'checked' : ''}> Accumulating${infoTip('Acc (accumulating) ETFs reinvest dividends internally. Dist (distributing) ETFs pay dividends to your account.')}</label>
-        </div>
-        <div class="settings-field settings-field-inline">
-          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="active" ${h.active ? 'checked' : ''}> Active</label>
+        <div class="settings-field-checkbox-group">
+          <span class="settings-field-label" aria-hidden="true">&nbsp;</span>
+          <div class="settings-field-checkbox-row">
+            <div class="settings-field settings-field-inline">
+              <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="acc" ${h.acc ? 'checked' : ''}> Accumulating${infoTip('Acc (accumulating) ETFs reinvest dividends internally. Dist (distributing) ETFs pay dividends to your account.')}</label>
+            </div>
+            <div class="settings-field settings-field-inline">
+              <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="active" ${h.active ? 'checked' : ''}> Active</label>
+            </div>
+          </div>
         </div>
       </div>
     </div>`;
@@ -887,7 +893,7 @@ function renderRulesCard(settings: Settings): string {
     .map(
       (r, i) => `
     <div class="settings-item settings-rule-row" data-idx="${i}">
-      <div class="settings-item-fields" style="grid-template-columns:1fr">
+      <div class="settings-item-fields" style="flex-direction:column">
         <div class="settings-field">
           <label class="settings-field-label">Description</label>
           <input class="form-input form-input-sm" data-field="label" value="${esc(r.label)}" placeholder="e.g. Dividends reinvested">
@@ -986,7 +992,7 @@ function rerenderRulesTable(root: HTMLElement, rules: { label: string; value: st
     .map(
       (r, i) => `
     <div class="settings-item settings-rule-row" data-idx="${i}">
-      <div class="settings-item-fields" style="grid-template-columns:1fr">
+      <div class="settings-item-fields" style="flex-direction:column">
         <div class="settings-field">
           <label class="settings-field-label">Description</label>
           <input class="form-input form-input-sm" data-field="label" value="${esc(r.label)}" placeholder="e.g. Dividends reinvested">
