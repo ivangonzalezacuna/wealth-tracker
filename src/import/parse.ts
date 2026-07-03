@@ -16,7 +16,7 @@ import type {
   PreviewSummary,
 } from '../types';
 
-// ── Low-level CSV helpers (shared with legacy csv.js) ──────────
+// ── Low-level CSV helpers ───────────────────────────────────────
 
 /** Split a single CSV line respecting quoted fields. */
 export function csvLine(line: string, sep = ','): string[] {
@@ -44,9 +44,6 @@ export function detectSeparator(headerLine: string): string {
 
 // ── Number parsing ─────────────────────────────────────────────
 
-/**
- * Parse a numeric string with configurable decimal style.
- */
 export function parseNumber(s: string | null | undefined, mode: DecimalMode = 'auto'): number {
   if (!s) return 0;
   let str = s.trim();
@@ -121,23 +118,17 @@ function mapType(
   const t = (rawType || '').toUpperCase();
   const c = (rawCategory || '').toUpperCase();
 
-  // Compound key first
   if (c) {
     const compound = `${t}|${c}`;
     if (typeMap[compound]) return typeMap[compound];
   }
-  // Plain type
   if (typeMap[t]) return typeMap[t];
 
-  // Unmapped
   return null;
 }
 
 // ── Profile detection ──────────────────────────────────────────
 
-/**
- * Auto-detect the best matching profile for a header line.
- */
 export function detectProfile(
   headerLine: string,
   profiles?: ImportProfile[],
@@ -166,9 +157,6 @@ export function detectProfile(
 
 // ── Generic parser ─────────────────────────────────────────────
 
-/**
- * Parse CSV text using the given import profile.
- */
 export function parseWithProfile(text: string, profile: ImportProfile): ParseResult {
   const lines = text.trim().split('\n');
   if (lines.length < 2) return { transactions: [], unmapped: [] };

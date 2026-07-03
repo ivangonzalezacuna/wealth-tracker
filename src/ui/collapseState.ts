@@ -1,12 +1,4 @@
-/**
- * Cross-session collapse-state manager.
- *
- * Manages a Record<string, boolean> where keys represent collapsible UI
- * elements (cards, item rows, snapshot rows) and `true` means collapsed.
- *
- * Primary store: IndexedDB (via cache/db.ts) - persists across reloads.
- * Writes are debounced (300ms) so rapid toggle bursts don't thrash IDB.
- */
+/** Persists UI collapse state to IndexedDB across sessions. Debounced writes. */
 
 import { getCollapseState, setCollapseState } from '../cache/db';
 import type { CollapseState } from '../cache/db';

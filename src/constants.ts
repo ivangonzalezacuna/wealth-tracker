@@ -1,8 +1,4 @@
-/**
- * Derived constants - backed by the runtime config store.
- * Before loadConfig() completes, getters return values from config.js defaults.
- * After loadConfig(), they return live data from the sheet.
- */
+/** Config-store accessors with static-config fallback (before loadConfig() completes). */
 
 import { CONFIG } from './config';
 import type { StaticHolding, StaticAccount } from './config';

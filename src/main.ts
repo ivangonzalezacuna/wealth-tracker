@@ -212,8 +212,7 @@ function resolveInitialSection(): void {
 function showSection(id, btn) {
   const alreadyActive =
     _activeSection === id && document.getElementById(id)?.classList.contains('active');
-  // Settings always repaints (mirrors live config edits - see Phase 13); every
-  // other section is a true no-op when re-clicking the tab it's already on.
+  // Settings always repaints to reflect live config edits; others are no-ops when re-clicking.
   if (alreadyActive && id !== 'settings') {
     // Still worth a defensive re-sync of the hash in case it drifted (e.g. via
     // popstate or a stale deep link) - cheap, no DOM/render cost.
@@ -385,9 +384,7 @@ async function bootFromCache() {
     ]);
 
     // Hydrate the config store first - getACCTSList()/getAccounts()/
-    // primaryInvestmentValue() etc. all depend on this being populated
-    // before renderAll() runs, or Net worth/Portfolio render as empty
-    // even though real cached data exists (Phase 41).
+    // primaryInvestmentValue() depend on this before renderAll() runs.
     if (cachedConfig) {
       hydrateConfigFromCache(cachedConfig);
     }

@@ -399,8 +399,7 @@ function _renderNWHistChart(
 function _bindLegendToggle(chart: Chart): void {
   const legendEl = document.getElementById('nw-chart-legend');
   if (!legendEl) return;
-  // Index 0 = Total - always visible, never togglable (matches Phase 25's rule
-  // that Total must never be hideable).
+  // Index 0 = Total - always visible, never togglable.
   bindLegendToggle(legendEl, chart, { skipIndex: [0] });
 }
 

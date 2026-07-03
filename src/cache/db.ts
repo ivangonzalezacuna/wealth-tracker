@@ -1,11 +1,4 @@
-/**
- * IndexedDB cache layer for offline-first PWA behaviour.
- *
- * Uses idb-keyval for a thin key/value API on top of IndexedDB.
- * Stores: config, snapshots, transactions, aggregates, and sync metadata.
- *
- * On CACHE_VERSION mismatch the cache is treated as empty (forces full resync).
- */
+/** IndexedDB cache for offline-first boot. CACHE_VERSION mismatch forces full resync. */
 
 import { createStore, get, set, del, clear } from 'idb-keyval';
 import type { Transaction, Snapshot, PortfolioData, Settings } from '../types';
@@ -208,10 +201,7 @@ export async function setInputsHash(hash: string): Promise<void> {
 
 // ── Compute inputs hash ──────────────────────────────────────────
 
-/**
- * Compute a deterministic hash from the inputs that affect aggregates.
- * If any of these change, cached aggregates must be recomputed.
- */
+/** Deterministic hash of aggregate computation inputs. */
 export function computeInputsHash(
   txCount: number,
   lastTxDate: string,

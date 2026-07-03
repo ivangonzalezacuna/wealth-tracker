@@ -1,12 +1,6 @@
 /**
- * Incremental sync engine - fetches only new transactions since the last cursor.
- *
- * Transactions in the Google Sheet are append-only and date-sorted.
- * The sync cursor stores the last synced date + row count.
- * On sync we fetch only the tail (rows after the cursor) and merge.
- *
- * NOTE: Editing historical rows in the Google Sheet requires a "Force full resync"
- * since the cursor assumes append-only growth.
+ * Incremental sync - fetches only new transactions since the last cursor.
+ * NOTE: Editing historical sheet rows requires "Force full resync" (cursor assumes append-only).
  */
 
 import { readRange, ensureSheets } from '../sheets/api';

@@ -34,14 +34,12 @@ export function findYoYSnapshot(snaps: Snapshot[]): { snap: Snapshot; total: num
   const latestDate = parseYearMonth(latest.date);
   if (!latestDate) return null;
 
-  // Target date = 12 months before latest
   const targetYear = latestDate.year - (latestDate.month <= 12 ? 1 : 0);
   const targetMonth =
     latestDate.month <= 12
       ? latestDate.month // same month, previous year
       : latestDate.month - 12;
 
-  // Adjusted: simply subtract 12 months
   const tY =
     latestDate.month > 12
       ? latestDate.year
@@ -51,13 +49,12 @@ export function findYoYSnapshot(snaps: Snapshot[]): { snap: Snapshot; total: num
   const tM = ((latestDate.month - 1 - 12 + 120) % 12) + 1;
   const targetVal = tY * 12 + tM;
 
-  // Check that we have enough span: need >= 13 months between first and latest
+  // Need at least 12 months of history
   const firstDate = parseYearMonth(snaps[0].date);
   if (!firstDate) return null;
   const span = latestDate.year * 12 + latestDate.month - (firstDate.year * 12 + firstDate.month);
   if (span < 12) return null;
 
-  // Find the snapshot closest to the target month
   let bestSnap: Snapshot | null = null;
   let bestDist = Infinity;
   for (const sn of snaps) {

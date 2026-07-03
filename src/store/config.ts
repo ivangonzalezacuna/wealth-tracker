@@ -1,13 +1,4 @@
-/**
- * Runtime config store - loaded from Google Sheets at boot.
- * Replaces static config.js imports with async accessors.
- *
- * Sheet tabs:
- *   Accounts       - id | moneyType | institution | label | color | isPrimaryInvestment | order
- *   Holdings       - isin | ticker | name | color | acc | active | contribAmount | contribInterval | assetClass | region | foldInto | order
- *   Settings       - key | value
- *   ConfigHistory  - timestamp | device | entity | summary
- */
+/** Runtime config store - loads Accounts, Holdings, and Settings from Google Sheets. */
 
 import { readRange, writeRange, appendRows, ensureSheets } from '../sheets/api';
 import { CONFIG } from '../config';
@@ -67,7 +58,7 @@ export function isConfigLoaded(): boolean {
   return _loaded;
 }
 
-/** Get ACCTS-compatible array for backward compat (key/label/color). */
+/** Map accounts to the {key,label,color} shape used by chart legends. */
 export function getACCTS(): AccountEntry[] {
   return _accounts.map((a) => ({
     key: a.id || a.key || '',
@@ -140,18 +131,7 @@ export function onConfigChange(fn: () => void): void {
 }
 
 // ── Cache hydration (offline/read-only boot) ─────────────
-/**
- * Hydrate the in-memory config store from a cached (IndexedDB) config
- * snapshot, without any network call. Used by bootFromCache() so
- * getAccounts()/getHoldings()/getSettings()/isConfigLoaded() are correct
- * immediately on a cache-only (offline or unauthenticated read-only) boot.
- *
- * Marks the store as loaded (_loaded = true) so downstream getters
- * (isConfigLoaded, getSetupState callers, constants.ts fallbacks) treat
- * this as live data rather than falling back to bundled static defaults.
- * A subsequent loadConfig() (on sign-in / background sync) overwrites
- * these values with the authoritative sheet contents as normal.
- */
+/** Populate the store from a cached IndexedDB snapshot (offline/read-only boot). */
 export function hydrateConfigFromCache(cfg: CachedConfig): void {
   _accounts = cfg.accounts || [];
   _holdings = cfg.holdings || [];
@@ -182,8 +162,7 @@ export async function loadConfig(): Promise<void> {
     await seedFromConfig(needSeedAccounts, needSeedHoldings);
   }
 
-  // Phase 40 migration: seed the primary investment account's per-account
-  // rate from the legacy global Setting, once, if not already set.
+  // Seed per-account annualReturnPct from the global setting if not already set.
   const legacyRate = parseFloat(_settings.annualReturnPct || '');
   if (!isNaN(legacyRate) && legacyRate > 0) {
     const primary = _accounts.filter((a) => a.isPrimaryInvestment && !a.annualReturnPct);

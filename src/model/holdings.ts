@@ -11,10 +11,8 @@ interface HoldingLike {
 
 /**
  * Split an etf list into held and exited positions.
- * Pure function - no side effects.
- *
- * - `exited`: positions with shares ~= 0 (fully sold).
- * - `held`: everything else, including `active:false` positions that still have shares > 0.
+ * - `exited`: shares ~= 0 (fully sold).
+ * - `held`: everything else, including inactive positions that still hold shares.
  */
 export function splitHoldings<T extends HoldingLike>(etfList: T[]): { held: T[]; exited: T[] } {
   const held: T[] = [];

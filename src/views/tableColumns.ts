@@ -2,11 +2,8 @@ import { sortableHeader } from './tableSort';
 import type { SortState } from './tableSort';
 
 /**
- * Declarative definition of one table column. An array of these is the
- * single source of truth for a table's header, cell rendering, sort
- * behavior, and mobile visibility -- replacing the previous pattern of
- * independently hand-written header strings, row strings, CSS nth-child
- * selectors, and applySort getter objects per table.
+ * Declarative column definition. Single source of truth for a table's
+ * header, cell rendering, sort behavior, and mobile visibility.
  */
 export interface ColumnDef<T> {
   /** Must match the key used in this table's SortState and applySort getters. */
@@ -20,20 +17,11 @@ export interface ColumnDef<T> {
    *  value from a row. Omit for non-sortable columns (e.g. decorative or
    *  purely visual columns). */
   sortValue?: (row: T) => string | number;
-  /** InfoTip text. Composed into the header via sortableHeader's own `tip`
-   *  parameter (Phase 44) -- do not hand-compose th-label/infoTip markup
-   *  at a ColumnDef call site; that duplication is exactly what this
-   *  phase exists to remove. */
+  /** InfoTip text shown next to the header label. */
   tip?: string;
-  /** Hidden below the 599px breakpoint. Rendered as a `data-mobile-hidden`
-   *  attribute (Commit 4) rather than positional CSS -- see Known gotchas
-   *  for why grid-template-columns itself is not auto-generated from this
-   *  flag. */
+  /** Hidden below the 599px mobile breakpoint (rendered as data-mobile-hidden attr). */
   mobileHidden?: boolean;
-  /** Marks this column's value as eligible for inclusion in a tap-to-expand
-   *  detail panel (consumed by a table's own detail-panel builder in a
-   *  later migration phase, e.g. Holdings in Phase 45b). Purely a hint;
-   *  this module does not itself render any detail panel. */
+  /** Marks column value for inclusion in the mobile tap-to-expand detail panel. */
   detail?: boolean;
   /** Extra class(es) on the rendered cell div, e.g. 'hold-etf-cell'. */
   cellClass?: (row: T) => string;
@@ -44,37 +32,22 @@ export interface ColumnDef<T> {
   cellAttrs?: (row: T) => string;
   /** Inner HTML of the cell. Ignored if `raw` is true. */
   cell?: (row: T) => string;
-  /** If true, `cell(row)` returns the *entire* cell element (its own
-   *  wrapping tag included, e.g. a bare `<span class="leg-sq">`) and the
-   *  renderer does not wrap it in a `role="cell"` div at all. Needed for
-   *  the one existing case (Dividends' leading color-swatch column) that
-   *  is not a `role="cell"` div in the shipped markup today -- see
-   *  Phase 45c. Default false. */
+  /** If true, cell() returns the full element markup (no outer role="cell" div wrapper). */
   raw?: boolean;
 }
 
-/** Returns the number of columns visible at the given breakpoint. Used
- *  only as a verification aid (Commit 6, and by every migration phase's
- *  manual checklist) to confirm a table's hand-maintained CSS
- *  grid-template-columns track count matches its ColumnDef array --
- *  this function does not itself generate CSS. See Known gotchas for why
- *  grid-template-columns stays hand-maintained in styles.css. */
+/** Count of visible columns at the given breakpoint (for verifying CSS grid-template-columns). */
 export function visibleColumnCount<T>(columns: ColumnDef<T>[], mobile: boolean): number {
   return mobile ? columns.filter((c) => !c.mobileHidden).length : columns.length;
 }
 
-/** Renders a full header row's inner content (the `<div role="columnheader">`
- *  cells only -- the caller wraps these in whatever `.tbl-row.th` container
- *  markup and id that table already uses, unchanged, so the sort-binding
- *  call site in each migration phase requires no structural change beyond
- *  swapping its header-cell-generation code for this call). */
+/** Render all columnheader cells for a table. Caller wraps in the .tbl-row.th container. */
 export function renderTableHeader<T>(columns: ColumnDef<T>[], state: SortState): string {
   return columns
     .map((col) => {
       const mobileAttr = col.mobileHidden ? ' data-mobile-hidden="1"' : '';
       if (col.sortValue) {
-        // sortableHeader() handles the tip parameter (Phase 45b) for columns
-        // that carry an InfoTip alongside their sortable label.
+        // sortableHeader() handles the tip parameter for InfoTip columns.
         const html = sortableHeader(col.label, col.key, state, col.align, col.tip);
         return mobileAttr ? html.replace('<div ', `<div${mobileAttr} `) : html;
       }
@@ -84,10 +57,7 @@ export function renderTableHeader<T>(columns: ColumnDef<T>[], state: SortState):
     .join('');
 }
 
-/** Renders one data row's inner content (the per-column `role="cell"` divs
- *  only -- the caller wraps these in whatever `.tbl-row` container markup,
- *  data-date/data-isin row-level attributes, and click-delegate class names
- *  that table already uses, unchanged). */
+/** Render all cell divs for one data row. Caller wraps in its .tbl-row container. */
 export function renderTableRow<T>(columns: ColumnDef<T>[], row: T): string {
   return columns
     .map((col) => {
@@ -104,10 +74,7 @@ export function renderTableRow<T>(columns: ColumnDef<T>[], row: T): string {
     .join('');
 }
 
-/** Extracts the {key: getter} map that applySort() expects, from whichever
- *  columns declare a sortValue. Columns without one are simply absent from
- *  the returned map (matching applySort's existing behavior of falling
- *  back to unsorted when a key has no matching getter). */
+/** Extract {key: getter} map from sortable columns for use with applySort(). */
 export function getSortGetters<T>(
   columns: ColumnDef<T>[],
 ): Record<string, (row: T) => string | number> {

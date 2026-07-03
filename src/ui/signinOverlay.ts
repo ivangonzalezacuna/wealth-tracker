@@ -1,11 +1,4 @@
-/**
- * Lightweight wait-state overlay for interactive sign-in.
- * Reuses confirmDialog's .confirm-overlay/.confirm-card CSS (Phase 35) so the
- * two dialog types share one visual language. Unlike confirmDialog, this one
- * is dismissed either by the user (Cancel/Escape/backdrop) or programmatically
- * once the wrapped async operation settles, so it exposes show/hide, not a
- * single resolve-once promise.
- */
+/** Wait-state overlay for interactive sign-in. Dismissed on cancel or programmatically via hideSigninOverlay(). */
 
 let _el: HTMLElement | null = null;
 let _trigger: HTMLElement | null = null;
