@@ -36,7 +36,7 @@ export function renderDividends(pd: PortfolioData | null): void {
 
   document.getElementById('div-kpis').innerHTML = `
     <div class="kpi"><div class="kpi-label">Gross dividends${infoTip('Before tax: Total distribution payments received from ETFs and stocks, before withholding tax is deducted.')}</div><div class="kpi-val">${fmtEur2(totalGross)}</div></div>
-    <div class="kpi"><div class="kpi-label">Tax withheld</div><div class="kpi-val neg">−${fmtEur2(pd.totalTax)}</div><div class="kpi-sub">Abgeltungsteuer</div></div>
+    <div class="kpi"><div class="kpi-label">Tax withheld</div><div class="kpi-val ${pd.totalTax >= 0 ? 'neg' : 'pos'}">${fmtEur2(Math.abs(pd.totalTax))}</div><div class="kpi-sub">Abgeltungsteuer</div></div>
     <div class="kpi"><div class="kpi-label">Net received</div><div class="kpi-val pos">${fmtEur2(pd.totalDivNet)}</div></div>
     <div class="kpi"><div class="kpi-label">TR interest</div><div class="kpi-val pos">${fmtEur2(pd.totalInterest)}</div><div class="kpi-sub">on cash savings</div></div>
   `;
@@ -80,7 +80,7 @@ function dividendColumns(): ColumnDef<DivHistEntry>[] {
       align: 'right',
       sortValue: (d) => d.tax,
       cell: (d) =>
-        `<span style="color:var(--neg)" aria-label="Tax \u2212${d.tax.toFixed(2)}">\u2212${fmtEur2(d.tax)}</span>`,
+        `<span style="color:var(--neg)" aria-label="Tax ${fmtEur2(d.tax)}">${fmtEur2(d.tax)}</span>`,
     },
     {
       key: 'net',
@@ -126,7 +126,7 @@ function renderDivTable(pd: PortfolioData): void {
     <div class="tbl-row div-row" style="border-top:1px solid var(--line-2);margin-top:4px">
       <div></div><div style="font-weight:500">${_divYear ? 'Year total' : 'Total'}</div>
       <div style="text-align:right;font-weight:500">${fmtEur2(totalGross)}</div>
-      <div style="text-align:right;color:var(--neg)">\u2212${fmtEur2(totalTax)}</div>
+      <div style="text-align:right;color:var(--neg)">${fmtEur2(totalTax)}</div>
       <div style="text-align:right;color:var(--pos);font-weight:500">${fmtEur2(totalNet)}</div>
     </div>`
     : '<p class="note">No dividends found in imported transactions yet.</p>';

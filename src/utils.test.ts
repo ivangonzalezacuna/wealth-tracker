@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { fmt, fmtShares, currentMonth } from './utils';
+import {
+  fmt,
+  fmtEur2,
+  fmtShares,
+  fmtEurNeg,
+  fmtPctNeg,
+  fmtEurSigned,
+  fmtPctSigned,
+  currentMonth,
+} from './utils';
 
 describe('fmt', () => {
   it('renders 2-decimal cents with comma separator (de-DE)', () => {
@@ -46,5 +55,71 @@ describe('fmtShares', () => {
 
   it('drops trailing zero fraction for whole share counts', () => {
     expect(fmtShares(5)).toBe('5');
+  });
+});
+
+describe('fmtEurNeg', () => {
+  it('positive: no sign, matches fmtEur2', () => {
+    expect(fmtEurNeg(1234.56, 2)).toBe(fmtEur2(1234.56));
+  });
+
+  it('negative: starts with U+2212, contains locale-formatted amount, no +', () => {
+    const result = fmtEurNeg(-1234.56, 2);
+    expect(result.startsWith('\u2212')).toBe(true);
+    expect(result).toContain('1.234,56');
+    expect(result).not.toContain('+');
+  });
+
+  it('zero: matches fmtEur2(0)', () => {
+    expect(fmtEurNeg(0, 2)).toBe(fmtEur2(0));
+  });
+});
+
+describe('fmtPctNeg', () => {
+  it('positive: no sign', () => {
+    expect(fmtPctNeg(17.6)).toBe('17,6%');
+  });
+
+  it('negative: U+2212 prefix', () => {
+    expect(fmtPctNeg(-35.3)).toBe('\u221235,3%');
+  });
+
+  it('zero: no sign', () => {
+    expect(fmtPctNeg(0)).toBe('0,0%');
+  });
+});
+
+describe('fmtEurSigned', () => {
+  it('positive: starts with +', () => {
+    const result = fmtEurSigned(1234.56, 2);
+    expect(result.startsWith('+')).toBe(true);
+    expect(result).toContain('1.234,56');
+  });
+
+  it('negative: starts with U+2212, no double-negative', () => {
+    const result = fmtEurSigned(-1234.56, 2);
+    expect(result.startsWith('\u2212')).toBe(true);
+    // No second minus or U+2212 anywhere after the first character
+    const afterSign = result.slice(1);
+    expect(afterSign).not.toContain('-');
+    expect(afterSign).not.toContain('\u2212');
+  });
+
+  it('zero: no sign, matches fmtEur2(0)', () => {
+    expect(fmtEurSigned(0, 2)).toBe(fmtEur2(0));
+  });
+});
+
+describe('fmtPctSigned', () => {
+  it('positive: + prefix', () => {
+    expect(fmtPctSigned(17.6)).toBe('+17,6%');
+  });
+
+  it('negative: U+2212 prefix', () => {
+    expect(fmtPctSigned(-35.3)).toBe('\u221235,3%');
+  });
+
+  it('zero: no sign', () => {
+    expect(fmtPctSigned(0)).toBe('0,0%');
   });
 });
