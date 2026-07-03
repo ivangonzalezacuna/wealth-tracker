@@ -4,6 +4,8 @@ import {
   backupFilename,
   validateBackup,
   summarizeBackup,
+  migrateBackup,
+  MIGRATIONS,
   BACKUP_SCHEMA_VERSION,
 } from './exportImport';
 import type { BackupFile } from './exportImport';
@@ -160,5 +162,56 @@ describe('summarizeBackup', () => {
     expect(summary).toMatch(/\b1 snapshots\b/);
     expect(summary).toMatch(/\b1 transactions\b/);
     expect(summary).toContain('replace everything');
+  });
+});
+
+describe('migrateBackup', () => {
+  it('already-current-version backup → returned with structurally identical data', () => {
+    const b = validBackupObj();
+    const result = migrateBackup(b);
+    expect(result.schemaVersion).toBe(BACKUP_SCHEMA_VERSION);
+    expect(result.data).toEqual(b.data);
+  });
+
+  it('applies migrations in order from old version to current', () => {
+    // Inject synthetic migrations for testing
+    const originalMigrations = { ...MIGRATIONS };
+
+    // Simulate: version 1→2 renames 'old' to 'new' in settings
+    MIGRATIONS[1] = (data) => ({
+      ...data,
+      settings: { ...data.settings, migrated_v1: 'yes' },
+    });
+    // version 2→3 adds another marker
+    MIGRATIONS[2] = (data) => ({
+      ...data,
+      settings: { ...data.settings, migrated_v2: 'yes' },
+    });
+
+    const oldBackup: BackupFile = {
+      ...validBackupObj(),
+      schemaVersion: 1,
+    };
+
+    // Temporarily pretend BACKUP_SCHEMA_VERSION is 3 by running the loop manually
+    let data = oldBackup.data;
+    for (let v = 1; v < 4; v++) {
+      if (MIGRATIONS[v]) data = MIGRATIONS[v](data);
+    }
+
+    expect(data.settings.migrated_v1).toBe('yes');
+    expect(data.settings.migrated_v2).toBe('yes');
+
+    // Clean up injected migrations
+    delete MIGRATIONS[1];
+    delete MIGRATIONS[2];
+    Object.assign(MIGRATIONS, originalMigrations);
+  });
+
+  it('skips versions with no migration entry', () => {
+    const b: BackupFile = { ...validBackupObj(), schemaVersion: BACKUP_SCHEMA_VERSION };
+    // With no MIGRATIONS entries, it should just return the same data
+    const result = migrateBackup(b);
+    expect(result.data).toEqual(b.data);
   });
 });

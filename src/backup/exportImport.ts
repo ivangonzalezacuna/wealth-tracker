@@ -16,6 +16,26 @@ export interface BackupFile {
   };
 }
 
+// ── Schema migrations ─────────────────────────────────────
+
+type Migration = (data: BackupFile['data']) => BackupFile['data'];
+
+/** One entry per breaking change to a canonical type, keyed by the version
+ *  migrating FROM. Empty today — schema version 1 is the only one that has
+ *  ever shipped. Add an entry (and bump BACKUP_SCHEMA_VERSION) only for a
+ *  rename/removal/meaning-change — never for a purely additive field,
+ *  which old backups already restore correctly via each parser's existing
+ *  default-handling. */
+export const MIGRATIONS: Record<number, Migration> = {};
+
+export function migrateBackup(b: BackupFile): BackupFile {
+  let data = b.data;
+  for (let v = b.schemaVersion; v < BACKUP_SCHEMA_VERSION; v++) {
+    if (MIGRATIONS[v]) data = MIGRATIONS[v](data);
+  }
+  return { ...b, schemaVersion: BACKUP_SCHEMA_VERSION, data };
+}
+
 export function buildBackup(input: BackupFile['data']): BackupFile {
   return {
     schemaVersion: BACKUP_SCHEMA_VERSION,

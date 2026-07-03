@@ -29,6 +29,7 @@ import {
   backupFilename,
   validateBackup,
   summarizeBackup,
+  migrateBackup,
 } from './backup/exportImport';
 import { getSetupState } from './model/setup';
 import { computePD } from './portfolio';
@@ -657,8 +658,9 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
   } catch {
     throw new Error('That file is not valid JSON.');
   }
-  const backup = validateBackup(raw);
-  if (!backup) throw new Error('That file is not a recognized Wealth Tracker backup.');
+  const parsed = validateBackup(raw);
+  if (!parsed) throw new Error('That file is not a recognized Wealth Tracker backup.');
+  const backup = migrateBackup(parsed);
 
   const ok = await confirmDialog({
     title: 'Restore from backup?',
