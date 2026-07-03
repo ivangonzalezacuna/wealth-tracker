@@ -98,21 +98,8 @@ export function forecastMonthsToTargetMulti(
 }
 
 // ── Single-account convenience wrappers ──────────────────
-// These delegate to the multi-account versions so compounding logic
-// exists in exactly one place. Kept as public API for the single-
-// account use case and direct unit test coverage.
 
-/**
- * Estimate the number of months to reach a target net worth given:
- * - current: current net worth
- * - target: goal net worth
- * - annualContrib: total annual contributions (sum of all savings plans)
- * - annualReturnPct: expected annual return percentage (e.g. 7 for 7%)
- *
- * Uses month-by-month compounding: each month adds contrib/12 and grows by (1+r)^(1/12).
- * Returns null if target is already met or inputs are invalid.
- * Caps at 1200 months (100 years) to avoid infinite loops.
- */
+/** Single-account wrapper for forecastMonthsToTargetMulti. */
 export function forecastMonthsToTarget(
   current: number,
   target: number,
@@ -122,11 +109,7 @@ export function forecastMonthsToTarget(
   return forecastMonthsToTargetMulti([{ current, annualContrib, annualReturnPct }], target);
 }
 
-/**
- * Generate a monthly forecast series for charting.
- * Returns an array of { month: 'YYYY-MM', value: number } starting from startDate.
- * Projects forward `months` periods with monthly contributions and growth.
- */
+/** Single-account wrapper for forecastMultiAccountSeries. */
 export function forecastSeries(
   startValue: number,
   annualContrib: number,

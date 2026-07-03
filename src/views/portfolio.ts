@@ -36,13 +36,8 @@ let _holdPage = 1;
 let _holdSort: SortState = { key: null, dir: null };
 
 // mobile-visible column count must match styles.css's #port-table mobile grid-template-columns track count
-/** Single source of truth for the Holdings table's columns: header label,
- *  alignment, sort behavior, InfoTip, mobile visibility, and cell content
- *  are all declared once here instead of independently in three separate
- *  hand-written template strings. `detail: true` marks a column whose value
- *  also belongs in the tap-to-expand detail panel -- this prevents a repeat
- *  of Phase 27a's bug where Realized P&L was silently missing because nothing
- *  forced the two to stay in sync. */
+/** Single source of truth for the Holdings table's columns. `detail: true` marks
+ *  columns whose values also appear in the mobile tap-to-expand panel. */
 function holdingsColumns(pd: PortfolioData): ColumnDef<EtfPosition>[] {
   const META = getMETAMap();
   return [

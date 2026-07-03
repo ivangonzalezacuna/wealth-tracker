@@ -1,13 +1,4 @@
-/**
- * Transaction persistence - stores parsed CSV rows in "Transactions" tab.
- * On re-import, deduplicates by transaction key and appends only new rows.
- * Never clears/rewrites - append-only to prevent data loss on partial failures.
- *
- * Sheet layout (row 1 = header):
- * id | date | source | type | name | isin | shares | price | amount | fee | tax | currency | fxRate | note
- *
- * Backward compat: reads old 10-column format and migrates to 14 columns.
- */
+/** Transaction persistence (append-only). Deduplicates on re-import. Reads old 10-col format. */
 
 import { readRange, writeRange, appendRows, ensureSheets } from './api';
 import { SHEET_TABS } from '../constants';

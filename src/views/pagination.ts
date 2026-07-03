@@ -1,9 +1,4 @@
-/**
- * Generic pagination control renderer, used by every paginated table/chart
- * in the app. Writes prev/page-info/next controls into `containerId` and
- * wires click handlers that call `onPageChange` with the new page number.
- * Hides the container entirely when there is only one page.
- */
+/** Render prev/next pagination controls. Hidden when totalPages <= 1. */
 export function renderPagination(
   containerId: string,
   page: number,

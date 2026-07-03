@@ -17,15 +17,8 @@ export function advanceSort(current: SortState, clickedKey: string): SortState {
   return { key: null, dir: null }; // asc -> back to default order
 }
 
-/** Sorts a copy of `items` by `state`, using `getters[state.key]` to extract
- *  a comparable value per item. Returns `items` unchanged (same reference's
- *  contents, new array) when state.key is null — this is what makes "click a
- *  third time" restore the table's original default order: the caller must
- *  always pass the same pre-sort default-ordered array in, every render.
- *
- *  Sort semantics: first click = 'desc' which means high→low for numbers
- *  and A→Z for strings. Strings use the inverted multiplier so that the
- *  natural localeCompare order (A→Z) aligns with the first click. */
+/** Sort items by state. Returns a copy; when state.key is null returns default order.
+ *  Strings sort A-Z on first click (desc); numbers sort high-to-low. */
 export function applySort<T>(
   items: T[],
   state: SortState,
@@ -65,14 +58,8 @@ export function sortableHeader(
   return `<div role="columnheader" class="sortable-th${active ? ' sort-active' : ''}" data-sort-key="${key}" aria-sort="${ariaSort}"${styleAttr}>${content}</div>`;
 }
 
-/** Binds delegated click handling to a header row's sortable cells.
- *  `onSort(newState)` is called with the freshly-advanced state; the
- *  caller is responsible for storing it in its own module state and
- *  triggering a re-render. Safe to call on every render — this binds to
- *  the header row element itself, which is always a fresh DOM node when
- *  the caller rebuilds `innerHTML` on each render (matching every other
- *  event-delegation pattern already used in this codebase, e.g.
- *  `_bindLegendToggle`), so no `_bound` guard is needed here. */
+/** Bind click handlers to sortable header cells. Calls onSort(newState) on click.
+ *  Safe to rebind on each render (fresh DOM nodes). */
 export function bindSortableHeader(
   headerRowEl: HTMLElement,
   state: SortState,

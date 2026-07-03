@@ -1,4 +1,4 @@
-/** Thin wrapper around the generic import engine; keeps `parseCSV()`/`parseNum()` as stable exports. */
+/** Stable `parseCSV()`/`parseNum()` exports wrapping the generic import engine. */
 
 import { parseWithProfile, detectProfile } from './import/parse';
 import { tradeRepublicProfile } from './import/profiles/trade_republic';

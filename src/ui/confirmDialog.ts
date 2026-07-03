@@ -1,8 +1,4 @@
-/**
- * Lightweight styled confirmation dialog - replaces native confirm().
- * Promise-based: resolves true on confirm, false on cancel/dismiss/Escape.
- * Single instance at a time; calling while one is open replaces it.
- */
+/** Promise-based confirmation dialog. Resolves true on confirm, false on cancel/dismiss. Single instance. */
 
 let _activeResolve: ((v: boolean) => void) | null = null;
 let _activeTrigger: HTMLElement | null = null;

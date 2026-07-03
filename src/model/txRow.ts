@@ -1,9 +1,4 @@
-/**
- * Shared row→Transaction parsers.
- * Pure functions - no Sheets imports, no side-effects.
- *
- * Used by sheets/transactions.ts (initial load) and cache/sync.ts (delta sync).
- */
+/** Row-to-Transaction mappers for old (10-col) and new (14-col) sheet formats. */
 
 import { parseNum } from '../csv';
 import type { Transaction } from '../types';
