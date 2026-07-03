@@ -212,3 +212,138 @@ describe('signIn - error_callback / popup_closed handling', () => {
     }).not.toThrow();
   });
 });
+
+describe('Phase 49 - GRANTED_KEY prompt selection', () => {
+  let _capturedConfig: any;
+  let _fakeClient: any;
+
+  beforeEach(() => {
+    storage.clear();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-15T12:00:00Z'));
+    vi.resetModules();
+
+    _capturedConfig = null;
+    _fakeClient = { callback: () => {}, requestAccessToken: vi.fn() };
+
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        ...globalThis.window,
+        google: {
+          accounts: {
+            oauth2: {
+              initTokenClient: (config: any) => {
+                _capturedConfig = config;
+                _fakeClient.callback = config.callback;
+                return _fakeClient;
+              },
+              revoke: () => {},
+            },
+          },
+        },
+        location: { reload: vi.fn() },
+      },
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    storage.clear();
+    vi.unstubAllGlobals();
+    vi.stubGlobal('localStorage', localStorageMock);
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', 'test-client-id');
+  });
+
+  it('first interactive sign-in (no GRANTED_KEY) requests with prompt: consent', async () => {
+    const { signIn } = await import('./google');
+    const p = signIn();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(_fakeClient.requestAccessToken).toHaveBeenCalledWith({ prompt: 'consent' });
+
+    // Settle promise to avoid unhandled rejection
+    _fakeClient.callback({
+      access_token: 'tok1',
+      expires_in: 3600,
+      token_type: 'Bearer',
+      scope: 'https://www.googleapis.com/auth/spreadsheets',
+    });
+    await p;
+  });
+
+  it('interactive sign-in with GRANTED_KEY set requests with prompt: empty string', async () => {
+    storage.set('ggranted', '1');
+    const { signIn } = await import('./google');
+    const p = signIn();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(_fakeClient.requestAccessToken).toHaveBeenCalledWith({ prompt: '' });
+
+    _fakeClient.callback({
+      access_token: 'tok2',
+      expires_in: 3600,
+      token_type: 'Bearer',
+      scope: 'https://www.googleapis.com/auth/spreadsheets',
+    });
+    await p;
+  });
+
+  it('successful token response sets GRANTED_KEY to 1', async () => {
+    const { signIn } = await import('./google');
+    const p = signIn();
+    await vi.advanceTimersByTimeAsync(0);
+
+    _fakeClient.callback({
+      access_token: 'tok3',
+      expires_in: 3600,
+      token_type: 'Bearer',
+      scope: 'https://www.googleapis.com/auth/spreadsheets',
+    });
+    await p;
+
+    expect(storage.get('ggranted')).toBe('1');
+  });
+
+  it('signOut removes both STORE_KEY and GRANTED_KEY', async () => {
+    storage.set('gtoken', JSON.stringify({ access_token: 'x', expires_at: Date.now() + 3600_000 }));
+    storage.set('ggranted', '1');
+
+    const { signOut } = await import('./google');
+    signOut();
+
+    expect(storage.has('gtoken')).toBe(false);
+    expect(storage.has('ggranted')).toBe(false);
+  });
+
+  it('failed interactive signIn removes GRANTED_KEY', async () => {
+    storage.set('ggranted', '1');
+    const { signIn } = await import('./google');
+    const p = signIn();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Simulate failure via error_callback
+    _capturedConfig.error_callback({ type: 'popup_closed' });
+
+    await expect(p).rejects.toThrow('popup_closed');
+    expect(storage.has('ggranted')).toBe(false);
+  });
+
+  it('non-interactive getToken always requests with prompt: empty string regardless of GRANTED_KEY', async () => {
+    storage.set('ggranted', '1');
+    const { getToken } = await import('./google');
+    const p = getToken();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(_fakeClient.requestAccessToken).toHaveBeenCalledWith({ prompt: '' });
+
+    _fakeClient.callback({
+      access_token: 'silent-tok',
+      expires_in: 3600,
+      token_type: 'Bearer',
+      scope: 'https://www.googleapis.com/auth/spreadsheets',
+    });
+    await p;
+  });
+});
