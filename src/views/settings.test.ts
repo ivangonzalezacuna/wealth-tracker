@@ -72,6 +72,8 @@ vi.mock('../ui/collapseState', () => ({
 
 vi.mock('../utils', () => ({
   showMsg: vi.fn(),
+  reinjectPendingMsg: vi.fn(),
+  withButtonGuard: vi.fn(),
 }));
 
 vi.mock('../theme', () => ({

@@ -18,7 +18,7 @@ import { loadTransactions } from '../sheets/transactions';
 import { validatePrimaryInvestment } from '../model/accounts';
 import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
-import { showMsg } from '../utils';
+import { showMsg, reinjectPendingMsg, withButtonGuard } from '../utils';
 import type { Account, Holding, Settings, ContribInterval } from '../types';
 import { resolvedT } from '../theme';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
@@ -39,6 +39,35 @@ function intervalOptionsHtml(selected: ContribInterval): string {
 
 /** Card key -> render fn, used by repaintCard() to scope a re-render to one card. */
 type CardKey = 'accounts' | 'holdings' | 'cost-basis' | 'goal' | 'rules' | 'cache' | 'backup';
+
+/** One busy flag per card. Every Save/Delete/action handler in a card must
+ *  go through withCardGuard (never withButtonGuard directly), so two actions
+ *  in the same card can never race each other's persistence. Deliberately
+ *  per-card, not global; an in-flight Holdings save must not block an
+ *  unrelated Accounts delete. */
+const _cardBusy = new Set<CardKey>();
+
+export function isCardBusy(key: CardKey): boolean {
+  return _cardBusy.has(key);
+}
+
+/** Wraps withButtonGuard with the card-level lock. This is the single
+ *  required entry point for every write handler added or touched in 57b
+ *  and 57c; no handler should call withButtonGuard directly. */
+export async function withCardGuard<T>(
+  cardKey: CardKey,
+  btn: HTMLButtonElement,
+  action: () => Promise<T>,
+  opts: { busyText?: string; keepDisabledOnSuccess?: boolean } = {},
+): Promise<T | undefined> {
+  if (isCardBusy(cardKey)) return undefined;
+  _cardBusy.add(cardKey);
+  try {
+    return await withButtonGuard(btn, action, opts);
+  } finally {
+    _cardBusy.delete(cardKey);
+  }
+}
 
 /** Re-render exactly one Settings card in place; re-attach only its own
  *  listeners; reapply its persisted collapse state. Touches no sibling card. */
@@ -153,6 +182,7 @@ export function renderSettings(): void {
   });
 
   attachInfoTips(el);
+  reinjectPendingMsg();
 }
 
 // ── Accounts ──────────────────────────────────────────────
