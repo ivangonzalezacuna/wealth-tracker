@@ -132,11 +132,11 @@ it's the extension point a future mapper UI would call into.
 
 In Netlify: **Site settings → Environment variables → Add variable**
 
-| Key                     | Value                 | Notes |
-| ----------------------- | --------------------- | --- |
-| `VITE_GOOGLE_CLIENT_ID` | Your OAuth Client ID  | App-level, client-exposed (non-secret, see "Security & trust model" below) |
-| `VITE_GOOGLE_SHEET_ID`  | Your Google Sheet ID  | App-level, client-exposed. Build-time constant, see "Design note" below |
-| `NODE_VERSION`          | `24`                  | Netlify build platform setting, already set in `netlify.toml`, listed here for completeness, no action needed unless upgrading Node |
+| Key                     | Value                | Notes                                                                                                                               |
+| ----------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_GOOGLE_CLIENT_ID` | Your OAuth Client ID | App-level, client-exposed (non-secret, see "Security & trust model" below)                                                          |
+| `VITE_GOOGLE_SHEET_ID`  | Your Google Sheet ID | App-level, client-exposed. Build-time constant, see "Design note" below                                                             |
+| `NODE_VERSION`          | `24`                 | Netlify build platform setting, already set in `netlify.toml`, listed here for completeness, no action needed unless upgrading Node |
 
 **Design note:** the Sheet ID is a build-time constant (`import.meta.env.VITE_GOOGLE_SHEET_ID`), not a runtime setting. One deployed build talks to exactly one Google Sheet for its entire life, until the env var changes and the site rebuilds. This is intentional: it keeps the app server-less and avoids adding any runtime "which Sheet am I pointed at" state that could be silently wrong.
 
