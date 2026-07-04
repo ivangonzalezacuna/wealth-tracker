@@ -296,6 +296,43 @@ function attachPrimaryToggleListeners(scope: Element): void {
   });
 }
 
+/** Shared account-delete implementation. setAccounts runs before
+ *  retireAccountIds so getAccounts() is correct the instant this resolves,
+ *  closing the window where retireAccountIds's own setSetting -> _onChange
+ *  could trigger a re-render from stale data. */
+async function deleteAccount(
+  root: HTMLElement,
+  idx: number,
+  btn: HTMLButtonElement,
+): Promise<void> {
+  if (isCardBusy('accounts')) return;
+  const accounts = collectAccounts(root);
+  const a = accounts[idx];
+  const ok = await confirmDialog({
+    title: `Remove ${esc(a?.label || 'this account')}?`,
+    body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected, and its old data column stays reserved so a future account never accidentally reuses it.',
+    confirmLabel: 'Remove',
+    danger: true,
+  });
+  if (!ok) return;
+  accounts.splice(idx, 1);
+  try {
+    await withCardGuard(
+      'accounts',
+      btn,
+      async () => {
+        await setAccounts(accounts);
+        if (a?.id) await retireAccountIds([a.id]);
+      },
+      { busyText: 'Removing...', keepDisabledOnSuccess: true },
+    );
+    rerenderAccountsTable(root, accounts);
+    showMsg('accts-msg', 'Removed', true);
+  } catch (err) {
+    showMsg('accts-msg', 'Error: ' + err.message, false);
+  }
+}
+
 function attachAccountListeners(root: HTMLElement): void {
   attachPrimaryToggleListeners(root);
   root.querySelector('#btn-add-acct')?.addEventListener('click', () => {
@@ -313,6 +350,7 @@ function attachAccountListeners(root: HTMLElement): void {
   });
 
   root.querySelector('#btn-save-accts')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-save-accts') as HTMLButtonElement;
     const accounts = collectAccounts(root);
     if (accounts.some((a) => !a.label)) {
       showMsg('accts-msg', 'Each account needs a name.', false);
@@ -335,7 +373,7 @@ function attachAccountListeners(root: HTMLElement): void {
       }
     }
     try {
-      await setAccounts(accounts);
+      await withCardGuard('accounts', btn, () => setAccounts(accounts), { busyText: 'Saving...' });
       showMsg('accts-msg', 'Saved', true);
     } catch (err) {
       showMsg('accts-msg', 'Error: ' + err.message, false);
@@ -343,21 +381,9 @@ function attachAccountListeners(root: HTMLElement): void {
   });
 
   root.querySelectorAll('.js-del-acct').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const accounts = collectAccounts(root);
-      const idx = parseInt(btn.dataset.idx);
-      const a = accounts[idx];
-      const ok = await confirmDialog({
-        title: `Remove ${esc(a?.label || 'this account')}?`,
-        body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected, and its old data column stays reserved so a future account never accidentally reuses it.',
-        confirmLabel: 'Remove',
-        danger: true,
-      });
-      if (!ok) return;
-      if (a?.id) await retireAccountIds([a.id]);
-      accounts.splice(idx, 1);
-      rerenderAccountsTable(root, accounts);
-    });
+    btn.addEventListener('click', () =>
+      deleteAccount(root, parseInt(btn.dataset.idx), btn as HTMLButtonElement),
+    );
   });
 }
 
@@ -396,21 +422,9 @@ function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
   attachPrimaryToggleListeners(tbl);
   attachItemCollapseListeners(tbl);
   tbl.querySelectorAll('.js-del-acct').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const accs = collectAccounts(root);
-      const idx = parseInt(btn.dataset.idx);
-      const a = accs[idx];
-      const ok = await confirmDialog({
-        title: `Remove ${esc(a?.label || 'this account')}?`,
-        body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected, and its old data column stays reserved so a future account never accidentally reuses it.',
-        confirmLabel: 'Remove',
-        danger: true,
-      });
-      if (!ok) return;
-      if (a?.id) await retireAccountIds([a.id]);
-      accs.splice(idx, 1);
-      rerenderAccountsTable(root, accs);
-    });
+    btn.addEventListener('click', () =>
+      deleteAccount(root, parseInt(btn.dataset.idx), btn as HTMLButtonElement),
+    );
   });
 }
 
@@ -589,20 +603,9 @@ function applyHoldingsFilter(root: HTMLElement): void {
     attachColorPickerSync(tbl as HTMLElement);
     attachItemCollapseListeners(tbl as HTMLElement);
     (tbl as HTMLElement).querySelectorAll('.js-del-hold').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const holds = collectHoldings(root);
-        const idx = parseInt((btn as HTMLElement).dataset.idx!);
-        const h = holds[idx];
-        const ok = await confirmDialog({
-          title: `Remove ${esc(h?.ticker || h?.isin || 'this holding')}?`,
-          body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected.',
-          confirmLabel: 'Remove',
-          danger: true,
-        });
-        if (!ok) return;
-        holds.splice(idx, 1);
-        rerenderHoldingsTable(root, holds);
-      });
+      btn.addEventListener('click', () =>
+        deleteHolding(root, parseInt((btn as HTMLElement).dataset.idx!), btn as HTMLButtonElement),
+      );
     });
   }
 
@@ -615,6 +618,35 @@ function applyHoldingsFilter(root: HTMLElement): void {
     if ((b as HTMLElement).dataset.hfilter === 'active') b.textContent = `Active (${activeCount})`;
     if ((b as HTMLElement).dataset.hfilter === 'closed') b.textContent = `Closed (${closedCount})`;
   });
+}
+
+/** Shared holding-delete implementation. */
+async function deleteHolding(
+  root: HTMLElement,
+  idx: number,
+  btn: HTMLButtonElement,
+): Promise<void> {
+  if (isCardBusy('holdings')) return;
+  const holds = collectHoldings(root);
+  const hold = holds[idx];
+  const ok = await confirmDialog({
+    title: `Remove ${esc(hold?.ticker || hold?.isin || 'this holding')}?`,
+    body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected.',
+    confirmLabel: 'Remove',
+    danger: true,
+  });
+  if (!ok) return;
+  holds.splice(idx, 1);
+  try {
+    await withCardGuard('holdings', btn, () => setHoldings(holds), {
+      busyText: 'Removing...',
+      keepDisabledOnSuccess: true,
+    });
+    rerenderHoldingsTable(root, holds);
+    showMsg('holds-msg', 'Removed', true);
+  } catch (err) {
+    showMsg('holds-msg', 'Error: ' + err.message, false);
+  }
 }
 
 function attachHoldingListeners(root: HTMLElement): void {
@@ -716,6 +748,7 @@ function attachHoldingListeners(root: HTMLElement): void {
   });
 
   root.querySelector('#btn-save-holds')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-save-holds') as HTMLButtonElement;
     const holds = collectHoldings(root);
     if (holds.some((h) => !h.isin || !h.ticker)) {
       showMsg('holds-msg', 'Each holding needs an ISIN and ticker.', false);
@@ -727,7 +760,7 @@ function attachHoldingListeners(root: HTMLElement): void {
       return;
     }
     try {
-      await setHoldings(holds);
+      await withCardGuard('holdings', btn, () => setHoldings(holds), { busyText: 'Saving...' });
       showMsg('holds-msg', 'Saved', true);
     } catch (err) {
       showMsg('holds-msg', 'Error: ' + err.message, false);
@@ -735,20 +768,9 @@ function attachHoldingListeners(root: HTMLElement): void {
   });
 
   root.querySelectorAll('.js-del-hold').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const holds = collectHoldings(root);
-      const idx = parseInt(btn.dataset.idx);
-      const h = holds[idx];
-      const ok = await confirmDialog({
-        title: `Remove ${esc(h?.ticker || h?.isin || 'this holding')}?`,
-        body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected.',
-        confirmLabel: 'Remove',
-        danger: true,
-      });
-      if (!ok) return;
-      holds.splice(idx, 1);
-      rerenderHoldingsTable(root, holds);
-    });
+    btn.addEventListener('click', () =>
+      deleteHolding(root, parseInt(btn.dataset.idx), btn as HTMLButtonElement),
+    );
   });
 }
 
@@ -817,20 +839,9 @@ function rerenderHoldingsTable(root: HTMLElement, holdings: Holding[]): void {
   attachColorPickerSync(tbl);
   attachItemCollapseListeners(tbl);
   tbl.querySelectorAll('.js-del-hold').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const h = collectHoldings(root);
-      const idx = parseInt(btn.dataset.idx);
-      const hold = h[idx];
-      const ok = await confirmDialog({
-        title: `Remove ${esc(hold?.ticker || hold?.isin || 'this holding')}?`,
-        body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected.',
-        confirmLabel: 'Remove',
-        danger: true,
-      });
-      if (!ok) return;
-      h.splice(idx, 1);
-      rerenderHoldingsTable(root, h);
-    });
+    btn.addEventListener('click', () =>
+      deleteHolding(root, parseInt(btn.dataset.idx), btn as HTMLButtonElement),
+    );
   });
 }
 
@@ -977,6 +988,46 @@ function renderRulesCard(settings: Settings): string {
     </div>`;
 }
 
+/** Rebuild the full rule_N_label/rule_N_value key set from a rules array;
+ *  shared by Save and Delete so both persist identical key numbering. */
+async function persistRules(rules: { label: string; value: string }[]): Promise<void> {
+  const currentSettings = getSettings();
+  const updates: Record<string, string | null> = {};
+  for (const key of Object.keys(currentSettings)) {
+    if (/^rule_\d+_(label|value)$/.test(key)) updates[key] = null;
+  }
+  rules.forEach((r, i) => {
+    if (r.label || r.value) {
+      updates[`rule_${i + 1}_label`] = r.label;
+      updates[`rule_${i + 1}_value`] = r.value;
+    }
+  });
+  await setSettings(updates);
+}
+
+/** Shared rule-delete implementation. */
+async function deleteRule(root: HTMLElement, idx: number, btn: HTMLButtonElement): Promise<void> {
+  if (isCardBusy('rules')) return;
+  const rules = collectRules(root);
+  const ok = await confirmDialog({
+    title: 'Remove this rule?',
+    confirmLabel: 'Remove',
+    danger: true,
+  });
+  if (!ok) return;
+  rules.splice(idx, 1);
+  try {
+    await withCardGuard('rules', btn, () => persistRules(rules), {
+      busyText: 'Removing...',
+      keepDisabledOnSuccess: true,
+    });
+    rerenderRulesTable(root, rules);
+    showMsg('rules-msg', 'Removed', true);
+  } catch (err) {
+    showMsg('rules-msg', 'Error: ' + err.message, false);
+  }
+}
+
 function attachRulesListeners(root: HTMLElement): void {
   root.querySelector('#btn-add-rule')?.addEventListener('click', () => {
     const rules = collectRules(root);
@@ -985,24 +1036,10 @@ function attachRulesListeners(root: HTMLElement): void {
   });
 
   root.querySelector('#btn-save-rules')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-save-rules') as HTMLButtonElement;
     const rules = collectRules(root);
-    const currentSettings = getSettings();
-    const updates = {};
-    // Mark existing rule keys for deletion
-    for (const key of Object.keys(currentSettings)) {
-      if (/^rule_\d+_(label|value)$/.test(key)) {
-        updates[key] = null;
-      }
-    }
-    // Write new rules (overrides null for reused slots)
-    rules.forEach((r, i) => {
-      if (r.label || r.value) {
-        updates[`rule_${i + 1}_label`] = r.label;
-        updates[`rule_${i + 1}_value`] = r.value;
-      }
-    });
     try {
-      await setSettings(updates);
+      await withCardGuard('rules', btn, () => persistRules(rules), { busyText: 'Saving...' });
       showMsg('rules-msg', 'Saved', true);
     } catch (err) {
       showMsg('rules-msg', 'Error: ' + err.message, false);
@@ -1010,18 +1047,9 @@ function attachRulesListeners(root: HTMLElement): void {
   });
 
   root.querySelectorAll('.js-del-rule').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const rules = collectRules(root);
-      const idx = parseInt(btn.dataset.idx);
-      const ok = await confirmDialog({
-        title: 'Remove this rule?',
-        confirmLabel: 'Remove',
-        danger: true,
-      });
-      if (!ok) return;
-      rules.splice(idx, 1);
-      rerenderRulesTable(root, rules);
-    });
+    btn.addEventListener('click', () =>
+      deleteRule(root, parseInt(btn.dataset.idx), btn as HTMLButtonElement),
+    );
   });
 }
 
@@ -1057,18 +1085,9 @@ function rerenderRulesTable(root: HTMLElement, rules: { label: string; value: st
     .join('');
   tbl.innerHTML = rows;
   tbl.querySelectorAll('.js-del-rule').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const r = collectRules(root);
-      const idx = parseInt(btn.dataset.idx);
-      const ok = await confirmDialog({
-        title: 'Remove this rule?',
-        confirmLabel: 'Remove',
-        danger: true,
-      });
-      if (!ok) return;
-      r.splice(idx, 1);
-      rerenderRulesTable(root, r);
-    });
+    btn.addEventListener('click', () =>
+      deleteRule(root, parseInt(btn.dataset.idx), btn as HTMLButtonElement),
+    );
   });
 }
 

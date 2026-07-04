@@ -21,6 +21,9 @@ vi.mock('../config', () => ({
 import {
   parseAccounts,
   setAccounts,
+  setHoldings,
+  setSetting,
+  setSettings,
   hydrateConfigFromCache,
   getAccounts,
   getHoldings,
@@ -30,7 +33,7 @@ import {
   getRetiredAccountIds,
   retireAccountIds,
 } from './config';
-import { writeRange } from '../sheets/api';
+import { writeRange, ensureSheets } from '../sheets/api';
 
 describe('parseAccounts', () => {
   it('legacy sheet (no new columns) defaults to annualReturnPct:0, contribAmount:0, contribInterval:monthly', () => {
@@ -228,5 +231,138 @@ describe('getRetiredAccountIds / retireAccountIds', () => {
     hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
     await retireAccountIds([]);
     expect(getRetiredAccountIds()).toEqual([]);
+  });
+});
+
+describe('rollback on failure', () => {
+  const ORIGINAL_ACCOUNTS = [
+    {
+      id: 'orig',
+      moneyType: 'cash',
+      institution: 'N26',
+      label: 'Original',
+      color: '#000',
+      isPrimaryInvestment: false,
+      order: 1,
+      annualReturnPct: 0,
+      contribAmount: 0,
+      contribInterval: 'monthly' as const,
+    },
+  ];
+  const ORIGINAL_HOLDINGS = [
+    {
+      isin: 'IE00B4L5Y983',
+      ticker: 'IWDA',
+      name: 'iShares MSCI World',
+      color: '#4a90d9',
+      acc: true,
+      active: true,
+      contribAmount: 100,
+      contribInterval: 'weekly' as const,
+      assetClass: 'equity',
+      region: 'developed',
+      foldInto: '',
+      order: 1,
+    },
+  ];
+  const ORIGINAL_SETTINGS = { costBasisMethod: 'fifo', annualReturnPct: '7' };
+
+  it('setAccounts rolls back _accounts on writeRange failure', async () => {
+    hydrateConfigFromCache({
+      accounts: ORIGINAL_ACCOUNTS,
+      holdings: [],
+      settings: {},
+    });
+    (writeRange as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('network'));
+
+    await expect(
+      setAccounts([{ ...ORIGINAL_ACCOUNTS[0], id: 'new', label: 'New' }]),
+    ).rejects.toThrow('network');
+
+    expect(getAccounts()).toEqual(ORIGINAL_ACCOUNTS);
+  });
+
+  it('setHoldings rolls back _holdings on writeRange failure', async () => {
+    hydrateConfigFromCache({
+      accounts: [],
+      holdings: ORIGINAL_HOLDINGS,
+      settings: {},
+    });
+    (writeRange as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('network'));
+
+    await expect(setHoldings([{ ...ORIGINAL_HOLDINGS[0], ticker: 'VWCE' }])).rejects.toThrow(
+      'network',
+    );
+
+    expect(getHoldings()).toEqual(ORIGINAL_HOLDINGS);
+  });
+
+  it('setSetting rolls back _settings on writeRange failure', async () => {
+    hydrateConfigFromCache({
+      accounts: [],
+      holdings: [],
+      settings: ORIGINAL_SETTINGS,
+    });
+    (writeRange as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('network'));
+
+    await expect(setSetting('costBasisMethod', 'avgco')).rejects.toThrow('network');
+
+    expect(getSettings().costBasisMethod).toBe('fifo');
+  });
+
+  it('setSettings rolls back _settings on writeRange failure (including deletes)', async () => {
+    hydrateConfigFromCache({
+      accounts: [],
+      holdings: [],
+      settings: { costBasisMethod: 'fifo', annualReturnPct: '7' },
+    });
+
+    // Verify initial state
+    expect(getSettings().costBasisMethod).toBe('fifo');
+
+    // Make writeRange reject
+    (writeRange as ReturnType<typeof vi.fn>).mockImplementationOnce(() =>
+      Promise.reject(new Error('network')),
+    );
+
+    let threwError = false;
+    try {
+      await setSettings({ costBasisMethod: 'avgco', annualReturnPct: null });
+    } catch (e: unknown) {
+      threwError = true;
+      expect((e as Error).message).toBe('network');
+    }
+
+    expect(threwError).toBe(true);
+    // Both the update and the delete should be rolled back
+    expect(getSettings().costBasisMethod).toBe('fifo');
+    expect(getSettings().annualReturnPct).toBe('7');
+  });
+
+  it('replaceSettings rolls back _settings on writeRange failure', async () => {
+    hydrateConfigFromCache({
+      accounts: [],
+      holdings: [],
+      settings: ORIGINAL_SETTINGS,
+    });
+    (writeRange as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('network'));
+
+    await expect(replaceSettings({ newKey: 'newValue' })).rejects.toThrow('network');
+
+    expect(getSettings()).toEqual(ORIGINAL_SETTINGS);
+  });
+
+  it('successful write does NOT roll back', async () => {
+    hydrateConfigFromCache({
+      accounts: ORIGINAL_ACCOUNTS,
+      holdings: [],
+      settings: {},
+    });
+    (writeRange as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined);
+
+    const updated = [{ ...ORIGINAL_ACCOUNTS[0], label: 'Updated' }];
+    await setAccounts(updated);
+
+    expect(getAccounts()[0].label).toBe('Updated');
   });
 });
