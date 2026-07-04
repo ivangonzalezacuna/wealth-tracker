@@ -72,11 +72,27 @@ vi.mock('../ui/collapseState', () => ({
 
 vi.mock('../utils', () => ({
   showMsg: vi.fn(),
+  reinjectPendingMsg: vi.fn(),
+  withButtonGuard: vi.fn(async (btn, action, opts) => {
+    const origText = btn.textContent;
+    if (opts?.busyText) btn.textContent = opts.busyText;
+    btn.disabled = true;
+    try {
+      const result = await action();
+      if (!opts?.keepDisabledOnSuccess) {
+        btn.disabled = false;
+        btn.textContent = origText;
+      }
+      return result;
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = origText;
+      throw err;
+    }
+  }),
 }));
 
-vi.mock('../theme', () => ({
-  T: { ink2: '#666', pos: '#0a0', neg: '#a00' },
-}));
+vi.mock('../theme', () => ({}));
 
 vi.mock('../model/accounts', () => ({
   validatePrimaryInvestment: () => null,
@@ -99,9 +115,28 @@ vi.mock('../backup/exportImport', () => ({
   isBackupStale: vi.fn(() => true),
 }));
 
-import { renderSettings, generateId } from './settings';
+vi.mock('../model/holdings', () => ({
+  validateHoldings: () => [],
+}));
+
+vi.mock('../ui/infoTip', () => ({
+  infoTip: (text: string) =>
+    `<span class="info-tip" data-tip="${text}" aria-label="${text}" tabindex="0">?</span>`,
+  attachInfoTips: vi.fn((root: HTMLElement | Document = document) => {
+    root.querySelectorAll('.info-tip:not([data-tip-bound])').forEach((el) => {
+      (el as HTMLElement).dataset.tipBound = '1';
+    });
+  }),
+}));
+
+vi.mock('../ui/confirmDialog', () => ({
+  confirmDialog: vi.fn(async () => true),
+}));
+
+import { renderSettings, generateId, refreshSettingsAfterChange } from './settings';
 import { isCollapsed } from '../ui/collapseState';
 import { isBackupStale } from '../backup/exportImport';
+import { withButtonGuard } from '../utils';
 
 // ── Test setup ──────────────────────────────────────────────────
 
@@ -257,5 +292,770 @@ describe('Backup card nudge', () => {
     expect(backupCard).not.toBeNull();
     expect(backupCard!.textContent).not.toContain('No backup yet');
     expect(backupCard!.textContent).not.toContain('over 30 days');
+  });
+});
+
+describe('refreshSettingsAfterChange - scoped data-only refresh', () => {
+  beforeEach(() => {
+    _collapseState = {};
+    setupDOM();
+    renderSettings();
+  });
+
+  it('refreshSettingsAfterChange("accounts") replaces #settings-accounts-tbl content but leaves #btn-save-accts and #accts-msg as same DOM nodes', () => {
+    const btnBefore = document.getElementById('btn-save-accts');
+    const msgBefore = document.getElementById('accts-msg');
+    expect(btnBefore).not.toBeNull();
+    expect(msgBefore).not.toBeNull();
+
+    refreshSettingsAfterChange('accounts');
+
+    // Buttons and message span are the exact same node reference (not replaced)
+    expect(document.getElementById('btn-save-accts')).toBe(btnBefore);
+    expect(document.getElementById('accts-msg')).toBe(msgBefore);
+  });
+
+  it('refreshSettingsAfterChange("holdings") calls only the holdings refresh, no other card data region changes', () => {
+    const acctsTbl = document.getElementById('settings-accounts-tbl')!;
+    const acctsBefore = acctsTbl.innerHTML;
+    const costBasisFields = document.getElementById('settings-costbasis-fields')!;
+    const cbBefore = costBasisFields.innerHTML;
+
+    refreshSettingsAfterChange('holdings');
+
+    // Accounts and cost-basis data regions are untouched
+    expect(document.getElementById('settings-accounts-tbl')!.innerHTML).toBe(acctsBefore);
+    expect(document.getElementById('settings-costbasis-fields')!.innerHTML).toBe(cbBefore);
+  });
+
+  it('refreshSettingsAfterChange("settings") updates cost-basis, goal, rules, and backup-nudge without touching buttons/messages', () => {
+    const costBasisBtn = document.getElementById('btn-save-cost-basis');
+    const goalBtn = document.getElementById('btn-save-goal');
+    const rulesBtn = document.getElementById('btn-save-rules');
+    const costBasisMsg = document.getElementById('costbasis-msg');
+    const goalMsg = document.getElementById('goal-msg');
+    const rulesMsg = document.getElementById('rules-msg');
+
+    refreshSettingsAfterChange('settings');
+
+    // Buttons and messages are the same DOM node references (not replaced)
+    expect(document.getElementById('btn-save-cost-basis')).toBe(costBasisBtn);
+    expect(document.getElementById('btn-save-goal')).toBe(goalBtn);
+    expect(document.getElementById('btn-save-rules')).toBe(rulesBtn);
+    expect(document.getElementById('costbasis-msg')).toBe(costBasisMsg);
+    expect(document.getElementById('goal-msg')).toBe(goalMsg);
+    expect(document.getElementById('rules-msg')).toBe(rulesMsg);
+    // Data regions still exist (were refreshed)
+    expect(document.getElementById('settings-costbasis-fields')).not.toBeNull();
+    expect(document.getElementById('settings-goal-fields')).not.toBeNull();
+    expect(document.getElementById('settings-backup-nudge')).not.toBeNull();
+  });
+
+  it('refreshSettingsAfterChange does nothing when settings tab is not rendered', () => {
+    document.body.innerHTML = '<div id="other-content"></div>';
+    // Should not throw
+    refreshSettingsAfterChange('accounts');
+    refreshSettingsAfterChange('settings');
+  });
+});
+
+describe('Info-tip rebinding after rerenderAccountsTable', () => {
+  beforeEach(() => {
+    _collapseState = {};
+    setupDOM();
+    renderSettings();
+  });
+
+  it('info-tip icons in Accounts rows get data-tip-bound after rerender', () => {
+    // Initial render should have info tips bound
+    const accountsCard = document.getElementById('settings-card-accounts')!;
+    const tips = accountsCard.querySelectorAll('.info-tip');
+    expect(tips.length).toBeGreaterThan(0);
+
+    // After refreshSettingsAfterChange, tips should be re-bound
+    refreshSettingsAfterChange('accounts');
+    const tipsAfter = document
+      .getElementById('settings-card-accounts')!
+      .querySelectorAll('.info-tip');
+    expect(tipsAfter.length).toBeGreaterThan(0);
+    // The attachInfoTips function was called (bound attribute set)
+    tipsAfter.forEach((tip) => {
+      expect(tip.getAttribute('data-tip-bound')).toBe('1');
+    });
+  });
+});
+
+describe('Data region IDs exist after renderSettings', () => {
+  beforeEach(() => {
+    _collapseState = {};
+    setupDOM();
+    renderSettings();
+  });
+
+  it('has #settings-costbasis-fields wrapping the cost-basis form', () => {
+    const el = document.getElementById('settings-costbasis-fields');
+    expect(el).not.toBeNull();
+    expect(el!.querySelector('#set-cost-basis-method')).not.toBeNull();
+  });
+
+  it('has #settings-goal-fields wrapping the goal form', () => {
+    const el = document.getElementById('settings-goal-fields');
+    expect(el).not.toBeNull();
+    expect(el!.querySelector('#set-target-nw')).not.toBeNull();
+    expect(el!.querySelector('#set-target-date')).not.toBeNull();
+  });
+
+  it('has #settings-backup-nudge wrapping the backup staleness nudge', () => {
+    const el = document.getElementById('settings-backup-nudge');
+    expect(el).not.toBeNull();
+  });
+});
+
+describe('Busy state - cost-basis, goal, cache, backup', () => {
+  beforeEach(() => {
+    _collapseState = {};
+    setupDOM();
+    renderSettings();
+  });
+
+  it('Save cost-basis button shows busy text during save', async () => {
+    const { setSetting } = await import('../store/config');
+    let resolveWrite: () => void;
+    (setSetting as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveWrite = resolve;
+        }),
+    );
+
+    const btn = document.getElementById('btn-save-cost-basis') as HTMLButtonElement;
+    btn.click();
+
+    // Wait for microtask to allow click handler to execute
+    await new Promise((r) => setTimeout(r, 0));
+    expect(btn.textContent).toBe('Saving...');
+    expect(btn.disabled).toBe(true);
+
+    resolveWrite!();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(btn.disabled).toBe(false);
+    expect(btn.textContent).toBe('Save cost-basis method');
+  });
+
+  it('Save goal button shows busy text during save', async () => {
+    const { setSettings } = await import('../store/config');
+    let resolveWrite: () => void;
+    (setSettings as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveWrite = resolve;
+        }),
+    );
+
+    const btn = document.getElementById('btn-save-goal') as HTMLButtonElement;
+    btn.click();
+
+    await new Promise((r) => setTimeout(r, 0));
+    expect(btn.textContent).toBe('Saving...');
+    expect(btn.disabled).toBe(true);
+
+    resolveWrite!();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(btn.disabled).toBe(false);
+    expect(btn.textContent).toBe('Save goal');
+  });
+
+  it('Force resync button shows busy text during resync', async () => {
+    let resolveResync: () => void;
+    (window as any).__forceFullResync = () =>
+      new Promise((resolve) => {
+        resolveResync = resolve;
+      });
+
+    const btn = document.getElementById('btn-force-resync') as HTMLButtonElement;
+    btn.click();
+
+    await new Promise((r) => setTimeout(r, 0));
+    expect(btn.textContent).toBe('Resyncing...');
+    expect(btn.disabled).toBe(true);
+
+    resolveResync!();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(btn.disabled).toBe(false);
+    expect(btn.textContent).toBe('Force full resync');
+  });
+
+  it('Export backup button shows busy text during export', async () => {
+    let resolveExport: () => void;
+    (window as any).__exportBackup = () =>
+      new Promise((resolve) => {
+        resolveExport = resolve;
+      });
+
+    const btn = document.getElementById('btn-export-backup') as HTMLButtonElement;
+    btn.click();
+
+    await new Promise((r) => setTimeout(r, 0));
+    expect(btn.textContent).toBe('Exporting...');
+    expect(btn.disabled).toBe(true);
+
+    resolveExport!();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(btn.disabled).toBe(false);
+    expect(btn.textContent).toBe('Export backup');
+  });
+
+  it('second click while card is busy has no effect', async () => {
+    const { setSetting } = await import('../store/config');
+    (setSetting as ReturnType<typeof vi.fn>).mockClear();
+    let resolveWrite: () => void;
+    (setSetting as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveWrite = resolve;
+        }),
+    );
+
+    const btn = document.getElementById('btn-save-cost-basis') as HTMLButtonElement;
+    btn.click();
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Second click while busy
+    btn.click();
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Only one call to setSetting (the card-level lock prevents the second)
+    expect((setSetting as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
+
+    resolveWrite!();
+    await new Promise((r) => setTimeout(r, 0));
+  });
+});
+
+describe('Button-disable verification: synchronous disable and double-click prevention', () => {
+  beforeEach(() => {
+    _collapseState = {};
+    setupDOM();
+    renderSettings();
+  });
+
+  // Helper: await one microtask so the async click handler starts executing
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+
+  describe('#btn-save-accts (accounts card)', () => {
+    it('disables synchronously and prevents double-click', async () => {
+      const { setAccounts } = await import('../store/config');
+      (setAccounts as ReturnType<typeof vi.fn>).mockClear();
+      let resolveWrite!: () => void;
+      (setAccounts as ReturnType<typeof vi.fn>).mockImplementationOnce(
+        () =>
+          new Promise((r) => {
+            resolveWrite = r;
+          }),
+      );
+
+      const btn = document.getElementById('btn-save-accts') as HTMLButtonElement;
+      btn.click();
+      await tick();
+
+      expect(btn.disabled).toBe(true);
+      expect(btn.textContent).toBe('Saving...');
+
+      // Second click while busy - card guard prevents action
+      btn.click();
+      await tick();
+      expect((setAccounts as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
+
+      resolveWrite();
+      await tick();
+      expect(btn.disabled).toBe(false);
+      expect(btn.textContent).toBe('Save accounts');
+    });
+
+    it('re-enables and shows error on failure', async () => {
+      const { setAccounts } = await import('../store/config');
+      const { showMsg } = await import('../utils');
+      (setAccounts as ReturnType<typeof vi.fn>).mockClear();
+      (showMsg as ReturnType<typeof vi.fn>).mockClear();
+      (setAccounts as ReturnType<typeof vi.fn>).mockImplementationOnce(() =>
+        Promise.reject(new Error('Network error')),
+      );
+
+      const btn = document.getElementById('btn-save-accts') as HTMLButtonElement;
+      btn.click();
+      await tick();
+
+      expect(btn.disabled).toBe(false);
+      expect(btn.textContent).toBe('Save accounts');
+      expect(showMsg as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+        'accts-msg',
+        'Error: Network error',
+        false,
+      );
+    });
+  });
+
+  describe('.js-del-acct (accounts delete)', () => {
+    it('disables synchronously and prevents double-click', async () => {
+      const { setAccounts } = await import('../store/config');
+      (setAccounts as ReturnType<typeof vi.fn>).mockClear();
+      let resolveWrite!: () => void;
+      (setAccounts as ReturnType<typeof vi.fn>).mockImplementationOnce(
+        () =>
+          new Promise((r) => {
+            resolveWrite = r;
+          }),
+      );
+
+      const btn = document.querySelector('.js-del-acct') as HTMLButtonElement;
+      expect(btn).not.toBeNull();
+      btn.click();
+      await tick(); // confirmDialog resolves
+      await tick(); // withCardGuard starts
+
+      expect(btn.disabled).toBe(true);
+      expect(btn.textContent).toBe('Removing...');
+
+      // Second click while busy
+      btn.click();
+      await tick();
+      expect((setAccounts as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
+
+      resolveWrite();
+      await tick();
+    });
+  });
+
+  describe('#btn-save-holds (holdings card)', () => {
+    it('disables synchronously and prevents double-click', async () => {
+      const { setHoldings } = await import('../store/config');
+      (setHoldings as ReturnType<typeof vi.fn>).mockClear();
+      let resolveWrite!: () => void;
+      (setHoldings as ReturnType<typeof vi.fn>).mockImplementationOnce(
+        () =>
+          new Promise((r) => {
+            resolveWrite = r;
+          }),
+      );
+
+      const btn = document.getElementById('btn-save-holds') as HTMLButtonElement;
+      btn.click();
+      await tick();
+
+      expect(btn.disabled).toBe(true);
+      expect(btn.textContent).toBe('Saving...');
+
+      btn.click();
+      await tick();
+      expect((setHoldings as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
+
+      resolveWrite();
+      await tick();
+      expect(btn.disabled).toBe(false);
+      expect(btn.textContent).toBe('Save holdings');
+    });
+
+    it('re-enables and shows error on failure', async () => {
+      const { setHoldings } = await import('../store/config');
+      const { showMsg } = await import('../utils');
+      (setHoldings as ReturnType<typeof vi.fn>).mockClear();
+      (showMsg as ReturnType<typeof vi.fn>).mockClear();
+      (setHoldings as ReturnType<typeof vi.fn>).mockImplementationOnce(() =>
+        Promise.reject(new Error('Sheets API error')),
+      );
+
+      const btn = document.getElementById('btn-save-holds') as HTMLButtonElement;
+      btn.click();
+      await tick();
+
+      expect(btn.disabled).toBe(false);
+      expect(showMsg as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+        'holds-msg',
+        'Error: Sheets API error',
+        false,
+      );
+    });
+  });
+
+  describe('.js-del-hold (holdings delete)', () => {
+    it('disables synchronously and prevents double-click', async () => {
+      const { setHoldings } = await import('../store/config');
+      (setHoldings as ReturnType<typeof vi.fn>).mockClear();
+      let resolveWrite!: () => void;
+      (setHoldings as ReturnType<typeof vi.fn>).mockImplementationOnce(
+        () =>
+          new Promise((r) => {
+            resolveWrite = r;
+          }),
+      );
+
+      const btn = document.querySelector('.js-del-hold') as HTMLButtonElement;
+      expect(btn).not.toBeNull();
+      btn.click();
+      await tick(); // confirmDialog
+      await tick(); // withCardGuard
+
+      expect(btn.disabled).toBe(true);
+      expect(btn.textContent).toBe('Removing...');
+
+      btn.click();
+      await tick();
+      expect((setHoldings as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
+
+      resolveWrite();
+      await tick();
+    });
+  });
+
+  describe('#btn-autofill-holds (holdings autofill)', () => {
+    it('disables synchronously and prevents double-click', async () => {
+      const { loadTransactions } = await import('../sheets/transactions');
+      (loadTransactions as ReturnType<typeof vi.fn>).mockClear();
+      let resolveLoad!: () => void;
+      (loadTransactions as ReturnType<typeof vi.fn>).mockImplementationOnce(
+        () =>
+          new Promise((r) => {
+            resolveLoad = r;
+          }),
+      );
+
+      const btn = document.getElementById('btn-autofill-holds') as HTMLButtonElement;
+      btn.click();
+      await tick();
+
+      expect(btn.disabled).toBe(true);
+      expect(btn.textContent).toBe('Loading...');
+
+      btn.click();
+      await tick();
+      expect((loadTransactions as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
+
+      resolveLoad();
+      await tick();
+      expect(btn.disabled).toBe(false);
+    });
+  });
+
+  describe('#btn-save-rules (rules card)', () => {
+    it('disables synchronously and prevents double-click', async () => {
+      const { setSettings } = await import('../store/config');
+      (setSettings as ReturnType<typeof vi.fn>).mockClear();
+      let resolveWrite!: () => void;
+      (setSettings as ReturnType<typeof vi.fn>).mockImplementationOnce(
+        () =>
+          new Promise((r) => {
+            resolveWrite = r;
+          }),
+      );
+
+      const btn = document.getElementById('btn-save-rules') as HTMLButtonElement;
+      btn.click();
+      await tick();
+
+      expect(btn.disabled).toBe(true);
+      expect(btn.textContent).toBe('Saving...');
+
+      btn.click();
+      await tick();
+      expect((setSettings as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
+
+      resolveWrite();
+      await tick();
+      expect(btn.disabled).toBe(false);
+      expect(btn.textContent).toBe('Save rules');
+    });
+
+    it('re-enables and shows error on failure', async () => {
+      const { setSettings } = await import('../store/config');
+      const { showMsg } = await import('../utils');
+      (setSettings as ReturnType<typeof vi.fn>).mockClear();
+      (showMsg as ReturnType<typeof vi.fn>).mockClear();
+      (setSettings as ReturnType<typeof vi.fn>).mockImplementationOnce(() =>
+        Promise.reject(new Error('Write failed')),
+      );
+
+      const btn = document.getElementById('btn-save-rules') as HTMLButtonElement;
+      btn.click();
+      await tick();
+
+      expect(btn.disabled).toBe(false);
+      expect(showMsg as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+        'rules-msg',
+        'Error: Write failed',
+        false,
+      );
+    });
+  });
+
+  describe('.js-del-rule (rules delete)', () => {
+    it('disables synchronously and prevents double-click', async () => {
+      const { setSettings } = await import('../store/config');
+      (setSettings as ReturnType<typeof vi.fn>).mockClear();
+      let resolveWrite!: () => void;
+      (setSettings as ReturnType<typeof vi.fn>).mockImplementationOnce(
+        () =>
+          new Promise((r) => {
+            resolveWrite = r;
+          }),
+      );
+
+      const btn = document.querySelector('.js-del-rule') as HTMLButtonElement;
+      if (!btn) return; // rules may be empty, skip if no rule rows exist
+      btn.click();
+      await tick(); // confirmDialog
+      await tick(); // withCardGuard
+
+      expect(btn.disabled).toBe(true);
+      expect(btn.textContent).toBe('Removing...');
+
+      btn.click();
+      await tick();
+      expect((setSettings as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
+
+      resolveWrite();
+      await tick();
+    });
+  });
+
+  describe('#btn-save-cost-basis (cost-basis card)', () => {
+    it('disables synchronously and prevents double-click', async () => {
+      const { setSetting } = await import('../store/config');
+      (setSetting as ReturnType<typeof vi.fn>).mockClear();
+      let resolveWrite!: () => void;
+      (setSetting as ReturnType<typeof vi.fn>).mockImplementationOnce(
+        () =>
+          new Promise((r) => {
+            resolveWrite = r;
+          }),
+      );
+
+      const btn = document.getElementById('btn-save-cost-basis') as HTMLButtonElement;
+      btn.click();
+      await tick();
+
+      expect(btn.disabled).toBe(true);
+      expect(btn.textContent).toBe('Saving...');
+
+      btn.click();
+      await tick();
+      expect((setSetting as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
+
+      resolveWrite();
+      await tick();
+      expect(btn.disabled).toBe(false);
+      expect(btn.textContent).toBe('Save cost-basis method');
+    });
+
+    it('re-enables and shows error on failure', async () => {
+      const { setSetting } = await import('../store/config');
+      const { showMsg } = await import('../utils');
+      (setSetting as ReturnType<typeof vi.fn>).mockClear();
+      (showMsg as ReturnType<typeof vi.fn>).mockClear();
+      (setSetting as ReturnType<typeof vi.fn>).mockImplementationOnce(() =>
+        Promise.reject(new Error('API error')),
+      );
+
+      const btn = document.getElementById('btn-save-cost-basis') as HTMLButtonElement;
+      btn.click();
+      await tick();
+
+      expect(btn.disabled).toBe(false);
+      expect(showMsg as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+        'costbasis-msg',
+        'Error: API error',
+        false,
+      );
+    });
+  });
+
+  describe('#btn-save-goal (goal card)', () => {
+    it('disables synchronously and prevents double-click', async () => {
+      const { setSettings } = await import('../store/config');
+      (setSettings as ReturnType<typeof vi.fn>).mockReset();
+      let resolveWrite!: () => void;
+      (setSettings as ReturnType<typeof vi.fn>).mockImplementation(
+        () =>
+          new Promise<void>((r) => {
+            resolveWrite = r;
+          }),
+      );
+
+      const btn = document.getElementById('btn-save-goal') as HTMLButtonElement;
+      btn.click();
+      await tick();
+      await tick();
+
+      expect((setSettings as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
+      expect(btn.disabled).toBe(true);
+      expect(btn.textContent).toBe('Saving...');
+
+      // Second click while busy
+      btn.click();
+      await tick();
+      expect((setSettings as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
+
+      resolveWrite();
+      await tick();
+      expect(btn.disabled).toBe(false);
+      expect(btn.textContent).toBe('Save goal');
+
+      // Restore default mock
+      (setSettings as ReturnType<typeof vi.fn>).mockImplementation(async () => {});
+    });
+
+    it('re-enables and shows error on failure', async () => {
+      const { setSettings } = await import('../store/config');
+      const { showMsg } = await import('../utils');
+      (setSettings as ReturnType<typeof vi.fn>).mockReset();
+      (showMsg as ReturnType<typeof vi.fn>).mockClear();
+      (setSettings as ReturnType<typeof vi.fn>).mockImplementation(() =>
+        Promise.reject(new Error('Timeout')),
+      );
+
+      const btn = document.getElementById('btn-save-goal') as HTMLButtonElement;
+      btn.click();
+      await tick();
+      await tick();
+
+      expect(btn.disabled).toBe(false);
+      expect(showMsg as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+        'goal-msg',
+        'Error: Timeout',
+        false,
+      );
+
+      // Restore default mock
+      (setSettings as ReturnType<typeof vi.fn>).mockImplementation(async () => {});
+    });
+  });
+
+  describe('#btn-force-resync (cache card)', () => {
+    it('disables synchronously and prevents double-click', async () => {
+      let callCount = 0;
+      let resolveResync!: () => void;
+      (window as any).__forceFullResync = () => {
+        callCount++;
+        return new Promise((r) => {
+          resolveResync = r;
+        });
+      };
+
+      const btn = document.getElementById('btn-force-resync') as HTMLButtonElement;
+      btn.click();
+      await tick();
+
+      expect(btn.disabled).toBe(true);
+      expect(btn.textContent).toBe('Resyncing...');
+
+      btn.click();
+      await tick();
+      expect(callCount).toBe(1);
+
+      resolveResync();
+      await tick();
+      expect(btn.disabled).toBe(false);
+      expect(btn.textContent).toBe('Force full resync');
+    });
+
+    it('re-enables and shows error on failure', async () => {
+      const { showMsg } = await import('../utils');
+      (showMsg as ReturnType<typeof vi.fn>).mockClear();
+      (window as any).__forceFullResync = () => Promise.reject(new Error('Resync failed'));
+
+      const btn = document.getElementById('btn-force-resync') as HTMLButtonElement;
+      btn.click();
+      await tick();
+
+      expect(btn.disabled).toBe(false);
+      expect(showMsg as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+        'resync-msg',
+        'Error: Resync failed',
+        false,
+      );
+    });
+  });
+
+  describe('#btn-export-backup (backup card)', () => {
+    it('disables synchronously and prevents double-click', async () => {
+      let callCount = 0;
+      let resolveExport!: () => void;
+      (window as any).__exportBackup = () => {
+        callCount++;
+        return new Promise((r) => {
+          resolveExport = r;
+        });
+      };
+
+      const btn = document.getElementById('btn-export-backup') as HTMLButtonElement;
+      btn.click();
+      await tick();
+
+      expect(btn.disabled).toBe(true);
+      expect(btn.textContent).toBe('Exporting...');
+
+      btn.click();
+      await tick();
+      expect(callCount).toBe(1);
+
+      resolveExport();
+      await tick();
+      expect(btn.disabled).toBe(false);
+      expect(btn.textContent).toBe('Export backup');
+    });
+
+    it('re-enables and shows error on failure', async () => {
+      const { showMsg } = await import('../utils');
+      (showMsg as ReturnType<typeof vi.fn>).mockClear();
+      (window as any).__exportBackup = () => Promise.reject(new Error('Export failed'));
+
+      const btn = document.getElementById('btn-export-backup') as HTMLButtonElement;
+      btn.click();
+      await tick();
+
+      expect(btn.disabled).toBe(false);
+      expect(showMsg as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+        'backup-msg',
+        'Export failed: Export failed',
+        false,
+      );
+    });
+  });
+
+  describe('#btn-restore-backup (backup restore via file input)', () => {
+    it('disables synchronously and prevents double-click', async () => {
+      let callCount = 0;
+      let resolveRestore!: () => void;
+      (window as any).__restoreFromBackup = () => {
+        callCount++;
+        return new Promise((r) => {
+          resolveRestore = r;
+        });
+      };
+
+      const restoreBtn = document.getElementById('btn-restore-backup') as HTMLButtonElement;
+      const fileInput = document.getElementById('backup-file-input') as HTMLInputElement;
+      expect(restoreBtn).not.toBeNull();
+      expect(fileInput).not.toBeNull();
+
+      // Simulate file selection
+      Object.defineProperty(fileInput, 'files', {
+        value: [new File(['{}'], 'backup.json', { type: 'application/json' })],
+        writable: true,
+      });
+      fileInput.dispatchEvent(new Event('change'));
+      await tick();
+
+      expect(restoreBtn.disabled).toBe(true);
+      expect(restoreBtn.textContent).toBe('Restoring...');
+
+      // Second file change while busy - card guard prevents
+      fileInput.dispatchEvent(new Event('change'));
+      await tick();
+      expect(callCount).toBe(1);
+
+      resolveRestore();
+      await tick();
+      expect(restoreBtn.disabled).toBe(false);
+    });
   });
 });

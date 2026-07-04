@@ -41,7 +41,8 @@ let _accounts: Account[] = [];
 let _holdings: Holding[] = [];
 let _settings: Settings = {};
 let _loaded = false;
-let _onChange: (() => void) | null = null;
+export type ConfigChangeKind = 'accounts' | 'holdings' | 'settings';
+let _onChange: ((changed: ConfigChangeKind) => void) | null = null;
 
 // ── Public accessors (read at render time) ───────────────
 
@@ -126,7 +127,7 @@ export function getCostBasisMethod(): 'fifo' | 'avgco' {
 }
 
 // ── Register re-render callback ──────────────────────────
-export function onConfigChange(fn: () => void): void {
+export function onConfigChange(fn: (changed: ConfigChangeKind) => void): void {
   _onChange = fn;
 }
 
@@ -178,83 +179,102 @@ export async function loadConfig(): Promise<void> {
 // ── Persist updates ──────────────────────────────────────
 
 export async function setAccounts(accounts: Account[]): Promise<void> {
+  const previous = _accounts;
   _accounts = accounts;
-  await ensureSheets([TABS.ACCOUNTS]);
-  const hdr = [
-    'id',
-    'moneyType',
-    'institution',
-    'label',
-    'color',
-    'isPrimaryInvestment',
-    'order',
-    'annualReturnPct',
-    'contribAmount',
-    'contribInterval',
-  ];
-  const rows = accounts.map((a) => [
-    a.id || a.key || '',
-    a.moneyType || '',
-    a.institution || '',
-    a.label || '',
-    a.color || '',
-    a.isPrimaryInvestment ? 'true' : 'false',
-    a.order ?? '',
-    a.annualReturnPct ?? 0,
-    a.contribAmount ?? 0,
-    a.contribInterval || 'monthly',
-  ]);
-  await writeRange(`${TABS.ACCOUNTS}!A1`, [hdr, ...rows]);
-  await logChange('Accounts', `updated ${accounts.length} accounts`);
-  if (_onChange) _onChange();
+  try {
+    await ensureSheets([TABS.ACCOUNTS]);
+    const hdr = [
+      'id',
+      'moneyType',
+      'institution',
+      'label',
+      'color',
+      'isPrimaryInvestment',
+      'order',
+      'annualReturnPct',
+      'contribAmount',
+      'contribInterval',
+    ];
+    const rows = accounts.map((a) => [
+      a.id || a.key || '',
+      a.moneyType || '',
+      a.institution || '',
+      a.label || '',
+      a.color || '',
+      a.isPrimaryInvestment ? 'true' : 'false',
+      a.order ?? '',
+      a.annualReturnPct ?? 0,
+      a.contribAmount ?? 0,
+      a.contribInterval || 'monthly',
+    ]);
+    await writeRange(`${TABS.ACCOUNTS}!A1`, [hdr, ...rows]);
+    await logChange('Accounts', `updated ${accounts.length} accounts`);
+    if (_onChange) _onChange('accounts');
+  } catch (err) {
+    _accounts = previous;
+    throw err;
+  }
 }
 
 export async function setHoldings(holdings: Holding[]): Promise<void> {
+  const previous = _holdings;
   _holdings = holdings;
-  await ensureSheets([TABS.HOLDINGS]);
-  const hdr = [
-    'isin',
-    'ticker',
-    'name',
-    'color',
-    'acc',
-    'active',
-    'contribAmount',
-    'contribInterval',
-    'assetClass',
-    'region',
-    'foldInto',
-    'order',
-  ];
-  const rows = holdings.map((h) => [
-    h.isin,
-    h.ticker,
-    h.name || '',
-    h.color || '',
-    h.acc ? 'true' : 'false',
-    h.active ? 'true' : 'false',
-    h.contribAmount ?? 0,
-    h.contribInterval || 'weekly',
-    h.assetClass || '',
-    h.region || '',
-    h.foldInto || '',
-    h.order ?? '',
-  ]);
-  await writeRange(`${TABS.HOLDINGS}!A1`, [hdr, ...rows]);
-  await logChange('Holdings', `updated ${holdings.length} holdings`);
-  if (_onChange) _onChange();
+  try {
+    await ensureSheets([TABS.HOLDINGS]);
+    const hdr = [
+      'isin',
+      'ticker',
+      'name',
+      'color',
+      'acc',
+      'active',
+      'contribAmount',
+      'contribInterval',
+      'assetClass',
+      'region',
+      'foldInto',
+      'order',
+    ];
+    const rows = holdings.map((h) => [
+      h.isin,
+      h.ticker,
+      h.name || '',
+      h.color || '',
+      h.acc ? 'true' : 'false',
+      h.active ? 'true' : 'false',
+      h.contribAmount ?? 0,
+      h.contribInterval || 'weekly',
+      h.assetClass || '',
+      h.region || '',
+      h.foldInto || '',
+      h.order ?? '',
+    ]);
+    await writeRange(`${TABS.HOLDINGS}!A1`, [hdr, ...rows]);
+    await logChange('Holdings', `updated ${holdings.length} holdings`);
+    if (_onChange) _onChange('holdings');
+  } catch (err) {
+    _holdings = previous;
+    throw err;
+  }
 }
 
 export async function setSetting(key: string, value: string): Promise<void> {
+  const previous = { ..._settings };
   _settings[key] = value;
-  await persistSettings();
-  await logChange('Settings', `${key} = ${value}`);
-  if (_onChange) _onChange();
+  try {
+    await persistSettings();
+    await logChange('Settings', `${key} = ${value}`);
+    if (_onChange) _onChange('settings');
+  } catch (err) {
+    _settings = previous;
+    throw err;
+  }
 }
 
 export async function setSettings(
   settings: Record<string, string | null | undefined>,
 ): Promise<void> {
+  const previous = { ..._settings };
   for (const [k, v] of Object.entries(settings)) {
     if (v === null || v === undefined) {
       delete _settings[k];
@@ -262,17 +282,28 @@ export async function setSettings(
       _settings[k] = v;
     }
   }
-  await persistSettings();
-  await logChange('Settings', `updated ${Object.keys(settings).join(', ')}`);
-  if (_onChange) _onChange();
+  try {
+    await persistSettings();
+    await logChange('Settings', `updated ${Object.keys(settings).join(', ')}`);
+    if (_onChange) _onChange('settings');
+  } catch (err) {
+    _settings = previous;
+    throw err;
+  }
 }
 
 /** Full replace of the Settings tab - used only by backup restore. */
 export async function replaceSettings(settings: Settings): Promise<void> {
+  const previous = _settings;
   _settings = { ...settings };
-  await persistSettings();
-  await logChange('Settings', 'restored from backup');
-  if (_onChange) _onChange();
+  try {
+    await persistSettings();
+    await logChange('Settings', 'restored from backup');
+    if (_onChange) _onChange('settings');
+  } catch (err) {
+    _settings = previous;
+    throw err;
+  }
 }
 
 async function persistSettings(): Promise<void> {

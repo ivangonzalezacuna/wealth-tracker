@@ -93,19 +93,39 @@ export async function clearRange(range: string): Promise<unknown> {
   return res.json();
 }
 
+// Tabs confirmed to exist this session. ensureSheets skips its metadata fetch
+// entirely for any tab already in this set -- after the very first successful
+// check, a tab's existence cannot regress without the user deleting a sheet
+// tab by hand outside the app, which is not a case this app needs to detect
+// live. This is what stops a single write (which today calls ensureSheets
+// up to 4 times via nested logChange/persistSettings calls) from repeatedly
+// re-fetching identical metadata and tripping Google's rate limit.
+const _confirmedTabs = new Set<string>();
+
+/** Reset the confirmed-tabs cache. Exported only for tests. */
+export function resetConfirmedTabsCache(): void {
+  _confirmedTabs.clear();
+}
+
 /**
  * Ensure required sheets (tabs) exist in the spreadsheet.
- * Creates any missing tabs on first run.
+ * Creates any missing tabs on first run. Uses a session-scoped cache so
+ * tabs already confirmed to exist are never re-checked.
  */
 export async function ensureSheets(tabNames: string[]): Promise<void> {
+  const needsCheck = tabNames.filter((n) => !_confirmedTabs.has(n));
+  if (needsCheck.length === 0) return;
+
   const h = await _headers();
   const metaR = await fetch(`${BASE}/${SHEET_ID}`, { headers: h });
   if (!metaR.ok) throw new Error(`Cannot read spreadsheet metadata: ${metaR.status}`);
   const meta = await metaR.json();
-  const existing = (meta.sheets || []).map(
+  const existing: string[] = (meta.sheets || []).map(
     (s: { properties: { title: string } }) => s.properties.title,
   );
-  const missing = tabNames.filter((n) => !existing.includes(n));
+  existing.forEach((t) => _confirmedTabs.add(t));
+
+  const missing = needsCheck.filter((n) => !existing.includes(n));
   if (!missing.length) return;
 
   const requests = missing.map((title) => ({
@@ -118,4 +138,5 @@ export async function ensureSheets(tabNames: string[]): Promise<void> {
     body: JSON.stringify({ requests }),
   });
   if (!res.ok) throw new Error(`Cannot create sheets: ${res.status} ${await res.text()}`);
+  missing.forEach((t) => _confirmedTabs.add(t));
 }

@@ -14,13 +14,13 @@ import {
   getRetiredAccountIds,
   retireAccountIds,
 } from '../store/config';
+import type { ConfigChangeKind } from '../store/config';
 import { loadTransactions } from '../sheets/transactions';
 import { validatePrimaryInvestment } from '../model/accounts';
 import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
-import { showMsg } from '../utils';
+import { showMsg, reinjectPendingMsg, withButtonGuard } from '../utils';
 import type { Account, Holding, Settings, ContribInterval } from '../types';
-import { resolvedT } from '../theme';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { confirmDialog } from '../ui/confirmDialog';
@@ -39,6 +39,50 @@ function intervalOptionsHtml(selected: ContribInterval): string {
 
 /** Card key -> render fn, used by repaintCard() to scope a re-render to one card. */
 type CardKey = 'accounts' | 'holdings' | 'cost-basis' | 'goal' | 'rules' | 'cache' | 'backup';
+
+/** One busy flag per card. Every Save/Delete/action handler in a card must
+ *  go through withCardGuard (never withButtonGuard directly), so two actions
+ *  in the same card can never race each other's persistence. Deliberately
+ *  per-card, not global; an in-flight Holdings save must not block an
+ *  unrelated Accounts delete. */
+const _cardBusy = new Set<CardKey>();
+
+export function isCardBusy(key: CardKey): boolean {
+  return _cardBusy.has(key);
+}
+
+/** Wraps withButtonGuard with the card-level lock. This is the single
+ *  required entry point for every write handler added or touched in 57b
+ *  and 57c; no handler should call withButtonGuard directly. */
+export async function withCardGuard<T>(
+  cardKey: CardKey,
+  btn: HTMLButtonElement,
+  action: () => Promise<T>,
+  opts: { busyText?: string; keepDisabledOnSuccess?: boolean } = {},
+): Promise<T | undefined> {
+  if (isCardBusy(cardKey)) return undefined;
+  _cardBusy.add(cardKey);
+
+  // Disable all buttons in this card so none are clickable while busy
+  const cardEl = document.getElementById(`settings-card-${cardKey}`);
+  const siblingBtns: HTMLButtonElement[] = [];
+  if (cardEl) {
+    for (const b of Array.from(cardEl.querySelectorAll('button'))) {
+      if (b !== btn && !b.disabled) {
+        b.disabled = true;
+        siblingBtns.push(b);
+      }
+    }
+  }
+
+  try {
+    return await withButtonGuard(btn, action, opts);
+  } finally {
+    _cardBusy.delete(cardKey);
+    // Re-enable sibling buttons that we disabled
+    for (const b of siblingBtns) b.disabled = false;
+  }
+}
 
 /** Re-render exactly one Settings card in place; re-attach only its own
  *  listeners; reapply its persisted collapse state. Touches no sibling card. */
@@ -153,6 +197,61 @@ export function renderSettings(): void {
   });
 
   attachInfoTips(el);
+  reinjectPendingMsg();
+}
+
+// ── Data-only refresh functions ───────────────────────────
+/** Each rewrites exactly the data region inside an already-mounted card and
+ *  nothing else - never the buttons, never the message span. */
+
+function refreshAccountsData(): void {
+  const root = document.getElementById('settings-card-accounts');
+  if (root) rerenderAccountsTable(root, getAccounts());
+}
+
+function refreshHoldingsData(): void {
+  const root = document.getElementById('settings-card-holdings');
+  if (root) rerenderHoldingsTable(root, getHoldings());
+}
+
+function refreshRulesData(): void {
+  const root = document.getElementById('settings-card-rules');
+  if (root) rerenderRulesTable(root, rulesFromSettings(getSettings()));
+}
+
+function refreshCostBasisData(): void {
+  const el = document.getElementById('settings-costbasis-fields');
+  if (el) el.innerHTML = costBasisFieldsHtml(getCostBasisMethod());
+}
+
+function refreshGoalData(): void {
+  const el = document.getElementById('settings-goal-fields');
+  if (el) el.innerHTML = goalFieldsHtml(getSettings());
+}
+
+function refreshBackupData(): void {
+  const el = document.getElementById('settings-backup-nudge');
+  if (el) el.innerHTML = backupNudgeHtml(getSettings());
+}
+
+/** Dispatch a config-change notification to the narrowest correct refresh.
+ *  'settings' backs cost-basis, goal, rules, and backup's nudge (all
+ *  confirmed via source to read getSettings()); accounts/holdings are
+ *  excluded, confirmed not to. */
+export function refreshSettingsAfterChange(changed: ConfigChangeKind): void {
+  if (!document.getElementById('settings-content')) return;
+  if (changed === 'accounts') {
+    refreshAccountsData();
+    return;
+  }
+  if (changed === 'holdings') {
+    refreshHoldingsData();
+    return;
+  }
+  refreshRulesData();
+  refreshCostBasisData();
+  refreshGoalData();
+  refreshBackupData();
 }
 
 // ── Accounts ──────────────────────────────────────────────
@@ -266,6 +365,43 @@ function attachPrimaryToggleListeners(scope: Element): void {
   });
 }
 
+/** Shared account-delete implementation. setAccounts runs before
+ *  retireAccountIds so getAccounts() is correct the instant this resolves,
+ *  closing the window where retireAccountIds's own setSetting -> _onChange
+ *  could trigger a re-render from stale data. */
+async function deleteAccount(
+  root: HTMLElement,
+  idx: number,
+  btn: HTMLButtonElement,
+): Promise<void> {
+  if (isCardBusy('accounts')) return;
+  const accounts = collectAccounts(root);
+  const a = accounts[idx];
+  const ok = await confirmDialog({
+    title: `Remove ${esc(a?.label || 'this account')}?`,
+    body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected, and its old data column stays reserved so a future account never accidentally reuses it.',
+    confirmLabel: 'Remove',
+    danger: true,
+  });
+  if (!ok) return;
+  accounts.splice(idx, 1);
+  try {
+    await withCardGuard(
+      'accounts',
+      btn,
+      async () => {
+        await setAccounts(accounts);
+        if (a?.id) await retireAccountIds([a.id]);
+      },
+      { busyText: 'Removing...', keepDisabledOnSuccess: true },
+    );
+    rerenderAccountsTable(root, accounts);
+    showMsg('accts-msg', 'Removed', true);
+  } catch (err) {
+    showMsg('accts-msg', 'Error: ' + err.message, false);
+  }
+}
+
 function attachAccountListeners(root: HTMLElement): void {
   attachPrimaryToggleListeners(root);
   root.querySelector('#btn-add-acct')?.addEventListener('click', () => {
@@ -283,6 +419,7 @@ function attachAccountListeners(root: HTMLElement): void {
   });
 
   root.querySelector('#btn-save-accts')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-save-accts') as HTMLButtonElement;
     const accounts = collectAccounts(root);
     if (accounts.some((a) => !a.label)) {
       showMsg('accts-msg', 'Each account needs a name.', false);
@@ -305,7 +442,7 @@ function attachAccountListeners(root: HTMLElement): void {
       }
     }
     try {
-      await setAccounts(accounts);
+      await withCardGuard('accounts', btn, () => setAccounts(accounts), { busyText: 'Saving...' });
       showMsg('accts-msg', 'Saved', true);
     } catch (err) {
       showMsg('accts-msg', 'Error: ' + err.message, false);
@@ -313,21 +450,9 @@ function attachAccountListeners(root: HTMLElement): void {
   });
 
   root.querySelectorAll('.js-del-acct').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const accounts = collectAccounts(root);
-      const idx = parseInt(btn.dataset.idx);
-      const a = accounts[idx];
-      const ok = await confirmDialog({
-        title: `Remove ${esc(a?.label || 'this account')}?`,
-        body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected, and its old data column stays reserved so a future account never accidentally reuses it.',
-        confirmLabel: 'Remove',
-        danger: true,
-      });
-      if (!ok) return;
-      if (a?.id) await retireAccountIds([a.id]);
-      accounts.splice(idx, 1);
-      rerenderAccountsTable(root, accounts);
-    });
+    btn.addEventListener('click', () =>
+      deleteAccount(root, parseInt(btn.dataset.idx), btn as HTMLButtonElement),
+    );
   });
 }
 
@@ -365,22 +490,11 @@ function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
   attachColorPickerSync(tbl);
   attachPrimaryToggleListeners(tbl);
   attachItemCollapseListeners(tbl);
+  attachInfoTips(tbl);
   tbl.querySelectorAll('.js-del-acct').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const accs = collectAccounts(root);
-      const idx = parseInt(btn.dataset.idx);
-      const a = accs[idx];
-      const ok = await confirmDialog({
-        title: `Remove ${esc(a?.label || 'this account')}?`,
-        body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected, and its old data column stays reserved so a future account never accidentally reuses it.',
-        confirmLabel: 'Remove',
-        danger: true,
-      });
-      if (!ok) return;
-      if (a?.id) await retireAccountIds([a.id]);
-      accs.splice(idx, 1);
-      rerenderAccountsTable(root, accs);
-    });
+    btn.addEventListener('click', () =>
+      deleteAccount(root, parseInt(btn.dataset.idx), btn as HTMLButtonElement),
+    );
   });
 }
 
@@ -559,20 +673,9 @@ function applyHoldingsFilter(root: HTMLElement): void {
     attachColorPickerSync(tbl as HTMLElement);
     attachItemCollapseListeners(tbl as HTMLElement);
     (tbl as HTMLElement).querySelectorAll('.js-del-hold').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const holds = collectHoldings(root);
-        const idx = parseInt((btn as HTMLElement).dataset.idx!);
-        const h = holds[idx];
-        const ok = await confirmDialog({
-          title: `Remove ${esc(h?.ticker || h?.isin || 'this holding')}?`,
-          body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected.',
-          confirmLabel: 'Remove',
-          danger: true,
-        });
-        if (!ok) return;
-        holds.splice(idx, 1);
-        rerenderHoldingsTable(root, holds);
-      });
+      btn.addEventListener('click', () =>
+        deleteHolding(root, parseInt((btn as HTMLElement).dataset.idx!), btn as HTMLButtonElement),
+      );
     });
   }
 
@@ -585,6 +688,35 @@ function applyHoldingsFilter(root: HTMLElement): void {
     if ((b as HTMLElement).dataset.hfilter === 'active') b.textContent = `Active (${activeCount})`;
     if ((b as HTMLElement).dataset.hfilter === 'closed') b.textContent = `Closed (${closedCount})`;
   });
+}
+
+/** Shared holding-delete implementation. */
+async function deleteHolding(
+  root: HTMLElement,
+  idx: number,
+  btn: HTMLButtonElement,
+): Promise<void> {
+  if (isCardBusy('holdings')) return;
+  const holds = collectHoldings(root);
+  const hold = holds[idx];
+  const ok = await confirmDialog({
+    title: `Remove ${esc(hold?.ticker || hold?.isin || 'this holding')}?`,
+    body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected.',
+    confirmLabel: 'Remove',
+    danger: true,
+  });
+  if (!ok) return;
+  holds.splice(idx, 1);
+  try {
+    await withCardGuard('holdings', btn, () => setHoldings(holds), {
+      busyText: 'Removing...',
+      keepDisabledOnSuccess: true,
+    });
+    rerenderHoldingsTable(root, holds);
+    showMsg('holds-msg', 'Removed', true);
+  } catch (err) {
+    showMsg('holds-msg', 'Error: ' + err.message, false);
+  }
 }
 
 function attachHoldingListeners(root: HTMLElement): void {
@@ -618,74 +750,76 @@ function attachHoldingListeners(root: HTMLElement): void {
     rerenderHoldingsTable(root, holds);
   });
 
-  root.querySelector('#btn-autofill-holds')?.addEventListener('click', async (e) => {
-    const btn = e.currentTarget as HTMLButtonElement;
-    btn.disabled = true;
-    const origText = btn.textContent || '';
-    btn.innerHTML = '<span class="spinner"></span> Loading\u2026';
+  root.querySelector('#btn-autofill-holds')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-autofill-holds') as HTMLButtonElement;
     try {
-      const txs = await loadTransactions();
-      const buys = txs.filter((t) => t.type === 'BUY' && (t.isin || t.symbol));
-      if (buys.length === 0) {
-        showMsg('holds-msg', 'No BUY transactions found. Import a CSV first.', false);
-        return;
-      }
-      // Determine cutoff: ISINs with buys in the last 3 months are "active"
-      const latestDate = buys.reduce((max, t) => (t.date > max ? t.date : max), '');
-      const cutoff = subtractMonths(latestDate, 3);
-      // Extract unique ISIN→name mapping and track latest tx date per ISIN
-      const isinMap = {};
-      const isinLatest = {};
-      for (const tx of buys) {
-        const sym = tx.isin || tx.symbol;
-        if (!isinMap[sym]) {
-          isinMap[sym] = tx.name || '';
-        }
-        if (!isinLatest[sym] || tx.date > isinLatest[sym]) {
-          isinLatest[sym] = tx.date;
-        }
-      }
-      // Merge with existing holdings (skip already-configured ISINs)
-      const holds = collectHoldings(root);
-      const existing = new Set(holds.map((h) => h.isin));
-      let added = 0;
-      for (const [isin, name] of Object.entries(isinMap)) {
-        if (existing.has(isin)) continue;
-        const parsed = parseHoldingName(name, isin);
-        const isActive = (isinLatest[isin] || '') >= cutoff;
-        holds.push({
-          isin,
-          ticker: parsed.ticker,
-          name: '',
-          color: randomColor(),
-          acc: parsed.acc,
-          active: isActive,
-          contribAmount: 0,
-          contribInterval: 'weekly' as ContribInterval,
-          assetClass: parsed.assetClass,
-          region: parsed.region,
-          foldInto: '',
-          order: holds.length + 1,
-        });
-        added++;
-      }
-      rerenderHoldingsTable(root, holds);
-      showMsg(
-        'holds-msg',
-        added > 0
-          ? `Added ${added} holding(s) from transactions. Review and save.`
-          : 'All transaction ISINs already configured.',
-        true,
+      await withCardGuard(
+        'holdings',
+        btn,
+        async () => {
+          const txs = await loadTransactions();
+          const buys = txs.filter((t) => t.type === 'BUY' && (t.isin || t.symbol));
+          if (buys.length === 0) {
+            showMsg('holds-msg', 'No BUY transactions found. Import a CSV first.', false);
+            return;
+          }
+          // Determine cutoff: ISINs with buys in the last 3 months are "active"
+          const latestDate = buys.reduce((max, t) => (t.date > max ? t.date : max), '');
+          const cutoff = subtractMonths(latestDate, 3);
+          // Extract unique ISIN->name mapping and track latest tx date per ISIN
+          const isinMap = {};
+          const isinLatest = {};
+          for (const tx of buys) {
+            const sym = tx.isin || tx.symbol;
+            if (!isinMap[sym]) {
+              isinMap[sym] = tx.name || '';
+            }
+            if (!isinLatest[sym] || tx.date > isinLatest[sym]) {
+              isinLatest[sym] = tx.date;
+            }
+          }
+          // Merge with existing holdings (skip already-configured ISINs)
+          const holds = collectHoldings(root);
+          const existing = new Set(holds.map((h) => h.isin));
+          let added = 0;
+          for (const [isin, name] of Object.entries(isinMap)) {
+            if (existing.has(isin)) continue;
+            const parsed = parseHoldingName(name, isin);
+            const isActive = (isinLatest[isin] || '') >= cutoff;
+            holds.push({
+              isin,
+              ticker: parsed.ticker,
+              name: '',
+              color: randomColor(),
+              acc: parsed.acc,
+              active: isActive,
+              contribAmount: 0,
+              contribInterval: 'weekly' as ContribInterval,
+              assetClass: parsed.assetClass,
+              region: parsed.region,
+              foldInto: '',
+              order: holds.length + 1,
+            });
+            added++;
+          }
+          rerenderHoldingsTable(root, holds);
+          showMsg(
+            'holds-msg',
+            added > 0
+              ? `Added ${added} holding(s) from transactions. Review and save.`
+              : 'All transaction ISINs already configured.',
+            true,
+          );
+        },
+        { busyText: 'Loading...' },
       );
     } catch (err) {
       showMsg('holds-msg', 'Error: ' + err.message, false);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = origText;
     }
   });
 
   root.querySelector('#btn-save-holds')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-save-holds') as HTMLButtonElement;
     const holds = collectHoldings(root);
     if (holds.some((h) => !h.isin || !h.ticker)) {
       showMsg('holds-msg', 'Each holding needs an ISIN and ticker.', false);
@@ -697,7 +831,7 @@ function attachHoldingListeners(root: HTMLElement): void {
       return;
     }
     try {
-      await setHoldings(holds);
+      await withCardGuard('holdings', btn, () => setHoldings(holds), { busyText: 'Saving...' });
       showMsg('holds-msg', 'Saved', true);
     } catch (err) {
       showMsg('holds-msg', 'Error: ' + err.message, false);
@@ -705,20 +839,9 @@ function attachHoldingListeners(root: HTMLElement): void {
   });
 
   root.querySelectorAll('.js-del-hold').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const holds = collectHoldings(root);
-      const idx = parseInt(btn.dataset.idx);
-      const h = holds[idx];
-      const ok = await confirmDialog({
-        title: `Remove ${esc(h?.ticker || h?.isin || 'this holding')}?`,
-        body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected.',
-        confirmLabel: 'Remove',
-        danger: true,
-      });
-      if (!ok) return;
-      holds.splice(idx, 1);
-      rerenderHoldingsTable(root, holds);
-    });
+    btn.addEventListener('click', () =>
+      deleteHolding(root, parseInt(btn.dataset.idx), btn as HTMLButtonElement),
+    );
   });
 }
 
@@ -786,25 +909,29 @@ function rerenderHoldingsTable(root: HTMLElement, holdings: Holding[]): void {
   }
   attachColorPickerSync(tbl);
   attachItemCollapseListeners(tbl);
+  attachInfoTips(tbl);
   tbl.querySelectorAll('.js-del-hold').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const h = collectHoldings(root);
-      const idx = parseInt(btn.dataset.idx);
-      const hold = h[idx];
-      const ok = await confirmDialog({
-        title: `Remove ${esc(hold?.ticker || hold?.isin || 'this holding')}?`,
-        body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected.',
-        confirmLabel: 'Remove',
-        danger: true,
-      });
-      if (!ok) return;
-      h.splice(idx, 1);
-      rerenderHoldingsTable(root, h);
-    });
+    btn.addEventListener('click', () =>
+      deleteHolding(root, parseInt(btn.dataset.idx), btn as HTMLButtonElement),
+    );
   });
 }
 
 // ── Cost-basis method ───────────────────────────────────
+
+function costBasisFieldsHtml(current: string): string {
+  return `
+    <div class="form-grid" style="max-width:500px">
+      <div class="form-group">
+        <label class="form-label">Method</label>
+        <select class="form-input" id="set-cost-basis-method">
+          <option value="avgco" ${current === 'avgco' ? 'selected' : ''}>Average cost</option>
+          <option value="fifo" ${current === 'fifo' ? 'selected' : ''}>FIFO (first in, first out)</option>
+        </select>
+        <span class="note">FIFO matches the German Abgeltungsteuer ordering rule. Average cost is simpler but may diverge on partial sells.</span>
+      </div>
+    </div>`;
+}
 
 function renderCostBasisCard(settings: Settings): string {
   const current = getCostBasisMethod();
@@ -817,16 +944,7 @@ function renderCostBasisCard(settings: Settings): string {
       </div>
       <div class="card-body">
         <p class="note" style="margin-bottom:.75rem">Choose how realized gains are calculated when you sell shares.</p>
-        <div class="form-grid" style="max-width:500px">
-          <div class="form-group">
-            <label class="form-label">Method</label>
-            <select class="form-input" id="set-cost-basis-method">
-              <option value="avgco" ${current === 'avgco' ? 'selected' : ''}>Average cost</option>
-              <option value="fifo" ${current === 'fifo' ? 'selected' : ''}>FIFO (first in, first out)</option>
-            </select>
-            <span class="note">FIFO matches the German Abgeltungsteuer ordering rule. Average cost is simpler but may diverge on partial sells.</span>
-          </div>
-        </div>
+        <div id="settings-costbasis-fields">${costBasisFieldsHtml(current)}</div>
         <div style="display:flex;gap:10px;margin-top:.75rem">
           <button class="btn btn-primary btn-sm" id="btn-save-cost-basis">Save cost-basis method</button>
           <span id="costbasis-msg" style="font-size:12px;line-height:28px"></span>
@@ -837,9 +955,12 @@ function renderCostBasisCard(settings: Settings): string {
 
 function attachCostBasisListeners(root: HTMLElement): void {
   root.querySelector('#btn-save-cost-basis')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-save-cost-basis') as HTMLButtonElement;
     const method = root.querySelector('#set-cost-basis-method')?.value || 'avgco';
     try {
-      await setSetting('costBasisMethod', method);
+      await withCardGuard('cost-basis', btn, () => setSetting('costBasisMethod', method), {
+        busyText: 'Saving...',
+      });
       showMsg('costbasis-msg', 'Saved', true);
     } catch (err) {
       showMsg('costbasis-msg', 'Error: ' + err.message, false);
@@ -849,10 +970,25 @@ function attachCostBasisListeners(root: HTMLElement): void {
 
 // ── Goal / target net worth ──────────────────────────────
 
-function renderGoalCard(settings: Settings): string {
+function goalFieldsHtml(settings: Settings): string {
   const targetNW = settings.targetNetWorth || '';
   const targetDate = settings.targetDate || '';
+  return `
+    <div class="form-grid" style="max-width:500px">
+      <div class="form-group">
+        <label class="form-label">Target net worth (\u20AC)</label>
+        <input class="form-input" id="set-target-nw" type="text" inputmode="decimal" value="${esc(targetNW)}" placeholder="e.g. 100000 or 100.000">
+        <span class="note">Supports German format (100.000,00) or plain numbers.</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Target date (optional)</label>
+        <input class="form-input" id="set-target-date" type="month" value="${esc(targetDate)}">
+        <span class="note">Leave empty for ETA-only mode (no deadline).</span>
+      </div>
+    </div>`;
+}
 
+function renderGoalCard(settings: Settings): string {
   return `
     <div class="card card-collapsible" id="settings-card-goal" data-card-key="goal">
       <div class="card-header js-card-toggle">
@@ -861,18 +997,7 @@ function renderGoalCard(settings: Settings): string {
       </div>
       <div class="card-body">
         <p class="note" style="margin-bottom:.75rem">Set a net-worth target to track progress on the Net Worth tab. Optionally set a target date to see if you're on track.</p>
-        <div class="form-grid" style="max-width:500px">
-          <div class="form-group">
-            <label class="form-label">Target net worth (\u20AC)</label>
-            <input class="form-input" id="set-target-nw" type="text" inputmode="decimal" value="${esc(targetNW)}" placeholder="e.g. 100000 or 100.000">
-            <span class="note">Supports German format (100.000,00) or plain numbers.</span>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Target date (optional)</label>
-            <input class="form-input" id="set-target-date" type="month" value="${esc(targetDate)}">
-            <span class="note">Leave empty for ETA-only mode (no deadline).</span>
-          </div>
-        </div>
+        <div id="settings-goal-fields">${goalFieldsHtml(settings)}</div>
         <div style="display:flex;gap:10px;margin-top:.75rem">
           <button class="btn btn-primary btn-sm" id="btn-save-goal">Save goal</button>
           <span id="goal-msg" style="font-size:12px;line-height:28px"></span>
@@ -883,10 +1008,18 @@ function renderGoalCard(settings: Settings): string {
 
 function attachGoalListeners(root: HTMLElement): void {
   root.querySelector('#btn-save-goal')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-save-goal') as HTMLButtonElement;
     const nwVal = root.querySelector('#set-target-nw')?.value || '';
     const dateVal = root.querySelector('#set-target-date')?.value || '';
     try {
-      await setSettings({ targetNetWorth: nwVal, targetDate: dateVal });
+      await withCardGuard(
+        'goal',
+        btn,
+        () => setSettings({ targetNetWorth: nwVal, targetDate: dateVal }),
+        {
+          busyText: 'Saving...',
+        },
+      );
       showMsg('goal-msg', 'Saved', true);
     } catch (err) {
       showMsg('goal-msg', 'Error: ' + err.message, false);
@@ -896,9 +1029,9 @@ function attachGoalListeners(root: HTMLElement): void {
 
 // ── Reinvestment rules ───────────────────────────────────
 
-function renderRulesCard(settings: Settings): string {
-  // Extract rules from settings: rule_1_label, rule_1_value, rule_2_label, ...
-  const rules = [];
+/** Extract rules from settings: rule_1_label, rule_1_value, rule_2_label, ... */
+function rulesFromSettings(settings: Settings): { label: string; value: string }[] {
+  const rules: { label: string; value: string }[] = [];
   for (let i = 1; i <= 20; i++) {
     const label = settings[`rule_${i}_label`];
     const value = settings[`rule_${i}_value`];
@@ -906,6 +1039,11 @@ function renderRulesCard(settings: Settings): string {
       rules.push({ label: label || '', value: value || '' });
     }
   }
+  return rules;
+}
+
+function renderRulesCard(settings: Settings): string {
+  const rules = rulesFromSettings(settings);
 
   const rows = rules
     .map(
@@ -947,6 +1085,46 @@ function renderRulesCard(settings: Settings): string {
     </div>`;
 }
 
+/** Rebuild the full rule_N_label/rule_N_value key set from a rules array;
+ *  shared by Save and Delete so both persist identical key numbering. */
+async function persistRules(rules: { label: string; value: string }[]): Promise<void> {
+  const currentSettings = getSettings();
+  const updates: Record<string, string | null> = {};
+  for (const key of Object.keys(currentSettings)) {
+    if (/^rule_\d+_(label|value)$/.test(key)) updates[key] = null;
+  }
+  rules.forEach((r, i) => {
+    if (r.label || r.value) {
+      updates[`rule_${i + 1}_label`] = r.label;
+      updates[`rule_${i + 1}_value`] = r.value;
+    }
+  });
+  await setSettings(updates);
+}
+
+/** Shared rule-delete implementation. */
+async function deleteRule(root: HTMLElement, idx: number, btn: HTMLButtonElement): Promise<void> {
+  if (isCardBusy('rules')) return;
+  const rules = collectRules(root);
+  const ok = await confirmDialog({
+    title: 'Remove this rule?',
+    confirmLabel: 'Remove',
+    danger: true,
+  });
+  if (!ok) return;
+  rules.splice(idx, 1);
+  try {
+    await withCardGuard('rules', btn, () => persistRules(rules), {
+      busyText: 'Removing...',
+      keepDisabledOnSuccess: true,
+    });
+    rerenderRulesTable(root, rules);
+    showMsg('rules-msg', 'Removed', true);
+  } catch (err) {
+    showMsg('rules-msg', 'Error: ' + err.message, false);
+  }
+}
+
 function attachRulesListeners(root: HTMLElement): void {
   root.querySelector('#btn-add-rule')?.addEventListener('click', () => {
     const rules = collectRules(root);
@@ -955,24 +1133,10 @@ function attachRulesListeners(root: HTMLElement): void {
   });
 
   root.querySelector('#btn-save-rules')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-save-rules') as HTMLButtonElement;
     const rules = collectRules(root);
-    const currentSettings = getSettings();
-    const updates = {};
-    // Mark existing rule keys for deletion
-    for (const key of Object.keys(currentSettings)) {
-      if (/^rule_\d+_(label|value)$/.test(key)) {
-        updates[key] = null;
-      }
-    }
-    // Write new rules (overrides null for reused slots)
-    rules.forEach((r, i) => {
-      if (r.label || r.value) {
-        updates[`rule_${i + 1}_label`] = r.label;
-        updates[`rule_${i + 1}_value`] = r.value;
-      }
-    });
     try {
-      await setSettings(updates);
+      await withCardGuard('rules', btn, () => persistRules(rules), { busyText: 'Saving...' });
       showMsg('rules-msg', 'Saved', true);
     } catch (err) {
       showMsg('rules-msg', 'Error: ' + err.message, false);
@@ -980,18 +1144,9 @@ function attachRulesListeners(root: HTMLElement): void {
   });
 
   root.querySelectorAll('.js-del-rule').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const rules = collectRules(root);
-      const idx = parseInt(btn.dataset.idx);
-      const ok = await confirmDialog({
-        title: 'Remove this rule?',
-        confirmLabel: 'Remove',
-        danger: true,
-      });
-      if (!ok) return;
-      rules.splice(idx, 1);
-      rerenderRulesTable(root, rules);
-    });
+    btn.addEventListener('click', () =>
+      deleteRule(root, parseInt(btn.dataset.idx), btn as HTMLButtonElement),
+    );
   });
 }
 
@@ -1027,18 +1182,9 @@ function rerenderRulesTable(root: HTMLElement, rules: { label: string; value: st
     .join('');
   tbl.innerHTML = rows;
   tbl.querySelectorAll('.js-del-rule').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const r = collectRules(root);
-      const idx = parseInt(btn.dataset.idx);
-      const ok = await confirmDialog({
-        title: 'Remove this rule?',
-        confirmLabel: 'Remove',
-        danger: true,
-      });
-      if (!ok) return;
-      r.splice(idx, 1);
-      rerenderRulesTable(root, r);
-    });
+    btn.addEventListener('click', () =>
+      deleteRule(root, parseInt(btn.dataset.idx), btn as HTMLButtonElement),
+    );
   });
 }
 
@@ -1296,38 +1442,31 @@ function renderCacheCard(): string {
 
 function attachCacheListeners(root: HTMLElement): void {
   root.querySelector('#btn-force-resync')?.addEventListener('click', async () => {
-    const msgEl = root.querySelector('#resync-msg') as HTMLElement | null;
-    const C = resolvedT();
-    if (msgEl) {
-      msgEl.textContent = 'Resyncing…';
-      msgEl.style.color = C.ink2;
-    }
+    const btn = root.querySelector('#btn-force-resync') as HTMLButtonElement;
     try {
-      await (window as any).__forceFullResync();
-      if (msgEl) {
-        msgEl.textContent = 'Done ✓';
-        msgEl.style.color = C.pos;
-      }
+      await withCardGuard('cache', btn, () => (window as any).__forceFullResync(), {
+        busyText: 'Resyncing...',
+      });
+      showMsg('resync-msg', 'Done', true);
     } catch (err: any) {
-      if (msgEl) {
-        msgEl.textContent = 'Error: ' + (err?.message || 'unknown');
-        msgEl.style.color = C.neg;
-      }
+      showMsg('resync-msg', 'Error: ' + (err?.message || 'unknown'), false);
     }
   });
 }
 
 // ── Backup & restore ──────────────────────────────────────
 
-function renderBackupCard(): string {
-  const lastBackupAt = getSettings()['last_backup_at'];
+function backupNudgeHtml(settings: Settings): string {
+  const lastBackupAt = settings['last_backup_at'];
   const stale = isBackupStale(lastBackupAt);
+  if (!stale) return '';
   const nudgeText = !lastBackupAt
     ? 'No backup yet. Takes just a few seconds, worth doing now.'
     : "It's been over 30 days since your last backup. A quick export keeps your data safe.";
-  const nudgeHtml = stale
-    ? `<p class="note" style="margin-bottom:.75rem;color:var(--ink-2)">${nudgeText}</p>`
-    : '';
+  return `<p class="note" style="margin-bottom:.75rem;color:var(--ink-2)">${nudgeText}</p>`;
+}
+
+function renderBackupCard(): string {
   return `
     <div class="card card-collapsible" id="settings-card-backup" data-card-key="backup">
       <div class="card-header js-card-toggle">
@@ -1336,7 +1475,7 @@ function renderBackupCard(): string {
       </div>
       <div class="card-body">
         <p class="note" style="margin-bottom:.85rem">Export everything as one file you can keep somewhere safe. If anything happens to your Sheet, restore from that file.</p>
-        ${nudgeHtml}
+        <div id="settings-backup-nudge">${backupNudgeHtml(getSettings())}</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-outline btn-sm" id="btn-export-backup">Export backup</button>
           <button class="btn btn-ghost btn-sm" id="btn-restore-backup">Restore from file\u2026</button>
@@ -1348,22 +1487,16 @@ function renderBackupCard(): string {
 }
 
 function attachBackupListeners(root: HTMLElement): void {
-  const msg = () => document.getElementById('backup-msg');
   root.querySelector('#btn-export-backup')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-export-backup') as HTMLButtonElement;
     try {
-      await (window as any).__exportBackup();
-      repaintCard('backup');
-      const m = msg();
-      if (m) {
-        m.textContent = 'Backup downloaded.';
-        m.style.color = 'var(--pos)';
-      }
+      await withCardGuard('backup', btn, () => (window as any).__exportBackup(), {
+        busyText: 'Exporting...',
+      });
+      refreshBackupData();
+      showMsg('backup-msg', 'Backup downloaded.', true);
     } catch (err: any) {
-      const m = msg();
-      if (m) {
-        m.textContent = 'Export failed: ' + err.message;
-        m.style.color = 'var(--neg)';
-      }
+      showMsg('backup-msg', 'Export failed: ' + err.message, false);
     }
   });
   const fileInput = root.querySelector('#backup-file-input') as HTMLInputElement | null;
@@ -1372,19 +1505,23 @@ function attachBackupListeners(root: HTMLElement): void {
     const file = fileInput.files?.[0];
     fileInput.value = '';
     if (!file) return;
+    const btn = root.querySelector('#btn-restore-backup') as HTMLButtonElement;
     try {
-      const result = await (window as any).__restoreFromBackup(file);
-      const m = msg();
-      if (m) {
-        m.textContent = result === 'cancelled' ? 'Restore cancelled.' : 'Restore complete.';
-        m.style.color = result === 'cancelled' ? 'var(--ink-2)' : 'var(--pos)';
+      const result = await withCardGuard(
+        'backup',
+        btn,
+        () => (window as any).__restoreFromBackup(file),
+        {
+          busyText: 'Restoring...',
+        },
+      );
+      if (result === 'cancelled') {
+        showMsg('backup-msg', 'Restore cancelled.', false);
+      } else {
+        showMsg('backup-msg', 'Restore complete.', true);
       }
     } catch (err: any) {
-      const m = msg();
-      if (m) {
-        m.textContent = 'Restore failed: ' + err.message;
-        m.style.color = 'var(--neg)';
-      }
+      showMsg('backup-msg', 'Restore failed: ' + err.message, false);
     }
   });
 }

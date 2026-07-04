@@ -25,6 +25,7 @@ import {
   hydrateConfigFromCache,
   setSetting,
 } from './store/config';
+import type { ConfigChangeKind } from './store/config';
 import {
   buildBackup,
   backupFilename,
@@ -40,9 +41,9 @@ import { renderNW } from './views/networth';
 import { renderPortfolio } from './views/portfolio';
 import { renderDCA } from './views/contributions';
 import { renderDividends } from './views/dividends';
-import { renderSettings } from './views/settings';
+import { renderSettings, refreshSettingsAfterChange } from './views/settings';
 import { renderLog } from './views/log';
-import { fmtMon, showMsg as _showMsgBase, esc, currentMonth } from './utils';
+import { fmtMon, showMsg, reinjectPendingMsg, esc, currentMonth } from './utils';
 import { parseNum } from './csv';
 import { navHash, parseNavHash } from './nav';
 import {
@@ -163,19 +164,6 @@ function applyReadOnlyMode(): void {
 let _initialLoad = false;
 function isInitialLoad(): boolean {
   return _initialLoad;
-}
-
-// ── Message persistence across renderAll ─────────────────
-let _pendingMsg: { id: string; text: string; ok: boolean } | null = null;
-let _pendingMsgTimer: ReturnType<typeof setTimeout> | null = null;
-
-function showMsg(id: string, msg: string, ok: boolean): void {
-  _showMsgBase(id, msg, ok);
-  if (_pendingMsgTimer) clearTimeout(_pendingMsgTimer);
-  _pendingMsg = { id, text: msg, ok };
-  _pendingMsgTimer = setTimeout(() => {
-    _pendingMsg = null;
-  }, 5000);
 }
 
 // ── Boot ─────────────────────────────────────────────────
@@ -475,11 +463,11 @@ async function syncInBackground() {
     state.pd = await computeAggregatesWithCache(txs);
 
     // Setup config change listener
-    onConfigChange(async () => {
+    onConfigChange(async (changed) => {
       if (state.txs.length) {
         state.pd = await computeAggregatesWithCache(state.txs);
       }
-      renderAll();
+      renderAll(changed);
     });
 
     // Persist all data to cache for next boot
@@ -1272,7 +1260,7 @@ function renderPortfolioSubview(sub: string): void {
 }
 
 // ── Section dispatcher ────────────────────────────────────
-function renderSection(id: string): void {
+function renderSection(id: string, changed?: ConfigChangeKind): void {
   if (isInitialLoad()) {
     const section = document.getElementById(id);
     if (section && !section.querySelector('.section-loading')) {
@@ -1296,7 +1284,11 @@ function renderSection(id: string): void {
         renderPortfolioSubview(_portfolioSubview);
         break;
       case 'settings':
-        renderSettings();
+        if (changed) {
+          refreshSettingsAfterChange(changed);
+        } else {
+          renderSettings();
+        }
         break;
       case 'log':
         renderLog({
@@ -1324,21 +1316,15 @@ function renderSection(id: string): void {
 }
 
 // ── Render all ────────────────────────────────────────────
-function renderAll() {
+function renderAll(changed?: ConfigChangeKind) {
   updateSub();
   renderSnapForm(); // cheap, keep eager (Log form fields)
   renderSetupBanner(); // update onboarding checklist
   _dirty.clear();
   for (const s of ALL_SECTIONS) _dirty.add(s);
   _dirty.delete(_activeSection);
-  renderSection(_activeSection);
+  renderSection(_activeSection, changed);
   applyReadOnlyMode();
   // Re-inject transient feedback message if still within its display window
-  if (_pendingMsg) {
-    const el = document.getElementById(_pendingMsg.id);
-    if (el) {
-      el.textContent = _pendingMsg.text;
-      el.style.color = _pendingMsg.ok ? 'var(--pos)' : 'var(--neg)';
-    }
-  }
+  reinjectPendingMsg();
 }
