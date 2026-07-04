@@ -43,7 +43,7 @@ vi.mock('../model/contributions', () => ({
 }));
 
 vi.mock('../utils', async (importOriginal) => {
-  const actual = await importOriginal();
+  const actual = await importOriginal<typeof import('../utils')>();
   return {
     ...actual,
     showMsg: vi.fn(),
