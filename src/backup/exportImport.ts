@@ -21,9 +21,9 @@ export interface BackupFile {
 type Migration = (data: BackupFile['data']) => BackupFile['data'];
 
 /** One entry per breaking change to a canonical type, keyed by the version
- *  migrating FROM. Empty today - schema version 1 is the only one that has
+ *  migrating FROM. Empty today: schema version 1 is the only one that has
  *  ever shipped. Add an entry (and bump BACKUP_SCHEMA_VERSION) only for a
- *  rename/removal/meaning-change - never for a purely additive field,
+ *  rename/removal/meaning-change, never for a purely additive field,
  *  which old backups already restore correctly via each parser's existing
  *  default-handling. */
 export const MIGRATIONS: Record<number, Migration> = {};

@@ -1323,7 +1323,7 @@ function renderBackupCard(): string {
   const lastBackupAt = getSettings()['last_backup_at'];
   const stale = isBackupStale(lastBackupAt);
   const nudgeText = !lastBackupAt
-    ? 'No backup yet - takes just a few seconds, worth doing now.'
+    ? 'No backup yet. Takes just a few seconds, worth doing now.'
     : "It's been over 30 days since your last backup. A quick export keeps your data safe.";
   const nudgeHtml = stale
     ? `<p class="note" style="margin-bottom:.75rem;color:var(--ink-2)">${nudgeText}</p>`

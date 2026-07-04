@@ -689,7 +689,7 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
           await setCollapseState(parsed);
         }
       } catch {
-        /* malformed - leave current collapse state as-is */
+        /* malformed; leave current collapse state as-is */
       }
     }
 
