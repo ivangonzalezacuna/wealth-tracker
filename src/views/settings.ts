@@ -750,70 +750,71 @@ function attachHoldingListeners(root: HTMLElement): void {
     rerenderHoldingsTable(root, holds);
   });
 
-  root.querySelector('#btn-autofill-holds')?.addEventListener('click', async (e) => {
-    const btn = e.currentTarget as HTMLButtonElement;
-    btn.disabled = true;
-    const origText = btn.textContent || '';
-    btn.innerHTML = '<span class="spinner"></span> Loading\u2026';
+  root.querySelector('#btn-autofill-holds')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-autofill-holds') as HTMLButtonElement;
     try {
-      const txs = await loadTransactions();
-      const buys = txs.filter((t) => t.type === 'BUY' && (t.isin || t.symbol));
-      if (buys.length === 0) {
-        showMsg('holds-msg', 'No BUY transactions found. Import a CSV first.', false);
-        return;
-      }
-      // Determine cutoff: ISINs with buys in the last 3 months are "active"
-      const latestDate = buys.reduce((max, t) => (t.date > max ? t.date : max), '');
-      const cutoff = subtractMonths(latestDate, 3);
-      // Extract unique ISIN→name mapping and track latest tx date per ISIN
-      const isinMap = {};
-      const isinLatest = {};
-      for (const tx of buys) {
-        const sym = tx.isin || tx.symbol;
-        if (!isinMap[sym]) {
-          isinMap[sym] = tx.name || '';
-        }
-        if (!isinLatest[sym] || tx.date > isinLatest[sym]) {
-          isinLatest[sym] = tx.date;
-        }
-      }
-      // Merge with existing holdings (skip already-configured ISINs)
-      const holds = collectHoldings(root);
-      const existing = new Set(holds.map((h) => h.isin));
-      let added = 0;
-      for (const [isin, name] of Object.entries(isinMap)) {
-        if (existing.has(isin)) continue;
-        const parsed = parseHoldingName(name, isin);
-        const isActive = (isinLatest[isin] || '') >= cutoff;
-        holds.push({
-          isin,
-          ticker: parsed.ticker,
-          name: '',
-          color: randomColor(),
-          acc: parsed.acc,
-          active: isActive,
-          contribAmount: 0,
-          contribInterval: 'weekly' as ContribInterval,
-          assetClass: parsed.assetClass,
-          region: parsed.region,
-          foldInto: '',
-          order: holds.length + 1,
-        });
-        added++;
-      }
-      rerenderHoldingsTable(root, holds);
-      showMsg(
-        'holds-msg',
-        added > 0
-          ? `Added ${added} holding(s) from transactions. Review and save.`
-          : 'All transaction ISINs already configured.',
-        true,
+      await withCardGuard(
+        'holdings',
+        btn,
+        async () => {
+          const txs = await loadTransactions();
+          const buys = txs.filter((t) => t.type === 'BUY' && (t.isin || t.symbol));
+          if (buys.length === 0) {
+            showMsg('holds-msg', 'No BUY transactions found. Import a CSV first.', false);
+            return;
+          }
+          // Determine cutoff: ISINs with buys in the last 3 months are "active"
+          const latestDate = buys.reduce((max, t) => (t.date > max ? t.date : max), '');
+          const cutoff = subtractMonths(latestDate, 3);
+          // Extract unique ISIN->name mapping and track latest tx date per ISIN
+          const isinMap = {};
+          const isinLatest = {};
+          for (const tx of buys) {
+            const sym = tx.isin || tx.symbol;
+            if (!isinMap[sym]) {
+              isinMap[sym] = tx.name || '';
+            }
+            if (!isinLatest[sym] || tx.date > isinLatest[sym]) {
+              isinLatest[sym] = tx.date;
+            }
+          }
+          // Merge with existing holdings (skip already-configured ISINs)
+          const holds = collectHoldings(root);
+          const existing = new Set(holds.map((h) => h.isin));
+          let added = 0;
+          for (const [isin, name] of Object.entries(isinMap)) {
+            if (existing.has(isin)) continue;
+            const parsed = parseHoldingName(name, isin);
+            const isActive = (isinLatest[isin] || '') >= cutoff;
+            holds.push({
+              isin,
+              ticker: parsed.ticker,
+              name: '',
+              color: randomColor(),
+              acc: parsed.acc,
+              active: isActive,
+              contribAmount: 0,
+              contribInterval: 'weekly' as ContribInterval,
+              assetClass: parsed.assetClass,
+              region: parsed.region,
+              foldInto: '',
+              order: holds.length + 1,
+            });
+            added++;
+          }
+          rerenderHoldingsTable(root, holds);
+          showMsg(
+            'holds-msg',
+            added > 0
+              ? `Added ${added} holding(s) from transactions. Review and save.`
+              : 'All transaction ISINs already configured.',
+            true,
+          );
+        },
+        { busyText: 'Loading...' },
       );
     } catch (err) {
       showMsg('holds-msg', 'Error: ' + err.message, false);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = origText;
     }
   });
 
