@@ -18,7 +18,7 @@ const BASE = 'https://sheets.googleapis.com/v4/spreadsheets';
  * mitigation (OWASP CSV Injection guidance) and is inert everywhere
  * else: Sheets/Excel treat a leading apostrophe as "force text", it is
  * never shown to the user.
- * Only strings are touched — numbers/booleans (all real amounts in this
+ * Only strings are touched; numbers/booleans (all real amounts in this
  * app) pass through unchanged, so this can never corrupt a numeric cell.
  */
 export function sanitizeForSheets(v: string | number | boolean): string | number | boolean {

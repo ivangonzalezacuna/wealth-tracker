@@ -11,6 +11,8 @@ import {
   getCostBasisMethod,
   getTargetNetWorth,
   getTargetDate,
+  getRetiredAccountIds,
+  retireAccountIds,
 } from '../store/config';
 import { loadTransactions } from '../sheets/transactions';
 import { validatePrimaryInvestment } from '../model/accounts';
@@ -23,6 +25,7 @@ import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { confirmDialog } from '../ui/confirmDialog';
 import { isSignedIn } from '../auth/google';
+import { isBackupStale } from '../backup/exportImport';
 
 /** Build <option> HTML for an interval <select>, marking `selected` the matching value. */
 function intervalOptionsHtml(selected: ContribInterval): string {
@@ -291,9 +294,14 @@ function attachAccountListeners(root: HTMLElement): void {
       return;
     }
     // Auto-generate IDs for accounts that don't have one
+    const taken = new Set([
+      ...accounts.filter((a) => a.id).map((a) => a.id),
+      ...getRetiredAccountIds(),
+    ]);
     for (const a of accounts) {
       if (!a.id) {
-        a.id = generateId(a.label);
+        a.id = generateId(a.label, taken);
+        taken.add(a.id);
       }
     }
     try {
@@ -311,11 +319,12 @@ function attachAccountListeners(root: HTMLElement): void {
       const a = accounts[idx];
       const ok = await confirmDialog({
         title: `Remove ${esc(a?.label || 'this account')}?`,
-        body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected.',
+        body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected, and its old data column stays reserved so a future account never accidentally reuses it.',
         confirmLabel: 'Remove',
         danger: true,
       });
       if (!ok) return;
+      if (a?.id) await retireAccountIds([a.id]);
       accounts.splice(idx, 1);
       rerenderAccountsTable(root, accounts);
     });
@@ -363,11 +372,12 @@ function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
       const a = accs[idx];
       const ok = await confirmDialog({
         title: `Remove ${esc(a?.label || 'this account')}?`,
-        body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected.',
+        body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected, and its old data column stays reserved so a future account never accidentally reuses it.',
         confirmLabel: 'Remove',
         danger: true,
       });
       if (!ok) return;
+      if (a?.id) await retireAccountIds([a.id]);
       accs.splice(idx, 1);
       rerenderAccountsTable(root, accs);
     });
@@ -1117,13 +1127,22 @@ function esc(s: string | undefined | null): string {
     .replace(/>/g, '&gt;');
 }
 
-/** Generate a stable snake_case ID from a label. */
-function generateId(label: string): string {
+/** Generate a stable snake_case slug from a label. */
+export function slugify(label: string): string {
   return label
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_|_$/g, '')
     .slice(0, 30);
+}
+
+/** Generate a collision-free ID from a label, avoiding any id in `taken`. */
+export function generateId(label: string, taken: Set<string>): string {
+  const base = slugify(label);
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base}_${n}`)) n++;
+  return `${base}_${n}`;
 }
 
 /** Generate a random muted hex color for a new holding. */
@@ -1301,6 +1320,14 @@ function attachCacheListeners(root: HTMLElement): void {
 // ── Backup & restore ──────────────────────────────────────
 
 function renderBackupCard(): string {
+  const lastBackupAt = getSettings()['last_backup_at'];
+  const stale = isBackupStale(lastBackupAt);
+  const nudgeText = !lastBackupAt
+    ? 'No backup yet. Takes just a few seconds, worth doing now.'
+    : "It's been over 30 days since your last backup. A quick export keeps your data safe.";
+  const nudgeHtml = stale
+    ? `<p class="note" style="margin-bottom:.75rem;color:var(--ink-2)">${nudgeText}</p>`
+    : '';
   return `
     <div class="card card-collapsible" id="settings-card-backup" data-card-key="backup">
       <div class="card-header js-card-toggle">
@@ -1309,6 +1336,7 @@ function renderBackupCard(): string {
       </div>
       <div class="card-body">
         <p class="note" style="margin-bottom:.85rem">Export everything as one file you can keep somewhere safe. If anything happens to your Sheet, restore from that file.</p>
+        ${nudgeHtml}
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-outline btn-sm" id="btn-export-backup">Export backup</button>
           <button class="btn btn-ghost btn-sm" id="btn-restore-backup">Restore from file\u2026</button>
@@ -1324,6 +1352,7 @@ function attachBackupListeners(root: HTMLElement): void {
   root.querySelector('#btn-export-backup')?.addEventListener('click', async () => {
     try {
       await (window as any).__exportBackup();
+      repaintCard('backup');
       const m = msg();
       if (m) {
         m.textContent = 'Backup downloaded.';

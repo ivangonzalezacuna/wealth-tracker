@@ -23,12 +23,14 @@ import {
   setHoldings,
   replaceSettings,
   hydrateConfigFromCache,
+  setSetting,
 } from './store/config';
 import {
   buildBackup,
   backupFilename,
   validateBackup,
   summarizeBackup,
+  migrateBackup,
 } from './backup/exportImport';
 import { getSetupState } from './model/setup';
 import { computePD } from './portfolio';
@@ -624,6 +626,7 @@ export async function forceFullResync() {
 
 // ── Backup export ─────────────────────────────────────────
 export async function exportBackup(): Promise<void> {
+  await setSetting('last_backup_at', new Date().toISOString());
   const backup = buildBackup({
     accounts: getAccounts(),
     holdings: getHoldings(),
@@ -657,8 +660,9 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
   } catch {
     throw new Error('That file is not valid JSON.');
   }
-  const backup = validateBackup(raw);
-  if (!backup) throw new Error('That file is not a recognized Wealth Tracker backup.');
+  const parsed = validateBackup(raw);
+  if (!parsed) throw new Error('That file is not a recognized Wealth Tracker backup.');
+  const backup = migrateBackup(parsed);
 
   const ok = await confirmDialog({
     title: 'Restore from backup?',
@@ -685,7 +689,7 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
           await setCollapseState(parsed);
         }
       } catch {
-        /* malformed — leave current collapse state as-is */
+        /* malformed; leave current collapse state as-is */
       }
     }
 
@@ -714,6 +718,7 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
         rowCount: transactions.length,
       }),
     ]);
+    await setSetting('last_backup_at', new Date().toISOString());
     renderAll();
     return 'done';
   } finally {

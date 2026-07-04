@@ -48,6 +48,8 @@ vi.mock('../store/config', () => ({
   setHoldings: vi.fn(async () => {}),
   setSettings: vi.fn(async () => {}),
   setSetting: vi.fn(async () => {}),
+  getRetiredAccountIds: () => [],
+  retireAccountIds: vi.fn(async () => {}),
 }));
 
 vi.mock('../sheets/transactions', () => ({
@@ -93,8 +95,13 @@ vi.mock('../auth/google', () => ({
   isSignedIn: () => true,
 }));
 
-import { renderSettings } from './settings';
+vi.mock('../backup/exportImport', () => ({
+  isBackupStale: vi.fn(() => true),
+}));
+
+import { renderSettings, generateId } from './settings';
 import { isCollapsed } from '../ui/collapseState';
+import { isBackupStale } from '../backup/exportImport';
 
 // ── Test setup ──────────────────────────────────────────────────
 
@@ -185,5 +192,70 @@ describe('Settings scoped re-render (repaintCard)', () => {
     expect(keys).toContain('goal');
     expect(keys).toContain('rules');
     expect(keys).toContain('cache');
+  });
+});
+
+describe('generateId (collision-free)', () => {
+  it('no collision → plain slug', () => {
+    const taken = new Set<string>();
+    expect(generateId('My Account', taken)).toBe('my_account');
+  });
+
+  it('one collision → appends _2', () => {
+    const taken = new Set(['my_account']);
+    expect(generateId('My Account', taken)).toBe('my_account_2');
+  });
+
+  it('two collisions → appends _3', () => {
+    const taken = new Set(['my_account', 'my_account_2']);
+    expect(generateId('My Account', taken)).toBe('my_account_3');
+  });
+
+  it('two new accounts same label in one save → distinct ids', () => {
+    const taken = new Set<string>();
+    const id1 = generateId('Savings', taken);
+    taken.add(id1);
+    const id2 = generateId('Savings', taken);
+    taken.add(id2);
+    expect(id1).toBe('savings');
+    expect(id2).toBe('savings_2');
+    expect(id1).not.toBe(id2);
+  });
+
+  it('retired id in taken → new account gets a different id', () => {
+    const taken = new Set(['old_account']);
+    expect(generateId('Old Account', taken)).toBe('old_account_2');
+  });
+
+  it('strips special characters and limits to 30 chars', () => {
+    const taken = new Set<string>();
+    expect(generateId('Hello World! @#$%', taken)).toBe('hello_world');
+    const longLabel = 'A'.repeat(50);
+    const result = generateId(longLabel, taken);
+    expect(result.length).toBeLessThanOrEqual(30);
+  });
+});
+
+describe('Backup card nudge', () => {
+  beforeEach(() => {
+    _collapseState = {};
+    setupDOM();
+  });
+
+  it('shows reminder text when backup is stale', () => {
+    (isBackupStale as ReturnType<typeof vi.fn>).mockReturnValue(true);
+    renderSettings();
+    const backupCard = document.getElementById('settings-card-backup');
+    expect(backupCard).not.toBeNull();
+    expect(backupCard!.textContent).toContain('No backup yet');
+  });
+
+  it('does not show reminder when backup is fresh', () => {
+    (isBackupStale as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    renderSettings();
+    const backupCard = document.getElementById('settings-card-backup');
+    expect(backupCard).not.toBeNull();
+    expect(backupCard!.textContent).not.toContain('No backup yet');
+    expect(backupCard!.textContent).not.toContain('over 30 days');
   });
 });
