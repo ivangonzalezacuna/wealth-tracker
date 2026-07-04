@@ -41,7 +41,8 @@ let _accounts: Account[] = [];
 let _holdings: Holding[] = [];
 let _settings: Settings = {};
 let _loaded = false;
-let _onChange: (() => void) | null = null;
+export type ConfigChangeKind = 'accounts' | 'holdings' | 'settings';
+let _onChange: ((changed: ConfigChangeKind) => void) | null = null;
 
 // ── Public accessors (read at render time) ───────────────
 
@@ -126,7 +127,7 @@ export function getCostBasisMethod(): 'fifo' | 'avgco' {
 }
 
 // ── Register re-render callback ──────────────────────────
-export function onConfigChange(fn: () => void): void {
+export function onConfigChange(fn: (changed: ConfigChangeKind) => void): void {
   _onChange = fn;
 }
 
@@ -208,7 +209,7 @@ export async function setAccounts(accounts: Account[]): Promise<void> {
     ]);
     await writeRange(`${TABS.ACCOUNTS}!A1`, [hdr, ...rows]);
     await logChange('Accounts', `updated ${accounts.length} accounts`);
-    if (_onChange) _onChange();
+    if (_onChange) _onChange('accounts');
   } catch (err) {
     _accounts = previous;
     throw err;
@@ -250,7 +251,7 @@ export async function setHoldings(holdings: Holding[]): Promise<void> {
     ]);
     await writeRange(`${TABS.HOLDINGS}!A1`, [hdr, ...rows]);
     await logChange('Holdings', `updated ${holdings.length} holdings`);
-    if (_onChange) _onChange();
+    if (_onChange) _onChange('holdings');
   } catch (err) {
     _holdings = previous;
     throw err;
@@ -263,7 +264,7 @@ export async function setSetting(key: string, value: string): Promise<void> {
   try {
     await persistSettings();
     await logChange('Settings', `${key} = ${value}`);
-    if (_onChange) _onChange();
+    if (_onChange) _onChange('settings');
   } catch (err) {
     _settings = previous;
     throw err;
@@ -284,7 +285,7 @@ export async function setSettings(
   try {
     await persistSettings();
     await logChange('Settings', `updated ${Object.keys(settings).join(', ')}`);
-    if (_onChange) _onChange();
+    if (_onChange) _onChange('settings');
   } catch (err) {
     _settings = previous;
     throw err;
@@ -298,7 +299,7 @@ export async function replaceSettings(settings: Settings): Promise<void> {
   try {
     await persistSettings();
     await logChange('Settings', 'restored from backup');
-    if (_onChange) _onChange();
+    if (_onChange) _onChange('settings');
   } catch (err) {
     _settings = previous;
     throw err;

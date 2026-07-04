@@ -14,13 +14,13 @@ import {
   getRetiredAccountIds,
   retireAccountIds,
 } from '../store/config';
+import type { ConfigChangeKind } from '../store/config';
 import { loadTransactions } from '../sheets/transactions';
 import { validatePrimaryInvestment } from '../model/accounts';
 import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { showMsg, reinjectPendingMsg, withButtonGuard } from '../utils';
 import type { Account, Holding, Settings, ContribInterval } from '../types';
-import { resolvedT } from '../theme';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { confirmDialog } from '../ui/confirmDialog';
@@ -183,6 +183,60 @@ export function renderSettings(): void {
 
   attachInfoTips(el);
   reinjectPendingMsg();
+}
+
+// ── Data-only refresh functions ───────────────────────────
+/** Each rewrites exactly the data region inside an already-mounted card and
+ *  nothing else - never the buttons, never the message span. */
+
+function refreshAccountsData(): void {
+  const root = document.getElementById('settings-card-accounts');
+  if (root) rerenderAccountsTable(root, getAccounts());
+}
+
+function refreshHoldingsData(): void {
+  const root = document.getElementById('settings-card-holdings');
+  if (root) rerenderHoldingsTable(root, getHoldings());
+}
+
+function refreshRulesData(): void {
+  const root = document.getElementById('settings-card-rules');
+  if (root) rerenderRulesTable(root, rulesFromSettings(getSettings()));
+}
+
+function refreshCostBasisData(): void {
+  const el = document.getElementById('settings-costbasis-fields');
+  if (el) el.innerHTML = costBasisFieldsHtml(getCostBasisMethod());
+}
+
+function refreshGoalData(): void {
+  const el = document.getElementById('settings-goal-fields');
+  if (el) el.innerHTML = goalFieldsHtml(getSettings());
+}
+
+function refreshBackupData(): void {
+  const el = document.getElementById('settings-backup-nudge');
+  if (el) el.innerHTML = backupNudgeHtml(getSettings());
+}
+
+/** Dispatch a config-change notification to the narrowest correct refresh.
+ *  'settings' backs cost-basis, goal, rules, and backup's nudge (all
+ *  confirmed via source to read getSettings()); accounts/holdings are
+ *  excluded, confirmed not to. */
+export function refreshSettingsAfterChange(changed: ConfigChangeKind): void {
+  if (!document.getElementById('settings-content')) return;
+  if (changed === 'accounts') {
+    refreshAccountsData();
+    return;
+  }
+  if (changed === 'holdings') {
+    refreshHoldingsData();
+    return;
+  }
+  refreshRulesData();
+  refreshCostBasisData();
+  refreshGoalData();
+  refreshBackupData();
 }
 
 // ── Accounts ──────────────────────────────────────────────
@@ -421,6 +475,7 @@ function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
   attachColorPickerSync(tbl);
   attachPrimaryToggleListeners(tbl);
   attachItemCollapseListeners(tbl);
+  attachInfoTips(tbl);
   tbl.querySelectorAll('.js-del-acct').forEach((btn) => {
     btn.addEventListener('click', () =>
       deleteAccount(root, parseInt(btn.dataset.idx), btn as HTMLButtonElement),
@@ -838,6 +893,7 @@ function rerenderHoldingsTable(root: HTMLElement, holdings: Holding[]): void {
   }
   attachColorPickerSync(tbl);
   attachItemCollapseListeners(tbl);
+  attachInfoTips(tbl);
   tbl.querySelectorAll('.js-del-hold').forEach((btn) => {
     btn.addEventListener('click', () =>
       deleteHolding(root, parseInt(btn.dataset.idx), btn as HTMLButtonElement),
@@ -846,6 +902,20 @@ function rerenderHoldingsTable(root: HTMLElement, holdings: Holding[]): void {
 }
 
 // ── Cost-basis method ───────────────────────────────────
+
+function costBasisFieldsHtml(current: string): string {
+  return `
+    <div class="form-grid" style="max-width:500px">
+      <div class="form-group">
+        <label class="form-label">Method</label>
+        <select class="form-input" id="set-cost-basis-method">
+          <option value="avgco" ${current === 'avgco' ? 'selected' : ''}>Average cost</option>
+          <option value="fifo" ${current === 'fifo' ? 'selected' : ''}>FIFO (first in, first out)</option>
+        </select>
+        <span class="note">FIFO matches the German Abgeltungsteuer ordering rule. Average cost is simpler but may diverge on partial sells.</span>
+      </div>
+    </div>`;
+}
 
 function renderCostBasisCard(settings: Settings): string {
   const current = getCostBasisMethod();
@@ -858,16 +928,7 @@ function renderCostBasisCard(settings: Settings): string {
       </div>
       <div class="card-body">
         <p class="note" style="margin-bottom:.75rem">Choose how realized gains are calculated when you sell shares.</p>
-        <div class="form-grid" style="max-width:500px">
-          <div class="form-group">
-            <label class="form-label">Method</label>
-            <select class="form-input" id="set-cost-basis-method">
-              <option value="avgco" ${current === 'avgco' ? 'selected' : ''}>Average cost</option>
-              <option value="fifo" ${current === 'fifo' ? 'selected' : ''}>FIFO (first in, first out)</option>
-            </select>
-            <span class="note">FIFO matches the German Abgeltungsteuer ordering rule. Average cost is simpler but may diverge on partial sells.</span>
-          </div>
-        </div>
+        <div id="settings-costbasis-fields">${costBasisFieldsHtml(current)}</div>
         <div style="display:flex;gap:10px;margin-top:.75rem">
           <button class="btn btn-primary btn-sm" id="btn-save-cost-basis">Save cost-basis method</button>
           <span id="costbasis-msg" style="font-size:12px;line-height:28px"></span>
@@ -878,9 +939,12 @@ function renderCostBasisCard(settings: Settings): string {
 
 function attachCostBasisListeners(root: HTMLElement): void {
   root.querySelector('#btn-save-cost-basis')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-save-cost-basis') as HTMLButtonElement;
     const method = root.querySelector('#set-cost-basis-method')?.value || 'avgco';
     try {
-      await setSetting('costBasisMethod', method);
+      await withCardGuard('cost-basis', btn, () => setSetting('costBasisMethod', method), {
+        busyText: 'Saving...',
+      });
       showMsg('costbasis-msg', 'Saved', true);
     } catch (err) {
       showMsg('costbasis-msg', 'Error: ' + err.message, false);
@@ -890,10 +954,25 @@ function attachCostBasisListeners(root: HTMLElement): void {
 
 // ── Goal / target net worth ──────────────────────────────
 
-function renderGoalCard(settings: Settings): string {
+function goalFieldsHtml(settings: Settings): string {
   const targetNW = settings.targetNetWorth || '';
   const targetDate = settings.targetDate || '';
+  return `
+    <div class="form-grid" style="max-width:500px">
+      <div class="form-group">
+        <label class="form-label">Target net worth (\u20AC)</label>
+        <input class="form-input" id="set-target-nw" type="text" inputmode="decimal" value="${esc(targetNW)}" placeholder="e.g. 100000 or 100.000">
+        <span class="note">Supports German format (100.000,00) or plain numbers.</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Target date (optional)</label>
+        <input class="form-input" id="set-target-date" type="month" value="${esc(targetDate)}">
+        <span class="note">Leave empty for ETA-only mode (no deadline).</span>
+      </div>
+    </div>`;
+}
 
+function renderGoalCard(settings: Settings): string {
   return `
     <div class="card card-collapsible" id="settings-card-goal" data-card-key="goal">
       <div class="card-header js-card-toggle">
@@ -902,18 +981,7 @@ function renderGoalCard(settings: Settings): string {
       </div>
       <div class="card-body">
         <p class="note" style="margin-bottom:.75rem">Set a net-worth target to track progress on the Net Worth tab. Optionally set a target date to see if you're on track.</p>
-        <div class="form-grid" style="max-width:500px">
-          <div class="form-group">
-            <label class="form-label">Target net worth (\u20AC)</label>
-            <input class="form-input" id="set-target-nw" type="text" inputmode="decimal" value="${esc(targetNW)}" placeholder="e.g. 100000 or 100.000">
-            <span class="note">Supports German format (100.000,00) or plain numbers.</span>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Target date (optional)</label>
-            <input class="form-input" id="set-target-date" type="month" value="${esc(targetDate)}">
-            <span class="note">Leave empty for ETA-only mode (no deadline).</span>
-          </div>
-        </div>
+        <div id="settings-goal-fields">${goalFieldsHtml(settings)}</div>
         <div style="display:flex;gap:10px;margin-top:.75rem">
           <button class="btn btn-primary btn-sm" id="btn-save-goal">Save goal</button>
           <span id="goal-msg" style="font-size:12px;line-height:28px"></span>
@@ -924,10 +992,18 @@ function renderGoalCard(settings: Settings): string {
 
 function attachGoalListeners(root: HTMLElement): void {
   root.querySelector('#btn-save-goal')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-save-goal') as HTMLButtonElement;
     const nwVal = root.querySelector('#set-target-nw')?.value || '';
     const dateVal = root.querySelector('#set-target-date')?.value || '';
     try {
-      await setSettings({ targetNetWorth: nwVal, targetDate: dateVal });
+      await withCardGuard(
+        'goal',
+        btn,
+        () => setSettings({ targetNetWorth: nwVal, targetDate: dateVal }),
+        {
+          busyText: 'Saving...',
+        },
+      );
       showMsg('goal-msg', 'Saved', true);
     } catch (err) {
       showMsg('goal-msg', 'Error: ' + err.message, false);
@@ -937,9 +1013,9 @@ function attachGoalListeners(root: HTMLElement): void {
 
 // ── Reinvestment rules ───────────────────────────────────
 
-function renderRulesCard(settings: Settings): string {
-  // Extract rules from settings: rule_1_label, rule_1_value, rule_2_label, ...
-  const rules = [];
+/** Extract rules from settings: rule_1_label, rule_1_value, rule_2_label, ... */
+function rulesFromSettings(settings: Settings): { label: string; value: string }[] {
+  const rules: { label: string; value: string }[] = [];
   for (let i = 1; i <= 20; i++) {
     const label = settings[`rule_${i}_label`];
     const value = settings[`rule_${i}_value`];
@@ -947,6 +1023,11 @@ function renderRulesCard(settings: Settings): string {
       rules.push({ label: label || '', value: value || '' });
     }
   }
+  return rules;
+}
+
+function renderRulesCard(settings: Settings): string {
+  const rules = rulesFromSettings(settings);
 
   const rows = rules
     .map(
@@ -1345,38 +1426,31 @@ function renderCacheCard(): string {
 
 function attachCacheListeners(root: HTMLElement): void {
   root.querySelector('#btn-force-resync')?.addEventListener('click', async () => {
-    const msgEl = root.querySelector('#resync-msg') as HTMLElement | null;
-    const C = resolvedT();
-    if (msgEl) {
-      msgEl.textContent = 'Resyncing…';
-      msgEl.style.color = C.ink2;
-    }
+    const btn = root.querySelector('#btn-force-resync') as HTMLButtonElement;
     try {
-      await (window as any).__forceFullResync();
-      if (msgEl) {
-        msgEl.textContent = 'Done ✓';
-        msgEl.style.color = C.pos;
-      }
+      await withCardGuard('cache', btn, () => (window as any).__forceFullResync(), {
+        busyText: 'Resyncing...',
+      });
+      showMsg('resync-msg', 'Done', true);
     } catch (err: any) {
-      if (msgEl) {
-        msgEl.textContent = 'Error: ' + (err?.message || 'unknown');
-        msgEl.style.color = C.neg;
-      }
+      showMsg('resync-msg', 'Error: ' + (err?.message || 'unknown'), false);
     }
   });
 }
 
 // ── Backup & restore ──────────────────────────────────────
 
-function renderBackupCard(): string {
-  const lastBackupAt = getSettings()['last_backup_at'];
+function backupNudgeHtml(settings: Settings): string {
+  const lastBackupAt = settings['last_backup_at'];
   const stale = isBackupStale(lastBackupAt);
+  if (!stale) return '';
   const nudgeText = !lastBackupAt
     ? 'No backup yet. Takes just a few seconds, worth doing now.'
     : "It's been over 30 days since your last backup. A quick export keeps your data safe.";
-  const nudgeHtml = stale
-    ? `<p class="note" style="margin-bottom:.75rem;color:var(--ink-2)">${nudgeText}</p>`
-    : '';
+  return `<p class="note" style="margin-bottom:.75rem;color:var(--ink-2)">${nudgeText}</p>`;
+}
+
+function renderBackupCard(): string {
   return `
     <div class="card card-collapsible" id="settings-card-backup" data-card-key="backup">
       <div class="card-header js-card-toggle">
@@ -1385,7 +1459,7 @@ function renderBackupCard(): string {
       </div>
       <div class="card-body">
         <p class="note" style="margin-bottom:.85rem">Export everything as one file you can keep somewhere safe. If anything happens to your Sheet, restore from that file.</p>
-        ${nudgeHtml}
+        <div id="settings-backup-nudge">${backupNudgeHtml(getSettings())}</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-outline btn-sm" id="btn-export-backup">Export backup</button>
           <button class="btn btn-ghost btn-sm" id="btn-restore-backup">Restore from file\u2026</button>
@@ -1397,22 +1471,16 @@ function renderBackupCard(): string {
 }
 
 function attachBackupListeners(root: HTMLElement): void {
-  const msg = () => document.getElementById('backup-msg');
   root.querySelector('#btn-export-backup')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-export-backup') as HTMLButtonElement;
     try {
-      await (window as any).__exportBackup();
-      repaintCard('backup');
-      const m = msg();
-      if (m) {
-        m.textContent = 'Backup downloaded.';
-        m.style.color = 'var(--pos)';
-      }
+      await withCardGuard('backup', btn, () => (window as any).__exportBackup(), {
+        busyText: 'Exporting...',
+      });
+      refreshBackupData();
+      showMsg('backup-msg', 'Backup downloaded.', true);
     } catch (err: any) {
-      const m = msg();
-      if (m) {
-        m.textContent = 'Export failed: ' + err.message;
-        m.style.color = 'var(--neg)';
-      }
+      showMsg('backup-msg', 'Export failed: ' + err.message, false);
     }
   });
   const fileInput = root.querySelector('#backup-file-input') as HTMLInputElement | null;
@@ -1421,19 +1489,23 @@ function attachBackupListeners(root: HTMLElement): void {
     const file = fileInput.files?.[0];
     fileInput.value = '';
     if (!file) return;
+    const btn = root.querySelector('#btn-restore-backup') as HTMLButtonElement;
     try {
-      const result = await (window as any).__restoreFromBackup(file);
-      const m = msg();
-      if (m) {
-        m.textContent = result === 'cancelled' ? 'Restore cancelled.' : 'Restore complete.';
-        m.style.color = result === 'cancelled' ? 'var(--ink-2)' : 'var(--pos)';
+      const result = await withCardGuard(
+        'backup',
+        btn,
+        () => (window as any).__restoreFromBackup(file),
+        {
+          busyText: 'Restoring...',
+        },
+      );
+      if (result === 'cancelled') {
+        showMsg('backup-msg', 'Restore cancelled.', false);
+      } else {
+        showMsg('backup-msg', 'Restore complete.', true);
       }
     } catch (err: any) {
-      const m = msg();
-      if (m) {
-        m.textContent = 'Restore failed: ' + err.message;
-        m.style.color = 'var(--neg)';
-      }
+      showMsg('backup-msg', 'Restore failed: ' + err.message, false);
     }
   });
 }
