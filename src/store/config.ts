@@ -1,6 +1,6 @@
 /** Runtime config store - loads Accounts, Holdings, and Settings from Google Sheets. */
 
-import { readRange, writeRange, appendRows, ensureSheets } from '../sheets/api';
+import { readRange, writeRange, clearRange, appendRows, ensureSheets } from '../sheets/api';
 import { CONFIG } from '../config';
 import type { StaticAccount, StaticHolding, TargetSlice } from '../config';
 import type { Account, Holding, Settings, ContribInterval } from '../types';
@@ -207,7 +207,21 @@ export async function setAccounts(accounts: Account[]): Promise<void> {
       a.contribAmount ?? 0,
       a.contribInterval || 'monthly',
     ]);
-    await writeRange(`${TABS.ACCOUNTS}!A1`, [hdr, ...rows]);
+    let existingHeight = 0;
+    try {
+      existingHeight = (await readRange(`${TABS.ACCOUNTS}!A:A`)).length;
+    } catch {
+      /* empty sheet, nothing to measure */
+    }
+    const values = [hdr, ...rows];
+    await writeRange(`${TABS.ACCOUNTS}!A1`, values);
+    // A shrinking account list (delete) leaves old rows behind unless we
+    // explicitly clear anything below the new extent - writeRange only
+    // ever touches the exact rows/columns it's given.
+    const staleBelow = Math.max(existingHeight - values.length, 0);
+    if (staleBelow > 0) {
+      await clearRange(`${TABS.ACCOUNTS}!A${values.length + 1}:J${existingHeight}`);
+    }
     await logChange('Accounts', `updated ${accounts.length} accounts`);
     if (_onChange) _onChange('accounts');
   } catch (err) {
@@ -249,7 +263,18 @@ export async function setHoldings(holdings: Holding[]): Promise<void> {
       h.foldInto || '',
       h.order ?? '',
     ]);
-    await writeRange(`${TABS.HOLDINGS}!A1`, [hdr, ...rows]);
+    let existingHeight = 0;
+    try {
+      existingHeight = (await readRange(`${TABS.HOLDINGS}!A:A`)).length;
+    } catch {
+      /* empty sheet, nothing to measure */
+    }
+    const values = [hdr, ...rows];
+    await writeRange(`${TABS.HOLDINGS}!A1`, values);
+    const staleBelow = Math.max(existingHeight - values.length, 0);
+    if (staleBelow > 0) {
+      await clearRange(`${TABS.HOLDINGS}!A${values.length + 1}:L${existingHeight}`);
+    }
     await logChange('Holdings', `updated ${holdings.length} holdings`);
     if (_onChange) _onChange('holdings');
   } catch (err) {

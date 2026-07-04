@@ -15,7 +15,7 @@ interface LogState {
   snaps: Snapshot[];
   importMeta: Record<string, string> | null;
   onEditSnap: (date: string) => void;
-  onDelSnap: (date: string) => void;
+  onDelSnap: (date: string, btn?: HTMLButtonElement) => void;
   readOnly?: boolean;
 }
 
@@ -25,7 +25,7 @@ let _snapYear = '';
 let _snapSearch = '';
 let _snapTblSort: SortState = { key: null, dir: null };
 let _lastOnEdit: ((date: string) => void) | null = null;
-let _lastOnDel: ((date: string) => void) | null = null;
+let _lastOnDel: ((date: string, btn?: HTMLButtonElement) => void) | null = null;
 let _readOnly = false;
 
 export function renderLog(state: LogState): void {
@@ -131,7 +131,7 @@ function snapColumns(): ColumnDef<Snapshot>[] {
 export function renderSnapList(
   snaps: Snapshot[],
   onEdit: (date: string) => void,
-  onDel: (date: string) => void,
+  onDel: (date: string, btn?: HTMLButtonElement) => void,
 ): void {
   const el = document.getElementById('snaps-list');
   if (!snaps.length) {
@@ -262,7 +262,7 @@ function _expandSnapRow(
   date: string,
   listEl: HTMLElement,
   onEdit: (d: string) => void,
-  onDel: (d: string) => void,
+  onDel: (d: string, btn?: HTMLButtonElement) => void,
 ): void {
   const accts = getACCTSList();
   const detailRows = accts
@@ -292,7 +292,7 @@ function _expandSnapRow(
   });
   panel.querySelector('.js-del-snap')?.addEventListener('click', (ev) => {
     ev.stopPropagation();
-    onDel(date);
+    onDel(date, ev.currentTarget as HTMLButtonElement);
   });
 }
 

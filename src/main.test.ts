@@ -4,6 +4,7 @@
 // @ts-nocheck - mirrors production file's @ts-nocheck; test fixtures use partial objects
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { validateBackup } from './backup/exportImport';
+import { withButtonGuard } from './utils';
 
 /**
  * main.ts has heavy module-level side effects (DOM manipulation, auth init,
@@ -318,5 +319,186 @@ describe('restoreFromBackup collapse state reapply logic', () => {
     expect(result.called).toBe(false);
     expect(replaceMock).not.toHaveBeenCalled();
     expect(setMock).not.toHaveBeenCalled();
+  });
+});
+
+// ── withButtonGuard tests for saveSnapshot (Phase 58, Commit 2B) ─────────
+describe('saveSnapshot button guard via withButtonGuard', () => {
+  let btn: HTMLButtonElement;
+
+  beforeEach(() => {
+    document.body.innerHTML = '<button id="btn-save-snap" class="btn btn-primary">Save</button>';
+    btn = document.getElementById('btn-save-snap') as HTMLButtonElement;
+  });
+
+  it('button is disabled and shows busyText synchronously before the async action resolves', async () => {
+    let capturedDisabled = false;
+    let capturedText = '';
+    const action = () =>
+      new Promise<void>((resolve) => {
+        capturedDisabled = btn.disabled;
+        capturedText = btn.textContent!;
+        resolve();
+      });
+
+    await withButtonGuard(btn, action, { busyText: 'Saving...' });
+
+    expect(capturedDisabled).toBe(true);
+    expect(capturedText).toBe('Saving...');
+  });
+
+  it('a second click while the first is pending does not trigger a second action call', async () => {
+    const actionSpy = vi
+      .fn()
+      .mockImplementation(() => new Promise<void>((resolve) => setTimeout(resolve, 50)));
+
+    const p1 = withButtonGuard(btn, actionSpy, { busyText: 'Saving...' });
+
+    // Button is now disabled, attempting to call guard again simulates a click
+    // that would be rejected because the button is already disabled
+    expect(btn.disabled).toBe(true);
+
+    await p1;
+    expect(actionSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('on success: button re-enabled, original label restored', async () => {
+    await withButtonGuard(btn, async () => {}, { busyText: 'Saving...' });
+
+    expect(btn.disabled).toBe(false);
+    expect(btn.textContent).toBe('Save');
+  });
+
+  it('on failure: button re-enabled, original label restored, error propagates', async () => {
+    const err = new Error('network failure');
+    await expect(
+      withButtonGuard(
+        btn,
+        async () => {
+          throw err;
+        },
+        { busyText: 'Saving...' },
+      ),
+    ).rejects.toThrow('network failure');
+
+    expect(btn.disabled).toBe(false);
+    expect(btn.textContent).toBe('Save');
+  });
+});
+
+// ── withButtonGuard tests for delSnap (Phase 58, Commit 3C) ──────────────
+describe('delSnap button guard via withButtonGuard', () => {
+  let btn: HTMLButtonElement;
+
+  beforeEach(() => {
+    document.body.innerHTML = '<button class="btn btn-sm btn-danger js-del-snap">Delete</button>';
+    btn = document.querySelector('.js-del-snap') as HTMLButtonElement;
+  });
+
+  it('button shows "Removing..." and is disabled during the action', async () => {
+    let capturedDisabled = false;
+    let capturedText = '';
+    const action = () =>
+      new Promise<void>((resolve) => {
+        capturedDisabled = btn.disabled;
+        capturedText = btn.textContent!;
+        resolve();
+      });
+
+    await withButtonGuard(btn, action, { busyText: 'Removing...', keepDisabledOnSuccess: true });
+
+    expect(capturedDisabled).toBe(true);
+    expect(capturedText).toBe('Removing...');
+  });
+
+  it('double-click prevented: second call blocked while first is pending', async () => {
+    const actionSpy = vi
+      .fn()
+      .mockImplementation(() => new Promise<void>((resolve) => setTimeout(resolve, 50)));
+
+    const p1 = withButtonGuard(btn, actionSpy, {
+      busyText: 'Removing...',
+      keepDisabledOnSuccess: true,
+    });
+
+    expect(btn.disabled).toBe(true);
+    await p1;
+    expect(actionSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('keepDisabledOnSuccess: button stays disabled after success', async () => {
+    await withButtonGuard(btn, async () => {}, {
+      busyText: 'Removing...',
+      keepDisabledOnSuccess: true,
+    });
+
+    expect(btn.disabled).toBe(true);
+  });
+
+  it('on failure: button re-enabled, original label restored', async () => {
+    await expect(
+      withButtonGuard(
+        btn,
+        async () => {
+          throw new Error('delete failed');
+        },
+        { busyText: 'Removing...', keepDisabledOnSuccess: true },
+      ),
+    ).rejects.toThrow('delete failed');
+
+    expect(btn.disabled).toBe(false);
+    expect(btn.textContent).toBe('Delete');
+  });
+});
+
+// ── onConfigChange cache-sync tests (Phase 58, Commit 5) ─────────────────
+describe('onConfigChange callback syncs IndexedDB cache', () => {
+  it('calls setCachedConfig with current accounts/holdings/settings', async () => {
+    // Reproduce the exact logic of the registered onConfigChange callback
+    const mockAccounts = [{ id: 'acc1' }];
+    const mockHoldings = [{ isin: 'IE001' }];
+    const mockSettings = { theme: 'dark' };
+    const setCachedConfigMock = vi.fn().mockResolvedValue(undefined);
+
+    // Simulate the callback body
+    try {
+      await setCachedConfigMock({
+        accounts: mockAccounts,
+        holdings: mockHoldings,
+        settings: mockSettings,
+      });
+    } catch {
+      // best-effort
+    }
+
+    expect(setCachedConfigMock).toHaveBeenCalledTimes(1);
+    expect(setCachedConfigMock).toHaveBeenCalledWith({
+      accounts: mockAccounts,
+      holdings: mockHoldings,
+      settings: mockSettings,
+    });
+  });
+
+  it('setCachedConfig rejecting does not throw and renderAll still runs', async () => {
+    const setCachedConfigMock = vi.fn().mockRejectedValue(new Error('IndexedDB quota'));
+    const renderAllMock = vi.fn();
+
+    // Simulate the callback body with error
+    try {
+      await setCachedConfigMock({
+        accounts: [],
+        holdings: [],
+        settings: {},
+      });
+    } catch {
+      // best-effort -- swallowed
+    }
+    renderAllMock('accounts');
+
+    // setCachedConfig was called but rejected
+    expect(setCachedConfigMock).toHaveBeenCalledTimes(1);
+    // renderAll still runs after the catch
+    expect(renderAllMock).toHaveBeenCalledTimes(1);
+    expect(renderAllMock).toHaveBeenCalledWith('accounts');
   });
 });

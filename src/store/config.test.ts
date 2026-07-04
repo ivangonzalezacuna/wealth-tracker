@@ -1,9 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock the sheets API and other deps before importing the module under test
 vi.mock('../sheets/api', () => ({
   readRange: vi.fn(async () => []),
   writeRange: vi.fn(async () => {}),
+  clearRange: vi.fn(async () => {}),
   appendRows: vi.fn(async () => {}),
   ensureSheets: vi.fn(async () => {}),
 }));
@@ -33,7 +34,7 @@ import {
   getRetiredAccountIds,
   retireAccountIds,
 } from './config';
-import { writeRange, ensureSheets } from '../sheets/api';
+import { writeRange, readRange, clearRange, ensureSheets } from '../sheets/api';
 
 describe('parseAccounts', () => {
   it('legacy sheet (no new columns) defaults to annualReturnPct:0, contribAmount:0, contribInterval:monthly', () => {
@@ -364,5 +365,105 @@ describe('rollback on failure', () => {
     await setAccounts(updated);
 
     expect(getAccounts()[0].label).toBe('Updated');
+  });
+});
+
+describe('setAccounts trailing-row clear (Phase 58)', () => {
+  const mkAccount = (id: string) => ({
+    id,
+    moneyType: 'cash',
+    institution: 'N26',
+    label: id,
+    color: '#000',
+    isPrimaryInvestment: false,
+    order: 1,
+    annualReturnPct: 0,
+    contribAmount: 0,
+    contribInterval: 'monthly' as const,
+  });
+
+  beforeEach(() => {
+    vi.mocked(writeRange).mockReset().mockResolvedValue(undefined);
+    vi.mocked(readRange).mockReset().mockResolvedValue([]);
+    vi.mocked(clearRange).mockReset().mockResolvedValue(undefined);
+    hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
+  });
+
+  it('calls clearRange when the sheet had more rows than the new list', async () => {
+    // Sheet previously had 6 rows (1 header + 5 data rows)
+    vi.mocked(readRange).mockResolvedValueOnce([['a1'], ['a2'], ['a3'], ['a4'], ['a5'], ['hdr']]);
+    const accounts = [mkAccount('a1'), mkAccount('a2')]; // 3 rows total (hdr + 2)
+    await setAccounts(accounts);
+
+    expect(clearRange).toHaveBeenCalledTimes(1);
+    // values.length = 3, existingHeight = 6 -> clear A4:J6
+    expect(clearRange).toHaveBeenCalledWith('Accounts!A4:J6');
+  });
+
+  it('does NOT call clearRange when the sheet had fewer or equal rows', async () => {
+    // Sheet had 2 rows, writing 3 (add case)
+    vi.mocked(readRange).mockResolvedValueOnce([['hdr'], ['a1']]);
+    await setAccounts([mkAccount('a1'), mkAccount('a2')]);
+
+    expect(clearRange).not.toHaveBeenCalled();
+  });
+
+  it('treats readRange error as existingHeight=0 - no clearRange, no propagated error', async () => {
+    vi.mocked(readRange).mockRejectedValueOnce(new Error('empty sheet'));
+    await setAccounts([mkAccount('a1')]);
+
+    expect(clearRange).not.toHaveBeenCalled();
+    // Should not throw - the account was saved
+    expect(getAccounts()).toHaveLength(1);
+  });
+});
+
+describe('setHoldings trailing-row clear (Phase 58)', () => {
+  const mkHolding = (isin: string) => ({
+    isin,
+    ticker: isin.slice(0, 4),
+    name: isin,
+    color: '#000',
+    acc: true,
+    active: true,
+    contribAmount: 100,
+    contribInterval: 'weekly' as const,
+    assetClass: 'equity',
+    region: 'developed',
+    foldInto: '',
+    order: 1,
+  });
+
+  beforeEach(() => {
+    vi.mocked(writeRange).mockReset().mockResolvedValue(undefined);
+    vi.mocked(readRange).mockReset().mockResolvedValue([]);
+    vi.mocked(clearRange).mockReset().mockResolvedValue(undefined);
+    hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
+  });
+
+  it('calls clearRange when the sheet had more rows than the new list', async () => {
+    // Sheet previously had 5 rows (1 hdr + 4 data)
+    vi.mocked(readRange).mockResolvedValueOnce([['h'], ['h'], ['h'], ['h'], ['h']]);
+    const holdings = [mkHolding('IE001'), mkHolding('IE002')]; // 3 rows total
+    await setHoldings(holdings);
+
+    expect(clearRange).toHaveBeenCalledTimes(1);
+    // values.length = 3, existingHeight = 5 -> clear A4:L5
+    expect(clearRange).toHaveBeenCalledWith('Holdings!A4:L5');
+  });
+
+  it('does NOT call clearRange when the sheet had fewer or equal rows', async () => {
+    vi.mocked(readRange).mockResolvedValueOnce([['hdr'], ['h1']]);
+    await setHoldings([mkHolding('IE001'), mkHolding('IE002')]);
+
+    expect(clearRange).not.toHaveBeenCalled();
+  });
+
+  it('treats readRange error as existingHeight=0 - no clearRange, no propagated error', async () => {
+    vi.mocked(readRange).mockRejectedValueOnce(new Error('empty'));
+    await setHoldings([mkHolding('IE001')]);
+
+    expect(clearRange).not.toHaveBeenCalled();
+    expect(getHoldings()).toHaveLength(1);
   });
 });

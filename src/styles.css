@@ -774,6 +774,12 @@ code,
   color: var(--neg);
   border: 1px solid var(--neg-border);
 }
+.btn:disabled,
+.btn:disabled:hover {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
 
 /* Drop zone */
 .drop-zone {
