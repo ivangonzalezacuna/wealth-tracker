@@ -626,6 +626,7 @@ export async function forceFullResync() {
 
 // ── Backup export ─────────────────────────────────────────
 export async function exportBackup(): Promise<void> {
+  await setSetting('last_backup_at', new Date().toISOString());
   const backup = buildBackup({
     accounts: getAccounts(),
     holdings: getHoldings(),
@@ -643,7 +644,6 @@ export async function exportBackup(): Promise<void> {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-  await setSetting('last_backup_at', new Date().toISOString());
 }
 (window as any).__exportBackup = exportBackup;
 
@@ -718,6 +718,7 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
         rowCount: transactions.length,
       }),
     ]);
+    await setSetting('last_backup_at', new Date().toISOString());
     renderAll();
     return 'done';
   } finally {

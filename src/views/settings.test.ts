@@ -247,7 +247,7 @@ describe('Backup card nudge', () => {
     renderSettings();
     const backupCard = document.getElementById('settings-card-backup');
     expect(backupCard).not.toBeNull();
-    expect(backupCard!.textContent).toContain("You haven't taken a backup yet");
+    expect(backupCard!.textContent).toContain('No backup yet');
   });
 
   it('does not show reminder when backup is fresh', () => {
@@ -255,7 +255,7 @@ describe('Backup card nudge', () => {
     renderSettings();
     const backupCard = document.getElementById('settings-card-backup');
     expect(backupCard).not.toBeNull();
-    expect(backupCard!.textContent).not.toContain("You haven't taken a backup yet");
-    expect(backupCard!.textContent).not.toContain('30 days ago');
+    expect(backupCard!.textContent).not.toContain('No backup yet');
+    expect(backupCard!.textContent).not.toContain('over 30 days');
   });
 });
