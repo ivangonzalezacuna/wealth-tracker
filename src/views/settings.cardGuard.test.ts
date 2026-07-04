@@ -149,4 +149,47 @@ describe('isCardBusy / withCardGuard', () => {
     resolve1('accounts-done');
     await p1;
   });
+
+  it('withCardGuard disables sibling buttons in the same card while busy', async () => {
+    document.body.innerHTML = `
+      <div id="settings-card-accounts">
+        <button id="save-btn">Save</button>
+        <button id="delete-btn">Delete</button>
+        <button id="other-btn">Other</button>
+      </div>`;
+    const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
+    const deleteBtn = document.getElementById('delete-btn') as HTMLButtonElement;
+    const otherBtn = document.getElementById('other-btn') as HTMLButtonElement;
+
+    let siblingDisabledDuringAction = false;
+    await withCardGuard('accounts', saveBtn, async () => {
+      siblingDisabledDuringAction = deleteBtn.disabled && otherBtn.disabled;
+      return 'done';
+    });
+
+    expect(siblingDisabledDuringAction).toBe(true);
+    // After completion, sibling buttons are re-enabled
+    expect(deleteBtn.disabled).toBe(false);
+    expect(otherBtn.disabled).toBe(false);
+  });
+
+  it('withCardGuard re-enables sibling buttons even on failure', async () => {
+    document.body.innerHTML = `
+      <div id="settings-card-accounts">
+        <button id="save-btn">Save</button>
+        <button id="delete-btn">Delete</button>
+      </div>`;
+    const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
+    const deleteBtn = document.getElementById('delete-btn') as HTMLButtonElement;
+
+    try {
+      await withCardGuard('accounts', saveBtn, async () => {
+        throw new Error('fail');
+      });
+    } catch {
+      // expected
+    }
+
+    expect(deleteBtn.disabled).toBe(false);
+  });
 });

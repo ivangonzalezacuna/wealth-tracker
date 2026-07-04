@@ -62,10 +62,25 @@ export async function withCardGuard<T>(
 ): Promise<T | undefined> {
   if (isCardBusy(cardKey)) return undefined;
   _cardBusy.add(cardKey);
+
+  // Disable all buttons in this card so none are clickable while busy
+  const cardEl = document.getElementById(`settings-card-${cardKey}`);
+  const siblingBtns: HTMLButtonElement[] = [];
+  if (cardEl) {
+    for (const b of Array.from(cardEl.querySelectorAll('button'))) {
+      if (b !== btn && !b.disabled) {
+        b.disabled = true;
+        siblingBtns.push(b);
+      }
+    }
+  }
+
   try {
     return await withButtonGuard(btn, action, opts);
   } finally {
     _cardBusy.delete(cardKey);
+    // Re-enable sibling buttons that we disabled
+    for (const b of siblingBtns) b.disabled = false;
   }
 }
 
