@@ -177,7 +177,7 @@ describe('snapToRowForHeader', () => {
     expect(snapToRowForHeader(snap, header)).toEqual(['2026-01', 200, 100, 'hi']);
   });
 
-  it('missing account key in snap defaults to 0 (no liveKeys arg — backward compat)', () => {
+  it('missing account key in snap defaults to 0 (no liveKeys arg - backward compat)', () => {
     const snap = { date: '2026-01', a: 100, notes: '' };
     const header = ['date', 'a', 'b', 'notes'];
     expect(snapToRowForHeader(snap, header)).toEqual(['2026-01', 100, 0, '']);

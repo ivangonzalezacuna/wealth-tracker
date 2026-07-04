@@ -180,7 +180,7 @@ describe('signIn - error_callback / popup_closed handling', () => {
     _capturedConfig.error_callback({ type: 'popup_closed' });
     await expect(p).rejects.toThrow('popup_closed');
 
-    // Late callback fires — should not throw
+    // Late callback fires - should not throw
     expect(() => {
       _fakeClient.callback({
         access_token: 'late-token',
@@ -206,7 +206,7 @@ describe('signIn - error_callback / popup_closed handling', () => {
     });
     await expect(p).resolves.toBe('abc123');
 
-    // Late error_callback fires — should not throw
+    // Late error_callback fires - should not throw
     expect(() => {
       _capturedConfig.error_callback({ type: 'popup_closed' });
     }).not.toThrow();
