@@ -43,7 +43,7 @@ import { renderDCA } from './views/contributions';
 import { renderDividends } from './views/dividends';
 import { renderSettings, refreshSettingsAfterChange } from './views/settings';
 import { renderLog } from './views/log';
-import { fmtMon, showMsg, reinjectPendingMsg, esc, currentMonth } from './utils';
+import { fmtMon, showMsg, reinjectPendingMsg, esc, currentMonth, withButtonGuard } from './utils';
 import { parseNum } from './csv';
 import { navHash, parseNavHash } from './nav';
 import {
@@ -857,24 +857,32 @@ async function saveSnapshot() {
   }
   snap.notes = document.getElementById('snap-notes').value.trim();
 
-  showMsg('snap-msg', 'Saving…', true);
-  setSyncing(true);
+  const btn = document.getElementById('btn-save-snap') as HTMLButtonElement;
   try {
-    const idx = state.snaps.findIndex((s) => s.date === date);
-    if (idx >= 0) state.snaps[idx] = snap;
-    else {
-      state.snaps.push(snap);
-      state.snaps.sort((a, b) => a.date.localeCompare(b.date));
-    }
-    await upsertSnapshot(snap);
-    await setCachedSnapshots(state.snaps);
-    clearSnapForm();
-    renderAll();
-    showMsg('snap-msg', 'Saved ✓', true);
+    await withButtonGuard(
+      btn,
+      async () => {
+        setSyncing(true);
+        try {
+          const idx = state.snaps.findIndex((s) => s.date === date);
+          if (idx >= 0) state.snaps[idx] = snap;
+          else {
+            state.snaps.push(snap);
+            state.snaps.sort((a, b) => a.date.localeCompare(b.date));
+          }
+          await upsertSnapshot(snap);
+          await setCachedSnapshots(state.snaps);
+          clearSnapForm();
+          renderAll();
+        } finally {
+          setSyncing(false);
+        }
+      },
+      { busyText: 'Saving...' },
+    );
+    showMsg('snap-msg', 'Saved \u2713', true);
   } catch (err) {
     showMsg('snap-msg', 'Error: ' + err.message, false);
-  } finally {
-    setSyncing(false);
   }
 }
 
@@ -909,7 +917,7 @@ function editSnap(date) {
   dateEl?.scrollIntoView({ behavior: 'smooth' });
 }
 
-async function delSnap(date) {
+async function delSnap(date, btn?: HTMLButtonElement) {
   // Block writes when offline
   if (state.offline || !navigator.onLine) {
     showMsg('snap-msg', 'Cannot delete while offline. Please reconnect and try again.', false);
@@ -924,16 +932,25 @@ async function delSnap(date) {
     danger: true,
   });
   if (!ok) return;
-  state.snaps = state.snaps.filter((s) => s.date !== date);
-  setSyncing(true);
+  const run = async () => {
+    state.snaps = state.snaps.filter((s) => s.date !== date);
+    setSyncing(true);
+    try {
+      await saveSnapshots(state.snaps);
+      await setCachedSnapshots(state.snaps);
+      renderAll();
+    } finally {
+      setSyncing(false);
+    }
+  };
   try {
-    await saveSnapshots(state.snaps);
-    await setCachedSnapshots(state.snaps);
-    renderAll();
+    if (btn) {
+      await withButtonGuard(btn, run, { busyText: 'Removing...', keepDisabledOnSuccess: true });
+    } else {
+      await run();
+    }
   } catch (err) {
     showMsg('snap-msg', 'Delete failed: ' + err.message, false);
-  } finally {
-    setSyncing(false);
   }
 }
 
