@@ -467,6 +467,21 @@ async function syncInBackground() {
       if (state.txs.length) {
         state.pd = await computeAggregatesWithCache(state.txs);
       }
+      // Keep the IndexedDB cache authoritative the instant any config write
+      // settles (Save or Delete on Accounts/Holdings/Settings), not just after
+      // a full background sync. Without this, bootFromCache() on the next
+      // refresh briefly re-hydrates from stale cached config until
+      // syncInBackground() completes and overwrites it (Phase 58, Commit 5).
+      try {
+        await setCachedConfig({
+          accounts: getAccounts(),
+          holdings: getHoldings(),
+          settings: getSettings(),
+        });
+      } catch {
+        // Best-effort -- a cache write failure here must never block the
+        // already-successful Sheet write or the UI re-render.
+      }
       renderAll(changed);
     });
 
