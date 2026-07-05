@@ -877,6 +877,25 @@ code,
   color: var(--err-fg);
 }
 
+/* PWA update banner */
+.pwa-update-banner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  border-radius: 0;
+}
+.pwa-update-msg {
+  font-size: var(--fs-7);
+}
+
 /* Spinner */
 .spinner {
   display: inline-block;

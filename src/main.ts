@@ -74,6 +74,7 @@ import { restoreCollapseFromSheet, backupCollapseToSheet } from './ui/collapseSy
 import { confirmDialog } from './ui/confirmDialog';
 import { showSigninOverlay, hideSigninOverlay } from './ui/signinOverlay';
 import { withTimeout } from './sync/timeout';
+import { registerSW } from 'virtual:pwa-register';
 
 // ── App state ────────────────────────────────────────────
 const state = {
@@ -175,6 +176,7 @@ initCSVDrop();
 initAuth();
 setDefaultMonth();
 initOnlineListeners();
+initPwaUpdate();
 
 // ── Navigation ───────────────────────────────────────────
 function initNav() {
@@ -233,6 +235,54 @@ function showSection(id, btn) {
   } // settings reflects live config; always repaint
   if (id === 'portfolio') showPortfolioSubview(_portfolioSubview);
   history.replaceState(null, '', navHash(id, id === 'portfolio' ? _portfolioSubview : undefined));
+}
+
+// ── PWA update detection ──────────────────────────────────
+// Explicit prompt, not a silent auto-reload: this app already guards every
+// write behind visible status and an in-flight lock (isSyncBusy), so a
+// service worker silently swapping the running bundle mid-edit would be the
+// same category of risk in a different layer. The user always sees the
+// prompt and decides when to reload.
+const PWA_UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000; // hourly
+
+function initPwaUpdate(): void {
+  const updateSW = registerSW({
+    immediate: true,
+    onNeedRefresh() {
+      showUpdateBanner(() => {
+        if (isSyncBusy()) {
+          showMsg(
+            'pwa-update-msg',
+            'A save is in progress. Try reloading again in a moment.',
+            false,
+          );
+          return;
+        }
+        updateSW(true);
+      });
+    },
+    onRegisteredSW(_swUrl, registration) {
+      if (!registration) return;
+      setInterval(() => registration.update().catch(() => {}), PWA_UPDATE_CHECK_INTERVAL_MS);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') registration.update().catch(() => {});
+      });
+    },
+  });
+}
+
+function showUpdateBanner(onReload: () => void): void {
+  if (document.getElementById('pwa-update-banner')) return; // already showing
+  const bar = document.createElement('div');
+  bar.id = 'pwa-update-banner';
+  bar.className = 'status-bar status-warn pwa-update-banner';
+  bar.innerHTML = `
+    <span>A new version of Wealth Tracker is available.</span>
+    <button id="pwa-update-reload" class="btn btn-sm btn-primary" type="button">Reload</button>
+    <span id="pwa-update-msg" class="pwa-update-msg"></span>
+  `;
+  document.body.appendChild(bar);
+  document.getElementById('pwa-update-reload')?.addEventListener('click', onReload);
 }
 
 // ── Online/offline listeners ─────────────────────────────
