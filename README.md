@@ -17,7 +17,7 @@ Personal ETF portfolio and net worth tracker. PWA, synced to Google Sheets.
 
 ```bash
 git clone <your-repo-url>
-cd finance-dashboard
+cd wealth-tracker
 yarn install
 ```
 

@@ -8,7 +8,7 @@ import type { Account, Holding } from '../types';
 export const CACHE_VERSION = 1;
 
 // ── Custom idb-keyval store (separate DB for our data) ───────────
-const cacheStore = createStore('finance-dashboard-cache', 'kv-store');
+const cacheStore = createStore('wealth-tracker-cache', 'kv-store');
 
 // ── Key constants ────────────────────────────────────────────────
 const KEYS = {
