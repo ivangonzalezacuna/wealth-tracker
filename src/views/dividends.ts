@@ -1,4 +1,4 @@
-import { fmtEur2, fmtDay, esc, safeColor } from '../utils';
+import { fmtEur2, fmtDay, esc, safeColor, kpiTile } from '../utils';
 import type { PortfolioData, DivHistEntry, IntHistEntry } from '../types';
 import { T } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
@@ -39,10 +39,10 @@ export function renderDividends(pd: PortfolioData | null): void {
   const totalGross = pd.divHist.reduce((s, d) => s + d.gross, 0);
 
   document.getElementById('div-kpis')!.innerHTML = `
-    <div class="kpi"><div class="kpi-label">Gross dividends${infoTip('Before tax: Total distribution payments received from ETFs and stocks, before withholding tax is deducted.')}</div><div class="kpi-val">${fmtEur2(totalGross)}</div></div>
-    <div class="kpi"><div class="kpi-label">Tax withheld</div><div class="kpi-val ${pd.totalTax >= 0 ? 'neg' : 'pos'}">${fmtEur2(Math.abs(pd.totalTax))}</div><div class="kpi-sub">Abgeltungsteuer</div></div>
-    <div class="kpi"><div class="kpi-label">Net received</div><div class="kpi-val pos">${fmtEur2(pd.totalDivNet)}</div></div>
-    <div class="kpi"><div class="kpi-label">TR interest</div><div class="kpi-val pos">${fmtEur2(pd.totalInterest)}</div><div class="kpi-sub">on cash savings</div></div>
+    ${kpiTile({ label: `Gross dividends${infoTip('Before tax: Total distribution payments received from ETFs and stocks, before withholding tax is deducted.')}`, value: fmtEur2(totalGross) })}
+    ${kpiTile({ label: 'Tax withheld', value: fmtEur2(Math.abs(pd.totalTax)), valueClass: pd.totalTax >= 0 ? 'neg' : 'pos', sub: 'Abgeltungsteuer' })}
+    ${kpiTile({ label: 'Net received', value: fmtEur2(pd.totalDivNet), valueClass: 'pos' })}
+    ${kpiTile({ label: 'TR interest', value: fmtEur2(pd.totalInterest), valueClass: 'pos', sub: 'on cash savings' })}
   `;
 
   populateDivYearFilter(pd.divHist);

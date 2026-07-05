@@ -9,6 +9,7 @@ import {
   fmtPctSigned,
   esc,
   safeColor,
+  kpiTile,
 } from '../utils';
 import { getISIN_ORDERList, getMETAMap } from '../constants';
 import { getAccounts, getHoldings } from '../store/config';
@@ -297,16 +298,29 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   const gainPct = gain !== null && pd.totalInv > 0 ? (gain / pd.totalInv) * 100 : null;
 
   document.getElementById('port-kpis')!.innerHTML = `
-    <div class="kpi"><div class="kpi-label">Total invested</div><div class="kpi-val">${fmtEur(pd.totalInv)}</div><div class="kpi-sub">net of sells</div></div>
-    <div class="kpi"><div class="kpi-label">Current value</div>
-      <div class="kpi-val">${curVal !== null ? fmtEur2(curVal) : '-'}</div>
-      <div class="kpi-sub">${curVal !== null ? 'from ' + fmtMon(latSnap!.date) + ' snapshot' : latSnap ? 'no primary investment account flagged' : 'add a snapshot'}</div></div>
-    <div class="kpi"><div class="kpi-label">Unrealized gain</div>
-      <div class="kpi-val ${gain !== null && gain >= 0 ? 'pos' : 'neg'}">${gain !== null ? fmtEurNeg(gain, 2) : '-'}</div>
-      <div class="kpi-sub">${gainPct !== null ? fmtPctNeg(gainPct) : ''}</div></div>
-    <div class="kpi"><div class="kpi-label">Realized P&amp;L${infoTip('Gain or loss already locked in from shares you have sold. Distinct from the unrealized gain on positions you still hold.')}</div>
-      <div class="kpi-val ${pd.realizedPnL >= 0 ? 'pos' : 'neg'}">${fmtEurNeg(pd.realizedPnL, 2)}</div>
-      <div class="kpi-sub">from sells</div></div>
+    ${kpiTile({ label: 'Total invested', value: fmtEur(pd.totalInv), sub: 'net of sells' })}
+    ${kpiTile({
+      label: 'Current value',
+      value: curVal !== null ? fmtEur2(curVal) : '-',
+      sub:
+        curVal !== null
+          ? 'from ' + fmtMon(latSnap!.date) + ' snapshot'
+          : latSnap
+            ? 'no primary investment account flagged'
+            : 'add a snapshot',
+    })}
+    ${kpiTile({
+      label: 'Unrealized gain',
+      value: gain !== null ? fmtEurNeg(gain, 2) : '-',
+      valueClass: gain !== null && gain >= 0 ? 'pos' : 'neg',
+      sub: gainPct !== null ? fmtPctNeg(gainPct) : '',
+    })}
+    ${kpiTile({
+      label: `Realized P&amp;L${infoTip('Gain or loss already locked in from shares you have sold. Distinct from the unrealized gain on positions you still hold.')}`,
+      value: fmtEurNeg(pd.realizedPnL, 2),
+      valueClass: pd.realizedPnL >= 0 ? 'pos' : 'neg',
+      sub: 'from sells',
+    })}
   `;
 
   // Attach info-tips in the KPI row
