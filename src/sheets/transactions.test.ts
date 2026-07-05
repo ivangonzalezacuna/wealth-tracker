@@ -31,7 +31,7 @@ describe('txKey', () => {
       isin: 'IE00B4L5Y983',
       amount: -1000,
     } as unknown as Transaction;
-    expect(txKey(tx)).toBe('2024-01-15|BUY|IE00B4L5Y983|-1000');
+    expect(txKey(tx)).toBe('2024-01-15|BUY|IE00B4L5Y983|-1000|');
   });
 
   it('falls back to symbol when no isin', () => {
@@ -42,7 +42,7 @@ describe('txKey', () => {
       symbol: 'IE00BKM4GZ66',
       amount: 500,
     } as unknown as Transaction;
-    expect(txKey(tx)).toBe('2024-02-01|SELL|IE00BKM4GZ66|500');
+    expect(txKey(tx)).toBe('2024-02-01|SELL|IE00BKM4GZ66|500|');
   });
 
   it('same key for old-format and new-format representation of same tx', () => {
@@ -94,7 +94,39 @@ describe('txKey', () => {
       type: 'INTEREST',
       amount: 3.5,
     } as unknown as Transaction;
-    expect(txKey(tx)).toBe('2024-04-01|INTEREST||3.5');
+    expect(txKey(tx)).toBe('2024-04-01|INTEREST||3.5|');
+  });
+
+  it('id-less transactions differing only in shares produce different keys (Phase 69)', () => {
+    const tx1 = {
+      id: '',
+      date: '2024-05-01',
+      type: 'BUY',
+      isin: 'IE00B4L5Y983',
+      amount: -1000,
+      shares: 10,
+    } as unknown as Transaction;
+    const tx2 = {
+      id: '',
+      date: '2024-05-01',
+      type: 'BUY',
+      isin: 'IE00B4L5Y983',
+      amount: -1000,
+      shares: 5,
+    } as unknown as Transaction;
+    expect(txKey(tx1)).not.toBe(txKey(tx2));
+  });
+
+  it('id-present path returns t.id regardless of other fields', () => {
+    const tx = {
+      id: 'stable-id-xyz',
+      date: '2024-01-01',
+      type: 'BUY',
+      isin: 'X',
+      amount: -100,
+      shares: 99,
+    } as unknown as Transaction;
+    expect(txKey(tx)).toBe('stable-id-xyz');
   });
 });
 
@@ -160,6 +192,7 @@ describe('old 10-col migration shape', () => {
       type: 'BUY',
       isin: 'IE00B4L5Y983',
       symbol: 'IE00B4L5Y983',
+      shares: 10,
       amount: -755,
     } as unknown as Transaction;
 
@@ -183,7 +216,7 @@ describe('old 10-col migration shape', () => {
     } as unknown as Transaction;
 
     expect(txKey(oldTx)).toBe(txKey(newTx));
-    expect(txKey(oldTx)).toBe('2024-01-15|BUY|IE00B4L5Y983|-755');
+    expect(txKey(oldTx)).toBe('2024-01-15|BUY|IE00B4L5Y983|-755|10');
   });
 
   it('txKey with id always wins regardless of other fields', () => {
