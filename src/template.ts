@@ -14,17 +14,17 @@ export function appTemplate(): string {
   </div>
 </header>
 
-<nav class="nav">
-  <button class="active" data-section="networth">Net worth</button>
-  <button data-section="portfolio">Portfolio</button>
-  <button data-section="settings">Settings</button>
-  <button data-section="log" class="log-btn">＋ Update</button>
+<nav class="nav" role="tablist" aria-label="Main sections">
+  <button class="active" data-section="networth" role="tab" aria-selected="true" aria-controls="networth">Net worth</button>
+  <button data-section="portfolio" role="tab" aria-selected="false" aria-controls="portfolio">Portfolio</button>
+  <button data-section="settings" role="tab" aria-selected="false" aria-controls="settings">Settings</button>
+  <button data-section="log" class="log-btn" role="tab" aria-selected="false" aria-controls="log">＋ Update</button>
 </nav>
 
 <div id="setup-banner" style="display:none"></div>
 
 <!-- ════ NET WORTH ════ -->
-<div id="networth" class="section active">
+<div id="networth" class="section active" role="tabpanel">
   <div id="nw-empty" style="display:none"><div class="card"><div class="empty-state">
     <div style="font-size:2.4rem;margin-bottom:.75rem">📊</div>
     <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.4rem">No snapshots yet</div>
@@ -70,13 +70,13 @@ export function appTemplate(): string {
 </div>
 
 <!-- ════ PORTFOLIO ════ -->
-<div id="portfolio" class="section">
-  <div class="subnav range-toggle" id="portfolio-subnav">
-    <button class="btn btn-sm btn-ghost active" data-subview="holdings">Holdings</button>
-    <button class="btn btn-sm btn-ghost" data-subview="contributions">Contributions</button>
-    <button class="btn btn-sm btn-ghost" data-subview="dividends">Dividends</button>
+<div id="portfolio" class="section" role="tabpanel">
+  <div class="subnav range-toggle" id="portfolio-subnav" role="tablist" aria-label="Portfolio views">
+    <button class="btn btn-sm btn-ghost active" data-subview="holdings" role="tab" aria-selected="true" aria-controls="subview-holdings">Holdings</button>
+    <button class="btn btn-sm btn-ghost" data-subview="contributions" role="tab" aria-selected="false" aria-controls="subview-contributions">Contributions</button>
+    <button class="btn btn-sm btn-ghost" data-subview="dividends" role="tab" aria-selected="false" aria-controls="subview-dividends">Dividends</button>
   </div>
-  <div class="subview" id="subview-holdings" style="display:block">
+  <div class="subview" id="subview-holdings" role="tabpanel" style="display:block">
     <div id="port-empty" style="display:none"><div class="card"><div class="empty-state">
       <div style="font-size:2rem;margin-bottom:.75rem">📂</div>
       <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.4rem">No transaction data imported</div>
@@ -104,7 +104,7 @@ export function appTemplate(): string {
       <div id="port-drift"></div>
     </div>
   </div>
-  <div class="subview" id="subview-contributions" style="display:none">
+  <div class="subview" id="subview-contributions" role="tabpanel" style="display:none">
     <div id="dca-empty" style="display:none"><div class="card"><div class="empty-state">
       <div style="font-size:2rem;margin-bottom:.5rem">📅</div>
       <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.75rem">No transaction data imported</div>
@@ -139,7 +139,7 @@ export function appTemplate(): string {
       </div>
     </div>
   </div>
-  <div class="subview" id="subview-dividends" style="display:none">
+  <div class="subview" id="subview-dividends" role="tabpanel" style="display:none">
     <div id="div-empty" style="display:none"><div class="card"><div class="empty-state">
       <div style="font-size:2rem;margin-bottom:.5rem">💰</div>
       <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.75rem">No transaction data imported</div>
@@ -172,12 +172,12 @@ export function appTemplate(): string {
 </div>
 
 <!-- ════ SETTINGS ════ -->
-<div id="settings" class="section">
+<div id="settings" class="section" role="tabpanel">
   <div id="settings-content"></div>
 </div>
 
 <!-- ════ LOG ════ -->
-<div id="log" class="section">
+<div id="log" class="section" role="tabpanel">
   <div id="auth-prompt" class="card" style="display:none">
     <div class="empty-state">
       <div style="font-size:2rem;margin-bottom:.75rem">🔐</div>
