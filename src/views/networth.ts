@@ -51,6 +51,10 @@ function _buildAccountForecastInputs(snap: Snapshot, accounts: Account[]): Accou
   });
 }
 
+/**
+ * Renders the Net Worth tab: lead KPI (with MoM delta), per-account KPI tiles,
+ * YoY/CAGR tiles, the history chart, growth-breakdown chart, and goal progress.
+ */
 export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const ACCTS = getACCTSList();
   const has = snaps.length > 0;

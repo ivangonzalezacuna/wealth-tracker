@@ -1287,7 +1287,7 @@ function esc(s: string | undefined | null): string {
 }
 
 /** Generate a stable snake_case slug from a label. */
-export function slugify(label: string): string {
+function slugify(label: string): string {
   return label
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')

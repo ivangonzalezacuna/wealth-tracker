@@ -21,6 +21,10 @@ let _dcaTblSort: SortState = { key: null, dir: null };
 let _lastPd: PortfolioData | null = null;
 let _dcaFcRange: '60' | '120' | '240' = '60'; // 5y / 10y / 20y forecast horizon
 
+/**
+ * Renders the Contributions (DCA) tab: monthly-total KPI tiles, the
+ * per-ETF stacked contribution chart, and the month-by-month table.
+ */
 export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const ISIN_ORDER = getISIN_ORDERList();
   const ISIN = getISIN();

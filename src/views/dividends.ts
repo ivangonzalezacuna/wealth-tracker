@@ -17,6 +17,11 @@ let _divTblSort: SortState = { key: null, dir: null };
 let _intTblSort: SortState = { key: null, dir: null };
 let _lastPd: PortfolioData | null = null;
 
+/**
+ * Renders the Dividends tab: gross/tax/net/interest KPI tiles plus the
+ * dividend and interest history tables. Shows the empty state if no
+ * dividend history exists yet.
+ */
 export function renderDividends(pd: PortfolioData | null): void {
   const hasPD = !!pd;
   const hasDiv = hasPD && pd.divHist.length > 0;

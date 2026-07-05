@@ -277,6 +277,10 @@ function renderHoldPagination(totalPages: number, pd: PortfolioData, snaps: Snap
   });
 }
 
+/**
+ * Renders the Portfolio tab: KPI row, holdings table, cost-basis donut/bar,
+ * and the allocation-drift card. No-op (shows the empty state) if `pd` is null.
+ */
 export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const ISIN_ORDER = getISIN_ORDERList();
   const META = getMETAMap();
@@ -375,7 +379,11 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     )
     .join('');
 
-  // TODO Phase: consolidation - populate foldInto on first SELL (IEEM→CMEIU, CECBE+EGB7Y→GABE)
+  // Known limitation: foldInto (multi-leg SELL consolidation, e.g. IEEM→CMEIU,
+  // CECBE+EGB7Y→GABE) is implemented per spec but has never run against a real
+  // consolidation event. The logic should work; treat the first real occurrence
+  // as unverified and double-check Realized P&L manually. See README "Known
+  // limitations".
   document.getElementById('port-summary')!.innerHTML = `
     <div class="row"><div class="row-label">Total invested (net)</div><div class="row-val">${fmtEur(pd.totalInv)}</div></div>
     <div class="row"><div class="row-label">Realized P&amp;L</div><div class="row-val ${pd.realizedPnL >= 0 ? 'ok' : 'neg'}">${fmtEurNeg(pd.realizedPnL, 2)}</div></div>
