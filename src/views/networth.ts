@@ -1,4 +1,3 @@
-// @ts-nocheck - DOM-heavy view; full strict typing deferred to framework migration
 import {
   snapTotal,
   fmtEur,
