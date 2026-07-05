@@ -14,18 +14,20 @@ describe('showMsg', () => {
     vi.useRealTimers();
   });
 
-  it('writes text and color to the target element', () => {
+  it('writes text and class to the target element', () => {
     showMsg('test-msg', 'Hello', true);
     const el = document.getElementById('test-msg')!;
     expect(el.textContent).toBe('Hello');
-    expect(el.style.color).toBe('rgb(15, 110, 86)'); // #0F6E56
+    expect(el.classList.contains('msg-ok')).toBe(true);
+    expect(el.classList.contains('msg-err')).toBe(false);
   });
 
-  it('uses red color for errors (ok=false)', () => {
+  it('uses the error class for errors (ok=false)', () => {
     showMsg('test-msg', 'Error!', false);
     const el = document.getElementById('test-msg')!;
     expect(el.textContent).toBe('Error!');
-    expect(el.style.color).toBe('rgb(163, 45, 45)'); // #A32D2D
+    expect(el.classList.contains('msg-err')).toBe(true);
+    expect(el.classList.contains('msg-ok')).toBe(false);
   });
 
   it('auto-clears success messages after 3500ms', () => {
@@ -56,7 +58,7 @@ describe('reinjectPendingMsg', () => {
     vi.useRealTimers();
   });
 
-  it('restores text/color onto a freshly-recreated element with the same id', () => {
+  it('restores text/class onto a freshly-recreated element with the same id', () => {
     showMsg('test-msg', 'Saved', true);
     // Simulate a full DOM rebuild: destroy and recreate the element
     document.body.innerHTML = '<span id="test-msg"></span>';
@@ -64,7 +66,8 @@ describe('reinjectPendingMsg', () => {
     expect(el.textContent).toBe(''); // freshly created, empty
     reinjectPendingMsg();
     expect(el.textContent).toBe('Saved');
-    expect(el.style.color).toBe('rgb(15, 110, 86)');
+    expect(el.classList.contains('msg-ok')).toBe(true);
+    expect(el.classList.contains('msg-err')).toBe(false);
   });
 
   it('no-ops once the 5s window has elapsed', () => {
