@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { setBusy } from '../sync/lock';
 import { isCardBusy, withCardGuard } from './settings';
 
 // Mock all dependencies that settings.ts imports
@@ -82,6 +83,7 @@ describe('isCardBusy / withCardGuard', () => {
   let btn: HTMLButtonElement;
 
   beforeEach(() => {
+    setBusy(false);
     document.body.innerHTML = '<button id="btn">Save</button>';
     btn = document.getElementById('btn') as HTMLButtonElement;
   });
@@ -133,7 +135,7 @@ describe('isCardBusy / withCardGuard', () => {
     expect(result1).toBe('first');
   });
 
-  it('withCardGuard for a different card proceeds normally while another card is busy', async () => {
+  it('withCardGuard for a different card is blocked by the shared global lock (Phase 69)', async () => {
     let resolve1!: (v: string) => void;
     const p1 = withCardGuard('accounts', btn, () => new Promise<string>((r) => (resolve1 = r)));
 
@@ -141,8 +143,10 @@ describe('isCardBusy / withCardGuard', () => {
     btn2.textContent = 'Save';
     document.body.appendChild(btn2);
 
+    // The shared global lock (isBusy) is held by the accounts card,
+    // so a concurrent holdings card write returns undefined (blocked).
     const holdingsResult = await withCardGuard('holdings', btn2, async () => 'holdings-done');
-    expect(holdingsResult).toBe('holdings-done');
+    expect(holdingsResult).toBe(undefined);
     expect(isCardBusy('accounts')).toBe(true);
     expect(isCardBusy('holdings')).toBe(false);
 

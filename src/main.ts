@@ -79,6 +79,7 @@ import { restoreCollapseFromSheet, backupCollapseToSheet } from './ui/collapseSy
 import { confirmDialog } from './ui/confirmDialog';
 import { showSigninOverlay, hideSigninOverlay } from './ui/signinOverlay';
 import { withTimeout } from './sync/timeout';
+import { isBusy, setBusy } from './sync/lock';
 import { registerSW } from 'virtual:pwa-register';
 import type { Snapshot, Transaction, PortfolioData, ImportProfile } from './types';
 
@@ -107,15 +108,14 @@ const ALL_SECTIONS = ['networth', 'portfolio', 'settings', 'log'] as const;
 // ── Portfolio sub-view state ─────────────────────────────
 let _portfolioSubview: 'holdings' | 'contributions' | 'dividends' = 'holdings';
 
-// ── Unified sync/write lock ──────────────────────────────
-let _syncing = false;
+// ── Unified sync/write lock (shared with settings.ts - see sync/lock.ts) ──
 let _lastSyncAt = 0;
 const AUTO_RESYNC_MIN_INTERVAL_MS = 2 * 60_000; // 2 minutes
 function setSyncing(v: boolean): void {
-  _syncing = v;
+  setBusy(v);
 }
 function isSyncBusy(): boolean {
-  return _syncing;
+  return isBusy();
 }
 
 /** True when data is shown from cache but no valid auth token exists. */
@@ -498,7 +498,7 @@ async function bootFromCache() {
  * Uses incremental sync for transactions (delta only).
  */
 async function syncInBackground() {
-  if (_syncing) return; // re-entrancy guard
+  if (isSyncBusy()) return; // re-entrancy guard
   if (state.offline) {
     setSyncStatus('offline');
     return;
@@ -968,13 +968,16 @@ async function saveSnapshot() {
       async () => {
         setSyncing(true);
         try {
+          // Write to Sheets first - only mutate local state once the write
+          // has actually succeeded (Phase 69), so a failed save can never
+          // leave state.snaps showing an entry that was never persisted.
+          await upsertSnapshot(snap);
           const idx = state.snaps.findIndex((s) => s.date === date);
           if (idx >= 0) state.snaps[idx] = snap;
           else {
             state.snaps.push(snap);
             state.snaps.sort((a, b) => a.date.localeCompare(b.date));
           }
-          await upsertSnapshot(snap);
           await setCachedSnapshots(state.snaps);
           clearSnapForm();
           renderAll();
@@ -1037,12 +1040,19 @@ async function delSnap(date: string, btn?: HTMLButtonElement) {
   });
   if (!ok) return;
   const run = async () => {
+    const previous = state.snaps;
     state.snaps = state.snaps.filter((s) => s.date !== date);
     setSyncing(true);
     try {
       await saveSnapshots(state.snaps);
       await setCachedSnapshots(state.snaps);
       renderAll();
+    } catch (err) {
+      // Roll back the optimistic filter - the Sheets write never landed,
+      // so the deleted entry must reappear in local state (Phase 69),
+      // matching the existing setAccounts/setHoldings rollback pattern.
+      state.snaps = previous;
+      throw err;
     } finally {
       setSyncing(false);
     }

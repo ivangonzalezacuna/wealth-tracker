@@ -40,11 +40,17 @@ const OLD_HDR = [
 
 /** Build a deduplication key for a transaction. Uses id when present,
  *  otherwise a delimited composite to avoid same-day/same-amount collisions.
- *  NOTE: txKey semantics are unchanged - new fields do NOT enter the key. */
+ *  Includes `shares` (Phase 69) - the previous key omitted it, so two
+ *  genuinely distinct id-less transactions with the same date/type/symbol/
+ *  amount (e.g. two identical manual buys) would collide and the second
+ *  would be silently dropped on merge. This narrows, but does not fully
+ *  eliminate, that collision window for any future id-less import source -
+ *  every currently built-in profile (Trade Republic) always supplies a
+ *  unique id and never hits this fallback path at all. */
 export function txKey(t: Transaction): string {
   if (t.id) return t.id;
   const sym = t.isin || t.symbol || '';
-  return `${t.date}|${t.type}|${sym}|${t.amount}`;
+  return `${t.date}|${t.type}|${sym}|${t.amount}|${t.shares ?? ''}`;
 }
 
 /**

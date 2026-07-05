@@ -25,6 +25,7 @@ import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { confirmDialog } from '../ui/confirmDialog';
 import { isSignedIn } from '../auth/google';
 import { isBackupStale } from '../backup/exportImport';
+import { isBusy, setBusy } from '../sync/lock';
 
 /** Build <option> HTML for an interval <select>, marking `selected` the matching value. */
 function intervalOptionsHtml(selected: ContribInterval): string {
@@ -59,8 +60,15 @@ export async function withCardGuard<T>(
   action: () => Promise<T>,
   opts: { busyText?: string; keepDisabledOnSuccess?: boolean } = {},
 ): Promise<T | undefined> {
-  if (isCardBusy(cardKey)) return undefined;
+  // isBusy() is the single lock also held by main.ts during background
+  // sync/import/backup writes (see sync/lock.ts, Phase 69). Checking it
+  // here stops a Settings save from starting while an auto-resync is
+  // loadConfig()-ing the same in-memory store; setting it for the
+  // duration of this card's write stops the reverse race (an auto-resync
+  // firing mid-save and overwriting the just-changed config).
+  if (isCardBusy(cardKey) || isBusy()) return undefined;
   _cardBusy.add(cardKey);
+  setBusy(true);
 
   // Disable all buttons in this card so none are clickable while busy
   const cardEl = document.getElementById(`settings-card-${cardKey}`);
@@ -78,6 +86,7 @@ export async function withCardGuard<T>(
     return await withButtonGuard(btn, action, opts);
   } finally {
     _cardBusy.delete(cardKey);
+    setBusy(false);
     // Re-enable sibling buttons that we disabled
     for (const b of siblingBtns) b.disabled = false;
   }
@@ -378,7 +387,7 @@ async function deleteAccount(
   idx: number,
   btn: HTMLButtonElement,
 ): Promise<void> {
-  if (isCardBusy('accounts')) return;
+  if (isCardBusy('accounts') || isBusy()) return;
   const accounts = collectAccounts(root);
   const a = accounts[idx];
   const ok = await confirmDialog({
@@ -713,7 +722,7 @@ async function deleteHolding(
   idx: number,
   btn: HTMLButtonElement,
 ): Promise<void> {
-  if (isCardBusy('holdings')) return;
+  if (isCardBusy('holdings') || isBusy()) return;
   const holds = collectHoldings(root);
   const hold = holds[idx];
   const ok = await confirmDialog({
@@ -1127,7 +1136,7 @@ async function persistRules(rules: { label: string; value: string }[]): Promise<
 
 /** Shared rule-delete implementation. */
 async function deleteRule(root: HTMLElement, idx: number, btn: HTMLButtonElement): Promise<void> {
-  if (isCardBusy('rules')) return;
+  if (isCardBusy('rules') || isBusy()) return;
   const rules = collectRules(root);
   const ok = await confirmDialog({
     title: 'Remove this rule?',

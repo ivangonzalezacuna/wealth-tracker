@@ -190,6 +190,31 @@ describe('Cache: aggregate cache with inputsHash', () => {
     expect(holdingsSignature(holdings1)).not.toBe(holdingsSignature(holdings2));
   });
 
+  it('holdingsSignature includes ticker, color, and name (Phase 69 regression)', () => {
+    const base = {
+      isin: 'IE001',
+      ticker: 'VWCE',
+      name: 'Vanguard FTSE All-World',
+      color: '#ff0000',
+      acc: true,
+      active: true,
+      contribAmount: 0,
+      contribInterval: 'weekly' as const,
+      assetClass: '',
+      region: '',
+      foldInto: '',
+      order: 1,
+    };
+    const diffTicker = [{ ...base, ticker: 'IWDA' }];
+    const diffColor = [{ ...base, color: '#00ff00' }];
+    const diffName = [{ ...base, name: 'iShares Core MSCI World' }];
+    const original = [{ ...base }];
+
+    expect(holdingsSignature(original)).not.toBe(holdingsSignature(diffTicker));
+    expect(holdingsSignature(original)).not.toBe(holdingsSignature(diffColor));
+    expect(holdingsSignature(original)).not.toBe(holdingsSignature(diffName));
+  });
+
   it('stores and retrieves aggregates from cache', async () => {
     // Set schema version so cache is valid
     mockStore.set('meta:schemaVersion', CACHE_VERSION);
