@@ -1287,7 +1287,7 @@ function esc(s: string | undefined | null): string {
 }
 
 /** Generate a stable snake_case slug from a label. */
-export function slugify(label: string): string {
+function slugify(label: string): string {
   return label
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
@@ -1457,7 +1457,7 @@ function attachCacheListeners(root: HTMLElement): void {
   root.querySelector('#btn-force-resync')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-force-resync') as HTMLButtonElement;
     try {
-      await withCardGuard('cache', btn, () => (window as any).__forceFullResync(), {
+      await withCardGuard('cache', btn, () => window.__forceFullResync!(), {
         busyText: 'Resyncing...',
       });
       showMsg('resync-msg', 'Done', true);
@@ -1503,7 +1503,7 @@ function attachBackupListeners(root: HTMLElement): void {
   root.querySelector('#btn-export-backup')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-export-backup') as HTMLButtonElement;
     try {
-      await withCardGuard('backup', btn, () => (window as any).__exportBackup(), {
+      await withCardGuard('backup', btn, () => window.__exportBackup!(), {
         busyText: 'Exporting...',
       });
       refreshBackupData();
@@ -1520,14 +1520,9 @@ function attachBackupListeners(root: HTMLElement): void {
     if (!file) return;
     const btn = root.querySelector('#btn-restore-backup') as HTMLButtonElement;
     try {
-      const result = await withCardGuard(
-        'backup',
-        btn,
-        () => (window as any).__restoreFromBackup(file),
-        {
-          busyText: 'Restoring...',
-        },
-      );
+      const result = await withCardGuard('backup', btn, () => window.__restoreFromBackup!(file), {
+        busyText: 'Restoring...',
+      });
       if (result === 'cancelled') {
         showMsg('backup-msg', 'Restore cancelled.', false);
       } else {

@@ -687,7 +687,7 @@ export async function forceFullResync() {
   await loadAllData();
 }
 // Make it available on window for the settings button
-(window as any).__forceFullResync = forceFullResync;
+window.__forceFullResync = forceFullResync;
 
 // ── Backup export ─────────────────────────────────────────
 export async function exportBackup(): Promise<void> {
@@ -710,7 +710,7 @@ export async function exportBackup(): Promise<void> {
   a.remove();
   URL.revokeObjectURL(url);
 }
-(window as any).__exportBackup = exportBackup;
+window.__exportBackup = exportBackup;
 
 // ── Backup restore ────────────────────────────────────────
 export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done'> {
@@ -791,7 +791,7 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
     _lastSyncAt = Date.now();
   }
 }
-(window as any).__restoreFromBackup = restoreFromBackup;
+window.__restoreFromBackup = restoreFromBackup;
 
 function setSyncStatus(status: string, msg = '') {
   const el = document.getElementById('sync-status');

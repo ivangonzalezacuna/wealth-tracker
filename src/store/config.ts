@@ -92,19 +92,9 @@ export function getISIN_ORDER(): string[] {
   return _holdings.map((h) => h.isin);
 }
 
-/** Get the account(s) marked as primary investment. */
-export function getPrimaryInvestmentAccounts(): Account[] {
-  return _accounts.filter((a) => a.isPrimaryInvestment);
-}
-
 /** Computed: total annualized contribution from all active holdings. */
 export function getTotalAnnualContrib(): number {
   return totalAnnualContrib(_holdings);
-}
-
-/** Computed: total weekly target from all active holdings (legacy convenience). */
-export function getTotalWeeklyTarget(): number {
-  return getTotalAnnualContrib() / 52;
 }
 
 /** Goal: target net worth (number or null if unset). */

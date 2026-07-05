@@ -27,6 +27,7 @@ let _lastOnEdit: ((date: string) => void) | null = null;
 let _lastOnDel: ((date: string, btn?: HTMLButtonElement) => void) | null = null;
 let _readOnly = false;
 
+/** Renders the snapshot log tab: the add/edit form and the snapshot history list. */
 export function renderLog(state: LogState): void {
   const { txs, snaps, importMeta } = state;
 
@@ -129,7 +130,7 @@ function snapColumns(): ColumnDef<Snapshot>[] {
   ];
 }
 
-export function renderSnapList(
+function renderSnapList(
   snaps: Snapshot[],
   onEdit: (date: string) => void,
   onDel: (date: string, btn?: HTMLButtonElement) => void,

@@ -9,6 +9,7 @@ import {
   fmtPctSigned,
   esc,
   safeColor,
+  kpiTile,
 } from '../utils';
 import { getACCTSList } from '../constants';
 import {
@@ -51,6 +52,10 @@ function _buildAccountForecastInputs(snap: Snapshot, accounts: Account[]): Accou
   });
 }
 
+/**
+ * Renders the Net Worth tab: lead KPI (with MoM delta), per-account KPI tiles,
+ * YoY/CAGR tiles, the history chart, growth-breakdown chart, and goal progress.
+ */
 export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const ACCTS = getACCTSList();
   const has = snaps.length > 0;
@@ -112,21 +117,23 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
     ${
       yoyAbs !== null
         ? `
-      <div class="kpi">
-        <div class="kpi-label">YoY${infoTip('Year-over-Year: Change in total net worth compared to the same month one year ago.')}</div>
-        <div class="kpi-val ${yoyAbs >= 0 ? 'pos' : 'neg'}">${fmtEurSigned(yoyAbs, 2)}</div>
-        <div class="kpi-sub">${yoyPct !== null ? fmtPctSigned(yoyPct) : '-'} vs ${fmtMon(yoyData!.snap.date)}</div>
-      </div>`
+      ${kpiTile({
+        label: `YoY${infoTip('Year-over-Year: Change in total net worth compared to the same month one year ago.')}`,
+        value: fmtEurSigned(yoyAbs, 2),
+        valueClass: yoyAbs >= 0 ? 'pos' : 'neg',
+        sub: `${yoyPct !== null ? fmtPctSigned(yoyPct) : '-'} vs ${fmtMon(yoyData!.snap.date)}`,
+      })}`
         : ''
     }
     ${
       cagrVal !== null
         ? `
-      <div class="kpi">
-        <div class="kpi-label">CAGR${infoTip('Compound Annual Growth Rate: Annualized average return over the full tracking period.')}</div>
-        <div class="kpi-val ${cagrVal >= 0 ? 'pos' : 'neg'}">${fmtPctNeg(cagrVal * 100)}</div>
-        <div class="kpi-sub">${monthsSpan} months</div>
-      </div>`
+      ${kpiTile({
+        label: `CAGR${infoTip('Compound Annual Growth Rate: Annualized average return over the full tracking period.')}`,
+        value: fmtPctNeg(cagrVal * 100),
+        valueClass: cagrVal >= 0 ? 'pos' : 'neg',
+        sub: `${monthsSpan} months`,
+      })}`
         : ''
     }
   `;

@@ -1,4 +1,4 @@
-import { fmtEur, fmtMon, esc, safeColor } from '../utils';
+import { fmtEur, fmtMon, esc, safeColor, kpiTile } from '../utils';
 import { getISIN_ORDERList, getISIN, getMETAMap } from '../constants';
 import { getTotalAnnualContrib, getAccounts } from '../store/config';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
@@ -21,6 +21,10 @@ let _dcaTblSort: SortState = { key: null, dir: null };
 let _lastPd: PortfolioData | null = null;
 let _dcaFcRange: '60' | '120' | '240' = '60'; // 5y / 10y / 20y forecast horizon
 
+/**
+ * Renders the Contributions (DCA) tab: monthly-total KPI tiles, the
+ * per-ETF stacked contribution chart, and the month-by-month table.
+ */
 export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const ISIN_ORDER = getISIN_ORDERList();
   const ISIN = getISIN();
@@ -39,10 +43,10 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const lastAmt = pd.monthly[lastM] || 0;
 
   document.getElementById('dca-kpis')!.innerHTML = `
-    <div class="kpi"><div class="kpi-label">Total invested</div><div class="kpi-val">${fmtEur(total)}</div><div class="kpi-sub">all savings plans</div></div>
-    <div class="kpi"><div class="kpi-label">Active months</div><div class="kpi-val">${n}</div><div class="kpi-sub">${fmtMon(pd.months[0])} → ${fmtMon(lastM)}</div></div>
-    <div class="kpi"><div class="kpi-label">Avg / month</div><div class="kpi-val">${fmtEur(avg)}</div></div>
-    <div class="kpi"><div class="kpi-label">Latest month</div><div class="kpi-val">${fmtEur(lastAmt)}</div><div class="kpi-sub">${fmtMon(lastM)}</div></div>
+    ${kpiTile({ label: 'Total invested', value: fmtEur(total), sub: 'all savings plans' })}
+    ${kpiTile({ label: 'Active months', value: String(n), sub: `${fmtMon(pd.months[0])} \u2192 ${fmtMon(lastM)}` })}
+    ${kpiTile({ label: 'Avg / month', value: fmtEur(avg) })}
+    ${kpiTile({ label: 'Latest month', value: fmtEur(lastAmt), sub: fmtMon(lastM) })}
   `;
 
   const allSyms = [...new Set(pd.months.flatMap((m) => Object.keys(pd.monthlyBy[m] || {})))];

@@ -19,7 +19,7 @@ import type {
 // ── Low-level CSV helpers ───────────────────────────────────────
 
 /** Split a single CSV line respecting quoted fields. */
-export function csvLine(line: string, sep = ','): string[] {
+function csvLine(line: string, sep = ','): string[] {
   const r: string[] = [];
   let cur = '',
     inQ = false;
@@ -36,7 +36,7 @@ export function csvLine(line: string, sep = ','): string[] {
 }
 
 /** Detect whether the CSV uses semicolons or commas as delimiter. */
-export function detectSeparator(headerLine: string): string {
+function detectSeparator(headerLine: string): string {
   const bySemi = csvLine(headerLine, ';');
   const byComma = csvLine(headerLine, ',');
   return bySemi.length > byComma.length ? ';' : ',';

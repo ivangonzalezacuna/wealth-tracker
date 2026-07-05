@@ -37,7 +37,7 @@ interface AccountRef {
 }
 
 /** Convert a 1-based column index to A1-notation letters (1→A, 26→Z, 27→AA, etc.) */
-export function colLetter(n: number): string {
+function colLetter(n: number): string {
   let s = '';
   while (n > 0) {
     n--;

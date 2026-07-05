@@ -67,19 +67,22 @@ You can inspect, back up, or export from the sheet directly at any time.
 ## Development
 
 ```bash
+yarn lint        # prettier --check .
 yarn typecheck   # tsc --noEmit
 yarn test        # vitest run
 yarn build       # vite build
 ```
 
-Every push and PR to `main` runs typecheck → test → build automatically via GitHub Actions (`.github/workflows/ci.yml`). A separate weekly + PR-triggered dependency audit (`.github/workflows/deploy-check.yml`) surfaces high-severity vulnerabilities as non-blocking warnings. Dependabot opens grouped, weekly dependency-update PRs (`.github/dependabot.yml`).
+Every push and PR to `main` runs lint → typecheck → test → build automatically via GitHub Actions (`.github/workflows/ci.yml`), in that order, each step gating the next. A separate weekly + PR-triggered dependency audit (`.github/workflows/deploy-check.yml`) surfaces high-severity vulnerabilities as non-blocking warnings. Dependabot opens grouped, weekly dependency-update PRs (`.github/dependabot.yml`).
+
+Run `yarn lint:fix` to auto-format before committing; CI's `yarn lint` only checks, it does not write.
 
 ---
 
 ## Adding support for a new bank
 
 Only Trade Republic is supported today, but the import engine is bank-agnostic.
-Adding a second bank does **not** require touching the parser — you add one
+Adding a second bank does **not** require touching the parser: you add one
 data file and register it.
 
 1. **Create a profile** at `src/import/profiles/<bank>.ts` exporting an
@@ -119,13 +122,13 @@ data file and register it.
    CSV header on next import; `parseWithProfile()` handles parsing with no
    further changes. Rows whose source `type` isn't in `typeMap` are surfaced
    as "unmapped" in the import preview rather than silently dropped.
-4. **Add a test** in `src/import/parse.test.ts` — see the existing
+4. **Add a test** in `src/import/parse.test.ts`, see the existing
    `fakeBankProfile` fixture for the pattern (a minimal profile + a
    handful of CSV rows asserted against expected canonical output).
 
 An interactive column-mapper (build a profile from the UI instead of hand-
 writing one) isn't built yet, but `buildProfileFromMapping()` in
-`src/import/profile.ts` already produces the same `ImportProfile` shape —
+`src/import/profile.ts` already produces the same `ImportProfile` shape:
 it's the extension point a future mapper UI would call into.
 
 ---
@@ -197,6 +200,12 @@ Separately from exporting the raw Sheet, Settings → **Backup & restore** gives
 - **Export backup** downloads a single JSON file containing everything the app persists: Accounts, Holdings, Settings, Snapshots, Transactions, and import metadata.
 - **Restore from file…** reads that file back and fully replaces the live Sheet's contents. This is disaster recovery, not routine sync, restoring is all-or-nothing (not a merge) and asks for confirmation first.
 - If it's been 30+ days since your last export, the card nudges you to run a fresh one. Takes a few seconds; worth doing before any account/holding restructuring.
+
+---
+
+## Known limitations
+
+- **Multi-leg SELL consolidation (ETF fund mergers) is unverified in production.** When a provider folds one ETF into another (for example iShares merging IEEM into CMEIU, or merging CECBE and EGB7Y into GABE), the cost-basis engine has a code path (`foldInto`) meant to carry the original position's cost basis forward instead of treating it as a full sell-then-rebuy. That path is implemented and unit-tested against synthetic data, but has not yet been exercised against a real consolidation event end to end. If one of your holdings undergoes this kind of provider-side merge, treat the resulting Realized P&L and cost-basis figures as unverified until you've manually cross-checked them against your broker statement.
 
 ---
 

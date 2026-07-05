@@ -170,3 +170,19 @@ export function safeColor(c: string | null | undefined): string {
   if (/^[a-zA-Z]{1,20}$/.test(s)) return s;
   return '#888';
 }
+
+/**
+ * Renders one KPI tile (`.kpi` block used across Portfolio, Dividends,
+ * Contributions, and Net Worth). `value` and `sub` must already be
+ * pre-formatted/escaped by the caller, this only assembles the markup.
+ */
+export function kpiTile(opts: {
+  label: string;
+  value: string;
+  valueClass?: string;
+  sub?: string;
+}): string {
+  const cls = opts.valueClass ? ` ${opts.valueClass}` : '';
+  const sub = opts.sub ? `<div class="kpi-sub">${opts.sub}</div>` : '';
+  return `<div class="kpi"><div class="kpi-label">${opts.label}</div><div class="kpi-val${cls}">${opts.value}</div>${sub}</div>`;
+}
