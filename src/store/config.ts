@@ -164,6 +164,12 @@ export async function loadConfig(): Promise<void> {
   }
 
   _loaded = true;
+
+  // Opportunistic retry of any account-id retirements that failed to
+  // persist to Sheets at delete time (see retireAccountIdsSafely). Fire
+  // and forget: getRetiredAccountIds() already protects against reuse
+  // locally regardless of whether this succeeds.
+  void flushPendingRetiredIds();
 }
 
 // ── Persist updates ──────────────────────────────────────
@@ -340,21 +346,82 @@ async function logChange(entity: string, summary: string): Promise<void> {
 
 const RETIRED_IDS_KEY = 'retired_account_ids';
 
-export function getRetiredAccountIds(): string[] {
+// localStorage-only queue for ids whose retireAccountIds() Sheets write
+// failed after the account was already removed locally (setAccounts
+// succeeded). Kept outside the Sheets-backed Settings store on purpose:
+// the whole point is to survive a moment where that store's write path
+// is failing. Merged into getRetiredAccountIds() so a pending id is
+// treated as taken immediately, even before it reaches Sheets.
+const PENDING_RETIRED_IDS_KEY = 'wt_pending_retired_ids';
+
+function getPendingRetiredIds(): string[] {
   try {
-    return JSON.parse(_settings[RETIRED_IDS_KEY] || '[]');
+    return JSON.parse(localStorage.getItem(PENDING_RETIRED_IDS_KEY) || '[]');
   } catch {
     return [];
   }
 }
 
+function setPendingRetiredIds(ids: string[]): void {
+  try {
+    localStorage.setItem(PENDING_RETIRED_IDS_KEY, JSON.stringify(ids));
+  } catch {
+    /* quota - best effort only, flushPendingRetiredIds retries next time */
+  }
+}
+
+export function getRetiredAccountIds(): string[] {
+  let persisted: string[] = [];
+  try {
+    persisted = JSON.parse(_settings[RETIRED_IDS_KEY] || '[]');
+  } catch {
+    persisted = [];
+  }
+  return [...new Set([...persisted, ...getPendingRetiredIds()])];
+}
+
 /** Called once per deleted account from Settings, so no future account can
- *  reuse (and inherit the Snapshots column of) a retired id. */
+ *  reuse (and inherit the Snapshots column of) a retired id. Throws on
+ *  failure - callers that must never lose the id on a failed write should
+ *  use retireAccountIdsSafely instead. */
 export async function retireAccountIds(ids: string[]): Promise<void> {
   if (!ids.length) return;
   const existing = new Set(getRetiredAccountIds());
   for (const id of ids) if (id) existing.add(id);
   await setSetting(RETIRED_IDS_KEY, JSON.stringify([...existing]));
+}
+
+/** Retire ids without ever losing them to a failed write. If the Sheets
+ *  write fails (network blip, rate limit, expired token mid-write), the
+ *  ids are queued in localStorage instead of being dropped - they still
+ *  count as "taken" via getRetiredAccountIds() immediately, and the queue
+ *  is flushed opportunistically by flushPendingRetiredIds(). Returns false
+ *  (never throws) when the id had to be queued instead of persisted. */
+export async function retireAccountIdsSafely(ids: string[]): Promise<boolean> {
+  if (!ids.length) return true;
+  try {
+    await retireAccountIds(ids);
+    return true;
+  } catch {
+    const queued = new Set([...getPendingRetiredIds(), ...ids]);
+    setPendingRetiredIds([...queued]);
+    return false;
+  }
+}
+
+/** Best-effort retry of any ids queued by retireAccountIdsSafely. Never
+ *  throws. Safe to call opportunistically (on load, after any successful
+ *  settings write) - a no-op when the queue is empty. */
+export async function flushPendingRetiredIds(): Promise<void> {
+  const pending = getPendingRetiredIds();
+  if (!pending.length) return;
+  try {
+    await retireAccountIds(pending);
+    setPendingRetiredIds([]);
+  } catch {
+    // Still failing - leave queued, getRetiredAccountIds() still protects
+    // against reuse in the meantime.
+  }
 }
 
 // ── Parsing helpers ──────────────────────────────────────

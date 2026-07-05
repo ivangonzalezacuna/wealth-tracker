@@ -11,14 +11,14 @@ import {
   getTargetNetWorth,
   getTargetDate,
   getRetiredAccountIds,
-  retireAccountIds,
+  retireAccountIdsSafely,
 } from '../store/config';
 import type { ConfigChangeKind } from '../store/config';
 import { loadTransactions } from '../sheets/transactions';
 import { validatePrimaryInvestment } from '../model/accounts';
 import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
-import { showMsg, reinjectPendingMsg, withButtonGuard } from '../utils';
+import { showMsg, reinjectPendingMsg, withButtonGuard, esc } from '../utils';
 import type { Account, Holding, Settings, ContribInterval } from '../types';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
@@ -365,9 +365,14 @@ function attachPrimaryToggleListeners(scope: Element): void {
 }
 
 /** Shared account-delete implementation. setAccounts runs before
- *  retireAccountIds so getAccounts() is correct the instant this resolves,
- *  closing the window where retireAccountIds's own setSetting -> _onChange
- *  could trigger a re-render from stale data. */
+ *  retireAccountIdsSafely so getAccounts() is correct the instant this
+ *  resolves, closing the window where retirement's own setSetting ->
+ *  _onChange could trigger a re-render from stale data.
+ *  retireAccountIdsSafely never throws: if the Sheets write for the
+ *  retirement itself fails after setAccounts already succeeded, the id is
+ *  queued locally (getRetiredAccountIds() still protects against reuse
+ *  immediately) and retried automatically on next load, instead of
+ *  surfacing a misleading "Error" for a delete that actually went through. */
 async function deleteAccount(
   root: HTMLElement,
   idx: number,
@@ -385,17 +390,22 @@ async function deleteAccount(
   if (!ok) return;
   accounts.splice(idx, 1);
   try {
+    let retiredOk = true;
     await withCardGuard(
       'accounts',
       btn,
       async () => {
         await setAccounts(accounts);
-        if (a?.id) await retireAccountIds([a.id]);
+        if (a?.id) retiredOk = await retireAccountIdsSafely([a.id]);
       },
       { busyText: 'Removing...', keepDisabledOnSuccess: true },
     );
     rerenderAccountsTable(root, accounts);
-    showMsg('accts-msg', 'Removed', true);
+    showMsg(
+      'accts-msg',
+      retiredOk ? 'Removed' : 'Removed (will finish reserving its id once back online)',
+      true,
+    );
   } catch (err) {
     showMsg('accts-msg', 'Error: ' + (err as Error).message, false);
   }
@@ -1277,15 +1287,6 @@ function _itemStableKey(item: HTMLElement): string | null {
   return null;
 }
 
-function esc(s: string | undefined | null): string {
-  if (!s) return '';
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
 /** Generate a stable snake_case slug from a label. */
 function slugify(label: string): string {
   return label
@@ -1427,11 +1428,17 @@ function parseHoldingName(
   return { ticker, acc, assetClass, region };
 }
 
-/** Subtract N months from a YYYY-MM-DD date string, returning YYYY-MM-DD. */
+/** Subtract N months from a YYYY-MM-DD date string, returning YYYY-MM-DD.
+ *  Builds the result from local getFullYear/getMonth/getDate (never
+ *  toISOString(), which converts to UTC and can roll the date back a day
+ *  in any UTC+ timezone, including Europe/Berlin). */
 function subtractMonths(dateStr: string, months: number): string {
   const d = new Date(dateStr + 'T00:00:00');
   d.setMonth(d.getMonth() - months);
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 // ── Cache / Force resync ──────────────────────────────────
