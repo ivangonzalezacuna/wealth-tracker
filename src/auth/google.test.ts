@@ -164,7 +164,7 @@ describe('signIn - error_callback / popup_closed handling', () => {
       access_token: 'abc123',
       expires_in: 3600,
       token_type: 'Bearer',
-      scope: 'https://www.googleapis.com/auth/spreadsheets',
+      scope: 'https://www.googleapis.com/auth/drive.file',
     });
 
     await expect(p).resolves.toBe('abc123');
@@ -186,7 +186,7 @@ describe('signIn - error_callback / popup_closed handling', () => {
         access_token: 'late-token',
         expires_in: 3600,
         token_type: 'Bearer',
-        scope: 'https://www.googleapis.com/auth/spreadsheets',
+        scope: 'https://www.googleapis.com/auth/drive.file',
       });
     }).not.toThrow();
   });
@@ -202,7 +202,7 @@ describe('signIn - error_callback / popup_closed handling', () => {
       access_token: 'abc123',
       expires_in: 3600,
       token_type: 'Bearer',
-      scope: 'https://www.googleapis.com/auth/spreadsheets',
+      scope: 'https://www.googleapis.com/auth/drive.file',
     });
     await expect(p).resolves.toBe('abc123');
 
@@ -268,7 +268,7 @@ describe('Phase 49 - GRANTED_KEY prompt selection', () => {
       access_token: 'tok1',
       expires_in: 3600,
       token_type: 'Bearer',
-      scope: 'https://www.googleapis.com/auth/spreadsheets',
+      scope: 'https://www.googleapis.com/auth/drive.file',
     });
     await p;
   });
@@ -285,7 +285,7 @@ describe('Phase 49 - GRANTED_KEY prompt selection', () => {
       access_token: 'tok2',
       expires_in: 3600,
       token_type: 'Bearer',
-      scope: 'https://www.googleapis.com/auth/spreadsheets',
+      scope: 'https://www.googleapis.com/auth/drive.file',
     });
     await p;
   });
@@ -299,7 +299,7 @@ describe('Phase 49 - GRANTED_KEY prompt selection', () => {
       access_token: 'tok3',
       expires_in: 3600,
       token_type: 'Bearer',
-      scope: 'https://www.googleapis.com/auth/spreadsheets',
+      scope: 'https://www.googleapis.com/auth/drive.file',
     });
     await p;
 
@@ -342,7 +342,7 @@ describe('Phase 49 - GRANTED_KEY prompt selection', () => {
       access_token: 'silent-tok',
       expires_in: 3600,
       token_type: 'Bearer',
-      scope: 'https://www.googleapis.com/auth/spreadsheets',
+      scope: 'https://www.googleapis.com/auth/drive.file',
     });
     await p;
   });

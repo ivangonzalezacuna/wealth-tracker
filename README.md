@@ -38,9 +38,17 @@ Edit `.env.local`:
 ```
 VITE_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 VITE_GOOGLE_SHEET_ID=your-google-sheet-id
+VITE_GOOGLE_PICKER_API_KEY=your-picker-api-key
 ```
 
 `.env.local` is git-ignored and never committed.
+
+`VITE_GOOGLE_PICKER_API_KEY` powers the one-time "select your spreadsheet" step (see "Security & trust model" below for why this exists). To create it:
+
+1. Google Cloud Console → **APIs & Services → Library** → enable **Google Picker API**.
+2. **APIs & Services → Credentials → Create Credentials → API key.**
+3. Restrict it: **Application restrictions → HTTP referrers** (your dev and deployed origins), **API restrictions → Restrict key → Google Picker API** only.
+4. Also add the `drive.file` scope to **OAuth consent screen → Data access → Add or remove scopes**, alongside whatever's already declared there - the app requests it at sign-in time, and Google rejects undeclared scopes.
 
 ### 3. Run locally
 
@@ -48,7 +56,7 @@ VITE_GOOGLE_SHEET_ID=your-google-sheet-id
 yarn dev
 ```
 
-Open `http://localhost:5173`, sign in with Google and you're ready.
+Open `http://localhost:5173`, sign in with Google, then pick your spreadsheet when the Picker dialog opens (first sign-in only - later sign-ins skip straight through).
 
 ### 4. Google Sheet structure
 
@@ -139,11 +147,12 @@ it's the extension point a future mapper UI would call into.
 
 In Netlify: **Site settings → Environment variables → Add variable**
 
-| Key                     | Value                | Notes                                                                                                                               |
-| ----------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `VITE_GOOGLE_CLIENT_ID` | Your OAuth Client ID | App-level, client-exposed (non-secret, see "Security & trust model" below)                                                          |
-| `VITE_GOOGLE_SHEET_ID`  | Your Google Sheet ID | App-level, client-exposed. Build-time constant, see "Design note" below                                                             |
-| `NODE_VERSION`          | `24`                 | Netlify build platform setting, already set in `netlify.toml`, listed here for completeness, no action needed unless upgrading Node |
+| Key                          | Value                          | Notes                                                                                                                                                                                                                       |
+| ---------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_GOOGLE_CLIENT_ID`      | Your OAuth Client ID           | App-level, client-exposed (non-secret, see "Security & trust model" below)                                                                                                                                                  |
+| `VITE_GOOGLE_SHEET_ID`       | Your Google Sheet ID           | App-level, client-exposed. Build-time constant, see "Design note" below                                                                                                                                                     |
+| `VITE_GOOGLE_PICKER_API_KEY` | Your Picker-restricted API key | App-level, client-exposed. Restrict it in Google Cloud Console to the Google Picker API and to your domain's HTTP referrers. Used only for the one-time "select your spreadsheet" flow (see "Security & trust model" below) |
+| `NODE_VERSION`               | `24`                           | Netlify build platform setting, already set in `netlify.toml`, listed here for completeness, no action needed unless upgrading Node                                                                                         |
 
 **Design note:** the Sheet ID is a build-time constant (`import.meta.env.VITE_GOOGLE_SHEET_ID`), not a runtime setting. One deployed build talks to exactly one Google Sheet for its entire life, until the env var changes and the site rebuilds. This is intentional: it keeps the app server-less and avoids adding any runtime "which Sheet am I pointed at" state that could be silently wrong.
 
@@ -178,10 +187,11 @@ https://your-app.netlify.app
 This app has no backend and no server-side secrets. Everything that could be called a "trust model" question resolves to: **it's exactly as trusted as your own Google account.**
 
 - **Your data lives only in your own Google Sheet.** The app never sends data anywhere except the Google Sheets API, using your own OAuth grant.
+- **The OAuth token only has access to the one spreadsheet you pick, not your whole Drive.** The app requests the `drive.file` scope, not the broader `spreadsheets` scope, so a leaked or stolen token could only read/write the single Sheet you explicitly authorized via the one-time "select your spreadsheet" step at first sign-in, not every spreadsheet in your Google account.
 - **The OAuth token is cached in your browser's `localStorage`**, not a server, so the app can restore your session instantly on reload without a repeated consent prompt. Tokens are short-lived (~1 hour) and refreshed silently in the background through your existing Google session. This is the standard pattern for a client-only OAuth app; there is no backend that could hold or leak the token instead.
-- **`VITE_GOOGLE_CLIENT_ID` and `VITE_GOOGLE_SHEET_ID` are visible in the built JavaScript.** This is intentional, not an oversight: an OAuth Client ID is meant to be public (Google's own model assumes it's visible to the browser), and a bare Sheet ID grants no access to anyone without your own OAuth token, it's an address, not a key.
+- **`VITE_GOOGLE_CLIENT_ID`, `VITE_GOOGLE_SHEET_ID`, and `VITE_GOOGLE_PICKER_API_KEY` are visible in the built JavaScript.** This is intentional, not an oversight: an OAuth Client ID is meant to be public (Google's own model assumes it's visible to the browser); a bare Sheet ID grants no access to anyone without your own OAuth token, it's an address, not a key; and the Picker API key is restricted (HTTP referrer + API) in Google Cloud Console so it's only usable from your own deployed origin, for opening the Picker UI, not for direct data access.
 - **Outbound writes are sanitized against formula injection.** Any free-text field starting with `=`, `+`, `-`, or `@` is escaped before being written to the Sheet, so a value that ends up in a re-exported CSV can't turn into a live formula when opened in Excel or LibreOffice later.
-- **A Content-Security-Policy is enforced at the Netlify edge** (`netlify.toml`), restricting script execution, framing, and outbound connections to exactly the origins this app talks to: Google Identity Services, the Google Sheets API, and Google Fonts. `style-src` allows `'unsafe-inline'` because views template inline styles directly into markup; every other directive (`script-src`, `object-src`, `frame-ancestors`, `connect-src`, `base-uri`, `form-action`) is locked down, which is where the real leverage for exfiltration or remote code execution would come from.
+- **A Content-Security-Policy is enforced at the Netlify edge** (`netlify.toml`), restricting script execution, framing, and outbound connections to exactly the origins this app talks to: Google Identity Services, the Google Picker API, the Google Sheets API, and Google Fonts. `style-src` allows `'unsafe-inline'` because views template inline styles directly into markup; every other directive (`script-src`, `object-src`, `frame-ancestors`, `connect-src`, `base-uri`, `form-action`) is locked down, which is where the real leverage for exfiltration or remote code execution would come from.
 - **This is a single-user, single-deployment design.** One Netlify site talks to exactly one Google Sheet, configured at build time (see "Environment variables" above). It is not built to serve multiple people from one deployment.
 
 ---

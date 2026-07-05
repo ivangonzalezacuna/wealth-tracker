@@ -3,6 +3,7 @@ import { CONFIG } from './config';
 import { getACCTSList } from './constants';
 import { appTemplate } from './template';
 import { signIn as gisSignIn, signOut, isSignedIn } from './auth/google';
+import { ensureDriveFileAuthorized, isDriveFileAuthorized } from './auth/picker';
 import { loadSnapshots, saveSnapshots, upsertSnapshot } from './sheets/snapshots';
 import {
   loadTransactions,
@@ -366,6 +367,16 @@ async function onSignInClick() {
   try {
     setAuthStatus('<span class="spinner"></span>Signing in…');
     await withTimeout(gisSignIn(), SIGNIN_TIMEOUT_MS);
+
+    // One-time per browser: drive.file only grants access to a file once
+    // the user has explicitly opened it with this app via the Picker.
+    // isDriveFileAuthorized() is true immediately on every later sign-in,
+    // so this only prompts once (or again if localStorage was cleared).
+    if (!isDriveFileAuthorized()) {
+      setAuthStatus('<span class="spinner"></span>Select your spreadsheet…');
+      await ensureDriveFileAuthorized();
+    }
+
     hideSigninOverlay();
     updateAuthUI(true);
     await loadAllData();
@@ -376,6 +387,10 @@ async function onSignInClick() {
       setAuthStatus('Sign-in cancelled', true);
     } else if ((err as Error).message === 'signin_timeout') {
       setAuthStatus('Sign-in timed out, please try again', true);
+    } else if ((err as Error).message === 'picker_cancelled') {
+      setAuthStatus('Sign-in needs you to select your spreadsheet - please try again', true);
+    } else if ((err as Error).message === 'picker_wrong_file') {
+      setAuthStatus('Please select the same spreadsheet configured for this app', true);
     } else {
       setAuthStatus('Sign-in failed: ' + (err as Error).message, true);
     }
