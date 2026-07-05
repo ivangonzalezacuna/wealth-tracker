@@ -1,33 +1,45 @@
-// @ts-nocheck - test fixtures use partial objects; strict typing deferred
 import { describe, it, expect } from 'vitest';
 import { computeCostBasis, _computeAvgCost, _computeFIFO } from './costbasis';
 import { TxType } from './tx';
+import type { Transaction } from '../types';
 
 /** Helper to build a minimal BUY transaction. */
-function buy(date, shares, amount, fee = 0) {
+function buy(date: string, shares: number, amount: number, fee = 0): Transaction {
   return {
+    id: '',
+    source: '',
+    name: '',
+    isin: 'IE00B4L5Y983',
     type: TxType.BUY,
     date,
     symbol: 'IE00B4L5Y983',
     shares,
+    price: 0,
     amount: -amount,
     fee,
     tax: 0,
     currency: 'EUR',
+    fxRate: 0,
   };
 }
 
 /** Helper to build a minimal SELL transaction. */
-function sell(date, shares, amount, fee = 0) {
+function sell(date: string, shares: number, amount: number, fee = 0): Transaction {
   return {
+    id: '',
+    source: '',
+    name: '',
+    isin: 'IE00B4L5Y983',
     type: TxType.SELL,
     date,
     symbol: 'IE00B4L5Y983',
     shares: -shares,
+    price: 0,
     amount,
     fee,
     tax: 0,
     currency: 'EUR',
+    fxRate: 0,
   };
 }
 
@@ -154,33 +166,54 @@ describe('costbasis: avgco vs fifo divergence', () => {
 
 describe('computeCostBasis (multi-ISIN)', () => {
   it('groups by symbol and computes independently', () => {
-    const txs = [
+    const txs: Transaction[] = [
       {
+        id: '',
+        source: '',
+        name: '',
+        isin: 'A',
         type: TxType.BUY,
         date: '2024-01-01',
         symbol: 'A',
         shares: 10,
+        price: 0,
         amount: -1000,
         fee: 0,
         tax: 0,
+        currency: 'EUR',
+        fxRate: 0,
       },
       {
+        id: '',
+        source: '',
+        name: '',
+        isin: 'B',
         type: TxType.BUY,
         date: '2024-01-01',
         symbol: 'B',
         shares: 5,
+        price: 0,
         amount: -500,
         fee: 0,
         tax: 0,
+        currency: 'EUR',
+        fxRate: 0,
       },
       {
+        id: '',
+        source: '',
+        name: '',
+        isin: 'A',
         type: TxType.SELL,
         date: '2024-02-01',
         symbol: 'A',
         shares: -10,
+        price: 0,
         amount: 1100,
         fee: 0,
         tax: 0,
+        currency: 'EUR',
+        fxRate: 0,
       },
     ];
     const result = computeCostBasis(txs, 'avgco');

@@ -1,7 +1,6 @@
 /**
  * @vitest-environment jsdom
  */
-// @ts-nocheck - mirrors production file's @ts-nocheck; test fixtures use partial objects
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ── Mocks ───────────────────────────────────────────────────────
@@ -420,7 +419,7 @@ describe('Busy state - cost-basis, goal, cache, backup', () => {
 
   it('Save cost-basis button shows busy text during save', async () => {
     const { setSetting } = await import('../store/config');
-    let resolveWrite: () => void;
+    let resolveWrite: (value?: unknown) => void;
     (setSetting as ReturnType<typeof vi.fn>).mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -444,7 +443,7 @@ describe('Busy state - cost-basis, goal, cache, backup', () => {
 
   it('Save goal button shows busy text during save', async () => {
     const { setSettings } = await import('../store/config');
-    let resolveWrite: () => void;
+    let resolveWrite: (value?: unknown) => void;
     (setSettings as ReturnType<typeof vi.fn>).mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -466,7 +465,7 @@ describe('Busy state - cost-basis, goal, cache, backup', () => {
   });
 
   it('Force resync button shows busy text during resync', async () => {
-    let resolveResync: () => void;
+    let resolveResync: (value?: unknown) => void;
     (window as any).__forceFullResync = () =>
       new Promise((resolve) => {
         resolveResync = resolve;
@@ -486,7 +485,7 @@ describe('Busy state - cost-basis, goal, cache, backup', () => {
   });
 
   it('Export backup button shows busy text during export', async () => {
-    let resolveExport: () => void;
+    let resolveExport: (value?: unknown) => void;
     (window as any).__exportBackup = () =>
       new Promise((resolve) => {
         resolveExport = resolve;
@@ -508,7 +507,7 @@ describe('Busy state - cost-basis, goal, cache, backup', () => {
   it('second click while card is busy has no effect', async () => {
     const { setSetting } = await import('../store/config');
     (setSetting as ReturnType<typeof vi.fn>).mockClear();
-    let resolveWrite: () => void;
+    let resolveWrite: (value?: unknown) => void;
     (setSetting as ReturnType<typeof vi.fn>).mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -546,7 +545,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
     it('disables synchronously and prevents double-click', async () => {
       const { setAccounts } = await import('../store/config');
       (setAccounts as ReturnType<typeof vi.fn>).mockClear();
-      let resolveWrite!: () => void;
+      let resolveWrite!: (value?: unknown) => void;
       (setAccounts as ReturnType<typeof vi.fn>).mockImplementationOnce(
         () =>
           new Promise((r) => {
@@ -599,7 +598,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
     it('disables synchronously and prevents double-click', async () => {
       const { setAccounts } = await import('../store/config');
       (setAccounts as ReturnType<typeof vi.fn>).mockClear();
-      let resolveWrite!: () => void;
+      let resolveWrite!: (value?: unknown) => void;
       (setAccounts as ReturnType<typeof vi.fn>).mockImplementationOnce(
         () =>
           new Promise((r) => {
@@ -630,7 +629,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
     it('disables synchronously and prevents double-click', async () => {
       const { setHoldings } = await import('../store/config');
       (setHoldings as ReturnType<typeof vi.fn>).mockClear();
-      let resolveWrite!: () => void;
+      let resolveWrite!: (value?: unknown) => void;
       (setHoldings as ReturnType<typeof vi.fn>).mockImplementationOnce(
         () =>
           new Promise((r) => {
@@ -681,7 +680,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
     it('disables synchronously and prevents double-click', async () => {
       const { setHoldings } = await import('../store/config');
       (setHoldings as ReturnType<typeof vi.fn>).mockClear();
-      let resolveWrite!: () => void;
+      let resolveWrite!: (value?: unknown) => void;
       (setHoldings as ReturnType<typeof vi.fn>).mockImplementationOnce(
         () =>
           new Promise((r) => {
@@ -711,7 +710,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
     it('disables synchronously and prevents double-click', async () => {
       const { loadTransactions } = await import('../sheets/transactions');
       (loadTransactions as ReturnType<typeof vi.fn>).mockClear();
-      let resolveLoad!: () => void;
+      let resolveLoad!: (value?: unknown) => void;
       (loadTransactions as ReturnType<typeof vi.fn>).mockImplementationOnce(
         () =>
           new Promise((r) => {
@@ -740,7 +739,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
     it('disables synchronously and prevents double-click', async () => {
       const { setSettings } = await import('../store/config');
       (setSettings as ReturnType<typeof vi.fn>).mockClear();
-      let resolveWrite!: () => void;
+      let resolveWrite!: (value?: unknown) => void;
       (setSettings as ReturnType<typeof vi.fn>).mockImplementationOnce(
         () =>
           new Promise((r) => {
@@ -791,7 +790,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
     it('disables synchronously and prevents double-click', async () => {
       const { setSettings } = await import('../store/config');
       (setSettings as ReturnType<typeof vi.fn>).mockClear();
-      let resolveWrite!: () => void;
+      let resolveWrite!: (value?: unknown) => void;
       (setSettings as ReturnType<typeof vi.fn>).mockImplementationOnce(
         () =>
           new Promise((r) => {
@@ -821,7 +820,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
     it('disables synchronously and prevents double-click', async () => {
       const { setSetting } = await import('../store/config');
       (setSetting as ReturnType<typeof vi.fn>).mockClear();
-      let resolveWrite!: () => void;
+      let resolveWrite!: (value?: unknown) => void;
       (setSetting as ReturnType<typeof vi.fn>).mockImplementationOnce(
         () =>
           new Promise((r) => {
@@ -872,10 +871,10 @@ describe('Button-disable verification: synchronous disable and double-click prev
     it('disables synchronously and prevents double-click', async () => {
       const { setSettings } = await import('../store/config');
       (setSettings as ReturnType<typeof vi.fn>).mockReset();
-      let resolveWrite!: () => void;
+      let resolveWrite!: (value?: unknown) => void;
       (setSettings as ReturnType<typeof vi.fn>).mockImplementation(
         () =>
-          new Promise<void>((r) => {
+          new Promise((r) => {
             resolveWrite = r;
           }),
       );
@@ -932,7 +931,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
   describe('#btn-force-resync (cache card)', () => {
     it('disables synchronously and prevents double-click', async () => {
       let callCount = 0;
-      let resolveResync!: () => void;
+      let resolveResync!: (value?: unknown) => void;
       (window as any).__forceFullResync = () => {
         callCount++;
         return new Promise((r) => {
@@ -978,7 +977,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
   describe('#btn-export-backup (backup card)', () => {
     it('disables synchronously and prevents double-click', async () => {
       let callCount = 0;
-      let resolveExport!: () => void;
+      let resolveExport!: (value?: unknown) => void;
       (window as any).__exportBackup = () => {
         callCount++;
         return new Promise((r) => {
@@ -1024,7 +1023,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
   describe('#btn-restore-backup (backup restore via file input)', () => {
     it('disables synchronously and prevents double-click', async () => {
       let callCount = 0;
-      let resolveRestore!: () => void;
+      let resolveRestore!: (value?: unknown) => void;
       (window as any).__restoreFromBackup = () => {
         callCount++;
         return new Promise((r) => {

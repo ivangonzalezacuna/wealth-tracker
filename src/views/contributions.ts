@@ -1,4 +1,3 @@
-// @ts-nocheck - DOM-heavy view; full strict typing deferred to framework migration
 import { fmtEur, fmtMon, esc, safeColor } from '../utils';
 import { getISIN_ORDERList, getISIN, getMETAMap } from '../constants';
 import { getTotalAnnualContrib, getAccounts } from '../store/config';
@@ -27,8 +26,8 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const ISIN = getISIN();
   const META = getMETAMap();
   const has = pd && pd.months.length > 0;
-  document.getElementById('dca-empty').style.display = has ? 'none' : 'block';
-  document.getElementById('dca-content').style.display = has ? 'block' : 'none';
+  document.getElementById('dca-empty')!.style.display = has ? 'none' : 'block';
+  document.getElementById('dca-content')!.style.display = has ? 'block' : 'none';
   if (!has) return;
 
   _lastPd = pd;
@@ -39,7 +38,7 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const lastM = pd.months[n - 1];
   const lastAmt = pd.monthly[lastM] || 0;
 
-  document.getElementById('dca-kpis').innerHTML = `
+  document.getElementById('dca-kpis')!.innerHTML = `
     <div class="kpi"><div class="kpi-label">Total invested</div><div class="kpi-val">${fmtEur(total)}</div><div class="kpi-sub">all savings plans</div></div>
     <div class="kpi"><div class="kpi-label">Active months</div><div class="kpi-val">${n}</div><div class="kpi-sub">${fmtMon(pd.months[0])} → ${fmtMon(lastM)}</div></div>
     <div class="kpi"><div class="kpi-label">Avg / month</div><div class="kpi-val">${fmtEur(avg)}</div></div>
@@ -191,7 +190,7 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
 
   const C2 = resolvedT();
   if (CH['c-dca-proj']) CH['c-dca-proj'].destroy();
-  CH['c-dca-proj'] = new Chart(document.getElementById('c-dca-proj'), {
+  CH['c-dca-proj'] = new Chart(document.getElementById('c-dca-proj') as HTMLCanvasElement, {
     type: 'line',
     data: {
       labels,
@@ -246,7 +245,7 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
       },
       scales: {
         y: {
-          grid: { color: C2.line, drawBorder: false },
+          grid: { color: C2.line },
           ticks: {
             color: C2.ink4,
             callback: (v) =>
@@ -320,11 +319,13 @@ function renderDCAChart(
       label: t,
       data: months.map((mo) => (pd.monthlyBy[mo] || {})[sym] || 0),
       backgroundColor: m.color || C.ink4,
-      borderRadius: (ctx) => {
+      borderRadius: (ctx: { chart: Chart; datasetIndex: number; dataIndex: number }) => {
         const ds = ctx.chart.data.datasets,
           i = ctx.datasetIndex,
           j = ctx.dataIndex;
-        const isTop = !ds.some((d, k) => k > i && ((d.data[j] as number) || 0) > 0);
+        const isTop = !ds.some(
+          (d: { data: unknown[] }, k: number) => k > i && ((d.data[j] as number) || 0) > 0,
+        );
         return isTop ? { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 } : 0;
       },
       borderSkipped: false,
@@ -336,7 +337,7 @@ function renderDCAChart(
   const step = Math.ceil(months.length / maxLabels);
 
   if (CH['c-dca-bar']) CH['c-dca-bar'].destroy();
-  CH['c-dca-bar'] = new Chart(document.getElementById('c-dca-bar'), {
+  CH['c-dca-bar'] = new Chart(document.getElementById('c-dca-bar') as HTMLCanvasElement, {
     type: 'bar',
     data: { labels: months.map(fmtMon), datasets },
     options: {
@@ -364,19 +365,19 @@ function renderDCAChart(
             maxRotation: 45,
             autoSkip: false,
             callback: function (val, idx) {
-              return idx % step === 0 ? this.getLabelForValue(val) : '';
+              return idx % step === 0 ? this.getLabelForValue(val as number) : '';
             },
           },
         },
         y: {
           stacked: true,
-          grid: { color: C.line, drawBorder: false },
+          grid: { color: C.line },
           ticks: {
             color: C.ink4,
             callback: (v) =>
               (v as number) >= 1000
-                ? ((v as number) / 1000).toFixed(0) + 'k\u00A0€'
-                : v + '\u00A0€',
+                ? ((v as number) / 1000).toFixed(0) + 'k\u00A0\u20AC'
+                : v + '\u00A0\u20AC',
           },
         },
       },
@@ -447,7 +448,7 @@ function attachRangeToggle(
 // ── DCA table with filtering + pagination ────────────────
 
 function populateDCAYearFilter(months: string[]): void {
-  const select = document.getElementById('dca-year-filter');
+  const select = document.getElementById('dca-year-filter') as HTMLSelectElement | null;
   if (!select) return;
   const years = [...new Set(months.map((m) => m.slice(0, 4)))].sort().reverse();
   const current = select.value;

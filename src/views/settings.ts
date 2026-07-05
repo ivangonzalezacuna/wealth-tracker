@@ -1,4 +1,3 @@
-// @ts-nocheck - DOM-heavy view; full strict typing deferred to framework migration
 import {
   getAccounts,
   getHoldings,
@@ -353,7 +352,7 @@ function renderAccountRow(a: Account, i: number): string {
 
 /** Bind change listeners on isPrimaryInvestment checkboxes to dynamically show/hide contribution fields. */
 function attachPrimaryToggleListeners(scope: Element): void {
-  scope.querySelectorAll('[data-field="isPrimaryInvestment"]').forEach((cb) => {
+  scope.querySelectorAll<HTMLInputElement>('[data-field="isPrimaryInvestment"]').forEach((cb) => {
     cb.addEventListener('change', () => {
       const row = cb.closest('.settings-acct-row');
       if (!row) return;
@@ -398,7 +397,7 @@ async function deleteAccount(
     rerenderAccountsTable(root, accounts);
     showMsg('accts-msg', 'Removed', true);
   } catch (err) {
-    showMsg('accts-msg', 'Error: ' + err.message, false);
+    showMsg('accts-msg', 'Error: ' + (err as Error).message, false);
   }
 }
 
@@ -432,7 +431,7 @@ function attachAccountListeners(root: HTMLElement): void {
     }
     // Auto-generate IDs for accounts that don't have one
     const taken = new Set([
-      ...accounts.filter((a) => a.id).map((a) => a.id),
+      ...accounts.filter((a) => a.id).map((a) => a.id!),
       ...getRetiredAccountIds(),
     ]);
     for (const a of accounts) {
@@ -445,13 +444,13 @@ function attachAccountListeners(root: HTMLElement): void {
       await withCardGuard('accounts', btn, () => setAccounts(accounts), { busyText: 'Saving...' });
       showMsg('accts-msg', 'Saved', true);
     } catch (err) {
-      showMsg('accts-msg', 'Error: ' + err.message, false);
+      showMsg('accts-msg', 'Error: ' + (err as Error).message, false);
     }
   });
 
   root.querySelectorAll('.js-del-acct').forEach((btn) => {
     btn.addEventListener('click', () =>
-      deleteAccount(root, parseInt(btn.dataset.idx), btn as HTMLButtonElement),
+      deleteAccount(root, parseInt((btn as HTMLElement).dataset.idx!), btn as HTMLButtonElement),
     );
   });
 }
@@ -459,31 +458,39 @@ function attachAccountListeners(root: HTMLElement): void {
 function collectAccounts(root: HTMLElement): Account[] {
   const rows = root.querySelectorAll('.settings-acct-row');
   return [...rows].map((row, i) => {
-    const isPrimary = row.querySelector('[data-field="isPrimaryInvestment"]').checked;
-    const contribEl = row.querySelector('[data-field="contribAmount"]');
-    const intervalEl = row.querySelector('[data-field="contribInterval"]');
+    const isPrimary = (row.querySelector('[data-field="isPrimaryInvestment"]') as HTMLInputElement)
+      .checked;
+    const contribEl = row.querySelector('[data-field="contribAmount"]') as HTMLInputElement | null;
+    const intervalEl = row.querySelector(
+      '[data-field="contribInterval"]',
+    ) as HTMLSelectElement | null;
     return {
-      id: row.querySelector('[data-field="id"]').value.trim(),
-      moneyType: row.querySelector('[data-field="moneyType"]').value.trim(),
-      institution: row.querySelector('[data-field="institution"]').value.trim(),
-      label: row.querySelector('[data-field="label"]').value.trim(),
-      color: row.querySelector('[data-field="color"]').value.trim(),
+      id: (row.querySelector('[data-field="id"]') as HTMLInputElement).value.trim(),
+      moneyType: (row.querySelector('[data-field="moneyType"]') as HTMLInputElement).value.trim(),
+      institution: (
+        row.querySelector('[data-field="institution"]') as HTMLInputElement
+      ).value.trim(),
+      label: (row.querySelector('[data-field="label"]') as HTMLInputElement).value.trim(),
+      color: (row.querySelector('[data-field="color"]') as HTMLInputElement).value.trim(),
       isPrimaryInvestment: isPrimary,
       order: i + 1,
-      annualReturnPct: parseFloat(row.querySelector('[data-field="annualReturnPct"]').value) || 0,
+      annualReturnPct:
+        parseFloat(
+          (row.querySelector('[data-field="annualReturnPct"]') as HTMLInputElement).value,
+        ) || 0,
       // Primary investment contribution comes from Holdings, so zero out its per-account fields.
-      contribAmount: isPrimary ? 0 : parseFloat(contribEl?.value) || 0,
+      contribAmount: isPrimary ? 0 : parseFloat(contribEl?.value || '') || 0,
       contribInterval: isPrimary
         ? 'monthly'
         : contribEl
-          ? intervalEl?.value || 'monthly'
+          ? ((intervalEl?.value || 'monthly') as ContribInterval)
           : 'monthly',
     };
   });
 }
 
 function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
-  const tbl = root.querySelector('#settings-accounts-tbl');
+  const tbl = root.querySelector('#settings-accounts-tbl') as HTMLElement | null;
   if (!tbl) return;
   const rows = accounts.map((a, i) => renderAccountRow(a, i)).join('');
   tbl.innerHTML = rows;
@@ -493,7 +500,7 @@ function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
   attachInfoTips(tbl);
   tbl.querySelectorAll('.js-del-acct').forEach((btn) => {
     btn.addEventListener('click', () =>
-      deleteAccount(root, parseInt(btn.dataset.idx), btn as HTMLButtonElement),
+      deleteAccount(root, parseInt((btn as HTMLElement).dataset.idx!), btn as HTMLButtonElement),
     );
   });
 }
@@ -715,7 +722,7 @@ async function deleteHolding(
     rerenderHoldingsTable(root, holds);
     showMsg('holds-msg', 'Removed', true);
   } catch (err) {
-    showMsg('holds-msg', 'Error: ' + err.message, false);
+    showMsg('holds-msg', 'Error: ' + (err as Error).message, false);
   }
 }
 
@@ -767,8 +774,8 @@ function attachHoldingListeners(root: HTMLElement): void {
           const latestDate = buys.reduce((max, t) => (t.date > max ? t.date : max), '');
           const cutoff = subtractMonths(latestDate, 3);
           // Extract unique ISIN->name mapping and track latest tx date per ISIN
-          const isinMap = {};
-          const isinLatest = {};
+          const isinMap: Record<string, string> = {};
+          const isinLatest: Record<string, string> = {};
           for (const tx of buys) {
             const sym = tx.isin || tx.symbol;
             if (!isinMap[sym]) {
@@ -814,7 +821,7 @@ function attachHoldingListeners(root: HTMLElement): void {
         { busyText: 'Loading...' },
       );
     } catch (err) {
-      showMsg('holds-msg', 'Error: ' + err.message, false);
+      showMsg('holds-msg', 'Error: ' + (err as Error).message, false);
     }
   });
 
@@ -834,13 +841,13 @@ function attachHoldingListeners(root: HTMLElement): void {
       await withCardGuard('holdings', btn, () => setHoldings(holds), { busyText: 'Saving...' });
       showMsg('holds-msg', 'Saved', true);
     } catch (err) {
-      showMsg('holds-msg', 'Error: ' + err.message, false);
+      showMsg('holds-msg', 'Error: ' + (err as Error).message, false);
     }
   });
 
   root.querySelectorAll('.js-del-hold').forEach((btn) => {
     btn.addEventListener('click', () =>
-      deleteHolding(root, parseInt(btn.dataset.idx), btn as HTMLButtonElement),
+      deleteHolding(root, parseInt((btn as HTMLElement).dataset.idx!), btn as HTMLButtonElement),
     );
   });
 }
@@ -848,19 +855,22 @@ function attachHoldingListeners(root: HTMLElement): void {
 function collectHoldings(root: HTMLElement): Holding[] {
   const rows = root.querySelectorAll('.settings-hold-row');
   const fromDOM = [...rows].map((row) => ({
-    idx: parseInt(row.dataset.idx),
-    isin: row.querySelector('[data-field="isin"]').value.trim(),
-    ticker: row.querySelector('[data-field="ticker"]').value.trim(),
+    idx: parseInt((row as HTMLElement).dataset.idx!),
+    isin: (row.querySelector('[data-field="isin"]') as HTMLInputElement).value.trim(),
+    ticker: (row.querySelector('[data-field="ticker"]') as HTMLInputElement).value.trim(),
     name: '',
-    color: row.querySelector('[data-field="color"]').value.trim(),
-    acc: row.querySelector('[data-field="acc"]').checked,
-    active: row.querySelector('[data-field="active"]').checked,
-    contribAmount: parseFloat(row.querySelector('[data-field="contribAmount"]').value) || 0,
-    contribInterval: (row.querySelector('[data-field="contribInterval"]').value.trim() ||
-      'weekly') as ContribInterval,
-    assetClass: row.querySelector('[data-field="assetClass"]').value.trim(),
-    region: row.querySelector('[data-field="region"]').value.trim(),
-    foldInto: row.querySelector('[data-field="foldInto"]').value.trim(),
+    color: (row.querySelector('[data-field="color"]') as HTMLInputElement).value.trim(),
+    acc: (row.querySelector('[data-field="acc"]') as HTMLInputElement).checked,
+    active: (row.querySelector('[data-field="active"]') as HTMLInputElement).checked,
+    contribAmount:
+      parseFloat((row.querySelector('[data-field="contribAmount"]') as HTMLInputElement).value) ||
+      0,
+    contribInterval: ((
+      row.querySelector('[data-field="contribInterval"]') as HTMLSelectElement
+    ).value.trim() || 'weekly') as ContribInterval,
+    assetClass: (row.querySelector('[data-field="assetClass"]') as HTMLSelectElement).value.trim(),
+    region: (row.querySelector('[data-field="region"]') as HTMLSelectElement).value.trim(),
+    foldInto: (row.querySelector('[data-field="foldInto"]') as HTMLInputElement).value.trim(),
   }));
 
   // When no filter is active or no cached list, return DOM rows directly
@@ -901,18 +911,19 @@ function rerenderHoldingsTable(root: HTMLElement, holdings: Holding[]): void {
     const closedCount = holdings.filter((h) => !h.active).length;
     const btns = toggle.querySelectorAll('[data-hfilter]');
     btns.forEach((b) => {
-      b.classList.toggle('active', b.dataset.hfilter === 'all');
-      if (b.dataset.hfilter === 'all') b.textContent = `All (${holdings.length})`;
-      if (b.dataset.hfilter === 'active') b.textContent = `Active (${activeCount})`;
-      if (b.dataset.hfilter === 'closed') b.textContent = `Closed (${closedCount})`;
+      const el = b as HTMLElement;
+      el.classList.toggle('active', el.dataset.hfilter === 'all');
+      if (el.dataset.hfilter === 'all') el.textContent = `All (${holdings.length})`;
+      if (el.dataset.hfilter === 'active') el.textContent = `Active (${activeCount})`;
+      if (el.dataset.hfilter === 'closed') el.textContent = `Closed (${closedCount})`;
     });
   }
-  attachColorPickerSync(tbl);
-  attachItemCollapseListeners(tbl);
-  attachInfoTips(tbl);
+  attachColorPickerSync(tbl as HTMLElement);
+  attachItemCollapseListeners(tbl as HTMLElement);
+  attachInfoTips(tbl as HTMLElement);
   tbl.querySelectorAll('.js-del-hold').forEach((btn) => {
     btn.addEventListener('click', () =>
-      deleteHolding(root, parseInt(btn.dataset.idx), btn as HTMLButtonElement),
+      deleteHolding(root, parseInt((btn as HTMLElement).dataset.idx!), btn as HTMLButtonElement),
     );
   });
 }
@@ -956,14 +967,15 @@ function renderCostBasisCard(settings: Settings): string {
 function attachCostBasisListeners(root: HTMLElement): void {
   root.querySelector('#btn-save-cost-basis')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-cost-basis') as HTMLButtonElement;
-    const method = root.querySelector('#set-cost-basis-method')?.value || 'avgco';
+    const method =
+      (root.querySelector('#set-cost-basis-method') as HTMLSelectElement | null)?.value || 'avgco';
     try {
       await withCardGuard('cost-basis', btn, () => setSetting('costBasisMethod', method), {
         busyText: 'Saving...',
       });
       showMsg('costbasis-msg', 'Saved', true);
     } catch (err) {
-      showMsg('costbasis-msg', 'Error: ' + err.message, false);
+      showMsg('costbasis-msg', 'Error: ' + (err as Error).message, false);
     }
   });
 }
@@ -1009,8 +1021,9 @@ function renderGoalCard(settings: Settings): string {
 function attachGoalListeners(root: HTMLElement): void {
   root.querySelector('#btn-save-goal')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-goal') as HTMLButtonElement;
-    const nwVal = root.querySelector('#set-target-nw')?.value || '';
-    const dateVal = root.querySelector('#set-target-date')?.value || '';
+    const nwVal = (root.querySelector('#set-target-nw') as HTMLInputElement | null)?.value || '';
+    const dateVal =
+      (root.querySelector('#set-target-date') as HTMLInputElement | null)?.value || '';
     try {
       await withCardGuard(
         'goal',
@@ -1022,7 +1035,7 @@ function attachGoalListeners(root: HTMLElement): void {
       );
       showMsg('goal-msg', 'Saved', true);
     } catch (err) {
-      showMsg('goal-msg', 'Error: ' + err.message, false);
+      showMsg('goal-msg', 'Error: ' + (err as Error).message, false);
     }
   });
 }
@@ -1121,7 +1134,7 @@ async function deleteRule(root: HTMLElement, idx: number, btn: HTMLButtonElement
     rerenderRulesTable(root, rules);
     showMsg('rules-msg', 'Removed', true);
   } catch (err) {
-    showMsg('rules-msg', 'Error: ' + err.message, false);
+    showMsg('rules-msg', 'Error: ' + (err as Error).message, false);
   }
 }
 
@@ -1139,13 +1152,13 @@ function attachRulesListeners(root: HTMLElement): void {
       await withCardGuard('rules', btn, () => persistRules(rules), { busyText: 'Saving...' });
       showMsg('rules-msg', 'Saved', true);
     } catch (err) {
-      showMsg('rules-msg', 'Error: ' + err.message, false);
+      showMsg('rules-msg', 'Error: ' + (err as Error).message, false);
     }
   });
 
   root.querySelectorAll('.js-del-rule').forEach((btn) => {
     btn.addEventListener('click', () =>
-      deleteRule(root, parseInt(btn.dataset.idx), btn as HTMLButtonElement),
+      deleteRule(root, parseInt((btn as HTMLElement).dataset.idx!), btn as HTMLButtonElement),
     );
   });
 }
@@ -1153,8 +1166,8 @@ function attachRulesListeners(root: HTMLElement): void {
 function collectRules(root: HTMLElement): { label: string; value: string }[] {
   const rows = root.querySelectorAll('.settings-rule-row');
   return [...rows].map((row) => ({
-    label: row.querySelector('[data-field="label"]').value.trim(),
-    value: row.querySelector('[data-field="value"]').value.trim(),
+    label: (row.querySelector('[data-field="label"]') as HTMLInputElement).value.trim(),
+    value: (row.querySelector('[data-field="value"]') as HTMLInputElement).value.trim(),
   }));
 }
 
@@ -1183,7 +1196,7 @@ function rerenderRulesTable(root: HTMLElement, rules: { label: string; value: st
   tbl.innerHTML = rows;
   tbl.querySelectorAll('.js-del-rule').forEach((btn) => {
     btn.addEventListener('click', () =>
-      deleteRule(root, parseInt(btn.dataset.idx), btn as HTMLButtonElement),
+      deleteRule(root, parseInt((btn as HTMLElement).dataset.idx!), btn as HTMLButtonElement),
     );
   });
 }
@@ -1193,8 +1206,8 @@ function rerenderRulesTable(root: HTMLElement, rules: { label: string; value: st
 /** Attach two-way sync between color swatch and hex text inputs. */
 function attachColorPickerSync(root: HTMLElement): void {
   root.querySelectorAll('.color-picker-wrap').forEach((wrap) => {
-    const swatch = wrap.querySelector('.color-picker-swatch');
-    const hex = wrap.querySelector('.color-picker-hex');
+    const swatch = wrap.querySelector('.color-picker-swatch') as HTMLInputElement | null;
+    const hex = wrap.querySelector('.color-picker-hex') as HTMLInputElement | null;
     if (!swatch || !hex) return;
     swatch.addEventListener('input', () => {
       hex.value = swatch.value;
@@ -1229,7 +1242,7 @@ function attachItemCollapseListeners(root: HTMLElement): void {
   root.querySelectorAll('.js-item-toggle').forEach((header) => {
     header.addEventListener('click', (e) => {
       // Don't toggle when clicking the delete button
-      if (e.target.closest('.btn-danger')) return;
+      if ((e.target as HTMLElement | null)?.closest('.btn-danger')) return;
       const item = header.closest('.item-collapsible') as HTMLElement | null;
       if (!item) return;
       item.classList.toggle('item-collapsed');
@@ -1253,12 +1266,12 @@ function attachItemCollapseListeners(root: HTMLElement): void {
 function _itemStableKey(item: HTMLElement): string | null {
   // Account rows: use the hidden id field
   if (item.classList.contains('settings-acct-row')) {
-    const id = item.querySelector('[data-field="id"]')?.value;
+    const id = (item.querySelector('[data-field="id"]') as HTMLInputElement | null)?.value;
     return id ? 'item:acct:' + id : null;
   }
   // Holding rows: use the ISIN field
   if (item.classList.contains('settings-hold-row')) {
-    const isin = item.querySelector('[data-field="isin"]')?.value;
+    const isin = (item.querySelector('[data-field="isin"]') as HTMLInputElement | null)?.value;
     return isin ? 'item:hold:' + isin : null;
   }
   return null;
@@ -1326,7 +1339,7 @@ function randomColor(): string {
     g = 0;
     b = x;
   }
-  const toHex = (v) =>
+  const toHex = (v: number) =>
     Math.round((v + m) * 255)
       .toString(16)
       .padStart(2, '0');
@@ -1458,7 +1471,7 @@ function attachCacheListeners(root: HTMLElement): void {
 
 function backupNudgeHtml(settings: Settings): string {
   const lastBackupAt = settings['last_backup_at'];
-  const stale = isBackupStale(lastBackupAt);
+  const stale = isBackupStale(lastBackupAt ?? undefined);
   if (!stale) return '';
   const nudgeText = !lastBackupAt
     ? 'No backup yet. Takes just a few seconds, worth doing now.'

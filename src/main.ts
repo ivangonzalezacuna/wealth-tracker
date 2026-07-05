@@ -1,4 +1,3 @@
-// @ts-nocheck - DOM-heavy entry point; full strict typing deferred to framework migration
 import './styles.css';
 import { CONFIG } from './config';
 import { getACCTSList } from './constants';
@@ -34,6 +33,7 @@ import {
   migrateBackup,
 } from './backup/exportImport';
 import { getSetupState } from './model/setup';
+import type { SetupStep } from './model/setup';
 import { computePD } from './portfolio';
 import { parseWithProfile, detectProfile, previewSummary } from './import/parse';
 import { builtInProfiles } from './import/profiles/index';
@@ -75,9 +75,17 @@ import { confirmDialog } from './ui/confirmDialog';
 import { showSigninOverlay, hideSigninOverlay } from './ui/signinOverlay';
 import { withTimeout } from './sync/timeout';
 import { registerSW } from 'virtual:pwa-register';
+import type { Snapshot, Transaction, PortfolioData, ImportProfile } from './types';
 
 // ── App state ────────────────────────────────────────────
-const state = {
+const state: {
+  snaps: Snapshot[];
+  txs: Transaction[];
+  pd: PortfolioData | null;
+  importMeta: { last_import?: string };
+  offline: boolean;
+  cacheLoaded: boolean;
+} = {
   snaps: [],
   txs: [],
   pd: null,
@@ -168,7 +176,7 @@ function isInitialLoad(): boolean {
 }
 
 // ── Boot ─────────────────────────────────────────────────
-document.getElementById('app').innerHTML = appTemplate();
+document.getElementById('app')!.innerHTML = appTemplate();
 loadCollapseState(); // fire-and-forget: loads persisted UI collapse state from IDB
 initNav();
 initSnapForm();
@@ -180,14 +188,14 @@ initPwaUpdate();
 
 // ── Navigation ───────────────────────────────────────────
 function initNav() {
-  document.querySelectorAll('.nav button[data-section]').forEach((btn) => {
-    btn.addEventListener('click', () => showSection(btn.dataset.section, btn));
+  document.querySelectorAll<HTMLElement>('.nav button[data-section]').forEach((btn) => {
+    btn.addEventListener('click', () => showSection(btn.dataset.section!, btn));
   });
-  document.querySelectorAll('[data-goto]').forEach((btn) => {
+  document.querySelectorAll<HTMLElement>('[data-goto]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const target = btn.dataset.goto;
+      const target = btn.dataset.goto!;
       const navBtn = document.querySelector(`.nav button[data-section="${target}"]`);
-      showSection(target, navBtn);
+      showSection(target, navBtn as HTMLElement | null);
     });
   });
   // Wire portfolio sub-nav (once)
@@ -212,7 +220,7 @@ function resolveInitialSection(): void {
   }
 }
 
-function showSection(id, btn) {
+function showSection(id: string, btn: Element | null) {
   const alreadyActive =
     _activeSection === id && document.getElementById(id)?.classList.contains('active');
   // Settings always repaints to reflect live config edits; others are no-ops when re-clicking.
@@ -364,17 +372,17 @@ async function onSignInClick() {
   } catch (err) {
     hideSigninOverlay();
     if (cancelled) return; // user already dismissed the overlay; don't also show an error
-    if (err.message === 'popup_closed') {
+    if ((err as Error).message === 'popup_closed') {
       setAuthStatus('Sign-in cancelled', true);
-    } else if (err.message === 'signin_timeout') {
+    } else if ((err as Error).message === 'signin_timeout') {
       setAuthStatus('Sign-in timed out, please try again', true);
     } else {
-      setAuthStatus('Sign-in failed: ' + err.message, true);
+      setAuthStatus('Sign-in failed: ' + (err as Error).message, true);
     }
   }
 }
 
-function updateAuthUI(signedIn) {
+function updateAuthUI(signedIn: boolean) {
   const prompt = document.getElementById('auth-prompt');
   const content = document.getElementById('log-content');
   const signoutBtn = document.getElementById('btn-signout');
@@ -409,7 +417,7 @@ function updateAuthUI(signedIn) {
   renderSetupBanner();
 }
 
-function setAuthStatus(msg, isErr = false) {
+function setAuthStatus(msg: string, isErr = false) {
   const el = document.getElementById('auth-status');
   if (!el) return;
   if (isErr) {
@@ -478,7 +486,7 @@ async function syncInBackground() {
     const [snaps, meta] = await Promise.all([loadSnapshots(), loadImportMeta()]);
 
     // Incremental transaction sync
-    let txs: any[];
+    let txs: Transaction[];
     const cursor = await getSyncCursor();
     if (cursor && state.txs.length > 0) {
       // Delta sync: fetch only new rows
@@ -554,7 +562,7 @@ async function syncInBackground() {
     setSyncStatus('ok');
     backupCollapseToSheet(); // opportunistic backup (fire-and-forget)
   } catch (err) {
-    setSyncStatus('error', err.message);
+    setSyncStatus('error', (err as Error).message);
     // If we had cached data, keep showing it
     if (!state.cacheLoaded) {
       // No cache either - show error
@@ -571,7 +579,7 @@ async function syncInBackground() {
  * Compute aggregates only when inputs change.
  * Uses an inputsHash to detect whether recomputation is needed.
  */
-async function computeAggregatesWithCache(txs: any[]): Promise<any> {
+async function computeAggregatesWithCache(txs: Transaction[]): Promise<PortfolioData | null> {
   if (!txs.length) return null;
 
   const method = getCostBasisMethod();
@@ -655,7 +663,7 @@ async function loadAllData() {
     setSyncStatus('ok');
     backupCollapseToSheet(); // opportunistic backup (fire-and-forget)
   } catch (err) {
-    setSyncStatus('error', err.message);
+    setSyncStatus('error', (err as Error).message);
   } finally {
     _initialLoad = false;
     setSyncing(false);
@@ -785,16 +793,16 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
 }
 (window as any).__restoreFromBackup = restoreFromBackup;
 
-function setSyncStatus(status, msg = '') {
+function setSyncStatus(status: string, msg = '') {
   const el = document.getElementById('sync-status');
   if (!el) return;
-  const map = {
-    loading: ['status-warn', '<span class="spinner"></span>Loading from Google Sheets…'],
-    syncing: ['status-warn', '<span class="spinner"></span>Syncing…'],
-    cached: ['status-info', '📦 Showing cached data'],
-    ok: ['status-ok', '✓ Synced'],
-    offline: ['status-warn', '📴 Offline, showing cached data'],
-    error: ['status-err', '⚠ Sync error: ' + msg],
+  const map: Record<string, [string, string]> = {
+    loading: ['status-warn', '<span class="spinner"></span>Loading from Google Sheets\u2026'],
+    syncing: ['status-warn', '<span class="spinner"></span>Syncing\u2026'],
+    cached: ['status-info', '\uD83D\uDCE6 Showing cached data'],
+    ok: ['status-ok', '\u2713 Synced'],
+    offline: ['status-warn', '\uD83D\uDCF4 Offline, showing cached data'],
+    error: ['status-err', '\u26A0 Sync error: ' + msg],
   };
   const [cls, text] = map[status] || ['status-empty', ''];
   el.className = 'status-pill ' + cls;
@@ -817,7 +825,7 @@ function renderSetupBanner(): void {
     return;
   }
 
-  const step = getSetupState({
+  const step: SetupStep = getSetupState({
     signedIn: isSignedIn(),
     accountCount: getAccounts().length,
     snapshotCount: state.snaps.length,
@@ -831,8 +839,8 @@ function renderSetupBanner(): void {
 
   const steps = [
     { id: 'signin', label: 'Sign in', done: step !== 'signin' },
-    { id: 'accounts', label: 'Add accounts', done: step === 'first-update' || step === 'done' },
-    { id: 'first-update', label: 'First monthly update', done: step === 'done' },
+    { id: 'accounts', label: 'Add accounts', done: step === 'first-update' },
+    { id: 'first-update', label: 'First monthly update', done: false },
   ];
 
   const stepsHtml = steps
@@ -909,7 +917,7 @@ async function saveSnapshot() {
     showMsg('snap-msg', 'A sync or save is in progress. Try again in a moment.', false);
     return;
   }
-  const date = document.getElementById('snap-date').value;
+  const date = (document.getElementById('snap-date') as HTMLInputElement | null)?.value;
   if (!date) {
     showMsg('snap-msg', 'Please select a month.', false);
     return;
@@ -919,12 +927,13 @@ async function saveSnapshot() {
     return;
   }
 
-  const snap = { date };
+  const snap: Snapshot = { date };
   for (const a of getACCTSList()) {
     const el = document.getElementById(`snap-${a.key}`) as HTMLInputElement | null;
     snap[a.key] = parseNum(String(el?.value ?? ''));
   }
-  snap.notes = document.getElementById('snap-notes').value.trim();
+  snap.notes =
+    (document.getElementById('snap-notes') as HTMLInputElement | null)?.value.trim() || '';
 
   const btn = document.getElementById('btn-save-snap') as HTMLButtonElement;
   try {
@@ -951,7 +960,7 @@ async function saveSnapshot() {
     );
     showMsg('snap-msg', 'Saved \u2713', true);
   } catch (err) {
-    showMsg('snap-msg', 'Error: ' + err.message, false);
+    showMsg('snap-msg', 'Error: ' + (err as Error).message, false);
   }
 }
 
@@ -965,28 +974,28 @@ async function saveMonthlyUpdate() {
   await saveSnapshot();
 }
 
-function editSnap(date) {
+function editSnap(date: string) {
   const s = state.snaps.find((s) => s.date === date);
   if (!s) return;
 
   renderSnapForm(); // idempotent - guarantees the input fields exist
 
-  const dateEl = document.getElementById('snap-date');
+  const dateEl = document.getElementById('snap-date') as HTMLInputElement | null;
   if (dateEl) dateEl.value = s.date;
 
   for (const a of getACCTSList()) {
-    const el = document.getElementById(`snap-${a.key}`);
-    if (el) el.value = s[a.key] != null ? s[a.key] : '';
+    const el = document.getElementById(`snap-${a.key}`) as HTMLInputElement | null;
+    if (el) el.value = s[a.key] != null ? String(s[a.key]) : '';
   }
 
-  const notesEl = document.getElementById('snap-notes');
+  const notesEl = document.getElementById('snap-notes') as HTMLInputElement | null;
   if (notesEl) notesEl.value = s.notes || '';
 
   showSection('log', document.querySelector('.nav button[data-section="log"]'));
   dateEl?.scrollIntoView({ behavior: 'smooth' });
 }
 
-async function delSnap(date, btn?: HTMLButtonElement) {
+async function delSnap(date: string, btn?: HTMLButtonElement) {
   // Block writes when offline
   if (state.offline || !navigator.onLine) {
     showMsg('snap-msg', 'Cannot delete while offline. Please reconnect and try again.', false);
@@ -1019,28 +1028,28 @@ async function delSnap(date, btn?: HTMLButtonElement) {
       await run();
     }
   } catch (err) {
-    showMsg('snap-msg', 'Delete failed: ' + err.message, false);
+    showMsg('snap-msg', 'Delete failed: ' + (err as Error).message, false);
   }
 }
 
 function clearSnapForm() {
   for (const a of getACCTSList()) {
-    const el = document.getElementById(`snap-${a.key}`);
+    const el = document.getElementById(`snap-${a.key}`) as HTMLInputElement | null;
     if (el) el.value = '';
   }
-  const notes = document.getElementById('snap-notes');
+  const notes = document.getElementById('snap-notes') as HTMLInputElement | null;
   if (notes) notes.value = '';
 }
 
 // ── CSV import ────────────────────────────────────────────
 function initCSVDrop() {
   const zone = document.getElementById('drop-zone');
-  const inp = document.getElementById('csv-file-input');
+  const inp = document.getElementById('csv-file-input') as HTMLInputElement | null;
 
   if (!zone || !inp) return;
 
   inp.addEventListener('change', () => {
-    if (inp.files[0]) handleCSVFile(inp.files[0]);
+    if (inp.files?.[0]) handleCSVFile(inp.files[0]);
   });
   zone.addEventListener('dragover', (e) => {
     e.preventDefault();
@@ -1050,13 +1059,13 @@ function initCSVDrop() {
   zone.addEventListener('drop', (e) => {
     e.preventDefault();
     zone.classList.remove('over');
-    const f = e.dataTransfer.files[0];
+    const f = e.dataTransfer?.files[0];
     if (f?.name.toLowerCase().endsWith('.csv')) handleCSVFile(f);
     else showMsg('import-msg', 'Please drop a .csv file', false);
   });
 }
 
-async function handleCSVFile(file) {
+async function handleCSVFile(file: File) {
   // Block writes when offline
   if (state.offline || !navigator.onLine) {
     showMsg('import-msg', 'Cannot import while offline. Please reconnect and try again.', false);
@@ -1070,10 +1079,10 @@ async function handleCSVFile(file) {
     showMsg('import-msg', 'A sync is already in progress.', false);
     return;
   }
-  showMsg('import-msg', 'Parsing…', true);
+  showMsg('import-msg', 'Parsing\u2026', true);
   const reader = new FileReader();
   reader.onload = (e) => {
-    const text = e.target.result;
+    const text = e.target!.result as string;
     const headerLine = text.trim().split('\n')[0] || '';
 
     // Auto-detect profile
@@ -1091,7 +1100,7 @@ async function handleCSVFile(file) {
 }
 
 /** Show a dropdown to pick a profile when auto-detect fails. */
-function showProfilePicker(csvText) {
+function showProfilePicker(csvText: string) {
   const container = document.getElementById('import-preview');
   if (!container) return;
 
@@ -1115,7 +1124,7 @@ function showProfilePicker(csvText) {
   container.style.display = 'block';
 
   document.getElementById('btn-apply-profile')?.addEventListener('click', () => {
-    const id = document.getElementById('profile-select')?.value;
+    const id = (document.getElementById('profile-select') as HTMLSelectElement | null)?.value;
     const profile = builtInProfiles.find((p) => p.id === id);
     if (profile) showImportPreview(csvText, profile);
   });
@@ -1127,11 +1136,12 @@ function showProfilePicker(csvText) {
 }
 
 /** Parse CSV with profile and show a preview for confirmation. */
-function showImportPreview(csvText, profile) {
+function showImportPreview(csvText: string, profile: ImportProfile) {
   const parsed = parseWithProfile(csvText, profile);
   const summary = previewSummary(parsed);
   const container = document.getElementById('import-preview');
   if (!container) return;
+  const cont = container; // capture for closures
 
   // Confirm handler - write to sheets
   async function confirmImport() {
@@ -1139,8 +1149,8 @@ function showImportPreview(csvText, profile) {
       showMsg('import-msg', 'A sync or save is in progress. Try again in a moment.', false);
       return;
     }
-    container.innerHTML = '';
-    container.style.display = 'none';
+    cont.innerHTML = '';
+    cont.style.display = 'none';
     setSyncing(true);
     try {
       const merged = await mergeTransactions(state.txs, parsed.transactions);
@@ -1174,7 +1184,7 @@ function showImportPreview(csvText, profile) {
       renderAll();
       showMsg('import-msg', `✓ ${merged.length} transactions synced to Google Sheets`, true);
     } catch (err) {
-      showMsg('import-msg', 'Error: ' + err.message, false);
+      showMsg('import-msg', 'Error: ' + (err as Error).message, false);
     } finally {
       setSyncing(false);
     }

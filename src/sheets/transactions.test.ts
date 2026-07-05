@@ -1,6 +1,6 @@
-// @ts-nocheck - test fixtures use partial objects; strict typing deferred
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { txKey } from './transactions';
+import type { Transaction } from '../types';
 
 // We can't easily test loadTransactions/mergeTransactions without mocking the
 // sheets API, but we CAN test the pure helpers that matter most:
@@ -19,23 +19,33 @@ describe('txKey', () => {
       type: 'BUY',
       isin: 'IE00B4L5Y983',
       amount: -500,
-    };
+    } as unknown as Transaction;
     expect(txKey(tx)).toBe('abc-123');
   });
 
   it('builds composite key when no id', () => {
-    const tx = { id: '', date: '2024-01-15', type: 'BUY', isin: 'IE00B4L5Y983', amount: -1000 };
+    const tx = {
+      id: '',
+      date: '2024-01-15',
+      type: 'BUY',
+      isin: 'IE00B4L5Y983',
+      amount: -1000,
+    } as unknown as Transaction;
     expect(txKey(tx)).toBe('2024-01-15|BUY|IE00B4L5Y983|-1000');
   });
 
   it('falls back to symbol when no isin', () => {
-    const tx = { id: '', date: '2024-02-01', type: 'SELL', symbol: 'IE00BKM4GZ66', amount: 500 };
+    const tx = {
+      id: '',
+      date: '2024-02-01',
+      type: 'SELL',
+      symbol: 'IE00BKM4GZ66',
+      amount: 500,
+    } as unknown as Transaction;
     expect(txKey(tx)).toBe('2024-02-01|SELL|IE00BKM4GZ66|500');
   });
 
   it('same key for old-format and new-format representation of same tx', () => {
-    // Old format row would have: id, date, category, type, name, symbol, shares, price, amount, tax
-    // After migration, the tx object would have isin=symbol value, same type, same amount
     const oldStyleTx = {
       id: '',
       date: '2024-01-15',
@@ -43,7 +53,7 @@ describe('txKey', () => {
       symbol: 'IE00B4L5Y983',
       isin: 'IE00B4L5Y983',
       amount: -1000,
-    };
+    } as unknown as Transaction;
     const newStyleTx = {
       id: '',
       date: '2024-01-15',
@@ -55,18 +65,35 @@ describe('txKey', () => {
       fee: 0,
       currency: 'EUR',
       fxRate: 0,
-    };
+    } as unknown as Transaction;
     expect(txKey(oldStyleTx)).toBe(txKey(newStyleTx));
   });
 
   it('new fields (fee, currency, fxRate, source) do NOT affect key', () => {
-    const base = { id: '', date: '2024-03-01', type: 'DIVIDEND', isin: 'IE00B4L5Y983', amount: 25 };
-    const withExtras = { ...base, fee: 1.5, currency: 'USD', fxRate: 1.1, source: 'manual' };
+    const base = {
+      id: '',
+      date: '2024-03-01',
+      type: 'DIVIDEND',
+      isin: 'IE00B4L5Y983',
+      amount: 25,
+    } as unknown as Transaction;
+    const withExtras = {
+      ...base,
+      fee: 1.5,
+      currency: 'USD',
+      fxRate: 1.1,
+      source: 'manual',
+    } as unknown as Transaction;
     expect(txKey(base)).toBe(txKey(withExtras));
   });
 
   it('handles missing isin and symbol gracefully', () => {
-    const tx = { id: '', date: '2024-04-01', type: 'INTEREST', amount: 3.5 };
+    const tx = {
+      id: '',
+      date: '2024-04-01',
+      type: 'INTEREST',
+      amount: 3.5,
+    } as unknown as Transaction;
     expect(txKey(tx)).toBe('2024-04-01|INTEREST||3.5');
   });
 });
@@ -134,7 +161,7 @@ describe('old 10-col migration shape', () => {
       isin: 'IE00B4L5Y983',
       symbol: 'IE00B4L5Y983',
       amount: -755,
-    };
+    } as unknown as Transaction;
 
     // Same tx as it would appear in new 14-col format:
     const newTx = {
@@ -153,15 +180,27 @@ describe('old 10-col migration shape', () => {
       currency: 'EUR',
       fxRate: 0,
       note: 'migrated',
-    };
+    } as unknown as Transaction;
 
     expect(txKey(oldTx)).toBe(txKey(newTx));
     expect(txKey(oldTx)).toBe('2024-01-15|BUY|IE00B4L5Y983|-755');
   });
 
   it('txKey with id always wins regardless of other fields', () => {
-    const tx1 = { id: 'unique-id-1', date: '2024-01-01', type: 'BUY', isin: 'X', amount: -100 };
-    const tx2 = { id: 'unique-id-1', date: '2099-12-31', type: 'SELL', isin: 'Y', amount: 999 };
+    const tx1 = {
+      id: 'unique-id-1',
+      date: '2024-01-01',
+      type: 'BUY',
+      isin: 'X',
+      amount: -100,
+    } as unknown as Transaction;
+    const tx2 = {
+      id: 'unique-id-1',
+      date: '2099-12-31',
+      type: 'SELL',
+      isin: 'Y',
+      amount: 999,
+    } as unknown as Transaction;
     expect(txKey(tx1)).toBe(txKey(tx2));
     expect(txKey(tx1)).toBe('unique-id-1');
   });

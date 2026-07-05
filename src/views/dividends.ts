@@ -1,4 +1,3 @@
-// @ts-nocheck - DOM-heavy view; full strict typing deferred to framework migration
 import { fmtEur2, fmtDay, esc, safeColor } from '../utils';
 import type { PortfolioData, DivHistEntry, IntHistEntry } from '../types';
 import { T } from '../theme';
@@ -22,8 +21,8 @@ export function renderDividends(pd: PortfolioData | null): void {
   const hasPD = !!pd;
   const hasDiv = hasPD && pd.divHist.length > 0;
 
-  document.getElementById('div-empty').style.display = hasPD ? 'none' : 'block';
-  document.getElementById('div-content').style.display = hasPD ? 'block' : 'none';
+  document.getElementById('div-empty')!.style.display = hasPD ? 'none' : 'block';
+  document.getElementById('div-content')!.style.display = hasPD ? 'block' : 'none';
   if (!hasPD) return;
 
   _lastPd = pd;
@@ -34,7 +33,7 @@ export function renderDividends(pd: PortfolioData | null): void {
 
   const totalGross = pd.divHist.reduce((s, d) => s + d.gross, 0);
 
-  document.getElementById('div-kpis').innerHTML = `
+  document.getElementById('div-kpis')!.innerHTML = `
     <div class="kpi"><div class="kpi-label">Gross dividends${infoTip('Before tax: Total distribution payments received from ETFs and stocks, before withholding tax is deducted.')}</div><div class="kpi-val">${fmtEur2(totalGross)}</div></div>
     <div class="kpi"><div class="kpi-label">Tax withheld</div><div class="kpi-val ${pd.totalTax >= 0 ? 'neg' : 'pos'}">${fmtEur2(Math.abs(pd.totalTax))}</div><div class="kpi-sub">Abgeltungsteuer</div></div>
     <div class="kpi"><div class="kpi-label">Net received</div><div class="kpi-val pos">${fmtEur2(pd.totalDivNet)}</div></div>
@@ -118,7 +117,7 @@ function renderDivTable(pd: PortfolioData): void {
     )
     .join('');
 
-  document.getElementById('div-history').innerHTML = hasDiv
+  document.getElementById('div-history')!.innerHTML = hasDiv
     ? `
     <div class="tbl-row th div-row" role="row" id="div-table-header">
       ${renderTableHeader(columns, _divTblSort)}
@@ -184,7 +183,7 @@ function renderIntTable(pd: PortfolioData): void {
   if (_intPage > totalPages) _intPage = Math.max(1, totalPages);
   const pageItems = sorted.slice((_intPage - 1) * DIV_PAGE_SIZE, _intPage * DIV_PAGE_SIZE);
 
-  document.getElementById('div-interest').innerHTML =
+  document.getElementById('div-interest')!.innerHTML =
     list.length > 0
       ? `<div class="tbl-row th int-row" role="row" id="int-table-header" style="border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:2px">${renderTableHeader(columns, _intTblSort)}</div>` +
         pageItems

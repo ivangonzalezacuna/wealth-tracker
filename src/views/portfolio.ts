@@ -1,4 +1,3 @@
-// @ts-nocheck - DOM-heavy view; full strict typing deferred to framework migration
 import {
   fmtEur,
   fmtEur2,
@@ -135,16 +134,16 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   const columns = holdingsColumns(pd);
 
   // Build full ordered ETF list
-  const allEtfs = ISIN_ORDER.map((s) => pd.etfs[s])
-    .filter(Boolean)
+  const allEtfs: EtfPosition[] = ISIN_ORDER.map((s) => pd.etfs[s])
+    .filter((e): e is EtfPosition => !!e)
     .concat(Object.values(pd.etfs).filter((e) => !ISIN_ORDER.includes(e.symbol)));
 
   // Split into held / exited
-  const { held, exited } = splitHoldings(allEtfs);
+  const { held, exited } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
   const exitedCount = exited.length;
 
   // Determine which ETFs to show based on filter
-  let displayList;
+  let displayList: EtfPosition[];
   if (_holdingsFilter === 'closed') {
     displayList = exited;
   } else if (_holdingsFilter === 'all') {
@@ -181,7 +180,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     })
     .join('');
 
-  document.getElementById('port-table').innerHTML = `
+  document.getElementById('port-table')!.innerHTML = `
     ${filterHtml}
     <div class="hold-grid">
       <div class="tbl-row th hold-row" role="row" id="port-table-header">
@@ -282,8 +281,8 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   const ISIN_ORDER = getISIN_ORDERList();
   const META = getMETAMap();
   const has = pd && Object.keys(pd.etfs).length > 0;
-  document.getElementById('port-empty').style.display = has ? 'none' : 'block';
-  document.getElementById('port-content').style.display = has ? 'block' : 'none';
+  document.getElementById('port-empty')!.style.display = has ? 'none' : 'block';
+  document.getElementById('port-content')!.style.display = has ? 'block' : 'none';
   if (!has) return;
 
   _holdPage = 1;
@@ -293,11 +292,11 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   const gain = curVal !== null ? curVal - pd.totalInv : null;
   const gainPct = gain !== null && pd.totalInv > 0 ? (gain / pd.totalInv) * 100 : null;
 
-  document.getElementById('port-kpis').innerHTML = `
+  document.getElementById('port-kpis')!.innerHTML = `
     <div class="kpi"><div class="kpi-label">Total invested</div><div class="kpi-val">${fmtEur(pd.totalInv)}</div><div class="kpi-sub">net of sells</div></div>
     <div class="kpi"><div class="kpi-label">Current value</div>
       <div class="kpi-val">${curVal !== null ? fmtEur2(curVal) : '-'}</div>
-      <div class="kpi-sub">${curVal !== null ? 'from ' + fmtMon(latSnap.date) + ' snapshot' : latSnap ? 'no primary investment account flagged' : 'add a snapshot'}</div></div>
+      <div class="kpi-sub">${curVal !== null ? 'from ' + fmtMon(latSnap!.date) + ' snapshot' : latSnap ? 'no primary investment account flagged' : 'add a snapshot'}</div></div>
     <div class="kpi"><div class="kpi-label">Unrealized gain</div>
       <div class="kpi-val ${gain !== null && gain >= 0 ? 'pos' : 'neg'}">${gain !== null ? fmtEurNeg(gain, 2) : '-'}</div>
       <div class="kpi-sub">${gainPct !== null ? fmtPctNeg(gainPct) : ''}</div></div>
@@ -315,9 +314,9 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
 
   // Build full ordered ETF list for donut (held positions only)
   const allEtfs = ISIN_ORDER.map((s) => pd.etfs[s])
-    .filter(Boolean)
+    .filter((e): e is EtfPosition => !!e)
     .concat(Object.values(pd.etfs).filter((e) => !ISIN_ORDER.includes(e.symbol)));
-  const { held } = splitHoldings(allEtfs);
+  const { held } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
 
   // Bar chart - only held positions with cost > 0
   const donutE = held.filter((e) => e.cost > 0);
@@ -325,7 +324,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   if (CH['c-port-donut']) {
     CH['c-port-donut'].destroy();
   }
-  CH['c-port-donut'] = new Chart(document.getElementById('c-port-donut'), {
+  CH['c-port-donut'] = new Chart(document.getElementById('c-port-donut') as HTMLCanvasElement, {
     type: 'bar',
     data: {
       labels: donutE.map((e) => e.ticker),
@@ -360,13 +359,16 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
       scales: {
         x: {
           grid: { color: C.line },
-          ticks: { color: C.ink4, callback: (v: number) => (v / 1000).toFixed(0) + 'k\u00A0€' },
+          ticks: {
+            color: C.ink4,
+            callback: (v) => ((v as number) / 1000).toFixed(0) + 'k\u00A0\u20AC',
+          },
         },
         y: { grid: { display: false }, ticks: { color: C.ink2, font: { size: 12 } } },
       },
     },
   });
-  document.getElementById('port-donut-legend').innerHTML = donutE
+  document.getElementById('port-donut-legend')!.innerHTML = donutE
     .map(
       (e) =>
         `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(e.color)}"></span>${esc(e.ticker)} ${pd.totalInv > 0 ? ((e.cost / pd.totalInv) * 100).toFixed(0) : 0}%</span>`,
@@ -374,7 +376,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     .join('');
 
   // TODO Phase: consolidation - populate foldInto on first SELL (IEEM→CMEIU, CECBE+EGB7Y→GABE)
-  document.getElementById('port-summary').innerHTML = `
+  document.getElementById('port-summary')!.innerHTML = `
     <div class="row"><div class="row-label">Total invested (net)</div><div class="row-val">${fmtEur(pd.totalInv)}</div></div>
     <div class="row"><div class="row-label">Realized P&amp;L</div><div class="row-val ${pd.realizedPnL >= 0 ? 'ok' : 'neg'}">${fmtEurNeg(pd.realizedPnL, 2)}</div></div>
     <div class="row"><div class="row-label">Total fees</div><div class="row-val">${fmtEur2(pd.totalFees)}</div></div>
@@ -386,7 +388,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
         ? `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px">
       <div class="row-label" style="font-weight:500">Unrealized gain</div>
       <div class="row-val ${gain >= 0 ? 'pos' : 'neg'}" style="font-weight:500">
-        ${fmtEurNeg(gain, 2)} (${fmtPctNeg(gainPct)})</div></div>`
+        ${fmtEurNeg(gain, 2)} (${fmtPctNeg(gainPct!)})</div></div>`
         : ''
     }
     <p class="note">Cost basis exact from CSV. Current value from latest snapshot (${latSnap ? fmtMon(latSnap.date) : 'none yet'}). Mixed-currency positions compute in account currency (no FX conversion).</p>

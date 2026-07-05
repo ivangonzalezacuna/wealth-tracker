@@ -1,4 +1,3 @@
-// @ts-nocheck - test fixtures use partial objects; strict typing deferred
 import { describe, it, expect } from 'vitest';
 import { TxType } from '../model/tx';
 import { parseWithProfile, detectProfile, previewSummary, parseNumber, parseDate } from './parse';
@@ -6,6 +5,7 @@ import { tradeRepublicProfile } from './profiles/trade_republic';
 import { builtInProfiles } from './profiles/index';
 import { buildProfileFromMapping } from './profile';
 import { parseCSV } from '../csv';
+import type { ImportProfile, DecimalMode } from '../types';
 
 // ── Fixtures ───────────────────────────────────────────────
 
@@ -172,7 +172,7 @@ describe('detectProfile', () => {
       'transaction_id;date;type;category;name;symbol;shares;price;amount;fee;tax;currency;fx_rate';
     const profile = detectProfile(header);
     expect(profile).not.toBeNull();
-    expect(profile.id).toBe('trade_republic');
+    expect(profile!.id).toBe('trade_republic');
   });
 
   it('detects Trade Republic from comma-delimited header', () => {
@@ -180,7 +180,7 @@ describe('detectProfile', () => {
       'transaction_id,date,type,category,name,symbol,shares,price,amount,fee,tax,currency,fx_rate';
     const profile = detectProfile(header);
     expect(profile).not.toBeNull();
-    expect(profile.id).toBe('trade_republic');
+    expect(profile!.id).toBe('trade_republic');
   });
 
   it('returns null for unknown headers', () => {
@@ -194,7 +194,7 @@ describe('detectProfile', () => {
       'TRANSACTION_ID;DATE;TYPE;CATEGORY;NAME;SYMBOL;SHARES;PRICE;AMOUNT;FEE;TAX;CURRENCY;FX_RATE';
     const profile = detectProfile(header);
     expect(profile).not.toBeNull();
-    expect(profile.id).toBe('trade_republic');
+    expect(profile!.id).toBe('trade_republic');
   });
 });
 
@@ -212,11 +212,11 @@ describe('unmapped types handling', () => {
 
     const stockSplit = unmapped.find((u) => u.type.includes('STOCK_SPLIT'));
     expect(stockSplit).toBeDefined();
-    expect(stockSplit.count).toBe(2);
+    expect(stockSplit!.count).toBe(2);
 
     const rebate = unmapped.find((u) => u.type === 'REBATE');
     expect(rebate).toBeDefined();
-    expect(rebate.count).toBe(1);
+    expect(rebate!.count).toBe(1);
   });
 
   it('unmapped rows have type preserved uppercased', () => {
@@ -237,7 +237,7 @@ describe('previewSummary', () => {
     expect(summary.total).toBe(parsed.transactions.length);
 
     // Verify each type count matches
-    const actualCounts = {};
+    const actualCounts: Record<string, number> = {};
     for (const tx of parsed.transactions) {
       actualCounts[tx.type] = (actualCounts[tx.type] || 0) + 1;
     }
@@ -261,7 +261,7 @@ describe('previewSummary', () => {
 // ── Second bank profile (fictitious, proves no parser change needed) ──
 
 describe('adding a second bank requires only a profile object', () => {
-  const fakeBankProfile = {
+  const fakeBankProfile: ImportProfile = {
     id: 'fake_bank',
     label: 'Fake Bank DE',
     delimiter: ';',
@@ -312,11 +312,11 @@ describe('adding a second bank requires only a profile object', () => {
   });
 
   it('auto-detects the fake bank profile by header', () => {
-    const profiles = [...builtInProfiles, fakeBankProfile];
+    const profiles: ImportProfile[] = [...builtInProfiles, fakeBankProfile];
     const header = 'Ref;Datum;Typ;Bezeichnung;Betrag';
     const detected = detectProfile(header, profiles);
     expect(detected).not.toBeNull();
-    expect(detected.id).toBe('fake_bank');
+    expect(detected!.id).toBe('fake_bank');
   });
 
   it('does not match TR profile for fake bank header', () => {
@@ -329,7 +329,7 @@ describe('adding a second bank requires only a profile object', () => {
 // ── Column mapping by index ────────────────────────────────
 
 describe('column mapping by numeric index', () => {
-  const indexProfile = {
+  const indexProfile: ImportProfile = {
     id: 'index_test',
     label: 'Index Test',
     delimiter: ',',
@@ -367,8 +367,8 @@ describe('buildProfileFromMapping', () => {
       columns: { date: 'Date', type: 'Type', name: 'Name', amount: 'Amount', currency: 'Currency' },
       typeMap: { BUY: TxType.BUY, SELL: TxType.SELL },
       label: 'My Custom Bank',
-      decimal: 'dot',
-      dateFormat: 'MM/DD/YYYY',
+      decimal: 'dot' as DecimalMode,
+      dateFormat: 'MM/DD/YYYY' as const,
     };
 
     const profile = buildProfileFromMapping(headers, mapping);
