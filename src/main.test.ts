@@ -1,7 +1,6 @@
 /**
  * @vitest-environment jsdom
  */
-// @ts-nocheck - mirrors production file's @ts-nocheck; test fixtures use partial objects
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { validateBackup } from './backup/exportImport';
 import { withButtonGuard } from './utils';

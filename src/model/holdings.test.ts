@@ -1,6 +1,6 @@
-// @ts-nocheck - test fixtures use partial objects; strict typing deferred
 import { describe, it, expect } from 'vitest';
 import { splitHoldings, validateHoldings } from './holdings';
+import type { Holding } from '../types';
 
 describe('splitHoldings', () => {
   it('fully-sold ISIN lands in exited', () => {
@@ -56,7 +56,7 @@ describe('splitHoldings', () => {
 });
 
 describe('validateHoldings', () => {
-  const validHolding = (overrides = {}) => ({
+  const validHolding = (overrides: Partial<Holding> = {}): Holding => ({
     isin: 'IE00B4L5Y983',
     ticker: 'IWDA',
     name: '',
@@ -64,7 +64,7 @@ describe('validateHoldings', () => {
     acc: true,
     active: true,
     contribAmount: 0,
-    interval: 'weekly',
+    contribInterval: 'weekly',
     assetClass: 'equity',
     region: 'developed',
     foldInto: '',

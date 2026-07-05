@@ -1,6 +1,6 @@
-// @ts-nocheck - test fixtures use partial objects; strict typing deferred
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TxType } from './model/tx';
+import type { Transaction } from './types';
 
 // Stub constants module so computePD doesn't reach into Google Sheets
 vi.mock('./constants', () => ({
@@ -17,60 +17,76 @@ vi.mock('./constants', () => ({
 const { computePD } = await import('./portfolio');
 
 /** Helpers */
-function buyTx(isin, date, shares, amount, fee = 0) {
+function buyTx(isin: string, date: string, shares: number, amount: number, fee = 0): Transaction {
   return {
+    id: '',
+    source: '',
     type: TxType.BUY,
     date,
     symbol: isin,
     isin,
     name: `ETF ${isin.slice(-4)}`,
     shares,
+    price: 0,
     amount: -Math.abs(amount),
     fee,
     tax: 0,
     currency: 'EUR',
+    fxRate: 0,
   };
 }
-function sellTx(isin, date, shares, amount, fee = 0) {
+function sellTx(isin: string, date: string, shares: number, amount: number, fee = 0): Transaction {
   return {
+    id: '',
+    source: '',
     type: TxType.SELL,
     date,
     symbol: isin,
     isin,
     name: `ETF ${isin.slice(-4)}`,
     shares: -Math.abs(shares),
+    price: 0,
     amount: Math.abs(amount),
     fee,
     tax: 0,
     currency: 'EUR',
+    fxRate: 0,
   };
 }
-function divTx(isin, date, net, tax = 0) {
+function divTx(isin: string, date: string, net: number, tax = 0): Transaction {
   return {
+    id: '',
+    source: '',
     type: TxType.DIVIDEND,
     date,
     symbol: isin,
     isin,
     name: `ETF ${isin.slice(-4)}`,
     shares: 0,
+    price: 0,
     amount: net,
     fee: 0,
     tax: -Math.abs(tax),
     currency: 'EUR',
+    fxRate: 0,
   };
 }
-function interestTx(date, amount) {
+function interestTx(date: string, amount: number): Transaction {
   return {
+    id: '',
+    source: '',
     type: TxType.INTEREST,
     date,
     symbol: '',
     isin: '',
     name: 'Interest',
     shares: 0,
+    price: 0,
     amount,
     fee: 0,
     tax: 0,
     currency: 'EUR',
+    fxRate: 0,
   };
 }
 
@@ -197,19 +213,23 @@ describe('computePD', () => {
   });
 
   it('DEPOSIT rows do not enter DCA monthly (Commit 1C)', () => {
-    const txs = [
+    const txs: Transaction[] = [
       buyTx('IE00B4L5Y983', '2024-01-15', 10, 1000),
       {
+        id: '',
+        source: '',
         type: TxType.DEPOSIT,
         date: '2024-01-20',
         symbol: '',
         isin: '',
         name: 'Bank Transfer',
         shares: 0,
+        price: 0,
         amount: 500,
         fee: 0,
         tax: 0,
         currency: 'EUR',
+        fxRate: 0,
       },
     ];
     const pd = computePD(txs);
@@ -232,34 +252,42 @@ describe('computePD', () => {
   });
 
   it('TAX refund (positive tax) reduces net tax to zero (Commit 1D)', () => {
-    const txs = [
+    const txs: Transaction[] = [
       buyTx('IE00B4L5Y983', '2024-01-01', 10, 1000),
       interestTx('2024-01-31', 100),
       // Dividend with -3.44 tax withheld
       {
+        id: '',
+        source: '',
         type: TxType.DIVIDEND,
         date: '2024-06-01',
         symbol: 'IE00B4L5Y983',
         isin: 'IE00B4L5Y983',
         name: 'ETF',
         shares: 0,
+        price: 0,
         amount: 10,
         fee: 0,
         tax: -3.44,
         currency: 'EUR',
+        fxRate: 0,
       },
       // TAX refund of +3.44 (TAX_OPTIMIZATION)
       {
+        id: '',
+        source: '',
         type: TxType.TAX,
         date: '2024-07-01',
         symbol: '',
         isin: '',
         name: 'Tax Refund',
         shares: 0,
+        price: 0,
         amount: 3.44,
         fee: 0,
         tax: 3.44,
         currency: 'EUR',
+        fxRate: 0,
       },
     ];
     const pd = computePD(txs);

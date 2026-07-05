@@ -1,4 +1,3 @@
-// @ts-nocheck - test fixtures use partial objects; strict typing deferred
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   snapshotHeader,
@@ -10,7 +9,11 @@ import {
 } from './snapshots';
 
 describe('snapshot persistence helpers', () => {
-  const accts3 = [{ key: 'a' }, { key: 'b' }, { key: 'c' }];
+  const accts3 = [
+    { key: 'a', label: '', color: '' },
+    { key: 'b', label: '', color: '' },
+    { key: 'c', label: '', color: '' },
+  ];
 
   it('snapToRow produces the expected row', () => {
     const snap = { date: '2026-01', a: 100, b: 200, c: 300, notes: 'x' };
@@ -32,7 +35,10 @@ describe('snapshot persistence helpers', () => {
     const row = snapToRow(snap, accts3);
 
     // Reload against a 2-account header (account 'c' removed)
-    const accts2 = [{ key: 'a' }, { key: 'b' }];
+    const accts2 = [
+      { key: 'a', label: '', color: '' },
+      { key: 'b', label: '', color: '' },
+    ];
     const result = rowToSnap(row, hdr3, accts2);
 
     expect(result.date).toBe('2026-01');
@@ -43,7 +49,11 @@ describe('snapshot persistence helpers', () => {
     expect(result.c).toBeUndefined();
 
     // New account 'd' not in the sheet header → defaults to 0
-    const accts2d = [{ key: 'a' }, { key: 'b' }, { key: 'd' }];
+    const accts2d = [
+      { key: 'a', label: '', color: '' },
+      { key: 'b', label: '', color: '' },
+      { key: 'd', label: '', color: '' },
+    ];
     const result2 = rowToSnap(row, hdr3, accts2d);
     expect(result2.a).toBe(100);
     expect(result2.b).toBe(200);
@@ -56,7 +66,10 @@ describe('snapshot persistence helpers', () => {
 });
 
 describe('rowToSnap locale-safe parsing (Commit 1B)', () => {
-  const accts = [{ key: 'tr_portfolio' }, { key: 'n26' }];
+  const accts = [
+    { key: 'tr_portfolio', label: '', color: '' },
+    { key: 'n26', label: '', color: '' },
+  ];
   const hdr = ['date', 'tr_portfolio', 'n26', 'notes'];
 
   it('parses German-comma balance string "1.234,56" as 1234.56', () => {
@@ -84,7 +97,7 @@ describe('rowToSnap locale-safe parsing (Commit 1B)', () => {
     const row2 = ['2026-03', 1234.56, 0, ''];
     const snap1 = rowToSnap(row1, hdr, accts);
     const snap2 = rowToSnap(row2, hdr, accts);
-    expect(snap1.tr_portfolio).toBeCloseTo(snap2.tr_portfolio);
+    expect(snap1.tr_portfolio).toBeCloseTo(snap2.tr_portfolio as number);
     expect(snap1.tr_portfolio).toBeCloseTo(1234.56);
   });
 });
@@ -206,7 +219,7 @@ describe('snapToRowForHeader', () => {
   it('snap has value for orphaned key → value preserved', () => {
     const snap = { date: '2026-01', orphaned: 500, notes: '' };
     const header = ['date', 'orphaned', 'notes'];
-    const liveKeys = [];
+    const liveKeys: string[] = [];
     expect(snapToRowForHeader(snap, header, liveKeys)).toEqual(['2026-01', 500, '']);
   });
 });
@@ -275,7 +288,7 @@ describe('upsertSnapshot - integration with mocked API', () => {
     const writeCalls = mockWriteRange.mock.calls;
     const rowWrite = writeCalls.find((c) => c[0].includes('A3'));
     expect(rowWrite).toBeDefined();
-    expect(rowWrite[1][0]).toEqual(['2026-02', 700, 800, 'updated']);
+    expect(rowWrite![1][0]).toEqual(['2026-02', 700, 800, 'updated']);
   });
 
   it('new account key → header writeRange to A1 fires before row write', async () => {
@@ -324,7 +337,7 @@ describe('upsertSnapshot - integration with mocked API', () => {
     const writeCalls = mockWriteRange.mock.calls;
     const rowWrite = writeCalls.find((c) => c[0].includes('A2'));
     expect(rowWrite).toBeDefined();
-    expect(rowWrite[1][0]).toEqual(['2026-01', 100, 200, '', '']);
+    expect(rowWrite![1][0]).toEqual(['2026-01', 100, 200, '', '']);
   });
 });
 
