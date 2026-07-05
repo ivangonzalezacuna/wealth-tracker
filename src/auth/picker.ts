@@ -91,6 +91,20 @@ function markAuthorized(sheetId: string): void {
   }
 }
 
+/** Clears the local "already picked this file" flag. Call this from
+ *  signOut(), alongside clearing the OAuth token: oauth2.revoke() revokes
+ *  the drive.file grant server-side too, so without this the app would
+ *  wrongly skip the Picker on the next sign-in (stale local flag says
+ *  "authorized" even though the server-side permission is gone), and the
+ *  first post-sign-in Sheets API call would fail instead. */
+export function clearDriveFileAuthorization(): void {
+  try {
+    localStorage.removeItem(AUTHORIZED_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * Opens the Picker restricted to Google Sheets files, and resolves once the
  * user has picked the specific spreadsheet this app is configured for
@@ -135,10 +149,6 @@ export async function ensureDriveFileAuthorized(): Promise<void> {
 
 /** Test-only reset. */
 export function _resetPickerAuthorizationForTests(): void {
-  try {
-    localStorage.removeItem(AUTHORIZED_KEY);
-  } catch {
-    /* ignore */
-  }
+  clearDriveFileAuthorization();
   _pickerApiReady = null;
 }

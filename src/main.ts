@@ -3,7 +3,11 @@ import { CONFIG } from './config';
 import { getACCTSList } from './constants';
 import { appTemplate } from './template';
 import { signIn as gisSignIn, signOut, isSignedIn } from './auth/google';
-import { ensureDriveFileAuthorized, isDriveFileAuthorized } from './auth/picker';
+import {
+  ensureDriveFileAuthorized,
+  isDriveFileAuthorized,
+  clearDriveFileAuthorization,
+} from './auth/picker';
 import { loadSnapshots, saveSnapshots, upsertSnapshot } from './sheets/snapshots';
 import {
   loadTransactions,
@@ -338,7 +342,14 @@ function autoResyncIfNeeded(): void {
 function initAuth() {
   document.getElementById('btn-signin')?.addEventListener('click', onSignInClick);
   document.getElementById('btn-signin-global')?.addEventListener('click', onSignInClick);
-  document.getElementById('btn-signout')?.addEventListener('click', () => signOut());
+  document.getElementById('btn-signout')?.addEventListener('click', () => {
+    // oauth2.revoke() inside signOut() revokes the drive.file grant
+    // server-side too, so the local "already picked this file" flag must
+    // be cleared here as well, or the next sign-in would wrongly skip the
+    // Picker step while the server-side permission is actually gone.
+    clearDriveFileAuthorization();
+    signOut();
+  });
   document.getElementById('btn-sync-now')?.addEventListener('click', () => {
     if (!isSyncBusy()) syncInBackground();
   });

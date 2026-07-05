@@ -13,6 +13,7 @@ vi.mock('./google', () => ({
 import {
   isDriveFileAuthorized,
   ensureDriveFileAuthorized,
+  clearDriveFileAuthorization,
   _resetPickerAuthorizationForTests,
 } from './picker';
 
@@ -118,5 +119,19 @@ describe('isDriveFileAuthorized / ensureDriveFileAuthorized', () => {
 
     await ensureDriveFileAuthorized();
     expect(builderSpy).not.toHaveBeenCalled();
+  });
+
+  it('clearDriveFileAuthorization resets the flag so the picker runs again next time', async () => {
+    const picker = stubPickerNamespace();
+    const pending = ensureDriveFileAuthorized();
+    await Promise.resolve();
+    await Promise.resolve();
+    picker.fire({ action: 'picked', docs: [{ id: 'sheet-abc' }] });
+    await pending;
+    expect(isDriveFileAuthorized()).toBe(true);
+
+    clearDriveFileAuthorization();
+
+    expect(isDriveFileAuthorized()).toBe(false);
   });
 });
