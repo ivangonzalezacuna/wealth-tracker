@@ -8,6 +8,7 @@ import {
   fmtEurSigned,
   fmtPctSigned,
   currentMonth,
+  esc,
 } from './utils';
 
 describe('fmt', () => {
@@ -122,5 +123,21 @@ describe('fmtPctSigned', () => {
 
   it('zero: no sign', () => {
     expect(fmtPctSigned(0)).toBe('0,0%');
+  });
+});
+
+describe('esc', () => {
+  it('escapes &, <, >, and double quotes', () => {
+    expect(esc('a & b < c > d "e"')).toBe('a &amp; b &lt; c &gt; d &quot;e&quot;');
+  });
+
+  it('escapes single quotes to &#39; (Phase 69)', () => {
+    expect(esc("Ivan's account")).toBe('Ivan&#39;s account');
+  });
+
+  it('returns empty string for null/undefined/empty', () => {
+    expect(esc(null)).toBe('');
+    expect(esc(undefined)).toBe('');
+    expect(esc('')).toBe('');
   });
 });
