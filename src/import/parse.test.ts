@@ -512,3 +512,32 @@ describe('TR real deposit/tax/withdrawal type mappings', () => {
     expect(unmapped).toHaveLength(0);
   });
 });
+
+describe('csvLine RFC 4180 edge cases (via parseWithProfile)', () => {
+  const profile = tradeRepublicProfile;
+  const hdr =
+    'transaction_id,date,type,category,name,symbol,shares,price,amount,fee,tax,currency,fx_rate';
+
+  it('unescapes a doubled quote inside a quoted field instead of dropping both quotes', () => {
+    const csv = `${hdr}\ntx1,2026-01-01,BUY,TRADING,"Say ""Hi"" Fund",IE00B4L5Y983,1,10,-10,0,0,EUR,1`;
+    const { transactions } = parseWithProfile(csv, profile);
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0].name).toBe('Say "Hi" Fund');
+  });
+
+  it('keeps a comma-containing quoted field as one column (does not shift later columns)', () => {
+    const csv = `${hdr}\ntx1,2026-01-01,BUY,TRADING,"Fund, with comma",IE00B4L5Y983,1,10,-10,0,0,EUR,1`;
+    const { transactions } = parseWithProfile(csv, profile);
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0].name).toBe('Fund, with comma');
+    expect(transactions[0].symbol).toBe('IE00B4L5Y983');
+    expect(transactions[0].amount).toBe(-10);
+  });
+
+  it('preserves a literal newline embedded in a quoted field as one row, not two', () => {
+    const csv = `${hdr}\ntx1,2026-01-01,BUY,TRADING,"Fund\nwith newline",IE00B4L5Y983,1,10,-10,0,0,EUR,1`;
+    const { transactions } = parseWithProfile(csv, profile);
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0].name).toBe('Fund\nwith newline');
+  });
+});

@@ -18,14 +18,23 @@ import type {
 
 // ── Low-level CSV helpers ───────────────────────────────────────
 
-/** Split a single CSV line respecting quoted fields. */
+/** Split a single CSV line respecting quoted fields.
+ *  Handles RFC 4180 `""` escaping (a doubled quote inside a quoted field
+ *  is a literal `"`), so a field like `"Say ""Hi"""` round-trips as
+ *  `Say "Hi"` instead of silently dropping both quote characters. */
 function csvLine(line: string, sep = ','): string[] {
   const r: string[] = [];
   let cur = '',
     inQ = false;
   for (let i = 0; i < line.length; i++) {
     if (line[i] === '"') {
-      inQ = !inQ;
+      if (inQ && line[i + 1] === '"') {
+        // Escaped quote: emit one literal " and skip the pair
+        cur += '"';
+        i++;
+      } else {
+        inQ = !inQ;
+      }
     } else if (line[i] === sep && !inQ) {
       r.push(cur);
       cur = '';
@@ -127,6 +136,25 @@ function mapType(
   return null;
 }
 
+/** Re-join raw lines so a quoted field containing a literal newline isn't
+ *  split into two rows. A line is a genuine row boundary only when it has
+ *  an even number of `"` characters seen so far (i.e. no quote is left
+ *  "open" across the line break). */
+function joinQuotedLines(rawLines: string[]): string[] {
+  const out: string[] = [];
+  let buf: string | null = null;
+  for (const line of rawLines) {
+    buf = buf === null ? line : buf + '\n' + line;
+    const quoteCount = (buf.match(/"/g) || []).length;
+    if (quoteCount % 2 === 0) {
+      out.push(buf);
+      buf = null;
+    }
+  }
+  if (buf !== null) out.push(buf); // unbalanced trailing quote - best-effort passthrough
+  return out;
+}
+
 // ── Profile detection ──────────────────────────────────────────
 
 export function detectProfile(
@@ -158,7 +186,7 @@ export function detectProfile(
 // ── Generic parser ─────────────────────────────────────────────
 
 export function parseWithProfile(text: string, profile: ImportProfile): ParseResult {
-  const lines = text.trim().split('\n');
+  const lines = joinQuotedLines(text.trim().split('\n'));
   if (lines.length < 2) return { transactions: [], unmapped: [] };
 
   // Resolve delimiter

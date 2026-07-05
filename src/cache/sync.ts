@@ -19,10 +19,23 @@ const RANGE = `${TAB}!A:N`;
  *
  * Strategy: read the tail of the sheet starting from the row after the cursor.
  * Google Sheets A1 notation: TAB!A{startRow}:N to read from startRow to end.
+ *
+ * Append-only assumption guard: before trusting an empty tail read as "no
+ * new transactions," this also does a cheap check of the sheet's current
+ * total data-row count (a single-column read). If that count is now lower
+ * than the cursor's rowCount, historical rows were edited/deleted directly
+ * in Sheets since the last sync - the append-only assumption this cursor
+ * relies on no longer holds, so this returns null to force a full resync
+ * rather than silently keeping a stale cache.
  */
 export async function fetchDeltaTransactions(cursor: SyncCursor): Promise<Transaction[] | null> {
   try {
     await ensureSheets([TAB]);
+
+    const countRows = await readRange(`${TAB}!A:A`);
+    const currentDataRowCount = Math.max(countRows.length - 1, 0); // minus header
+    if (currentDataRowCount < cursor.rowCount) return null;
+
     // startRow = cursor.rowCount + 2 (1-based, +1 for header, +1 for next row after last)
     const startRow = cursor.rowCount + 2; // header is row 1, data starts at row 2
     const tailRange = `${TAB}!A${startRow}:N`;

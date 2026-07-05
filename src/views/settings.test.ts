@@ -48,7 +48,7 @@ vi.mock('../store/config', () => ({
   setSettings: vi.fn(async () => {}),
   setSetting: vi.fn(async () => {}),
   getRetiredAccountIds: () => [],
-  retireAccountIds: vi.fn(async () => {}),
+  retireAccountIdsSafely: vi.fn(async () => true),
 }));
 
 vi.mock('../sheets/transactions', () => ({
@@ -89,6 +89,14 @@ vi.mock('../utils', () => ({
       throw err;
     }
   }),
+  esc: (s: string | null | undefined) => {
+    if (!s) return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  },
 }));
 
 vi.mock('../theme', () => ({}));
@@ -622,6 +630,34 @@ describe('Button-disable verification: synchronous disable and double-click prev
 
       resolveWrite();
       await tick();
+    });
+
+    it('still reports success (not an error) when the id retirement write itself fails', async () => {
+      const { setAccounts, retireAccountIdsSafely } = await import('../store/config');
+      (setAccounts as ReturnType<typeof vi.fn>).mockClear();
+      (setAccounts as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {});
+      // Simulates: account removal itself succeeded, but the follow-up
+      // retirement write failed and was queued instead of thrown.
+      (retireAccountIdsSafely as ReturnType<typeof vi.fn>).mockImplementationOnce(
+        async () => false,
+      );
+      const { showMsg } = await import('../utils');
+      (showMsg as ReturnType<typeof vi.fn>).mockClear();
+
+      const btn = document.querySelector('.js-del-acct') as HTMLButtonElement;
+      btn.click();
+      await tick(); // confirmDialog resolves
+      await tick(); // withCardGuard body runs
+      await tick(); // settle
+
+      expect(setAccounts as ReturnType<typeof vi.fn>).toHaveBeenCalled();
+      // The account was actually removed - this must never surface as an
+      // "Error: ..." message, only a softer heads-up about the id.
+      expect(showMsg).toHaveBeenCalledWith('accts-msg', expect.stringContaining('Removed'), true);
+      const errorCall = (showMsg as ReturnType<typeof vi.fn>).mock.calls.find(
+        (c) => c[0] === 'accts-msg' && c[2] === false,
+      );
+      expect(errorCall).toBeUndefined();
     });
   });
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock the sheets API and other deps before importing the module under test
 vi.mock('../sheets/api', () => ({
@@ -33,6 +33,8 @@ import {
   replaceSettings,
   getRetiredAccountIds,
   retireAccountIds,
+  retireAccountIdsSafely,
+  flushPendingRetiredIds,
 } from './config';
 import { writeRange, readRange, clearRange, ensureSheets } from '../sheets/api';
 
@@ -232,6 +234,69 @@ describe('getRetiredAccountIds / retireAccountIds', () => {
     hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
     await retireAccountIds([]);
     expect(getRetiredAccountIds()).toEqual([]);
+  });
+});
+
+describe('retireAccountIdsSafely / flushPendingRetiredIds (failed-write resilience)', () => {
+  // In-memory localStorage stub - config.test.ts runs in the default
+  // (node) vitest environment, which has no real localStorage global.
+  function stubLocalStorage(): Storage {
+    const store = new Map<string, string>();
+    const stub = {
+      getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+      setItem: (k: string, v: string) => {
+        store.set(k, v);
+      },
+      removeItem: (k: string) => {
+        store.delete(k);
+      },
+      clear: () => store.clear(),
+      key: () => null,
+      get length() {
+        return store.size;
+      },
+    } as Storage;
+    vi.stubGlobal('localStorage', stub);
+    return stub;
+  }
+
+  beforeEach(() => {
+    stubLocalStorage();
+    hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('queues the id locally (never throws) when the underlying Sheets write fails', async () => {
+    (writeRange as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('network error'));
+    const ok = await retireAccountIdsSafely(['acct_x']);
+    expect(ok).toBe(false);
+    // Still reported as taken immediately via the local queue, even though
+    // the Settings-backed store write failed.
+    expect(getRetiredAccountIds()).toContain('acct_x');
+  });
+
+  it('returns true and persists normally when the write succeeds', async () => {
+    const ok = await retireAccountIdsSafely(['acct_y']);
+    expect(ok).toBe(true);
+    expect(getRetiredAccountIds()).toContain('acct_y');
+  });
+
+  it('flushPendingRetiredIds retries a queued id and clears the queue on success', async () => {
+    (writeRange as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('network error'));
+    await retireAccountIdsSafely(['acct_z']);
+    expect(getRetiredAccountIds()).toContain('acct_z'); // queued, not yet persisted
+
+    // Next attempt succeeds (writeRange mock is back to its default resolved behavior)
+    await flushPendingRetiredIds();
+    expect(getRetiredAccountIds()).toContain('acct_z'); // now persisted via the real store
+    expect(localStorage.getItem('wt_pending_retired_ids')).toBe('[]');
+  });
+
+  it('flushPendingRetiredIds is a no-op when nothing is queued', async () => {
+    await expect(flushPendingRetiredIds()).resolves.toBeUndefined();
   });
 });
 
