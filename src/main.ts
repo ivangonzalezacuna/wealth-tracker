@@ -79,6 +79,7 @@ import { restoreCollapseFromSheet, backupCollapseToSheet } from './ui/collapseSy
 import { confirmDialog } from './ui/confirmDialog';
 import { showSigninOverlay, hideSigninOverlay } from './ui/signinOverlay';
 import { withTimeout } from './sync/timeout';
+import { isBusy, setBusy } from './sync/lock';
 import { registerSW } from 'virtual:pwa-register';
 import type { Snapshot, Transaction, PortfolioData, ImportProfile } from './types';
 
@@ -107,15 +108,14 @@ const ALL_SECTIONS = ['networth', 'portfolio', 'settings', 'log'] as const;
 // ── Portfolio sub-view state ─────────────────────────────
 let _portfolioSubview: 'holdings' | 'contributions' | 'dividends' = 'holdings';
 
-// ── Unified sync/write lock ──────────────────────────────
-let _syncing = false;
+// ── Unified sync/write lock (shared with settings.ts - see sync/lock.ts) ──
 let _lastSyncAt = 0;
 const AUTO_RESYNC_MIN_INTERVAL_MS = 2 * 60_000; // 2 minutes
 function setSyncing(v: boolean): void {
-  _syncing = v;
+  setBusy(v);
 }
 function isSyncBusy(): boolean {
-  return _syncing;
+  return isBusy();
 }
 
 /** True when data is shown from cache but no valid auth token exists. */
