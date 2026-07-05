@@ -498,7 +498,7 @@ async function bootFromCache() {
  * Uses incremental sync for transactions (delta only).
  */
 async function syncInBackground() {
-  if (_syncing) return; // re-entrancy guard
+  if (isSyncBusy()) return; // re-entrancy guard
   if (state.offline) {
     setSyncStatus('offline');
     return;
