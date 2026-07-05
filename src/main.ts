@@ -968,13 +968,16 @@ async function saveSnapshot() {
       async () => {
         setSyncing(true);
         try {
+          // Write to Sheets first - only mutate local state once the write
+          // has actually succeeded (Phase 69), so a failed save can never
+          // leave state.snaps showing an entry that was never persisted.
+          await upsertSnapshot(snap);
           const idx = state.snaps.findIndex((s) => s.date === date);
           if (idx >= 0) state.snaps[idx] = snap;
           else {
             state.snaps.push(snap);
             state.snaps.sort((a, b) => a.date.localeCompare(b.date));
           }
-          await upsertSnapshot(snap);
           await setCachedSnapshots(state.snaps);
           clearSnapForm();
           renderAll();
@@ -1037,12 +1040,19 @@ async function delSnap(date: string, btn?: HTMLButtonElement) {
   });
   if (!ok) return;
   const run = async () => {
+    const previous = state.snaps;
     state.snaps = state.snaps.filter((s) => s.date !== date);
     setSyncing(true);
     try {
       await saveSnapshots(state.snaps);
       await setCachedSnapshots(state.snaps);
       renderAll();
+    } catch (err) {
+      // Roll back the optimistic filter - the Sheets write never landed,
+      // so the deleted entry must reappear in local state (Phase 69),
+      // matching the existing setAccounts/setHoldings rollback pattern.
+      state.snaps = previous;
+      throw err;
     } finally {
       setSyncing(false);
     }
