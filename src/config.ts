@@ -56,7 +56,7 @@ export interface AppConfig {
 export const CONFIG: AppConfig = {
   // ── App header ─────────────────────────────────────────────
   app: {
-    title: 'Wealth Tracker',
+    title: 'New Name',
     subtitle: 'ETF portfolio · Net worth tracker',
   },
 
