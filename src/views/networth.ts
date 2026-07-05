@@ -54,8 +54,8 @@ function _buildAccountForecastInputs(snap: Snapshot, accounts: Account[]): Accou
 export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const ACCTS = getACCTSList();
   const has = snaps.length > 0;
-  document.getElementById('nw-empty').style.display = has ? 'none' : 'block';
-  document.getElementById('nw-content').style.display = has ? 'block' : 'none';
+  document.getElementById('nw-empty')!.style.display = has ? 'none' : 'block';
+  document.getElementById('nw-content')!.style.display = has ? 'block' : 'none';
   if (!has) return;
 
   const s = snaps[snaps.length - 1];
@@ -64,7 +64,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const prevT = prev ? snapTotal(prev) : null;
   const chg = prevT !== null ? total - prevT : null;
   const chgPct = chg !== null && prevT && prevT > 0 ? (chg / prevT) * 100 : null;
-  const activeA = ACCTS.filter((a) => (s[a.key] || 0) > 0);
+  const activeA = ACCTS.filter((a) => ((s[a.key] as number) || 0) > 0);
 
   // ── Extra KPIs: YoY + CAGR ──
   const firstTotal = snaps.length > 0 ? snapTotal(snaps[0]) : 0;
@@ -86,7 +86,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
     : [];
   _nwGrowthPoints = growthPoints;
 
-  document.getElementById('nw-kpis').innerHTML = `
+  document.getElementById('nw-kpis')!.innerHTML = `
     <div class="kpi kpi-lead">
       <div class="kpi-label">Net worth</div>
       <div class="kpi-val">${fmtEur2(total)}</div>
@@ -95,7 +95,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
           ? fmtEurSigned(chg, 2) +
             (chgPct !== null ? ' (' + fmtPctSigned(chgPct) + ')' : '') +
             ' vs ' +
-            fmtMon(prev.date)
+            fmtMon(prev!.date)
           : fmtMon(s.date)
       }</div>
     </div>
@@ -104,8 +104,8 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
         (a) => `
       <div class="kpi">
         <div class="kpi-label">${esc(a.label)}</div>
-        <div class="kpi-val">${fmtEur2(s[a.key] || 0)}</div>
-        <div class="kpi-sub">${total > 0 ? Math.round(((s[a.key] || 0) / total) * 100) : 0}% of total</div>
+        <div class="kpi-val">${fmtEur2((s[a.key] as number) || 0)}</div>
+        <div class="kpi-sub">${total > 0 ? Math.round((((s[a.key] as number) || 0) / total) * 100) : 0}% of total</div>
       </div>`,
       )
       .join('')}
@@ -115,7 +115,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
       <div class="kpi">
         <div class="kpi-label">YoY${infoTip('Year-over-Year: Change in total net worth compared to the same month one year ago.')}</div>
         <div class="kpi-val ${yoyAbs >= 0 ? 'pos' : 'neg'}">${fmtEurSigned(yoyAbs, 2)}</div>
-        <div class="kpi-sub">${yoyPct !== null ? fmtPctSigned(yoyPct) : '-'} vs ${fmtMon(yoyData.snap.date)}</div>
+        <div class="kpi-sub">${yoyPct !== null ? fmtPctSigned(yoyPct) : '-'} vs ${fmtMon(yoyData!.snap.date)}</div>
       </div>`
         : ''
     }
@@ -131,13 +131,13 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
     }
   `;
 
-  const chartA = ACCTS.filter((a) => snaps.some((sn) => (sn[a.key] || 0) > 0));
+  const chartA = ACCTS.filter((a) => snaps.some((sn) => ((sn[a.key] as number) || 0) > 0));
 
   // Range-sliced view for the history chart
   const view = _nwRange === 'all' ? snaps : snaps.slice(-parseInt(_nwRange));
 
   // Chart title + legend + history chart
-  document.getElementById('nw-chart-title').textContent =
+  document.getElementById('nw-chart-title')!.textContent =
     snaps.length === 1
       ? 'Account breakdown: ' +
         fmtMon(snaps[0].date) +
@@ -148,17 +148,17 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   _destroyChart('c-nw-hist');
   if (snaps.length === 1) {
     // Legend for single-snapshot: per-account only
-    document.getElementById('nw-chart-legend').innerHTML = renderLegendHtml(
+    document.getElementById('nw-chart-legend')!.innerHTML = renderLegendHtml(
       chartA.map((a) => ({ label: a.label, color: a.color })),
     );
 
-    CH['c-nw-hist'] = new Chart(document.getElementById('c-nw-hist'), {
+    CH['c-nw-hist'] = new Chart(document.getElementById('c-nw-hist') as HTMLCanvasElement, {
       type: 'bar',
       data: {
         labels: chartA.map((a) => a.label),
         datasets: [
           {
-            data: chartA.map((a) => s[a.key] || 0),
+            data: chartA.map((a) => (s[a.key] as number) || 0),
             backgroundColor: chartA.map((a) => safeColor(a.color)),
             borderColor: chartA.map((a) => safeColor(a.color)),
             borderWidth: 1,
@@ -187,7 +187,10 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
         scales: {
           x: {
             grid: { color: C.line },
-            ticks: { color: C.ink4, callback: (v: number) => (v / 1000).toFixed(0) + 'k\u00A0€' },
+            ticks: {
+              color: C.ink4,
+              callback: (v) => ((v as number) / 1000).toFixed(0) + 'k\u00A0\u20AC',
+            },
           },
           y: { grid: { display: false }, ticks: { color: C.ink2, font: { size: 12 } } },
         },
@@ -200,24 +203,24 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   // Bind range toggle once
   _attachNWRangeToggle(snaps, chartA);
 
-  const bkA = ACCTS.filter((a) => (s[a.key] || 0) > 0);
+  const bkA = ACCTS.filter((a) => ((s[a.key] as number) || 0) > 0);
 
   let det = bkA
     .map(
       (a) =>
-        `<div class="row"><div class="row-label">${esc(a.label)}</div><div class="row-val">${fmtEur2(s[a.key] || 0)}</div></div>`,
+        `<div class="row"><div class="row-label">${esc(a.label)}</div><div class="row-val">${fmtEur2((s[a.key] as number) || 0)}</div></div>`,
     )
     .join('');
   det += `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px">
     <div class="row-label" style="font-weight:500">Total</div>
     <div class="row-val" style="font-weight:500">${fmtEur2(total)}</div></div>`;
   if (prev) {
-    const c = total - prevT;
+    const c = total - prevT!;
     det += `<div class="row"><div class="row-label" style="color:var(--ink-3);font-size:12px">vs ${fmtMon(prev.date)}</div>
       <div class="row-val ${c >= 0 ? 'pos' : 'neg'}">${fmtEurSigned(c, 2)}</div></div>`;
   }
   if (s.notes) det += `<p class="note" style="margin-top:.5rem">${esc(s.notes)}</p>`;
-  document.getElementById('nw-detail').innerHTML = det;
+  document.getElementById('nw-detail')!.innerHTML = det;
 
   // Growth breakdown chart
   _renderGrowthChart();
@@ -342,13 +345,13 @@ function _renderNWHistChart(
   };
 
   // Legend: Total swatch first, then per-account swatches
-  document.getElementById('nw-chart-legend').innerHTML = renderLegendHtml([
+  document.getElementById('nw-chart-legend')!.innerHTML = renderLegendHtml([
     { label: 'Total net worth', color: C.brand },
     ...chartA.map((a) => ({ label: a.label, color: a.color })),
   ]);
 
   _destroyChart('c-nw-hist');
-  const chart = new Chart(document.getElementById('c-nw-hist'), {
+  const chart = new Chart(document.getElementById('c-nw-hist') as HTMLCanvasElement, {
     type: 'line',
     data: { labels, datasets: [totalDataset, ...accountDatasets] },
     options: {
@@ -371,7 +374,7 @@ function _renderNWHistChart(
       },
       scales: {
         y: {
-          grid: { color: C.line, drawBorder: false },
+          grid: { color: C.line },
           ticks: {
             color: C.ink4,
             callback: (v) =>
@@ -472,7 +475,7 @@ function _renderGrowthChart(): void {
       scales: {
         y: {
           stacked: true,
-          grid: { color: C.line, drawBorder: false },
+          grid: { color: C.line },
           ticks: {
             color: C.ink4,
             callback: (v) => '\u20AC' + (v as number).toFixed(0),
@@ -662,7 +665,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     </div>`;
 
   _destroyChart('c-nw-forecast');
-  CH['c-nw-forecast'] = new Chart(document.getElementById('c-nw-forecast'), {
+  CH['c-nw-forecast'] = new Chart(document.getElementById('c-nw-forecast') as HTMLCanvasElement, {
     type: 'line',
     data: {
       labels,
@@ -720,7 +723,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       },
       scales: {
         y: {
-          grid: { color: C.line, drawBorder: false },
+          grid: { color: C.line },
           ticks: {
             color: C.ink4,
             callback: (v) =>
