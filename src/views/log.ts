@@ -1,4 +1,3 @@
-// @ts-nocheck - DOM-heavy view; full strict typing deferred to framework migration
 import { getACCTSList } from '../constants';
 import { snapTotal, fmtEur2, fmtMon, esc, safeColor } from '../utils';
 import type { Snapshot, Transaction } from '../types';
@@ -33,12 +32,14 @@ export function renderLog(state: LogState): void {
 
   // Import status bar
   const el = document.getElementById('import-status');
-  if (importMeta?.last_import && txs.length) {
-    el.textContent = `\u2713 ${txs.length} transactions synced, last imported ${importMeta.last_import}`;
-    el.className = 'status-bar status-ok';
-  } else {
-    el.textContent = 'No CSV imported yet';
-    el.className = 'status-bar status-empty';
+  if (el) {
+    if (importMeta?.last_import && txs.length) {
+      el.textContent = `\u2713 ${txs.length} transactions synced, last imported ${importMeta.last_import}`;
+      el.className = 'status-bar status-ok';
+    } else {
+      el.textContent = 'No CSV imported yet';
+      el.className = 'status-bar status-empty';
+    }
   }
 
   _lastOnEdit = state.onEditSnap;
@@ -52,7 +53,7 @@ export function renderLog(state: LogState): void {
 }
 
 function populateYearFilter(snaps: Snapshot[]): void {
-  const select = document.getElementById('snap-year-filter');
+  const select = document.getElementById('snap-year-filter') as HTMLSelectElement | null;
   if (!select) return;
   const years = [...new Set(snaps.map((s) => s.date.slice(0, 4)))].sort().reverse();
   const current = select.value;
@@ -75,7 +76,7 @@ function attachFilterListeners(snaps: Snapshot[]): void {
       _snapYear = yearEl.value;
       _snapPage = 1;
       _snapTblSort = { key: null, dir: null };
-      renderSnapList(snaps, _lastOnEdit, _lastOnDel);
+      if (_lastOnEdit && _lastOnDel) renderSnapList(snaps, _lastOnEdit, _lastOnDel);
     });
   }
   if (searchEl && !searchEl._bound) {
@@ -84,7 +85,7 @@ function attachFilterListeners(snaps: Snapshot[]): void {
       _snapSearch = searchEl.value.toLowerCase();
       _snapPage = 1;
       _snapTblSort = { key: null, dir: null };
-      renderSnapList(snaps, _lastOnEdit, _lastOnDel);
+      if (_lastOnEdit && _lastOnDel) renderSnapList(snaps, _lastOnEdit, _lastOnDel);
     });
   }
 }
@@ -115,12 +116,12 @@ function snapColumns(): ColumnDef<Snapshot>[] {
         const total = snapTotal(s);
         if (total <= 0) return '';
         return shown
-          .filter((a) => (s[a.key] || 0) > 0)
-          .map((a) => ({ a, share: (s[a.key] || 0) / total }))
+          .filter((a) => ((s[a.key] as number) || 0) > 0)
+          .map((a) => ({ a, share: ((s[a.key] as number) || 0) / total }))
           .sort((x, y) => y.share - x.share)
           .map(
             ({ a, share }) =>
-              `<span class="snap-seg" style="flex-grow:${share.toFixed(4)};background:${safeColor(a.color)}" title="${esc(a.label)}: ${fmtEur2(s[a.key] || 0)}"></span>`,
+              `<span class="snap-seg" style="flex-grow:${share.toFixed(4)};background:${safeColor(a.color)}" title="${esc(a.label)}: ${fmtEur2((s[a.key] as number) || 0)}"></span>`,
           )
           .join('');
       },
@@ -133,7 +134,7 @@ export function renderSnapList(
   onEdit: (date: string) => void,
   onDel: (date: string, btn?: HTMLButtonElement) => void,
 ): void {
-  const el = document.getElementById('snaps-list');
+  const el = document.getElementById('snaps-list')!;
   if (!snaps.length) {
     el.innerHTML =
       '<div class="empty-state" style="padding:1.5rem;font-size:13px">No snapshots yet. Add your first one above.</div>';
@@ -224,7 +225,7 @@ export function renderSnapList(
       const existing = listEl.querySelector('.snap-detail') as HTMLElement | null;
       if (existing) {
         const wasThis = existing.previousElementSibling === row;
-        const prevDate = existing.previousElementSibling?.dataset?.date;
+        const prevDate = (existing.previousElementSibling as HTMLElement | null)?.dataset?.date;
         existing.remove();
         if (prevDate) toggleCollapsed('snap:' + prevDate); // mark collapsed
         if (wasThis) return;
@@ -258,7 +259,7 @@ export function renderSnapList(
 /** Expand a snapshot row into its detail panel. */
 function _expandSnapRow(
   row: HTMLElement,
-  snap: any,
+  snap: Snapshot,
   date: string,
   listEl: HTMLElement,
   onEdit: (d: string) => void,
@@ -266,7 +267,7 @@ function _expandSnapRow(
 ): void {
   const accts = getACCTSList();
   const detailRows = accts
-    .filter((a) => (snap[a.key] || 0) > 0)
+    .filter((a) => ((snap[a.key] as number) || 0) > 0)
     .map(
       (a) =>
         `<div><span class="hold-detail-label">${esc(a.label)}</span><span class="hold-detail-value">${fmtEur2(snap[a.key] as number)}</span></div>`,
