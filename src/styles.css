@@ -880,20 +880,28 @@ code,
 /* PWA update banner */
 .pwa-update-banner {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   z-index: 1000;
   display: flex;
   align-items: center;
-  gap: 10px;
-  justify-content: center;
+  gap: 12px;
   flex-wrap: wrap;
-  padding: 10px 16px;
-  border-radius: 0;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-top: 2px solid var(--brand);
+  border-radius: 8px;
+  padding: 12px 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  color: var(--ink);
+  max-width: 480px;
+  margin: 0 auto;
 }
-.pwa-update-msg {
+.pwa-update-banner .pwa-update-msg {
   font-size: var(--fs-7);
+  color: var(--neg);
+  flex-basis: 100%;
 }
 
 /* Spinner */

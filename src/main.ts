@@ -275,7 +275,7 @@ function showUpdateBanner(onReload: () => void): void {
   if (document.getElementById('pwa-update-banner')) return; // already showing
   const bar = document.createElement('div');
   bar.id = 'pwa-update-banner';
-  bar.className = 'status-bar status-warn pwa-update-banner';
+  bar.className = 'pwa-update-banner';
   bar.innerHTML = `
     <span>A new version of Wealth Tracker is available.</span>
     <button id="pwa-update-reload" class="btn btn-sm btn-primary" type="button">Reload</button>
