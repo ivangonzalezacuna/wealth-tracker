@@ -223,9 +223,13 @@ function showSection(id, btn) {
     return;
   }
   document.querySelectorAll('.section').forEach((s) => s.classList.remove('active'));
-  document.querySelectorAll('.nav button').forEach((b) => b.classList.remove('active'));
+  document.querySelectorAll('.nav button').forEach((b) => {
+    b.classList.remove('active');
+    b.setAttribute('aria-selected', 'false');
+  });
   document.getElementById(id)?.classList.add('active');
   btn?.classList.add('active');
+  btn?.setAttribute('aria-selected', 'true');
   _activeSection = id;
   if (_dirty.has(id)) {
     _dirty.delete(id);
@@ -1328,9 +1332,11 @@ function showPortfolioSubview(sub: string, force = false): void {
     const el = document.getElementById(`subview-${s}`);
     if (el) el.style.display = s === sub ? 'block' : 'none';
   });
-  document
-    .querySelectorAll('#portfolio-subnav [data-subview]')
-    .forEach((b) => b.classList.toggle('active', (b as HTMLElement).dataset.subview === sub));
+  document.querySelectorAll('#portfolio-subnav [data-subview]').forEach((b) => {
+    const isActive = (b as HTMLElement).dataset.subview === sub;
+    b.classList.toggle('active', isActive);
+    b.setAttribute('aria-selected', String(isActive));
+  });
   renderPortfolioSubview(sub);
   history.replaceState(null, '', navHash('portfolio', sub));
 }
