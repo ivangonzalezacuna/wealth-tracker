@@ -91,7 +91,8 @@ function _writeMsg(elId: string, text: string, ok: boolean): void {
   const el = document.getElementById(elId);
   if (!el) return;
   el.textContent = text;
-  el.style.color = ok ? '#0F6E56' : '#A32D2D';
+  el.classList.remove('msg-ok', 'msg-err');
+  el.classList.add(ok ? 'msg-ok' : 'msg-err');
   if (ok)
     setTimeout(() => {
       if (el.textContent === text) el.textContent = '';
@@ -117,7 +118,8 @@ export function reinjectPendingMsg(): void {
   const el = document.getElementById(_pendingMsg.id);
   if (el) {
     el.textContent = _pendingMsg.text;
-    el.style.color = _pendingMsg.ok ? '#0F6E56' : '#A32D2D';
+    el.classList.remove('msg-ok', 'msg-err');
+    el.classList.add(_pendingMsg.ok ? 'msg-ok' : 'msg-err');
   }
 }
 

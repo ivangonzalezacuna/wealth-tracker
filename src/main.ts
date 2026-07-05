@@ -413,7 +413,7 @@ function setAuthStatus(msg, isErr = false) {
   } else {
     el.innerHTML = msg;
   }
-  el.style.color = isErr ? '#A32D2D' : '#52514e';
+  el.style.color = isErr ? 'var(--neg)' : 'var(--ink-2)';
 }
 
 // ── Cache-first boot ─────────────────────────────────────
@@ -1207,7 +1207,7 @@ function showImportPreview(csvText, profile) {
     <div style="overflow-x:auto;margin-top:.6rem;-webkit-overflow-scrolling:touch">
       <table style="width:100%;font-size:11px;border-collapse:collapse">
         <thead>
-          <tr style="color:#6b6a65;text-transform:uppercase;letter-spacing:.04em">
+          <tr style="color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em">
             <th style="padding:4px 6px;text-align:left">Date</th>
             <th style="padding:4px 6px;text-align:left">Type</th>
             <th style="padding:4px 6px;text-align:left">Name</th>
@@ -1220,7 +1220,7 @@ function showImportPreview(csvText, profile) {
           ${sampleRows
             .map(
               (tx) => `
-            <tr style="border-top:1px solid #f1efe8">
+            <tr style="border-top:1px solid var(--line)">
               <td style="padding:4px 6px">${esc(tx.date)}</td>
               <td style="padding:4px 6px">${esc(tx.type)}</td>
               <td style="padding:4px 6px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(tx.name)}</td>

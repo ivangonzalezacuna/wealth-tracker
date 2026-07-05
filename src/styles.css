@@ -876,6 +876,12 @@ code,
   background: var(--err-bg);
   color: var(--err-fg);
 }
+.msg-ok {
+  color: var(--pos);
+}
+.msg-err {
+  color: var(--neg);
+}
 
 /* PWA update banner */
 .pwa-update-banner {
