@@ -213,7 +213,7 @@ describe('signIn - error_callback / popup_closed handling', () => {
   });
 });
 
-describe('Phase 49 - GRANTED_KEY prompt selection', () => {
+describe('GRANTED_KEY prompt selection', () => {
   let _capturedConfig: any;
   let _fakeClient: any;
 

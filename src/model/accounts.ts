@@ -18,7 +18,7 @@ export function validateAccountRanges(accounts: Account[]): string | null {
   for (const a of accounts) {
     const pct = a.annualReturnPct ?? 0;
     // Below -100% breaks the math: fractional exponent of a negative number is NaN.
-    // No upper cap — high returns are valid; the isFinite guard in forecast.ts handles edge cases.
+    // No upper cap; high returns are valid and the isFinite guard in forecast.ts handles edge cases.
     if (pct < -100) {
       return `"${a.label || a.id}": annual return cannot be below −100%.`;
     }

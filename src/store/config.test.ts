@@ -127,7 +127,7 @@ describe('setAccounts', () => {
   });
 });
 
-describe('hydrateConfigFromCache (Phase 41)', () => {
+describe('hydrateConfigFromCache', () => {
   it('sets getAccounts/getHoldings/getSettings and marks isConfigLoaded true', () => {
     const accounts = [
       {
@@ -437,7 +437,7 @@ describe('rollback on failure', () => {
   });
 });
 
-describe('setAccounts trailing-row clear (Phase 58)', () => {
+describe('setAccounts trailing-row clear', () => {
   const mkAccount = (id: string) => ({
     id,
     moneyType: 'cash',
@@ -499,7 +499,7 @@ describe('setAccounts trailing-row clear (Phase 58)', () => {
   });
 });
 
-describe('setHoldings trailing-row clear (Phase 58)', () => {
+describe('setHoldings trailing-row clear', () => {
   const mkHolding = (isin: string) => ({
     isin,
     ticker: isin.slice(0, 4),

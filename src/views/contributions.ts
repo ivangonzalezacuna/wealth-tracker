@@ -65,7 +65,7 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   attachDCAFilterListeners(pd);
   renderDCATable(pd);
 
-  // ── Contributions forecast (cumulative cash invested) ──
+  // Contributions forecast (cumulative cash invested)
   const accounts = getAccounts();
   _renderDCAForecast(pd, accounts);
 }

@@ -61,11 +61,10 @@ export async function withCardGuard<T>(
   opts: { busyText?: string; keepDisabledOnSuccess?: boolean } = {},
 ): Promise<T | undefined> {
   // isBusy() is the single lock also held by main.ts during background
-  // sync/import/backup writes (see sync/lock.ts, Phase 69). Checking it
-  // here stops a Settings save from starting while an auto-resync is
-  // loadConfig()-ing the same in-memory store; setting it for the
-  // duration of this card's write stops the reverse race (an auto-resync
-  // firing mid-save and overwriting the just-changed config).
+  // sync/import/backup writes (see sync/lock.ts). Checking it here stops
+  // a Settings save from starting while an auto-resync is loadConfig()-ing
+  // the same in-memory store; setting it for the duration of this card's
+  // write stops the reverse race.
   if (isCardBusy(cardKey) || isBusy()) return undefined;
   _cardBusy.add(cardKey);
   setBusy(true);
@@ -101,13 +100,8 @@ const SYNC_LOCK_EXEMPT_IDS = new Set(['btn-add-acct', 'btn-add-hold', 'btn-add-r
 const SYNC_BUSY_TITLE = 'Sync in progress \u2014 try again in a moment';
 
 /**
- * Grey out every write-triggering Settings button while a sync/import/
- * backup write is in flight anywhere in the app - not just while this
- * card's own action is running. Without this, withCardGuard's isBusy()
- * check still correctly blocks the write, but silently: the button stayed
- * fully enabled and nothing visibly happened when clicked (Phase 70).
- * Idempotent and cheap - safe to call on every render and every sync
- * status transition. No-ops if Settings isn't currently mounted.
+ * Disable every write-triggering Settings button while a sync/write is in
+ * flight anywhere in the app. Idempotent; no-ops if Settings isn't mounted.
  */
 export function applySyncBusyState(): void {
   const root = document.getElementById('settings-content');
@@ -1413,7 +1407,7 @@ function parseHoldingName(
 ): { ticker: string; acc: boolean; assetClass: string; region: string } {
   const upper = (name || '').toUpperCase();
 
-  // ── Acc vs Dist ──
+  // Acc vs Dist
   // Check for explicit (Acc)/(Dist) or Accumulating/Distributing keywords
   let acc = true; // default to accumulating
   if (/\(DIST\)|DISTRIBUTING/i.test(name)) {
@@ -1422,7 +1416,7 @@ function parseHoldingName(
     acc = true;
   }
 
-  // ── Asset class ──
+  // Asset class
   let assetClass = 'equity';
   if (/BOND|AGGREGATE|FIXED.?INCOME|TREASURY|GOVT/i.test(name)) {
     assetClass = 'bond';
@@ -1432,7 +1426,7 @@ function parseHoldingName(
     assetClass = 'commodity';
   }
 
-  // ── Region ──
+  // Region
   let region = 'developed';
   if (/EMERGING|EM IMI/i.test(name) || /\bEM\b/.test(upper)) {
     region = 'emerging';
@@ -1446,7 +1440,7 @@ function parseHoldingName(
     region = 'global';
   }
 
-  // ── Ticker ──
+  // Ticker
   // Try to extract a recognizable ticker: the short word before "UCITS"
   // or the word(s) right after the provider name that look like an index abbreviation
   let ticker = isin.slice(-4); // fallback

@@ -211,7 +211,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     });
   }
 
-  // Bind filter listeners once (Commit 2G: _bound guard prevents stacking)
+  // Bind filter listeners once (_bound guard prevents stacking)
   const filterToggle = document.getElementById('port-filter-toggle') as
     (HTMLElement & { _bound?: boolean }) | null;
   if (filterToggle && !filterToggle._bound) {
@@ -416,7 +416,6 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     <p class="note">Cost basis exact from CSV. Current value from latest snapshot (${latSnap ? fmtMon(latSnap.date) : 'none yet'}). Mixed-currency positions compute in account currency (no FX conversion).</p>
   `;
 
-  // ── Drift / rebalance card ──
   _renderDriftCard(pd);
 }
 

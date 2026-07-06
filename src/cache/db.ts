@@ -213,11 +213,10 @@ export function computeInputsHash(
 
 /**
  * Build a stable signature string from holdings that affects computePD output.
- * Includes every field computePD()'s output actually reflects (ticker/color
- * come from getMETAMap()/getISIN(), both live off this same holdings list) -
- * omitting any of them here means editing that field in Settings silently
- * fails to refresh Portfolio/Net Worth until an unrelated change happens to
- * invalidate the hash (Phase 69).
+ * Includes every field computePD()'s output reflects (ticker/color come from
+ * getMETAMap()/getISIN(), both derived from holdings). Omitting any field here
+ * means editing it in Settings won't refresh Portfolio/Net Worth until an
+ * unrelated change invalidates the hash.
  */
 export function holdingsSignature(holdings: Holding[]): string {
   return holdings

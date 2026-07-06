@@ -212,7 +212,7 @@ describe('computePD', () => {
     expect(pd.intHist).toEqual([]);
   });
 
-  it('DEPOSIT rows do not enter DCA monthly (Commit 1C)', () => {
+  it('DEPOSIT rows do not enter DCA monthly', () => {
     const txs: Transaction[] = [
       buyTx('IE00B4L5Y983', '2024-01-15', 10, 1000),
       {
@@ -239,7 +239,7 @@ describe('computePD', () => {
     expect(pd.months).toEqual(['2024-01']);
   });
 
-  it('DCA monthly includes BUY fees, matching totalInv (Phase 41)', () => {
+  it('DCA monthly includes BUY fees, matching totalInv', () => {
     const txs = [
       buyTx('IE00B4L5Y983', '2024-01-15', 10, 1000, 1), // fee 1
       buyTx('IE00B4L5Y983', '2024-02-15', 5, 600, 1), // fee 1
@@ -251,7 +251,7 @@ describe('computePD', () => {
     expect(monthlySum).toBeCloseTo(pd.totalInv);
   });
 
-  it('TAX refund (positive tax) reduces net tax to zero (Commit 1D)', () => {
+  it('TAX refund (positive tax) reduces net tax to zero', () => {
     const txs: Transaction[] = [
       buyTx('IE00B4L5Y983', '2024-01-01', 10, 1000),
       interestTx('2024-01-31', 100),

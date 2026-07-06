@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// ── Chart.js mock (reused from Phase 67's portfolio.test.ts) ───────
+// ── Chart.js mock ───────
 const chartInstances: Array<{ config: unknown; destroyed: boolean }> = [];
 vi.mock('chart.js/auto', () => ({
   default: class MockChart {

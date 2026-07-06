@@ -136,7 +136,7 @@ describe('isCardBusy / withCardGuard', () => {
     expect(result1).toBe('first');
   });
 
-  it('withCardGuard for a different card is blocked by the shared global lock (Phase 69)', async () => {
+  it('withCardGuard for a different card is blocked by the shared global lock', async () => {
     let resolve1!: (v: string) => void;
     const p1 = withCardGuard('accounts', btn, () => new Promise<string>((r) => (resolve1 = r)));
 
@@ -199,7 +199,7 @@ describe('isCardBusy / withCardGuard', () => {
   });
 });
 
-describe('applySyncBusyState (Phase 70)', () => {
+describe('applySyncBusyState', () => {
   beforeEach(() => {
     setBusy(false);
     document.body.innerHTML = `

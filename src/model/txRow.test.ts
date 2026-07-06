@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { newRowToTx, oldRowToTx } from './txRow';
 import { txKey } from '../sheets/transactions';
 
-describe('txRow shared parsers (Commit 3H)', () => {
+describe('txRow shared parsers', () => {
   it('newRowToTx parses a 14-col row correctly', () => {
     const row = [
       'tx-001',

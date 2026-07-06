@@ -26,14 +26,14 @@ describe('getSetupState', () => {
     expect(getSetupState({ signedIn: true, accountCount: 0, snapshotCount: 3 })).toBe('accounts');
   });
 
-  // Phase 41 - cacheLoaded tests
-  it('cached-but-unauthenticated with full data returns "done" (Phase 41)', () => {
+  // cacheLoaded tests
+  it('cached-but-unauthenticated with full data returns "done"', () => {
     expect(
       getSetupState({ signedIn: false, cacheLoaded: true, accountCount: 3, snapshotCount: 5 }),
     ).toBe('done');
   });
 
-  it('cached-but-unauthenticated with no accounts still returns "accounts" (Phase 41)', () => {
+  it('cached-but-unauthenticated with no accounts still returns "accounts"', () => {
     expect(
       getSetupState({ signedIn: false, cacheLoaded: true, accountCount: 0, snapshotCount: 0 }),
     ).toBe('accounts');

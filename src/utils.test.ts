@@ -131,7 +131,7 @@ describe('esc', () => {
     expect(esc('a & b < c > d "e"')).toBe('a &amp; b &lt; c &gt; d &quot;e&quot;');
   });
 
-  it('escapes single quotes to &#39; (Phase 69)', () => {
+  it('escapes single quotes to &#39;', () => {
     expect(esc("Ivan's account")).toBe('Ivan&#39;s account');
   });
 

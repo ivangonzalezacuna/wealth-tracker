@@ -443,7 +443,7 @@ describe('edge cases', () => {
   });
 });
 
-// ── TR real deposit/tax type mappings (Commit 1C) ────────
+// ── TR real deposit/tax type mappings ────────────────
 
 describe('TR real deposit/tax/withdrawal type mappings', () => {
   const mkCsv = (type: string) =>

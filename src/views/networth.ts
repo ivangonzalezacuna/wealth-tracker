@@ -71,7 +71,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const chgPct = chg !== null && prevT && prevT > 0 ? (chg / prevT) * 100 : null;
   const activeA = ACCTS.filter((a) => ((s[a.key] as number) || 0) > 0);
 
-  // ── Extra KPIs: YoY + CAGR ──
+  // Extra KPIs: YoY + CAGR
   const firstTotal = snaps.length > 0 ? snapTotal(snaps[0]) : 0;
   const firstDate = snaps[0]?.date || '';
   const latestDate = s.date || '';
@@ -84,7 +84,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
 
   const cagrVal = cagr(firstTotal, total, monthsSpan);
 
-  // ── Growth split (contributions vs market) ──
+  // Growth split (contributions vs market)
   const accounts = getAccounts();
   const growthPoints = pd
     ? monthlyGrowthHistory(snaps, accounts, pd.monthly, primaryInvestmentValue)
@@ -235,7 +235,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   // Bind growth range toggle once
   _attachNWGrowthRangeToggle();
 
-  // ── Goal progress card ──
+  // Goal progress card
   const goalEl = document.getElementById('nw-goal');
   if (goalEl) {
     const target = getTargetNetWorth();
@@ -292,7 +292,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
     }
   }
 
-  // ── Forecast chart ──
+  // Forecast chart
   _renderForecastChart(snaps, accounts);
 
   attachInfoTips(document.getElementById('networth')!);
