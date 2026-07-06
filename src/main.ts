@@ -119,6 +119,14 @@ function setSyncing(v: boolean): void {
   // disables its buttons (isBusy() is already false again by the time the
   // post-sync renderAll() would have shown it) (Phase 70).
   applySyncBusyState();
+  // Same reasoning, for the write controls outside Settings that also hit
+  // Sheets directly: the monthly-update Save button, CSV import confirm
+  // and drop-zone, manual sync, and per-row snapshot Delete. Each already
+  // checks isSyncBusy() before starting and shows a message on click, but
+  // the control itself stayed fully enabled and gave no visual cue in the
+  // meantime - and delSnap's check was a fully silent no-op, no message at
+  // all (Phase 72).
+  applyReadOnlyMode();
 }
 function isSyncBusy(): boolean {
   return isBusy();
@@ -129,29 +137,56 @@ function isReadOnly(): boolean {
   return state.cacheLoaded && !isSignedIn();
 }
 
+/**
+ * Disable every write-triggering control outside Settings for one of two
+ * independent reasons: not signed in (isReadOnly - persistent, until the
+ * user signs in) or a sync/write in flight elsewhere (isSyncBusy -
+ * transient, clears itself). Read-only always wins the tooltip when both
+ * are true - "sign in" is the more actionable message in that case.
+ * Deliberately does NOT touch the monthly-update card's collapsed/expanded
+ * layout for the busy case (only for readOnly) - collapsing and restoring
+ * the form every time a two-second background sync starts would be a much
+ * louder, flashier change than a brief disabled state calls for.
+ */
 function applyReadOnlyMode(): void {
   const readOnly = isReadOnly();
-  const hint = 'Sign in to enable editing';
+  const busy = isSyncBusy();
+  const disabled = readOnly || busy;
+  const hint = readOnly
+    ? 'Sign in to enable editing'
+    : busy
+      ? 'Sync in progress - try again in a moment'
+      : '';
 
   // Disable write-action buttons
   const writeIds = ['btn-save-snap', 'btn-confirm-import', 'btn-sync-now'];
   for (const id of writeIds) {
     const el = document.getElementById(id) as HTMLButtonElement | null;
     if (!el) continue;
-    el.disabled = readOnly;
-    el.title = readOnly ? hint : '';
+    el.disabled = disabled;
+    el.title = hint;
   }
 
   // Disable CSV drop zone and file input
   const zone = document.getElementById('drop-zone');
   const csvInput = document.getElementById('csv-file-input') as HTMLInputElement | null;
   if (zone) {
-    zone.classList.toggle('drop-zone-disabled', readOnly);
-    zone.title = readOnly ? hint : '';
+    zone.classList.toggle('drop-zone-disabled', disabled);
+    zone.title = hint;
   }
   if (csvInput) {
-    csvInput.disabled = readOnly;
+    csvInput.disabled = disabled;
   }
+
+  // Per-row snapshot Delete button, if a history row is currently expanded.
+  // Edit is deliberately left alone - it only populates the form locally,
+  // it never itself writes to Sheets (the write happens on a later, already
+  // guarded Save click), so blocking it here would add friction for no
+  // correctness benefit.
+  document.querySelectorAll<HTMLButtonElement>('.js-del-snap').forEach((el) => {
+    el.disabled = disabled;
+    el.title = hint;
+  });
 
   // Collapse monthly update card in read-only mode
   const balanceCard = document.getElementById('balance-card');
@@ -1045,7 +1080,10 @@ async function delSnap(date: string, btn?: HTMLButtonElement) {
     return;
   }
   if (!isSignedIn()) return;
-  if (isSyncBusy()) return;
+  if (isSyncBusy()) {
+    showMsg('snap-msg', 'A sync or save is in progress. Try again in a moment.', false);
+    return;
+  }
   const ok = await confirmDialog({
     title: `Delete snapshot for ${fmtMon(date)}?`,
     body: 'This cannot be undone.',

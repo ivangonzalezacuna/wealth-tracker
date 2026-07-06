@@ -65,6 +65,51 @@ describe('showSection idempotent guard', () => {
   });
 });
 
+// ── applyReadOnlyMode's combined readOnly/busy disable logic (Phase 72) ──
+// applyReadOnlyMode() now disables the same write controls for two
+// independent reasons - not signed in (readOnly, persistent) or a sync/
+// write in flight elsewhere (busy, transient) - reproduced here in
+// isolation per this file's established pattern (see header comment).
+describe('applyReadOnlyMode disable/hint logic', () => {
+  function computeDisableState(
+    readOnly: boolean,
+    busy: boolean,
+  ): { disabled: boolean; hint: string } {
+    const disabled = readOnly || busy;
+    const hint = readOnly
+      ? 'Sign in to enable editing'
+      : busy
+        ? 'Sync in progress - try again in a moment'
+        : '';
+    return { disabled, hint };
+  }
+
+  it('neither readOnly nor busy - enabled, no hint', () => {
+    expect(computeDisableState(false, false)).toEqual({ disabled: false, hint: '' });
+  });
+
+  it('busy only - disabled with the busy hint', () => {
+    expect(computeDisableState(false, true)).toEqual({
+      disabled: true,
+      hint: 'Sync in progress - try again in a moment',
+    });
+  });
+
+  it('readOnly only - disabled with the sign-in hint', () => {
+    expect(computeDisableState(true, false)).toEqual({
+      disabled: true,
+      hint: 'Sign in to enable editing',
+    });
+  });
+
+  it('both readOnly and busy - the sign-in hint wins (more actionable)', () => {
+    expect(computeDisableState(true, true)).toEqual({
+      disabled: true,
+      hint: 'Sign in to enable editing',
+    });
+  });
+});
+
 describe('showPortfolioSubview idempotent guard', () => {
   let _portfolioSubview: string;
 
