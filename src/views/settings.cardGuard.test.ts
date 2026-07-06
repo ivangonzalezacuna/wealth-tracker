@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { setBusy } from '../sync/lock';
-import { isCardBusy, withCardGuard } from './settings';
+import { isCardBusy, withCardGuard, applySyncBusyState } from './settings';
 
 // Mock all dependencies that settings.ts imports
 vi.mock('../store/config', () => ({
@@ -195,5 +195,85 @@ describe('isCardBusy / withCardGuard', () => {
     }
 
     expect(deleteBtn.disabled).toBe(false);
+  });
+});
+
+describe('applySyncBusyState (Phase 70)', () => {
+  beforeEach(() => {
+    setBusy(false);
+    document.body.innerHTML = `
+      <div id="settings-content">
+        <div class="card" id="settings-card-accounts">
+          <button id="btn-add-acct">+ Add account</button>
+          <button id="btn-save-accts">Save accounts</button>
+        </div>
+        <div class="card" id="settings-card-holdings">
+          <button data-hfilter="all">All</button>
+          <button id="btn-save-holds">Save holdings</button>
+        </div>
+      </div>`;
+  });
+
+  it('does nothing when Settings is not mounted', () => {
+    document.body.innerHTML = '';
+    expect(() => applySyncBusyState()).not.toThrow();
+  });
+
+  it('disables write buttons and tags them with a tooltip while busy, leaves exempt buttons untouched', () => {
+    setBusy(true);
+    applySyncBusyState();
+
+    const addAcct = document.getElementById('btn-add-acct') as HTMLButtonElement;
+    const saveAccts = document.getElementById('btn-save-accts') as HTMLButtonElement;
+    const filter = document.querySelector('[data-hfilter="all"]') as HTMLButtonElement;
+    const saveHolds = document.getElementById('btn-save-holds') as HTMLButtonElement;
+
+    // Local-only buttons (no Sheets write) stay clickable
+    expect(addAcct.disabled).toBe(false);
+    expect(filter.disabled).toBe(false);
+
+    // Write-triggering buttons across every card - not just the one that
+    // triggered the busy state - are disabled and get a "why" tooltip.
+    expect(saveAccts.disabled).toBe(true);
+    expect(saveAccts.title).toMatch(/sync in progress/i);
+    expect(saveHolds.disabled).toBe(true);
+    expect(saveHolds.title).toMatch(/sync in progress/i);
+  });
+
+  it('re-enables and clears the tooltip once busy clears', () => {
+    setBusy(true);
+    applySyncBusyState();
+    setBusy(false);
+    applySyncBusyState();
+
+    const saveAccts = document.getElementById('btn-save-accts') as HTMLButtonElement;
+    expect(saveAccts.disabled).toBe(false);
+    expect(saveAccts.title).toBe('');
+  });
+
+  it('does not re-enable a button that was disabled for a different reason', () => {
+    const saveHolds = document.getElementById('btn-save-holds') as HTMLButtonElement;
+    saveHolds.disabled = true;
+    saveHolds.title = 'Some other reason';
+
+    setBusy(false);
+    applySyncBusyState();
+
+    expect(saveHolds.disabled).toBe(true);
+    expect(saveHolds.title).toBe('Some other reason');
+  });
+
+  it('withCardGuard greys out OTHER cards buttons too, not just its own siblings', async () => {
+    let holdingsDisabledDuringAccountsSave = false;
+    const saveAccts = document.getElementById('btn-save-accts') as HTMLButtonElement;
+    const saveHolds = document.getElementById('btn-save-holds') as HTMLButtonElement;
+
+    await withCardGuard('accounts', saveAccts, async () => {
+      holdingsDisabledDuringAccountsSave = saveHolds.disabled;
+      return 'done';
+    });
+
+    expect(holdingsDisabledDuringAccountsSave).toBe(true);
+    expect(saveHolds.disabled).toBe(false); // re-enabled once the save finishes
   });
 });

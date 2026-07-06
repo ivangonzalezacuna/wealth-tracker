@@ -46,7 +46,7 @@ import { renderNW } from './views/networth';
 import { renderPortfolio } from './views/portfolio';
 import { renderDCA } from './views/contributions';
 import { renderDividends } from './views/dividends';
-import { renderSettings, refreshSettingsAfterChange } from './views/settings';
+import { renderSettings, refreshSettingsAfterChange, applySyncBusyState } from './views/settings';
 import { renderLog } from './views/log';
 import { fmtMon, showMsg, reinjectPendingMsg, esc, currentMonth, withButtonGuard } from './utils';
 import { parseNum } from './csv';
@@ -113,6 +113,12 @@ let _lastSyncAt = 0;
 const AUTO_RESYNC_MIN_INTERVAL_MS = 2 * 60_000; // 2 minutes
 function setSyncing(v: boolean): void {
   setBusy(v);
+  // Reconciles every Settings button's disabled/title state immediately,
+  // not just on the next full re-render - otherwise a background sync that
+  // starts while Settings is the open, active section never visibly
+  // disables its buttons (isBusy() is already false again by the time the
+  // post-sync renderAll() would have shown it) (Phase 70).
+  applySyncBusyState();
 }
 function isSyncBusy(): boolean {
   return isBusy();
