@@ -6,6 +6,8 @@ import {
   appendRows,
   ensureSheets,
   resetConfirmedTabsCache,
+  batchWriteRanges,
+  blankRows,
 } from './api';
 
 // Mock auth module
@@ -114,6 +116,72 @@ describe('appendRows integration', () => {
     const [, options] = fetchMock.mock.calls[0];
     const body = JSON.parse(options.body);
     expect(body.values).toEqual([["'+cmd", 100, "'@test"]]);
+  });
+});
+
+describe('blankRows', () => {
+  it('builds a rectangular grid of empty strings', () => {
+    expect(blankRows(2, 3)).toEqual([
+      ['', '', ''],
+      ['', '', ''],
+    ]);
+  });
+
+  it('returns an empty array for zero or negative row counts', () => {
+    expect(blankRows(0, 5)).toEqual([]);
+    expect(blankRows(-3, 5)).toEqual([]);
+  });
+});
+
+describe('batchWriteRanges integration', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({}),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  it('sends a single request covering all ranges (atomic write)', async () => {
+    await batchWriteRanges([
+      { range: 'Accounts!A1', values: [['id', 'label']] },
+      {
+        range: 'Accounts!A4:B6',
+        values: [
+          ['', ''],
+          ['', ''],
+          ['', ''],
+        ],
+      },
+    ]);
+
+    // Exactly one HTTP call for both ranges - this is the whole point:
+    // a network failure can't leave the write applied without the blank,
+    // because there's only one request to fail or succeed.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toContain(':batchUpdate');
+    const body = JSON.parse(options.body);
+    expect(body.data).toHaveLength(2);
+    expect(body.data[0].range).toBe('Accounts!A1');
+    expect(body.data[1].range).toBe('Accounts!A4:B6');
+  });
+
+  it('sanitizes string cells in every range of the batch', async () => {
+    await batchWriteRanges([{ range: 'Sheet1!A1', values: [['=SUM(A1)', 'normal']] }]);
+
+    const [, options] = fetchMock.mock.calls[0];
+    const body = JSON.parse(options.body);
+    expect(body.data[0].values).toEqual([["'=SUM(A1)", 'normal']]);
+  });
+
+  it('throws when the request fails', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 500, text: () => Promise.resolve('err') });
+    await expect(batchWriteRanges([{ range: 'A1', values: [['x']] }])).rejects.toThrow(
+      'Sheets batch write error',
+    );
   });
 });
 

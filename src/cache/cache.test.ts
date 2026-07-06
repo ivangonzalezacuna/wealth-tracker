@@ -84,7 +84,13 @@ describe('Cache: delta merge', () => {
 
     expect(result.merged).toHaveLength(5);
     expect(result.newCount).toBe(2);
-    expect(result.cursor.rowCount).toBe(5);
+    // rowCount tracks the sheet's actual physical row count (cached.length +
+    // delta.length = 3 + 3 = 6), not the deduped merged.length (5). The
+    // delta tail read genuinely returned 3 physical rows from the sheet -
+    // one of them (tx3) simply collided with an existing cached txKey.
+    // Using merged.length here would make the next sync re-read that same
+    // already-seen row forever (see src/cache/sync.test.ts).
+    expect(result.cursor.rowCount).toBe(6);
     expect(result.cursor.lastDate).toBe('2024-05-15');
     // Verify no duplicates
     const ids = result.merged.map((t) => t.id);

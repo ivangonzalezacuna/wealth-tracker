@@ -8,7 +8,14 @@
  * misaligns saved rows (missing cols read as 0).
  */
 
-import { readRange, writeRange, appendRows, clearRange, ensureSheets } from './api';
+import {
+  readRange,
+  writeRange,
+  appendRows,
+  ensureSheets,
+  batchWriteRanges,
+  blankRows,
+} from './api';
 import { SHEET_TABS, getACCTSList } from '../constants';
 import { parseNum } from '../csv';
 import type { Snapshot } from '../types';
@@ -192,17 +199,25 @@ export async function saveSnapshots(snaps: Snapshot[]): Promise<void> {
     // Sheet may be empty - that's fine
   }
 
-  // Write full table first (overwrite in place)
+  // Write full table and blank stale rows beyond the new extent as a single
+  // atomic batchWriteRanges request - see the comment on setAccounts in
+  // store/config.ts for why two sequential writeRange/clearRange calls are
+  // unsafe here (a failed second call would leave a stale snapshot row
+  // parseable as if it were still current).
   const sorted = [...snaps].sort((a, b) => (a.date as string).localeCompare(b.date as string));
   const values = [hdr, ...sorted.map((s) => snapToRow(s, accts))];
-  await writeRange(`${TAB}!A1`, values);
-
-  // Clear only stale rows beyond the new extent
   const newRows = values.length;
   const staleBelow = Math.max(existingHeight - newRows, 0);
   if (staleBelow > 0) {
-    await clearRange(
-      `${TAB}!A${newRows + 1}:${colLetter(Math.max(liveColCount, existingWidth))}${existingHeight}`,
-    );
+    const staleCols = Math.max(liveColCount, existingWidth);
+    await batchWriteRanges([
+      { range: `${TAB}!A1`, values },
+      {
+        range: `${TAB}!A${newRows + 1}:${colLetter(staleCols)}${existingHeight}`,
+        values: blankRows(staleBelow, staleCols),
+      },
+    ]);
+  } else {
+    await writeRange(`${TAB}!A1`, values);
   }
 }

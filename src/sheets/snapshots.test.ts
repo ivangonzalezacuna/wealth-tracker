@@ -245,6 +245,9 @@ describe('upsertSnapshot - integration with mocked API', () => {
       writeRange: mockWriteRange,
       appendRows: mockAppendRows,
       clearRange: mockClearRange,
+      batchWriteRanges: vi.fn().mockResolvedValue({}),
+      blankRows: (rowCount: number, colCount: number) =>
+        Array.from({ length: Math.max(rowCount, 0) }, () => Array(colCount).fill('')),
       ensureSheets: mockEnsureSheets,
     }));
 
@@ -346,6 +349,7 @@ describe('saveSnapshots - no silent column purge', () => {
   let mockWriteRange: ReturnType<typeof vi.fn>;
   let mockAppendRows: ReturnType<typeof vi.fn>;
   let mockClearRange: ReturnType<typeof vi.fn>;
+  let mockBatchWriteRanges: ReturnType<typeof vi.fn>;
   let mockEnsureSheets: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
@@ -355,6 +359,7 @@ describe('saveSnapshots - no silent column purge', () => {
     mockWriteRange = vi.fn().mockResolvedValue({});
     mockAppendRows = vi.fn().mockResolvedValue({});
     mockClearRange = vi.fn().mockResolvedValue({});
+    mockBatchWriteRanges = vi.fn().mockResolvedValue({});
     mockEnsureSheets = vi.fn().mockResolvedValue(undefined);
 
     vi.doMock('./api', () => ({
@@ -362,6 +367,9 @@ describe('saveSnapshots - no silent column purge', () => {
       writeRange: mockWriteRange,
       appendRows: mockAppendRows,
       clearRange: mockClearRange,
+      batchWriteRanges: mockBatchWriteRanges,
+      blankRows: (rowCount: number, colCount: number) =>
+        Array.from({ length: Math.max(rowCount, 0) }, () => Array(colCount).fill('')),
       ensureSheets: mockEnsureSheets,
     }));
 
@@ -392,16 +400,17 @@ describe('saveSnapshots - no silent column purge', () => {
     expect(writtenValues[0]).toEqual(['date', 'a', 'b', 'notes']); // header
     expect(writtenValues[0]).toHaveLength(4);
 
-    // clearRange should NOT have been called for orphaned column range
-    // (it may be called for stale rows below, but never for columns beyond live width)
-    for (const call of mockClearRange.mock.calls) {
-      const range = call[0] as string;
+    // clearRange/batchWriteRanges should NOT have been called for orphaned
+    // column range (staleBelow is 0 here, so no clear path runs at all)
+    expect(mockClearRange).not.toHaveBeenCalled();
+    for (const call of mockBatchWriteRanges.mock.calls) {
+      const ranges = call[0] as { range: string }[];
       // Should never clear column E1:E... (the orphaned column)
-      expect(range).not.toMatch(/!E1:/);
+      for (const r of ranges) expect(r.range).not.toMatch(/!E1:/);
     }
   });
 
-  it('stale rows below are still cleared (existing behavior preserved)', async () => {
+  it('stale rows below are still blanked atomically (existing behavior preserved)', async () => {
     // Sheet has 4 rows (header + 3 data rows) but we're saving only 2 data rows
     mockReadRange
       .mockResolvedValueOnce([['date', 'a', 'b', 'notes']]) // header read (4 cols)
@@ -413,9 +422,14 @@ describe('saveSnapshots - no silent column purge', () => {
       { date: '2026-02', a: 300, b: 400, notes: '' },
     ]);
 
-    // clearRange should be called for the stale row (row 4)
-    expect(mockClearRange).toHaveBeenCalledTimes(1);
-    const clearCall = mockClearRange.mock.calls[0][0] as string;
-    expect(clearCall).toContain('A4'); // clear from row 4
+    // The write+blank must be a single atomic batchWriteRanges request,
+    // never two separate writeRange/clearRange calls.
+    expect(mockWriteRange).not.toHaveBeenCalled();
+    expect(mockClearRange).not.toHaveBeenCalled();
+    expect(mockBatchWriteRanges).toHaveBeenCalledTimes(1);
+    const [ranges] = mockBatchWriteRanges.mock.calls[0];
+    expect(ranges[0].range).toContain('A1');
+    expect(ranges[1].range).toContain('A4'); // blank from row 4
+    expect(ranges[1].values).toHaveLength(1); // exactly the 1 stale row
   });
 });

@@ -7,6 +7,10 @@ vi.mock('../sheets/api', () => ({
   clearRange: vi.fn(async () => {}),
   appendRows: vi.fn(async () => {}),
   ensureSheets: vi.fn(async () => {}),
+  batchWriteRanges: vi.fn(async () => {}),
+  blankRows: vi.fn((rowCount: number, colCount: number) =>
+    Array.from({ length: Math.max(rowCount, 0) }, () => Array(colCount).fill('')),
+  ),
 }));
 
 vi.mock('../config', () => ({
@@ -36,7 +40,7 @@ import {
   retireAccountIdsSafely,
   flushPendingRetiredIds,
 } from './config';
-import { writeRange, readRange, clearRange, ensureSheets } from '../sheets/api';
+import { writeRange, readRange, clearRange, ensureSheets, batchWriteRanges } from '../sheets/api';
 
 describe('parseAccounts', () => {
   it('legacy sheet (no new columns) defaults to annualReturnPct:0, contribAmount:0, contribInterval:monthly', () => {
@@ -451,33 +455,45 @@ describe('setAccounts trailing-row clear (Phase 58)', () => {
     vi.mocked(writeRange).mockReset().mockResolvedValue(undefined);
     vi.mocked(readRange).mockReset().mockResolvedValue([]);
     vi.mocked(clearRange).mockReset().mockResolvedValue(undefined);
+    vi.mocked(batchWriteRanges).mockReset().mockResolvedValue(undefined);
     hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
   });
 
-  it('calls clearRange when the sheet had more rows than the new list', async () => {
+  it('atomically writes+blanks via batchWriteRanges when the sheet had more rows than the new list', async () => {
     // Sheet previously had 6 rows (1 header + 5 data rows)
     vi.mocked(readRange).mockResolvedValueOnce([['a1'], ['a2'], ['a3'], ['a4'], ['a5'], ['hdr']]);
     const accounts = [mkAccount('a1'), mkAccount('a2')]; // 3 rows total (hdr + 2)
     await setAccounts(accounts);
 
-    expect(clearRange).toHaveBeenCalledTimes(1);
-    // values.length = 3, existingHeight = 6 -> clear A4:J6
-    expect(clearRange).toHaveBeenCalledWith('Accounts!A4:J6');
+    // The write+blank must be a single atomic request - never two separate
+    // writeRange/clearRange calls, which would leave a window where a
+    // failed second call resurrects deleted accounts (see api.ts docs).
+    expect(clearRange).not.toHaveBeenCalled();
+    expect(batchWriteRanges).toHaveBeenCalledTimes(1);
+    const [ranges] = vi.mocked(batchWriteRanges).mock.calls[0];
+    expect(ranges[0].range).toBe('Accounts!A1');
+    // values.length = 3, existingHeight = 6 -> blank A4:J6
+    expect(ranges[1].range).toBe('Accounts!A4:J6');
+    expect(ranges[1].values).toHaveLength(3); // 6 - 3 = 3 stale rows
+    expect(ranges[1].values[0]).toHaveLength(10); // one blank cell per column
   });
 
-  it('does NOT call clearRange when the sheet had fewer or equal rows', async () => {
+  it('does NOT call batchWriteRanges or clearRange when the sheet had fewer or equal rows', async () => {
     // Sheet had 2 rows, writing 3 (add case)
     vi.mocked(readRange).mockResolvedValueOnce([['hdr'], ['a1']]);
     await setAccounts([mkAccount('a1'), mkAccount('a2')]);
 
     expect(clearRange).not.toHaveBeenCalled();
+    expect(batchWriteRanges).not.toHaveBeenCalled();
+    expect(writeRange).toHaveBeenCalledTimes(1);
   });
 
-  it('treats readRange error as existingHeight=0 - no clearRange, no propagated error', async () => {
+  it('treats readRange error as existingHeight=0 - no clear, no propagated error', async () => {
     vi.mocked(readRange).mockRejectedValueOnce(new Error('empty sheet'));
     await setAccounts([mkAccount('a1')]);
 
     expect(clearRange).not.toHaveBeenCalled();
+    expect(batchWriteRanges).not.toHaveBeenCalled();
     // Should not throw - the account was saved
     expect(getAccounts()).toHaveLength(1);
   });
@@ -503,32 +519,40 @@ describe('setHoldings trailing-row clear (Phase 58)', () => {
     vi.mocked(writeRange).mockReset().mockResolvedValue(undefined);
     vi.mocked(readRange).mockReset().mockResolvedValue([]);
     vi.mocked(clearRange).mockReset().mockResolvedValue(undefined);
+    vi.mocked(batchWriteRanges).mockReset().mockResolvedValue(undefined);
     hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
   });
 
-  it('calls clearRange when the sheet had more rows than the new list', async () => {
+  it('atomically writes+blanks via batchWriteRanges when the sheet had more rows than the new list', async () => {
     // Sheet previously had 5 rows (1 hdr + 4 data)
     vi.mocked(readRange).mockResolvedValueOnce([['h'], ['h'], ['h'], ['h'], ['h']]);
     const holdings = [mkHolding('IE001'), mkHolding('IE002')]; // 3 rows total
     await setHoldings(holdings);
 
-    expect(clearRange).toHaveBeenCalledTimes(1);
-    // values.length = 3, existingHeight = 5 -> clear A4:L5
-    expect(clearRange).toHaveBeenCalledWith('Holdings!A4:L5');
+    expect(clearRange).not.toHaveBeenCalled();
+    expect(batchWriteRanges).toHaveBeenCalledTimes(1);
+    const [ranges] = vi.mocked(batchWriteRanges).mock.calls[0];
+    expect(ranges[0].range).toBe('Holdings!A1');
+    // values.length = 3, existingHeight = 5 -> blank A4:L5
+    expect(ranges[1].range).toBe('Holdings!A4:L5');
+    expect(ranges[1].values).toHaveLength(2); // 5 - 3 = 2 stale rows
+    expect(ranges[1].values[0]).toHaveLength(12); // one blank cell per column
   });
 
-  it('does NOT call clearRange when the sheet had fewer or equal rows', async () => {
+  it('does NOT call batchWriteRanges or clearRange when the sheet had fewer or equal rows', async () => {
     vi.mocked(readRange).mockResolvedValueOnce([['hdr'], ['h1']]);
     await setHoldings([mkHolding('IE001'), mkHolding('IE002')]);
 
     expect(clearRange).not.toHaveBeenCalled();
+    expect(batchWriteRanges).not.toHaveBeenCalled();
   });
 
-  it('treats readRange error as existingHeight=0 - no clearRange, no propagated error', async () => {
+  it('treats readRange error as existingHeight=0 - no clear, no propagated error', async () => {
     vi.mocked(readRange).mockRejectedValueOnce(new Error('empty'));
     await setHoldings([mkHolding('IE001')]);
 
     expect(clearRange).not.toHaveBeenCalled();
+    expect(batchWriteRanges).not.toHaveBeenCalled();
     expect(getHoldings()).toHaveLength(1);
   });
 });

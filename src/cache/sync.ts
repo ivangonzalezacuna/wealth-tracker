@@ -62,9 +62,15 @@ export function mergeDelta(
   const genuinelyNew = delta.filter((t) => !seen.has(txKey(t)));
   const merged = [...cached, ...genuinelyNew].sort((a, b) => a.date.localeCompare(b.date));
   const lastDate = merged.length > 0 ? merged[merged.length - 1].date : '';
+  // rowCount must track the sheet's actual physical row count (cached rows
+  // + however many rows the tail read returned), not merged.length. If any
+  // delta row collided with an existing txKey (deduped away), merged.length
+  // would undercount the real sheet, and fetchDeltaTransactions - which
+  // treats cursor.rowCount as a literal row offset for its next tail read -
+  // would then re-read that same already-seen row on every future sync.
   return {
     merged,
     newCount: genuinelyNew.length,
-    cursor: { lastDate, rowCount: merged.length },
+    cursor: { lastDate, rowCount: cached.length + delta.length },
   };
 }

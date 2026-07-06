@@ -1,6 +1,13 @@
 /** Runtime config store - loads Accounts, Holdings, and Settings from Google Sheets. */
 
-import { readRange, writeRange, clearRange, appendRows, ensureSheets } from '../sheets/api';
+import {
+  readRange,
+  writeRange,
+  appendRows,
+  ensureSheets,
+  batchWriteRanges,
+  blankRows,
+} from '../sheets/api';
 import { CONFIG } from '../config';
 import type { StaticAccount, StaticHolding, TargetSlice } from '../config';
 import type { Account, Holding, Settings, ContribInterval } from '../types';
@@ -210,13 +217,23 @@ export async function setAccounts(accounts: Account[]): Promise<void> {
       /* empty sheet, nothing to measure */
     }
     const values = [hdr, ...rows];
-    await writeRange(`${TABS.ACCOUNTS}!A1`, values);
     // A shrinking account list (delete) leaves old rows behind unless we
-    // explicitly clear anything below the new extent - writeRange only
-    // ever touches the exact rows/columns it's given.
+    // explicitly blank anything below the new extent - writeRange only
+    // ever touches the exact rows/columns it's given. The write and the
+    // blank-out are sent as a single atomic batchWriteRanges request (not
+    // two sequential calls) so a network drop or crash between them can
+    // never leave a deleted account's row still populated in the sheet.
     const staleBelow = Math.max(existingHeight - values.length, 0);
     if (staleBelow > 0) {
-      await clearRange(`${TABS.ACCOUNTS}!A${values.length + 1}:J${existingHeight}`);
+      await batchWriteRanges([
+        { range: `${TABS.ACCOUNTS}!A1`, values },
+        {
+          range: `${TABS.ACCOUNTS}!A${values.length + 1}:J${existingHeight}`,
+          values: blankRows(staleBelow, hdr.length),
+        },
+      ]);
+    } else {
+      await writeRange(`${TABS.ACCOUNTS}!A1`, values);
     }
     await logChange('Accounts', `updated ${accounts.length} accounts`);
     if (_onChange) _onChange('accounts');
@@ -266,10 +283,18 @@ export async function setHoldings(holdings: Holding[]): Promise<void> {
       /* empty sheet, nothing to measure */
     }
     const values = [hdr, ...rows];
-    await writeRange(`${TABS.HOLDINGS}!A1`, values);
+    // Same atomic write+blank pattern as setAccounts - see comment there.
     const staleBelow = Math.max(existingHeight - values.length, 0);
     if (staleBelow > 0) {
-      await clearRange(`${TABS.HOLDINGS}!A${values.length + 1}:L${existingHeight}`);
+      await batchWriteRanges([
+        { range: `${TABS.HOLDINGS}!A1`, values },
+        {
+          range: `${TABS.HOLDINGS}!A${values.length + 1}:L${existingHeight}`,
+          values: blankRows(staleBelow, hdr.length),
+        },
+      ]);
+    } else {
+      await writeRange(`${TABS.HOLDINGS}!A1`, values);
     }
     await logChange('Holdings', `updated ${holdings.length} holdings`);
     if (_onChange) _onChange('holdings');
