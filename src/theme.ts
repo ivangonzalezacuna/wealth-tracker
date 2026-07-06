@@ -44,3 +44,43 @@ export function resolvedT(): Record<keyof typeof T, string> {
     white: '#fff',
   };
 }
+
+// ── Live OS/browser theme-change notification ────────────────────
+// resolvedT() is only read at render time, so CSS (media-query driven)
+// re-themes instantly on an OS dark/light switch while Chart.js canvases
+// - which bake colors into the canvas at creation time - would otherwise
+// stay stale until the next unrelated re-render. This lets callers (main.ts)
+// subscribe once and trigger a re-render whenever the OS scheme flips.
+type ThemeChangeListener = () => void;
+const _themeListeners = new Set<ThemeChangeListener>();
+let _mq: MediaQueryList | null = null;
+
+function _ensureMediaQueryListener(): void {
+  if (_mq || typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+  _mq = window.matchMedia('(prefers-color-scheme: dark)');
+  const notify = () => {
+    for (const fn of _themeListeners) fn();
+  };
+  // addEventListener is the modern API; Safari <14 only has the deprecated
+  // addListener, so fall back for older engines still in the wild.
+  if (typeof _mq.addEventListener === 'function') {
+    _mq.addEventListener('change', notify);
+  } else if (
+    typeof (_mq as unknown as { addListener?: (fn: () => void) => void }).addListener === 'function'
+  ) {
+    (_mq as unknown as { addListener: (fn: () => void) => void }).addListener(notify);
+  }
+}
+
+/** Subscribe to OS/browser dark-mode changes. Returns an unsubscribe function. */
+export function onThemeChange(fn: ThemeChangeListener): () => void {
+  _ensureMediaQueryListener();
+  _themeListeners.add(fn);
+  return () => _themeListeners.delete(fn);
+}
+
+/** Exported only for tests - clears listener state between test cases. */
+export function _resetThemeListenersForTests(): void {
+  _themeListeners.clear();
+  _mq = null;
+}

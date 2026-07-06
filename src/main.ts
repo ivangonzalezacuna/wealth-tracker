@@ -73,6 +73,7 @@ import {
   setCollapseState,
 } from './cache/db';
 import { fetchDeltaTransactions, mergeDelta } from './cache/sync';
+import { onThemeChange } from './theme';
 import { shouldAutoResync } from './sync/policy';
 import { loadCollapseState, replaceCollapseState } from './ui/collapseState';
 import { restoreCollapseFromSheet, backupCollapseToSheet } from './ui/collapseSync';
@@ -230,6 +231,7 @@ initCSVDrop();
 initAuth();
 setDefaultMonth();
 initOnlineListeners();
+initThemeListener();
 initPwaUpdate();
 
 // ── Navigation ───────────────────────────────────────────
@@ -361,6 +363,14 @@ function initOnlineListeners() {
     if (document.visibilityState === 'visible') autoResyncIfNeeded();
   });
   window.addEventListener('focus', () => autoResyncIfNeeded());
+}
+
+/** Chart.js bakes colors into the canvas at render time, unlike CSS, which
+ *  re-themes instantly via its own media query. Without this, a chart-bearing
+ *  view stays visually stuck in the old color scheme until some unrelated
+ *  action triggers the next re-render. */
+function initThemeListener() {
+  onThemeChange(() => renderAll());
 }
 
 /** Trigger syncInBackground only when shouldAutoResync passes. */
