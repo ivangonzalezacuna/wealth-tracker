@@ -7,12 +7,14 @@ export function snapTotal(s: Snapshot): number {
 }
 
 export function fmt(n: number, d = 0): string {
+  const v = Number(n);
+  if (!isFinite(v)) return '–';
   return new Intl.NumberFormat('de-DE', {
     style: 'currency',
     currency: 'EUR',
     minimumFractionDigits: d,
     maximumFractionDigits: d,
-  }).format(Number(n));
+  }).format(v);
 }
 
 /** Whole-euro display (no decimals). */

@@ -28,6 +28,7 @@ vi.mock('../sheets/transactions', () => ({
 
 vi.mock('../model/accounts', () => ({
   validatePrimaryInvestment: () => null,
+  validateAccountRanges: () => null,
 }));
 
 vi.mock('../model/holdings', () => ({

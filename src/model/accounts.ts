@@ -13,6 +13,19 @@ export function validatePrimaryInvestment(accounts: Account[]): string | null {
   return null;
 }
 
+/** Returns an error string if any account has an out-of-range annualReturnPct, else null. */
+export function validateAccountRanges(accounts: Account[]): string | null {
+  for (const a of accounts) {
+    const pct = a.annualReturnPct ?? 0;
+    // Below -100% breaks the math: fractional exponent of a negative number is NaN.
+    // No upper cap — high returns are valid; the isFinite guard in forecast.ts handles edge cases.
+    if (pct < -100) {
+      return `"${a.label || a.id}": annual return cannot be below −100%.`;
+    }
+  }
+  return null;
+}
+
 /** Current market value of the primary investment account(s) from a snapshot. */
 export function primaryInvestmentValue(snap: Snapshot | null, accounts: Account[]): number | null {
   if (!snap) return null;

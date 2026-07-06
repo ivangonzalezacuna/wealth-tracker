@@ -253,8 +253,38 @@ function initNav() {
     if (btn) showPortfolioSubview(btn.dataset.subview!);
   });
 
+  // Roving tabindex for WAI-ARIA Tabs Pattern on both tablists
+  initRovingTabindex(document.querySelector('.nav[role="tablist"]'));
+  initRovingTabindex(subnav);
+
   // Hash-based initial routing
   resolveInitialSection();
+}
+
+/** WAI-ARIA Tabs Pattern: roving tabindex + arrow-key navigation. */
+function initRovingTabindex(tablist: Element | null): void {
+  if (!tablist) return;
+  const tabs = () => [...tablist.querySelectorAll<HTMLElement>('[role="tab"]')];
+  // Set initial tabindex: active tab = 0, rest = -1
+  for (const t of tabs())
+    t.setAttribute('tabindex', t.getAttribute('aria-selected') === 'true' ? '0' : '-1');
+  tablist.addEventListener('keydown', (e) => {
+    const ev = e as KeyboardEvent;
+    const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!keys.includes(ev.key)) return;
+    ev.preventDefault();
+    const items = tabs();
+    const cur = items.indexOf(document.activeElement as HTMLElement);
+    if (cur < 0) return;
+    let next: number;
+    if (ev.key === 'ArrowRight') next = (cur + 1) % items.length;
+    else if (ev.key === 'ArrowLeft') next = (cur - 1 + items.length) % items.length;
+    else if (ev.key === 'Home') next = 0;
+    else next = items.length - 1; // End
+    for (const t of items) t.setAttribute('tabindex', '-1');
+    items[next].setAttribute('tabindex', '0');
+    items[next].focus();
+  });
 }
 
 function resolveInitialSection(): void {
@@ -282,10 +312,12 @@ function showSection(id: string, btn: Element | null) {
   document.querySelectorAll('.nav button').forEach((b) => {
     b.classList.remove('active');
     b.setAttribute('aria-selected', 'false');
+    b.setAttribute('tabindex', '-1');
   });
   document.getElementById(id)?.classList.add('active');
   btn?.classList.add('active');
   btn?.setAttribute('aria-selected', 'true');
+  btn?.setAttribute('tabindex', '0');
   _activeSection = id;
   if (_dirty.has(id)) {
     _dirty.delete(id);
@@ -1444,6 +1476,7 @@ function showPortfolioSubview(sub: string, force = false): void {
     const isActive = (b as HTMLElement).dataset.subview === sub;
     b.classList.toggle('active', isActive);
     b.setAttribute('aria-selected', String(isActive));
+    b.setAttribute('tabindex', isActive ? '0' : '-1');
   });
   renderPortfolioSubview(sub);
   history.replaceState(null, '', navHash('portfolio', sub));
