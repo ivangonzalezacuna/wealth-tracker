@@ -103,6 +103,7 @@ vi.mock('../theme', () => ({}));
 
 vi.mock('../model/accounts', () => ({
   validatePrimaryInvestment: () => null,
+  validateAccountRanges: () => null,
 }));
 
 vi.mock('../model/contributions', () => ({

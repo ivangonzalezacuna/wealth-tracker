@@ -15,7 +15,7 @@ import {
 } from '../store/config';
 import type { ConfigChangeKind } from '../store/config';
 import { loadTransactions } from '../sheets/transactions';
-import { validatePrimaryInvestment } from '../model/accounts';
+import { validatePrimaryInvestment, validateAccountRanges } from '../model/accounts';
 import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { showMsg, reinjectPendingMsg, withButtonGuard, esc } from '../utils';
@@ -482,6 +482,11 @@ function attachAccountListeners(root: HTMLElement): void {
     const primErr = validatePrimaryInvestment(accounts);
     if (primErr) {
       showMsg('accts-msg', primErr, false);
+      return;
+    }
+    const rangeErr = validateAccountRanges(accounts);
+    if (rangeErr) {
+      showMsg('accts-msg', rangeErr, false);
       return;
     }
     // Auto-generate IDs for accounts that don't have one

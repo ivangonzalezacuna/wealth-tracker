@@ -36,6 +36,11 @@ export function forecastMultiAccountSeries(
   const perAccountMonthlyRate = accounts.map(
     (a) => Math.pow(1 + a.annualReturnPct / 100, 1 / 12) - 1,
   );
+  // Defense-in-depth: if any rate is NaN/Infinity (e.g. annualReturnPct < -100),
+  // treat it as 0% growth rather than poisoning the entire series with NaN.
+  for (let i = 0; i < perAccountMonthlyRate.length; i++) {
+    if (!isFinite(perAccountMonthlyRate[i])) perAccountMonthlyRate[i] = 0;
+  }
   const perAccountMonthlyContrib = accounts.map((a) => a.annualContrib / 12);
   let values = accounts.map((a) => a.current);
 
@@ -79,6 +84,10 @@ export function forecastMonthsToTargetMulti(
   const perAccountMonthlyRate = accounts.map(
     (a) => Math.pow(1 + a.annualReturnPct / 100, 1 / 12) - 1,
   );
+  // Defense-in-depth: treat NaN/Infinity as 0% growth.
+  for (let i = 0; i < perAccountMonthlyRate.length; i++) {
+    if (!isFinite(perAccountMonthlyRate[i])) perAccountMonthlyRate[i] = 0;
+  }
   const perAccountMonthlyContrib = accounts.map((a) => a.annualContrib / 12);
   let values = accounts.map((a) => a.current);
 
