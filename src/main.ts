@@ -586,7 +586,12 @@ async function syncInBackground() {
     ]);
 
     setSyncStatus('ok');
-    backupCollapseToSheet(); // opportunistic backup (fire-and-forget)
+    // Awaited (not fire-and-forget) so isBusy() stays true for its duration -
+    // this write does a full overwrite of the Settings tab (persistSettings),
+    // the same as every Settings-card save. Releasing the lock before this
+    // completed let a concurrent card save race it: whichever request landed
+    // last on Sheets won, silently discarding the other (Phase 70).
+    await backupCollapseToSheet();
   } catch (err) {
     setSyncStatus('error', (err as Error).message);
     // If we had cached data, keep showing it
@@ -687,7 +692,10 @@ async function loadAllData() {
       renderAll();
     });
     setSyncStatus('ok');
-    backupCollapseToSheet(); // opportunistic backup (fire-and-forget)
+    // Awaited - see the matching comment in syncInBackground() (Phase 70):
+    // this must complete before isBusy() is released, or a concurrent
+    // Settings card save can race this full Settings-tab overwrite.
+    await backupCollapseToSheet();
   } catch (err) {
     setSyncStatus('error', (err as Error).message);
   } finally {
