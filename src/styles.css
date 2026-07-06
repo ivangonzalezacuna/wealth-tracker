@@ -591,12 +591,17 @@ code,
 
 /* Snapshot detail panel - extends .hold-detail; no longer needs its own
    grid-template-columns override now that .hold-detail sizes columns to
-   content via auto-fit/minmax (Phase 46e). */
-.snap-detail-note {
-  flex-basis: 100%;
+   content via auto-fit/minmax (Phase 46e).
+   Selectors are qualified with the `.hold-detail >` parent (not just the
+   bare class) so their specificity (0,2,0) beats `.hold-detail > div`'s
+   (0,1,1) - otherwise that rule's `flex: 0 1 auto` shorthand silently wins
+   the flex-basis property back to `auto` and this never actually becomes
+   a full-width row, regardless of source order (Phase 71). */
+.hold-detail > .snap-detail-note {
+  flex: 1 1 100%;
 }
-.snap-detail-actions {
-  flex-basis: 100%;
+.hold-detail > .snap-detail-actions {
+  flex: 1 1 100%;
   display: flex;
   gap: 8px;
   margin-top: 4px;
