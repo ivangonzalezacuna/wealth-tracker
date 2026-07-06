@@ -69,6 +69,7 @@ export async function withCardGuard<T>(
   if (isCardBusy(cardKey) || isBusy()) return undefined;
   _cardBusy.add(cardKey);
   setBusy(true);
+  applySyncBusyState(); // grey out every OTHER card's buttons too, not just this one's
 
   // Disable all buttons in this card so none are clickable while busy
   const cardEl = document.getElementById(`settings-card-${cardKey}`);
@@ -87,9 +88,41 @@ export async function withCardGuard<T>(
   } finally {
     _cardBusy.delete(cardKey);
     setBusy(false);
+    applySyncBusyState(); // re-enable the other cards' buttons
     // Re-enable sibling buttons that we disabled
     for (const b of siblingBtns) b.disabled = false;
   }
+}
+
+/** Card-content refresh functions never touch buttons - these ids never
+ *  go through withCardGuard/Sheets writes, so they stay clickable even
+ *  while a sync/write is in progress elsewhere in the app. */
+const SYNC_LOCK_EXEMPT_IDS = new Set(['btn-add-acct', 'btn-add-hold', 'btn-add-rule']);
+const SYNC_BUSY_TITLE = 'Sync in progress \u2014 try again in a moment';
+
+/**
+ * Grey out every write-triggering Settings button while a sync/import/
+ * backup write is in flight anywhere in the app - not just while this
+ * card's own action is running. Without this, withCardGuard's isBusy()
+ * check still correctly blocks the write, but silently: the button stayed
+ * fully enabled and nothing visibly happened when clicked (Phase 70).
+ * Idempotent and cheap - safe to call on every render and every sync
+ * status transition. No-ops if Settings isn't currently mounted.
+ */
+export function applySyncBusyState(): void {
+  const root = document.getElementById('settings-content');
+  if (!root) return;
+  const busy = isBusy();
+  root.querySelectorAll<HTMLButtonElement>('.card button').forEach((btn) => {
+    if (SYNC_LOCK_EXEMPT_IDS.has(btn.id) || btn.dataset.hfilter !== undefined) return;
+    if (busy) {
+      btn.disabled = true;
+      btn.title = SYNC_BUSY_TITLE;
+    } else if (btn.title === SYNC_BUSY_TITLE) {
+      btn.disabled = false;
+      btn.title = '';
+    }
+  });
 }
 
 /** Re-render exactly one Settings card in place; re-attach only its own
@@ -159,6 +192,7 @@ function repaintCard(key: CardKey): void {
   attachCardCollapseListeners(fresh);
   if (isCollapsed('card:' + key)) fresh.classList.add('collapsed');
   attachInfoTips(fresh);
+  applySyncBusyState();
 }
 
 /**
@@ -206,6 +240,7 @@ export function renderSettings(): void {
 
   attachInfoTips(el);
   reinjectPendingMsg();
+  applySyncBusyState();
 }
 
 // ── Data-only refresh functions ───────────────────────────
@@ -248,6 +283,7 @@ function refreshBackupData(): void {
  *  excluded, confirmed not to. */
 export function refreshSettingsAfterChange(changed: ConfigChangeKind): void {
   if (!document.getElementById('settings-content')) return;
+  applySyncBusyState();
   if (changed === 'accounts') {
     refreshAccountsData();
     return;
