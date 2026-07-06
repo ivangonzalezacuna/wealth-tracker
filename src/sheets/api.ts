@@ -93,6 +93,48 @@ export async function clearRange(range: string): Promise<unknown> {
   return res.json();
 }
 
+/**
+ * Write multiple ranges in a single atomic request.
+ *
+ * Standard for any operation that must overwrite a table AND blank stale
+ * trailing rows/columns beyond the new extent (a "shrinking" full-table
+ * save). Two sequential requests (writeRange then clearRange) each succeed
+ * or fail independently - if the process dies, the network drops, or a rate
+ * limit hits between them, the write can land while the clear never runs,
+ * leaving stale rows behind that later get parsed back in as if they were
+ * still current. A single values:batchUpdate request has no such window:
+ * it either reaches Sheets as one call or it doesn't, so the sheet can
+ * never be observed half-written by this app.
+ */
+export async function batchWriteRanges(
+  ranges: { range: string; values: (string | number | boolean)[][] }[],
+): Promise<unknown> {
+  const h = await _headers();
+  const url = `${BASE}/${SHEET_ID}/values:batchUpdate`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: h,
+    body: JSON.stringify({
+      valueInputOption: 'RAW',
+      data: ranges.map((r) => ({
+        range: r.range,
+        majorDimension: 'ROWS',
+        values: sanitizeRows(r.values),
+      })),
+    }),
+  });
+  if (!res.ok) throw new Error(`Sheets batch write error: ${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+/** Build a rectangular block of empty-string cells. Used with
+ *  batchWriteRanges to atomically "clear" a range (overwrite with blanks)
+ *  in the same request as the main table write, instead of a separate
+ *  clearRange call. */
+export function blankRows(rowCount: number, colCount: number): string[][] {
+  return Array.from({ length: Math.max(rowCount, 0) }, () => Array(colCount).fill(''));
+}
+
 // Tabs confirmed to exist this session. ensureSheets skips its metadata fetch
 // entirely for any tab already in this set -- after the very first successful
 // check, a tab's existence cannot regress without the user deleting a sheet
