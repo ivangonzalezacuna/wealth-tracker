@@ -18,9 +18,9 @@ export function validateAccountRanges(accounts: Account[]): string | null {
   for (const a of accounts) {
     const pct = a.annualReturnPct ?? 0;
     // Below -100% breaks the math: fractional exponent of a negative number is NaN.
-    // Above 1000% is almost certainly a typo (10× annual return is already extreme).
-    if (pct < -100 || pct > 1000) {
-      return `"${a.label || a.id}": annual return must be between −100% and 1000%.`;
+    // No upper cap — high returns are valid; the isFinite guard in forecast.ts handles edge cases.
+    if (pct < -100) {
+      return `"${a.label || a.id}": annual return cannot be below −100%.`;
     }
   }
   return null;
