@@ -114,19 +114,9 @@ let _lastSyncAt = 0;
 const AUTO_RESYNC_MIN_INTERVAL_MS = 2 * 60_000; // 2 minutes
 function setSyncing(v: boolean): void {
   setBusy(v);
-  // Reconciles every Settings button's disabled/title state immediately,
-  // not just on the next full re-render - otherwise a background sync that
-  // starts while Settings is the open, active section never visibly
-  // disables its buttons (isBusy() is already false again by the time the
-  // post-sync renderAll() would have shown it) (Phase 70).
+  // Reconcile Settings button states immediately (not just at next renderAll).
   applySyncBusyState();
-  // Same reasoning, for the write controls outside Settings that also hit
-  // Sheets directly: the monthly-update Save button, CSV import confirm
-  // and drop-zone, manual sync, and per-row snapshot Delete. Each already
-  // checks isSyncBusy() before starting and shows a message on click, but
-  // the control itself stayed fully enabled and gave no visual cue in the
-  // meantime - and delSnap's check was a fully silent no-op, no message at
-  // all (Phase 72).
+  // Also disable write controls outside Settings (snapshot Save, CSV import, etc.).
   applyReadOnlyMode();
 }
 function isSyncBusy(): boolean {
@@ -638,11 +628,8 @@ async function syncInBackground() {
       if (state.txs.length) {
         state.pd = await computeAggregatesWithCache(state.txs);
       }
-      // Keep the IndexedDB cache authoritative the instant any config write
-      // settles (Save or Delete on Accounts/Holdings/Settings), not just after
-      // a full background sync. Without this, bootFromCache() on the next
-      // refresh briefly re-hydrates from stale cached config until
-      // syncInBackground() completes and overwrites it (Phase 58, Commit 5).
+      // Keep IndexedDB cache authoritative after every config write,
+      // so bootFromCache() never re-hydrates stale data on next refresh.
       try {
         await setCachedConfig({
           accounts: getAccounts(),
@@ -669,11 +656,8 @@ async function syncInBackground() {
     ]);
 
     setSyncStatus('ok');
-    // Awaited (not fire-and-forget) so isBusy() stays true for its duration -
-    // this write does a full overwrite of the Settings tab (persistSettings),
-    // the same as every Settings-card save. Releasing the lock before this
-    // completed let a concurrent card save race it: whichever request landed
-    // last on Sheets won, silently discarding the other (Phase 70).
+    // Awaited so isBusy() stays true; prevents concurrent Settings-card saves
+    // from racing this full Settings-tab overwrite.
     await backupCollapseToSheet();
   } catch (err) {
     setSyncStatus('error', (err as Error).message);
@@ -775,9 +759,8 @@ async function loadAllData() {
       renderAll();
     });
     setSyncStatus('ok');
-    // Awaited - see the matching comment in syncInBackground() (Phase 70):
-    // this must complete before isBusy() is released, or a concurrent
-    // Settings card save can race this full Settings-tab overwrite.
+    // Awaited so isBusy() stays true; prevents concurrent Settings-card saves
+    // from racing this full Settings-tab overwrite.
     await backupCollapseToSheet();
   } catch (err) {
     setSyncStatus('error', (err as Error).message);
@@ -1059,9 +1042,7 @@ async function saveSnapshot() {
       async () => {
         setSyncing(true);
         try {
-          // Write to Sheets first - only mutate local state once the write
-          // has actually succeeded (Phase 69), so a failed save can never
-          // leave state.snaps showing an entry that was never persisted.
+          // Write to Sheets first; only mutate local state on success.
           await upsertSnapshot(snap);
           const idx = state.snaps.findIndex((s) => s.date === date);
           if (idx >= 0) state.snaps[idx] = snap;
@@ -1142,9 +1123,7 @@ async function delSnap(date: string, btn?: HTMLButtonElement) {
       await setCachedSnapshots(state.snaps);
       renderAll();
     } catch (err) {
-      // Roll back the optimistic filter - the Sheets write never landed,
-      // so the deleted entry must reappear in local state (Phase 69),
-      // matching the existing setAccounts/setHoldings rollback pattern.
+      // Roll back optimistic delete on write failure.
       state.snaps = previous;
       throw err;
     } finally {

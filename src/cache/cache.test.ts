@@ -196,7 +196,7 @@ describe('Cache: aggregate cache with inputsHash', () => {
     expect(holdingsSignature(holdings1)).not.toBe(holdingsSignature(holdings2));
   });
 
-  it('holdingsSignature includes ticker, color, and name (Phase 69 regression)', () => {
+  it('holdingsSignature includes ticker, color, and name', () => {
     const base = {
       isin: 'IE001',
       ticker: 'VWCE',

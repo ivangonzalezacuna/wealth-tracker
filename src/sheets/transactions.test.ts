@@ -97,7 +97,7 @@ describe('txKey', () => {
     expect(txKey(tx)).toBe('2024-04-01|INTEREST||3.5|');
   });
 
-  it('id-less transactions differing only in shares produce different keys (Phase 69)', () => {
+  it('id-less transactions differing only in shares produce different keys', () => {
     const tx1 = {
       id: '',
       date: '2024-05-01',

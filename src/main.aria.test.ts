@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
 /**
- * Tests for ARIA tab semantics added in Phase 63.
+ * Tests for ARIA tab semantics.
  *
  * main.ts has heavy module-level side effects that prevent direct import,
  * so we reproduce the exact DOM-manipulation logic from showSection and

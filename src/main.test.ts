@@ -11,11 +11,6 @@ import { withButtonGuard } from './utils';
  * test the guard logic in isolation by reproducing the exact guard conditions
  * used in showSection and showPortfolioSubview, then verify the expected
  * short-circuit behavior.
- *
- * This matches the project's established precedent (Phase 1F's PWA-shell
- * case, Phase 21's per-section error boundary) of explicitly documenting
- * when DOM/render-cycle behavior is tested via focused guard-logic tests
- * rather than full integration.
  */
 
 describe('showSection idempotent guard', () => {
@@ -65,11 +60,9 @@ describe('showSection idempotent guard', () => {
   });
 });
 
-// ── applyReadOnlyMode's combined readOnly/busy disable logic (Phase 72) ──
-// applyReadOnlyMode() now disables the same write controls for two
-// independent reasons - not signed in (readOnly, persistent) or a sync/
-// write in flight elsewhere (busy, transient) - reproduced here in
-// isolation per this file's established pattern (see header comment).
+// ── applyReadOnlyMode's combined readOnly/busy disable logic ──
+// applyReadOnlyMode() disables write controls for two independent reasons:
+// not signed in (readOnly, persistent) or a sync/write in flight (busy, transient).
 describe('applyReadOnlyMode disable/hint logic', () => {
   function computeDisableState(
     readOnly: boolean,
@@ -366,7 +359,7 @@ describe('restoreFromBackup collapse state reapply logic', () => {
   });
 });
 
-// ── withButtonGuard tests for saveSnapshot (Phase 58, Commit 2B) ─────────
+// ── withButtonGuard tests for saveSnapshot ─────────
 describe('saveSnapshot button guard via withButtonGuard', () => {
   let btn: HTMLButtonElement;
 
@@ -430,7 +423,7 @@ describe('saveSnapshot button guard via withButtonGuard', () => {
   });
 });
 
-// ── withButtonGuard tests for delSnap (Phase 58, Commit 3C) ──────────────
+// ── withButtonGuard tests for delSnap ──────────────
 describe('delSnap button guard via withButtonGuard', () => {
   let btn: HTMLButtonElement;
 
@@ -495,7 +488,7 @@ describe('delSnap button guard via withButtonGuard', () => {
   });
 });
 
-// ── onConfigChange cache-sync tests (Phase 58, Commit 5) ─────────────────
+// ── onConfigChange cache-sync tests ─────────────────
 describe('onConfigChange callback syncs IndexedDB cache', () => {
   it('calls setCachedConfig with current accounts/holdings/settings', async () => {
     // Reproduce the exact logic of the registered onConfigChange callback

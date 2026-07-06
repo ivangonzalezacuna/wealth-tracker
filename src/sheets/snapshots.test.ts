@@ -65,7 +65,7 @@ describe('snapshot persistence helpers', () => {
   });
 });
 
-describe('rowToSnap locale-safe parsing (Commit 1B)', () => {
+describe('rowToSnap locale-safe parsing', () => {
   const accts = [
     { key: 'tr_portfolio', label: '', color: '' },
     { key: 'n26', label: '', color: '' },
@@ -140,7 +140,7 @@ describe('parseSnapshotRows - header-driven, config-independent', () => {
   });
 });
 
-// ── Phase 16 tests ────────────────────────────────────────
+// ── reconcileSnapshotHeader tests ────────────────────
 
 describe('reconcileSnapshotHeader', () => {
   it('empty current header + keys [a,b] → [date,a,b,notes]', () => {
