@@ -1,6 +1,13 @@
 /** Transaction persistence (append-only). Deduplicates on re-import. Reads old 10-col format. */
 
-import { readRange, writeRange, appendRows, clearRange, ensureSheets } from './api';
+import {
+  readRange,
+  writeRange,
+  appendRows,
+  ensureSheets,
+  batchWriteRanges,
+  blankRows,
+} from './api';
 import { SHEET_TABS } from '../constants';
 import { newRowToTx, oldRowToTx } from '../model/txRow';
 import type { Transaction } from '../types';
@@ -133,9 +140,21 @@ export async function restoreTransactions(txs: Transaction[]): Promise<void> {
   }
   const sorted = [...txs].sort((a, b) => a.date.localeCompare(b.date));
   const values = [NEW_HDR, ...sorted.map(txToRow)];
-  await writeRange(NEW_RANGE, values);
+  // Write and blank-out are sent as one atomic batchWriteRanges request -
+  // see the comment on setAccounts in store/config.ts for why two
+  // sequential writeRange/clearRange calls are unsafe here.
   const staleBelow = Math.max(existingHeight - values.length, 0);
-  if (staleBelow > 0) await clearRange(`${TAB}!A${values.length + 1}:N${existingHeight}`);
+  if (staleBelow > 0) {
+    await batchWriteRanges([
+      { range: NEW_RANGE, values },
+      {
+        range: `${TAB}!A${values.length + 1}:N${existingHeight}`,
+        values: blankRows(staleBelow, NEW_HDR.length),
+      },
+    ]);
+  } else {
+    await writeRange(NEW_RANGE, values);
+  }
 }
 
 /** Save import date metadata to Meta tab. */

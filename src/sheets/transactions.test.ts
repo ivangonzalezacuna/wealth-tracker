@@ -243,6 +243,7 @@ describe('restoreTransactions', () => {
   let mockReadRange: ReturnType<typeof vi.fn>;
   let mockWriteRange: ReturnType<typeof vi.fn>;
   let mockClearRange: ReturnType<typeof vi.fn>;
+  let mockBatchWriteRanges: ReturnType<typeof vi.fn>;
   let mockEnsureSheets: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
@@ -251,6 +252,7 @@ describe('restoreTransactions', () => {
     mockReadRange = vi.fn();
     mockWriteRange = vi.fn().mockResolvedValue({});
     mockClearRange = vi.fn().mockResolvedValue({});
+    mockBatchWriteRanges = vi.fn().mockResolvedValue({});
     mockEnsureSheets = vi.fn().mockResolvedValue(undefined);
 
     vi.doMock('./api', () => ({
@@ -258,6 +260,9 @@ describe('restoreTransactions', () => {
       writeRange: mockWriteRange,
       appendRows: vi.fn().mockResolvedValue({}),
       clearRange: mockClearRange,
+      batchWriteRanges: mockBatchWriteRanges,
+      blankRows: (rowCount: number, colCount: number) =>
+        Array.from({ length: Math.max(rowCount, 0) }, () => Array(colCount).fill('')),
       ensureSheets: mockEnsureSheets,
     }));
 
@@ -267,7 +272,7 @@ describe('restoreTransactions', () => {
     }));
   });
 
-  it('writes header+rows via writeRange, no clearRange when new data is longer', async () => {
+  it('writes header+rows via writeRange, no clear when new data is longer', async () => {
     // Existing sheet has 3 rows (header + 2 data rows)
     mockReadRange.mockResolvedValueOnce([['id'], ['tx1'], ['tx2']]);
 
@@ -331,13 +336,14 @@ describe('restoreTransactions', () => {
     expect(mockWriteRange).toHaveBeenCalledTimes(1);
     const [range, values] = mockWriteRange.mock.calls[0];
     expect(range).toContain('Transactions');
-    // header + 3 data rows = 4 rows total, existing was 3, so no clearRange needed
+    // header + 3 data rows = 4 rows total, existing was 3, so no clear needed
     expect(values).toHaveLength(4);
     expect(values[0][0]).toBe('id'); // header
     expect(mockClearRange).not.toHaveBeenCalled();
+    expect(mockBatchWriteRanges).not.toHaveBeenCalled();
   });
 
-  it('calls clearRange when existing sheet is taller than new data', async () => {
+  it('atomically writes+blanks via batchWriteRanges when existing sheet is taller than new data', async () => {
     // Existing sheet has 10 rows
     mockReadRange.mockResolvedValueOnce(Array(10).fill(['x']));
 
@@ -364,11 +370,17 @@ describe('restoreTransactions', () => {
 
     await restoreTransactions(txs);
 
-    expect(mockWriteRange).toHaveBeenCalledTimes(1);
-    // header + 1 row = 2 rows; existing was 10, so stale = 8 rows need clearing
-    expect(mockClearRange).toHaveBeenCalledTimes(1);
-    const clearArg = mockClearRange.mock.calls[0][0];
-    expect(clearArg).toContain('A3'); // rows 3..10 should be cleared
-    expect(clearArg).toContain('N10');
+    // The write+blank must be a single atomic request, never two separate
+    // writeRange/clearRange calls.
+    expect(mockWriteRange).not.toHaveBeenCalled();
+    expect(mockClearRange).not.toHaveBeenCalled();
+    expect(mockBatchWriteRanges).toHaveBeenCalledTimes(1);
+    const [ranges] = mockBatchWriteRanges.mock.calls[0];
+    // header + 1 row = 2 rows; existing was 10, so stale = 8 rows need blanking
+    expect(ranges[0].range).toContain('Transactions');
+    expect(ranges[0].values).toHaveLength(2);
+    expect(ranges[1].range).toContain('A3'); // rows 3..10 should be blanked
+    expect(ranges[1].range).toContain('N10');
+    expect(ranges[1].values).toHaveLength(8);
   });
 });
