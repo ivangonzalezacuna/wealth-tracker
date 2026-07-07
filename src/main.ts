@@ -5,18 +5,16 @@ import { getACCTSList } from './constants';
 import { appTemplate } from './template';
 import { signIn as gisSignIn, signOut, isSignedIn } from './auth/google';
 import {
-  ensureDriveFileAuthorized,
-  isDriveFileAuthorized,
-  clearDriveFileAuthorization,
-} from './auth/picker';
-import { loadSnapshots, saveSnapshots, upsertSnapshot } from './sheets/snapshots';
-import {
+  loadSnapshots,
+  saveSnapshots,
+  upsertSnapshot,
   loadTransactions,
   mergeTransactions,
   restoreTransactions,
   saveImportMeta,
   loadImportMeta,
-} from './sheets/transactions';
+} from './db';
+import { pullFromCloud, scheduleUpload } from './sync/engine';
 import {
   loadConfig,
   onConfigChange,
@@ -65,15 +63,12 @@ import {
   setCachedAggregates,
   getCachedImportMeta,
   setCachedImportMeta,
-  getSyncCursor,
-  setSyncCursor,
   getInputsHash,
   setInputsHash,
   computeInputsHash,
   holdingsSignature,
   setCollapseState,
 } from './cache/db';
-import { fetchDeltaTransactions, mergeDelta } from './cache/sync';
 import { onThemeChange } from './theme';
 import { shouldAutoResync } from './sync/policy';
 import { loadCollapseState, replaceCollapseState } from './ui/collapseState';
@@ -419,11 +414,6 @@ function initAuth() {
   document.getElementById('btn-signin')?.addEventListener('click', onSignInClick);
   document.getElementById('btn-signin-global')?.addEventListener('click', onSignInClick);
   document.getElementById('btn-signout')?.addEventListener('click', () => {
-    // oauth2.revoke() inside signOut() revokes the drive.file grant
-    // server-side too, so the local "already picked this file" flag must
-    // be cleared here as well, or the next sign-in would wrongly skip the
-    // Picker step while the server-side permission is actually gone.
-    clearDriveFileAuthorization();
     signOut();
   });
   document.getElementById('btn-sync-now')?.addEventListener('click', () => {
@@ -455,15 +445,6 @@ async function onSignInClick() {
     setAuthStatus('<span class="spinner"></span>Signing in…');
     await withTimeout(gisSignIn(), SIGNIN_TIMEOUT_MS);
 
-    // One-time per browser: drive.file only grants access to a file once
-    // the user has explicitly opened it with this app via the Picker.
-    // isDriveFileAuthorized() is true immediately on every later sign-in,
-    // so this only prompts once (or again if localStorage was cleared).
-    if (!isDriveFileAuthorized()) {
-      setAuthStatus('<span class="spinner"></span>Select your spreadsheet…');
-      await ensureDriveFileAuthorized();
-    }
-
     hideSigninOverlay();
     updateAuthUI(true);
     await loadAllData();
@@ -474,10 +455,6 @@ async function onSignInClick() {
       setAuthStatus('Sign-in cancelled', true);
     } else if ((err as Error).message === 'signin_timeout') {
       setAuthStatus('Sign-in timed out, please try again', true);
-    } else if ((err as Error).message === 'picker_cancelled') {
-      setAuthStatus('Sign-in needs you to select your spreadsheet - please try again', true);
-    } else if ((err as Error).message === 'picker_wrong_file') {
-      setAuthStatus('Please select the same spreadsheet configured for this app', true);
     } else {
       setAuthStatus('Sign-in failed: ' + (err as Error).message, true);
     }
@@ -570,8 +547,7 @@ async function bootFromCache() {
 
 // ── Background sync ──────────────────────────────────────
 /**
- * Sync data from Google Sheets in the background.
- * Uses incremental sync for transactions (delta only).
+ * Sync data from local SQLite DB, with Drive AppData pull if cloud is newer.
  */
 async function syncInBackground() {
   if (isSyncBusy()) return; // re-entrancy guard
@@ -582,41 +558,17 @@ async function syncInBackground() {
   setSyncing(true);
   setSyncStatus('syncing');
   try {
-    // Load config first (snapshots & other reads depend on it)
+    // Pull from Drive if cloud is newer (replaces local DB if so)
+    await pullFromCloud();
+
+    // Load from local SQLite
     await loadConfig();
     restoreCollapseFromSheet(); // restore UI prefs if IDB was empty (new device)
-    const [snaps, meta] = await Promise.all([loadSnapshots(), loadImportMeta()]);
-
-    // Incremental transaction sync
-    let txs: Transaction[];
-    const cursor = await getSyncCursor();
-    if (cursor && state.txs.length > 0) {
-      // Delta sync: fetch only new rows
-      const delta = await fetchDeltaTransactions(cursor);
-      if (delta !== null && delta.length === 0) {
-        // No new transactions - keep cached
-        txs = state.txs;
-      } else if (delta !== null) {
-        // Merge delta into cached transactions
-        const { merged, cursor: newCursor } = mergeDelta(state.txs, delta);
-        txs = merged;
-        await setSyncCursor(newCursor);
-      } else {
-        // Delta fetch failed - fall back to full load
-        txs = await loadTransactions();
-        await setSyncCursor({
-          lastDate: txs.length > 0 ? txs[txs.length - 1].date : '',
-          rowCount: txs.length,
-        });
-      }
-    } else {
-      // No cursor or no cached txs - full load
-      txs = await loadTransactions();
-      await setSyncCursor({
-        lastDate: txs.length > 0 ? txs[txs.length - 1].date : '',
-        rowCount: txs.length,
-      });
-    }
+    const [snaps, txs, meta] = await Promise.all([
+      loadSnapshots(),
+      loadTransactions(),
+      loadImportMeta(),
+    ]);
 
     // Update state
     state.snaps = snaps;
@@ -641,12 +593,12 @@ async function syncInBackground() {
         });
       } catch {
         // Best-effort -- a cache write failure here must never block the
-        // already-successful Sheet write or the UI re-render.
+        // already-successful DB write or the UI re-render.
       }
       renderAll(changed);
     });
 
-    // Persist all data to cache for next boot
+    // Persist to IDB cache for next boot
     await Promise.all([
       setCachedConfig({
         accounts: getAccounts(),
@@ -659,8 +611,6 @@ async function syncInBackground() {
     ]);
 
     setSyncStatus('ok');
-    // Awaited so isBusy() stays true; prevents concurrent Settings-card saves
-    // from racing this full Settings-tab overwrite.
     await backupCollapseToSheet();
   } catch (err) {
     setSyncStatus('error', (err as Error).message);
@@ -714,6 +664,9 @@ async function loadAllData() {
   setSyncStatus('loading');
   setSyncing(true);
   try {
+    // Pull from Drive if cloud is newer
+    await pullFromCloud();
+
     await loadConfig();
     restoreCollapseFromSheet(); // restore UI prefs if IDB was empty
     const [snaps, txs, meta] = await Promise.all([
@@ -725,12 +678,6 @@ async function loadAllData() {
     state.txs = txs;
     state.importMeta = meta;
     state.pd = txs.length ? computePD(txs, { method: getCostBasisMethod() }) : null;
-
-    // Save sync cursor
-    await setSyncCursor({
-      lastDate: txs.length > 0 ? txs[txs.length - 1].date : '',
-      rowCount: txs.length,
-    });
 
     // Cache everything
     await Promise.all([
@@ -762,8 +709,6 @@ async function loadAllData() {
       renderAll();
     });
     setSyncStatus('ok');
-    // Awaited so isBusy() stays true; prevents concurrent Settings-card saves
-    // from racing this full Settings-tab overwrite.
     await backupCollapseToSheet();
   } catch (err) {
     setSyncStatus('error', (err as Error).message);
@@ -777,7 +722,7 @@ async function loadAllData() {
 
 // ── Force full resync ────────────────────────────────────
 /**
- * Clear the cache and do a clean full reload from Google Sheets.
+ * Clear the cache and do a clean full reload from local DB + Drive.
  * Exposed for the Settings UI "Force full resync" button.
  */
 export async function forceFullResync() {
@@ -864,6 +809,7 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
     await saveSnapshots(snapshots);
     await restoreTransactions(transactions);
     if (importMeta.last_import) await saveImportMeta(importMeta.last_import);
+    scheduleUpload();
 
     state.snaps = snapshots;
     state.txs = transactions;
@@ -881,10 +827,6 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
       setCachedSnapshots(snapshots),
       setCachedTransactions(transactions),
       setCachedImportMeta(importMeta),
-      setSyncCursor({
-        lastDate: transactions.length ? transactions[transactions.length - 1].date : '',
-        rowCount: transactions.length,
-      }),
     ]);
     await setSetting('last_backup_at', new Date().toISOString());
     renderAll();
@@ -900,7 +842,7 @@ function setSyncStatus(status: string, msg = '') {
   const el = document.getElementById('sync-status');
   if (!el) return;
   const map: Record<string, [string, string]> = {
-    loading: ['status-warn', '<span class="spinner"></span>Loading from Google Sheets\u2026'],
+    loading: ['status-warn', '<span class="spinner"></span>Loading\u2026'],
     syncing: ['status-warn', '<span class="spinner"></span>Syncing\u2026'],
     cached: ['status-info', '\uD83D\uDCE6 Showing cached data'],
     ok: ['status-ok', '\u2713 Synced'],
@@ -1045,8 +987,9 @@ async function saveSnapshot() {
       async () => {
         setSyncing(true);
         try {
-          // Write to Sheets first; only mutate local state on success.
+          // Write to local DB first; only mutate local state on success.
           await upsertSnapshot(snap);
+          scheduleUpload();
           const idx = state.snaps.findIndex((s) => s.date === date);
           if (idx >= 0) state.snaps[idx] = snap;
           else {
@@ -1123,6 +1066,7 @@ async function delSnap(date: string, btn?: HTMLButtonElement) {
     setSyncing(true);
     try {
       await saveSnapshots(state.snaps);
+      scheduleUpload();
       await setCachedSnapshots(state.snaps);
       renderAll();
     } catch (err) {
@@ -1255,7 +1199,7 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
   if (!container) return;
   const cont = container; // capture for closures
 
-  // Confirm handler - write to sheets
+  // Confirm handler - save to database
   async function confirmImport() {
     if (isSyncBusy()) {
       showMsg('import-msg', 'A sync or save is in progress. Try again in a moment.', false);
@@ -1268,6 +1212,7 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
       const merged = await mergeTransactions(state.txs, parsed.transactions);
       const today = new Date().toISOString().slice(0, 10);
       await saveImportMeta(today);
+      scheduleUpload();
       state.txs = merged;
       state.importMeta = { last_import: today };
       state.pd = computePD(merged, { method: getCostBasisMethod() });
@@ -1276,10 +1221,6 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
       await Promise.all([
         setCachedTransactions(merged),
         setCachedImportMeta({ last_import: today }),
-        setSyncCursor({
-          lastDate: merged.length > 0 ? merged[merged.length - 1].date : '',
-          rowCount: merged.length,
-        }),
         state.pd ? setCachedAggregates(state.pd) : Promise.resolve(),
         state.pd
           ? setInputsHash(
@@ -1294,7 +1235,7 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
       ]);
 
       renderAll();
-      showMsg('import-msg', `✓ ${merged.length} transactions synced to Google Sheets`, true);
+      showMsg('import-msg', `✓ ${merged.length} transactions saved`, true);
     } catch (err) {
       showMsg('import-msg', 'Error: ' + (err as Error).message, false);
     } finally {

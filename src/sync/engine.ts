@@ -13,7 +13,11 @@
  */
 
 import { exportDb, importDb } from '../db/connection';
-import { setLastSyncTimestamp, getLastSyncTimestamp, setDriveVersion } from '../db/repositories/meta';
+import {
+  setLastSyncTimestamp,
+  getLastSyncTimestamp,
+  setDriveVersion,
+} from '../db/repositories/meta';
 import { downloadDbFile, uploadDbFile, getCloudModifiedTime } from './drive';
 
 // ── State ─────────────────────────────────────────────────────────

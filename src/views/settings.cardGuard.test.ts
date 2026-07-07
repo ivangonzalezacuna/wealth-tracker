@@ -22,7 +22,7 @@ vi.mock('../store/config', () => ({
   retireAccountIds: vi.fn(async () => {}),
 }));
 
-vi.mock('../sheets/transactions', () => ({
+vi.mock('../db', () => ({
   loadTransactions: vi.fn(async () => []),
 }));
 

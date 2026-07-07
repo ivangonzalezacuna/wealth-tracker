@@ -25,9 +25,9 @@ let _sqlPromise: ReturnType<typeof initSqlJs> | null = null;
 function getSqlJs(): ReturnType<typeof initSqlJs> {
   if (!_sqlPromise) {
     _sqlPromise = initSqlJs({
-      // sql.js bundles the WASM binary; Vite serves it from node_modules.
-      // In production the file is copied to dist via the publicDir or import.
-      locateFile: (file: string) => `https://sql.js.org/dist/${file}`,
+      // Serve the WASM binary from our own origin (public/ directory) to ensure
+      // the JS glue code and WASM binary are always from the same sql.js version.
+      locateFile: (file: string) => `/${file}`,
     });
   }
   return _sqlPromise;

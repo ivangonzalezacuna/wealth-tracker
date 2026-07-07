@@ -44,10 +44,3 @@ export function getACCTSList(): AccountEntry[] {
   if (isConfigLoaded()) return getACCTS();
   return accounts.map((a) => ({ key: a.key, label: a.label, color: a.color }));
 }
-
-// Google Sheets tab names
-export const SHEET_TABS = {
-  SNAPSHOTS: 'Snapshots',
-  TRANSACTIONS: 'Transactions',
-  META_INFO: 'Meta',
-} as const;

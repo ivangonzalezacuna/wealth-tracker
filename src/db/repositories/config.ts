@@ -130,10 +130,12 @@ export async function replaceAllSettings(settings: Settings): Promise<void> {
 export async function logConfigChange(entity: string, summary: string): Promise<void> {
   const db = await getDb();
   const timestamp = new Date().toISOString();
-  db.run(
-    'INSERT INTO config_history (timestamp, source, entity, summary) VALUES (?, ?, ?, ?)',
-    [timestamp, 'web', entity, summary],
-  );
+  db.run('INSERT INTO config_history (timestamp, source, entity, summary) VALUES (?, ?, ?, ?)', [
+    timestamp,
+    'web',
+    entity,
+    summary,
+  ]);
   await persistDb();
 }
 

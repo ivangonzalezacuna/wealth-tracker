@@ -40,9 +40,7 @@ export async function upsertSnapshot(snap: Snapshot): Promise<void> {
 export async function saveSnapshots(snaps: Snapshot[]): Promise<void> {
   const db = await getDb();
   db.run('DELETE FROM snapshots');
-  const stmt = db.prepare(
-    'INSERT INTO snapshots (date, values_json, notes) VALUES (?, ?, ?)',
-  );
+  const stmt = db.prepare('INSERT INTO snapshots (date, values_json, notes) VALUES (?, ?, ?)');
   for (const snap of snaps) {
     const { date, notes, ...values } = snap;
     stmt.run([date, JSON.stringify(values), notes || '']);

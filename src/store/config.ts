@@ -1,15 +1,17 @@
-/** Runtime config store - loads Accounts, Holdings, and Settings from Google Sheets. */
+/** Runtime config store - loads Accounts, Holdings, and Settings from local SQLite DB. */
 
 import {
-  readRange,
-  writeRange,
-  appendRows,
-  ensureSheets,
-  batchWriteRanges,
-  blankRows,
-} from '../sheets/api';
+  loadAccounts as dbLoadAccounts,
+  saveAccounts as dbSaveAccounts,
+  loadHoldings as dbLoadHoldings,
+  saveHoldings as dbSaveHoldings,
+  loadSettings as dbLoadSettings,
+  setSetting as dbSetSetting,
+  replaceAllSettings as dbReplaceAllSettings,
+  logConfigChange,
+} from '../db';
+import { scheduleUpload } from '../sync/engine';
 import { CONFIG } from '../config';
-import type { StaticAccount, StaticHolding, TargetSlice } from '../config';
 import type { Account, Holding, Settings, ContribInterval } from '../types';
 import { totalAnnualContrib, INTERVAL_PER_YEAR } from '../model/contributions';
 import type { CachedConfig } from '../cache/db';
@@ -22,14 +24,6 @@ interface ReinvestmentRule {
   label: string;
   value: string;
 }
-
-// ── Sheet tab names ──────────────────────────────────────
-const TABS = {
-  ACCOUNTS: 'Accounts',
-  HOLDINGS: 'Holdings',
-  SETTINGS: 'Settings',
-  CONFIG_HISTORY: 'ConfigHistory',
-} as const;
 
 interface HoldingMeta {
   color: string;
@@ -137,23 +131,14 @@ export function hydrateConfigFromCache(cfg: CachedConfig): void {
   _loaded = true;
 }
 
-// ── Load config from sheets ──────────────────────────────
+// ── Load config from SQLite ──────────────────────────────
 
 export async function loadConfig(): Promise<void> {
-  await ensureSheets(Object.values(TABS));
+  _accounts = await dbLoadAccounts();
+  _holdings = await dbLoadHoldings();
+  _settings = await dbLoadSettings();
 
-  const [accRows, holdRows, setRows] = await Promise.all([
-    readRange(`${TABS.ACCOUNTS}!A:J`),
-    readRange(`${TABS.HOLDINGS}!A:L`),
-    readRange(`${TABS.SETTINGS}!A:B`),
-  ]);
-
-  _accounts = parseAccounts(accRows);
-  _holdings = parseHoldings(holdRows);
-  _settings = parseSettings(setRows);
-
-  // First-run migration: seed each tab independently when empty.
-  // This fixes the bug where accounts never seed because holdings already exist.
+  // First-run seed: seed each table independently when empty.
   const needSeedAccounts = _accounts.length === 0 && CONFIG.accounts.length > 0;
   const needSeedHoldings = _holdings.length === 0 && CONFIG.holdings.length > 0;
   if (needSeedAccounts || needSeedHoldings) {
@@ -172,10 +157,7 @@ export async function loadConfig(): Promise<void> {
 
   _loaded = true;
 
-  // Opportunistic retry of any account-id retirements that failed to
-  // persist to Sheets at delete time (see retireAccountIdsSafely). Fire
-  // and forget: getRetiredAccountIds() already protects against reuse
-  // locally regardless of whether this succeeds.
+  // Flush any pending retired account IDs
   void flushPendingRetiredIds();
 }
 
@@ -185,57 +167,9 @@ export async function setAccounts(accounts: Account[]): Promise<void> {
   const previous = _accounts;
   _accounts = accounts;
   try {
-    await ensureSheets([TABS.ACCOUNTS]);
-    const hdr = [
-      'id',
-      'moneyType',
-      'institution',
-      'label',
-      'color',
-      'isPrimaryInvestment',
-      'order',
-      'annualReturnPct',
-      'contribAmount',
-      'contribInterval',
-    ];
-    const rows = accounts.map((a) => [
-      a.id || a.key || '',
-      a.moneyType || '',
-      a.institution || '',
-      a.label || '',
-      a.color || '',
-      a.isPrimaryInvestment ? 'true' : 'false',
-      a.order ?? '',
-      a.annualReturnPct ?? 0,
-      a.contribAmount ?? 0,
-      a.contribInterval || 'monthly',
-    ]);
-    let existingHeight = 0;
-    try {
-      existingHeight = (await readRange(`${TABS.ACCOUNTS}!A:A`)).length;
-    } catch {
-      /* empty sheet, nothing to measure */
-    }
-    const values = [hdr, ...rows];
-    // A shrinking account list (delete) leaves old rows behind unless we
-    // explicitly blank anything below the new extent - writeRange only
-    // ever touches the exact rows/columns it's given. The write and the
-    // blank-out are sent as a single atomic batchWriteRanges request (not
-    // two sequential calls) so a network drop or crash between them can
-    // never leave a deleted account's row still populated in the sheet.
-    const staleBelow = Math.max(existingHeight - values.length, 0);
-    if (staleBelow > 0) {
-      await batchWriteRanges([
-        { range: `${TABS.ACCOUNTS}!A1`, values },
-        {
-          range: `${TABS.ACCOUNTS}!A${values.length + 1}:J${existingHeight}`,
-          values: blankRows(staleBelow, hdr.length),
-        },
-      ]);
-    } else {
-      await writeRange(`${TABS.ACCOUNTS}!A1`, values);
-    }
-    await logChange('Accounts', `updated ${accounts.length} accounts`);
+    await dbSaveAccounts(accounts);
+    await logConfigChange('Accounts', `updated ${accounts.length} accounts`);
+    scheduleUpload();
     if (_onChange) _onChange('accounts');
   } catch (err) {
     _accounts = previous;
@@ -247,56 +181,9 @@ export async function setHoldings(holdings: Holding[]): Promise<void> {
   const previous = _holdings;
   _holdings = holdings;
   try {
-    await ensureSheets([TABS.HOLDINGS]);
-    const hdr = [
-      'isin',
-      'ticker',
-      'name',
-      'color',
-      'acc',
-      'active',
-      'contribAmount',
-      'contribInterval',
-      'assetClass',
-      'region',
-      'foldInto',
-      'order',
-    ];
-    const rows = holdings.map((h) => [
-      h.isin,
-      h.ticker,
-      h.name || '',
-      h.color || '',
-      h.acc ? 'true' : 'false',
-      h.active ? 'true' : 'false',
-      h.contribAmount ?? 0,
-      h.contribInterval || 'weekly',
-      h.assetClass || '',
-      h.region || '',
-      h.foldInto || '',
-      h.order ?? '',
-    ]);
-    let existingHeight = 0;
-    try {
-      existingHeight = (await readRange(`${TABS.HOLDINGS}!A:A`)).length;
-    } catch {
-      /* empty sheet, nothing to measure */
-    }
-    const values = [hdr, ...rows];
-    // Same atomic write+blank pattern as setAccounts - see comment there.
-    const staleBelow = Math.max(existingHeight - values.length, 0);
-    if (staleBelow > 0) {
-      await batchWriteRanges([
-        { range: `${TABS.HOLDINGS}!A1`, values },
-        {
-          range: `${TABS.HOLDINGS}!A${values.length + 1}:L${existingHeight}`,
-          values: blankRows(staleBelow, hdr.length),
-        },
-      ]);
-    } else {
-      await writeRange(`${TABS.HOLDINGS}!A1`, values);
-    }
-    await logChange('Holdings', `updated ${holdings.length} holdings`);
+    await dbSaveHoldings(holdings);
+    await logConfigChange('Holdings', `updated ${holdings.length} holdings`);
+    scheduleUpload();
     if (_onChange) _onChange('holdings');
   } catch (err) {
     _holdings = previous;
@@ -308,8 +195,9 @@ export async function setSetting(key: string, value: string): Promise<void> {
   const previous = { ..._settings };
   _settings[key] = value;
   try {
-    await persistSettings();
-    await logChange('Settings', `${key} = ${value}`);
+    await dbSetSetting(key, value);
+    await logConfigChange('Settings', `${key} = ${value}`);
+    scheduleUpload();
     if (_onChange) _onChange('settings');
   } catch (err) {
     _settings = previous;
@@ -330,7 +218,8 @@ export async function setSettings(
   }
   try {
     await persistSettings();
-    await logChange('Settings', `updated ${Object.keys(settings).join(', ')}`);
+    await logConfigChange('Settings', `updated ${Object.keys(settings).join(', ')}`);
+    scheduleUpload();
     if (_onChange) _onChange('settings');
   } catch (err) {
     _settings = previous;
@@ -338,13 +227,14 @@ export async function setSettings(
   }
 }
 
-/** Full replace of the Settings tab - used only by backup restore. */
+/** Full replace of the Settings table - used only by backup restore. */
 export async function replaceSettings(settings: Settings): Promise<void> {
   const previous = _settings;
   _settings = { ...settings };
   try {
     await persistSettings();
-    await logChange('Settings', 'restored from backup');
+    await logConfigChange('Settings', 'restored from backup');
+    scheduleUpload();
     if (_onChange) _onChange('settings');
   } catch (err) {
     _settings = previous;
@@ -353,30 +243,19 @@ export async function replaceSettings(settings: Settings): Promise<void> {
 }
 
 async function persistSettings(): Promise<void> {
-  await ensureSheets([TABS.SETTINGS]);
-  const hdr = ['key', 'value'];
-  const rows = Object.entries(_settings).map(([k, v]) => [k, String(v)]);
-  await writeRange(`${TABS.SETTINGS}!A1`, [hdr, ...rows]);
-}
-
-// ── ConfigHistory audit log ──────────────────────────────
-
-async function logChange(entity: string, summary: string): Promise<void> {
-  await ensureSheets([TABS.CONFIG_HISTORY]);
-  const timestamp = new Date().toISOString();
-  await appendRows(`${TABS.CONFIG_HISTORY}!A:D`, [[timestamp, 'web', entity, summary]]);
+  await dbReplaceAllSettings(_settings);
 }
 
 // ── Retired account IDs ──────────────────────────────────
 
 const RETIRED_IDS_KEY = 'retired_account_ids';
 
-// localStorage-only queue for ids whose retireAccountIds() Sheets write
+// localStorage-only queue for ids whose retireAccountIds() DB write
 // failed after the account was already removed locally (setAccounts
-// succeeded). Kept outside the Sheets-backed Settings store on purpose:
+// succeeded). Kept outside the DB-backed Settings store on purpose:
 // the whole point is to survive a moment where that store's write path
 // is failing. Merged into getRetiredAccountIds() so a pending id is
-// treated as taken immediately, even before it reaches Sheets.
+// treated as taken immediately, even before it reaches the DB.
 const PENDING_RETIRED_IDS_KEY = 'wt_pending_retired_ids';
 
 function getPendingRetiredIds(): string[] {
@@ -416,8 +295,8 @@ export async function retireAccountIds(ids: string[]): Promise<void> {
   await setSetting(RETIRED_IDS_KEY, JSON.stringify([...existing]));
 }
 
-/** Retire ids without ever losing them to a failed write. If the Sheets
- *  write fails (network blip, rate limit, expired token mid-write), the
+/** Retire ids without ever losing them to a failed write. If the DB
+ *  write fails (e.g. error mid-write), the
  *  ids are queued in localStorage instead of being dropped - they still
  *  count as "taken" via getRetiredAccountIds() immediately, and the queue
  *  is flushed opportunistically by flushPendingRetiredIds(). Returns false
@@ -449,7 +328,7 @@ export async function flushPendingRetiredIds(): Promise<void> {
   }
 }
 
-// ── Parsing helpers ──────────────────────────────────────
+// ── Parsing helpers (retained for backup import compatibility) ────
 
 /** Normalize a value that may arrive as boolean or string to a boolean. */
 const toBool = (v: unknown) =>
@@ -488,58 +367,7 @@ export function parseAccounts(rows: (string | number | boolean)[][]): Account[] 
     .sort((a, b) => (a.order || 0) - (b.order || 0));
 }
 
-function parseHoldings(rows: (string | number | boolean)[][]): Holding[] {
-  if (!rows.length) return [];
-  const hdr = rows[0].map((c) => (c || '').toString().trim().toLowerCase());
-  return rows
-    .slice(1)
-    .filter((r) => r[hdr.indexOf('isin')])
-    .map((r) => {
-      // Backward compat: if old 'weeklytarget' column exists but no 'contribamount', use it
-      const hasNewAmount = hdr.indexOf('contribamount') >= 0;
-      const amount = hasNewAmount
-        ? toNum(r[hdr.indexOf('contribamount')])
-        : toNum(r[hdr.indexOf('weeklytarget')]);
-      // Backward compat: read 'contribinterval' first, fall back to legacy 'interval' column
-      const intervalIdx =
-        hdr.indexOf('contribinterval') >= 0
-          ? hdr.indexOf('contribinterval')
-          : hdr.indexOf('interval');
-      const rawInterval: string =
-        intervalIdx >= 0 && r[intervalIdx] ? String(r[intervalIdx]).trim().toLowerCase() : 'weekly';
-      const contribInterval: ContribInterval = (
-        ['weekly', 'biweekly', 'monthly', 'quarterly'].includes(rawInterval)
-          ? rawInterval
-          : 'weekly'
-      ) as ContribInterval;
-      return {
-        isin: String(r[hdr.indexOf('isin')] ?? ''),
-        ticker: String(r[hdr.indexOf('ticker')] ?? ''),
-        name: String(r[hdr.indexOf('name')] ?? ''),
-        color: String(r[hdr.indexOf('color')] ?? ''),
-        acc: toBool(r[hdr.indexOf('acc')]),
-        active: toBool(r[hdr.indexOf('active')]),
-        contribAmount: amount,
-        contribInterval,
-        assetClass: String(r[hdr.indexOf('assetclass')] ?? ''),
-        region: String(r[hdr.indexOf('region')] ?? ''),
-        foldInto: String(r[hdr.indexOf('foldinto')] ?? ''),
-        order: toNum(r[hdr.indexOf('order')]),
-      };
-    })
-    .sort((a, b) => a.order - b.order);
-}
-
-function parseSettings(rows: (string | number | boolean)[][]): Settings {
-  if (!rows.length) return {};
-  const settings: Settings = {};
-  for (const row of rows.slice(1)) {
-    if (row[0]) settings[String(row[0]).trim()] = String(row[1] ?? '').trim();
-  }
-  return settings;
-}
-
-// ── First-run migration ──────────────────────────────────
+// ── First-run seed ───────────────────────────────────────
 
 async function seedFromConfig(seedAccounts: boolean, seedHoldings: boolean): Promise<void> {
   const staticAccounts = CONFIG.accounts;
@@ -608,7 +436,7 @@ async function seedFromConfig(seedAccounts: boolean, seedHoldings: boolean): Pro
     await persistSettings();
   }
 
-  await logChange(
+  await logConfigChange(
     'Migration',
     `Seeded config from config.js defaults (accounts=${seedAccounts}, holdings=${seedHoldings})`,
   );

@@ -10,7 +10,8 @@
  * In PRODUCTION mode: no banner, no title prefix, silent boot log only.
  */
 
-const ENV_LABEL: string = import.meta.env.VITE_ENV_LABEL || 'PRODUCTION';
+const ENV_LABEL: string =
+  import.meta.env.VITE_ENV_LABEL || import.meta.env.VITE_APP_ENV || 'PRODUCTION';
 
 export function isDev(): boolean {
   return ENV_LABEL === 'DEVELOPMENT';

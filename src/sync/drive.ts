@@ -76,7 +76,7 @@ export async function uploadDbFile(data: Uint8Array): Promise<string> {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/x-sqlite3',
       },
-      body: data,
+      body: data as BodyInit,
     });
     if (!res.ok) throw new Error(`Drive upload error: ${res.status} ${await res.text()}`);
     const result = await res.json();
@@ -113,7 +113,7 @@ export async function uploadDbFile(data: Uint8Array): Promise<string> {
         Authorization: `Bearer ${token}`,
         'Content-Type': `multipart/related; boundary=${boundary}`,
       },
-      body: combined,
+      body: combined as BodyInit,
     });
     if (!res.ok) throw new Error(`Drive create error: ${res.status} ${await res.text()}`);
     const result = await res.json();
