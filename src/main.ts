@@ -1,4 +1,5 @@
 import './styles.css';
+import { logEnvironment, injectEnvBanner } from './env';
 import { CONFIG } from './config';
 import { getACCTSList } from './constants';
 import { appTemplate } from './template';
@@ -213,7 +214,9 @@ function isInitialLoad(): boolean {
 }
 
 // ── Boot ─────────────────────────────────────────────────
+logEnvironment();
 document.getElementById('app')!.innerHTML = appTemplate();
+injectEnvBanner();
 loadCollapseState(); // fire-and-forget: loads persisted UI collapse state from IDB
 initNav();
 initSnapForm();
