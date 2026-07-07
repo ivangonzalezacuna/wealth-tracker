@@ -765,7 +765,8 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
   if (state.offline || !navigator.onLine)
     throw new Error('Cannot restore while offline. Please reconnect and try again.');
   if (!isSignedIn()) throw new Error('Sign in first.');
-  if (isSyncBusy()) throw new Error('A sync or save is in progress. Try again in a moment.');
+  // Note: no isSyncBusy() check here - the caller (withCardGuard) already
+  // holds the busy lock, so checking it would always self-deadlock.
 
   let raw: unknown;
   try {
@@ -779,7 +780,7 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
 
   const ok = await confirmDialog({
     title: 'Restore from backup?',
-    body: summarizeBackup(backup),
+    bodyHtml: summarizeBackup(backup),
     confirmLabel: 'Restore',
     danger: true,
   });
