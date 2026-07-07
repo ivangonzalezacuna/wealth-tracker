@@ -21,12 +21,11 @@ interface StoredToken {
 }
 
 const CLIENT_ID: string = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-// drive.file (not the full 'spreadsheets' scope): grants access only to
-// files this app creates or that the user explicitly opens with it via
-// the Picker (see ../auth/picker.ts), instead of every spreadsheet in the
-// user's Drive. The Sheets API's values.get/values.update endpoints both
-// accept a drive.file-scoped token for a file authorized this way.
-const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+// drive.appdata: grants access only to the hidden, per-app AppData folder in
+// Google Drive. Each OAuth application has its own isolated AppData space, so
+// dev and prod environments (separate OAuth apps) can never access each other's
+// data. No Picker flow is needed - the scope covers the folder automatically.
+const SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
 const STORE_KEY = 'gtoken';
 const GRANTED_KEY = 'ggranted'; // "this browser has completed a real consent grant"
 

@@ -8,7 +8,11 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('node_modules/chart.js') || id.includes('node_modules/idb-keyval')) {
+          if (
+            id.includes('node_modules/chart.js') ||
+            id.includes('node_modules/idb-keyval') ||
+            id.includes('node_modules/sql.js')
+          ) {
             return 'vendor';
           }
         },

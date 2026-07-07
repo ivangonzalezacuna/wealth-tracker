@@ -1,16 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Mock the sheets API and other deps before importing the module under test
-vi.mock('../sheets/api', () => ({
-  readRange: vi.fn(async () => []),
-  writeRange: vi.fn(async () => {}),
-  clearRange: vi.fn(async () => {}),
-  appendRows: vi.fn(async () => {}),
-  ensureSheets: vi.fn(async () => {}),
-  batchWriteRanges: vi.fn(async () => {}),
-  blankRows: vi.fn((rowCount: number, colCount: number) =>
-    Array.from({ length: Math.max(rowCount, 0) }, () => Array(colCount).fill('')),
-  ),
+// Mock the db module and sync engine before importing the module under test
+vi.mock('../db', () => ({
+  loadAccounts: vi.fn(async () => []),
+  saveAccounts: vi.fn(async () => {}),
+  loadHoldings: vi.fn(async () => []),
+  saveHoldings: vi.fn(async () => {}),
+  loadSettings: vi.fn(async () => ({})),
+  setSetting: vi.fn(async () => {}),
+  replaceAllSettings: vi.fn(async () => {}),
+  logConfigChange: vi.fn(async () => {}),
+}));
+
+vi.mock('../sync/engine', () => ({
+  scheduleUpload: vi.fn(),
 }));
 
 vi.mock('../config', () => ({
@@ -40,7 +43,12 @@ import {
   retireAccountIdsSafely,
   flushPendingRetiredIds,
 } from './config';
-import { writeRange, readRange, clearRange, ensureSheets, batchWriteRanges } from '../sheets/api';
+import {
+  saveAccounts as dbSaveAccounts,
+  saveHoldings as dbSaveHoldings,
+  setSetting as dbSetSetting,
+  replaceAllSettings as dbReplaceAllSettings,
+} from '../db';
 
 describe('parseAccounts', () => {
   it('legacy sheet (no new columns) defaults to annualReturnPct:0, contribAmount:0, contribInterval:monthly', () => {
@@ -103,7 +111,12 @@ describe('parseAccounts', () => {
 });
 
 describe('setAccounts', () => {
-  it('writes a header array of length 10 ending in the three new columns', async () => {
+  beforeEach(() => {
+    vi.mocked(dbSaveAccounts).mockReset().mockResolvedValue(undefined);
+    hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
+  });
+
+  it('persists accounts via dbSaveAccounts', async () => {
     const accounts = [
       {
         id: 'acct1',
@@ -119,11 +132,7 @@ describe('setAccounts', () => {
       },
     ];
     await setAccounts(accounts);
-    const calls = (writeRange as ReturnType<typeof vi.fn>).mock.calls;
-    const lastCall = calls[calls.length - 1];
-    const hdr = lastCall[1][0]; // first row is the header
-    expect(hdr).toHaveLength(10);
-    expect(hdr.slice(-3)).toEqual(['annualReturnPct', 'contribAmount', 'contribInterval']);
+    expect(dbSaveAccounts).toHaveBeenCalledWith(accounts);
   });
 });
 
@@ -177,8 +186,11 @@ describe('hydrateConfigFromCache', () => {
 });
 
 describe('replaceSettings', () => {
+  beforeEach(() => {
+    vi.mocked(dbReplaceAllSettings).mockReset().mockResolvedValue(undefined);
+  });
+
   it('fully replaces settings - pre-existing keys not in new object are gone', async () => {
-    // Seed with some initial settings
     hydrateConfigFromCache({
       accounts: [],
       holdings: [],
@@ -186,7 +198,6 @@ describe('replaceSettings', () => {
     });
     expect(getSettings().oldKey).toBe('oldValue');
 
-    // Replace with entirely new settings
     await replaceSettings({ costBasisMethod: 'avgco', newKey: 'newValue' });
 
     const result = getSettings();
@@ -204,6 +215,10 @@ describe('replaceSettings', () => {
 });
 
 describe('getRetiredAccountIds / retireAccountIds', () => {
+  beforeEach(() => {
+    vi.mocked(dbSetSetting).mockReset().mockResolvedValue(undefined);
+  });
+
   it('returns [] when no retired ids are stored', () => {
     hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
     expect(getRetiredAccountIds()).toEqual([]);
@@ -242,8 +257,6 @@ describe('getRetiredAccountIds / retireAccountIds', () => {
 });
 
 describe('retireAccountIdsSafely / flushPendingRetiredIds (failed-write resilience)', () => {
-  // In-memory localStorage stub - config.test.ts runs in the default
-  // (node) vitest environment, which has no real localStorage global.
   function stubLocalStorage(): Storage {
     const store = new Map<string, string>();
     const stub = {
@@ -266,6 +279,7 @@ describe('retireAccountIdsSafely / flushPendingRetiredIds (failed-write resilien
 
   beforeEach(() => {
     stubLocalStorage();
+    vi.mocked(dbSetSetting).mockReset().mockResolvedValue(undefined);
     hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
   });
 
@@ -273,12 +287,10 @@ describe('retireAccountIdsSafely / flushPendingRetiredIds (failed-write resilien
     vi.unstubAllGlobals();
   });
 
-  it('queues the id locally (never throws) when the underlying Sheets write fails', async () => {
-    (writeRange as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('network error'));
+  it('queues the id locally (never throws) when the underlying DB write fails', async () => {
+    vi.mocked(dbSetSetting).mockRejectedValueOnce(new Error('db error'));
     const ok = await retireAccountIdsSafely(['acct_x']);
     expect(ok).toBe(false);
-    // Still reported as taken immediately via the local queue, even though
-    // the Settings-backed store write failed.
     expect(getRetiredAccountIds()).toContain('acct_x');
   });
 
@@ -289,13 +301,13 @@ describe('retireAccountIdsSafely / flushPendingRetiredIds (failed-write resilien
   });
 
   it('flushPendingRetiredIds retries a queued id and clears the queue on success', async () => {
-    (writeRange as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('network error'));
+    vi.mocked(dbSetSetting).mockRejectedValueOnce(new Error('db error'));
     await retireAccountIdsSafely(['acct_z']);
-    expect(getRetiredAccountIds()).toContain('acct_z'); // queued, not yet persisted
+    expect(getRetiredAccountIds()).toContain('acct_z');
 
-    // Next attempt succeeds (writeRange mock is back to its default resolved behavior)
+    // Next attempt succeeds
     await flushPendingRetiredIds();
-    expect(getRetiredAccountIds()).toContain('acct_z'); // now persisted via the real store
+    expect(getRetiredAccountIds()).toContain('acct_z');
     expect(localStorage.getItem('wt_pending_retired_ids')).toBe('[]');
   });
 
@@ -337,87 +349,89 @@ describe('rollback on failure', () => {
   ];
   const ORIGINAL_SETTINGS = { costBasisMethod: 'fifo', annualReturnPct: '7' };
 
-  it('setAccounts rolls back _accounts on writeRange failure', async () => {
+  beforeEach(() => {
+    vi.mocked(dbSaveAccounts).mockReset().mockResolvedValue(undefined);
+    vi.mocked(dbSaveHoldings).mockReset().mockResolvedValue(undefined);
+    vi.mocked(dbSetSetting).mockReset().mockResolvedValue(undefined);
+    vi.mocked(dbReplaceAllSettings).mockReset().mockResolvedValue(undefined);
+  });
+
+  it('setAccounts rolls back _accounts on dbSaveAccounts failure', async () => {
     hydrateConfigFromCache({
       accounts: ORIGINAL_ACCOUNTS,
       holdings: [],
       settings: {},
     });
-    (writeRange as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('network'));
+    vi.mocked(dbSaveAccounts).mockRejectedValueOnce(new Error('db error'));
 
     await expect(
       setAccounts([{ ...ORIGINAL_ACCOUNTS[0], id: 'new', label: 'New' }]),
-    ).rejects.toThrow('network');
+    ).rejects.toThrow('db error');
 
     expect(getAccounts()).toEqual(ORIGINAL_ACCOUNTS);
   });
 
-  it('setHoldings rolls back _holdings on writeRange failure', async () => {
+  it('setHoldings rolls back _holdings on dbSaveHoldings failure', async () => {
     hydrateConfigFromCache({
       accounts: [],
       holdings: ORIGINAL_HOLDINGS,
       settings: {},
     });
-    (writeRange as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('network'));
+    vi.mocked(dbSaveHoldings).mockRejectedValueOnce(new Error('db error'));
 
     await expect(setHoldings([{ ...ORIGINAL_HOLDINGS[0], ticker: 'VWCE' }])).rejects.toThrow(
-      'network',
+      'db error',
     );
 
     expect(getHoldings()).toEqual(ORIGINAL_HOLDINGS);
   });
 
-  it('setSetting rolls back _settings on writeRange failure', async () => {
+  it('setSetting rolls back _settings on dbSetSetting failure', async () => {
     hydrateConfigFromCache({
       accounts: [],
       holdings: [],
       settings: ORIGINAL_SETTINGS,
     });
-    (writeRange as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('network'));
+    vi.mocked(dbSetSetting).mockRejectedValueOnce(new Error('db error'));
 
-    await expect(setSetting('costBasisMethod', 'avgco')).rejects.toThrow('network');
+    await expect(setSetting('costBasisMethod', 'avgco')).rejects.toThrow('db error');
 
     expect(getSettings().costBasisMethod).toBe('fifo');
   });
 
-  it('setSettings rolls back _settings on writeRange failure (including deletes)', async () => {
+  it('setSettings rolls back _settings on dbReplaceAllSettings failure (including deletes)', async () => {
     hydrateConfigFromCache({
       accounts: [],
       holdings: [],
       settings: { costBasisMethod: 'fifo', annualReturnPct: '7' },
     });
 
-    // Verify initial state
     expect(getSettings().costBasisMethod).toBe('fifo');
 
-    // Make writeRange reject
-    (writeRange as ReturnType<typeof vi.fn>).mockImplementationOnce(() =>
-      Promise.reject(new Error('network')),
-    );
+    vi.mocked(dbReplaceAllSettings).mockRejectedValueOnce(new Error('db error'));
 
     let threwError = false;
     try {
       await setSettings({ costBasisMethod: 'avgco', annualReturnPct: null });
     } catch (e: unknown) {
       threwError = true;
-      expect((e as Error).message).toBe('network');
+      expect((e as Error).message).toBe('db error');
     }
 
     expect(threwError).toBe(true);
-    // Both the update and the delete should be rolled back
     expect(getSettings().costBasisMethod).toBe('fifo');
     expect(getSettings().annualReturnPct).toBe('7');
   });
 
-  it('replaceSettings rolls back _settings on writeRange failure', async () => {
+  it('replaceSettings rolls back _settings on dbReplaceAllSettings failure', async () => {
     hydrateConfigFromCache({
       accounts: [],
       holdings: [],
       settings: ORIGINAL_SETTINGS,
     });
-    (writeRange as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('network'));
+    vi.mocked(dbReplaceAllSettings).mockRejectedValueOnce(new Error('db error'));
 
-    await expect(replaceSettings({ newKey: 'newValue' })).rejects.toThrow('network');
+    await expect(replaceSettings({ newKey: 'newValue' })).rejects.toThrow('db error');
 
     expect(getSettings()).toEqual(ORIGINAL_SETTINGS);
   });
@@ -428,131 +442,11 @@ describe('rollback on failure', () => {
       holdings: [],
       settings: {},
     });
-    (writeRange as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined);
+    vi.mocked(dbSaveAccounts).mockResolvedValueOnce(undefined);
 
     const updated = [{ ...ORIGINAL_ACCOUNTS[0], label: 'Updated' }];
     await setAccounts(updated);
 
     expect(getAccounts()[0].label).toBe('Updated');
-  });
-});
-
-describe('setAccounts trailing-row clear', () => {
-  const mkAccount = (id: string) => ({
-    id,
-    moneyType: 'cash',
-    institution: 'N26',
-    label: id,
-    color: '#000',
-    isPrimaryInvestment: false,
-    order: 1,
-    annualReturnPct: 0,
-    contribAmount: 0,
-    contribInterval: 'monthly' as const,
-  });
-
-  beforeEach(() => {
-    vi.mocked(writeRange).mockReset().mockResolvedValue(undefined);
-    vi.mocked(readRange).mockReset().mockResolvedValue([]);
-    vi.mocked(clearRange).mockReset().mockResolvedValue(undefined);
-    vi.mocked(batchWriteRanges).mockReset().mockResolvedValue(undefined);
-    hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
-  });
-
-  it('atomically writes+blanks via batchWriteRanges when the sheet had more rows than the new list', async () => {
-    // Sheet previously had 6 rows (1 header + 5 data rows)
-    vi.mocked(readRange).mockResolvedValueOnce([['a1'], ['a2'], ['a3'], ['a4'], ['a5'], ['hdr']]);
-    const accounts = [mkAccount('a1'), mkAccount('a2')]; // 3 rows total (hdr + 2)
-    await setAccounts(accounts);
-
-    // The write+blank must be a single atomic request - never two separate
-    // writeRange/clearRange calls, which would leave a window where a
-    // failed second call resurrects deleted accounts (see api.ts docs).
-    expect(clearRange).not.toHaveBeenCalled();
-    expect(batchWriteRanges).toHaveBeenCalledTimes(1);
-    const [ranges] = vi.mocked(batchWriteRanges).mock.calls[0];
-    expect(ranges[0].range).toBe('Accounts!A1');
-    // values.length = 3, existingHeight = 6 -> blank A4:J6
-    expect(ranges[1].range).toBe('Accounts!A4:J6');
-    expect(ranges[1].values).toHaveLength(3); // 6 - 3 = 3 stale rows
-    expect(ranges[1].values[0]).toHaveLength(10); // one blank cell per column
-  });
-
-  it('does NOT call batchWriteRanges or clearRange when the sheet had fewer or equal rows', async () => {
-    // Sheet had 2 rows, writing 3 (add case)
-    vi.mocked(readRange).mockResolvedValueOnce([['hdr'], ['a1']]);
-    await setAccounts([mkAccount('a1'), mkAccount('a2')]);
-
-    expect(clearRange).not.toHaveBeenCalled();
-    expect(batchWriteRanges).not.toHaveBeenCalled();
-    expect(writeRange).toHaveBeenCalledTimes(1);
-  });
-
-  it('treats readRange error as existingHeight=0 - no clear, no propagated error', async () => {
-    vi.mocked(readRange).mockRejectedValueOnce(new Error('empty sheet'));
-    await setAccounts([mkAccount('a1')]);
-
-    expect(clearRange).not.toHaveBeenCalled();
-    expect(batchWriteRanges).not.toHaveBeenCalled();
-    // Should not throw - the account was saved
-    expect(getAccounts()).toHaveLength(1);
-  });
-});
-
-describe('setHoldings trailing-row clear', () => {
-  const mkHolding = (isin: string) => ({
-    isin,
-    ticker: isin.slice(0, 4),
-    name: isin,
-    color: '#000',
-    acc: true,
-    active: true,
-    contribAmount: 100,
-    contribInterval: 'weekly' as const,
-    assetClass: 'equity',
-    region: 'developed',
-    foldInto: '',
-    order: 1,
-  });
-
-  beforeEach(() => {
-    vi.mocked(writeRange).mockReset().mockResolvedValue(undefined);
-    vi.mocked(readRange).mockReset().mockResolvedValue([]);
-    vi.mocked(clearRange).mockReset().mockResolvedValue(undefined);
-    vi.mocked(batchWriteRanges).mockReset().mockResolvedValue(undefined);
-    hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
-  });
-
-  it('atomically writes+blanks via batchWriteRanges when the sheet had more rows than the new list', async () => {
-    // Sheet previously had 5 rows (1 hdr + 4 data)
-    vi.mocked(readRange).mockResolvedValueOnce([['h'], ['h'], ['h'], ['h'], ['h']]);
-    const holdings = [mkHolding('IE001'), mkHolding('IE002')]; // 3 rows total
-    await setHoldings(holdings);
-
-    expect(clearRange).not.toHaveBeenCalled();
-    expect(batchWriteRanges).toHaveBeenCalledTimes(1);
-    const [ranges] = vi.mocked(batchWriteRanges).mock.calls[0];
-    expect(ranges[0].range).toBe('Holdings!A1');
-    // values.length = 3, existingHeight = 5 -> blank A4:L5
-    expect(ranges[1].range).toBe('Holdings!A4:L5');
-    expect(ranges[1].values).toHaveLength(2); // 5 - 3 = 2 stale rows
-    expect(ranges[1].values[0]).toHaveLength(12); // one blank cell per column
-  });
-
-  it('does NOT call batchWriteRanges or clearRange when the sheet had fewer or equal rows', async () => {
-    vi.mocked(readRange).mockResolvedValueOnce([['hdr'], ['h1']]);
-    await setHoldings([mkHolding('IE001'), mkHolding('IE002')]);
-
-    expect(clearRange).not.toHaveBeenCalled();
-    expect(batchWriteRanges).not.toHaveBeenCalled();
-  });
-
-  it('treats readRange error as existingHeight=0 - no clear, no propagated error', async () => {
-    vi.mocked(readRange).mockRejectedValueOnce(new Error('empty'));
-    await setHoldings([mkHolding('IE001')]);
-
-    expect(clearRange).not.toHaveBeenCalled();
-    expect(batchWriteRanges).not.toHaveBeenCalled();
-    expect(getHoldings()).toHaveLength(1);
   });
 });

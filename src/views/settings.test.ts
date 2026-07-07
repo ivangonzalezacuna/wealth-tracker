@@ -51,7 +51,7 @@ vi.mock('../store/config', () => ({
   retireAccountIdsSafely: vi.fn(async () => true),
 }));
 
-vi.mock('../sheets/transactions', () => ({
+vi.mock('../db', () => ({
   loadTransactions: vi.fn(async () => []),
 }));
 
@@ -745,7 +745,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
 
   describe('#btn-autofill-holds (holdings autofill)', () => {
     it('disables synchronously and prevents double-click', async () => {
-      const { loadTransactions } = await import('../sheets/transactions');
+      const { loadTransactions } = await import('../db');
       (loadTransactions as ReturnType<typeof vi.fn>).mockClear();
       let resolveLoad!: (value?: unknown) => void;
       (loadTransactions as ReturnType<typeof vi.fn>).mockImplementationOnce(

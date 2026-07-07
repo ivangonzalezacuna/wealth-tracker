@@ -14,7 +14,7 @@ import {
   retireAccountIdsSafely,
 } from '../store/config';
 import type { ConfigChangeKind } from '../store/config';
-import { loadTransactions } from '../sheets/transactions';
+import { loadTransactions } from '../db';
 import { validatePrimaryInvestment, validateAccountRanges } from '../model/accounts';
 import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
@@ -422,7 +422,7 @@ async function deleteAccount(
   const a = accounts[idx];
   const ok = await confirmDialog({
     title: `Remove ${esc(a?.label || 'this account')}?`,
-    body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected, and its old data column stays reserved so a future account never accidentally reuses it.',
+    body: 'This removes it from your configuration. Historical data is not affected, and its old data column stays reserved so a future account never accidentally reuses it.',
     confirmLabel: 'Remove',
     danger: true,
   });
@@ -762,7 +762,7 @@ async function deleteHolding(
   const hold = holds[idx];
   const ok = await confirmDialog({
     title: `Remove ${esc(hold?.ticker || hold?.isin || 'this holding')}?`,
-    body: 'This removes it from your configuration. Historical data already saved to Google Sheets is not affected.',
+    body: 'This removes it from your configuration. Historical data is not affected.',
     confirmLabel: 'Remove',
     danger: true,
   });
@@ -1495,7 +1495,7 @@ function renderCacheCard(): string {
         <span class="card-chevron"></span>
       </div>
       <div class="card-body">
-        <p class="note" style="margin-bottom:.75rem">Data is cached locally in IndexedDB for offline access and fast boot. If you edited historical rows directly in Google Sheets, use Force full resync to rebuild the cache from scratch.</p>
+        <p class="note" style="margin-bottom:.75rem">Data is stored locally in SQLite and synced to Google Drive. Use Force full resync to re-download from Drive.</p>
         <div style="display:flex;gap:10px;margin-top:.5rem;align-items:center;flex-wrap:wrap">
           <button class="btn btn-outline btn-sm" id="btn-force-resync">Force full resync</button>
           <span id="resync-msg" style="font-size:12px;line-height:28px"></span>

@@ -1916,6 +1916,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/emscripten@npm:*":
+  version: 1.41.5
+  resolution: "@types/emscripten@npm:1.41.5"
+  checksum: 10c0/ae816da716f896434e59df7a71b67c71ae7e85ca067a32aef1616572fc4757459515d42ade6f5b8fd8d69733a9dbd0cf23010fec5b2f41ce52c09501aa350e45
+  languageName: node
+  linkType: hard
+
 "@types/estree@npm:1.0.9, @types/estree@npm:^1.0.0":
   version: 1.0.9
   resolution: "@types/estree@npm:1.0.9"
@@ -1923,7 +1930,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/node@npm:^26.1.0":
+"@types/node@npm:*, @types/node@npm:^26.1.0":
   version: 26.1.0
   resolution: "@types/node@npm:26.1.0"
   dependencies:
@@ -1936,6 +1943,16 @@ __metadata:
   version: 1.20.2
   resolution: "@types/resolve@npm:1.20.2"
   checksum: 10c0/c5b7e1770feb5ccfb6802f6ad82a7b0d50874c99331e0c9b259e415e55a38d7a86ad0901c57665d93f75938be2a6a0bc9aa06c9749192cadb2e4512800bbc6e6
+  languageName: node
+  linkType: hard
+
+"@types/sql.js@npm:^1.4.11":
+  version: 1.4.11
+  resolution: "@types/sql.js@npm:1.4.11"
+  dependencies:
+    "@types/emscripten": "npm:*"
+    "@types/node": "npm:*"
+  checksum: 10c0/eefb0408235cb645879103414b8ef0f13c2e7f2eac69c2a6c2838b72ec0be49985d6c6711b95bc8d79c208c7c5db95a51576a6ce7bfb49dd9edcc17721ffb40f
   languageName: node
   linkType: hard
 
@@ -4340,6 +4357,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"sql.js@npm:1.11.0":
+  version: 1.11.0
+  resolution: "sql.js@npm:1.11.0"
+  checksum: 10c0/35be845fc8b03fe8ff18a477b4a714805a3aaed1a0d11a2aa63c7538cdfd881b0a4a3443f21be8d9da9fdf6cd7fd5562c461e0fa858670544a61d30dbbb12867
+  languageName: node
+  linkType: hard
+
 "stackback@npm:0.0.2":
   version: 0.0.2
   resolution: "stackback@npm:0.0.2"
@@ -4983,10 +5007,12 @@ __metadata:
   resolution: "wealth-tracker@workspace:."
   dependencies:
     "@types/node": "npm:^26.1.0"
+    "@types/sql.js": "npm:^1.4.11"
     chart.js: "npm:^4.4.1"
     idb-keyval: "npm:^6.2.5"
     jsdom: "npm:^29.1.1"
     prettier: "npm:^3.9.4"
+    sql.js: "npm:1.11.0"
     typescript: "npm:^6.0.3"
     vite: "npm:^8.1.3"
     vite-plugin-pwa: "npm:^1.3.0"

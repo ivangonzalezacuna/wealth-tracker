@@ -34,14 +34,11 @@ import {
   setCachedTransactions,
   getCachedAggregates,
   setCachedAggregates,
-  getSyncCursor,
-  setSyncCursor,
   getInputsHash,
   setInputsHash,
   computeInputsHash,
   holdingsSignature,
 } from './db';
-import { mergeDelta } from './sync';
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -66,70 +63,6 @@ function makeTx(id: string, date: string, type = 'BUY'): Transaction {
 }
 
 // ── Test suite ───────────────────────────────────────────────────
-
-describe('Cache: delta merge', () => {
-  it('merges new tail rows without duplicates and advances cursor', () => {
-    const cached = [
-      makeTx('tx1', '2024-01-15'),
-      makeTx('tx2', '2024-02-15'),
-      makeTx('tx3', '2024-03-15'),
-    ];
-    const delta = [
-      makeTx('tx3', '2024-03-15'), // duplicate - should be skipped
-      makeTx('tx4', '2024-04-15'),
-      makeTx('tx5', '2024-05-15'),
-    ];
-
-    const result = mergeDelta(cached, delta);
-
-    expect(result.merged).toHaveLength(5);
-    expect(result.newCount).toBe(2);
-    // rowCount tracks the sheet's actual physical row count (cached.length +
-    // delta.length = 3 + 3 = 6), not the deduped merged.length (5). The
-    // delta tail read genuinely returned 3 physical rows from the sheet -
-    // one of them (tx3) simply collided with an existing cached txKey.
-    // Using merged.length here would make the next sync re-read that same
-    // already-seen row forever (see src/cache/sync.test.ts).
-    expect(result.cursor.rowCount).toBe(6);
-    expect(result.cursor.lastDate).toBe('2024-05-15');
-    // Verify no duplicates
-    const ids = result.merged.map((t) => t.id);
-    expect(new Set(ids).size).toBe(5);
-  });
-
-  it('handles empty delta (no new rows)', () => {
-    const cached = [makeTx('tx1', '2024-01-15')];
-    const delta: Transaction[] = [];
-
-    const result = mergeDelta(cached, delta);
-
-    expect(result.merged).toHaveLength(1);
-    expect(result.newCount).toBe(0);
-    expect(result.cursor.rowCount).toBe(1);
-  });
-
-  it('handles empty cache (first sync)', () => {
-    const cached: Transaction[] = [];
-    const delta = [makeTx('tx1', '2024-01-15'), makeTx('tx2', '2024-02-15')];
-
-    const result = mergeDelta(cached, delta);
-
-    expect(result.merged).toHaveLength(2);
-    expect(result.newCount).toBe(2);
-    expect(result.cursor.lastDate).toBe('2024-02-15');
-  });
-
-  it('maintains date sort order after merge', () => {
-    const cached = [makeTx('tx1', '2024-03-01')];
-    const delta = [makeTx('tx2', '2024-01-01'), makeTx('tx3', '2024-05-01')];
-
-    const result = mergeDelta(cached, delta);
-
-    expect(result.merged[0].date).toBe('2024-01-01');
-    expect(result.merged[1].date).toBe('2024-03-01');
-    expect(result.merged[2].date).toBe('2024-05-01');
-  });
-});
 
 describe('Cache: aggregate cache with inputsHash', () => {
   beforeEach(() => {
@@ -287,7 +220,7 @@ describe('Cache: cold boot from cache (offline)', () => {
     const txs = [makeTx('tx1', '2024-01-15'), makeTx('tx2', '2024-02-15')];
     mockStore.set('transactions', txs);
 
-    // Read from cache - no network/Sheets calls needed
+    // Read from cache - no network calls needed
     const valid = await isCacheValid();
     expect(valid).toBe(true);
 
@@ -295,13 +228,5 @@ describe('Cache: cold boot from cache (offline)', () => {
     expect(cached).toHaveLength(2);
     expect(cached![0].id).toBe('tx1');
     expect(cached![1].id).toBe('tx2');
-  });
-
-  it('sync cursor is preserved across sessions', async () => {
-    mockStore.set('meta:schemaVersion', CACHE_VERSION);
-    await setSyncCursor({ lastDate: '2024-06-01', rowCount: 50 });
-
-    const cursor = await getSyncCursor();
-    expect(cursor).toEqual({ lastDate: '2024-06-01', rowCount: 50 });
   });
 });

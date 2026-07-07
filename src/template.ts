@@ -182,7 +182,7 @@ export function appTemplate(): string {
     <div class="empty-state">
       <div style="font-size:2rem;margin-bottom:.75rem">🔐</div>
       <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.5rem">Sign in to sync data</div>
-      <p style="font-size:13px;margin-bottom:1.25rem;color:var(--ink-2)">Your data is stored in your own Google Sheet. Sign in once and it syncs across all devices.</p>
+      <p style="font-size:13px;margin-bottom:1.25rem;color:var(--ink-2)">Your data is stored securely in your Google Drive. Sign in once and it syncs across all devices.</p>
       <button id="btn-signin" class="btn btn-primary">Sign in with Google</button>
     </div>
   </div>
@@ -190,7 +190,7 @@ export function appTemplate(): string {
   <div id="log-content">
     <div class="card" id="csv-import-card">
       <div class="card-title">Import transactions</div>
-      <p class="note" style="margin-bottom:.85rem">Import your transaction export CSV. Drag your file here or click to browse. Parsed locally; data synced to your Google Sheet. Re-import anytime; duplicates handled automatically.</p>
+      <p class="note" style="margin-bottom:.85rem">Import your transaction export CSV. Drag your file here or click to browse. Parsed locally; data synced to your Google Drive. Re-import anytime; duplicates handled automatically.</p>
       <div class="drop-zone" id="drop-zone">
         <input type="file" id="csv-file-input" accept=".csv">
         <div style="font-size:2rem;margin-bottom:.4rem">📥</div>

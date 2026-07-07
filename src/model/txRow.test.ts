@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { newRowToTx, oldRowToTx } from './txRow';
-import { txKey } from '../sheets/transactions';
+import { txKey } from '../db';
 
 describe('txRow shared parsers', () => {
   it('newRowToTx parses a 14-col row correctly', () => {

@@ -1,9 +1,9 @@
 /**
  * ─────────────────────────────────────────────────────────────
- *  STATIC DEFAULTS - used before the config store loads from Google Sheets.
+ *  STATIC DEFAULTS - used before the config store loads from the database.
  * ─────────────────────────────────────────────────────────────
- *  On first sign-in, the config store seeds its sheet tabs from these values.
- *  After that, all data lives in the Accounts / Holdings / Settings sheets
+ *  On first sign-in, the config store seeds the SQLite database from these values.
+ *  After that, all data lives in the local SQLite DB (synced to Drive AppData)
  *  and is managed via the Settings UI tab.
  *
  *  You can add example accounts/holdings here for initial setup, or leave

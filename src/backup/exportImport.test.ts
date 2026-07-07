@@ -156,13 +156,33 @@ describe('validateBackup', () => {
 });
 
 describe('summarizeBackup', () => {
-  it('contains correct counts', () => {
+  it('contains correct counts and structure', () => {
     const b = validBackupObj();
     const summary = summarizeBackup(b);
-    expect(summary).toMatch(/\b1 holdings\b/);
-    expect(summary).toMatch(/\b1 snapshots\b/);
-    expect(summary).toMatch(/\b1 transactions\b/);
-    expect(summary).toContain('replace everything');
+    expect(summary).toContain(`${b.data.accounts.length} accounts`);
+    expect(summary).toContain(`${b.data.holdings.length} holdings`);
+    expect(summary).toContain(`${b.data.snapshots.length} snapshots`);
+    expect(summary).toContain(`${b.data.transactions.length} transactions`);
+    expect(summary).toContain('replace all your current data');
+    expect(summary).toContain('Backup from');
+    expect(summary).toContain('Transactions:');
+    expect(summary).toContain('Last snapshot:');
+  });
+
+  it('handles empty transactions gracefully', () => {
+    const b = validBackupObj();
+    b.data = { ...b.data, transactions: [] };
+    const summary = summarizeBackup(b);
+    expect(summary).toContain('0 transactions');
+    expect(summary).not.toContain('Transactions:');
+  });
+
+  it('handles empty snapshots gracefully', () => {
+    const b = validBackupObj();
+    b.data = { ...b.data, snapshots: [] };
+    const summary = summarizeBackup(b);
+    expect(summary).toContain('0 snapshots');
+    expect(summary).not.toContain('Last snapshot:');
   });
 });
 

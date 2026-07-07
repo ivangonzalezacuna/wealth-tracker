@@ -94,6 +94,20 @@ describe('confirmDialog', () => {
     expect(ok.classList.contains('btn-danger')).toBe(false);
   });
 
+  it('bodyHtml renders raw HTML without escaping', () => {
+    confirmDialog({ title: 'Restore?', bodyHtml: '<strong>Bold</strong> text' });
+    const body = document.querySelector('.confirm-body')!;
+    expect(body.innerHTML).toContain('<strong>Bold</strong>');
+    expect(body.querySelector('strong')).not.toBeNull();
+  });
+
+  it('bodyHtml takes precedence over body', () => {
+    confirmDialog({ title: 'Test?', body: 'plain text', bodyHtml: '<em>html</em>' });
+    const body = document.querySelector('.confirm-body')!;
+    expect(body.innerHTML).toContain('<em>html</em>');
+    expect(body.innerHTML).not.toContain('plain text');
+  });
+
   it('focuses cancel button by default', () => {
     confirmDialog({ title: 'Delete?' });
     const cancel = document.querySelector('.js-confirm-cancel') as HTMLElement;
