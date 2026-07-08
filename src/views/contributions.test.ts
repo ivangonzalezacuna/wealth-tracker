@@ -49,7 +49,7 @@ vi.mock('../store/config', () => ({
   getHoldings: () => [
     {
       isin: 'IE00TEST1',
-      ticker: 'IWDA',
+      shortName: 'IWDA',
       name: 'iShares Core MSCI World',
       color: '#222222',
       acc: true,

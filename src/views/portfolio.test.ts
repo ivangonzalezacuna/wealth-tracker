@@ -38,7 +38,7 @@ const MOCK_ACCOUNTS = [
 const MOCK_HOLDINGS = [
   {
     isin: 'IE00TEST1',
-    ticker: 'IWDA',
+    shortName: 'IWDA',
     name: 'iShares Core MSCI World',
     color: '#222222',
     acc: true,
@@ -70,8 +70,8 @@ import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 
 function makeEtf(overrides: Partial<EtfPosition> = {}): EtfPosition {
   return {
-    symbol: 'IE00TEST1',
-    ticker: 'IWDA',
+    isin: 'IE00TEST1',
+    shortName: 'IWDA',
     name: 'iShares Core MSCI World',
     color: '#222222',
     acc: true,
@@ -203,7 +203,7 @@ describe('renderPortfolio', () => {
     const pd = makePD({
       etfs: {
         IE00TEST1: makeEtf(),
-        IE00TEST2: makeEtf({ symbol: 'IE00TEST2', ticker: 'EIMI', color: '#333', cost: 500 }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EIMI', color: '#333', cost: 500 }),
       },
       totalInv: 1500,
     });
@@ -227,8 +227,8 @@ describe('renderPortfolio', () => {
       etfs: {
         IE00TEST1: makeEtf(),
         IE00CLOSED: makeEtf({
-          symbol: 'IE00CLOSED',
-          ticker: 'EXITED',
+          isin: 'IE00CLOSED',
+          shortName: 'EXITED',
           exited: true,
           shares: 0,
           cost: 200,
@@ -307,7 +307,7 @@ describe('renderPortfolio', () => {
     expect(config.data.datasets[0]).toHaveProperty('data');
   });
 
-  it('renders donut legend with ticker and percentage', () => {
+  it('renders donut legend with short name and percentage', () => {
     renderPortfolio(makePD(), []);
     const legend = document.getElementById('port-donut-legend')!.textContent!;
     expect(legend).toContain('IWDA');

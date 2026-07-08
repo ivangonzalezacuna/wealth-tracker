@@ -20,6 +20,7 @@ import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 import Chart from 'chart.js/auto';
 import { T, resolvedT } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
+import { attachEtfPopovers } from '../ui/etfPopover';
 import type { SortState } from './tableSort';
 import { applySort, sortableHeader, bindSortableHeader } from './tableSort';
 import { renderPagination } from './pagination';
@@ -35,21 +36,23 @@ const HOLD_PAGE_SIZE = 10;
 let _holdPage = 1;
 let _holdSort: SortState = { key: null, dir: null };
 
+// Module-level references updated on each render (avoids stale closure in click handler)
+let _pageItemsByKey = new Map<string, EtfPosition>();
+let _currentColumns: ColumnDef<EtfPosition>[] = [];
+
 // mobile-visible column count must match styles.css's #port-table mobile grid-template-columns track count
 /** Single source of truth for the Holdings table's columns. `detail: true` marks
  *  columns whose values also appear in the mobile tap-to-expand panel. */
 function holdingsColumns(pd: PortfolioData): ColumnDef<EtfPosition>[] {
-  const META = getMETAMap();
   return [
     {
-      key: 'ticker',
+      key: 'shortName',
       label: 'ETF',
-      sortValue: (e) => e.ticker || '',
+      sortValue: (e) => e.shortName || '',
       cellClass: () => 'hold-etf-cell',
       cell: (e) => {
-        const m = META[e.ticker] || {};
         const isExited = e.exited || e.shares < 1e-6;
-        return `<span class="hold-ticker">${esc(e.ticker)}</span><span class="hold-dot" style="background:${safeColor(e.color)};opacity:${isExited ? '0.45' : '1'}"></span>`;
+        return `<span class="hold-name">${esc(e.shortName)}</span><span class="hold-dot" style="background:${safeColor(e.color)};opacity:${isExited ? '0.45' : '1'}"></span>`;
       },
     },
     {
@@ -137,7 +140,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   // Build full ordered ETF list
   const allEtfs: EtfPosition[] = ISIN_ORDER.map((s) => pd.etfs[s])
     .filter((e): e is EtfPosition => !!e)
-    .concat(Object.values(pd.etfs).filter((e) => !ISIN_ORDER.includes(e.symbol)));
+    .concat(Object.values(pd.etfs).filter((e) => !ISIN_ORDER.includes(e.isin)));
 
   // Split into held / exited
   const { held, exited } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
@@ -160,7 +163,11 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   const totalPages = Math.ceil(sorted.length / HOLD_PAGE_SIZE);
   if (_holdPage > totalPages) _holdPage = Math.max(1, totalPages);
   const pageItems = sorted.slice((_holdPage - 1) * HOLD_PAGE_SIZE, _holdPage * HOLD_PAGE_SIZE);
-  const pageItemsByKey = new Map(pageItems.map((e) => [e.symbol, e]));
+  const pageItemsByKey = new Map(pageItems.map((e) => [e.isin, e]));
+
+  // Update module-level refs so the click handler (bound once) always sees fresh data
+  _pageItemsByKey = pageItemsByKey;
+  _currentColumns = columns;
 
   // Filter controls
   const filterHtml = `
@@ -175,7 +182,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   const rows = pageItems
     .map((e) => {
       const isExited = e.exited || e.shares < 1e-6;
-      return `<div class="tbl-row hold-row" role="row"${isExited ? ' style="opacity:0.6"' : ''} data-etf-key="${esc(e.symbol)}">
+      return `<div class="tbl-row hold-row" role="row"${isExited ? ' style="opacity:0.6"' : ''} data-etf-key="${esc(e.isin)}">
     ${renderTableRow(columns, e)}
   </div>`;
     })
@@ -241,12 +248,15 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
         if (wasThis) return;
       }
       const etfKey = row.dataset.etfKey;
-      const e = etfKey ? pageItemsByKey.get(etfKey) : undefined;
+      const e = etfKey ? _pageItemsByKey.get(etfKey) : undefined;
       if (!e) return;
-      const meta = getMETAMap()[e.ticker] || {};
+      const meta = getMETAMap()[e.isin] || {};
       const active = meta.active ? 'Active' : 'Closed';
       const acc = e.acc ? 'Accumulating' : 'Distributing';
-      const detailCols = columns.filter((c) => c.detail);
+      // Prefer holding settings name (live) over position name (stale from computePD)
+      const holdCfg = getHoldings().find((h) => h.isin === e.isin);
+      const displayName = holdCfg?.name || e.name || '';
+      const detailCols = _currentColumns.filter((c) => c.detail);
       const detailColRows = detailCols
         .map((c) => {
           const value = c.cell ? c.cell(e) : '';
@@ -259,7 +269,8 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
       const panel = document.createElement('div');
       panel.className = 'hold-detail';
       panel.innerHTML = `
-        <div><span class="hold-detail-label">ISIN</span><span class="hold-detail-value hold-detail-isin">${esc(e.symbol)}</span></div>
+        <div><span class="hold-detail-label">Name</span><span class="hold-detail-value" style="font-size:11px">${esc(displayName)}</span></div>
+        <div><span class="hold-detail-label">ISIN</span><span class="hold-detail-value hold-detail-isin">${esc(e.isin)}</span></div>
         <div><span class="hold-detail-label">Status</span><span class="hold-detail-value">${active}</span></div>
         <div><span class="hold-detail-label">Type</span><span class="hold-detail-value">${acc}</span></div>
         ${detailColRows}`;
@@ -333,7 +344,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   // Build full ordered ETF list for donut (held positions only)
   const allEtfs = ISIN_ORDER.map((s) => pd.etfs[s])
     .filter((e): e is EtfPosition => !!e)
-    .concat(Object.values(pd.etfs).filter((e) => !ISIN_ORDER.includes(e.symbol)));
+    .concat(Object.values(pd.etfs).filter((e) => !ISIN_ORDER.includes(e.isin)));
   const { held } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
 
   // Bar chart - only held positions with cost > 0
@@ -345,7 +356,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   CH['c-port-donut'] = new Chart(document.getElementById('c-port-donut') as HTMLCanvasElement, {
     type: 'bar',
     data: {
-      labels: donutE.map((e) => e.ticker),
+      labels: donutE.map((e) => e.shortName),
       datasets: [
         {
           data: donutE.map((e) => e.cost),
@@ -369,9 +380,26 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
           borderWidth: 1,
           titleColor: C.ink,
           bodyColor: C.ink2,
+          footerColor: C.ink4,
+          footerFont: { weight: 'normal' as const, size: 10 },
+          footerMarginTop: 6,
           padding: 10,
           cornerRadius: 8,
-          callbacks: { label: (ctx) => ` ${fmtEur(ctx.raw as number)}` },
+          callbacks: {
+            label: (ctx) => ` ${fmtEur(ctx.raw as number)}`,
+            footer: (items) => {
+              if (!items.length) return '';
+              const idx = items[0].dataIndex;
+              const e = donutE[idx];
+              if (!e) return '';
+              const h = getHoldings().find((x) => x.isin === e.isin);
+              const name = h?.name || e.name || '';
+              const lines: string[] = [];
+              if (name) lines.push(name);
+              lines.push(e.isin);
+              return lines;
+            },
+          },
         },
       },
       scales: {
@@ -389,7 +417,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   document.getElementById('port-donut-legend')!.innerHTML = donutE
     .map(
       (e) =>
-        `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(e.color)}"></span>${esc(e.ticker)} ${pd.totalInv > 0 ? ((e.cost / pd.totalInv) * 100).toFixed(0) : 0}%</span>`,
+        `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(e.color)}"></span>${esc(e.shortName)} ${pd.totalInv > 0 ? ((e.cost / pd.totalInv) * 100).toFixed(0) : 0}%</span>`,
     )
     .join('');
 
@@ -451,7 +479,7 @@ function _renderDriftCard(pd: PortfolioData): void {
                 : 'var(--pos)';
       return `
       <div class="tbl-row" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
-        <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${safeColor(d.color)};margin-right:6px"></span>${esc(d.ticker)}</div>
+        <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${safeColor(d.color)};margin-right:6px"></span><span data-etf-isin="${esc(d.isin)}" data-etf-name="${esc(d.name)}">${esc(d.shortName)}</span></div>
         <div role="cell" style="text-align:right">${d.targetPct.toFixed(1)}%</div>
         <div role="cell" style="text-align:right">${d.actualPct.toFixed(1)}%</div>
         <div role="cell" style="text-align:right;color:${driftColor}" aria-label="Drift ${fmtPctSigned(d.driftPct)}">${fmtPctSigned(d.driftPct)}</div>
@@ -471,4 +499,6 @@ function _renderDriftCard(pd: PortfolioData): void {
       </div>
       <p class="note" style="margin-top:.5rem">Target derived from contribution weights. Actual from cost basis. Delta = amount to sell/buy to reach target.</p>
     </div>`;
+
+  attachEtfPopovers(driftEl);
 }

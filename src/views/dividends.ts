@@ -2,6 +2,8 @@ import { fmtEur2, fmtDay, esc, safeColor, kpiTile } from '../utils';
 import type { PortfolioData, DivHistEntry, IntHistEntry } from '../types';
 import { T } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
+import { attachEtfPopovers } from '../ui/etfPopover';
+import { getHoldings } from '../store/config';
 import type { SortState } from './tableSort';
 import { applySort, bindSortableHeader } from './tableSort';
 import type { ColumnDef } from './tableColumns';
@@ -56,7 +58,19 @@ export function renderDividends(pd: PortfolioData | null): void {
   attachInfoTips(document.getElementById('subview-dividends')!);
 }
 
-function dividendColumns(): ColumnDef<DivHistEntry>[] {
+function dividendColumns(pd: PortfolioData): ColumnDef<DivHistEntry>[] {
+  // Build ISIN → name lookup from holdings config, falling back to position data
+  const nameMap: Record<string, string> = {};
+  for (const h of getHoldings()) {
+    if (h.name) nameMap[h.isin] = h.name;
+  }
+  // Fill gaps from portfolio position names (from transactions)
+  if (pd.etfs) {
+    for (const [isin, pos] of Object.entries(pd.etfs)) {
+      if (!nameMap[isin] && pos.name) nameMap[isin] = pos.name;
+    }
+  }
+
   return [
     {
       key: 'swatch',
@@ -69,7 +83,7 @@ function dividendColumns(): ColumnDef<DivHistEntry>[] {
       key: 'date',
       label: 'ETF / Date',
       cell: (d) =>
-        `<div style="font-weight:500;font-size:12px">${esc(d.ticker)}</div><div style="font-size:11px;color:var(--ink-3)">${fmtDay(d.date)}</div>`,
+        `<div style="font-weight:500;font-size:12px"><span data-etf-isin="${esc(d.isin)}" data-etf-name="${esc(nameMap[d.isin] || '')}">${esc(d.shortName)}</span></div><div style="font-size:11px;color:var(--ink-3)">${fmtDay(d.date)}</div>`,
     },
     {
       key: 'gross',
@@ -104,7 +118,7 @@ function renderDivTable(pd: PortfolioData): void {
   const totalNet = list.reduce((s, d) => s + d.net, 0);
 
   // Column definitions
-  const columns = dividendColumns();
+  const columns = dividendColumns(pd);
 
   // Apply sort (before pagination)
   const sorted = applySort(list, _divTblSort, getSortGetters(columns));
@@ -144,6 +158,10 @@ function renderDivTable(pd: PortfolioData): void {
       renderDivTable(pd);
     });
   }
+
+  // Attach ETF info popovers on shortName spans
+  const divHistEl = document.getElementById('div-history');
+  if (divHistEl) attachEtfPopovers(divHistEl);
 
   renderDivPagination(totalPages, pd);
 }

@@ -181,7 +181,6 @@ describe('renderLog', () => {
           type: 'BUY',
           name: 'IWDA',
           isin: 'IE00',
-          symbol: 'IWDA',
           shares: 1,
           price: 80,
           amount: 80,

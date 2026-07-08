@@ -702,11 +702,20 @@ async function loadAllData() {
         : Promise.resolve(),
     ]);
 
-    onConfigChange(async () => {
+    onConfigChange(async (changed) => {
       if (state.txs.length) {
         state.pd = await computeAggregatesWithCache(state.txs);
       }
-      renderAll();
+      try {
+        await setCachedConfig({
+          accounts: getAccounts(),
+          holdings: getHoldings(),
+          settings: getSettings(),
+        });
+      } catch {
+        // Best-effort cache update
+      }
+      renderAll(changed);
     });
     setSyncStatus('ok');
     await backupCollapseToSheet();

@@ -9,8 +9,24 @@ function makePD(overrides: Partial<PortfolioData> = {}): PortfolioData {
   return {
     etfs: {},
     divHist: [
-      { date: '2026-01-15', ticker: 'IWDA', color: '#111', gross: 12.5, tax: 3.13, net: 9.37 },
-      { date: '2026-04-15', ticker: 'IWDA', color: '#111', gross: 13.0, tax: 3.25, net: 9.75 },
+      {
+        date: '2026-01-15',
+        isin: '',
+        shortName: 'IWDA',
+        color: '#111',
+        gross: 12.5,
+        tax: 3.13,
+        net: 9.37,
+      },
+      {
+        date: '2026-04-15',
+        isin: '',
+        shortName: 'IWDA',
+        color: '#111',
+        gross: 13.0,
+        tax: 3.25,
+        net: 9.75,
+      },
     ],
     intHist: [{ date: '2026-02-01', amount: 4.2 }],
     monthly: {},
@@ -95,9 +111,9 @@ describe('renderDividends', () => {
   it('populates year filter with distinct years plus All years default', () => {
     const pd = makePD({
       divHist: [
-        { date: '2025-06-01', ticker: 'A', color: '#000', gross: 1, tax: 0, net: 1 },
-        { date: '2026-01-15', ticker: 'B', color: '#000', gross: 2, tax: 0, net: 2 },
-        { date: '2026-04-15', ticker: 'C', color: '#000', gross: 3, tax: 0, net: 3 },
+        { date: '2025-06-01', isin: '', shortName: 'A', color: '#000', gross: 1, tax: 0, net: 1 },
+        { date: '2026-01-15', isin: '', shortName: 'B', color: '#000', gross: 2, tax: 0, net: 2 },
+        { date: '2026-04-15', isin: '', shortName: 'C', color: '#000', gross: 3, tax: 0, net: 3 },
       ],
     });
     renderDividends(pd);
@@ -121,7 +137,8 @@ describe('renderDividends', () => {
   it('renders pagination when divHist exceeds page size', () => {
     const entries = Array.from({ length: 15 }, (_, i) => ({
       date: `2026-01-${String(i + 1).padStart(2, '0')}`,
-      ticker: 'IWDA',
+      isin: '',
+      shortName: 'IWDA',
       color: '#111',
       gross: 10,
       tax: 2,

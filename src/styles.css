@@ -466,7 +466,7 @@ code,
   min-width: 0;
   overflow: hidden;
 }
-.hold-ticker {
+.hold-name {
   font-weight: 500;
   font-size: 12px;
   white-space: nowrap;
@@ -1482,6 +1482,34 @@ input[type='color'] {
   text-transform: none;
   letter-spacing: normal;
   text-align: left;
+}
+
+/* ── ETF info popover (click-to-reveal ISIN + name) ───── */
+.etf-pop {
+  position: fixed;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: normal;
+  width: max-content;
+  max-width: 260px;
+  z-index: 9999;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+}
+.etf-pop-name {
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+.etf-pop-isin {
+  color: var(--ink-3);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  letter-spacing: 0.3px;
 }
 
 /* ── Confirm dialog overlay ──────────────────────────── */
