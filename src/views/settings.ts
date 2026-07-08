@@ -653,7 +653,7 @@ function renderHoldingRow(h: Holding, i: number): string {
     <div class="settings-item settings-hold-row item-collapsible" data-idx="${i}">
       <div class="settings-item-header js-item-toggle">
         <span class="leg-sq" style="background:${esc(h.color) || 'var(--ink-4)'};flex-shrink:0"></span>
-        <span class="settings-item-title">${esc(h.ticker) || esc(h.isin) || 'New holding'}</span>
+        <span class="settings-item-title">${esc(h.shortName) || esc(h.isin) || 'New holding'}${h.name ? ` <span style="font-weight:normal;color:var(--ink-3);font-size:12px">— ${esc(h.name)}</span>` : ''}</span>
         <span style="font-size:11px;color:var(--ink-3);white-space:nowrap" class="settings-item-meta">${h.acc ? 'Acc' : 'Dist'}</span>
         ${statusBadge}
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
@@ -667,8 +667,12 @@ function renderHoldingRow(h: Holding, i: number): string {
           <input class="form-input form-input-sm" data-field="isin" value="${esc(h.isin)}" placeholder="e.g. IE00B4L5Y983">
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Ticker</label>
-          <input class="form-input form-input-sm" data-field="ticker" value="${esc(h.ticker)}" placeholder="e.g. IWDA">
+          <label class="settings-field-label">Short name${infoTip('A short label (max 10 chars) used in charts and legends.')}</label>
+          <input class="form-input form-input-sm" data-field="shortName" value="${esc(h.shortName)}" placeholder="e.g. IWDA">
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Name${infoTip('Full instrument name, as shown in your broker statements.')}</label>
+          <input class="form-input form-input-sm" data-field="name" value="${esc(h.name)}" placeholder="e.g. iShares Core MSCI World UCITS ETF">
         </div>
         <div class="settings-field">
           <label class="settings-field-label">Asset class${infoTip('The category this holding belongs to. Used to group and describe your allocation; does not affect any calculation.')}</label>
@@ -761,7 +765,7 @@ async function deleteHolding(
   const holds = collectHoldings(root);
   const hold = holds[idx];
   const ok = await confirmDialog({
-    title: `Remove ${esc(hold?.ticker || hold?.isin || 'this holding')}?`,
+    title: `Remove ${esc(hold?.shortName || hold?.isin || 'this holding')}?`,
     body: 'This removes it from your configuration. Historical data is not affected.',
     confirmLabel: 'Remove',
     danger: true,
@@ -796,7 +800,7 @@ function attachHoldingListeners(root: HTMLElement): void {
     const holds = collectHoldings(root);
     holds.push({
       isin: '',
-      ticker: '',
+      shortName: '',
       name: '',
       color: '#888888',
       acc: true,
@@ -819,7 +823,7 @@ function attachHoldingListeners(root: HTMLElement): void {
         btn,
         async () => {
           const txs = await loadTransactions();
-          const buys = txs.filter((t) => t.type === 'BUY' && (t.isin || t.symbol));
+          const buys = txs.filter((t) => t.type === 'BUY' && t.isin);
           if (buys.length === 0) {
             showMsg('holds-msg', 'No BUY transactions found. Import a CSV first.', false);
             return;
@@ -831,7 +835,7 @@ function attachHoldingListeners(root: HTMLElement): void {
           const isinMap: Record<string, string> = {};
           const isinLatest: Record<string, string> = {};
           for (const tx of buys) {
-            const sym = tx.isin || tx.symbol;
+            const sym = tx.isin;
             if (!isinMap[sym]) {
               isinMap[sym] = tx.name || '';
             }
@@ -849,8 +853,8 @@ function attachHoldingListeners(root: HTMLElement): void {
             const isActive = (isinLatest[isin] || '') >= cutoff;
             holds.push({
               isin,
-              ticker: parsed.ticker,
-              name: '',
+              shortName: parsed.shortName,
+              name,
               color: randomColor(),
               acc: parsed.acc,
               active: isActive,
@@ -862,6 +866,19 @@ function attachHoldingListeners(root: HTMLElement): void {
               order: holds.length + 1,
             });
             added++;
+          }
+          // Deduplicate shortNames: if two auto-generated names collide,
+          // append a distinguishing suffix from the ISIN (last 4 chars)
+          const shortNameCounts = new Map<string, number>();
+          for (const h of holds) {
+            shortNameCounts.set(h.shortName, (shortNameCounts.get(h.shortName) || 0) + 1);
+          }
+          for (const h of holds) {
+            if ((shortNameCounts.get(h.shortName) || 0) > 1) {
+              const suffix = h.isin.slice(-4);
+              const maxBase = 10 - 1 - suffix.length; // 1 for the separator
+              h.shortName = h.shortName.slice(0, maxBase) + '·' + suffix;
+            }
           }
           rerenderHoldingsTable(root, holds);
           showMsg(
@@ -882,8 +899,8 @@ function attachHoldingListeners(root: HTMLElement): void {
   root.querySelector('#btn-save-holds')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-holds') as HTMLButtonElement;
     const holds = collectHoldings(root);
-    if (holds.some((h) => !h.isin || !h.ticker)) {
-      showMsg('holds-msg', 'Each holding needs an ISIN and ticker.', false);
+    if (holds.some((h) => !h.isin || !h.shortName)) {
+      showMsg('holds-msg', 'Each holding needs an ISIN and short name.', false);
       return;
     }
     const valErrors = validateHoldings(holds);
@@ -911,8 +928,8 @@ function collectHoldings(root: HTMLElement): Holding[] {
   const fromDOM = [...rows].map((row) => ({
     idx: parseInt((row as HTMLElement).dataset.idx!),
     isin: (row.querySelector('[data-field="isin"]') as HTMLInputElement).value.trim(),
-    ticker: (row.querySelector('[data-field="ticker"]') as HTMLInputElement).value.trim(),
-    name: '',
+    shortName: (row.querySelector('[data-field="shortName"]') as HTMLInputElement).value.trim(),
+    name: (row.querySelector('[data-field="name"]') as HTMLInputElement).value.trim(),
     color: (row.querySelector('[data-field="color"]') as HTMLInputElement).value.trim(),
     acc: (row.querySelector('[data-field="acc"]') as HTMLInputElement).checked,
     active: (row.querySelector('[data-field="active"]') as HTMLInputElement).checked,
@@ -1404,7 +1421,7 @@ function randomColor(): string {
 function parseHoldingName(
   name: string,
   isin: string,
-): { ticker: string; acc: boolean; assetClass: string; region: string } {
+): { shortName: string; acc: boolean; assetClass: string; region: string } {
   const upper = (name || '').toUpperCase();
 
   // Acc vs Dist
@@ -1440,13 +1457,137 @@ function parseHoldingName(
     region = 'global';
   }
 
-  // Ticker
-  // Try to extract a recognizable ticker: the short word before "UCITS"
-  // or the word(s) right after the provider name that look like an index abbreviation
-  let ticker = isin.slice(-4); // fallback
-  // Strategy: find the word just before "UCITS" or "ETF" that looks like a ticker
-  // Common pattern: "iShares Core MSCI World UCITS ETF" → we want something meaningful
-  // Better: strip the provider prefix, strip "(Acc)"/"(Dist)", strip "UCITS ETF ..."
+  // Short name generation
+  // Produce compact, recognizable labels similar to what brokers display.
+  // Strategy: match specific fund characteristics from the cleaned name,
+  // building a short label from [Index/Asset] + [Variant] components.
+  let shortName = isin; // fallback to full ISIN
+
+  // ── Step 1: Try well-known specific patterns (most specific first) ──
+  // These cover the top ~150 ETFs by AUM in Europe (iShares, Vanguard,
+  // Xtrackers, Amundi, SPDR). Labels mimic broker short-name conventions.
+  const INDEX_SHORTCUTS: [RegExp, string][] = [
+    // ── MSCI Equity - specific variants first ──
+    [/MSCI\s+EM\s+IMI/i, 'EM IMI'],
+    [/MSCI\s+World\s+SRI/i, 'World SRI'],
+    [/MSCI\s+World\s+ESG/i, 'World ESG'],
+    [/MSCI\s+World\s+Small/i, 'World SC'],
+    [/MSCI\s+World\s+Mom/i, 'World Mom'],
+    [/MSCI\s+World\s+Val/i, 'World Val'],
+    [/MSCI\s+World\s+Min.*Vol/i, 'World MV'],
+    [/MSCI\s+World\s+Qual/i, 'World Qual'],
+    [/MSCI\s+ACWI\s+SRI/i, 'ACWI SRI'],
+    [/MSCI\s+ACWI/i, 'ACWI'],
+    [/MSCI\s+EM\s+SRI/i, 'EM SRI'],
+    [/MSCI\s+EM(\s|$)/i, 'EM'],
+    [/MSCI\s+World/i, 'World'],
+    [/MSCI\s+Europe\s+SRI/i, 'Eur SRI'],
+    [/MSCI\s+Europe/i, 'Europe'],
+    [/MSCI\s+USA\s+SRI/i, 'USA SRI'],
+    [/MSCI\s+USA/i, 'USA'],
+    [/MSCI\s+Japan/i, 'Japan'],
+    [/MSCI\s+Pacific/i, 'Pacific'],
+
+    // ── FTSE ──
+    [/FTSE\s+All.?World\s+High\s*Div/i, 'FTSE AW HD'],
+    [/FTSE\s+All.?World/i, 'FTSE AW'],
+    [/FTSE\s+Dev.*World/i, 'FTSE Dev'],
+    [/FTSE\s+Dev.*Europe/i, 'FTSE Eur'],
+    [/FTSE\s+Dev.*Asia/i, 'FTSE Asia'],
+    [/FTSE\s+EM/i, 'FTSE EM'],
+    [/FTSE\s+100/i, 'FTSE 100'],
+    [/FTSE\s+250/i, 'FTSE 250'],
+
+    // ── S&P / US ──
+    [/S&P\s*500\s+Info/i, 'SP500 IT'],
+    [/S&P\s*500\s+Health/i, 'SP500 HC'],
+    [/S&P\s*500\s+Financ/i, 'SP500 Fin'],
+    [/S&P\s*500\s+Energy/i, 'SP500 Ene'],
+    [/S&P\s*500\s+ESG/i, 'SP500 ESG'],
+    [/S&P\s*500/i, 'S&P 500'],
+    [/NASDAQ.?100/i, 'Nasdaq100'],
+    [/Dow\s*Jones.*Ind/i, 'DJIA'],
+    [/Russell\s*2000/i, 'Russ 2000'],
+
+    // ── European equity ──
+    [/EURO\s*STOXX\s*50/i, 'EuroSt 50'],
+    [/STOXX\s*Europe\s*600/i, 'Stx Eur600'],
+    [/DAX/i, 'DAX'],
+    [/CAC\s*40/i, 'CAC 40'],
+
+    // ── Asia / Other equity ──
+    [/Nikkei\s*225/i, 'Nikkei'],
+    [/TOPIX/i, 'TOPIX'],
+    [/Hang\s*Seng/i, 'Hang Seng'],
+    [/CSI\s*300/i, 'CSI 300'],
+    [/MSCI\s+China/i, 'China'],
+    [/MSCI\s+India/i, 'India'],
+
+    // ── Bonds - Government ──
+    [/Euro\s+Gov.*?(\d+[-–]\d+\s*(?:yr?|Year))/i, 'EGov $1'],
+    [/Euro\s+Gov(ernment|t)?\s+Bond/i, 'EUR Govt'],
+    [/US\s+Treas.*?(\d+[-–]\d+\s*(?:yr?|Year))/i, 'USTrs $1'],
+    [/US\s+Treas/i, 'US Treas'],
+    [/Glob.*Gov/i, 'Glb Govt'],
+
+    // ── Bonds - Corporate ──
+    [/Euro\s+(Corp|Corporate)\s+Bond/i, 'EUR Corp'],
+    [/USD\s+(Corp|Corporate)\s+Bond/i, 'USD Corp'],
+    [/Glob.*(Corp|Credit)/i, 'Glb Corp'],
+
+    // ── Bonds - Aggregate / Multi ──
+    [/Glob.*Agg.*EUR/i, 'GlbAgg EUR'],
+    [/Glob.*Agg/i, 'Glb Agg'],
+    [/Euro.*Agg/i, 'EUR Agg'],
+    [/US.*Agg/i, 'US Agg'],
+
+    // ── Bonds - High Yield ──
+    [/EUR?.*High\s*Yield/i, 'EUR HY'],
+    [/US.*High\s*Yield/i, 'US HY'],
+    [/Glob.*High\s*Yield/i, 'Glb HY'],
+
+    // ── Bonds - Inflation-linked ──
+    [/Inflation.?Link.*EUR/i, 'EUR IL'],
+    [/Inflation.?Link.*US/i, 'US TIPS'],
+    [/TIPS/i, 'US TIPS'],
+
+    // ── Real estate ──
+    [/Glob.*REIT/i, 'Glb REIT'],
+    [/Develop.*Prop|Dev.*Real/i, 'Dev REIT'],
+    [/US\s+REIT|US.*Prop/i, 'US REIT'],
+    [/Europ.*REIT|Europ.*Prop/i, 'Eur REIT'],
+
+    // ── Commodities ──
+    [/Gold/i, 'Gold'],
+    [/Silver/i, 'Silver'],
+    [/Diversif.*Commod|Broad.*Commod/i, 'Commod'],
+    [/Physic.*Gold/i, 'Phys Gold'],
+
+    // ── Thematic / Sector ──
+    [/Clean\s*Energy/i, 'Clean Ene'],
+    [/Digital.*Security|Cyber/i, 'Cyber'],
+    [/Automat.*Robot/i, 'Robot'],
+    [/Healthcare/i, 'Healthcr'],
+    [/Ageing\s*Pop/i, 'Ageing'],
+    [/Water/i, 'Water'],
+    [/Glob.*Infra/i, 'Infra'],
+  ];
+  for (const [re, label] of INDEX_SHORTCUTS) {
+    if (re.test(name)) {
+      // Handle capture groups (e.g. "7-10yr" in bond maturity patterns)
+      const m = name.match(re);
+      if (m && m[1] && label.includes('$1')) {
+        // Normalize maturity: "7-10yr" / "1-3 Year" → "7-10Y"
+        const normed = m[1].trim().replace(/\s*(Year|yr?)/i, 'Y');
+        shortName = label.replace('$1', normed).slice(0, 10);
+      } else {
+        shortName = label;
+      }
+      return { shortName, acc, assetClass, region };
+    }
+  }
+
+  // Strip the provider prefix, strip "(Acc)"/"(Dist)", strip "UCITS ETF ..."
   const cleaned = name
     .replace(/\(Acc\)|\(Dist\)|Accumulating|Distributing/gi, '')
     .replace(/UCITS\s+ETF.*/i, '')
@@ -1456,20 +1597,25 @@ function parseHoldingName(
     )
     .trim();
   if (cleaned) {
-    // Build a compact ticker-like abbreviation from remaining words
+    // Build a compact abbreviation from remaining words
     const words = cleaned.split(/\s+/).filter((w) => w.length > 0);
-    if (words.length <= 3) {
-      ticker = words.join(' ');
+    if (words.length <= 2) {
+      shortName = words.join(' ').slice(0, 10);
+    } else if (words.length === 3) {
+      // Abbreviate third word if needed to fit in 10 chars
+      const joined = words.join(' ');
+      shortName = joined.length <= 10 ? joined : (words[0] + ' ' + words[1]).slice(0, 10);
     } else {
       // Take initials of long names
-      ticker = words
+      shortName = words
         .map((w) => w[0])
         .join('')
-        .toUpperCase();
+        .toUpperCase()
+        .slice(0, 10);
     }
   }
 
-  return { ticker, acc, assetClass, region };
+  return { shortName, acc, assetClass, region };
 }
 
 /** Subtract N months from a YYYY-MM-DD date string, returning YYYY-MM-DD.

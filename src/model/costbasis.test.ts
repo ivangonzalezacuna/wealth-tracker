@@ -12,7 +12,6 @@ function buy(date: string, shares: number, amount: number, fee = 0): Transaction
     isin: 'IE00B4L5Y983',
     type: TxType.BUY,
     date,
-    symbol: 'IE00B4L5Y983',
     shares,
     price: 0,
     amount: -amount,
@@ -32,7 +31,6 @@ function sell(date: string, shares: number, amount: number, fee = 0): Transactio
     isin: 'IE00B4L5Y983',
     type: TxType.SELL,
     date,
-    symbol: 'IE00B4L5Y983',
     shares: -shares,
     price: 0,
     amount,
@@ -165,7 +163,7 @@ describe('costbasis: avgco vs fifo divergence', () => {
 });
 
 describe('computeCostBasis (multi-ISIN)', () => {
-  it('groups by symbol and computes independently', () => {
+  it('groups by ISIN and computes independently', () => {
     const txs: Transaction[] = [
       {
         id: '',
@@ -174,7 +172,6 @@ describe('computeCostBasis (multi-ISIN)', () => {
         isin: 'A',
         type: TxType.BUY,
         date: '2024-01-01',
-        symbol: 'A',
         shares: 10,
         price: 0,
         amount: -1000,
@@ -190,7 +187,6 @@ describe('computeCostBasis (multi-ISIN)', () => {
         isin: 'B',
         type: TxType.BUY,
         date: '2024-01-01',
-        symbol: 'B',
         shares: 5,
         price: 0,
         amount: -500,
@@ -206,7 +202,6 @@ describe('computeCostBasis (multi-ISIN)', () => {
         isin: 'A',
         type: TxType.SELL,
         date: '2024-02-01',
-        symbol: 'A',
         shares: -10,
         price: 0,
         amount: 1100,

@@ -24,7 +24,6 @@ export interface Transaction {
   type: string;
   name: string;
   isin: string;
-  symbol: string;
   shares: number;
   price: number;
   amount: number;
@@ -59,8 +58,8 @@ export type ContribInterval = 'weekly' | 'biweekly' | 'monthly' | 'quarterly';
 
 export interface Holding {
   isin: string;
-  ticker: string;
   name: string;
+  shortName: string; // max 10 chars, used in charts/legends
   color: string;
   acc: boolean;
   active: boolean;
@@ -96,7 +95,7 @@ export interface ImportProfileColumns {
   type: string | number;
   category?: string | number;
   name?: string | number;
-  symbol?: string | number;
+  isin?: string | number;
   shares?: string | number;
   price?: string | number;
   amount: string | number;
@@ -140,8 +139,8 @@ export interface CostBasisResult {
 // ─── ETF holding in portfolio data ──────────────────────────────
 
 export interface EtfPosition {
-  symbol: string;
-  ticker: string;
+  isin: string;
+  shortName: string;
   name: string;
   color: string;
   acc: boolean;
@@ -162,7 +161,8 @@ export interface EtfPosition {
 
 export interface DivHistEntry {
   date: string;
-  ticker: string;
+  isin: string;
+  shortName: string;
   color: string;
   gross: number;
   tax: number;

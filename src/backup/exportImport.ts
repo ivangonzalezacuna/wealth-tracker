@@ -1,6 +1,6 @@
 import type { Account, Holding, Settings, Snapshot, Transaction } from '../types';
 
-export const BACKUP_SCHEMA_VERSION = 1;
+export const BACKUP_SCHEMA_VERSION = 2;
 
 export interface BackupFile {
   schemaVersion: number;
@@ -21,12 +21,25 @@ export interface BackupFile {
 type Migration = (data: BackupFile['data']) => BackupFile['data'];
 
 /** One entry per breaking change to a canonical type, keyed by the version
- *  migrating FROM. Empty today: schema version 1 is the only one that has
- *  ever shipped. Add an entry (and bump BACKUP_SCHEMA_VERSION) only for a
+ *  migrating FROM. Add an entry (and bump BACKUP_SCHEMA_VERSION) only for a
  *  rename/removal/meaning-change, never for a purely additive field,
  *  which old backups already restore correctly via each parser's existing
  *  default-handling. */
-export const MIGRATIONS: Record<number, Migration> = {};
+export const MIGRATIONS: Record<number, Migration> = {
+  1: (data) => {
+    // v1→v2: holdings had `ticker` field, now replaced by `shortName`.
+    // Transactions had `symbol` field, now removed (isin is the key).
+    const holdings = data.holdings.map((h: any) => {
+      const { ticker, ...rest } = h;
+      return { ...rest, shortName: rest.shortName || ticker || '' };
+    });
+    const transactions = data.transactions.map((t: any) => {
+      const { symbol, ...rest } = t;
+      return { ...rest, isin: rest.isin || symbol || '' };
+    });
+    return { ...data, holdings, transactions };
+  },
+};
 
 export function migrateBackup(b: BackupFile): BackupFile {
   let data = b.data;

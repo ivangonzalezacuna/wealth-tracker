@@ -152,7 +152,7 @@ describe('hydrateConfigFromCache', () => {
     const holdings = [
       {
         isin: 'IE00B4L5Y983',
-        ticker: 'IWDA',
+        shortName: 'IWDA',
         name: 'iShares MSCI World',
         color: '#4a90d9',
         acc: true,
@@ -334,7 +334,7 @@ describe('rollback on failure', () => {
   const ORIGINAL_HOLDINGS = [
     {
       isin: 'IE00B4L5Y983',
-      ticker: 'IWDA',
+      shortName: 'IWDA',
       name: 'iShares MSCI World',
       color: '#4a90d9',
       acc: true,
@@ -379,7 +379,7 @@ describe('rollback on failure', () => {
     });
     vi.mocked(dbSaveHoldings).mockRejectedValueOnce(new Error('db error'));
 
-    await expect(setHoldings([{ ...ORIGINAL_HOLDINGS[0], ticker: 'VWCE' }])).rejects.toThrow(
+    await expect(setHoldings([{ ...ORIGINAL_HOLDINGS[0], shortName: 'VWCE' }])).rejects.toThrow(
       'db error',
     );
 

@@ -50,7 +50,6 @@ function makeTx(id: string, date: string, type = 'BUY'): Transaction {
     type,
     name: `Test ${id}`,
     isin: 'IE00TEST1234',
-    symbol: 'IE00TEST1234',
     shares: 10,
     price: 100,
     amount: -1000,
@@ -97,7 +96,7 @@ describe('Cache: aggregate cache with inputsHash', () => {
     const holdings1 = [
       {
         isin: 'IE001',
-        ticker: 'A',
+        shortName: 'A',
         name: '',
         color: '',
         acc: true,
@@ -113,7 +112,7 @@ describe('Cache: aggregate cache with inputsHash', () => {
     const holdings2 = [
       {
         isin: 'IE001',
-        ticker: 'A',
+        shortName: 'A',
         name: '',
         color: '',
         acc: true,
@@ -129,10 +128,10 @@ describe('Cache: aggregate cache with inputsHash', () => {
     expect(holdingsSignature(holdings1)).not.toBe(holdingsSignature(holdings2));
   });
 
-  it('holdingsSignature includes ticker, color, and name', () => {
+  it('holdingsSignature includes shortName, color, and name', () => {
     const base = {
       isin: 'IE001',
-      ticker: 'VWCE',
+      shortName: 'VWCE',
       name: 'Vanguard FTSE All-World',
       color: '#ff0000',
       acc: true,
@@ -144,12 +143,12 @@ describe('Cache: aggregate cache with inputsHash', () => {
       foldInto: '',
       order: 1,
     };
-    const diffTicker = [{ ...base, ticker: 'IWDA' }];
+    const diffShortName = [{ ...base, shortName: 'IWDA' }];
     const diffColor = [{ ...base, color: '#00ff00' }];
     const diffName = [{ ...base, name: 'iShares Core MSCI World' }];
     const original = [{ ...base }];
 
-    expect(holdingsSignature(original)).not.toBe(holdingsSignature(diffTicker));
+    expect(holdingsSignature(original)).not.toBe(holdingsSignature(diffShortName));
     expect(holdingsSignature(original)).not.toBe(holdingsSignature(diffColor));
     expect(holdingsSignature(original)).not.toBe(holdingsSignature(diffName));
   });

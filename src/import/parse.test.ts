@@ -54,7 +54,7 @@ describe('TR profile regression (parseWithProfile vs legacy parseCSV)', () => {
       expect(engine[i].source).toBe(legacy[i].source);
       expect(engine[i].type).toBe(legacy[i].type);
       expect(engine[i].name).toBe(legacy[i].name);
-      expect(engine[i].symbol).toBe(legacy[i].symbol);
+      expect(engine[i].isin).toBe(legacy[i].isin);
       expect(engine[i].shares).toBeCloseTo(legacy[i].shares);
       expect(engine[i].price).toBeCloseTo(legacy[i].price);
       expect(engine[i].amount).toBeCloseTo(legacy[i].amount);
@@ -530,7 +530,7 @@ describe('csvLine RFC 4180 edge cases (via parseWithProfile)', () => {
     const { transactions } = parseWithProfile(csv, profile);
     expect(transactions).toHaveLength(1);
     expect(transactions[0].name).toBe('Fund, with comma');
-    expect(transactions[0].symbol).toBe('IE00B4L5Y983');
+    expect(transactions[0].isin).toBe('IE00B4L5Y983');
     expect(transactions[0].amount).toBe(-10);
   });
 

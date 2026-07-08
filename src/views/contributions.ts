@@ -1,6 +1,6 @@
 import { fmtEur, fmtMon, esc, safeColor, kpiTile } from '../utils';
 import { getISIN_ORDERList, getISIN, getMETAMap } from '../constants';
-import { getTotalAnnualContrib, getAccounts } from '../store/config';
+import { getTotalAnnualContrib, getAccounts, getHoldings } from '../store/config';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import type { PortfolioData, Snapshot, Account } from '../types';
 import Chart from 'chart.js/auto';
@@ -318,7 +318,7 @@ function renderDCAChart(
 
   const datasets = ordSyms.map((sym) => {
     const t = ISIN[sym] || sym;
-    const m = META[t] || {};
+    const m = META[sym] || {};
     return {
       label: t,
       data: months.map((mo) => (pd.monthlyBy[mo] || {})[sym] || 0),
@@ -355,8 +355,28 @@ function renderDCAChart(
           borderWidth: 1,
           titleColor: C.ink,
           bodyColor: C.ink2,
+          footerColor: C.ink4,
+          footerFont: { weight: 'normal' as const, size: 10 },
+          footerMarginTop: 6,
           padding: 10,
           cornerRadius: 8,
+          callbacks: {
+            label: (ctx: { dataset: { label?: string }; raw: unknown; datasetIndex: number }) => {
+              return ` ${fmtEur(ctx.raw as number)}`;
+            },
+            footer: (items: { datasetIndex: number }[]) => {
+              if (!items.length) return '';
+              const isin = ordSyms[items[0].datasetIndex];
+              if (!isin) return '';
+              const h = getHoldings().find((x) => x.isin === isin);
+              const posName = pd.etfs[isin]?.name || '';
+              const name = h?.name || posName;
+              const lines: string[] = [];
+              if (name) lines.push(name);
+              lines.push(isin);
+              return lines;
+            },
+          },
         },
       },
       scales: {
@@ -399,7 +419,7 @@ function _rebuildDCALegend(
   legendEl.innerHTML = renderLegendHtml(
     ordSyms.map((sym) => {
       const t = ISIN[sym] || sym;
-      const m = META[t] || {};
+      const m = META[sym] || {};
       return { label: t, color: m.color || 'var(--ink-4)' };
     }),
   );

@@ -5,7 +5,9 @@ import type { Holding, EtfPosition } from '../types';
 import { annualizeContrib } from './contributions';
 
 export interface DriftEntry {
-  ticker: string;
+  isin: string;
+  name: string;
+  shortName: string;
   color: string;
   targetPct: number;
   actualPct: number;
@@ -54,7 +56,9 @@ export function computeDrift(
     const deltaValue = actualValue - targetValue;
 
     result.push({
-      ticker: h.ticker,
+      isin: h.isin,
+      name: h.name || (pos ? pos.name : '') || '',
+      shortName: h.shortName,
       color: h.color,
       targetPct: Math.round(targetPct * 10) / 10,
       actualPct: Math.round(actualPct * 10) / 10,

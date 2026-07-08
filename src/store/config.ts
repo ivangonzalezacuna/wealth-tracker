@@ -69,16 +69,16 @@ export function getACCTS(): AccountEntry[] {
   }));
 }
 
-/** Get ISIN → ticker map from holdings. */
+/** Get ISIN → shortName map from holdings. */
 export function getISINMap(): Record<string, string> {
-  return Object.fromEntries(_holdings.map((h) => [h.isin, h.ticker]));
+  return Object.fromEntries(_holdings.map((h) => [h.isin, h.shortName]));
 }
 
-/** Get ticker → metadata map from holdings. */
+/** Get ISIN → metadata map from holdings. */
 export function getMETA(): Record<string, HoldingMeta> {
   return Object.fromEntries(
     _holdings.map((h) => [
-      h.ticker,
+      h.isin,
       {
         color: h.color,
         acc: h.acc,
@@ -393,7 +393,7 @@ async function seedFromConfig(seedAccounts: boolean, seedHoldings: boolean): Pro
   // Seed Holdings from CONFIG.holdings when requested and source is non-empty
   if (seedHoldings && staticHoldings.length > 0) {
     const holdings: Holding[] = staticHoldings.map((h, i) => {
-      const slice = slices.find((s) => s.ticker === h.ticker);
+      const slice = slices.find((s) => s.isin === h.isin || s.shortName === h.shortName);
       let contribAmount = h.contribAmount || 0;
       if (!contribAmount && slice && h.active) {
         const totalWeekly = CONFIG.projection?.weeklyTarget || 200;
@@ -406,8 +406,8 @@ async function seedFromConfig(seedAccounts: boolean, seedHoldings: boolean): Pro
 
       return {
         isin: h.isin,
-        ticker: h.ticker,
         name: '',
+        shortName: h.shortName,
         color: h.color,
         acc: h.acc,
         active: h.active,

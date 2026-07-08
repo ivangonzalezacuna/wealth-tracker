@@ -9,15 +9,14 @@ import type { Transaction } from '../../types';
 /** Build a deduplication key for a transaction. */
 export function txKey(t: Transaction): string {
   if (t.id) return t.id;
-  const sym = t.isin || t.symbol || '';
-  return `${t.date}|${t.type}|${sym}|${t.amount}|${t.shares ?? ''}`;
+  return `${t.date}|${t.type}|${t.isin}|${t.amount}|${t.shares ?? ''}`;
 }
 
 /** Load all transactions, sorted by date ascending. */
 export async function loadTransactions(): Promise<Transaction[]> {
   const db = await getDb();
   const result = db.exec(
-    'SELECT id, date, source, type, name, isin, symbol, shares, price, amount, fee, tax, currency, fx_rate, note FROM transactions ORDER BY date ASC',
+    'SELECT id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note FROM transactions ORDER BY date ASC',
   );
   if (result.length === 0) return [];
   return result[0].values.map(rowToTransaction);
@@ -38,7 +37,7 @@ export async function mergeTransactions(
   if (newTxs.length > 0) {
     const db = await getDb();
     const stmt = db.prepare(
-      'INSERT OR IGNORE INTO transactions (id, date, source, type, name, isin, symbol, shares, price, amount, fee, tax, currency, fx_rate, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT OR IGNORE INTO transactions (id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     );
     for (const t of newTxs) {
       stmt.run([
@@ -47,8 +46,7 @@ export async function mergeTransactions(
         t.source || '',
         t.type,
         t.name,
-        t.isin || t.symbol || '',
-        t.symbol || '',
+        t.isin || '',
         t.shares,
         t.price,
         t.amount,
@@ -74,7 +72,7 @@ export async function restoreTransactions(txs: Transaction[]): Promise<void> {
   const db = await getDb();
   db.run('DELETE FROM transactions');
   const stmt = db.prepare(
-    'INSERT INTO transactions (id, date, source, type, name, isin, symbol, shares, price, amount, fee, tax, currency, fx_rate, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO transactions (id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   for (const t of txs) {
     stmt.run([
@@ -83,8 +81,7 @@ export async function restoreTransactions(txs: Transaction[]): Promise<void> {
       t.source || '',
       t.type,
       t.name,
-      t.isin || t.symbol || '',
-      t.symbol || '',
+      t.isin || '',
       t.shares,
       t.price,
       t.amount,
@@ -109,14 +106,13 @@ function rowToTransaction(row: unknown[]): Transaction {
     type: String(row[3] ?? ''),
     name: String(row[4] ?? ''),
     isin: String(row[5] ?? ''),
-    symbol: String(row[6] ?? ''),
-    shares: Number(row[7]) || 0,
-    price: Number(row[8]) || 0,
-    amount: Number(row[9]) || 0,
-    fee: Number(row[10]) || 0,
-    tax: Number(row[11]) || 0,
-    currency: String(row[12] ?? 'EUR'),
-    fxRate: Number(row[13]) || 0,
-    note: String(row[14] ?? ''),
+    shares: Number(row[6]) || 0,
+    price: Number(row[7]) || 0,
+    amount: Number(row[8]) || 0,
+    fee: Number(row[9]) || 0,
+    tax: Number(row[10]) || 0,
+    currency: String(row[11] ?? 'EUR'),
+    fxRate: Number(row[12]) || 0,
+    note: String(row[13] ?? ''),
   };
 }

@@ -5,7 +5,7 @@ import type { Holding, EtfPosition } from '../types';
 function makeHolding(overrides: Partial<Holding> = {}): Holding {
   return {
     isin: 'IE00B4L5Y983',
-    ticker: 'IWDA',
+    shortName: 'IWDA',
     name: '',
     color: '#2a78d6',
     acc: true,
@@ -22,8 +22,8 @@ function makeHolding(overrides: Partial<Holding> = {}): Holding {
 
 function makePosition(overrides: Partial<EtfPosition> = {}): EtfPosition {
   return {
-    symbol: 'IE00B4L5Y983',
-    ticker: 'IWDA',
+    isin: 'IE00B4L5Y983',
+    shortName: 'IWDA',
     name: '',
     color: '#2a78d6',
     acc: true,
@@ -65,20 +65,20 @@ describe('computeDrift', () => {
 
   it('computes drift for multiple holdings', () => {
     const holdings = [
-      makeHolding({ isin: 'A', ticker: 'ETF_A', contribAmount: 50, contribInterval: 'weekly' }), // 50*52 = 2600
-      makeHolding({ isin: 'B', ticker: 'ETF_B', contribAmount: 50, contribInterval: 'weekly' }), // 50*52 = 2600
+      makeHolding({ isin: 'A', shortName: 'ETF_A', contribAmount: 50, contribInterval: 'weekly' }), // 50*52 = 2600
+      makeHolding({ isin: 'B', shortName: 'ETF_B', contribAmount: 50, contribInterval: 'weekly' }), // 50*52 = 2600
     ];
     // Target is 50/50, actual is 70/30
     const positions = {
-      A: makePosition({ symbol: 'A', cost: 7000 }),
-      B: makePosition({ symbol: 'B', cost: 3000 }),
+      A: makePosition({ isin: 'A', cost: 7000 }),
+      B: makePosition({ isin: 'B', cost: 3000 }),
     };
     const drift = computeDrift(holdings, positions, 10000);
     expect(drift).toHaveLength(2);
 
     // Sorted by |drift| desc
-    const etfA = drift.find((d) => d.ticker === 'ETF_A')!;
-    const etfB = drift.find((d) => d.ticker === 'ETF_B')!;
+    const etfA = drift.find((d) => d.shortName === 'ETF_A')!;
+    const etfB = drift.find((d) => d.shortName === 'ETF_B')!;
 
     expect(etfA.targetPct).toBe(50);
     expect(etfA.actualPct).toBe(70);
@@ -91,7 +91,12 @@ describe('computeDrift', () => {
 
   it('handles missing positions (actual = 0)', () => {
     const holdings = [
-      makeHolding({ isin: 'A', ticker: 'ETF_A', contribAmount: 100, contribInterval: 'monthly' }),
+      makeHolding({
+        isin: 'A',
+        shortName: 'ETF_A',
+        contribAmount: 100,
+        contribInterval: 'monthly',
+      }),
     ];
     const positions = {}; // no position data
     const drift = computeDrift(holdings, positions, 10000);
@@ -110,7 +115,9 @@ describe('maxDrift', () => {
   it('returns max absolute drift', () => {
     const entries = [
       {
-        ticker: 'A',
+        isin: 'IE000A',
+        name: 'Fund A',
+        shortName: 'A',
         color: '#000',
         targetPct: 50,
         actualPct: 70,
@@ -120,7 +127,9 @@ describe('maxDrift', () => {
         deltaValue: 2000,
       },
       {
-        ticker: 'B',
+        isin: 'IE000B',
+        name: 'Fund B',
+        shortName: 'B',
         color: '#000',
         targetPct: 50,
         actualPct: 30,

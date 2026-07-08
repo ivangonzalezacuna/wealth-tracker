@@ -127,11 +127,11 @@ export function computeCostBasis(
   txs: Transaction[],
   method: 'avgco' | 'fifo' = 'avgco',
 ): Record<string, CostBasisResult> {
-  // Group transactions by ISIN (symbol field)
+  // Group transactions by ISIN
   const byIsin: Record<string, Transaction[]> = {};
   for (const tx of txs) {
     if (tx.type !== TxType.BUY && tx.type !== TxType.SELL) continue;
-    const key = tx.symbol || tx.isin || '';
+    const key = tx.isin || '';
     if (!key) continue;
     if (!byIsin[key]) byIsin[key] = [];
     byIsin[key].push(tx);

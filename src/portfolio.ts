@@ -1,4 +1,5 @@
 import { getISIN, getMETAMap } from './constants';
+import { getHoldings } from './store/config';
 import { TxType } from './model/tx';
 import { computeCostBasis } from './model/costbasis';
 import type { Transaction, PortfolioData, EtfPosition, DivHistEntry, IntHistEntry } from './types';
@@ -13,7 +14,8 @@ interface ComputeOptions {
 export function computePD(rows: Transaction[], opts: ComputeOptions = {}): PortfolioData {
   const method = opts.method || 'avgco';
 
-  const ISIN = getISIN() as Record<string, string>;
+  // ISIN → shortName map, ISIN → { color, acc, active } metadata
+  const ISIN_NAMES = getISIN() as Record<string, string>;
   const META = getMETAMap() as Record<string, { color?: string; acc?: boolean; active?: boolean }>;
 
   // Sort by date (stable for same-date events - preserves input order)
@@ -32,12 +34,12 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
   let taxRefunds = 0;
 
   // Ensure all ISINs from basis engine are represented
-  for (const [sym, basis] of Object.entries(basisByIsin)) {
-    const ticker = ISIN[sym] || '';
-    const meta = META[ticker] || {};
-    etfs[sym] = {
-      symbol: sym,
-      ticker: ticker || sym.slice(-4),
+  for (const [isin, basis] of Object.entries(basisByIsin)) {
+    const shortName = ISIN_NAMES[isin] || isin;
+    const meta = META[isin] || {};
+    etfs[isin] = {
+      isin,
+      shortName,
       name: '',
       color: meta.color || '#898781',
       acc: meta.acc !== false,
@@ -54,14 +56,14 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
   }
 
   for (const tx of sorted) {
-    const sym = tx.symbol || tx.isin || '';
-    const ticker = ISIN[sym] || '';
-    const meta = META[ticker] || {};
+    const isin = tx.isin || '';
+    const shortName = ISIN_NAMES[isin] || isin;
+    const meta = META[isin] || {};
 
     if (tx.type === TxType.BUY) {
       // Ensure entry exists (basis engine already created it, but fill name)
-      if (etfs[sym]) {
-        if (!etfs[sym].name && tx.name) etfs[sym].name = tx.name;
+      if (etfs[isin]) {
+        if (!etfs[isin].name && tx.name) etfs[isin].name = tx.name;
       }
       // DCA monthly - BUYs only. Fee is included so this figure matches
       // pd.totalInv (costbasis.ts uses |amount| + fee) - the fee is cash
@@ -70,15 +72,15 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
       const m = tx.date.slice(0, 7);
       monthly[m] = (monthly[m] || 0) + cost;
       if (!monthlyBy[m]) monthlyBy[m] = {};
-      monthlyBy[m][sym] = (monthlyBy[m][sym] || 0) + cost;
+      monthlyBy[m][isin] = (monthlyBy[m][isin] || 0) + cost;
     } else if (tx.type === TxType.SELL) {
       // Fill name for SELL events too
-      if (etfs[sym] && !etfs[sym].name && tx.name) etfs[sym].name = tx.name;
+      if (etfs[isin] && !etfs[isin].name && tx.name) etfs[isin].name = tx.name;
     } else if (tx.type === TxType.DIVIDEND) {
-      if (!etfs[sym]) {
-        etfs[sym] = {
-          symbol: sym,
-          ticker,
+      if (!etfs[isin]) {
+        etfs[isin] = {
+          isin,
+          shortName,
           name: tx.name,
           color: meta.color || '#898781',
           acc: false,
@@ -93,13 +95,14 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
           exited: false,
         };
       }
-      if (!etfs[sym].name && tx.name) etfs[sym].name = tx.name;
+      if (!etfs[isin].name && tx.name) etfs[isin].name = tx.name;
       const taxAbs = Math.abs(tx.tax || 0);
-      etfs[sym].divNet += tx.amount;
-      etfs[sym].taxPaid += taxAbs;
+      etfs[isin].divNet += tx.amount;
+      etfs[isin].taxPaid += taxAbs;
       divHist.push({
         date: tx.date,
-        ticker: ticker || sym,
+        isin,
+        shortName: shortName || isin,
         gross: tx.amount + taxAbs,
         net: tx.amount,
         tax: taxAbs,
@@ -113,6 +116,13 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
       // Sign convention: taxPaid accumulates absolute charges; refunds subtract.
       // e.g. TAX_OPTIMIZATION with tax: +3.44 means a refund → reduces totalTax by 3.44.
       taxRefunds += tx.tax || 0;
+    }
+  }
+
+  // Override name from holding settings (preferred over transaction-derived name)
+  for (const h of getHoldings()) {
+    if (h.name && etfs[h.isin]) {
+      etfs[h.isin].name = h.name;
     }
   }
 
