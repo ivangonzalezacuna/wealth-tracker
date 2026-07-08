@@ -6,7 +6,7 @@
  */
 
 /** Schema version - bump when DDL changes require a migration. */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /**
  * SQL statements executed on first database creation (version 0 → 1).
@@ -21,7 +21,6 @@ export const SCHEMA_DDL: string[] = [
     type TEXT NOT NULL,
     name TEXT NOT NULL DEFAULT '',
     isin TEXT NOT NULL DEFAULT '',
-    symbol TEXT NOT NULL DEFAULT '',
     shares REAL NOT NULL DEFAULT 0,
     price REAL NOT NULL DEFAULT 0,
     amount REAL NOT NULL DEFAULT 0,
@@ -51,8 +50,8 @@ export const SCHEMA_DDL: string[] = [
   // ── Holdings ──────────────────────────────────────────────────
   `CREATE TABLE IF NOT EXISTS holdings (
     isin TEXT PRIMARY KEY,
-    ticker TEXT NOT NULL DEFAULT '',
     name TEXT NOT NULL DEFAULT '',
+    short_name TEXT NOT NULL DEFAULT '',
     color TEXT NOT NULL DEFAULT '',
     acc INTEGER NOT NULL DEFAULT 0,
     active INTEGER NOT NULL DEFAULT 1,

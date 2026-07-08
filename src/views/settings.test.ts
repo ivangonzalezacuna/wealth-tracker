@@ -19,14 +19,14 @@ const MOCK_ACCOUNTS = [
 ];
 const MOCK_HOLDINGS = [
   {
-    isin: 'IE00TEST',
-    ticker: 'IWDA',
+    isin: 'IE00B4L5Y983',
+    shortName: 'IWDA',
     name: '',
     color: '#222222',
     acc: true,
     active: true,
     contribAmount: 50,
-    interval: 'weekly',
+    contribInterval: 'weekly',
     assetClass: 'equity',
     region: 'developed',
     foldInto: '',

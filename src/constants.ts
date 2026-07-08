@@ -19,17 +19,17 @@ interface AccountEntry {
   color: string;
 }
 
-// ISIN → ticker (live from store when loaded, else from static config)
+// ISIN → shortName (live from store when loaded, else from static config)
 export function getISIN(): Record<string, string> {
   if (isConfigLoaded()) return getISINMap();
-  return Object.fromEntries(holdings.map((h) => [h.isin, h.ticker]));
+  return Object.fromEntries(holdings.map((h) => [h.isin, h.shortName]));
 }
 
-// ticker → { color, acc, active }
+// ISIN → { color, acc, active }
 export function getMETAMap(): Record<string, HoldingMeta> {
   if (isConfigLoaded()) return getMETA();
   return Object.fromEntries(
-    holdings.map((h) => [h.ticker, { color: h.color, acc: h.acc, active: h.active }]),
+    holdings.map((h) => [h.isin, { color: h.color, acc: h.acc, active: h.active }]),
   );
 }
 

@@ -49,7 +49,7 @@ export async function saveAccounts(accounts: Account[]): Promise<void> {
 export async function loadHoldings(): Promise<Holding[]> {
   const db = await getDb();
   const result = db.exec(
-    'SELECT isin, ticker, name, color, acc, active, contrib_amount, contrib_interval, asset_class, region, fold_into, "order" FROM holdings ORDER BY "order" ASC',
+    'SELECT isin, name, short_name, color, acc, active, contrib_amount, contrib_interval, asset_class, region, fold_into, "order" FROM holdings ORDER BY "order" ASC',
   );
   if (result.length === 0) return [];
   return result[0].values.map(rowToHolding);
@@ -60,13 +60,13 @@ export async function saveHoldings(holdings: Holding[]): Promise<void> {
   const db = await getDb();
   db.run('DELETE FROM holdings');
   const stmt = db.prepare(
-    'INSERT INTO holdings (isin, ticker, name, color, acc, active, contrib_amount, contrib_interval, asset_class, region, fold_into, "order") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO holdings (isin, name, short_name, color, acc, active, contrib_amount, contrib_interval, asset_class, region, fold_into, "order") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   for (const h of holdings) {
     stmt.run([
       h.isin,
-      h.ticker,
       h.name || '',
+      h.shortName || '',
       h.color || '',
       h.acc ? 1 : 0,
       h.active ? 1 : 0,
@@ -159,8 +159,8 @@ function rowToAccount(row: unknown[]): Account {
 function rowToHolding(row: unknown[]): Holding {
   return {
     isin: String(row[0] ?? ''),
-    ticker: String(row[1] ?? ''),
-    name: String(row[2] ?? ''),
+    name: String(row[1] ?? ''),
+    shortName: String(row[2] ?? ''),
     color: String(row[3] ?? ''),
     acc: row[4] === 1 || row[4] === '1',
     active: row[5] === 1 || row[5] === '1',

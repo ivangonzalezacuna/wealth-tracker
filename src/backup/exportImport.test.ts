@@ -26,7 +26,7 @@ const FIXTURE_DATA: BackupFile['data'] = {
   holdings: [
     {
       isin: 'IE00B4L5Y983',
-      ticker: 'IWDA',
+      shortName: 'IWDA',
       name: 'iShares MSCI World',
       color: '#4a90d9',
       acc: true,
@@ -49,7 +49,6 @@ const FIXTURE_DATA: BackupFile['data'] = {
       type: 'BUY',
       name: 'iShares MSCI World',
       isin: 'IE00B4L5Y983',
-      symbol: '',
       shares: 10,
       price: 75,
       amount: -750,

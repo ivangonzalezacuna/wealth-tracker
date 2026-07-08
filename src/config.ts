@@ -26,7 +26,7 @@ export interface StaticAccount {
 
 export interface StaticHolding {
   isin: string;
-  ticker: string;
+  shortName: string;
   color: string;
   acc: boolean;
   active: boolean;
@@ -39,7 +39,7 @@ export interface StaticHolding {
 
 export interface TargetSlice {
   isin?: string;
-  ticker?: string;
+  shortName?: string;
   pct: number;
 }
 
@@ -79,7 +79,7 @@ export const CONFIG: AppConfig = {
   //  active - receiving new contributions (true) vs closed (false)
   holdings: [
     // Example:
-    // { isin: 'IE00B4L5Y983', ticker: 'IWDA', color: '#2a78d6', acc: true, active: true },
+    // { isin: 'IE00B4L5Y983', shortName: 'IWDA', color: '#2a78d6', acc: true, active: true },
   ],
 
   // ── Target allocation (used by first-run migration only) ───

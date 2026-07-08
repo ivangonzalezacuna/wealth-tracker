@@ -28,7 +28,6 @@ describe('txRow shared parsers', () => {
     expect(tx.type).toBe('BUY');
     expect(tx.name).toBe('iShares MSCI World');
     expect(tx.isin).toBe('IE00B4L5Y983');
-    expect(tx.symbol).toBe('IE00B4L5Y983');
     expect(tx.shares).toBeCloseTo(10);
     expect(tx.price).toBeCloseTo(75.5);
     expect(tx.amount).toBeCloseTo(-755);

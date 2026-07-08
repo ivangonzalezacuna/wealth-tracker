@@ -10,7 +10,7 @@ import type { Holding, ContribInterval } from '../types';
 function makeHolding(overrides: Partial<Holding> = {}): Holding {
   return {
     isin: 'IE00B4L5Y983',
-    ticker: 'IWDA',
+    shortName: 'IWDA',
     name: '',
     color: '#2a78d6',
     acc: true,

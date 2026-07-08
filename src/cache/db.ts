@@ -5,7 +5,7 @@ import type { Transaction, Snapshot, PortfolioData, Settings } from '../types';
 import type { Account, Holding } from '../types';
 
 // ── Schema version - bump when cached shapes change ──────────────
-export const CACHE_VERSION = 1;
+export const CACHE_VERSION = 2;
 
 // ── Custom idb-keyval store (separate DB for our data) ───────────
 const cacheStore = createStore('wealth-tracker-cache', 'kv-store');
@@ -264,14 +264,14 @@ export function computeInputsHash(
 
 /**
  * Build a stable signature string from holdings that affects computePD output.
- * Includes every field computePD()'s output reflects (ticker/color come from
+ * Includes every field computePD()'s output reflects (shortName/color come from
  * getMETAMap()/getISIN(), both derived from holdings). Omitting any field here
  * means editing it in Settings won't refresh Portfolio/Net Worth until an
  * unrelated change invalidates the hash.
  */
 export function holdingsSignature(holdings: Holding[]): string {
   return holdings
-    .map((h) => `${h.isin}:${h.active}:${h.acc}:${h.foldInto}:${h.ticker}:${h.color}:${h.name}`)
+    .map((h) => `${h.isin}:${h.active}:${h.acc}:${h.foldInto}:${h.shortName}:${h.color}:${h.name}`)
     .sort()
     .join(',');
 }

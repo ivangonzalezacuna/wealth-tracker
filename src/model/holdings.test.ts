@@ -4,45 +4,45 @@ import type { Holding } from '../types';
 
 describe('splitHoldings', () => {
   it('fully-sold ISIN lands in exited', () => {
-    const list = [{ ticker: 'SOLD', shares: 0, exited: true, active: true }];
+    const list = [{ shortName: 'SOLD', shares: 0, exited: true, active: true }];
     const { held, exited } = splitHoldings(list);
     expect(exited).toHaveLength(1);
-    expect(exited[0].ticker).toBe('SOLD');
+    expect(exited[0].shortName).toBe('SOLD');
     expect(held).toHaveLength(0);
   });
 
   it('active:false ISIN with remaining shares stays in held', () => {
-    const list = [{ ticker: 'CLOSED', shares: 5, exited: false, active: false }];
+    const list = [{ shortName: 'CLOSED', shares: 5, exited: false, active: false }];
     const { held, exited } = splitHoldings(list);
     expect(held).toHaveLength(1);
-    expect(held[0].ticker).toBe('CLOSED');
+    expect(held[0].shortName).toBe('CLOSED');
     expect(exited).toHaveLength(0);
   });
 
   it('normal active position stays in held', () => {
-    const list = [{ ticker: 'IWDA', shares: 100, exited: false, active: true }];
+    const list = [{ shortName: 'IWDA', shares: 100, exited: false, active: true }];
     const { held, exited } = splitHoldings(list);
     expect(held).toHaveLength(1);
-    expect(held[0].ticker).toBe('IWDA');
+    expect(held[0].shortName).toBe('IWDA');
     expect(exited).toHaveLength(0);
   });
 
   it('partitions correctly with mixed positions', () => {
     const list = [
-      { ticker: 'IWDA', shares: 100, exited: false, active: true },
-      { ticker: 'IEEM', shares: 0, exited: true, active: false },
-      { ticker: 'AGGH', shares: 50, exited: false, active: false },
-      { ticker: 'IEAC', shares: 0.0000001, exited: false, active: false }, // below threshold
+      { shortName: 'IWDA', shares: 100, exited: false, active: true },
+      { shortName: 'IEEM', shares: 0, exited: true, active: false },
+      { shortName: 'AGGH', shares: 50, exited: false, active: false },
+      { shortName: 'IEAC', shares: 0.0000001, exited: false, active: false }, // below threshold
     ];
     const { held, exited } = splitHoldings(list);
     expect(held).toHaveLength(2);
-    expect(held.map((h) => h.ticker)).toEqual(['IWDA', 'AGGH']);
+    expect(held.map((h) => h.shortName)).toEqual(['IWDA', 'AGGH']);
     expect(exited).toHaveLength(2);
-    expect(exited.map((h) => h.ticker)).toEqual(['IEEM', 'IEAC']);
+    expect(exited.map((h) => h.shortName)).toEqual(['IEEM', 'IEAC']);
   });
 
   it('treats shares below 1e-6 as zero (exited)', () => {
-    const list = [{ ticker: 'TINY', shares: 1e-7, active: true }];
+    const list = [{ shortName: 'TINY', shares: 1e-7, active: true }];
     const { held, exited } = splitHoldings(list);
     expect(exited).toHaveLength(1);
     expect(held).toHaveLength(0);
@@ -58,7 +58,7 @@ describe('splitHoldings', () => {
 describe('validateHoldings', () => {
   const validHolding = (overrides: Partial<Holding> = {}): Holding => ({
     isin: 'IE00B4L5Y983',
-    ticker: 'IWDA',
+    shortName: 'IWDA',
     name: '',
     color: '#888',
     acc: true,
@@ -75,7 +75,7 @@ describe('validateHoldings', () => {
   it('returns empty array for valid holdings', () => {
     const holdings = [
       validHolding(),
-      validHolding({ isin: 'IE00BKM4GZ66', ticker: 'EIMI', order: 2 }),
+      validHolding({ isin: 'IE00BKM4GZ66', shortName: 'EIMI', order: 2 }),
     ];
     expect(validateHoldings(holdings)).toHaveLength(0);
   });
@@ -100,32 +100,32 @@ describe('validateHoldings', () => {
     expect(errors.some((e) => e.field === 'isin')).toBe(true);
   });
 
-  it('rejects fund name in ticker field', () => {
-    const holdings = [validHolding({ ticker: 'MSCI EM USD Acc' })];
+  it('rejects fund name in shortName field', () => {
+    const holdings = [validHolding({ shortName: 'MSCI EM USD Acc' })];
     const errors = validateHoldings(holdings);
-    expect(errors.some((e) => e.field === 'ticker')).toBe(true);
+    expect(errors.some((e) => e.field === 'shortName')).toBe(true);
   });
 
-  it('rejects empty ticker', () => {
-    const holdings = [validHolding({ ticker: '' })];
+  it('rejects empty shortName', () => {
+    const holdings = [validHolding({ shortName: '' })];
     const errors = validateHoldings(holdings);
-    expect(errors.some((e) => e.field === 'ticker')).toBe(true);
+    expect(errors.some((e) => e.field === 'shortName')).toBe(true);
   });
 
-  it('accepts ticker with dots and hyphens', () => {
-    const holdings = [validHolding({ ticker: 'BRK.B' })];
+  it('accepts shortName with dots and hyphens', () => {
+    const holdings = [validHolding({ shortName: 'BRK.B' })];
     expect(validateHoldings(holdings)).toHaveLength(0);
   });
 
-  it('accepts ticker with spaces (short)', () => {
-    const holdings = [validHolding({ ticker: 'EM IMI' })];
+  it('accepts shortName with spaces (short)', () => {
+    const holdings = [validHolding({ shortName: 'EM IMI' })];
     expect(validateHoldings(holdings)).toHaveLength(0);
   });
 
-  it('rejects ticker longer than 10 characters', () => {
-    const holdings = [validHolding({ ticker: 'VERYLONGTIK' })];
+  it('rejects shortName longer than 10 characters', () => {
+    const holdings = [validHolding({ shortName: 'VERYLONGTIK' })];
     const errors = validateHoldings(holdings);
-    expect(errors.some((e) => e.field === 'ticker')).toBe(true);
+    expect(errors.some((e) => e.field === 'shortName')).toBe(true);
   });
 
   it('detects duplicate ISINs', () => {
@@ -142,7 +142,7 @@ describe('validateHoldings', () => {
 
   it('returns multiple errors for multiple issues', () => {
     const holdings = [
-      validHolding({ isin: 'BAD', ticker: 'This is way too long for a ticker name' }),
+      validHolding({ isin: 'BAD', shortName: 'This is way too long for a ticker name' }),
     ];
     const errors = validateHoldings(holdings);
     expect(errors.length).toBeGreaterThanOrEqual(2);

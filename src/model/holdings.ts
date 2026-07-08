@@ -37,16 +37,13 @@ export function splitHoldings<T extends HoldingLike>(etfList: T[]): { held: T[];
 /** ISO 6166: 2 uppercase letters (country code) + 9 alphanumeric chars + 1 numeric check digit. */
 const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/;
 
-/** A ticker should be a short identifier, not a fund name. Letters, digits,
- *  spaces, dots, and hyphens only; 1–10 characters. This intentionally
- *  rejects long descriptive strings like "MSCI EM USD" (11 chars, but the
- *  real-world failure mode is typically 15+ chars / multiple words) while
- *  still accepting legitimate multi-word-but-short tickers if any exist. */
-const TICKER_RE = /^[A-Z0-9][A-Z0-9 .\-]{0,9}$/;
+/** A short name should be a brief label for charts/legends.
+ *  Letters, digits, spaces, dots, and hyphens only; 1–10 characters. */
+const SHORT_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9 .\-]{0,9}$/;
 
 export interface HoldingValidationError {
   index: number; // index into the holdings array (matches collectHoldings order)
-  field: 'isin' | 'ticker';
+  field: 'isin' | 'shortName';
   message: string;
 }
 
@@ -54,7 +51,7 @@ export interface HoldingValidationError {
  * Validate a full holdings list before save. Checks, per row:
  *  - ISIN matches ISO 6166 shape (2 letters + 9 alphanumeric + 1 digit checksum position)
  *  - ISIN is unique across the list
- *  - ticker is short and identifier-shaped, not a free-text fund name
+ *  - shortName is short and identifier-shaped, not a free-text fund name
  * Returns a list of errors (empty = valid). Does not mutate input.
  */
 export function validateHoldings(holdings: Holding[]): HoldingValidationError[] {
@@ -85,12 +82,12 @@ export function validateHoldings(holdings: Holding[]): HoldingValidationError[] 
       }
     }
 
-    // Ticker shape
-    if (!TICKER_RE.test(h.ticker)) {
+    // Short name shape
+    if (!SHORT_NAME_RE.test(h.shortName)) {
       errors.push({
         index: i,
-        field: 'ticker',
-        message: `Row ${i + 1}: Ticker "${h.ticker}" must be 1–10 characters (letters, digits, spaces, dots, hyphens).`,
+        field: 'shortName',
+        message: `Row ${i + 1}: Short name "${h.shortName}" must be 1–10 characters (letters, digits, spaces, dots, hyphens).`,
       });
     }
   }
