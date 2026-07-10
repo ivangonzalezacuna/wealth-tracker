@@ -5,6 +5,8 @@ import { esc, safeColor } from '../utils';
 export interface LegendItem {
   label: string;
   color: string;
+  /** When true, the swatch renders with a dashed border instead of a solid fill. */
+  dashed?: boolean;
 }
 
 /**
@@ -14,10 +16,12 @@ export interface LegendItem {
  */
 export function renderLegendHtml(items: LegendItem[]): string {
   return items
-    .map(
-      (it) =>
-        `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(it.color)}"></span>${esc(it.label)}</span>`,
-    )
+    .map((it) => {
+      const style = it.dashed
+        ? `background:transparent;border:2px dashed ${safeColor(it.color)}`
+        : `background:${safeColor(it.color)}`;
+      return `<span class="leg-item"><span class="leg-sq" style="${style}"></span>${esc(it.label)}</span>`;
+    })
     .join('');
 }
 
@@ -39,9 +43,10 @@ export function renderLegendHtml(items: LegendItem[]): string {
 export function bindLegendToggle(
   legendEl: HTMLElement,
   chart: Chart,
-  opts: { skipIndex?: number[] } = {},
+  opts: { skipIndex?: number[]; rescaleX?: boolean } = {},
 ): void {
   const skip = new Set(opts.skipIndex ?? []);
+  const rescaleX = opts.rescaleX ?? false;
   const items = Array.from(legendEl.querySelectorAll('.leg-item')) as HTMLElement[];
 
   function applyVisualState(): void {
@@ -85,6 +90,9 @@ export function bindLegendToggle(
       }
     }
 
+    if (rescaleX) {
+      _applyXRescale(chart);
+    }
     chart.update();
     applyVisualState();
   }
@@ -109,4 +117,39 @@ export function resetLegendVisibility(legendEl: HTMLElement, chart: Chart): void
   legendEl.querySelectorAll('.leg-item').forEach((item) => {
     (item as HTMLElement).style.opacity = '1';
   });
+}
+
+/**
+ * Rescales the x-axis min/max to the data range of visible datasets,
+ * so that an isolated dataset fills the full chart width.
+ */
+function _applyXRescale(chart: Chart): void {
+  const labels = chart.data.labels as string[];
+  if (!labels || labels.length === 0) return;
+
+  let first = labels.length;
+  let last = -1;
+
+  chart.data.datasets.forEach((ds, i) => {
+    if (chart.getDatasetMeta(i).hidden) return;
+    const data = ds.data as (number | null | undefined)[];
+    for (let j = 0; j < data.length; j++) {
+      if (data[j] != null) {
+        if (j < first) first = j;
+        if (j > last) last = j;
+      }
+    }
+  });
+
+  const xScale = chart.options.scales?.x;
+  if (!xScale) return;
+
+  if (last < 0) {
+    // No visible data, show full range
+    xScale.min = undefined;
+    xScale.max = undefined;
+  } else {
+    xScale.min = labels[first];
+    xScale.max = labels[last];
+  }
 }

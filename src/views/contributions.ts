@@ -281,9 +281,13 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
   if (dcaFcLegendEl) {
     const datasets = CH['c-dca-proj'].data.datasets;
     dcaFcLegendEl.innerHTML = renderLegendHtml(
-      datasets.map((ds) => ({ label: ds.label as string, color: ds.borderColor as string })),
+      datasets.map((ds) => ({
+        label: ds.label as string,
+        color: ds.borderColor as string,
+        dashed: Array.isArray((ds as any).borderDash) && (ds as any).borderDash.length > 0,
+      })),
     );
-    bindLegendToggle(dcaFcLegendEl, CH['c-dca-proj']);
+    bindLegendToggle(dcaFcLegendEl, CH['c-dca-proj'], { rescaleX: true });
   }
 
   _attachDCAForecastRangeToggle(pd, accounts);

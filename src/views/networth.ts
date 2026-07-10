@@ -792,9 +792,13 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   if (fcLegendEl) {
     const datasets = CH['c-nw-forecast'].data.datasets;
     fcLegendEl.innerHTML = renderLegendHtml(
-      datasets.map((ds) => ({ label: ds.label as string, color: ds.borderColor as string })),
+      datasets.map((ds) => ({
+        label: ds.label as string,
+        color: ds.borderColor as string,
+        dashed: Array.isArray((ds as any).borderDash) && (ds as any).borderDash.length > 0,
+      })),
     );
-    bindLegendToggle(fcLegendEl, CH['c-nw-forecast']);
+    bindLegendToggle(fcLegendEl, CH['c-nw-forecast'], { rescaleX: true });
   }
 
   _attachForecastRangeToggle(snaps, accounts);
