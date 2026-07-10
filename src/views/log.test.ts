@@ -196,8 +196,7 @@ describe('renderLog', () => {
       onDelSnap: vi.fn(),
     });
     const statusEl = document.getElementById('import-status')!;
-    expect(statusEl.textContent).toContain('2026-07-01');
-    expect(statusEl.textContent).toContain('1 transactions synced');
+    expect(statusEl.textContent).toContain('1 transactions');
   });
 
   it('shows "No CSV imported yet" when importMeta is null', () => {

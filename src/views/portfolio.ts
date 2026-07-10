@@ -16,6 +16,7 @@ import { getAccounts, getHoldings } from '../store/config';
 import { primaryInvestmentValue } from '../model/accounts';
 import { splitHoldings } from '../model/holdings';
 import { computeDrift, maxDrift } from '../model/drift';
+import { builtInProfiles } from '../import/profiles/index';
 import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 import Chart from 'chart.js/auto';
 import { T, resolvedT } from '../theme';
@@ -28,6 +29,26 @@ import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow, getSortGetters } from './tableColumns';
 
 const CH: Record<string, Chart> = {};
+
+/** Resolve a profile source ID (e.g. 'trade_republic') to its display label. */
+function sourceLabel(id: string): string {
+  const profile = builtInProfiles.find((p) => p.id === id);
+  return profile?.label || id.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Render per-source sub-rows for a breakdown map (only when 2+ sources). */
+function renderSourceBreakdown(bySource: Record<string, number>, signed = false): string {
+  const keys = Object.keys(bySource);
+  if (keys.length < 2) return '';
+  return keys
+    .sort((a, b) => Math.abs(bySource[b]) - Math.abs(bySource[a]))
+    .map((src) => {
+      const val = bySource[src];
+      const display = signed ? fmtEurNeg(val, 2) : fmtEur2(val);
+      return `<div class="row" style="padding-left:1rem"><div class="row-label" style="font-size:12px;color:var(--ink-3)">${esc(sourceLabel(src))}</div><div class="row-val" style="font-size:12px">${display}</div></div>`;
+    })
+    .join('');
+}
 
 // Module-level filter state (survives re-renders)
 let _showExited = false;
@@ -431,8 +452,10 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     <div class="row"><div class="row-label">Realized P&amp;L</div><div class="row-val ${pd.realizedPnL >= 0 ? 'ok' : 'neg'}">${fmtEurNeg(pd.realizedPnL, 2)}</div></div>
     <div class="row"><div class="row-label">Total fees</div><div class="row-val">${fmtEur2(pd.totalFees)}</div></div>
     <div class="row"><div class="row-label">Dividends (net)</div><div class="row-val ok">${fmtEur2(pd.totalDivNet)}</div></div>
-    <div class="row"><div class="row-label">Tax withheld on dividends</div><div class="row-val ${pd.totalTax >= 0 ? 'neg' : 'ok'}">${fmtEur2(Math.abs(pd.totalTax))}</div></div>
-    <div class="row"><div class="row-label">Interest earned</div><div class="row-val ok">${fmtEur2(pd.totalInterest)}</div></div>
+    <div class="row"><div class="row-label">Tax withheld on dividends</div><div class="row-val ${pd.totalTax > 0 ? 'neg' : 'ok'}">${fmtEur2(pd.totalTax)}</div></div>
+    <div class="row"><div class="row-label">Interest received (net)</div><div class="row-val ok">${fmtEur2(pd.totalInterest)}</div></div>
+    ${renderSourceBreakdown(pd.interestBySource)}
+    <div class="row"><div class="row-label">Tax on savings</div><div class="row-val ${pd.totalIntTax > 0 ? 'neg' : 'ok'}">${fmtEur2(pd.totalIntTax)}</div></div>
     ${
       gain !== null
         ? `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px">
