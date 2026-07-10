@@ -53,4 +53,12 @@ export const MIGRATIONS: string[][] = [
     `DROP TABLE holdings`,
     `ALTER TABLE holdings_v2 RENAME TO holdings`,
   ],
+  // [2] placeholder - version 1 → 2 migration is index [1] above; this slot aligns array indices with schema versions
+  [],
+  // [3] version 2 → 3: add locked, locked_until, extra_contrib columns to accounts
+  [
+    `ALTER TABLE accounts ADD COLUMN locked INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE accounts ADD COLUMN locked_until TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE accounts ADD COLUMN extra_contrib REAL NOT NULL DEFAULT 0`,
+  ],
 ];

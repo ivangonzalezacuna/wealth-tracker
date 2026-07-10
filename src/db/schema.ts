@@ -6,7 +6,7 @@
  */
 
 /** Schema version - bump when DDL changes require a migration. */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /**
  * SQL statements executed on first database creation (version 0 → 1).
@@ -44,7 +44,10 @@ export const SCHEMA_DDL: string[] = [
     "order" INTEGER NOT NULL DEFAULT 0,
     annual_return_pct REAL NOT NULL DEFAULT 0,
     contrib_amount REAL NOT NULL DEFAULT 0,
-    contrib_interval TEXT NOT NULL DEFAULT 'monthly'
+    contrib_interval TEXT NOT NULL DEFAULT 'monthly',
+    locked INTEGER NOT NULL DEFAULT 0,
+    locked_until TEXT NOT NULL DEFAULT '',
+    extra_contrib REAL NOT NULL DEFAULT 0
   )`,
 
   // ── Holdings ──────────────────────────────────────────────────

@@ -12,7 +12,7 @@ import type { Account, Holding, Settings, ContribInterval } from '../../types';
 export async function loadAccounts(): Promise<Account[]> {
   const db = await getDb();
   const result = db.exec(
-    'SELECT id, money_type, institution, label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval FROM accounts ORDER BY "order" ASC',
+    'SELECT id, money_type, institution, label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib FROM accounts ORDER BY "order" ASC',
   );
   if (result.length === 0) return [];
   return result[0].values.map(rowToAccount);
@@ -23,7 +23,7 @@ export async function saveAccounts(accounts: Account[]): Promise<void> {
   const db = await getDb();
   db.run('DELETE FROM accounts');
   const stmt = db.prepare(
-    'INSERT INTO accounts (id, money_type, institution, label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO accounts (id, money_type, institution, label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   for (const a of accounts) {
     stmt.run([
@@ -37,6 +37,9 @@ export async function saveAccounts(accounts: Account[]): Promise<void> {
       a.annualReturnPct ?? 0,
       a.contribAmount ?? 0,
       a.contribInterval || 'monthly',
+      a.locked ? 1 : 0,
+      a.lockedUntil || '',
+      a.extraContrib ?? 0,
     ]);
   }
   stmt.free();
@@ -153,6 +156,9 @@ function rowToAccount(row: unknown[]): Account {
     annualReturnPct: Number(row[7]) || 0,
     contribAmount: Number(row[8]) || 0,
     contribInterval: (String(row[9] ?? 'monthly') as ContribInterval) || 'monthly',
+    locked: row[10] === 1 || row[10] === '1',
+    lockedUntil: String(row[11] ?? ''),
+    extraContrib: Number(row[12]) || 0,
   };
 }
 

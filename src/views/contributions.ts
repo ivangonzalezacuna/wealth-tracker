@@ -85,15 +85,17 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
   // Filter to investment + pension accounts only
   const forecastAccounts = accounts.filter((a) => {
     const type = (a.moneyType || '').toLowerCase();
-    return type === 'investment' || type === 'pension';
+    return type === 'investment' || type === 'pension' || type === 'avd';
   });
 
-  // Monthly contribution rate: sum of all investment + pension contributions
+  // Monthly contribution rate: sum of all investment + pension contributions (personal + extra)
   const monthlyContrib = forecastAccounts.reduce((sum, a) => {
     if (a.isPrimaryInvestment && (a.moneyType || '').toLowerCase() === 'investment') {
       return sum + getTotalAnnualContrib() / 12;
     }
-    return sum + annualizeContrib(a.contribAmount || 0, a.contribInterval || 'monthly') / 12;
+    const personal = annualizeContrib(a.contribAmount || 0, a.contribInterval || 'monthly') / 12;
+    const extra = annualizeContrib(a.extraContrib || 0, a.contribInterval || 'monthly') / 12;
+    return sum + personal + extra;
   }, 0);
 
   if (forecastAccounts.length === 0 || monthlyContrib <= 0) {
@@ -163,11 +165,13 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
             : 'no contributions configured';
       } else {
         const amt = a.contribAmount ?? 0;
+        const empAmt = a.extraContrib ?? 0;
         const interval = a.contribInterval || 'monthly';
-        contribStr =
+        const personalStr =
           amt > 0
             ? `${fmtEur(amt)} ${esc((INTERVAL_LABELS[interval] || interval).toLowerCase())}`
             : 'no contributions';
+        contribStr = empAmt > 0 ? `${personalStr} + ${fmtEur(empAmt)} extra` : personalStr;
       }
       return `<span style="color:var(--ink-2)">${esc(a.label || 'Account')}: ${contribStr}</span>`;
     })
