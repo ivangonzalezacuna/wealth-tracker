@@ -27,11 +27,13 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
   // Build etfs map, divHist, intHist, monthly (BUYs only for DCA)
   const etfs: Record<string, EtfPosition> = {};
   const divHist: DivHistEntry[] = [];
-  const intHist: IntHistEntry[] = [];
+  const intByMonth: Record<string, number> = {}; // YYYY-MM → summed net amount
+  const intTaxByMonth: Record<string, number> = {}; // YYYY-MM → summed tax (negative = paid)
   const monthly: Record<string, number> = {};
   const monthlyBy: Record<string, Record<string, number>> = {};
   let totalInterest = 0;
-  let taxRefunds = 0;
+  const interestBySource: Record<string, number> = {};
+  const taxBySource: Record<string, number> = {};
 
   // Ensure all ISINs from basis engine are represented
   for (const [isin, basis] of Object.entries(basisByIsin)) {
@@ -110,12 +112,22 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
       });
     } else if (tx.type === TxType.INTEREST || tx.type === 'INTEREST_PAYMENT') {
       totalInterest += tx.amount;
-      intHist.push({ date: tx.date, amount: tx.amount });
+      const intMonth = tx.date.slice(0, 7); // YYYY-MM
+      intByMonth[intMonth] = (intByMonth[intMonth] || 0) + tx.amount;
+      const src = tx.source || 'unknown';
+      interestBySource[src] = (interestBySource[src] || 0) + tx.amount;
+      // Tax withheld on savings interest (e.g. TR INTEREST_PAYMENT rows
+      // carry a negative tx.tax when Kapitalertragsteuer was deducted).
+      if (tx.tax) {
+        taxBySource[src] = (taxBySource[src] || 0) + tx.tax;
+        intTaxByMonth[intMonth] = (intTaxByMonth[intMonth] || 0) + tx.tax;
+      }
     } else if (tx.type === TxType.TAX) {
-      // TAX rows: positive tax field = refund (reduces net tax); negative = additional charge.
-      // Sign convention: taxPaid accumulates absolute charges; refunds subtract.
-      // e.g. TAX_OPTIMIZATION with tax: +3.44 means a refund → reduces totalTax by 3.44.
-      taxRefunds += tx.tax || 0;
+      // TAX rows: refunds (e.g. TR TAX_OPTIMIZATION) or standalone tax charges.
+      // For N26 with mergeTaxIntoInterest, TAX rows are already folded into INTEREST.
+      const taxVal = tx.tax || tx.amount || 0;
+      const src = tx.source || 'unknown';
+      taxBySource[src] = (taxBySource[src] || 0) + taxVal;
     }
   }
 
@@ -127,13 +139,27 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
   }
 
   divHist.sort((a, b) => b.date.localeCompare(a.date));
-  intHist.sort((a, b) => b.date.localeCompare(a.date));
+
+  // Build monthly-aggregated interest history (one entry per YYYY-MM)
+  // intTaxByMonth values: negative = tax paid, positive = net refund
+  const intHist: IntHistEntry[] = Object.entries(intByMonth)
+    .map(([month, net]) => {
+      const taxRaw = intTaxByMonth[month] || 0; // negative = paid, positive = refund
+      const tax = Math.abs(taxRaw); // always positive for display (tax paid)
+      // gross = interest before tax deduction. When taxRaw < 0 (paid): gross = net + |tax|.
+      // When taxRaw > 0 (net refund in this month): gross < net (refund came from prior months).
+      const gross = net - taxRaw;
+      return { date: month, gross, tax: taxRaw < 0 ? tax : -tax, net, amount: net };
+    })
+    .sort((a, b) => b.date.localeCompare(a.date));
 
   const totalInv = Object.values(etfs).reduce((s, e) => s + e.cost, 0);
   const totalDivNet = Object.values(etfs).reduce((s, e) => s + e.divNet, 0);
-  const totalTax = Object.values(etfs).reduce((s, e) => s + e.taxPaid, 0) - taxRefunds;
+  const totalTax = Object.values(etfs).reduce((s, e) => s + e.taxPaid, 0);
   const totalFees = Object.values(etfs).reduce((s, e) => s + (e.totalFees || 0), 0);
   const realizedPnL = Object.values(etfs).reduce((s, e) => s + (e.realizedPnL || 0), 0);
+  const totalIntGross = intHist.reduce((s, i) => s + i.gross, 0);
+  const totalIntTax = intHist.reduce((s, i) => s + i.tax, 0);
   const months = Object.keys(monthly).sort();
 
   return {
@@ -147,7 +173,11 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
     totalDivNet,
     totalTax,
     totalInterest,
+    totalIntGross,
+    totalIntTax,
     totalFees,
     realizedPnL,
+    interestBySource,
+    taxBySource,
   };
 }

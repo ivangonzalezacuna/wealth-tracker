@@ -1,4 +1,4 @@
-import { fmtEur2, fmtDay, esc, safeColor, kpiTile } from '../utils';
+import { fmtEur2, fmtMon, fmtDay, esc, safeColor, kpiTile } from '../utils';
 import type { PortfolioData, DivHistEntry, IntHistEntry } from '../types';
 import { T } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
@@ -42,9 +42,11 @@ export function renderDividends(pd: PortfolioData | null): void {
 
   document.getElementById('div-kpis')!.innerHTML = `
     ${kpiTile({ label: `Gross dividends${infoTip('Before tax: Total distribution payments received from ETFs and stocks, before withholding tax is deducted.')}`, value: fmtEur2(totalGross) })}
-    ${kpiTile({ label: 'Tax withheld', value: fmtEur2(Math.abs(pd.totalTax)), valueClass: pd.totalTax >= 0 ? 'neg' : 'pos', sub: 'Abgeltungsteuer' })}
-    ${kpiTile({ label: 'Net received', value: fmtEur2(pd.totalDivNet), valueClass: 'pos' })}
-    ${kpiTile({ label: 'TR interest', value: fmtEur2(pd.totalInterest), valueClass: 'pos', sub: 'on cash savings' })}
+    ${kpiTile({ label: 'Tax withheld', value: fmtEur2(Math.abs(pd.totalTax)), valueClass: pd.totalTax >= 0 ? 'neg' : 'pos', sub: 'on dividends' })}
+    ${kpiTile({ label: 'Net received', value: fmtEur2(pd.totalDivNet), valueClass: 'pos', sub: 'dividends' })}
+    ${kpiTile({ label: 'Gross interest', value: fmtEur2(pd.totalIntGross), sub: 'on cash savings' })}
+    ${kpiTile({ label: 'Tax on savings', value: fmtEur2(pd.totalIntTax), valueClass: pd.totalIntTax > 0 ? 'neg' : 'ok', sub: 'withheld + refunds' })}
+    ${kpiTile({ label: 'Net interest', value: fmtEur2(pd.totalInterest), valueClass: 'pos', sub: 'received' })}
   `;
 
   populateDivYearFilter(pd.divHist);
@@ -177,24 +179,44 @@ function intColumns(): ColumnDef<IntHistEntry>[] {
   return [
     {
       key: 'date',
-      label: 'Date',
-      cell: (i) => fmtDay(i.date),
+      label: 'Month',
+      cell: (i) => fmtMon(i.date),
       sortValue: (i) => i.date,
     },
     {
-      key: 'amount',
-      label: 'Amount',
+      key: 'gross',
+      label: 'Gross',
       align: 'right',
-      sortValue: (i) => i.amount,
-      cell: (i) => fmtEur2(i.amount),
-      cellClass: () => 'ok',
+      sortValue: (i) => i.gross,
+      cell: (i) => `<span style="color:var(--ink-2)">${fmtEur2(i.gross)}</span>`,
+    },
+    {
+      key: 'tax',
+      label: 'Tax',
+      align: 'right',
+      sortValue: (i) => i.tax,
+      cell: (i) =>
+        i.tax > 0
+          ? `<span style="color:var(--neg)">${fmtEur2(i.tax)}</span>`
+          : i.tax < 0
+            ? `<span style="color:var(--pos)">${fmtEur2(i.tax)}</span>`
+            : `<span style="color:var(--ink-3)">—</span>`,
+    },
+    {
+      key: 'net',
+      label: 'Net',
+      align: 'right',
+      sortValue: (i) => i.net,
+      cell: (i) => `<span style="color:var(--pos);font-weight:500">${fmtEur2(i.net)}</span>`,
     },
   ];
 }
 
 function renderIntTable(pd: PortfolioData): void {
   const list = _intYear ? pd.intHist.filter((i) => i.date.startsWith(_intYear)) : pd.intHist;
-  const totalInterest = list.reduce((s, i) => s + i.amount, 0);
+  const totalGross = list.reduce((s, i) => s + i.gross, 0);
+  const totalTax = list.reduce((s, i) => s + i.tax, 0);
+  const totalNet = list.reduce((s, i) => s + i.net, 0);
 
   // Column definitions
   const columns = intColumns();
@@ -213,8 +235,10 @@ function renderIntTable(pd: PortfolioData): void {
           .map((i) => `<div class="tbl-row int-row" role="row">${renderTableRow(columns, i)}</div>`)
           .join('') +
         `<div class="tbl-row int-row" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
-        <div style="font-weight:500">${_intYear ? 'Year total' : 'Total interest'}</div>
-        <div style="font-weight:500;text-align:right;color:var(--pos)">${fmtEur2(totalInterest)}</div></div>`
+        <div style="font-weight:500">${_intYear ? 'Year total' : 'Total'}</div>
+        <div style="font-weight:500;text-align:right">${fmtEur2(totalGross)}</div>
+        <div style="text-align:right;color:var(${totalTax > 0 ? '--neg' : '--pos'})">${fmtEur2(totalTax)}</div>
+        <div style="font-weight:500;text-align:right;color:var(--pos)">${fmtEur2(totalNet)}</div></div>`
       : '<p class="note">No interest payments found in imported transactions.</p>';
 
   // Bind sort handler on header row

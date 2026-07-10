@@ -91,7 +91,11 @@ function makePD(overrides: Partial<PortfolioData> = {}): PortfolioData {
     totalTax: 0,
     totalFees: 0,
     totalInterest: 0,
+    totalIntGross: 0,
+    totalIntTax: 0,
     realizedPnL: 0,
+    interestBySource: {},
+    taxBySource: {},
     ...overrides,
   };
 }

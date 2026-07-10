@@ -285,7 +285,7 @@ describe('computePD', () => {
     ];
     const pd = computePD(txs);
 
-    // Net tax: 3.44 (from div) - 3.44 (refund) = 0
-    expect(pd.totalTax).toBeCloseTo(0);
+    // totalTax is only dividend tax (refunds go to taxBySource, not subtracted)
+    expect(pd.totalTax).toBeCloseTo(3.44);
   });
 });
