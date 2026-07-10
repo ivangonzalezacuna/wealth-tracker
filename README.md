@@ -115,6 +115,8 @@ Click **Sign in** to authorize the app. It requests only the `drive.appdata` sco
 
 Go to **Settings** and add your investment accounts (e.g. "Trade Republic", "Interactive Brokers"). For each account, add the holdings (ETFs/funds) you track. This defines the structure of your portfolio.
 
+Accounts can optionally be marked as **locked** (e.g. pension or AVD accounts) with an expected accessibility year. Locked accounts are included in total net worth but shown separately as "locked net worth" vs "liquid net worth". You can also configure extra contributions (employer match, state subsidies) that factor into DCA forecast projections.
+
 ### 3. Log your first monthly snapshot
 
 Go to the **+ Log** tab. Enter the current value for each account, then hit **Save snapshot**. This records your net worth for the month.
@@ -134,7 +136,7 @@ Once these three steps are done, the setup banner disappears and you have full a
 For detailed cost-basis, realized P&L, and dividend tracking, import your broker's CSV export:
 
 1. Go to **+ Log** > **Import CSV**
-2. Select or drag your Trade Republic CSV (other banks can be added)
+2. Select or drag your broker CSV (Trade Republic and N26 savings are supported)
 3. Preview the detected transactions and confirm
 
 Transactions are merged (deduplicated by date + type + amount), so you can re-import updated CSVs safely.
@@ -159,7 +161,7 @@ Run `yarn lint:fix` to auto-format before committing.
 
 ## Adding support for a new bank
 
-Only Trade Republic is supported today, but the import engine is bank-agnostic. Adding a second bank does **not** require touching the parser.
+Trade Republic (full transaction history) and N26 (savings account only) are supported today. The import engine is bank-agnostic, so adding another bank does **not** require touching the parser.
 
 1. **Create a profile** at `src/import/profiles/<bank>.ts` exporting an `ImportProfile` object:
    ```ts
