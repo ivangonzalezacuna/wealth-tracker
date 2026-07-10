@@ -123,6 +123,9 @@ export interface ImportProfile {
   columns: ImportProfileColumns;
   typeMap: Record<string, string>;
   match?: ImportProfileMatch;
+  skipUnmapped?: boolean; // when true, rows whose type is not in typeMap are excluded
+  idColumns?: string[]; // CSV column names used to build a deterministic ID when no id column exists
+  mergeTaxIntoInterest?: boolean; // when true, same-date TAX rows are merged into INTEREST rows
 }
 
 // ─── Cost-basis result (per-ISIN) ────────────────────────────────
@@ -173,7 +176,10 @@ export interface DivHistEntry {
 
 export interface IntHistEntry {
   date: string;
-  amount: number;
+  gross: number;
+  tax: number;
+  net: number;
+  amount: number; // alias for net (backward compat)
 }
 
 // ─── Portfolio data (output of computePD) ────────────────────────
@@ -190,7 +196,11 @@ export interface PortfolioData {
   totalTax: number;
   totalFees: number;
   totalInterest: number;
+  totalIntGross: number;
+  totalIntTax: number;
   realizedPnL: number;
+  interestBySource: Record<string, number>;
+  taxBySource: Record<string, number>;
 }
 
 // ─── Parse result ────────────────────────────────────────────────

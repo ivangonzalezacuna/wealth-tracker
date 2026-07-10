@@ -208,6 +208,7 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
 
   const transactions: Transaction[] = [];
   const unmappedCounts: Record<string, number> = {};
+  const idCounts: Record<string, number> = {}; // counter for deterministic ID generation
 
   for (let i = 1; i < lines.length; i++) {
     if (!lines[i].trim()) continue;
@@ -233,31 +234,98 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
       const sourceKey = rawCategory ? `${rawType}|${rawCategory}` : rawType;
       const upperKey = sourceKey.toUpperCase() || 'EMPTY';
       unmappedCounts[upperKey] = (unmappedCounts[upperKey] || 0) + 1;
+
+      // When skipUnmapped is set, exclude rows not in typeMap entirely
+      if (profile.skipUnmapped) continue;
     }
 
     // The canonical type for the tx: use mapped value or preserve raw (uppercased)
     const txType = canonicalType || (rawType || '').toUpperCase() || 'UNKNOWN';
 
+    const amount = parseNumber(get('amount'), profile.decimal);
+    const tax = parseNumber(get('tax'), profile.decimal);
+    const isin = get('isin') || get('symbol');
+    const shares = parseNumber(get('shares'), profile.decimal);
+
+    // Generate a deterministic ID when the CSV provides none.
+    // Profiles that lack an id column must declare `idColumns` to specify
+    // which CSV columns compose the unique key (prevents SQLite PK collisions).
+    let id = get('id');
+    if (!id && profile.idColumns) {
+      const baseKey = profile.idColumns
+        .map((col) => {
+          const idx = hdrs.indexOf(col);
+          return idx >= 0 ? (vals[idx] || '').trim() : '';
+        })
+        .join('|');
+      idCounts[baseKey] = (idCounts[baseKey] || 0) + 1;
+      id = `${profile.id}|${baseKey}#${idCounts[baseKey]}`;
+    }
+
     transactions.push({
-      id: get('id'),
+      id,
       date,
       source: profile.id,
       category: rawCategory,
       type: txType,
       name: get('name'),
-      isin: get('isin') || get('symbol'),
-      shares: parseNumber(get('shares'), profile.decimal),
+      isin,
+      shares,
       price: parseNumber(get('price'), profile.decimal),
-      amount: parseNumber(get('amount'), profile.decimal),
+      amount,
       fee: parseNumber(get('fee'), profile.decimal),
-      tax: parseNumber(get('tax'), profile.decimal),
+      tax,
       currency: get('currency') || profile.defaultCurrency,
       fxRate: parseNumber(get('fxRate'), profile.decimal),
     });
   }
 
   // Filter rows that somehow still have no date or type (shouldn't happen after above guards)
-  const filtered = transactions.filter((t) => t.date && t.type);
+  let filtered = transactions.filter((t) => t.date && t.type);
+
+  // When mergeTaxIntoInterest is enabled (e.g. N26), same-month TAX rows are folded
+  // into the INTEREST row: INTEREST keeps its gross amount, tax = sum of TAX amounts,
+  // and amount is reduced to net. This matches TR's convention (amount = net received).
+  // Grouping by month (not exact date) handles cases like N26 where tax refunds land
+  // on a different day (e.g. 14th) than the interest payment (e.g. 1st).
+  if (profile.mergeTaxIntoInterest) {
+    const interestByMonth: Record<string, Transaction> = {};
+    const taxRowsByMonth: Record<string, Transaction[]> = {};
+    const rest: Transaction[] = [];
+
+    for (const tx of filtered) {
+      if (tx.type === 'INTEREST') {
+        const month = tx.date.slice(0, 7); // YYYY-MM
+        if (interestByMonth[month]) {
+          interestByMonth[month].amount += tx.amount;
+        } else {
+          interestByMonth[month] = tx;
+        }
+      } else if (tx.type === 'TAX') {
+        const month = tx.date.slice(0, 7);
+        (taxRowsByMonth[month] ??= []).push(tx);
+      } else {
+        rest.push(tx);
+      }
+    }
+
+    // Merge TAX amounts into the same-month INTEREST row.
+    // After merge: amount = net (gross + negative taxes), tax = sum of taxes (negative).
+    for (const [month, taxes] of Object.entries(taxRowsByMonth)) {
+      const interest = interestByMonth[month];
+      if (interest) {
+        for (const tax of taxes) {
+          interest.tax = (interest.tax || 0) + tax.amount;
+          interest.amount += tax.amount; // reduce to net
+        }
+      } else {
+        // No matching INTEREST row in this month — keep as standalone TAX
+        rest.push(...taxes);
+      }
+    }
+
+    filtered = [...Object.values(interestByMonth), ...rest];
+  }
 
   const unmapped: UnmappedType[] = Object.entries(unmappedCounts)
     .map(([type, count]) => ({ type, count }))
