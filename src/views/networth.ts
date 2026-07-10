@@ -136,7 +136,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
           : `${total > 0 ? Math.round((locked / total) * 100) : 0}% of total`;
       return `
       <div class="kpi">
-        <div class="kpi-label">Liquid${infoTip('Net worth accessible now — excludes pension and retirement accounts marked as locked.')}</div>
+        <div class="kpi-label">Liquid${infoTip('Net worth accessible now, excluding pension and retirement accounts marked as locked.')}</div>
         <div class="kpi-val">${fmtEur2(liquid)}</div>
         <div class="kpi-sub">${total > 0 ? Math.round((liquid / total) * 100) : 0}% of total</div>
       </div>

@@ -395,7 +395,7 @@ function renderAccountRow(a: Account, i: number): string {
           <input class="form-input form-input-sm" data-field="lockedUntil" type="number" min="2025" max="2100" step="1" value="${esc(a.lockedUntil || '')}" placeholder="e.g. 2055">
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Extra contribution (\u20AC per execution)${infoTip('Additional contribution added at the same interval as your personal one — e.g. employer match, state subsidy (AVD Zulage), or other third-party top-up. Included in forecast projections.')}</label>
+          <label class="settings-field-label">Extra contribution (\u20AC per execution)${infoTip('Additional contribution at the same interval as your personal one, e.g. employer match, state subsidy (AVD Zulage), or other top-up. Included in forecast projections.')}</label>
           <input class="form-input form-input-sm" data-field="extraContrib" type="number" min="0" step="1" value="${esc(String(a.extraContrib ?? 0))}">
         </div>
         </div>
