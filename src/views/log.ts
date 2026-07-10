@@ -1,5 +1,6 @@
 import { getACCTSList } from '../constants';
-import { snapTotal, fmtEur2, fmtMon, esc, safeColor } from '../utils';
+import { snapTotal, fmtEur2, fmtMon, fmtDay, esc, safeColor } from '../utils';
+import { builtInProfiles } from '../import/profiles/index';
 import type { Snapshot, Transaction } from '../types';
 import { T } from '../theme';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
@@ -35,8 +36,8 @@ export function renderLog(state: LogState): void {
   const el = document.getElementById('import-status');
   if (el) {
     if (importMeta?.last_import && txs.length) {
-      el.textContent = `\u2713 ${txs.length} transactions synced, last imported ${importMeta.last_import}`;
-      el.className = 'status-bar status-ok';
+      el.innerHTML = renderTxSummary(txs);
+      el.className = 'status-bar status-info';
     } else {
       el.textContent = 'No CSV imported yet';
       el.className = 'status-bar status-empty';
@@ -51,6 +52,59 @@ export function renderLog(state: LogState): void {
   populateYearFilter(snaps);
   attachFilterListeners(snaps);
   renderSnapList(snaps, state.onEditSnap, state.onDelSnap);
+}
+
+// ── Curated transaction summary ──────────────────────────────────
+
+/** Resolve a profile source ID to a display label. */
+function _sourceLabel(id: string): string {
+  const profile = builtInProfiles.find((p) => p.id === id);
+  return profile?.label || id.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Build a curated HTML summary of imported transactions grouped by source. */
+function renderTxSummary(txs: Transaction[]): string {
+  const total = txs.length;
+  const firstDate = txs[0]?.date || '';
+  const lastDate = txs[total - 1]?.date || '';
+
+  // Group by source
+  const bySource: Record<string, Transaction[]> = {};
+  for (const tx of txs) {
+    const src = tx.source || 'unknown';
+    if (!bySource[src]) bySource[src] = [];
+    bySource[src].push(tx);
+  }
+
+  const sources = Object.keys(bySource).sort((a, b) => bySource[b].length - bySource[a].length);
+
+  // Only show per-source breakdown when 2+ sources exist
+  if (sources.length < 2) {
+    return `\u2713 ${total} transactions \u00B7 ${fmtDay(firstDate)} \u2013 ${fmtDay(lastDate)}`;
+  }
+
+  const sourceLines = sources
+    .map((src) => {
+      const srcTxs = bySource[src];
+      const srcFirst = srcTxs[0]?.date || '';
+      const srcLast = srcTxs[srcTxs.length - 1]?.date || '';
+
+      // Count by type
+      const typeCounts: Record<string, number> = {};
+      for (const tx of srcTxs) {
+        const t = tx.type || 'UNKNOWN';
+        typeCounts[t] = (typeCounts[t] || 0) + 1;
+      }
+      const typeBreakdown = Object.entries(typeCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([t, c]) => `${c} ${t.charAt(0) + t.slice(1).toLowerCase()}`)
+        .join(' \u00B7 ');
+
+      return `<span style="display:inline-block;margin-top:4px"><strong>${esc(_sourceLabel(src))}</strong> &mdash; ${srcTxs.length} txs, ${fmtDay(srcFirst)} \u2013 ${fmtDay(srcLast)}<br><span style="color:var(--ink-3);font-size:0.85em;margin-left:8px">${typeBreakdown}</span></span>`;
+    })
+    .join('<br>');
+
+  return `\u2713 <strong>${total} transactions</strong> synced<br>${sourceLines}`;
 }
 
 function populateYearFilter(snaps: Snapshot[]): void {

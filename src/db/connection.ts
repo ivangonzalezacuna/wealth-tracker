@@ -161,17 +161,59 @@ export function exportDb(): Uint8Array | null {
 /**
  * Replace the local database with a downloaded copy (from Drive AppData).
  * Re-initializes the singleton and persists to IndexedDB.
+ *
+ * To guard against stale cloud content (CDN caching, replication lag),
+ * any transactions that exist locally but NOT in the cloud DB are
+ * re-inserted after the import so data is never silently lost.
  */
 export async function importDb(data: Uint8Array): Promise<void> {
   const SQL = await getSqlJs();
+
+  // Snapshot local transaction IDs before replacing, so we can merge back
+  // any that are missing from the cloud copy.
+  const localTxRows = _db ? getLocalTransactionRows(_db) : [];
+
   if (_db) _db.close();
   _db = new SQL.Database(data);
+
   // Ensure schema is up to date after import
   const currentVersion = getDbVersion(_db);
   if (currentVersion < SCHEMA_VERSION) {
     applyMigrations(_db, currentVersion);
   }
+
+  // Merge back local-only transactions that the cloud copy doesn't have.
+  if (localTxRows.length > 0) {
+    mergeLocalTransactions(_db, localTxRows);
+  }
+
   await persistDb();
+}
+
+/**
+ * Read all transaction rows from a database as raw arrays (for re-insertion).
+ */
+function getLocalTransactionRows(db: Database): unknown[][] {
+  const result = db.exec(
+    'SELECT id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note FROM transactions',
+  );
+  if (result.length === 0) return [];
+  return result[0].values;
+}
+
+/**
+ * INSERT OR IGNORE local-only transactions into the (newly imported) cloud DB.
+ * Uses INSERT OR IGNORE so rows already present in the cloud DB are skipped,
+ * while rows that only existed locally are preserved.
+ */
+function mergeLocalTransactions(db: Database, rows: unknown[][]): void {
+  const stmt = db.prepare(
+    'INSERT OR IGNORE INTO transactions (id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  );
+  for (const row of rows) {
+    stmt.run(row as (string | number | null)[]);
+  }
+  stmt.free();
 }
 
 /**

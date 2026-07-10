@@ -14,7 +14,7 @@ import {
   saveImportMeta,
   loadImportMeta,
 } from './db';
-import { pullFromCloud, scheduleUpload } from './sync/engine';
+import { pullFromCloud, pushToCloud, scheduleUpload } from './sync/engine';
 import {
   loadConfig,
   onConfigChange,
@@ -1222,7 +1222,6 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
       const merged = await mergeTransactions(state.txs, parsed.transactions);
       const today = new Date().toISOString().slice(0, 10);
       await saveImportMeta(today);
-      scheduleUpload();
       state.txs = merged;
       state.importMeta = { last_import: today };
       state.pd = computePD(merged, { method: getCostBasisMethod() });
@@ -1246,6 +1245,10 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
 
       renderAll();
       showMsg('import-msg', `✓ ${merged.length} transactions saved`, true);
+
+      // Push to cloud immediately so a page reload won't pull
+      // the stale cloud DB and overwrite the freshly imported data.
+      await pushToCloud();
     } catch (err) {
       showMsg('import-msg', 'Error: ' + (err as Error).message, false);
     } finally {

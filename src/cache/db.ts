@@ -27,8 +27,17 @@ function _fingerprint(value: unknown): string {
     return `arr:${len}:${first.length}:${last.length}`;
   }
   if (value && typeof value === 'object') {
-    const keys = Object.keys(value);
-    return `obj:${keys.length}:${keys.join(',')}`;
+    // Include stringified scalar values so changes in numeric totals
+    // (e.g. totalInterest after an N26 import) are detected. Without
+    // this, two objects with identical keys but different values would
+    // produce the same fingerprint and the IDB write would be skipped.
+    const obj = value as Record<string, unknown>;
+    const keys = Object.keys(obj).sort();
+    const scalars = keys
+      .filter((k) => typeof obj[k] !== 'object' || obj[k] === null)
+      .map((k) => `${k}=${String(obj[k])}`)
+      .join('&');
+    return `obj:${keys.length}:${scalars}`;
   }
   return String(value);
 }

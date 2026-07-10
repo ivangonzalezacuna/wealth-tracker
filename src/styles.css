@@ -372,7 +372,7 @@ code,
 }
 #div-interest {
   display: grid;
-  grid-template-columns: minmax(8ch, 1fr) minmax(9ch, 1fr);
+  grid-template-columns: minmax(8ch, 1fr) minmax(7ch, 1fr) minmax(7ch, 1fr) minmax(7ch, 1fr);
 }
 .th {
   color: var(--ink-3);

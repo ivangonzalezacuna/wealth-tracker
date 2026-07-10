@@ -28,7 +28,7 @@ function makePD(overrides: Partial<PortfolioData> = {}): PortfolioData {
         net: 9.75,
       },
     ],
-    intHist: [{ date: '2026-02-01', amount: 4.2 }],
+    intHist: [{ date: '2026-02-01', gross: 4.5, tax: 0.3, net: 4.2, amount: 4.2 }],
     monthly: {},
     monthlyBy: {},
     months: [],
@@ -37,7 +37,11 @@ function makePD(overrides: Partial<PortfolioData> = {}): PortfolioData {
     totalTax: 6.38,
     totalFees: 0,
     totalInterest: 4.2,
+    totalIntGross: 4.5,
+    totalIntTax: 0.3,
     realizedPnL: 0,
+    interestBySource: {},
+    taxBySource: {},
     ...overrides,
   };
 }
@@ -88,7 +92,7 @@ describe('renderDividends', () => {
     expect(kpisText).toContain('25,50');
     expect(kpisText).toContain('Tax withheld');
     expect(kpisText).toContain('Net received');
-    expect(kpisText).toContain('TR interest');
+    expect(kpisText).toContain('Gross interest');
   });
 
   it('flips the Tax withheld tile to positive styling when totalTax < 0', () => {
@@ -130,8 +134,8 @@ describe('renderDividends', () => {
     renderDividends(makePD());
     renderDividends(makePD());
     const kpisEl = document.getElementById('div-kpis')!;
-    // 4 KPI tiles
-    expect(kpisEl.children.length).toBe(4);
+    // 6 KPI tiles (3 dividend + 3 interest)
+    expect(kpisEl.children.length).toBe(6);
   });
 
   it('renders pagination when divHist exceeds page size', () => {
