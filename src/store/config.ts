@@ -363,6 +363,9 @@ export function parseAccounts(rows: (string | number | boolean)[][]): Account[] 
       )
         ? String(r[hdr.indexOf('contribinterval')]).trim().toLowerCase()
         : 'monthly') as ContribInterval,
+      locked: toBool(r[hdr.indexOf('locked')]),
+      lockedUntil: String(r[hdr.indexOf('lockeduntil')] ?? ''),
+      extraContrib: toNum(r[hdr.indexOf('extracontrib')]),
     }))
     .sort((a, b) => (a.order || 0) - (b.order || 0));
 }

@@ -44,10 +44,12 @@ function _buildAccountForecastInputs(snap: Snapshot, accounts: Account[]): Accou
   return accounts.map((a) => {
     const current = (snap[a.id || ''] as number) || 0;
     const annualReturnPct = a.annualReturnPct || 0;
-    const annualContrib =
+    const personalContrib =
       a.isPrimaryInvestment && (a.moneyType || '').toLowerCase() === 'investment'
         ? getTotalAnnualContrib()
         : annualizeContrib(a.contribAmount || 0, a.contribInterval || 'monthly');
+    const extraContrib = annualizeContrib(a.extraContrib || 0, a.contribInterval || 'monthly');
+    const annualContrib = personalContrib + extraContrib;
     return { current, annualContrib, annualReturnPct };
   });
 }
@@ -114,6 +116,36 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
       </div>`,
       )
       .join('')}
+    ${(() => {
+      const accts = getAccounts();
+      const locked = activeA.reduce((sum, a) => {
+        const acc = accts.find((x) => x.id === a.key);
+        return sum + (acc?.locked ? (s[a.key] as number) || 0 : 0);
+      }, 0);
+      if (locked <= 0) return '';
+      const liquid = total - locked;
+      const lockedYears = accts
+        .filter((x) => x.locked && x.lockedUntil)
+        .map((x) => x.lockedUntil!)
+        .sort();
+      const lockedSub =
+        lockedYears.length > 0
+          ? lockedYears.length === 1 || lockedYears[0] === lockedYears[lockedYears.length - 1]
+            ? `accessible ~${lockedYears[0]}`
+            : `accessible ${lockedYears[0]}\u2013${lockedYears[lockedYears.length - 1]}`
+          : `${total > 0 ? Math.round((locked / total) * 100) : 0}% of total`;
+      return `
+      <div class="kpi">
+        <div class="kpi-label">Liquid${infoTip('Net worth accessible now, excluding pension and retirement accounts marked as locked.')}</div>
+        <div class="kpi-val">${fmtEur2(liquid)}</div>
+        <div class="kpi-sub">${total > 0 ? Math.round((liquid / total) * 100) : 0}% of total</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Locked${infoTip('Funds in pension/retirement accounts not accessible until retirement age.')}</div>
+        <div class="kpi-val">${fmtEur2(locked)}</div>
+        <div class="kpi-sub">${lockedSub}</div>
+      </div>`;
+    })()}
     ${
       yoyAbs !== null
         ? `
@@ -642,11 +674,13 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
             : 'no contributions configured';
       } else {
         const amt = a.contribAmount ?? 0;
+        const extra = a.extraContrib ?? 0;
         const interval = a.contribInterval || 'monthly';
-        contribStr =
+        const personalStr =
           amt > 0
             ? `${fmtEur(amt)} ${esc((INTERVAL_LABELS[interval] || interval).toLowerCase())}`
             : 'no contributions';
+        contribStr = extra > 0 ? `${personalStr} + ${fmtEur(extra)} extra` : personalStr;
       }
       return `<span style="color:var(--ink-2)">${esc(a.label || 'Account')}: ${retStr}, ${contribStr}</span>`;
     })

@@ -48,6 +48,9 @@ export interface Account {
   annualReturnPct?: number; // per-account forecast growth assumption, default 0
   contribAmount?: number; // recurring contribution amount per execution, default 0
   contribInterval?: ContribInterval; // default 'monthly'; ignored for the primary investment account
+  locked?: boolean; // true = funds not accessible until retirement (pension, AVD)
+  lockedUntil?: string; // year when funds become accessible, e.g. "2055"
+  extraContrib?: number; // additional contribution per execution (employer match, state subsidy, etc.)
 }
 
 // ─── Contribution cadence ────────────────────────────────────────

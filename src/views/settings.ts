@@ -298,6 +298,7 @@ const ACCOUNT_TYPES = [
   { value: 'investment', label: 'Investment' },
   { value: 'savings', label: 'Savings' },
   { value: 'pension', label: 'Pension' },
+  { value: 'avd', label: 'AVD (Altersvorsorgedepot)' },
   { value: 'cash', label: 'Cash' },
 ];
 
@@ -384,6 +385,20 @@ function renderAccountRow(a: Account, i: number): string {
           <span class="settings-field-label" aria-hidden="true">&nbsp;</span>
           <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="isPrimaryInvestment" ${a.isPrimaryInvestment ? 'checked' : ''}> Primary investment${infoTip('Used to split net-worth growth into contributions vs market returns. Only investment-type accounts (broker, depot) should be marked.')}</label>
         </div>
+        <div class="settings-field settings-field-inline">
+          <span class="settings-field-label" aria-hidden="true">&nbsp;</span>
+          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="locked" ${a.locked ? 'checked' : ''}> Locked until retirement${infoTip('Funds in this account are not accessible until retirement age. Used to separate liquid net worth from locked retirement assets in the Net Worth overview.')}</label>
+        </div>
+        <div class="js-locked-fields" style="${a.locked ? 'display:contents' : 'display:none'}">
+        <div class="settings-field">
+          <label class="settings-field-label">Accessible from (year)${infoTip('The year when funds in this account become accessible. Shown in the Net Worth overview to indicate when locked assets unlock.')}</label>
+          <input class="form-input form-input-sm" data-field="lockedUntil" type="number" min="2025" max="2100" step="1" value="${esc(a.lockedUntil || '')}" placeholder="e.g. 2055">
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Extra contribution (\u20AC per execution)${infoTip('Additional contribution at the same interval as your personal one, e.g. employer match, state subsidy (AVD Zulage), or other top-up. Included in forecast projections.')}</label>
+          <input class="form-input form-input-sm" data-field="extraContrib" type="number" min="0" step="1" value="${esc(String(a.extraContrib ?? 0))}">
+        </div>
+        </div>
       </div>
       <input type="hidden" data-field="id" value="${esc(a.id)}">
     </div>`;
@@ -399,6 +414,14 @@ function attachPrimaryToggleListeners(scope: Element): void {
       const fields = row.querySelector('.js-contrib-fields') as HTMLElement | null;
       if (note) note.style.display = cb.checked ? '' : 'none';
       if (fields) fields.style.display = cb.checked ? 'none' : 'contents';
+    });
+  });
+  scope.querySelectorAll<HTMLInputElement>('[data-field="locked"]').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      const row = cb.closest('.settings-acct-row');
+      if (!row) return;
+      const lockedFields = row.querySelector('.js-locked-fields') as HTMLElement | null;
+      if (lockedFields) lockedFields.style.display = cb.checked ? 'contents' : 'none';
     });
   });
 }
@@ -539,6 +562,13 @@ function collectAccounts(root: HTMLElement): Account[] {
         : contribEl
           ? ((intervalEl?.value || 'monthly') as ContribInterval)
           : 'monthly',
+      locked: (row.querySelector('[data-field="locked"]') as HTMLInputElement).checked,
+      lockedUntil: (
+        row.querySelector('[data-field="lockedUntil"]') as HTMLInputElement
+      ).value.trim(),
+      extraContrib:
+        parseFloat((row.querySelector('[data-field="extraContrib"]') as HTMLInputElement).value) ||
+        0,
     };
   });
 }
