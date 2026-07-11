@@ -31,7 +31,7 @@ import type { AccountForecastInput } from '../model/forecast';
 import type { Snapshot, PortfolioData, Account } from '../types';
 import Chart from 'chart.js/auto';
 import { T, resolvedT } from '../theme';
-import { bindLegendToggle, renderLegendHtml } from './chartLegend';
+import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 
 const CH: Record<string, Chart> = {};
@@ -214,13 +214,17 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
           legend: { display: false },
           tooltip: {
             backgroundColor: C.surface,
+            ...TOOLTIP_BOX,
             borderColor: C.line,
             borderWidth: 1,
             titleColor: C.ink,
             bodyColor: C.ink2,
             padding: 10,
             cornerRadius: 8,
-            callbacks: { label: (ctx) => ` ${fmtEur(ctx.raw as number)}` },
+            callbacks: {
+              label: (ctx) => ` ${fmtEur(ctx.raw as number)}`,
+              labelColor: tooltipSwatch(C.surface),
+            },
           },
         },
         scales: {
@@ -402,13 +406,17 @@ function _renderNWHistChart(
           mode: 'index',
           intersect: false,
           backgroundColor: C.surface,
+          ...TOOLTIP_BOX,
           borderColor: C.line,
           borderWidth: 1,
           titleColor: C.ink,
           bodyColor: C.ink2,
           padding: 10,
           cornerRadius: 8,
-          callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${fmtEur2(ctx.raw as number)}` },
+          callbacks: {
+            label: (ctx) => ` ${ctx.dataset.label}: ${fmtEur2(ctx.raw as number)}`,
+            labelColor: tooltipSwatch(C.surface),
+          },
         },
       },
       scales: {
@@ -493,6 +501,7 @@ function _renderGrowthChart(): void {
           mode: 'index',
           intersect: false,
           backgroundColor: C.surface,
+          ...TOOLTIP_BOX,
           borderColor: C.line,
           borderWidth: 1,
           titleColor: C.ink,
@@ -502,6 +511,7 @@ function _renderGrowthChart(): void {
           callbacks: {
             label: (ctx) =>
               ` ${ctx.dataset.label}: ${ctx.dataset.label === 'Contributed' ? fmtEur2(ctx.raw as number) : fmtEurSigned(ctx.raw as number, 2)}`,
+            labelColor: tooltipSwatch(C.surface),
             footer: (items) =>
               ` Total: ${fmtEurSigned(
                 items.reduce((s, i) => s + (i.raw as number), 0),
@@ -534,7 +544,7 @@ function _renderGrowthChart(): void {
   if (legendEl) {
     legendEl.innerHTML = renderLegendHtml([
       { label: 'Contributed', color: C.brand },
-      { label: 'Market movement', color: C.pos },
+      { label: 'Market movement', color: C.pos, color2: C.neg },
     ]);
     bindLegendToggle(legendEl, CH['c-nw-growth'], { skipIndex: [] });
   }
@@ -750,6 +760,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           mode: 'index',
           intersect: false,
           backgroundColor: C.surface,
+          ...TOOLTIP_BOX,
           borderColor: C.line,
           borderWidth: 1,
           titleColor: C.ink,
@@ -759,6 +770,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           callbacks: {
             label: (ctx) =>
               ctx.raw != null ? ` ${ctx.dataset.label}: ${fmtEur(ctx.raw as number)}` : '',
+            labelColor: tooltipSwatch(C.surface),
           },
         },
       },

@@ -1,12 +1,40 @@
 import type { Chart } from 'chart.js';
 import { esc, safeColor } from '../utils';
 
+/** Shared tooltip swatch options (10x10 box, no white outline). */
+export const TOOLTIP_BOX = {
+  multiKeyBackground: 'transparent' as const,
+  boxWidth: 10,
+  boxHeight: 10,
+  boxPadding: 4,
+};
+
+/** Returns a labelColor callback that matches swatches to dataset colors. */
+export function tooltipSwatch(surfaceColor: string) {
+  return (ctx: any) => {
+    const ds = ctx.dataset;
+    const isDashed = Array.isArray(ds.borderDash) && ds.borderDash.length > 0;
+    if (isDashed) {
+      const color = (ds.borderColor as string) || '';
+      return { borderColor: color, backgroundColor: surfaceColor, borderWidth: 2, borderRadius: 2 };
+    }
+    const color = (
+      Array.isArray(ds.backgroundColor)
+        ? ds.backgroundColor[ctx.dataIndex]
+        : ds.borderColor || ds.backgroundColor
+    ) as string;
+    return { borderColor: color, backgroundColor: color, borderWidth: 0 };
+  };
+}
+
 /** One legend item's display data. */
 export interface LegendItem {
   label: string;
   color: string;
-  /** When true, the swatch renders with a dashed border instead of a solid fill. */
+  /** When true, the swatch renders with a solid border and transparent fill. */
   dashed?: boolean;
+  /** Optional second color for a diagonal split swatch. */
+  color2?: string;
 }
 
 /**
@@ -17,9 +45,14 @@ export interface LegendItem {
 export function renderLegendHtml(items: LegendItem[]): string {
   return items
     .map((it) => {
-      const style = it.dashed
-        ? `background:transparent;border:2px dashed ${safeColor(it.color)}`
-        : `background:${safeColor(it.color)}`;
+      let style: string;
+      if (it.dashed) {
+        style = `background:transparent;border:2px solid ${safeColor(it.color)}`;
+      } else if (it.color2) {
+        style = `background:linear-gradient(135deg,${safeColor(it.color)} 50%,${safeColor(it.color2)} 50%)`;
+      } else {
+        style = `background:${safeColor(it.color)}`;
+      }
       return `<span class="leg-item"><span class="leg-sq" style="${style}"></span>${esc(it.label)}</span>`;
     })
     .join('');
