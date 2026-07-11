@@ -5,7 +5,7 @@ import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import type { PortfolioData, Snapshot, Account } from '../types';
 import Chart from 'chart.js/auto';
 import { T, resolvedT } from '../theme';
-import { bindLegendToggle, renderLegendHtml } from './chartLegend';
+import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import type { SortState } from './tableSort';
 import { applySort, bindSortableHeader } from './tableSort';
 import type { ColumnDef } from './tableColumns';
@@ -239,6 +239,7 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
           mode: 'index',
           intersect: false,
           backgroundColor: C2.surface,
+          ...TOOLTIP_BOX,
           borderColor: C2.line,
           borderWidth: 1,
           titleColor: C2.ink,
@@ -248,6 +249,7 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
           callbacks: {
             label: (ctx) =>
               ctx.raw != null ? ` ${ctx.dataset.label}: ${fmtEur(ctx.raw as number)}` : '',
+            labelColor: tooltipSwatch(C2.surface),
           },
         },
       },
@@ -359,6 +361,7 @@ function renderDCAChart(
         legend: { display: false },
         tooltip: {
           backgroundColor: C.surface,
+          ...TOOLTIP_BOX,
           borderColor: C.line,
           borderWidth: 1,
           titleColor: C.ink,
@@ -372,6 +375,7 @@ function renderDCAChart(
             label: (ctx: { dataset: { label?: string }; raw: unknown; datasetIndex: number }) => {
               return ` ${fmtEur(ctx.raw as number)}`;
             },
+            labelColor: tooltipSwatch(C.surface),
             footer: (items: { datasetIndex: number }[]) => {
               if (!items.length) return '';
               const isin = ordSyms[items[0].datasetIndex];

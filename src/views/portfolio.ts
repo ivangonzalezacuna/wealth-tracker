@@ -27,6 +27,7 @@ import { applySort, sortableHeader, bindSortableHeader } from './tableSort';
 import { renderPagination } from './pagination';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow, getSortGetters } from './tableColumns';
+import { TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 
 const CH: Record<string, Chart> = {};
 
@@ -397,6 +398,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
         legend: { display: false },
         tooltip: {
           backgroundColor: C.surface,
+          ...TOOLTIP_BOX,
           borderColor: C.line,
           borderWidth: 1,
           titleColor: C.ink,
@@ -408,6 +410,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
           cornerRadius: 8,
           callbacks: {
             label: (ctx) => ` ${fmtEur(ctx.raw as number)}`,
+            labelColor: tooltipSwatch(C.surface),
             footer: (items) => {
               if (!items.length) return '';
               const idx = items[0].dataIndex;
