@@ -1375,6 +1375,24 @@ function renderSnapForm() {
     });
     return;
   }
+  // Skip re-render if the DOM already has the correct account inputs,
+  // so user-entered values are not lost during background syncs.
+  const expectedKeys = accts.map((a) => `snap-${a.key}`);
+  const existingInputs = el.querySelectorAll<HTMLInputElement>('input.form-input');
+  const existingKeys = Array.from(existingInputs).map((i) => i.id);
+  if (
+    expectedKeys.length === existingKeys.length &&
+    expectedKeys.every((k, i) => k === existingKeys[i])
+  ) {
+    // Accounts unchanged; preserve current input values.
+    const dateEl = document.getElementById('snap-date') as HTMLInputElement | null;
+    if (dateEl) {
+      dateEl.max = currentMonth();
+      if (!dateEl.value) dateEl.value = currentMonth();
+    }
+    return;
+  }
+
   el.innerHTML = accts
     .map(
       (a) => `
