@@ -10,6 +10,7 @@
  */
 
 import initSqlJs, { type Database } from 'sql.js';
+import sqlWasmBrowserUrl from 'sql.js/dist/sql-wasm-browser.wasm?url';
 import { SCHEMA_VERSION, SCHEMA_DDL } from './schema';
 import { MIGRATIONS } from './migrations';
 
@@ -25,9 +26,8 @@ let _sqlPromise: ReturnType<typeof initSqlJs> | null = null;
 function getSqlJs(): ReturnType<typeof initSqlJs> {
   if (!_sqlPromise) {
     _sqlPromise = initSqlJs({
-      // Serve the WASM binary from our own origin (public/ directory) to ensure
-      // the JS glue code and WASM binary are always from the same sql.js version.
-      locateFile: (file: string) => `/${file}`,
+      // Use Vite-managed asset URL so JS and WASM always resolve from the same package version.
+      locateFile: () => sqlWasmBrowserUrl,
     });
   }
   return _sqlPromise;
