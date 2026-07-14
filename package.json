@@ -10,8 +10,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "prettier --check .",
-    "lint:fix": "prettier --write .",
-    "postinstall": "cp node_modules/sql.js/dist/sql-wasm-browser.wasm public/sql-wasm-browser.wasm"
+    "lint:fix": "prettier --write ."
   },
   "devDependencies": {
     "@types/node": "^26.1.1",

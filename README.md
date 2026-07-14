@@ -157,6 +157,11 @@ CI runs lint, typecheck, test, and build on every push and PR to `main`. A separ
 
 Run `yarn lint:fix` to auto-format before committing.
 
+### sql.js and WASM maintenance
+
+For architecture notes, upgrade steps, and troubleshooting, see
+`docs/sqljs-wasm.md`.
+
 ---
 
 ## Adding support for a new bank
