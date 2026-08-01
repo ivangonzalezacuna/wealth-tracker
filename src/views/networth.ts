@@ -30,7 +30,7 @@ import {
 import type { AccountForecastInput } from '../model/forecast';
 import type { Snapshot, PortfolioData, Account } from '../types';
 import Chart from 'chart.js/auto';
-import { T, resolvedT } from '../theme';
+import { T, R, resolvedT } from '../theme';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 
@@ -201,7 +201,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
             backgroundColor: chartA.map((a) => safeColor(a.color)),
             borderColor: chartA.map((a) => safeColor(a.color)),
             borderWidth: 1,
-            borderRadius: 5,
+            borderRadius: R.xs,
             borderSkipped: false,
           },
         ],
@@ -317,8 +317,8 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
               <span>${pctComplete}% complete</span>
               <span>${fmtEur(total)} / ${fmtEur(target)}</span>
             </div>
-            <div style="height:8px;background:var(--surface-3);border-radius:4px;overflow:hidden">
-              <div style="width:${pctComplete}%;height:100%;background:${pctComplete >= 100 ? 'var(--pos)' : 'var(--brand)'};border-radius:4px;transition:width .3s"></div>
+            <div style="height:8px;background:var(--surface-3);border-radius:var(--radius-xs);overflow:hidden">
+              <div style="width:${pctComplete}%;height:100%;background:${pctComplete >= 100 ? 'var(--pos)' : 'var(--brand)'};border-radius:var(--radius-xs);transition:width .3s"></div>
             </div>
           </div>
           <div class="row"><div class="row-label">ETA</div><div class="row-val" style="font-size:12px">${etaText}</div></div>

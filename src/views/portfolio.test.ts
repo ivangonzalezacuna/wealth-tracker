@@ -217,6 +217,26 @@ describe('renderPortfolio', () => {
     expect(table).toContain('EIMI');
   });
 
+  it('defaults holdings and chart order to largest allocation first', () => {
+    const pd = makePD({
+      etfs: {
+        IE00TEST1: makeEtf({ cost: 1000, shortName: 'IWDA' }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EIMI', color: '#333', cost: 500 }),
+        IE00TEST3: makeEtf({ isin: 'IE00TEST3', shortName: 'BOND', color: '#444', cost: 250 }),
+      },
+      totalInv: 1750,
+    });
+    renderPortfolio(pd, []);
+
+    const labels = (chartInstances[0].config as { data: { labels: string[] } }).data.labels;
+    expect(labels).toEqual(['IWDA', 'EIMI', 'BOND']);
+
+    const rows = Array.from(
+      document.querySelectorAll('#port-table .hold-row:not(.th) .hold-name'),
+    ).map((el) => el.textContent);
+    expect(rows).toEqual(['IWDA', 'EIMI', 'BOND']);
+  });
+
   it('shows the held/closed/all filter toggle', () => {
     renderPortfolio(makePD(), []);
     const filterToggle = document.getElementById('port-filter-toggle');
@@ -311,11 +331,33 @@ describe('renderPortfolio', () => {
     expect(config.data.datasets[0]).toHaveProperty('data');
   });
 
+  it('uses a square leading edge and the existing trailing radius for allocation bars', () => {
+    renderPortfolio(makePD(), []);
+    const config = chartInstances[0].config as {
+      data: { datasets: Array<{ borderRadius: unknown; borderSkipped: unknown }> };
+    };
+    expect(config.data.datasets[0].borderRadius).toEqual({
+      topLeft: 0,
+      bottomLeft: 0,
+      topRight: 4,
+      bottomRight: 4,
+    });
+    expect(config.data.datasets[0].borderSkipped).toBe(false);
+  });
+
   it('renders donut legend with short name and percentage', () => {
     renderPortfolio(makePD(), []);
     const legend = document.getElementById('port-donut-legend')!.textContent!;
     expect(legend).toContain('IWDA');
     expect(legend).toContain('100%');
+  });
+
+  it('integrates allocation percentage into the cost basis cell', () => {
+    renderPortfolio(makePD(), []);
+    const table = document.getElementById('port-table')!;
+    expect(table.textContent).not.toContain('% of cost');
+    expect(table.innerHTML).toContain('hold-inline-meta');
+    expect(table.textContent).toContain('100.0%');
   });
 
   it('renders summary section with total invested and fees', () => {

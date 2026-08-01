@@ -191,6 +191,7 @@ describe('renderLegendHtml', () => {
     const html = renderLegendHtml([{ label: 'Total', color: '#185FA5' }]);
     expect(html).toContain('class="leg-item"');
     expect(html).toContain('class="leg-sq"');
+    expect(html).toContain('class="leg-label"');
     expect(html).toContain('background:#185FA5');
     expect(html).toContain('Total');
   });
@@ -209,6 +210,13 @@ describe('renderLegendHtml', () => {
     const html = renderLegendHtml([{ label: '<script>alert(1)</script>', color: '#000' }]);
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;script&gt;');
+  });
+
+  it('renders secondary meta text when provided', () => {
+    const html = renderLegendHtml([{ label: 'World', meta: '45%', color: '#000' }]);
+    expect(html).toContain('class="leg-text"');
+    expect(html).toContain('class="leg-meta"');
+    expect(html).toContain('45%');
   });
 
   it('passes color through safeColor', () => {

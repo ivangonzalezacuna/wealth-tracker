@@ -32,9 +32,13 @@
   --line-muted: #c4c3bc;
   --brand-bg-hover: #f0f7ff;
   /* radius & elevation */
+  --radius-none: 0;
+  --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
+  --radius-pill: 999px;
+  --radius-round: 50%;
   /* type scale (px) */
   --fs-1: 22px;
   --fs-2: 20px;
@@ -131,7 +135,7 @@ code,
   font-size: 13px;
   font-weight: 400;
   padding: 8px 16px;
-  border-radius: 0;
+  border-radius: var(--radius-none);
   border: none;
   border-bottom: 2px solid transparent;
   background: transparent;
@@ -255,6 +259,10 @@ code,
   margin-bottom: 0;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+.card-title + .legend,
+.card-title + .chart-controls {
+  margin-top: 10px;
 }
 
 /* Collapsible cards */
@@ -436,7 +444,6 @@ code,
     minmax(8ch, 1fr) /* Cost basis */
     minmax(8ch, 1fr) /* Shares */
     minmax(7ch, 1fr) /* Avg price */
-    minmax(6ch, 1fr) /* % of cost */
     minmax(9ch, 1fr) /* Realized P&L */
     minmax(7ch, 1fr); /* Div (net) */
 }
@@ -490,8 +497,19 @@ code,
 .hold-dot {
   width: 7px;
   height: 7px;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   flex-shrink: 0;
+}
+.hold-value-line {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 6px;
+}
+.hold-inline-meta {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink-3);
 }
 
 /* Holdings detail panel */
@@ -571,7 +589,7 @@ code,
 .snap-note-dot {
   width: 5px;
   height: 5px;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   background: var(--brand);
   flex-shrink: 0;
 }
@@ -579,7 +597,7 @@ code,
   display: flex;
   width: 56px;
   height: 14px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -606,7 +624,7 @@ code,
 /* Bar */
 .bar-wrap {
   background: var(--surface-3);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   height: 4px;
   overflow: hidden;
   margin-top: 2px;
@@ -614,7 +632,7 @@ code,
 }
 .bar-fill {
   height: 100%;
-  border-radius: 4px;
+  border-radius: var(--radius-none) var(--radius-xs) var(--radius-xs) var(--radius-none);
 }
 
 /* Charts */
@@ -644,10 +662,23 @@ code,
   align-items: center;
   gap: 5px;
 }
+.leg-text {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.leg-label {
+  color: inherit;
+}
+.leg-meta {
+  font-size: 11px;
+  color: var(--ink-3);
+}
 .leg-sq {
   width: 10px;
   height: 10px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
 }
 
@@ -667,7 +698,7 @@ code,
 .badge {
   font-size: 10px;
   padding: 2px 7px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -763,7 +794,7 @@ code,
 .btn-sm {
   font-size: 11px;
   padding: 3px 9px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-weight: 500;
   line-height: 1.4;
@@ -783,7 +814,7 @@ code,
 /* Drop zone */
 .drop-zone {
   border: 2px dashed var(--line-muted);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 2rem;
   text-align: center;
   cursor: pointer;
@@ -848,7 +879,7 @@ code,
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   white-space: nowrap;
 }
 .status-pill.status-ok {
@@ -896,7 +927,7 @@ code,
   background: var(--surface);
   border: 1px solid var(--line-2);
   border-top: 2px solid var(--brand);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 12px 16px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   color: var(--ink);
@@ -916,7 +947,7 @@ code,
   height: 14px;
   border: 2px solid var(--line);
   border-top-color: var(--brand);
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   animation: spin 0.7s linear infinite;
   vertical-align: middle;
   margin-right: 6px;
@@ -997,7 +1028,7 @@ code,
   .card {
     padding: 0.85rem 1rem;
     margin-bottom: 0.75rem;
-    border-radius: 10px;
+    border-radius: var(--radius-lg);
   }
   .chart-wrap {
     height: 200px !important;
@@ -1025,7 +1056,6 @@ code,
     grid-template-columns:
       minmax(8ch, 1fr) /* ETF */
       minmax(8ch, 1fr) /* Cost basis */
-      minmax(6ch, 1fr) /* % of cost */
       minmax(7ch, 1fr); /* Div (net) */
   }
   /* Column hiding for header/data rows handled by generic [data-mobile-hidden]
@@ -1033,7 +1063,7 @@ code,
      The totals row (not migrated to ColumnDef) still needs nth-child hide: */
   #port-table .hold-total > *:nth-child(3),
   #port-table .hold-total > *:nth-child(4),
-  #port-table .hold-total > *:nth-child(6) {
+  #port-table .hold-total > *:nth-child(5) {
     display: none;
   }
   /* Holdings table mobile density */
@@ -1092,7 +1122,7 @@ code,
   .card {
     padding: 0.75rem 0.75rem;
     margin-bottom: 0.6rem;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
   }
   .card-title {
     font-size: 10px;
@@ -1144,6 +1174,10 @@ code,
     font-size: 11px;
     gap: 6px;
   }
+  .leg-meta,
+  .hold-inline-meta {
+    font-size: 10px;
+  }
   .note {
     font-size: 10px;
   }
@@ -1175,7 +1209,6 @@ code,
     grid-template-columns:
       minmax(8ch, 1fr) /* ETF */
       minmax(8ch, 1fr) /* Cost basis */
-      minmax(6ch, 1fr) /* % of cost */
       minmax(7ch, 1fr); /* Div (net) */
   }
   #port-table .hold-row,
@@ -1216,11 +1249,11 @@ input[type='color'] {
 }
 .color-picker-swatch::-webkit-color-swatch {
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 .color-picker-swatch::-moz-color-swatch {
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 .color-picker-hex {
   width: 80px;
@@ -1441,7 +1474,7 @@ input[type='color'] {
   justify-content: center;
   width: 15px;
   height: 15px;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   background: var(--surface-3);
   color: var(--ink-3);
   font-size: 9px;
@@ -1526,7 +1559,7 @@ input[type='color'] {
 .confirm-card {
   background: var(--surface);
   border: 1px solid var(--line-2);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 1.25rem;
   max-width: 360px;
   width: 100%;

@@ -1,5 +1,6 @@
 import type { Chart } from 'chart.js';
 import { esc, safeColor } from '../utils';
+import { R } from '../theme';
 
 /** Shared tooltip swatch options (10x10 box, no white outline). */
 export const TOOLTIP_BOX = {
@@ -16,7 +17,12 @@ export function tooltipSwatch(surfaceColor: string) {
     const isDashed = Array.isArray(ds.borderDash) && ds.borderDash.length > 0;
     if (isDashed) {
       const color = (ds.borderColor as string) || '';
-      return { borderColor: color, backgroundColor: surfaceColor, borderWidth: 2, borderRadius: 2 };
+      return {
+        borderColor: color,
+        backgroundColor: surfaceColor,
+        borderWidth: 2,
+        borderRadius: R.xs,
+      };
     }
     const color = (
       Array.isArray(ds.backgroundColor)
@@ -31,6 +37,8 @@ export function tooltipSwatch(surfaceColor: string) {
 export interface LegendItem {
   label: string;
   color: string;
+  /** Optional secondary text, rendered de-emphasized after the label. */
+  meta?: string;
   /** When true, the swatch renders with a solid border and transparent fill. */
   dashed?: boolean;
   /** Optional second color for a diagonal split swatch. */
@@ -53,7 +61,10 @@ export function renderLegendHtml(items: LegendItem[]): string {
       } else {
         style = `background:${safeColor(it.color)}`;
       }
-      return `<span class="leg-item"><span class="leg-sq" style="${style}"></span>${esc(it.label)}</span>`;
+      const text = it.meta
+        ? `<span class="leg-text"><span class="leg-label">${esc(it.label)}</span><span class="leg-meta">${esc(it.meta)}</span></span>`
+        : `<span class="leg-label">${esc(it.label)}</span>`;
+      return `<span class="leg-item"><span class="leg-sq" style="${style}"></span>${text}</span>`;
     })
     .join('');
 }
