@@ -161,26 +161,110 @@ describe('renderPortfolio', () => {
     renderPortfolio(makePD(), []);
     const kpis = document.getElementById('port-kpis')!.textContent!;
     expect(kpis).toContain('Total invested');
-    expect(kpis).toContain('Current value');
-    expect(kpis).toContain('Unrealized gain');
+    expect(kpis).toContain('Market value');
+    expect(kpis).toContain('Unrealized P&L');
     expect(kpis).toContain('Realized P&L');
   });
 
-  it('shows "-" for Current value when no snapshots are provided', () => {
+  it('shows "-" for Market value when no snapshots are provided', () => {
     renderPortfolio(makePD(), []);
     const kpisHtml = document.getElementById('port-kpis')!.innerHTML;
-    // Current value shows dash when no snapshot
     expect(kpisHtml).toContain('add a snapshot');
   });
 
-  it('computes Current value and Unrealized gain from snapshot', () => {
+  it('computes Market value and Unrealized P&L from snapshot', () => {
     const snap: Snapshot = { date: '2026-06-01', acct1: 1200 };
     renderPortfolio(makePD(), [snap]);
     const kpis = document.getElementById('port-kpis')!.textContent!;
-    // Current value = 1200 (from snapshot for primary investment account)
+    // Market value = 1200 (from snapshot for primary investment account)
     expect(kpis).toContain('1.200,00');
-    // Unrealized gain = 1200 - 1000 = 200
+    // Unrealized P&L = 1200 - 1000 = 200
     expect(kpis).toContain('200,00');
+  });
+
+  it('uses ETF market values for unrealized gain and shows option-2 summary rows', () => {
+    const snap: Snapshot = { date: '2026-06-01', acct1: 1600, etf_IE00TEST1: 1200 };
+    renderPortfolio(makePD(), [snap]);
+
+    const kpis = document.getElementById('port-kpis')!.textContent!;
+    // Unrealized P&L should use ETF position market value: 1200 - 1000 = 200
+    expect(kpis).toContain('200,00');
+
+    const summary = document.getElementById('port-summary')!.textContent!;
+    expect(summary).toContain('Market value (positions)');
+    expect(summary).toContain('Account value (snapshot)');
+    expect(summary).toContain('Unallocated cash');
+    expect(summary).toContain('1.200,00');
+    expect(summary).toContain('1.600,00');
+    expect(summary).toContain('400,00');
+    expect(summary).toContain('Unrealized P&L (positions)');
+  });
+
+  it('shows Market value (snapshot) and hides Account value row when no ETF breakdown', () => {
+    const snap: Snapshot = { date: '2026-06-01', acct1: 1200 };
+    renderPortfolio(makePD(), [snap]);
+    const summary = document.getElementById('port-summary')!.textContent!;
+    expect(summary).toContain('Market value (snapshot)');
+    expect(summary).not.toContain('Market value (positions)');
+    expect(summary).not.toContain('Account value (snapshot)');
+    expect(summary).not.toContain('Unallocated cash');
+    expect(summary).toContain('Unrealized P&L');
+    expect(summary).not.toContain('Unrealized P&L (positions)');
+  });
+
+  it('hides Account value row when it equals Market value (no unallocated cash)', () => {
+    const snap: Snapshot = { date: '2026-06-01', acct1: 1200, etf_IE00TEST1: 1200 };
+    renderPortfolio(makePD(), [snap]);
+    const summary = document.getElementById('port-summary')!.textContent!;
+    expect(summary).toContain('Market value (positions)');
+    expect(summary).not.toContain('Account value (snapshot)');
+    expect(summary).not.toContain('Unallocated cash');
+  });
+
+  it('shows section headers and Total return after income and costs', () => {
+    const snap: Snapshot = { date: '2026-06-01', acct1: 1200 };
+    renderPortfolio(makePD(), [snap]);
+    const summary = document.getElementById('port-summary')!.textContent!;
+    expect(summary).toContain('PERFORMANCE');
+    expect(summary).toContain('INCOME & COSTS');
+    expect(summary).toContain('Total return');
+    expect(summary.indexOf('Fees')).toBeLessThan(summary.indexOf('Total return'));
+  });
+
+  it('Total return equals unrealized plus realized plus dividends plus interest minus fees', () => {
+    const snap: Snapshot = { date: '2026-06-01', acct1: 1200 };
+    // pd: totalInv=1000, gain=200, realizedPnL=0, totalDivNet=25, totalInterest=0, totalFees=2
+    // totalReturn = 200 + 0 + 25 + 0 - 2 = 223
+    renderPortfolio(makePD(), [snap]);
+    const summary = document.getElementById('port-summary')!.textContent!;
+    expect(summary).toContain('223,00');
+  });
+
+  it('shows Total return as an amount only, without a percentage', () => {
+    const snap: Snapshot = { date: '2026-06-01', acct1: 1200 };
+    renderPortfolio(makePD(), [snap]);
+    const summary = document.getElementById('port-summary')!.textContent!;
+    expect(summary).toContain('Total return');
+    expect(summary).not.toContain('223,00 (22,3%)');
+  });
+
+  it('shows gross dividend and interest rows so taxes read as separate deductions', () => {
+    const snap: Snapshot = { date: '2026-06-01', acct1: 1200 };
+    renderPortfolio(
+      makePD({
+        totalDivNet: 25,
+        totalTax: 5,
+        totalInterest: 10,
+        totalIntGross: 12,
+        totalIntTax: 2,
+      }),
+      [snap],
+    );
+    const summary = document.getElementById('port-summary')!.textContent!;
+    expect(summary).toContain('Dividends (gross)');
+    expect(summary).toContain('30,00');
+    expect(summary).toContain('Interest received (gross)');
+    expect(summary).toContain('12,00');
   });
 
   it('creates exactly one chart on first render', () => {
@@ -400,8 +484,8 @@ describe('renderPortfolio', () => {
   it('renders summary section with total invested and fees', () => {
     renderPortfolio(makePD(), []);
     const summary = document.getElementById('port-summary')!.textContent!;
-    expect(summary).toContain('Total invested');
-    expect(summary).toContain('Total fees');
-    expect(summary).toContain('Dividends (net)');
+    expect(summary).toContain('Invested capital');
+    expect(summary).toContain('Fees');
+    expect(summary).toContain('Dividends (gross)');
   });
 });
