@@ -221,13 +221,14 @@ describe('renderPortfolio', () => {
     expect(summary).not.toContain('Unallocated cash');
   });
 
-  it('shows section headers and Total return in performance block', () => {
+  it('shows section headers and Total return after income and costs', () => {
     const snap: Snapshot = { date: '2026-06-01', acct1: 1200 };
     renderPortfolio(makePD(), [snap]);
     const summary = document.getElementById('port-summary')!.textContent!;
     expect(summary).toContain('PERFORMANCE');
     expect(summary).toContain('INCOME & COSTS');
     expect(summary).toContain('Total return');
+    expect(summary.indexOf('Fees')).toBeLessThan(summary.indexOf('Total return'));
   });
 
   it('Total return equals unrealized plus realized plus dividends plus interest minus fees', () => {
@@ -237,6 +238,25 @@ describe('renderPortfolio', () => {
     renderPortfolio(makePD(), [snap]);
     const summary = document.getElementById('port-summary')!.textContent!;
     expect(summary).toContain('223,00');
+  });
+
+  it('shows gross dividend and interest rows so taxes read as separate deductions', () => {
+    const snap: Snapshot = { date: '2026-06-01', acct1: 1200 };
+    renderPortfolio(
+      makePD({
+        totalDivNet: 25,
+        totalTax: 5,
+        totalInterest: 10,
+        totalIntGross: 12,
+        totalIntTax: 2,
+      }),
+      [snap],
+    );
+    const summary = document.getElementById('port-summary')!.textContent!;
+    expect(summary).toContain('Dividends (gross)');
+    expect(summary).toContain('30,00');
+    expect(summary).toContain('Interest received (gross)');
+    expect(summary).toContain('12,00');
   });
 
   it('creates exactly one chart on first render', () => {
@@ -458,6 +478,6 @@ describe('renderPortfolio', () => {
     const summary = document.getElementById('port-summary')!.textContent!;
     expect(summary).toContain('Invested capital');
     expect(summary).toContain('Fees');
-    expect(summary).toContain('Dividends (net)');
+    expect(summary).toContain('Dividends (gross)');
   });
 });

@@ -407,6 +407,11 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     curVal !== null && snapMarketValue !== null ? curVal - snapMarketValue : null;
   const gainLabel =
     snapMarketValue !== null ? 'Unrealized P&amp;L (positions)' : 'Unrealized P&amp;L';
+  const totalDivGross = pd.totalDivNet + pd.totalTax;
+  const totalInterestGross = pd.totalIntGross || pd.totalInterest - pd.totalIntTax;
+  const interestGrossBySource = Object.fromEntries(
+    Object.entries(pd.interestBySource).map(([src, net]) => [src, net - (pd.taxBySource[src] || 0)]),
+  );
   const totalReturn =
     (gain ?? 0) + pd.realizedPnL + pd.totalDivNet + pd.totalInterest - pd.totalFees;
   const totalReturnPct =
@@ -579,14 +584,14 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     ${sectionHead('PERFORMANCE')}
     ${unrealizedRow}
     <div class="row"><div class="row-label">Realized P&amp;L ${infoTip(realizedTip)}</div><div class="row-val ${pd.realizedPnL >= 0 ? 'ok' : 'neg'}">${fmtEurNeg(pd.realizedPnL, 2)}</div></div>
-    ${totalReturnRow}
     ${sectionHead('INCOME &amp; COSTS')}
-    <div class="row"><div class="row-label">Dividends (net)</div><div class="row-val ok">${fmtEur2(pd.totalDivNet)}</div></div>
+    <div class="row"><div class="row-label">Dividends (gross)</div><div class="row-val ok">${fmtEur2(totalDivGross)}</div></div>
     <div class="row"><div class="row-label">Tax withheld on dividends</div><div class="row-val ${pd.totalTax > 0 ? 'neg' : 'ok'}">${fmtEur2(pd.totalTax)}</div></div>
-    <div class="row"><div class="row-label">Interest received (net)</div><div class="row-val ok">${fmtEur2(pd.totalInterest)}</div></div>
-    ${renderSourceBreakdown(pd.interestBySource)}
+    <div class="row"><div class="row-label">Interest received (gross)</div><div class="row-val ok">${fmtEur2(totalInterestGross)}</div></div>
+    ${renderSourceBreakdown(interestGrossBySource)}
     <div class="row"><div class="row-label">Tax on savings</div><div class="row-val ${pd.totalIntTax > 0 ? 'neg' : 'ok'}">${fmtEur2(pd.totalIntTax)}</div></div>
     <div class="row"><div class="row-label">Fees</div><div class="row-val">${fmtEur2(pd.totalFees)}</div></div>
+    ${totalReturnRow}
     <p class="note">Cost basis exact from CSV. ${valueNote} Mixed-currency positions compute in account currency (no FX conversion).</p>
   `;
   const portSummary = document.getElementById('port-summary');
