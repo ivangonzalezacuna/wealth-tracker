@@ -849,12 +849,20 @@ code,
   flex-direction: column;
   gap: 6px;
 }
+.snap-etf-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
 .snap-etf-group-label {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--ink-3);
-  margin-top: 4px;
+  font-weight: 600;
 }
 .snap-etf-row {
   display: flex;
@@ -871,13 +879,18 @@ code,
   flex: 1;
   min-width: 0;
 }
+.snap-etf-name-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
 .snap-etf-name {
   font-size: 12px;
   color: var(--ink-1);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 160px;
 }
 .snap-etf-isin {
   font-size: 10px;

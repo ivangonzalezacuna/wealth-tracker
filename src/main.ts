@@ -1550,8 +1550,10 @@ function _renderEtfBreakdown(
       <div class="snap-etf-row">
         <div class="snap-etf-info">
           <span class="hold-dot snap-etf-dot" style="background:${safeColor(pos.color)}"></span>
-          <span class="snap-etf-name">${esc(getName(pos.isin, pos.name, pos.shortName))}</span>
-          <span class="snap-etf-isin">${esc(pos.isin)}</span>
+          <div class="snap-etf-name-col">
+            <span class="snap-etf-name">${esc(getName(pos.isin, pos.name, pos.shortName))}</span>
+            <span class="snap-etf-isin">${esc(pos.isin)}</span>
+          </div>
         </div>
         <input type="text" inputmode="decimal"
                id="snap-etf-${esc(pos.isin)}"
@@ -1563,11 +1565,11 @@ function _renderEtfBreakdown(
 
   const contribHtml =
     contributing.length > 0
-      ? `<div class="snap-etf-group-label">Contributing</div>${contributing.map(renderRow).join('')}`
+      ? `<div class="snap-etf-group"><div class="snap-etf-group-label">Contributing</div>${contributing.map(renderRow).join('')}</div>`
       : '';
   const legacyHtml =
     legacy.length > 0
-      ? `<div class="snap-etf-group-label">Held, not contributing</div>${legacy.map(renderRow).join('')}`
+      ? `<div class="snap-etf-group"><div class="snap-etf-group-label">Held, not contributing</div>${legacy.map(renderRow).join('')}</div>`
       : '';
 
   return `
