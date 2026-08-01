@@ -410,7 +410,10 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   const totalDivGross = pd.totalDivNet + pd.totalTax;
   const totalInterestGross = pd.totalIntGross || pd.totalInterest - pd.totalIntTax;
   const interestGrossBySource = Object.fromEntries(
-    Object.entries(pd.interestBySource).map(([src, net]) => [src, net - (pd.taxBySource[src] || 0)]),
+    Object.entries(pd.interestBySource).map(([src, net]) => [
+      src,
+      net - (pd.taxBySource[src] || 0),
+    ]),
   );
   const totalReturn =
     (gain ?? 0) + pd.realizedPnL + pd.totalDivNet + pd.totalInterest - pd.totalFees;
