@@ -1585,12 +1585,10 @@ function _renderEtfBreakdown(
     color: string;
   }): string => `
       <div class="snap-etf-row">
-        <div class="snap-etf-info">
-          <span class="hold-dot snap-etf-dot" style="background:${safeColor(pos.color)}"></span>
-          <div class="snap-etf-name-col">
-            <span class="snap-etf-name">${esc(getName(pos.isin, pos.name, pos.shortName))}</span>
-            <span class="snap-etf-isin">${esc(pos.isin)}</span>
-          </div>
+        <span class="hold-dot" style="background:${safeColor(pos.color)}"></span>
+        <div class="snap-etf-name-col">
+          <span class="snap-etf-name">${esc(getName(pos.isin, pos.name, pos.shortName))}</span>
+          <span class="snap-etf-isin">${esc(pos.isin)}</span>
         </div>
         <input type="text" inputmode="decimal"
                id="snap-etf-${esc(pos.isin)}"

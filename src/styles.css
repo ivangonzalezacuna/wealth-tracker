@@ -834,6 +834,7 @@ code,
 /* ETF breakdown section in snapshot form */
 .snap-etf-wrap {
   margin-top: 8px;
+  overflow: hidden;
 }
 .snap-etf-toggle {
   display: flex;
@@ -871,27 +872,18 @@ code,
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 0;
-}
-.snap-etf-dot {
-  flex-shrink: 0;
-}
-.snap-etf-info {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex: 1;
-  min-width: 0;
+  overflow: hidden;
 }
 .snap-etf-name-col {
   display: flex;
   flex-direction: column;
-  min-width: 0;
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 .snap-etf-name {
   font-size: 12px;
-  color: var(--ink-1);
+  color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
