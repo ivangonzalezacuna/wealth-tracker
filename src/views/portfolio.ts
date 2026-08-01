@@ -513,7 +513,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   document.getElementById('port-donut-legend')!.innerHTML = renderLegendHtml(
     donutE.map((e) => ({
       label: e.shortName,
-      meta: `${pd.totalInv > 0 ? ((e.cost / pd.totalInv) * 100).toFixed(0) : 0}%`,
+      meta: `${pd.totalInv > 0 ? ((e.cost / pd.totalInv) * 100).toFixed(1) : '0.0'}%`,
       color: e.color,
     })),
   );

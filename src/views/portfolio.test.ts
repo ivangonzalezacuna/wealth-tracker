@@ -386,7 +386,7 @@ describe('renderPortfolio', () => {
     renderPortfolio(makePD(), []);
     const legend = document.getElementById('port-donut-legend')!.textContent!;
     expect(legend).toContain('IWDA');
-    expect(legend).toContain('100%');
+    expect(legend).toContain('100.0%');
   });
 
   it('integrates allocation percentage into the cost basis cell', () => {
