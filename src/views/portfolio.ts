@@ -19,7 +19,7 @@ import { computeDrift, maxDrift } from '../model/drift';
 import { builtInProfiles } from '../import/profiles/index';
 import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 import Chart from 'chart.js/auto';
-import { T, resolvedT } from '../theme';
+import { T, R, resolvedT } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { attachEtfPopovers } from '../ui/etfPopover';
 import type { SortState } from './tableSort';
@@ -378,7 +378,12 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
           backgroundColor: donutE.map((e) => safeColor(e.color)),
           borderColor: donutE.map((e) => safeColor(e.color)),
           borderWidth: 1,
-          borderRadius: { topLeft: 0, bottomLeft: 0, topRight: 5, bottomRight: 5 },
+          borderRadius: {
+            topLeft: R.none,
+            bottomLeft: R.none,
+            topRight: R.xs,
+            bottomRight: R.xs,
+          },
           borderSkipped: false,
         },
       ],
@@ -499,7 +504,7 @@ function _renderDriftCard(pd: PortfolioData): void {
                 : 'var(--pos)';
       return `
       <div class="tbl-row" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
-        <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${safeColor(d.color)};margin-right:6px"></span><span data-etf-isin="${esc(d.isin)}" data-etf-name="${esc(d.name)}">${esc(d.shortName)}</span></div>
+        <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:var(--radius-xs);background:${safeColor(d.color)};margin-right:6px"></span><span data-etf-isin="${esc(d.isin)}" data-etf-name="${esc(d.name)}">${esc(d.shortName)}</span></div>
         <div role="cell" style="text-align:right">${d.targetPct.toFixed(1)}%</div>
         <div role="cell" style="text-align:right">${d.actualPct.toFixed(1)}%</div>
         <div role="cell" style="text-align:right;color:${driftColor}" aria-label="Drift ${fmtPctSigned(d.driftPct)}">${fmtPctSigned(d.driftPct)}</div>

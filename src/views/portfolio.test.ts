@@ -339,8 +339,8 @@ describe('renderPortfolio', () => {
     expect(config.data.datasets[0].borderRadius).toEqual({
       topLeft: 0,
       bottomLeft: 0,
-      topRight: 5,
-      bottomRight: 5,
+      topRight: 4,
+      bottomRight: 4,
     });
     expect(config.data.datasets[0].borderSkipped).toBe(false);
   });

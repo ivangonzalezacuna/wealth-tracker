@@ -1,5 +1,6 @@
 import type { Chart } from 'chart.js';
 import { esc, safeColor } from '../utils';
+import { R } from '../theme';
 
 /** Shared tooltip swatch options (10x10 box, no white outline). */
 export const TOOLTIP_BOX = {
@@ -16,7 +17,12 @@ export function tooltipSwatch(surfaceColor: string) {
     const isDashed = Array.isArray(ds.borderDash) && ds.borderDash.length > 0;
     if (isDashed) {
       const color = (ds.borderColor as string) || '';
-      return { borderColor: color, backgroundColor: surfaceColor, borderWidth: 2, borderRadius: 2 };
+      return {
+        borderColor: color,
+        backgroundColor: surfaceColor,
+        borderWidth: 2,
+        borderRadius: R.xs,
+      };
     }
     const color = (
       Array.isArray(ds.backgroundColor)

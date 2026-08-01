@@ -4,7 +4,7 @@ import { getTotalAnnualContrib, getAccounts, getHoldings } from '../store/config
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import type { PortfolioData, Snapshot, Account } from '../types';
 import Chart from 'chart.js/auto';
-import { T, resolvedT } from '../theme';
+import { T, R, resolvedT } from '../theme';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import type { SortState } from './tableSort';
 import { applySort, bindSortableHeader } from './tableSort';
@@ -340,7 +340,14 @@ function renderDCAChart(
         const isTop = !ds.some(
           (d: { data: unknown[] }, k: number) => k > i && ((d.data[j] as number) || 0) > 0,
         );
-        return isTop ? { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 } : 0;
+        return isTop
+          ? {
+              topLeft: R.xs,
+              topRight: R.xs,
+              bottomLeft: R.none,
+              bottomRight: R.none,
+            }
+          : R.none;
       },
       borderSkipped: false,
     };
