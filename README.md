@@ -128,8 +128,35 @@ Once these three steps are done, the setup banner disappears and you have full a
 1. Open the app on any device
 2. Go to the **+ Log** tab
 3. Enter account balances (~2 min)
-4. Hit **Save snapshot** (synced to Drive within seconds)
-5. Re-import your broker CSV whenever you want updated cost-basis or dividend data
+4. For investment accounts, optionally expand **ETF breakdown** to record the current market value of each ETF position (see below)
+5. Hit **Save snapshot** (synced to Drive within seconds)
+6. Re-import your broker CSV whenever you want updated cost-basis or dividend data
+
+#### Per-ETF market values in snapshots
+
+When recording a snapshot for your primary investment account, you can expand the **ETF breakdown** section to enter the current market value of each individual ETF position.
+
+This is optional, but enables two additional features:
+
+- **Drift table**: uses actual market values instead of cost basis, giving a more accurate picture of your current allocation vs. target allocation.
+- **Holdings detail panel**: shows a "Market value" and "Unrealized gain" column for each position when ETF values are available for the latest snapshot.
+
+**How to use it**
+
+1. Enter the account total in the main balance field as usual.
+2. Click **ETF breakdown** to expand the section.
+3. Enter the current market value for each ETF (visible in your broker app, e.g. Trade Republic's Vermogensübersicht).
+4. The reconciliation bar at the bottom shows **Allocated** (sum of ETF values entered) and **Remaining** (account total minus allocated), helping you catch typos before saving.
+   - Remaining turns amber if you have over-allocated (sum exceeds total).
+   - Remaining turns green when the values balance exactly.
+
+**Storage format**
+
+Per-ETF market values are stored in the snapshot record as `etf_<ISIN>` keys alongside the regular account balance keys (e.g. `etf_IE00B4L5Y983: 12500`). No separate database migration is needed; missing keys are treated as "no data".
+
+**Inactive but held positions**
+
+ETFs that you have stopped contributing to but still hold are listed under "Held, not contributing" in the breakdown section. They should still be included when recording values, as they remain part of your total portfolio allocation. The drift table will show these with a 0% target, reflecting that they are being wound down over time.
 
 ### Importing transactions
 

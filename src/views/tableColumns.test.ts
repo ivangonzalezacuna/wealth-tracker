@@ -34,6 +34,18 @@ describe('visibleColumnCount', () => {
     ];
     expect(visibleColumnCount(cols, true)).toBe(2);
   });
+
+  it('excludes detailOnly columns from the count at every breakpoint', () => {
+    const cols: ColumnDef<unknown>[] = [
+      { key: 'a', label: 'A' },
+      { key: 'b', label: 'B', detailOnly: true },
+      { key: 'c', label: 'C', mobileHidden: true },
+      { key: 'd', label: 'D', detailOnly: true, mobileHidden: true },
+    ];
+    // detailOnly columns never count toward table columns
+    expect(visibleColumnCount(cols, false)).toBe(2); // a + c
+    expect(visibleColumnCount(cols, true)).toBe(1); // a only (c is mobileHidden)
+  });
 });
 
 describe('renderTableHeader', () => {
@@ -85,6 +97,17 @@ describe('renderTableHeader', () => {
     const columns: ColumnDef<unknown>[] = [{ key: 'swatch', label: '' }];
     const html = renderTableHeader(columns, state);
     expect(html).toBe('<div role="columnheader"></div>');
+  });
+
+  it('a detailOnly column is omitted from the header entirely', () => {
+    const columns: ColumnDef<{ v: number }>[] = [
+      { key: 'v', label: 'Value', sortValue: (r) => r.v },
+      { key: 'extra', label: 'Extra', detailOnly: true, sortValue: (r) => r.v },
+    ];
+    const html = renderTableHeader(columns, state);
+    expect(html).toContain('data-sort-key="v"');
+    expect(html).not.toContain('data-sort-key="extra"');
+    expect(html).not.toContain('Extra');
   });
 
   it('right-aligned non-sortable column renders text-align style', () => {
@@ -139,6 +162,19 @@ describe('renderTableRow', () => {
     expect(html).not.toContain('class=');
     expect(html).toContain('role="cell"');
     expect(html).toContain('>5</div>');
+  });
+
+  it('a detailOnly column is omitted from rendered row cells', () => {
+    type R = { a: number; b: number };
+    const columns: ColumnDef<R>[] = [
+      { key: 'a', label: 'A', cell: (r) => String(r.a) },
+      { key: 'b', label: 'B', detailOnly: true, cell: (r) => String(r.b) },
+    ];
+    const html = renderTableRow(columns, { a: 1, b: 99 });
+    expect(html).toContain('>1</div>');
+    expect(html).not.toContain('99');
+    const cells = html.match(/role="cell"/g) || [];
+    expect(cells.length).toBe(1);
   });
 
   it('raw: true returns cell output completely unwrapped', () => {

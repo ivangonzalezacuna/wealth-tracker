@@ -7,6 +7,7 @@ import {
   fmtPctNeg,
   fmtEurSigned,
   fmtPctSigned,
+  fmtPctVal,
   currentMonth,
   esc,
 } from './utils';
@@ -87,7 +88,7 @@ describe('fmtPctNeg', () => {
   });
 
   it('zero: no sign', () => {
-    expect(fmtPctNeg(0)).toBe('0,0%');
+    expect(fmtPctNeg(0)).toBe('0%');
   });
 });
 
@@ -122,7 +123,30 @@ describe('fmtPctSigned', () => {
   });
 
   it('zero: no sign', () => {
-    expect(fmtPctSigned(0)).toBe('0,0%');
+    expect(fmtPctSigned(0)).toBe('0%');
+  });
+});
+
+describe('fmtPctVal', () => {
+  it('integer value: no decimal', () => {
+    expect(fmtPctVal(45)).toBe('45%');
+  });
+
+  it('non-integer value: keeps 1 decimal', () => {
+    expect(fmtPctVal(45.1)).toBe('45.1%');
+  });
+
+  it('zero: no decimal', () => {
+    expect(fmtPctVal(0)).toBe('0%');
+  });
+
+  it('100: no decimal', () => {
+    expect(fmtPctVal(100)).toBe('100%');
+  });
+
+  it('rounds to 1 decimal before testing integer', () => {
+    expect(fmtPctVal(45.0)).toBe('45%');
+    expect(fmtPctVal(44.95)).toBe('45%');
   });
 });
 

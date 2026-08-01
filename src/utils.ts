@@ -30,7 +30,7 @@ export function fmtEurNeg(n: number, d = 0): string {
 /** Percent format with U+2212 minus for negatives. */
 export function fmtPctNeg(n: number, d = 1): string {
   const abs = Math.abs(n).toLocaleString('de-DE', {
-    minimumFractionDigits: d,
+    minimumFractionDigits: 0,
     maximumFractionDigits: d,
   });
   return n < 0 ? '\u2212' + abs + '%' : abs + '%';
@@ -46,10 +46,21 @@ export function fmtEurSigned(n: number, d = 0): string {
 export function fmtPctSigned(n: number, d = 1): string {
   const sign = n > 0 ? '+' : n < 0 ? '\u2212' : '';
   const abs = Math.abs(n).toLocaleString('de-DE', {
-    minimumFractionDigits: d,
+    minimumFractionDigits: 0,
     maximumFractionDigits: d,
   });
   return sign + abs + '%';
+}
+
+/**
+ * Unsigned percentage with a smart decimal: shows 1 decimal only when the
+ * value is not a whole number (e.g. 45 → "45%", 45.1 → "45.1%").
+ * Uses English-style period decimal (consistent with the inline cost-basis
+ * and drift target/actual columns).
+ */
+export function fmtPctVal(n: number): string {
+  const rounded = Math.round(n * 10) / 10;
+  return (rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(1)) + '%';
 }
 
 /** Share-count display, de-DE locale (comma decimal), up to 4 fraction digits, no trailing zeros. */
