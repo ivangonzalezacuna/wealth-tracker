@@ -394,9 +394,22 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   _holdPage = 1;
 
   const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
+  const snapEtfValues = extractSnapEtfValues(latSnap);
+  const snapHasEtfValues = Object.keys(snapEtfValues).length > 0;
+  const snapMarketValue = snapHasEtfValues
+    ? Object.values(snapEtfValues).reduce((sum, val) => sum + val, 0)
+    : null;
   const curVal = primaryInvestmentValue(latSnap, getAccounts());
-  const gain = curVal !== null ? curVal - pd.totalInv : null;
+  const gainBase = snapMarketValue !== null ? snapMarketValue : curVal;
+  const gain = gainBase !== null ? gainBase - pd.totalInv : null;
   const gainPct = gain !== null && pd.totalInv > 0 ? (gain / pd.totalInv) * 100 : null;
+  const cashUnallocated =
+    curVal !== null && snapMarketValue !== null ? curVal - snapMarketValue : null;
+  const gainLabel = snapMarketValue !== null ? 'Unrealized gain (positions)' : 'Unrealized gain';
+  const valueNote =
+    snapMarketValue !== null
+      ? `Position market value from latest snapshot ETF breakdown (${latSnap ? fmtMon(latSnap.date) : 'none yet'}).`
+      : `Current value from latest snapshot (${latSnap ? fmtMon(latSnap.date) : 'none yet'}).`;
 
   document.getElementById('port-kpis')!.innerHTML = `
     ${kpiTile({ label: 'Total invested', value: fmtEur(pd.totalInv), sub: 'net of sells' })}
@@ -413,7 +426,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     ${kpiTile({
       label: 'Unrealized gain',
       value: gain !== null ? fmtEurNeg(gain, 2) : '-',
-      valueClass: gain !== null && gain >= 0 ? 'pos' : 'neg',
+      valueClass: gain === null ? '' : gain >= 0 ? 'pos' : 'neg',
       sub: gainPct !== null ? fmtPctNeg(gainPct) : '',
     })}
     ${kpiTile({
@@ -526,6 +539,21 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   // limitations".
   document.getElementById('port-summary')!.innerHTML = `
     <div class="row"><div class="row-label">Total invested (net)</div><div class="row-val">${fmtEur(pd.totalInv)}</div></div>
+    ${
+      snapMarketValue !== null
+        ? `<div class="row"><div class="row-label">Market value (positions)</div><div class="row-val">${fmtEur2(snapMarketValue)}</div></div>`
+        : ''
+    }
+    ${
+      curVal !== null
+        ? `<div class="row"><div class="row-label">Account value (snapshot)</div><div class="row-val">${fmtEur2(curVal)}</div></div>`
+        : ''
+    }
+    ${
+      cashUnallocated !== null
+        ? `<div class="row"><div class="row-label">Cash / unallocated</div><div class="row-val ${cashUnallocated >= 0 ? 'ok' : 'neg'}">${fmtEurNeg(cashUnallocated, 2)}</div></div>`
+        : ''
+    }
     <div class="row"><div class="row-label">Realized P&amp;L</div><div class="row-val ${pd.realizedPnL >= 0 ? 'ok' : 'neg'}">${fmtEurNeg(pd.realizedPnL, 2)}</div></div>
     <div class="row"><div class="row-label">Total fees</div><div class="row-val">${fmtEur2(pd.totalFees)}</div></div>
     <div class="row"><div class="row-label">Dividends (net)</div><div class="row-val ok">${fmtEur2(pd.totalDivNet)}</div></div>
@@ -536,12 +564,12 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     ${
       gain !== null
         ? `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px">
-      <div class="row-label" style="font-weight:500">Unrealized gain</div>
+      <div class="row-label" style="font-weight:500">${gainLabel}</div>
       <div class="row-val ${gain >= 0 ? 'pos' : 'neg'}" style="font-weight:500">
         ${fmtEurNeg(gain, 2)} (${fmtPctNeg(gainPct!)})</div></div>`
         : ''
     }
-    <p class="note">Cost basis exact from CSV. Current value from latest snapshot (${latSnap ? fmtMon(latSnap.date) : 'none yet'}). Mixed-currency positions compute in account currency (no FX conversion).</p>
+    <p class="note">Cost basis exact from CSV. ${valueNote} Mixed-currency positions compute in account currency (no FX conversion).</p>
   `;
 
   _renderDriftCard(pd, snaps);

@@ -183,6 +183,34 @@ describe('renderPortfolio', () => {
     expect(kpis).toContain('200,00');
   });
 
+  it('uses ETF market values for unrealized gain and shows option-2 summary rows', () => {
+    const snap: Snapshot = { date: '2026-06-01', acct1: 1600, etf_IE00TEST1: 1200 };
+    renderPortfolio(makePD(), [snap]);
+
+    const kpis = document.getElementById('port-kpis')!.textContent!;
+    // Unrealized gain should use ETF position market value: 1200 - 1000 = 200
+    expect(kpis).toContain('200,00');
+
+    const summary = document.getElementById('port-summary')!.textContent!;
+    expect(summary).toContain('Market value (positions)');
+    expect(summary).toContain('Account value (snapshot)');
+    expect(summary).toContain('Cash / unallocated');
+    expect(summary).toContain('1.200,00');
+    expect(summary).toContain('1.600,00');
+    expect(summary).toContain('400,00');
+    expect(summary).toContain('Unrealized gain (positions)');
+  });
+
+  it('keeps summary rows hidden when ETF snapshot market values are missing', () => {
+    const snap: Snapshot = { date: '2026-06-01', acct1: 1200 };
+    renderPortfolio(makePD(), [snap]);
+    const summary = document.getElementById('port-summary')!.textContent!;
+    expect(summary).not.toContain('Market value (positions)');
+    expect(summary).not.toContain('Cash / unallocated');
+    expect(summary).toContain('Unrealized gain');
+    expect(summary).not.toContain('Unrealized gain (positions)');
+  });
+
   it('creates exactly one chart on first render', () => {
     renderPortfolio(makePD(), []);
     expect(chartInstances.length).toBe(1);
