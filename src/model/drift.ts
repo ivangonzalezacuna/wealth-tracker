@@ -102,12 +102,18 @@ export function computeDrift(
     });
   }
 
-  // Sort: non-legacy first, then legacy. Within each group: actualPct descending, name ascending as tiebreaker.
+  // Sort: non-legacy first, then legacy.
+  // Non-legacy: targetPct descending so the table follows configured allocation weights; name ascending as tiebreaker.
+  // Legacy: actualPct descending (all have targetPct 0); name ascending as tiebreaker.
   result.sort((a, b) => {
     const aLegacy = a.targetPct === 0 ? 1 : 0;
     const bLegacy = b.targetPct === 0 ? 1 : 0;
     if (aLegacy !== bLegacy) return aLegacy - bLegacy;
-    if (b.actualPct !== a.actualPct) return b.actualPct - a.actualPct;
+    if (aLegacy === 0) {
+      if (b.targetPct !== a.targetPct) return b.targetPct - a.targetPct;
+    } else {
+      if (b.actualPct !== a.actualPct) return b.actualPct - a.actualPct;
+    }
     return a.shortName.localeCompare(b.shortName);
   });
   return result;
