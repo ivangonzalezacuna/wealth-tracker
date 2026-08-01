@@ -560,7 +560,12 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
     ? (primaryInvestmentValue(latSnap, getAccounts()) ?? pd.totalInv)
     : pd.totalInv;
 
-  const drift = computeDrift(holdings, pd.etfs, totalValue, hasSnapValues ? snapEtfValues : undefined);
+  const drift = computeDrift(
+    holdings,
+    pd.etfs,
+    totalValue,
+    hasSnapValues ? snapEtfValues : undefined,
+  );
 
   if (drift.length === 0) {
     driftEl.innerHTML = '';

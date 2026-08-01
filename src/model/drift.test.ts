@@ -128,7 +128,12 @@ describe('computeDrift', () => {
 
   it('includes inactive-but-held positions with target 0%', () => {
     const holdings = [
-      makeHolding({ isin: 'ACTIVE', shortName: 'ACT', contribAmount: 100, contribInterval: 'monthly' }),
+      makeHolding({
+        isin: 'ACTIVE',
+        shortName: 'ACT',
+        contribAmount: 100,
+        contribInterval: 'monthly',
+      }),
     ];
     const positions = {
       ACTIVE: makePosition({ isin: 'ACTIVE', shortName: 'ACT', cost: 7000 }),
@@ -153,7 +158,12 @@ describe('computeDrift', () => {
 
   it('excludes exited positions from the inactive-held pass', () => {
     const holdings = [
-      makeHolding({ isin: 'ACTIVE', shortName: 'ACT', contribAmount: 100, contribInterval: 'monthly' }),
+      makeHolding({
+        isin: 'ACTIVE',
+        shortName: 'ACT',
+        contribAmount: 100,
+        contribInterval: 'monthly',
+      }),
     ];
     const positions = {
       ACTIVE: makePosition({ isin: 'ACTIVE', shortName: 'ACT', cost: 10000 }),
@@ -166,7 +176,12 @@ describe('computeDrift', () => {
 
   it('uses snapEtfValues for inactive-held positions when available', () => {
     const holdings = [
-      makeHolding({ isin: 'ACTIVE', shortName: 'ACT', contribAmount: 100, contribInterval: 'monthly' }),
+      makeHolding({
+        isin: 'ACTIVE',
+        shortName: 'ACT',
+        contribAmount: 100,
+        contribInterval: 'monthly',
+      }),
     ];
     const positions = {
       ACTIVE: makePosition({ isin: 'ACTIVE', shortName: 'ACT', cost: 8000 }),
@@ -182,7 +197,12 @@ describe('computeDrift', () => {
 
   it('does not include inactive positions when they have zero or negative value', () => {
     const holdings = [
-      makeHolding({ isin: 'ACTIVE', shortName: 'ACT', contribAmount: 100, contribInterval: 'monthly' }),
+      makeHolding({
+        isin: 'ACTIVE',
+        shortName: 'ACT',
+        contribAmount: 100,
+        contribInterval: 'monthly',
+      }),
     ];
     const positions = {
       ACTIVE: makePosition({ isin: 'ACTIVE', shortName: 'ACT', cost: 10000 }),

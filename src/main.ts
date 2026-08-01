@@ -47,7 +47,16 @@ import { renderDCA } from './views/contributions';
 import { renderDividends } from './views/dividends';
 import { renderSettings, refreshSettingsAfterChange, applySyncBusyState } from './views/settings';
 import { renderLog } from './views/log';
-import { fmtMon, showMsg, reinjectPendingMsg, esc, currentMonth, withButtonGuard } from './utils';
+import {
+  fmtMon,
+  showMsg,
+  reinjectPendingMsg,
+  esc,
+  currentMonth,
+  withButtonGuard,
+  fmtEur2,
+  safeColor,
+} from './utils';
 import { parseNum } from './csv';
 import { navHash, parseNavHash } from './nav';
 import {
@@ -78,7 +87,7 @@ import { showSigninOverlay, hideSigninOverlay } from './ui/signinOverlay';
 import { withTimeout } from './sync/timeout';
 import { isBusy, setBusy } from './sync/lock';
 import { registerSW } from 'virtual:pwa-register';
-import type { Snapshot, Transaction, PortfolioData, ImportProfile } from './types';
+import type { Snapshot, Transaction, PortfolioData, ImportProfile, Account } from './types';
 
 // ── App state ────────────────────────────────────────────
 const state: {
@@ -947,6 +956,41 @@ function renderSetupBanner(): void {
 // ── Snapshot form ─────────────────────────────────────────
 function initSnapForm() {
   document.getElementById('btn-save-snap')?.addEventListener('click', saveMonthlyUpdate);
+
+  // Event delegation for ETF breakdown toggle buttons and live reconciliation.
+  // Both listeners are attached once here so they survive renderSnapForm re-renders.
+  const fieldsEl = document.getElementById('snap-acct-fields');
+  if (fieldsEl) {
+    fieldsEl.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('.snap-etf-toggle') as HTMLElement | null;
+      if (!btn) return;
+      const acctKey = btn.dataset.acctKey;
+      if (!acctKey) return;
+      const section = document.getElementById(`snap-etf-section-${acctKey}`);
+      if (!section) return;
+      const isOpen = section.style.display !== 'none';
+      section.style.display = isOpen ? 'none' : '';
+      btn.setAttribute('aria-expanded', String(!isOpen));
+      const chevron = btn.querySelector('.snap-etf-chevron') as HTMLElement | null;
+      if (chevron) chevron.textContent = isOpen ? '\u25b8' : '\u25be';
+    });
+    fieldsEl.addEventListener('input', (e) => {
+      const target = e.target as HTMLInputElement;
+      let acctKey = '';
+      if (target.dataset.acctKey) {
+        // ETF value input
+        acctKey = target.dataset.acctKey;
+      } else if (
+        target.id.startsWith('snap-') &&
+        target.id !== 'snap-date' &&
+        target.id !== 'snap-notes'
+      ) {
+        // Account total input (id = snap-<key>)
+        acctKey = target.id.slice(5);
+      }
+      if (acctKey) _updateSnapEtfRecon(acctKey);
+    });
+  }
 }
 
 function setDefaultMonth() {
@@ -989,6 +1033,16 @@ async function saveSnapshot() {
   }
   snap.notes =
     (document.getElementById('snap-notes') as HTMLInputElement | null)?.value.trim() || '';
+
+  // Persist per-ETF market values from the breakdown section (primary investment accounts only).
+  const etfInputs = document.querySelectorAll<HTMLInputElement>('[data-etf-isin]');
+  for (const inp of Array.from(etfInputs)) {
+    const isin = inp.dataset.etfIsin;
+    const val = parseNum(String(inp.value ?? ''));
+    if (isin && val > 0) {
+      snap[`etf_${isin}`] = val;
+    }
+  }
 
   const btn = document.getElementById('btn-save-snap') as HTMLButtonElement;
   try {
@@ -1035,7 +1089,7 @@ function editSnap(date: string) {
   const s = state.snaps.find((s) => s.date === date);
   if (!s) return;
 
-  renderSnapForm(); // idempotent - guarantees the input fields exist
+  renderSnapForm(state.pd); // idempotent - guarantees the input fields exist
 
   const dateEl = document.getElementById('snap-date') as HTMLInputElement | null;
   if (dateEl) dateEl.value = s.date;
@@ -1047,6 +1101,35 @@ function editSnap(date: string) {
 
   const notesEl = document.getElementById('snap-notes') as HTMLInputElement | null;
   if (notesEl) notesEl.value = s.notes || '';
+
+  // Prefill per-ETF market values and auto-expand the breakdown section.
+  let hasEtfValues = false;
+  for (const [key, val] of Object.entries(s)) {
+    if (key.startsWith('etf_') && typeof val === 'number' && val > 0) {
+      const isin = key.slice(4);
+      const etfEl = document.getElementById(`snap-etf-${isin}`) as HTMLInputElement | null;
+      if (etfEl) {
+        etfEl.value = String(val);
+        hasEtfValues = true;
+      }
+    }
+  }
+  if (hasEtfValues) {
+    document.querySelectorAll<HTMLElement>('.snap-etf-section').forEach((section) => {
+      section.style.display = '';
+    });
+    document.querySelectorAll<HTMLElement>('.snap-etf-toggle').forEach((btn) => {
+      btn.setAttribute('aria-expanded', 'true');
+      const chevron = btn.querySelector('.snap-etf-chevron') as HTMLElement | null;
+      if (chevron) chevron.textContent = '\u25be';
+    });
+    // Refresh reconciliation for all primary investment accounts.
+    for (const a of getAccounts()) {
+      if (a.isPrimaryInvestment && (a.moneyType || '').toLowerCase() === 'investment') {
+        _updateSnapEtfRecon(a.id || a.key || '');
+      }
+    }
+  }
 
   showSection('log', document.querySelector('.nav button[data-section="log"]'));
   dateEl?.scrollIntoView({ behavior: 'smooth' });
@@ -1105,6 +1188,14 @@ function clearSnapForm() {
   }
   const notes = document.getElementById('snap-notes') as HTMLInputElement | null;
   if (notes) notes.value = '';
+
+  // Clear ETF breakdown inputs and hide reconciliation bars
+  document.querySelectorAll<HTMLInputElement>('[data-etf-isin]').forEach((el) => {
+    el.value = '';
+  });
+  document.querySelectorAll<HTMLElement>('.snap-etf-recon').forEach((el) => {
+    el.style.display = 'none';
+  });
 }
 
 // ── CSV import ────────────────────────────────────────────
@@ -1362,10 +1453,12 @@ function updateSub() {
 }
 
 // ── Snapshot form (dynamic account fields) ────────────────
-function renderSnapForm() {
+function renderSnapForm(pd?: PortfolioData | null) {
   const el = document.getElementById('snap-acct-fields');
   if (!el) return;
   const accts = getACCTSList();
+  const accounts = getAccounts();
+
   if (accts.length === 0) {
     el.innerHTML =
       '<p class="note">No accounts configured yet. Add accounts in the <a href="#" data-goto="settings" class="goto-settings">Settings</a> tab.</p>';
@@ -1375,16 +1468,12 @@ function renderSnapForm() {
     });
     return;
   }
-  // Skip re-render if the DOM already has the correct account inputs,
-  // so user-entered values are not lost during background syncs.
-  const expectedKeys = accts.map((a) => `snap-${a.key}`);
-  const existingInputs = el.querySelectorAll<HTMLInputElement>('input.form-input');
-  const existingKeys = Array.from(existingInputs).map((i) => i.id);
-  if (
-    expectedKeys.length === existingKeys.length &&
-    expectedKeys.every((k, i) => k === existingKeys[i])
-  ) {
-    // Accounts unchanged; preserve current input values.
+
+  // Compute a render signature so we can skip re-rendering when shape has not changed,
+  // which prevents clearing values the user has typed during a background sync.
+  const heldIsins = _getHeldIsins(pd);
+  const sig = accts.map((a) => a.key).join(',') + '|' + heldIsins.join(',');
+  if ((el as HTMLElement & { _renderSig?: string })._renderSig === sig) {
     const dateEl = document.getElementById('snap-date') as HTMLInputElement | null;
     if (dateEl) {
       dateEl.max = currentMonth();
@@ -1392,22 +1481,144 @@ function renderSnapForm() {
     }
     return;
   }
+  (el as HTMLElement & { _renderSig?: string })._renderSig = sig;
 
   el.innerHTML = accts
-    .map(
-      (a) => `
-    <div class="form-group">
-      <label class="form-label">${esc(a.label)} (€)</label>
-      <input type="text" inputmode="decimal" id="snap-${esc(a.key)}" class="form-input" placeholder="total value">
-    </div>
-  `,
-    )
+    .map((a) => {
+      const fullAcct = accounts.find((acc) => (acc.id || acc.key) === a.key);
+      const isPrimaryInv = !!(
+        fullAcct?.isPrimaryInvestment && (fullAcct.moneyType || '').toLowerCase() === 'investment'
+      );
+      const etfSection =
+        isPrimaryInv && heldIsins.length > 0 ? _renderEtfBreakdown(a.key, pd, accounts) : '';
+      return `
+      <div class="form-group">
+        <label class="form-label">${esc(a.label)} (€)</label>
+        <input type="text" inputmode="decimal" id="snap-${esc(a.key)}" class="form-input" placeholder="total value">
+        ${etfSection}
+      </div>`;
+    })
     .join('');
 
   const dateEl = document.getElementById('snap-date') as HTMLInputElement | null;
   if (dateEl) {
     dateEl.max = currentMonth();
     if (!dateEl.value) dateEl.value = currentMonth();
+  }
+}
+
+/** Returns ISINs of all non-exited positions, sorted for stable comparison. */
+function _getHeldIsins(pd?: PortfolioData | null): string[] {
+  if (!pd) return [];
+  return Object.values(pd.etfs)
+    .filter((pos) => !pos.exited && pos.shares >= 1e-6)
+    .map((pos) => pos.isin)
+    .sort();
+}
+
+/** Builds the HTML for the ETF breakdown toggle and expandable section. */
+function _renderEtfBreakdown(
+  acctKey: string,
+  pd: PortfolioData | null | undefined,
+  accounts: Account[],
+): string {
+  if (!pd) return '';
+  const holdings = getHoldings();
+
+  // Positions currently held (shares > 0, not exited)
+  const held = Object.values(pd.etfs).filter((pos) => !pos.exited && pos.shares >= 1e-6);
+  if (held.length === 0) return '';
+
+  // Split into contributing (active, has contribAmount) and legacy (everything else)
+  const activeIsins = new Set(
+    holdings.filter((h) => h.active && h.contribAmount > 0).map((h) => h.isin),
+  );
+  const contributing = held.filter((pos) => activeIsins.has(pos.isin));
+  const legacy = held.filter((pos) => !activeIsins.has(pos.isin));
+
+  const getName = (isin: string, fallbackName: string, shortName: string): string => {
+    const h = holdings.find((h) => h.isin === isin);
+    return h?.name || fallbackName || shortName;
+  };
+
+  const renderRow = (pos: {
+    isin: string;
+    name: string;
+    shortName: string;
+    color: string;
+  }): string => `
+      <div class="snap-etf-row">
+        <div class="snap-etf-info">
+          <span class="hold-dot snap-etf-dot" style="background:${safeColor(pos.color)}"></span>
+          <span class="snap-etf-name">${esc(getName(pos.isin, pos.name, pos.shortName))}</span>
+          <span class="snap-etf-isin">${esc(pos.isin)}</span>
+        </div>
+        <input type="text" inputmode="decimal"
+               id="snap-etf-${esc(pos.isin)}"
+               data-etf-isin="${esc(pos.isin)}"
+               data-acct-key="${esc(acctKey)}"
+               class="form-input form-input-sm snap-etf-input"
+               placeholder="Market value">
+      </div>`;
+
+  const contribHtml =
+    contributing.length > 0
+      ? `<div class="snap-etf-group-label">Contributing</div>${contributing.map(renderRow).join('')}`
+      : '';
+  const legacyHtml =
+    legacy.length > 0
+      ? `<div class="snap-etf-group-label">Held, not contributing</div>${legacy.map(renderRow).join('')}`
+      : '';
+
+  return `
+    <div class="snap-etf-wrap">
+      <button type="button" class="snap-etf-toggle btn btn-sm btn-ghost"
+              data-acct-key="${esc(acctKey)}" aria-expanded="false">
+        <span class="snap-etf-chevron">\u25b8</span> ETF breakdown
+      </button>
+      <div class="snap-etf-section" id="snap-etf-section-${esc(acctKey)}" style="display:none">
+        ${contribHtml}
+        ${legacyHtml}
+        <div class="snap-etf-recon" id="snap-etf-recon-${esc(acctKey)}" style="display:none">
+          <span class="snap-etf-recon-alloc">Allocated: <b>-</b></span>
+          <span class="snap-etf-recon-sep">&middot;</span>
+          <span class="snap-etf-recon-remain">Remaining: <b>-</b></span>
+        </div>
+      </div>
+    </div>`;
+}
+
+/** Recomputes and displays the allocated/remaining reconciliation row for one account. */
+function _updateSnapEtfRecon(acctKey: string): void {
+  const section = document.getElementById(`snap-etf-section-${acctKey}`);
+  const reconEl = document.getElementById(`snap-etf-recon-${acctKey}`);
+  if (!section || !reconEl) return;
+
+  const totalInput = document.getElementById(`snap-${acctKey}`) as HTMLInputElement | null;
+  const totalVal = parseNum(String(totalInput?.value ?? ''));
+
+  let allocated = 0;
+  const etfInputs = section.querySelectorAll<HTMLInputElement>('[data-etf-isin]');
+  for (const inp of Array.from(etfInputs)) {
+    const v = parseNum(String(inp.value ?? ''));
+    if (v > 0) allocated += v;
+  }
+
+  const remaining = totalVal - allocated;
+  const hasAnyValue = totalVal > 0 || allocated > 0;
+
+  reconEl.style.display = hasAnyValue ? '' : 'none';
+  if (!hasAnyValue) return;
+
+  const allocEl = reconEl.querySelector('.snap-etf-recon-alloc b') as HTMLElement | null;
+  const remainEl = reconEl.querySelector('.snap-etf-recon-remain') as HTMLElement | null;
+  const remainB = remainEl?.querySelector('b') as HTMLElement | null;
+
+  if (allocEl) allocEl.textContent = fmtEur2(allocated);
+  if (remainB) remainB.textContent = fmtEur2(remaining);
+  if (remainEl) {
+    remainEl.classList.toggle('snap-etf-recon-warn', remaining < -0.005);
+    remainEl.classList.toggle('snap-etf-recon-ok', totalVal > 0 && Math.abs(remaining) < 0.005);
   }
 }
 
@@ -1501,7 +1712,7 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
 // ── Render all ────────────────────────────────────────────
 function renderAll(changed?: ConfigChangeKind) {
   updateSub();
-  renderSnapForm(); // cheap, keep eager (Log form fields)
+  renderSnapForm(state.pd); // cheap, keep eager (Log form fields)
   renderSetupBanner(); // update onboarding checklist
   _dirty.clear();
   for (const s of ALL_SECTIONS) _dirty.add(s);
