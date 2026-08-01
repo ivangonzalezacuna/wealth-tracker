@@ -601,9 +601,7 @@ describe('editSnap ETF breakdown prefill reset logic', () => {
     applyEtfPrefill({});
     expect((document.getElementById('snap-etf-IE0001') as HTMLInputElement).value).toBe('');
     expect((document.getElementById('snap-etf-IE0002') as HTMLInputElement).value).toBe('');
-    expect((document.querySelector('.snap-etf-section') as HTMLElement).style.display).toBe(
-      'none',
-    );
+    expect((document.querySelector('.snap-etf-section') as HTMLElement).style.display).toBe('none');
     expect(
       (document.querySelector('.snap-etf-toggle') as HTMLElement).getAttribute('aria-expanded'),
     ).toBe('false');
