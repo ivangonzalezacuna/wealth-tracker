@@ -256,6 +256,10 @@ code,
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
+.card-title + .legend,
+.card-title + .chart-controls {
+  margin-top: 10px;
+}
 
 /* Collapsible cards */
 .card-collapsible .card-header {
@@ -436,7 +440,6 @@ code,
     minmax(8ch, 1fr) /* Cost basis */
     minmax(8ch, 1fr) /* Shares */
     minmax(7ch, 1fr) /* Avg price */
-    minmax(6ch, 1fr) /* % of cost */
     minmax(9ch, 1fr) /* Realized P&L */
     minmax(7ch, 1fr); /* Div (net) */
 }
@@ -492,6 +495,17 @@ code,
   height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+.hold-value-line {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 6px;
+}
+.hold-inline-meta {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink-3);
 }
 
 /* Holdings detail panel */
@@ -643,6 +657,19 @@ code,
   display: flex;
   align-items: center;
   gap: 5px;
+}
+.leg-text {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.leg-label {
+  color: inherit;
+}
+.leg-meta {
+  font-size: 11px;
+  color: var(--ink-3);
 }
 .leg-sq {
   width: 10px;
@@ -1025,7 +1052,6 @@ code,
     grid-template-columns:
       minmax(8ch, 1fr) /* ETF */
       minmax(8ch, 1fr) /* Cost basis */
-      minmax(6ch, 1fr) /* % of cost */
       minmax(7ch, 1fr); /* Div (net) */
   }
   /* Column hiding for header/data rows handled by generic [data-mobile-hidden]
@@ -1033,7 +1059,7 @@ code,
      The totals row (not migrated to ColumnDef) still needs nth-child hide: */
   #port-table .hold-total > *:nth-child(3),
   #port-table .hold-total > *:nth-child(4),
-  #port-table .hold-total > *:nth-child(6) {
+  #port-table .hold-total > *:nth-child(5) {
     display: none;
   }
   /* Holdings table mobile density */
@@ -1144,6 +1170,10 @@ code,
     font-size: 11px;
     gap: 6px;
   }
+  .leg-meta,
+  .hold-inline-meta {
+    font-size: 10px;
+  }
   .note {
     font-size: 10px;
   }
@@ -1175,7 +1205,6 @@ code,
     grid-template-columns:
       minmax(8ch, 1fr) /* ETF */
       minmax(8ch, 1fr) /* Cost basis */
-      minmax(6ch, 1fr) /* % of cost */
       minmax(7ch, 1fr); /* Div (net) */
   }
   #port-table .hold-row,

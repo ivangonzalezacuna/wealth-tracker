@@ -27,7 +27,7 @@ import { applySort, sortableHeader, bindSortableHeader } from './tableSort';
 import { renderPagination } from './pagination';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow, getSortGetters } from './tableColumns';
-import { TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
+import { TOOLTIP_BOX, renderLegendHtml, tooltipSwatch } from './chartLegend';
 
 const CH: Record<string, Chart> = {};
 
@@ -87,7 +87,7 @@ function holdingsColumns(pd: PortfolioData): ColumnDef<EtfPosition>[] {
       cell: (e) => {
         const pct = pd.totalInv > 0 ? (e.cost / pd.totalInv) * 100 : 0;
         const isExited = e.exited || e.shares < 1e-6;
-        return `${fmtEur(e.cost)}${!isExited ? `\n        <div class="bar-wrap"><div class="bar-fill" style="width:${pct.toFixed(0)}%;background:${safeColor(e.color)}"></div></div>` : ''}`;
+        return `<div class="hold-value-line"><span>${fmtEur(e.cost)}</span><span class="hold-inline-meta">${pct.toFixed(1)}%</span></div>${!isExited ? `\n        <div class="bar-wrap"><div class="bar-fill" style="width:${pct.toFixed(0)}%;background:${safeColor(e.color)}"></div></div>` : ''}`;
       },
     },
     {
@@ -112,14 +112,6 @@ function holdingsColumns(pd: PortfolioData): ColumnDef<EtfPosition>[] {
         const avg = e.shares > 0 ? e.cost / e.shares : 0;
         return avg > 0 ? fmtEur2(avg) : '-';
       },
-    },
-    {
-      key: 'pctOfCost',
-      label: '% of cost',
-      align: 'right',
-      sortValue: (e) => (pd.totalInv > 0 ? e.cost / pd.totalInv : 0),
-      cellAttrs: () => 'style="text-align:right;color:var(--ink-2)"',
-      cell: (e) => (pd.totalInv > 0 ? (e.cost / pd.totalInv) * 100 : 0).toFixed(1) + '%',
     },
     {
       key: 'realizedPnL',
@@ -178,8 +170,10 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     displayList = held;
   }
 
-  // Apply sort (before pagination)
-  const sorted = applySort(displayList, _holdSort, getSortGetters(columns));
+  const defaultOrdered = displayList.slice().sort((a, b) => (b.cost || 0) - (a.cost || 0));
+
+  // Apply user sort on top of the default allocation order
+  const sorted = applySort(defaultOrdered, _holdSort, getSortGetters(columns));
 
   // Pagination
   const totalPages = Math.ceil(sorted.length / HOLD_PAGE_SIZE);
@@ -218,9 +212,8 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
       </div>${rows}
       <div class="tbl-row hold-total" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
         <div style="font-weight:500">Total</div>
-        <div style="font-weight:500;text-align:right">${fmtEur(pd.totalInv)}</div>
+        <div style="font-weight:500;text-align:right"><div class="hold-value-line"><span>${fmtEur(pd.totalInv)}</span><span class="hold-inline-meta">100.0%</span></div></div>
         <div></div><div></div>
-        <div style="font-weight:500;text-align:right">100%</div>
         <div style="text-align:right;color:${pd.realizedPnL >= 0 ? 'var(--pos)' : 'var(--neg)'};font-weight:500">${pd.realizedPnL === 0 ? '-' : fmtEurNeg(pd.realizedPnL, 2)}</div>
         <div style="text-align:right;color:var(--pos);font-weight:500">${fmtEur2(pd.totalDivNet)}</div>
       </div>
@@ -370,7 +363,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   const { held } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
 
   // Bar chart - only held positions with cost > 0
-  const donutE = held.filter((e) => e.cost > 0);
+  const donutE = held.filter((e) => e.cost > 0).sort((a, b) => b.cost - a.cost);
   const C = resolvedT();
   if (CH['c-port-donut']) {
     CH['c-port-donut'].destroy();
@@ -438,12 +431,13 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
       },
     },
   });
-  document.getElementById('port-donut-legend')!.innerHTML = donutE
-    .map(
-      (e) =>
-        `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(e.color)}"></span>${esc(e.shortName)} ${pd.totalInv > 0 ? ((e.cost / pd.totalInv) * 100).toFixed(0) : 0}%</span>`,
-    )
-    .join('');
+  document.getElementById('port-donut-legend')!.innerHTML = renderLegendHtml(
+    donutE.map((e) => ({
+      label: e.shortName,
+      meta: `${pd.totalInv > 0 ? ((e.cost / pd.totalInv) * 100).toFixed(0) : 0}%`,
+      color: e.color,
+    })),
+  );
 
   // Known limitation: foldInto (multi-leg SELL consolidation, e.g. IEEM→CMEIU,
   // CECBE+EGB7Y→GABE) is implemented per spec but has never run against a real
