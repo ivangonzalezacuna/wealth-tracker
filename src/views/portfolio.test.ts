@@ -161,25 +161,24 @@ describe('renderPortfolio', () => {
     renderPortfolio(makePD(), []);
     const kpis = document.getElementById('port-kpis')!.textContent!;
     expect(kpis).toContain('Total invested');
-    expect(kpis).toContain('Current value');
-    expect(kpis).toContain('Unrealized gain');
+    expect(kpis).toContain('Market value');
+    expect(kpis).toContain('Unrealized P&L');
     expect(kpis).toContain('Realized P&L');
   });
 
-  it('shows "-" for Current value when no snapshots are provided', () => {
+  it('shows "-" for Market value when no snapshots are provided', () => {
     renderPortfolio(makePD(), []);
     const kpisHtml = document.getElementById('port-kpis')!.innerHTML;
-    // Current value shows dash when no snapshot
     expect(kpisHtml).toContain('add a snapshot');
   });
 
-  it('computes Current value and Unrealized gain from snapshot', () => {
+  it('computes Market value and Unrealized P&L from snapshot', () => {
     const snap: Snapshot = { date: '2026-06-01', acct1: 1200 };
     renderPortfolio(makePD(), [snap]);
     const kpis = document.getElementById('port-kpis')!.textContent!;
-    // Current value = 1200 (from snapshot for primary investment account)
+    // Market value = 1200 (from snapshot for primary investment account)
     expect(kpis).toContain('1.200,00');
-    // Unrealized gain = 1200 - 1000 = 200
+    // Unrealized P&L = 1200 - 1000 = 200
     expect(kpis).toContain('200,00');
   });
 
@@ -188,7 +187,7 @@ describe('renderPortfolio', () => {
     renderPortfolio(makePD(), [snap]);
 
     const kpis = document.getElementById('port-kpis')!.textContent!;
-    // Unrealized gain should use ETF position market value: 1200 - 1000 = 200
+    // Unrealized P&L should use ETF position market value: 1200 - 1000 = 200
     expect(kpis).toContain('200,00');
 
     const summary = document.getElementById('port-summary')!.textContent!;
@@ -201,14 +200,43 @@ describe('renderPortfolio', () => {
     expect(summary).toContain('Unrealized P&L (positions)');
   });
 
-  it('keeps summary rows hidden when ETF snapshot market values are missing', () => {
+  it('shows Market value (snapshot) and hides Account value row when no ETF breakdown', () => {
     const snap: Snapshot = { date: '2026-06-01', acct1: 1200 };
     renderPortfolio(makePD(), [snap]);
     const summary = document.getElementById('port-summary')!.textContent!;
+    expect(summary).toContain('Market value (snapshot)');
     expect(summary).not.toContain('Market value (positions)');
+    expect(summary).not.toContain('Account value (snapshot)');
     expect(summary).not.toContain('Unallocated cash');
     expect(summary).toContain('Unrealized P&L');
     expect(summary).not.toContain('Unrealized P&L (positions)');
+  });
+
+  it('hides Account value row when it equals Market value (no unallocated cash)', () => {
+    const snap: Snapshot = { date: '2026-06-01', acct1: 1200, etf_IE00TEST1: 1200 };
+    renderPortfolio(makePD(), [snap]);
+    const summary = document.getElementById('port-summary')!.textContent!;
+    expect(summary).toContain('Market value (positions)');
+    expect(summary).not.toContain('Account value (snapshot)');
+    expect(summary).not.toContain('Unallocated cash');
+  });
+
+  it('shows section headers and Total return in performance block', () => {
+    const snap: Snapshot = { date: '2026-06-01', acct1: 1200 };
+    renderPortfolio(makePD(), [snap]);
+    const summary = document.getElementById('port-summary')!.textContent!;
+    expect(summary).toContain('PERFORMANCE');
+    expect(summary).toContain('INCOME & COSTS');
+    expect(summary).toContain('Total return');
+  });
+
+  it('Total return equals unrealized plus realized plus dividends plus interest minus fees', () => {
+    const snap: Snapshot = { date: '2026-06-01', acct1: 1200 };
+    // pd: totalInv=1000, gain=200, realizedPnL=0, totalDivNet=25, totalInterest=0, totalFees=2
+    // totalReturn = 200 + 0 + 25 + 0 - 2 = 223
+    renderPortfolio(makePD(), [snap]);
+    const summary = document.getElementById('port-summary')!.textContent!;
+    expect(summary).toContain('223,00');
   });
 
   it('creates exactly one chart on first render', () => {

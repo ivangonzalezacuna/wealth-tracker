@@ -407,31 +407,41 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     curVal !== null && snapMarketValue !== null ? curVal - snapMarketValue : null;
   const gainLabel =
     snapMarketValue !== null ? 'Unrealized P&amp;L (positions)' : 'Unrealized P&amp;L';
+  const totalReturn =
+    (gain ?? 0) + pd.realizedPnL + pd.totalDivNet + pd.totalInterest - pd.totalFees;
+  const totalReturnPct =
+    gain !== null && pd.totalInv > 0 ? (totalReturn / pd.totalInv) * 100 : null;
+  const unrealizedTip =
+    snapMarketValue !== null
+      ? 'Gain or loss on ETF positions still held. Computed as position market value (from ETF breakdown) minus invested capital (cost basis). Not locked in until you sell.'
+      : 'Gain or loss on your portfolio. Computed as account market value (from snapshot) minus invested capital (cost basis). Not locked in until you sell.';
+  const realizedTip =
+    'Gain or loss already locked in from shares you have sold. Computed as sell proceeds minus the cost basis of those shares, including fees.';
   const valueNote =
     snapMarketValue !== null
       ? `Position market value from latest snapshot ETF breakdown (${latSnap ? fmtMon(latSnap.date) : 'none yet'}).`
-      : `Current value from latest snapshot (${latSnap ? fmtMon(latSnap.date) : 'none yet'}).`;
+      : `Market value from latest account snapshot (${latSnap ? fmtMon(latSnap.date) : 'none yet'}).`;
 
   document.getElementById('port-kpis')!.innerHTML = `
     ${kpiTile({ label: 'Total invested', value: fmtEur(pd.totalInv), sub: 'net of sells' })}
     ${kpiTile({
-      label: 'Current value',
-      value: curVal !== null ? fmtEur2(curVal) : '-',
+      label: 'Market value',
+      value: gainBase !== null ? fmtEur2(gainBase) : '-',
       sub:
-        curVal !== null
+        gainBase !== null
           ? 'from ' + fmtMon(latSnap!.date) + ' snapshot'
           : latSnap
             ? 'no primary investment account flagged'
             : 'add a snapshot',
     })}
     ${kpiTile({
-      label: 'Unrealized gain',
+      label: `Unrealized P&amp;L${infoTip('Gain or loss on positions still held. Computed as market value minus invested capital (cost basis). Not locked in until you sell.')}`,
       value: gain !== null ? fmtEurNeg(gain, 2) : '-',
       valueClass: gain === null ? '' : gain >= 0 ? 'pos' : 'neg',
       sub: gainPct !== null ? fmtPctNeg(gainPct) : '',
     })}
     ${kpiTile({
-      label: `Realized P&amp;L${infoTip('Gain or loss already locked in from shares you have sold. Distinct from the unrealized gain on positions you still hold.')}`,
+      label: `Realized P&amp;L${infoTip('Gain or loss already locked in from shares you have sold. Computed as sell proceeds minus the cost basis of those shares, including fees.')}`,
       value: fmtEurNeg(pd.realizedPnL, 2),
       valueClass: pd.realizedPnL >= 0 ? 'pos' : 'neg',
       sub: 'from sells',
@@ -533,6 +543,31 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     })),
   );
 
+  const mvRow =
+    snapMarketValue !== null
+      ? `<div class="row"><div class="row-label">Market value (positions)</div><div class="row-val">${fmtEur2(snapMarketValue)}</div></div>`
+      : curVal !== null
+        ? `<div class="row"><div class="row-label">Market value (snapshot)</div><div class="row-val">${fmtEur2(curVal)}</div></div>`
+        : '';
+  const acctRow =
+    cashUnallocated !== null && Math.abs(cashUnallocated) > 0.01
+      ? `<div class="row"><div class="row-label">Account value (snapshot)</div><div class="row-val">${fmtEur2(curVal!)}</div></div>`
+      : '';
+  const cashRow =
+    cashUnallocated !== null && Math.abs(cashUnallocated) > 0.01
+      ? `<div class="row"><div class="row-label">Unallocated cash ${infoTip('Difference between the account snapshot total and the sum of ETF position market values. A non-zero value may indicate uninvested cash, pending settlement, rounding drift, or an incomplete ETF breakdown.')}</div><div class="row-val ${cashUnallocated >= 0 ? 'ok' : 'neg'}">${fmtEurNeg(cashUnallocated, 2)}</div></div>`
+      : '';
+  const sectionHead = (label: string) =>
+    `<div style="padding-top:8px;padding-bottom:2px"><span style="font-size:10px;font-weight:600;letter-spacing:.06em;color:var(--ink-4)">${label}</span></div>`;
+  const unrealizedRow =
+    gain !== null
+      ? `<div class="row"><div class="row-label" style="font-weight:500">${gainLabel} ${infoTip(unrealizedTip)}</div><div class="row-val ${gain >= 0 ? 'pos' : 'neg'}" style="font-weight:500">${fmtEurNeg(gain, 2)} (${fmtPctNeg(gainPct!)})</div></div>`
+      : '';
+  const totalReturnRow =
+    gain !== null
+      ? `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px"><div class="row-label" style="font-weight:600">Total return</div><div class="row-val ${totalReturn >= 0 ? 'pos' : 'neg'}" style="font-weight:600">${fmtEurNeg(totalReturn, 2)}${totalReturnPct !== null ? ` (${fmtPctNeg(totalReturnPct)})` : ''}</div></div>`
+      : '';
+
   // Known limitation: foldInto (multi-leg SELL consolidation, e.g. IEEM→CMEIU,
   // CECBE+EGB7Y→GABE) is implemented per spec but has never run against a real
   // consolidation event. The logic should work; treat the first real occurrence
@@ -540,26 +575,12 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   // limitations".
   document.getElementById('port-summary')!.innerHTML = `
     <div class="row"><div class="row-label">Invested capital (cost basis)</div><div class="row-val">${fmtEur(pd.totalInv)}</div></div>
-    ${
-      snapMarketValue !== null
-        ? `<div class="row"><div class="row-label">Market value (positions)</div><div class="row-val">${fmtEur2(snapMarketValue)}</div></div>
-    <div class="row"><div class="row-label">Account value (snapshot)</div><div class="row-val">${curVal !== null ? fmtEur2(curVal) : '-'}</div></div>
-    ${
-      cashUnallocated !== null && Math.abs(cashUnallocated) > 0.01
-        ? `<div class="row"><div class="row-label">Unallocated cash ${infoTip('Difference between the account snapshot total and the sum of ETF position market values. A non-zero value may indicate uninvested cash, pending settlement, rounding drift, or an incomplete ETF breakdown.')}</div><div class="row-val ${cashUnallocated >= 0 ? 'ok' : 'neg'}">${fmtEurNeg(cashUnallocated, 2)}</div></div>`
-        : ''
-    }`
-        : ''
-    }
-    ${
-      gain !== null
-        ? `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px">
-      <div class="row-label" style="font-weight:500">${gainLabel}</div>
-      <div class="row-val ${gain >= 0 ? 'pos' : 'neg'}" style="font-weight:500">
-        ${fmtEurNeg(gain, 2)} (${fmtPctNeg(gainPct!)})</div></div>`
-        : ''
-    }
-    <div class="row"><div class="row-label">Realized P&amp;L</div><div class="row-val ${pd.realizedPnL >= 0 ? 'ok' : 'neg'}">${fmtEurNeg(pd.realizedPnL, 2)}</div></div>
+    ${mvRow}${acctRow}${cashRow}
+    ${sectionHead('PERFORMANCE')}
+    ${unrealizedRow}
+    <div class="row"><div class="row-label">Realized P&amp;L ${infoTip(realizedTip)}</div><div class="row-val ${pd.realizedPnL >= 0 ? 'ok' : 'neg'}">${fmtEurNeg(pd.realizedPnL, 2)}</div></div>
+    ${totalReturnRow}
+    ${sectionHead('INCOME &amp; COSTS')}
     <div class="row"><div class="row-label">Dividends (net)</div><div class="row-val ok">${fmtEur2(pd.totalDivNet)}</div></div>
     <div class="row"><div class="row-label">Tax withheld on dividends</div><div class="row-val ${pd.totalTax > 0 ? 'neg' : 'ok'}">${fmtEur2(pd.totalTax)}</div></div>
     <div class="row"><div class="row-label">Interest received (net)</div><div class="row-val ok">${fmtEur2(pd.totalInterest)}</div></div>
