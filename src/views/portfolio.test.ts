@@ -289,6 +289,19 @@ describe('renderPortfolio', () => {
     expect(drift.innerHTML).toContain('IWDA');
   });
 
+  it('drift note mentions cost basis when no snapshot ETF values are present', () => {
+    renderPortfolio(makePD(), []);
+    const drift = document.getElementById('port-drift')!;
+    expect(drift.innerHTML).toContain('cost basis');
+  });
+
+  it('drift note mentions market values when snapshot has etf_ keys', () => {
+    const snap: Snapshot = { date: '2026-06-01', acct1: 1500, etf_IE00TEST1: 1500 };
+    renderPortfolio(makePD(), [snap]);
+    const drift = document.getElementById('port-drift')!;
+    expect(drift.innerHTML).toContain('market values');
+  });
+
   it('tap-to-expand detail panel opens on row click', () => {
     renderPortfolio(makePD(), []);
     const table = document.getElementById('port-table')!;
@@ -301,6 +314,30 @@ describe('renderPortfolio', () => {
     expect(detail.textContent).toContain('Status');
     expect(detail.textContent).toContain('Type');
     expect(detail.textContent).toContain('Accumulating');
+  });
+
+  it('tap-to-expand shows market value and unrealized gain when snapshot has etf_ values', () => {
+    const snap: Snapshot = { date: '2026-06-01', acct1: 1400, etf_IE00TEST1: 1400 };
+    renderPortfolio(makePD(), [snap]);
+    const table = document.getElementById('port-table')!;
+    const row = table.querySelector('.hold-row:not(.th)') as HTMLElement;
+    row.click();
+    const detail = table.querySelector('.hold-detail') as HTMLElement;
+    expect(detail).not.toBeNull();
+    expect(detail.textContent).toContain('Market value');
+    expect(detail.textContent).toContain('Unrealized gain');
+    expect(detail.innerHTML).toContain('hold-detail-value pos');
+  });
+
+  it('tap-to-expand does not show market value columns when no etf_ snapshot values', () => {
+    renderPortfolio(makePD(), []);
+    const table = document.getElementById('port-table')!;
+    const row = table.querySelector('.hold-row:not(.th)') as HTMLElement;
+    row.click();
+    const detail = table.querySelector('.hold-detail') as HTMLElement;
+    expect(detail).not.toBeNull();
+    expect(detail.textContent).not.toContain('Market value');
+    expect(detail.textContent).not.toContain('Unrealized gain');
   });
 
   it('tap-to-expand closes the panel when the same row is clicked again', () => {
