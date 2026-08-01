@@ -570,17 +570,19 @@ describe('onConfigChange callback syncs IndexedDB cache', () => {
     it('overwrites previous ETF values with empty state when selected snapshot has no ETF entries', () => {
       applyEtfPrefill({ etf_IE0001: 1000, etf_IE0002: 500 });
       expect((document.getElementById('snap-etf-IE0001') as HTMLInputElement).value).toBe('1000');
-      expect((document.querySelector('.snap-etf-toggle') as HTMLElement).getAttribute('aria-expanded')).toBe(
-        'true',
-      );
+      expect(
+        (document.querySelector('.snap-etf-toggle') as HTMLElement).getAttribute('aria-expanded'),
+      ).toBe('true');
 
       applyEtfPrefill({});
       expect((document.getElementById('snap-etf-IE0001') as HTMLInputElement).value).toBe('');
       expect((document.getElementById('snap-etf-IE0002') as HTMLInputElement).value).toBe('');
-      expect((document.querySelector('.snap-etf-section') as HTMLElement).style.display).toBe('none');
-      expect((document.querySelector('.snap-etf-toggle') as HTMLElement).getAttribute('aria-expanded')).toBe(
-        'false',
+      expect((document.querySelector('.snap-etf-section') as HTMLElement).style.display).toBe(
+        'none',
       );
+      expect(
+        (document.querySelector('.snap-etf-toggle') as HTMLElement).getAttribute('aria-expanded'),
+      ).toBe('false');
     });
 
     it('overwrites prior month ETF values with the newly selected month values', () => {
