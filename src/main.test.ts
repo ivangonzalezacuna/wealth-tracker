@@ -516,6 +516,82 @@ describe('onConfigChange callback syncs IndexedDB cache', () => {
     });
   });
 
+  describe('editSnap ETF breakdown prefill reset logic', () => {
+    function applyEtfPrefill(snapshot: Record<string, unknown>): void {
+      document.querySelectorAll<HTMLInputElement>('[data-etf-isin]').forEach((el) => {
+        el.value = '';
+      });
+      document.querySelectorAll<HTMLElement>('.snap-etf-recon').forEach((el) => {
+        el.style.display = 'none';
+      });
+      document.querySelectorAll<HTMLElement>('.snap-etf-section').forEach((section) => {
+        section.style.display = 'none';
+      });
+      document.querySelectorAll<HTMLElement>('.snap-etf-toggle').forEach((btn) => {
+        btn.setAttribute('aria-expanded', 'false');
+        const chevron = btn.querySelector('.snap-etf-chevron') as HTMLElement | null;
+        if (chevron) chevron.textContent = '\u25b8';
+      });
+
+      let hasEtfValues = false;
+      for (const [key, val] of Object.entries(snapshot)) {
+        if (key.startsWith('etf_') && typeof val === 'number' && val > 0) {
+          const isin = key.slice(4);
+          const etfEl = document.getElementById(`snap-etf-${isin}`) as HTMLInputElement | null;
+          if (etfEl) {
+            etfEl.value = String(val);
+            hasEtfValues = true;
+          }
+        }
+      }
+
+      if (hasEtfValues) {
+        document.querySelectorAll<HTMLElement>('.snap-etf-section').forEach((section) => {
+          section.style.display = '';
+        });
+        document.querySelectorAll<HTMLElement>('.snap-etf-toggle').forEach((btn) => {
+          btn.setAttribute('aria-expanded', 'true');
+          const chevron = btn.querySelector('.snap-etf-chevron') as HTMLElement | null;
+          if (chevron) chevron.textContent = '\u25be';
+        });
+      }
+    }
+
+    beforeEach(() => {
+      document.body.innerHTML = `
+        <button class="snap-etf-toggle" aria-expanded="false"><span class="snap-etf-chevron">▸</span></button>
+        <div class="snap-etf-section" style="display:none"></div>
+        <div class="snap-etf-recon" style="display:none"></div>
+        <input id="snap-etf-IE0001" data-etf-isin="IE0001" value="">
+        <input id="snap-etf-IE0002" data-etf-isin="IE0002" value="">
+      `;
+    });
+
+    it('overwrites previous ETF values with empty state when selected snapshot has no ETF entries', () => {
+      applyEtfPrefill({ etf_IE0001: 1000, etf_IE0002: 500 });
+      expect((document.getElementById('snap-etf-IE0001') as HTMLInputElement).value).toBe('1000');
+      expect((document.querySelector('.snap-etf-toggle') as HTMLElement).getAttribute('aria-expanded')).toBe(
+        'true',
+      );
+
+      applyEtfPrefill({});
+      expect((document.getElementById('snap-etf-IE0001') as HTMLInputElement).value).toBe('');
+      expect((document.getElementById('snap-etf-IE0002') as HTMLInputElement).value).toBe('');
+      expect((document.querySelector('.snap-etf-section') as HTMLElement).style.display).toBe('none');
+      expect((document.querySelector('.snap-etf-toggle') as HTMLElement).getAttribute('aria-expanded')).toBe(
+        'false',
+      );
+    });
+
+    it('overwrites prior month ETF values with the newly selected month values', () => {
+      applyEtfPrefill({ etf_IE0001: 1000, etf_IE0002: 500 });
+      applyEtfPrefill({ etf_IE0001: 1200 });
+
+      expect((document.getElementById('snap-etf-IE0001') as HTMLInputElement).value).toBe('1200');
+      expect((document.getElementById('snap-etf-IE0002') as HTMLInputElement).value).toBe('');
+    });
+  });
+
   it('setCachedConfig rejecting does not throw and renderAll still runs', async () => {
     const setCachedConfigMock = vi.fn().mockRejectedValue(new Error('IndexedDB quota'));
     const renderAllMock = vi.fn();

@@ -1139,6 +1139,22 @@ function editSnap(date: string) {
   const notesEl = document.getElementById('snap-notes') as HTMLInputElement | null;
   if (notesEl) notesEl.value = s.notes || '';
 
+  // Reset ETF breakdown fields/UI before applying selected snapshot values.
+  document.querySelectorAll<HTMLInputElement>('[data-etf-isin]').forEach((el) => {
+    el.value = '';
+  });
+  document.querySelectorAll<HTMLElement>('.snap-etf-recon').forEach((el) => {
+    el.style.display = 'none';
+  });
+  document.querySelectorAll<HTMLElement>('.snap-etf-section').forEach((section) => {
+    section.style.display = 'none';
+  });
+  document.querySelectorAll<HTMLElement>('.snap-etf-toggle').forEach((btn) => {
+    btn.setAttribute('aria-expanded', 'false');
+    const chevron = btn.querySelector('.snap-etf-chevron') as HTMLElement | null;
+    if (chevron) chevron.textContent = '\u25b8';
+  });
+
   // Prefill per-ETF market values and auto-expand the breakdown section.
   let hasEtfValues = false;
   for (const [key, val] of Object.entries(s)) {
