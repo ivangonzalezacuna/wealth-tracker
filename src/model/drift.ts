@@ -21,14 +21,20 @@ export interface DriftEntry {
  * Compute per-holding drift between target allocation (from contribution weights)
  * and actual allocation (from current cost basis or market value).
  *
+ * Active holdings (contribAmount > 0) drive the target allocation.
+ * Inactive-but-held positions (shares > 0, not exited) are included with
+ * target 0%, showing how much allocation they currently consume.
+ *
  * @param holdings - configured holdings (active ones with contribAmount define target)
  * @param positions - current ETF positions from portfolio data
- * @param totalValue - total portfolio value (from snapshot or sum of costs)
+ * @param totalValue - total portfolio value (snapshot primary account value, or sum of costs)
+ * @param snapEtfValues - optional ISIN to current market value map from the latest snapshot
  */
 export function computeDrift(
   holdings: Holding[],
   positions: Record<string, EtfPosition>,
   totalValue: number,
+  snapEtfValues?: Record<string, number>,
 ): DriftEntry[] {
   if (totalValue <= 0) return [];
 
@@ -41,14 +47,16 @@ export function computeDrift(
   if (totalAnnual <= 0) return [];
 
   const result: DriftEntry[] = [];
+  const handledIsins = new Set<string>();
 
   for (const h of activeWithTarget) {
+    handledIsins.add(h.isin);
     const annual = annualizeContrib(h.contribAmount, h.contribInterval);
     const targetPct = (annual / totalAnnual) * 100;
 
-    // Find the matching position by ISIN
+    // Prefer snapshot market value when available; fall back to cost basis.
     const pos = positions[h.isin];
-    const actualValue = pos ? pos.cost : 0;
+    const actualValue = snapEtfValues?.[h.isin] ?? (pos ? pos.cost : 0);
     const actualPct = totalValue > 0 ? (actualValue / totalValue) * 100 : 0;
 
     const driftPct = actualPct - targetPct;
@@ -66,6 +74,31 @@ export function computeDrift(
       actualValue,
       targetValue: Math.round(targetValue),
       deltaValue: Math.round(deltaValue),
+    });
+  }
+
+  // Second pass: inactive-but-held positions (target = 0%, not already covered above).
+  // These consume portfolio allocation even though they are not part of the target strategy.
+  for (const [isin, pos] of Object.entries(positions)) {
+    if (handledIsins.has(isin)) continue;
+    if (pos.exited || pos.shares < 1e-6) continue;
+
+    const actualValue = snapEtfValues?.[isin] ?? pos.cost;
+    if (actualValue <= 0) continue;
+
+    const actualPct = (actualValue / totalValue) * 100;
+
+    result.push({
+      isin,
+      name: pos.name || '',
+      shortName: pos.shortName,
+      color: pos.color,
+      targetPct: 0,
+      actualPct: Math.round(actualPct * 10) / 10,
+      driftPct: Math.round(actualPct * 10) / 10,
+      actualValue,
+      targetValue: 0,
+      deltaValue: Math.round(actualValue),
     });
   }
 
