@@ -194,11 +194,11 @@ describe('renderPortfolio', () => {
     const summary = document.getElementById('port-summary')!.textContent!;
     expect(summary).toContain('Market value (positions)');
     expect(summary).toContain('Account value (snapshot)');
-    expect(summary).toContain('Cash / unallocated');
+    expect(summary).toContain('Unallocated cash');
     expect(summary).toContain('1.200,00');
     expect(summary).toContain('1.600,00');
     expect(summary).toContain('400,00');
-    expect(summary).toContain('Unrealized gain (positions)');
+    expect(summary).toContain('Unrealized P&L (positions)');
   });
 
   it('keeps summary rows hidden when ETF snapshot market values are missing', () => {
@@ -206,9 +206,9 @@ describe('renderPortfolio', () => {
     renderPortfolio(makePD(), [snap]);
     const summary = document.getElementById('port-summary')!.textContent!;
     expect(summary).not.toContain('Market value (positions)');
-    expect(summary).not.toContain('Cash / unallocated');
-    expect(summary).toContain('Unrealized gain');
-    expect(summary).not.toContain('Unrealized gain (positions)');
+    expect(summary).not.toContain('Unallocated cash');
+    expect(summary).toContain('Unrealized P&L');
+    expect(summary).not.toContain('Unrealized P&L (positions)');
   });
 
   it('creates exactly one chart on first render', () => {
@@ -428,8 +428,8 @@ describe('renderPortfolio', () => {
   it('renders summary section with total invested and fees', () => {
     renderPortfolio(makePD(), []);
     const summary = document.getElementById('port-summary')!.textContent!;
-    expect(summary).toContain('Total invested');
-    expect(summary).toContain('Total fees');
+    expect(summary).toContain('Invested capital');
+    expect(summary).toContain('Fees');
     expect(summary).toContain('Dividends (net)');
   });
 });

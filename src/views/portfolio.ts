@@ -405,7 +405,8 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   const gainPct = gain !== null && pd.totalInv > 0 ? (gain / pd.totalInv) * 100 : null;
   const cashUnallocated =
     curVal !== null && snapMarketValue !== null ? curVal - snapMarketValue : null;
-  const gainLabel = snapMarketValue !== null ? 'Unrealized gain (positions)' : 'Unrealized gain';
+  const gainLabel =
+    snapMarketValue !== null ? 'Unrealized P&amp;L (positions)' : 'Unrealized P&amp;L';
   const valueNote =
     snapMarketValue !== null
       ? `Position market value from latest snapshot ETF breakdown (${latSnap ? fmtMon(latSnap.date) : 'none yet'}).`
@@ -538,29 +539,18 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   // as unverified and double-check Realized P&L manually. See README "Known
   // limitations".
   document.getElementById('port-summary')!.innerHTML = `
-    <div class="row"><div class="row-label">Total invested (net)</div><div class="row-val">${fmtEur(pd.totalInv)}</div></div>
+    <div class="row"><div class="row-label">Invested capital (cost basis)</div><div class="row-val">${fmtEur(pd.totalInv)}</div></div>
     ${
       snapMarketValue !== null
-        ? `<div class="row"><div class="row-label">Market value (positions)</div><div class="row-val">${fmtEur2(snapMarketValue)}</div></div>`
-        : ''
-    }
+        ? `<div class="row"><div class="row-label">Market value (positions)</div><div class="row-val">${fmtEur2(snapMarketValue)}</div></div>
+    <div class="row"><div class="row-label">Account value (snapshot)</div><div class="row-val">${curVal !== null ? fmtEur2(curVal) : '-'}</div></div>
     ${
-      curVal !== null
-        ? `<div class="row"><div class="row-label">Account value (snapshot)</div><div class="row-val">${fmtEur2(curVal)}</div></div>`
+      cashUnallocated !== null && Math.abs(cashUnallocated) > 0.01
+        ? `<div class="row"><div class="row-label">Unallocated cash ${infoTip('Difference between the account snapshot total and the sum of ETF position market values. A non-zero value may indicate uninvested cash, pending settlement, rounding drift, or an incomplete ETF breakdown.')}</div><div class="row-val ${cashUnallocated >= 0 ? 'ok' : 'neg'}">${fmtEurNeg(cashUnallocated, 2)}</div></div>`
+        : ''
+    }`
         : ''
     }
-    ${
-      cashUnallocated !== null
-        ? `<div class="row"><div class="row-label">Cash / unallocated</div><div class="row-val ${cashUnallocated >= 0 ? 'ok' : 'neg'}">${fmtEurNeg(cashUnallocated, 2)}</div></div>`
-        : ''
-    }
-    <div class="row"><div class="row-label">Realized P&amp;L</div><div class="row-val ${pd.realizedPnL >= 0 ? 'ok' : 'neg'}">${fmtEurNeg(pd.realizedPnL, 2)}</div></div>
-    <div class="row"><div class="row-label">Total fees</div><div class="row-val">${fmtEur2(pd.totalFees)}</div></div>
-    <div class="row"><div class="row-label">Dividends (net)</div><div class="row-val ok">${fmtEur2(pd.totalDivNet)}</div></div>
-    <div class="row"><div class="row-label">Tax withheld on dividends</div><div class="row-val ${pd.totalTax > 0 ? 'neg' : 'ok'}">${fmtEur2(pd.totalTax)}</div></div>
-    <div class="row"><div class="row-label">Interest received (net)</div><div class="row-val ok">${fmtEur2(pd.totalInterest)}</div></div>
-    ${renderSourceBreakdown(pd.interestBySource)}
-    <div class="row"><div class="row-label">Tax on savings</div><div class="row-val ${pd.totalIntTax > 0 ? 'neg' : 'ok'}">${fmtEur2(pd.totalIntTax)}</div></div>
     ${
       gain !== null
         ? `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px">
@@ -569,8 +559,17 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
         ${fmtEurNeg(gain, 2)} (${fmtPctNeg(gainPct!)})</div></div>`
         : ''
     }
+    <div class="row"><div class="row-label">Realized P&amp;L</div><div class="row-val ${pd.realizedPnL >= 0 ? 'ok' : 'neg'}">${fmtEurNeg(pd.realizedPnL, 2)}</div></div>
+    <div class="row"><div class="row-label">Dividends (net)</div><div class="row-val ok">${fmtEur2(pd.totalDivNet)}</div></div>
+    <div class="row"><div class="row-label">Tax withheld on dividends</div><div class="row-val ${pd.totalTax > 0 ? 'neg' : 'ok'}">${fmtEur2(pd.totalTax)}</div></div>
+    <div class="row"><div class="row-label">Interest received (net)</div><div class="row-val ok">${fmtEur2(pd.totalInterest)}</div></div>
+    ${renderSourceBreakdown(pd.interestBySource)}
+    <div class="row"><div class="row-label">Tax on savings</div><div class="row-val ${pd.totalIntTax > 0 ? 'neg' : 'ok'}">${fmtEur2(pd.totalIntTax)}</div></div>
+    <div class="row"><div class="row-label">Fees</div><div class="row-val">${fmtEur2(pd.totalFees)}</div></div>
     <p class="note">Cost basis exact from CSV. ${valueNote} Mixed-currency positions compute in account currency (no FX conversion).</p>
   `;
+  const portSummary = document.getElementById('port-summary');
+  if (portSummary) attachInfoTips(portSummary);
 
   _renderDriftCard(pd, snaps);
 }
