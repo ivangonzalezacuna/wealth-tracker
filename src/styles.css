@@ -868,6 +868,7 @@ code,
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 .snap-etf-dot {
   flex-shrink: 0;
@@ -896,6 +897,8 @@ code,
   font-size: 10px;
   color: var(--ink-3);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .snap-etf-input {
   width: 110px;

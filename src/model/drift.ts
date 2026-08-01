@@ -102,8 +102,14 @@ export function computeDrift(
     });
   }
 
-  // Sort by absolute drift descending (most drifted first)
-  result.sort((a, b) => Math.abs(b.driftPct) - Math.abs(a.driftPct));
+  // Sort: non-legacy first, then legacy. Within each group: actualPct descending, name ascending as tiebreaker.
+  result.sort((a, b) => {
+    const aLegacy = a.targetPct === 0 ? 1 : 0;
+    const bLegacy = b.targetPct === 0 ? 1 : 0;
+    if (aLegacy !== bLegacy) return aLegacy - bLegacy;
+    if (b.actualPct !== a.actualPct) return b.actualPct - a.actualPct;
+    return a.shortName.localeCompare(b.shortName);
+  });
   return result;
 }
 
