@@ -723,6 +723,9 @@ code,
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
+#snap-acct-fields {
+  grid-column: 1 / -1;
+}
 @media (max-width: 520px) {
   .form-grid {
     grid-template-columns: 1fr;
@@ -901,13 +904,14 @@ code,
   text-overflow: ellipsis;
 }
 .snap-etf-input {
-  width: 110px;
+  width: 90px;
   flex-shrink: 0;
 }
 .snap-etf-recon {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   font-size: 11px;
   color: var(--ink-2);
   margin-top: 4px;

@@ -1044,6 +1044,43 @@ async function saveSnapshot() {
     }
   }
 
+  // Validate ETF reconciliation: if any ETF value is entered for an account,
+  // the sum must equal the account total. If none are set, skip.
+  for (const a of getACCTSList()) {
+    const section = document.getElementById(`snap-etf-section-${a.key}`);
+    if (!section) continue;
+    const etfInputs = section.querySelectorAll<HTMLInputElement>('[data-etf-isin]');
+    let allocated = 0;
+    let anySet = false;
+    for (const inp of Array.from(etfInputs)) {
+      const v = parseNum(String(inp.value ?? ''));
+      if (v > 0) {
+        anySet = true;
+        allocated += v;
+      }
+    }
+    if (!anySet) continue;
+    const total = (snap[a.key] as number | undefined) ?? 0;
+    if (Math.abs(allocated - total) > 0.005) {
+      section.style.display = '';
+      const toggleBtn = document.querySelector<HTMLElement>(
+        `.snap-etf-toggle[data-acct-key="${a.key}"]`,
+      );
+      if (toggleBtn) {
+        toggleBtn.setAttribute('aria-expanded', 'true');
+        const chevron = toggleBtn.querySelector('.snap-etf-chevron') as HTMLElement | null;
+        if (chevron) chevron.textContent = '\u25be';
+      }
+      _updateSnapEtfRecon(a.key);
+      showMsg(
+        'snap-msg',
+        `${a.label}: ETF values (${fmtEur2(allocated)}) must equal the account total (${fmtEur2(total)}). Fix or clear the ETF breakdown.`,
+        false,
+      );
+      return;
+    }
+  }
+
   const btn = document.getElementById('btn-save-snap') as HTMLButtonElement;
   try {
     await withButtonGuard(
