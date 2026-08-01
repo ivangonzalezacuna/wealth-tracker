@@ -31,6 +31,21 @@ import { TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 
 const CH: Record<string, Chart> = {};
 
+/**
+ * Extract per-ETF market values from a snapshot.
+ * Keys prefixed "etf_" hold the ISIN market value entered by the user.
+ */
+function extractSnapEtfValues(snap: Snapshot | null): Record<string, number> {
+  if (!snap) return {};
+  const out: Record<string, number> = {};
+  for (const [key, val] of Object.entries(snap)) {
+    if (key.startsWith('etf_') && typeof val === 'number' && val > 0) {
+      out[key.slice(4)] = val;
+    }
+  }
+  return out;
+}
+
 /** Resolve a profile source ID (e.g. 'trade_republic') to its display label. */
 function sourceLabel(id: string): string {
   const profile = builtInProfiles.find((p) => p.id === id);
@@ -64,9 +79,15 @@ let _currentColumns: ColumnDef<EtfPosition>[] = [];
 
 // mobile-visible column count must match styles.css's #port-table mobile grid-template-columns track count
 /** Single source of truth for the Holdings table's columns. `detail: true` marks
- *  columns whose values also appear in the mobile tap-to-expand panel. */
-function holdingsColumns(pd: PortfolioData): ColumnDef<EtfPosition>[] {
-  return [
+ *  columns whose values also appear in the mobile tap-to-expand panel.
+ *  `detailOnly: true` marks columns that appear only in the detail panel. */
+function holdingsColumns(
+  pd: PortfolioData,
+  snapEtfValues: Record<string, number>,
+): ColumnDef<EtfPosition>[] {
+  const hasSnapValues = Object.keys(snapEtfValues).length > 0;
+
+  const cols: ColumnDef<EtfPosition>[] = [
     {
       key: 'shortName',
       label: 'ETF',
@@ -148,6 +169,51 @@ function holdingsColumns(pd: PortfolioData): ColumnDef<EtfPosition>[] {
       cell: (e) => (e.divNet > 0 ? fmtEur2(e.divNet) : '-'),
     },
   ];
+
+  // When the latest snapshot includes per-ETF market values, add them as
+  // detail-panel-only columns so users can see market value and unrealized gain
+  // by tapping a row, without changing the table layout.
+  if (hasSnapValues) {
+    cols.push(
+      {
+        key: 'marketValue',
+        label: 'Market value',
+        align: 'right',
+        detail: true,
+        detailOnly: true,
+        sortValue: (e) => snapEtfValues[e.isin] ?? -1,
+        tip: 'Current market value from the latest snapshot ETF breakdown.',
+        cell: (e) => {
+          const mv = snapEtfValues[e.isin];
+          return mv !== undefined ? fmtEur2(mv) : '-';
+        },
+      },
+      {
+        key: 'unrealizedPnL',
+        label: 'Unrealized gain',
+        align: 'right',
+        detail: true,
+        detailOnly: true,
+        sortValue: (e) => {
+          const mv = snapEtfValues[e.isin];
+          return mv !== undefined ? mv - e.cost : -Infinity;
+        },
+        tip: 'Market value minus cost basis. Positive means the position is in profit.',
+        cellAttrs: (e) => {
+          const mv = snapEtfValues[e.isin];
+          const pnl = mv !== undefined ? mv - e.cost : null;
+          return `style="color:${pnl === null ? 'var(--ink-3)' : pnl >= 0 ? 'var(--pos)' : 'var(--neg)'}"`;
+        },
+        cell: (e) => {
+          const mv = snapEtfValues[e.isin];
+          if (mv === undefined) return '-';
+          return fmtEurNeg(mv - e.cost, 2);
+        },
+      },
+    );
+  }
+
+  return cols;
 }
 
 /**
@@ -157,7 +223,9 @@ function holdingsColumns(pd: PortfolioData): ColumnDef<EtfPosition>[] {
 function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   const ISIN_ORDER = getISIN_ORDERList();
   const META = getMETAMap();
-  const columns = holdingsColumns(pd);
+  const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
+  const snapEtfValues = extractSnapEtfValues(latSnap);
+  const columns = holdingsColumns(pd, snapEtfValues);
 
   // Build full ordered ETF list
   const allEtfs: EtfPosition[] = ISIN_ORDER.map((s) => pd.etfs[s])
@@ -470,17 +538,29 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     <p class="note">Cost basis exact from CSV. Current value from latest snapshot (${latSnap ? fmtMon(latSnap.date) : 'none yet'}). Mixed-currency positions compute in account currency (no FX conversion).</p>
   `;
 
-  _renderDriftCard(pd);
+  _renderDriftCard(pd, snaps);
 }
 
 // ── Drift / rebalance card ──
 
-function _renderDriftCard(pd: PortfolioData): void {
+function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
   const driftEl = document.getElementById('port-drift');
   if (!driftEl) return;
 
   const holdings = getHoldings();
-  const drift = computeDrift(holdings, pd.etfs, pd.totalInv);
+
+  // Extract per-ETF market values from the latest snapshot when available.
+  const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
+  const snapEtfValues = extractSnapEtfValues(latSnap);
+  const hasSnapValues = Object.keys(snapEtfValues).length > 0;
+
+  // Use the snapshot primary-investment account total as totalValue when market
+  // values are available; otherwise fall back to the sum of cost bases.
+  const totalValue = hasSnapValues
+    ? (primaryInvestmentValue(latSnap, getAccounts()) ?? pd.totalInv)
+    : pd.totalInv;
+
+  const drift = computeDrift(holdings, pd.etfs, totalValue, hasSnapValues ? snapEtfValues : undefined);
 
   if (drift.length === 0) {
     driftEl.innerHTML = '';
@@ -503,16 +583,21 @@ function _renderDriftCard(pd: PortfolioData): void {
               : d.driftPct < -2
                 ? 'var(--warn)'
                 : 'var(--pos)';
+      const isLegacy = d.targetPct === 0;
       return `
       <div class="tbl-row" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
-        <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${safeColor(d.color)};margin-right:6px"></span><span data-etf-isin="${esc(d.isin)}" data-etf-name="${esc(d.name)}">${esc(d.shortName)}</span></div>
-        <div role="cell" style="text-align:right">${d.targetPct.toFixed(1)}%</div>
+        <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${safeColor(d.color)};margin-right:6px;opacity:${isLegacy ? '0.6' : '1'}"></span><span data-etf-isin="${esc(d.isin)}" data-etf-name="${esc(d.name)}">${esc(d.shortName)}</span></div>
+        <div role="cell" style="text-align:right${isLegacy ? ';color:var(--ink-3)' : ''}">${isLegacy ? '(legacy)' : d.targetPct.toFixed(1) + '%'}</div>
         <div role="cell" style="text-align:right">${d.actualPct.toFixed(1)}%</div>
         <div role="cell" style="text-align:right;color:${driftColor}" aria-label="Drift ${fmtPctSigned(d.driftPct)}">${fmtPctSigned(d.driftPct)}</div>
         <div role="cell" style="text-align:right;color:${d.deltaValue >= 0 ? 'var(--ink-3)' : 'var(--ink-2)'}">${fmtEurSigned(d.deltaValue)}</div>
       </div>`;
     })
     .join('');
+
+  const noteSource = hasSnapValues
+    ? `Actual from market values (snapshot: ${fmtMon(latSnap!.date)}). Legacy = inactive positions still held.`
+    : `Actual from cost basis (no ETF values in latest snapshot). Legacy = inactive positions still held.`;
 
   driftEl.innerHTML = `
     <div class="card">
@@ -523,7 +608,7 @@ function _renderDriftCard(pd: PortfolioData): void {
         </div>
         ${rows}
       </div>
-      <p class="note" style="margin-top:.5rem">Target derived from contribution weights. Actual from cost basis. Delta = amount to sell/buy to reach target.</p>
+      <p class="note" style="margin-top:.5rem">Target from contribution weights. ${noteSource} Delta = amount to sell/buy to reach target.</p>
     </div>`;
 
   attachEtfPopovers(driftEl);
