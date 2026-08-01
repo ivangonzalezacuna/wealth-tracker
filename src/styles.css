@@ -852,6 +852,7 @@ code,
   display: flex;
   flex-direction: column;
   gap: 6px;
+  width: 100%;
 }
 .snap-etf-group {
   display: flex;
@@ -860,6 +861,7 @@ code,
   padding: 6px 8px;
   background: var(--surface-2);
   border-radius: var(--radius-sm);
+  width: 100%;
 }
 .snap-etf-group-label {
   font-size: 10px;
@@ -872,6 +874,7 @@ code,
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   overflow: hidden;
 }
 .snap-etf-name-col {
@@ -879,6 +882,7 @@ code,
   flex-direction: column;
   flex: 1;
   min-width: 0;
+  max-width: 62%;
   overflow: hidden;
 }
 .snap-etf-name {
