@@ -417,8 +417,6 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   );
   const totalReturn =
     (gain ?? 0) + pd.realizedPnL + pd.totalDivNet + pd.totalInterest - pd.totalFees;
-  const totalReturnPct =
-    gain !== null && pd.totalInv > 0 ? (totalReturn / pd.totalInv) * 100 : null;
   const unrealizedTip =
     snapMarketValue !== null
       ? 'Gain or loss on ETF positions still held. Computed as position market value (from ETF breakdown) minus invested capital (cost basis). Not locked in until you sell.'
@@ -573,7 +571,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
       : '';
   const totalReturnRow =
     gain !== null
-      ? `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px"><div class="row-label" style="font-weight:600">Total return</div><div class="row-val ${totalReturn >= 0 ? 'pos' : 'neg'}" style="font-weight:600">${fmtEurNeg(totalReturn, 2)}${totalReturnPct !== null ? ` (${fmtPctNeg(totalReturnPct)})` : ''}</div></div>`
+      ? `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px"><div class="row-label" style="font-weight:600">Total return</div><div class="row-val ${totalReturn >= 0 ? 'pos' : 'neg'}" style="font-weight:600">${fmtEurNeg(totalReturn, 2)}</div></div>`
       : '';
 
   // Known limitation: foldInto (multi-leg SELL consolidation, e.g. IEEM→CMEIU,

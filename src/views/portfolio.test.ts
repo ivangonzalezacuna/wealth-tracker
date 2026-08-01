@@ -240,6 +240,14 @@ describe('renderPortfolio', () => {
     expect(summary).toContain('223,00');
   });
 
+  it('shows Total return as an amount only, without a percentage', () => {
+    const snap: Snapshot = { date: '2026-06-01', acct1: 1200 };
+    renderPortfolio(makePD(), [snap]);
+    const summary = document.getElementById('port-summary')!.textContent!;
+    expect(summary).toContain('Total return');
+    expect(summary).not.toContain('223,00 (22,3%)');
+  });
+
   it('shows gross dividend and interest rows so taxes read as separate deductions', () => {
     const snap: Snapshot = { date: '2026-06-01', acct1: 1200 };
     renderPortfolio(
