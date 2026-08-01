@@ -331,6 +331,20 @@ describe('renderPortfolio', () => {
     expect(config.data.datasets[0]).toHaveProperty('data');
   });
 
+  it('uses a square leading edge and the existing trailing radius for allocation bars', () => {
+    renderPortfolio(makePD(), []);
+    const config = chartInstances[0].config as {
+      data: { datasets: Array<{ borderRadius: unknown; borderSkipped: unknown }> };
+    };
+    expect(config.data.datasets[0].borderRadius).toEqual({
+      topLeft: 0,
+      bottomLeft: 0,
+      topRight: 5,
+      bottomRight: 5,
+    });
+    expect(config.data.datasets[0].borderSkipped).toBe(false);
+  });
+
   it('renders donut legend with short name and percentage', () => {
     renderPortfolio(makePD(), []);
     const legend = document.getElementById('port-donut-legend')!.textContent!;

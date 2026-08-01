@@ -378,7 +378,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
           backgroundColor: donutE.map((e) => safeColor(e.color)),
           borderColor: donutE.map((e) => safeColor(e.color)),
           borderWidth: 1,
-          borderRadius: 5,
+          borderRadius: { topLeft: 0, bottomLeft: 0, topRight: 5, bottomRight: 5 },
           borderSkipped: false,
         },
       ],
