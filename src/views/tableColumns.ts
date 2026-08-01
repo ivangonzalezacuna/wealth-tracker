@@ -23,6 +23,10 @@ export interface ColumnDef<T> {
   mobileHidden?: boolean;
   /** Marks column value for inclusion in the mobile tap-to-expand detail panel. */
   detail?: boolean;
+  /** If true, the column appears only in the tap-to-expand detail panel, not in
+   *  the table header or data rows. Implies detail: true. Use for extra metrics
+   *  that would clutter the table but are valuable in the expanded view. */
+  detailOnly?: boolean;
   /** Extra class(es) on the rendered cell div, e.g. 'hold-etf-cell'. */
   cellClass?: (row: T) => string;
   /** Extra raw HTML attributes on the rendered cell div, e.g. data-isin="...".
@@ -38,12 +42,14 @@ export interface ColumnDef<T> {
 
 /** Count of visible columns at the given breakpoint (for verifying CSS grid-template-columns). */
 export function visibleColumnCount<T>(columns: ColumnDef<T>[], mobile: boolean): number {
-  return mobile ? columns.filter((c) => !c.mobileHidden).length : columns.length;
+  const tableCols = columns.filter((c) => !c.detailOnly);
+  return mobile ? tableCols.filter((c) => !c.mobileHidden).length : tableCols.length;
 }
 
 /** Render all columnheader cells for a table. Caller wraps in the .tbl-row.th container. */
 export function renderTableHeader<T>(columns: ColumnDef<T>[], state: SortState): string {
   return columns
+    .filter((col) => !col.detailOnly)
     .map((col) => {
       const mobileAttr = col.mobileHidden ? ' data-mobile-hidden="1"' : '';
       if (col.sortValue) {
@@ -60,6 +66,7 @@ export function renderTableHeader<T>(columns: ColumnDef<T>[], state: SortState):
 /** Render all cell divs for one data row. Caller wraps in its .tbl-row container. */
 export function renderTableRow<T>(columns: ColumnDef<T>[], row: T): string {
   return columns
+    .filter((col) => !col.detailOnly)
     .map((col) => {
       if (col.raw) return col.cell ? col.cell(row) : '';
       // When cellAttrs is defined, it is responsible for including text-align
