@@ -158,6 +158,7 @@ function holdingsColumns(
         const rpnl = e.realizedPnL || 0;
         return rpnl === 0 ? '-' : fmtEurNeg(rpnl, 2);
       },
+      detailValueClass: (e) => ((e.realizedPnL || 0) >= 0 ? 'pos' : 'neg'),
     },
     {
       key: 'divNet',
@@ -208,6 +209,11 @@ function holdingsColumns(
           const mv = snapEtfValues[e.isin];
           if (mv === undefined) return '-';
           return fmtEurNeg(mv - e.cost, 2);
+        },
+        detailValueClass: (e) => {
+          const mv = snapEtfValues[e.isin];
+          if (mv === undefined) return '';
+          return mv - e.cost >= 0 ? 'pos' : 'neg';
         },
       },
     );
@@ -350,8 +356,8 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
       const detailColRows = detailCols
         .map((c) => {
           const value = c.cell ? c.cell(e) : '';
-          const rpnl = e.realizedPnL || 0;
-          const valueClass = c.key === 'realizedPnL' ? (rpnl >= 0 ? ' pos' : ' neg') : '';
+          const detailValueClass = c.detailValueClass ? c.detailValueClass(e) : '';
+          const valueClass = detailValueClass ? ` ${detailValueClass}` : '';
           const rowClass = c.mobileHidden ? ' class="hold-detail-mobile-only"' : '';
           return `<div${rowClass}><span class="hold-detail-label">${c.label}</span><span class="hold-detail-value${valueClass}">${value}</span></div>`;
         })

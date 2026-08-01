@@ -306,6 +306,7 @@ describe('renderPortfolio', () => {
     expect(detail).not.toBeNull();
     expect(detail.textContent).toContain('Market value');
     expect(detail.textContent).toContain('Unrealized gain');
+    expect(detail.innerHTML).toContain('hold-detail-value pos');
   });
 
   it('tap-to-expand does not show market value columns when no etf_ snapshot values', () => {

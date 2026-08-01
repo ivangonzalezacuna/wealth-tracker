@@ -36,6 +36,8 @@ export interface ColumnDef<T> {
   cellAttrs?: (row: T) => string;
   /** Inner HTML of the cell. Ignored if `raw` is true. */
   cell?: (row: T) => string;
+  /** Extra class(es) for the mobile tap-to-expand detail value. */
+  detailValueClass?: (row: T) => string;
   /** If true, cell() returns the full element markup (no outer role="cell" div wrapper). */
   raw?: boolean;
 }
