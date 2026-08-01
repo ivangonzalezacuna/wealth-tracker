@@ -386,7 +386,7 @@ describe('renderPortfolio', () => {
     renderPortfolio(makePD(), []);
     const legend = document.getElementById('port-donut-legend')!.textContent!;
     expect(legend).toContain('IWDA');
-    expect(legend).toContain('100.0%');
+    expect(legend).toContain('100%');
   });
 
   it('integrates allocation percentage into the cost basis cell', () => {
@@ -394,7 +394,7 @@ describe('renderPortfolio', () => {
     const table = document.getElementById('port-table')!;
     expect(table.textContent).not.toContain('% of cost');
     expect(table.innerHTML).toContain('hold-inline-meta');
-    expect(table.textContent).toContain('100.0%');
+    expect(table.textContent).toContain('100%');
   });
 
   it('renders summary section with total invested and fees', () => {

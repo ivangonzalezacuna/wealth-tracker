@@ -7,6 +7,7 @@ import {
   fmtPctNeg,
   fmtEurSigned,
   fmtPctSigned,
+  fmtPctVal,
   esc,
   safeColor,
   kpiTile,
@@ -108,7 +109,7 @@ function holdingsColumns(
       cell: (e) => {
         const pct = pd.totalInv > 0 ? (e.cost / pd.totalInv) * 100 : 0;
         const isExited = e.exited || e.shares < 1e-6;
-        return `<div class="hold-value-line"><span>${fmtEur(e.cost)}</span><span class="hold-inline-meta">${pct.toFixed(1)}%</span></div>${!isExited ? `\n        <div class="bar-wrap"><div class="bar-fill" style="width:${pct.toFixed(0)}%;background:${safeColor(e.color)}"></div></div>` : ''}`;
+        return `<div class="hold-value-line"><span>${fmtEur(e.cost)}</span><span class="hold-inline-meta">${fmtPctVal(pct)}</span></div>${!isExited ? `\n        <div class="bar-wrap"><div class="bar-fill" style="width:${pct.toFixed(0)}%;background:${safeColor(e.color)}"></div></div>` : ''}`;
       },
     },
     {
@@ -513,7 +514,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   document.getElementById('port-donut-legend')!.innerHTML = renderLegendHtml(
     donutE.map((e) => ({
       label: e.shortName,
-      meta: `${pd.totalInv > 0 ? ((e.cost / pd.totalInv) * 100).toFixed(1) : '0.0'}%`,
+      meta: pd.totalInv > 0 ? fmtPctVal((e.cost / pd.totalInv) * 100) : '0%',
       color: e.color,
     })),
   );
@@ -597,8 +598,8 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
       return `
       <div class="tbl-row" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
         <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:var(--radius-xs);background:${safeColor(d.color)};margin-right:6px;opacity:${isLegacy ? '0.6' : '1'}"></span><span data-etf-isin="${esc(d.isin)}" data-etf-name="${esc(d.name)}">${esc(d.shortName)}</span></div>
-        <div role="cell" style="text-align:right${isLegacy ? ';color:var(--ink-3)' : ''}">${isLegacy ? '(legacy)' : d.targetPct.toFixed(1) + '%'}</div>
-        <div role="cell" style="text-align:right">${d.actualPct.toFixed(1)}%</div>
+        <div role="cell" style="text-align:right${isLegacy ? ';color:var(--ink-3)' : ''}">${isLegacy ? '(legacy)' : fmtPctVal(d.targetPct)}</div>
+        <div role="cell" style="text-align:right">${fmtPctVal(d.actualPct)}</div>
         <div role="cell" style="text-align:right;color:${driftColor}" aria-label="Drift ${fmtPctSigned(d.driftPct)}">${fmtPctSigned(d.driftPct)}</div>
         <div role="cell" style="text-align:right;color:${d.deltaValue >= 0 ? 'var(--ink-3)' : 'var(--ink-2)'}">${fmtEurSigned(d.deltaValue)}</div>
       </div>`;
@@ -611,7 +612,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
 
   driftEl.innerHTML = `
     <div class="card">
-      <div class="card-title">Allocation drift <span style="font-size:12px;font-weight:400;color:${statusColor};margin-left:8px">${statusLabel} (max ${max.toFixed(1)}%)</span></div>
+      <div class="card-title">Allocation drift <span style="font-size:12px;font-weight:400;color:${statusColor};margin-left:8px">${statusLabel} (max ${fmtPctVal(max)})</span></div>
       <div class="tbl" role="table" aria-label="Allocation drift">
         <div class="tbl-row th" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
           <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right">Target</div><div role="columnheader" style="text-align:right">Actual</div><div role="columnheader" style="text-align:right">Drift</div><div role="columnheader" style="text-align:right">Delta</div>
