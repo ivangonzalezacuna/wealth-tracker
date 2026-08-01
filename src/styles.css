@@ -871,18 +871,25 @@ code,
   font-weight: 600;
 }
 .snap-etf-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(96px, 118px);
   align-items: center;
   gap: 8px;
   width: 100%;
+  min-width: 0;
   overflow: hidden;
+}
+.snap-etf-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 .snap-etf-name-col {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-width: 0;
-  max-width: 62%;
   overflow: hidden;
 }
 .snap-etf-name {
@@ -900,8 +907,8 @@ code,
   text-overflow: ellipsis;
 }
 .snap-etf-input {
-  width: 90px;
-  flex-shrink: 0;
+  width: 100%;
+  min-width: 0;
 }
 .snap-etf-recon {
   display: flex;
@@ -923,6 +930,16 @@ code,
 }
 .snap-etf-recon-remain.snap-etf-recon-ok {
   color: var(--pos);
+}
+@media (max-width: 520px) {
+  .snap-etf-row {
+    grid-template-columns: minmax(0, 1fr) minmax(84px, 104px);
+    gap: 6px;
+  }
+  .snap-etf-input {
+    padding: 6px 7px;
+    font-size: 12px;
+  }
 }
 
 .empty-state {

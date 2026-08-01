@@ -1585,17 +1585,19 @@ function _renderEtfBreakdown(
     color: string;
   }): string => `
       <div class="snap-etf-row">
-        <span class="hold-dot" style="background:${safeColor(pos.color)}"></span>
-        <div class="snap-etf-name-col">
-          <span class="snap-etf-name">${esc(getName(pos.isin, pos.name, pos.shortName))}</span>
-          <span class="snap-etf-isin">${esc(pos.isin)}</span>
+        <div class="snap-etf-meta">
+          <span class="hold-dot" style="background:${safeColor(pos.color)}"></span>
+          <div class="snap-etf-name-col">
+            <span class="snap-etf-name">${esc(getName(pos.isin, pos.name, pos.shortName))}</span>
+            <span class="snap-etf-isin">${esc(pos.isin)}</span>
+          </div>
         </div>
         <input type="text" inputmode="decimal"
                id="snap-etf-${esc(pos.isin)}"
                data-etf-isin="${esc(pos.isin)}"
                data-acct-key="${esc(acctKey)}"
                class="form-input form-input-sm snap-etf-input"
-               placeholder="Market value">
+               placeholder="Value">
       </div>`;
 
   const contribHtml =
