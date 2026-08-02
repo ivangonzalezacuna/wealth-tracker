@@ -240,17 +240,17 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
       {
         title: 'Dividends',
         items: [
-          { label: 'Gross dividends received', value: r.grossDiv },
-          { label: 'Dividend taxes paid', value: r.divTax, className: taxToneClass(r.divTax) },
-          { label: 'Net dividends received', value: r.netDiv, className: toneClass(r.netDiv) },
+          { label: 'Gross', value: r.grossDiv },
+          { label: 'Taxes', value: r.divTax, className: taxToneClass(r.divTax) },
+          { label: 'Net', value: r.netDiv, className: toneClass(r.netDiv) },
         ],
       },
       {
         title: 'Savings',
         items: [
-          { label: 'Gross interest received', value: r.grossInt },
-          { label: 'Taxes paid', value: r.intTax, className: taxToneClass(r.intTax) },
-          { label: 'Net interest received', value: r.netInt, className: toneClass(r.netInt) },
+          { label: 'Gross', value: r.grossInt },
+          { label: 'Taxes', value: r.intTax, className: taxToneClass(r.intTax) },
+          { label: 'Net', value: r.netInt, className: toneClass(r.netInt) },
         ],
       },
       {
