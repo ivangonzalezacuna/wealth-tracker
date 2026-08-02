@@ -167,6 +167,11 @@ describe('renderDividends', () => {
     expect(document.getElementById('div-annual')!.textContent).toContain(
       'Realized profit and loss from sells',
     );
+    const groups = document.querySelectorAll('.annual-detail-group-title');
+    expect(groups.length).toBe(3);
+    expect(groups[0].textContent).toBe('Dividends');
+    expect(groups[1].textContent).toBe('Savings');
+    expect(groups[2].textContent).toBe('Profit / loss');
   });
 
   it('renders yearly taxes in positive color when taxes are negative (refund)', () => {

@@ -404,26 +404,32 @@ code,
   cursor: pointer;
 }
 .annual-detail {
-  background: var(--surface-2);
-  border: 1px solid var(--line);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
-  padding: 8px 12px;
+  padding: 10px;
   margin: -2px 0 4px;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   grid-column: 1 / -1;
-  gap: 6px 12px;
+  gap: 8px;
   font-size: 11px;
 }
 .annual-detail-group {
   display: grid;
   gap: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
 }
 .annual-detail-group-title {
-  color: var(--ink-3);
+  color: var(--ink-2);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
 }
 .annual-detail-empty {
   color: var(--ink-3);
