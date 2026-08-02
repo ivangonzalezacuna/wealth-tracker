@@ -272,6 +272,31 @@ code,
   font-size: 12px;
   font-weight: 400;
 }
+.drift-summary {
+  margin: 0.7rem 0 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.drift-summary-line {
+  line-height: 1.35;
+}
+.drift-summary-muted {
+  color: var(--ink-2);
+}
+.drift-controls {
+  margin-bottom: 0.55rem;
+}
+.drift-mode-toggle {
+  width: fit-content;
+}
+.drift-action-buy {
+  color: var(--ink);
+  font-weight: 500;
+}
+.drift-action-muted {
+  color: var(--ink-3);
+}
 .card-title + .legend,
 .card-title + .chart-controls {
   margin-top: 10px;

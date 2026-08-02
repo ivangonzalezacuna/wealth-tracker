@@ -394,6 +394,199 @@ describe('renderPortfolio', () => {
     expect(drift.innerHTML).toContain('IWDA');
   });
 
+  it('defaults drift table to contributions mode with adaptive column label', () => {
+    const pd = makePD({
+      etfs: {
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 700 }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EIMI', color: '#333', cost: 300 }),
+      },
+      totalInv: 1000,
+    });
+    MOCK_HOLDINGS.splice(
+      0,
+      MOCK_HOLDINGS.length,
+      {
+        isin: 'IE00TEST1',
+        shortName: 'IWDA',
+        name: 'World',
+        color: '#222222',
+        acc: true,
+        active: true,
+        contribAmount: 50,
+        contribInterval: 'weekly',
+        assetClass: 'equity',
+        region: 'developed',
+        foldInto: '',
+        order: 1,
+      } as any,
+      {
+        isin: 'IE00TEST2',
+        shortName: 'EIMI',
+        name: 'EM',
+        color: '#333333',
+        acc: true,
+        active: true,
+        contribAmount: 50,
+        contribInterval: 'weekly',
+        assetClass: 'equity',
+        region: 'emerging',
+        foldInto: '',
+        order: 2,
+      } as any,
+    );
+    renderPortfolio(pd, []);
+    const drift = document.getElementById('port-drift')!;
+    expect(drift.textContent).toContain('Next buy focus');
+    expect(drift.textContent).toContain('Buy');
+  });
+
+  it('switches drift table to full rebalance mode when toggled', () => {
+    const pd = makePD({
+      etfs: {
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 700 }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EIMI', color: '#333', cost: 300 }),
+      },
+      totalInv: 1000,
+    });
+    MOCK_HOLDINGS.splice(
+      0,
+      MOCK_HOLDINGS.length,
+      {
+        isin: 'IE00TEST1',
+        shortName: 'IWDA',
+        name: 'World',
+        color: '#222222',
+        acc: true,
+        active: true,
+        contribAmount: 50,
+        contribInterval: 'weekly',
+        assetClass: 'equity',
+        region: 'developed',
+        foldInto: '',
+        order: 1,
+      } as any,
+      {
+        isin: 'IE00TEST2',
+        shortName: 'EIMI',
+        name: 'EM',
+        color: '#333333',
+        acc: true,
+        active: true,
+        contribAmount: 50,
+        contribInterval: 'weekly',
+        assetClass: 'equity',
+        region: 'emerging',
+        foldInto: '',
+        order: 2,
+      } as any,
+    );
+    renderPortfolio(pd, []);
+    const drift = document.getElementById('port-drift')!;
+    const fullBtn = drift.querySelector('[data-drift-mode="full"]') as HTMLButtonElement;
+    fullBtn.click();
+    expect(drift.textContent).toContain('Buy/Sell delta');
+    expect(drift.textContent).toContain('+');
+    expect(drift.textContent).toContain('−');
+  });
+
+  it('shows capped summary list with overflow indicator in contributions mode', () => {
+    MOCK_HOLDINGS.splice(
+      0,
+      MOCK_HOLDINGS.length,
+      {
+        isin: 'A',
+        shortName: 'A',
+        name: 'A',
+        color: '#111111',
+        acc: true,
+        active: true,
+        contribAmount: 20,
+        contribInterval: 'weekly',
+        assetClass: 'equity',
+        region: 'developed',
+        foldInto: '',
+        order: 1,
+      } as any,
+      {
+        isin: 'B',
+        shortName: 'B',
+        name: 'B',
+        color: '#222222',
+        acc: true,
+        active: true,
+        contribAmount: 20,
+        contribInterval: 'weekly',
+        assetClass: 'equity',
+        region: 'developed',
+        foldInto: '',
+        order: 2,
+      } as any,
+      {
+        isin: 'C',
+        shortName: 'C',
+        name: 'C',
+        color: '#333333',
+        acc: true,
+        active: true,
+        contribAmount: 20,
+        contribInterval: 'weekly',
+        assetClass: 'equity',
+        region: 'developed',
+        foldInto: '',
+        order: 3,
+      } as any,
+      {
+        isin: 'D',
+        shortName: 'D',
+        name: 'D',
+        color: '#444444',
+        acc: true,
+        active: true,
+        contribAmount: 20,
+        contribInterval: 'weekly',
+        assetClass: 'equity',
+        region: 'developed',
+        foldInto: '',
+        order: 4,
+      } as any,
+      {
+        isin: 'E',
+        shortName: 'E',
+        name: 'E',
+        color: '#555555',
+        acc: true,
+        active: true,
+        contribAmount: 20,
+        contribInterval: 'weekly',
+        assetClass: 'equity',
+        region: 'developed',
+        foldInto: '',
+        order: 5,
+      } as any,
+    );
+    const pd = makePD({
+      etfs: {
+        A: makeEtf({ isin: 'A', shortName: 'A', cost: 500 }),
+        B: makeEtf({ isin: 'B', shortName: 'B', cost: 500 }),
+        C: makeEtf({ isin: 'C', shortName: 'C', cost: 500 }),
+        D: makeEtf({ isin: 'D', shortName: 'D', cost: 500 }),
+        E: makeEtf({ isin: 'E', shortName: 'E', cost: 8000 }),
+      },
+      totalInv: 10000,
+    });
+    renderPortfolio(pd, []);
+    const drift = document.getElementById('port-drift')!;
+    expect(drift.textContent).toContain('Next contribution focus');
+    expect(drift.textContent).toContain('+1 more');
+    expect(drift.textContent).toContain('Full rebalance also needs');
+  });
+
+  it('hides drift summary when drift is tiny', () => {
+    renderPortfolio(makePD(), []);
+    const drift = document.getElementById('port-drift')!;
+    expect(drift.innerHTML).not.toContain('drift-summary');
+  });
+
   it('drift note mentions cost basis when no snapshot ETF values are present', () => {
     renderPortfolio(makePD(), []);
     const drift = document.getElementById('port-drift')!;

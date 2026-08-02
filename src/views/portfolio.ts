@@ -765,7 +765,9 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
 
 // ── Drift / rebalance card ──
 
-function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
+type DriftMode = 'contrib' | 'full';
+
+function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], mode: DriftMode = 'contrib'): void {
   const driftEl = document.getElementById('port-drift');
   if (!driftEl) return;
 
@@ -797,6 +799,56 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
   const max = maxDrift(drift);
   const statusColor = max > 10 ? 'var(--neg)' : max > 5 ? 'var(--warn)' : 'var(--pos)';
   const statusLabel = max > 10 ? 'High drift' : max > 5 ? 'Moderate drift' : 'On target';
+  const showSummary = max > 1;
+  const smallDelta = 1;
+
+  const sortedBuys = drift
+    .filter((d) => d.targetPct > 0 && d.deltaValue < -smallDelta)
+    .sort((a, b) => Math.abs(b.deltaValue) - Math.abs(a.deltaValue));
+  const sortedSells = drift
+    .filter((d) => d.deltaValue > smallDelta)
+    .sort((a, b) => b.deltaValue - a.deltaValue);
+
+  const formatActionItems = (
+    entries: typeof drift,
+    verb: 'Buy' | 'Sell',
+    limit = 3,
+    reverseOrder = false,
+  ): string => {
+    const shown = entries.slice(0, limit);
+    const list = shown
+      .map((d) =>
+        reverseOrder
+          ? `${verb} ${fmtEur(Math.abs(d.deltaValue))} ${esc(d.shortName)}`
+          : `${esc(d.shortName)} ${fmtEur(Math.abs(d.deltaValue))}`,
+      )
+      .join(', ');
+    const remaining = entries.length - shown.length;
+    return remaining > 0 ? `${list}, +${remaining} more` : list;
+  };
+
+  let summaryHtml = '';
+  if (showSummary) {
+    if (mode === 'contrib') {
+      const primaryLine =
+        sortedBuys.length > 0
+          ? `Next contribution focus: ${formatActionItems(sortedBuys, 'Buy')}`
+          : 'Next contribution focus: no buy tilt needed.';
+      const secondaryLine =
+        sortedSells.length > 0
+          ? `Full rebalance also needs: ${formatActionItems(sortedSells, 'Sell', 3, true)}`
+          : '';
+      summaryHtml = `<div class="status-bar status-info drift-summary"><div class="drift-summary-line">${primaryLine}</div>${secondaryLine ? `<div class="drift-summary-line drift-summary-muted">${secondaryLine}</div>` : ''}</div>`;
+    } else {
+      const buyPart =
+        sortedBuys.length > 0 ? `Buy ${formatActionItems(sortedBuys, 'Buy')}` : 'No buys';
+      const sellPart =
+        sortedSells.length > 0
+          ? `Sell ${formatActionItems(sortedSells, 'Sell', 3, false)}`
+          : 'no sells';
+      summaryHtml = `<div class="status-bar status-info drift-summary"><div class="drift-summary-line">Full rebalance: ${buyPart}; ${sellPart}.</div></div>`;
+    }
+  }
 
   const rows = drift
     .map((d) => {
@@ -811,13 +863,19 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
                 ? 'var(--warn)'
                 : 'var(--pos)';
       const isLegacy = d.targetPct === 0;
+      const actionCell =
+        mode === 'contrib'
+          ? d.targetPct > 0 && d.deltaValue < -smallDelta
+            ? `<span class="drift-action-buy">Buy ${fmtEur(Math.abs(d.deltaValue))}</span>`
+            : '<span class="drift-action-muted">-</span>'
+          : fmtEurSigned(d.deltaValue);
       return `
       <div class="tbl-row" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
         <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:var(--radius-xs);background:${safeColor(d.color)};margin-right:6px;opacity:${isLegacy ? '0.6' : '1'}"></span><span data-etf-isin="${esc(d.isin)}" data-etf-name="${esc(d.name)}">${esc(d.shortName)}</span></div>
         <div role="cell" style="text-align:right${isLegacy ? ';color:var(--ink-3)' : ''}">${isLegacy ? '(legacy)' : fmtPctVal(d.targetPct)}</div>
         <div role="cell" style="text-align:right">${fmtPctVal(d.actualPct)}</div>
         <div role="cell" style="text-align:right;color:${driftColor}" aria-label="Drift ${fmtPctSigned(d.driftPct)}">${fmtPctSigned(d.driftPct)}</div>
-        <div role="cell" style="text-align:right;color:${d.deltaValue >= 0 ? 'var(--ink-3)' : 'var(--ink-2)'}">${fmtEurSigned(d.deltaValue)}</div>
+        <div role="cell" style="text-align:right;color:${d.deltaValue >= 0 ? 'var(--ink-3)' : 'var(--ink-2)'}">${actionCell}</div>
       </div>`;
     })
     .join('');
@@ -829,19 +887,38 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
   const costModeBanner = hasCostMode
     ? `<div class="status-bar status-warn" style="margin-bottom:.6rem">Allocation is based on purchase cost, not current market value. Enter ETF values in your next snapshot for market-based drift.</div>`
     : '';
+  const modeNote =
+    mode === 'contrib'
+      ? 'Contributions only highlights underweight buy priorities.'
+      : 'Full rebalance shows buy and sell deltas to reach target.';
 
   driftEl.innerHTML = `
     <div class="card">
       <div class="card-title drift-title">Allocation drift <span class="drift-title-status" style="color:${statusColor}">${statusLabel} (max ${fmtPctVal(max)})</span></div>
       ${costModeBanner}
+      ${summaryHtml}
+      <div class="drift-controls">
+        <div class="range-toggle drift-mode-toggle" role="tablist" aria-label="Drift mode">
+          <button class="btn btn-sm btn-ghost ${mode === 'contrib' ? 'active' : ''}" data-drift-mode="contrib" role="tab" aria-selected="${mode === 'contrib'}">Contributions only</button>
+          <button class="btn btn-sm btn-ghost ${mode === 'full' ? 'active' : ''}" data-drift-mode="full" role="tab" aria-selected="${mode === 'full'}">Full rebalance</button>
+        </div>
+      </div>
       <div class="tbl" role="table" aria-label="Allocation drift">
         <div class="tbl-row th" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
-          <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right">Target</div><div role="columnheader" style="text-align:right">Actual</div><div role="columnheader" style="text-align:right">Drift</div><div role="columnheader" style="text-align:right">Delta</div>
+          <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right">Target</div><div role="columnheader" style="text-align:right">Actual</div><div role="columnheader" style="text-align:right">Drift</div><div role="columnheader" style="text-align:right">${mode === 'contrib' ? 'Next buy focus' : 'Buy/Sell delta'}</div>
         </div>
         ${rows}
       </div>
-      <p class="note" style="margin-top:.5rem">Target from contribution weights. ${noteSource} Delta = amount to sell/buy to reach target.</p>
+      <p class="note" style="margin-top:.5rem">Target from contribution weights. ${noteSource} ${modeNote}</p>
     </div>`;
+
+  driftEl.querySelectorAll<HTMLButtonElement>('[data-drift-mode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const next = btn.dataset.driftMode === 'full' ? 'full' : 'contrib';
+      if (next === mode) return;
+      _renderDriftCard(pd, snaps, next);
+    });
+  });
 
   attachEtfPopovers(driftEl);
 }
