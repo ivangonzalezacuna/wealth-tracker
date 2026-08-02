@@ -102,7 +102,7 @@ export async function withCardGuard<T>(
  *  go through withCardGuard/Sheets writes, so they stay clickable even
  *  while a sync/write is in progress elsewhere in the app. */
 const SYNC_LOCK_EXEMPT_IDS = new Set(['btn-add-acct', 'btn-add-hold', 'btn-add-rule']);
-const SYNC_BUSY_TITLE = 'Sync in progress \u2014 try again in a moment';
+const SYNC_BUSY_TITLE = 'Sync in progress, try again in a moment';
 
 /**
  * Disable every write-triggering Settings button while a sync/write is in
@@ -349,39 +349,39 @@ function renderAccountRow(a: Account, i: number): string {
       </div>
       <div class="settings-item-fields">
         <div class="settings-field">
-          <label class="settings-field-label">Name</label>
-          <input class="form-input form-input-sm" data-field="label" value="${esc(a.label)}" placeholder="e.g. Main ETF portfolio">
+          <label class="settings-field-label" for="acct-label-${i}">Name</label>
+          <input id="acct-label-${i}" class="form-input form-input-sm" data-field="label" value="${esc(a.label)}" placeholder="e.g. Main ETF portfolio">
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Type</label>
-          <select class="form-input form-input-sm" data-field="moneyType">${typeOptions}</select>
+          <label class="settings-field-label" for="acct-type-${i}">Type</label>
+          <select id="acct-type-${i}" class="form-input form-input-sm" data-field="moneyType">${typeOptions}</select>
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Institution</label>
-          <input class="form-input form-input-sm" data-field="institution" value="${esc(a.institution)}" placeholder="e.g. Trade Republic">
+          <label class="settings-field-label" for="acct-institution-${i}">Institution</label>
+          <input id="acct-institution-${i}" class="form-input form-input-sm" data-field="institution" value="${esc(a.institution)}" placeholder="e.g. Trade Republic">
         </div>
         <div class="settings-field settings-field-compact">
-          <label class="settings-field-label">Color</label>
+          <label class="settings-field-label" for="acct-color-hex-${i}">Color</label>
           <div class="color-picker-wrap">
-            <input type="color" class="color-picker-swatch" data-field="color" value="${esc(a.color)}">
-            <input class="form-input form-input-sm color-picker-hex" data-field="color-hex" value="${esc(a.color)}" placeholder="#888888" maxlength="7">
+            <input type="color" class="color-picker-swatch" data-field="color" value="${esc(a.color)}" aria-label="Color picker">
+            <input id="acct-color-hex-${i}" class="form-input form-input-sm color-picker-hex" data-field="color-hex" value="${esc(a.color)}" placeholder="#888888" maxlength="7">
           </div>
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Annual return assumption (%)${infoTip("Used for this account's slice of the 5-year forecast on the Net Worth tab. Cash/savings are typically 0% unless they earn interest.")}</label>
-          <input class="form-input form-input-sm" data-field="annualReturnPct" type="number" min="0" max="30" step="0.1" value="${esc(String(a.annualReturnPct ?? 0))}">
+          <label class="settings-field-label" for="acct-return-${i}">Annual return assumption (%)${infoTip("Used for this account's slice of the 5-year forecast on the Net Worth tab. Cash/savings are typically 0% unless they earn interest.")}</label>
+          <input id="acct-return-${i}" class="form-input form-input-sm" data-field="annualReturnPct" type="number" min="0" max="30" step="0.1" value="${esc(String(a.annualReturnPct ?? 0))}">
         </div>
         <div class="js-contrib-note" style="${a.isPrimaryInvestment ? 'flex-basis:100%' : 'display:none'}">
           <p class="note">Contribution amount for the primary investment account comes from the ETF contribution plan in the Holdings card below, not from this account row.</p>
         </div>
         <div class="js-contrib-fields" style="${a.isPrimaryInvestment ? 'display:none' : 'display:contents'}">
         <div class="settings-field">
-          <label class="settings-field-label">Recurring contribution (\u20AC per execution)${infoTip("How much moves into this account each time, at the interval set below. Used in the Net Worth forecast alongside this account's return rate.")}</label>
-          <input class="form-input form-input-sm" data-field="contribAmount" type="number" min="0" step="1" value="${esc(String(a.contribAmount ?? 0))}">
+          <label class="settings-field-label" for="acct-contrib-${i}">Recurring contribution (\u20AC per execution)${infoTip("How much moves into this account each time, at the interval set below. Used in the Net Worth forecast alongside this account's return rate.")}</label>
+          <input id="acct-contrib-${i}" class="form-input form-input-sm" data-field="contribAmount" type="number" min="0" step="1" value="${esc(String(a.contribAmount ?? 0))}">
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Contribution interval${infoTip('How often the recurring contribution above is added: weekly, every two weeks, monthly, or quarterly.')}</label>
-          <select class="form-input form-input-sm" data-field="contribInterval">
+          <label class="settings-field-label" for="acct-interval-${i}">Contribution interval${infoTip('How often the recurring contribution above is added: weekly, every two weeks, monthly, or quarterly.')}</label>
+          <select id="acct-interval-${i}" class="form-input form-input-sm" data-field="contribInterval">
             ${intervalOptionsHtml(a.contribInterval || 'monthly')}
           </select>
         </div>
@@ -396,12 +396,12 @@ function renderAccountRow(a: Account, i: number): string {
         </div>
         <div class="js-locked-fields" style="${a.locked ? 'display:contents' : 'display:none'}">
         <div class="settings-field">
-          <label class="settings-field-label">Accessible from (year)${infoTip('The year when funds in this account become accessible. Shown in the Net Worth overview to indicate when locked assets unlock.')}</label>
-          <input class="form-input form-input-sm" data-field="lockedUntil" type="number" min="2025" max="2100" step="1" value="${esc(a.lockedUntil || '')}" placeholder="e.g. 2055">
+          <label class="settings-field-label" for="acct-locked-until-${i}">Accessible from (year)${infoTip('The year when funds in this account become accessible. Shown in the Net Worth overview to indicate when locked assets unlock.')}</label>
+          <input id="acct-locked-until-${i}" class="form-input form-input-sm" data-field="lockedUntil" type="number" min="2025" max="2100" step="1" value="${esc(a.lockedUntil || '')}" placeholder="e.g. 2055">
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Extra contribution (\u20AC per execution)${infoTip('Additional contribution at the same interval as your personal one, e.g. employer match, state subsidy (AVD Zulage), or other top-up. Included in forecast projections.')}</label>
-          <input class="form-input form-input-sm" data-field="extraContrib" type="number" min="0" step="1" value="${esc(String(a.extraContrib ?? 0))}">
+          <label class="settings-field-label" for="acct-extra-contrib-${i}">Extra contribution (\u20AC per execution)${infoTip('Additional contribution at the same interval as your personal one, e.g. employer match, state subsidy (AVD Zulage), or other top-up. Included in forecast projections.')}</label>
+          <input id="acct-extra-contrib-${i}" class="form-input form-input-sm" data-field="extraContrib" type="number" min="0" step="1" value="${esc(String(a.extraContrib ?? 0))}">
         </div>
         </div>
       </div>
@@ -698,7 +698,7 @@ function renderHoldingRow(h: Holding, i: number): string {
     <div class="settings-item settings-hold-row item-collapsible" data-idx="${i}">
       <div class="settings-item-header js-item-toggle">
         <span class="leg-sq" style="background:${esc(h.color) || 'var(--ink-4)'};flex-shrink:0"></span>
-        <span class="settings-item-title">${esc(h.shortName) || esc(h.isin) || 'New holding'}${h.name ? ` <span style="font-weight:normal;color:var(--ink-3);font-size:12px">— ${esc(h.name)}</span>` : ''}</span>
+        <span class="settings-item-title">${esc(h.shortName) || esc(h.isin) || 'New holding'}${h.name ? ` <span style="font-weight:normal;color:var(--ink-3);font-size:12px">(${esc(h.name)})</span>` : ''}</span>
         <span style="font-size:11px;color:var(--ink-3);white-space:nowrap" class="settings-item-meta">${h.acc ? 'Acc' : 'Dist'}</span>
         ${statusBadge}
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
@@ -708,42 +708,42 @@ function renderHoldingRow(h: Holding, i: number): string {
       </div>
       <div class="settings-item-fields">
         <div class="settings-field">
-          <label class="settings-field-label">ISIN${infoTip('International Securities Identification Number: 12-character unique ID for a financial instrument.')}</label>
-          <input class="form-input form-input-sm" data-field="isin" value="${esc(h.isin)}" placeholder="e.g. IE00B4L5Y983">
+          <label class="settings-field-label" for="hold-isin-${i}">ISIN${infoTip('International Securities Identification Number: 12-character unique ID for a financial instrument.')}</label>
+          <input id="hold-isin-${i}" class="form-input form-input-sm" data-field="isin" value="${esc(h.isin)}" placeholder="e.g. IE00B4L5Y983">
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Short name${infoTip('A short label (max 10 chars) used in charts and legends.')}</label>
-          <input class="form-input form-input-sm" data-field="shortName" value="${esc(h.shortName)}" placeholder="e.g. IWDA">
+          <label class="settings-field-label" for="hold-short-name-${i}">Short name${infoTip('A short label (max 10 chars) used in charts and legends.')}</label>
+          <input id="hold-short-name-${i}" class="form-input form-input-sm" data-field="shortName" value="${esc(h.shortName)}" placeholder="e.g. IWDA">
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Name${infoTip('Full instrument name, as shown in your broker statements.')}</label>
-          <input class="form-input form-input-sm" data-field="name" value="${esc(h.name)}" placeholder="e.g. iShares Core MSCI World UCITS ETF">
+          <label class="settings-field-label" for="hold-name-${i}">Name${infoTip('Full instrument name, as shown in your broker statements.')}</label>
+          <input id="hold-name-${i}" class="form-input form-input-sm" data-field="name" value="${esc(h.name)}" placeholder="e.g. iShares Core MSCI World UCITS ETF">
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Asset class${infoTip('The category this holding belongs to. Used to group and describe your allocation; does not affect any calculation.')}</label>
-          <select class="form-input form-input-sm" data-field="assetClass">${classOptions}</select>
+          <label class="settings-field-label" for="hold-class-${i}">Asset class${infoTip('The category this holding belongs to. Used to group and describe your allocation; does not affect any calculation.')}</label>
+          <select id="hold-class-${i}" class="form-input form-input-sm" data-field="assetClass">${classOptions}</select>
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Region${infoTip('The geographic focus of this holding. Used to describe your allocation; does not affect any calculation.')}</label>
-          <select class="form-input form-input-sm" data-field="region">${regionOptions}</select>
+          <label class="settings-field-label" for="hold-region-${i}">Region${infoTip('The geographic focus of this holding. Used to describe your allocation; does not affect any calculation.')}</label>
+          <select id="hold-region-${i}" class="form-input form-input-sm" data-field="region">${regionOptions}</select>
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Contribution (\u20AC)${infoTip("The amount contributed to this specific ETF each time, at the interval set below. Sets this holding's share of the Contributions forecast and Allocation drift target.")}</label>
-          <input class="form-input form-input-sm" data-field="contribAmount" value="${h.contribAmount || ''}" type="number" min="0" placeholder="0">
+          <label class="settings-field-label" for="hold-contrib-${i}">Contribution (\u20AC)${infoTip("The amount contributed to this specific ETF each time, at the interval set below. Sets this holding's share of the Contributions forecast and Allocation drift target.")}</label>
+          <input id="hold-contrib-${i}" class="form-input form-input-sm" data-field="contribAmount" value="${h.contribAmount || ''}" type="number" min="0" placeholder="0">
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Interval${infoTip('How often the contribution above is added: weekly, every two weeks, monthly, or quarterly.')}</label>
-          <select class="form-input form-input-sm" data-field="contribInterval">${intervalOptions}</select>
+          <label class="settings-field-label" for="hold-interval-${i}">Interval${infoTip('How often the contribution above is added: weekly, every two weeks, monthly, or quarterly.')}</label>
+          <select id="hold-interval-${i}" class="form-input form-input-sm" data-field="contribInterval">${intervalOptions}</select>
         </div>
         <div class="settings-field">
-          <label class="settings-field-label">Successor ISIN${infoTip('When an ETF merges into another, enter the new ISIN here. Transactions are consolidated under the successor.')}</label>
-          <input class="form-input form-input-sm" data-field="foldInto" value="${esc(h.foldInto)}" placeholder="ISIN of successor">
+          <label class="settings-field-label" for="hold-fold-into-${i}">Successor ISIN${infoTip('When an ETF merges into another, enter the new ISIN here. Transactions are consolidated under the successor.')}</label>
+          <input id="hold-fold-into-${i}" class="form-input form-input-sm" data-field="foldInto" value="${esc(h.foldInto)}" placeholder="ISIN of successor">
         </div>
         <div class="settings-field settings-field-compact">
-          <label class="settings-field-label">Color</label>
+          <label class="settings-field-label" for="hold-color-hex-${i}">Color</label>
           <div class="color-picker-wrap">
-            <input type="color" class="color-picker-swatch" data-field="color" value="${esc(h.color)}">
-            <input class="form-input form-input-sm color-picker-hex" data-field="color-hex" value="${esc(h.color)}" placeholder="#888888" maxlength="7">
+            <input type="color" class="color-picker-swatch" data-field="color" value="${esc(h.color)}" aria-label="Color picker">
+            <input id="hold-color-hex-${i}" class="form-input form-input-sm color-picker-hex" data-field="color-hex" value="${esc(h.color)}" placeholder="#888888" maxlength="7">
           </div>
         </div>
         <div class="settings-field-checkbox-group">
@@ -1104,12 +1104,12 @@ function goalFieldsHtml(settings: Settings): string {
   return `
     <div class="form-grid" style="max-width:500px">
       <div class="form-group">
-        <label class="form-label">Target net worth (\u20AC)</label>
+        <label class="form-label" for="set-target-nw">Target net worth (\u20AC)</label>
         <input class="form-input" id="set-target-nw" type="text" inputmode="decimal" value="${esc(targetNW)}" placeholder="e.g. 100000 or 100.000">
         <span class="note">Supports German format (100.000,00) or plain numbers.</span>
       </div>
       <div class="form-group">
-        <label class="form-label">Target date (optional)</label>
+        <label class="form-label" for="set-target-date">Target date (optional)</label>
         <input class="form-input" id="set-target-date" type="month" value="${esc(targetDate)}">
         <span class="note">Leave empty for ETA-only mode (no deadline).</span>
       </div>
