@@ -39,6 +39,19 @@ let _nwRange: '12' | '36' | 'all' = 'all';
 let _nwGrowthRange: '12' | '36' | 'all' = 'all';
 let _nwGrowthPoints: MonthlyGrowthPoint[] = [];
 let _fcRange: '60' | '120' | '240' = '60'; // 5y / 10y / 20y forecast horizon
+let _inflationRate = 0; // annual inflation % for real-return forecast overlay
+
+/** Apply annual inflation to convert a nominal forecast series to real values. */
+function _deflateByInflation(
+  series: Array<{ month: string; value: number }>,
+  inflationPct: number,
+): Array<{ month: string; value: number }> {
+  if (inflationPct === 0) return series;
+  return series.map((p, i) => ({
+    month: p.month,
+    value: Math.round(p.value / Math.pow(1 + inflationPct / 100, (i + 1) / 12)),
+  }));
+}
 
 function _buildAccountForecastInputs(snap: Snapshot, accounts: Account[]): AccountForecastInput[] {
   return accounts.map((a) => {
@@ -676,6 +689,10 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   const forecastMonths = parseInt(_fcRange);
   const series = forecastMultiAccountSeries(accountInputs, forecastMonths, latestDate);
 
+  // Inflation-adjusted (real) series
+  const realSeries = _deflateByInflation(series, _inflationRate);
+  const showReal = _inflationRate > 0;
+
   // Build combined history + forecast for a seamless line chart
   const historySlice = snaps.slice(-12); // last 12 months of actual data
   const histLabels = historySlice.map((sn) => fmtMon(sn.date));
@@ -683,6 +700,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
 
   const fcLabels = series.map((p) => fmtMon(p.month));
   const fcValues = series.map((p) => p.value);
+  const realValues = realSeries.map((p) => p.value);
 
   // Combined labels: history + forecast
   const labels = [...histLabels, ...fcLabels];
@@ -692,6 +710,13 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     histValues[histValues.length - 1],
     ...fcValues,
   ];
+  const realDataFull = showReal
+    ? [
+        ...new Array(histValues.length - 1).fill(null),
+        histValues[histValues.length - 1],
+        ...realValues,
+      ]
+    : null;
 
   // Target line (horizontal) if goal is set
   const target = getTargetNetWorth();
@@ -751,7 +776,16 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       <div class="note" style="line-height:1.6">
         <div style="margin-bottom:4px">Assumptions per account (Settings \u2192 Accounts):</div>
         ${acctSummaryLines}
-        <div style="margin-top:6px;color:var(--ink-4)">Does not account for taxes, fees, or FX.</div>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+          <label for="nw-forecast-inflation" style="color:var(--ink-3)">Inflation adjustment:</label>
+          <input id="nw-forecast-inflation" type="number" inputmode="decimal" min="0" max="20" step="0.1"
+                 value="${_inflationRate}"
+                 style="width:64px;padding:2px 6px;font-size:12px;border:1px solid var(--line-2);border-radius:var(--radius-xs);background:var(--surface-2);color:var(--ink);text-align:right"
+                 aria-label="Annual inflation rate for real-return forecast">
+          <span style="color:var(--ink-3)">% / yr</span>
+          ${showReal ? `<span style="color:var(--ink-3);font-size:11px">(dashed = real, today\u2019s purchasing power)</span>` : `<span style="color:var(--ink-4);font-size:11px">Set &gt; 0 to overlay inflation-adjusted projection</span>`}
+        </div>
+        <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX.</div>
       </div>
     </div>`;
 
@@ -776,7 +810,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           order: 1,
         },
         {
-          label: 'Forecast',
+          label: 'Forecast (nominal)',
           data: fcDataFull,
           borderColor: C.brandChart,
           backgroundColor: 'rgba(42,120,214,0.07)',
@@ -788,6 +822,23 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           spanGaps: false,
           order: 2,
         },
+        ...(realDataFull
+          ? [
+              {
+                label: `Real (${_inflationRate}% inflation)`,
+                data: realDataFull,
+                borderColor: C.ink4 || 'rgba(150,150,150,0.9)',
+                backgroundColor: 'transparent',
+                borderWidth: 1.5,
+                borderDash: [3, 3],
+                pointRadius: 0,
+                fill: false,
+                tension: 0.3,
+                spanGaps: false,
+                order: 3,
+              },
+            ]
+          : []),
         ...targetLine,
       ],
     },
@@ -851,6 +902,16 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       })),
     );
     bindLegendToggle(fcLegendEl, CH['c-nw-forecast'], { rescaleX: true });
+  }
+
+  // Bind inflation input: on change, update state and re-render the forecast card
+  const inflInput = document.getElementById('nw-forecast-inflation') as HTMLInputElement | null;
+  if (inflInput) {
+    inflInput.addEventListener('change', () => {
+      const v = parseFloat(inflInput.value);
+      _inflationRate = isFinite(v) && v >= 0 ? Math.min(v, 20) : 0;
+      _renderForecastChart(snaps, accounts);
+    });
   }
 
   _attachForecastRangeToggle(snaps, accounts);

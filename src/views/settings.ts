@@ -738,6 +738,7 @@ function renderHoldingRow(h: Holding, i: number): string {
         <div class="settings-field">
           <label class="settings-field-label" for="hold-fold-into-${i}">Successor ISIN${infoTip('When an ETF merges into another, enter the new ISIN here. Transactions are consolidated under the successor.')}</label>
           <input id="hold-fold-into-${i}" class="form-input form-input-sm" data-field="foldInto" value="${esc(h.foldInto)}" placeholder="ISIN of successor">
+          ${h.foldInto ? `<p class="note" style="margin-top:4px;color:var(--warn)">Fund merger path active. This consolidation path is implemented but has not been verified against a real provider-side fund merger. Cross-check realized P&L manually after the merge.</p>` : ''}
         </div>
         <div class="settings-field settings-field-compact">
           <label class="settings-field-label" for="hold-color-hex-${i}">Color</label>
