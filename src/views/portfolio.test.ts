@@ -436,8 +436,8 @@ describe('renderPortfolio', () => {
     );
     renderPortfolio(pd, []);
     const drift = document.getElementById('port-drift')!;
-    expect(drift.textContent).toContain('Next buy focus');
-    expect(drift.textContent).toContain('Buy');
+    expect(drift.textContent).toContain('Contrib focus');
+    expect(drift.textContent).toContain('/mo');
   });
 
   it('switches drift table to full rebalance mode when toggled', () => {
@@ -576,7 +576,7 @@ describe('renderPortfolio', () => {
     });
     renderPortfolio(pd, []);
     const drift = document.getElementById('port-drift')!;
-    expect(drift.textContent).toContain('Next contribution focus');
+    expect(drift.textContent).toContain('months');
     expect(drift.textContent).toContain('+1 more');
     expect(drift.textContent).toContain('Full rebalance also needs');
   });
@@ -692,8 +692,7 @@ describe('renderPortfolio', () => {
     const snap: Snapshot = { date: '2026-06-01', acct1: 3500, etf_IE00TEST1: 3000 };
     renderPortfolio(pd, [snap]);
     const note = document.getElementById('port-alloc-note')!.textContent || '';
-    expect(note).toContain('cost basis');
-    expect(note).toContain('incomplete');
+    expect(note).toBe('');
     const classLegend = document.getElementById('port-alloc-class-legend')!.textContent || '';
     expect(classLegend).toContain('66.7%');
     expect(classLegend).toContain('33.3%');

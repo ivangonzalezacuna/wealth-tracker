@@ -17,6 +17,7 @@ import { getAccounts, getHoldings } from '../store/config';
 import { primaryInvestmentValue } from '../model/accounts';
 import { splitHoldings } from '../model/holdings';
 import { computeDrift, maxDrift } from '../model/drift';
+import { annualizeContrib } from '../model/contributions';
 import { builtInProfiles } from '../import/profiles/index';
 import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 import Chart from 'chart.js/auto';
@@ -198,11 +199,7 @@ function renderAllocationBreakdowns(
 
   const noteEl = document.getElementById('port-alloc-note');
   if (noteEl) {
-    noteEl.textContent = useMarketValues
-      ? `Allocation weights use market values from ${latSnap ? fmtMon(latSnap.date) : 'latest snapshot'}.`
-      : hasAnyMarketValues
-        ? 'Allocation weights use current cost basis because latest snapshot ETF values are incomplete.'
-        : 'Allocation weights use current cost basis because market values are not available in the latest snapshot.';
+    noteEl.textContent = '';
   }
 }
 
@@ -809,19 +806,25 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], mode: DriftMode 
     .filter((d) => d.deltaValue > smallDelta)
     .sort((a, b) => b.deltaValue - a.deltaValue);
 
-  const formatActionItems = (
-    entries: typeof drift,
-    verb: 'Buy' | 'Sell',
-    limit = 3,
-    reverseOrder = false,
-  ): string => {
+  // Contribution-based rebalancing: compute total monthly budget and per-holding adjusted amounts.
+  const totalMonthly = holdings
+    .filter((h) => h.active && h.contribAmount > 0)
+    .reduce((sum, h) => sum + annualizeContrib(h.contribAmount, h.contribInterval) / 12, 0);
+  const totalDeficit = sortedBuys.reduce((sum, d) => sum + Math.abs(d.deltaValue), 0);
+  const monthsToClose =
+    totalMonthly > 0 && totalDeficit > 0 ? Math.ceil(totalDeficit / totalMonthly) : 0;
+  // Map ISIN -> adjusted monthly contribution during correction (proportional to deficit).
+  const adjustedMonthlyMap = new Map<string, number>();
+  if (totalMonthly > 0 && totalDeficit > 0) {
+    for (const d of sortedBuys) {
+      adjustedMonthlyMap.set(d.isin, (totalMonthly * Math.abs(d.deltaValue)) / totalDeficit);
+    }
+  }
+
+  const formatSellItems = (entries: typeof drift, limit = 3): string => {
     const shown = entries.slice(0, limit);
     const list = shown
-      .map((d) =>
-        reverseOrder
-          ? `${verb} ${fmtEur(Math.abs(d.deltaValue))} ${esc(d.shortName)}`
-          : `${esc(d.shortName)} ${fmtEur(Math.abs(d.deltaValue))}`,
-      )
+      .map((d) => `Sell ${fmtEur(Math.abs(d.deltaValue))} ${esc(d.shortName)}`)
       .join(', ');
     const remaining = entries.length - shown.length;
     return remaining > 0 ? `${list}, +${remaining} more` : list;
@@ -830,22 +833,34 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], mode: DriftMode 
   let summaryHtml = '';
   if (showSummary) {
     if (mode === 'contrib') {
-      const primaryLine =
-        sortedBuys.length > 0
-          ? `Next contribution focus: ${formatActionItems(sortedBuys, 'Buy')}`
-          : 'Next contribution focus: no buy tilt needed.';
+      let primaryLine: string;
+      if (sortedBuys.length > 0 && monthsToClose > 0) {
+        const shown = sortedBuys.slice(0, 3);
+        const names = shown.map((d) => esc(d.shortName)).join(', ');
+        const overflow = sortedBuys.length > 3 ? `, +${sortedBuys.length - 3} more` : '';
+        primaryLine = `Redirect ~${fmtEur(totalMonthly)}/mo to ${names}${overflow} for ~${monthsToClose} month${monthsToClose !== 1 ? 's' : ''} to close ${fmtEur(totalDeficit)} gap.`;
+      } else if (sortedBuys.length > 0) {
+        const shown = sortedBuys.slice(0, 3);
+        const names = shown
+          .map((d) => `${esc(d.shortName)} ${fmtEur(Math.abs(d.deltaValue))}`)
+          .join(', ');
+        const overflow = sortedBuys.length > 3 ? `, +${sortedBuys.length - 3} more` : '';
+        primaryLine = `Contribution focus: ${names}${overflow}.`;
+      } else {
+        primaryLine = 'Contributions are on track, no tilt needed.';
+      }
       const secondaryLine =
-        sortedSells.length > 0
-          ? `Full rebalance also needs: ${formatActionItems(sortedSells, 'Sell', 3, true)}`
-          : '';
+        sortedSells.length > 0 ? `Full rebalance also needs: ${formatSellItems(sortedSells)}` : '';
       summaryHtml = `<div class="status-bar status-info drift-summary"><div class="drift-summary-line">${primaryLine}</div>${secondaryLine ? `<div class="drift-summary-line drift-summary-muted">${secondaryLine}</div>` : ''}</div>`;
     } else {
       const buyPart =
-        sortedBuys.length > 0 ? `Buy ${formatActionItems(sortedBuys, 'Buy')}` : 'No buys';
-      const sellPart =
-        sortedSells.length > 0
-          ? `Sell ${formatActionItems(sortedSells, 'Sell', 3, false)}`
-          : 'no sells';
+        sortedBuys.length > 0
+          ? `Buy ${sortedBuys
+              .slice(0, 3)
+              .map((d) => `${esc(d.shortName)} ${fmtEur(Math.abs(d.deltaValue))}`)
+              .join(', ')}${sortedBuys.length > 3 ? `, +${sortedBuys.length - 3} more` : ''}`
+          : 'No buys';
+      const sellPart = sortedSells.length > 0 ? `Sell ${formatSellItems(sortedSells)}` : 'no sells';
       summaryHtml = `<div class="status-bar status-info drift-summary"><div class="drift-summary-line">Full rebalance: ${buyPart}; ${sellPart}.</div></div>`;
     }
   }
@@ -863,10 +878,13 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], mode: DriftMode 
                 ? 'var(--warn)'
                 : 'var(--pos)';
       const isLegacy = d.targetPct === 0;
+      const adjustedMonthly = adjustedMonthlyMap.get(d.isin);
       const actionCell =
         mode === 'contrib'
           ? d.targetPct > 0 && d.deltaValue < -smallDelta
-            ? `<span class="drift-action-buy">Buy ${fmtEur(Math.abs(d.deltaValue))}</span>`
+            ? adjustedMonthly !== undefined
+              ? `<span class="drift-action-buy">~${fmtEur(adjustedMonthly)}/mo</span>`
+              : `<span class="drift-action-buy">Buy ${fmtEur(Math.abs(d.deltaValue))}</span>`
             : '<span class="drift-action-muted">-</span>'
           : fmtEurSigned(d.deltaValue);
       return `
@@ -889,7 +907,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], mode: DriftMode 
     : '';
   const modeNote =
     mode === 'contrib'
-      ? 'Contributions only highlights underweight buy priorities.'
+      ? 'Contributions only: redirect monthly budget to underweight positions to gradually close drift.'
       : 'Full rebalance shows buy and sell deltas to reach target.';
 
   driftEl.innerHTML = `
@@ -905,7 +923,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], mode: DriftMode 
       </div>
       <div class="tbl" role="table" aria-label="Allocation drift">
         <div class="tbl-row th" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
-          <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right">Target</div><div role="columnheader" style="text-align:right">Actual</div><div role="columnheader" style="text-align:right">Drift</div><div role="columnheader" style="text-align:right">${mode === 'contrib' ? 'Next buy focus' : 'Buy/Sell delta'}</div>
+          <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right">Target</div><div role="columnheader" style="text-align:right">Actual</div><div role="columnheader" style="text-align:right">Drift</div><div role="columnheader" style="text-align:right">${mode === 'contrib' ? 'Contrib focus' : 'Buy/Sell delta'}</div>
         </div>
         ${rows}
       </div>
