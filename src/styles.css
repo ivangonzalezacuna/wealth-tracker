@@ -437,7 +437,6 @@ code,
   text-transform: uppercase;
   letter-spacing: 0.04em;
   padding-bottom: 4px;
-  border-bottom: 1px solid var(--line);
 }
 .annual-detail-empty {
   color: var(--ink-3);
