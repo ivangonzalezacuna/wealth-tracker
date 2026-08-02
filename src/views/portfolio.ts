@@ -213,9 +213,6 @@ const HOLD_PAGE_SIZE = 10;
 let _holdPage = 1;
 let _holdSort: SortState = { key: null, dir: null };
 
-// Per-ISIN price entries for the drift rebalance calculator (survives re-renders)
-const _driftPrices: Record<string, number> = {};
-
 // Module-level references updated on each render (avoids stale closure in click handler)
 let _pageItemsByKey = new Map<string, EtfPosition>();
 let _currentColumns: ColumnDef<EtfPosition>[] = [];
@@ -801,8 +798,6 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
   const statusColor = max > 10 ? 'var(--neg)' : max > 5 ? 'var(--warn)' : 'var(--pos)';
   const statusLabel = max > 10 ? 'High drift' : max > 5 ? 'Moderate drift' : 'On target';
 
-  const gridCols = '1.5fr 0.8fr 0.8fr 0.8fr 0.8fr 0.85fr 0.75fr';
-
   const rows = drift
     .map((d) => {
       const driftColor =
@@ -816,31 +811,13 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
                 ? 'var(--warn)'
                 : 'var(--pos)';
       const isLegacy = d.targetPct === 0;
-      const storedPrice = _driftPrices[d.isin] || 0;
-      const units =
-        storedPrice > 0 && d.deltaValue < 0 ? Math.ceil(Math.abs(d.deltaValue) / storedPrice) : 0;
-      const unitsDisplay =
-        units > 0
-          ? `<span style="color:var(--ink-2);font-weight:500">${units}</span>`
-          : storedPrice > 0
-            ? '<span style="color:var(--ink-3)">-</span>'
-            : '';
       return `
-      <div class="tbl-row" role="row" style="grid-template-columns:${gridCols}">
+      <div class="tbl-row" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
         <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:var(--radius-xs);background:${safeColor(d.color)};margin-right:6px;opacity:${isLegacy ? '0.6' : '1'}"></span><span data-etf-isin="${esc(d.isin)}" data-etf-name="${esc(d.name)}">${esc(d.shortName)}</span></div>
         <div role="cell" style="text-align:right${isLegacy ? ';color:var(--ink-3)' : ''}">${isLegacy ? '(legacy)' : fmtPctVal(d.targetPct)}</div>
         <div role="cell" style="text-align:right">${fmtPctVal(d.actualPct)}</div>
         <div role="cell" style="text-align:right;color:${driftColor}" aria-label="Drift ${fmtPctSigned(d.driftPct)}">${fmtPctSigned(d.driftPct)}</div>
         <div role="cell" style="text-align:right;color:${d.deltaValue >= 0 ? 'var(--ink-3)' : 'var(--ink-2)'}">${fmtEurSigned(d.deltaValue)}</div>
-        <div role="cell" style="text-align:right">
-          <input type="text" inputmode="decimal"
-                 data-drift-isin="${esc(d.isin)}"
-                 value="${storedPrice > 0 ? storedPrice : ''}"
-                 placeholder="-"
-                 style="width:60px;padding:1px 4px;font-size:12px;text-align:right;border:1px solid var(--line-2);border-radius:var(--radius-xs);background:var(--surface-2);color:var(--ink)"
-                 aria-label="Current price for ${esc(d.shortName)}">
-        </div>
-        <div role="cell" style="text-align:right" id="drift-units-${esc(d.isin)}">${unitsDisplay}</div>
       </div>`;
     })
     .join('');
@@ -857,46 +834,14 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
     <div class="card">
       <div class="card-title drift-title">Allocation drift <span class="drift-title-status" style="color:${statusColor}">${statusLabel} (max ${fmtPctVal(max)})</span></div>
       ${costModeBanner}
-      <div class="tbl" role="table" aria-label="Allocation drift" id="drift-tbl">
-        <div class="tbl-row th" role="row" style="grid-template-columns:${gridCols}">
-          <div role="columnheader">ETF</div>
-          <div role="columnheader" style="text-align:right">Target</div>
-          <div role="columnheader" style="text-align:right">Actual</div>
-          <div role="columnheader" style="text-align:right">Drift</div>
-          <div role="columnheader" style="text-align:right">Delta</div>
-          <div role="columnheader" style="text-align:right">Price (€)</div>
-          <div role="columnheader" style="text-align:right">Units</div>
+      <div class="tbl" role="table" aria-label="Allocation drift">
+        <div class="tbl-row th" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
+          <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right">Target</div><div role="columnheader" style="text-align:right">Actual</div><div role="columnheader" style="text-align:right">Drift</div><div role="columnheader" style="text-align:right">Delta</div>
         </div>
         ${rows}
       </div>
-      <p class="note" style="margin-top:.5rem">Target from contribution weights. ${noteSource} Delta = amount to sell/buy to reach target. Enter current price to calculate units to buy.</p>
+      <p class="note" style="margin-top:.5rem">Target from contribution weights. ${noteSource} Delta = amount to sell/buy to reach target.</p>
     </div>`;
 
   attachEtfPopovers(driftEl);
-
-  // Bind price inputs: update _driftPrices and recompute the units cell inline
-  const driftTbl = document.getElementById('drift-tbl');
-  if (driftTbl) {
-    driftTbl.addEventListener('input', (e) => {
-      const inp = (e.target as HTMLElement).closest('[data-drift-isin]') as HTMLInputElement | null;
-      if (!inp) return;
-      const isin = inp.dataset.driftIsin || '';
-      const raw = inp.value.replace(',', '.');
-      const price = parseFloat(raw);
-      _driftPrices[isin] = isFinite(price) && price > 0 ? price : 0;
-      const entry = drift.find((d) => d.isin === isin);
-      const unitsEl = document.getElementById(`drift-units-${isin}`);
-      if (!entry || !unitsEl) return;
-      const units =
-        _driftPrices[isin] > 0 && entry.deltaValue < 0
-          ? Math.ceil(Math.abs(entry.deltaValue) / _driftPrices[isin])
-          : 0;
-      unitsEl.innerHTML =
-        units > 0
-          ? `<span style="color:var(--ink-2);font-weight:500">${units}</span>`
-          : _driftPrices[isin] > 0
-            ? '<span style="color:var(--ink-3)">-</span>'
-            : '';
-    });
-  }
 }
