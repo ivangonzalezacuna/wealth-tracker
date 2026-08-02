@@ -32,7 +32,12 @@ export async function findDbFile(): Promise<DriveFile | null> {
   });
   if (!res.ok) throw new Error(`Drive list error: ${res.status} ${await res.text()}`);
   const data = await res.json();
-  const files: DriveFile[] = data.files || [];
+  if (!Array.isArray(data.files)) {
+    throw new Error(
+      `Drive list response missing files array: ${JSON.stringify(data).slice(0, 200)}`,
+    );
+  }
+  const files: DriveFile[] = data.files;
   return files.length > 0 ? files[0] : null;
 }
 

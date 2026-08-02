@@ -165,6 +165,11 @@ export function exportDb(): Uint8Array | null {
  * To guard against stale cloud content (CDN caching, replication lag),
  * any transactions that exist locally but NOT in the cloud DB are
  * re-inserted after the import so data is never silently lost.
+ *
+ * The previous database is kept open until every step succeeds so that a
+ * failure in mergeLocalTransactions or persistDb never leaves _db pointing
+ * at a partially-initialised database while IndexedDB still holds the old
+ * content.
  */
 export async function importDb(data: Uint8Array): Promise<void> {
   const SQL = await getSqlJs();
@@ -173,21 +178,34 @@ export async function importDb(data: Uint8Array): Promise<void> {
   // any that are missing from the cloud copy.
   const localTxRows = _db ? getLocalTransactionRows(_db) : [];
 
-  if (_db) _db.close();
-  _db = new SQL.Database(data);
+  let newDb: Database | null = null;
+  try {
+    newDb = new SQL.Database(data);
 
-  // Ensure schema is up to date after import
-  const currentVersion = getDbVersion(_db);
-  if (currentVersion < SCHEMA_VERSION) {
-    applyMigrations(_db, currentVersion);
+    // Ensure schema is up to date after import
+    const currentVersion = getDbVersion(newDb);
+    if (currentVersion < SCHEMA_VERSION) {
+      applyMigrations(newDb, currentVersion);
+    }
+
+    // Merge back local-only transactions that the cloud copy doesn't have.
+    if (localTxRows.length > 0) {
+      mergeLocalTransactions(newDb, localTxRows);
+    }
+
+    // All steps succeeded: swap the singleton and persist.
+    if (_db) _db.close();
+    _db = newDb;
+    await persistDb();
+  } catch (err) {
+    // Discard the failed new database; _db keeps pointing at the previous one.
+    try {
+      newDb?.close();
+    } catch {
+      /* ignore secondary close error */
+    }
+    throw err;
   }
-
-  // Merge back local-only transactions that the cloud copy doesn't have.
-  if (localTxRows.length > 0) {
-    mergeLocalTransactions(_db, localTxRows);
-  }
-
-  await persistDb();
 }
 
 /**
@@ -195,7 +213,7 @@ export async function importDb(data: Uint8Array): Promise<void> {
  */
 function getLocalTransactionRows(db: Database): unknown[][] {
   const result = db.exec(
-    'SELECT id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note FROM transactions',
+    'SELECT id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category FROM transactions',
   );
   if (result.length === 0) return [];
   return result[0].values;
@@ -208,7 +226,7 @@ function getLocalTransactionRows(db: Database): unknown[][] {
  */
 function mergeLocalTransactions(db: Database, rows: unknown[][]): void {
   const stmt = db.prepare(
-    'INSERT OR IGNORE INTO transactions (id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT OR IGNORE INTO transactions (id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   for (const row of rows) {
     stmt.run(row as (string | number | null)[]);

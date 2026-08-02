@@ -329,7 +329,12 @@ export function renderNW(
           etaText = `ETA ${etaFormatted} (${etaDateFmt})`;
         }
       } else {
-        etaText = 'Unable to estimate (set contributions or return rate)';
+        const hasGrowthPotential = accountInputs.some(
+          (a) => a.annualContrib > 0 || a.annualReturnPct > 0,
+        );
+        etaText = hasGrowthPotential
+          ? '<span class="neg">Target not reachable within the 100-year forecast horizon. Consider increasing contributions or return rate.</span>'
+          : 'Unable to estimate (set contributions or return rate)';
       }
 
       goalEl.innerHTML = `
