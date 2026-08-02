@@ -194,7 +194,10 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
     for (const year of years) {
       const cumulative = txsByYear.filter((tx) => tx.date.slice(0, 4) <= year);
       const basisByIsin = computeCostBasis(cumulative, method);
-      const totalRealized = Object.values(basisByIsin).reduce((sum, basis) => sum + basis.realizedPnL, 0);
+      const totalRealized = Object.values(basisByIsin).reduce(
+        (sum, basis) => sum + basis.realizedPnL,
+        0,
+      );
       out[year] = totalRealized - runningRealized;
       runningRealized = totalRealized;
     }

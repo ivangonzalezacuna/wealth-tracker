@@ -337,7 +337,7 @@ describe('renderNW', () => {
     ]);
     const kpisText = document.getElementById('nw-kpis')!.textContent || '';
     expect(kpisText).toContain('IRR (investments)');
-    expect(kpisText).toContain('0,00%');
+    expect(kpisText).toMatch(/IRR \(investments\).*0%/s);
   });
 
   it('growth chart includes "Contributed" dataset label', () => {

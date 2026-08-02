@@ -502,8 +502,8 @@ describe('renderPortfolio', () => {
     expect(note).toContain('cost basis');
     expect(note).toContain('incomplete');
     const classLegend = document.getElementById('port-alloc-class-legend')!.textContent || '';
-    expect(classLegend).toContain('67%');
-    expect(classLegend).toContain('33%');
+    expect(classLegend).toContain('66.7%');
+    expect(classLegend).toContain('33.3%');
   });
 
   it('tap-to-expand detail panel opens on row click', () => {
