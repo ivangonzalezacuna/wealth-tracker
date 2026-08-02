@@ -906,6 +906,14 @@ code,
   width: 100%;
   height: 100%;
 }
+/* Show a focus ring on the drop zone when the hidden file input is keyboard-focused. */
+.drop-zone input[type='file']:focus-visible ~ * {
+  outline: none;
+}
+.drop-zone:has(input[type='file']:focus-visible) {
+  outline: 2px solid var(--brand-border);
+  outline-offset: 2px;
+}
 .drop-zone-disabled {
   opacity: 0.5;
   pointer-events: none;

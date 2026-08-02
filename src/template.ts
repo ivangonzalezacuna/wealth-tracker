@@ -15,16 +15,16 @@ export function appTemplate(): string {
 </header>
 
 <nav class="nav" role="tablist" aria-label="Main sections">
-  <button class="active" data-section="networth" role="tab" aria-selected="true" aria-controls="networth">Net worth</button>
-  <button data-section="portfolio" role="tab" aria-selected="false" aria-controls="portfolio">Portfolio</button>
-  <button data-section="settings" role="tab" aria-selected="false" aria-controls="settings">Settings</button>
-  <button data-section="log" class="log-btn" role="tab" aria-selected="false" aria-controls="log">＋ Update</button>
+  <button id="tab-networth" class="active" data-section="networth" role="tab" aria-selected="true" aria-controls="networth">Net worth</button>
+  <button id="tab-portfolio" data-section="portfolio" role="tab" aria-selected="false" aria-controls="portfolio">Portfolio</button>
+  <button id="tab-settings" data-section="settings" role="tab" aria-selected="false" aria-controls="settings">Settings</button>
+  <button id="tab-log" class="log-btn" data-section="log" role="tab" aria-selected="false" aria-controls="log" aria-label="Update (add snapshot or import CSV)">＋ Update</button>
 </nav>
 
 <div id="setup-banner" style="display:none"></div>
 
 <!-- ════ NET WORTH ════ -->
-<div id="networth" class="section active" role="tabpanel">
+<div id="networth" class="section active" role="tabpanel" aria-labelledby="tab-networth">
   <div id="nw-empty" style="display:none"><div class="card"><div class="empty-state">
     <div style="font-size:2.4rem;margin-bottom:.75rem">📊</div>
     <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.4rem">No snapshots yet</div>
@@ -37,7 +37,7 @@ export function appTemplate(): string {
       <div class="card-title" id="nw-chart-title">Net worth: stacked by account</div>
       <div class="chart-controls">
         <div id="nw-chart-legend" class="legend"></div>
-        <div class="range-toggle" id="nw-range-toggle">
+        <div class="range-toggle" id="nw-range-toggle" role="group" aria-label="History range">
           <button class="btn btn-sm btn-ghost" data-range="12">1Y</button>
           <button class="btn btn-sm btn-ghost" data-range="36">3Y</button>
           <button class="btn btn-sm btn-ghost active" data-range="all">All</button>
@@ -55,7 +55,7 @@ export function appTemplate(): string {
       <div class="card-title">Growth breakdown: contributed vs market</div>
       <div class="chart-controls">
         <div id="nw-growth-legend" class="legend"></div>
-        <div class="range-toggle" id="nw-growth-range-toggle">
+        <div class="range-toggle" id="nw-growth-range-toggle" role="group" aria-label="Growth breakdown range">
           <button class="btn btn-sm btn-ghost" data-range="12">1Y</button>
           <button class="btn btn-sm btn-ghost" data-range="36">3Y</button>
           <button class="btn btn-sm btn-ghost active" data-range="all">All</button>
@@ -70,17 +70,17 @@ export function appTemplate(): string {
 </div>
 
 <!-- ════ PORTFOLIO ════ -->
-<div id="portfolio" class="section" role="tabpanel">
+<div id="portfolio" class="section" role="tabpanel" aria-labelledby="tab-portfolio">
   <div class="subnav range-toggle" id="portfolio-subnav" role="tablist" aria-label="Portfolio views">
-    <button class="btn btn-sm btn-ghost active" data-subview="holdings" role="tab" aria-selected="true" aria-controls="subview-holdings">Holdings</button>
-    <button class="btn btn-sm btn-ghost" data-subview="contributions" role="tab" aria-selected="false" aria-controls="subview-contributions">Contributions</button>
-    <button class="btn btn-sm btn-ghost" data-subview="dividends" role="tab" aria-selected="false" aria-controls="subview-dividends">Dividends</button>
+    <button id="tab-holdings" class="btn btn-sm btn-ghost active" data-subview="holdings" role="tab" aria-selected="true" aria-controls="subview-holdings">Holdings</button>
+    <button id="tab-contributions" class="btn btn-sm btn-ghost" data-subview="contributions" role="tab" aria-selected="false" aria-controls="subview-contributions">Contributions</button>
+    <button id="tab-dividends" class="btn btn-sm btn-ghost" data-subview="dividends" role="tab" aria-selected="false" aria-controls="subview-dividends">Dividends</button>
   </div>
-  <div class="subview" id="subview-holdings" role="tabpanel" style="display:block">
+  <div class="subview" id="subview-holdings" role="tabpanel" aria-labelledby="tab-holdings" style="display:block">
     <div id="port-empty" style="display:none"><div class="card"><div class="empty-state">
       <div style="font-size:2rem;margin-bottom:.75rem">📂</div>
       <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.4rem">No transaction data imported</div>
-      <p style="font-size:13px;margin-bottom:1rem">Import your Transaktionsexport CSV to see exact cost basis, shares, and dividends.</p>
+      <p style="font-size:13px;margin-bottom:1rem">Import your transaction export CSV to see exact cost basis, shares, and dividends.</p>
       <button class="btn btn-primary" data-goto="log">Import CSV →</button>
     </div></div></div>
     <div id="port-content" style="display:none">
@@ -117,7 +117,7 @@ export function appTemplate(): string {
       <div id="port-drift"></div>
     </div>
   </div>
-  <div class="subview" id="subview-contributions" role="tabpanel" style="display:none">
+  <div class="subview" id="subview-contributions" role="tabpanel" aria-labelledby="tab-contributions" style="display:none">
     <div id="dca-empty" style="display:none"><div class="card"><div class="empty-state">
       <div style="font-size:2rem;margin-bottom:.5rem">📅</div>
       <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.75rem">No transaction data imported</div>
@@ -129,7 +129,7 @@ export function appTemplate(): string {
         <div class="card-title">Monthly invested: stacked by ETF (savings plan executions)</div>
         <div class="chart-controls">
           <div id="dca-legend" class="legend"></div>
-          <div class="range-toggle" id="dca-range-toggle">
+          <div class="range-toggle" id="dca-range-toggle" role="group" aria-label="Contributions range">
             <button class="btn btn-sm btn-ghost" data-range="12">1Y</button>
             <button class="btn btn-sm btn-ghost" data-range="36">3Y</button>
             <button class="btn btn-sm btn-ghost active" data-range="all">All</button>
@@ -141,7 +141,7 @@ export function appTemplate(): string {
         <div class="card">
           <div class="card-title">Month-by-month</div>
           <div class="filter-bar">
-            <select id="dca-year-filter" class="form-input form-input-sm" style="width:auto;display:inline-block">
+            <select id="dca-year-filter" class="form-input form-input-sm" aria-label="Filter by year" style="width:auto;display:inline-block">
               <option value="">All years</option>
             </select>
           </div>
@@ -152,7 +152,7 @@ export function appTemplate(): string {
       </div>
     </div>
   </div>
-  <div class="subview" id="subview-dividends" role="tabpanel" style="display:none">
+  <div class="subview" id="subview-dividends" role="tabpanel" aria-labelledby="tab-dividends" style="display:none">
     <div id="div-empty" style="display:none"><div class="card"><div class="empty-state">
       <div style="font-size:2rem;margin-bottom:.5rem">💰</div>
       <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.75rem">No transaction data imported</div>
@@ -163,7 +163,7 @@ export function appTemplate(): string {
       <div class="card">
         <div class="card-title">Dividend payments received (most recent first)</div>
         <div class="filter-bar">
-          <select id="div-year-filter" class="form-input form-input-sm" style="width:auto;display:inline-block">
+          <select id="div-year-filter" class="form-input form-input-sm" aria-label="Filter by year" style="width:auto;display:inline-block">
             <option value="">All years</option>
           </select>
         </div>
@@ -173,7 +173,7 @@ export function appTemplate(): string {
       <div class="card">
         <div class="card-title">Cash / savings interest received</div>
         <div class="filter-bar">
-          <select id="int-year-filter" class="form-input form-input-sm" style="width:auto;display:inline-block">
+          <select id="int-year-filter" class="form-input form-input-sm" aria-label="Filter by year" style="width:auto;display:inline-block">
             <option value="">All years</option>
           </select>
         </div>
@@ -190,12 +190,12 @@ export function appTemplate(): string {
 </div>
 
 <!-- ════ SETTINGS ════ -->
-<div id="settings" class="section" role="tabpanel">
+<div id="settings" class="section" role="tabpanel" aria-labelledby="tab-settings">
   <div id="settings-content"></div>
 </div>
 
 <!-- ════ LOG ════ -->
-<div id="log" class="section" role="tabpanel">
+<div id="log" class="section" role="tabpanel" aria-labelledby="tab-log">
   <div id="auth-prompt" class="card" style="display:none">
     <div class="empty-state">
       <div style="font-size:2rem;margin-bottom:.75rem">🔐</div>
@@ -210,8 +210,8 @@ export function appTemplate(): string {
       <div class="card-title">Import transactions</div>
       <p class="note" style="margin-bottom:.85rem">Import your transaction export CSV. Drag your file here or click to browse. Parsed locally; data synced to your Google Drive. Re-import anytime; duplicates handled automatically.</p>
       <div class="drop-zone" id="drop-zone">
-        <input type="file" id="csv-file-input" accept=".csv">
-        <div style="font-size:2rem;margin-bottom:.4rem">📥</div>
+        <input type="file" id="csv-file-input" accept=".csv" aria-label="Choose CSV file to import">
+        <div style="font-size:2rem;margin-bottom:.4rem" aria-hidden="true">📥</div>
         <div style="font-weight:500;font-size:13px;color:var(--ink-2);margin-bottom:.2rem">Drop CSV file here</div>
         <div style="font-size:11px;color:var(--ink-3)">or click to browse</div>
       </div>
@@ -244,10 +244,10 @@ export function appTemplate(): string {
     <div class="card">
       <div class="card-title">Snapshot history</div>
       <div class="filter-bar" id="snap-filter-bar">
-        <select id="snap-year-filter" class="form-input form-input-sm" style="width:auto;display:inline-block">
+        <select id="snap-year-filter" class="form-input form-input-sm" aria-label="Filter by year" style="width:auto;display:inline-block">
           <option value="">All years</option>
         </select>
-        <input type="text" id="snap-search" class="form-input form-input-sm" placeholder="Search notes…" style="width:140px;display:inline-block;margin-left:6px">
+        <input type="text" id="snap-search" class="form-input form-input-sm" aria-label="Search snapshots by notes" placeholder="Search notes…" style="width:140px;display:inline-block;margin-left:6px">
       </div>
       <div id="snaps-list" role="table" aria-label="Snapshot history"></div>
       <div id="snap-pagination" class="pagination"></div>
