@@ -3,7 +3,11 @@ import type { Snapshot } from './types';
 
 export function snapTotal(s: Snapshot): number {
   const accts: Array<{ key?: string; id?: string }> = getACCTSList();
-  return accts.reduce((sum: number, a) => sum + (Number(s[a.key ?? a.id ?? '']) || 0), 0);
+  return accts.reduce((sum: number, a) => {
+    const k = a.key ?? a.id ?? '';
+    if (!k) console.warn('[snapTotal] account with no key or id will be skipped');
+    return sum + (Number(s[k]) || 0);
+  }, 0);
 }
 
 export function fmt(n: number, d = 0): string {

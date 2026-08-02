@@ -100,7 +100,7 @@ function renderTxSummary(txs: Transaction[]): string {
         .map(([t, c]) => `${c} ${t.charAt(0) + t.slice(1).toLowerCase()}`)
         .join(' \u00B7 ');
 
-      return `<span style="display:inline-block;margin-top:4px"><strong>${esc(_sourceLabel(src))}</strong> &mdash; ${srcTxs.length} txs, ${fmtDay(srcFirst)} \u2013 ${fmtDay(srcLast)}<br><span style="color:var(--ink-3);font-size:0.85em;margin-left:8px">${typeBreakdown}</span></span>`;
+      return `<span style="display:inline-block;margin-top:4px"><strong>${esc(_sourceLabel(src))}</strong>: ${srcTxs.length} txs, ${fmtDay(srcFirst)} \u2013 ${fmtDay(srcLast)}<br><span style="color:var(--ink-3);font-size:0.85em;margin-left:8px">${typeBreakdown}</span></span>`;
     })
     .join('<br>');
 

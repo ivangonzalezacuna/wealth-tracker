@@ -55,9 +55,8 @@ export function isSyncing(): boolean {
 export async function pullFromCloud(): Promise<boolean> {
   if (_syncing) return false;
   _syncing = true;
-  setStatus('syncing');
-
   try {
+    setStatus('syncing');
     const cloudTime = await getCloudModifiedTime();
     if (!cloudTime) {
       // No cloud file yet - first time user. Nothing to pull.
@@ -101,9 +100,8 @@ export async function pullFromCloud(): Promise<boolean> {
 export async function pushToCloud(): Promise<void> {
   if (_syncing) return;
   _syncing = true;
-  setStatus('uploading');
-
   try {
+    setStatus('uploading');
     const data = exportDb();
     if (!data) {
       setStatus('done');

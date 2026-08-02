@@ -27,17 +27,18 @@ type Migration = (data: BackupFile['data']) => BackupFile['data'];
  *  default-handling. */
 export const MIGRATIONS: Record<number, Migration> = {
   1: (data) => {
-    // v1→v2: holdings had `ticker` field, now replaced by `shortName`.
+    // v1->v2: holdings had `ticker` field, now replaced by `shortName`.
     // Transactions had `symbol` field, now removed (isin is the key).
-    const holdings = data.holdings.map((h: any) => {
+    // Cast through unknown[] because v1 objects have different shapes than current types.
+    const holdings = (data.holdings as unknown as Record<string, unknown>[]).map((h) => {
       const { ticker, ...rest } = h;
-      return { ...rest, shortName: rest.shortName || ticker || '' };
+      return { ...rest, shortName: (rest.shortName as string) || (ticker as string) || '' };
     });
-    const transactions = data.transactions.map((t: any) => {
+    const transactions = (data.transactions as unknown as Record<string, unknown>[]).map((t) => {
       const { symbol, ...rest } = t;
-      return { ...rest, isin: rest.isin || symbol || '' };
+      return { ...rest, isin: (rest.isin as string) || (symbol as string) || '' };
     });
-    return { ...data, holdings, transactions };
+    return { ...data, holdings, transactions } as typeof data;
   },
 };
 

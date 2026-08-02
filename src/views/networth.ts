@@ -18,7 +18,7 @@ import {
   getTargetNetWorth,
   getTargetDate,
 } from '../store/config';
-import { primaryInvestmentValue } from '../model/accounts';
+import { primaryInvestmentValue, allInvestmentAccountsValue } from '../model/accounts';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import { cagr, findYoYSnapshot, monthlyGrowthHistory, xirr } from '../model/insights';
 import type { MonthlyGrowthPoint } from '../model/insights';
@@ -39,6 +39,19 @@ let _nwRange: '12' | '36' | 'all' = 'all';
 let _nwGrowthRange: '12' | '36' | 'all' = 'all';
 let _nwGrowthPoints: MonthlyGrowthPoint[] = [];
 let _fcRange: '60' | '120' | '240' = '60'; // 5y / 10y / 20y forecast horizon
+let _inflationRate = 0; // annual inflation % for real-return forecast overlay
+
+/** Apply annual inflation to convert a nominal forecast series to real values. */
+function _deflateByInflation(
+  series: Array<{ month: string; value: number }>,
+  inflationPct: number,
+): Array<{ month: string; value: number }> {
+  if (inflationPct === 0) return series;
+  return series.map((p, i) => ({
+    month: p.month,
+    value: Math.round(p.value / Math.pow(1 + inflationPct / 100, (i + 1) / 12)),
+  }));
+}
 
 function _buildAccountForecastInputs(snap: Snapshot, accounts: Account[]): AccountForecastInput[] {
   return accounts.map((a) => {
@@ -90,21 +103,30 @@ export function renderNW(
     yoyData && yoyData.total > 0 ? ((total - yoyData.total) / yoyData.total) * 100 : null;
 
   const cagrVal = cagr(firstTotal, total, monthsSpan);
-  const latestPrimaryValue = primaryInvestmentValue(s, accounts);
+  // Use all investment-type accounts for the IRR terminal value so multi-account
+  // portfolios are not understated. Falls back to null (IRR hidden) when no
+  // investment account has a snapshot value.
+  const latestInvestmentValue = allInvestmentAccountsValue(s, accounts);
   const terminalDate = s.date && s.date.length === 7 ? `${s.date}-01` : s.date;
   const investmentFlows = txs
     .map((tx) => {
       const date = tx.date && tx.date.length === 7 ? `${tx.date}-01` : tx.date;
       if (!date) return null;
+      // Only BUY cash outflows are included. The current portfolio value (snapshot)
+      // already reflects the state after sells, so SELL proceeds must NOT be added
+      // here or they would be double-counted against the terminal value.
       if (tx.type === 'BUY')
         return { date, amount: -(Math.abs(tx.amount) + Math.abs(tx.fee || 0)) };
       return null;
     })
     .filter((cf): cf is { date: string; amount: number } => !!cf);
-  if (latestPrimaryValue !== null) {
-    investmentFlows.push({ date: terminalDate, amount: latestPrimaryValue });
+  if (latestInvestmentValue !== null) {
+    investmentFlows.push({ date: terminalDate, amount: latestInvestmentValue });
   }
-  const irrVal = latestPrimaryValue !== null ? xirr(investmentFlows) : null;
+  const irrVal = latestInvestmentValue !== null ? xirr(investmentFlows) : null;
+  // Keep primaryInvestmentValue for the growth breakdown chart (contribution tracking
+  // still targets only the primary investment account).
+  const latestPrimaryValue = primaryInvestmentValue(s, accounts);
 
   // Growth split (contributions vs market)
   const growthPoints = pd
@@ -329,7 +351,12 @@ export function renderNW(
           etaText = `ETA ${etaFormatted} (${etaDateFmt})`;
         }
       } else {
-        etaText = 'Unable to estimate (set contributions or return rate)';
+        const hasGrowthPotential = accountInputs.some(
+          (a) => a.annualContrib > 0 || a.annualReturnPct > 0,
+        );
+        etaText = hasGrowthPotential
+          ? '<span class="neg">Target not reachable within the 100-year forecast horizon. Consider increasing contributions or return rate.</span>'
+          : 'Unable to estimate (set contributions or return rate)';
       }
 
       goalEl.innerHTML = `
@@ -662,6 +689,10 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   const forecastMonths = parseInt(_fcRange);
   const series = forecastMultiAccountSeries(accountInputs, forecastMonths, latestDate);
 
+  // Inflation-adjusted (real) series
+  const realSeries = _deflateByInflation(series, _inflationRate);
+  const showReal = _inflationRate > 0;
+
   // Build combined history + forecast for a seamless line chart
   const historySlice = snaps.slice(-12); // last 12 months of actual data
   const histLabels = historySlice.map((sn) => fmtMon(sn.date));
@@ -669,6 +700,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
 
   const fcLabels = series.map((p) => fmtMon(p.month));
   const fcValues = series.map((p) => p.value);
+  const realValues = realSeries.map((p) => p.value);
 
   // Combined labels: history + forecast
   const labels = [...histLabels, ...fcLabels];
@@ -678,6 +710,13 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     histValues[histValues.length - 1],
     ...fcValues,
   ];
+  const realDataFull = showReal
+    ? [
+        ...new Array(histValues.length - 1).fill(null),
+        histValues[histValues.length - 1],
+        ...realValues,
+      ]
+    : null;
 
   // Target line (horizontal) if goal is set
   const target = getTargetNetWorth();
@@ -737,7 +776,25 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       <div class="note" style="line-height:1.6">
         <div style="margin-bottom:4px">Assumptions per account (Settings \u2192 Accounts):</div>
         ${acctSummaryLines}
-        <div style="margin-top:6px;color:var(--ink-4)">Does not account for taxes, fees, or FX.</div>
+        <div class="forecast-inflation">
+          <div class="forecast-inflation-row">
+            <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation</label>
+            <div class="forecast-inflation-input-wrap">
+              <input id="nw-forecast-inflation" class="forecast-inflation-input" type="number" inputmode="decimal" min="0" max="20" step="0.1"
+                     value="${_inflationRate}"
+                     aria-label="Annual inflation rate for real-return forecast">
+              <span class="forecast-inflation-unit">% / yr</span>
+            </div>
+          </div>
+          <div class="forecast-inflation-hint">
+            ${
+              showReal
+                ? 'Dashed line shows the inflation-adjusted projection in today’s purchasing power.'
+                : 'Set above 0 to overlay an inflation-adjusted projection.'
+            }
+          </div>
+        </div>
+        <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX.</div>
       </div>
     </div>`;
 
@@ -762,7 +819,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           order: 1,
         },
         {
-          label: 'Forecast',
+          label: 'Forecast (nominal)',
           data: fcDataFull,
           borderColor: C.brandChart,
           backgroundColor: 'rgba(42,120,214,0.07)',
@@ -774,6 +831,23 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           spanGaps: false,
           order: 2,
         },
+        ...(realDataFull
+          ? [
+              {
+                label: `Real (${_inflationRate}% inflation)`,
+                data: realDataFull,
+                borderColor: C.ink4 || 'rgba(150,150,150,0.9)',
+                backgroundColor: 'transparent',
+                borderWidth: 1.5,
+                borderDash: [3, 3],
+                pointRadius: 0,
+                fill: false,
+                tension: 0.3,
+                spanGaps: false,
+                order: 3,
+              },
+            ]
+          : []),
         ...targetLine,
       ],
     },
@@ -837,6 +911,16 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       })),
     );
     bindLegendToggle(fcLegendEl, CH['c-nw-forecast'], { rescaleX: true });
+  }
+
+  // Bind inflation input: on change, update state and re-render the forecast card
+  const inflInput = document.getElementById('nw-forecast-inflation') as HTMLInputElement | null;
+  if (inflInput) {
+    inflInput.addEventListener('change', () => {
+      const v = parseFloat(inflInput.value);
+      _inflationRate = isFinite(v) && v >= 0 ? Math.min(v, 20) : 0;
+      _renderForecastChart(snaps, accounts);
+    });
   }
 
   _attachForecastRangeToggle(snaps, accounts);
