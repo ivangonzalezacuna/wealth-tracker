@@ -160,7 +160,9 @@ describe('renderDividends', () => {
       },
     ]);
     expect(document.getElementById('div-annual')!.textContent).toContain('Year');
-    expect(document.getElementById('div-annual')!.textContent).toContain('Taxable');
+    expect(document.getElementById('div-annual')!.textContent).toContain('Total net income');
+    expect(document.getElementById('div-annual')!.textContent).toContain('Tax withheld');
+    expect(document.getElementById('div-annual')!.textContent).toContain('Passive income (net)');
     const annualRow = document.querySelector('[data-annual-year="2026"]') as HTMLElement;
     annualRow.click();
     expect(document.getElementById('div-annual')!.textContent).toContain('Realized P&L');

@@ -191,13 +191,15 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
   const rows = pageYears
     .map((y) => {
       const r = byYear[y];
-      const taxable = r.netDiv + r.netInt + r.realizedPnL;
-      const netIncome = r.netDiv + r.netInt + r.realizedPnL;
+      const cashIncome = r.netDiv + r.netInt;
+      const totalNetIncome = cashIncome + r.realizedPnL;
+      const taxWithheld = r.divTax + r.intTax;
       const detailOpen = _expandedAnnualYear === y;
       return `<div class="tbl-row annual-row" role="row" data-annual-year="${y}">
         <div style="font-weight:500">${y}</div>
-        <div style="text-align:right;color:${netIncome >= 0 ? 'var(--pos)' : 'var(--neg)'};font-weight:500">${fmtEur2(netIncome)}</div>
-        <div style="text-align:right;font-weight:500">${fmtEur2(taxable)}</div>
+        <div style="text-align:right;color:${totalNetIncome >= 0 ? 'var(--pos)' : 'var(--neg)'};font-weight:500">${fmtEur2(totalNetIncome)}</div>
+        <div style="text-align:right;font-weight:500">${fmtEur2(cashIncome)}</div>
+        <div style="text-align:right;color:var(--neg)">${fmtEur2(taxWithheld)}</div>
       </div>
       ${
         detailOpen
@@ -218,8 +220,9 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
     <div id="div-annual-table">
       <div class="tbl-row th annual-row" role="row">
         <div>Year</div>
-        <div style="text-align:right">Net inc${infoTip('Net dividends + net interest + realized P&L for the year.')}</div>
-        <div style="text-align:right">Taxable${infoTip('Net dividends + net interest + realized P&L. Expand row for full breakdown.')}</div>
+        <div style="text-align:right">Total net income${infoTip('Net dividends + net interest + realized P&L for the year.')}</div>
+        <div style="text-align:right">Passive income (net)${infoTip('Net dividends + net interest for the year, excluding realized P&L.')}</div>
+        <div style="text-align:right">Tax withheld${infoTip('Dividend tax + savings-interest tax withheld during the year. Expand row for full breakdown.')}</div>
       </div>
       ${rows}
     </div>

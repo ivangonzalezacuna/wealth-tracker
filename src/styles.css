@@ -384,7 +384,11 @@ code,
 }
 #div-annual-table {
   display: grid;
-  grid-template-columns: minmax(7ch, 0.8fr) minmax(10ch, 1fr) minmax(10ch, 1fr);
+  grid-template-columns:
+    minmax(6ch, 0.7fr)
+    minmax(11ch, 1fr)
+    minmax(11ch, 1fr)
+    minmax(9ch, 0.9fr);
 }
 .annual-row {
   grid-template-columns: subgrid;
@@ -449,7 +453,15 @@ code,
     display: none;
   }
   #div-annual-table {
-    grid-template-columns: minmax(6ch, 0.7fr) minmax(9ch, 1fr) minmax(9ch, 1fr);
+    grid-template-columns:
+      minmax(5ch, 0.7fr)
+      minmax(8ch, 1fr)
+      minmax(8ch, 1fr)
+      minmax(8ch, 0.9fr);
+  }
+  .annual-row > div {
+    white-space: normal;
+    line-height: 1.2;
   }
 }
 
@@ -691,19 +703,24 @@ code,
   display: flex;
   align-items: center;
   gap: 5px;
+  min-width: 0;
+  max-width: 100%;
 }
 .leg-text {
   display: inline-flex;
   align-items: baseline;
   flex-wrap: wrap;
   gap: 4px;
+  min-width: 0;
 }
 .leg-label {
   color: inherit;
+  overflow-wrap: anywhere;
 }
 .leg-meta {
   font-size: 11px;
   color: var(--ink-3);
+  overflow-wrap: anywhere;
 }
 .leg-sq {
   width: 10px;

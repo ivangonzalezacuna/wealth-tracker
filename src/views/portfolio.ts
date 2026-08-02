@@ -164,11 +164,16 @@ function renderAllocationBreakdowns(
             borderWidth: 1,
             titleColor: C.ink,
             bodyColor: C.ink2,
+            footerColor: C.ink4,
+            footerFont: { weight: 'normal' as const, size: 10 },
+            footerMarginTop: 4,
             padding: 10,
             cornerRadius: 8,
             callbacks: {
               label: (ctx) => ` ${fmtEur2(ctx.raw as number)}`,
-              afterLabel: (ctx) => {
+              footer: (items) => {
+                if (!items.length) return '';
+                const ctx = items[0];
                 const val = values[ctx.dataIndex] || 0;
                 return total > 0 ? ` ${fmtPctVal((val / total) * 100)}` : ' 0%';
               },
