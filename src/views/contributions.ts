@@ -159,7 +159,12 @@ function _renderDCAForecast(pd: PortfolioData, holdings: Holding[], snaps: Snaps
   const totalValue = hasSnapValues
     ? (primaryInvestmentValue(latSnap, getAccounts()) ?? pd.totalInv)
     : pd.totalInv;
-  const drift = computeDrift(holdings, pd.etfs, totalValue, hasSnapValues ? snapEtfValues : undefined);
+  const drift = computeDrift(
+    holdings,
+    pd.etfs,
+    totalValue,
+    hasSnapValues ? snapEtfValues : undefined,
+  );
   const max = maxDrift(drift);
   const focusItems = drift
     .filter((d) => d.targetPct > 0 && d.deltaValue < -1)

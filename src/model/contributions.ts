@@ -41,9 +41,7 @@ export function monthlyContribFromAnnualized(amount: number, interval: ContribIn
 }
 
 /** Active holding contributions, normalized to a single monthly execution plan. */
-export function buildMonthlyContributionPlan(
-  holdings: Holding[],
-): MonthlyContributionPlanItem[] {
+export function buildMonthlyContributionPlan(holdings: Holding[]): MonthlyContributionPlanItem[] {
   const active = holdings.filter((h) => h.active && h.contribAmount > 0);
   const totalAnnual = totalAnnualContrib(active);
   return active.map((holding) => {

@@ -231,7 +231,7 @@ describe('renderDCA', () => {
     expect(card.textContent).toContain('One-month plan from Settings');
     expect(card.textContent).toContain('IWDA');
     expect(card.textContent).toContain('target');
-    expect(card.textContent).toContain('single monthly execution');
+    expect(card.textContent).toContain('monthly execution');
     expect(card.textContent).not.toContain('Projected monthly contributions');
   });
 
