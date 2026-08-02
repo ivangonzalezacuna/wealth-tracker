@@ -183,6 +183,7 @@ export function appTemplate(): string {
       <div class="card">
         <div class="card-title">By year</div>
         <div id="div-annual"></div>
+        <div id="div-annual-pagination" class="pagination"></div>
       </div>
     </div>
   </div>

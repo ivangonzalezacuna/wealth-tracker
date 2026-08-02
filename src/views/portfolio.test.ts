@@ -450,10 +450,10 @@ describe('renderPortfolio', () => {
     renderPortfolio(pd, []);
     const classLegend = document.getElementById('port-alloc-class-legend')!.textContent!;
     const regionLegend = document.getElementById('port-alloc-region-legend')!.textContent!;
-    expect(classLegend).toContain('equity');
-    expect(classLegend).not.toContain('bond');
-    expect(regionLegend).toContain('developed');
-    expect(regionLegend).not.toContain('emerging');
+    expect(classLegend).toContain('Equity');
+    expect(classLegend).not.toContain('Bond');
+    expect(regionLegend).toContain('Developed');
+    expect(regionLegend).not.toContain('Emerging');
   });
 
   it('tap-to-expand detail panel opens on row click', () => {

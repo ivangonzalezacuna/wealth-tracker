@@ -99,7 +99,7 @@ export function renderNW(
       if (tx.type === 'BUY')
         return { date, amount: -(Math.abs(tx.amount) + Math.abs(tx.fee || 0)) };
       if (tx.type === 'SELL') return { date, amount: Math.abs(tx.amount) - Math.abs(tx.fee || 0) };
-      if (tx.type === 'DIVIDEND' || tx.type === 'INTEREST' || tx.type === 'INTEREST_PAYMENT') {
+      if (tx.type === 'DIVIDEND') {
         return { date, amount: tx.amount };
       }
       return null;
@@ -190,7 +190,7 @@ export function renderNW(
         : ''
     }
     ${kpiTile({
-      label: `IRR (investments)${infoTip('Money-weighted annual return on invested capital, calculated from all BUY/SELL/income cash flows and current portfolio value')}`,
+      label: `IRR (investments)${infoTip('Money-weighted annual return on invested capital. Uses BUY, SELL, and dividend cash flows plus current primary investment value. This can differ from ETF price change because contribution timing changes money-weighted return.')}`,
       value: irrVal !== null ? fmtPctNeg(irrVal * 100) : '-',
       valueClass: irrVal === null ? '' : irrVal >= 0 ? 'pos' : 'neg',
       sub: irrVal !== null ? 'XIRR' : 'needs complete cash-flow series',

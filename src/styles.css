@@ -382,6 +382,31 @@ code,
   display: grid;
   grid-template-columns: minmax(8ch, 1fr) minmax(7ch, 1fr) minmax(7ch, 1fr) minmax(7ch, 1fr);
 }
+#div-annual-table {
+  display: grid;
+  grid-template-columns: minmax(7ch, 0.8fr) minmax(10ch, 1fr) minmax(10ch, 1fr);
+}
+.annual-row {
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  cursor: pointer;
+}
+.annual-detail {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin: -2px 0 4px;
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  gap: 6px 12px;
+  font-size: 11px;
+}
+.annual-detail > div {
+  flex: 0 1 auto;
+  min-width: 95px;
+}
 .th {
   color: var(--ink-3);
   font-size: 11px;
@@ -422,6 +447,9 @@ code,
 @media (max-width: 599px) {
   [data-mobile-hidden='1'] {
     display: none;
+  }
+  #div-annual-table {
+    grid-template-columns: minmax(6ch, 0.7fr) minmax(9ch, 1fr) minmax(9ch, 1fr);
   }
 }
 

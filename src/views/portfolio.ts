@@ -83,6 +83,28 @@ function renderAllocationBreakdowns(
   snapEtfValues: Record<string, number>,
   latSnap: Snapshot | null,
 ): void {
+  const C = resolvedT();
+  const ASSET_CLASS_LABELS: Record<string, string> = {
+    equity: 'Equity',
+    bond: 'Bond',
+    reit: 'REIT',
+    commodity: 'Commodity',
+    cash: 'Cash',
+    other: 'Other',
+  };
+  const REGION_LABELS: Record<string, string> = {
+    developed: 'Developed',
+    emerging: 'Emerging',
+    global: 'Global',
+    europe: 'Europe',
+    us: 'US',
+    other: 'Other',
+  };
+  const normalizeLabel = (kind: 'assetClass' | 'region', value: string): string =>
+    kind === 'assetClass'
+      ? ASSET_CLASS_LABELS[value] || value.replace(/\b\w/g, (c) => c.toUpperCase())
+      : REGION_LABELS[value] || value.replace(/\b\w/g, (c) => c.toUpperCase());
+
   const holdings = getHoldings();
   const holdingByIsin = Object.fromEntries(holdings.map((h) => [h.isin, h]));
   const hasMarketValues = Object.keys(snapEtfValues).length > 0;
@@ -104,6 +126,7 @@ function renderAllocationBreakdowns(
     chartId: string,
     legendId: string,
     rows: Array<{ label: string; value: number }>,
+    kind: 'assetClass' | 'region',
     paletteSeed = 0,
   ) => {
     const labels = rows.map((r) => r.label);
@@ -116,15 +139,47 @@ function renderAllocationBreakdowns(
     if (CH[chartId]) CH[chartId].destroy();
     CH[chartId] = new Chart(document.getElementById(chartId) as HTMLCanvasElement, {
       type: 'doughnut',
-      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 1 }] },
+      data: {
+        labels: labels.map((l) => normalizeLabel(kind, l)),
+        datasets: [
+          {
+            data: values,
+            backgroundColor: colors,
+            borderColor: C.surface,
+            borderWidth: 2,
+            hoverOffset: 4,
+          },
+        ],
+      },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        cutout: '62%',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: C.surface,
+            ...TOOLTIP_BOX,
+            borderColor: C.line,
+            borderWidth: 1,
+            titleColor: C.ink,
+            bodyColor: C.ink2,
+            padding: 10,
+            cornerRadius: 8,
+            callbacks: {
+              label: (ctx) => ` ${fmtEur2(ctx.raw as number)}`,
+              afterLabel: (ctx) => {
+                const val = values[ctx.dataIndex] || 0;
+                return total > 0 ? ` ${fmtPctVal((val / total) * 100)}` : ' 0%';
+              },
+              labelColor: tooltipSwatch(C.surface),
+            },
+          },
+        },
       },
     });
     const items = rows.map((r, i) => ({
-      label: r.label,
+      label: normalizeLabel(kind, r.label),
       meta: total > 0 ? fmtPctVal((r.value / total) * 100) : '0%',
       color: colors[i],
     }));
@@ -139,8 +194,8 @@ function renderAllocationBreakdowns(
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => b.value - a.value);
 
-  drawBreakdown('c-port-alloc-class', 'port-alloc-class-legend', classRows, 15);
-  drawBreakdown('c-port-alloc-region', 'port-alloc-region-legend', regionRows, 180);
+  drawBreakdown('c-port-alloc-class', 'port-alloc-class-legend', classRows, 'assetClass', 15);
+  drawBreakdown('c-port-alloc-region', 'port-alloc-region-legend', regionRows, 'region', 180);
 
   const noteEl = document.getElementById('port-alloc-note');
   if (noteEl) {

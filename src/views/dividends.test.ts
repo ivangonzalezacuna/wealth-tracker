@@ -59,6 +59,7 @@ const DOM_FIXTURE = `
     <div id="div-interest"></div>
     <div id="int-pagination"></div>
     <div id="div-annual"></div>
+    <div id="div-annual-pagination"></div>
   </div>
   <div id="subview-dividends"></div>
 `;
@@ -94,7 +95,8 @@ describe('renderDividends', () => {
     expect(kpisText).toContain('Tax withheld');
     expect(kpisText).toContain('Net received');
     expect(kpisText).toContain('Gross interest');
-    expect(kpisText).toContain('Income yield (12m)');
+    expect(kpisText).toContain('Investment income yield (12m)');
+    expect(kpisText).toContain('Savings income yield (12m)');
   });
 
   it('flips the Tax withheld tile to positive styling when totalTax < 0', () => {
@@ -136,7 +138,7 @@ describe('renderDividends', () => {
     renderDividends(makePD());
     renderDividends(makePD());
     const kpisEl = document.getElementById('div-kpis')!;
-    expect(kpisEl.children.length).toBe(7);
+    expect(kpisEl.children.length).toBe(9);
   });
 
   it('renders annual summary table', () => {
@@ -158,6 +160,9 @@ describe('renderDividends', () => {
       },
     ]);
     expect(document.getElementById('div-annual')!.textContent).toContain('Year');
+    expect(document.getElementById('div-annual')!.textContent).toContain('Taxable');
+    const annualRow = document.querySelector('[data-annual-year="2026"]') as HTMLElement;
+    annualRow.click();
     expect(document.getElementById('div-annual')!.textContent).toContain('Realized P&L');
   });
 
@@ -178,7 +183,7 @@ describe('renderDividends', () => {
         intHist: [],
       }),
     );
-    expect(document.getElementById('div-kpis')!.textContent).toContain('Income yield (12m)');
+    expect(document.getElementById('div-kpis')!.textContent).toContain('Investment income yield (12m)');
     expect(document.getElementById('div-kpis')!.textContent).toContain('need 12 months of history');
   });
 

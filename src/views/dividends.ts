@@ -1,9 +1,9 @@
 import { fmtEur2, fmtMon, fmtDay, esc, safeColor, kpiTile } from '../utils';
-import type { PortfolioData, DivHistEntry, IntHistEntry, Transaction } from '../types';
+import type { PortfolioData, DivHistEntry, IntHistEntry, Transaction, Snapshot } from '../types';
 import { T } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { attachEtfPopovers } from '../ui/etfPopover';
-import { getHoldings } from '../store/config';
+import { getAccounts, getHoldings } from '../store/config';
 import type { SortState } from './tableSort';
 import { applySort, bindSortableHeader } from './tableSort';
 import type { ColumnDef } from './tableColumns';
@@ -11,20 +11,28 @@ import { renderTableHeader, renderTableRow, getSortGetters } from './tableColumn
 import { renderPagination } from './pagination';
 
 const DIV_PAGE_SIZE = 12;
+const ANNUAL_PAGE_SIZE = 8;
 let _divPage = 1;
 let _intPage = 1;
+let _annualPage = 1;
 let _divYear = '';
 let _intYear = '';
+let _expandedAnnualYear = '';
 let _divTblSort: SortState = { key: null, dir: null };
 let _intTblSort: SortState = { key: null, dir: null };
 let _lastPd: PortfolioData | null = null;
+let _lastTxs: Transaction[] = [];
 
 /**
  * Renders the Dividends tab: gross/tax/net/interest KPI tiles plus the
  * dividend and interest history tables. Shows the empty state if no
  * dividend history exists yet.
  */
-export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = []): void {
+export function renderDividends(
+  pd: PortfolioData | null,
+  txs: Transaction[] = [],
+  snaps: Snapshot[] = [],
+): void {
   const hasPD = !!pd;
   const hasDiv = hasPD && pd.divHist.length > 0;
 
@@ -33,10 +41,13 @@ export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = [
   if (!hasPD) return;
 
   _lastPd = pd;
+  _lastTxs = txs;
   _divPage = 1;
   _intPage = 1;
+  _annualPage = 1;
   _divYear = '';
   _intYear = '';
+  _expandedAnnualYear = '';
 
   const totalGross = pd.divHist.reduce((s, d) => s + d.gross, 0);
   const allIncomeDates = [
@@ -65,7 +76,14 @@ export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = [
     .filter((i) => new Date(i.date.length === 7 ? `${i.date}-01` : i.date) >= cutoff)
     .reduce((sum, i) => sum + i.net, 0);
   const incomeYield =
-    has12mHistory && pd.totalInv > 0 ? ((div12m + int12m) / pd.totalInv) * 100 : null;
+    has12mHistory && pd.totalInv > 0 ? (div12m / pd.totalInv) * 100 : null;
+  const savingsBase = latestSavingsBalance(snaps);
+  const savingsYield =
+    has12mHistory && savingsBase !== null && savingsBase > 0 ? (int12m / savingsBase) * 100 : null;
+  const combinedYield =
+    has12mHistory && pd.totalInv > 0 && savingsBase !== null && savingsBase > 0
+      ? ((div12m + int12m) / (pd.totalInv + savingsBase)) * 100
+      : null;
 
   document.getElementById('div-kpis')!.innerHTML = `
     ${kpiTile({ label: `Gross dividends${infoTip('Before tax: Total distribution payments received from ETFs and stocks, before withholding tax is deducted.')}`, value: fmtEur2(totalGross) })}
@@ -75,12 +93,30 @@ export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = [
     ${kpiTile({ label: 'Tax on savings', value: fmtEur2(pd.totalIntTax), valueClass: pd.totalIntTax > 0 ? 'neg' : 'ok', sub: 'withheld + refunds' })}
     ${kpiTile({ label: 'Net interest', value: fmtEur2(pd.totalInterest), valueClass: 'pos', sub: 'received' })}
     ${kpiTile({
-      label: 'Income yield (12m)',
+      label: `Investment income yield (12m)${infoTip('Net dividends received in the last 12 months divided by ETF invested capital (cost basis). Scope is investment assets only.')}`,
       value: incomeYield === null ? '-' : `${incomeYield.toFixed(2).replace('.', ',')}%`,
       sub:
         incomeYield === null
           ? 'need 12 months of history'
-          : 'net dividends + net interest / cost basis',
+          : 'net dividends / ETF cost basis',
+    })}
+    ${kpiTile({
+      label: `Savings income yield (12m)${infoTip('Net interest received in the last 12 months divided by the latest savings-account balance snapshot. Scope is savings accounts only.')}`,
+      value: savingsYield === null ? '-' : `${savingsYield.toFixed(2).replace('.', ',')}%`,
+      sub:
+        savingsYield === null
+          ? savingsBase === null
+            ? 'add a savings snapshot balance'
+            : 'need 12 months of history'
+          : 'net interest / latest savings balance',
+    })}
+    ${kpiTile({
+      label: `Combined income yield (12m)${infoTip('Combined net dividends plus net interest in the last 12 months divided by ETF cost basis plus latest savings-account balance.')}`,
+      value: combinedYield === null ? '-' : `${combinedYield.toFixed(2).replace('.', ',')}%`,
+      sub:
+        combinedYield === null
+          ? 'requires investment + savings base'
+          : 'net dividends + net interest / combined base',
     })}
   `;
 
@@ -145,31 +181,90 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
   if (!target) return;
   if (!years.length) {
     target.innerHTML = '<p class="note">No yearly income data available yet.</p>';
+    renderPagination('div-annual-pagination', 1, 1, () => {});
     return;
   }
-  const rows = years
+  const totalPages = Math.max(1, Math.ceil(years.length / ANNUAL_PAGE_SIZE));
+  if (_annualPage > totalPages) _annualPage = totalPages;
+  const pageYears = years.slice((_annualPage - 1) * ANNUAL_PAGE_SIZE, _annualPage * ANNUAL_PAGE_SIZE);
+
+  const rows = pageYears
     .map((y) => {
       const r = byYear[y];
       const taxable = r.netDiv + r.netInt + r.realizedPnL;
-      return `<div class="tbl-row" role="row" style="grid-template-columns:1fr repeat(8, minmax(7ch, 1fr))">
-        <div>${y}</div>
-        <div style="text-align:right">${fmtEur2(r.grossDiv)}</div>
-        <div style="text-align:right">${fmtEur2(r.divTax)}</div>
-        <div style="text-align:right">${fmtEur2(r.netDiv)}</div>
-        <div style="text-align:right">${fmtEur2(r.grossInt)}</div>
-        <div style="text-align:right">${fmtEur2(r.intTax)}</div>
-        <div style="text-align:right">${fmtEur2(r.netInt)}</div>
-        <div style="text-align:right">${fmtEur2(r.realizedPnL)}</div>
+      const netIncome = r.netDiv + r.netInt + r.realizedPnL;
+      const detailOpen = _expandedAnnualYear === y;
+      return `<div class="tbl-row annual-row" role="row" data-annual-year="${y}">
+        <div style="font-weight:500">${y}</div>
+        <div style="text-align:right;color:${netIncome >= 0 ? 'var(--pos)' : 'var(--neg)'};font-weight:500">${fmtEur2(netIncome)}</div>
         <div style="text-align:right;font-weight:500">${fmtEur2(taxable)}</div>
-      </div>`;
+      </div>
+      ${
+        detailOpen
+          ? `<div class="annual-detail">
+              <div><span class="hold-detail-label">Gross div</span><span class="hold-detail-value">${fmtEur2(r.grossDiv)}</span></div>
+              <div><span class="hold-detail-label">Div tax</span><span class="hold-detail-value">${fmtEur2(r.divTax)}</span></div>
+              <div><span class="hold-detail-label">Net div</span><span class="hold-detail-value">${fmtEur2(r.netDiv)}</span></div>
+              <div><span class="hold-detail-label">Gross int</span><span class="hold-detail-value">${fmtEur2(r.grossInt)}</span></div>
+              <div><span class="hold-detail-label">Int tax</span><span class="hold-detail-value">${fmtEur2(r.intTax)}</span></div>
+              <div><span class="hold-detail-label">Net int</span><span class="hold-detail-value">${fmtEur2(r.netInt)}</span></div>
+              <div><span class="hold-detail-label">Realized P&amp;L</span><span class="hold-detail-value ${r.realizedPnL >= 0 ? 'pos' : 'neg'}">${fmtEur2(r.realizedPnL)}</span></div>
+            </div>`
+          : ''
+      }`;
     })
     .join('');
   target.innerHTML = `<div class="tbl" role="table" aria-label="Annual income summary">
-    <div class="tbl-row th" role="row" style="grid-template-columns:1fr repeat(8, minmax(7ch, 1fr))">
-      <div>Year</div><div style="text-align:right">Gross Div</div><div style="text-align:right">Div Tax</div><div style="text-align:right">Net Div</div><div style="text-align:right">Gross Int</div><div style="text-align:right">Int Tax</div><div style="text-align:right">Net Int</div><div style="text-align:right">Realized P&amp;L</div><div style="text-align:right">Total</div>
+    <div id="div-annual-table">
+      <div class="tbl-row th annual-row" role="row">
+        <div>Year</div>
+        <div style="text-align:right">Net inc${infoTip('Net dividends + net interest + realized P&L for the year.')}</div>
+        <div style="text-align:right">Taxable${infoTip('Net dividends + net interest + realized P&L. Expand row for full breakdown.')}</div>
+      </div>
+      ${rows}
     </div>
-    ${rows}
   </div>`;
+  const annualEl = document.getElementById('div-annual-table') as
+    | (HTMLElement & { _bound?: boolean })
+    | null;
+  if (annualEl && !annualEl._bound) {
+    annualEl._bound = true;
+    annualEl.addEventListener('click', (ev) => {
+      const row = (ev.target as HTMLElement).closest('[data-annual-year]') as HTMLElement | null;
+      if (!row) return;
+      const y = row.dataset.annualYear || '';
+      _expandedAnnualYear = _expandedAnnualYear === y ? '' : y;
+      renderAnnualSummary(_lastPd!, _lastTxs);
+    });
+  }
+  attachInfoTips(target);
+  renderPagination('div-annual-pagination', _annualPage, totalPages, (p) => {
+    _annualPage = p;
+    _expandedAnnualYear = '';
+    renderAnnualSummary(_lastPd!, _lastTxs);
+  });
+}
+
+function latestSavingsBalance(snaps: Snapshot[]): number | null {
+  const latest = snaps.length > 0 ? snaps[snaps.length - 1] : null;
+  if (!latest) return null;
+  const savings = getAccounts().filter((a) => (a.moneyType || '').toLowerCase() === 'savings');
+  if (!savings.length) return null;
+  const byLowerKey: Record<string, number> = {};
+  for (const [k, v] of Object.entries(latest)) {
+    if (typeof v === 'number') byLowerKey[k.toLowerCase()] = v;
+  }
+  let found = false;
+  let sum = 0;
+  for (const a of savings) {
+    const key = (a.id || '').toLowerCase();
+    if (!key) continue;
+    if (key in byLowerKey) {
+      found = true;
+      sum += byLowerKey[key];
+    }
+  }
+  return found ? sum : null;
 }
 
 function dividendColumns(pd: PortfolioData): ColumnDef<DivHistEntry>[] {
