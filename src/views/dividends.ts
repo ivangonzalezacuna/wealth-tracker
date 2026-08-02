@@ -3,7 +3,8 @@ import type { PortfolioData, DivHistEntry, IntHistEntry, Transaction, Snapshot }
 import { T } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { attachEtfPopovers } from '../ui/etfPopover';
-import { getAccounts, getHoldings } from '../store/config';
+import { getAccounts, getCostBasisMethod, getHoldings } from '../store/config';
+import { computeCostBasis } from '../model/costbasis';
 import type { SortState } from './tableSort';
 import { applySort, bindSortableHeader } from './tableSort';
 import type { ColumnDef } from './tableColumns';
@@ -165,11 +166,10 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
     row.intTax += i.tax;
     row.netInt += i.net;
   }
-  for (const tx of txs) {
-    if (tx.type !== 'SELL') continue;
-    const y = tx.date.slice(0, 4);
-    const row = ensure(y);
-    row.realizedPnL += Math.abs(tx.amount) - Math.abs(tx.fee || 0);
+  const realizedPnLByYear = computeRealizedPnLByYear(txs);
+  for (const [year, realizedPnL] of Object.entries(realizedPnLByYear)) {
+    const row = ensure(year);
+    row.realizedPnL += realizedPnL;
   }
 
   const years = Object.keys(byYear).sort().reverse();
@@ -179,6 +179,26 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
     target.innerHTML = '<p class="note">No yearly income data available yet.</p>';
     renderPagination('div-annual-pagination', 1, 1, () => {});
     return;
+  }
+
+  function computeRealizedPnLByYear(txs: Transaction[]): Record<string, number> {
+    const method = getCostBasisMethod();
+    const txsByYear = txs
+      .filter((tx) => tx.date && (tx.type === 'BUY' || tx.type === 'SELL'))
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    if (!txsByYear.length) return {};
+
+    const years = Array.from(new Set(txsByYear.map((tx) => tx.date.slice(0, 4)))).sort();
+    const out: Record<string, number> = {};
+    let runningRealized = 0;
+    for (const year of years) {
+      const cumulative = txsByYear.filter((tx) => tx.date.slice(0, 4) <= year);
+      const basisByIsin = computeCostBasis(cumulative, method);
+      const totalRealized = Object.values(basisByIsin).reduce((sum, basis) => sum + basis.realizedPnL, 0);
+      out[year] = totalRealized - runningRealized;
+      runningRealized = totalRealized;
+    }
+    return out;
   }
   const totalPages = Math.max(1, Math.ceil(years.length / ANNUAL_PAGE_SIZE));
   if (_annualPage > totalPages) _annualPage = totalPages;

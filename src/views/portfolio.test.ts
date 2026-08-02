@@ -456,6 +456,56 @@ describe('renderPortfolio', () => {
     expect(regionLegend).not.toContain('Emerging');
   });
 
+  it('falls back to cost-basis allocation when snapshot ETF values are partial', () => {
+    MOCK_HOLDINGS.splice(
+      0,
+      MOCK_HOLDINGS.length,
+      {
+        isin: 'IE00TEST1',
+        shortName: 'IWDA',
+        name: 'World',
+        color: '#222222',
+        acc: true,
+        active: true,
+        contribAmount: 50,
+        contribInterval: 'weekly',
+        assetClass: 'equity',
+        region: 'developed',
+        foldInto: '',
+        order: 1,
+      } as any,
+      {
+        isin: 'IE00TEST2',
+        shortName: 'BOND',
+        name: 'Bond',
+        color: '#333333',
+        acc: true,
+        active: true,
+        contribAmount: 0,
+        contribInterval: 'weekly',
+        assetClass: 'bond',
+        region: 'us',
+        foldInto: '',
+        order: 2,
+      } as any,
+    );
+    const pd = makePD({
+      etfs: {
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 1000 }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'BOND', cost: 500 }),
+      },
+      totalInv: 1500,
+    });
+    const snap: Snapshot = { date: '2026-06-01', acct1: 3500, etf_IE00TEST1: 3000 };
+    renderPortfolio(pd, [snap]);
+    const note = document.getElementById('port-alloc-note')!.textContent || '';
+    expect(note).toContain('cost basis');
+    expect(note).toContain('incomplete');
+    const classLegend = document.getElementById('port-alloc-class-legend')!.textContent || '';
+    expect(classLegend).toContain('67%');
+    expect(classLegend).toContain('33%');
+  });
+
   it('tap-to-expand detail panel opens on row click', () => {
     renderPortfolio(makePD(), []);
     const table = document.getElementById('port-table')!;

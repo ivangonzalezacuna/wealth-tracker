@@ -174,6 +174,47 @@ describe('renderDividends', () => {
     expect(groups[2].textContent).toBe('Profit / loss');
   });
 
+  it('uses cost-basis realized P&L instead of raw sell proceeds in annual summary', () => {
+    renderDividends(
+      makePD({ divHist: [], intHist: [] }),
+      [
+        {
+          id: 'b1',
+          date: '2026-01-10',
+          source: 'trade_republic',
+          type: 'BUY',
+          name: 'ETF',
+          isin: 'X',
+          shares: 1,
+          price: 100,
+          amount: 100,
+          fee: 0,
+          tax: 0,
+          currency: 'EUR',
+          fxRate: 1,
+        },
+        {
+          id: 's1',
+          date: '2026-02-10',
+          source: 'trade_republic',
+          type: 'SELL',
+          name: 'ETF',
+          isin: 'X',
+          shares: 1,
+          price: 100,
+          amount: 100,
+          fee: 0,
+          tax: 0,
+          currency: 'EUR',
+          fxRate: 1,
+        },
+      ],
+    );
+    const annualRow = document.querySelector('[data-annual-year="2026"]') as HTMLElement;
+    expect(annualRow).not.toBeNull();
+    expect(annualRow.textContent).toContain('0,00');
+  });
+
   it('renders yearly taxes in positive color when taxes are negative (refund)', () => {
     renderDividends(
       makePD({

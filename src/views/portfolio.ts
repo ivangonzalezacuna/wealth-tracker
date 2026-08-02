@@ -107,14 +107,17 @@ function renderAllocationBreakdowns(
 
   const holdings = getHoldings();
   const holdingByIsin = Object.fromEntries(holdings.map((h) => [h.isin, h]));
-  const hasMarketValues = Object.keys(snapEtfValues).length > 0;
+  const hasAnyMarketValues = Object.keys(snapEtfValues).length > 0;
+  const hasCompleteMarketValues =
+    held.length > 0 && held.every((e) => snapEtfValues[e.isin] !== undefined);
+  const useMarketValues = hasCompleteMarketValues;
 
   const byClass: Record<string, number> = {};
   const byRegion: Record<string, number> = {};
   for (const e of held) {
     const targetIsin = foldedIsin(e.isin, holdingByIsin);
     const targetHolding = holdingByIsin[targetIsin] || holdingByIsin[e.isin];
-    const weight = hasMarketValues ? (snapEtfValues[e.isin] ?? e.cost) : e.cost;
+    const weight = useMarketValues ? (snapEtfValues[e.isin] ?? 0) : e.cost;
     if (weight <= 0) continue;
     const assetClass = targetHolding?.assetClass || 'other';
     const region = targetHolding?.region || 'other';
@@ -195,9 +198,11 @@ function renderAllocationBreakdowns(
 
   const noteEl = document.getElementById('port-alloc-note');
   if (noteEl) {
-    noteEl.textContent = hasMarketValues
+    noteEl.textContent = useMarketValues
       ? `Allocation weights use market values from ${latSnap ? fmtMon(latSnap.date) : 'latest snapshot'}.`
-      : 'Allocation weights use current cost basis because market values are not available in the latest snapshot.';
+      : hasAnyMarketValues
+        ? 'Allocation weights use current cost basis because latest snapshot ETF values are incomplete.'
+        : 'Allocation weights use current cost basis because market values are not available in the latest snapshot.';
   }
 }
 

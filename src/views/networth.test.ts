@@ -276,7 +276,7 @@ describe('renderNW', () => {
     renderNW(makePD(), snaps);
     const kpis = document.getElementById('nw-kpis')!.textContent!;
     expect(kpis).toContain('Locked');
-    expect(kpis).toContain('unlocks 2055');
+    expect(kpis).toContain('unlocks 2055-2060');
   });
 
   it('renders YoY tile given 13+ months of snapshot history', () => {
@@ -299,6 +299,45 @@ describe('renderNW', () => {
     const kpis = document.getElementById('nw-kpis')!.innerHTML;
     expect(kpis).toContain('CAGR');
     expect(kpis).toContain('IRR (investments)');
+  });
+
+  it('does not double-count SELL proceeds in IRR cash flows', () => {
+    const snaps = [makeSnap('2026-01-01', 1000, 500)];
+    renderNW(makePD(), snaps, [
+      {
+        id: 'b1',
+        date: '2025-01-01',
+        source: 'trade_republic',
+        type: 'BUY',
+        name: 'ETF',
+        isin: 'IE00TEST1',
+        shares: 1,
+        price: 1000,
+        amount: 1000,
+        fee: 0,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 1,
+      },
+      {
+        id: 's1',
+        date: '2025-12-31',
+        source: 'trade_republic',
+        type: 'SELL',
+        name: 'ETF',
+        isin: 'IE00TEST1',
+        shares: 1,
+        price: 1000,
+        amount: 1000,
+        fee: 0,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 1,
+      },
+    ]);
+    const kpisText = document.getElementById('nw-kpis')!.textContent || '';
+    expect(kpisText).toContain('IRR (investments)');
+    expect(kpisText).toContain('0,00%');
   });
 
   it('growth chart includes "Contributed" dataset label', () => {

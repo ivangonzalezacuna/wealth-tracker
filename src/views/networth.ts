@@ -98,10 +98,6 @@ export function renderNW(
       if (!date) return null;
       if (tx.type === 'BUY')
         return { date, amount: -(Math.abs(tx.amount) + Math.abs(tx.fee || 0)) };
-      if (tx.type === 'SELL') return { date, amount: Math.abs(tx.amount) - Math.abs(tx.fee || 0) };
-      if (tx.type === 'DIVIDEND') {
-        return { date, amount: tx.amount };
-      }
       return null;
     })
     .filter((cf): cf is { date: string; amount: number } => !!cf);
@@ -151,10 +147,13 @@ export function renderNW(
         .filter((x) => x.locked && x.lockedUntil)
         .map((x) => x.lockedUntil!)
         .sort();
-      const lockedSub =
-        lockedYears.length > 0
-          ? `unlocks ${lockedYears[0]}`
-          : `${total > 0 ? Math.round((locked / total) * 100) : 0}% of total`;
+      const firstUnlock = lockedYears[0];
+      const lastUnlock = lockedYears[lockedYears.length - 1];
+      const lockedSub = firstUnlock
+        ? firstUnlock === lastUnlock
+          ? `unlocks ${firstUnlock}`
+          : `unlocks ${firstUnlock}-${lastUnlock}`
+        : `${total > 0 ? Math.round((locked / total) * 100) : 0}% of total`;
       return `
       <div class="kpi">
         <div class="kpi-label">Liquid${infoTip('Net worth accessible now, excluding pension and retirement accounts marked as locked.')}</div>
@@ -190,7 +189,7 @@ export function renderNW(
         : ''
     }
     ${kpiTile({
-      label: `IRR (investments)${infoTip('Money-weighted annual return on invested capital. Uses BUY, SELL, and dividend cash flows plus current primary investment value. This can differ from ETF price change because contribution timing changes money-weighted return.')}`,
+      label: `IRR (investments)${infoTip('Money-weighted annual return on invested capital. Uses BUY cash outflows plus current primary investment value. SELL and dividend cash movements stay inside the account value and are not counted separately.')}`,
       value: irrVal !== null ? fmtPctNeg(irrVal * 100) : '-',
       valueClass: irrVal === null ? '' : irrVal >= 0 ? 'pos' : 'neg',
       sub: irrVal !== null ? 'XIRR' : 'needs complete cash-flow series',
