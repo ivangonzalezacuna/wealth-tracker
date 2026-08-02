@@ -782,7 +782,6 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
   const hasSnapValues = Object.keys(snapEtfValues).length > 0;
   const allEtfs = Object.values(pd.etfs);
   const { held } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
-  const allocWeights = allocationWeightsInfo(held, snapEtfValues, latSnap);
 
   // Use the snapshot primary-investment account total as totalValue when market
   // values are available; otherwise fall back to the sum of cost bases.
@@ -841,7 +840,6 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
   driftEl.innerHTML = `
     <div class="card">
       <div class="card-title drift-title">Allocation drift <span class="drift-title-status" style="color:${statusColor}">${statusLabel} (max ${fmtPctVal(max)})</span></div>
-      <p class="note" style="margin:.35rem 0 .6rem">${allocWeights.note}</p>
       ${costModeBanner}
       <div class="tbl" role="table" aria-label="Allocation drift">
         <div class="tbl-row th" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
