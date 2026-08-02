@@ -404,8 +404,7 @@ code,
   cursor: pointer;
 }
 .annual-detail {
-  background: var(--surface);
-  border: 1px solid var(--line-2);
+  background: var(--surface-2);
   border-radius: var(--radius-sm);
   padding: 10px;
   margin: -2px 0 4px;
@@ -421,7 +420,7 @@ code,
   align-items: flex-start;
   gap: 8px 20px;
   padding: 10px 0;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--line-2);
 }
 .annual-detail-group:first-child {
   padding-top: 0;
