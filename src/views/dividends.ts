@@ -39,11 +39,16 @@ export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = [
   _intYear = '';
 
   const totalGross = pd.divHist.reduce((s, d) => s + d.gross, 0);
-  const allIncomeDates = [...pd.divHist.map((d) => d.date), ...pd.intHist.map((i) => i.date)].sort();
+  const allIncomeDates = [
+    ...pd.divHist.map((d) => d.date),
+    ...pd.intHist.map((i) => i.date),
+  ].sort();
   const has12mHistory =
     allIncomeDates.length > 1 &&
     (() => {
-      const first = new Date(allIncomeDates[0].length === 7 ? `${allIncomeDates[0]}-01` : allIncomeDates[0]);
+      const first = new Date(
+        allIncomeDates[0].length === 7 ? `${allIncomeDates[0]}-01` : allIncomeDates[0],
+      );
       const last = new Date(
         allIncomeDates[allIncomeDates.length - 1].length === 7
           ? `${allIncomeDates[allIncomeDates.length - 1]}-01`
@@ -59,7 +64,8 @@ export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = [
   const int12m = pd.intHist
     .filter((i) => new Date(i.date.length === 7 ? `${i.date}-01` : i.date) >= cutoff)
     .reduce((sum, i) => sum + i.net, 0);
-  const incomeYield = has12mHistory && pd.totalInv > 0 ? ((div12m + int12m) / pd.totalInv) * 100 : null;
+  const incomeYield =
+    has12mHistory && pd.totalInv > 0 ? ((div12m + int12m) / pd.totalInv) * 100 : null;
 
   document.getElementById('div-kpis')!.innerHTML = `
     ${kpiTile({ label: `Gross dividends${infoTip('Before tax: Total distribution payments received from ETFs and stocks, before withholding tax is deducted.')}`, value: fmtEur2(totalGross) })}
@@ -71,7 +77,10 @@ export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = [
     ${kpiTile({
       label: 'Income yield (12m)',
       value: incomeYield === null ? '-' : `${incomeYield.toFixed(2).replace('.', ',')}%`,
-      sub: incomeYield === null ? 'need 12 months of history' : 'net dividends + net interest / cost basis',
+      sub:
+        incomeYield === null
+          ? 'need 12 months of history'
+          : 'net dividends + net interest / cost basis',
     })}
   `;
 

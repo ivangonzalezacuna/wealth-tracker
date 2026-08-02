@@ -58,7 +58,11 @@ function _buildAccountForecastInputs(snap: Snapshot, accounts: Account[]): Accou
  * Renders the Net Worth tab: lead KPI (with MoM delta), per-account KPI tiles,
  * YoY/CAGR tiles, the history chart, growth-breakdown chart, and goal progress.
  */
-export function renderNW(pd: PortfolioData | null, snaps: Snapshot[], txs: Transaction[] = []): void {
+export function renderNW(
+  pd: PortfolioData | null,
+  snaps: Snapshot[],
+  txs: Transaction[] = [],
+): void {
   const ACCTS = getACCTSList();
   const has = snaps.length > 0;
   document.getElementById('nw-empty')!.style.display = has ? 'none' : 'block';
@@ -92,7 +96,8 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[], txs: Trans
     .map((tx) => {
       const date = tx.date && tx.date.length === 7 ? `${tx.date}-01` : tx.date;
       if (!date) return null;
-      if (tx.type === 'BUY') return { date, amount: -(Math.abs(tx.amount) + Math.abs(tx.fee || 0)) };
+      if (tx.type === 'BUY')
+        return { date, amount: -(Math.abs(tx.amount) + Math.abs(tx.fee || 0)) };
       if (tx.type === 'SELL') return { date, amount: Math.abs(tx.amount) - Math.abs(tx.fee || 0) };
       if (tx.type === 'DIVIDEND' || tx.type === 'INTEREST' || tx.type === 'INTEREST_PAYMENT') {
         return { date, amount: tx.amount };

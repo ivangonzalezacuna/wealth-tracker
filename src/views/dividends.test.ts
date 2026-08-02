@@ -140,13 +140,44 @@ describe('renderDividends', () => {
   });
 
   it('renders annual summary table', () => {
-    renderDividends(makePD(), [{ id: 's1', date: '2026-04-15', source: 'trade_republic', type: 'SELL', name: 'ETF', isin: 'X', shares: 1, price: 10, amount: 10, fee: 1, tax: 0, currency: 'EUR', fxRate: 1 }]);
+    renderDividends(makePD(), [
+      {
+        id: 's1',
+        date: '2026-04-15',
+        source: 'trade_republic',
+        type: 'SELL',
+        name: 'ETF',
+        isin: 'X',
+        shares: 1,
+        price: 10,
+        amount: 10,
+        fee: 1,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 1,
+      },
+    ]);
     expect(document.getElementById('div-annual')!.textContent).toContain('Year');
     expect(document.getElementById('div-annual')!.textContent).toContain('Realized P&L');
   });
 
   it('shows placeholder for income yield when less than 12 months history', () => {
-    renderDividends(makePD({ divHist: [{ date: '2026-01-15', isin: '', shortName: 'IWDA', color: '#111', gross: 12.5, tax: 3.13, net: 9.37 }], intHist: [] }));
+    renderDividends(
+      makePD({
+        divHist: [
+          {
+            date: '2026-01-15',
+            isin: '',
+            shortName: 'IWDA',
+            color: '#111',
+            gross: 12.5,
+            tax: 3.13,
+            net: 9.37,
+          },
+        ],
+        intHist: [],
+      }),
+    );
     expect(document.getElementById('div-kpis')!.textContent).toContain('Income yield (12m)');
     expect(document.getElementById('div-kpis')!.textContent).toContain('need 12 months of history');
   });

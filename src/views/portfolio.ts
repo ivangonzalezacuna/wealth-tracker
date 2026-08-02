@@ -506,6 +506,10 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   const marketValue = snapMarketValue !== null ? snapMarketValue : curVal;
   const gain = hasKnownPositionValues ? marketValueKnown - costKnown : null;
   const gainPct = gain !== null && costKnown > 0 ? (gain / costKnown) * 100 : null;
+  const summaryGainBase = snapMarketValue !== null ? snapMarketValue : curVal;
+  const summaryGain = summaryGainBase !== null ? summaryGainBase - pd.totalInv : null;
+  const summaryGainPct =
+    summaryGain !== null && pd.totalInv > 0 ? (summaryGain / pd.totalInv) * 100 : null;
   const cashUnallocated =
     curVal !== null && snapMarketValue !== null ? curVal - snapMarketValue : null;
   const gainLabel =
@@ -519,11 +523,10 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     ]),
   );
   const totalReturn =
-    (gain ?? 0) + pd.realizedPnL + pd.totalDivNet + pd.totalInterest - pd.totalFees;
-  const unrealizedTip =
-    hasKnownPositionValues
-      ? 'Gain or loss on ETF positions still held. Computed as position market value (from ETF breakdown) minus invested capital (cost basis). Not locked in until you sell.'
-      : 'Gain or loss on your portfolio. Computed as account market value (from snapshot) minus invested capital (cost basis). Not locked in until you sell.';
+    (summaryGain ?? 0) + pd.realizedPnL + pd.totalDivNet + pd.totalInterest - pd.totalFees;
+  const unrealizedTip = hasKnownPositionValues
+    ? 'Gain or loss on ETF positions still held. Computed as position market value (from ETF breakdown) minus invested capital (cost basis). Not locked in until you sell.'
+    : 'Gain or loss on your portfolio. Computed as account market value (from snapshot) minus invested capital (cost basis). Not locked in until you sell.';
   const realizedTip =
     'Gain or loss already locked in from shares you have sold. Computed as sell proceeds minus the cost basis of those shares, including fees.';
   const valueNote =
@@ -547,7 +550,12 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
       label: `Unrealized P&amp;L${infoTip('Gain or loss on positions still held. Computed as market value minus invested capital (cost basis). Not locked in until you sell.')}`,
       value: gain !== null ? fmtEurNeg(gain, 2) : '-',
       valueClass: gain === null ? '' : gain >= 0 ? 'pos' : 'neg',
-      sub: gainPct !== null ? `${fmtPctNeg(gainPct)}${hasPartialPositionValues ? ' (partial)' : ''}` : hasPartialPositionValues ? 'partial' : '',
+      sub:
+        gainPct !== null
+          ? `${fmtPctNeg(gainPct)}${hasPartialPositionValues ? ' (partial)' : ''}`
+          : hasPartialPositionValues
+            ? 'partial'
+            : '',
     })}
     ${kpiTile({
       label: `Realized P&amp;L${infoTip('Gain or loss already locked in from shares you have sold. Computed as sell proceeds minus the cost basis of those shares, including fees.')}`,
@@ -664,11 +672,11 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   const sectionHead = (label: string) =>
     `<div style="padding-top:8px;padding-bottom:2px"><span style="font-size:10px;font-weight:600;letter-spacing:.06em;color:var(--ink-4)">${label}</span></div>`;
   const unrealizedRow =
-    gain !== null
-      ? `<div class="row"><div class="row-label" style="font-weight:500">${gainLabel} ${infoTip(unrealizedTip)}</div><div class="row-val ${gain >= 0 ? 'pos' : 'neg'}" style="font-weight:500">${fmtEurNeg(gain, 2)} (${fmtPctNeg(gainPct!)})</div></div>`
+    summaryGain !== null
+      ? `<div class="row"><div class="row-label" style="font-weight:500">${gainLabel} ${infoTip(unrealizedTip)}</div><div class="row-val ${summaryGain >= 0 ? 'pos' : 'neg'}" style="font-weight:500">${fmtEurNeg(summaryGain, 2)} (${fmtPctNeg(summaryGainPct!)})</div></div>`
       : '';
   const totalReturnRow =
-    gain !== null
+    summaryGain !== null
       ? `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px"><div class="row-label" style="font-weight:600">Total return</div><div class="row-val ${totalReturn >= 0 ? 'pos' : 'neg'}" style="font-weight:600">${fmtEurNeg(totalReturn, 2)}</div></div>`
       : '';
 

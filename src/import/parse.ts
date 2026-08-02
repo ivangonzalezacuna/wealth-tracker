@@ -93,17 +93,6 @@ export function parseDate(s: string | null | undefined, fmt: string): string {
       return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
     }
 
-    export function isValidIsoDate(s: string): boolean {
-      const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (!m) return false;
-      const year = parseInt(m[1], 10);
-      const month = parseInt(m[2], 10);
-      const day = parseInt(m[3], 10);
-      if (month < 1 || month > 12) return false;
-      if (day < 1) return false;
-      const maxDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-      return day <= maxDay;
-    }
     case 'DD.MM.YYYY': {
       const m = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
       if (!m) return str;
@@ -122,6 +111,18 @@ export function parseDate(s: string | null | undefined, fmt: string): string {
     default:
       return str; // unknown format - passthrough
   }
+}
+
+export function isValidIsoDate(s: string): boolean {
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  const year = parseInt(m[1], 10);
+  const month = parseInt(m[2], 10);
+  const day = parseInt(m[3], 10);
+  if (month < 1 || month > 12) return false;
+  if (day < 1) return false;
+  const maxDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return day <= maxDay;
 }
 
 // ── Type mapping ───────────────────────────────────────────────

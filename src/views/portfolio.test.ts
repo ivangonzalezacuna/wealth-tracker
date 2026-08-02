@@ -195,10 +195,12 @@ describe('renderPortfolio', () => {
     const snap: Snapshot = { date: '2026-06-01', acct1: 1200 };
     renderPortfolio(makePD(), [snap]);
     const kpis = document.getElementById('port-kpis')!.textContent!;
+    const kpisHtml = document.getElementById('port-kpis')!.innerHTML;
     // Market value = 1200 (from snapshot for primary investment account)
     expect(kpis).toContain('1.200,00');
     // Unrealized per-position requires ETF snapshot breakdown
-    expect(kpis).not.toContain('200,00');
+    expect(kpisHtml).toContain('Unrealized P&amp;L');
+    expect(kpisHtml).toContain('>-<');
   });
 
   it('uses ETF market values for unrealized gain and shows option-2 summary rows', () => {

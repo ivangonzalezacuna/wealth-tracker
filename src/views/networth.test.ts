@@ -28,7 +28,7 @@ vi.mock('chart.js/auto', () => ({
 }));
 
 // ── Mock dependencies ──────────────────────────────────────────────
-const MOCK_ACCOUNTS = [
+const MOCK_ACCOUNTS: any[] = [
   {
     id: 'acct1',
     moneyType: 'investment',
