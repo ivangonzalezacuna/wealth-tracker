@@ -22,6 +22,17 @@ export function validateAccountIds(accounts: Account[]): string | null {
   return null;
 }
 
+/** Returns an error string if any account label contains no alphanumeric characters, else null. */
+export function validateAccountLabels(accounts: Account[]): string | null {
+  for (const a of accounts) {
+    const label = (a.label || '').trim();
+    if (label && !/[a-zA-Z0-9]/.test(label)) {
+      return `"${label}" is not a valid account name. Names must contain at least one letter or digit.`;
+    }
+  }
+  return null;
+}
+
 /** Returns an error string if the primary-investment flagging is invalid, else null. */
 export function validatePrimaryInvestment(accounts: Account[]): string | null {
   const primary = accounts.filter((a) => a.isPrimaryInvestment);

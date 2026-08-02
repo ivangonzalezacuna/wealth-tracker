@@ -198,20 +198,18 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
       const detail = renderAnnualDetail(r);
       return `<div class="tbl-row annual-row" role="row" data-annual-year="${y}">
         <div style="font-weight:500">${y}</div>
-        <div style="text-align:right;color:${benefitsNet >= 0 ? 'var(--pos)' : 'var(--neg)'};font-weight:500">${fmtEur2(benefitsNet)}</div>
         <div style="text-align:right;color:${taxesPaidColor}">${fmtEur2(taxesPaid)}</div>
+        <div style="text-align:right;color:${benefitsNet >= 0 ? 'var(--pos)' : 'var(--neg)'};font-weight:500">${fmtEur2(benefitsNet)}</div>
       </div>
-      ${
-        detailOpen ? `<div class="annual-detail">${detail}</div>` : ''
-      }`;
+      ${detailOpen ? `<div class="annual-detail">${detail}</div>` : ''}`;
     })
     .join('');
   target.innerHTML = `<div class="tbl" role="table" aria-label="Annual income summary">
     <div id="div-annual-table">
       <div class="tbl-row th annual-row" role="row">
         <div>Year</div>
-        <div style="text-align:right">Benefits (net)${infoTip('Net dividends + net savings interest + realized profit/loss from sells for the year.')}</div>
         <div style="text-align:right">Taxes paid${infoTip('Dividend taxes + savings-interest taxes paid during the year. Expand row for full breakdown.')}</div>
+        <div style="text-align:right">Benefits (net)${infoTip('Net dividends + net savings interest + realized profit/loss from sells for the year.')}</div>
       </div>
       ${rows}
     </div>
@@ -250,9 +248,9 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
       {
         title: 'Savings',
         items: [
-          { label: 'Gross savings interest received', value: r.grossInt },
-          { label: 'Savings interest taxes paid', value: r.intTax, className: taxToneClass(r.intTax) },
-          { label: 'Net savings interest received', value: r.netInt, className: toneClass(r.netInt) },
+          { label: 'Gross interest received', value: r.grossInt },
+          { label: 'Taxes paid', value: r.intTax, className: taxToneClass(r.intTax) },
+          { label: 'Net interest received', value: r.netInt, className: toneClass(r.netInt) },
         ],
       },
       {
@@ -281,7 +279,9 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
       })
       .join('');
 
-    return groupsHtml || '<div class="annual-detail-empty">No yearly breakdown available yet.</div>';
+    return (
+      groupsHtml || '<div class="annual-detail-empty">No yearly breakdown available yet.</div>'
+    );
   }
 
   function toneClass(value: number): 'pos' | 'neg' | '' {

@@ -412,16 +412,21 @@ code,
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   grid-column: 1 / -1;
-  gap: 8px;
+  gap: 0;
   font-size: 11px;
 }
 .annual-detail-group {
   display: grid;
   gap: 6px;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.annual-detail-group:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+.annual-detail-group:last-child {
+  padding-bottom: 0;
 }
 .annual-detail-group-title {
   color: var(--ink-2);

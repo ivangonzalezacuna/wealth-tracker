@@ -19,6 +19,7 @@ import {
   validatePrimaryInvestment,
   validateAccountRanges,
   validateAccountIds,
+  validateAccountLabels,
 } from '../model/accounts';
 import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
@@ -498,6 +499,11 @@ function attachAccountListeners(root: HTMLElement): void {
     const accounts = collectAccounts(root);
     if (accounts.some((a) => !a.label)) {
       showMsg('accts-msg', 'Each account needs a name.', false);
+      return;
+    }
+    const labelErr = validateAccountLabels(accounts);
+    if (labelErr) {
+      showMsg('accts-msg', labelErr, false);
       return;
     }
     // Auto-generate IDs for accounts that don't have one

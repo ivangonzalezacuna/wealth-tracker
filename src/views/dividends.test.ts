@@ -192,7 +192,7 @@ describe('renderDividends', () => {
       }),
     );
     const annualRow = document.querySelector('[data-annual-year="2026"]') as HTMLElement;
-    const taxesCell = annualRow.children[2] as HTMLElement;
+    const taxesCell = annualRow.children[1] as HTMLElement;
     expect(taxesCell.style.color).toBe('var(--pos)');
   });
 

@@ -105,6 +105,7 @@ vi.mock('../model/accounts', () => ({
   validateAccountIds: () => null,
   validatePrimaryInvestment: () => null,
   validateAccountRanges: () => null,
+  validateAccountLabels: () => null,
 }));
 
 vi.mock('../model/contributions', () => ({

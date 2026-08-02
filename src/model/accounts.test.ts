@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { validatePrimaryInvestment, primaryInvestmentValue, validateAccountIds } from './accounts';
+import {
+  validatePrimaryInvestment,
+  primaryInvestmentValue,
+  validateAccountIds,
+  validateAccountLabels,
+} from './accounts';
 import type { Account, Snapshot } from '../types';
 
 describe('validatePrimaryInvestment', () => {
@@ -72,6 +77,39 @@ describe('primaryInvestmentValue', () => {
     it('rejects reserved etf_ prefix', () => {
       const accounts: Account[] = [{ id: 'etf_broker', label: 'ETF Broker' }];
       expect(validateAccountIds(accounts)).toContain('reserved');
+    });
+  });
+
+  describe('validateAccountLabels', () => {
+    it('returns null when all labels contain alphanumeric characters', () => {
+      const accounts: Account[] = [
+        { label: 'Main Account', moneyType: 'investment' },
+        { label: 'N26', moneyType: 'savings' },
+      ];
+      expect(validateAccountLabels(accounts)).toBeNull();
+    });
+
+    it('returns null for empty labels (empty-name check is handled separately)', () => {
+      const accounts: Account[] = [{ label: '', moneyType: 'cash' }];
+      expect(validateAccountLabels(accounts)).toBeNull();
+    });
+
+    it('rejects labels with only symbols like "!"', () => {
+      const accounts: Account[] = [{ label: '!', moneyType: 'cash' }];
+      const err = validateAccountLabels(accounts);
+      expect(err).not.toBeNull();
+      expect(err).toContain('!');
+      expect(err).toContain('letter or digit');
+    });
+
+    it('rejects labels with only punctuation', () => {
+      const accounts: Account[] = [{ label: '---', moneyType: 'cash' }];
+      expect(validateAccountLabels(accounts)).not.toBeNull();
+    });
+
+    it('accepts labels mixing letters and symbols', () => {
+      const accounts: Account[] = [{ label: 'N26 (main)', moneyType: 'savings' }];
+      expect(validateAccountLabels(accounts)).toBeNull();
     });
   });
 
