@@ -75,8 +75,7 @@ export function renderDividends(
   const int12m = pd.intHist
     .filter((i) => new Date(i.date.length === 7 ? `${i.date}-01` : i.date) >= cutoff)
     .reduce((sum, i) => sum + i.net, 0);
-  const incomeYield =
-    has12mHistory && pd.totalInv > 0 ? (div12m / pd.totalInv) * 100 : null;
+  const incomeYield = has12mHistory && pd.totalInv > 0 ? (div12m / pd.totalInv) * 100 : null;
   const savingsBase = latestSavingsBalance(snaps);
   const savingsYield =
     has12mHistory && savingsBase !== null && savingsBase > 0 ? (int12m / savingsBase) * 100 : null;
@@ -95,10 +94,7 @@ export function renderDividends(
     ${kpiTile({
       label: `Investment income yield (12m)${infoTip('Net dividends received in the last 12 months divided by ETF invested capital (cost basis). Scope is investment assets only.')}`,
       value: incomeYield === null ? '-' : `${incomeYield.toFixed(2).replace('.', ',')}%`,
-      sub:
-        incomeYield === null
-          ? 'need 12 months of history'
-          : 'net dividends / ETF cost basis',
+      sub: incomeYield === null ? 'need 12 months of history' : 'net dividends / ETF cost basis',
     })}
     ${kpiTile({
       label: `Savings income yield (12m)${infoTip('Net interest received in the last 12 months divided by the latest savings-account balance snapshot. Scope is savings accounts only.')}`,
@@ -186,7 +182,10 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
   }
   const totalPages = Math.max(1, Math.ceil(years.length / ANNUAL_PAGE_SIZE));
   if (_annualPage > totalPages) _annualPage = totalPages;
-  const pageYears = years.slice((_annualPage - 1) * ANNUAL_PAGE_SIZE, _annualPage * ANNUAL_PAGE_SIZE);
+  const pageYears = years.slice(
+    (_annualPage - 1) * ANNUAL_PAGE_SIZE,
+    _annualPage * ANNUAL_PAGE_SIZE,
+  );
 
   const rows = pageYears
     .map((y) => {
@@ -228,8 +227,7 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
     </div>
   </div>`;
   const annualEl = document.getElementById('div-annual-table') as
-    | (HTMLElement & { _bound?: boolean })
-    | null;
+    (HTMLElement & { _bound?: boolean }) | null;
   if (annualEl && !annualEl._bound) {
     annualEl._bound = true;
     annualEl.addEventListener('click', (ev) => {

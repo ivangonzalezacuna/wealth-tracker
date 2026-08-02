@@ -185,7 +185,9 @@ describe('renderDividends', () => {
         intHist: [],
       }),
     );
-    expect(document.getElementById('div-kpis')!.textContent).toContain('Investment income yield (12m)');
+    expect(document.getElementById('div-kpis')!.textContent).toContain(
+      'Investment income yield (12m)',
+    );
     expect(document.getElementById('div-kpis')!.textContent).toContain('need 12 months of history');
   });
 
