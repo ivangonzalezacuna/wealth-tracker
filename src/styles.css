@@ -259,6 +259,18 @@ code,
   margin-bottom: 0;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.drift-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.drift-title-status {
+  font-size: 12px;
+  font-weight: 400;
 }
 .card-title + .legend,
 .card-title + .chart-controls {
@@ -384,11 +396,7 @@ code,
 }
 #div-annual-table {
   display: grid;
-  grid-template-columns:
-    minmax(6ch, 0.7fr)
-    minmax(11ch, 1fr)
-    minmax(11ch, 1fr)
-    minmax(9ch, 0.9fr);
+  grid-template-columns: minmax(7ch, 0.8fr) minmax(10ch, 1fr) minmax(10ch, 1fr);
 }
 .annual-row {
   grid-template-columns: subgrid;
@@ -453,15 +461,7 @@ code,
     display: none;
   }
   #div-annual-table {
-    grid-template-columns:
-      minmax(5ch, 0.7fr)
-      minmax(8ch, 1fr)
-      minmax(8ch, 1fr)
-      minmax(8ch, 0.9fr);
-  }
-  .annual-row > div {
-    white-space: normal;
-    line-height: 1.2;
+    grid-template-columns: minmax(6ch, 0.7fr) minmax(9ch, 1fr) minmax(9ch, 1fr);
   }
 }
 
@@ -1276,6 +1276,10 @@ code,
   }
   .kpi-label {
     font-size: 10px;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    line-height: 1.2;
   }
   .kpi-val {
     font-size: 16px;
@@ -1291,6 +1295,7 @@ code,
   .card-title {
     font-size: 10px;
     margin-bottom: 0.5rem;
+    letter-spacing: 0.04em;
   }
   .chart-wrap {
     height: 180px !important;

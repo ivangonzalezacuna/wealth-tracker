@@ -190,26 +190,24 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
   const rows = pageYears
     .map((y) => {
       const r = byYear[y];
-      const cashIncome = r.netDiv + r.netInt;
-      const totalNetIncome = cashIncome + r.realizedPnL;
-      const taxWithheld = r.divTax + r.intTax;
+      const benefitsNet = r.netDiv + r.netInt + r.realizedPnL;
+      const taxesPaid = r.divTax + r.intTax;
       const detailOpen = _expandedAnnualYear === y;
       return `<div class="tbl-row annual-row" role="row" data-annual-year="${y}">
         <div style="font-weight:500">${y}</div>
-        <div style="text-align:right;color:${totalNetIncome >= 0 ? 'var(--pos)' : 'var(--neg)'};font-weight:500">${fmtEur2(totalNetIncome)}</div>
-        <div style="text-align:right;font-weight:500">${fmtEur2(cashIncome)}</div>
-        <div style="text-align:right;color:var(--neg)">${fmtEur2(taxWithheld)}</div>
+        <div style="text-align:right;color:${benefitsNet >= 0 ? 'var(--pos)' : 'var(--neg)'};font-weight:500">${fmtEur2(benefitsNet)}</div>
+        <div style="text-align:right;color:var(--neg)">${fmtEur2(taxesPaid)}</div>
       </div>
       ${
         detailOpen
           ? `<div class="annual-detail">
-              <div><span class="hold-detail-label">Gross div</span><span class="hold-detail-value">${fmtEur2(r.grossDiv)}</span></div>
-              <div><span class="hold-detail-label">Div tax</span><span class="hold-detail-value">${fmtEur2(r.divTax)}</span></div>
-              <div><span class="hold-detail-label">Net div</span><span class="hold-detail-value">${fmtEur2(r.netDiv)}</span></div>
-              <div><span class="hold-detail-label">Gross int</span><span class="hold-detail-value">${fmtEur2(r.grossInt)}</span></div>
-              <div><span class="hold-detail-label">Int tax</span><span class="hold-detail-value">${fmtEur2(r.intTax)}</span></div>
-              <div><span class="hold-detail-label">Net int</span><span class="hold-detail-value">${fmtEur2(r.netInt)}</span></div>
-              <div><span class="hold-detail-label">Realized P&amp;L</span><span class="hold-detail-value ${r.realizedPnL >= 0 ? 'pos' : 'neg'}">${fmtEur2(r.realizedPnL)}</span></div>
+              <div><span class="hold-detail-label">Gross dividends received</span><span class="hold-detail-value">${fmtEur2(r.grossDiv)}</span></div>
+              <div><span class="hold-detail-label">Dividend taxes paid</span><span class="hold-detail-value">${fmtEur2(r.divTax)}</span></div>
+              <div><span class="hold-detail-label">Net dividends received</span><span class="hold-detail-value">${fmtEur2(r.netDiv)}</span></div>
+              <div><span class="hold-detail-label">Gross savings interest received</span><span class="hold-detail-value">${fmtEur2(r.grossInt)}</span></div>
+              <div><span class="hold-detail-label">Savings interest taxes paid</span><span class="hold-detail-value">${fmtEur2(r.intTax)}</span></div>
+              <div><span class="hold-detail-label">Net savings interest received</span><span class="hold-detail-value">${fmtEur2(r.netInt)}</span></div>
+              <div><span class="hold-detail-label">Realized profit and loss from sells</span><span class="hold-detail-value ${r.realizedPnL >= 0 ? 'pos' : 'neg'}">${fmtEur2(r.realizedPnL)}</span></div>
             </div>`
           : ''
       }`;
@@ -219,9 +217,8 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
     <div id="div-annual-table">
       <div class="tbl-row th annual-row" role="row">
         <div>Year</div>
-        <div style="text-align:right">Total net income${infoTip('Net dividends + net interest + realized P&L for the year.')}</div>
-        <div style="text-align:right">Passive income (net)${infoTip('Net dividends + net interest for the year, excluding realized P&L.')}</div>
-        <div style="text-align:right">Tax withheld${infoTip('Dividend tax + savings-interest tax withheld during the year. Expand row for full breakdown.')}</div>
+        <div style="text-align:right">Benefits (net)${infoTip('Net dividends + net savings interest + realized profit/loss from sells for the year.')}</div>
+        <div style="text-align:right">Taxes paid${infoTip('Dividend taxes + savings-interest taxes paid during the year. Expand row for full breakdown.')}</div>
       </div>
       ${rows}
     </div>

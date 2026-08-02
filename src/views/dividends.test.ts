@@ -160,12 +160,13 @@ describe('renderDividends', () => {
       },
     ]);
     expect(document.getElementById('div-annual')!.textContent).toContain('Year');
-    expect(document.getElementById('div-annual')!.textContent).toContain('Total net income');
-    expect(document.getElementById('div-annual')!.textContent).toContain('Tax withheld');
-    expect(document.getElementById('div-annual')!.textContent).toContain('Passive income (net)');
+    expect(document.getElementById('div-annual')!.textContent).toContain('Benefits (net)');
+    expect(document.getElementById('div-annual')!.textContent).toContain('Taxes paid');
     const annualRow = document.querySelector('[data-annual-year="2026"]') as HTMLElement;
     annualRow.click();
-    expect(document.getElementById('div-annual')!.textContent).toContain('Realized P&L');
+    expect(document.getElementById('div-annual')!.textContent).toContain(
+      'Realized profit and loss from sells',
+    );
   });
 
   it('shows placeholder for income yield when less than 12 months history', () => {

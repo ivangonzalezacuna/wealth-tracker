@@ -164,19 +164,10 @@ function renderAllocationBreakdowns(
             borderWidth: 1,
             titleColor: C.ink,
             bodyColor: C.ink2,
-            footerColor: C.ink4,
-            footerFont: { weight: 'normal' as const, size: 10 },
-            footerMarginTop: 4,
             padding: 10,
             cornerRadius: 8,
             callbacks: {
               label: (ctx) => ` ${fmtEur2(ctx.raw as number)}`,
-              footer: (items) => {
-                if (!items.length) return '';
-                const ctx = items[0];
-                const val = values[ctx.dataIndex] || 0;
-                return total > 0 ? ` ${fmtPctVal((val / total) * 100)}` : ' 0%';
-              },
               labelColor: tooltipSwatch(C.surface),
             },
           },
@@ -836,7 +827,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
 
   driftEl.innerHTML = `
     <div class="card">
-      <div class="card-title">Allocation drift <span style="font-size:12px;font-weight:400;color:${statusColor};margin-left:8px">${statusLabel} (max ${fmtPctVal(max)})</span></div>
+      <div class="card-title drift-title">Allocation drift <span class="drift-title-status" style="color:${statusColor}">${statusLabel} (max ${fmtPctVal(max)})</span></div>
       ${costModeBanner}
       <div class="tbl" role="table" aria-label="Allocation drift">
         <div class="tbl-row th" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
