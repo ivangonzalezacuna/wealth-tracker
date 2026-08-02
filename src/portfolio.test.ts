@@ -206,6 +206,25 @@ describe('computePD', () => {
     expect(pd.months).toEqual([]);
     expect(pd.divHist).toEqual([]);
     expect(pd.intHist).toEqual([]);
+    expect(pd.transactionCurrencies).toEqual([]);
+    expect(pd.hasMultiCurrency).toBe(false);
+    expect(pd.hasFxRateValues).toBe(false);
+  });
+
+  it('tracks import currencies and fx_rate presence for warnings', () => {
+    const txs: Transaction[] = [
+      buyTx('IE00B4L5Y983', '2024-01-15', 10, 1000),
+      {
+        ...buyTx('IE00BKM4GZ66', '2024-02-15', 5, 600),
+        currency: 'USD',
+        fxRate: 1.08,
+      },
+    ];
+    const pd = computePD(txs);
+
+    expect(pd.transactionCurrencies).toEqual(['EUR', 'USD']);
+    expect(pd.hasMultiCurrency).toBe(true);
+    expect(pd.hasFxRateValues).toBe(true);
   });
 
   it('DEPOSIT rows do not enter DCA monthly', () => {

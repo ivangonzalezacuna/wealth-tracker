@@ -269,3 +269,8 @@ The app installs like a native app and works offline for viewing. Writes require
 
 - **Selling is not supported.** The app is designed for long-term buy-and-hold portfolios. SELL transactions are recognized by the cost-basis engine (FIFO and average-cost both dequeue lots correctly), but there is no UI to record a sale and the monthly investment KPIs do not subtract sell proceeds.
 - **Multi-leg SELL consolidation (ETF fund mergers) is unverified in production.** When a provider folds one ETF into another (for example iShares merging IEEM into CMEIU, or merging CECBE and EGB7Y into GABE), the cost-basis engine has a code path (`foldInto`) meant to carry the original position's cost basis forward instead of treating it as a full sell-then-rebuy. That path is implemented and unit-tested against synthetic data, but has not yet been exercised against a real consolidation event end to end. If one of your holdings undergoes this kind of provider-side merge, treat the resulting Realized P&L and cost-basis figures as unverified until you've manually cross-checked them against your broker statement.
+- **FX conversion is not applied in portfolio calculations yet.** Imported `currency` and `fx_rate` values are preserved, but current portfolio, allocation, and income calculations run in account currency and do not normalize values using `fx_rate`.
+
+## Roadmap
+
+- Add full multi-currency support, including base-currency selection and `fx_rate` conversion across holdings, performance, and income metrics.

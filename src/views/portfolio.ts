@@ -589,6 +589,13 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     snapMarketValue !== null
       ? `Position market value from latest snapshot ETF breakdown (${latSnap ? fmtMon(latSnap.date) : 'none yet'}).`
       : `Market value from latest account snapshot (${latSnap ? fmtMon(latSnap.date) : 'none yet'}).`;
+  const currencies = (pd.transactionCurrencies || []).map((c) => String(c).toUpperCase());
+  const hasNonEurCurrency = currencies.some((c) => c !== 'EUR');
+  const hasFxWarning = pd.hasMultiCurrency || hasNonEurCurrency || pd.hasFxRateValues;
+  const currencyList = currencies.length > 0 ? currencies.join(', ') : 'multiple currencies';
+  const fxWarning = hasFxWarning
+    ? ` Multi-currency import detected (${esc(currencyList)}). FX conversion is not applied yet, and fx_rate is informational only.`
+    : '';
 
   document.getElementById('port-kpis')!.innerHTML = `
     ${kpiTile({ label: 'Total invested', value: fmtEur(pd.totalInv), sub: 'net of sells' })}
@@ -755,7 +762,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     <div class="row"><div class="row-label">Tax on savings</div><div class="row-val ${pd.totalIntTax > 0 ? 'neg' : 'ok'}">${fmtEur2(pd.totalIntTax)}</div></div>
     <div class="row"><div class="row-label">Fees</div><div class="row-val">${fmtEur2(pd.totalFees)}</div></div>
     ${totalReturnRow}
-    <p class="note">Cost basis exact from CSV. ${valueNote} Mixed-currency positions compute in account currency (no FX conversion).</p>
+    <p class="note">Cost basis exact from CSV. ${valueNote}${fxWarning}</p>
   `;
   const portSummary = document.getElementById('port-summary');
   if (portSummary) attachInfoTips(portSummary);

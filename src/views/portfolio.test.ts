@@ -106,6 +106,9 @@ function makePD(overrides: Partial<PortfolioData> = {}): PortfolioData {
     realizedPnL: 0,
     interestBySource: {},
     taxBySource: {},
+    transactionCurrencies: ['EUR'],
+    hasMultiCurrency: false,
+    hasFxRateValues: false,
     ...overrides,
   };
 }
@@ -286,6 +289,26 @@ describe('renderPortfolio', () => {
     expect(summary).toContain('30,00');
     expect(summary).toContain('Interest received (gross)');
     expect(summary).toContain('12,00');
+  });
+
+  it('does not show FX warning when imports are EUR-only with no fx_rate values', () => {
+    renderPortfolio(makePD(), []);
+    const summary = document.getElementById('port-summary')!.textContent!;
+    expect(summary).not.toContain('FX conversion is not applied yet');
+  });
+
+  it('shows FX warning when multi-currency or fx_rate data is detected', () => {
+    renderPortfolio(
+      makePD({
+        transactionCurrencies: ['EUR', 'USD'],
+        hasMultiCurrency: true,
+        hasFxRateValues: true,
+      }),
+      [],
+    );
+    const summary = document.getElementById('port-summary')!.textContent!;
+    expect(summary).toContain('Multi-currency import detected (EUR, USD)');
+    expect(summary).toContain('FX conversion is not applied yet');
   });
 
   it('creates allocation charts on first render', () => {

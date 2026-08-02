@@ -206,6 +206,9 @@ export interface PortfolioData {
   realizedPnL: number;
   interestBySource: Record<string, number>;
   taxBySource: Record<string, number>;
+  transactionCurrencies?: string[];
+  hasMultiCurrency?: boolean;
+  hasFxRateValues?: boolean;
 }
 
 // ─── Parse result ────────────────────────────────────────────────

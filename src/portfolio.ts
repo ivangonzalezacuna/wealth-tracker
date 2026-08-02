@@ -31,6 +31,8 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
   const intTaxByMonth: Record<string, number> = {}; // YYYY-MM → summed tax (negative = paid)
   const monthly: Record<string, number> = {};
   const monthlyBy: Record<string, Record<string, number>> = {};
+  const transactionCurrencies = new Set<string>();
+  let hasFxRateValues = false;
   let totalInterest = 0;
   const interestBySource: Record<string, number> = {};
   const taxBySource: Record<string, number> = {};
@@ -58,6 +60,12 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
   }
 
   for (const tx of sorted) {
+    const currency = String(tx.currency || '')
+      .trim()
+      .toUpperCase();
+    if (currency) transactionCurrencies.add(currency);
+    if (!hasFxRateValues && Number(tx.fxRate) > 0) hasFxRateValues = true;
+
     const isin = tx.isin || '';
     const shortName = ISIN_NAMES[isin] || isin;
     const meta = META[isin] || {};
@@ -161,6 +169,7 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
   const totalIntGross = intHist.reduce((s, i) => s + i.gross, 0);
   const totalIntTax = intHist.reduce((s, i) => s + i.tax, 0);
   const months = Object.keys(monthly).sort();
+  const currencies = [...transactionCurrencies].sort();
 
   return {
     etfs,
@@ -179,5 +188,8 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
     realizedPnL,
     interestBySource,
     taxBySource,
+    transactionCurrencies: currencies,
+    hasMultiCurrency: currencies.length > 1,
+    hasFxRateValues,
   };
 }
