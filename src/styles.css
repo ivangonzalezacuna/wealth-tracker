@@ -416,8 +416,10 @@ code,
   font-size: 11px;
 }
 .annual-detail-group {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 20px;
   padding: 10px 0;
   border-top: 1px solid var(--line);
 }
@@ -429,6 +431,7 @@ code,
   padding-bottom: 0;
 }
 .annual-detail-group-title {
+  flex: 1 1 100%;
   color: var(--ink-2);
   font-size: 10px;
   text-transform: uppercase;
