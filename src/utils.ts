@@ -75,10 +75,10 @@ export function fmtShares(n: number): string {
   });
 }
 
-/** Current month as 'YYYY-MM' (UTC) - the max allowed snapshot month. */
+/** Current month as 'YYYY-MM' (local time) - the max allowed snapshot month. */
 export function currentMonth(): string {
   const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 export function fmtMon(d: string): string {

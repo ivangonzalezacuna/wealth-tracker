@@ -141,12 +141,13 @@ function applyMigrations(db: Database, currentVersion: number): void {
 }
 
 /**
- * Persist the current database state to IndexedDB.
- * Call after any write operation (or batch of writes).
+ * Persist a database state to IndexedDB.
+ * Defaults to the live singleton and is also used to stage imported DBs
+ * before swapping them into _db.
  */
-export async function persistDb(): Promise<void> {
-  if (!_db) return;
-  const data = _db.export();
+export async function persistDb(db: Database | null = _db): Promise<void> {
+  if (!db) return;
+  const data = db.export();
   await idbSet(data);
 }
 
@@ -173,10 +174,11 @@ export function exportDb(): Uint8Array | null {
  */
 export async function importDb(data: Uint8Array): Promise<void> {
   const SQL = await getSqlJs();
+  const previousDb = _db;
 
   // Snapshot local transaction IDs before replacing, so we can merge back
   // any that are missing from the cloud copy.
-  const localTxRows = _db ? getLocalTransactionRows(_db) : [];
+  const localTxRows = previousDb ? getLocalTransactionRows(previousDb) : [];
 
   let newDb: Database | null = null;
   try {
@@ -193,10 +195,13 @@ export async function importDb(data: Uint8Array): Promise<void> {
       mergeLocalTransactions(newDb, localTxRows);
     }
 
-    // All steps succeeded: swap the singleton and persist.
-    if (_db) _db.close();
+    // Persist the imported DB before swapping it into the live singleton.
+    await persistDb(newDb);
+
+    // All steps succeeded: swap the singleton.
     _db = newDb;
-    await persistDb();
+    previousDb?.close();
+    newDb = null;
   } catch (err) {
     // Discard the failed new database; _db keeps pointing at the previous one.
     try {
