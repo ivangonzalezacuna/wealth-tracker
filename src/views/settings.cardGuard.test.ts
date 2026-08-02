@@ -27,6 +27,7 @@ vi.mock('../db', () => ({
 }));
 
 vi.mock('../model/accounts', () => ({
+  validateAccountIds: () => null,
   validatePrimaryInvestment: () => null,
   validateAccountRanges: () => null,
 }));

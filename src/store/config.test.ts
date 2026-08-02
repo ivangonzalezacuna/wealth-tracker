@@ -108,6 +108,14 @@ describe('parseAccounts', () => {
     const accounts = parseAccounts(rows);
     expect(accounts[0].contribInterval).toBe('monthly');
   });
+
+  it('rejects invalid account ids from backup rows', () => {
+    const rows: (string | number | boolean)[][] = [
+      ['id', 'moneyType', 'institution', 'label', 'color', 'isPrimaryInvestment', 'order'],
+      ['etf_bad', 'investment', 'TR', 'Main', '#111', true, 1],
+    ];
+    expect(() => parseAccounts(rows)).toThrow('Invalid account IDs in backup data');
+  });
 });
 
 describe('setAccounts', () => {

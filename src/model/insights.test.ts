@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { monthlyGrowthSplit, cagr, findYoYSnapshot, monthlyGrowthHistory } from './insights';
+import { monthlyGrowthSplit, cagr, findYoYSnapshot, monthlyGrowthHistory, xirr } from './insights';
 import type { Snapshot } from '../types';
 
 describe('monthlyGrowthSplit', () => {
@@ -121,6 +121,38 @@ describe('monthlyGrowthHistory', () => {
     expect(points).toHaveLength(2);
     expect(points[0]).toEqual({ month: '2026-02', contributed: 400, market: 100, total: 500 });
     expect(points[1]).toEqual({ month: '2026-03', contributed: 500, market: 200, total: 700 });
+  });
+
+  describe('xirr', () => {
+    it('handles simple one-year buy and terminal value', () => {
+      const result = xirr([
+        { date: '2025-01-01', amount: -1000 },
+        { date: '2026-01-01', amount: 1100 },
+      ]);
+      expect(result).toBeCloseTo(0.1, 3);
+    });
+
+    it('returns null for insufficient data', () => {
+      expect(xirr([{ date: '2025-01-01', amount: -1000 }])).toBeNull();
+    });
+
+    it('returns null when all flows have same sign', () => {
+      expect(
+        xirr([
+          { date: '2025-01-01', amount: -1000 },
+          { date: '2026-01-01', amount: -1100 },
+        ]),
+      ).toBeNull();
+    });
+
+    it('supports multi-cashflow scenario', () => {
+      const result = xirr([
+        { date: '2024-01-01', amount: -1000 },
+        { date: '2024-07-01', amount: -1000 },
+        { date: '2025-12-31', amount: 2400 },
+      ]);
+      expect(result).not.toBeNull();
+    });
   });
 
   it('skips pairs where either snapshot has no resolvable primary value', () => {

@@ -118,6 +118,11 @@ const DOM_FIXTURE = `
     <div id="port-table"></div>
     <canvas id="c-port-donut"></canvas>
     <div id="port-donut-legend"></div>
+    <canvas id="c-port-alloc-class"></canvas>
+    <div id="port-alloc-class-legend"></div>
+    <canvas id="c-port-alloc-region"></canvas>
+    <div id="port-alloc-region-legend"></div>
+    <div id="port-alloc-note"></div>
     <div id="port-summary"></div>
     <div id="port-drift"></div>
     <div id="port-pagination"></div>
@@ -128,6 +133,20 @@ describe('renderPortfolio', () => {
   beforeEach(() => {
     document.body.innerHTML = DOM_FIXTURE;
     chartInstances.length = 0;
+    MOCK_HOLDINGS.splice(0, MOCK_HOLDINGS.length, {
+      isin: 'IE00TEST1',
+      shortName: 'IWDA',
+      name: 'iShares Core MSCI World',
+      color: '#222222',
+      acc: true,
+      active: true,
+      contribAmount: 50,
+      contribInterval: 'weekly',
+      assetClass: 'equity',
+      region: 'developed',
+      foldInto: '',
+      order: 1,
+    } as any);
     // jsdom does not implement matchMedia; stub it for resolvedT()
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
@@ -172,14 +191,14 @@ describe('renderPortfolio', () => {
     expect(kpisHtml).toContain('add a snapshot');
   });
 
-  it('computes Market value and Unrealized P&L from snapshot', () => {
+  it('computes Market value from snapshot when no ETF breakdown is available', () => {
     const snap: Snapshot = { date: '2026-06-01', acct1: 1200 };
     renderPortfolio(makePD(), [snap]);
     const kpis = document.getElementById('port-kpis')!.textContent!;
     // Market value = 1200 (from snapshot for primary investment account)
     expect(kpis).toContain('1.200,00');
-    // Unrealized P&L = 1200 - 1000 = 200
-    expect(kpis).toContain('200,00');
+    // Unrealized per-position requires ETF snapshot breakdown
+    expect(kpis).not.toContain('200,00');
   });
 
   it('uses ETF market values for unrealized gain and shows option-2 summary rows', () => {
@@ -267,17 +286,17 @@ describe('renderPortfolio', () => {
     expect(summary).toContain('12,00');
   });
 
-  it('creates exactly one chart on first render', () => {
+  it('creates allocation charts on first render', () => {
     renderPortfolio(makePD(), []);
-    expect(chartInstances.length).toBe(1);
+    expect(chartInstances.length).toBe(3);
     expect(chartInstances[0].destroyed).toBe(false);
   });
 
   it('destroys the prior chart and creates a new one on re-render', () => {
     renderPortfolio(makePD(), []);
-    expect(chartInstances.length).toBe(1);
+    expect(chartInstances.length).toBe(3);
     renderPortfolio(makePD(), []);
-    expect(chartInstances.length).toBe(2);
+    expect(chartInstances.length).toBe(6);
     expect(chartInstances[0].destroyed).toBe(true);
   });
 
@@ -386,6 +405,55 @@ describe('renderPortfolio', () => {
     expect(drift.innerHTML).toContain('market values');
   });
 
+  it('allocation breakdown consolidates foldInto positions by successor class/region', () => {
+    MOCK_HOLDINGS.splice(
+      0,
+      MOCK_HOLDINGS.length,
+      {
+        isin: 'IE00TEST1',
+        shortName: 'IWDA',
+        name: 'World',
+        color: '#222222',
+        acc: true,
+        active: true,
+        contribAmount: 50,
+        contribInterval: 'weekly',
+        assetClass: 'equity',
+        region: 'developed',
+        foldInto: '',
+        order: 1,
+      } as any,
+      {
+        isin: 'IE00OLD',
+        shortName: 'OLD',
+        name: 'Legacy',
+        color: '#444444',
+        acc: true,
+        active: false,
+        contribAmount: 0,
+        contribInterval: 'weekly',
+        assetClass: 'bond',
+        region: 'emerging',
+        foldInto: 'IE00TEST1',
+        order: 2,
+      } as any,
+    );
+    const pd = makePD({
+      etfs: {
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', cost: 1000 }),
+        IE00OLD: makeEtf({ isin: 'IE00OLD', shortName: 'OLD', cost: 500 }),
+      },
+      totalInv: 1500,
+    });
+    renderPortfolio(pd, []);
+    const classLegend = document.getElementById('port-alloc-class-legend')!.textContent!;
+    const regionLegend = document.getElementById('port-alloc-region-legend')!.textContent!;
+    expect(classLegend).toContain('equity');
+    expect(classLegend).not.toContain('bond');
+    expect(regionLegend).toContain('developed');
+    expect(regionLegend).not.toContain('emerging');
+  });
+
   it('tap-to-expand detail panel opens on row click', () => {
     renderPortfolio(makePD(), []);
     const table = document.getElementById('port-table')!;
@@ -409,19 +477,19 @@ describe('renderPortfolio', () => {
     const detail = table.querySelector('.hold-detail') as HTMLElement;
     expect(detail).not.toBeNull();
     expect(detail.textContent).toContain('Market value');
-    expect(detail.textContent).toContain('Unrealized gain');
+    expect(detail.textContent).toContain('Unrealized P&L');
     expect(detail.innerHTML).toContain('hold-detail-value pos');
   });
 
-  it('tap-to-expand does not show market value columns when no etf_ snapshot values', () => {
+  it('tap-to-expand shows placeholder market columns when no etf_ snapshot values', () => {
     renderPortfolio(makePD(), []);
     const table = document.getElementById('port-table')!;
     const row = table.querySelector('.hold-row:not(.th)') as HTMLElement;
     row.click();
     const detail = table.querySelector('.hold-detail') as HTMLElement;
     expect(detail).not.toBeNull();
-    expect(detail.textContent).not.toContain('Market value');
-    expect(detail.textContent).not.toContain('Unrealized gain');
+    expect(detail.textContent).toContain('Market value');
+    expect(detail.textContent).toContain('Unrealized P&L');
   });
 
   it('tap-to-expand closes the panel when the same row is clicked again', () => {
@@ -446,7 +514,7 @@ describe('renderPortfolio', () => {
 
   it('chart config contains the correct labels and data', () => {
     renderPortfolio(makePD(), []);
-    expect(chartInstances.length).toBe(1);
+    expect(chartInstances.length).toBe(3);
     const config = chartInstances[0].config as { data: { labels: string[]; datasets: unknown[] } };
     expect(config.data.labels).toContain('IWDA');
     expect(config.data.datasets[0]).toHaveProperty('data');

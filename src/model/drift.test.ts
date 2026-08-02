@@ -98,6 +98,7 @@ describe('computeDrift', () => {
     expect(drift[0].actualValue).toBe(12000);
     expect(drift[0].actualPct).toBe(100);
     expect(drift[0].driftPct).toBe(0);
+    expect(drift[0].valuationMode).toBe('market');
   });
 
   it('falls back to cost basis for ISINs not in snapEtfValues', () => {
@@ -107,6 +108,7 @@ describe('computeDrift', () => {
     const drift = computeDrift(holdings, positions, 10000, { OTHER_ISIN: 5000 });
     expect(drift).toHaveLength(1);
     expect(drift[0].actualValue).toBe(5000); // fell back to cost
+    expect(drift[0].valuationMode).toBe('cost');
   });
 
   it('includes inactive-but-held positions with target 0%', () => {
@@ -216,6 +218,7 @@ describe('maxDrift', () => {
         actualValue: 7000,
         targetValue: 5000,
         deltaValue: 2000,
+        valuationMode: 'cost' as const,
       },
       {
         isin: 'IE000B',
@@ -228,6 +231,7 @@ describe('maxDrift', () => {
         actualValue: 3000,
         targetValue: 5000,
         deltaValue: -2000,
+        valuationMode: 'cost' as const,
       },
     ];
     expect(maxDrift(entries)).toBe(20);

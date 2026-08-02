@@ -1,5 +1,5 @@
 import { fmtEur2, fmtMon, fmtDay, esc, safeColor, kpiTile } from '../utils';
-import type { PortfolioData, DivHistEntry, IntHistEntry } from '../types';
+import type { PortfolioData, DivHistEntry, IntHistEntry, Transaction } from '../types';
 import { T } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { attachEtfPopovers } from '../ui/etfPopover';
@@ -24,7 +24,7 @@ let _lastPd: PortfolioData | null = null;
  * dividend and interest history tables. Shows the empty state if no
  * dividend history exists yet.
  */
-export function renderDividends(pd: PortfolioData | null): void {
+export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = []): void {
   const hasPD = !!pd;
   const hasDiv = hasPD && pd.divHist.length > 0;
 
@@ -39,6 +39,27 @@ export function renderDividends(pd: PortfolioData | null): void {
   _intYear = '';
 
   const totalGross = pd.divHist.reduce((s, d) => s + d.gross, 0);
+  const allIncomeDates = [...pd.divHist.map((d) => d.date), ...pd.intHist.map((i) => i.date)].sort();
+  const has12mHistory =
+    allIncomeDates.length > 1 &&
+    (() => {
+      const first = new Date(allIncomeDates[0].length === 7 ? `${allIncomeDates[0]}-01` : allIncomeDates[0]);
+      const last = new Date(
+        allIncomeDates[allIncomeDates.length - 1].length === 7
+          ? `${allIncomeDates[allIncomeDates.length - 1]}-01`
+          : allIncomeDates[allIncomeDates.length - 1],
+      );
+      return (last.getTime() - first.getTime()) / 86_400_000 >= 365;
+    })();
+  const cutoff = new Date();
+  cutoff.setFullYear(cutoff.getFullYear() - 1);
+  const div12m = pd.divHist
+    .filter((d) => new Date(d.date) >= cutoff)
+    .reduce((sum, d) => sum + d.net, 0);
+  const int12m = pd.intHist
+    .filter((i) => new Date(i.date.length === 7 ? `${i.date}-01` : i.date) >= cutoff)
+    .reduce((sum, i) => sum + i.net, 0);
+  const incomeYield = has12mHistory && pd.totalInv > 0 ? ((div12m + int12m) / pd.totalInv) * 100 : null;
 
   document.getElementById('div-kpis')!.innerHTML = `
     ${kpiTile({ label: `Gross dividends${infoTip('Before tax: Total distribution payments received from ETFs and stocks, before withholding tax is deducted.')}`, value: fmtEur2(totalGross) })}
@@ -47,6 +68,11 @@ export function renderDividends(pd: PortfolioData | null): void {
     ${kpiTile({ label: 'Gross interest', value: fmtEur2(pd.totalIntGross), sub: 'on cash savings' })}
     ${kpiTile({ label: 'Tax on savings', value: fmtEur2(pd.totalIntTax), valueClass: pd.totalIntTax > 0 ? 'neg' : 'ok', sub: 'withheld + refunds' })}
     ${kpiTile({ label: 'Net interest', value: fmtEur2(pd.totalInterest), valueClass: 'pos', sub: 'received' })}
+    ${kpiTile({
+      label: 'Income yield (12m)',
+      value: incomeYield === null ? '-' : `${incomeYield.toFixed(2).replace('.', ',')}%`,
+      sub: incomeYield === null ? 'need 12 months of history' : 'net dividends + net interest / cost basis',
+    })}
   `;
 
   populateDivYearFilter(pd.divHist);
@@ -56,8 +82,85 @@ export function renderDividends(pd: PortfolioData | null): void {
   populateIntYearFilter(pd.intHist);
   attachIntFilterListeners(pd);
   renderIntTable(pd);
+  renderAnnualSummary(pd, txs);
 
   attachInfoTips(document.getElementById('subview-dividends')!);
+}
+
+function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
+  const byYear: Record<
+    string,
+    {
+      grossDiv: number;
+      divTax: number;
+      netDiv: number;
+      grossInt: number;
+      intTax: number;
+      netInt: number;
+      realizedPnL: number;
+    }
+  > = {};
+  const ensure = (year: string) =>
+    (byYear[year] ??= {
+      grossDiv: 0,
+      divTax: 0,
+      netDiv: 0,
+      grossInt: 0,
+      intTax: 0,
+      netInt: 0,
+      realizedPnL: 0,
+    });
+  for (const d of pd.divHist) {
+    const y = d.date.slice(0, 4);
+    const row = ensure(y);
+    row.grossDiv += d.gross;
+    row.divTax += d.tax;
+    row.netDiv += d.net;
+  }
+  for (const i of pd.intHist) {
+    const y = i.date.slice(0, 4);
+    const row = ensure(y);
+    row.grossInt += i.gross;
+    row.intTax += i.tax;
+    row.netInt += i.net;
+  }
+  for (const tx of txs) {
+    if (tx.type !== 'SELL') continue;
+    const y = tx.date.slice(0, 4);
+    const row = ensure(y);
+    row.realizedPnL += Math.abs(tx.amount) - Math.abs(tx.fee || 0);
+  }
+
+  const years = Object.keys(byYear).sort().reverse();
+  const target = document.getElementById('div-annual');
+  if (!target) return;
+  if (!years.length) {
+    target.innerHTML = '<p class="note">No yearly income data available yet.</p>';
+    return;
+  }
+  const rows = years
+    .map((y) => {
+      const r = byYear[y];
+      const taxable = r.netDiv + r.netInt + r.realizedPnL;
+      return `<div class="tbl-row" role="row" style="grid-template-columns:1fr repeat(8, minmax(7ch, 1fr))">
+        <div>${y}</div>
+        <div style="text-align:right">${fmtEur2(r.grossDiv)}</div>
+        <div style="text-align:right">${fmtEur2(r.divTax)}</div>
+        <div style="text-align:right">${fmtEur2(r.netDiv)}</div>
+        <div style="text-align:right">${fmtEur2(r.grossInt)}</div>
+        <div style="text-align:right">${fmtEur2(r.intTax)}</div>
+        <div style="text-align:right">${fmtEur2(r.netInt)}</div>
+        <div style="text-align:right">${fmtEur2(r.realizedPnL)}</div>
+        <div style="text-align:right;font-weight:500">${fmtEur2(taxable)}</div>
+      </div>`;
+    })
+    .join('');
+  target.innerHTML = `<div class="tbl" role="table" aria-label="Annual income summary">
+    <div class="tbl-row th" role="row" style="grid-template-columns:1fr repeat(8, minmax(7ch, 1fr))">
+      <div>Year</div><div style="text-align:right">Gross Div</div><div style="text-align:right">Div Tax</div><div style="text-align:right">Net Div</div><div style="text-align:right">Gross Int</div><div style="text-align:right">Int Tax</div><div style="text-align:right">Net Int</div><div style="text-align:right">Realized P&amp;L</div><div style="text-align:right">Total</div>
+    </div>
+    ${rows}
+  </div>`;
 }
 
 function dividendColumns(pd: PortfolioData): ColumnDef<DivHistEntry>[] {

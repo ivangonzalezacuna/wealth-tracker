@@ -58,6 +58,7 @@ const DOM_FIXTURE = `
     <div id="int-table-header"></div>
     <div id="div-interest"></div>
     <div id="int-pagination"></div>
+    <div id="div-annual"></div>
   </div>
   <div id="subview-dividends"></div>
 `;
@@ -93,6 +94,7 @@ describe('renderDividends', () => {
     expect(kpisText).toContain('Tax withheld');
     expect(kpisText).toContain('Net received');
     expect(kpisText).toContain('Gross interest');
+    expect(kpisText).toContain('Income yield (12m)');
   });
 
   it('flips the Tax withheld tile to positive styling when totalTax < 0', () => {
@@ -134,8 +136,19 @@ describe('renderDividends', () => {
     renderDividends(makePD());
     renderDividends(makePD());
     const kpisEl = document.getElementById('div-kpis')!;
-    // 6 KPI tiles (3 dividend + 3 interest)
-    expect(kpisEl.children.length).toBe(6);
+    expect(kpisEl.children.length).toBe(7);
+  });
+
+  it('renders annual summary table', () => {
+    renderDividends(makePD(), [{ id: 's1', date: '2026-04-15', source: 'trade_republic', type: 'SELL', name: 'ETF', isin: 'X', shares: 1, price: 10, amount: 10, fee: 1, tax: 0, currency: 'EUR', fxRate: 1 }]);
+    expect(document.getElementById('div-annual')!.textContent).toContain('Year');
+    expect(document.getElementById('div-annual')!.textContent).toContain('Realized P&L');
+  });
+
+  it('shows placeholder for income yield when less than 12 months history', () => {
+    renderDividends(makePD({ divHist: [{ date: '2026-01-15', isin: '', shortName: 'IWDA', color: '#111', gross: 12.5, tax: 3.13, net: 9.37 }], intHist: [] }));
+    expect(document.getElementById('div-kpis')!.textContent).toContain('Income yield (12m)');
+    expect(document.getElementById('div-kpis')!.textContent).toContain('need 12 months of history');
   });
 
   it('renders pagination when divHist exceeds page size', () => {

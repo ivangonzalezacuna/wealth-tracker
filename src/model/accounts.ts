@@ -1,5 +1,27 @@
 import type { Account, Snapshot } from '../types';
 
+const ACCOUNT_ID_RE = /^[a-z0-9_]{1,30}$/;
+const RESERVED_ETF_PREFIX = 'etf_';
+
+export function validateAccountIds(accounts: Account[]): string | null {
+  const seen = new Set<string>();
+  for (const a of accounts) {
+    const id = (a.id || '').trim();
+    if (!id) return `"${a.label || 'Account'}" has an empty ID.`;
+    if (!ACCOUNT_ID_RE.test(id)) {
+      return `"${a.label || id}" has invalid ID "${id}". Use lowercase letters, numbers, and underscores (max 30).`;
+    }
+    if (id.startsWith(RESERVED_ETF_PREFIX)) {
+      return `"${a.label || id}" has invalid ID "${id}". Prefix "etf_" is reserved for snapshot ETF values.`;
+    }
+    if (seen.has(id)) {
+      return `Duplicate account ID "${id}". Account IDs must be unique.`;
+    }
+    seen.add(id);
+  }
+  return null;
+}
+
 /** Returns an error string if the primary-investment flagging is invalid, else null. */
 export function validatePrimaryInvestment(accounts: Account[]): string | null {
   const primary = accounts.filter((a) => a.isPrimaryInvestment);

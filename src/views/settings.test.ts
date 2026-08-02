@@ -102,6 +102,7 @@ vi.mock('../utils', () => ({
 vi.mock('../theme', () => ({}));
 
 vi.mock('../model/accounts', () => ({
+  validateAccountIds: () => null,
   validatePrimaryInvestment: () => null,
   validateAccountRanges: () => null,
 }));
@@ -276,6 +277,18 @@ describe('generateId (collision-free)', () => {
     const longLabel = 'A'.repeat(50);
     const result = generateId(longLabel, taken);
     expect(result.length).toBeLessThanOrEqual(30);
+  });
+
+  it('falls back to account for empty/all-symbol labels', () => {
+    const taken = new Set<string>();
+    expect(generateId('', taken)).toBe('account');
+    taken.add('account');
+    expect(generateId('@@@', taken)).toBe('account_2');
+  });
+
+  it('strips reserved etf_ prefix from generated IDs', () => {
+    const taken = new Set<string>();
+    expect(generateId('ETF Depot', taken)).toBe('depot');
   });
 });
 

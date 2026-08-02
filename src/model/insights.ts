@@ -1,6 +1,11 @@
 import type { Snapshot, Account } from '../types';
 import { snapTotal } from '../utils';
 
+export interface XirrCashFlow {
+  date: string;
+  amount: number;
+}
+
 /** Split monthly delta into contributed vs market movement. */
 export function monthlyGrowthSplit(
   primaryNow: number,
@@ -119,4 +124,56 @@ function parseYearMonth(d: string): { year: number; month: number } | null {
   const month = parseInt(parts[1], 10);
   if (isNaN(year) || isNaN(month)) return null;
   return { year, month };
+}
+
+function toUtcDay(date: string): number | null {
+  const m = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const year = parseInt(m[1], 10);
+  const month = parseInt(m[2], 10);
+  const day = parseInt(m[3], 10);
+  const ts = Date.UTC(year, month - 1, day);
+  if (!isFinite(ts)) return null;
+  return ts / 86_400_000;
+}
+
+export function xirr(cashFlows: XirrCashFlow[]): number | null {
+  if (cashFlows.length < 2) return null;
+  const prepared = cashFlows
+    .map((cf) => {
+      const day = toUtcDay(cf.date);
+      return day === null ? null : { ...cf, day };
+    })
+    .filter((cf): cf is XirrCashFlow & { day: number } => !!cf)
+    .sort((a, b) => a.day - b.day);
+  if (prepared.length < 2) return null;
+  const hasPositive = prepared.some((cf) => cf.amount > 0);
+  const hasNegative = prepared.some((cf) => cf.amount < 0);
+  if (!hasPositive || !hasNegative) return null;
+
+  const day0 = prepared[0].day;
+  const yearFracs = prepared.map((cf) => ({
+    amount: cf.amount,
+    years: (cf.day - day0) / 365,
+  }));
+
+  let rate = 0.1;
+  const tol = 1e-6;
+  for (let i = 0; i < 100; i++) {
+    let f = 0;
+    let df = 0;
+    for (const cf of yearFracs) {
+      const base = 1 + rate;
+      if (base <= 0) return null;
+      const disc = Math.pow(base, cf.years);
+      f += cf.amount / disc;
+      df += (-cf.years * cf.amount) / (disc * base);
+    }
+    if (!isFinite(f) || !isFinite(df) || Math.abs(df) < 1e-12) return null;
+    const next = rate - f / df;
+    if (!isFinite(next)) return null;
+    if (Math.abs(next - rate) < tol) return next;
+    rate = next;
+  }
+  return null;
 }

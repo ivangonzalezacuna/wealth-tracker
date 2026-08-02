@@ -15,6 +15,7 @@ export interface DriftEntry {
   actualValue: number;
   targetValue: number;
   deltaValue: number; // actual - target value (positive = sell to rebalance)
+  valuationMode: 'cost' | 'market';
 }
 
 /**
@@ -48,6 +49,7 @@ export function computeDrift(
 
   const result: DriftEntry[] = [];
   const handledIsins = new Set<string>();
+  const hasSnapValues = !!snapEtfValues && Object.keys(snapEtfValues).length > 0;
 
   for (const h of activeWithTarget) {
     handledIsins.add(h.isin);
@@ -56,7 +58,8 @@ export function computeDrift(
 
     // Prefer snapshot market value when available; fall back to cost basis.
     const pos = positions[h.isin];
-    const actualValue = snapEtfValues?.[h.isin] ?? (pos ? pos.cost : 0);
+    const hasMarketForIsin = hasSnapValues && snapEtfValues![h.isin] !== undefined;
+    const actualValue = hasMarketForIsin ? snapEtfValues![h.isin] : pos ? pos.cost : 0;
     const actualPct = totalValue > 0 ? (actualValue / totalValue) * 100 : 0;
 
     const driftPct = actualPct - targetPct;
@@ -74,6 +77,7 @@ export function computeDrift(
       actualValue,
       targetValue: Math.round(targetValue),
       deltaValue: Math.round(deltaValue),
+      valuationMode: hasMarketForIsin ? 'market' : 'cost',
     });
   }
 
@@ -83,7 +87,8 @@ export function computeDrift(
     if (handledIsins.has(isin)) continue;
     if (pos.exited || pos.shares < 1e-6) continue;
 
-    const actualValue = snapEtfValues?.[isin] ?? pos.cost;
+    const hasMarketForIsin = hasSnapValues && snapEtfValues![isin] !== undefined;
+    const actualValue = hasMarketForIsin ? snapEtfValues![isin] : pos.cost;
     if (actualValue <= 0) continue;
 
     const actualPct = (actualValue / totalValue) * 100;
@@ -99,6 +104,7 @@ export function computeDrift(
       actualValue,
       targetValue: 0,
       deltaValue: Math.round(actualValue),
+      valuationMode: hasMarketForIsin ? 'market' : 'cost',
     });
   }
 

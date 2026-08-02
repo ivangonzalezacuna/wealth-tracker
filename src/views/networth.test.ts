@@ -153,6 +153,10 @@ describe('renderNW', () => {
   beforeEach(() => {
     document.body.innerHTML = DOM_FIXTURE;
     chartInstances.length = 0;
+    delete (MOCK_ACCOUNTS[0] as any).locked;
+    delete (MOCK_ACCOUNTS[0] as any).lockedUntil;
+    delete (MOCK_ACCOUNTS[1] as any).locked;
+    delete (MOCK_ACCOUNTS[1] as any).lockedUntil;
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -242,6 +246,39 @@ describe('renderNW', () => {
     expect(kpis).toContain('Savings');
   });
 
+  it('does not render liquid/locked tiles when all accounts are liquid', () => {
+    MOCK_ACCOUNTS[0].locked = false as any;
+    MOCK_ACCOUNTS[1].locked = false as any;
+    const snaps = [makeSnap('2026-01-01', 1000, 500)];
+    renderNW(makePD(), snaps);
+    const kpis = document.getElementById('nw-kpis')!.textContent!;
+    expect(kpis).not.toContain('Liquid');
+    expect(kpis).not.toContain('Locked');
+  });
+
+  it('renders liquid and locked split when at least one account is locked', () => {
+    MOCK_ACCOUNTS[0].locked = true as any;
+    MOCK_ACCOUNTS[0].lockedUntil = '2055' as any;
+    const snaps = [makeSnap('2026-01-01', 1000, 500)];
+    renderNW(makePD(), snaps);
+    const kpis = document.getElementById('nw-kpis')!.textContent!;
+    expect(kpis).toContain('Liquid');
+    expect(kpis).toContain('Locked');
+    expect(kpis).toContain('unlocks 2055');
+  });
+
+  it('supports all-locked portfolios', () => {
+    MOCK_ACCOUNTS[0].locked = true as any;
+    MOCK_ACCOUNTS[0].lockedUntil = '2055' as any;
+    MOCK_ACCOUNTS[1].locked = true as any;
+    MOCK_ACCOUNTS[1].lockedUntil = '2060' as any;
+    const snaps = [makeSnap('2026-01-01', 1000, 500)];
+    renderNW(makePD(), snaps);
+    const kpis = document.getElementById('nw-kpis')!.textContent!;
+    expect(kpis).toContain('Locked');
+    expect(kpis).toContain('unlocks 2055');
+  });
+
   it('renders YoY tile given 13+ months of snapshot history', () => {
     const snaps = makeMonthlySnaps(14);
     renderNW(makePD(), snaps);
@@ -261,6 +298,7 @@ describe('renderNW', () => {
     renderNW(makePD(), snaps);
     const kpis = document.getElementById('nw-kpis')!.innerHTML;
     expect(kpis).toContain('CAGR');
+    expect(kpis).toContain('IRR (investments)');
   });
 
   it('growth chart includes "Contributed" dataset label', () => {

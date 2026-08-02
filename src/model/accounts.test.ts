@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validatePrimaryInvestment, primaryInvestmentValue } from './accounts';
+import { validatePrimaryInvestment, primaryInvestmentValue, validateAccountIds } from './accounts';
 import type { Account, Snapshot } from '../types';
 
 describe('validatePrimaryInvestment', () => {
@@ -45,6 +45,34 @@ describe('primaryInvestmentValue', () => {
     ];
     const snap: Snapshot = { date: '2026-06', tr_portfolio: 15000, n26: 3000 };
     expect(primaryInvestmentValue(snap, accounts)).toBe(15000);
+  });
+
+  describe('validateAccountIds', () => {
+    it('accepts valid ids', () => {
+      const accounts: Account[] = [
+        { id: 'broker_1', label: 'Broker' },
+        { id: 'cash_2', label: 'Cash' },
+      ];
+      expect(validateAccountIds(accounts)).toBeNull();
+    });
+
+    it('rejects empty id', () => {
+      const accounts: Account[] = [{ id: '', label: 'No ID' }];
+      expect(validateAccountIds(accounts)).toContain('empty ID');
+    });
+
+    it('rejects duplicate ids', () => {
+      const accounts: Account[] = [
+        { id: 'same_id', label: 'A' },
+        { id: 'same_id', label: 'B' },
+      ];
+      expect(validateAccountIds(accounts)).toContain('Duplicate account ID');
+    });
+
+    it('rejects reserved etf_ prefix', () => {
+      const accounts: Account[] = [{ id: 'etf_broker', label: 'ETF Broker' }];
+      expect(validateAccountIds(accounts)).toContain('reserved');
+    });
   });
 
   it('returns null when no account is primary', () => {

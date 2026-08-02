@@ -445,7 +445,9 @@ code,
     minmax(8ch, 1fr) /* Shares */
     minmax(7ch, 1fr) /* Avg price */
     minmax(9ch, 1fr) /* Realized P&L */
-    minmax(7ch, 1fr); /* Div (net) */
+    minmax(7ch, 1fr) /* Div (net) */
+    minmax(9ch, 1fr) /* Market value */
+    minmax(9ch, 1fr); /* Unrealized P&L */
 }
 #port-table .hold-row,
 #port-table .hold-total {
@@ -1178,7 +1180,9 @@ code,
      The totals row (not migrated to ColumnDef) still needs nth-child hide: */
   #port-table .hold-total > *:nth-child(3),
   #port-table .hold-total > *:nth-child(4),
-  #port-table .hold-total > *:nth-child(5) {
+  #port-table .hold-total > *:nth-child(5),
+  #port-table .hold-total > *:nth-child(7),
+  #port-table .hold-total > *:nth-child(8) {
     display: none;
   }
   /* Holdings table mobile density */
