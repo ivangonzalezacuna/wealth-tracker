@@ -84,3 +84,37 @@ export function primaryInvestmentValue(snap: Snapshot | null, accounts: Account[
   }
   return found ? sum : null;
 }
+
+/**
+ * Current market value of ALL investment-type accounts from a snapshot.
+ *
+ * Used for the IRR terminal value in multi-account portfolios where the
+ * portfolio spans more than one investment account. Returns null when no
+ * investment account has a recorded value in the snapshot.
+ */
+export function allInvestmentAccountsValue(
+  snap: Snapshot | null,
+  accounts: Account[],
+): number | null {
+  if (!snap) return null;
+  const investment = accounts.filter(
+    (a) => (a.moneyType || '').toLowerCase() === 'investment',
+  );
+  if (!investment.length) return null;
+
+  const byLowerKey: Record<string, number> = {};
+  for (const [k, v] of Object.entries(snap)) {
+    if (typeof v === 'number') byLowerKey[k.toLowerCase()] = v;
+  }
+
+  let found = false;
+  let sum = 0;
+  for (const a of investment) {
+    const key = (a.id || '').toLowerCase();
+    if (key in byLowerKey) {
+      found = true;
+      sum += byLowerKey[key];
+    }
+  }
+  return found ? sum : null;
+}

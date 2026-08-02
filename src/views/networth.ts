@@ -18,7 +18,7 @@ import {
   getTargetNetWorth,
   getTargetDate,
 } from '../store/config';
-import { primaryInvestmentValue } from '../model/accounts';
+import { primaryInvestmentValue, allInvestmentAccountsValue } from '../model/accounts';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import { cagr, findYoYSnapshot, monthlyGrowthHistory, xirr } from '../model/insights';
 import type { MonthlyGrowthPoint } from '../model/insights';
@@ -90,21 +90,30 @@ export function renderNW(
     yoyData && yoyData.total > 0 ? ((total - yoyData.total) / yoyData.total) * 100 : null;
 
   const cagrVal = cagr(firstTotal, total, monthsSpan);
-  const latestPrimaryValue = primaryInvestmentValue(s, accounts);
+  // Use all investment-type accounts for the IRR terminal value so multi-account
+  // portfolios are not understated. Falls back to null (IRR hidden) when no
+  // investment account has a snapshot value.
+  const latestInvestmentValue = allInvestmentAccountsValue(s, accounts);
   const terminalDate = s.date && s.date.length === 7 ? `${s.date}-01` : s.date;
   const investmentFlows = txs
     .map((tx) => {
       const date = tx.date && tx.date.length === 7 ? `${tx.date}-01` : tx.date;
       if (!date) return null;
+      // Only BUY cash outflows are included. The current portfolio value (snapshot)
+      // already reflects the state after sells, so SELL proceeds must NOT be added
+      // here or they would be double-counted against the terminal value.
       if (tx.type === 'BUY')
         return { date, amount: -(Math.abs(tx.amount) + Math.abs(tx.fee || 0)) };
       return null;
     })
     .filter((cf): cf is { date: string; amount: number } => !!cf);
-  if (latestPrimaryValue !== null) {
-    investmentFlows.push({ date: terminalDate, amount: latestPrimaryValue });
+  if (latestInvestmentValue !== null) {
+    investmentFlows.push({ date: terminalDate, amount: latestInvestmentValue });
   }
-  const irrVal = latestPrimaryValue !== null ? xirr(investmentFlows) : null;
+  const irrVal = latestInvestmentValue !== null ? xirr(investmentFlows) : null;
+  // Keep primaryInvestmentValue for the growth breakdown chart (contribution tracking
+  // still targets only the primary investment account).
+  const latestPrimaryValue = primaryInvestmentValue(s, accounts);
 
   // Growth split (contributions vs market)
   const growthPoints = pd

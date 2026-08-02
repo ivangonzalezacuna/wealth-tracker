@@ -128,6 +128,11 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
       const taxVal = tx.tax || tx.amount || 0;
       const src = tx.source || 'unknown';
       taxBySource[src] = (taxBySource[src] || 0) + taxVal;
+    } else if (tx.type === TxType.TRANSFER) {
+      // TRANSFER moves cash between accounts and does not change total net worth.
+      // Portfolio computations (cost basis, P&L, dividends) are unaffected.
+      // The transaction is stored for completeness but intentionally skipped here.
+      console.debug('[portfolio] TRANSFER transaction skipped in portfolio computation:', tx.id);
     }
   }
 

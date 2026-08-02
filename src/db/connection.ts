@@ -22,6 +22,12 @@ const IDB_KEY = 'main.db';
 let _db: Database | null = null;
 let _sqlPromise: ReturnType<typeof initSqlJs> | null = null;
 
+// Serializes all persistDb() calls so concurrent async writers never race
+// on IndexedDB. Each call waits for the previous persist to complete before
+// exporting and writing the next snapshot. Errors propagate to the caller
+// without poisoning the chain.
+let _persistChain: Promise<void> = Promise.resolve();
+
 /** Get (or lazily create) the sql.js SQL engine. */
 function getSqlJs(): ReturnType<typeof initSqlJs> {
   if (!_sqlPromise) {
@@ -144,11 +150,27 @@ function applyMigrations(db: Database, currentVersion: number): void {
  * Persist a database state to IndexedDB.
  * Defaults to the live singleton and is also used to stage imported DBs
  * before swapping them into _db.
+ *
+ * All calls are serialized through _persistChain so that concurrent async
+ * writers (settings, accounts, snapshots) never race on the IndexedDB store.
+ * The DB export is taken at the moment the slot becomes available, capturing
+ * the latest in-memory state including all preceding synchronous writes.
  */
-export async function persistDb(db: Database | null = _db): Promise<void> {
-  if (!db) return;
-  const data = db.export();
-  await idbSet(data);
+export function persistDb(db: Database | null = _db): Promise<void> {
+  if (!db) return Promise.resolve();
+  // Capture the db reference now; the export happens when the slot opens.
+  const capture = db;
+  const slot = _persistChain.then(() => {
+    const data = capture.export();
+    return idbSet(data);
+  });
+  // Advance the chain regardless of success/failure so later callers are
+  // never blocked by a transient error in an earlier slot.
+  _persistChain = slot.then(
+    () => {},
+    () => {},
+  );
+  return slot;
 }
 
 /**
