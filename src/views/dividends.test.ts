@@ -169,6 +169,55 @@ describe('renderDividends', () => {
     );
   });
 
+  it('renders yearly taxes in positive color when taxes are negative (refund)', () => {
+    renderDividends(
+      makePD({
+        divHist: [
+          {
+            date: '2026-01-15',
+            isin: '',
+            shortName: 'IWDA',
+            color: '#111',
+            gross: 12.5,
+            tax: 0,
+            net: 12.5,
+          },
+        ],
+        intHist: [{ date: '2026-02-01', gross: 4.5, tax: -1.25, net: 5.75, amount: 5.75 }],
+      }),
+    );
+    const annualRow = document.querySelector('[data-annual-year="2026"]') as HTMLElement;
+    const taxesCell = annualRow.children[2] as HTMLElement;
+    expect(taxesCell.style.color).toBe('var(--pos)');
+  });
+
+  it('hides zero-value annual detail lines and empty groups', () => {
+    renderDividends(
+      makePD({
+        divHist: [
+          {
+            date: '2026-01-15',
+            isin: '',
+            shortName: 'IWDA',
+            color: '#111',
+            gross: 12.5,
+            tax: 0,
+            net: 12.5,
+          },
+        ],
+        intHist: [],
+      }),
+      [],
+    );
+    const annualRow = document.querySelector('[data-annual-year="2026"]') as HTMLElement;
+    annualRow.click();
+    const annualText = document.getElementById('div-annual')!.textContent || '';
+    expect(annualText).toContain('Dividends');
+    expect(annualText).not.toContain('Dividend taxes paid');
+    expect(annualText).not.toContain('Profit / loss');
+    expect(annualText).not.toContain('Realized profit and loss from sells');
+  });
+
   it('shows placeholder for income yield when less than 12 months history', () => {
     renderDividends(
       makePD({

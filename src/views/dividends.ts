@@ -192,24 +192,17 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
       const r = byYear[y];
       const benefitsNet = r.netDiv + r.netInt + r.realizedPnL;
       const taxesPaid = r.divTax + r.intTax;
+      const taxesPaidColor =
+        taxesPaid > 0 ? 'var(--neg)' : taxesPaid < 0 ? 'var(--pos)' : 'var(--ink-3)';
       const detailOpen = _expandedAnnualYear === y;
+      const detail = renderAnnualDetail(r);
       return `<div class="tbl-row annual-row" role="row" data-annual-year="${y}">
         <div style="font-weight:500">${y}</div>
         <div style="text-align:right;color:${benefitsNet >= 0 ? 'var(--pos)' : 'var(--neg)'};font-weight:500">${fmtEur2(benefitsNet)}</div>
-        <div style="text-align:right;color:var(--neg)">${fmtEur2(taxesPaid)}</div>
+        <div style="text-align:right;color:${taxesPaidColor}">${fmtEur2(taxesPaid)}</div>
       </div>
       ${
-        detailOpen
-          ? `<div class="annual-detail">
-              <div><span class="hold-detail-label">Gross dividends received</span><span class="hold-detail-value">${fmtEur2(r.grossDiv)}</span></div>
-              <div><span class="hold-detail-label">Dividend taxes paid</span><span class="hold-detail-value">${fmtEur2(r.divTax)}</span></div>
-              <div><span class="hold-detail-label">Net dividends received</span><span class="hold-detail-value">${fmtEur2(r.netDiv)}</span></div>
-              <div><span class="hold-detail-label">Gross savings interest received</span><span class="hold-detail-value">${fmtEur2(r.grossInt)}</span></div>
-              <div><span class="hold-detail-label">Savings interest taxes paid</span><span class="hold-detail-value">${fmtEur2(r.intTax)}</span></div>
-              <div><span class="hold-detail-label">Net savings interest received</span><span class="hold-detail-value">${fmtEur2(r.netInt)}</span></div>
-              <div><span class="hold-detail-label">Realized profit and loss from sells</span><span class="hold-detail-value ${r.realizedPnL >= 0 ? 'pos' : 'neg'}">${fmtEur2(r.realizedPnL)}</span></div>
-            </div>`
-          : ''
+        detailOpen ? `<div class="annual-detail">${detail}</div>` : ''
       }`;
     })
     .join('');
@@ -234,6 +227,77 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
       _expandedAnnualYear = _expandedAnnualYear === y ? '' : y;
       renderAnnualSummary(_lastPd!, _lastTxs);
     });
+  }
+
+  function renderAnnualDetail(r: {
+    grossDiv: number;
+    divTax: number;
+    netDiv: number;
+    grossInt: number;
+    intTax: number;
+    netInt: number;
+    realizedPnL: number;
+  }): string {
+    const detailGroups = [
+      {
+        title: 'Dividends',
+        items: [
+          { label: 'Gross dividends received', value: r.grossDiv },
+          { label: 'Dividend taxes paid', value: r.divTax, className: taxToneClass(r.divTax) },
+          { label: 'Net dividends received', value: r.netDiv, className: toneClass(r.netDiv) },
+        ],
+      },
+      {
+        title: 'Savings',
+        items: [
+          { label: 'Gross savings interest received', value: r.grossInt },
+          { label: 'Savings interest taxes paid', value: r.intTax, className: taxToneClass(r.intTax) },
+          { label: 'Net savings interest received', value: r.netInt, className: toneClass(r.netInt) },
+        ],
+      },
+      {
+        title: 'Profit / loss',
+        items: [
+          {
+            label: 'Realized profit and loss from sells',
+            value: r.realizedPnL,
+            className: toneClass(r.realizedPnL),
+          },
+        ],
+      },
+    ];
+
+    const groupsHtml = detailGroups
+      .map((g) => {
+        const itemsHtml = g.items
+          .filter((i) => !isZero(i.value))
+          .map(
+            (i) =>
+              `<div><span class="hold-detail-label">${i.label}</span><span class="hold-detail-value ${i.className || ''}">${fmtEur2(i.value)}</span></div>`,
+          )
+          .join('');
+        if (!itemsHtml) return '';
+        return `<div class="annual-detail-group"><div class="annual-detail-group-title">${g.title}</div>${itemsHtml}</div>`;
+      })
+      .join('');
+
+    return groupsHtml || '<div class="annual-detail-empty">No yearly breakdown available yet.</div>';
+  }
+
+  function toneClass(value: number): 'pos' | 'neg' | '' {
+    if (value > 0) return 'pos';
+    if (value < 0) return 'neg';
+    return '';
+  }
+
+  function taxToneClass(value: number): 'pos' | 'neg' | '' {
+    if (value > 0) return 'neg';
+    if (value < 0) return 'pos';
+    return '';
+  }
+
+  function isZero(value: number): boolean {
+    return Math.abs(value) < 1e-9;
   }
   attachInfoTips(target);
   renderPagination('div-annual-pagination', _annualPage, totalPages, (p) => {
