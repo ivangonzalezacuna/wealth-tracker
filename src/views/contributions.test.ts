@@ -43,25 +43,27 @@ const MOCK_ACCOUNTS = [
   },
 ];
 
+const MOCK_HOLDINGS = [
+  {
+    isin: 'IE00TEST1',
+    shortName: 'IWDA',
+    name: 'iShares Core MSCI World',
+    color: '#222222',
+    acc: true,
+    active: true,
+    contribAmount: 50,
+    contribInterval: 'weekly',
+    assetClass: 'equity',
+    region: 'developed',
+    foldInto: '',
+    order: 1,
+  },
+];
+
 vi.mock('../store/config', () => ({
   getAccounts: () => MOCK_ACCOUNTS,
   getTotalAnnualContrib: () => 2600,
-  getHoldings: () => [
-    {
-      isin: 'IE00TEST1',
-      shortName: 'IWDA',
-      name: 'iShares Core MSCI World',
-      color: '#222222',
-      acc: true,
-      active: true,
-      contribAmount: 50,
-      contribInterval: 'weekly',
-      assetClass: 'equity',
-      region: 'developed',
-      foldInto: '',
-      order: 1,
-    },
-  ],
+  getHoldings: () => MOCK_HOLDINGS,
   isConfigLoaded: () => true,
 }));
 
@@ -221,6 +223,16 @@ describe('renderDCA', () => {
     renderDCA(makePD(), []);
     // Proj chart (c-dca-proj) should be created in addition to bar chart
     expect(chartInstances.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('uses holdings settings for the one-month plan and monthly fee-aware guidance', () => {
+    renderDCA(makePD(), []);
+    const card = document.getElementById('dca-proj-card')!;
+    expect(card.textContent).toContain('One-month plan from Settings');
+    expect(card.textContent).toContain('IWDA');
+    expect(card.textContent).toContain('target');
+    expect(card.textContent).toContain('single monthly execution');
+    expect(card.textContent).not.toContain('Projected monthly contributions');
   });
 
   it('forecast range toggle re-creates projection chart', () => {

@@ -1,8 +1,8 @@
-import { fmtEur, fmtMon, esc, safeColor, kpiTile } from '../utils';
+import { fmtEur, fmtMon, esc, safeColor, kpiTile, fmtPctVal } from '../utils';
 import { getISIN_ORDERList, getISIN, getMETAMap } from '../constants';
-import { getTotalAnnualContrib, getAccounts, getHoldings } from '../store/config';
-import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
-import type { PortfolioData, Snapshot, Account } from '../types';
+import { getAccounts, getHoldings } from '../store/config';
+import { INTERVAL_LABELS, buildMonthlyContributionPlan } from '../model/contributions';
+import type { PortfolioData, Snapshot, Holding } from '../types';
 import Chart from 'chart.js/auto';
 import { T, R, resolvedT } from '../theme';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
@@ -12,6 +12,8 @@ import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow, getSortGetters } from './tableColumns';
 import { renderPagination } from './pagination';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
+import { computeDrift, maxDrift } from '../model/drift';
+import { primaryInvestmentValue } from '../model/accounts';
 
 const CH: Record<string, Chart> = {};
 const DCA_PAGE_SIZE = 12;
@@ -68,8 +70,8 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   renderDCATable(pd);
 
   // Contributions forecast (cumulative cash invested)
-  const accounts = getAccounts();
-  _renderDCAForecast(pd, accounts);
+  const holdings = getHoldings();
+  _renderDCAForecast(pd, holdings, snaps);
 }
 
 // ── Forecast helpers ──────────────────────────────────────
@@ -80,27 +82,23 @@ const DCA_FC_LABELS: Record<string, string> = {
   '240': '20 years',
 };
 
-function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
+function extractSnapEtfValues(snap: Snapshot | null): Record<string, number> {
+  if (!snap) return {};
+  const out: Record<string, number> = {};
+  for (const [key, val] of Object.entries(snap)) {
+    if (key.startsWith('etf_') && typeof val === 'number' && val > 0) out[key.slice(4)] = val;
+  }
+  return out;
+}
+
+function _renderDCAForecast(pd: PortfolioData, holdings: Holding[], snaps: Snapshot[]): void {
   const projCard = document.getElementById('dca-proj-card');
   if (!projCard) return;
 
-  // Filter to investment + pension accounts only
-  const forecastAccounts = accounts.filter((a) => {
-    const type = (a.moneyType || '').toLowerCase();
-    return type === 'investment' || type === 'pension' || type === 'avd';
-  });
+  const forecastHoldings = buildMonthlyContributionPlan(holdings);
+  const monthlyContrib = forecastHoldings.reduce((sum, item) => sum + item.monthlyAmount, 0);
 
-  // Monthly contribution rate: sum of all investment + pension contributions (personal + extra)
-  const monthlyContrib = forecastAccounts.reduce((sum, a) => {
-    if (a.isPrimaryInvestment && (a.moneyType || '').toLowerCase() === 'investment') {
-      return sum + getTotalAnnualContrib() / 12;
-    }
-    const personal = annualizeContrib(a.contribAmount || 0, a.contribInterval || 'monthly') / 12;
-    const extra = annualizeContrib(a.extraContrib || 0, a.contribInterval || 'monthly') / 12;
-    return sum + personal + extra;
-  }, 0);
-
-  if (forecastAccounts.length === 0 || monthlyContrib <= 0) {
+  if (forecastHoldings.length === 0 || monthlyContrib <= 0) {
     projCard.innerHTML = '';
     return;
   }
@@ -155,27 +153,42 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
   const histDataFull = [...histCumulative, ...new Array(fcValues.length).fill(null)];
   const fcDataFull = [...new Array(histCumulative.length).fill(null), ...fcValues];
 
-  // Per-account contribution summary
-  const acctSummaryLines = forecastAccounts
-    .map((a) => {
-      let contribStr: string;
-      if (a.isPrimaryInvestment && (a.moneyType || '').toLowerCase() === 'investment') {
-        const annual = getTotalAnnualContrib();
-        contribStr =
-          annual > 0
-            ? `${fmtEur(Math.round(annual))}/yr (from Holdings)`
-            : 'no contributions configured';
-      } else {
-        const amt = a.contribAmount ?? 0;
-        const empAmt = a.extraContrib ?? 0;
-        const interval = a.contribInterval || 'monthly';
-        const personalStr =
-          amt > 0
-            ? `${fmtEur(amt)} ${esc((INTERVAL_LABELS[interval] || interval).toLowerCase())}`
-            : 'no contributions';
-        contribStr = empAmt > 0 ? `${personalStr} + ${fmtEur(empAmt)} extra` : personalStr;
-      }
-      return `<span style="color:var(--ink-2)">${esc(a.label || 'Account')}: ${contribStr}</span>`;
+  const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
+  const snapEtfValues = extractSnapEtfValues(latSnap);
+  const hasSnapValues = Object.keys(snapEtfValues).length > 0;
+  const totalValue = hasSnapValues
+    ? (primaryInvestmentValue(latSnap, getAccounts()) ?? pd.totalInv)
+    : pd.totalInv;
+  const drift = computeDrift(holdings, pd.etfs, totalValue, hasSnapValues ? snapEtfValues : undefined);
+  const max = maxDrift(drift);
+  const focusItems = drift
+    .filter((d) => d.targetPct > 0 && d.deltaValue < -1)
+    .sort((a, b) => Math.abs(b.deltaValue) - Math.abs(a.deltaValue))
+    .slice(0, 3);
+  const needsMonthlyConsolidation = forecastHoldings.some(
+    (item) => item.holding.contribInterval !== 'monthly',
+  );
+  const focusMessage =
+    focusItems.length > 0
+      ? `This month, tilt new buys toward ${focusItems
+          .map((item) => `${esc(item.shortName)} (${fmtPctVal(item.targetPct)} target)`)
+          .join(', ')}.`
+      : max > 1
+        ? 'The portfolio is close to target, keep the monthly split as configured.'
+        : 'Your contribution plan is already aligned with the current target mix.';
+  const strategyMessage = needsMonthlyConsolidation
+    ? 'The plan below converts every recurring cadence into one monthly execution, which can help avoid unnecessary extra fees.'
+    : 'The plan below already matches a single monthly execution cadence.';
+
+  const acctSummaryLines = forecastHoldings
+    .map((item) => {
+      const interval = item.holding.contribInterval;
+      const configured = `${fmtEur(item.holding.contribAmount)} ${esc(
+        (INTERVAL_LABELS[interval] || interval).toLowerCase(),
+      )}`;
+      return `<span style="color:var(--ink-2)">${esc(item.holding.shortName)}: ${fmtEur(
+        Math.round(item.monthlyAmount),
+      )}/month, ${fmtPctVal(item.targetPct)} target, configured as ${configured}</span>`;
     })
     .join('<br>');
 
@@ -192,9 +205,10 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
       </div>
       <div class="chart-wrap chart-h-md"><canvas id="c-dca-proj"></canvas></div>
       <div class="note" style="line-height:1.6">
-        <div style="margin-bottom:4px">Projected monthly contributions (Settings \u2192 Accounts):</div>
+        <div style="margin-bottom:4px">One-month plan from Settings \u2192 Holdings:</div>
+        <div style="margin-bottom:6px;color:var(--ink-2)">${focusMessage}</div>
         ${acctSummaryLines}
-        <div style="margin-top:6px;color:var(--ink-4)">Shows cash moved into investments &amp; pensions. Returns are reflected in the Net Worth forecast.</div>
+        <div style="margin-top:6px;color:var(--ink-4)">${strategyMessage}</div>
       </div>
     </div>`;
 
@@ -294,10 +308,14 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
     bindLegendToggle(dcaFcLegendEl, CH['c-dca-proj'], { rescaleX: true });
   }
 
-  _attachDCAForecastRangeToggle(pd, accounts);
+  _attachDCAForecastRangeToggle(pd, holdings, snaps);
 }
 
-function _attachDCAForecastRangeToggle(pd: PortfolioData, accounts: Account[]): void {
+function _attachDCAForecastRangeToggle(
+  pd: PortfolioData,
+  holdings: Holding[],
+  snaps: Snapshot[],
+): void {
   const toggle = document.getElementById('dca-forecast-range-toggle') as
     (HTMLElement & { _bound?: boolean }) | null;
   if (!toggle || toggle._bound) return;
@@ -308,7 +326,7 @@ function _attachDCAForecastRangeToggle(pd: PortfolioData, accounts: Account[]): 
     const newRange = (btn.dataset.range as '60' | '120' | '240') || '60';
     if (newRange === _dcaFcRange) return;
     _dcaFcRange = newRange;
-    _renderDCAForecast(pd, accounts);
+    _renderDCAForecast(pd, holdings, snaps);
   });
 }
 

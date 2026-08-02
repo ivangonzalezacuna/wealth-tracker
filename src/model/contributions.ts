@@ -27,3 +27,32 @@ export function totalAnnualContrib(holdings: Holding[]): number {
     .filter((h) => h.active && h.contribAmount > 0)
     .reduce((sum, h) => sum + annualizeContrib(h.contribAmount, h.contribInterval), 0);
 }
+
+export interface MonthlyContributionPlanItem {
+  holding: Holding;
+  annualAmount: number;
+  monthlyAmount: number;
+  targetPct: number;
+}
+
+/** Convert a recurring contribution cadence into a single monthly budget. */
+export function monthlyContribFromAnnualized(amount: number, interval: ContribInterval): number {
+  return annualizeContrib(amount, interval) / 12;
+}
+
+/** Active holding contributions, normalized to a single monthly execution plan. */
+export function buildMonthlyContributionPlan(
+  holdings: Holding[],
+): MonthlyContributionPlanItem[] {
+  const active = holdings.filter((h) => h.active && h.contribAmount > 0);
+  const totalAnnual = totalAnnualContrib(active);
+  return active.map((holding) => {
+    const annualAmount = annualizeContrib(holding.contribAmount, holding.contribInterval);
+    return {
+      holding,
+      annualAmount,
+      monthlyAmount: annualAmount / 12,
+      targetPct: totalAnnual > 0 ? (annualAmount / totalAnnual) * 100 : 0,
+    };
+  });
+}

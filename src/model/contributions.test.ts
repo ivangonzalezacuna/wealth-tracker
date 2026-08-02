@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   annualizeContrib,
+  buildMonthlyContributionPlan,
   totalAnnualContrib,
   INTERVAL_PER_YEAR,
   INTERVAL_LABELS,
+  monthlyContribFromAnnualized,
 } from './contributions';
 import type { Holding, ContribInterval } from '../types';
 
@@ -103,5 +105,40 @@ describe('totalAnnualContrib', () => {
       makeHolding({ contribAmount: 600, contribInterval: 'quarterly' }), // 2400
     ];
     expect(totalAnnualContrib(holdings)).toBe(10000);
+  });
+});
+
+describe('monthlyContribFromAnnualized', () => {
+  it('converts weekly contributions into a monthly budget', () => {
+    expect(monthlyContribFromAnnualized(50, 'weekly')).toBeCloseTo(2600 / 12);
+  });
+});
+
+describe('buildMonthlyContributionPlan', () => {
+  it('normalizes active holding contributions into monthly plan rows', () => {
+    const plan = buildMonthlyContributionPlan([
+      makeHolding({ isin: 'A', shortName: 'A', contribAmount: 50, contribInterval: 'weekly' }),
+      makeHolding({ isin: 'B', shortName: 'B', contribAmount: 100, contribInterval: 'monthly' }),
+    ]);
+
+    expect(plan).toHaveLength(2);
+    expect(plan[0].holding.shortName).toBe('A');
+    expect(plan[0].annualAmount).toBe(2600);
+    expect(plan[0].monthlyAmount).toBeCloseTo(2600 / 12);
+    expect(plan[0].targetPct).toBeCloseTo((2600 / 3800) * 100);
+    expect(plan[1].holding.shortName).toBe('B');
+    expect(plan[1].targetPct).toBeCloseTo((1200 / 3800) * 100);
+  });
+
+  it('ignores inactive and zero-contribution holdings', () => {
+    const plan = buildMonthlyContributionPlan([
+      makeHolding({ shortName: 'A', contribAmount: 0 }),
+      makeHolding({ shortName: 'B', active: false }),
+      makeHolding({ shortName: 'C', contribAmount: 100, contribInterval: 'monthly' }),
+    ]);
+
+    expect(plan).toHaveLength(1);
+    expect(plan[0].holding.shortName).toBe('C');
+    expect(plan[0].targetPct).toBe(100);
   });
 });
