@@ -97,9 +97,7 @@ export function allInvestmentAccountsValue(
   accounts: Account[],
 ): number | null {
   if (!snap) return null;
-  const investment = accounts.filter(
-    (a) => (a.moneyType || '').toLowerCase() === 'investment',
-  );
+  const investment = accounts.filter((a) => (a.moneyType || '').toLowerCase() === 'investment');
   if (!investment.length) return null;
 
   const byLowerKey: Record<string, number> = {};
