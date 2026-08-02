@@ -1179,6 +1179,59 @@ code,
   margin-bottom: 8px;
   flex-wrap: wrap;
 }
+.forecast-inflation {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-style: normal;
+}
+.forecast-inflation-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+.forecast-inflation-label {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+.forecast-inflation-input-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+.forecast-inflation-input {
+  width: 80px;
+  padding: 5px 7px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--ink);
+  text-align: right;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.forecast-inflation-input:focus {
+  outline: none;
+  border-color: var(--brand-border);
+  background: var(--surface);
+}
+.forecast-inflation-unit {
+  color: var(--ink-3);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.forecast-inflation-hint {
+  margin-top: 8px;
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.45;
+}
 .range-toggle {
   display: flex;
   gap: 4px;
@@ -1235,6 +1288,9 @@ code,
   }
   .chart-controls {
     gap: 8px;
+  }
+  .forecast-inflation {
+    padding: 9px 10px;
   }
   .range-toggle .btn {
     font-size: 10px;
@@ -1371,6 +1427,21 @@ code,
   .legend {
     font-size: 11px;
     gap: 6px;
+  }
+  .forecast-inflation-row {
+    align-items: flex-start;
+  }
+  .forecast-inflation-input-wrap {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .forecast-inflation-input {
+    width: 88px;
+  }
+  .forecast-inflation-label,
+  .forecast-inflation-unit,
+  .forecast-inflation-hint {
+    font-size: 10px;
   }
   .leg-meta,
   .hold-inline-meta {

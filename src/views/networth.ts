@@ -776,14 +776,23 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       <div class="note" style="line-height:1.6">
         <div style="margin-bottom:4px">Assumptions per account (Settings \u2192 Accounts):</div>
         ${acctSummaryLines}
-        <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
-          <label for="nw-forecast-inflation" style="color:var(--ink-3)">Inflation adjustment:</label>
-          <input id="nw-forecast-inflation" type="number" inputmode="decimal" min="0" max="20" step="0.1"
-                 value="${_inflationRate}"
-                 style="width:64px;padding:2px 6px;font-size:12px;border:1px solid var(--line-2);border-radius:var(--radius-xs);background:var(--surface-2);color:var(--ink);text-align:right"
-                 aria-label="Annual inflation rate for real-return forecast">
-          <span style="color:var(--ink-3)">% / yr</span>
-          ${showReal ? `<span style="color:var(--ink-3);font-size:11px">(dashed = real, today\u2019s purchasing power)</span>` : `<span style="color:var(--ink-4);font-size:11px">Set &gt; 0 to overlay inflation-adjusted projection</span>`}
+        <div class="forecast-inflation">
+          <div class="forecast-inflation-row">
+            <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation</label>
+            <div class="forecast-inflation-input-wrap">
+              <input id="nw-forecast-inflation" class="forecast-inflation-input" type="number" inputmode="decimal" min="0" max="20" step="0.1"
+                     value="${_inflationRate}"
+                     aria-label="Annual inflation rate for real-return forecast">
+              <span class="forecast-inflation-unit">% / yr</span>
+            </div>
+          </div>
+          <div class="forecast-inflation-hint">
+            ${
+              showReal
+                ? 'Dashed line shows the inflation-adjusted projection in today’s purchasing power.'
+                : 'Set above 0 to overlay an inflation-adjusted projection.'
+            }
+          </div>
         </div>
         <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX.</div>
       </div>
