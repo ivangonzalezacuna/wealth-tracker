@@ -61,4 +61,6 @@ export const MIGRATIONS: string[][] = [
     `ALTER TABLE accounts ADD COLUMN locked_until TEXT NOT NULL DEFAULT ''`,
     `ALTER TABLE accounts ADD COLUMN extra_contrib REAL NOT NULL DEFAULT 0`,
   ],
+  // [4] version 3 → 4: add category column to transactions
+  [`ALTER TABLE transactions ADD COLUMN category TEXT NOT NULL DEFAULT ''`],
 ];

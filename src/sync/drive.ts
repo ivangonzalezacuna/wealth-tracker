@@ -20,20 +20,91 @@ interface DriveFile {
   modifiedTime: string;
 }
 
+// ── Retry helper ──────────────────────────────────────────────────
+
+const RETRY_STATUSES = new Set([429, 500, 502, 503, 504]);
+const MAX_RETRIES = 3;
+const RETRY_BASE_MS = 500;
+
+/**
+ * Execute a fetch-returning thunk with exponential backoff for transient
+ * network and server errors (5xx, 429). Non-retryable errors (4xx except 429)
+ * are thrown immediately so callers can react to auth/not-found failures
+ * without delay.
+ */
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      // Exponential backoff with full jitter: random(0, base * 2^attempt)
+      const cap = RETRY_BASE_MS * Math.pow(2, attempt);
+      const delay = Math.random() * cap;
+      await new Promise((r) => setTimeout(r, delay));
+    }
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      // Retry only on retryable HTTP status errors or network-level failures
+      // (TypeError from fetch when offline). Other errors are re-thrown immediately.
+      const isRetryable =
+        err instanceof RetryableError || (err instanceof TypeError && attempt < MAX_RETRIES);
+      if (!isRetryable) throw err;
+    }
+  }
+  throw lastErr;
+}
+
+/** Sentinel error used internally to signal a retryable HTTP status. */
+class RetryableError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Checked fetch: throws RetryableError for retryable HTTP statuses so
+ * withRetry can distinguish them from permanent failures.
+ */
+async function checkedFetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
+  const res = await fetch(input, init);
+  if (!res.ok && RETRY_STATUSES.has(res.status)) {
+    const body = await res.text().catch(() => '');
+    throw new RetryableError(res.status, `Drive API ${res.status}: ${body.slice(0, 200)}`);
+  }
+  return res;
+}
+
+interface DriveFile {
+  id: string;
+  name: string;
+  modifiedTime: string;
+}
+
 // ── File discovery ────────────────────────────────────────────────
 
 /** Find the DB file in appDataFolder. Returns file metadata or null. */
 export async function findDbFile(): Promise<DriveFile | null> {
-  const token = await getToken();
-  const query = encodeURIComponent(`name='${DB_FILENAME}' and trashed=false`);
-  const url = `${DRIVE_API}/files?spaces=appDataFolder&q=${query}&fields=files(id,name,modifiedTime)`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
+  return withRetry(async () => {
+    const token = await getToken();
+    const query = encodeURIComponent(`name='${DB_FILENAME}' and trashed=false`);
+    const url = `${DRIVE_API}/files?spaces=appDataFolder&q=${query}&fields=files(id,name,modifiedTime)`;
+    const res = await checkedFetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error(`Drive list error: ${res.status} ${await res.text()}`);
+    const data = await res.json();
+    if (!Array.isArray(data.files)) {
+      throw new Error(
+        `Drive list response missing files array: ${JSON.stringify(data).slice(0, 200)}`,
+      );
+    }
+    const files: DriveFile[] = data.files;
+    return files.length > 0 ? files[0] : null;
   });
-  if (!res.ok) throw new Error(`Drive list error: ${res.status} ${await res.text()}`);
-  const data = await res.json();
-  const files: DriveFile[] = data.files || [];
-  return files.length > 0 ? files[0] : null;
 }
 
 // ── Download ──────────────────────────────────────────────────────
@@ -42,18 +113,20 @@ export async function findDbFile(): Promise<DriveFile | null> {
 export async function downloadDbFile(): Promise<{ data: Uint8Array; modifiedTime: string } | null> {
   const file = await findDbFile();
   if (!file) return null;
-
-  const token = await getToken();
-  const url = `${DRIVE_API}/files/${file.id}?alt=media`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
+  return withRetry(async () => {
+    const token = await getToken();
+    const url = `${DRIVE_API}/files/${file.id}?alt=media`;
+    const res = await checkedFetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    // 404 means file was deleted between findDbFile and download; not retryable.
+    if (!res.ok) {
+      if (res.status === 404) return null;
+      throw new Error(`Drive download error: ${res.status} ${await res.text()}`);
+    }
+    const buf = await res.arrayBuffer();
+    return { data: new Uint8Array(buf), modifiedTime: file.modifiedTime };
   });
-  if (!res.ok) {
-    if (res.status === 404) return null;
-    throw new Error(`Drive download error: ${res.status} ${await res.text()}`);
-  }
-  const buf = await res.arrayBuffer();
-  return { data: new Uint8Array(buf), modifiedTime: file.modifiedTime };
 }
 
 // ── Upload ────────────────────────────────────────────────────────
@@ -64,60 +137,65 @@ export async function downloadDbFile(): Promise<{ data: Uint8Array; modifiedTime
  * Uses multipart upload for simplicity (metadata + binary in one request).
  */
 export async function uploadDbFile(data: Uint8Array): Promise<string> {
-  const token = await getToken();
   const existing = await findDbFile();
 
   if (existing) {
     // Update existing file (PATCH with media)
-    const url = `${UPLOAD_API}/files/${existing.id}?uploadType=media`;
-    const res = await fetch(url, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/x-sqlite3',
-      },
-      body: data as BodyInit,
+    return withRetry(async () => {
+      const token = await getToken();
+      const url = `${UPLOAD_API}/files/${existing.id}?uploadType=media`;
+      const res = await checkedFetch(url, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/x-sqlite3',
+        },
+        body: data as BodyInit,
+      });
+      if (!res.ok) throw new Error(`Drive upload error: ${res.status} ${await res.text()}`);
+      const result = await res.json();
+      return result.modifiedTime || new Date().toISOString();
     });
-    if (!res.ok) throw new Error(`Drive upload error: ${res.status} ${await res.text()}`);
-    const result = await res.json();
-    return result.modifiedTime || new Date().toISOString();
   } else {
     // Create new file in appDataFolder (multipart)
-    const metadata = JSON.stringify({
-      name: DB_FILENAME,
-      parents: ['appDataFolder'],
+    return withRetry(async () => {
+      const token = await getToken();
+      const metadata = JSON.stringify({
+        name: DB_FILENAME,
+        parents: ['appDataFolder'],
+      });
+
+      const boundary = '----WealthTrackerBoundary' + Date.now();
+      const bodyParts = [
+        `--${boundary}\r\n`,
+        'Content-Type: application/json; charset=UTF-8\r\n\r\n',
+        metadata,
+        `\r\n--${boundary}\r\n`,
+        'Content-Type: application/x-sqlite3\r\n\r\n',
+      ].join('');
+
+      // Build multipart body with binary
+      const encoder = new TextEncoder();
+      const prefix = encoder.encode(bodyParts);
+      const suffix = encoder.encode(`\r\n--${boundary}--`);
+      const combined = new Uint8Array(prefix.length + data.length + suffix.length);
+      combined.set(prefix, 0);
+      combined.set(data, prefix.length);
+      combined.set(suffix, prefix.length + data.length);
+
+      const url = `${UPLOAD_API}/files?uploadType=multipart`;
+      const res = await checkedFetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': `multipart/related; boundary=${boundary}`,
+        },
+        body: combined as BodyInit,
+      });
+      if (!res.ok) throw new Error(`Drive create error: ${res.status} ${await res.text()}`);
+      const result = await res.json();
+      return result.modifiedTime || new Date().toISOString();
     });
-
-    const boundary = '----WealthTrackerBoundary' + Date.now();
-    const body = [
-      `--${boundary}\r\n`,
-      'Content-Type: application/json; charset=UTF-8\r\n\r\n',
-      metadata,
-      `\r\n--${boundary}\r\n`,
-      'Content-Type: application/x-sqlite3\r\n\r\n',
-    ].join('');
-
-    // Build multipart body with binary
-    const encoder = new TextEncoder();
-    const prefix = encoder.encode(body);
-    const suffix = encoder.encode(`\r\n--${boundary}--`);
-    const combined = new Uint8Array(prefix.length + data.length + suffix.length);
-    combined.set(prefix, 0);
-    combined.set(data, prefix.length);
-    combined.set(suffix, prefix.length + data.length);
-
-    const url = `${UPLOAD_API}/files?uploadType=multipart`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': `multipart/related; boundary=${boundary}`,
-      },
-      body: combined as BodyInit,
-    });
-    if (!res.ok) throw new Error(`Drive create error: ${res.status} ${await res.text()}`);
-    const result = await res.json();
-    return result.modifiedTime || new Date().toISOString();
   }
 }
 

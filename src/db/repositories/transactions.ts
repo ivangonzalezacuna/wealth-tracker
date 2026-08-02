@@ -16,7 +16,7 @@ export function txKey(t: Transaction): string {
 export async function loadTransactions(): Promise<Transaction[]> {
   const db = await getDb();
   const result = db.exec(
-    'SELECT id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note FROM transactions ORDER BY date ASC',
+    'SELECT id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category FROM transactions ORDER BY date ASC',
   );
   if (result.length === 0) return [];
   return result[0].values.map(rowToTransaction);
@@ -37,7 +37,7 @@ export async function mergeTransactions(
   if (newTxs.length > 0) {
     const db = await getDb();
     const stmt = db.prepare(
-      'INSERT OR IGNORE INTO transactions (id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT OR IGNORE INTO transactions (id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     );
     for (const t of newTxs) {
       stmt.run([
@@ -55,6 +55,7 @@ export async function mergeTransactions(
         t.currency || 'EUR',
         t.fxRate || 0,
         t.note || '',
+        t.category || '',
       ]);
     }
     stmt.free();
@@ -72,7 +73,7 @@ export async function restoreTransactions(txs: Transaction[]): Promise<void> {
   const db = await getDb();
   db.run('DELETE FROM transactions');
   const stmt = db.prepare(
-    'INSERT INTO transactions (id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO transactions (id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   for (const t of txs) {
     stmt.run([
@@ -90,6 +91,7 @@ export async function restoreTransactions(txs: Transaction[]): Promise<void> {
       t.currency || 'EUR',
       t.fxRate || 0,
       t.note || '',
+      t.category || '',
     ]);
   }
   stmt.free();
@@ -114,5 +116,6 @@ function rowToTransaction(row: unknown[]): Transaction {
     currency: String(row[11] ?? 'EUR'),
     fxRate: Number(row[12]) || 0,
     note: String(row[13] ?? ''),
+    category: String(row[14] ?? ''),
   };
 }

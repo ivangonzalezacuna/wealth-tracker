@@ -155,16 +155,22 @@ function mapType(
  *  "open" across the line break). */
 function joinQuotedLines(rawLines: string[]): string[] {
   const out: string[] = [];
-  let buf: string | null = null;
+  const parts: string[] = [];
+  let openQuotes = 0;
+
   for (const line of rawLines) {
-    buf = buf === null ? line : buf + '\n' + line;
-    const quoteCount = (buf.match(/"/g) || []).length;
-    if (quoteCount % 2 === 0) {
-      out.push(buf);
-      buf = null;
+    parts.push(line);
+    // Count only the new line's quotes incrementally (O(n) total vs O(n²)).
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === '"') openQuotes++;
+    }
+    if (openQuotes % 2 === 0) {
+      out.push(parts.join('\n'));
+      parts.length = 0;
+      openQuotes = 0;
     }
   }
-  if (buf !== null) out.push(buf); // unbalanced trailing quote - best-effort passthrough
+  if (parts.length > 0) out.push(parts.join('\n')); // unbalanced trailing quote - best-effort passthrough
   return out;
 }
 
@@ -277,7 +283,7 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
       const baseKey = profile.idColumns
         .map((col) => {
           const idx = hdrs.indexOf(col);
-          return idx >= 0 ? (vals[idx] || '').trim() : '';
+          return (idx >= 0 ? (vals[idx] || '').trim() : '').replace(/\|/g, '%7C');
         })
         .join('|');
       idCounts[baseKey] = (idCounts[baseKey] || 0) + 1;

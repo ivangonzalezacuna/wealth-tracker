@@ -39,13 +39,8 @@ export function findYoYSnapshot(snaps: Snapshot[]): { snap: Snapshot; total: num
   const latestDate = parseYearMonth(latest.date);
   if (!latestDate) return null;
 
-  const tY =
-    latestDate.month > 12
-      ? latestDate.year
-      : latestDate.month - 12 > 0
-        ? latestDate.year
-        : latestDate.year - 1;
-  const tM = ((latestDate.month - 1 - 12 + 120) % 12) + 1;
+  const tY = latestDate.year - 1;
+  const tM = latestDate.month;
   const targetVal = tY * 12 + tM;
 
   // Need at least 12 months of history

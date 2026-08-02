@@ -79,6 +79,23 @@ function foldedIsin(isin: string, holdingByIsin: Record<string, { foldInto: stri
   return cur;
 }
 
+function allocationWeightsInfo(
+  held: EtfPosition[],
+  snapEtfValues: Record<string, number>,
+  latSnap: Snapshot | null,
+): { useMarketValues: boolean; note: string } {
+  const hasAnyMarketValues = Object.keys(snapEtfValues).length > 0;
+  const hasCompleteMarketValues =
+    held.length > 0 && held.every((e) => snapEtfValues[e.isin] !== undefined);
+  const useMarketValues = hasCompleteMarketValues;
+  const note = useMarketValues
+    ? `Allocation weights use market values from ${latSnap ? fmtMon(latSnap.date) : 'latest snapshot'}.`
+    : hasAnyMarketValues
+      ? 'Allocation weights use current cost basis because latest snapshot ETF values are incomplete.'
+      : 'Allocation weights use current cost basis because market values are not available in the latest snapshot.';
+  return { useMarketValues, note };
+}
+
 function renderAllocationBreakdowns(
   held: EtfPosition[],
   snapEtfValues: Record<string, number>,
@@ -108,10 +125,7 @@ function renderAllocationBreakdowns(
 
   const holdings = getHoldings();
   const holdingByIsin = Object.fromEntries(holdings.map((h) => [h.isin, h]));
-  const hasAnyMarketValues = Object.keys(snapEtfValues).length > 0;
-  const hasCompleteMarketValues =
-    held.length > 0 && held.every((e) => snapEtfValues[e.isin] !== undefined);
-  const useMarketValues = hasCompleteMarketValues;
+  const { useMarketValues } = allocationWeightsInfo(held, snapEtfValues, latSnap);
 
   const byClass: Record<string, number> = {};
   const byRegion: Record<string, number> = {};
@@ -196,11 +210,6 @@ function renderAllocationBreakdowns(
 
   drawBreakdown('c-port-alloc-class', 'port-alloc-class-legend', classRows, 'assetClass', 15);
   drawBreakdown('c-port-alloc-region', 'port-alloc-region-legend', regionRows, 'region', 180);
-
-  const noteEl = document.getElementById('port-alloc-note');
-  if (noteEl) {
-    noteEl.textContent = '';
-  }
 }
 
 // Module-level filter state (survives re-renders)
@@ -774,6 +783,8 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], mode: DriftMode 
   const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
   const snapEtfValues = extractSnapEtfValues(latSnap);
   const hasSnapValues = Object.keys(snapEtfValues).length > 0;
+  const allEtfs = Object.values(pd.etfs);
+  const { held } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
 
   // Use the snapshot primary-investment account total as totalValue when market
   // values are available; otherwise fall back to the sum of cost bases.

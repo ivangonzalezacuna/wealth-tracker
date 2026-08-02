@@ -58,6 +58,7 @@ function rowToSnapshot(row: unknown[]): Snapshot {
   try {
     values = JSON.parse(String(row[1] ?? '{}'));
   } catch {
+    console.warn('[snapshots] Failed to parse values JSON for date', date, '- treating as empty');
     values = {};
   }
   return { date, notes, ...values };

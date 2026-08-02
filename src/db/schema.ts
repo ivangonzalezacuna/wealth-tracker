@@ -6,7 +6,7 @@
  */
 
 /** Schema version - bump when DDL changes require a migration. */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /**
  * SQL statements executed on first database creation (version 0 → 1).
@@ -28,7 +28,8 @@ export const SCHEMA_DDL: string[] = [
     tax REAL NOT NULL DEFAULT 0,
     currency TEXT NOT NULL DEFAULT 'EUR',
     fx_rate REAL NOT NULL DEFAULT 0,
-    note TEXT NOT NULL DEFAULT ''
+    note TEXT NOT NULL DEFAULT '',
+    category TEXT NOT NULL DEFAULT ''
   )`,
   `CREATE INDEX IF NOT EXISTS idx_tx_date ON transactions(date)`,
   `CREATE INDEX IF NOT EXISTS idx_tx_isin ON transactions(isin)`,
