@@ -113,7 +113,6 @@ export function appTemplate(): string {
           <div class="chart-wrap chart-h-sm"><canvas id="c-port-alloc-region"></canvas></div>
         </div>
       </div>
-      <div id="port-alloc-note" class="note" style="margin-top:.5rem"></div>
       <div id="port-drift"></div>
     </div>
   </div>

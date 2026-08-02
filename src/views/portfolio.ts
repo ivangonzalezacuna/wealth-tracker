@@ -78,6 +78,23 @@ function foldedIsin(isin: string, holdingByIsin: Record<string, { foldInto: stri
   return cur;
 }
 
+function allocationWeightsInfo(
+  held: EtfPosition[],
+  snapEtfValues: Record<string, number>,
+  latSnap: Snapshot | null,
+): { useMarketValues: boolean; note: string } {
+  const hasAnyMarketValues = Object.keys(snapEtfValues).length > 0;
+  const hasCompleteMarketValues =
+    held.length > 0 && held.every((e) => snapEtfValues[e.isin] !== undefined);
+  const useMarketValues = hasCompleteMarketValues;
+  const note = useMarketValues
+    ? `Allocation weights use market values from ${latSnap ? fmtMon(latSnap.date) : 'latest snapshot'}.`
+    : hasAnyMarketValues
+      ? 'Allocation weights use current cost basis because latest snapshot ETF values are incomplete.'
+      : 'Allocation weights use current cost basis because market values are not available in the latest snapshot.';
+  return { useMarketValues, note };
+}
+
 function renderAllocationBreakdowns(
   held: EtfPosition[],
   snapEtfValues: Record<string, number>,
@@ -107,10 +124,7 @@ function renderAllocationBreakdowns(
 
   const holdings = getHoldings();
   const holdingByIsin = Object.fromEntries(holdings.map((h) => [h.isin, h]));
-  const hasAnyMarketValues = Object.keys(snapEtfValues).length > 0;
-  const hasCompleteMarketValues =
-    held.length > 0 && held.every((e) => snapEtfValues[e.isin] !== undefined);
-  const useMarketValues = hasCompleteMarketValues;
+  const { useMarketValues } = allocationWeightsInfo(held, snapEtfValues, latSnap);
 
   const byClass: Record<string, number> = {};
   const byRegion: Record<string, number> = {};
@@ -195,15 +209,6 @@ function renderAllocationBreakdowns(
 
   drawBreakdown('c-port-alloc-class', 'port-alloc-class-legend', classRows, 'assetClass', 15);
   drawBreakdown('c-port-alloc-region', 'port-alloc-region-legend', regionRows, 'region', 180);
-
-  const noteEl = document.getElementById('port-alloc-note');
-  if (noteEl) {
-    noteEl.textContent = useMarketValues
-      ? `Allocation weights use market values from ${latSnap ? fmtMon(latSnap.date) : 'latest snapshot'}.`
-      : hasAnyMarketValues
-        ? 'Allocation weights use current cost basis because latest snapshot ETF values are incomplete.'
-        : 'Allocation weights use current cost basis because market values are not available in the latest snapshot.';
-  }
 }
 
 // Module-level filter state (survives re-renders)
@@ -775,6 +780,9 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
   const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
   const snapEtfValues = extractSnapEtfValues(latSnap);
   const hasSnapValues = Object.keys(snapEtfValues).length > 0;
+  const allEtfs = Object.values(pd.etfs);
+  const { held } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
+  const allocWeights = allocationWeightsInfo(held, snapEtfValues, latSnap);
 
   // Use the snapshot primary-investment account total as totalValue when market
   // values are available; otherwise fall back to the sum of cost bases.
@@ -833,6 +841,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
   driftEl.innerHTML = `
     <div class="card">
       <div class="card-title drift-title">Allocation drift <span class="drift-title-status" style="color:${statusColor}">${statusLabel} (max ${fmtPctVal(max)})</span></div>
+      <p class="note" style="margin:.35rem 0 .6rem">${allocWeights.note}</p>
       ${costModeBanner}
       <div class="tbl" role="table" aria-label="Allocation drift">
         <div class="tbl-row th" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">

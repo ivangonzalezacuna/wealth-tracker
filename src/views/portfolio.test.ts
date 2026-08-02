@@ -122,7 +122,6 @@ const DOM_FIXTURE = `
     <div id="port-alloc-class-legend"></div>
     <canvas id="c-port-alloc-region"></canvas>
     <div id="port-alloc-region-legend"></div>
-    <div id="port-alloc-note"></div>
     <div id="port-summary"></div>
     <div id="port-drift"></div>
     <div id="port-pagination"></div>
@@ -398,6 +397,7 @@ describe('renderPortfolio', () => {
     renderPortfolio(makePD(), []);
     const drift = document.getElementById('port-drift')!;
     expect(drift.innerHTML).toContain('cost basis');
+    expect(drift.textContent).toContain('Allocation weights use');
   });
 
   it('drift note mentions market values when snapshot has etf_ keys', () => {
@@ -498,12 +498,19 @@ describe('renderPortfolio', () => {
     });
     const snap: Snapshot = { date: '2026-06-01', acct1: 3500, etf_IE00TEST1: 3000 };
     renderPortfolio(pd, [snap]);
-    const note = document.getElementById('port-alloc-note')!.textContent || '';
+    const note = document.getElementById('port-drift')!.textContent || '';
     expect(note).toContain('cost basis');
     expect(note).toContain('incomplete');
     const classLegend = document.getElementById('port-alloc-class-legend')!.textContent || '';
     expect(classLegend).toContain('66.7%');
     expect(classLegend).toContain('33.3%');
+  });
+
+  it('shows the allocation-weights note inside the drift card, not as a separate element', () => {
+    renderPortfolio(makePD(), []);
+    const drift = document.getElementById('port-drift')!;
+    expect(drift.textContent).toContain('Allocation weights use');
+    expect(document.getElementById('port-alloc-note')).toBeNull();
   });
 
   it('tap-to-expand detail panel opens on row click', () => {
