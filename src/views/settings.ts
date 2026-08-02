@@ -15,7 +15,12 @@ import {
 } from '../store/config';
 import type { ConfigChangeKind } from '../store/config';
 import { loadTransactions } from '../db';
-import { validatePrimaryInvestment, validateAccountRanges } from '../model/accounts';
+import {
+  validatePrimaryInvestment,
+  validateAccountRanges,
+  validateAccountIds,
+  validateAccountLabels,
+} from '../model/accounts';
 import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { showMsg, reinjectPendingMsg, withButtonGuard, esc } from '../utils';
@@ -496,14 +501,9 @@ function attachAccountListeners(root: HTMLElement): void {
       showMsg('accts-msg', 'Each account needs a name.', false);
       return;
     }
-    const primErr = validatePrimaryInvestment(accounts);
-    if (primErr) {
-      showMsg('accts-msg', primErr, false);
-      return;
-    }
-    const rangeErr = validateAccountRanges(accounts);
-    if (rangeErr) {
-      showMsg('accts-msg', rangeErr, false);
+    const labelErr = validateAccountLabels(accounts);
+    if (labelErr) {
+      showMsg('accts-msg', labelErr, false);
       return;
     }
     // Auto-generate IDs for accounts that don't have one
@@ -516,6 +516,21 @@ function attachAccountListeners(root: HTMLElement): void {
         a.id = generateId(a.label, taken);
         taken.add(a.id);
       }
+    }
+    const idErr = validateAccountIds(accounts);
+    if (idErr) {
+      showMsg('accts-msg', idErr, false);
+      return;
+    }
+    const primErr = validatePrimaryInvestment(accounts);
+    if (primErr) {
+      showMsg('accts-msg', primErr, false);
+      return;
+    }
+    const rangeErr = validateAccountRanges(accounts);
+    if (rangeErr) {
+      showMsg('accts-msg', rangeErr, false);
+      return;
     }
     try {
       await withCardGuard('accounts', btn, () => setAccounts(accounts), { busyText: 'Saving...' });
@@ -1380,16 +1395,18 @@ function _itemStableKey(item: HTMLElement): string | null {
 
 /** Generate a stable snake_case slug from a label. */
 function slugify(label: string): string {
-  return label
+  const result = label
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_|_$/g, '')
     .slice(0, 30);
+  return result || 'account';
 }
 
 /** Generate a collision-free ID from a label, avoiding any id in `taken`. */
 export function generateId(label: string, taken: Set<string>): string {
-  const base = slugify(label);
+  const rawBase = slugify(label);
+  const base = rawBase.startsWith('etf_') ? rawBase.slice(4) || 'account' : rawBase;
   if (!taken.has(base)) return base;
   let n = 2;
   while (taken.has(`${base}_${n}`)) n++;

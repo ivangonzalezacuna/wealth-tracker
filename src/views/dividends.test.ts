@@ -58,6 +58,8 @@ const DOM_FIXTURE = `
     <div id="int-table-header"></div>
     <div id="div-interest"></div>
     <div id="int-pagination"></div>
+    <div id="div-annual"></div>
+    <div id="div-annual-pagination"></div>
   </div>
   <div id="subview-dividends"></div>
 `;
@@ -93,6 +95,8 @@ describe('renderDividends', () => {
     expect(kpisText).toContain('Tax withheld');
     expect(kpisText).toContain('Net received');
     expect(kpisText).toContain('Gross interest');
+    expect(kpisText).toContain('Investment income yield (12m)');
+    expect(kpisText).toContain('Savings income yield (12m)');
   });
 
   it('flips the Tax withheld tile to positive styling when totalTax < 0', () => {
@@ -134,8 +138,165 @@ describe('renderDividends', () => {
     renderDividends(makePD());
     renderDividends(makePD());
     const kpisEl = document.getElementById('div-kpis')!;
-    // 6 KPI tiles (3 dividend + 3 interest)
-    expect(kpisEl.children.length).toBe(6);
+    expect(kpisEl.children.length).toBe(9);
+  });
+
+  it('renders annual summary table', () => {
+    renderDividends(makePD(), [
+      {
+        id: 'b1',
+        date: '2026-03-15',
+        source: 'trade_republic',
+        type: 'BUY',
+        name: 'ETF',
+        isin: 'X',
+        shares: 1,
+        price: 5,
+        amount: 5,
+        fee: 0,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 1,
+      },
+      {
+        id: 's1',
+        date: '2026-04-15',
+        source: 'trade_republic',
+        type: 'SELL',
+        name: 'ETF',
+        isin: 'X',
+        shares: 1,
+        price: 10,
+        amount: 10,
+        fee: 1,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 1,
+      },
+    ]);
+    expect(document.getElementById('div-annual')!.textContent).toContain('Year');
+    expect(document.getElementById('div-annual')!.textContent).toContain('Benefits (net)');
+    expect(document.getElementById('div-annual')!.textContent).toContain('Taxes paid');
+    const annualRow = document.querySelector('[data-annual-year="2026"]') as HTMLElement;
+    annualRow.click();
+    expect(document.getElementById('div-annual')!.textContent).toContain(
+      'Realized profit and loss from sells',
+    );
+    const groups = document.querySelectorAll('.annual-detail-group-title');
+    expect(groups.length).toBe(3);
+    expect(groups[0].textContent).toBe('Dividends');
+    expect(groups[1].textContent).toBe('Savings');
+    expect(groups[2].textContent).toBe('Profit / loss');
+  });
+
+  it('uses cost-basis realized P&L instead of raw sell proceeds in annual summary', () => {
+    renderDividends(makePD({ divHist: [], intHist: [] }), [
+      {
+        id: 'b1',
+        date: '2026-01-10',
+        source: 'trade_republic',
+        type: 'BUY',
+        name: 'ETF',
+        isin: 'X',
+        shares: 1,
+        price: 100,
+        amount: 100,
+        fee: 0,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 1,
+      },
+      {
+        id: 's1',
+        date: '2026-02-10',
+        source: 'trade_republic',
+        type: 'SELL',
+        name: 'ETF',
+        isin: 'X',
+        shares: 1,
+        price: 100,
+        amount: 100,
+        fee: 0,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 1,
+      },
+    ]);
+    const annualRow = document.querySelector('[data-annual-year="2026"]') as HTMLElement;
+    expect(annualRow).not.toBeNull();
+    expect(annualRow.textContent).toContain('0,00');
+  });
+
+  it('renders yearly taxes in positive color when taxes are negative (refund)', () => {
+    renderDividends(
+      makePD({
+        divHist: [
+          {
+            date: '2026-01-15',
+            isin: '',
+            shortName: 'IWDA',
+            color: '#111',
+            gross: 12.5,
+            tax: 0,
+            net: 12.5,
+          },
+        ],
+        intHist: [{ date: '2026-02-01', gross: 4.5, tax: -1.25, net: 5.75, amount: 5.75 }],
+      }),
+    );
+    const annualRow = document.querySelector('[data-annual-year="2026"]') as HTMLElement;
+    const taxesCell = annualRow.children[1] as HTMLElement;
+    expect(taxesCell.style.color).toBe('var(--pos)');
+  });
+
+  it('hides zero-value annual detail lines and empty groups', () => {
+    renderDividends(
+      makePD({
+        divHist: [
+          {
+            date: '2026-01-15',
+            isin: '',
+            shortName: 'IWDA',
+            color: '#111',
+            gross: 12.5,
+            tax: 0,
+            net: 12.5,
+          },
+        ],
+        intHist: [],
+      }),
+      [],
+    );
+    const annualRow = document.querySelector('[data-annual-year="2026"]') as HTMLElement;
+    annualRow.click();
+    const annualText = document.getElementById('div-annual')!.textContent || '';
+    expect(annualText).toContain('Dividends');
+    expect(annualText).not.toContain('Dividend taxes paid');
+    expect(annualText).not.toContain('Profit / loss');
+    expect(annualText).not.toContain('Realized profit and loss from sells');
+  });
+
+  it('shows placeholder for income yield when less than 12 months history', () => {
+    renderDividends(
+      makePD({
+        divHist: [
+          {
+            date: '2026-01-15',
+            isin: '',
+            shortName: 'IWDA',
+            color: '#111',
+            gross: 12.5,
+            tax: 3.13,
+            net: 9.37,
+          },
+        ],
+        intHist: [],
+      }),
+    );
+    expect(document.getElementById('div-kpis')!.textContent).toContain(
+      'Investment income yield (12m)',
+    );
+    expect(document.getElementById('div-kpis')!.textContent).toContain('need 12 months of history');
   });
 
   it('renders pagination when divHist exceeds page size', () => {

@@ -62,7 +62,7 @@ export function appTemplate(): string {
         </div>
       </div>
       <div class="chart-wrap chart-h-md"><canvas id="c-nw-growth"></canvas></div>
-      <p class="note">Market movement is the residual after subtracting contributions from the total change. It is approximate and sensitive to how close your snapshot date lands to month-end.</p>
+      <p class="note">Market movement is the residual after subtracting contributions from the total change. Use IRR above for a money-weighted investment return metric.</p>
     </div>
     <div id="nw-goal"></div>
     <div id="nw-forecast"></div>
@@ -101,6 +101,19 @@ export function appTemplate(): string {
           <div id="port-summary"></div>
         </div>
       </div>
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">Allocation by asset class</div>
+          <div id="port-alloc-class-legend" class="legend"></div>
+          <div class="chart-wrap chart-h-sm"><canvas id="c-port-alloc-class"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Allocation by region</div>
+          <div id="port-alloc-region-legend" class="legend"></div>
+          <div class="chart-wrap chart-h-sm"><canvas id="c-port-alloc-region"></canvas></div>
+        </div>
+      </div>
+      <div id="port-alloc-note" class="note" style="margin-top:.5rem"></div>
       <div id="port-drift"></div>
     </div>
   </div>
@@ -166,6 +179,11 @@ export function appTemplate(): string {
         </div>
         <div id="div-interest"></div>
         <div id="int-pagination" class="pagination"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">By year</div>
+        <div id="div-annual"></div>
+        <div id="div-annual-pagination" class="pagination"></div>
       </div>
     </div>
   </div>

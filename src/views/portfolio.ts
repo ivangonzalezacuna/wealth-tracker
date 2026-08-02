@@ -67,6 +67,145 @@ function renderSourceBreakdown(bySource: Record<string, number>, signed = false)
     .join('');
 }
 
+function foldedIsin(isin: string, holdingByIsin: Record<string, { foldInto: string }>): string {
+  let cur = isin;
+  const seen = new Set<string>();
+  while (holdingByIsin[cur]?.foldInto) {
+    if (seen.has(cur)) break;
+    seen.add(cur);
+    cur = holdingByIsin[cur].foldInto;
+  }
+  return cur;
+}
+
+function renderAllocationBreakdowns(
+  held: EtfPosition[],
+  snapEtfValues: Record<string, number>,
+  latSnap: Snapshot | null,
+): void {
+  const C = resolvedT();
+  const ASSET_CLASS_LABELS: Record<string, string> = {
+    equity: 'Equity',
+    bond: 'Bond',
+    reit: 'REIT',
+    commodity: 'Commodity',
+    cash: 'Cash',
+    other: 'Other',
+  };
+  const REGION_LABELS: Record<string, string> = {
+    developed: 'Developed',
+    emerging: 'Emerging',
+    global: 'Global',
+    europe: 'Europe',
+    us: 'US',
+    other: 'Other',
+  };
+  const normalizeLabel = (kind: 'assetClass' | 'region', value: string): string =>
+    kind === 'assetClass'
+      ? ASSET_CLASS_LABELS[value] || value.replace(/\b\w/g, (c) => c.toUpperCase())
+      : REGION_LABELS[value] || value.replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const holdings = getHoldings();
+  const holdingByIsin = Object.fromEntries(holdings.map((h) => [h.isin, h]));
+  const hasAnyMarketValues = Object.keys(snapEtfValues).length > 0;
+  const hasCompleteMarketValues =
+    held.length > 0 && held.every((e) => snapEtfValues[e.isin] !== undefined);
+  const useMarketValues = hasCompleteMarketValues;
+
+  const byClass: Record<string, number> = {};
+  const byRegion: Record<string, number> = {};
+  for (const e of held) {
+    const targetIsin = foldedIsin(e.isin, holdingByIsin);
+    const targetHolding = holdingByIsin[targetIsin] || holdingByIsin[e.isin];
+    const weight = useMarketValues ? (snapEtfValues[e.isin] ?? 0) : e.cost;
+    if (weight <= 0) continue;
+    const assetClass = targetHolding?.assetClass || 'other';
+    const region = targetHolding?.region || 'other';
+    byClass[assetClass] = (byClass[assetClass] || 0) + weight;
+    byRegion[region] = (byRegion[region] || 0) + weight;
+  }
+
+  const drawBreakdown = (
+    chartId: string,
+    legendId: string,
+    rows: Array<{ label: string; value: number }>,
+    kind: 'assetClass' | 'region',
+    paletteSeed = 0,
+  ) => {
+    const labels = rows.map((r) => r.label);
+    const values = rows.map((r) => r.value);
+    const total = values.reduce((s, v) => s + v, 0);
+    const colors = rows.map((_, i) => {
+      const hue = (paletteSeed + i * 57) % 360;
+      return `hsl(${hue} 60% 55%)`;
+    });
+    if (CH[chartId]) CH[chartId].destroy();
+    CH[chartId] = new Chart(document.getElementById(chartId) as HTMLCanvasElement, {
+      type: 'doughnut',
+      data: {
+        labels: labels.map((l) => normalizeLabel(kind, l)),
+        datasets: [
+          {
+            data: values,
+            backgroundColor: colors,
+            borderColor: C.surface,
+            borderWidth: 2,
+            hoverOffset: 4,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '62%',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: C.surface,
+            ...TOOLTIP_BOX,
+            borderColor: C.line,
+            borderWidth: 1,
+            titleColor: C.ink,
+            bodyColor: C.ink2,
+            padding: 10,
+            cornerRadius: 8,
+            callbacks: {
+              label: (ctx) => ` ${fmtEur2(ctx.raw as number)}`,
+              labelColor: tooltipSwatch(C.surface),
+            },
+          },
+        },
+      },
+    });
+    const items = rows.map((r, i) => ({
+      label: normalizeLabel(kind, r.label),
+      meta: total > 0 ? fmtPctVal((r.value / total) * 100) : '0%',
+      color: colors[i],
+    }));
+    const legendEl = document.getElementById(legendId);
+    if (legendEl) legendEl.innerHTML = renderLegendHtml(items);
+  };
+
+  const classRows = Object.entries(byClass)
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value);
+  const regionRows = Object.entries(byRegion)
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value);
+
+  drawBreakdown('c-port-alloc-class', 'port-alloc-class-legend', classRows, 'assetClass', 15);
+  drawBreakdown('c-port-alloc-region', 'port-alloc-region-legend', regionRows, 'region', 180);
+
+  const noteEl = document.getElementById('port-alloc-note');
+  if (noteEl) {
+    noteEl.textContent = useMarketValues
+      ? `Allocation weights use market values from ${latSnap ? fmtMon(latSnap.date) : 'latest snapshot'}.`
+      : hasAnyMarketValues
+        ? 'Allocation weights use current cost basis because latest snapshot ETF values are incomplete.'
+        : 'Allocation weights use current cost basis because market values are not available in the latest snapshot.';
+  }
+}
+
 // Module-level filter state (survives re-renders)
 let _showExited = false;
 let _holdingsFilter = 'held'; // 'held' | 'closed' | 'all'
@@ -86,8 +225,6 @@ function holdingsColumns(
   pd: PortfolioData,
   snapEtfValues: Record<string, number>,
 ): ColumnDef<EtfPosition>[] {
-  const hasSnapValues = Object.keys(snapEtfValues).length > 0;
-
   const cols: ColumnDef<EtfPosition>[] = [
     {
       key: 'shortName',
@@ -162,55 +299,58 @@ function holdingsColumns(
         `style="text-align:right;color:${e.divNet > 0 ? 'var(--pos)' : 'var(--ink-3)'}"`,
       cell: (e) => (e.divNet > 0 ? fmtEur2(e.divNet) : '-'),
     },
+    {
+      key: 'marketValue',
+      label: 'Market value',
+      align: 'right',
+      mobileHidden: true,
+      detail: true,
+      sortValue: (e) => snapEtfValues[e.isin] ?? -Infinity,
+      tip: 'Current market value from the latest snapshot ETF breakdown.',
+      cellAttrs: (e) =>
+        `style="text-align:right;color:${snapEtfValues[e.isin] !== undefined ? 'var(--ink)' : 'var(--ink-3)'}" title="${
+          snapEtfValues[e.isin] !== undefined
+            ? ''
+            : 'Add etf_' + e.isin + ' value in your next snapshot to populate this field.'
+        }"`,
+      cell: (e) => {
+        const mv = snapEtfValues[e.isin];
+        return mv !== undefined ? fmtEur2(mv) : '-';
+      },
+    },
+    {
+      key: 'unrealizedPnL',
+      label: 'Unrealized P&amp;L',
+      align: 'right',
+      mobileHidden: true,
+      detail: true,
+      sortValue: (e) => {
+        const mv = snapEtfValues[e.isin];
+        return mv !== undefined ? mv - e.cost : -Infinity;
+      },
+      tip: 'Market value minus cost basis. Positive means the position is in profit.',
+      cellAttrs: (e) => {
+        const mv = snapEtfValues[e.isin];
+        const pnl = mv !== undefined ? mv - e.cost : null;
+        const color = pnl === null ? 'var(--ink-3)' : pnl >= 0 ? 'var(--pos)' : 'var(--neg)';
+        const title =
+          pnl === null
+            ? `title="Add etf_${e.isin} value in your next snapshot to populate this field."`
+            : '';
+        return `style="text-align:right;color:${color}" ${title}`;
+      },
+      cell: (e) => {
+        const mv = snapEtfValues[e.isin];
+        if (mv === undefined) return '-';
+        return fmtEurNeg(mv - e.cost, 2);
+      },
+      detailValueClass: (e) => {
+        const mv = snapEtfValues[e.isin];
+        if (mv === undefined) return '';
+        return mv - e.cost >= 0 ? 'pos' : 'neg';
+      },
+    },
   ];
-
-  // When the latest snapshot includes per-ETF market values, add them as
-  // detail-panel-only columns so users can see market value and unrealized gain
-  // by tapping a row, without changing the table layout.
-  if (hasSnapValues) {
-    cols.push(
-      {
-        key: 'marketValue',
-        label: 'Market value',
-        align: 'right',
-        detail: true,
-        detailOnly: true,
-        sortValue: (e) => snapEtfValues[e.isin] ?? -1,
-        tip: 'Current market value from the latest snapshot ETF breakdown.',
-        cell: (e) => {
-          const mv = snapEtfValues[e.isin];
-          return mv !== undefined ? fmtEur2(mv) : '-';
-        },
-      },
-      {
-        key: 'unrealizedPnL',
-        label: 'Unrealized gain',
-        align: 'right',
-        detail: true,
-        detailOnly: true,
-        sortValue: (e) => {
-          const mv = snapEtfValues[e.isin];
-          return mv !== undefined ? mv - e.cost : -Infinity;
-        },
-        tip: 'Market value minus cost basis. Positive means the position is in profit.',
-        cellAttrs: (e) => {
-          const mv = snapEtfValues[e.isin];
-          const pnl = mv !== undefined ? mv - e.cost : null;
-          return `style="color:${pnl === null ? 'var(--ink-3)' : pnl >= 0 ? 'var(--pos)' : 'var(--neg)'}"`;
-        },
-        cell: (e) => {
-          const mv = snapEtfValues[e.isin];
-          if (mv === undefined) return '-';
-          return fmtEurNeg(mv - e.cost, 2);
-        },
-        detailValueClass: (e) => {
-          const mv = snapEtfValues[e.isin];
-          if (mv === undefined) return '';
-          return mv - e.cost >= 0 ? 'pos' : 'neg';
-        },
-      },
-    );
-  }
 
   return cols;
 }
@@ -230,6 +370,14 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   const allEtfs: EtfPosition[] = ISIN_ORDER.map((s) => pd.etfs[s])
     .filter((e): e is EtfPosition => !!e)
     .concat(Object.values(pd.etfs).filter((e) => !ISIN_ORDER.includes(e.isin)));
+  const knownMarketValues = allEtfs
+    .map((e) => snapEtfValues[e.isin])
+    .filter((v): v is number => v !== undefined);
+  const totalKnownMarket = knownMarketValues.reduce((sum, v) => sum + v, 0);
+  const totalKnownUnrealized = allEtfs.reduce((sum, e) => {
+    const mv = snapEtfValues[e.isin];
+    return sum + (mv !== undefined ? mv - e.cost : 0);
+  }, 0);
 
   // Split into held / exited
   const { held, exited } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
@@ -291,6 +439,8 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
         <div></div><div></div>
         <div style="text-align:right;color:${pd.realizedPnL >= 0 ? 'var(--pos)' : 'var(--neg)'};font-weight:500">${pd.realizedPnL === 0 ? '-' : fmtEurNeg(pd.realizedPnL, 2)}</div>
         <div style="text-align:right;color:var(--pos);font-weight:500">${fmtEur2(pd.totalDivNet)}</div>
+        <div style="text-align:right;color:${knownMarketValues.length > 0 ? 'var(--ink)' : 'var(--ink-3)'};font-weight:500">${knownMarketValues.length > 0 ? fmtEur2(totalKnownMarket) : '-'}</div>
+        <div style="text-align:right;color:${knownMarketValues.length > 0 && totalKnownUnrealized >= 0 ? 'var(--pos)' : knownMarketValues.length > 0 ? 'var(--neg)' : 'var(--ink-3)'};font-weight:500">${knownMarketValues.length > 0 ? fmtEurNeg(totalKnownUnrealized, 2) : '-'}</div>
       </div>
     </div>`;
 
@@ -396,13 +546,26 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
   const snapEtfValues = extractSnapEtfValues(latSnap);
   const snapHasEtfValues = Object.keys(snapEtfValues).length > 0;
+  const allEtfs = ISIN_ORDER.map((s) => pd.etfs[s])
+    .filter((e): e is EtfPosition => !!e)
+    .concat(Object.values(pd.etfs).filter((e) => !ISIN_ORDER.includes(e.isin)));
+  const { held } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
+  const heldWithMarket = held.filter((e) => snapEtfValues[e.isin] !== undefined);
+  const marketValueKnown = heldWithMarket.reduce((sum, e) => sum + (snapEtfValues[e.isin] || 0), 0);
+  const costKnown = heldWithMarket.reduce((sum, e) => sum + e.cost, 0);
+  const hasKnownPositionValues = heldWithMarket.length > 0;
+  const hasPartialPositionValues = heldWithMarket.length > 0 && heldWithMarket.length < held.length;
   const snapMarketValue = snapHasEtfValues
     ? Object.values(snapEtfValues).reduce((sum, val) => sum + val, 0)
     : null;
   const curVal = primaryInvestmentValue(latSnap, getAccounts());
-  const gainBase = snapMarketValue !== null ? snapMarketValue : curVal;
-  const gain = gainBase !== null ? gainBase - pd.totalInv : null;
-  const gainPct = gain !== null && pd.totalInv > 0 ? (gain / pd.totalInv) * 100 : null;
+  const marketValue = snapMarketValue !== null ? snapMarketValue : curVal;
+  const gain = hasKnownPositionValues ? marketValueKnown - costKnown : null;
+  const gainPct = gain !== null && costKnown > 0 ? (gain / costKnown) * 100 : null;
+  const summaryGainBase = snapMarketValue !== null ? snapMarketValue : curVal;
+  const summaryGain = summaryGainBase !== null ? summaryGainBase - pd.totalInv : null;
+  const summaryGainPct =
+    summaryGain !== null && pd.totalInv > 0 ? (summaryGain / pd.totalInv) * 100 : null;
   const cashUnallocated =
     curVal !== null && snapMarketValue !== null ? curVal - snapMarketValue : null;
   const gainLabel =
@@ -416,11 +579,10 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     ]),
   );
   const totalReturn =
-    (gain ?? 0) + pd.realizedPnL + pd.totalDivNet + pd.totalInterest - pd.totalFees;
-  const unrealizedTip =
-    snapMarketValue !== null
-      ? 'Gain or loss on ETF positions still held. Computed as position market value (from ETF breakdown) minus invested capital (cost basis). Not locked in until you sell.'
-      : 'Gain or loss on your portfolio. Computed as account market value (from snapshot) minus invested capital (cost basis). Not locked in until you sell.';
+    (summaryGain ?? 0) + pd.realizedPnL + pd.totalDivNet + pd.totalInterest - pd.totalFees;
+  const unrealizedTip = hasKnownPositionValues
+    ? 'Gain or loss on ETF positions still held. Computed as position market value (from ETF breakdown) minus invested capital (cost basis). Not locked in until you sell.'
+    : 'Gain or loss on your portfolio. Computed as account market value (from snapshot) minus invested capital (cost basis). Not locked in until you sell.';
   const realizedTip =
     'Gain or loss already locked in from shares you have sold. Computed as sell proceeds minus the cost basis of those shares, including fees.';
   const valueNote =
@@ -432,9 +594,9 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     ${kpiTile({ label: 'Total invested', value: fmtEur(pd.totalInv), sub: 'net of sells' })}
     ${kpiTile({
       label: 'Market value',
-      value: gainBase !== null ? fmtEur2(gainBase) : '-',
+      value: marketValue !== null ? fmtEur2(marketValue) : '-',
       sub:
-        gainBase !== null
+        marketValue !== null
           ? 'from ' + fmtMon(latSnap!.date) + ' snapshot'
           : latSnap
             ? 'no primary investment account flagged'
@@ -444,7 +606,12 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
       label: `Unrealized P&amp;L${infoTip('Gain or loss on positions still held. Computed as market value minus invested capital (cost basis). Not locked in until you sell.')}`,
       value: gain !== null ? fmtEurNeg(gain, 2) : '-',
       valueClass: gain === null ? '' : gain >= 0 ? 'pos' : 'neg',
-      sub: gainPct !== null ? fmtPctNeg(gainPct) : '',
+      sub:
+        gainPct !== null
+          ? `${fmtPctNeg(gainPct)}${hasPartialPositionValues ? ' (partial)' : ''}`
+          : hasPartialPositionValues
+            ? 'partial'
+            : '',
     })}
     ${kpiTile({
       label: `Realized P&amp;L${infoTip('Gain or loss already locked in from shares you have sold. Computed as sell proceeds minus the cost basis of those shares, including fees.')}`,
@@ -460,12 +627,6 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
 
   // Render holdings table (filter-dependent)
   renderHoldingsTable(pd, snaps);
-
-  // Build full ordered ETF list for donut (held positions only)
-  const allEtfs = ISIN_ORDER.map((s) => pd.etfs[s])
-    .filter((e): e is EtfPosition => !!e)
-    .concat(Object.values(pd.etfs).filter((e) => !ISIN_ORDER.includes(e.isin)));
-  const { held } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
 
   // Bar chart - only held positions with cost > 0
   const donutE = held.filter((e) => e.cost > 0).sort((a, b) => b.cost - a.cost);
@@ -548,6 +709,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
       color: e.color,
     })),
   );
+  renderAllocationBreakdowns(held, snapEtfValues, latSnap);
 
   const mvRow =
     snapMarketValue !== null
@@ -566,11 +728,11 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   const sectionHead = (label: string) =>
     `<div style="padding-top:8px;padding-bottom:2px"><span style="font-size:10px;font-weight:600;letter-spacing:.06em;color:var(--ink-4)">${label}</span></div>`;
   const unrealizedRow =
-    gain !== null
-      ? `<div class="row"><div class="row-label" style="font-weight:500">${gainLabel} ${infoTip(unrealizedTip)}</div><div class="row-val ${gain >= 0 ? 'pos' : 'neg'}" style="font-weight:500">${fmtEurNeg(gain, 2)} (${fmtPctNeg(gainPct!)})</div></div>`
+    summaryGain !== null
+      ? `<div class="row"><div class="row-label" style="font-weight:500">${gainLabel} ${infoTip(unrealizedTip)}</div><div class="row-val ${summaryGain >= 0 ? 'pos' : 'neg'}" style="font-weight:500">${fmtEurNeg(summaryGain, 2)} (${fmtPctNeg(summaryGainPct!)})</div></div>`
       : '';
   const totalReturnRow =
-    gain !== null
+    summaryGain !== null
       ? `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px"><div class="row-label" style="font-weight:600">Total return</div><div class="row-val ${totalReturn >= 0 ? 'pos' : 'neg'}" style="font-weight:600">${fmtEurNeg(totalReturn, 2)}</div></div>`
       : '';
 
@@ -663,10 +825,15 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
   const noteSource = hasSnapValues
     ? `Actual from market values (snapshot: ${fmtMon(latSnap!.date)}). Legacy = inactive positions still held.`
     : `Actual from cost basis (no ETF values in latest snapshot). Legacy = inactive positions still held.`;
+  const hasCostMode = drift.some((d) => d.valuationMode === 'cost');
+  const costModeBanner = hasCostMode
+    ? `<div class="status-bar status-warn" style="margin-bottom:.6rem">Allocation is based on purchase cost, not current market value. Enter ETF values in your next snapshot for market-based drift.</div>`
+    : '';
 
   driftEl.innerHTML = `
     <div class="card">
-      <div class="card-title">Allocation drift <span style="font-size:12px;font-weight:400;color:${statusColor};margin-left:8px">${statusLabel} (max ${fmtPctVal(max)})</span></div>
+      <div class="card-title drift-title">Allocation drift <span class="drift-title-status" style="color:${statusColor}">${statusLabel} (max ${fmtPctVal(max)})</span></div>
+      ${costModeBanner}
       <div class="tbl" role="table" aria-label="Allocation drift">
         <div class="tbl-row th" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
           <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right">Target</div><div role="columnheader" style="text-align:right">Actual</div><div role="columnheader" style="text-align:right">Drift</div><div role="columnheader" style="text-align:right">Delta</div>

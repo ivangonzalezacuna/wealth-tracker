@@ -1400,8 +1400,8 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
     }
   }
 
-  // Auto-confirm when no unmapped types (clean import)
-  if (summary.unmapped.length === 0) {
+  // Auto-confirm when no unmapped types and no invalid dates (clean import)
+  if (summary.unmapped.length === 0 && summary.dateErrors.length === 0) {
     confirmImport();
     return;
   }
@@ -1417,11 +1417,28 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
   const unmappedList = summary.unmapped
     .map((u) => `<code>${esc(u.type)}</code> (${u.count})`)
     .join(', ');
-  const unmappedHtml = `
+  const unmappedHtml =
+    totalUnmapped > 0
+      ? `
     <div class="status-bar status-warn" style="margin:.6rem 0">
       ⚠ ${totalUnmapped} row${totalUnmapped > 1 ? 's' : ''} with unmapped type${totalUnmapped > 1 ? 's' : ''}: ${unmappedList}
     </div>
-  `;
+  `
+      : '';
+
+  const totalDateErrors = summary.dateErrors.reduce((s, d) => s + d.count, 0);
+  const dateErrorsList = summary.dateErrors
+    .map((d) => `<code>${esc(d.raw)}</code> (${d.count})`)
+    .join(', ');
+  const dateErrorsHtml =
+    totalDateErrors > 0
+      ? `
+    <div class="status-bar status-warn" style="margin:.6rem 0" id="import-date-warn">
+      ⚠ ${totalDateErrors} row${totalDateErrors > 1 ? 's' : ''} skipped due to invalid date${totalDateErrors > 1 ? 's' : ''}: ${dateErrorsList}
+      <button class="btn btn-ghost btn-sm" id="btn-dismiss-date-warn" style="margin-left:8px">Dismiss</button>
+    </div>
+  `
+      : '';
 
   // Sample table (first ~10 rows)
   const sampleRows = summary.sample;
@@ -1471,6 +1488,7 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
         <span style="font-weight:500">${summary.total}</span> rows parsed: ${typeCounts}
       </div>
       ${unmappedHtml}
+      ${dateErrorsHtml}
       ${sampleHtml}
       <div style="display:flex;gap:10px;margin-top:.85rem">
         <button class="btn btn-primary" id="btn-confirm-import">Confirm import</button>
@@ -1487,6 +1505,10 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
     container.innerHTML = '';
     container.style.display = 'none';
     showMsg('import-msg', 'Import cancelled.', false);
+  });
+
+  document.getElementById('btn-dismiss-date-warn')?.addEventListener('click', () => {
+    document.getElementById('import-date-warn')?.remove();
   });
 }
 
@@ -1705,7 +1727,7 @@ function showPortfolioSubview(sub: string, force = false): void {
 function renderPortfolioSubview(sub: string): void {
   if (sub === 'holdings') renderPortfolio(state.pd, state.snaps);
   else if (sub === 'contributions') renderDCA(state.pd, state.snaps);
-  else if (sub === 'dividends') renderDividends(state.pd);
+  else if (sub === 'dividends') renderDividends(state.pd, state.txs, state.snaps);
 }
 
 // ── Section dispatcher ────────────────────────────────────
@@ -1727,7 +1749,7 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
   try {
     switch (id) {
       case 'networth':
-        renderNW(state.pd, state.snaps);
+        renderNW(state.pd, state.snaps, state.txs);
         break;
       case 'portfolio':
         renderPortfolioSubview(_portfolioSubview);

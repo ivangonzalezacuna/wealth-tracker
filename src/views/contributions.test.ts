@@ -162,7 +162,7 @@ describe('renderDCA', () => {
   it('renders four KPI tiles with correct values', () => {
     renderDCA(makePD(), []);
     const kpis = document.getElementById('dca-kpis')!.textContent!;
-    expect(kpis).toContain('Total invested');
+    expect(kpis).toContain('Current cost basis');
     expect(kpis).toContain('Active months');
     expect(kpis).toContain('Avg / month');
     expect(kpis).toContain('Latest month');

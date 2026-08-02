@@ -15,6 +15,7 @@ import { CONFIG } from '../config';
 import type { Account, Holding, Settings, ContribInterval } from '../types';
 import { totalAnnualContrib, INTERVAL_PER_YEAR } from '../model/contributions';
 import type { CachedConfig } from '../cache/db';
+import { validateAccountIds } from '../model/accounts';
 
 // Valid contribution intervals, derived from the canonical INTERVAL_PER_YEAR map
 const VALID_INTERVALS = new Set(Object.keys(INTERVAL_PER_YEAR));
@@ -44,6 +45,7 @@ let _settings: Settings = {};
 let _loaded = false;
 export type ConfigChangeKind = 'accounts' | 'holdings' | 'settings';
 let _onChange: ((changed: ConfigChangeKind) => void) | null = null;
+let _warnedReservedAccountPrefix = false;
 
 // ── Public accessors (read at render time) ───────────────
 
@@ -137,6 +139,13 @@ export async function loadConfig(): Promise<void> {
   _accounts = await dbLoadAccounts();
   _holdings = await dbLoadHoldings();
   _settings = await dbLoadSettings();
+
+  if (!_warnedReservedAccountPrefix && _accounts.some((a) => (a.id || '').startsWith('etf_'))) {
+    _warnedReservedAccountPrefix = true;
+    console.warn(
+      '[wealth-tracker] One or more account IDs start with "etf_" which is now reserved. Rename those IDs in Settings > Accounts.',
+    );
+  }
 
   // First-run seed: seed each table independently when empty.
   const needSeedAccounts = _accounts.length === 0 && CONFIG.accounts.length > 0;
@@ -343,7 +352,7 @@ const toNum = (v: unknown) => (typeof v === 'number' ? v : parseFloat(String(v ?
 export function parseAccounts(rows: (string | number | boolean)[][]): Account[] {
   if (!rows.length) return [];
   const hdr = rows[0].map((c) => (c || '').toString().trim().toLowerCase());
-  return rows
+  const parsed = rows
     .slice(1)
     .filter((r) => r[hdr.indexOf('id')])
     .map((r) => ({
@@ -368,6 +377,9 @@ export function parseAccounts(rows: (string | number | boolean)[][]): Account[] 
       extraContrib: toNum(r[hdr.indexOf('extracontrib')]),
     }))
     .sort((a, b) => (a.order || 0) - (b.order || 0));
+  const idErr = validateAccountIds(parsed);
+  if (idErr) throw new Error(`Invalid account IDs in backup data: ${idErr}`);
+  return parsed;
 }
 
 // ── First-run seed ───────────────────────────────────────

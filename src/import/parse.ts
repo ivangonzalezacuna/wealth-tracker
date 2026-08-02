@@ -92,6 +92,7 @@ export function parseDate(s: string | null | undefined, fmt: string): string {
       if (!m) return str; // best-effort passthrough
       return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
     }
+
     case 'DD.MM.YYYY': {
       const m = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
       if (!m) return str;
@@ -110,6 +111,18 @@ export function parseDate(s: string | null | undefined, fmt: string): string {
     default:
       return str; // unknown format - passthrough
   }
+}
+
+export function isValidIsoDate(s: string): boolean {
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  const year = parseInt(m[1], 10);
+  const month = parseInt(m[2], 10);
+  const day = parseInt(m[3], 10);
+  if (month < 1 || month > 12) return false;
+  if (day < 1) return false;
+  const maxDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return day <= maxDay;
 }
 
 // ── Type mapping ───────────────────────────────────────────────
@@ -187,7 +200,7 @@ export function detectProfile(
 
 export function parseWithProfile(text: string, profile: ImportProfile): ParseResult {
   const lines = joinQuotedLines(text.trim().split('\n'));
-  if (lines.length < 2) return { transactions: [], unmapped: [] };
+  if (lines.length < 2) return { transactions: [], unmapped: [], dateErrors: [] };
 
   // Resolve delimiter
   const sep = profile.delimiter === 'auto' ? detectSeparator(lines[0]) : profile.delimiter || ',';
@@ -208,6 +221,7 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
 
   const transactions: Transaction[] = [];
   const unmappedCounts: Record<string, number> = {};
+  const dateErrorCounts: Record<string, number> = {};
   const idCounts: Record<string, number> = {}; // counter for deterministic ID generation
 
   for (let i = 1; i < lines.length; i++) {
@@ -222,7 +236,15 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
     // Date is mandatory
     const rawDate = get('date');
     const date = parseDate(rawDate, profile.dateFormat);
-    if (!date) continue;
+    if (!date) {
+      dateErrorCounts['(empty)'] = (dateErrorCounts['(empty)'] || 0) + 1;
+      continue;
+    }
+    if (!isValidIsoDate(date)) {
+      const key = rawDate || '(empty)';
+      dateErrorCounts[key] = (dateErrorCounts[key] || 0) + 1;
+      continue;
+    }
 
     // Type mapping
     const rawType = get('type');
@@ -330,15 +352,18 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
   const unmapped: UnmappedType[] = Object.entries(unmappedCounts)
     .map(([type, count]) => ({ type, count }))
     .sort((a, b) => b.count - a.count);
+  const dateErrors = Object.entries(dateErrorCounts)
+    .map(([raw, count]) => ({ raw, count }))
+    .sort((a, b) => b.count - a.count);
 
-  return { transactions: filtered, unmapped };
+  return { transactions: filtered, unmapped, dateErrors };
 }
 
 /**
  * Generate a preview summary for parsed results.
  */
 export function previewSummary(parsed: ParseResult): PreviewSummary {
-  const { transactions, unmapped } = parsed;
+  const { transactions, unmapped, dateErrors } = parsed;
   const byCounts: Record<string, number> = {};
   for (const tx of transactions) {
     byCounts[tx.type] = (byCounts[tx.type] || 0) + 1;
@@ -347,6 +372,7 @@ export function previewSummary(parsed: ParseResult): PreviewSummary {
     total: transactions.length,
     byCounts,
     unmapped,
+    dateErrors,
     sample: transactions.slice(0, 10),
   };
 }

@@ -20,7 +20,7 @@ import {
 } from '../store/config';
 import { primaryInvestmentValue } from '../model/accounts';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
-import { cagr, findYoYSnapshot, monthlyGrowthHistory } from '../model/insights';
+import { cagr, findYoYSnapshot, monthlyGrowthHistory, xirr } from '../model/insights';
 import type { MonthlyGrowthPoint } from '../model/insights';
 import {
   formatMonthsEta,
@@ -28,7 +28,7 @@ import {
   forecastMonthsToTargetMulti,
 } from '../model/forecast';
 import type { AccountForecastInput } from '../model/forecast';
-import type { Snapshot, PortfolioData, Account } from '../types';
+import type { Snapshot, PortfolioData, Account, Transaction } from '../types';
 import Chart from 'chart.js/auto';
 import { T, R, resolvedT } from '../theme';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
@@ -58,7 +58,11 @@ function _buildAccountForecastInputs(snap: Snapshot, accounts: Account[]): Accou
  * Renders the Net Worth tab: lead KPI (with MoM delta), per-account KPI tiles,
  * YoY/CAGR tiles, the history chart, growth-breakdown chart, and goal progress.
  */
-export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
+export function renderNW(
+  pd: PortfolioData | null,
+  snaps: Snapshot[],
+  txs: Transaction[] = [],
+): void {
   const ACCTS = getACCTSList();
   const has = snaps.length > 0;
   document.getElementById('nw-empty')!.style.display = has ? 'none' : 'block';
@@ -72,6 +76,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const chg = prevT !== null ? total - prevT : null;
   const chgPct = chg !== null && prevT && prevT > 0 ? (chg / prevT) * 100 : null;
   const activeA = ACCTS.filter((a) => ((s[a.key] as number) || 0) > 0);
+  const accounts = getAccounts();
 
   // Extra KPIs: YoY + CAGR
   const firstTotal = snaps.length > 0 ? snapTotal(snaps[0]) : 0;
@@ -85,9 +90,23 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
     yoyData && yoyData.total > 0 ? ((total - yoyData.total) / yoyData.total) * 100 : null;
 
   const cagrVal = cagr(firstTotal, total, monthsSpan);
+  const latestPrimaryValue = primaryInvestmentValue(s, accounts);
+  const terminalDate = s.date && s.date.length === 7 ? `${s.date}-01` : s.date;
+  const investmentFlows = txs
+    .map((tx) => {
+      const date = tx.date && tx.date.length === 7 ? `${tx.date}-01` : tx.date;
+      if (!date) return null;
+      if (tx.type === 'BUY')
+        return { date, amount: -(Math.abs(tx.amount) + Math.abs(tx.fee || 0)) };
+      return null;
+    })
+    .filter((cf): cf is { date: string; amount: number } => !!cf);
+  if (latestPrimaryValue !== null) {
+    investmentFlows.push({ date: terminalDate, amount: latestPrimaryValue });
+  }
+  const irrVal = latestPrimaryValue !== null ? xirr(investmentFlows) : null;
 
   // Growth split (contributions vs market)
-  const accounts = getAccounts();
   const growthPoints = pd
     ? monthlyGrowthHistory(snaps, accounts, pd.monthly, primaryInvestmentValue)
     : [];
@@ -128,12 +147,13 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
         .filter((x) => x.locked && x.lockedUntil)
         .map((x) => x.lockedUntil!)
         .sort();
-      const lockedSub =
-        lockedYears.length > 0
-          ? lockedYears.length === 1 || lockedYears[0] === lockedYears[lockedYears.length - 1]
-            ? `accessible ~${lockedYears[0]}`
-            : `accessible ${lockedYears[0]}\u2013${lockedYears[lockedYears.length - 1]}`
-          : `${total > 0 ? Math.round((locked / total) * 100) : 0}% of total`;
+      const firstUnlock = lockedYears[0];
+      const lastUnlock = lockedYears[lockedYears.length - 1];
+      const lockedSub = firstUnlock
+        ? firstUnlock === lastUnlock
+          ? `unlocks ${firstUnlock}`
+          : `unlocks ${firstUnlock}-${lastUnlock}`
+        : `${total > 0 ? Math.round((locked / total) * 100) : 0}% of total`;
       return `
       <div class="kpi">
         <div class="kpi-label">Liquid${infoTip('Net worth accessible now, excluding pension and retirement accounts marked as locked.')}</div>
@@ -161,13 +181,19 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
       cagrVal !== null
         ? `
       ${kpiTile({
-        label: `CAGR${infoTip('Compound Annual Growth Rate: Annualized average return over the full tracking period.')}`,
+        label: `CAGR (balance)${infoTip('Compound annual growth rate of your total tracked net worth from your first recorded snapshot to today. This is a balance-growth metric, not a return on invested capital. See IRR for the investment return.')}`,
         value: fmtPctNeg(cagrVal * 100),
         valueClass: cagrVal >= 0 ? 'pos' : 'neg',
         sub: `${monthsSpan} months`,
       })}`
         : ''
     }
+    ${kpiTile({
+      label: `IRR (investments)${infoTip('Money-weighted annual return on invested capital. Uses BUY cash outflows plus current primary investment value. SELL and dividend cash movements stay inside the account value and are not counted separately.')}`,
+      value: irrVal !== null ? fmtPctNeg(irrVal * 100) : '-',
+      valueClass: irrVal === null ? '' : irrVal >= 0 ? 'pos' : 'neg',
+      sub: irrVal !== null ? 'XIRR' : 'needs complete cash-flow series',
+    })}
   `;
 
   const chartA = ACCTS.filter((a) => snaps.some((sn) => ((sn[a.key] as number) || 0) > 0));

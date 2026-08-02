@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { TxType } from '../model/tx';
-import { parseWithProfile, detectProfile, previewSummary, parseNumber, parseDate } from './parse';
+import {
+  parseWithProfile,
+  detectProfile,
+  previewSummary,
+  parseNumber,
+  parseDate,
+  isValidIsoDate,
+} from './parse';
 import { tradeRepublicProfile } from './profiles/trade_republic';
 import { n26Profile } from './profiles/n26';
 import { builtInProfiles } from './profiles/index';
@@ -138,6 +145,46 @@ describe('parseNumber', () => {
 describe('parseDate', () => {
   it('YYYY-MM-DD passthrough', () => {
     expect(parseDate('2024-01-15', 'YYYY-MM-DD')).toBe('2024-01-15');
+  });
+
+  describe('isValidIsoDate', () => {
+    it('accepts valid iso date', () => {
+      expect(isValidIsoDate('2024-02-29')).toBe(true);
+    });
+
+    it('rejects out-of-range month', () => {
+      expect(isValidIsoDate('2024-13-01')).toBe(false);
+    });
+
+    it('rejects day zero', () => {
+      expect(isValidIsoDate('2024-01-00')).toBe(false);
+    });
+
+    it('rejects day out of range', () => {
+      expect(isValidIsoDate('2024-01-32')).toBe(false);
+    });
+
+    it('rejects wrong separator and empty', () => {
+      expect(isValidIsoDate('2024/01/15')).toBe(false);
+      expect(isValidIsoDate('')).toBe(false);
+    });
+  });
+
+  describe('date errors handling', () => {
+    it('collects invalid date values and skips those rows', () => {
+      const csv = [
+        'transaction_id;date;type;category;name;symbol;shares;price;amount;fee;tax;currency;fx_rate',
+        'tx-1;2024-13-01;BUY;TRADING;ETF;IE00TEST;1;100;-100;0;0;EUR;',
+        'tx-2;2024-01-15;BUY;TRADING;ETF;IE00TEST;1;100;-100;0;0;EUR;',
+        'tx-3;2024/01/16;BUY;TRADING;ETF;IE00TEST;1;100;-100;0;0;EUR;',
+        'tx-4;;BUY;TRADING;ETF;IE00TEST;1;100;-100;0;0;EUR;',
+      ].join('\n');
+      const { transactions, dateErrors } = parseWithProfile(csv, tradeRepublicProfile);
+      expect(transactions).toHaveLength(1);
+      expect(dateErrors.map((d) => d.raw)).toEqual(
+        expect.arrayContaining(['2024-13-01', '2024/01/16', '(empty)']),
+      );
+    });
   });
 
   it('DD.MM.YYYY German format', () => {

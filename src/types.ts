@@ -161,6 +161,8 @@ export interface EtfPosition {
   exited: boolean;
   costBasis?: number;
   divTax?: number;
+  marketValue?: number | null;
+  unrealizedPnL?: number | null;
 }
 
 // ─── Dividend history entry ──────────────────────────────────────
@@ -214,9 +216,15 @@ export interface UnmappedType {
   example?: string;
 }
 
+export interface DateErrorRow {
+  raw: string;
+  count: number;
+}
+
 export interface ParseResult {
   transactions: Transaction[];
   unmapped: UnmappedType[];
+  dateErrors: DateErrorRow[];
 }
 
 export interface PreviewSummary {
@@ -224,4 +232,5 @@ export interface PreviewSummary {
   byCounts: Record<string, number>;
   sample: Transaction[];
   unmapped: UnmappedType[];
+  dateErrors: DateErrorRow[];
 }
