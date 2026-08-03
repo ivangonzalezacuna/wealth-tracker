@@ -798,12 +798,13 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
   const hasSnapValues = Object.keys(snapEtfValues).length > 0;
   const allEtfs = Object.values(pd.etfs);
   const { held } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
+  const primaryInvTotal = primaryInvestmentValue(latSnap, getAccounts());
+  const hasHeldPositions = held.length > 0;
 
   // Use the snapshot primary-investment account total as totalValue when market
-  // values are available; otherwise fall back to the sum of cost bases.
-  const totalValue = hasSnapValues
-    ? (primaryInvestmentValue(latSnap, getAccounts()) ?? pd.totalInv)
-    : pd.totalInv;
+  // values are available. Also use it when there are no held positions (all cash)
+  // so rebalance guidance still works for re-entry portfolios.
+  const totalValue = hasSnapValues || !hasHeldPositions ? (primaryInvTotal ?? pd.totalInv) : pd.totalInv;
 
   const drift = computeDrift(
     holdings,
@@ -875,11 +876,14 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
       return `<button class="btn btn-sm btn-ghost ${active ? 'active' : ''}" data-rebalance-months="${m}" aria-pressed="${active ? 'true' : 'false'}">${label}</button>`;
     }).join('');
 
+    const activeCurrentMax = maxDrift(drift.filter((d) => d.targetPct > 0));
     const projectedActiveMax =
       Math.round(Math.max(...plan.map((e) => Math.abs(e.projectedDriftPct))) * 10) / 10;
-    const legacyMax = maxDrift(drift.filter((d) => d.targetPct === 0));
-    const projectedMax = Math.max(projectedActiveMax, legacyMax);
+    const hasLegacyDrift = drift.some((d) => d.targetPct === 0 && Math.abs(d.driftPct) > 0);
     const periodLabel = selectedMonths === 1 ? '1 month' : `${selectedMonths} months`;
+    const legacyScopeNote = hasLegacyDrift
+      ? ' Projection reflects active-target holdings only; legacy positions are unchanged.'
+      : '';
 
     const rebalanceRows = plan
       .map((e) => {
@@ -933,7 +937,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
             </div>
             ${rebalanceRows}
           </div>
-          <p class="note" style="margin-top:.5rem">Routing the suggested amounts for ${periodLabel} will reduce max drift from ${fmtPctVal(max)} to ${fmtPctVal(projectedMax)}. Buy-only: no selling required. Market movements are not factored in.</p>
+          <p class="note" style="margin-top:.5rem">Routing the suggested amounts for ${periodLabel} will reduce max drift from ${fmtPctVal(activeCurrentMax)} to ${fmtPctVal(projectedActiveMax)}. Buy-only: no selling required. Market movements are not factored in.${legacyScopeNote}</p>
           ${sellWarning}
         </div>
       </details>`;

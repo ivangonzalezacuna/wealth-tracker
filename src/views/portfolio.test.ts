@@ -769,6 +769,53 @@ describe('renderPortfolio', () => {
     expect(details.hasAttribute('open')).toBe(true);
   });
 
+  it('renders rebalance guidance when all positions are closed but cash is present', () => {
+    MOCK_HOLDINGS.splice(
+      0,
+      MOCK_HOLDINGS.length,
+      {
+        isin: 'IE00TEST1',
+        shortName: 'IWDA',
+        name: 'World',
+        color: '#222222',
+        acc: true,
+        active: true,
+        contribAmount: 70,
+        contribInterval: 'monthly',
+        assetClass: 'equity',
+        region: 'developed',
+        foldInto: '',
+        order: 1,
+      } as any,
+      {
+        isin: 'IE00TEST2',
+        shortName: 'EM',
+        name: 'Emerging',
+        color: '#333333',
+        acc: true,
+        active: true,
+        contribAmount: 30,
+        contribInterval: 'monthly',
+        assetClass: 'equity',
+        region: 'emerging',
+        foldInto: '',
+        order: 2,
+      } as any,
+    );
+    const pd = makePD({
+      etfs: {
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 0, shares: 0, exited: true }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 0, shares: 0, exited: true }),
+      },
+      totalInv: 0,
+    });
+    const snap: Snapshot = { date: '2026-06-01', acct1: 5000 };
+    renderPortfolio(pd, [snap]);
+    const drift = document.getElementById('port-drift')!;
+    expect(drift.innerHTML).toContain('Contribution rebalance');
+    expect(drift.textContent).toContain('reduce max drift from');
+  });
+
   it('rebalance picker click updates selected month and re-renders', () => {
     MOCK_HOLDINGS.splice(
       0,
@@ -881,7 +928,9 @@ describe('renderPortfolio', () => {
     ) as HTMLDetailsElement;
     expect(nextDetails).not.toBeNull();
     expect(nextDetails.hasAttribute('open')).toBe(true);
-    const nextSummaryNote = document.querySelector('#port-drift .rebalance-summary-note') as HTMLElement;
+    const nextSummaryNote = document.querySelector(
+      '#port-drift .rebalance-summary-note',
+    ) as HTMLElement;
     expect(nextSummaryNote.textContent).toContain('Optional when drift is moderate or low');
   });
 
