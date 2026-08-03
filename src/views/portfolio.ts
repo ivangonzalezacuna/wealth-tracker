@@ -24,7 +24,7 @@ import { T, R, resolvedT } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { attachEtfPopovers } from '../ui/etfPopover';
 import type { SortState } from './tableSort';
-import { applySort, sortableHeader, bindSortableHeader } from './tableSort';
+import { applySort, bindSortableHeader } from './tableSort';
 import { renderPagination } from './pagination';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow, getSortGetters } from './tableColumns';
@@ -840,15 +840,11 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
   const rows = drift
     .map((d) => {
       const driftColor =
-        d.driftPct > 5
+        Math.abs(d.driftPct) > 5
           ? 'var(--neg)'
-          : d.driftPct < -5
-            ? 'var(--neg)'
-            : d.driftPct > 2
-              ? 'var(--warn)'
-              : d.driftPct < -2
-                ? 'var(--warn)'
-                : 'var(--pos)';
+          : Math.abs(d.driftPct) > 2
+            ? 'var(--warn)'
+            : 'var(--pos)';
       const isLegacy = d.targetPct === 0;
       return `
       <div class="tbl-row" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">

@@ -69,6 +69,7 @@ vi.mock('../constants', () => ({
   getISIN_ORDERList: () => ['IE00TEST1'],
   getISIN: () => ({ IE00TEST1: 'IWDA' }),
   getMETAMap: () => ({ IWDA: { color: '#222222', acc: true, active: true } }),
+  FORECAST_RANGE_LABELS: { '60': '5 years', '120': '10 years', '240': '20 years' },
 }));
 
 import { renderDCA } from './contributions';
