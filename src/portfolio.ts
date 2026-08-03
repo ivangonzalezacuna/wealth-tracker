@@ -132,7 +132,6 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
       // TRANSFER moves cash between accounts and does not change total net worth.
       // Portfolio computations (cost basis, P&L, dividends) are unaffected.
       // The transaction is stored for completeness but intentionally skipped here.
-      console.debug('[portfolio] TRANSFER transaction skipped in portfolio computation:', tx.id);
     }
   }
 

@@ -110,6 +110,52 @@ function makePD(overrides: Partial<PortfolioData> = {}): PortfolioData {
   };
 }
 
+function setRebalanceHoldings(): void {
+  MOCK_HOLDINGS.splice(
+    0,
+    MOCK_HOLDINGS.length,
+    {
+      isin: 'IE00TEST1',
+      shortName: 'IWDA',
+      name: 'World',
+      color: '#222222',
+      acc: true,
+      active: true,
+      contribAmount: 70,
+      contribInterval: 'monthly',
+      assetClass: 'equity',
+      region: 'developed',
+      foldInto: '',
+      order: 1,
+    } as any,
+    {
+      isin: 'IE00TEST2',
+      shortName: 'EM',
+      name: 'Emerging',
+      color: '#333333',
+      acc: true,
+      active: true,
+      contribAmount: 30,
+      contribInterval: 'monthly',
+      assetClass: 'equity',
+      region: 'emerging',
+      foldInto: '',
+      order: 2,
+    } as any,
+  );
+}
+
+function makeRebalancePd(overrides: Partial<PortfolioData> = {}): PortfolioData {
+  return makePD({
+    etfs: {
+      IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 8000 }),
+      IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 2000 }),
+    },
+    totalInv: 10000,
+    ...overrides,
+  });
+}
+
 const DOM_FIXTURE = `
   <div id="port-empty"></div>
   <div id="port-content">
@@ -132,6 +178,7 @@ describe('renderPortfolio', () => {
   beforeEach(() => {
     document.body.innerHTML = DOM_FIXTURE;
     chartInstances.length = 0;
+    localStorage.removeItem('drift-rebalance-months');
     MOCK_HOLDINGS.splice(0, MOCK_HOLDINGS.length, {
       isin: 'IE00TEST1',
       shortName: 'IWDA',
@@ -614,5 +661,232 @@ describe('renderPortfolio', () => {
     expect(summary).toContain('Invested capital');
     expect(summary).toContain('Fees');
     expect(summary).toContain('Dividends (gross)');
+  });
+
+  it('rebalance section is hidden when only one active holding', () => {
+    // MOCK_HOLDINGS has a single holding; plan.length < 2 so section should not appear.
+    renderPortfolio(makePD(), []);
+    const drift = document.getElementById('port-drift')!;
+    expect(drift.innerHTML).not.toContain('Contribution rebalance');
+  });
+
+  it('rebalance section appears when there are two or more active holdings', () => {
+    setRebalanceHoldings();
+    const pd = makeRebalancePd();
+    renderPortfolio(pd, []);
+    const drift = document.getElementById('port-drift')!;
+    expect(drift.innerHTML).toContain('Contribution rebalance');
+  });
+
+  it('rebalance picker renders five month-option buttons', () => {
+    setRebalanceHoldings();
+    const pd = makeRebalancePd();
+    renderPortfolio(pd, []);
+    const drift = document.getElementById('port-drift')!;
+    const details = drift.querySelector('.rebalance-collapsible') as HTMLDetailsElement;
+    expect(details).not.toBeNull();
+    expect(details.hasAttribute('open')).toBe(false);
+    const pickerBtns = drift.querySelectorAll('[data-rebalance-months]');
+    expect(pickerBtns.length).toBe(5);
+    expect((pickerBtns[0] as HTMLElement).className).toContain('btn');
+    expect((pickerBtns[0] as HTMLElement).className).toContain('btn-ghost');
+    const labels = Array.from(pickerBtns).map((b) => (b as HTMLElement).textContent?.trim());
+    expect(labels).toContain('1 mo');
+    expect(labels).toContain('1 yr');
+  });
+
+  it('rebalance section opens by default when drift is high', () => {
+    setRebalanceHoldings();
+    const pd = makeRebalancePd({
+      etfs: {
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 9500 }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 500 }),
+      },
+    });
+    renderPortfolio(pd, []);
+    const drift = document.getElementById('port-drift')!;
+    const details = drift.querySelector('.rebalance-collapsible') as HTMLDetailsElement;
+    expect(details).not.toBeNull();
+    expect(details.hasAttribute('open')).toBe(true);
+  });
+
+  it('renders rebalance guidance when all positions are closed but cash is present', () => {
+    setRebalanceHoldings();
+    const pd = makeRebalancePd({
+      etfs: {
+        IE00TEST1: makeEtf({
+          isin: 'IE00TEST1',
+          shortName: 'IWDA',
+          cost: 0,
+          shares: 0,
+          exited: true,
+        }),
+        IE00TEST2: makeEtf({
+          isin: 'IE00TEST2',
+          shortName: 'EM',
+          cost: 0,
+          shares: 0,
+          exited: true,
+        }),
+      },
+      totalInv: 0,
+    });
+    const snap: Snapshot = { date: '2026-06-01', acct1: 5000 };
+    renderPortfolio(pd, [snap]);
+    const drift = document.getElementById('port-drift')!;
+    expect(drift.innerHTML).toContain('Contribution rebalance');
+    expect(drift.textContent).toContain('reduce max drift from');
+  });
+
+  it('rebalance picker click updates selected month and re-renders', () => {
+    setRebalanceHoldings();
+    const pd = makeRebalancePd();
+    localStorage.removeItem('drift-rebalance-months');
+    renderPortfolio(pd, []);
+    const drift = document.getElementById('port-drift')!;
+
+    // Click the "6 mo" button.
+    const btn6 = drift.querySelector('[data-rebalance-months="6"]') as HTMLButtonElement;
+    expect(btn6).not.toBeNull();
+    btn6.click();
+
+    expect(localStorage.getItem('drift-rebalance-months')).toBe('6');
+    // After click the section should still be present (re-rendered).
+    expect(document.getElementById('port-drift')!.innerHTML).toContain('Contribution rebalance');
+  });
+
+  it('rebalance picker keeps section open after user opens it', () => {
+    setRebalanceHoldings();
+    const pd = makeRebalancePd();
+    localStorage.removeItem('drift-rebalance-months');
+    renderPortfolio(pd, []);
+    const drift = document.getElementById('port-drift')!;
+    const details = drift.querySelector('.rebalance-collapsible') as HTMLDetailsElement;
+    expect(details.hasAttribute('open')).toBe(false);
+    const summaryNote = drift.querySelector('.rebalance-summary-note') as HTMLElement;
+    expect(summaryNote.textContent).toContain('Optional when drift is moderate or low');
+    details.open = true;
+
+    const btn6 = drift.querySelector('[data-rebalance-months="6"]') as HTMLButtonElement;
+    expect(btn6).not.toBeNull();
+    btn6.click();
+
+    const nextDetails = document.querySelector(
+      '#port-drift .rebalance-collapsible',
+    ) as HTMLDetailsElement;
+    expect(nextDetails).not.toBeNull();
+    expect(nextDetails.hasAttribute('open')).toBe(true);
+    const nextSummaryNote = document.querySelector(
+      '#port-drift .rebalance-summary-note',
+    ) as HTMLElement;
+    expect(nextSummaryNote.textContent).toContain('Optional when drift is moderate or low');
+  });
+
+  it('rebalance note shows projected drift reduction', () => {
+    setRebalanceHoldings();
+    const pd = makeRebalancePd();
+    renderPortfolio(pd, []);
+    const drift = document.getElementById('port-drift')!;
+    expect(drift.textContent).toContain('reduce max drift from');
+    expect(drift.textContent).toContain('scenario estimate');
+    expect(drift.textContent).toContain('actual results will vary');
+  });
+
+  it('rebalance rows expose explicit state labels and attributes', () => {
+    setRebalanceHoldings();
+    const pd = makeRebalancePd();
+    renderPortfolio(pd, []);
+    const drift = document.getElementById('port-drift')!;
+    const overweightRow = drift.querySelector(
+      '[data-rebalance-state="overweight"]',
+    ) as HTMLElement | null;
+    const underweightRow = drift.querySelector(
+      '[data-rebalance-state="underweight"]',
+    ) as HTMLElement | null;
+    expect(overweightRow).not.toBeNull();
+    expect(underweightRow).not.toBeNull();
+    expect(drift.textContent).toContain('Overweight');
+    expect(drift.textContent).toContain('Underweight');
+  });
+
+  it('sell advisory mentions reviewing tax and fee impact', () => {
+    setRebalanceHoldings();
+    const pd = makeRebalancePd({
+      etfs: {
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 9500 }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 500 }),
+      },
+      totalInv: 10000,
+    });
+    renderPortfolio(pd, []);
+    const drift = document.getElementById('port-drift')!;
+    expect(drift.textContent).toContain('taxes');
+    expect(drift.textContent).toContain('trading fees');
+  });
+
+  it('renders an on-target state when projected gap is neutral', () => {
+    // 3 holdings so one can sit on-target while the others over/underweight drive redistribution.
+    // IWDA: 60% target, 62% actual (+2pp overweight)
+    // EM:   25% target, 25% actual ( 0pp on-target, locked)
+    // Bond: 15% target, 13% actual (-2pp underweight)
+    MOCK_HOLDINGS.splice(
+      0,
+      MOCK_HOLDINGS.length,
+      {
+        isin: 'IE00TEST1',
+        shortName: 'IWDA',
+        name: 'World',
+        color: '#222222',
+        acc: true,
+        active: true,
+        contribAmount: 60,
+        contribInterval: 'monthly',
+        assetClass: 'equity',
+        region: 'developed',
+        foldInto: '',
+        order: 1,
+      } as any,
+      {
+        isin: 'IE00TEST2',
+        shortName: 'EM',
+        name: 'Emerging',
+        color: '#333333',
+        acc: true,
+        active: true,
+        contribAmount: 25,
+        contribInterval: 'monthly',
+        assetClass: 'equity',
+        region: 'emerging',
+        foldInto: '',
+        order: 2,
+      } as any,
+      {
+        isin: 'IE00TEST3',
+        shortName: 'Bond',
+        name: 'Bond',
+        color: '#444444',
+        acc: false,
+        active: true,
+        contribAmount: 15,
+        contribInterval: 'monthly',
+        assetClass: 'fixed income',
+        region: 'global',
+        foldInto: '',
+        order: 3,
+      } as any,
+    );
+    const pd = makePD({
+      etfs: {
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 6200 }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 2500 }),
+        IE00TEST3: makeEtf({ isin: 'IE00TEST3', shortName: 'Bond', cost: 1300 }),
+      },
+      totalInv: 10000,
+    });
+    renderPortfolio(pd, []);
+    const drift = document.getElementById('port-drift')!;
+    const onTarget = drift.querySelector('[data-rebalance-state="on-target"]');
+    expect(onTarget).not.toBeNull();
+    expect(drift.textContent).toContain('On target');
   });
 });
