@@ -325,9 +325,9 @@ describe('computeRebalancePlan', () => {
     const planA = plan.find((e) => e.isin === 'A')!;
     const planB = plan.find((e) => e.isin === 'B')!;
 
-    expect(planA.overweight).toBe(true);
+    expect(planA.state).toBe('overweight');
     expect(planA.suggestedContribAmt).toBe(0);
-    expect(planB.overweight).toBe(false);
+    expect(planB.state).toBe('underweight');
     // B should receive the full monthly total (200)
     expect(planB.suggestedContribAmt).toBeCloseTo(200, 1);
   });
@@ -353,9 +353,9 @@ describe('computeRebalancePlan', () => {
     const planB = plan.find((e) => e.isin === 'B')!;
 
     // B is overweight, A is underweight
-    expect(planB.overweight).toBe(true);
+    expect(planB.state).toBe('overweight');
     expect(planB.suggestedContribAmt).toBe(0);
-    expect(planA.overweight).toBe(false);
+    expect(planA.state).toBe('underweight');
 
     // Suggested amounts: convert back to own cadence
     // A: suggestedContribAmt is in /wk
@@ -383,8 +383,8 @@ describe('computeRebalancePlan', () => {
 
     const planA = plan.find((e) => e.isin === 'A')!;
     const planB = plan.find((e) => e.isin === 'B')!;
-    expect(planA.overweight).toBe(true);
-    expect(planB.overweight).toBe(false);
+    expect(planA.state).toBe('overweight');
+    expect(planB.state).toBe('underweight');
     for (const entry of plan) {
       expect(Math.abs(entry.projectedDriftPct)).toBeCloseTo(0, 1);
     }
@@ -445,11 +445,8 @@ describe('computeRebalancePlan', () => {
     ];
     const plan = computeRebalancePlan(drift, holdings, totalValue, 1);
     expect(plan.find((e) => e.isin === 'A')?.state).toBe('overweight');
-    expect(plan.find((e) => e.isin === 'A')?.overweight).toBe(true);
     expect(plan.find((e) => e.isin === 'B')?.state).toBe('overweight');
-    expect(plan.find((e) => e.isin === 'B')?.overweight).toBe(true);
     expect(plan.find((e) => e.isin === 'C')?.state).toBe('underweight');
-    expect(plan.find((e) => e.isin === 'C')?.overweight).toBe(false);
   });
 
   it('treats tiny contribution deltas as no-op with configurable minimum action', () => {

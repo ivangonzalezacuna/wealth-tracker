@@ -153,10 +153,6 @@ export interface RebalancePlanEntry {
   deltaContribPct: number;
   /** Rebalance state based on current drift (positive driftPct = overweight). */
   state: 'overweight' | 'on-target' | 'underweight';
-  /**
-   * Backward-compatible flag for overweight state.
-   */
-  overweight: boolean;
   /** Estimated drift percentage remaining after following this plan for K months. */
   projectedDriftPct: number;
 }
@@ -220,6 +216,8 @@ export function computeRebalancePlan(
   const projectedStateByIsin = new Map<string, RebalancePlanEntry['state']>();
   let sumRaw = 0;
   const GAP_EPS = 1e-9;
+  /** Drift within this many percentage points of target is classified as "on-target". */
+  const ON_TARGET_DRIFT_EPS = 0.5;
   for (const d of activeDrift) {
     if (!holdingMap.has(d.isin)) continue;
     const targetAmt = projectedTotal * (d.targetPct / 100);
@@ -306,7 +304,7 @@ export function computeRebalancePlan(
     const c = item.monthlySuggested;
     const projectedState = item.projectedState;
     const displayState: RebalancePlanEntry['state'] =
-      d.driftPct > GAP_EPS ? 'overweight' : d.driftPct < -GAP_EPS ? 'underweight' : 'on-target';
+      d.driftPct > ON_TARGET_DRIFT_EPS ? 'overweight' : d.driftPct < -ON_TARGET_DRIFT_EPS ? 'underweight' : 'on-target';
     const suggestedContribAmt = amtFromMonthly(c, h.contribInterval);
 
     const currentContribPct = (m / totalMonthly) * 100;
@@ -331,7 +329,6 @@ export function computeRebalancePlan(
       suggestedContribPct: Math.round(suggestedContribPct * 10) / 10,
       deltaContribPct: Math.round((suggestedContribPct - currentContribPct) * 10) / 10,
       state: displayState,
-      overweight: displayState === 'overweight',
       projectedDriftPct: Math.round(projectedDriftPct * 10) / 10,
     });
   }
