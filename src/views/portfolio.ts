@@ -16,7 +16,7 @@ import { getISIN_ORDERList, getMETAMap } from '../constants';
 import { getAccounts, getHoldings } from '../store/config';
 import { primaryInvestmentValue } from '../model/accounts';
 import { splitHoldings } from '../model/holdings';
-import { computeDrift, maxDrift } from '../model/drift';
+import { computeDrift, maxDrift, computeRebalancePlan } from '../model/drift';
 import { builtInProfiles } from '../import/profiles/index';
 import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 import Chart from 'chart.js/auto';
@@ -770,9 +770,25 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
 
 // ── Drift / rebalance card ──
 
+/** Cadence suffix labels for the rebalance table (e.g. "/wk"). */
+const REBALANCE_INTERVAL_SUFFIX: Record<string, string> = {
+  weekly: '/wk',
+  biweekly: '/2wk',
+  monthly: '/mo',
+  quarterly: '/qtr',
+};
+
+/** Stored callback so the picker can re-render the drift card after a month selection. */
+let _redrawDrift: (() => void) | null = null;
+
+const REBALANCE_MONTH_OPTIONS = [1, 2, 3, 6, 12];
+
 function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
   const driftEl = document.getElementById('port-drift');
   if (!driftEl) return;
+
+  // Store a redraw callback so the month picker can trigger a re-render.
+  _redrawDrift = () => _renderDriftCard(pd, snaps);
 
   const holdings = getHoldings();
 
@@ -837,6 +853,81 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
     ? `<div class="status-bar status-warn" style="margin-bottom:.6rem">Allocation is based on purchase cost, not current market value. Enter ETF values in your next snapshot for market-based drift.</div>`
     : '';
 
+  // ── Contribution rebalance plan ──────────────────────────────────────────
+  const selectedMonths = Math.max(
+    1,
+    parseInt(localStorage.getItem('drift-rebalance-months') || '3', 10) || 3,
+  );
+
+  const plan = computeRebalancePlan(drift, holdings, totalValue, selectedMonths);
+
+  // Check whether any holding remains overweight even at a 12-month horizon.
+  const plan12 = computeRebalancePlan(drift, holdings, totalValue, 12);
+  const needsSell = plan12.some((e) => e.overweight);
+
+  let rebalanceSection = '';
+  if (plan.length >= 2) {
+    const pickerBtns = REBALANCE_MONTH_OPTIONS.map((m) => {
+      const active = m === selectedMonths;
+      const label = m === 12 ? '1 yr' : `${m} mo`;
+      return `<button data-rebalance-months="${m}" style="padding:2px 10px;border-radius:var(--radius-xs);border:1px solid var(--border);background:${active ? 'var(--accent)' : 'var(--bg-2)'};color:${active ? '#fff' : 'var(--ink)'};cursor:pointer;font-size:12px;font-weight:${active ? '600' : '400'}">${label}</button>`;
+    }).join('');
+
+    const projectedMax =
+      Math.round(Math.max(...plan.map((e) => Math.abs(e.projectedDriftPct))) * 10) / 10;
+    const periodLabel = selectedMonths === 1 ? '1 month' : `${selectedMonths} months`;
+
+    const rebalanceRows = plan
+      .map((e) => {
+        const suffix = esc(REBALANCE_INTERVAL_SUFFIX[e.contribInterval] ?? '');
+        const delta = e.suggestedContribAmt - e.currentContribAmt;
+        let changeCell: string;
+        if (e.overweight) {
+          changeCell = `<span style="color:var(--warn)">${fmtEurSigned(delta, 2)}${suffix}</span>`;
+        } else if (Math.abs(delta) < 0.005) {
+          changeCell = `<span style="color:var(--ink-3)">no change</span>`;
+        } else {
+          const changeColor = delta > 0 ? 'var(--pos)' : 'var(--warn)';
+          changeCell = `<span style="color:${changeColor}">${fmtEurSigned(delta, 2)}${suffix}</span>`;
+        }
+        const suggestedCell = e.overweight
+          ? `<span style="color:var(--warn)">hold</span>`
+          : `${fmtEur2(e.suggestedContribAmt)}<span style="color:var(--ink-3);font-size:11px">${suffix}</span>`;
+        return `
+        <div class="tbl-row" role="row" style="grid-template-columns:1.5fr 1fr 1.1fr 1fr">
+          <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:var(--radius-xs);background:${safeColor(e.color)};margin-right:6px"></span>${esc(e.shortName)}</div>
+          <div role="cell" style="text-align:right">${fmtEur2(e.currentContribAmt)}<span style="color:var(--ink-3);font-size:11px">${suffix}</span></div>
+          <div role="cell" style="text-align:right">${suggestedCell}</div>
+          <div role="cell" style="text-align:right">${changeCell}</div>
+        </div>`;
+      })
+      .join('');
+
+    const sellWarning = needsSell
+      ? `<div class="status-bar status-warn" style="margin-top:.5rem">Some holdings remain overweight beyond a 12-month horizon. Consider a partial sell order to speed up rebalancing.</div>`
+      : '';
+
+    rebalanceSection = `
+      <div style="margin-top:1.25rem;border-top:1px solid var(--border);padding-top:1rem">
+        <div style="font-size:14px;font-weight:600;margin-bottom:.6rem">Contribution rebalance</div>
+        <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.75rem">
+          <span style="font-size:12px;color:var(--ink-2)">Rebalance over:</span>
+          ${pickerBtns}
+        </div>
+        <div class="tbl" role="table" aria-label="Contribution rebalance plan">
+          <div class="tbl-row th" role="row" style="grid-template-columns:1.5fr 1fr 1.1fr 1fr">
+            <div role="columnheader">ETF</div>
+            <div role="columnheader" style="text-align:right">Current</div>
+            <div role="columnheader" style="text-align:right">Suggested</div>
+            <div role="columnheader" style="text-align:right">Change</div>
+          </div>
+          ${rebalanceRows}
+        </div>
+        <p class="note" style="margin-top:.5rem">Routing the suggested amounts for ${periodLabel} will reduce max drift from ${fmtPctVal(max)} to ${fmtPctVal(projectedMax)}. Buy-only: no selling required. Market movements are not factored in.</p>
+        ${sellWarning}
+      </div>`;
+  }
+
   driftEl.innerHTML = `
     <div class="card">
       <div class="card-title drift-title">Allocation drift <span class="drift-title-status" style="color:${statusColor}">${statusLabel} (max ${fmtPctVal(max)})</span></div>
@@ -848,7 +939,17 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
         ${rows}
       </div>
       <p class="note" style="margin-top:.5rem">Target from contribution weights. ${noteSource} Delta = amount to sell/buy to reach target.</p>
+      ${rebalanceSection}
     </div>`;
+
+  // Attach picker click handlers.
+  driftEl.querySelectorAll('[data-rebalance-months]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const m = parseInt((btn as HTMLElement).dataset.rebalanceMonths || '3', 10);
+      localStorage.setItem('drift-rebalance-months', String(m));
+      _redrawDrift?.();
+    });
+  });
 
   attachEtfPopovers(driftEl);
 }

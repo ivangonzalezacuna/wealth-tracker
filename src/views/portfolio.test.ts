@@ -615,4 +615,205 @@ describe('renderPortfolio', () => {
     expect(summary).toContain('Fees');
     expect(summary).toContain('Dividends (gross)');
   });
+
+  it('rebalance section is hidden when only one active holding', () => {
+    // MOCK_HOLDINGS has a single holding; plan.length < 2 so section should not appear.
+    renderPortfolio(makePD(), []);
+    const drift = document.getElementById('port-drift')!;
+    expect(drift.innerHTML).not.toContain('Contribution rebalance');
+  });
+
+  it('rebalance section appears when there are two or more active holdings', () => {
+    MOCK_HOLDINGS.splice(
+      0,
+      MOCK_HOLDINGS.length,
+      {
+        isin: 'IE00TEST1',
+        shortName: 'IWDA',
+        name: 'World',
+        color: '#222222',
+        acc: true,
+        active: true,
+        contribAmount: 70,
+        contribInterval: 'monthly',
+        assetClass: 'equity',
+        region: 'developed',
+        foldInto: '',
+        order: 1,
+      } as any,
+      {
+        isin: 'IE00TEST2',
+        shortName: 'EM',
+        name: 'Emerging',
+        color: '#333333',
+        acc: true,
+        active: true,
+        contribAmount: 30,
+        contribInterval: 'monthly',
+        assetClass: 'equity',
+        region: 'emerging',
+        foldInto: '',
+        order: 2,
+      } as any,
+    );
+    const pd = makePD({
+      etfs: {
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 8000 }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 2000 }),
+      },
+      totalInv: 10000,
+    });
+    renderPortfolio(pd, []);
+    const drift = document.getElementById('port-drift')!;
+    expect(drift.innerHTML).toContain('Contribution rebalance');
+  });
+
+  it('rebalance picker renders five month-option buttons', () => {
+    MOCK_HOLDINGS.splice(
+      0,
+      MOCK_HOLDINGS.length,
+      {
+        isin: 'IE00TEST1',
+        shortName: 'IWDA',
+        name: 'World',
+        color: '#222222',
+        acc: true,
+        active: true,
+        contribAmount: 70,
+        contribInterval: 'monthly',
+        assetClass: 'equity',
+        region: 'developed',
+        foldInto: '',
+        order: 1,
+      } as any,
+      {
+        isin: 'IE00TEST2',
+        shortName: 'EM',
+        name: 'Emerging',
+        color: '#333333',
+        acc: true,
+        active: true,
+        contribAmount: 30,
+        contribInterval: 'monthly',
+        assetClass: 'equity',
+        region: 'emerging',
+        foldInto: '',
+        order: 2,
+      } as any,
+    );
+    const pd = makePD({
+      etfs: {
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 8000 }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 2000 }),
+      },
+      totalInv: 10000,
+    });
+    renderPortfolio(pd, []);
+    const drift = document.getElementById('port-drift')!;
+    const pickerBtns = drift.querySelectorAll('[data-rebalance-months]');
+    expect(pickerBtns.length).toBe(5);
+    const labels = Array.from(pickerBtns).map((b) => (b as HTMLElement).textContent?.trim());
+    expect(labels).toContain('1 mo');
+    expect(labels).toContain('1 yr');
+  });
+
+  it('rebalance picker click updates selected month and re-renders', () => {
+    MOCK_HOLDINGS.splice(
+      0,
+      MOCK_HOLDINGS.length,
+      {
+        isin: 'IE00TEST1',
+        shortName: 'IWDA',
+        name: 'World',
+        color: '#222222',
+        acc: true,
+        active: true,
+        contribAmount: 70,
+        contribInterval: 'monthly',
+        assetClass: 'equity',
+        region: 'developed',
+        foldInto: '',
+        order: 1,
+      } as any,
+      {
+        isin: 'IE00TEST2',
+        shortName: 'EM',
+        name: 'Emerging',
+        color: '#333333',
+        acc: true,
+        active: true,
+        contribAmount: 30,
+        contribInterval: 'monthly',
+        assetClass: 'equity',
+        region: 'emerging',
+        foldInto: '',
+        order: 2,
+      } as any,
+    );
+    const pd = makePD({
+      etfs: {
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 8000 }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 2000 }),
+      },
+      totalInv: 10000,
+    });
+    localStorage.removeItem('drift-rebalance-months');
+    renderPortfolio(pd, []);
+    const drift = document.getElementById('port-drift')!;
+
+    // Click the "6 mo" button.
+    const btn6 = drift.querySelector('[data-rebalance-months="6"]') as HTMLButtonElement;
+    expect(btn6).not.toBeNull();
+    btn6.click();
+
+    expect(localStorage.getItem('drift-rebalance-months')).toBe('6');
+    // After click the section should still be present (re-rendered).
+    expect(document.getElementById('port-drift')!.innerHTML).toContain('Contribution rebalance');
+  });
+
+  it('rebalance note shows projected drift reduction', () => {
+    MOCK_HOLDINGS.splice(
+      0,
+      MOCK_HOLDINGS.length,
+      {
+        isin: 'IE00TEST1',
+        shortName: 'IWDA',
+        name: 'World',
+        color: '#222222',
+        acc: true,
+        active: true,
+        contribAmount: 70,
+        contribInterval: 'monthly',
+        assetClass: 'equity',
+        region: 'developed',
+        foldInto: '',
+        order: 1,
+      } as any,
+      {
+        isin: 'IE00TEST2',
+        shortName: 'EM',
+        name: 'Emerging',
+        color: '#333333',
+        acc: true,
+        active: true,
+        contribAmount: 30,
+        contribInterval: 'monthly',
+        assetClass: 'equity',
+        region: 'emerging',
+        foldInto: '',
+        order: 2,
+      } as any,
+    );
+    const pd = makePD({
+      etfs: {
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 8000 }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 2000 }),
+      },
+      totalInv: 10000,
+    });
+    renderPortfolio(pd, []);
+    const drift = document.getElementById('port-drift')!;
+    expect(drift.textContent).toContain('reduce max drift from');
+    expect(drift.textContent).toContain('Buy-only: no selling required');
+  });
 });

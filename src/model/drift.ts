@@ -1,8 +1,8 @@
 /**
  * Drift helpers - compare actual allocation vs target and produce rebalance signals.
  */
-import type { Holding, EtfPosition } from '../types';
-import { annualizeContrib } from './contributions';
+import type { Holding, EtfPosition, ContribInterval } from '../types';
+import { annualizeContrib, INTERVAL_PER_YEAR } from './contributions';
 
 export interface DriftEntry {
   isin: string;
@@ -131,4 +131,141 @@ export function computeDrift(
 export function maxDrift(entries: DriftEntry[]): number {
   if (entries.length === 0) return 0;
   return Math.max(...entries.map((e) => Math.abs(e.driftPct)));
+}
+
+// ── Contribution rebalance plan ──────────────────────────────────────────────
+
+export interface RebalancePlanEntry {
+  isin: string;
+  shortName: string;
+  color: string;
+  /** Contribution cadence for this holding (from its Holding settings). */
+  contribInterval: ContribInterval;
+  /** Original contribution amount per execution, in the holding's own cadence. */
+  currentContribAmt: number;
+  /** Current share of total monthly contributions (0-100). */
+  currentContribPct: number;
+  /** Suggested contribution amount per execution, in the holding's own cadence. */
+  suggestedContribAmt: number;
+  /** Suggested share of total monthly contributions (0-100). */
+  suggestedContribPct: number;
+  /** Difference in monthly share: suggested minus current (percentage points). */
+  deltaContribPct: number;
+  /**
+   * True when this holding is above its K-month projected target and
+   * temporarily receives zero contribution so underweight holdings can catch up.
+   */
+  overweight: boolean;
+  /** Estimated drift percentage remaining after following this plan for K months. */
+  projectedDriftPct: number;
+}
+
+/**
+ * Compute a buy-only contribution rebalance plan that drives allocations back
+ * to target over the given number of months.
+ *
+ * Contributions are redirected: underweight holdings receive a larger share
+ * while overweight holdings temporarily receive zero. Total monthly contribution
+ * is preserved exactly. Mixed cadences (weekly, biweekly, monthly, quarterly)
+ * are normalised to a monthly basis, then the suggested monthly amount is
+ * converted back to each holding's own cadence for actionable output.
+ *
+ * @param driftEntries - output of computeDrift; only entries with targetPct > 0 are used
+ * @param holdings     - holding configuration (contribAmount + contribInterval per ISIN)
+ * @param totalValue   - current total portfolio value
+ * @param months       - rebalance horizon in months (e.g. 1, 2, 3, 6, 12)
+ */
+export function computeRebalancePlan(
+  driftEntries: DriftEntry[],
+  holdings: Holding[],
+  totalValue: number,
+  months: number,
+): RebalancePlanEntry[] {
+  if (months <= 0 || totalValue <= 0) return [];
+
+  // Only active holdings that have a configured target allocation.
+  const activeDrift = driftEntries.filter((d) => d.targetPct > 0);
+  if (activeDrift.length === 0) return [];
+
+  const holdingMap = new Map(holdings.map((h) => [h.isin, h]));
+
+  // Compute monthly contribution per holding and the portfolio-wide total.
+  const monthlyByIsin = new Map<string, number>();
+  let totalMonthly = 0;
+  for (const d of activeDrift) {
+    const h = holdingMap.get(d.isin);
+    if (!h) continue;
+    const m = annualizeContrib(h.contribAmount, h.contribInterval) / 12;
+    monthlyByIsin.set(d.isin, m);
+    totalMonthly += m;
+  }
+  if (totalMonthly <= 0) return [];
+
+  // Projected portfolio value after K months (no market-growth assumption -- conservative).
+  const projectedTotal = totalValue + months * totalMonthly;
+
+  // Raw monthly requirement per holding: gap to projected target divided by K.
+  // Negative gaps (overweight holdings) are clamped to 0 (buy-only, no selling).
+  const rawByIsin = new Map<string, number>();
+  let sumRaw = 0;
+  for (const d of activeDrift) {
+    if (!holdingMap.has(d.isin)) continue;
+    const targetAmt = projectedTotal * (d.targetPct / 100);
+    const gap = targetAmt - d.actualValue;
+    const raw = Math.max(0, gap) / months;
+    rawByIsin.set(d.isin, raw);
+    sumRaw += raw;
+  }
+  if (sumRaw <= 0) return [];
+
+  const result: RebalancePlanEntry[] = [];
+
+  for (const d of activeDrift) {
+    const h = holdingMap.get(d.isin);
+    if (!h) continue;
+
+    const m = monthlyByIsin.get(d.isin) ?? 0;
+    const raw = rawByIsin.get(d.isin) ?? 0;
+    const targetAmt = projectedTotal * (d.targetPct / 100);
+
+    // Normalise so total suggested monthly contributions equal total current monthly.
+    // sumRaw > 0 is guaranteed for valid portfolio data.
+    const c = totalMonthly * (raw / sumRaw);
+
+    // Convert the monthly suggestion back to the holding's own cadence.
+    const suggestedContribAmt = (c * 12) / INTERVAL_PER_YEAR[h.contribInterval];
+
+    const currentContribPct = (m / totalMonthly) * 100;
+    const suggestedContribPct = (c / totalMonthly) * 100;
+
+    // Estimate value after K months with this plan (derivation: K contributions of c/mo).
+    const kContrib = raw > 0 ? (totalMonthly * (targetAmt - d.actualValue)) / sumRaw : 0;
+    const newValue = d.actualValue + kContrib;
+    const newActualPct = (newValue / projectedTotal) * 100;
+    const projectedDriftPct = newActualPct - d.targetPct;
+
+    result.push({
+      isin: d.isin,
+      shortName: d.shortName,
+      color: d.color,
+      contribInterval: h.contribInterval,
+      currentContribAmt: h.contribAmount,
+      currentContribPct: Math.round(currentContribPct * 10) / 10,
+      suggestedContribAmt: Math.round(suggestedContribAmt * 100) / 100,
+      suggestedContribPct: Math.round(suggestedContribPct * 10) / 10,
+      deltaContribPct: Math.round((suggestedContribPct - currentContribPct) * 10) / 10,
+      overweight: raw === 0,
+      projectedDriftPct: Math.round(projectedDriftPct * 10) / 10,
+    });
+  }
+
+  // Mirror the drift table sort: targetPct descending, shortName ascending as tiebreaker.
+  result.sort((a, b) => {
+    const da = driftEntries.find((d) => d.isin === a.isin);
+    const db = driftEntries.find((d) => d.isin === b.isin);
+    if (da && db && da.targetPct !== db.targetPct) return db.targetPct - da.targetPct;
+    return a.shortName.localeCompare(b.shortName);
+  });
+
+  return result;
 }
