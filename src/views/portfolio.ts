@@ -874,8 +874,10 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
       return `<button class="btn btn-sm btn-ghost ${active ? 'active' : ''}" data-rebalance-months="${m}" aria-pressed="${active ? 'true' : 'false'}">${label}</button>`;
     }).join('');
 
-    const projectedMax =
+    const projectedActiveMax =
       Math.round(Math.max(...plan.map((e) => Math.abs(e.projectedDriftPct))) * 10) / 10;
+    const legacyMax = maxDrift(drift.filter((d) => d.targetPct === 0));
+    const projectedMax = Math.max(projectedActiveMax, legacyMax);
     const periodLabel = selectedMonths === 1 ? '1 month' : `${selectedMonths} months`;
 
     const rebalanceRows = plan
