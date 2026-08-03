@@ -1,7 +1,7 @@
 import type { EtfPosition, Holding } from '../types';
 
 /** Floating-point tolerance for treating shares as zero (-> exited). */
-const ZERO_THRESHOLD = 1e-6;
+export const ZERO_THRESHOLD = 1e-6;
 
 interface HoldingLike {
   shares: number;

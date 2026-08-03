@@ -59,23 +59,15 @@ export function validateAccountRanges(accounts: Account[]): string | null {
   return null;
 }
 
-/** Current market value of the primary investment account(s) from a snapshot. */
-export function primaryInvestmentValue(snap: Snapshot | null, accounts: Account[]): number | null {
-  if (!snap) return null;
-  const primary = accounts.filter((a) => a.isPrimaryInvestment);
-  if (!primary.length) return null;
-
-  // Reloaded snapshots are keyed by the lowercased sheet header
-  // (parseSnapshotRows). Build a case-insensitive numeric view so id
-  // casing never silently breaks the lookup.
+/** Returns the sum of snapshot values for accounts matching the given list (case-insensitive key lookup). */
+function sumSnapshotValues(snap: Snapshot, accounts: Account[]): number | null {
   const byLowerKey: Record<string, number> = {};
   for (const [k, v] of Object.entries(snap)) {
     if (typeof v === 'number') byLowerKey[k.toLowerCase()] = v;
   }
-
   let found = false;
   let sum = 0;
-  for (const a of primary) {
+  for (const a of accounts) {
     const key = (a.id || '').toLowerCase();
     if (key in byLowerKey) {
       found = true;
@@ -83,6 +75,14 @@ export function primaryInvestmentValue(snap: Snapshot | null, accounts: Account[
     }
   }
   return found ? sum : null;
+}
+
+/** Current market value of the primary investment account(s) from a snapshot. */
+export function primaryInvestmentValue(snap: Snapshot | null, accounts: Account[]): number | null {
+  if (!snap) return null;
+  const primary = accounts.filter((a) => a.isPrimaryInvestment);
+  if (!primary.length) return null;
+  return sumSnapshotValues(snap, primary);
 }
 
 /**
@@ -99,20 +99,5 @@ export function allInvestmentAccountsValue(
   if (!snap) return null;
   const investment = accounts.filter((a) => (a.moneyType || '').toLowerCase() === 'investment');
   if (!investment.length) return null;
-
-  const byLowerKey: Record<string, number> = {};
-  for (const [k, v] of Object.entries(snap)) {
-    if (typeof v === 'number') byLowerKey[k.toLowerCase()] = v;
-  }
-
-  let found = false;
-  let sum = 0;
-  for (const a of investment) {
-    const key = (a.id || '').toLowerCase();
-    if (key in byLowerKey) {
-      found = true;
-      sum += byLowerKey[key];
-    }
-  }
-  return found ? sum : null;
+  return sumSnapshotValues(snap, investment);
 }

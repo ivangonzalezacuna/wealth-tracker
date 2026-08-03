@@ -1,5 +1,5 @@
 import { fmtEur, fmtMon, esc, safeColor, kpiTile } from '../utils';
-import { getISIN_ORDERList, getISIN, getMETAMap } from '../constants';
+import { getISIN_ORDERList, getISIN, getMETAMap, FORECAST_RANGE_LABELS } from '../constants';
 import { getTotalAnnualContrib, getAccounts, getHoldings } from '../store/config';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import type { PortfolioData, Snapshot, Account } from '../types';
@@ -73,12 +73,6 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
 }
 
 // ── Forecast helpers ──────────────────────────────────────
-
-const DCA_FC_LABELS: Record<string, string> = {
-  '60': '5 years',
-  '120': '10 years',
-  '240': '20 years',
-};
 
 function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
   const projCard = document.getElementById('dca-proj-card');
@@ -181,7 +175,7 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
 
   projCard.innerHTML = `
     <div class="card">
-      <div class="card-title">Cumulative contributions: ${DCA_FC_LABELS[_dcaFcRange]}</div>
+      <div class="card-title">Cumulative contributions: ${FORECAST_RANGE_LABELS[_dcaFcRange]}</div>
       <div class="chart-controls">
         <div id="dca-forecast-legend" class="legend"></div>
         <div class="range-toggle" id="dca-forecast-range-toggle">

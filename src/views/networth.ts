@@ -11,7 +11,7 @@ import {
   safeColor,
   kpiTile,
 } from '../utils';
-import { getACCTSList } from '../constants';
+import { getACCTSList, FORECAST_RANGE_LABELS } from '../constants';
 import {
   getAccounts,
   getTotalAnnualContrib,
@@ -664,8 +664,6 @@ function _attachForecastRangeToggle(snaps: Snapshot[], accounts: Account[]): voi
 
 // ── Forecast chart ──
 
-const FC_LABELS: Record<string, string> = { '60': '5 years', '120': '10 years', '240': '20 years' };
-
 function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   const C = resolvedT();
   const forecastEl = document.getElementById('nw-forecast');
@@ -763,7 +761,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
 
   forecastEl.innerHTML = `
     <div class="card">
-      <div class="card-title">Forecast: ${FC_LABELS[_fcRange]} (per-account return assumptions)</div>
+      <div class="card-title">Forecast: ${FORECAST_RANGE_LABELS[_fcRange]} (per-account return assumptions)</div>
       <div class="chart-controls">
         <div id="nw-forecast-legend" class="legend"></div>
         <div class="range-toggle" id="nw-forecast-range-toggle">

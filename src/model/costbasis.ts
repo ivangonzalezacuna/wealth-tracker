@@ -1,8 +1,6 @@
 import { TxType } from './tx';
 import type { Transaction, CostBasisResult } from '../types';
-
-/** Floating-point tolerance for treating shares as zero (-> exited). */
-const ZERO_THRESHOLD = 1e-6;
+import { ZERO_THRESHOLD } from './holdings';
 
 /**
  * Average-cost basis engine.
