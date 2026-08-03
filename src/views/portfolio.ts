@@ -779,16 +779,16 @@ const REBALANCE_INTERVAL_SUFFIX: Record<string, string> = {
 };
 
 /** Stored callback so the picker can re-render the drift card after a month selection. */
-let _redrawDrift: (() => void) | null = null;
+let _redrawDrift: ((keepRebalanceOpen?: boolean) => void) | null = null;
 
 const REBALANCE_MONTH_OPTIONS = [1, 2, 3, 6, 12];
 
-function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
+function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpen = false): void {
   const driftEl = document.getElementById('port-drift');
   if (!driftEl) return;
 
   // Store a redraw callback so the month picker can trigger a re-render.
-  _redrawDrift = () => _renderDriftCard(pd, snaps);
+  _redrawDrift = (keepOpen = false) => _renderDriftCard(pd, snaps, keepOpen);
 
   const holdings = getHoldings();
 
@@ -867,7 +867,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
 
   let rebalanceSection = '';
   if (plan.length >= 2) {
-    const shouldOpenRebalance = max > 10;
+    const shouldOpenRebalance = keepRebalanceOpen || max > 10;
     const pickerBtns = REBALANCE_MONTH_OPTIONS.map((m) => {
       const active = m === selectedMonths;
       const label = m === 12 ? '1 yr' : `${m} mo`;
@@ -953,9 +953,11 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
   // Attach picker click handlers.
   driftEl.querySelectorAll('[data-rebalance-months]').forEach((btn) => {
     btn.addEventListener('click', () => {
+      const details = (btn as HTMLElement).closest('.rebalance-collapsible') as HTMLDetailsElement | null;
+      const keepOpen = details?.open ?? false;
       const m = parseInt((btn as HTMLElement).dataset.rebalanceMonths || '3', 10);
       localStorage.setItem('drift-rebalance-months', String(m));
-      _redrawDrift?.();
+      _redrawDrift?.(keepOpen);
     });
   });
 
