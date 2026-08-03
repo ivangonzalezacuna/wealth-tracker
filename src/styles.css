@@ -1241,6 +1241,51 @@ code,
   color: var(--brand);
   border-color: var(--brand-border);
 }
+.rebalance-collapsible {
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.9rem;
+}
+.rebalance-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 14px;
+  font-weight: 600;
+}
+.rebalance-summary::-webkit-details-marker {
+  display: none;
+}
+.rebalance-summary::after {
+  content: '▾';
+  color: var(--ink-3);
+  font-size: 11px;
+}
+.rebalance-collapsible:not([open]) .rebalance-summary::after {
+  content: '▸';
+}
+.rebalance-summary-note {
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 500;
+}
+.rebalance-body {
+  margin-top: 0.7rem;
+}
+.rebalance-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+.rebalance-picker-label {
+  color: var(--ink-2);
+  font-size: 12px;
+}
 
 /* ── Mobile responsive ──────────────────────────────────── */
 @media (max-width: 768px) {

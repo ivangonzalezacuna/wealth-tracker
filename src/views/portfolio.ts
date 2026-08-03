@@ -867,10 +867,11 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
 
   let rebalanceSection = '';
   if (plan.length >= 2) {
+    const shouldOpenRebalance = max > 10;
     const pickerBtns = REBALANCE_MONTH_OPTIONS.map((m) => {
       const active = m === selectedMonths;
       const label = m === 12 ? '1 yr' : `${m} mo`;
-      return `<button data-rebalance-months="${m}" style="padding:2px 10px;border-radius:var(--radius-xs);border:1px solid var(--border);background:${active ? 'var(--accent)' : 'var(--bg-2)'};color:${active ? '#fff' : 'var(--ink)'};cursor:pointer;font-size:12px;font-weight:${active ? '600' : '400'}">${label}</button>`;
+      return `<button class="btn btn-sm btn-ghost ${active ? 'active' : ''}" data-rebalance-months="${m}" aria-pressed="${active ? 'true' : 'false'}">${label}</button>`;
     }).join('');
 
     const projectedMax =
@@ -908,24 +909,31 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[]): void {
       : '';
 
     rebalanceSection = `
-      <div style="margin-top:1.25rem;border-top:1px solid var(--border);padding-top:1rem">
-        <div style="font-size:14px;font-weight:600;margin-bottom:.6rem">Contribution rebalance</div>
-        <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.75rem">
-          <span style="font-size:12px;color:var(--ink-2)">Rebalance over:</span>
-          ${pickerBtns}
-        </div>
-        <div class="tbl" role="table" aria-label="Contribution rebalance plan">
-          <div class="tbl-row th" role="row" style="grid-template-columns:1.5fr 1fr 1.1fr 1fr">
-            <div role="columnheader">ETF</div>
-            <div role="columnheader" style="text-align:right">Current</div>
-            <div role="columnheader" style="text-align:right">Suggested</div>
-            <div role="columnheader" style="text-align:right">Change</div>
+      <details class="rebalance-collapsible" ${shouldOpenRebalance ? 'open' : ''}>
+        <summary class="rebalance-summary">
+          Contribution rebalance
+          <span class="rebalance-summary-note">${shouldOpenRebalance ? 'Recommended now' : 'Optional when drift is moderate or low'}</span>
+        </summary>
+        <div class="rebalance-body">
+          <div class="rebalance-picker-row">
+            <span class="rebalance-picker-label">Timeline, click to change:</span>
+            <div class="range-toggle rebalance-range-toggle" role="group" aria-label="Rebalance timeline">
+              ${pickerBtns}
+            </div>
           </div>
-          ${rebalanceRows}
+          <div class="tbl" role="table" aria-label="Contribution rebalance plan">
+            <div class="tbl-row th" role="row" style="grid-template-columns:1.5fr 1fr 1.1fr 1fr">
+              <div role="columnheader">ETF</div>
+              <div role="columnheader" style="text-align:right">Current</div>
+              <div role="columnheader" style="text-align:right">Suggested</div>
+              <div role="columnheader" style="text-align:right">Change</div>
+            </div>
+            ${rebalanceRows}
+          </div>
+          <p class="note" style="margin-top:.5rem">Routing the suggested amounts for ${periodLabel} will reduce max drift from ${fmtPctVal(max)} to ${fmtPctVal(projectedMax)}. Buy-only: no selling required. Market movements are not factored in.</p>
+          ${sellWarning}
         </div>
-        <p class="note" style="margin-top:.5rem">Routing the suggested amounts for ${periodLabel} will reduce max drift from ${fmtPctVal(max)} to ${fmtPctVal(projectedMax)}. Buy-only: no selling required. Market movements are not factored in.</p>
-        ${sellWarning}
-      </div>`;
+      </details>`;
   }
 
   driftEl.innerHTML = `
