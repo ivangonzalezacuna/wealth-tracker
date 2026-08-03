@@ -874,7 +874,9 @@ describe('renderPortfolio', () => {
     expect(btn6).not.toBeNull();
     btn6.click();
 
-    const nextDetails = document.querySelector('#port-drift .rebalance-collapsible') as HTMLDetailsElement;
+    const nextDetails = document.querySelector(
+      '#port-drift .rebalance-collapsible',
+    ) as HTMLDetailsElement;
     expect(nextDetails).not.toBeNull();
     expect(nextDetails.hasAttribute('open')).toBe(true);
   });

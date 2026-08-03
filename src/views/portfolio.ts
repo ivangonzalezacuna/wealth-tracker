@@ -953,7 +953,9 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
   // Attach picker click handlers.
   driftEl.querySelectorAll('[data-rebalance-months]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const details = (btn as HTMLElement).closest('.rebalance-collapsible') as HTMLDetailsElement | null;
+      const details = (btn as HTMLElement).closest(
+        '.rebalance-collapsible',
+      ) as HTMLDetailsElement | null;
       const keepOpen = details?.open ?? false;
       const m = parseInt((btn as HTMLElement).dataset.rebalanceMonths || '3', 10);
       localStorage.setItem('drift-rebalance-months', String(m));
