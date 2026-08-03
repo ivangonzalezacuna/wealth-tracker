@@ -440,7 +440,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
       </div>${rows}
       <div class="tbl-row hold-total" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
         <div style="font-weight:500">Total</div>
-        <div style="font-weight:500;text-align:right"><div class="hold-value-line"><span>${fmtEur(pd.totalInv)}</span><span class="hold-inline-meta">100.0%</span></div></div>
+        <div style="font-weight:500;text-align:right"><div class="hold-value-line"><span>${fmtEur(pd.totalInv)}</span><span class="hold-inline-meta">100%</span></div></div>
         <div></div><div></div>
         <div style="text-align:right;color:${pd.realizedPnL >= 0 ? 'var(--pos)' : 'var(--neg)'};font-weight:500">${pd.realizedPnL === 0 ? '-' : fmtEurNeg(pd.realizedPnL, 2)}</div>
         <div style="text-align:right;color:var(--pos);font-weight:500">${fmtEur2(pd.totalDivNet)}</div>

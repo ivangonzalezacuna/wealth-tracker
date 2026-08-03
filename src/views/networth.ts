@@ -7,6 +7,7 @@ import {
   fmtPctNeg,
   fmtEurSigned,
   fmtPctSigned,
+  fmtPctVal,
   esc,
   safeColor,
   kpiTile,
@@ -153,7 +154,7 @@ export function renderNW(
       <div class="kpi">
         <div class="kpi-label">${esc(a.label)}</div>
         <div class="kpi-val">${fmtEur2((s[a.key] as number) || 0)}</div>
-        <div class="kpi-sub">${total > 0 ? Math.round((((s[a.key] as number) || 0) / total) * 100) : 0}% of total</div>
+        <div class="kpi-sub">${fmtPctVal(total > 0 ? (((s[a.key] as number) || 0) / total) * 100 : 0)} of total</div>
       </div>`,
       )
       .join('')}
@@ -175,12 +176,12 @@ export function renderNW(
         ? firstUnlock === lastUnlock
           ? `unlocks ${firstUnlock}`
           : `unlocks ${firstUnlock}-${lastUnlock}`
-        : `${total > 0 ? Math.round((locked / total) * 100) : 0}% of total`;
+        : `${fmtPctVal(total > 0 ? (locked / total) * 100 : 0)} of total`;
       return `
       <div class="kpi">
         <div class="kpi-label">Liquid${infoTip('Net worth accessible now, excluding pension and retirement accounts marked as locked.')}</div>
         <div class="kpi-val">${fmtEur2(liquid)}</div>
-        <div class="kpi-sub">${total > 0 ? Math.round((liquid / total) * 100) : 0}% of total</div>
+        <div class="kpi-sub">${fmtPctVal(total > 0 ? (liquid / total) * 100 : 0)} of total</div>
       </div>
       <div class="kpi">
         <div class="kpi-label">Locked${infoTip('Funds in pension/retirement accounts not accessible until retirement age.')}</div>
@@ -367,7 +368,7 @@ export function renderNW(
           <div class="row"><div class="row-label">Remaining</div><div class="row-val">${fmtEur(remaining)}</div></div>
           <div style="margin:.75rem 0">
             <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-              <span>${pctComplete}% complete</span>
+              <span>${fmtPctVal(Math.min(100, (total / target) * 100))} complete</span>
               <span>${fmtEur(total)} / ${fmtEur(target)}</span>
             </div>
             <div style="height:8px;background:var(--surface-3);border-radius:var(--radius-xs);overflow:hidden">
