@@ -868,6 +868,8 @@ describe('renderPortfolio', () => {
     const drift = document.getElementById('port-drift')!;
     const details = drift.querySelector('.rebalance-collapsible') as HTMLDetailsElement;
     expect(details.hasAttribute('open')).toBe(false);
+    const summaryNote = drift.querySelector('.rebalance-summary-note') as HTMLElement;
+    expect(summaryNote.textContent).toContain('Optional when drift is moderate or low');
     details.open = true;
 
     const btn6 = drift.querySelector('[data-rebalance-months="6"]') as HTMLButtonElement;
@@ -879,6 +881,8 @@ describe('renderPortfolio', () => {
     ) as HTMLDetailsElement;
     expect(nextDetails).not.toBeNull();
     expect(nextDetails.hasAttribute('open')).toBe(true);
+    const nextSummaryNote = document.querySelector('#port-drift .rebalance-summary-note') as HTMLElement;
+    expect(nextSummaryNote.textContent).toContain('Optional when drift is moderate or low');
   });
 
   it('rebalance note shows projected drift reduction', () => {

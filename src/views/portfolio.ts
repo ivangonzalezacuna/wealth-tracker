@@ -867,7 +867,8 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
 
   let rebalanceSection = '';
   if (plan.length >= 2) {
-    const shouldOpenRebalance = keepRebalanceOpen || max > 10;
+    const isRebalanceRecommended = max > 10;
+    const shouldOpenRebalance = keepRebalanceOpen || isRebalanceRecommended;
     const pickerBtns = REBALANCE_MONTH_OPTIONS.map((m) => {
       const active = m === selectedMonths;
       const label = m === 12 ? '1 yr' : `${m} mo`;
@@ -914,7 +915,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
       <details class="rebalance-collapsible" ${shouldOpenRebalance ? 'open' : ''}>
         <summary class="rebalance-summary">
           Contribution rebalance
-          <span class="rebalance-summary-note">${shouldOpenRebalance ? 'Recommended now' : 'Optional when drift is moderate or low'}</span>
+          <span class="rebalance-summary-note">${isRebalanceRecommended ? 'Recommended now' : 'Optional when drift is moderate or low'}</span>
         </summary>
         <div class="rebalance-body">
           <div class="rebalance-picker-row">
