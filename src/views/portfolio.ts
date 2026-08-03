@@ -18,7 +18,7 @@ import { primaryInvestmentValue } from '../model/accounts';
 import { splitHoldings } from '../model/holdings';
 import { computeDrift, maxDrift, computeRebalancePlan } from '../model/drift';
 import { builtInProfiles } from '../import/profiles/index';
-import type { PortfolioData, Snapshot, EtfPosition } from '../types';
+import type { PortfolioData, Snapshot, EtfPosition, ContribInterval } from '../types';
 import Chart from 'chart.js/auto';
 import { T, R, resolvedT } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
@@ -778,6 +778,20 @@ const REBALANCE_INTERVAL_SUFFIX: Record<string, string> = {
   quarterly: '/qtr',
 };
 
+const REBALANCE_MIN_ACTION_BY_INTERVAL: Record<ContribInterval, number> = {
+  weekly: 1,
+  biweekly: 2,
+  monthly: 5,
+  quarterly: 10,
+};
+
+const REBALANCE_ROUNDING_STEP_BY_INTERVAL: Record<ContribInterval, number> = {
+  weekly: 1,
+  biweekly: 1,
+  monthly: 5,
+  quarterly: 5,
+};
+
 /** Stored callback so the picker can re-render the drift card after a month selection. */
 let _redrawDrift: ((keepRebalanceOpen?: boolean) => void) | null = null;
 
@@ -861,11 +875,17 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
     parseInt(localStorage.getItem('drift-rebalance-months') || '3', 10) || 3,
   );
 
-  const plan = computeRebalancePlan(drift, holdings, totalValue, selectedMonths);
+  const plan = computeRebalancePlan(drift, holdings, totalValue, selectedMonths, {
+    minActionByInterval: REBALANCE_MIN_ACTION_BY_INTERVAL,
+    roundingStepByInterval: REBALANCE_ROUNDING_STEP_BY_INTERVAL,
+  });
 
   // Check whether any holding remains overweight even at a 12-month horizon.
-  const plan12 = computeRebalancePlan(drift, holdings, totalValue, 12);
-  const needsSell = plan12.some((e) => e.overweight);
+  const plan12 = computeRebalancePlan(drift, holdings, totalValue, 12, {
+    minActionByInterval: REBALANCE_MIN_ACTION_BY_INTERVAL,
+    roundingStepByInterval: REBALANCE_ROUNDING_STEP_BY_INTERVAL,
+  });
+  const needsSell = plan12.some((e) => e.state === 'overweight');
 
   let rebalanceSection = '';
   if (plan.length >= 2) {
@@ -890,8 +910,14 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
       .map((e) => {
         const suffix = esc(REBALANCE_INTERVAL_SUFFIX[e.contribInterval] ?? '');
         const delta = e.suggestedContribAmt - e.currentContribAmt;
+        const stateLabel =
+          e.state === 'overweight'
+            ? 'Overweight'
+            : e.state === 'on-target'
+              ? 'On target'
+              : 'Underweight';
         let changeCell: string;
-        if (e.overweight) {
+        if (e.state === 'overweight') {
           changeCell = `<span style="color:var(--warn)">${fmtEurSigned(delta, 2)}${suffix}</span>`;
         } else if (Math.abs(delta) < 0.005) {
           changeCell = `<span style="color:var(--ink-3)">no change</span>`;
@@ -899,12 +925,13 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
           const changeColor = delta > 0 ? 'var(--pos)' : 'var(--warn)';
           changeCell = `<span style="color:${changeColor}">${fmtEurSigned(delta, 2)}${suffix}</span>`;
         }
-        const suggestedCell = e.overweight
-          ? `<span style="color:var(--warn)">hold</span>`
-          : `${fmtEur2(e.suggestedContribAmt)}<span style="color:var(--ink-3);font-size:11px">${suffix}</span>`;
+        const suggestedCell =
+          e.state === 'overweight'
+            ? `<span style="color:var(--warn)">hold</span>`
+            : `${fmtEur2(e.suggestedContribAmt)}<span style="color:var(--ink-3);font-size:11px">${suffix}</span>`;
         return `
-        <div class="tbl-row" role="row" style="grid-template-columns:1.5fr 1fr 1.1fr 1fr">
-          <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:var(--radius-xs);background:${safeColor(e.color)};margin-right:6px"></span>${esc(e.shortName)}</div>
+        <div class="tbl-row" role="row" data-rebalance-state="${esc(e.state)}" style="grid-template-columns:1.5fr 1fr 1.1fr 1fr">
+          <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:var(--radius-xs);background:${safeColor(e.color)};margin-right:6px"></span>${esc(e.shortName)} <span class="rebalance-state-badge rebalance-state-${esc(e.state)}">${stateLabel}</span></div>
           <div role="cell" style="text-align:right">${fmtEur2(e.currentContribAmt)}<span style="color:var(--ink-3);font-size:11px">${suffix}</span></div>
           <div role="cell" style="text-align:right">${suggestedCell}</div>
           <div role="cell" style="text-align:right">${changeCell}</div>
@@ -913,7 +940,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
       .join('');
 
     const sellWarning = needsSell
-      ? `<div class="status-bar status-warn" style="margin-top:.5rem">Some holdings remain overweight beyond a 12-month horizon. Consider a partial sell order to speed up rebalancing.</div>`
+      ? `<div class="status-bar status-warn" style="margin-top:.5rem">Some holdings remain overweight beyond a 12-month horizon. Consider reviewing whether a partial sell could speed up rebalancing, and account for taxes and trading fees before acting.</div>`
       : '';
 
     rebalanceSection = `
@@ -938,7 +965,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
             </div>
             ${rebalanceRows}
           </div>
-          <p class="note" style="margin-top:.5rem">Routing the suggested amounts for ${periodLabel} will reduce max drift from ${fmtPctVal(activeCurrentMax)} to ${fmtPctVal(projectedActiveMax)}. Buy-only: no selling required. Market movements are not factored in.${legacyScopeNote}</p>
+          <p class="note" style="margin-top:.5rem">Routing the suggested amounts for ${periodLabel} will reduce max drift from ${fmtPctVal(activeCurrentMax)} to ${fmtPctVal(projectedActiveMax)}. This is a scenario estimate that assumes buy-only contributions and no market movement, actual results will vary.${legacyScopeNote}</p>
           ${sellWarning}
         </div>
       </details>`;

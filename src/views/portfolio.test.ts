@@ -178,6 +178,7 @@ describe('renderPortfolio', () => {
   beforeEach(() => {
     document.body.innerHTML = DOM_FIXTURE;
     chartInstances.length = 0;
+    localStorage.removeItem('drift-rebalance-months');
     MOCK_HOLDINGS.splice(0, MOCK_HOLDINGS.length, {
       isin: 'IE00TEST1',
       shortName: 'IWDA',
@@ -787,6 +788,55 @@ describe('renderPortfolio', () => {
     renderPortfolio(pd, []);
     const drift = document.getElementById('port-drift')!;
     expect(drift.textContent).toContain('reduce max drift from');
-    expect(drift.textContent).toContain('Buy-only: no selling required');
+    expect(drift.textContent).toContain('scenario estimate');
+    expect(drift.textContent).toContain('actual results will vary');
+  });
+
+  it('rebalance rows expose explicit state labels and attributes', () => {
+    setRebalanceHoldings();
+    const pd = makeRebalancePd();
+    renderPortfolio(pd, []);
+    const drift = document.getElementById('port-drift')!;
+    const overweightRow = drift.querySelector(
+      '[data-rebalance-state="overweight"]',
+    ) as HTMLElement | null;
+    const underweightRow = drift.querySelector(
+      '[data-rebalance-state="underweight"]',
+    ) as HTMLElement | null;
+    expect(overweightRow).not.toBeNull();
+    expect(underweightRow).not.toBeNull();
+    expect(drift.textContent).toContain('Overweight');
+    expect(drift.textContent).toContain('Underweight');
+  });
+
+  it('sell advisory mentions reviewing tax and fee impact', () => {
+    setRebalanceHoldings();
+    const pd = makeRebalancePd({
+      etfs: {
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 9500 }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 500 }),
+      },
+      totalInv: 10000,
+    });
+    renderPortfolio(pd, []);
+    const drift = document.getElementById('port-drift')!;
+    expect(drift.textContent).toContain('taxes');
+    expect(drift.textContent).toContain('trading fees');
+  });
+
+  it('renders an on-target state when projected gap is neutral', () => {
+    setRebalanceHoldings();
+    const pd = makeRebalancePd({
+      etfs: {
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 6910 }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 3090 }),
+      },
+      totalInv: 10000,
+    });
+    renderPortfolio(pd, []);
+    const drift = document.getElementById('port-drift')!;
+    const onTarget = drift.querySelector('[data-rebalance-state="on-target"]');
+    expect(onTarget).not.toBeNull();
+    expect(drift.textContent).toContain('On target');
   });
 });

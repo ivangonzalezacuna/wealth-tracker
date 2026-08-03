@@ -427,4 +427,58 @@ describe('computeRebalancePlan', () => {
     expect(plan[1].isin).toBe('C'); // 30% next
     expect(plan[2].isin).toBe('A'); // 20% last
   });
+
+  it('classifies plan rows as overweight, on-target, and underweight', () => {
+    const totalValue = 10000;
+    const drift = [
+      makeDriftEntry('A', 'A', 50, 60, 6000), // overweight
+      makeDriftEntry('B', 'B', 30, 30.9, 3090), // on-target at projected horizon
+      makeDriftEntry('C', 'C', 20, 9.1, 910), // underweight
+    ];
+    const holdings = [
+      makeHolding({ isin: 'A', shortName: 'A', contribAmount: 100, contribInterval: 'monthly' }),
+      makeHolding({ isin: 'B', shortName: 'B', contribAmount: 100, contribInterval: 'monthly' }),
+      makeHolding({ isin: 'C', shortName: 'C', contribAmount: 100, contribInterval: 'monthly' }),
+    ];
+    const plan = computeRebalancePlan(drift, holdings, totalValue, 1);
+    expect(plan.find((e) => e.isin === 'A')?.state).toBe('overweight');
+    expect(plan.find((e) => e.isin === 'A')?.overweight).toBe(true);
+    expect(plan.find((e) => e.isin === 'B')?.state).toBe('on-target');
+    expect(plan.find((e) => e.isin === 'B')?.overweight).toBe(false);
+    expect(plan.find((e) => e.isin === 'C')?.state).toBe('underweight');
+    expect(plan.find((e) => e.isin === 'C')?.overweight).toBe(false);
+  });
+
+  it('treats tiny contribution deltas as no-op with configurable minimum action', () => {
+    const totalValue = 10000;
+    const drift = [makeDriftEntry('A', 'A', 70, 70, 6998), makeDriftEntry('B', 'B', 30, 30, 3002)];
+    const holdings = [
+      makeHolding({ isin: 'A', shortName: 'A', contribAmount: 70, contribInterval: 'monthly' }),
+      makeHolding({ isin: 'B', shortName: 'B', contribAmount: 30, contribInterval: 'monthly' }),
+    ];
+    const plan = computeRebalancePlan(drift, holdings, totalValue, 1, {
+      minActionByInterval: { monthly: 5 },
+    });
+    expect(plan.find((e) => e.isin === 'A')?.suggestedContribAmt).toBe(70);
+    expect(plan.find((e) => e.isin === 'B')?.suggestedContribAmt).toBe(30);
+  });
+
+  it('preserves total monthly contribution after rounding and normalization', () => {
+    const totalValue = 10000;
+    const drift = [
+      makeDriftEntry('A', 'A', 34, 34, 3400),
+      makeDriftEntry('B', 'B', 33, 33, 3300),
+      makeDriftEntry('C', 'C', 33, 33, 3300),
+    ];
+    const holdings = [
+      makeHolding({ isin: 'A', shortName: 'A', contribAmount: 34, contribInterval: 'monthly' }),
+      makeHolding({ isin: 'B', shortName: 'B', contribAmount: 33, contribInterval: 'monthly' }),
+      makeHolding({ isin: 'C', shortName: 'C', contribAmount: 33, contribInterval: 'monthly' }),
+    ];
+    const plan = computeRebalancePlan(drift, holdings, totalValue, 1, {
+      roundingStepByInterval: { monthly: 10 },
+    });
+    const totalSuggestedMonthly = plan.reduce((sum, e) => sum + e.suggestedContribAmt, 0);
+    expect(totalSuggestedMonthly).toBeCloseTo(100, 6);
+  });
 });

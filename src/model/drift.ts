@@ -151,13 +151,21 @@ export interface RebalancePlanEntry {
   suggestedContribPct: number;
   /** Difference in monthly share: suggested minus current (percentage points). */
   deltaContribPct: number;
+  /** Rebalance state based on projected target gap over the selected horizon. */
+  state: 'overweight' | 'on-target' | 'underweight';
   /**
-   * True when this holding is above its K-month projected target and
-   * temporarily receives zero contribution so underweight holdings can catch up.
+   * Backward-compatible flag for overweight state.
    */
   overweight: boolean;
   /** Estimated drift percentage remaining after following this plan for K months. */
   projectedDriftPct: number;
+}
+
+export interface RebalancePlanOptions {
+  /** Minimum actionable per-execution contribution delta per interval. */
+  minActionByInterval?: Partial<Record<ContribInterval, number>>;
+  /** Optional per-execution rounding step per interval. */
+  roundingStepByInterval?: Partial<Record<ContribInterval, number>>;
 }
 
 /**
@@ -180,6 +188,7 @@ export function computeRebalancePlan(
   holdings: Holding[],
   totalValue: number,
   months: number,
+  options: RebalancePlanOptions = {},
 ): RebalancePlanEntry[] {
   if (months <= 0 || totalValue <= 0) return [];
 
@@ -207,18 +216,41 @@ export function computeRebalancePlan(
   // Raw monthly requirement per holding: gap to projected target divided by K.
   // Negative gaps (overweight holdings) are clamped to 0 (buy-only, no selling).
   const rawByIsin = new Map<string, number>();
+  const gapByIsin = new Map<string, number>();
+  const stateByIsin = new Map<string, RebalancePlanEntry['state']>();
   let sumRaw = 0;
+  const GAP_EPS = 1e-9;
   for (const d of activeDrift) {
     if (!holdingMap.has(d.isin)) continue;
     const targetAmt = projectedTotal * (d.targetPct / 100);
     const gap = targetAmt - d.actualValue;
-    const raw = Math.max(0, gap) / months;
+    const state: RebalancePlanEntry['state'] =
+      gap > GAP_EPS ? 'underweight' : gap < -GAP_EPS ? 'overweight' : 'on-target';
+    const raw = state === 'underweight' ? gap / months : 0;
     rawByIsin.set(d.isin, raw);
+    gapByIsin.set(d.isin, gap);
+    stateByIsin.set(d.isin, state);
     sumRaw += raw;
   }
   if (sumRaw <= 0) return [];
 
-  const result: RebalancePlanEntry[] = [];
+  const amtFromMonthly = (monthly: number, interval: ContribInterval) =>
+    (monthly * 12) / INTERVAL_PER_YEAR[interval];
+  const monthlyFromAmt = (amt: number, interval: ContribInterval) =>
+    annualizeContrib(amt, interval) / 12;
+  const roundAmt = (amt: number, step?: number) => {
+    if (!step || step <= 0) return amt;
+    return Math.round(amt / step) * step;
+  };
+
+  type Work = {
+    drift: DriftEntry;
+    holding: Holding;
+    monthlyCurrent: number;
+    monthlySuggested: number;
+    state: RebalancePlanEntry['state'];
+  };
+  const work: Work[] = [];
 
   for (const d of activeDrift) {
     const h = holdingMap.get(d.isin);
@@ -226,20 +258,62 @@ export function computeRebalancePlan(
 
     const m = monthlyByIsin.get(d.isin) ?? 0;
     const raw = rawByIsin.get(d.isin) ?? 0;
-    const targetAmt = projectedTotal * (d.targetPct / 100);
+    const state = stateByIsin.get(d.isin) ?? 'on-target';
 
     // Normalise so total suggested monthly contributions equal total current monthly.
     // sumRaw > 0 is guaranteed for valid portfolio data.
     const c = totalMonthly * (raw / sumRaw);
+    work.push({
+      drift: d,
+      holding: h,
+      monthlyCurrent: m,
+      monthlySuggested: c,
+      state,
+    });
+  }
 
-    // Convert the monthly suggestion back to the holding's own cadence.
-    const suggestedContribAmt = (c * 12) / INTERVAL_PER_YEAR[h.contribInterval];
+  // Apply minimum actionable delta and optional rounding in holding cadence.
+  for (const item of work) {
+    const interval = item.holding.contribInterval;
+    const currentAmt = item.holding.contribAmount;
+    let suggestedAmt = amtFromMonthly(item.monthlySuggested, interval);
+    const minAction = options.minActionByInterval?.[interval] ?? 0;
+    if (Math.abs(suggestedAmt - currentAmt) < minAction) {
+      suggestedAmt = currentAmt;
+    }
+    suggestedAmt = roundAmt(suggestedAmt, options.roundingStepByInterval?.[interval]);
+    if (suggestedAmt < 0) suggestedAmt = 0;
+    item.monthlySuggested = monthlyFromAmt(suggestedAmt, interval);
+  }
+
+  // Final normalization pass: preserve total monthly contribution after guardrails.
+  const normalizedTotal = work.reduce((sum, item) => sum + item.monthlySuggested, 0);
+  const diffMonthly = totalMonthly - normalizedTotal;
+  if (Math.abs(diffMonthly) > 1e-9 && work.length > 0) {
+    const preferred =
+      (diffMonthly > 0
+        ? work.filter((item) => item.state === 'underweight')
+        : work.filter((item) => item.state !== 'underweight')) || [];
+    const anchor = preferred[0] ?? work[0];
+    anchor.monthlySuggested = Math.max(0, anchor.monthlySuggested + diffMonthly);
+  }
+
+  const result: RebalancePlanEntry[] = [];
+  for (const item of work) {
+    const d = item.drift;
+    const h = item.holding;
+    const m = item.monthlyCurrent;
+    const c = item.monthlySuggested;
+    const state = item.state;
+    const suggestedContribAmt = amtFromMonthly(c, h.contribInterval);
 
     const currentContribPct = (m / totalMonthly) * 100;
     const suggestedContribPct = (c / totalMonthly) * 100;
 
     // Estimate value after K months with this plan (derivation: K contributions of c/mo).
-    const kContrib = raw > 0 ? (totalMonthly * (targetAmt - d.actualValue)) / sumRaw : 0;
+    const targetAmt = projectedTotal * (d.targetPct / 100);
+    const gap = gapByIsin.get(d.isin) ?? targetAmt - d.actualValue;
+    const kContrib = state === 'underweight' ? (totalMonthly * gap) / sumRaw : 0;
     const newValue = d.actualValue + kContrib;
     const newActualPct = (newValue / projectedTotal) * 100;
     const projectedDriftPct = newActualPct - d.targetPct;
@@ -254,7 +328,8 @@ export function computeRebalancePlan(
       suggestedContribAmt: Math.round(suggestedContribAmt * 100) / 100,
       suggestedContribPct: Math.round(suggestedContribPct * 10) / 10,
       deltaContribPct: Math.round((suggestedContribPct - currentContribPct) * 10) / 10,
-      overweight: raw === 0,
+      state,
+      overweight: state === 'overweight',
       projectedDriftPct: Math.round(projectedDriftPct * 10) / 10,
     });
   }

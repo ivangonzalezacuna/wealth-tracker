@@ -1286,6 +1286,30 @@ code,
   color: var(--ink-2);
   font-size: 12px;
 }
+.rebalance-state-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.08rem 0.35rem;
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 1.3;
+  border: 1px solid var(--border);
+  color: var(--ink-2);
+  background: var(--card-2);
+  vertical-align: middle;
+}
+.rebalance-state-underweight {
+  border-color: var(--pos);
+  color: var(--pos);
+}
+.rebalance-state-on-target {
+  border-color: var(--ink-3);
+  color: var(--ink-3);
+}
+.rebalance-state-overweight {
+  border-color: var(--warn);
+  color: var(--warn);
+}
 
 /* ── Mobile responsive ──────────────────────────────────── */
 @media (max-width: 768px) {
