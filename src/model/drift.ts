@@ -332,7 +332,11 @@ export function computeRebalancePlan(
     const c = item.monthlySuggested;
     const projectedState = item.projectedState;
     const displayState: RebalancePlanEntry['state'] =
-      d.driftPct > ON_TARGET_DRIFT_EPS ? 'overweight' : d.driftPct < -ON_TARGET_DRIFT_EPS ? 'underweight' : 'on-target';
+      d.driftPct > ON_TARGET_DRIFT_EPS
+        ? 'overweight'
+        : d.driftPct < -ON_TARGET_DRIFT_EPS
+          ? 'underweight'
+          : 'on-target';
     const suggestedContribAmt = amtFromMonthly(c, h.contribInterval);
 
     const currentContribPct = (m / totalMonthly) * 100;
