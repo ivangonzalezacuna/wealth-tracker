@@ -151,7 +151,7 @@ export interface RebalancePlanEntry {
   suggestedContribPct: number;
   /** Difference in monthly share: suggested minus current (percentage points). */
   deltaContribPct: number;
-  /** Rebalance state based on projected target gap over the selected horizon. */
+  /** Rebalance state based on current drift (positive driftPct = overweight). */
   state: 'overweight' | 'on-target' | 'underweight';
   /**
    * Backward-compatible flag for overweight state.
@@ -217,19 +217,19 @@ export function computeRebalancePlan(
   // Negative gaps (overweight holdings) are clamped to 0 (buy-only, no selling).
   const rawByIsin = new Map<string, number>();
   const gapByIsin = new Map<string, number>();
-  const stateByIsin = new Map<string, RebalancePlanEntry['state']>();
+  const projectedStateByIsin = new Map<string, RebalancePlanEntry['state']>();
   let sumRaw = 0;
   const GAP_EPS = 1e-9;
   for (const d of activeDrift) {
     if (!holdingMap.has(d.isin)) continue;
     const targetAmt = projectedTotal * (d.targetPct / 100);
     const gap = targetAmt - d.actualValue;
-    const state: RebalancePlanEntry['state'] =
+    const projectedState: RebalancePlanEntry['state'] =
       gap > GAP_EPS ? 'underweight' : gap < -GAP_EPS ? 'overweight' : 'on-target';
-    const raw = state === 'underweight' ? gap / months : 0;
+    const raw = projectedState === 'underweight' ? gap / months : 0;
     rawByIsin.set(d.isin, raw);
     gapByIsin.set(d.isin, gap);
-    stateByIsin.set(d.isin, state);
+    projectedStateByIsin.set(d.isin, projectedState);
     sumRaw += raw;
   }
   if (sumRaw <= 0) return [];
@@ -248,7 +248,7 @@ export function computeRebalancePlan(
     holding: Holding;
     monthlyCurrent: number;
     monthlySuggested: number;
-    state: RebalancePlanEntry['state'];
+    projectedState: RebalancePlanEntry['state'];
   };
   const work: Work[] = [];
 
@@ -258,7 +258,7 @@ export function computeRebalancePlan(
 
     const m = monthlyByIsin.get(d.isin) ?? 0;
     const raw = rawByIsin.get(d.isin) ?? 0;
-    const state = stateByIsin.get(d.isin) ?? 'on-target';
+    const projectedState = projectedStateByIsin.get(d.isin) ?? 'on-target';
 
     // Normalise so total suggested monthly contributions equal total current monthly.
     // sumRaw > 0 is guaranteed for valid portfolio data.
@@ -268,7 +268,7 @@ export function computeRebalancePlan(
       holding: h,
       monthlyCurrent: m,
       monthlySuggested: c,
-      state,
+      projectedState,
     });
   }
 
@@ -292,8 +292,8 @@ export function computeRebalancePlan(
   if (Math.abs(diffMonthly) > 1e-9 && work.length > 0) {
     const preferred =
       (diffMonthly > 0
-        ? work.filter((item) => item.state === 'underweight')
-        : work.filter((item) => item.state !== 'underweight')) || [];
+        ? work.filter((item) => item.projectedState === 'underweight')
+        : work.filter((item) => item.projectedState !== 'underweight')) || [];
     const anchor = preferred[0] ?? work[0];
     anchor.monthlySuggested = Math.max(0, anchor.monthlySuggested + diffMonthly);
   }
@@ -304,7 +304,9 @@ export function computeRebalancePlan(
     const h = item.holding;
     const m = item.monthlyCurrent;
     const c = item.monthlySuggested;
-    const state = item.state;
+    const projectedState = item.projectedState;
+    const displayState: RebalancePlanEntry['state'] =
+      d.driftPct > GAP_EPS ? 'overweight' : d.driftPct < -GAP_EPS ? 'underweight' : 'on-target';
     const suggestedContribAmt = amtFromMonthly(c, h.contribInterval);
 
     const currentContribPct = (m / totalMonthly) * 100;
@@ -313,7 +315,7 @@ export function computeRebalancePlan(
     // Estimate value after K months with this plan (derivation: K contributions of c/mo).
     const targetAmt = projectedTotal * (d.targetPct / 100);
     const gap = gapByIsin.get(d.isin) ?? targetAmt - d.actualValue;
-    const kContrib = state === 'underweight' ? (totalMonthly * gap) / sumRaw : 0;
+    const kContrib = projectedState === 'underweight' ? (totalMonthly * gap) / sumRaw : 0;
     const newValue = d.actualValue + kContrib;
     const newActualPct = (newValue / projectedTotal) * 100;
     const projectedDriftPct = newActualPct - d.targetPct;
@@ -328,8 +330,8 @@ export function computeRebalancePlan(
       suggestedContribAmt: Math.round(suggestedContribAmt * 100) / 100,
       suggestedContribPct: Math.round(suggestedContribPct * 10) / 10,
       deltaContribPct: Math.round((suggestedContribPct - currentContribPct) * 10) / 10,
-      state,
-      overweight: state === 'overweight',
+      state: displayState,
+      overweight: displayState === 'overweight',
       projectedDriftPct: Math.round(projectedDriftPct * 10) / 10,
     });
   }

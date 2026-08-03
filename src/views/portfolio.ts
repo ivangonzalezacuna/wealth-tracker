@@ -885,7 +885,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
     minActionByInterval: REBALANCE_MIN_ACTION_BY_INTERVAL,
     roundingStepByInterval: REBALANCE_ROUNDING_STEP_BY_INTERVAL,
   });
-  const needsSell = plan12.some((e) => e.state === 'overweight');
+  const needsSell = plan12.some((e) => e.projectedDriftPct > 0.05);
 
   let rebalanceSection = '';
   if (plan.length >= 2) {
@@ -917,16 +917,14 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
               ? 'On target'
               : 'Underweight';
         let changeCell: string;
-        if (e.state === 'overweight') {
-          changeCell = `<span style="color:var(--warn)">${fmtEurSigned(delta, 2)}${suffix}</span>`;
-        } else if (Math.abs(delta) < 0.005) {
+        if (Math.abs(delta) < 0.005) {
           changeCell = `<span style="color:var(--ink-3)">no change</span>`;
         } else {
           const changeColor = delta > 0 ? 'var(--pos)' : 'var(--warn)';
           changeCell = `<span style="color:${changeColor}">${fmtEurSigned(delta, 2)}${suffix}</span>`;
         }
         const suggestedCell =
-          e.state === 'overweight'
+          e.suggestedContribAmt < 0.005
             ? `<span style="color:var(--warn)">hold</span>`
             : `${fmtEur2(e.suggestedContribAmt)}<span style="color:var(--ink-3);font-size:11px">${suffix}</span>`;
         return `

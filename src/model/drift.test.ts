@@ -381,8 +381,11 @@ describe('computeRebalancePlan', () => {
     ];
     const plan = computeRebalancePlan(drift, holdings, totalValue, 3);
 
+    const planA = plan.find((e) => e.isin === 'A')!;
+    const planB = plan.find((e) => e.isin === 'B')!;
+    expect(planA.overweight).toBe(true);
+    expect(planB.overweight).toBe(false);
     for (const entry of plan) {
-      expect(entry.overweight).toBe(false);
       expect(Math.abs(entry.projectedDriftPct)).toBeCloseTo(0, 1);
     }
   });
@@ -432,7 +435,7 @@ describe('computeRebalancePlan', () => {
     const totalValue = 10000;
     const drift = [
       makeDriftEntry('A', 'A', 50, 60, 6000), // overweight
-      makeDriftEntry('B', 'B', 30, 30.9, 3090), // on-target at projected horizon
+      makeDriftEntry('B', 'B', 30, 30.9, 3090), // overweight by drift (+0.9%), on-target at projected horizon
       makeDriftEntry('C', 'C', 20, 9.1, 910), // underweight
     ];
     const holdings = [
@@ -443,8 +446,8 @@ describe('computeRebalancePlan', () => {
     const plan = computeRebalancePlan(drift, holdings, totalValue, 1);
     expect(plan.find((e) => e.isin === 'A')?.state).toBe('overweight');
     expect(plan.find((e) => e.isin === 'A')?.overweight).toBe(true);
-    expect(plan.find((e) => e.isin === 'B')?.state).toBe('on-target');
-    expect(plan.find((e) => e.isin === 'B')?.overweight).toBe(false);
+    expect(plan.find((e) => e.isin === 'B')?.state).toBe('overweight');
+    expect(plan.find((e) => e.isin === 'B')?.overweight).toBe(true);
     expect(plan.find((e) => e.isin === 'C')?.state).toBe('underweight');
     expect(plan.find((e) => e.isin === 'C')?.overweight).toBe(false);
   });
