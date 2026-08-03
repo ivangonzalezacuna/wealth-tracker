@@ -110,6 +110,52 @@ function makePD(overrides: Partial<PortfolioData> = {}): PortfolioData {
   };
 }
 
+function setRebalanceHoldings(): void {
+  MOCK_HOLDINGS.splice(
+    0,
+    MOCK_HOLDINGS.length,
+    {
+      isin: 'IE00TEST1',
+      shortName: 'IWDA',
+      name: 'World',
+      color: '#222222',
+      acc: true,
+      active: true,
+      contribAmount: 70,
+      contribInterval: 'monthly',
+      assetClass: 'equity',
+      region: 'developed',
+      foldInto: '',
+      order: 1,
+    } as any,
+    {
+      isin: 'IE00TEST2',
+      shortName: 'EM',
+      name: 'Emerging',
+      color: '#333333',
+      acc: true,
+      active: true,
+      contribAmount: 30,
+      contribInterval: 'monthly',
+      assetClass: 'equity',
+      region: 'emerging',
+      foldInto: '',
+      order: 2,
+    } as any,
+  );
+}
+
+function makeRebalancePd(overrides: Partial<PortfolioData> = {}): PortfolioData {
+  return makePD({
+    etfs: {
+      IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 8000 }),
+      IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 2000 }),
+    },
+    totalInv: 10000,
+    ...overrides,
+  });
+}
+
 const DOM_FIXTURE = `
   <div id="port-empty"></div>
   <div id="port-content">
@@ -624,90 +670,16 @@ describe('renderPortfolio', () => {
   });
 
   it('rebalance section appears when there are two or more active holdings', () => {
-    MOCK_HOLDINGS.splice(
-      0,
-      MOCK_HOLDINGS.length,
-      {
-        isin: 'IE00TEST1',
-        shortName: 'IWDA',
-        name: 'World',
-        color: '#222222',
-        acc: true,
-        active: true,
-        contribAmount: 70,
-        contribInterval: 'monthly',
-        assetClass: 'equity',
-        region: 'developed',
-        foldInto: '',
-        order: 1,
-      } as any,
-      {
-        isin: 'IE00TEST2',
-        shortName: 'EM',
-        name: 'Emerging',
-        color: '#333333',
-        acc: true,
-        active: true,
-        contribAmount: 30,
-        contribInterval: 'monthly',
-        assetClass: 'equity',
-        region: 'emerging',
-        foldInto: '',
-        order: 2,
-      } as any,
-    );
-    const pd = makePD({
-      etfs: {
-        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 8000 }),
-        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 2000 }),
-      },
-      totalInv: 10000,
-    });
+    setRebalanceHoldings();
+    const pd = makeRebalancePd();
     renderPortfolio(pd, []);
     const drift = document.getElementById('port-drift')!;
     expect(drift.innerHTML).toContain('Contribution rebalance');
   });
 
   it('rebalance picker renders five month-option buttons', () => {
-    MOCK_HOLDINGS.splice(
-      0,
-      MOCK_HOLDINGS.length,
-      {
-        isin: 'IE00TEST1',
-        shortName: 'IWDA',
-        name: 'World',
-        color: '#222222',
-        acc: true,
-        active: true,
-        contribAmount: 70,
-        contribInterval: 'monthly',
-        assetClass: 'equity',
-        region: 'developed',
-        foldInto: '',
-        order: 1,
-      } as any,
-      {
-        isin: 'IE00TEST2',
-        shortName: 'EM',
-        name: 'Emerging',
-        color: '#333333',
-        acc: true,
-        active: true,
-        contribAmount: 30,
-        contribInterval: 'monthly',
-        assetClass: 'equity',
-        region: 'emerging',
-        foldInto: '',
-        order: 2,
-      } as any,
-    );
-    const pd = makePD({
-      etfs: {
-        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 8000 }),
-        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 2000 }),
-      },
-      totalInv: 10000,
-    });
+    setRebalanceHoldings();
+    const pd = makeRebalancePd();
     renderPortfolio(pd, []);
     const drift = document.getElementById('port-drift')!;
     const details = drift.querySelector('.rebalance-collapsible') as HTMLDetailsElement;
@@ -723,44 +695,12 @@ describe('renderPortfolio', () => {
   });
 
   it('rebalance section opens by default when drift is high', () => {
-    MOCK_HOLDINGS.splice(
-      0,
-      MOCK_HOLDINGS.length,
-      {
-        isin: 'IE00TEST1',
-        shortName: 'IWDA',
-        name: 'World',
-        color: '#222222',
-        acc: true,
-        active: true,
-        contribAmount: 70,
-        contribInterval: 'monthly',
-        assetClass: 'equity',
-        region: 'developed',
-        foldInto: '',
-        order: 1,
-      } as any,
-      {
-        isin: 'IE00TEST2',
-        shortName: 'EM',
-        name: 'Emerging',
-        color: '#333333',
-        acc: true,
-        active: true,
-        contribAmount: 30,
-        contribInterval: 'monthly',
-        assetClass: 'equity',
-        region: 'emerging',
-        foldInto: '',
-        order: 2,
-      } as any,
-    );
-    const pd = makePD({
+    setRebalanceHoldings();
+    const pd = makeRebalancePd({
       etfs: {
         IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 9500 }),
         IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 500 }),
       },
-      totalInv: 10000,
     });
     renderPortfolio(pd, []);
     const drift = document.getElementById('port-drift')!;
@@ -770,39 +710,8 @@ describe('renderPortfolio', () => {
   });
 
   it('renders rebalance guidance when all positions are closed but cash is present', () => {
-    MOCK_HOLDINGS.splice(
-      0,
-      MOCK_HOLDINGS.length,
-      {
-        isin: 'IE00TEST1',
-        shortName: 'IWDA',
-        name: 'World',
-        color: '#222222',
-        acc: true,
-        active: true,
-        contribAmount: 70,
-        contribInterval: 'monthly',
-        assetClass: 'equity',
-        region: 'developed',
-        foldInto: '',
-        order: 1,
-      } as any,
-      {
-        isin: 'IE00TEST2',
-        shortName: 'EM',
-        name: 'Emerging',
-        color: '#333333',
-        acc: true,
-        active: true,
-        contribAmount: 30,
-        contribInterval: 'monthly',
-        assetClass: 'equity',
-        region: 'emerging',
-        foldInto: '',
-        order: 2,
-      } as any,
-    );
-    const pd = makePD({
+    setRebalanceHoldings();
+    const pd = makeRebalancePd({
       etfs: {
         IE00TEST1: makeEtf({
           isin: 'IE00TEST1',
@@ -829,45 +738,8 @@ describe('renderPortfolio', () => {
   });
 
   it('rebalance picker click updates selected month and re-renders', () => {
-    MOCK_HOLDINGS.splice(
-      0,
-      MOCK_HOLDINGS.length,
-      {
-        isin: 'IE00TEST1',
-        shortName: 'IWDA',
-        name: 'World',
-        color: '#222222',
-        acc: true,
-        active: true,
-        contribAmount: 70,
-        contribInterval: 'monthly',
-        assetClass: 'equity',
-        region: 'developed',
-        foldInto: '',
-        order: 1,
-      } as any,
-      {
-        isin: 'IE00TEST2',
-        shortName: 'EM',
-        name: 'Emerging',
-        color: '#333333',
-        acc: true,
-        active: true,
-        contribAmount: 30,
-        contribInterval: 'monthly',
-        assetClass: 'equity',
-        region: 'emerging',
-        foldInto: '',
-        order: 2,
-      } as any,
-    );
-    const pd = makePD({
-      etfs: {
-        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 8000 }),
-        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 2000 }),
-      },
-      totalInv: 10000,
-    });
+    setRebalanceHoldings();
+    const pd = makeRebalancePd();
     localStorage.removeItem('drift-rebalance-months');
     renderPortfolio(pd, []);
     const drift = document.getElementById('port-drift')!;
@@ -883,45 +755,8 @@ describe('renderPortfolio', () => {
   });
 
   it('rebalance picker keeps section open after user opens it', () => {
-    MOCK_HOLDINGS.splice(
-      0,
-      MOCK_HOLDINGS.length,
-      {
-        isin: 'IE00TEST1',
-        shortName: 'IWDA',
-        name: 'World',
-        color: '#222222',
-        acc: true,
-        active: true,
-        contribAmount: 70,
-        contribInterval: 'monthly',
-        assetClass: 'equity',
-        region: 'developed',
-        foldInto: '',
-        order: 1,
-      } as any,
-      {
-        isin: 'IE00TEST2',
-        shortName: 'EM',
-        name: 'Emerging',
-        color: '#333333',
-        acc: true,
-        active: true,
-        contribAmount: 30,
-        contribInterval: 'monthly',
-        assetClass: 'equity',
-        region: 'emerging',
-        foldInto: '',
-        order: 2,
-      } as any,
-    );
-    const pd = makePD({
-      etfs: {
-        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 8000 }),
-        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 2000 }),
-      },
-      totalInv: 10000,
-    });
+    setRebalanceHoldings();
+    const pd = makeRebalancePd();
     localStorage.removeItem('drift-rebalance-months');
     renderPortfolio(pd, []);
     const drift = document.getElementById('port-drift')!;
@@ -947,45 +782,8 @@ describe('renderPortfolio', () => {
   });
 
   it('rebalance note shows projected drift reduction', () => {
-    MOCK_HOLDINGS.splice(
-      0,
-      MOCK_HOLDINGS.length,
-      {
-        isin: 'IE00TEST1',
-        shortName: 'IWDA',
-        name: 'World',
-        color: '#222222',
-        acc: true,
-        active: true,
-        contribAmount: 70,
-        contribInterval: 'monthly',
-        assetClass: 'equity',
-        region: 'developed',
-        foldInto: '',
-        order: 1,
-      } as any,
-      {
-        isin: 'IE00TEST2',
-        shortName: 'EM',
-        name: 'Emerging',
-        color: '#333333',
-        acc: true,
-        active: true,
-        contribAmount: 30,
-        contribInterval: 'monthly',
-        assetClass: 'equity',
-        region: 'emerging',
-        foldInto: '',
-        order: 2,
-      } as any,
-    );
-    const pd = makePD({
-      etfs: {
-        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 8000 }),
-        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 2000 }),
-      },
-      totalInv: 10000,
-    });
+    setRebalanceHoldings();
+    const pd = makeRebalancePd();
     renderPortfolio(pd, []);
     const drift = document.getElementById('port-drift')!;
     expect(drift.textContent).toContain('reduce max drift from');
