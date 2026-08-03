@@ -804,7 +804,8 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
   // Use the snapshot primary-investment account total as totalValue when market
   // values are available. Also use it when there are no held positions (all cash)
   // so rebalance guidance still works for re-entry portfolios.
-  const totalValue = hasSnapValues || !hasHeldPositions ? (primaryInvTotal ?? pd.totalInv) : pd.totalInv;
+  const totalValue =
+    hasSnapValues || !hasHeldPositions ? (primaryInvTotal ?? pd.totalInv) : pd.totalInv;
 
   const drift = computeDrift(
     holdings,

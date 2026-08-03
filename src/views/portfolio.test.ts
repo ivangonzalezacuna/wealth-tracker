@@ -804,8 +804,20 @@ describe('renderPortfolio', () => {
     );
     const pd = makePD({
       etfs: {
-        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 0, shares: 0, exited: true }),
-        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 0, shares: 0, exited: true }),
+        IE00TEST1: makeEtf({
+          isin: 'IE00TEST1',
+          shortName: 'IWDA',
+          cost: 0,
+          shares: 0,
+          exited: true,
+        }),
+        IE00TEST2: makeEtf({
+          isin: 'IE00TEST2',
+          shortName: 'EM',
+          cost: 0,
+          shares: 0,
+          exited: true,
+        }),
       },
       totalInv: 0,
     });
