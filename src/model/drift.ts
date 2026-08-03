@@ -135,6 +135,12 @@ export function maxDrift(entries: DriftEntry[]): number {
 
 // ── Contribution rebalance plan ──────────────────────────────────────────────
 
+/**
+ * Drift tolerance in percentage points. Holdings whose current drift falls
+ * within this band are considered "on-target" and are not rebalanced.
+ */
+export const ON_TARGET_DRIFT_EPS = 0.5;
+
 export interface RebalancePlanEntry {
   isin: string;
   shortName: string;
@@ -168,8 +174,10 @@ export interface RebalancePlanOptions {
  * Compute a buy-only contribution rebalance plan that drives allocations back
  * to target over the given number of months.
  *
- * Contributions are redirected: underweight holdings receive a larger share
- * while overweight holdings temporarily receive zero. Total monthly contribution
+ * On-target holdings (current drift within ON_TARGET_DRIFT_EPS) keep their
+ * current contribution unchanged. The remaining "available pool" is
+ * redistributed: overweight holdings temporarily receive zero while underweight
+ * holdings receive a proportionally larger share. Total monthly contribution
  * is preserved exactly. Mixed cadences (weekly, biweekly, monthly, quarterly)
  * are normalised to a monthly basis, then the suggested monthly amount is
  * converted back to each holding's own cadence for actionable output.
@@ -209,17 +217,34 @@ export function computeRebalancePlan(
   // Projected portfolio value after K months (no market-growth assumption -- conservative).
   const projectedTotal = totalValue + months * totalMonthly;
 
+  // Identify on-target holdings by current drift; lock them at their current contribution.
+  const onTargetIsins = new Set<string>();
+  let onTargetMonthly = 0;
+  for (const d of activeDrift) {
+    if (!holdingMap.has(d.isin)) continue;
+    if (Math.abs(d.driftPct) <= ON_TARGET_DRIFT_EPS) {
+      onTargetIsins.add(d.isin);
+      onTargetMonthly += monthlyByIsin.get(d.isin) ?? 0;
+    }
+  }
+  // Budget available for redistribution between overweight and underweight holdings.
+  const availablePool = totalMonthly - onTargetMonthly;
+
   // Raw monthly requirement per holding: gap to projected target divided by K.
-  // Negative gaps (overweight holdings) are clamped to 0 (buy-only, no selling).
+  // On-target holdings are excluded; overweight gaps are clamped to 0 (buy-only, no selling).
   const rawByIsin = new Map<string, number>();
   const gapByIsin = new Map<string, number>();
   const projectedStateByIsin = new Map<string, RebalancePlanEntry['state']>();
   let sumRaw = 0;
   const GAP_EPS = 1e-9;
-  /** Drift within this many percentage points of target is classified as "on-target". */
-  const ON_TARGET_DRIFT_EPS = 0.5;
   for (const d of activeDrift) {
     if (!holdingMap.has(d.isin)) continue;
+    if (onTargetIsins.has(d.isin)) {
+      rawByIsin.set(d.isin, 0);
+      gapByIsin.set(d.isin, 0);
+      projectedStateByIsin.set(d.isin, 'on-target');
+      continue;
+    }
     const targetAmt = projectedTotal * (d.targetPct / 100);
     const gap = targetAmt - d.actualValue;
     const projectedState: RebalancePlanEntry['state'] =
@@ -230,7 +255,7 @@ export function computeRebalancePlan(
     projectedStateByIsin.set(d.isin, projectedState);
     sumRaw += raw;
   }
-  if (sumRaw <= 0) return [];
+  if (sumRaw <= 0 || availablePool <= 0) return [];
 
   const amtFromMonthly = (monthly: number, interval: ContribInterval) =>
     (monthly * 12) / INTERVAL_PER_YEAR[interval];
@@ -258,9 +283,8 @@ export function computeRebalancePlan(
     const raw = rawByIsin.get(d.isin) ?? 0;
     const projectedState = projectedStateByIsin.get(d.isin) ?? 'on-target';
 
-    // Normalise so total suggested monthly contributions equal total current monthly.
-    // sumRaw > 0 is guaranteed for valid portfolio data.
-    const c = totalMonthly * (raw / sumRaw);
+    // On-target holdings keep their current contribution; others share the available pool.
+    const c = onTargetIsins.has(d.isin) ? m : availablePool * (raw / sumRaw);
     work.push({
       drift: d,
       holding: h,
@@ -271,7 +295,9 @@ export function computeRebalancePlan(
   }
 
   // Apply minimum actionable delta and optional rounding in holding cadence.
+  // On-target holdings are locked at their current contribution and are not adjusted.
   for (const item of work) {
+    if (onTargetIsins.has(item.drift.isin)) continue;
     const interval = item.holding.contribInterval;
     const currentAmt = item.holding.contribAmount;
     let suggestedAmt = amtFromMonthly(item.monthlySuggested, interval);
@@ -285,14 +311,16 @@ export function computeRebalancePlan(
   }
 
   // Final normalization pass: preserve total monthly contribution after guardrails.
+  // On-target holdings are locked, so only non-on-target holdings absorb any rounding diff.
   const normalizedTotal = work.reduce((sum, item) => sum + item.monthlySuggested, 0);
   const diffMonthly = totalMonthly - normalizedTotal;
   if (Math.abs(diffMonthly) > 1e-9 && work.length > 0) {
+    const nonOnTargetWork = work.filter((item) => !onTargetIsins.has(item.drift.isin));
     const preferred =
       (diffMonthly > 0
-        ? work.filter((item) => item.projectedState === 'underweight')
-        : work.filter((item) => item.projectedState !== 'underweight')) || [];
-    const anchor = preferred[0] ?? work[0];
+        ? nonOnTargetWork.filter((item) => item.projectedState === 'underweight')
+        : nonOnTargetWork.filter((item) => item.projectedState !== 'underweight')) || [];
+    const anchor = preferred[0] ?? nonOnTargetWork[0] ?? work[0];
     anchor.monthlySuggested = Math.max(0, anchor.monthlySuggested + diffMonthly);
   }
 
@@ -310,10 +338,16 @@ export function computeRebalancePlan(
     const currentContribPct = (m / totalMonthly) * 100;
     const suggestedContribPct = (c / totalMonthly) * 100;
 
-    // Estimate value after K months with this plan (derivation: K contributions of c/mo).
+    // Estimate value after K months with this plan.
+    // On-target holdings contribute at their locked current rate; underweight ones
+    // receive their share of the available pool; overweight ones receive nothing.
     const targetAmt = projectedTotal * (d.targetPct / 100);
     const gap = gapByIsin.get(d.isin) ?? targetAmt - d.actualValue;
-    const kContrib = projectedState === 'underweight' ? (totalMonthly * gap) / sumRaw : 0;
+    const kContrib = onTargetIsins.has(d.isin)
+      ? m * months
+      : projectedState === 'underweight'
+        ? (availablePool * gap) / sumRaw
+        : 0;
     const newValue = d.actualValue + kContrib;
     const newActualPct = (newValue / projectedTotal) * 100;
     const projectedDriftPct = newActualPct - d.targetPct;

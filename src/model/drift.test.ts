@@ -449,31 +449,82 @@ describe('computeRebalancePlan', () => {
     expect(plan.find((e) => e.isin === 'C')?.state).toBe('underweight');
   });
 
-  it('treats tiny contribution deltas as no-op with configurable minimum action', () => {
+  it('on-target holdings keep their current contribution and are excluded from redistribution', () => {
+    // A: on-target (driftPct=0.3, within +/-0.5 tolerance), locked at 40/mo.
+    // B: overweight (driftPct=+2), releases its budget.
+    // C: underweight (driftPct=-2), absorbs the freed budget.
+    // Total monthly = 40+30+30 = 100. Available pool after locking A = 60.
     const totalValue = 10000;
-    const drift = [makeDriftEntry('A', 'A', 70, 70, 6998), makeDriftEntry('B', 'B', 30, 30, 3002)];
+    const drift = [
+      makeDriftEntry('A', 'A', 40, 40.3, 4030), // on-target
+      makeDriftEntry('B', 'B', 30, 32, 3200), // overweight
+      makeDriftEntry('C', 'C', 30, 27.7, 2770), // underweight
+    ];
     const holdings = [
-      makeHolding({ isin: 'A', shortName: 'A', contribAmount: 70, contribInterval: 'monthly' }),
+      makeHolding({ isin: 'A', shortName: 'A', contribAmount: 40, contribInterval: 'monthly' }),
       makeHolding({ isin: 'B', shortName: 'B', contribAmount: 30, contribInterval: 'monthly' }),
+      makeHolding({ isin: 'C', shortName: 'C', contribAmount: 30, contribInterval: 'monthly' }),
+    ];
+    const plan = computeRebalancePlan(drift, holdings, totalValue, 3);
+    const planA = plan.find((e) => e.isin === 'A')!;
+    const planB = plan.find((e) => e.isin === 'B')!;
+    const planC = plan.find((e) => e.isin === 'C')!;
+
+    // A is on-target: contribution must be unchanged
+    expect(planA.state).toBe('on-target');
+    expect(planA.suggestedContribAmt).toBe(40);
+
+    // B is overweight: gets zero
+    expect(planB.state).toBe('overweight');
+    expect(planB.suggestedContribAmt).toBe(0);
+
+    // C is underweight: absorbs the available pool (60/mo)
+    expect(planC.state).toBe('underweight');
+    expect(planC.suggestedContribAmt).toBeCloseTo(60, 1);
+
+    // Total must be preserved
+    const total = plan.reduce((s, e) => s + e.suggestedContribAmt, 0);
+    expect(total).toBeCloseTo(100, 6);
+  });
+
+  it('treats tiny contribution deltas as no-op with configurable minimum action', () => {
+    // A: 90% target, 88% actual (underweight), contributes most of the budget.
+    // B: 10% target, 12% actual (overweight), contributes a small slice.
+    // Without minAction, A would be suggested 100 (delta=+5) and B would be 0 (delta=-5).
+    // With minAction=6, both deltas (5) are below the threshold and each keeps its current amount.
+    const totalValue = 10000;
+    const drift = [
+      makeDriftEntry('A', 'A', 90, 88, 8800), // underweight
+      makeDriftEntry('B', 'B', 10, 12, 1200), // overweight
+    ];
+    const holdings = [
+      makeHolding({ isin: 'A', shortName: 'A', contribAmount: 95, contribInterval: 'monthly' }),
+      makeHolding({ isin: 'B', shortName: 'B', contribAmount: 5, contribInterval: 'monthly' }),
     ];
     const plan = computeRebalancePlan(drift, holdings, totalValue, 1, {
-      minActionByInterval: { monthly: 5 },
+      minActionByInterval: { monthly: 6 },
     });
-    expect(plan.find((e) => e.isin === 'A')?.suggestedContribAmt).toBe(70);
-    expect(plan.find((e) => e.isin === 'B')?.suggestedContribAmt).toBe(30);
+    expect(plan.find((e) => e.isin === 'A')?.suggestedContribAmt).toBe(95);
+    expect(plan.find((e) => e.isin === 'B')?.suggestedContribAmt).toBe(5);
   });
 
   it('preserves total monthly contribution after rounding and normalization', () => {
+    // A/B/C are underweight by 1%; D is overweight by 3%.
+    // Without rounding each underweight holding would get ~33.33/mo.
+    // With a rounding step of 10, they round to 30, leaving a 10-unit shortfall
+    // that the normalization pass absorbs into the first underweight anchor.
     const totalValue = 10000;
     const drift = [
-      makeDriftEntry('A', 'A', 34, 34, 3400),
-      makeDriftEntry('B', 'B', 33, 33, 3300),
-      makeDriftEntry('C', 'C', 33, 33, 3300),
+      makeDriftEntry('A', 'A', 25, 24, 2400), // underweight
+      makeDriftEntry('B', 'B', 25, 24, 2400), // underweight
+      makeDriftEntry('C', 'C', 25, 24, 2400), // underweight
+      makeDriftEntry('D', 'D', 25, 28, 2800), // overweight
     ];
     const holdings = [
-      makeHolding({ isin: 'A', shortName: 'A', contribAmount: 34, contribInterval: 'monthly' }),
-      makeHolding({ isin: 'B', shortName: 'B', contribAmount: 33, contribInterval: 'monthly' }),
-      makeHolding({ isin: 'C', shortName: 'C', contribAmount: 33, contribInterval: 'monthly' }),
+      makeHolding({ isin: 'A', shortName: 'A', contribAmount: 25, contribInterval: 'monthly' }),
+      makeHolding({ isin: 'B', shortName: 'B', contribAmount: 25, contribInterval: 'monthly' }),
+      makeHolding({ isin: 'C', shortName: 'C', contribAmount: 25, contribInterval: 'monthly' }),
+      makeHolding({ isin: 'D', shortName: 'D', contribAmount: 25, contribInterval: 'monthly' }),
     ];
     const plan = computeRebalancePlan(drift, holdings, totalValue, 1, {
       roundingStepByInterval: { monthly: 10 },

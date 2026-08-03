@@ -825,11 +825,61 @@ describe('renderPortfolio', () => {
   });
 
   it('renders an on-target state when projected gap is neutral', () => {
-    setRebalanceHoldings();
-    const pd = makeRebalancePd({
+    // 3 holdings so one can sit on-target while the others over/underweight drive redistribution.
+    // IWDA: 60% target, 62% actual (+2pp overweight)
+    // EM:   25% target, 25% actual ( 0pp on-target, locked)
+    // Bond: 15% target, 13% actual (-2pp underweight)
+    MOCK_HOLDINGS.splice(
+      0,
+      MOCK_HOLDINGS.length,
+      {
+        isin: 'IE00TEST1',
+        shortName: 'IWDA',
+        name: 'World',
+        color: '#222222',
+        acc: true,
+        active: true,
+        contribAmount: 60,
+        contribInterval: 'monthly',
+        assetClass: 'equity',
+        region: 'developed',
+        foldInto: '',
+        order: 1,
+      } as any,
+      {
+        isin: 'IE00TEST2',
+        shortName: 'EM',
+        name: 'Emerging',
+        color: '#333333',
+        acc: true,
+        active: true,
+        contribAmount: 25,
+        contribInterval: 'monthly',
+        assetClass: 'equity',
+        region: 'emerging',
+        foldInto: '',
+        order: 2,
+      } as any,
+      {
+        isin: 'IE00TEST3',
+        shortName: 'Bond',
+        name: 'Bond',
+        color: '#444444',
+        acc: false,
+        active: true,
+        contribAmount: 15,
+        contribInterval: 'monthly',
+        assetClass: 'fixed income',
+        region: 'global',
+        foldInto: '',
+        order: 3,
+      } as any,
+    );
+    const pd = makePD({
       etfs: {
-        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 7000 }),
-        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 3000 }),
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 6200 }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 2500 }),
+        IE00TEST3: makeEtf({ isin: 'IE00TEST3', shortName: 'Bond', cost: 1300 }),
       },
       totalInv: 10000,
     });
