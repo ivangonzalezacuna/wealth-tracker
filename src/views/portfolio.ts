@@ -658,13 +658,13 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     ${
       feeDrag !== null
         ? kpiTile({
-            label: `Annual fee drag${infoTip('Estimated annual cost of fund management fees (TER) across all held positions. Computed as the sum of each position value multiplied by its configured TER. Add TER values in Settings to see this figure. Positions without a TER configured are excluded.')}`,
+            label: `Annual fee drag${infoTip('Estimated annual cost of fund management fees (TER) across all held positions. These costs are deducted by the fund manager directly from the fund assets, so they are already reflected in the ETF price and your returns. This figure is informational only; no money is deducted from your balance. Computed as the sum of each position value multiplied by its configured TER. Add TER values in Settings to see this figure. Positions without a TER configured are excluded.')}`,
             value: fmtEur2(feeDrag.annualCost),
             valueClass: 'neg',
             sub: `${fmtPctVal(feeDrag.costPct * 100)} of holdings${feeDrag.coveredCount < Object.values(pd.etfs).filter((e) => !e.exited).length ? ' (partial)' : ''}`,
           })
         : kpiTile({
-            label: `Annual fee drag${infoTip('Estimated annual cost of fund management fees (TER) across all held positions. Add TER values to your holdings in Settings to enable this calculation.')}`,
+            label: `Annual fee drag${infoTip('Estimated annual cost of fund management fees (TER) across all held positions. These costs are deducted by the fund manager directly from the fund assets, so they are already reflected in the ETF price and your returns. This figure is informational only; no money is deducted from your balance. Add TER values to your holdings in Settings to enable this calculation.')}`,
             value: '-',
             sub: 'add TER in Settings',
           })

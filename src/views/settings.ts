@@ -761,7 +761,7 @@ function renderHoldingRow(h: Holding, i: number): string {
           <select id="hold-interval-${i}" class="form-input form-input-sm" data-field="contribInterval">${intervalOptions}</select>
         </div>
         <div class="settings-field">
-          <label class="settings-field-label" for="hold-ter-${i}">TER (%)${infoTip('Total Expense Ratio: the annual fee charged by the fund, as a percentage (e.g. 0.20 for 0.20%). Used to calculate the annual fee drag on your portfolio.')}</label>
+          <label class="settings-field-label" for="hold-ter-${i}">TER (%)${infoTip('Total Expense Ratio: the annual fee charged by the fund, as a percentage (e.g. 0.20 for 0.20%). These costs are deducted by the fund manager directly from the fund assets throughout the year, so they are already reflected in the ETF price and your returns. No money is deducted from your broker balance. Used here to estimate the annual fee drag on your portfolio.')}</label>
           <input id="hold-ter-${i}" class="form-input form-input-sm" data-field="ter" value="${h.ter || ''}" type="number" min="0" step="0.01" max="5" placeholder="e.g. 0.20">
         </div>
         <div class="settings-field">
