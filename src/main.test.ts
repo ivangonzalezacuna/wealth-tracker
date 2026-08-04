@@ -432,7 +432,9 @@ describe('restore savepoint error handling', () => {
       });
 
       describe('restore schema compatibility', () => {
-        async function restorePreflight(ensureCurrentSchemaMock: () => Promise<void>): Promise<string> {
+        async function restorePreflight(
+          ensureCurrentSchemaMock: () => Promise<void>,
+        ): Promise<string> {
           await ensureCurrentSchemaMock();
           return 'ok';
         }
