@@ -10,6 +10,7 @@ import {
   getCostBasisMethod,
   getTargetNetWorth,
   getTargetDate,
+  getGoals,
   getRetiredAccountIds,
   retireAccountIdsSafely,
 } from '../store/config';
@@ -25,7 +26,7 @@ import {
 import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { showMsg, reinjectPendingMsg, withButtonGuard, esc } from '../utils';
-import type { Account, Holding, Settings, ContribInterval } from '../types';
+import type { Account, Holding, Settings, ContribInterval, NamedGoal } from '../types';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { confirmDialog } from '../ui/confirmDialog';
@@ -288,7 +289,7 @@ function refreshCostBasisData(): void {
 
 function refreshGoalData(): void {
   const el = document.getElementById('settings-goal-fields');
-  if (el) el.innerHTML = goalFieldsHtml(getSettings());
+  if (el) el.innerHTML = goalListHtml(getGoals(), getSettings());
 }
 
 function refreshBackupData(): void {
@@ -1119,23 +1120,34 @@ function attachCostBasisListeners(root: HTMLElement): void {
 
 // ── Goal / target net worth ──────────────────────────────
 
-function goalFieldsHtml(settings: Settings): string {
-  const targetNW = settings.targetNetWorth || '';
-  const targetDate = settings.targetDate || '';
+function goalRowHtml(goal: NamedGoal, idx: number): string {
+  return `
+    <div class="goal-row" data-goal-idx="${idx}" style="border:1px solid var(--surface-3);border-radius:var(--radius-s);padding:.75rem;margin-bottom:.5rem">
+      <div class="form-grid" style="max-width:500px">
+        <div class="form-group">
+          <label class="form-label">Goal label</label>
+          <input class="form-input goal-label-input" data-idx="${idx}" type="text" value="${esc(goal.label)}" placeholder="e.g. Financial independence">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Target net worth (\u20AC)</label>
+          <input class="form-input goal-nw-input" data-idx="${idx}" type="text" inputmode="decimal" value="${esc(goal.targetNetWorth)}" placeholder="e.g. 500000">
+          <span class="note">Supports German format (100.000,00) or plain numbers.</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Target date (optional)</label>
+          <input class="form-input goal-date-input" data-idx="${idx}" type="month" value="${esc(goal.targetDate)}">
+          <span class="note">Leave empty for ETA-only mode (no deadline).</span>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-danger goal-remove-btn" data-idx="${idx}" style="margin-top:.25rem">Remove</button>
+    </div>`;
+}
+
+function benchmarkFieldsHtml(settings: Settings): string {
   const benchmarkLabel = settings.benchmarkLabel || '';
   const benchmarkPct = settings.benchmarkAnnualReturnPct || '';
   return `
-    <div class="form-grid" style="max-width:500px">
-      <div class="form-group">
-        <label class="form-label" for="set-target-nw">Target net worth (\u20AC)</label>
-        <input class="form-input" id="set-target-nw" type="text" inputmode="decimal" value="${esc(targetNW)}" placeholder="e.g. 100000 or 100.000">
-        <span class="note">Supports German format (100.000,00) or plain numbers.</span>
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="set-target-date">Target date (optional)</label>
-        <input class="form-input" id="set-target-date" type="month" value="${esc(targetDate)}">
-        <span class="note">Leave empty for ETA-only mode (no deadline).</span>
-      </div>
+    <div class="form-grid" style="max-width:500px;margin-top:.75rem">
       <div class="form-group">
         <label class="form-label" for="set-benchmark-label">Benchmark name (optional)${infoTip('Label for a benchmark to compare against your CAGR on the Net Worth tab. Example: MSCI World. Leave empty to hide the comparison tile.')}</label>
         <input class="form-input" id="set-benchmark-label" type="text" value="${esc(benchmarkLabel)}" placeholder="e.g. MSCI World">
@@ -1147,18 +1159,28 @@ function goalFieldsHtml(settings: Settings): string {
     </div>`;
 }
 
+function goalListHtml(goals: NamedGoal[], settings: Settings): string {
+  const rows = goals.map((g, i) => goalRowHtml(g, i)).join('');
+  return `
+    <div id="settings-goals-list">${rows}</div>
+    <button class="btn btn-sm" id="btn-add-goal" style="margin-bottom:.75rem">+ Add goal</button>
+    <hr style="border:none;border-top:1px solid var(--surface-3);margin:.75rem 0">
+    ${benchmarkFieldsHtml(settings)}`;
+}
+
 function renderGoalCard(settings: Settings): string {
+  const goals = getGoals();
   return `
     <div class="card card-collapsible" id="settings-card-goal" data-card-key="goal">
       <div class="card-header js-card-toggle">
-        <div class="card-title">Goal</div>
+        <div class="card-title">Goals &amp; Benchmark</div>
         <span class="card-chevron"></span>
       </div>
       <div class="card-body">
-        <p class="note" style="margin-bottom:.75rem">Set a net-worth target to track progress on the Net Worth tab. Optionally set a target date to see if you're on track.</p>
-        <div id="settings-goal-fields">${goalFieldsHtml(settings)}</div>
+        <p class="note" style="margin-bottom:.75rem">Add one or more net-worth targets to track on the Net Worth tab. Each goal shows progress, remaining amount, and ETA.</p>
+        <div id="settings-goal-fields">${goalListHtml(goals, settings)}</div>
         <div style="display:flex;gap:10px;margin-top:.75rem">
-          <button class="btn btn-primary btn-sm" id="btn-save-goal">Save goal</button>
+          <button class="btn btn-primary btn-sm" id="btn-save-goal">Save</button>
           <span id="goal-msg" style="font-size:12px;line-height:28px"></span>
         </div>
       </div>
@@ -1166,11 +1188,41 @@ function renderGoalCard(settings: Settings): string {
 }
 
 function attachGoalListeners(root: HTMLElement): void {
+  // Add goal row
+  root.querySelector('#btn-add-goal')?.addEventListener('click', () => {
+    const list = root.querySelector('#settings-goals-list');
+    if (!list) return;
+    const idx = list.querySelectorAll('.goal-row').length;
+    const div = document.createElement('div');
+    div.innerHTML = goalRowHtml({ label: '', targetNetWorth: '', targetDate: '' }, idx);
+    list.appendChild(div.firstElementChild!);
+  });
+
+  // Remove goal row (event delegation)
+  root.querySelector('#settings-goals-list')?.addEventListener('click', (e) => {
+    const btn = (e.target as Element).closest('.goal-remove-btn') as HTMLElement | null;
+    if (!btn) return;
+    const row = btn.closest('.goal-row') as HTMLElement | null;
+    if (row) row.remove();
+    // Re-index remaining rows
+    root.querySelectorAll('.goal-row').forEach((r, i) => {
+      r.setAttribute('data-goal-idx', String(i));
+      r.querySelectorAll('[data-idx]').forEach((el) => el.setAttribute('data-idx', String(i)));
+    });
+  });
+
+  // Save
   root.querySelector('#btn-save-goal')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-goal') as HTMLButtonElement;
-    const nwVal = (root.querySelector('#set-target-nw') as HTMLInputElement | null)?.value || '';
-    const dateVal =
-      (root.querySelector('#set-target-date') as HTMLInputElement | null)?.value || '';
+    const goals: NamedGoal[] = [];
+    root.querySelectorAll('.goal-row').forEach((row) => {
+      const label = (row.querySelector('.goal-label-input') as HTMLInputElement | null)?.value || '';
+      const targetNetWorth =
+        (row.querySelector('.goal-nw-input') as HTMLInputElement | null)?.value || '';
+      const targetDate =
+        (row.querySelector('.goal-date-input') as HTMLInputElement | null)?.value || '';
+      if (targetNetWorth) goals.push({ label, targetNetWorth, targetDate });
+    });
     const benchmarkLabelVal =
       (root.querySelector('#set-benchmark-label') as HTMLInputElement | null)?.value || '';
     const benchmarkPctVal =
@@ -1181,14 +1233,11 @@ function attachGoalListeners(root: HTMLElement): void {
         btn,
         () =>
           setSettings({
-            targetNetWorth: nwVal,
-            targetDate: dateVal,
+            goals: JSON.stringify(goals),
             benchmarkLabel: benchmarkLabelVal,
             benchmarkAnnualReturnPct: benchmarkPctVal,
           }),
-        {
-          busyText: 'Saving...',
-        },
+        { busyText: 'Saving...' },
       );
       showMsg('goal-msg', 'Saved', true);
     } catch (err) {

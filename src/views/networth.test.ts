@@ -63,6 +63,7 @@ vi.mock('../store/config', () => ({
   getTotalAnnualContrib: () => 2600,
   isConfigLoaded: () => true,
   getBenchmark: () => null,
+  getGoals: vi.fn(() => []),
 }));
 
 vi.mock('../constants', () => ({
@@ -75,6 +76,7 @@ vi.mock('../constants', () => ({
 
 import { renderNW } from './networth';
 import type { PortfolioData, Snapshot } from '../types';
+import * as configStore from '../store/config';
 
 function makeSnap(date: string, acct1 = 1000, acct2 = 500): Snapshot {
   return { date, acct1, acct2 };
@@ -417,6 +419,9 @@ describe('renderNW', () => {
 
   it('goal progress card renders when target net worth is set', () => {
     const snaps = [makeSnap('2026-01-01', 5000, 2000)];
+    vi.mocked(configStore.getGoals).mockReturnValueOnce([
+      { label: 'Goal', targetNetWorth: '100000', targetDate: '' },
+    ]);
     renderNW(makePD(), snaps);
     const goalEl = document.getElementById('nw-goal')!;
     expect(goalEl.innerHTML).toContain('Goal');

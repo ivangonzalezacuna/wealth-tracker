@@ -90,6 +90,12 @@ export interface Settings {
   [key: string]: string | null | undefined;
 }
 
+export interface NamedGoal {
+  label: string;
+  targetNetWorth: string;
+  targetDate: string;
+}
+
 // ─── Import profile ──────────────────────────────────────────────
 
 export interface ImportProfileColumns {

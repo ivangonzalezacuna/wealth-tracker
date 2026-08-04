@@ -19,6 +19,7 @@ import {
   getTargetNetWorth,
   getTargetDate,
   getBenchmark,
+  getGoals,
 } from '../store/config';
 import { primaryInvestmentValue, allInvestmentAccountsValue } from '../model/accounts';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
@@ -362,63 +363,69 @@ export function renderNW(
   // Bind growth range toggle once
   _attachNWGrowthRangeToggle();
 
-  // Goal progress card
+  // Goal progress cards (one per named goal)
   const goalEl = document.getElementById('nw-goal');
   if (goalEl) {
-    const target = getTargetNetWorth();
-    if (target !== null) {
-      const pctComplete = Math.min(100, Math.round((total / target) * 100));
-      const remaining = Math.max(0, target - total);
-      const accountInputs = _buildAccountForecastInputs(s, accounts);
-      const etaMonths = forecastMonthsToTargetMulti(accountInputs, target);
-      const targetDate = getTargetDate();
+    const goals = getGoals();
+    const accountInputs = _buildAccountForecastInputs(s, accounts);
+    if (goals.length > 0) {
+      goalEl.innerHTML = goals
+        .map((goal) => {
+          const rawNW = (goal.targetNetWorth || '').replace(/\./g, '').replace(',', '.');
+          const target = parseFloat(rawNW);
+          if (isNaN(target) || target <= 0) return '';
+          const pctComplete = Math.min(100, Math.round((total / target) * 100));
+          const remaining = Math.max(0, target - total);
+          const etaMonths = forecastMonthsToTargetMulti(accountInputs, target);
+          const targetDate = (goal.targetDate || '').trim();
+          const validTargetDate = /^\d{4}-\d{2}$/.test(targetDate) ? targetDate : null;
 
-      let etaText = '';
-      if (total >= target) {
-        etaText = '<span class="pos" style="font-weight:500">Goal reached!</span>';
-      } else if (etaMonths !== null) {
-        const etaFormatted = formatMonthsEta(etaMonths);
-        // Calculate target date from ETA
-        const now = new Date();
-        const etaDate = new Date(now.getFullYear(), now.getMonth() + etaMonths, 1);
-        const etaDateStr = `${etaDate.getFullYear()}-${String(etaDate.getMonth() + 1).padStart(2, '0')}`;
-        const etaDateFmt = fmtMon(etaDateStr);
+          let etaText = '';
+          if (total >= target) {
+            etaText = '<span class="pos" style="font-weight:500">Goal reached!</span>';
+          } else if (etaMonths !== null) {
+            const etaFormatted = formatMonthsEta(etaMonths);
+            const now = new Date();
+            const etaDate = new Date(now.getFullYear(), now.getMonth() + etaMonths, 1);
+            const etaDateStr = `${etaDate.getFullYear()}-${String(etaDate.getMonth() + 1).padStart(2, '0')}`;
+            const etaDateFmt = fmtMon(etaDateStr);
+            if (validTargetDate) {
+              const isOnTrack = etaDateStr <= validTargetDate;
+              etaText = isOnTrack
+                ? `<span class="pos">On track for ${fmtMon(validTargetDate)}</span> (ETA ${etaFormatted}, ${etaDateFmt})`
+                : `<span class="neg">Behind schedule</span> (ETA ${etaFormatted}, ${etaDateFmt}; target was ${fmtMon(validTargetDate)})`;
+            } else {
+              etaText = `ETA ${etaFormatted} (${etaDateFmt})`;
+            }
+          } else {
+            const hasGrowthPotential = accountInputs.some(
+              (a) => a.annualContrib > 0 || a.annualReturnPct > 0,
+            );
+            etaText = hasGrowthPotential
+              ? '<span class="neg">Target not reachable within the 100-year forecast horizon. Consider increasing contributions or return rate.</span>'
+              : 'Unable to estimate (set contributions or return rate)';
+          }
 
-        if (targetDate) {
-          // Compare ETA with target date
-          const isOnTrack = etaDateStr <= targetDate;
-          etaText = isOnTrack
-            ? `<span class="pos">On track for ${fmtMon(targetDate)}</span> (ETA ${etaFormatted}, ${etaDateFmt})`
-            : `<span class="neg">Behind schedule</span> (ETA ${etaFormatted}, ${etaDateFmt}; target was ${fmtMon(targetDate)})`;
-        } else {
-          etaText = `ETA ${etaFormatted} (${etaDateFmt})`;
-        }
-      } else {
-        const hasGrowthPotential = accountInputs.some(
-          (a) => a.annualContrib > 0 || a.annualReturnPct > 0,
-        );
-        etaText = hasGrowthPotential
-          ? '<span class="neg">Target not reachable within the 100-year forecast horizon. Consider increasing contributions or return rate.</span>'
-          : 'Unable to estimate (set contributions or return rate)';
-      }
-
-      goalEl.innerHTML = `
-        <div class="card">
-          <div class="card-title">Goal</div>
-          <div class="row"><div class="row-label">Target</div><div class="row-val">${fmtEur(target)}</div></div>
-          <div class="row"><div class="row-label">Current</div><div class="row-val">${fmtEur(total)}</div></div>
-          <div class="row"><div class="row-label">Remaining</div><div class="row-val">${fmtEur(remaining)}</div></div>
-          <div style="margin:.75rem 0">
-            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-              <span>${fmtPctVal(Math.min(100, (total / target) * 100))} complete</span>
-              <span>${fmtEur(total)} / ${fmtEur(target)}</span>
-            </div>
-            <div style="height:8px;background:var(--surface-3);border-radius:var(--radius-xs);overflow:hidden">
-              <div style="width:${pctComplete}%;height:100%;background:${pctComplete >= 100 ? 'var(--pos)' : 'var(--brand)'};border-radius:var(--radius-xs);transition:width .3s"></div>
-            </div>
-          </div>
-          <div class="row"><div class="row-label">ETA</div><div class="row-val" style="font-size:12px">${etaText}</div></div>
-        </div>`;
+          const title = goal.label ? esc(goal.label) : 'Goal';
+          return `
+            <div class="card" style="margin-bottom:.75rem">
+              <div class="card-title">${title}</div>
+              <div class="row"><div class="row-label">Target</div><div class="row-val">${fmtEur(target)}</div></div>
+              <div class="row"><div class="row-label">Current</div><div class="row-val">${fmtEur(total)}</div></div>
+              <div class="row"><div class="row-label">Remaining</div><div class="row-val">${fmtEur(remaining)}</div></div>
+              <div style="margin:.75rem 0">
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+                  <span>${fmtPctVal(Math.min(100, (total / target) * 100))} complete</span>
+                  <span>${fmtEur(total)} / ${fmtEur(target)}</span>
+                </div>
+                <div style="height:8px;background:var(--surface-3);border-radius:var(--radius-xs);overflow:hidden">
+                  <div style="width:${pctComplete}%;height:100%;background:${pctComplete >= 100 ? 'var(--pos)' : 'var(--brand)'};border-radius:var(--radius-xs);transition:width .3s"></div>
+                </div>
+              </div>
+              <div class="row"><div class="row-label">ETA</div><div class="row-val" style="font-size:12px">${etaText}</div></div>
+            </div>`;
+        })
+        .join('');
     } else {
       goalEl.innerHTML = '';
     }
@@ -759,8 +766,12 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       ]
     : null;
 
-  // Target line (horizontal) if goal is set
-  const target = getTargetNetWorth();
+  // Target line (horizontal) - use first goal's target if available
+  const _firstGoal = getGoals()[0];
+  const _firstGoalNW = _firstGoal
+    ? parseFloat((_firstGoal.targetNetWorth || '').replace(/\./g, '').replace(',', '.'))
+    : NaN;
+  const target = !isNaN(_firstGoalNW) && _firstGoalNW > 0 ? _firstGoalNW : getTargetNetWorth();
   const targetLine =
     target !== null
       ? [

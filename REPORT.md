@@ -170,13 +170,13 @@ The holdings table supports pagination and a held/closed/all toggle, but has no 
 - **What is needed:** A simple text input that filters the holdings table by ISIN or name, similar to the existing snapshot notes search on the Log tab.
 - **Resolution:** A text search input has been added to the holdings filter bar. Typing filters the holdings list by ISIN or name (case-insensitive) and resets pagination to page 1.
 
-### 4.5 Only One Financial Goal Supported (LOW)
+### 4.5 Only One Financial Goal Supported (LOW) - RESOLVED
 
 Settings allow one target net worth and one target date. There is no support for multiple named goals (e.g., house down payment by 2028, retirement by 2050, emergency fund top-up by 2025).
 
 - **Confirmed in:** `src/views/settings.ts:1060-1130` (single goal card), `src/types.ts:87-90` (Settings interface stores `targetNetWorth` and `targetDate` as single values)
 - **Impact:** Users with multiple savings objectives cannot track progress per goal. All forecasting and ETA calculation references a single target.
-- **What is needed:** A goals list (label, target amount, target date) with per-goal progress tracking on the Net Worth tab.
+- **Resolution:** Goals are now stored as a JSON array in the `goals` settings key. The Settings "Goals & Benchmark" card supports adding, removing, and saving multiple named goals (label, target amount, target date). The Net Worth tab renders one progress card per goal showing target, current, remaining, progress bar, and ETA. Legacy single-goal data (`targetNetWorth`/`targetDate`) is migrated transparently via `getGoals()`. The `NamedGoal` type was added to `src/types.ts`.
 
 ### 4.6 No Withdrawal or Drawdown Scenario in Forecast (MEDIUM)
 
