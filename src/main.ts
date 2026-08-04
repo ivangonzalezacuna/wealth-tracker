@@ -9,10 +9,7 @@ import {
   saveSnapshots,
   upsertSnapshot,
   loadTransactions,
-  mergeTransactions,
   restoreTransactions,
-  saveImportMeta,
-  loadImportMeta,
   runInSavepoint,
   ensureCurrentSchema,
 } from './db';
@@ -42,8 +39,6 @@ import {
 import { getSetupState } from './model/setup';
 import type { SetupStep } from './model/setup';
 import { computePD } from './portfolio';
-import { parseWithProfile, detectProfile, previewSummary } from './import/parse';
-import { builtInProfiles } from './import/profiles/index';
 import { renderNW } from './views/networth';
 import { renderPortfolio, getMaxDrift } from './views/portfolio';
 import { renderDCA } from './views/contributions';
@@ -73,8 +68,6 @@ import {
   setCachedTransactions,
   getCachedAggregates,
   setCachedAggregates,
-  getCachedImportMeta,
-  setCachedImportMeta,
   getInputsHash,
   setInputsHash,
   computeInputsHash,
@@ -90,21 +83,19 @@ import { showSigninOverlay, hideSigninOverlay } from './ui/signinOverlay';
 import { withTimeout } from './sync/timeout';
 import { isBusy, setBusy } from './sync/lock';
 import { registerSW } from 'virtual:pwa-register';
-import type { Snapshot, Transaction, PortfolioData, ImportProfile, Account } from './types';
+import type { Snapshot, Transaction, PortfolioData, Account } from './types';
 
 // ── App state ────────────────────────────────────────────
 const state: {
   snaps: Snapshot[];
   txs: Transaction[];
   pd: PortfolioData | null;
-  importMeta: { last_import?: string };
   offline: boolean;
   cacheLoaded: boolean;
 } = {
   snaps: [],
   txs: [],
   pd: null,
-  importMeta: {},
   offline: !navigator.onLine,
   cacheLoaded: false,
 };
@@ -125,7 +116,7 @@ function setSyncing(v: boolean): void {
   setBusy(v);
   // Reconcile Settings button states immediately (not just at next renderAll).
   applySyncBusyState();
-  // Also disable write controls outside Settings (snapshot Save, CSV import, etc.).
+  // Also disable write controls outside Settings (snapshot Save, etc.).
   applyReadOnlyMode();
 }
 function isSyncBusy(): boolean {
@@ -159,23 +150,12 @@ function applyReadOnlyMode(): void {
       : '';
 
   // Disable write-action buttons
-  const writeIds = ['btn-save-snap', 'btn-confirm-import', 'btn-sync-now'];
+  const writeIds = ['btn-save-snap', 'btn-sync-now'];
   for (const id of writeIds) {
     const el = document.getElementById(id) as HTMLButtonElement | null;
     if (!el) continue;
     el.disabled = disabled;
     el.title = hint;
-  }
-
-  // Disable CSV drop zone and file input
-  const zone = document.getElementById('drop-zone');
-  const csvInput = document.getElementById('csv-file-input') as HTMLInputElement | null;
-  if (zone) {
-    zone.classList.toggle('drop-zone-disabled', disabled);
-    zone.title = hint;
-  }
-  if (csvInput) {
-    csvInput.disabled = disabled;
   }
 
   // Per-row snapshot Delete button, if a history row is currently expanded.
@@ -228,7 +208,6 @@ injectEnvBanner();
 loadCollapseState(); // fire-and-forget: loads persisted UI collapse state from IDB
 initNav();
 initSnapForm();
-initCSVDrop();
 initAuth();
 setDefaultMonth();
 initOnlineListeners();
@@ -541,11 +520,10 @@ async function bootFromCache() {
     const valid = await isCacheValid();
     if (!valid) return;
 
-    const [cachedConfig, cachedSnaps, cachedTxs, cachedMeta, cachedPd] = await Promise.all([
+    const [cachedConfig, cachedSnaps, cachedTxs, cachedPd] = await Promise.all([
       getCachedConfig(),
       getCachedSnapshots(),
       getCachedTransactions(),
-      getCachedImportMeta(),
       getCachedAggregates(),
     ]);
 
@@ -558,7 +536,6 @@ async function bootFromCache() {
     if (cachedSnaps || cachedTxs) {
       state.snaps = cachedSnaps || [];
       state.txs = cachedTxs || [];
-      state.importMeta = cachedMeta || {};
       state.pd = cachedPd || null;
       state.cacheLoaded = true;
       renderAll();
@@ -588,16 +565,14 @@ async function syncInBackground() {
     // Load from local SQLite
     await loadConfig();
     restoreCollapseFromSheet(); // restore UI prefs if IDB was empty (new device)
-    const [snaps, txs, meta] = await Promise.all([
+    const [snaps, txs] = await Promise.all([
       loadSnapshots(),
       loadTransactions(),
-      loadImportMeta(),
     ]);
 
     // Update state
     state.snaps = snaps;
     state.txs = txs;
-    state.importMeta = meta;
 
     // Compute aggregates (with caching)
     state.pd = await computeAggregatesWithCache(txs);
@@ -627,7 +602,6 @@ async function syncInBackground() {
       }),
       setCachedSnapshots(snaps),
       setCachedTransactions(txs),
-      setCachedImportMeta(meta),
     ]);
     if (!configCached || !snapsCached || !txsCached) showCacheWriteWarning();
 
@@ -690,14 +664,12 @@ async function loadAllData() {
 
     await loadConfig();
     restoreCollapseFromSheet(); // restore UI prefs if IDB was empty
-    const [snaps, txs, meta] = await Promise.all([
+    const [snaps, txs] = await Promise.all([
       loadSnapshots(),
       loadTransactions(),
-      loadImportMeta(),
     ]);
     state.snaps = snaps;
     state.txs = txs;
-    state.importMeta = meta;
     state.pd = txs.length ? computePD(txs, { method: getCostBasisMethod() }) : null;
 
     // Cache everything
@@ -709,7 +681,6 @@ async function loadAllData() {
       }),
       setCachedSnapshots(snaps),
       setCachedTransactions(txs),
-      setCachedImportMeta(meta),
       state.pd ? setCachedAggregates(state.pd) : Promise.resolve(),
       state.pd
         ? setInputsHash(
@@ -757,7 +728,6 @@ export async function forceFullResync() {
   state.snaps = [];
   state.txs = [];
   state.pd = null;
-  state.importMeta = {};
   state.cacheLoaded = false;
   await loadAllData();
 }
@@ -773,7 +743,7 @@ export async function exportBackup(): Promise<void> {
     settings: getSettings(),
     snapshots: state.snaps,
     transactions: state.txs,
-    importMeta: state.importMeta,
+    importMeta: {},
   });
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -816,7 +786,7 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
   setSyncing(true);
   try {
     await ensureCurrentSchema();
-    const { accounts, holdings, settings, snapshots, transactions, importMeta } = backup.data;
+    const { accounts, holdings, settings, snapshots, transactions } = backup.data;
 
     // Wrap all DB writes in a savepoint so that a failure mid-restore rolls
     // back all previous writes. The original data is preserved on error.
@@ -829,7 +799,6 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
         });
         await saveSnapshots(snapshots);
         await restoreTransactions(transactions);
-        if (importMeta.last_import) await saveImportMeta(importMeta.last_import);
       });
     } catch (err) {
       throw new Error(
@@ -857,7 +826,6 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
 
     state.snaps = snapshots;
     state.txs = transactions;
-    state.importMeta = importMeta;
     state.pd = transactions.length
       ? computePD(transactions, { method: getCostBasisMethod() })
       : null;
@@ -870,7 +838,6 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
       }),
       setCachedSnapshots(snapshots),
       setCachedTransactions(transactions),
-      setCachedImportMeta(importMeta),
     ]);
     await setSetting('last_backup_at', new Date().toISOString());
     renderAll();
@@ -1140,8 +1107,7 @@ async function saveSnapshot() {
 /**
  * saveMonthlyUpdate - single orchestrator for the "Monthly update" flow.
  * Saves balances (snapshot) via the existing upsert path.
- * CSV import remains a separate confirm action within the same card.
- * Both paths run under the unified sync lock.
+ * Runs under the unified sync lock.
  */
 async function saveMonthlyUpdate() {
   await saveSnapshot();
@@ -1284,274 +1250,9 @@ function clearSnapForm() {
   if (acctFields) (acctFields as HTMLElement & { _renderSig?: string })._renderSig = '';
 }
 
-// ── CSV import ────────────────────────────────────────────
-function initCSVDrop() {
-  const zone = document.getElementById('drop-zone');
-  const inp = document.getElementById('csv-file-input') as HTMLInputElement | null;
-
-  if (!zone || !inp) return;
-
-  inp.addEventListener('change', () => {
-    if (inp.files?.[0]) handleCSVFile(inp.files[0]);
-  });
-  zone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    zone.classList.add('over');
-  });
-  zone.addEventListener('dragleave', () => zone.classList.remove('over'));
-  zone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    zone.classList.remove('over');
-    const f = e.dataTransfer?.files[0];
-    if (f?.name.toLowerCase().endsWith('.csv')) handleCSVFile(f);
-    else showMsg('import-msg', 'Please drop a .csv file', false);
-  });
-}
-
-async function handleCSVFile(file: File) {
-  // Block writes when offline
-  if (state.offline || !navigator.onLine) {
-    showMsg('import-msg', 'Cannot import while offline. Please reconnect and try again.', false);
-    return;
-  }
-  if (!isSignedIn()) {
-    showMsg('import-msg', 'Please sign in before importing.', false);
-    return;
-  }
-  if (isSyncBusy()) {
-    showMsg('import-msg', 'A sync is already in progress.', false);
-    return;
-  }
-  showMsg('import-msg', 'Parsing\u2026', true);
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const text = e.target!.result as string;
-    const headerLine = text.trim().split('\n')[0] || '';
-
-    // Auto-detect profile
-    let profile = detectProfile(headerLine);
-
-    if (profile) {
-      // Profile detected - parse immediately and show preview
-      showImportPreview(text, profile);
-    } else {
-      // No match - show profile picker
-      showProfilePicker(text);
-    }
-  };
-  reader.readAsText(file, 'UTF-8');
-}
-
-/** Show a dropdown to pick a profile when auto-detect fails. */
-function showProfilePicker(csvText: string) {
-  const container = document.getElementById('import-preview');
-  if (!container) return;
-
-  const options = builtInProfiles
-    .map((p) => `<option value="${esc(p.id)}">${esc(p.label)}</option>`)
-    .join('');
-
-  container.innerHTML = `
-    <div class="card" style="margin-top:.75rem">
-      <div class="card-title">Select import profile</div>
-      <p class="note" style="margin-bottom:.75rem">Could not auto-detect the CSV format. Please select the matching bank/broker profile:</p>
-      <div style="display:flex;gap:10px;align-items:center;margin-bottom:.75rem">
-        <select id="profile-select" class="form-input" style="width:auto;max-width:260px">
-          ${options}
-        </select>
-        <button class="btn btn-primary btn-sm" id="btn-apply-profile">Parse with profile</button>
-      </div>
-      <button class="btn btn-ghost btn-sm" id="btn-cancel-profile">Cancel</button>
-    </div>
-  `;
-  container.style.display = 'block';
-
-  document.getElementById('btn-apply-profile')?.addEventListener('click', () => {
-    const id = (document.getElementById('profile-select') as HTMLSelectElement | null)?.value;
-    const profile = builtInProfiles.find((p) => p.id === id);
-    if (profile) showImportPreview(csvText, profile);
-  });
-  document.getElementById('btn-cancel-profile')?.addEventListener('click', () => {
-    container.innerHTML = '';
-    container.style.display = 'none';
-    showMsg('import-msg', 'Import cancelled.', false);
-  });
-}
-
-/** Parse CSV with profile and show a preview for confirmation. */
-function showImportPreview(csvText: string, profile: ImportProfile) {
-  const parsed = parseWithProfile(csvText, profile);
-  const summary = previewSummary(parsed);
-  const container = document.getElementById('import-preview');
-  if (!container) return;
-  const cont = container; // capture for closures
-
-  // Confirm handler - save to database
-  async function confirmImport() {
-    if (isSyncBusy()) {
-      showMsg('import-msg', 'A sync or save is in progress. Try again in a moment.', false);
-      return;
-    }
-    cont.innerHTML = '';
-    cont.style.display = 'none';
-    setSyncing(true);
-    try {
-      const merged = await mergeTransactions(state.txs, parsed.transactions);
-      const today = new Date().toISOString().slice(0, 10);
-      await saveImportMeta(today);
-      state.txs = merged;
-      state.importMeta = { last_import: today };
-      state.pd = computePD(merged, { method: getCostBasisMethod() });
-
-      // Update cache
-      const [txCached] = await Promise.all([
-        setCachedTransactions(merged),
-        setCachedImportMeta({ last_import: today }),
-        state.pd ? setCachedAggregates(state.pd) : Promise.resolve(),
-        state.pd
-          ? setInputsHash(
-              computeInputsHash(
-                merged.length,
-                merged[merged.length - 1]?.date || '',
-                getCostBasisMethod(),
-                holdingsSignature(getHoldings()),
-              ),
-            )
-          : Promise.resolve(),
-      ]);
-      if (!txCached) showCacheWriteWarning();
-
-      renderAll();
-      showMsg('import-msg', `✓ ${merged.length} transactions saved`, true);
-
-      // Push to cloud immediately so a page reload won't pull
-      // the stale cloud DB and overwrite the freshly imported data.
-      await pushToCloud();
-    } catch (err) {
-      showMsg('import-msg', 'Error: ' + (err as Error).message, false);
-    } finally {
-      setSyncing(false);
-    }
-  }
-
-  // Auto-confirm when no unmapped types and no invalid dates (clean import)
-  if (summary.unmapped.length === 0 && summary.dateErrors.length === 0) {
-    confirmImport();
-    return;
-  }
-
-  // Build type counts string
-  const typeCounts = Object.entries(summary.byCounts)
-    .sort(([, a], [, b]) => b - a)
-    .map(([type, count]) => `<span style="font-weight:500">${count}</span> ${esc(type)}`)
-    .join(', ');
-
-  // Unmapped warning
-  const totalUnmapped = summary.unmapped.reduce((s, u) => s + u.count, 0);
-  const unmappedList = summary.unmapped
-    .map((u) => `<code>${esc(u.type)}</code> (${u.count})`)
-    .join(', ');
-  const unmappedHtml =
-    totalUnmapped > 0
-      ? `
-    <div class="status-bar status-warn" style="margin:.6rem 0">
-      ⚠ ${totalUnmapped} row${totalUnmapped > 1 ? 's' : ''} with unmapped type${totalUnmapped > 1 ? 's' : ''}: ${unmappedList}
-    </div>
-  `
-      : '';
-
-  const totalDateErrors = summary.dateErrors.reduce((s, d) => s + d.count, 0);
-  const dateErrorsList = summary.dateErrors
-    .map((d) => `<code>${esc(d.raw)}</code> (${d.count})`)
-    .join(', ');
-  const dateErrorsHtml =
-    totalDateErrors > 0
-      ? `
-    <div class="status-bar status-warn" style="margin:.6rem 0" id="import-date-warn">
-      ⚠ ${totalDateErrors} row${totalDateErrors > 1 ? 's' : ''} skipped due to invalid date${totalDateErrors > 1 ? 's' : ''}: ${dateErrorsList}
-      <button class="btn btn-ghost btn-sm" id="btn-dismiss-date-warn" style="margin-left:8px">Dismiss</button>
-    </div>
-  `
-      : '';
-
-  // Sample table (first ~10 rows)
-  const sampleRows = summary.sample;
-  const sampleHtml =
-    sampleRows.length > 0
-      ? `
-    <div style="overflow-x:auto;margin-top:.6rem;-webkit-overflow-scrolling:touch">
-      <table style="width:100%;font-size:11px;border-collapse:collapse">
-        <thead>
-          <tr style="color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em">
-            <th style="padding:4px 6px;text-align:left">Date</th>
-            <th style="padding:4px 6px;text-align:left">Type</th>
-            <th style="padding:4px 6px;text-align:left">Name</th>
-            <th style="padding:4px 6px;text-align:right">Shares</th>
-            <th style="padding:4px 6px;text-align:right">Amount</th>
-            <th style="padding:4px 6px;text-align:left">Currency</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${sampleRows
-            .map(
-              (tx) => `
-            <tr style="border-top:1px solid var(--line)">
-              <td style="padding:4px 6px">${esc(tx.date)}</td>
-              <td style="padding:4px 6px">${esc(tx.type)}</td>
-              <td style="padding:4px 6px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(tx.name)}</td>
-              <td style="padding:4px 6px;text-align:right">${tx.shares || ''}</td>
-              <td style="padding:4px 6px;text-align:right">${tx.amount}</td>
-              <td style="padding:4px 6px">${esc(tx.currency)}</td>
-            </tr>
-          `,
-            )
-            .join('')}
-        </tbody>
-      </table>
-    </div>
-  `
-      : '';
-
-  container.innerHTML = `
-    <div class="card" style="margin-top:.75rem">
-      <div class="card-title">Import preview</div>
-      <div style="margin:.6rem 0;font-size:13px">
-        <span style="font-weight:500">Profile:</span> ${esc(profile.label)}
-      </div>
-      <div style="font-size:13px">
-        <span style="font-weight:500">${summary.total}</span> rows parsed: ${typeCounts}
-      </div>
-      ${unmappedHtml}
-      ${dateErrorsHtml}
-      ${sampleHtml}
-      <div style="display:flex;gap:10px;margin-top:.85rem">
-        <button class="btn btn-primary" id="btn-confirm-import">Confirm import</button>
-        <button class="btn btn-ghost" id="btn-cancel-import">Cancel</button>
-      </div>
-    </div>
-  `;
-  container.style.display = 'block';
-
-  document.getElementById('btn-confirm-import')?.addEventListener('click', () => confirmImport());
-
-  // Cancel handler
-  document.getElementById('btn-cancel-import')?.addEventListener('click', () => {
-    container.innerHTML = '';
-    container.style.display = 'none';
-    showMsg('import-msg', 'Import cancelled.', false);
-  });
-
-  document.getElementById('btn-dismiss-date-warn')?.addEventListener('click', () => {
-    document.getElementById('import-date-warn')?.remove();
-  });
-}
-
 // ── Update subtitle ───────────────────────────────────────
 function updateSub() {
   const parts = [];
-  if (state.importMeta?.last_import && state.txs.length) {
-    parts.push(`CSV: ${state.importMeta.last_import}`);
-  }
   if (state.snaps.length > 0) {
     parts.push(
       `${state.snaps.length} snapshot${state.snaps.length > 1 ? 's' : ''} · latest ${fmtMon(state.snaps[state.snaps.length - 1].date)}`,
@@ -1819,9 +1520,7 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
         break;
       case 'log':
         renderLog({
-          txs: state.txs,
           snaps: state.snaps,
-          importMeta: state.importMeta,
           onEditSnap: editSnap,
           onDelSnap: delSnap,
           readOnly: isReadOnly(),

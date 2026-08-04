@@ -31,7 +31,6 @@ const DOM_FIXTURE = `
   <div id="snap-table-header"></div>
   <div id="snaps-list"></div>
   <div id="snap-pagination"></div>
-  <div id="import-status"></div>
 `;
 
 describe('renderLog', () => {
@@ -43,9 +42,8 @@ describe('renderLog', () => {
   it('renders one row per snapshot', () => {
     const snaps = [makeSnap('2026-01-01'), makeSnap('2026-02-01')];
     renderLog({
-      txs: [],
       snaps,
-      importMeta: null,
+      
       onEditSnap: vi.fn(),
       onDelSnap: vi.fn(),
     });
@@ -55,16 +53,15 @@ describe('renderLog', () => {
   });
 
   it('renders an empty-state message when snaps is empty', () => {
-    renderLog({ txs: [], snaps: [], importMeta: null, onEditSnap: vi.fn(), onDelSnap: vi.fn() });
+    renderLog({ snaps: [], onEditSnap: vi.fn(), onDelSnap: vi.fn() });
     expect(document.getElementById('snaps-list')!.textContent).toContain('No snapshots yet');
   });
 
   it('hides edit/delete buttons when readOnly is true', () => {
     const snaps = [makeSnap('2026-01-01')];
     renderLog({
-      txs: [],
       snaps,
-      importMeta: null,
+      
       onEditSnap: vi.fn(),
       onDelSnap: vi.fn(),
       readOnly: true,
@@ -82,9 +79,8 @@ describe('renderLog', () => {
   it('shows edit/delete buttons when readOnly is false', () => {
     const snaps = [makeSnap('2026-01-01')];
     renderLog({
-      txs: [],
       snaps,
-      importMeta: null,
+      
       onEditSnap: vi.fn(),
       onDelSnap: vi.fn(),
       readOnly: false,
@@ -102,9 +98,8 @@ describe('renderLog', () => {
     const onEdit = vi.fn();
     const snaps = [makeSnap('2026-03-01')];
     renderLog({
-      txs: [],
       snaps,
-      importMeta: null,
+      
       onEditSnap: onEdit,
       onDelSnap: vi.fn(),
     });
@@ -122,9 +117,8 @@ describe('renderLog', () => {
     const onDel = vi.fn();
     const snaps = [makeSnap('2026-03-01')];
     renderLog({
-      txs: [],
       snaps,
-      importMeta: null,
+      
       onEditSnap: vi.fn(),
       onDelSnap: onDel,
     });
@@ -141,9 +135,8 @@ describe('renderLog', () => {
   it('populates year filter with distinct years from snaps', () => {
     const snaps = [makeSnap('2025-06-01'), makeSnap('2026-01-01'), makeSnap('2026-02-01')];
     renderLog({
-      txs: [],
       snaps,
-      importMeta: null,
+      
       onEditSnap: vi.fn(),
       onDelSnap: vi.fn(),
     });
@@ -158,9 +151,8 @@ describe('renderLog', () => {
   it('search filters snapshots by date/notes', () => {
     const snaps = [{ ...makeSnap('2026-01-01'), notes: 'bonus payment' }, makeSnap('2026-06-01')];
     renderLog({
-      txs: [],
       snaps,
-      importMeta: null,
+      
       onEditSnap: vi.fn(),
       onDelSnap: vi.fn(),
     });
@@ -171,42 +163,5 @@ describe('renderLog', () => {
     expect(document.getElementById('snaps-list')!.textContent).toContain('No matching snapshots');
   });
 
-  it('shows import status when importMeta has last_import and txs are present', () => {
-    renderLog({
-      txs: [
-        {
-          id: '1',
-          date: '2026-01-01',
-          source: 'TR',
-          type: 'BUY',
-          name: 'IWDA',
-          isin: 'IE00',
-          shares: 1,
-          price: 80,
-          amount: 80,
-          fee: 0,
-          tax: 0,
-          currency: 'EUR',
-          fxRate: 1,
-        },
-      ],
-      snaps: [],
-      importMeta: { last_import: '2026-07-01' },
-      onEditSnap: vi.fn(),
-      onDelSnap: vi.fn(),
-    });
-    const statusEl = document.getElementById('import-status')!;
-    expect(statusEl.textContent).toContain('1 transactions');
-  });
-
-  it('shows "No CSV imported yet" when importMeta is null', () => {
-    renderLog({
-      txs: [],
-      snaps: [],
-      importMeta: null,
-      onEditSnap: vi.fn(),
-      onDelSnap: vi.fn(),
-    });
-    expect(document.getElementById('import-status')!.textContent).toContain('No CSV imported yet');
-  });
 });
+

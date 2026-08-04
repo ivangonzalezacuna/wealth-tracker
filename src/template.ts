@@ -18,7 +18,7 @@ export function appTemplate(): string {
   <button id="tab-networth" class="active" data-section="networth" role="tab" aria-selected="true" aria-controls="networth">Net worth</button>
   <button id="tab-portfolio" data-section="portfolio" role="tab" aria-selected="false" aria-controls="portfolio">Portfolio</button>
   <button id="tab-settings" data-section="settings" role="tab" aria-selected="false" aria-controls="settings">Settings</button>
-  <button id="tab-log" class="log-btn" data-section="log" role="tab" aria-selected="false" aria-controls="log" aria-label="Update (add snapshot or import CSV)">＋ Update</button>
+  <button id="tab-log" class="log-btn" data-section="log" role="tab" aria-selected="false" aria-controls="log" aria-label="Add monthly snapshot">＋ Update</button>
 </nav>
 
 <div id="setup-banner" style="display:none"></div>
@@ -79,9 +79,8 @@ export function appTemplate(): string {
   <div class="subview" id="subview-holdings" role="tabpanel" aria-labelledby="tab-holdings" style="display:block">
     <div id="port-empty" style="display:none"><div class="card"><div class="empty-state">
       <div style="font-size:2rem;margin-bottom:.75rem">📂</div>
-      <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.4rem">No transaction data imported</div>
-      <p style="font-size:13px;margin-bottom:1rem">Import your transaction export CSV to see exact cost basis, shares, and dividends.</p>
-      <button class="btn btn-primary" data-goto="log">Import CSV →</button>
+      <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.4rem">No transaction data</div>
+      <p style="font-size:13px;margin-bottom:1rem">No transactions available yet.</p>
     </div></div></div>
     <div id="port-content" style="display:none">
       <div class="kpi-row" id="port-kpis"></div>
@@ -119,8 +118,7 @@ export function appTemplate(): string {
   <div class="subview" id="subview-contributions" role="tabpanel" aria-labelledby="tab-contributions" style="display:none">
     <div id="dca-empty" style="display:none"><div class="card"><div class="empty-state">
       <div style="font-size:2rem;margin-bottom:.5rem">📅</div>
-      <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.75rem">No transaction data imported</div>
-      <button class="btn btn-primary" data-goto="log">Import CSV →</button>
+      <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.75rem">No transaction data</div>
     </div></div></div>
     <div id="dca-content" style="display:none">
       <div class="kpi-row" id="dca-kpis"></div>
@@ -154,8 +152,7 @@ export function appTemplate(): string {
   <div class="subview" id="subview-dividends" role="tabpanel" aria-labelledby="tab-dividends" style="display:none">
     <div id="div-empty" style="display:none"><div class="card"><div class="empty-state">
       <div style="font-size:2rem;margin-bottom:.5rem">💰</div>
-      <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.75rem">No transaction data imported</div>
-      <button class="btn btn-primary" data-goto="log">Import CSV →</button>
+      <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.75rem">No transaction data</div>
     </div></div></div>
     <div id="div-content" style="display:none">
       <div class="kpi-row" id="div-kpis"></div>
@@ -205,20 +202,6 @@ export function appTemplate(): string {
   </div>
 
   <div id="log-content">
-    <div class="card" id="csv-import-card">
-      <div class="card-title">Import transactions</div>
-      <p class="note" style="margin-bottom:.85rem">Import your transaction export CSV. Drag your file here or click to browse. Parsed locally; data synced to your Google Drive. Re-import anytime; duplicates handled automatically.</p>
-      <div class="drop-zone" id="drop-zone">
-        <input type="file" id="csv-file-input" accept=".csv" aria-label="Choose CSV file to import">
-        <div style="font-size:2rem;margin-bottom:.4rem" aria-hidden="true">📥</div>
-        <div style="font-weight:500;font-size:13px;color:var(--ink-2);margin-bottom:.2rem">Drop CSV file here</div>
-        <div style="font-size:11px;color:var(--ink-3)">or click to browse</div>
-      </div>
-      <div id="import-msg" style="font-size:12px;margin-top:.6rem;min-height:18px"></div>
-      <div id="import-preview" style="display:none"></div>
-      <div id="import-status" class="status-bar status-empty" style="margin-top:1rem">No CSV imported yet</div>
-    </div>
-
     <div class="card" id="balance-card">
       <div class="card-title">Monthly update</div>
       <p class="note" style="margin-bottom:.85rem">Enter total account balances once a month (~2 min). Same month overwrites the previous entry.</p>

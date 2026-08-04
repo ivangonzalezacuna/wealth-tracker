@@ -876,7 +876,7 @@ function attachHoldingListeners(root: HTMLElement): void {
           const txs = await loadTransactions();
           const buys = txs.filter((t) => t.type === 'BUY' && t.isin);
           if (buys.length === 0) {
-            showMsg('holds-msg', 'No BUY transactions found. Import a CSV first.', false);
+            showMsg('holds-msg', 'No BUY transactions found.', false);
             return;
           }
           // Determine cutoff: ISINs with buys in the last 3 months are "active"
