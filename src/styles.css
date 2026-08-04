@@ -125,6 +125,7 @@ code,
   margin-bottom: 1.5rem;
   border-bottom: 1px solid var(--line);
   overflow-x: auto;
+  overflow-y: visible;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
@@ -182,6 +183,7 @@ code,
   top: calc(100% + 8px);
   right: 0;
   max-width: 220px;
+  min-width: 180px;
   padding: 6px 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -197,7 +199,7 @@ code,
   transition:
     opacity 0.15s ease,
     transform 0.15s ease;
-  z-index: 20;
+  z-index: 200;
 }
 .nav button.drift-alert:hover::before,
 .nav button.drift-alert:focus-visible::before {

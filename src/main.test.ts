@@ -53,6 +53,23 @@ describe('showSection idempotent guard', () => {
       );
     });
 
+    it('keeps the nav tooltip positioned to overlay surrounding content', async () => {
+      const style = await import('./styles.css?inline');
+      document.head.innerHTML = `<style>${style.default}</style>`;
+      document.body.innerHTML = `
+        <div class="nav">
+          <button id="tab-portfolio" class="drift-alert" data-drift-alert="Allocation drift is 8pp above target. Open Portfolio to review it.">Portfolio</button>
+        </div>
+      `;
+      const nav = document.querySelector('.nav') as HTMLElement;
+      expect(getComputedStyle(nav).overflowY).toBe('visible');
+      const tooltipZ = getComputedStyle(
+        document.getElementById('tab-portfolio')!,
+        '::before',
+      ).zIndex;
+      expect(Number(tooltipZ)).toBeGreaterThan(100);
+    });
+
     it('clears explanatory drift alert copy when the badge is removed', () => {
       document.body.innerHTML = `<button id="tab-portfolio">Portfolio</button>`;
       const btn = document.getElementById('tab-portfolio') as HTMLButtonElement;
