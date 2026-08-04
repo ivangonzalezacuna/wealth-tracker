@@ -1804,9 +1804,14 @@ function updateDriftBadge(): void {
   if (max !== null && max > 5) {
     btn.classList.add('drift-alert');
     btn.setAttribute('aria-label', `Portfolio (drift alert: ${Math.round(max)}pp)`);
+    btn.setAttribute(
+      'data-drift-alert',
+      `Allocation drift is ${Math.round(max)}pp above target. Open Portfolio to review it.`,
+    );
   } else {
     btn.classList.remove('drift-alert');
     btn.removeAttribute('aria-label');
+    btn.removeAttribute('data-drift-alert');
   }
 }
 

@@ -212,7 +212,6 @@ function renderAllocationBreakdowns(
 }
 
 // Module-level filter state (survives re-renders)
-let _showExited = false;
 let _holdingsFilter = 'held'; // 'held' | 'closed' | 'all'
 let _holdingsSearch = '';
 const HOLD_PAGE_SIZE = 10;
@@ -430,8 +429,8 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
         <button class="btn btn-sm btn-ghost ${_holdingsFilter === 'closed' ? 'active' : ''}" data-filter="closed">Closed${exitedCount > 0 ? ' (' + exitedCount + ')' : ''}</button>
         <button class="btn btn-sm btn-ghost ${_holdingsFilter === 'all' ? 'active' : ''}" data-filter="all">All</button>
       </div>
-      <input id="port-holdings-search" type="search" class="form-input form-input-sm" placeholder="Search by ISIN or name"
-        value="${esc(_holdingsSearch)}" style="flex:1;min-width:140px;max-width:260px" aria-label="Search holdings">
+      <input id="port-holdings-search" type="search" class="form-input form-input-sm holdings-search-input" placeholder="Search ISIN or name"
+        value="${esc(_holdingsSearch)}" style="flex:1" aria-label="Search holdings by ISIN or name">
     </div>`;
 
   const rows = pageItems
@@ -492,10 +491,17 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   // Bind search input (re-bound each render since the element is recreated)
   const searchInput = document.getElementById('port-holdings-search') as HTMLInputElement | null;
   if (searchInput) {
-    searchInput.addEventListener('input', () => {
-      _holdingsSearch = searchInput.value;
+    searchInput.addEventListener('input', (event) => {
+      const input = event.currentTarget as HTMLInputElement;
+      _holdingsSearch = input.value;
       _holdPage = 1;
       renderHoldingsTable(pd, snaps);
+      const nextInput = document.getElementById('port-holdings-search') as HTMLInputElement | null;
+      if (nextInput) {
+        nextInput.focus();
+        const pos = _holdingsSearch.length;
+        nextInput.setSelectionRange(pos, pos);
+      }
     });
   }
 

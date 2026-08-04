@@ -408,6 +408,33 @@ describe('renderPortfolio', () => {
     expect(filterToggle!.textContent).toContain('All');
   });
 
+  it('renders a compact holdings search input', () => {
+    renderPortfolio(makePD(), []);
+    const search = document.getElementById('port-holdings-search') as HTMLInputElement;
+    expect(search).not.toBeNull();
+    expect(search.className).toContain('holdings-search-input');
+    expect(search.placeholder).toBe('Search ISIN or name');
+  });
+
+  it('keeps the holdings search focused while filtering', () => {
+    const pd = makePD({
+      etfs: {
+        IE00TEST1: makeEtf(),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EIMI', name: 'Emerging Markets' }),
+      },
+      totalInv: 2000,
+    });
+    renderPortfolio(pd, []);
+    const search = document.getElementById('port-holdings-search') as HTMLInputElement;
+    search.focus();
+    search.value = 'EI';
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    const nextSearch = document.getElementById('port-holdings-search') as HTMLInputElement;
+    expect(document.activeElement).toBe(nextSearch);
+    expect(nextSearch.value).toBe('EI');
+    expect(document.getElementById('port-table')!.textContent).toContain('EIMI');
+  });
+
   it('filter toggle switches between held and closed positions', () => {
     const pd = makePD({
       etfs: {
