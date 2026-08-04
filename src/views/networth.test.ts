@@ -62,7 +62,6 @@ vi.mock('../store/config', () => ({
   getHoldings: () => [],
   getTotalAnnualContrib: () => 2600,
   isConfigLoaded: () => true,
-  getBenchmark: () => null,
   getGoals: vi.fn(() => []),
 }));
 

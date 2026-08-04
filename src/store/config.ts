@@ -119,16 +119,6 @@ export function getCostBasisMethod(): 'fifo' | 'avgco' {
   return v === 'fifo' ? 'fifo' : 'avgco';
 }
 
-/** Benchmark: label (e.g. "MSCI World") and annual return assumption (fraction, not percent). */
-export function getBenchmark(): { label: string; annualReturn: number } | null {
-  const label = (_settings.benchmarkLabel || '').trim();
-  const raw = (_settings.benchmarkAnnualReturnPct || '').trim();
-  if (!label || !raw) return null;
-  const pct = parseFloat(raw);
-  if (!isFinite(pct)) return null;
-  return { label, annualReturn: pct / 100 };
-}
-
 const GOALS_KEY = 'goals';
 
 /** Get the list of named goals. Migrates legacy single-goal settings on first call. */

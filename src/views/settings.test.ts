@@ -427,7 +427,6 @@ describe('Data region IDs exist after renderSettings', () => {
     expect(el).not.toBeNull();
     // Goals list and add button are present
     expect(el!.querySelector('#btn-add-goal')).not.toBeNull();
-    expect(el!.querySelector('#set-benchmark-label')).not.toBeNull();
   });
 
   it('has #settings-backup-nudge wrapping the backup staleness nudge', () => {

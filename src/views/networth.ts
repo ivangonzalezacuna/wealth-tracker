@@ -18,7 +18,6 @@ import {
   getTotalAnnualContrib,
   getTargetNetWorth,
   getTargetDate,
-  getBenchmark,
   getGoals,
 } from '../store/config';
 import { primaryInvestmentValue, allInvestmentAccountsValue } from '../model/accounts';
@@ -106,7 +105,6 @@ export function renderNW(
     yoyData && yoyData.total > 0 ? ((total - yoyData.total) / yoyData.total) * 100 : null;
 
   const cagrVal = cagr(firstTotal, total, monthsSpan);
-  const benchmark = getBenchmark();
   const twrVal = twr(snaps, pd?.monthly || {});
   // Use all investment-type accounts for the IRR terminal value so multi-account
   // portfolios are not understated. Falls back to null (IRR hidden) when no
@@ -215,19 +213,6 @@ export function renderNW(
         valueClass: cagrVal >= 0 ? 'pos' : 'neg',
         sub: `${monthsSpan} months${monthsSpan < 24 ? ' (early data)' : ''}`,
       })}`
-        : ''
-    }
-    ${
-      benchmark !== null && cagrVal !== null
-        ? (() => {
-            const diff = cagrVal - benchmark.annualReturn;
-            return kpiTile({
-              label: `vs ${esc(benchmark.label)}${infoTip(`Difference between your CAGR (balance growth) and the manually configured benchmark return (${fmtPctNeg(benchmark.annualReturn * 100)} / yr). A positive value means your balance grew faster than the benchmark assumption. Note: CAGR is a balance metric and includes contributions; it is not a pure investment return. Configure the benchmark label and return in Settings under Goal. Data source: manual user assumption.`)}`,
-              value: diff >= 0 ? `+${fmtPctNeg(diff * 100)}` : fmtPctNeg(diff * 100),
-              valueClass: diff >= 0 ? 'pos' : 'neg',
-              sub: `CAGR vs ${fmtPctNeg(benchmark.annualReturn * 100)}/yr assumption`,
-            });
-          })()
         : ''
     }
     ${kpiTile({
@@ -422,7 +407,7 @@ export function renderNW(
                   <div style="width:${pctComplete}%;height:100%;background:${pctComplete >= 100 ? 'var(--pos)' : 'var(--brand)'};border-radius:var(--radius-xs);transition:width .3s"></div>
                 </div>
               </div>
-              <div class="row"><div class="row-label">ETA</div><div class="row-val" style="font-size:12px">${etaText}</div></div>
+              <div class="row"><div class="row-label">ETA</div><div class="row-val" style="font-size:12px">${etaText}${_inflationRate > 0 ? '<br><span class="note" style="font-size:11px">ETA is in nominal terms; inflation is not factored in.</span>' : ''}</div></div>
             </div>`;
         })
         .join('');
@@ -766,8 +751,11 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       ]
     : null;
 
-  // Target line (horizontal) - use first goal's target if available
-  const _firstGoal = getGoals()[0];
+  // Target line (horizontal) - use first goal's target if available.
+  // Only the first goal's target amount is shown as a horizontal line; all goals'
+  // deadlines appear as vertical markers below.
+  const _allGoals = getGoals();
+  const _firstGoal = _allGoals[0];
   const _firstGoalNW = _firstGoal
     ? parseFloat((_firstGoal.targetNetWorth || '').replace(/\./g, '').replace(',', '.'))
     : NaN;
@@ -787,6 +775,28 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           },
         ]
       : [];
+
+  // Deadline markers: one vertical line per goal that has a targetDate in the chart range.
+  // Collect deadlines as { label: string, labelIndex: number } for use in the inline plugin.
+  const goalDeadlines: Array<{ title: string; labelIndex: number; color: string }> = [];
+  const DEADLINE_COLORS = [
+    'rgba(255,160,30,0.9)',
+    'rgba(200,80,200,0.9)',
+    'rgba(30,190,180,0.9)',
+    'rgba(220,60,60,0.9)',
+  ];
+  _allGoals.forEach((g, gi) => {
+    const dl = (g.targetDate || '').trim();
+    if (!/^\d{4}-\d{2}$/.test(dl)) return;
+    const dlLabel = fmtMon(dl);
+    const idx = labels.indexOf(dlLabel);
+    if (idx === -1) return;
+    goalDeadlines.push({
+      title: g.label ? esc(g.label) : `Goal ${gi + 1}`,
+      labelIndex: idx,
+      color: DEADLINE_COLORS[gi % DEADLINE_COLORS.length],
+    });
+  });
 
   // Build per-account configuration summary
   const acctSummaryLines = accounts
@@ -846,13 +856,48 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
             }
           </div>
         </div>
-        <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX.</div>
+        <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX.${_allGoals.length > 1 ? ' Horizontal target line shows the first goal only; all goal deadlines are shown as vertical markers.' : ''}</div>
       </div>
     </div>`;
 
   _destroyChart('c-nw-forecast');
+
+  // Inline plugin: draw vertical deadline markers for each goal
+  const deadlinePlugin =
+    goalDeadlines.length > 0
+      ? {
+          id: 'goalDeadlines',
+          afterDraw(chart: import('chart.js').Chart) {
+            const { ctx, chartArea, scales } = chart;
+            if (!chartArea) return;
+            ctx.save();
+            goalDeadlines.forEach((d) => {
+              const x = scales['x'].getPixelForValue(d.labelIndex);
+              if (x < chartArea.left || x > chartArea.right) return;
+              ctx.beginPath();
+              ctx.moveTo(x, chartArea.top);
+              ctx.lineTo(x, chartArea.bottom);
+              ctx.strokeStyle = d.color;
+              ctx.lineWidth = 1.5;
+              ctx.setLineDash([4, 3]);
+              ctx.stroke();
+              ctx.setLineDash([]);
+              // Label at the top
+              ctx.fillStyle = d.color;
+              ctx.font = '10px sans-serif';
+              ctx.textAlign = 'left';
+              const textX = x + 3;
+              const textY = chartArea.top + 12;
+              ctx.fillText(d.title, textX, textY);
+            });
+            ctx.restore();
+          },
+        }
+      : null;
+
   CH['c-nw-forecast'] = new Chart(document.getElementById('c-nw-forecast') as HTMLCanvasElement, {
     type: 'line',
+    plugins: deadlinePlugin ? [deadlinePlugin] : [],
     data: {
       labels,
       datasets: [
