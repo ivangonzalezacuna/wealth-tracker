@@ -10,6 +10,7 @@ export const TxType = {
   DEPOSIT: 'DEPOSIT',
   WITHDRAWAL: 'WITHDRAWAL',
   TRANSFER: 'TRANSFER',
+  SPLIT: 'SPLIT',
 } as const;
 
 export type TxTypeValue = (typeof TxType)[keyof typeof TxType];
@@ -72,6 +73,7 @@ export interface Holding {
   region: string;
   foldInto: string;
   order: number;
+  ter?: number; // total expense ratio in %, e.g. 0.2 for 0.20%
 }
 
 // ─── Snapshot ────────────────────────────────────────────────────

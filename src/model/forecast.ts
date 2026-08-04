@@ -132,3 +132,23 @@ export function forecastSeries(
     startDate,
   );
 }
+
+// ── Dividend income projection ────────────────────────────────────
+
+/**
+ * Compute projected monthly dividend income from a portfolio forecast series.
+ *
+ * Each month's projected dividend = portfolioValue * (annualYieldPct / 100) / 12.
+ * Returns one entry per month in the same order as portfolioForecast.
+ */
+export function dividendProjectionSeries(
+  portfolioForecast: Array<{ month: string; value: number }>,
+  annualYieldPct: number,
+): Array<{ month: string; monthlyIncome: number; annualIncome: number }> {
+  if (annualYieldPct <= 0 || portfolioForecast.length === 0) return [];
+  return portfolioForecast.map((p) => ({
+    month: p.month,
+    monthlyIncome: (p.value * annualYieldPct) / 100 / 12,
+    annualIncome: (p.value * annualYieldPct) / 100,
+  }));
+}

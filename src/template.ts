@@ -33,6 +33,7 @@ export function appTemplate(): string {
   </div></div></div>
   <div id="nw-content" style="display:none">
     <div class="kpi-row" id="nw-kpis"></div>
+    <div id="nw-peracct"></div>
     <div class="card card-primary">
       <div class="card-title" id="nw-chart-title">Net worth: stacked by account</div>
       <div class="chart-controls">
@@ -184,6 +185,7 @@ export function appTemplate(): string {
         <div id="div-annual"></div>
         <div id="div-annual-pagination" class="pagination"></div>
       </div>
+      <div id="div-projection"></div>
     </div>
   </div>
 </div>

@@ -63,4 +63,6 @@ export const MIGRATIONS: string[][] = [
   ],
   // [4] version 3 → 4: add category column to transactions
   [`ALTER TABLE transactions ADD COLUMN category TEXT NOT NULL DEFAULT ''`],
+  // [5] version 4 → 5: add ter column to holdings
+  [`ALTER TABLE holdings ADD COLUMN ter REAL NOT NULL DEFAULT 0`],
 ];

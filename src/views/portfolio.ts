@@ -15,7 +15,7 @@ import {
 import { getISIN_ORDERList, getMETAMap } from '../constants';
 import { getAccounts, getHoldings } from '../store/config';
 import { primaryInvestmentValue } from '../model/accounts';
-import { splitHoldings } from '../model/holdings';
+import { splitHoldings, computeFeeDrag } from '../model/holdings';
 import { computeDrift, maxDrift, computeRebalancePlan } from '../model/drift';
 import { builtInProfiles } from '../import/profiles/index';
 import type { PortfolioData, Snapshot, EtfPosition, ContribInterval } from '../types';
@@ -624,6 +624,8 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
       ? `Position market value from latest snapshot ETF breakdown (${latSnap ? fmtMon(latSnap.date) : 'none yet'}).`
       : `Market value from latest account snapshot (${latSnap ? fmtMon(latSnap.date) : 'none yet'}).`;
 
+  const feeDrag = computeFeeDrag(Object.values(pd.etfs), getHoldings(), snapEtfValues);
+
   document.getElementById('port-kpis')!.innerHTML = `
     ${kpiTile({ label: 'Total invested', value: fmtEur(pd.totalInv), sub: 'net of sells' })}
     ${kpiTile({
@@ -653,6 +655,20 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
       valueClass: pd.realizedPnL >= 0 ? 'pos' : 'neg',
       sub: 'from sells',
     })}
+    ${
+      feeDrag !== null
+        ? kpiTile({
+            label: `Annual fee drag${infoTip('Estimated annual cost of fund management fees (TER) across all held positions. Computed as the sum of each position value multiplied by its configured TER. Add TER values in Settings to see this figure. Positions without a TER configured are excluded.')}`,
+            value: fmtEur2(feeDrag.annualCost),
+            valueClass: 'neg',
+            sub: `${fmtPctVal(feeDrag.costPct * 100)} of holdings${feeDrag.coveredCount < Object.values(pd.etfs).filter((e) => !e.exited).length ? ' (partial)' : ''}`,
+          })
+        : kpiTile({
+            label: `Annual fee drag${infoTip('Estimated annual cost of fund management fees (TER) across all held positions. Add TER values to your holdings in Settings to enable this calculation.')}`,
+            value: '-',
+            sub: 'add TER in Settings',
+          })
+    }
   `;
 
   // Attach info-tips in the KPI row
