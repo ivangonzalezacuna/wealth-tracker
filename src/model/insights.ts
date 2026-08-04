@@ -164,7 +164,10 @@ export function maxDrawdown(snaps: Snapshot[]): number | null {
   for (let i = 1; i < snaps.length; i++) {
     const val = snapTotal(snaps[i]);
     if (val > peak) peak = val;
-    else if (peak > 0) { const dd = (val - peak) / peak; if (dd < maxDD) maxDD = dd; }
+    else if (peak > 0) {
+      const dd = (val - peak) / peak;
+      if (dd < maxDD) maxDD = dd;
+    }
   }
   return maxDD;
 }

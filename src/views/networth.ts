@@ -13,14 +13,18 @@ import {
   kpiTile,
 } from '../utils';
 import { getACCTSList, FORECAST_RANGE_LABELS } from '../constants';
-import {
-  getAccounts,
-  getTotalAnnualContrib,
-  getGoals,
-} from '../store/config';
+import { getAccounts, getTotalAnnualContrib, getGoals } from '../store/config';
 import { primaryInvestmentValue, allInvestmentAccountsValue } from '../model/accounts';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
-import { cagr, findYoYSnapshot, monthlyGrowthHistory, twr, xirr, annualizedVolatility, maxDrawdown } from '../model/insights';
+import {
+  cagr,
+  findYoYSnapshot,
+  monthlyGrowthHistory,
+  twr,
+  xirr,
+  annualizedVolatility,
+  maxDrawdown,
+} from '../model/insights';
 import type { MonthlyGrowthPoint } from '../model/insights';
 import {
   formatMonthsEta,
@@ -804,10 +808,20 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     : null;
 
   const _allGoals = getGoals();
-  const DEADLINE_COLORS = ['rgba(255,160,30,0.9)', 'rgba(200,80,200,0.9)', 'rgba(30,190,180,0.9)', 'rgba(220,60,60,0.9)'];
+  const DEADLINE_COLORS = [
+    'rgba(255,160,30,0.9)',
+    'rgba(200,80,200,0.9)',
+    'rgba(30,190,180,0.9)',
+    'rgba(220,60,60,0.9)',
+  ];
 
   // Deadline markers: vertical line + dot per goal that has a targetDate in the chart range.
-  const goalDeadlines: Array<{ title: string; labelIndex: number; color: string; targetNW: number | null }> = [];
+  const goalDeadlines: Array<{
+    title: string;
+    labelIndex: number;
+    color: string;
+    targetNW: number | null;
+  }> = [];
   _allGoals.forEach((g, gi) => {
     const dl = (g.targetDate || '').trim();
     if (!/^\d{4}-\d{2}$/.test(dl)) return;
@@ -905,7 +919,10 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
               ctx.strokeStyle = d.color;
               ctx.lineWidth = 1.5;
               ctx.setLineDash([4, 3]);
-              ctx.beginPath(); ctx.moveTo(x, chartArea.top); ctx.lineTo(x, chartArea.bottom); ctx.stroke();
+              ctx.beginPath();
+              ctx.moveTo(x, chartArea.top);
+              ctx.lineTo(x, chartArea.bottom);
+              ctx.stroke();
               ctx.setLineDash([]);
               ctx.fillStyle = d.color;
               ctx.font = '10px sans-serif';
@@ -914,9 +931,13 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
               if (d.targetNW !== null && scales['y']) {
                 const y = scales['y'].getPixelForValue(d.targetNW);
                 if (y >= chartArea.top && y <= chartArea.bottom) {
-                  ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2);
-                  ctx.fillStyle = d.color; ctx.fill();
-                  ctx.strokeStyle = 'var(--surface-1)'; ctx.lineWidth = 1.5; ctx.stroke();
+                  ctx.beginPath();
+                  ctx.arc(x, y, 5, 0, Math.PI * 2);
+                  ctx.fillStyle = d.color;
+                  ctx.fill();
+                  ctx.strokeStyle = 'var(--surface-1)';
+                  ctx.lineWidth = 1.5;
+                  ctx.stroke();
                 }
               }
             });

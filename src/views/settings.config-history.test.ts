@@ -15,8 +15,20 @@ describe('renderConfigHistoryCard', () => {
 
   it('renders a row for each entry', () => {
     const entries: ConfigHistoryEntry[] = [
-      { id: 1, timestamp: '2026-01-15T10:30:00.000Z', source: 'web', entity: 'accounts', summary: 'Added Main ETF' },
-      { id: 2, timestamp: '2026-01-16T11:00:00.000Z', source: 'web', entity: 'settings', summary: 'Cost basis changed to fifo' },
+      {
+        id: 1,
+        timestamp: '2026-01-15T10:30:00.000Z',
+        source: 'web',
+        entity: 'accounts',
+        summary: 'Added Main ETF',
+      },
+      {
+        id: 2,
+        timestamp: '2026-01-16T11:00:00.000Z',
+        source: 'web',
+        entity: 'settings',
+        summary: 'Cost basis changed to fifo',
+      },
     ];
     const html = renderConfigHistoryCard(entries);
     expect(html).toContain('Added Main ETF');
@@ -27,7 +39,13 @@ describe('renderConfigHistoryCard', () => {
 
   it('shows the correct entry count in the footer', () => {
     const entries: ConfigHistoryEntry[] = [
-      { id: 1, timestamp: '2026-01-15T10:00:00.000Z', source: 'web', entity: 'holdings', summary: 'Added IWDA' },
+      {
+        id: 1,
+        timestamp: '2026-01-15T10:00:00.000Z',
+        source: 'web',
+        entity: 'holdings',
+        summary: 'Added IWDA',
+      },
     ];
     const html = renderConfigHistoryCard(entries);
     expect(html).toContain('Showing the last 1 change.');
@@ -35,7 +53,13 @@ describe('renderConfigHistoryCard', () => {
 
   it('escapes HTML-special characters in summary and entity', () => {
     const entries: ConfigHistoryEntry[] = [
-      { id: 1, timestamp: '2026-01-15T10:00:00.000Z', source: 'web', entity: '<script>', summary: '"><img/>' },
+      {
+        id: 1,
+        timestamp: '2026-01-15T10:00:00.000Z',
+        source: 'web',
+        entity: '<script>',
+        summary: '"><img/>',
+      },
     ];
     const html = renderConfigHistoryCard(entries);
     expect(html).not.toContain('<script>');

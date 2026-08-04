@@ -43,7 +43,8 @@ function intervalOptionsHtml(selected: ContribInterval): string {
 }
 
 /** Card key -> render fn, used by repaintCard() to scope a re-render to one card. */
-type CardKey = 'accounts' | 'holdings' | 'cost-basis' | 'goal' | 'rules' | 'cache' | 'backup' | 'config-history';
+type CardKey =
+  'accounts' | 'holdings' | 'cost-basis' | 'goal' | 'rules' | 'cache' | 'backup' | 'config-history';
 
 /** One busy flag per card. Every Save/Delete/action handler in a card must
  *  go through withCardGuard (never withButtonGuard directly), so two actions
@@ -101,7 +102,12 @@ export async function withCardGuard<T>(
 /** Card-content refresh functions never touch buttons - these ids never
  *  go through withCardGuard/Sheets writes, so they stay clickable even
  *  while a sync/write is in progress elsewhere in the app. */
-const SYNC_LOCK_EXEMPT_IDS = new Set(['btn-add-acct', 'btn-add-hold', 'btn-add-rule', 'btn-add-goal']);
+const SYNC_LOCK_EXEMPT_IDS = new Set([
+  'btn-add-acct',
+  'btn-add-hold',
+  'btn-add-rule',
+  'btn-add-goal',
+]);
 const SYNC_BUSY_TITLE = 'Sync in progress, try again in a moment';
 
 /**
@@ -1119,7 +1125,8 @@ function attachCostBasisListeners(root: HTMLElement): void {
 // ── Goal / target net worth ──────────────────────────────
 
 function renderGoalRow(goal: NamedGoal, idx: number): string {
-  const title = goal.label || (goal.targetNetWorth ? `\u20AC${esc(goal.targetNetWorth)}` : `Goal ${idx + 1}`);
+  const title =
+    goal.label || (goal.targetNetWorth ? `\u20AC${esc(goal.targetNetWorth)}` : `Goal ${idx + 1}`);
   const metaParts: string[] = [];
   if (goal.targetNetWorth) metaParts.push(`\u20AC${esc(goal.targetNetWorth)}`);
   if (goal.targetDate) metaParts.push(esc(goal.targetDate));
@@ -1178,9 +1185,15 @@ function renderGoalCard(_settings: Settings): string {
 
 function collectGoals(root: HTMLElement): NamedGoal[] {
   return [...root.querySelectorAll('.settings-goal-row')].map((row) => ({
-    label: ((row.querySelector('[data-field="label"]') as HTMLInputElement | null)?.value || '').trim(),
-    targetNetWorth: ((row.querySelector('[data-field="targetNetWorth"]') as HTMLInputElement | null)?.value || '').trim(),
-    targetDate: ((row.querySelector('[data-field="targetDate"]') as HTMLInputElement | null)?.value || '').trim(),
+    label: (
+      (row.querySelector('[data-field="label"]') as HTMLInputElement | null)?.value || ''
+    ).trim(),
+    targetNetWorth: (
+      (row.querySelector('[data-field="targetNetWorth"]') as HTMLInputElement | null)?.value || ''
+    ).trim(),
+    targetDate: (
+      (row.querySelector('[data-field="targetDate"]') as HTMLInputElement | null)?.value || ''
+    ).trim(),
   }));
 }
 
@@ -1218,12 +1231,9 @@ function attachGoalListeners(root: HTMLElement): void {
     const btn = root.querySelector('#btn-save-goal') as HTMLButtonElement;
     const goals = collectGoals(root).filter((g) => g.targetNetWorth);
     try {
-      await withCardGuard(
-        'goal',
-        btn,
-        () => setSettings({ goals: JSON.stringify(goals) }),
-        { busyText: 'Saving...' },
-      );
+      await withCardGuard('goal', btn, () => setSettings({ goals: JSON.stringify(goals) }), {
+        busyText: 'Saving...',
+      });
       showMsg('goal-msg', 'Saved', true);
     } catch (err) {
       showMsg('goal-msg', 'Error: ' + (err as Error).message, false);
@@ -1467,8 +1477,12 @@ function _itemStableKey(item: HTMLElement): string | null {
   }
   // Goal rows: use label, falling back to targetNetWorth
   if (item.classList.contains('settings-goal-row')) {
-    const label = (item.querySelector('[data-field="label"]') as HTMLInputElement | null)?.value?.trim();
-    const nw = (item.querySelector('[data-field="targetNetWorth"]') as HTMLInputElement | null)?.value?.trim();
+    const label = (
+      item.querySelector('[data-field="label"]') as HTMLInputElement | null
+    )?.value?.trim();
+    const nw = (
+      item.querySelector('[data-field="targetNetWorth"]') as HTMLInputElement | null
+    )?.value?.trim();
     const key = label || nw;
     return key ? 'item:goal:' + key : null;
   }
@@ -1865,8 +1879,16 @@ function attachBackupListeners(root: HTMLElement): void {
 function fmtHistoryTimestamp(iso: string): string {
   if (!iso) return '';
   try {
-    return new Date(iso).toLocaleString(undefined, { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-  } catch { return iso; }
+    return new Date(iso).toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
 }
 
 export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
@@ -1874,13 +1896,18 @@ export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
   if (entries.length === 0) {
     body = '<p class="note" style="margin-top:.5rem">No changes recorded yet.</p>';
   } else {
-    const hdrStyle = 'text-align:left;font-size:11px;color:var(--ink-3);border-bottom:1px solid var(--line)';
-    const rows = entries.map((e) => `
+    const hdrStyle =
+      'text-align:left;font-size:11px;color:var(--ink-3);border-bottom:1px solid var(--line)';
+    const rows = entries
+      .map(
+        (e) => `
       <tr>
         <td style="white-space:nowrap;padding-right:1rem;color:var(--ink-3);font-size:11px">${esc(fmtHistoryTimestamp(e.timestamp))}</td>
         <td style="padding-right:.75rem;font-size:12px;color:var(--ink-2)">${esc(e.entity)}</td>
         <td style="font-size:12px">${esc(e.summary)}</td>
-      </tr>`).join('');
+      </tr>`,
+      )
+      .join('');
     body = `
       <div style="overflow-x:auto;margin-top:.5rem">
         <table style="border-collapse:collapse;width:100%;min-width:400px">

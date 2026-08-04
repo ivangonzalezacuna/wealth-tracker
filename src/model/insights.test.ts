@@ -235,22 +235,17 @@ describe('annualizedVolatility', () => {
   });
 
   it('returns null when a starting snapshot total is non-positive', () => {
-    vi.spyOn(utils, 'snapTotal').mockReturnValueOnce(0).mockReturnValueOnce(1000).mockReturnValueOnce(1050);
-    const snaps: Snapshot[] = [
-      { date: '2026-01' },
-      { date: '2026-02' },
-      { date: '2026-03' },
-    ];
+    vi.spyOn(utils, 'snapTotal')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(1000)
+      .mockReturnValueOnce(1050);
+    const snaps: Snapshot[] = [{ date: '2026-01' }, { date: '2026-02' }, { date: '2026-03' }];
     expect(annualizedVolatility(snaps)).toBeNull();
   });
 
   it('returns 0 for a flat series (no variance)', () => {
     vi.spyOn(utils, 'snapTotal').mockReturnValue(1000);
-    const snaps: Snapshot[] = [
-      { date: '2026-01' },
-      { date: '2026-02' },
-      { date: '2026-03' },
-    ];
+    const snaps: Snapshot[] = [{ date: '2026-01' }, { date: '2026-02' }, { date: '2026-03' }];
     expect(annualizedVolatility(snaps)).toBeCloseTo(0, 10);
   });
 
@@ -290,11 +285,7 @@ describe('maxDrawdown', () => {
       .mockReturnValueOnce(1000)
       .mockReturnValueOnce(1100)
       .mockReturnValueOnce(1200);
-    const snaps: Snapshot[] = [
-      { date: '2026-01' },
-      { date: '2026-02' },
-      { date: '2026-03' },
-    ];
+    const snaps: Snapshot[] = [{ date: '2026-01' }, { date: '2026-02' }, { date: '2026-03' }];
     expect(maxDrawdown(snaps)).toBe(0);
   });
 
