@@ -1172,8 +1172,6 @@ function renderGoalCard(settings: Settings): string {
         <p class="note" style="margin-bottom:.75rem">Add one or more net-worth targets to track on the Net Worth tab. Each goal shows progress, remaining amount, and ETA.</p>
         <div id="settings-goal-fields">${goalListHtml(goals, settings)}</div>
         <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
-          <button class="btn btn-outline btn-sm" id="btn-expand-goals">Expand all</button>
-          <button class="btn btn-outline btn-sm" id="btn-collapse-goals">Collapse all</button>
           <button class="btn btn-primary btn-sm" id="btn-save-goal">Save goals</button>
           <span id="goal-msg" style="font-size:12px;line-height:28px"></span>
         </div>
@@ -1182,8 +1180,17 @@ function renderGoalCard(settings: Settings): string {
 }
 
 function attachGoalListeners(root: HTMLElement): void {
-  // Add goal row
+  // Collapse/expand individual goal rows via event delegation on the list
+  root.querySelector('#settings-goals-list')?.addEventListener('click', (e) => {
+    const header = (e.target as Element).closest('.goal-row-header') as HTMLElement | null;
+    if (!header) return;
+    // Don't toggle when clicking the delete button
+    if ((e.target as HTMLElement | null)?.closest('.btn-danger')) return;
+    const row = header.closest('.goal-row') as HTMLElement | null;
+    if (row) row.classList.toggle('item-collapsed');
+  });
 
+  // Add goal row
   root.querySelector('#btn-add-goal')?.addEventListener('click', () => {
     const list = root.querySelector('#settings-goals-list');
     if (!list) return;
@@ -1191,14 +1198,7 @@ function attachGoalListeners(root: HTMLElement): void {
     const div = document.createElement('div');
     // New goals are always expanded
     div.innerHTML = goalRowHtml({ label: '', targetNetWorth: '', targetDate: '' }, idx, false);
-    const newRow = div.firstElementChild!;
-    list.appendChild(newRow);
-    // Wire collapse toggle for the new row's header
-    const header = newRow.querySelector('.js-item-toggle');
-    header?.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement | null)?.closest('.btn-danger')) return;
-      newRow.classList.toggle('item-collapsed');
-    });
+    list.appendChild(div.firstElementChild!);
   });
 
   // Remove goal row (event delegation)
@@ -1211,18 +1211,6 @@ function attachGoalListeners(root: HTMLElement): void {
     root.querySelectorAll('.goal-row').forEach((r, i) => {
       r.setAttribute('data-goal-idx', String(i));
       r.querySelectorAll('[data-idx]').forEach((el) => el.setAttribute('data-idx', String(i)));
-    });
-  });
-
-  // Expand all / collapse all
-  root.querySelector('#btn-expand-goals')?.addEventListener('click', () => {
-    root.querySelectorAll('#settings-goals-list .goal-row').forEach((row) => {
-      row.classList.remove('item-collapsed');
-    });
-  });
-  root.querySelector('#btn-collapse-goals')?.addEventListener('click', () => {
-    root.querySelectorAll('#settings-goals-list .goal-row').forEach((row) => {
-      row.classList.add('item-collapsed');
     });
   });
 

@@ -90,6 +90,8 @@ function _renderGoalCards(): void {
       const rawNW = (goal.targetNetWorth || '').replace(/\./g, '').replace(',', '.');
       const target = parseFloat(rawNW);
       if (isNaN(target) || target <= 0) return '';
+      // Skip goals already reached
+      if (total >= target) return '';
       const pctComplete = Math.min(100, Math.round((total / target) * 100));
       const remaining = Math.max(0, target - total);
       const etaMonths = forecastMonthsToTargetMulti(accountInputs, target);
@@ -98,10 +100,7 @@ function _renderGoalCards(): void {
 
       let etaText = '';
       let isOnTrack: boolean | null = null;
-      if (total >= target) {
-        etaText = '<span class="pos" style="font-weight:500">Goal reached!</span>';
-        isOnTrack = true;
-      } else if (etaMonths !== null) {
+      if (etaMonths !== null) {
         const etaFormatted = formatMonthsEta(etaMonths);
         const now = new Date();
         const etaDate = new Date(now.getFullYear(), now.getMonth() + etaMonths, 1);
