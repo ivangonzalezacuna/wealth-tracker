@@ -57,6 +57,11 @@ export function attachInfoTips(root: HTMLElement | Document = document): void {
 
 // ── Internal popover management ─────────────────────────────────
 
+/** Extended HTMLElement with a reference to its body-appended popover. */
+interface _TipEl extends HTMLElement {
+  _tipPop?: HTMLElement;
+}
+
 /** Track if the device has seen a touch event (sticky after first touch). */
 let _hasTouch = false;
 if (typeof window !== 'undefined') {
@@ -76,22 +81,29 @@ function _isTouchEvent(_e: MouseEvent): boolean {
 function _showPopover(trigger: HTMLElement): void {
   // Remove any other open popover first
   _dismissAll();
-  if (trigger.querySelector('.info-tip-pop')) return;
+  if ((trigger as _TipEl)._tipPop) return;
   const text = trigger.dataset.tip || '';
   const pop = document.createElement('span');
   pop.className = 'info-tip-pop';
   pop.textContent = text;
-  trigger.appendChild(pop);
-  // Position using fixed coordinates (escapes overflow:hidden ancestors)
+  // Append to body so position:fixed is relative to the viewport,
+  // not broken by CSS transforms on ancestor elements.
+  document.body.appendChild(pop);
+  (trigger as _TipEl)._tipPop = pop;
+  // Position using fixed coordinates (escapes overflow:hidden/transform ancestors)
   _positionPopover(trigger, pop);
 }
 
 function _hidePopover(trigger: HTMLElement): void {
-  trigger.querySelector('.info-tip-pop')?.remove();
+  const pop = (trigger as _TipEl)._tipPop;
+  if (pop) {
+    pop.remove();
+    delete (trigger as _TipEl)._tipPop;
+  }
 }
 
 function _togglePopover(trigger: HTMLElement): void {
-  if (trigger.querySelector('.info-tip-pop')) {
+  if ((trigger as _TipEl)._tipPop) {
     _hidePopover(trigger);
   } else {
     _showPopover(trigger);
@@ -128,6 +140,9 @@ function _positionPopover(trigger: HTMLElement, pop: HTMLElement): void {
 
 function _dismissAll(): void {
   document.querySelectorAll('.info-tip-pop').forEach((p) => p.remove());
+  document.querySelectorAll<HTMLElement>('.info-tip[data-tip-bound]').forEach((el) => {
+    delete (el as _TipEl)._tipPop;
+  });
 }
 
 // Global: dismiss any open popovers on outside click
