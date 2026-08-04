@@ -427,11 +427,11 @@ describe('renderPortfolio', () => {
     renderPortfolio(pd, []);
     const search = document.getElementById('port-holdings-search') as HTMLInputElement;
     search.focus();
-    search.value = 'EI';
+    search.value = 'em';
     search.dispatchEvent(new Event('input', { bubbles: true }));
     const nextSearch = document.getElementById('port-holdings-search') as HTMLInputElement;
     expect(document.activeElement).toBe(nextSearch);
-    expect(nextSearch.value).toBe('EI');
+    expect(nextSearch.value).toBe('em');
     expect(document.getElementById('port-table')!.textContent).toContain('EIMI');
   });
 
