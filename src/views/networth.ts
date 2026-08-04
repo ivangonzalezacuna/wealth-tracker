@@ -217,9 +217,7 @@ export function renderNW(
       value: twrVal !== null ? fmtPctNeg(twrVal * 100) : '-',
       valueClass: twrVal === null ? '' : twrVal >= 0 ? 'pos' : 'neg',
       sub:
-        twrVal !== null
-          ? 'linked snapshot returns'
-          : 'needs 2 snapshots and valid starting value',
+        twrVal !== null ? 'linked snapshot returns' : 'needs 2 snapshots and valid starting value',
     })}
     ${kpiTile({
       label: `IRR (investments)${infoTip('Money-weighted annual return on invested capital. Uses BUY cash outflows plus current primary investment value. SELL and dividend cash movements stay inside the account value and are not counted separately. If sell proceeds were withdrawn from your tracked accounts, those cash flows are not modelled as explicit inflows, so the IRR figure may overstate performance for portfolios with significant realized exits.')}`,

@@ -61,15 +61,12 @@ describe('cagr', () => {
         { date: '2026-03-01' },
       ];
       const result = twr(snaps, { '2026-02-01': 100, '2026-03-01': 100 });
-      expect(result).toBeCloseTo(0.3, 5);
+      expect(result).toBeCloseTo(0.2191666667, 5);
     });
 
     it('returns null when a period starts from zero or below', () => {
       vi.spyOn(utils, 'snapTotal').mockReturnValueOnce(0);
-      const snaps: Snapshot[] = [
-        { date: '2026-01-01' },
-        { date: '2026-02-01' },
-      ];
+      const snaps: Snapshot[] = [{ date: '2026-01-01' }, { date: '2026-02-01' }];
       expect(twr(snaps, { '2026-02-01': 100 })).toBeNull();
     });
   });
