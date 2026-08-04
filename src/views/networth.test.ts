@@ -62,6 +62,7 @@ vi.mock('../store/config', () => ({
   getHoldings: () => [],
   getTotalAnnualContrib: () => 2600,
   isConfigLoaded: () => true,
+  getGoals: vi.fn(() => []),
 }));
 
 vi.mock('../constants', () => ({
@@ -74,6 +75,7 @@ vi.mock('../constants', () => ({
 
 import { renderNW } from './networth';
 import type { PortfolioData, Snapshot } from '../types';
+import * as configStore from '../store/config';
 
 function makeSnap(date: string, acct1 = 1000, acct2 = 500): Snapshot {
   return { date, acct1, acct2 };
@@ -416,10 +418,34 @@ describe('renderNW', () => {
 
   it('goal progress card renders when target net worth is set', () => {
     const snaps = [makeSnap('2026-01-01', 5000, 2000)];
+    vi.mocked(configStore.getGoals).mockReturnValueOnce([
+      { label: 'Goal', targetNetWorth: '100000', targetDate: '' },
+    ]);
     renderNW(makePD(), snaps);
     const goalEl = document.getElementById('nw-goal')!;
     expect(goalEl.innerHTML).toContain('Goal');
     expect(goalEl.innerHTML).toContain('100.000');
+  });
+
+  it('multiple goals render a single card with a tab strip', () => {
+    const snaps = [makeSnap('2026-01-01', 5000, 2000)];
+    vi.mocked(configStore.getGoals).mockReturnValueOnce([
+      { label: 'FIRE', targetNetWorth: '500000', targetDate: '' },
+      { label: 'House', targetNetWorth: '100000', targetDate: '' },
+    ]);
+    renderNW(makePD(), snaps);
+    const goalEl = document.getElementById('nw-goal')!;
+    // Should have exactly one card, not two
+    expect(goalEl.querySelectorAll('.card').length).toBe(1);
+    // Tab strip is present
+    expect(goalEl.querySelector('#nw-goal-tabs')).not.toBeNull();
+    // Both goal labels appear as tabs
+    expect(goalEl.innerHTML).toContain('FIRE');
+    expect(goalEl.innerHTML).toContain('House');
+    // First tab is active by default
+    const activeTabs = goalEl.querySelectorAll('.range-toggle .btn.active');
+    expect(activeTabs.length).toBe(1);
+    expect(activeTabs[0].textContent).toBe('FIRE');
   });
 
   it('re-render does not throw or duplicate KPI tiles', () => {

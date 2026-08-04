@@ -24,7 +24,9 @@ export {
   deleteSetting,
   replaceAllSettings,
   logConfigChange,
+  loadConfigHistory,
 } from './repositories/config';
+export type { ConfigHistoryEntry } from './repositories/config';
 
 export {
   getMeta,

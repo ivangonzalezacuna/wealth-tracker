@@ -8,13 +8,13 @@ import {
   setSetting,
   isConfigLoaded,
   getCostBasisMethod,
-  getTargetNetWorth,
-  getTargetDate,
+  getGoals,
   getRetiredAccountIds,
   retireAccountIdsSafely,
 } from '../store/config';
 import type { ConfigChangeKind } from '../store/config';
-import { loadTransactions } from '../db';
+import { loadTransactions, loadConfigHistory } from '../db';
+import type { ConfigHistoryEntry } from '../db';
 import {
   validatePrimaryInvestment,
   validateAccountRanges,
@@ -24,7 +24,7 @@ import {
 import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { showMsg, reinjectPendingMsg, withButtonGuard, esc } from '../utils';
-import type { Account, Holding, Settings, ContribInterval } from '../types';
+import type { Account, Holding, Settings, ContribInterval, NamedGoal } from '../types';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { confirmDialog } from '../ui/confirmDialog';
@@ -43,7 +43,8 @@ function intervalOptionsHtml(selected: ContribInterval): string {
 }
 
 /** Card key -> render fn, used by repaintCard() to scope a re-render to one card. */
-type CardKey = 'accounts' | 'holdings' | 'cost-basis' | 'goal' | 'rules' | 'cache' | 'backup';
+type CardKey =
+  'accounts' | 'holdings' | 'cost-basis' | 'goal' | 'rules' | 'cache' | 'backup' | 'config-history';
 
 /** One busy flag per card. Every Save/Delete/action handler in a card must
  *  go through withCardGuard (never withButtonGuard directly), so two actions
@@ -101,7 +102,12 @@ export async function withCardGuard<T>(
 /** Card-content refresh functions never touch buttons - these ids never
  *  go through withCardGuard/Sheets writes, so they stay clickable even
  *  while a sync/write is in progress elsewhere in the app. */
-const SYNC_LOCK_EXEMPT_IDS = new Set(['btn-add-acct', 'btn-add-hold', 'btn-add-rule']);
+const SYNC_LOCK_EXEMPT_IDS = new Set([
+  'btn-add-acct',
+  'btn-add-hold',
+  'btn-add-rule',
+  'btn-add-goal',
+]);
 const SYNC_BUSY_TITLE = 'Sync in progress, try again in a moment';
 
 /**
@@ -158,6 +164,10 @@ function repaintCard(key: CardKey): void {
     case 'backup':
       html = renderBackupCard();
       break;
+    case 'config-history':
+      // Read-only card; re-render with empty entries as placeholder (async load follows)
+      html = renderConfigHistoryCard([]);
+      break;
   }
 
   existing.outerHTML = html;
@@ -186,6 +196,9 @@ function repaintCard(key: CardKey): void {
       break;
     case 'backup':
       attachBackupListeners(fresh);
+      break;
+    case 'config-history':
+      // No listeners needed for the read-only config history card
       break;
   }
   attachCardCollapseListeners(fresh);
@@ -219,6 +232,7 @@ export function renderSettings(): void {
     ${renderRulesCard(settings)}
     ${renderCacheCard()}
     ${renderBackupCard()}
+    ${renderConfigHistoryCard([])}
   `;
 
   attachAccountListeners(el);
@@ -230,6 +244,17 @@ export function renderSettings(): void {
   attachBackupListeners(el);
   attachColorPickerSync(el);
   attachCardCollapseListeners(el);
+
+  // Load and render config history asynchronously after initial paint
+  void loadConfigHistory(50).then((entries) => {
+    const card = document.getElementById('settings-card-config-history');
+    if (card) card.outerHTML = renderConfigHistoryCard(entries);
+    const fresh = document.getElementById('settings-card-config-history');
+    if (fresh) {
+      attachCardCollapseListeners(fresh);
+      if (isCollapsed('card:config-history')) fresh.classList.add('collapsed');
+    }
+  });
 
   // Reapply persisted collapse state after re-render
   el.querySelectorAll('.card-collapsible').forEach((card) => {
@@ -267,8 +292,8 @@ function refreshCostBasisData(): void {
 }
 
 function refreshGoalData(): void {
-  const el = document.getElementById('settings-goal-fields');
-  if (el) el.innerHTML = goalFieldsHtml(getSettings());
+  const card = document.getElementById('settings-card-goal');
+  if (card) rerenderGoalsTable(card, getGoals());
 }
 
 function refreshBackupData(): void {
@@ -1099,57 +1124,116 @@ function attachCostBasisListeners(root: HTMLElement): void {
 
 // ── Goal / target net worth ──────────────────────────────
 
-function goalFieldsHtml(settings: Settings): string {
-  const targetNW = settings.targetNetWorth || '';
-  const targetDate = settings.targetDate || '';
+function renderGoalRow(goal: NamedGoal, idx: number): string {
+  const title =
+    goal.label || (goal.targetNetWorth ? `\u20AC${esc(goal.targetNetWorth)}` : `Goal ${idx + 1}`);
+  const metaParts: string[] = [];
+  if (goal.targetNetWorth) metaParts.push(`\u20AC${esc(goal.targetNetWorth)}`);
+  if (goal.targetDate) metaParts.push(esc(goal.targetDate));
+  const metaStr = metaParts.join(' \u00B7 ');
   return `
-    <div class="form-grid" style="max-width:500px">
-      <div class="form-group">
-        <label class="form-label" for="set-target-nw">Target net worth (\u20AC)</label>
-        <input class="form-input" id="set-target-nw" type="text" inputmode="decimal" value="${esc(targetNW)}" placeholder="e.g. 100000 or 100.000">
-        <span class="note">Supports German format (100.000,00) or plain numbers.</span>
+    <div class="settings-item settings-goal-row item-collapsible" data-idx="${idx}">
+      <div class="settings-item-header js-item-toggle">
+        <span class="settings-item-title">${esc(title)}</span>
+        ${metaStr ? `<span class="settings-item-meta" style="font-size:11px;color:var(--ink-3);white-space:nowrap">${metaStr}</span>` : ''}
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <span class="item-chevron"></span>
+          <button class="btn btn-sm btn-danger js-del-goal" data-idx="${idx}">\u2715</button>
+        </div>
       </div>
-      <div class="form-group">
-        <label class="form-label" for="set-target-date">Target date (optional)</label>
-        <input class="form-input" id="set-target-date" type="month" value="${esc(targetDate)}">
-        <span class="note">Leave empty for ETA-only mode (no deadline).</span>
+      <div class="settings-item-fields">
+        <div class="settings-field">
+          <label class="settings-field-label" for="goal-label-${idx}">Goal label</label>
+          <input id="goal-label-${idx}" class="form-input form-input-sm" data-field="label" type="text" value="${esc(goal.label)}" placeholder="e.g. Financial independence">
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label" for="goal-nw-${idx}">Target net worth (\u20AC)</label>
+          <input id="goal-nw-${idx}" class="form-input form-input-sm" data-field="targetNetWorth" type="text" inputmode="decimal" value="${esc(goal.targetNetWorth)}" placeholder="e.g. 500000">
+          <span class="note">Supports German format (100.000,00) or plain numbers.</span>
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label" for="goal-date-${idx}">Target date (optional)</label>
+          <input id="goal-date-${idx}" class="form-input form-input-sm" data-field="targetDate" type="month" value="${esc(goal.targetDate)}">
+          <span class="note">Leave empty for ETA-only mode (no deadline).</span>
+        </div>
       </div>
     </div>`;
 }
 
-function renderGoalCard(settings: Settings): string {
+function renderGoalCard(_settings: Settings): string {
+  const goals = getGoals();
+  const rows = goals.map((g, i) => renderGoalRow(g, i)).join('');
   return `
     <div class="card card-collapsible" id="settings-card-goal" data-card-key="goal">
       <div class="card-header js-card-toggle">
-        <div class="card-title">Goal</div>
+        <div class="card-title">Goals</div>
         <span class="card-chevron"></span>
       </div>
       <div class="card-body">
-        <p class="note" style="margin-bottom:.75rem">Set a net-worth target to track progress on the Net Worth tab. Optionally set a target date to see if you're on track.</p>
-        <div id="settings-goal-fields">${goalFieldsHtml(settings)}</div>
-        <div style="display:flex;gap:10px;margin-top:.75rem">
-          <button class="btn btn-primary btn-sm" id="btn-save-goal">Save goal</button>
+        <p class="note" style="margin-bottom:.75rem">Add one or more net-worth targets to track on the Net Worth tab. Each goal shows progress, remaining amount, and ETA.</p>
+        <div id="settings-goals-tbl" class="settings-items">
+          ${rows}
+        </div>
+        <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" id="btn-add-goal">+ Add goal</button>
+          <button class="btn btn-primary btn-sm" id="btn-save-goal">Save goals</button>
           <span id="goal-msg" style="font-size:12px;line-height:28px"></span>
         </div>
       </div>
     </div>`;
 }
 
+function collectGoals(root: HTMLElement): NamedGoal[] {
+  return [...root.querySelectorAll('.settings-goal-row')].map((row) => ({
+    label: (
+      (row.querySelector('[data-field="label"]') as HTMLInputElement | null)?.value || ''
+    ).trim(),
+    targetNetWorth: (
+      (row.querySelector('[data-field="targetNetWorth"]') as HTMLInputElement | null)?.value || ''
+    ).trim(),
+    targetDate: (
+      (row.querySelector('[data-field="targetDate"]') as HTMLInputElement | null)?.value || ''
+    ).trim(),
+  }));
+}
+
+function rerenderGoalsTable(root: HTMLElement, goals: NamedGoal[]): void {
+  const tbl = root.querySelector('#settings-goals-tbl') as HTMLElement | null;
+  if (!tbl) return;
+  tbl.innerHTML = goals.map((g, i) => renderGoalRow(g, i)).join('');
+  attachItemCollapseListeners(tbl);
+  tbl.querySelectorAll('.js-del-goal').forEach((btn) => {
+    btn.addEventListener('click', () =>
+      deleteGoal(root, parseInt((btn as HTMLElement).dataset.idx!)),
+    );
+  });
+}
+
+function deleteGoal(root: HTMLElement, idx: number): void {
+  const goals = collectGoals(root).filter((_, i) => i !== idx);
+  rerenderGoalsTable(root, goals);
+}
+
 function attachGoalListeners(root: HTMLElement): void {
+  root.querySelector('#btn-add-goal')?.addEventListener('click', () => {
+    const goals = collectGoals(root);
+    goals.push({ label: '', targetNetWorth: '', targetDate: '' });
+    rerenderGoalsTable(root, goals);
+  });
+
+  root.querySelectorAll('.js-del-goal').forEach((btn) => {
+    btn.addEventListener('click', () =>
+      deleteGoal(root, parseInt((btn as HTMLElement).dataset.idx!)),
+    );
+  });
+
   root.querySelector('#btn-save-goal')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-goal') as HTMLButtonElement;
-    const nwVal = (root.querySelector('#set-target-nw') as HTMLInputElement | null)?.value || '';
-    const dateVal =
-      (root.querySelector('#set-target-date') as HTMLInputElement | null)?.value || '';
+    const goals = collectGoals(root).filter((g) => g.targetNetWorth);
     try {
-      await withCardGuard(
-        'goal',
-        btn,
-        () => setSettings({ targetNetWorth: nwVal, targetDate: dateVal }),
-        {
-          busyText: 'Saving...',
-        },
-      );
+      await withCardGuard('goal', btn, () => setSettings({ goals: JSON.stringify(goals) }), {
+        busyText: 'Saving...',
+      });
       showMsg('goal-msg', 'Saved', true);
     } catch (err) {
       showMsg('goal-msg', 'Error: ' + (err as Error).message, false);
@@ -1390,6 +1474,17 @@ function _itemStableKey(item: HTMLElement): string | null {
   if (item.classList.contains('settings-hold-row')) {
     const isin = (item.querySelector('[data-field="isin"]') as HTMLInputElement | null)?.value;
     return isin ? 'item:hold:' + isin : null;
+  }
+  // Goal rows: use label, falling back to targetNetWorth
+  if (item.classList.contains('settings-goal-row')) {
+    const label = (
+      item.querySelector('[data-field="label"]') as HTMLInputElement | null
+    )?.value?.trim();
+    const nw = (
+      item.querySelector('[data-field="targetNetWorth"]') as HTMLInputElement | null
+    )?.value?.trim();
+    const key = label || nw;
+    return key ? 'item:goal:' + key : null;
   }
   return null;
 }
@@ -1777,4 +1872,65 @@ function attachBackupListeners(root: HTMLElement): void {
       showMsg('backup-msg', 'Restore failed: ' + err.message, false);
     }
   });
+}
+
+// ── Config history (audit log) ──────────────────────────────────────────────
+
+function fmtHistoryTimestamp(iso: string): string {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
+}
+
+export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
+  let body: string;
+  if (entries.length === 0) {
+    body = '<p class="note" style="margin-top:.5rem">No changes recorded yet.</p>';
+  } else {
+    const hdrStyle =
+      'text-align:left;font-size:11px;color:var(--ink-3);border-bottom:1px solid var(--line)';
+    const rows = entries
+      .map(
+        (e) => `
+      <tr>
+        <td style="white-space:nowrap;padding-right:1rem;color:var(--ink-3);font-size:11px">${esc(fmtHistoryTimestamp(e.timestamp))}</td>
+        <td style="padding-right:.75rem;font-size:12px;color:var(--ink-2)">${esc(e.entity)}</td>
+        <td style="font-size:12px">${esc(e.summary)}</td>
+      </tr>`,
+      )
+      .join('');
+    body = `
+      <div style="overflow-x:auto;margin-top:.5rem">
+        <table style="border-collapse:collapse;width:100%;min-width:400px">
+          <thead><tr style="${hdrStyle}">
+            <th style="padding-bottom:.4rem;padding-right:1rem">When</th>
+            <th style="padding-bottom:.4rem;padding-right:.75rem">What</th>
+            <th style="padding-bottom:.4rem">Summary</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <p class="note" style="margin-top:.6rem">Showing the last ${entries.length} change${entries.length === 1 ? '' : 's'}.</p>`;
+  }
+
+  return `
+    <div class="card card-collapsible collapsed" id="settings-card-config-history" data-card-key="config-history">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Config history</div>
+        <span class="card-chevron"></span>
+      </div>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.5rem">Read-only log of recent configuration changes (accounts, holdings, settings).</p>
+        ${body}
+      </div>
+    </div>`;
 }

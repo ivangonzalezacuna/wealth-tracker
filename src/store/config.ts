@@ -12,7 +12,7 @@ import {
 } from '../db';
 import { scheduleUpload } from '../sync/engine';
 import { CONFIG } from '../config';
-import type { Account, Holding, Settings, ContribInterval } from '../types';
+import type { Account, Holding, Settings, ContribInterval, NamedGoal } from '../types';
 import { totalAnnualContrib, INTERVAL_PER_YEAR } from '../model/contributions';
 import type { CachedConfig } from '../cache/db';
 import { validateAccountIds } from '../model/accounts';
@@ -117,6 +117,28 @@ export function getTargetDate(): string | null {
 export function getCostBasisMethod(): 'fifo' | 'avgco' {
   const v = (_settings.costBasisMethod || '').toLowerCase();
   return v === 'fifo' ? 'fifo' : 'avgco';
+}
+
+const GOALS_KEY = 'goals';
+
+/** Get the list of named goals. Migrates legacy single-goal settings on first call. */
+export function getGoals(): NamedGoal[] {
+  const raw = (_settings[GOALS_KEY] || '').trim();
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed as NamedGoal[];
+    } catch {
+      // fall through
+    }
+  }
+  // Migrate legacy single goal if present
+  const legacyNW = (_settings.targetNetWorth || '').trim();
+  const legacyDate = (_settings.targetDate || '').trim();
+  if (legacyNW) {
+    return [{ label: 'Goal', targetNetWorth: legacyNW, targetDate: legacyDate }];
+  }
+  return [];
 }
 
 // ── Register re-render callback ──────────────────────────

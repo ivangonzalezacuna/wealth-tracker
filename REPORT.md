@@ -69,15 +69,16 @@ Returns (CAGR, IRR, YoY) are shown in isolation. There is no way to overlay or c
 
 - **Confirmed in:** `src/views/networth.ts`, `src/model/insights.ts` (no benchmark data structure or calculation)
 - **Impact:** Users cannot assess whether their investment decisions have added or destroyed value relative to simply buying a passive index. This is the single most important context for evaluating an investment strategy.
-- **What is needed:** An optional user-configured benchmark ticker (or a hardcoded set of common indices) with return data shown alongside portfolio metrics on the Net Worth tab.
+- **What is needed:** A reliable benchmark comparison requires real index return data (API or curated static dataset), not a manual user assumption. Deferred until a suitable data source is available.
 
-### 2.3 No Risk Metrics (MEDIUM)
+### 2.3 No Risk Metrics (MEDIUM) - RESOLVED
 
 The app tracks returns but not risk. There is no volatility, standard deviation, Sharpe ratio, Sortino ratio, maximum drawdown, or correlation analysis anywhere in the codebase.
 
 - **Confirmed in:** Codebase-wide search for "volatility", "sharpe", "drawdown", "correlation" returns no results in calculation files.
 - **Impact:** A user with a 7 % annual return cannot tell whether that return required 5 % volatility or 30 %. Risk-adjusted return is a foundational wealth management concept and its absence limits the app's utility for serious portfolio evaluation.
 - **What is needed:** At minimum, annualized volatility of monthly net-worth changes and a maximum drawdown figure, both computable from the existing snapshot history without any external data.
+- **Resolution:** Annualized volatility (sample standard deviation of monthly returns scaled by sqrt(12)) and maximum drawdown (largest peak-to-trough decline in total net worth) are now computed from the snapshot series and displayed as KPI tiles on the Net Worth tab, each with a concise tooltip.
 
 ### 2.4 No Per-Account Performance Analytics (MEDIUM)
 
@@ -169,13 +170,13 @@ The holdings table supports pagination and a held/closed/all toggle, but has no 
 - **What is needed:** A simple text input that filters the holdings table by ISIN or name, similar to the existing snapshot notes search on the Log tab.
 - **Resolution:** A text search input has been added to the holdings filter bar. Typing filters the holdings list by ISIN or name (case-insensitive) and resets pagination to page 1.
 
-### 4.5 Only One Financial Goal Supported (LOW)
+### 4.5 Only One Financial Goal Supported (LOW) - RESOLVED
 
 Settings allow one target net worth and one target date. There is no support for multiple named goals (e.g., house down payment by 2028, retirement by 2050, emergency fund top-up by 2025).
 
 - **Confirmed in:** `src/views/settings.ts:1060-1130` (single goal card), `src/types.ts:87-90` (Settings interface stores `targetNetWorth` and `targetDate` as single values)
 - **Impact:** Users with multiple savings objectives cannot track progress per goal. All forecasting and ETA calculation references a single target.
-- **What is needed:** A goals list (label, target amount, target date) with per-goal progress tracking on the Net Worth tab.
+- **Resolution:** Goals are now stored as a JSON array in the `goals` settings key. The Settings "Goals & Benchmark" card supports adding, removing, and saving multiple named goals (label, target amount, target date). The Net Worth tab renders one progress card per goal showing target, current, remaining, progress bar, and ETA. Legacy single-goal data (`targetNetWorth`/`targetDate`) is migrated transparently via `getGoals()`. The `NamedGoal` type was added to `src/types.ts`.
 
 ### 4.6 No Withdrawal or Drawdown Scenario in Forecast (MEDIUM)
 
@@ -248,12 +249,13 @@ The Content-Security-Policy in `netlify.toml` includes `style-src 'self' 'unsafe
 - **Impact:** A failed mid-restore leaves the database in an indeterminate state that is difficult to diagnose and recover from.
 - **What is needed:** Wrap the entire restore sequence in a single SQLite transaction so that either all writes succeed or none do. The error should be surfaced to the user with a "Restore failed - original data preserved" message.
 
-### 6.5 No Storage Quota Monitoring (LOW)
+### 6.5 No Storage Quota Monitoring (LOW) - RESOLVED
 
 IDB quota errors are caught silently (see 6.6) but the app never proactively checks available storage. Users on iOS or in private browsing mode have much lower IDB quotas and will hit the limit sooner.
 
 - **Confirmed in:** `src/db/connection.ts` (no `navigator.storage.estimate()` calls), `src/cache/db.ts`
 - **What is needed:** A one-time `navigator.storage.estimate()` check on startup and a persistent warning banner if available quota is below a safe threshold (e.g., below 10 MB with the db already at 5 MB).
+- **Resolution:** `checkStorageQuota()` in `src/storage.ts` runs on boot via `navigator.storage.estimate()`. If usage exceeds 85% or the total quota is under 50 MB, a persistent dismissible yellow banner is shown prompting the user to export a backup. The banner is session-dismissed and does not reappear until the next page load.
 
 ### 6.6 IDB Cache Write Failures Are Silently Ignored (MEDIUM) - PARTIALLY RESOLVED
 
@@ -295,13 +297,14 @@ Deleting a snapshot in the Log tab does not show a confirmation dialog. Account 
 - **Impact:** A single misclick permanently deletes a month's snapshot with no undo. Snapshots are the primary data source for the net-worth chart and IRR calculation; losing one distorts both.
 - **Resolution:** Already implemented. `delSnap()` in `src/main.ts` calls `confirmDialog` with a danger variant before deleting. Finding was outdated at time of review.
 
-### 7.4 Config Audit Log Is Never Surfaced in the UI (LOW)
+### 7.4 Config Audit Log Is Never Surfaced in the UI (LOW) - RESOLVED
 
 `src/db/repositories/config.ts` writes to a `config_history` table for every account, holding, and settings change. The table is populated correctly but there is no view, tab, or settings card where a user can inspect the log.
 
 - **Confirmed in:** `src/db/schema.ts:84-92` (table defined), `src/store/config.ts:180-454` (writes on every config save), no read path outside tests
 - **Impact:** The audit capability exists at the data layer but provides no user value. Users who accidentally misconfigure accounts cannot see what changed or when.
 - **What is needed:** A read-only "Config history" section in Settings (collapsible) that lists the last N entries from `config_history` with timestamp and summary.
+- **Resolution:** A read-only collapsible "Config history" card is now shown at the bottom of Settings. It loads the last 50 entries from `config_history` asynchronously after the Settings tab renders, and displays them in a compact table with timestamp, entity, and summary columns. The card is collapsed by default and shows an empty-state message when no changes have been recorded yet.
 
 ---
 
@@ -349,17 +352,17 @@ The following limitations are already acknowledged in the README or PR history a
 ### Nice to have (long-term roadmap)
 
 19. Benchmark comparison overlay on the Net Worth chart (Area 2.2)
-20. Annualized volatility and maximum drawdown metrics (Area 2.3)
+20. ~~Annualized volatility and maximum drawdown metrics (Area 2.3)~~ - DONE
 21. Multiple named goals with per-goal progress tracking (Area 4.5)
 22. First-class non-ISIN asset support (crypto, real estate, commodities) (Area 5.1)
 23. Per-account CAGR/IRR breakdown (Area 2.4)
 24. Tax jurisdiction field on accounts for holding-period and short/long-term gain tracking (Area 3.2)
 25. Tax-loss harvesting identification view (Area 3.1)
 26. Dividend income forward projection (Area 2.5)
-27. Storage quota monitoring (Area 6.5)
+27. ~~Storage quota monitoring (Area 6.5)~~ - DONE
 28. Additional European broker import profiles: DEGIRO, Scalable Capital, Interactive Brokers (Area 4.3)
 29. Custom import profile persistence and UI (Area 7.1)
-30. Surface config audit log (`config_history`) in the UI (Area 7.4)
+30. ~~Surface config audit log (`config_history`) in the UI (Area 7.4)~~ - DONE
 
 ---
 

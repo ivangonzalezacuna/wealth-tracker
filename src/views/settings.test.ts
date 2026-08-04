@@ -43,6 +43,7 @@ vi.mock('../store/config', () => ({
   getCostBasisMethod: () => 'avgco',
   getTargetNetWorth: () => null,
   getTargetDate: () => null,
+  getGoals: () => [],
   setAccounts: vi.fn(async () => {}),
   setHoldings: vi.fn(async () => {}),
   setSettings: vi.fn(async () => {}),
@@ -53,6 +54,7 @@ vi.mock('../store/config', () => ({
 
 vi.mock('../db', () => ({
   loadTransactions: vi.fn(async () => []),
+  loadConfigHistory: vi.fn(async () => []),
 }));
 
 // Collapse state: use real in-memory implementation for testability
@@ -369,7 +371,7 @@ describe('refreshSettingsAfterChange - scoped data-only refresh', () => {
     expect(document.getElementById('rules-msg')).toBe(rulesMsg);
     // Data regions still exist (were refreshed)
     expect(document.getElementById('settings-costbasis-fields')).not.toBeNull();
-    expect(document.getElementById('settings-goal-fields')).not.toBeNull();
+    expect(document.getElementById('settings-goals-tbl')).not.toBeNull();
     expect(document.getElementById('settings-backup-nudge')).not.toBeNull();
   });
 
@@ -420,11 +422,11 @@ describe('Data region IDs exist after renderSettings', () => {
     expect(el!.querySelector('#set-cost-basis-method')).not.toBeNull();
   });
 
-  it('has #settings-goal-fields wrapping the goal form', () => {
-    const el = document.getElementById('settings-goal-fields');
+  it('has #settings-goals-tbl wrapping the goal form', () => {
+    const el = document.getElementById('settings-goals-tbl');
     expect(el).not.toBeNull();
-    expect(el!.querySelector('#set-target-nw')).not.toBeNull();
-    expect(el!.querySelector('#set-target-date')).not.toBeNull();
+    // Add button is present
+    expect(document.getElementById('btn-add-goal')).not.toBeNull();
   });
 
   it('has #settings-backup-nudge wrapping the backup staleness nudge', () => {
@@ -484,7 +486,7 @@ describe('Busy state - cost-basis, goal, cache, backup', () => {
     resolveWrite!();
     await new Promise((r) => setTimeout(r, 0));
     expect(btn.disabled).toBe(false);
-    expect(btn.textContent).toBe('Save goal');
+    expect(btn.textContent).toBe('Save goals');
   });
 
   it('Force resync button shows busy text during resync', async () => {
@@ -947,9 +949,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
       resolveWrite();
       await tick();
       expect(btn.disabled).toBe(false);
-      expect(btn.textContent).toBe('Save goal');
-
-      // Restore default mock
+      expect(btn.textContent).toBe('Save goals');
       (setSettings as ReturnType<typeof vi.fn>).mockImplementation(async () => {});
     });
 

@@ -1,5 +1,6 @@
 import './styles.css';
 import { logEnvironment, injectEnvBanner } from './env';
+import { checkStorageQuota } from './storage';
 import { CONFIG } from './config';
 import { getACCTSList } from './constants';
 import { appTemplate } from './template';
@@ -222,6 +223,7 @@ function isInitialLoad(): boolean {
 logEnvironment();
 document.getElementById('app')!.innerHTML = appTemplate();
 injectEnvBanner();
+void checkStorageQuota(); // fire-and-forget storage check
 loadCollapseState(); // fire-and-forget: loads persisted UI collapse state from IDB
 initNav();
 initSnapForm();
