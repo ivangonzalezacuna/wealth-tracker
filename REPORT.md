@@ -114,13 +114,14 @@ The `tax` field in a transaction is a plain number. There is no metadata about t
 - **Impact:** Tax reporting is manual. Users in Germany (Abgeltungsteuer), the UK (CGT), or the US (short/long-term distinction) cannot generate a compliant tax summary from the app's data.
 - **What is needed:** An optional jurisdiction field on the account (not per-transaction) and a per-lot holding-period calculation derived from BUY date to SELL date using the existing lot data.
 
-### 3.3 No Expense Ratio (TER/OCF) Tracking (LOW)
+### 3.3 No Expense Ratio (TER/OCF) Tracking (LOW) - RESOLVED
 
 The `Holding` interface stores `isin`, `name`, `assetClass`, `region`, and `color`, but no total expense ratio (TER) or ongoing charges figure (OCF).
 
 - **Confirmed in:** `src/types.ts:62-75` (Holding interface), `src/views/settings.ts:612-629` (ASSET_CLASSES, no fee field)
 - **Impact:** Users cannot calculate the annual fee drag on their portfolio, identify expensive holdings, or compare the cost of equivalent ETFs.
 - **What is needed:** An optional `ter` field on the `Holding` type, populated by the user, with a "total annual fee drag" KPI tile on the portfolio summary card.
+- **Resolution:** An optional `ter` field (annual expense ratio as a decimal, e.g. 0.002 for 0.20%) has been added to the `Holding` interface in `src/types.ts`. A "TER / OCF (% p.a.)" input field is now shown for each holding in the Settings form. The DB schema gained a `ter` column (migration v4 to v5). A fifth KPI tile labeled "Est. fee drag" on the Portfolio tab computes the estimated annual cost as the sum of `(position value * ter)` for all held positions, using market values from the latest snapshot ETF breakdown when available and falling back to cost basis otherwise. Existing backups without `ter` are handled gracefully as the field is optional with a zero default.
 
 ### 3.4 No Structured Tax Export (LOW)
 
@@ -134,13 +135,14 @@ The only data export available is a full JSON backup. There is no CSV or structu
 
 ## Area 4: UX and Workflow Friction
 
-### 4.1 Snapshot Form Does Not Auto-Populate from Previous Month (MEDIUM)
+### 4.1 Snapshot Form Does Not Auto-Populate from Previous Month (MEDIUM) - RESOLVED
 
 When the user opens the `+ Update` tab to log a new month, all account value fields are blank. The user must open their broker app and re-enter each balance from scratch.
 
 - **Confirmed in:** `src/main.ts:1531-1585` (`renderSnapForm()` - input fields are always rendered empty for new entries; `editSnap()` does pre-fill when editing an existing snapshot, showing the pre-fill mechanism already exists)
 - **Impact:** A typical user with 3-5 accounts spends roughly 2-3 extra minutes per monthly session re-entering values they could have pre-populated from the prior month and simply updated.
 - **What is needed:** Pre-populate each account's input field with its value from the most recent snapshot. The user then only changes values that have actually moved. The ETF breakdown would similarly carry forward the prior values.
+- **Resolution:** `renderSnapForm()` in `src/main.ts` now pre-populates all account value fields and ETF breakdown fields from the most recent snapshot when rendering a new (not edit) snapshot form. The existing render-signature early-return guard ensures values already typed by the user are preserved during background syncs. The `editSnap()` path is unchanged and continues to overwrite fields with the selected snapshot's values.
 
 ### 4.2 No UI to Record a Sale (HIGH - UX Risk)
 
@@ -238,13 +240,14 @@ The Content-Security-Policy in `netlify.toml` includes `style-src 'self' 'unsafe
 - **Impact:** `'unsafe-inline'` for styles weakens the CSP against CSS injection. Missing HSTS means a user on a hostile network could be downgraded to HTTP on their first visit before the browser learns the site is HTTPS-only.
 - **Resolution:** HSTS header (`max-age=63072000; includeSubDomains; preload`) added to `netlify.toml`. The `'unsafe-inline'` style-src issue remains open because Chart.js injects inline styles at runtime; a nonce-based approach would require changes to the Chart.js integration.
 
-### 6.4 Backup Restore Does Not Protect Against Partial Writes (MEDIUM)
+### 6.4 Backup Restore Does Not Protect Against Partial Writes (MEDIUM) - RESOLVED
 
 `restoreFromBackup()` in `main.ts` runs a sequence of `await setAccounts(...)`, `await setHoldings(...)`, `await replaceSettings(...)`, `await saveSnapshots(...)`, `await restoreTransactions(...)` inside a `try`/`finally`. The `finally` only clears the sync flag. If `setAccounts` succeeds but `setHoldings` throws, the in-database accounts are replaced with the backup's accounts while holdings remain the old values, creating an inconsistent state.
 
 - **Confirmed in:** `src/main.ts:808-856` (no rollback, `finally` only clears `_syncing`)
 - **Impact:** A failed mid-restore leaves the database in an indeterminate state that is difficult to diagnose and recover from.
 - **What is needed:** Wrap the entire restore sequence in a single SQLite transaction so that either all writes succeed or none do. The error should be surfaced to the user with a "Restore failed - original data preserved" message.
+- **Resolution:** A `runInSavepoint(name, fn)` helper has been added to `src/db/connection.ts` and exported from `src/db/index.ts`. It wraps an async callback in a SQLite `SAVEPOINT`/`RELEASE`/`ROLLBACK TO SAVEPOINT` so all inner transactions (which each use their own `BEGIN`/`COMMIT`) commit normally while still being atomically undoable as a group. The entire restore sequence in `restoreFromBackup()` is now wrapped in this savepoint. On any failure the savepoint is rolled back before the error is re-thrown, and the error message surfaces to the user as "Restore failed - your original data has been preserved."
 
 ### 6.5 No Storage Quota Monitoring (LOW)
 
@@ -322,26 +325,26 @@ The following limitations are already acknowledged in the README or PR history a
 
 ### Must address (highest user impact)
 
-1. **Wrap all DELETE+INSERT sequences in SQLite transactions** (Area 6.1) - data integrity risk
+1. **Wrap all DELETE+INSERT sequences in SQLite transactions** (Area 6.1) - data integrity risk - **DONE**
 2. **Add a UI form to record manual sell transactions** (Area 4.2) - blocked workflow
 3. **Apply FX conversion using stored `fxRate` field** (Area 1.1) - silent data error for multi-currency users
-4. **Pre-populate the monthly snapshot form from the previous month's values** (Area 4.1) - high-frequency friction
+4. **Pre-populate the monthly snapshot form from the previous month's values** (Area 4.1) - high-frequency friction - **DONE**
 
 ### Should address (meaningful improvement)
 
-5. Add HSTS and evaluate removing `'unsafe-inline'` from CSP (Area 6.3)
-6. Protect backup restore against partial writes (Area 6.4)
-7. Free prepared statements in try-finally blocks (Area 6.2)
-8. Show user-visible warning when IDB cache write fails after import or settings save (Area 6.6)
+5. Add HSTS and evaluate removing `'unsafe-inline'` from CSP (Area 6.3) - HSTS **DONE**, unsafe-inline open
+6. Protect backup restore against partial writes (Area 6.4) - **DONE**
+7. Free prepared statements in try-finally blocks (Area 6.2) - **DONE**
+8. Show user-visible warning when IDB cache write fails after import or settings save (Area 6.6) - **DONE**
 9. Add a TWR metric alongside CAGR/IRR (Area 2.1)
 10. Add a "tax year summary" export (Area 3.4)
-11. Surface allocation drift warning badge when tolerance is exceeded (Area 4.7)
-12. Add a holdings text search/filter (Area 4.4)
-13. Add expense ratio (TER) field to holdings and a fee-drag KPI (Area 3.3)
+11. Surface allocation drift warning badge when tolerance is exceeded (Area 4.7) - **DONE**
+12. Add a holdings text search/filter (Area 4.4) - **DONE**
+13. Add expense ratio (TER) field to holdings and a fee-drag KPI (Area 3.3) - **DONE**
 14. Support withdrawal/drawdown in the forecast model (Area 4.6)
 15. Add a SPLIT transaction type (Area 1.3)
-16. Add a confirmation dialog to snapshot delete (Area 7.3)
-17. Clarify or fix IRR calculation for portfolios with withdrawn sell proceeds (Area 7.2)
+16. Add a confirmation dialog to snapshot delete (Area 7.3) - **DONE**
+17. Clarify or fix IRR calculation for portfolios with withdrawn sell proceeds (Area 7.2) - tooltip **DONE**, full reconstruction open
 18. Align all text boxes to a shared themed style instead of mixed default browser formatting
 
 ### Nice to have (long-term roadmap)

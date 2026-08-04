@@ -182,6 +182,29 @@ export function exportDb(): Uint8Array | null {
 }
 
 /**
+ * Run an async callback inside a SQLite savepoint.
+ * If the callback throws, the savepoint is rolled back and the error
+ * is re-thrown. If it succeeds, the savepoint is released (committed).
+ * Savepoints are reentrant, so this works even if individual operations
+ * already use BEGIN/COMMIT internally - those inner transactions will
+ * commit normally and their changes accumulate within the savepoint.
+ * If the savepoint is released successfully, the caller is responsible
+ * for calling persistDb() to flush to IndexedDB.
+ */
+export async function runInSavepoint(name: string, fn: () => Promise<void>): Promise<void> {
+  const db = await getDb();
+  db.run(`SAVEPOINT ${name}`);
+  try {
+    await fn();
+    db.run(`RELEASE SAVEPOINT ${name}`);
+  } catch (err) {
+    db.run(`ROLLBACK TO SAVEPOINT ${name}`);
+    db.run(`RELEASE SAVEPOINT ${name}`);
+    throw err;
+  }
+}
+
+/**
  * Replace the local database with a downloaded copy (from Drive AppData).
  * Re-initializes the singleton and persists to IndexedDB.
  *

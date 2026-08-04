@@ -72,6 +72,7 @@ export interface Holding {
   region: string;
   foldInto: string;
   order: number;
+  ter?: number; // annual total expense ratio as a decimal, e.g. 0.002 for 0.20%
 }
 
 // ─── Snapshot ────────────────────────────────────────────────────

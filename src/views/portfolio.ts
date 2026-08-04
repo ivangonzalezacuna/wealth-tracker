@@ -624,6 +624,22 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
       ? `Position market value from latest snapshot ETF breakdown (${latSnap ? fmtMon(latSnap.date) : 'none yet'}).`
       : `Market value from latest account snapshot (${latSnap ? fmtMon(latSnap.date) : 'none yet'}).`;
 
+  // Annual fee drag: sum over held positions of (position value * TER).
+  // Uses market value from latest snapshot ETF breakdown when available, falls back to cost basis.
+  const holdingsCfg = getHoldings();
+  const holdingByIsin = Object.fromEntries(holdingsCfg.map((h) => [h.isin, h]));
+  const annualFeeDrag = held.reduce((sum, e) => {
+    const ter = holdingByIsin[e.isin]?.ter ?? 0;
+    if (!ter) return sum;
+    const posValue = snapEtfValues[e.isin] ?? e.cost;
+    return sum + posValue * ter;
+  }, 0);
+  const holdingsWithTer = holdingsCfg.filter((h) => h.ter && h.ter > 0);
+  const feeDragTip =
+    holdingsWithTer.length > 0
+      ? `Estimated annual fee drag based on TER/OCF entered for ${holdingsWithTer.length} holding(s). Uses market value from latest snapshot when available, otherwise cost basis. Set TER for each holding in Settings.`
+      : 'No TER configured for any holding. Set the TER/OCF (% p.a.) for each ETF in Settings to see an estimated annual fee drag.';
+
   document.getElementById('port-kpis')!.innerHTML = `
     ${kpiTile({ label: 'Total invested', value: fmtEur(pd.totalInv), sub: 'net of sells' })}
     ${kpiTile({
@@ -652,6 +668,11 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
       value: fmtEurNeg(pd.realizedPnL, 2),
       valueClass: pd.realizedPnL >= 0 ? 'pos' : 'neg',
       sub: 'from sells',
+    })}
+    ${kpiTile({
+      label: `Est. fee drag${infoTip(feeDragTip)}`,
+      value: holdingsWithTer.length > 0 ? '~' + fmtEur2(annualFeeDrag) + ' / yr' : '-',
+      sub: holdingsWithTer.length > 0 ? 'TER on held positions' : 'set TER in Settings',
     })}
   `;
 

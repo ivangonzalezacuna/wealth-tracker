@@ -740,6 +740,10 @@ function renderHoldingRow(h: Holding, i: number): string {
           <input id="hold-fold-into-${i}" class="form-input form-input-sm" data-field="foldInto" value="${esc(h.foldInto)}" placeholder="ISIN of successor">
           ${h.foldInto ? `<p class="note" style="margin-top:4px;color:var(--warn)">Fund merger path active. This consolidation path is implemented but has not been verified against a real provider-side fund merger. Cross-check realized P&L manually after the merge.</p>` : ''}
         </div>
+        <div class="settings-field">
+          <label class="settings-field-label" for="hold-ter-${i}">TER / OCF (% p.a.)${infoTip('Total Expense Ratio or Ongoing Charges Figure as a percentage per year, e.g. 0.20 for 0.20%. Used to estimate the annual fee drag on your portfolio. Optional.')}</label>
+          <input id="hold-ter-${i}" class="form-input form-input-sm" data-field="ter" value="${h.ter ? String(h.ter * 100) : ''}" type="number" min="0" step="0.01" placeholder="e.g. 0.20">
+        </div>
         <div class="settings-field settings-field-compact">
           <label class="settings-field-label" for="hold-color-hex-${i}">Color</label>
           <div class="color-picker-wrap">
@@ -857,6 +861,7 @@ function attachHoldingListeners(root: HTMLElement): void {
       region: 'developed',
       foldInto: '',
       order: holds.length + 1,
+      ter: 0,
     });
     rerenderHoldingsTable(root, holds);
   });
@@ -988,6 +993,9 @@ function collectHoldings(root: HTMLElement): Holding[] {
     assetClass: (row.querySelector('[data-field="assetClass"]') as HTMLSelectElement).value.trim(),
     region: (row.querySelector('[data-field="region"]') as HTMLSelectElement).value.trim(),
     foldInto: (row.querySelector('[data-field="foldInto"]') as HTMLInputElement).value.trim(),
+    ter:
+      (parseFloat((row.querySelector('[data-field="ter"]') as HTMLInputElement)?.value ?? '') ||
+        0) / 100,
   }));
 
   // When no filter is active or no cached list, return DOM rows directly

@@ -240,6 +240,7 @@ describe('renderPortfolio', () => {
     expect(kpis).toContain('Market value');
     expect(kpis).toContain('Unrealized P&L');
     expect(kpis).toContain('Realized P&L');
+    expect(kpis).toContain('Est. fee drag');
   });
 
   it('shows "-" for Market value when no snapshots are provided', () => {
@@ -650,7 +651,7 @@ describe('renderPortfolio', () => {
     renderPortfolio(makePD(), []);
     renderPortfolio(makePD(), []);
     const kpis = document.getElementById('port-kpis')!;
-    expect(kpis.children.length).toBe(4);
+    expect(kpis.children.length).toBe(5);
     // Only one set of data rows (non-header, non-total, non-filter)
     const rows = document.getElementById('port-table')!.querySelectorAll('.hold-row:not(.th)');
     expect(rows.length).toBe(1);

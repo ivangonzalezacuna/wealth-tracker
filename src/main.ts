@@ -13,6 +13,7 @@ import {
   restoreTransactions,
   saveImportMeta,
   loadImportMeta,
+  runInSavepoint,
 } from './db';
 import { pullFromCloud, pushToCloud, scheduleUpload } from './sync/engine';
 import {
@@ -813,9 +814,25 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
   setSyncing(true);
   try {
     const { accounts, holdings, settings, snapshots, transactions, importMeta } = backup.data;
-    await setAccounts(accounts);
-    await setHoldings(holdings);
-    await replaceSettings(settings);
+
+    // Wrap all DB writes in a savepoint so that a failure mid-restore rolls
+    // back all previous writes. The original data is preserved on error.
+    try {
+      await runInSavepoint('restore', async () => {
+        await setAccounts(accounts);
+        await setHoldings(holdings);
+        await replaceSettings(settings);
+        await saveSnapshots(snapshots);
+        await restoreTransactions(transactions);
+        if (importMeta.last_import) await saveImportMeta(importMeta.last_import);
+      });
+    } catch (err) {
+      throw new Error(
+        'Restore failed - your original data has been preserved. (' +
+          (err instanceof Error ? err.message : String(err)) +
+          ')',
+      );
+    }
 
     // Reapply collapse/expand UI state from the backup
     const rawCollapse = settings['ui_collapse_state'];
@@ -831,9 +848,6 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
       }
     }
 
-    await saveSnapshots(snapshots);
-    await restoreTransactions(transactions);
-    if (importMeta.last_import) await saveImportMeta(importMeta.last_import);
     scheduleUpload();
 
     state.snaps = snapshots;
@@ -1586,6 +1600,28 @@ function renderSnapForm(pd?: PortfolioData | null) {
   if (dateEl) {
     dateEl.max = currentMonth();
     if (!dateEl.value) dateEl.value = currentMonth();
+  }
+
+  // Pre-populate account and ETF breakdown fields from the most recent snapshot.
+  // This only applies when the form is freshly rendered for a new entry (no date
+  // pre-filled by editSnap, and no values already typed by the user).
+  const isNewEntry = !dateEl?.dataset.editMode;
+  if (isNewEntry && state.snaps.length > 0) {
+    const prevSnap = state.snaps[state.snaps.length - 1];
+    for (const a of accts) {
+      const inputEl = document.getElementById(`snap-${a.key}`) as HTMLInputElement | null;
+      if (inputEl && prevSnap[a.key] != null) {
+        inputEl.value = String(prevSnap[a.key]);
+      }
+    }
+    // Pre-populate ETF breakdown fields
+    for (const [key, val] of Object.entries(prevSnap)) {
+      if (key.startsWith('etf_') && typeof val === 'number' && val > 0) {
+        const isin = key.slice(4);
+        const etfEl = document.getElementById(`snap-etf-${isin}`) as HTMLInputElement | null;
+        if (etfEl) etfEl.value = String(val);
+      }
+    }
   }
 }
 

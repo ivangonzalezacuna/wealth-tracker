@@ -38,4 +38,4 @@ export {
   setDriveVersion,
 } from './repositories/meta';
 
-export { getDb, persistDb, exportDb, importDb, destroyDb } from './connection';
+export { getDb, persistDb, exportDb, importDb, destroyDb, runInSavepoint } from './connection';
