@@ -570,7 +570,6 @@ describe('restore side effects sequencing', () => {
       'saveSnapshots',
     ]);
   });
-
 });
 
 // ── withButtonGuard tests for saveSnapshot ─────────

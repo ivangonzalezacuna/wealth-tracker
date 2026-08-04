@@ -1267,6 +1267,9 @@ function clearSnapForm() {
   const notes = document.getElementById('snap-notes') as HTMLInputElement | null;
   if (notes) notes.value = '';
 
+  const dateEl = document.getElementById('snap-date') as HTMLInputElement | null;
+  if (dateEl) dateEl.value = '';
+
   // Clear ETF breakdown inputs and hide reconciliation bars
   document.querySelectorAll<HTMLInputElement>('[data-etf-isin]').forEach((el) => {
     el.value = '';
@@ -1274,6 +1277,11 @@ function clearSnapForm() {
   document.querySelectorAll<HTMLElement>('.snap-etf-recon').forEach((el) => {
     el.style.display = 'none';
   });
+
+  // Reset the render signature so the next renderSnapForm call rebuilds the
+  // HTML and re-runs pre-population from the latest snapshot.
+  const acctFields = document.getElementById('snap-acct-fields');
+  if (acctFields) (acctFields as HTMLElement & { _renderSig?: string })._renderSig = '';
 }
 
 // ── CSV import ────────────────────────────────────────────
