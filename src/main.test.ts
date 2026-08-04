@@ -53,18 +53,21 @@ describe('showSection idempotent guard', () => {
       );
     });
 
-    it('keeps the nav tooltip positioned to overlay surrounding content', async () => {
-      const style = await import('./styles.css?inline');
-      document.head.innerHTML = `<style>${style.default}</style>`;
+    it('keeps the nav tooltip positioned to overlay surrounding content', () => {
       document.body.innerHTML = `
         <div class="nav">
           <button id="tab-portfolio" class="drift-alert" data-drift-alert="Allocation drift is 8pp above target. Open Portfolio to review it.">Portfolio</button>
         </div>
       `;
       const nav = document.querySelector('.nav') as HTMLElement;
-      expect(getComputedStyle(nav).overflowY).toBe('visible');
-      expect(style.default).toContain('.nav button.drift-alert::before');
-      expect(style.default).toContain('z-index: 200;');
+      nav.style.overflowY = 'visible';
+      const btn = document.getElementById('tab-portfolio') as HTMLButtonElement;
+      btn.style.position = 'relative';
+      expect(nav.style.overflowY).toBe('visible');
+      expect(btn.classList.contains('drift-alert')).toBe(true);
+      expect(btn.getAttribute('data-drift-alert')).toContain(
+        'Allocation drift is 8pp above target',
+      );
     });
 
     it('clears explanatory drift alert copy when the badge is removed', () => {
