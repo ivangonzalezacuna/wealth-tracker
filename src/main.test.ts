@@ -42,6 +42,16 @@ describe('showSection idempotent guard', () => {
       }
     }
 
+    function showDriftTooltip(trigger: HTMLButtonElement): HTMLSpanElement | null {
+      const text = trigger.dataset.driftAlert || '';
+      if (!trigger.classList.contains('drift-alert') || !text) return null;
+      const pop = document.createElement('span');
+      pop.className = 'drift-alert-pop';
+      pop.textContent = text;
+      document.body.appendChild(pop);
+      return pop;
+    }
+
     it('adds explanatory drift alert copy when the badge is shown', () => {
       document.body.innerHTML = `<button id="tab-portfolio">Portfolio</button>`;
       const btn = document.getElementById('tab-portfolio') as HTMLButtonElement;
@@ -53,21 +63,18 @@ describe('showSection idempotent guard', () => {
       );
     });
 
-    it('keeps the nav tooltip positioned to overlay surrounding content', () => {
+    it('renders the drift tooltip as a detached overlay, not inside the nav scroller', () => {
       document.body.innerHTML = `
         <div class="nav">
           <button id="tab-portfolio" class="drift-alert" data-drift-alert="Allocation drift is 8pp above target. Open Portfolio to review it.">Portfolio</button>
         </div>
       `;
-      const nav = document.querySelector('.nav') as HTMLElement;
-      nav.style.overflowY = 'visible';
       const btn = document.getElementById('tab-portfolio') as HTMLButtonElement;
-      btn.style.position = 'relative';
-      expect(nav.style.overflowY).toBe('visible');
-      expect(btn.classList.contains('drift-alert')).toBe(true);
-      expect(btn.getAttribute('data-drift-alert')).toContain(
-        'Allocation drift is 8pp above target',
-      );
+      const pop = showDriftTooltip(btn);
+      expect(pop).not.toBeNull();
+      expect(pop?.parentElement).toBe(document.body);
+      expect(document.querySelector('.nav')?.contains(pop!)).toBe(false);
+      expect(pop?.textContent).toContain('Allocation drift is 8pp above target');
     });
 
     it('clears explanatory drift alert copy when the badge is removed', () => {

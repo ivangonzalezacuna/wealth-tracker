@@ -113,6 +113,7 @@ const ALL_SECTIONS = ['networth', 'portfolio', 'settings', 'log'] as const;
 
 // ── Portfolio sub-view state ─────────────────────────────
 let _portfolioSubview: 'holdings' | 'contributions' | 'dividends' = 'holdings';
+let _driftTooltipEl: HTMLSpanElement | null = null;
 
 // ── Unified sync/write lock (shared with settings.ts - see sync/lock.ts) ──
 let _lastSyncAt = 0;
@@ -236,6 +237,17 @@ function initNav() {
   document.querySelectorAll<HTMLElement>('.nav button[data-section]').forEach((btn) => {
     btn.addEventListener('click', () => showSection(btn.dataset.section!, btn));
   });
+  const portfolioBtn = document.getElementById('tab-portfolio') as HTMLElement | null;
+  portfolioBtn?.addEventListener('mouseenter', (e) => {
+    if (_isTouchLikeEvent(e)) return;
+    showDriftTooltip(portfolioBtn);
+  });
+  portfolioBtn?.addEventListener('mouseleave', (e) => {
+    if (_isTouchLikeEvent(e)) return;
+    hideDriftTooltip();
+  });
+  portfolioBtn?.addEventListener('focus', () => showDriftTooltip(portfolioBtn));
+  portfolioBtn?.addEventListener('blur', hideDriftTooltip);
   document.querySelectorAll<HTMLElement>('[data-goto]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const target = btn.dataset.goto!;
@@ -1812,7 +1824,58 @@ function updateDriftBadge(): void {
     btn.classList.remove('drift-alert');
     btn.removeAttribute('aria-label');
     btn.removeAttribute('data-drift-alert');
+    hideDriftTooltip();
   }
+}
+
+function showDriftTooltip(trigger: HTMLElement): void {
+  const text = trigger.dataset.driftAlert || '';
+  if (!trigger.classList.contains('drift-alert') || !text) {
+    hideDriftTooltip();
+    return;
+  }
+  if (!_driftTooltipEl) {
+    _driftTooltipEl = document.createElement('span');
+    _driftTooltipEl.className = 'drift-alert-pop';
+  }
+  _driftTooltipEl.textContent = text;
+  if (!_driftTooltipEl.isConnected) document.body.appendChild(_driftTooltipEl);
+  positionDriftTooltip(trigger, _driftTooltipEl);
+}
+
+function hideDriftTooltip(): void {
+  _driftTooltipEl?.remove();
+}
+
+function positionDriftTooltip(trigger: HTMLElement, pop: HTMLElement): void {
+  const rect = trigger.getBoundingClientRect();
+  const top = rect.bottom + 8;
+  const left = rect.right;
+  pop.style.top = `${top}px`;
+  pop.style.left = `${left}px`;
+  pop.style.transform = 'translateX(-100%)';
+  requestAnimationFrame(() => {
+    const popRect = pop.getBoundingClientRect();
+    let nextLeft = left;
+    let nextTop = top;
+    let transform = 'translateX(-100%)';
+    if (popRect.right > window.innerWidth - 4) nextLeft = window.innerWidth - 4;
+    if (popRect.left < 4) {
+      nextLeft = 4;
+      transform = 'none';
+    }
+    if (popRect.bottom > window.innerHeight - 4) {
+      nextTop = rect.top - 8;
+      transform += transform === 'none' ? ' translateY(-100%)' : ' translateY(-100%)';
+    }
+    pop.style.left = `${nextLeft}px`;
+    pop.style.top = `${nextTop}px`;
+    pop.style.transform = transform;
+  });
+}
+
+function _isTouchLikeEvent(e: MouseEvent): boolean {
+  return e.sourceCapabilities?.firesTouchEvents ?? false;
 }
 
 /**

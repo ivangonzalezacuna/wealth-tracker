@@ -177,36 +177,6 @@ code,
   background: var(--warn);
   pointer-events: none;
 }
-.nav button.drift-alert::before {
-  content: attr(data-drift-alert);
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  max-width: 220px;
-  min-width: 180px;
-  padding: 6px 8px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--ink-2);
-  font-size: 11px;
-  line-height: 1.35;
-  white-space: normal;
-  box-shadow: var(--shadow-sm);
-  opacity: 0;
-  transform: translateY(-2px);
-  pointer-events: none;
-  transition:
-    opacity 0.15s ease,
-    transform 0.15s ease;
-  z-index: 200;
-}
-.nav button.drift-alert:hover::before,
-.nav button.drift-alert:focus-visible::before {
-  opacity: 1;
-  transform: translateY(0);
-}
-
 /* Sections */
 .section {
   display: none;
@@ -1908,6 +1878,22 @@ input[type='color'] {
   text-transform: none;
   letter-spacing: normal;
   text-align: left;
+}
+.drift-alert-pop {
+  position: fixed;
+  background: var(--surface);
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: normal;
+  min-width: 180px;
+  max-width: 220px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+  z-index: 9999;
 }
 
 /* ── ETF info popover (click-to-reveal ISIN + name) ───── */
