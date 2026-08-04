@@ -890,7 +890,11 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
   const needsSell = plan12.some((e) => e.projectedDriftPct > 0.05);
 
   let rebalanceSection = '';
-  if (plan.length >= 2) {
+  // Only show the rebalance plan when market values are available for held positions.
+  // Cost-basis drift figures are not reliable enough to base contribution decisions on.
+  // When there are no held positions (all cash / re-entry), cost mode is irrelevant and
+  // the plan is shown since it is purely contribution-target-based.
+  if (plan.length >= 2 && !(hasCostMode && hasHeldPositions)) {
     const isRebalanceRecommended = max > 10;
     const shouldOpenRebalance = keepRebalanceOpen || isRebalanceRecommended;
     const pickerBtns = REBALANCE_MONTH_OPTIONS.map((m) => {
@@ -999,4 +1003,5 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
   });
 
   attachEtfPopovers(driftEl);
+  attachInfoTips(driftEl);
 }

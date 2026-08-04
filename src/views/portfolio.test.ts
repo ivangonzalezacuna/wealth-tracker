@@ -156,6 +156,17 @@ function makeRebalancePd(overrides: Partial<PortfolioData> = {}): PortfolioData 
   });
 }
 
+/** Snapshot that provides market values matching the default makeRebalancePd ETF costs. */
+function makeRebalanceSnap(overrides: Record<string, number> = {}): Snapshot {
+  return {
+    date: '2026-06-01',
+    acct1: 10000,
+    etf_IE00TEST1: 8000,
+    etf_IE00TEST2: 2000,
+    ...overrides,
+  };
+}
+
 const DOM_FIXTURE = `
   <div id="port-empty"></div>
   <div id="port-content">
@@ -670,10 +681,19 @@ describe('renderPortfolio', () => {
     expect(drift.innerHTML).not.toContain('Contribution rebalance');
   });
 
+  it('rebalance section is hidden when held positions have no ETF snapshot values', () => {
+    setRebalanceHoldings();
+    const pd = makeRebalancePd();
+    // No snapshot with ETF values: all drift rows are cost-basis mode.
+    renderPortfolio(pd, []);
+    const drift = document.getElementById('port-drift')!;
+    expect(drift.innerHTML).not.toContain('Contribution rebalance');
+  });
+
   it('rebalance section appears when there are two or more active holdings', () => {
     setRebalanceHoldings();
     const pd = makeRebalancePd();
-    renderPortfolio(pd, []);
+    renderPortfolio(pd, [makeRebalanceSnap()]);
     const drift = document.getElementById('port-drift')!;
     expect(drift.innerHTML).toContain('Contribution rebalance');
   });
@@ -681,7 +701,7 @@ describe('renderPortfolio', () => {
   it('rebalance picker renders five month-option buttons', () => {
     setRebalanceHoldings();
     const pd = makeRebalancePd();
-    renderPortfolio(pd, []);
+    renderPortfolio(pd, [makeRebalanceSnap()]);
     const drift = document.getElementById('port-drift')!;
     const details = drift.querySelector('.rebalance-collapsible') as HTMLDetailsElement;
     expect(details).not.toBeNull();
@@ -703,7 +723,8 @@ describe('renderPortfolio', () => {
         IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 500 }),
       },
     });
-    renderPortfolio(pd, []);
+    const snap = makeRebalanceSnap({ etf_IE00TEST1: 9500, etf_IE00TEST2: 500 });
+    renderPortfolio(pd, [snap]);
     const drift = document.getElementById('port-drift')!;
     const details = drift.querySelector('.rebalance-collapsible') as HTMLDetailsElement;
     expect(details).not.toBeNull();
@@ -742,7 +763,7 @@ describe('renderPortfolio', () => {
     setRebalanceHoldings();
     const pd = makeRebalancePd();
     localStorage.removeItem('drift-rebalance-months');
-    renderPortfolio(pd, []);
+    renderPortfolio(pd, [makeRebalanceSnap()]);
     const drift = document.getElementById('port-drift')!;
 
     // Click the "6 mo" button.
@@ -759,7 +780,7 @@ describe('renderPortfolio', () => {
     setRebalanceHoldings();
     const pd = makeRebalancePd();
     localStorage.removeItem('drift-rebalance-months');
-    renderPortfolio(pd, []);
+    renderPortfolio(pd, [makeRebalanceSnap()]);
     const drift = document.getElementById('port-drift')!;
     const details = drift.querySelector('.rebalance-collapsible') as HTMLDetailsElement;
     expect(details.hasAttribute('open')).toBe(false);
@@ -785,7 +806,7 @@ describe('renderPortfolio', () => {
   it('rebalance note shows projected drift reduction', () => {
     setRebalanceHoldings();
     const pd = makeRebalancePd();
-    renderPortfolio(pd, []);
+    renderPortfolio(pd, [makeRebalanceSnap()]);
     const drift = document.getElementById('port-drift')!;
     expect(drift.textContent).toContain('reduce max drift from');
     expect(drift.textContent).toContain('scenario estimate');
@@ -795,7 +816,7 @@ describe('renderPortfolio', () => {
   it('rebalance rows expose explicit state labels and attributes', () => {
     setRebalanceHoldings();
     const pd = makeRebalancePd();
-    renderPortfolio(pd, []);
+    renderPortfolio(pd, [makeRebalanceSnap()]);
     const drift = document.getElementById('port-drift')!;
     const overweightRow = drift.querySelector(
       '[data-rebalance-state="overweight"]',
@@ -818,7 +839,8 @@ describe('renderPortfolio', () => {
       },
       totalInv: 10000,
     });
-    renderPortfolio(pd, []);
+    const snap = makeRebalanceSnap({ etf_IE00TEST1: 9500, etf_IE00TEST2: 500 });
+    renderPortfolio(pd, [snap]);
     const drift = document.getElementById('port-drift')!;
     expect(drift.textContent).toContain('taxes');
     expect(drift.textContent).toContain('trading fees');
@@ -883,7 +905,14 @@ describe('renderPortfolio', () => {
       },
       totalInv: 10000,
     });
-    renderPortfolio(pd, []);
+    const snap: Snapshot = {
+      date: '2026-06-01',
+      acct1: 10000,
+      etf_IE00TEST1: 6200,
+      etf_IE00TEST2: 2500,
+      etf_IE00TEST3: 1300,
+    };
+    renderPortfolio(pd, [snap]);
     const drift = document.getElementById('port-drift')!;
     const onTarget = drift.querySelector('[data-rebalance-state="on-target"]');
     expect(onTarget).not.toBeNull();
