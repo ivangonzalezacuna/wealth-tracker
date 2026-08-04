@@ -302,14 +302,14 @@ Deleting a snapshot in the Log tab does not show a confirmation dialog. Account 
 
 The following limitations are already acknowledged in the README or PR history and are listed here for completeness and to indicate they are active roadmap items rather than unknown gaps.
 
-| Limitation | Current Status | Priority |
-|---|---|---|
-| Multi-currency FX conversion | FX rate stored, never applied. UI warning in PR #125. | High - needs base-currency setting and conversion. |
-| Selling shares via UI | SELL recognized by engine, no UI form. Documented in README. | High - blocks rebalancing and exit workflows. |
-| ETF merger/consolidation (foldInto) | Code path exists, tested on synthetic data only. In-UI warning shown when foldInto is set. | Medium - unverified against real data. |
-| More broker import profiles | Only Trade Republic and N26. Framework is open. | Medium - community contribution opportunity. |
-| IRR accuracy when sell proceeds leave the account | Tooltip acknowledges the limitation but does not quantify the distortion. | Medium - see finding 7.2. |
-| Custom import profiles not persistable | `buildProfileFromMapping()` exists but has no storage or UI. | Medium - see finding 7.1. |
+| Limitation                                        | Current Status                                                                             | Priority                                           |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| Multi-currency FX conversion                      | FX rate stored, never applied. UI warning in PR #125.                                      | High - needs base-currency setting and conversion. |
+| Selling shares via UI                             | SELL recognized by engine, no UI form. Documented in README.                               | High - blocks rebalancing and exit workflows.      |
+| ETF merger/consolidation (foldInto)               | Code path exists, tested on synthetic data only. In-UI warning shown when foldInto is set. | Medium - unverified against real data.             |
+| More broker import profiles                       | Only Trade Republic and N26. Framework is open.                                            | Medium - community contribution opportunity.       |
+| IRR accuracy when sell proceeds leave the account | Tooltip acknowledges the limitation but does not quantify the distortion.                  | Medium - see finding 7.2.                          |
+| Custom import profiles not persistable            | `buildProfileFromMapping()` exists but has no storage or UI.                               | Medium - see finding 7.1.                          |
 
 ---
 
