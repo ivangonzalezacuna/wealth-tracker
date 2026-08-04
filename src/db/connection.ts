@@ -198,8 +198,16 @@ export async function runInSavepoint(name: string, fn: () => Promise<void>): Pro
     await fn();
     db.run(`RELEASE SAVEPOINT ${name}`);
   } catch (err) {
-    db.run(`ROLLBACK TO SAVEPOINT ${name}`);
-    db.run(`RELEASE SAVEPOINT ${name}`);
+    try {
+      db.run(`ROLLBACK TO SAVEPOINT ${name}`);
+    } catch {
+      throw err;
+    }
+    try {
+      db.run(`RELEASE SAVEPOINT ${name}`);
+    } catch {
+      throw err;
+    }
     throw err;
   }
 }

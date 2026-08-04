@@ -458,6 +458,26 @@ describe('restore savepoint error handling', () => {
       'Restore failed - your original data has been preserved. (table holdings has no column named ter)',
     );
   });
+
+  it('preserves the original error if savepoint cleanup throws a missing savepoint error', async () => {
+    const originalErr = new Error('table holdings has no column named ter');
+    const runWithCleanupFailure = async (
+      _name: string,
+      fn: () => Promise<void>,
+    ): Promise<void> => {
+      try {
+        await fn();
+      } catch {
+        throw originalErr;
+      }
+    };
+
+    await expect(
+      emulateRestoreFailure(runWithCleanupFailure, () => Promise.reject(originalErr)),
+    ).rejects.toThrow(
+      'Restore failed - your original data has been preserved. (table holdings has no column named ter)',
+    );
+  });
 });
 
 // ── withButtonGuard tests for saveSnapshot ─────────
