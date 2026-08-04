@@ -371,7 +371,7 @@ describe('refreshSettingsAfterChange - scoped data-only refresh', () => {
     expect(document.getElementById('rules-msg')).toBe(rulesMsg);
     // Data regions still exist (were refreshed)
     expect(document.getElementById('settings-costbasis-fields')).not.toBeNull();
-    expect(document.getElementById('settings-goal-fields')).not.toBeNull();
+    expect(document.getElementById('settings-goals-tbl')).not.toBeNull();
     expect(document.getElementById('settings-backup-nudge')).not.toBeNull();
   });
 
@@ -422,11 +422,11 @@ describe('Data region IDs exist after renderSettings', () => {
     expect(el!.querySelector('#set-cost-basis-method')).not.toBeNull();
   });
 
-  it('has #settings-goal-fields wrapping the goal form', () => {
-    const el = document.getElementById('settings-goal-fields');
+  it('has #settings-goals-tbl wrapping the goal form', () => {
+    const el = document.getElementById('settings-goals-tbl');
     expect(el).not.toBeNull();
-    // Goals list and add button are present
-    expect(el!.querySelector('#btn-add-goal')).not.toBeNull();
+    // Add button is present
+    expect(document.getElementById('btn-add-goal')).not.toBeNull();
   });
 
   it('has #settings-backup-nudge wrapping the backup staleness nudge', () => {

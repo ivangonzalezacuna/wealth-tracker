@@ -101,7 +101,7 @@ export async function withCardGuard<T>(
 /** Card-content refresh functions never touch buttons - these ids never
  *  go through withCardGuard/Sheets writes, so they stay clickable even
  *  while a sync/write is in progress elsewhere in the app. */
-const SYNC_LOCK_EXEMPT_IDS = new Set(['btn-add-acct', 'btn-add-hold', 'btn-add-rule']);
+const SYNC_LOCK_EXEMPT_IDS = new Set(['btn-add-acct', 'btn-add-hold', 'btn-add-rule', 'btn-add-goal']);
 const SYNC_BUSY_TITLE = 'Sync in progress, try again in a moment';
 
 /**
@@ -286,8 +286,8 @@ function refreshCostBasisData(): void {
 }
 
 function refreshGoalData(): void {
-  const el = document.getElementById('settings-goal-fields');
-  if (el) el.innerHTML = goalListHtml(getGoals(), getSettings());
+  const card = document.getElementById('settings-card-goal');
+  if (card) rerenderGoalsTable(card, getGoals());
 }
 
 function refreshBackupData(): void {
@@ -1118,50 +1118,44 @@ function attachCostBasisListeners(root: HTMLElement): void {
 
 // ── Goal / target net worth ──────────────────────────────
 
-function goalRowHtml(goal: NamedGoal, idx: number, collapsed = false): string {
-  const summary = goal.label || (goal.targetNetWorth ? `\u20AC${esc(goal.targetNetWorth)}` : `Goal ${idx + 1}`);
+function renderGoalRow(goal: NamedGoal, idx: number): string {
+  const title = goal.label || (goal.targetNetWorth ? `\u20AC${esc(goal.targetNetWorth)}` : `Goal ${idx + 1}`);
   const metaParts: string[] = [];
   if (goal.targetNetWorth) metaParts.push(`\u20AC${esc(goal.targetNetWorth)}`);
   if (goal.targetDate) metaParts.push(esc(goal.targetDate));
   const metaStr = metaParts.join(' \u00B7 ');
   return `
-    <div class="settings-item item-collapsible goal-row${collapsed ? ' item-collapsed' : ''}" data-goal-idx="${idx}">
-      <div class="settings-item-header js-item-toggle goal-row-header">
-        <span class="settings-item-title goal-row-summary">${esc(summary)}</span>
-        ${metaStr ? `<span style="font-size:11px;color:var(--ink-3);white-space:nowrap" class="settings-item-meta">${metaStr}</span>` : ''}
+    <div class="settings-item settings-goal-row item-collapsible" data-idx="${idx}">
+      <div class="settings-item-header js-item-toggle">
+        <span class="settings-item-title">${esc(title)}</span>
+        ${metaStr ? `<span class="settings-item-meta" style="font-size:11px;color:var(--ink-3);white-space:nowrap">${metaStr}</span>` : ''}
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           <span class="item-chevron"></span>
-          <button class="btn btn-sm btn-danger goal-remove-btn" data-idx="${idx}">\u2715</button>
+          <button class="btn btn-sm btn-danger js-del-goal" data-idx="${idx}">\u2715</button>
         </div>
       </div>
-      <div class="settings-item-fields goal-row-body">
+      <div class="settings-item-fields">
         <div class="settings-field">
           <label class="settings-field-label" for="goal-label-${idx}">Goal label</label>
-          <input id="goal-label-${idx}" class="form-input form-input-sm goal-label-input" data-idx="${idx}" type="text" value="${esc(goal.label)}" placeholder="e.g. Financial independence">
+          <input id="goal-label-${idx}" class="form-input form-input-sm" data-field="label" type="text" value="${esc(goal.label)}" placeholder="e.g. Financial independence">
         </div>
         <div class="settings-field">
           <label class="settings-field-label" for="goal-nw-${idx}">Target net worth (\u20AC)</label>
-          <input id="goal-nw-${idx}" class="form-input form-input-sm goal-nw-input" data-idx="${idx}" type="text" inputmode="decimal" value="${esc(goal.targetNetWorth)}" placeholder="e.g. 500000">
+          <input id="goal-nw-${idx}" class="form-input form-input-sm" data-field="targetNetWorth" type="text" inputmode="decimal" value="${esc(goal.targetNetWorth)}" placeholder="e.g. 500000">
           <span class="note">Supports German format (100.000,00) or plain numbers.</span>
         </div>
         <div class="settings-field">
           <label class="settings-field-label" for="goal-date-${idx}">Target date (optional)</label>
-          <input id="goal-date-${idx}" class="form-input form-input-sm goal-date-input" data-idx="${idx}" type="month" value="${esc(goal.targetDate)}">
+          <input id="goal-date-${idx}" class="form-input form-input-sm" data-field="targetDate" type="month" value="${esc(goal.targetDate)}">
           <span class="note">Leave empty for ETA-only mode (no deadline).</span>
         </div>
       </div>
     </div>`;
 }
 
-function goalListHtml(goals: NamedGoal[], _settings: Settings): string {
-  const rows = goals.map((g, i) => goalRowHtml(g, i, i >= 1)).join('');
-  return `
-    <div id="settings-goals-list" class="settings-items">${rows}</div>
-    <button class="btn btn-outline btn-sm" id="btn-add-goal" style="margin-top:.5rem">+ Add goal</button>`;
-}
-
-function renderGoalCard(settings: Settings): string {
+function renderGoalCard(_settings: Settings): string {
   const goals = getGoals();
+  const rows = goals.map((g, i) => renderGoalRow(g, i)).join('');
   return `
     <div class="card card-collapsible" id="settings-card-goal" data-card-key="goal">
       <div class="card-header js-card-toggle">
@@ -1170,8 +1164,11 @@ function renderGoalCard(settings: Settings): string {
       </div>
       <div class="card-body">
         <p class="note" style="margin-bottom:.75rem">Add one or more net-worth targets to track on the Net Worth tab. Each goal shows progress, remaining amount, and ETA.</p>
-        <div id="settings-goal-fields">${goalListHtml(goals, settings)}</div>
+        <div id="settings-goals-tbl" class="settings-items">
+          ${rows}
+        </div>
         <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" id="btn-add-goal">+ Add goal</button>
           <button class="btn btn-primary btn-sm" id="btn-save-goal">Save goals</button>
           <span id="goal-msg" style="font-size:12px;line-height:28px"></span>
         </div>
@@ -1179,53 +1176,47 @@ function renderGoalCard(settings: Settings): string {
     </div>`;
 }
 
+function collectGoals(root: HTMLElement): NamedGoal[] {
+  return [...root.querySelectorAll('.settings-goal-row')].map((row) => ({
+    label: ((row.querySelector('[data-field="label"]') as HTMLInputElement | null)?.value || '').trim(),
+    targetNetWorth: ((row.querySelector('[data-field="targetNetWorth"]') as HTMLInputElement | null)?.value || '').trim(),
+    targetDate: ((row.querySelector('[data-field="targetDate"]') as HTMLInputElement | null)?.value || '').trim(),
+  }));
+}
+
+function rerenderGoalsTable(root: HTMLElement, goals: NamedGoal[]): void {
+  const tbl = root.querySelector('#settings-goals-tbl') as HTMLElement | null;
+  if (!tbl) return;
+  tbl.innerHTML = goals.map((g, i) => renderGoalRow(g, i)).join('');
+  attachItemCollapseListeners(tbl);
+  tbl.querySelectorAll('.js-del-goal').forEach((btn) => {
+    btn.addEventListener('click', () =>
+      deleteGoal(root, parseInt((btn as HTMLElement).dataset.idx!)),
+    );
+  });
+}
+
+function deleteGoal(root: HTMLElement, idx: number): void {
+  const goals = collectGoals(root).filter((_, i) => i !== idx);
+  rerenderGoalsTable(root, goals);
+}
+
 function attachGoalListeners(root: HTMLElement): void {
-  // Collapse/expand individual goal rows via event delegation on the list
-  root.querySelector('#settings-goals-list')?.addEventListener('click', (e) => {
-    const header = (e.target as Element).closest('.goal-row-header') as HTMLElement | null;
-    if (!header) return;
-    // Don't toggle when clicking the delete button
-    if ((e.target as HTMLElement | null)?.closest('.btn-danger')) return;
-    const row = header.closest('.goal-row') as HTMLElement | null;
-    if (row) row.classList.toggle('item-collapsed');
-  });
-
-  // Add goal row
   root.querySelector('#btn-add-goal')?.addEventListener('click', () => {
-    const list = root.querySelector('#settings-goals-list');
-    if (!list) return;
-    const idx = list.querySelectorAll('.goal-row').length;
-    const div = document.createElement('div');
-    // New goals are always expanded
-    div.innerHTML = goalRowHtml({ label: '', targetNetWorth: '', targetDate: '' }, idx, false);
-    list.appendChild(div.firstElementChild!);
+    const goals = collectGoals(root);
+    goals.push({ label: '', targetNetWorth: '', targetDate: '' });
+    rerenderGoalsTable(root, goals);
   });
 
-  // Remove goal row (event delegation)
-  root.querySelector('#settings-goals-list')?.addEventListener('click', (e) => {
-    const btn = (e.target as Element).closest('.goal-remove-btn') as HTMLElement | null;
-    if (!btn) return;
-    const row = btn.closest('.goal-row') as HTMLElement | null;
-    if (row) row.remove();
-    // Re-index remaining rows
-    root.querySelectorAll('.goal-row').forEach((r, i) => {
-      r.setAttribute('data-goal-idx', String(i));
-      r.querySelectorAll('[data-idx]').forEach((el) => el.setAttribute('data-idx', String(i)));
-    });
+  root.querySelectorAll('.js-del-goal').forEach((btn) => {
+    btn.addEventListener('click', () =>
+      deleteGoal(root, parseInt((btn as HTMLElement).dataset.idx!)),
+    );
   });
 
-  // Save
   root.querySelector('#btn-save-goal')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-goal') as HTMLButtonElement;
-    const goals: NamedGoal[] = [];
-    root.querySelectorAll('.goal-row').forEach((row) => {
-      const label = (row.querySelector('.goal-label-input') as HTMLInputElement | null)?.value || '';
-      const targetNetWorth =
-        (row.querySelector('.goal-nw-input') as HTMLInputElement | null)?.value || '';
-      const targetDate =
-        (row.querySelector('.goal-date-input') as HTMLInputElement | null)?.value || '';
-      if (targetNetWorth) goals.push({ label, targetNetWorth, targetDate });
-    });
+    const goals = collectGoals(root).filter((g) => g.targetNetWorth);
     try {
       await withCardGuard(
         'goal',
