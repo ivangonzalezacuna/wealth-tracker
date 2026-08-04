@@ -3,7 +3,7 @@
  * Mirrors the API surface of the old sheets/transactions.ts module.
  */
 
-import { getDb, persistDb } from '../connection';
+import { getDb, persistDb, runInSavepoint } from '../connection';
 import type { Transaction } from '../../types';
 
 /** Build a deduplication key for a transaction. */
@@ -75,30 +75,29 @@ export async function restoreTransactions(txs: Transaction[]): Promise<void> {
     'INSERT INTO transactions (id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   try {
-    db.run('BEGIN');
-    db.run('DELETE FROM transactions');
-    for (const t of txs) {
-      stmt.run([
-        t.id,
-        t.date,
-        t.source || '',
-        t.type,
-        t.name,
-        t.isin || '',
-        t.shares,
-        t.price,
-        t.amount,
-        t.fee || 0,
-        t.tax || 0,
-        t.currency || 'EUR',
-        t.fxRate || 0,
-        t.note || '',
-        t.category || '',
-      ]);
-    }
-    db.run('COMMIT');
+    await runInSavepoint('restore_transactions', async () => {
+      db.run('DELETE FROM transactions');
+      for (const t of txs) {
+        stmt.run([
+          t.id,
+          t.date,
+          t.source || '',
+          t.type,
+          t.name,
+          t.isin || '',
+          t.shares,
+          t.price,
+          t.amount,
+          t.fee || 0,
+          t.tax || 0,
+          t.currency || 'EUR',
+          t.fxRate || 0,
+          t.note || '',
+          t.category || '',
+        ]);
+      }
+    });
   } catch (err) {
-    db.run('ROLLBACK');
     throw err;
   } finally {
     stmt.free();

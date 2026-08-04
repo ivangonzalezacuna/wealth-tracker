@@ -7,7 +7,7 @@
  * are modified.
  */
 
-import { getDb, persistDb } from '../connection';
+import { getDb, persistDb, runInSavepoint } from '../connection';
 import type { Snapshot } from '../../types';
 
 /** Load all snapshots, sorted by date ascending. */
@@ -41,15 +41,14 @@ export async function saveSnapshots(snaps: Snapshot[]): Promise<void> {
   const db = await getDb();
   const stmt = db.prepare('INSERT INTO snapshots (date, values_json, notes) VALUES (?, ?, ?)');
   try {
-    db.run('BEGIN');
-    db.run('DELETE FROM snapshots');
-    for (const snap of snaps) {
-      const { date, notes, ...values } = snap;
-      stmt.run([date, JSON.stringify(values), notes || '']);
-    }
-    db.run('COMMIT');
+    await runInSavepoint('save_snapshots', async () => {
+      db.run('DELETE FROM snapshots');
+      for (const snap of snaps) {
+        const { date, notes, ...values } = snap;
+        stmt.run([date, JSON.stringify(values), notes || '']);
+      }
+    });
   } catch (err) {
-    db.run('ROLLBACK');
     throw err;
   } finally {
     stmt.free();

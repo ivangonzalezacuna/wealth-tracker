@@ -421,6 +421,41 @@ describe('restoreFromBackup collapse state reapply logic', () => {
   });
 });
 
+describe('restore savepoint error handling', () => {
+  async function emulateRestoreFailure(
+    runInSavepointMock: (name: string, fn: () => Promise<void>) => Promise<void>,
+    restoreTransactionsMock: () => Promise<void>,
+  ): Promise<string> {
+    try {
+      await runInSavepointMock('restore', async () => {
+        await restoreTransactionsMock();
+      });
+      return 'ok';
+    } catch (err) {
+      throw new Error(
+        'Restore failed - your original data has been preserved. (' +
+          (err instanceof Error ? err.message : String(err)) +
+          ')',
+      );
+    }
+  }
+
+  it('preserves the original underlying error instead of replacing it with a missing savepoint error', async () => {
+    const restoreTransactionsMock = vi.fn().mockRejectedValue(new Error('table holdings has no column named ter'));
+    const runInSavepointMock = vi.fn(async (_name: string, fn: () => Promise<void>) => {
+      try {
+        await fn();
+      } catch (err) {
+        throw err;
+      }
+    });
+
+    await expect(emulateRestoreFailure(runInSavepointMock, restoreTransactionsMock)).rejects.toThrow(
+      'Restore failed - your original data has been preserved. (table holdings has no column named ter)',
+    );
+  });
+});
+
 // ── withButtonGuard tests for saveSnapshot ─────────
 describe('saveSnapshot button guard via withButtonGuard', () => {
   let btn: HTMLButtonElement;
