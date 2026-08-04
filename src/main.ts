@@ -14,6 +14,7 @@ import {
   saveImportMeta,
   loadImportMeta,
   runInSavepoint,
+  ensureCurrentSchema,
 } from './db';
 import { pullFromCloud, pushToCloud, scheduleUpload } from './sync/engine';
 import {
@@ -813,6 +814,7 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
 
   setSyncing(true);
   try {
+    await ensureCurrentSchema();
     const { accounts, holdings, settings, snapshots, transactions, importMeta } = backup.data;
 
     // Wrap all DB writes in a savepoint so that a failure mid-restore rolls

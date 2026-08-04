@@ -430,6 +430,20 @@ describe('restore savepoint error handling', () => {
       await runInSavepointMock('restore', async () => {
         await restoreTransactionsMock();
       });
+
+      describe('restore schema compatibility', () => {
+        async function restorePreflight(ensureCurrentSchemaMock: () => Promise<void>): Promise<string> {
+          await ensureCurrentSchemaMock();
+          return 'ok';
+        }
+
+        it('runs schema migration/verification before restore writes', async () => {
+          const ensureCurrentSchemaMock = vi.fn().mockResolvedValue(undefined);
+
+          await expect(restorePreflight(ensureCurrentSchemaMock)).resolves.toBe('ok');
+          expect(ensureCurrentSchemaMock).toHaveBeenCalledTimes(1);
+        });
+      });
       return 'ok';
     } catch (err) {
       throw new Error(

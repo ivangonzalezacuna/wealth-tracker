@@ -174,6 +174,18 @@ export function persistDb(db: Database | null = _db): Promise<void> {
 }
 
 /**
+ * Ensure the live database has all schema migrations applied.
+ * Useful for long-lived sessions whose in-memory DB may predate the latest schema.
+ */
+export async function ensureCurrentSchema(): Promise<void> {
+  const db = await getDb();
+  const currentVersion = getDbVersion(db);
+  if (currentVersion >= SCHEMA_VERSION) return;
+  applyMigrations(db, currentVersion);
+  await persistDb(db);
+}
+
+/**
  * Export the full database as a Uint8Array (for Drive AppData upload).
  */
 export function exportDb(): Uint8Array | null {
