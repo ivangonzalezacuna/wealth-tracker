@@ -461,10 +461,7 @@ describe('restore savepoint error handling', () => {
 
   it('preserves the original error if savepoint cleanup throws a missing savepoint error', async () => {
     const originalErr = new Error('table holdings has no column named ter');
-    const runWithCleanupFailure = async (
-      _name: string,
-      fn: () => Promise<void>,
-    ): Promise<void> => {
+    const runWithCleanupFailure = async (_name: string, fn: () => Promise<void>): Promise<void> => {
       try {
         await fn();
       } catch {
