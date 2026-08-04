@@ -38,7 +38,6 @@ import Chart from 'chart.js/auto';
 import { T, R, resolvedT } from '../theme';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
-import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 
 const CH: Record<string, Chart> = {};
 let _nwRange: '12' | '36' | 'all' = 'all';
@@ -216,6 +215,9 @@ export function renderNW(
   const accounts = getAccounts();
   _lastAccounts = accounts;
 
+  // Per-account CAGR map (keyed by accountId)
+  const acctCagrMap = new Map(cagrPerAccount(snaps, accounts).map((r) => [r.accountId, r]));
+
   // Extra KPIs: YoY + CAGR
   const firstTotal = snaps.length > 0 ? snapTotal(snaps[0]) : 0;
   const firstDate = snaps[0]?.date || '';
@@ -276,14 +278,20 @@ export function renderNW(
       }</div>
     </div>
     ${activeA
-      .map(
-        (a) => `
+      .map((a) => {
+        const acctCagr = acctCagrMap.get(a.key);
+        const cagrSub =
+          acctCagr && acctCagr.cagrValue !== null
+            ? `<div class="kpi-sub ${acctCagr.cagrValue >= 0 ? 'pos' : 'neg'}">CAGR ${fmtPctNeg(acctCagr.cagrValue * 100)} (${acctCagr.monthsSpan}m)</div>`
+            : '';
+        return `
       <div class="kpi">
         <div class="kpi-label">${esc(a.label)}</div>
         <div class="kpi-val">${fmtEur2((s[a.key] as number) || 0)}</div>
         <div class="kpi-sub">${fmtPctVal(total > 0 ? (((s[a.key] as number) || 0) / total) * 100 : 0)} of total</div>
-      </div>`,
-      )
+        ${cagrSub}
+      </div>`;
+      })
       .join('')}
     ${(() => {
       const accts = getAccounts();
@@ -370,8 +378,7 @@ export function renderNW(
     })}
   `;
 
-  // Per-account CAGR section
-  _renderPerAccountCagr(snaps, accounts);
+  // Per-account CAGR is embedded directly in account KPI tiles above.
 
   const chartA = ACCTS.filter((a) => snaps.some((sn) => ((sn[a.key] as number) || 0) > 0));
 
@@ -1094,55 +1101,4 @@ function _monthsDiff(a: string, b: string): number {
   const [ay, am] = a.split('-').map(Number);
   const [by, bm] = b.split('-').map(Number);
   return (by - ay) * 12 + (bm - am);
-}
-
-const PERACCT_COLLAPSE_KEY = 'nw:per-account-cagr';
-
-/** Render (or clear) the collapsible per-account CAGR section below the main KPI row. */
-function _renderPerAccountCagr(snaps: Snapshot[], accounts: Account[]): void {
-  const el = document.getElementById('nw-peracct');
-  if (!el) return;
-
-  const results = cagrPerAccount(snaps, accounts);
-
-  if (results.length === 0) {
-    el.innerHTML = '';
-    return;
-  }
-
-  const collapsed = isCollapsed(PERACCT_COLLAPSE_KEY);
-
-  const tilesHtml = results
-    .map(
-      (r) => `
-    <div class="kpi">
-      <div class="kpi-label">
-        <span class="leg-sq" style="background:${esc(r.color || '#888')};display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px;flex-shrink:0"></span>
-        ${esc(r.label)}
-      </div>
-      <div class="kpi-val ${r.cagrValue === null ? '' : r.cagrValue >= 0 ? 'pos' : 'neg'}">${r.cagrValue !== null ? fmtPctNeg(r.cagrValue * 100) : '-'}</div>
-      <div class="kpi-sub">${r.monthsSpan}m history</div>
-    </div>`,
-    )
-    .join('');
-
-  el.innerHTML = `
-    <div class="card card-collapsible${collapsed ? ' collapsed' : ''}" id="nw-card-peracct">
-      <div class="card-header js-nw-peracct-toggle" style="cursor:pointer">
-        <div class="card-title">Per-account CAGR${infoTip("Compound annual growth rate per account, calculated from each account's first and last non-zero snapshot values. Only accounts with at least 12 months of data are shown. This is a balance-growth metric, not a risk-adjusted return.")}</div>
-        <span class="card-chevron"></span>
-      </div>
-      <div class="card-body">
-        <div class="kpi-row">${tilesHtml}</div>
-      </div>
-    </div>`;
-
-  attachInfoTips(el);
-
-  el.querySelector('.js-nw-peracct-toggle')?.addEventListener('click', () => {
-    const card = document.getElementById('nw-card-peracct');
-    if (!card) return;
-    const nowCollapsed = toggleCollapsed(PERACCT_COLLAPSE_KEY);
-    card.classList.toggle('collapsed', nowCollapsed);
-  });
 }

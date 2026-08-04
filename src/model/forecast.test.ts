@@ -216,4 +216,3 @@ describe('forecastMonthsToTargetMulti', () => {
     expect(multiMonths!).toBeGreaterThan(buggyMonths!);
   });
 });
-
