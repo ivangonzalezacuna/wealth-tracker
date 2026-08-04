@@ -229,7 +229,7 @@ export function appTemplate(): string {
         </div>
         <div class="form-group">
           <label class="form-label">Notes (optional)</label>
-          <input type="text" id="snap-notes" class="form-input" placeholder="e.g. catch-up done, got raise…">
+          <input type="text" id="snap-notes" class="form-input form-input-compact" placeholder="e.g. catch-up done, got raise...">
         </div>
         <div id="snap-acct-fields"></div>
       </div>

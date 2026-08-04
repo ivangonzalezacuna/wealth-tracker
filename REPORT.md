@@ -342,21 +342,22 @@ The following limitations are already acknowledged in the README or PR history a
 15. Add a SPLIT transaction type (Area 1.3)
 16. Add a confirmation dialog to snapshot delete (Area 7.3)
 17. Clarify or fix IRR calculation for portfolios with withdrawn sell proceeds (Area 7.2)
+18. Align all text boxes to a shared themed style instead of mixed default browser formatting
 
 ### Nice to have (long-term roadmap)
 
-18. Benchmark comparison overlay on the Net Worth chart (Area 2.2)
-19. Annualized volatility and maximum drawdown metrics (Area 2.3)
-20. Multiple named goals with per-goal progress tracking (Area 4.5)
-21. First-class non-ISIN asset support (crypto, real estate, commodities) (Area 5.1)
-22. Per-account CAGR/IRR breakdown (Area 2.4)
-23. Tax jurisdiction field on accounts for holding-period and short/long-term gain tracking (Area 3.2)
-24. Tax-loss harvesting identification view (Area 3.1)
-25. Dividend income forward projection (Area 2.5)
-26. Storage quota monitoring (Area 6.5)
-27. Additional European broker import profiles: DEGIRO, Scalable Capital, Interactive Brokers (Area 4.3)
-28. Custom import profile persistence and UI (Area 7.1)
-29. Surface config audit log (`config_history`) in the UI (Area 7.4)
+19. Benchmark comparison overlay on the Net Worth chart (Area 2.2)
+20. Annualized volatility and maximum drawdown metrics (Area 2.3)
+21. Multiple named goals with per-goal progress tracking (Area 4.5)
+22. First-class non-ISIN asset support (crypto, real estate, commodities) (Area 5.1)
+23. Per-account CAGR/IRR breakdown (Area 2.4)
+24. Tax jurisdiction field on accounts for holding-period and short/long-term gain tracking (Area 3.2)
+25. Tax-loss harvesting identification view (Area 3.1)
+26. Dividend income forward projection (Area 2.5)
+27. Storage quota monitoring (Area 6.5)
+28. Additional European broker import profiles: DEGIRO, Scalable Capital, Interactive Brokers (Area 4.3)
+29. Custom import profile persistence and UI (Area 7.1)
+30. Surface config audit log (`config_history`) in the UI (Area 7.4)
 
 ---
 
