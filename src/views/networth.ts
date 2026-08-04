@@ -16,8 +16,6 @@ import { getACCTSList, FORECAST_RANGE_LABELS } from '../constants';
 import {
   getAccounts,
   getTotalAnnualContrib,
-  getTargetNetWorth,
-  getTargetDate,
   getGoals,
 } from '../store/config';
 import { primaryInvestmentValue, allInvestmentAccountsValue } from '../model/accounts';
@@ -366,8 +364,10 @@ export function renderNW(
           const validTargetDate = /^\d{4}-\d{2}$/.test(targetDate) ? targetDate : null;
 
           let etaText = '';
+          let isOnTrack: boolean | null = null;
           if (total >= target) {
             etaText = '<span class="pos" style="font-weight:500">Goal reached!</span>';
+            isOnTrack = true;
           } else if (etaMonths !== null) {
             const etaFormatted = formatMonthsEta(etaMonths);
             const now = new Date();
@@ -375,7 +375,7 @@ export function renderNW(
             const etaDateStr = `${etaDate.getFullYear()}-${String(etaDate.getMonth() + 1).padStart(2, '0')}`;
             const etaDateFmt = fmtMon(etaDateStr);
             if (validTargetDate) {
-              const isOnTrack = etaDateStr <= validTargetDate;
+              isOnTrack = etaDateStr <= validTargetDate;
               etaText = isOnTrack
                 ? `<span class="pos">On track for ${fmtMon(validTargetDate)}</span> (ETA ${etaFormatted}, ${etaDateFmt})`
                 : `<span class="neg">Behind schedule</span> (ETA ${etaFormatted}, ${etaDateFmt}; target was ${fmtMon(validTargetDate)})`;
@@ -404,10 +404,10 @@ export function renderNW(
                   <span>${fmtEur(total)} / ${fmtEur(target)}</span>
                 </div>
                 <div style="height:8px;background:var(--surface-3);border-radius:var(--radius-xs);overflow:hidden">
-                  <div style="width:${pctComplete}%;height:100%;background:${pctComplete >= 100 ? 'var(--pos)' : 'var(--brand)'};border-radius:var(--radius-xs);transition:width .3s"></div>
+                  <div style="width:${pctComplete}%;height:100%;background:${pctComplete >= 100 ? 'var(--pos)' : isOnTrack === false ? 'var(--warn)' : 'var(--brand)'};border-radius:var(--radius-xs);transition:width .3s"></div>
                 </div>
               </div>
-              <div class="row"><div class="row-label">ETA</div><div class="row-val" style="font-size:12px">${etaText}${_inflationRate > 0 ? '<br><span class="note" style="font-size:11px">ETA is in nominal terms; inflation is not factored in.</span>' : ''}</div></div>
+              <div class="row"><div class="row-label">ETA</div><div class="row-val" style="font-size:12px;overflow-wrap:break-word;word-break:break-word;min-width:0">${etaText}${_inflationRate > 0 ? '<br><span class="note" style="font-size:11px">ETA is in nominal terms; inflation is not factored in.</span>' : ''}</div></div>
             </div>`;
         })
         .join('');
@@ -751,34 +751,11 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       ]
     : null;
 
-  // Target line (horizontal) - use first goal's target if available.
-  // Only the first goal's target amount is shown as a horizontal line; all goals'
-  // deadlines appear as vertical markers below.
   const _allGoals = getGoals();
-  const _firstGoal = _allGoals[0];
-  const _firstGoalNW = _firstGoal
-    ? parseFloat((_firstGoal.targetNetWorth || '').replace(/\./g, '').replace(',', '.'))
-    : NaN;
-  const target = !isNaN(_firstGoalNW) && _firstGoalNW > 0 ? _firstGoalNW : getTargetNetWorth();
-  const targetLine =
-    target !== null
-      ? [
-          {
-            label: 'Target',
-            data: labels.map(() => target),
-            borderColor: C.pos,
-            borderWidth: 1.5,
-            borderDash: [6, 4],
-            pointRadius: 0,
-            fill: false,
-            order: 3,
-          },
-        ]
-      : [];
 
   // Deadline markers: one vertical line per goal that has a targetDate in the chart range.
   // Collect deadlines as { label: string, labelIndex: number } for use in the inline plugin.
-  const goalDeadlines: Array<{ title: string; labelIndex: number; color: string }> = [];
+  const goalDeadlines: Array<{ title: string; labelIndex: number; color: string; targetNW: number | null }> = [];
   const DEADLINE_COLORS = [
     'rgba(255,160,30,0.9)',
     'rgba(200,80,200,0.9)',
@@ -791,10 +768,13 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     const dlLabel = fmtMon(dl);
     const idx = labels.indexOf(dlLabel);
     if (idx === -1) return;
+    const rawNW = (g.targetNetWorth || '').replace(/\./g, '').replace(',', '.');
+    const targetNW = parseFloat(rawNW);
     goalDeadlines.push({
       title: g.label ? esc(g.label) : `Goal ${gi + 1}`,
       labelIndex: idx,
       color: DEADLINE_COLORS[gi % DEADLINE_COLORS.length],
+      targetNW: isNaN(targetNW) || targetNW <= 0 ? null : targetNW,
     });
   });
 
@@ -856,7 +836,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
             }
           </div>
         </div>
-        <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX.${_allGoals.length > 1 ? ' Horizontal target line shows the first goal only; all goal deadlines are shown as vertical markers.' : ''}</div>
+        <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX.${goalDeadlines.length > 0 ? ' Goal deadlines and target amounts are shown as markers on the chart.' : ''}</div>
       </div>
     </div>`;
 
@@ -874,6 +854,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
             goalDeadlines.forEach((d) => {
               const x = scales['x'].getPixelForValue(d.labelIndex);
               if (x < chartArea.left || x > chartArea.right) return;
+              // Vertical dashed line
               ctx.beginPath();
               ctx.moveTo(x, chartArea.top);
               ctx.lineTo(x, chartArea.bottom);
@@ -889,6 +870,19 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
               const textX = x + 3;
               const textY = chartArea.top + 12;
               ctx.fillText(d.title, textX, textY);
+              // Dot at (deadline, targetNW)
+              if (d.targetNW !== null && scales['y']) {
+                const y = scales['y'].getPixelForValue(d.targetNW);
+                if (y >= chartArea.top && y <= chartArea.bottom) {
+                  ctx.beginPath();
+                  ctx.arc(x, y, 5, 0, Math.PI * 2);
+                  ctx.fillStyle = d.color;
+                  ctx.fill();
+                  ctx.strokeStyle = 'var(--surface-1)';
+                  ctx.lineWidth = 1.5;
+                  ctx.stroke();
+                }
+              }
             });
             ctx.restore();
           },
@@ -945,7 +939,6 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
               },
             ]
           : []),
-        ...targetLine,
       ],
     },
     options: {

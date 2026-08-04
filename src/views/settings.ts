@@ -1121,29 +1121,29 @@ function attachCostBasisListeners(root: HTMLElement): void {
 function goalRowHtml(goal: NamedGoal, idx: number, collapsed = false): string {
   const summary = goal.label || (goal.targetNetWorth ? `\u20AC${esc(goal.targetNetWorth)}` : `Goal ${idx + 1}`);
   return `
-    <div class="goal-row${collapsed ? ' goal-row-collapsed' : ''}" data-goal-idx="${idx}" style="border:1px solid var(--surface-3);border-radius:var(--radius-s);padding:.75rem;margin-bottom:.5rem">
-      <div class="goal-row-header" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none">
-        <span class="goal-row-summary" style="font-weight:500;font-size:13px">${esc(summary)}</span>
-        <span class="goal-row-chevron" style="font-size:10px;color:var(--ink-4)">${collapsed ? '&#9660;' : '&#9650;'}</span>
-      </div>
-      <div class="goal-row-body" style="${collapsed ? 'display:none;' : ''}margin-top:.5rem">
-        <div class="form-grid" style="max-width:500px">
-          <div class="form-group">
-            <label class="form-label">Goal label</label>
-            <input class="form-input goal-label-input" data-idx="${idx}" type="text" value="${esc(goal.label)}" placeholder="e.g. Financial independence">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Target net worth (\u20AC)</label>
-            <input class="form-input goal-nw-input" data-idx="${idx}" type="text" inputmode="decimal" value="${esc(goal.targetNetWorth)}" placeholder="e.g. 500000">
-            <span class="note">Supports German format (100.000,00) or plain numbers.</span>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Target date (optional)</label>
-            <input class="form-input goal-date-input" data-idx="${idx}" type="month" value="${esc(goal.targetDate)}">
-            <span class="note">Leave empty for ETA-only mode (no deadline).</span>
-          </div>
+    <div class="settings-item item-collapsible goal-row${collapsed ? ' item-collapsed' : ''}" data-goal-idx="${idx}">
+      <div class="settings-item-header js-item-toggle goal-row-header">
+        <span class="settings-item-title goal-row-summary">${esc(summary)}</span>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <span class="item-chevron"></span>
+          <button class="btn btn-sm btn-danger goal-remove-btn" data-idx="${idx}">\u2715</button>
         </div>
-        <button class="btn btn-sm btn-danger goal-remove-btn" data-idx="${idx}" style="margin-top:.25rem">Remove</button>
+      </div>
+      <div class="settings-item-fields goal-row-body">
+        <div class="settings-field">
+          <label class="settings-field-label" for="goal-label-${idx}">Goal label</label>
+          <input id="goal-label-${idx}" class="form-input form-input-sm goal-label-input" data-idx="${idx}" type="text" value="${esc(goal.label)}" placeholder="e.g. Financial independence">
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label" for="goal-nw-${idx}">Target net worth (\u20AC)</label>
+          <input id="goal-nw-${idx}" class="form-input form-input-sm goal-nw-input" data-idx="${idx}" type="text" inputmode="decimal" value="${esc(goal.targetNetWorth)}" placeholder="e.g. 500000">
+          <span class="note">Supports German format (100.000,00) or plain numbers.</span>
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label" for="goal-date-${idx}">Target date (optional)</label>
+          <input id="goal-date-${idx}" class="form-input form-input-sm goal-date-input" data-idx="${idx}" type="month" value="${esc(goal.targetDate)}">
+          <span class="note">Leave empty for ETA-only mode (no deadline).</span>
+        </div>
       </div>
     </div>`;
 }
@@ -1151,7 +1151,7 @@ function goalRowHtml(goal: NamedGoal, idx: number, collapsed = false): string {
 function goalListHtml(goals: NamedGoal[], _settings: Settings): string {
   const rows = goals.map((g, i) => goalRowHtml(g, i, i >= 1)).join('');
   return `
-    <div id="settings-goals-list">${rows}</div>
+    <div id="settings-goals-list" class="settings-items">${rows}</div>
     <button class="btn btn-sm" id="btn-add-goal" style="margin-bottom:.75rem">+ Add goal</button>`;
 }
 
@@ -1176,20 +1176,6 @@ function renderGoalCard(settings: Settings): string {
 
 function attachGoalListeners(root: HTMLElement): void {
   // Add goal row
-  // Collapse/expand goal rows when clicking the header
-  root.querySelector('#settings-goals-list')?.addEventListener('click', (e) => {
-    const header = (e.target as Element).closest('.goal-row-header') as HTMLElement | null;
-    if (!header) return;
-    const row = header.closest('.goal-row') as HTMLElement | null;
-    if (!row) return;
-    const body = row.querySelector('.goal-row-body') as HTMLElement | null;
-    const chevron = row.querySelector('.goal-row-chevron') as HTMLElement | null;
-    if (!body) return;
-    const isCollapsed = body.style.display === 'none';
-    body.style.display = isCollapsed ? '' : 'none';
-    if (chevron) chevron.innerHTML = isCollapsed ? '&#9650;' : '&#9660;';
-    row.classList.toggle('goal-row-collapsed', !isCollapsed);
-  });
 
   root.querySelector('#btn-add-goal')?.addEventListener('click', () => {
     const list = root.querySelector('#settings-goals-list');
@@ -1198,7 +1184,14 @@ function attachGoalListeners(root: HTMLElement): void {
     const div = document.createElement('div');
     // New goals are always expanded
     div.innerHTML = goalRowHtml({ label: '', targetNetWorth: '', targetDate: '' }, idx, false);
-    list.appendChild(div.firstElementChild!);
+    const newRow = div.firstElementChild!;
+    list.appendChild(newRow);
+    // Wire collapse toggle for the new row's header
+    const header = newRow.querySelector('.js-item-toggle');
+    header?.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement | null)?.closest('.btn-danger')) return;
+      newRow.classList.toggle('item-collapsed');
+    });
   });
 
   // Remove goal row (event delegation)
