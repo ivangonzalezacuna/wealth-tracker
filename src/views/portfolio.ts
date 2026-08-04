@@ -846,11 +846,17 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
             ? 'var(--warn)'
             : 'var(--pos)';
       const isLegacy = d.targetPct === 0;
+      const costBadge =
+        d.valuationMode === 'cost'
+          ? infoTip(
+              'Actual % based on cost basis, not current market value. Enter ETF values in your next snapshot for market-based drift.',
+            )
+          : '';
       return `
       <div class="tbl-row" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
         <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:var(--radius-xs);background:${safeColor(d.color)};margin-right:6px;opacity:${isLegacy ? '0.6' : '1'}"></span><span data-etf-isin="${esc(d.isin)}" data-etf-name="${esc(d.name)}">${esc(d.shortName)}</span></div>
         <div role="cell" style="text-align:right${isLegacy ? ';color:var(--ink-3)' : ''}">${isLegacy ? '(legacy)' : fmtPctVal(d.targetPct)}</div>
-        <div role="cell" style="text-align:right">${fmtPctVal(d.actualPct)}</div>
+        <div role="cell" style="text-align:right">${fmtPctVal(d.actualPct)}${costBadge}</div>
         <div role="cell" style="text-align:right;color:${driftColor}" aria-label="Drift ${fmtPctSigned(d.driftPct)}">${fmtPctSigned(d.driftPct)}</div>
         <div role="cell" style="text-align:right;color:${d.deltaValue >= 0 ? 'var(--ink-3)' : 'var(--ink-2)'}">${fmtEurSigned(d.deltaValue)}</div>
       </div>`;
@@ -884,7 +890,11 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
   const needsSell = plan12.some((e) => e.projectedDriftPct > 0.05);
 
   let rebalanceSection = '';
-  if (plan.length >= 2) {
+  // Only show the rebalance plan when market values are available for held positions.
+  // Cost-basis drift figures are not reliable enough to base contribution decisions on.
+  // When there are no held positions (all cash / re-entry), cost mode is irrelevant and
+  // the plan is shown since it is purely contribution-target-based.
+  if (plan.length >= 2 && !(hasCostMode && hasHeldPositions)) {
     const isRebalanceRecommended = max > 10;
     const shouldOpenRebalance = keepRebalanceOpen || isRebalanceRecommended;
     const pickerBtns = REBALANCE_MONTH_OPTIONS.map((m) => {
@@ -993,4 +1003,5 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
   });
 
   attachEtfPopovers(driftEl);
+  attachInfoTips(driftEl);
 }

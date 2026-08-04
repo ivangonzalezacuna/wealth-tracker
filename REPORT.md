@@ -41,13 +41,14 @@ Unrealized gain/loss for each position is only shown when the user manually ente
 - **Impact:** Any user holding a position that splits will have a wrong cost-per-share figure and incorrect IRR until they manually fix it. The existing `foldInto` field partially handles ETF mergers but is limited to a direct ISIN replacement and is unverified against real data (confirmed in README Known Limitations).
 - **What is needed:** A SPLIT transaction type that adjusts shares and unit cost without altering total cost basis, and a SPINOFF type that allocates cost basis proportionally.
 
-### 1.4 Allocation Drift Falls Back to Cost Basis When Market Values Are Missing (MEDIUM)
+### 1.4 Allocation Drift Falls Back to Cost Basis When Market Values Are Missing (MEDIUM) - PARTIALLY RESOLVED
 
 `computeDrift()` prefers snapshot market values but silently falls back to cost basis when they are not present. The fallback is mentioned in a tooltip but is not prominently flagged.
 
 - **Confirmed in:** `src/model/drift.ts:55-61`
 - **Impact:** For long-held positions with large unrealized gains, cost-basis-derived allocation percentages can be significantly wrong. A position that was 15 % of portfolio at purchase may now be 30 % or 5 % at market prices, but the drift card will show 15 %.
 - **What is needed:** A more prominent warning when cost basis is being used as a fallback, and optionally a column showing the valuation mode per row.
+- **Resolution:** A card-level warning banner is shown when any row uses cost-basis mode. Each affected row now also shows an inline info icon next to the actual % value, with a tooltip explaining the limitation. The remaining improvement (a dedicated "Valuation" column) is a future enhancement.
 
 ---
 
@@ -212,28 +213,28 @@ Following on from 5.1, even if manual tracking is added, there are no import pro
 
 ## Area 6: Technical Quality
 
-### 6.1 Repository Functions Perform DELETE then INSERT Without a SQLite Transaction (HIGH)
+### 6.1 Repository Functions Perform DELETE then INSERT Without a SQLite Transaction (HIGH) - RESOLVED
 
 `saveAccounts()`, `saveHoldings()`, `restoreTransactions()`, and `replaceAllSettings()` all follow the pattern: `db.run('DELETE FROM table')` followed by a loop of `INSERT` statements, with no enclosing `BEGIN`/`COMMIT`. If the process crashes, loses the IDB lock, or throws mid-loop, the table is left empty (data deleted) with no inserts applied.
 
 - **Confirmed in:** `src/db/repositories/config.ts:22-50` (`saveAccounts`), `src/db/repositories/config.ts:62-90` (`saveHoldings`), `src/db/repositories/config.ts:117-131` (`replaceAllSettings`), `src/db/repositories/snapshots.ts:40-52` (`saveSnapshots`), `src/db/repositories/transactions.ts:72-101` (`restoreTransactions`)
 - **Impact:** Partial writes are silent. The user is not informed of data loss. On the next load, the affected table is empty.
-- **What is needed:** Wrap each DELETE+INSERT batch in an explicit `BEGIN IMMEDIATE` / `COMMIT` / `ROLLBACK ON ERROR` pattern. sql.js supports `db.run('BEGIN')` and `db.run('COMMIT')`.
+- **Resolution:** All five functions now wrap the DELETE+INSERT batch in `BEGIN` / `COMMIT` / `ROLLBACK` so partial writes are prevented.
 
-### 6.2 Prepared Statements Not Freed in a try-finally Block (MEDIUM)
+### 6.2 Prepared Statements Not Freed in a try-finally Block (MEDIUM) - RESOLVED
 
 `stmt.free()` is called unconditionally at the end of `saveAccounts`, `saveHoldings`, and `saveSnapshots`. If any `stmt.run(...)` call inside the loop throws, execution jumps out of the function and `stmt.free()` is never called, leaking the prepared statement.
 
 - **Confirmed in:** `src/db/repositories/config.ts:45`, `src/db/repositories/config.ts:84`, `src/db/repositories/snapshots.ts:52` (no try-finally wrapping stmt)
-- **What is needed:** `stmt.free()` should be called in a `finally` block: `try { /* inserts */ } finally { stmt.free(); }`.
+- **Resolution:** All five functions now call `stmt.free()` inside a `finally` block, ensuring the statement is always freed even if an INSERT throws.
 
-### 6.3 CSP Allows `'unsafe-inline'` Styles; No HSTS Header (MEDIUM)
+### 6.3 CSP Allows `'unsafe-inline'` Styles; No HSTS Header (MEDIUM) - PARTIALLY RESOLVED
 
 The Content-Security-Policy in `netlify.toml` includes `style-src 'self' 'unsafe-inline'`, which allows any inline `style` attribute to execute without restriction. No `Strict-Transport-Security` header is set.
 
 - **Confirmed in:** `netlify.toml:15` (CSP value), absence of HSTS in headers block
 - **Impact:** `'unsafe-inline'` for styles weakens the CSP against CSS injection. Missing HSTS means a user on a hostile network could be downgraded to HTTP on their first visit before the browser learns the site is HTTPS-only.
-- **What is needed:** Add `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` to the headers block. Investigate whether inline styles can be replaced with classes (Chart.js injects some inline styles, so a nonce-based approach may be needed).
+- **Resolution:** HSTS header (`max-age=63072000; includeSubDomains; preload`) added to `netlify.toml`. The `'unsafe-inline'` style-src issue remains open because Chart.js injects inline styles at runtime; a nonce-based approach would require changes to the Chart.js integration.
 
 ### 6.4 Backup Restore Does Not Protect Against Partial Writes (MEDIUM)
 
@@ -280,13 +281,13 @@ The IRR tooltip in `src/views/networth.ts:215` states: "SELL and dividend cash m
 - **Impact:** For users who sold positions and withdrew proceeds, the IRR figure overstates investment performance. The tooltip partially acknowledges this but does not make the limitation prominent enough for a user to catch it.
 - **What is needed:** At minimum, expand the tooltip to clearly warn that IRR is only reliable when sell proceeds remain within the tracked account. Ideally, construct the IRR cash-flow series from individual BUY and SELL transaction records where available, falling back to the current approach otherwise.
 
-### 7.3 No Confirmation Dialog on Snapshot Delete (MEDIUM)
+### 7.3 No Confirmation Dialog on Snapshot Delete (MEDIUM) - RESOLVED
 
 Deleting a snapshot in the Log tab does not show a confirmation dialog. Account and holding deletions in Settings use `confirmDialog`, but the snapshot delete action bypasses this guard.
 
 - **Confirmed in:** `src/views/log.ts` (delete handler calls the repository directly), `src/views/settings.ts` (uses `confirmDialog` for account and holding deletes)
 - **Impact:** A single misclick permanently deletes a month's snapshot with no undo. Snapshots are the primary data source for the net-worth chart and IRR calculation; losing one distorts both.
-- **What is needed:** Wrap the snapshot delete handler in the same `confirmDialog` pattern used in Settings.
+- **Resolution:** Already implemented. `delSnap()` in `src/main.ts` calls `confirmDialog` with a danger variant before deleting. Finding was outdated at time of review.
 
 ### 7.4 Config Audit Log Is Never Surfaced in the UI (LOW)
 
