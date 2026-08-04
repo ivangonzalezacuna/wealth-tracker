@@ -148,6 +148,13 @@ describe('fmtPctVal', () => {
     expect(fmtPctVal(45.0)).toBe('45%');
     expect(fmtPctVal(44.95)).toBe('45%');
   });
+
+  it('decimals=2: always shows 2 decimal places', () => {
+    expect(fmtPctVal(0.33, 2)).toBe('0.33%');
+    expect(fmtPctVal(45, 2)).toBe('45.00%');
+    expect(fmtPctVal(2.1, 2)).toBe('2.10%');
+    expect(fmtPctVal(0.336, 2)).toBe('0.34%');
+  });
 });
 
 describe('esc', () => {

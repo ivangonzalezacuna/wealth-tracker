@@ -665,14 +665,20 @@ function renderDivProjection(pd: PortfolioData, snaps: Snapshot[]): void {
     return;
   }
 
+  // Only count cost basis of distributing (non-acc) holdings for the yield denominator,
+  // since acc holdings do not pay dividends and would artificially dilute the yield.
+  const distInv = Object.values(pd.etfs)
+    .filter((e) => !e.acc)
+    .reduce((s, e) => s + e.cost, 0);
+
   // Use persisted yield if available, otherwise seed from trailing 12m calculation
   if (_divProjYield === null) {
     const persisted = _loadPersistedYield();
     _divProjYield =
-      persisted !== null ? persisted : (trailingDividendYield(pd.divHist, pd.totalInv) ?? 0);
+      persisted !== null ? persisted : (trailingDividendYield(pd.divHist, distInv) ?? 0);
   }
 
-  const calculatedYield = trailingDividendYield(pd.divHist, pd.totalInv) ?? 0;
+  const calculatedYield = trailingDividendYield(pd.divHist, distInv) ?? 0;
   el.innerHTML = _renderDivProjCard(calculatedYield);
   attachInfoTips(el);
   _attachDivProjListeners(el, pd, snaps, calculatedYield);
@@ -683,7 +689,7 @@ function _renderDivProjCard(calculatedYield: number): string {
   const yieldVal = _divProjYield ?? 0;
   const calcHint =
     calculatedYield > 0
-      ? `<span style="font-size:12px;color:var(--ink-3)">Calculated from history: ${fmtPctVal(calculatedYield)}</span>`
+      ? `<span style="font-size:12px;color:var(--ink-3)">Calculated from history: ${fmtPctVal(calculatedYield, 2)}</span>`
       : '';
   return `
     <div class="card" id="div-card-projection">
