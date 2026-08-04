@@ -88,6 +88,7 @@ import { withTimeout } from './sync/timeout';
 import { isBusy, setBusy } from './sync/lock';
 import { registerSW } from 'virtual:pwa-register';
 import type { Snapshot, Transaction, PortfolioData, ImportProfile, Account } from './types';
+import { buildTaxSummaryCsv } from './taxExport';
 
 // ── App state ────────────────────────────────────────────
 const state: {
@@ -783,6 +784,31 @@ export async function exportBackup(): Promise<void> {
   URL.revokeObjectURL(url);
 }
 window.__exportBackup = exportBackup;
+
+// ── Tax year summary export ────────────────────────────────
+export function exportTaxSummary(year: number): void {
+  const csv = buildTaxSummaryCsv({ year, txs: state.txs });
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `tax-summary-${year}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+window.__exportTaxSummary = exportTaxSummary;
+
+export function getTaxYears(): number[] {
+  const years = new Set<number>();
+  for (const tx of state.txs) {
+    const y = parseInt(tx.date.slice(0, 4), 10);
+    if (!isNaN(y)) years.add(y);
+  }
+  return Array.from(years).sort((a, b) => b - a);
+}
+window.__getTaxYears = getTaxYears;
 
 // ── Backup restore ────────────────────────────────────────
 export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done'> {

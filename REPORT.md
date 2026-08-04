@@ -122,13 +122,14 @@ The `Holding` interface stores `isin`, `name`, `assetClass`, `region`, and `colo
 - **Impact:** Users cannot calculate the annual fee drag on their portfolio, identify expensive holdings, or compare the cost of equivalent ETFs.
 - **What is needed:** An optional `ter` field on the `Holding` type, populated by the user, with a "total annual fee drag" KPI tile on the portfolio summary card.
 
-### 3.4 No Structured Tax Export (LOW)
+### 3.4 No Structured Tax Export (LOW) - RESOLVED
 
 The only data export available is a full JSON backup. There is no CSV or structured export formatted for use in tax preparation software (e.g., ELSTER in Germany, HMRC format in the UK).
 
 - **Confirmed in:** `src/backup/exportImport.ts` (only full JSON backup), no reporting module exists
 - **Impact:** Users must manually copy dividend, interest, and realized P&L data into their tax filing software. This is the most time-consuming part of the annual workflow.
 - **What is needed:** A "Tax year summary" export that outputs realized gains/losses, dividend income, and interest income for a selectable calendar year in a simple CSV format.
+- **Resolution:** A "Tax year summary" export has been added to the Settings backup card. Users select a calendar year from a dropdown populated from their transaction history, then click "Tax year summary" to download `tax-summary-{year}.csv`. The CSV contains five sections: realized gains/losses (per-SELL, using the average-cost method), dividend income (gross, tax withheld, net), interest income, fee and tax payments, and a totals summary. The export logic lives in `src/taxExport.ts` and is exposed via `window.__exportTaxSummary`.
 
 ---
 
@@ -334,7 +335,7 @@ The following limitations are already acknowledged in the README or PR history a
 7. Free prepared statements in try-finally blocks (Area 6.2)
 8. Show user-visible warning when IDB cache write fails after import or settings save (Area 6.6)
 9. Add a TWR metric alongside CAGR/IRR (Area 2.1)
-10. Add a "tax year summary" export (Area 3.4)
+10. ~~Add a "tax year summary" export (Area 3.4)~~ **RESOLVED**
 11. Surface allocation drift warning badge when tolerance is exceeded (Area 4.7)
 12. Add a holdings text search/filter (Area 4.4)
 13. Add expense ratio (TER) field to holdings and a fee-drag KPI (Area 3.3)

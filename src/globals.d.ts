@@ -10,6 +10,8 @@ declare global {
     __forceFullResync?: () => Promise<void>;
     __exportBackup?: () => Promise<void>;
     __restoreFromBackup?: (file: File) => Promise<'cancelled' | 'done'>;
+    __exportTaxSummary?: (year: number) => void;
+    __getTaxYears?: () => number[];
   }
 
   // Non-standard InputDeviceCapabilities API (Chrome/Android)

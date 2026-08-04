@@ -1740,6 +1740,14 @@ function renderBackupCard(): string {
           <input type="file" id="backup-file-input" accept="application/json" style="display:none">
         </div>
         <div id="backup-msg" style="font-size:12px;margin-top:.6rem;min-height:18px"></div>
+
+        <hr style="margin:1rem 0;border:none;border-top:1px solid var(--border)">
+        <p class="note" style="margin-bottom:.75rem">Download a CSV summary of realized gains/losses, dividends, interest, and fees for a calendar year. Useful for tax preparation.${infoTip('The CSV uses the average-cost method for realized gain/loss calculations, regardless of the cost basis setting above. All amounts are in the original transaction currency.')}</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <select id="tax-year-select" class="form-input form-input-sm" style="width:auto"></select>
+          <button class="btn btn-outline btn-sm" id="btn-export-tax">Tax year summary</button>
+        </div>
+        <div id="tax-export-msg" style="font-size:12px;margin-top:.6rem;min-height:18px"></div>
       </div>
     </div>`;
 }
@@ -1775,6 +1783,33 @@ function attachBackupListeners(root: HTMLElement): void {
       }
     } catch (err: any) {
       showMsg('backup-msg', 'Restore failed: ' + err.message, false);
+    }
+  });
+
+  // Populate tax year select
+  const taxYearSelect = root.querySelector('#tax-year-select') as HTMLSelectElement | null;
+  if (taxYearSelect) {
+    const years = window.__getTaxYears ? window.__getTaxYears() : [];
+    const prevYear = new Date().getFullYear() - 1;
+    if (years.length === 0) {
+      taxYearSelect.innerHTML = `<option value="${prevYear}">${prevYear}</option>`;
+    } else {
+      taxYearSelect.innerHTML = years
+        .map((y) => `<option value="${y}"${y === prevYear ? ' selected' : ''}>${y}</option>`)
+        .join('');
+      // If prevYear not in list, first option is already selected by default
+    }
+  }
+
+  root.querySelector('#btn-export-tax')?.addEventListener('click', () => {
+    const select = root.querySelector('#tax-year-select') as HTMLSelectElement | null;
+    const year = select ? parseInt(select.value, 10) : new Date().getFullYear() - 1;
+    if (isNaN(year)) return;
+    try {
+      window.__exportTaxSummary!(year);
+      showMsg('tax-export-msg', `Tax summary for ${year} downloaded.`, true);
+    } catch (err: any) {
+      showMsg('tax-export-msg', 'Export failed: ' + err.message, false);
     }
   });
 }
