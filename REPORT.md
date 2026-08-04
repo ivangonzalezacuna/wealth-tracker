@@ -54,13 +54,14 @@ Unrealized gain/loss for each position is only shown when the user manually ente
 
 ## Area 2: Portfolio Analytics and Performance
 
-### 2.1 No Time-Weighted Return (TWR) Metric (MEDIUM)
+### 2.1 No Time-Weighted Return (TWR) Metric (MEDIUM) - RESOLVED
 
 The app calculates CAGR and XIRR (money-weighted IRR). Neither metric isolates manager skill from contribution timing. IRR rewards investors who contributed large sums before strong market periods, regardless of strategy quality.
 
 - **Confirmed in:** `src/model/insights.ts` (only `xirr()` and `cagr()` functions exist), `src/views/networth.ts:215`
 - **Impact:** Users cannot benchmark their strategy against passive alternatives or compare across periods with different contribution patterns. TWR is the industry-standard metric for this purpose.
 - **What is needed:** A TWR calculation using snapshot-to-snapshot return chaining, which is compatible with the existing monthly snapshot data structure.
+- **Resolution:** A TWR KPI is now shown alongside CAGR and IRR on the Net Worth tab. It links consecutive snapshot-period returns and nets out recorded monthly contributions so performance can be assessed with less distortion from contribution timing.
 
 ### 2.2 No Benchmark Comparison (MEDIUM)
 
@@ -134,13 +135,14 @@ The only data export available is a full JSON backup. There is no CSV or structu
 
 ## Area 4: UX and Workflow Friction
 
-### 4.1 Snapshot Form Does Not Auto-Populate from Previous Month (MEDIUM)
+### 4.1 Snapshot Form Does Not Auto-Populate from Previous Month (MEDIUM) - RESOLVED
 
 When the user opens the `+ Update` tab to log a new month, all account value fields are blank. The user must open their broker app and re-enter each balance from scratch.
 
 - **Confirmed in:** `src/main.ts:1531-1585` (`renderSnapForm()` - input fields are always rendered empty for new entries; `editSnap()` does pre-fill when editing an existing snapshot, showing the pre-fill mechanism already exists)
 - **Impact:** A typical user with 3-5 accounts spends roughly 2-3 extra minutes per monthly session re-entering values they could have pre-populated from the prior month and simply updated.
 - **What is needed:** Pre-populate each account's input field with its value from the most recent snapshot. The user then only changes values that have actually moved. The ETF breakdown would similarly carry forward the prior values.
+- **Resolution:** New snapshot entries now prefill account totals from the latest saved snapshot. When the latest snapshot contains ETF market values, the ETF breakdown is also carried forward and auto-expanded so the user can adjust values instead of re-entering them from scratch.
 
 ### 4.2 No UI to Record a Sale (HIGH - UX Risk)
 
@@ -325,7 +327,7 @@ The following limitations are already acknowledged in the README or PR history a
 1. **Wrap all DELETE+INSERT sequences in SQLite transactions** (Area 6.1) - data integrity risk
 2. **Add a UI form to record manual sell transactions** (Area 4.2) - blocked workflow
 3. **Apply FX conversion using stored `fxRate` field** (Area 1.1) - silent data error for multi-currency users
-4. **Pre-populate the monthly snapshot form from the previous month's values** (Area 4.1) - high-frequency friction
+4. Pre-populate the monthly snapshot form from the previous month's values (Area 4.1) - resolved
 
 ### Should address (meaningful improvement)
 
@@ -333,7 +335,7 @@ The following limitations are already acknowledged in the README or PR history a
 6. Protect backup restore against partial writes (Area 6.4)
 7. Free prepared statements in try-finally blocks (Area 6.2)
 8. Show user-visible warning when IDB cache write fails after import or settings save (Area 6.6)
-9. Add a TWR metric alongside CAGR/IRR (Area 2.1)
+9. Add a TWR metric alongside CAGR/IRR (Area 2.1) - resolved
 10. Add a "tax year summary" export (Area 3.4)
 11. Surface allocation drift warning badge when tolerance is exceeded (Area 4.7)
 12. Add a holdings text search/filter (Area 4.4)

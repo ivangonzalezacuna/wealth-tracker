@@ -21,7 +21,7 @@ import {
 } from '../store/config';
 import { primaryInvestmentValue, allInvestmentAccountsValue } from '../model/accounts';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
-import { cagr, findYoYSnapshot, monthlyGrowthHistory, xirr } from '../model/insights';
+import { cagr, findYoYSnapshot, monthlyGrowthHistory, twr, xirr } from '../model/insights';
 import type { MonthlyGrowthPoint } from '../model/insights';
 import {
   formatMonthsEta,
@@ -104,6 +104,7 @@ export function renderNW(
     yoyData && yoyData.total > 0 ? ((total - yoyData.total) / yoyData.total) * 100 : null;
 
   const cagrVal = cagr(firstTotal, total, monthsSpan);
+  const twrVal = twr(snaps, pd?.monthly || {});
   // Use all investment-type accounts for the IRR terminal value so multi-account
   // portfolios are not understated. Falls back to null (IRR hidden) when no
   // investment account has a snapshot value.
@@ -204,18 +205,30 @@ export function renderNW(
       cagrVal !== null
         ? `
       ${kpiTile({
-        label: `CAGR (balance)${infoTip('Compound annual growth rate of your total tracked net worth from your first recorded snapshot to today. This is a balance-growth metric, not a return on invested capital. See IRR for the investment return.')}`,
+        label: `CAGR (balance)${infoTip('Compound annual growth rate of your total tracked net worth from your first recorded snapshot to today. This is a balance-growth metric, not a return on invested capital. See IRR for the investment return. Treat this number with caution until you have at least 2-3 years of history.')}`,
         value: fmtPctNeg(cagrVal * 100),
         valueClass: cagrVal >= 0 ? 'pos' : 'neg',
-        sub: `${monthsSpan} months`,
+        sub: `${monthsSpan} months${monthsSpan < 24 ? ' (early data)' : ''}`,
       })}`
         : ''
     }
     ${kpiTile({
-      label: `IRR (investments)${infoTip('Money-weighted annual return on invested capital. Uses BUY cash outflows plus current primary investment value. SELL and dividend cash movements stay inside the account value and are not counted separately. If sell proceeds were withdrawn from your tracked accounts, those cash flows are not modelled as explicit inflows, so the IRR figure may overstate performance for portfolios with significant realized exits.')}`,
+      label: `TWR${infoTip('Time-weighted return, linked across snapshot periods and net of recorded contributions. Measures investment performance per period, independently of how much money was contributed or when. TWR can be negative even when your total balance is positive: this happens when you made large deposits just before a recovery, so the gains came from your timing, not from the assets themselves performing well.')}`,
+      value: twrVal !== null ? fmtPctNeg(twrVal * 100) : '-',
+      valueClass: twrVal === null ? '' : twrVal >= 0 ? 'pos' : 'neg',
+      sub:
+        twrVal !== null
+          ? `${monthsSpan} months, not annualized${monthsSpan < 24 ? ' (early data)' : ''}`
+          : 'needs 2 snapshots and valid starting value',
+    })}
+    ${kpiTile({
+      label: `IRR (investments)${infoTip('Money-weighted annual return on invested capital (XIRR). Heavily influenced by the size and timing of your contributions: large deposits just before a good period inflate this number, while large deposits before a bad period deflate it. This figure is unstable and can swing wildly when history is under 2 years. Uses BUY cash outflows plus current primary investment value. SELL and dividend cash movements stay inside the account value and are not counted separately.')}`,
       value: irrVal !== null ? fmtPctNeg(irrVal * 100) : '-',
       valueClass: irrVal === null ? '' : irrVal >= 0 ? 'pos' : 'neg',
-      sub: irrVal !== null ? 'XIRR' : 'needs complete cash-flow series',
+      sub:
+        irrVal !== null
+          ? `XIRR, annualized${monthsSpan < 24 ? ' (early data, interpret with caution)' : ''}`
+          : 'needs complete cash-flow series',
     })}
   `;
 

@@ -1,6 +1,18 @@
-import { describe, it, expect } from 'vitest';
-import { monthlyGrowthSplit, cagr, findYoYSnapshot, monthlyGrowthHistory, xirr } from './insights';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import {
+  monthlyGrowthSplit,
+  cagr,
+  findYoYSnapshot,
+  monthlyGrowthHistory,
+  twr,
+  xirr,
+} from './insights';
 import type { Snapshot } from '../types';
+import * as utils from '../utils';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('monthlyGrowthSplit', () => {
   it('splits delta into contributed and market', () => {
@@ -29,6 +41,34 @@ describe('cagr', () => {
     // 10000 -> 12100 over 24 months = (12100/10000)^(12/24) - 1 = 0.1 = 10%
     const result = cagr(10000, 12100, 24);
     expect(result).toBeCloseTo(0.1, 5);
+  });
+
+  describe('twr', () => {
+    it('returns null with fewer than two snapshots', () => {
+      expect(twr([], {})).toBeNull();
+      expect(twr([{ date: '2026-01', acct: 1000 }], {})).toBeNull();
+    });
+
+    it('chains monthly returns net of contributions', () => {
+      vi.spyOn(utils, 'snapTotal')
+        .mockReturnValueOnce(1000)
+        .mockReturnValueOnce(1200)
+        .mockReturnValueOnce(1200)
+        .mockReturnValueOnce(1430);
+      const snaps: Snapshot[] = [
+        { date: '2026-01-01' },
+        { date: '2026-02-01' },
+        { date: '2026-03-01' },
+      ];
+      const result = twr(snaps, { '2026-02-01': 100, '2026-03-01': 100 });
+      expect(result).toBeCloseTo(0.2191666667, 5);
+    });
+
+    it('returns null when a period starts from zero or below', () => {
+      vi.spyOn(utils, 'snapTotal').mockReturnValueOnce(0);
+      const snaps: Snapshot[] = [{ date: '2026-01-01' }, { date: '2026-02-01' }];
+      expect(twr(snaps, { '2026-02-01': 100 })).toBeNull();
+    });
   });
 
   it('returns null for months < 12', () => {
