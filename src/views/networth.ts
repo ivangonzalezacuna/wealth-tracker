@@ -212,7 +212,7 @@ export function renderNW(
         : ''
     }
     ${kpiTile({
-      label: `IRR (investments)${infoTip('Money-weighted annual return on invested capital. Uses BUY cash outflows plus current primary investment value. SELL and dividend cash movements stay inside the account value and are not counted separately.')}`,
+      label: `IRR (investments)${infoTip('Money-weighted annual return on invested capital. Uses BUY cash outflows plus current primary investment value. SELL and dividend cash movements stay inside the account value and are not counted separately. If sell proceeds were withdrawn from your tracked accounts, those cash flows are not modelled as explicit inflows, so the IRR figure may overstate performance for portfolios with significant realized exits.')}`,
       value: irrVal !== null ? fmtPctNeg(irrVal * 100) : '-',
       valueClass: irrVal === null ? '' : irrVal >= 0 ? 'pos' : 'neg',
       sub: irrVal !== null ? 'XIRR' : 'needs complete cash-flow series',

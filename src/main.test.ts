@@ -26,6 +26,68 @@ describe('showSection idempotent guard', () => {
     _activeSection = 'networth';
   });
 
+  describe('updateDriftBadge accessibility copy', () => {
+    function applyDriftBadge(btn: HTMLButtonElement, max: number | null): void {
+      if (max !== null && max > 5) {
+        btn.classList.add('drift-alert');
+        btn.setAttribute('aria-label', `Portfolio (drift alert: ${Math.round(max)}pp)`);
+        btn.setAttribute(
+          'data-drift-alert',
+          `Allocation drift is ${Math.round(max)}pp above target. Open Portfolio to review it.`,
+        );
+      } else {
+        btn.classList.remove('drift-alert');
+        btn.removeAttribute('aria-label');
+        btn.removeAttribute('data-drift-alert');
+      }
+    }
+
+    function showDriftTooltip(trigger: HTMLButtonElement): HTMLSpanElement | null {
+      const text = trigger.dataset.driftAlert || '';
+      if (!trigger.classList.contains('drift-alert') || !text) return null;
+      const pop = document.createElement('span');
+      pop.className = 'drift-alert-pop';
+      pop.textContent = text;
+      document.body.appendChild(pop);
+      return pop;
+    }
+
+    it('adds explanatory drift alert copy when the badge is shown', () => {
+      document.body.innerHTML = `<button id="tab-portfolio">Portfolio</button>`;
+      const btn = document.getElementById('tab-portfolio') as HTMLButtonElement;
+      applyDriftBadge(btn, 8.4);
+      expect(btn.classList.contains('drift-alert')).toBe(true);
+      expect(btn.getAttribute('aria-label')).toBe('Portfolio (drift alert: 8pp)');
+      expect(btn.getAttribute('data-drift-alert')).toBe(
+        'Allocation drift is 8pp above target. Open Portfolio to review it.',
+      );
+    });
+
+    it('renders the drift tooltip as a detached overlay, not inside the nav scroller', () => {
+      document.body.innerHTML = `
+        <div class="nav">
+          <button id="tab-portfolio" class="drift-alert" data-drift-alert="Allocation drift is 8pp above target. Open Portfolio to review it.">Portfolio</button>
+        </div>
+      `;
+      const btn = document.getElementById('tab-portfolio') as HTMLButtonElement;
+      const pop = showDriftTooltip(btn);
+      expect(pop).not.toBeNull();
+      expect(pop?.parentElement).toBe(document.body);
+      expect(document.querySelector('.nav')?.contains(pop!)).toBe(false);
+      expect(pop?.textContent).toContain('Allocation drift is 8pp above target');
+    });
+
+    it('clears explanatory drift alert copy when the badge is removed', () => {
+      document.body.innerHTML = `<button id="tab-portfolio">Portfolio</button>`;
+      const btn = document.getElementById('tab-portfolio') as HTMLButtonElement;
+      applyDriftBadge(btn, 8.4);
+      applyDriftBadge(btn, 3);
+      expect(btn.classList.contains('drift-alert')).toBe(false);
+      expect(btn.hasAttribute('aria-label')).toBe(false);
+      expect(btn.hasAttribute('data-drift-alert')).toBe(false);
+    });
+  });
+
   function isAlreadyActive(id: string): boolean {
     return _activeSection === id && !!document.getElementById(id)?.classList.contains('active');
   }

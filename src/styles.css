@@ -125,6 +125,7 @@ code,
   margin-bottom: 1.5rem;
   border-bottom: 1px solid var(--line);
   overflow-x: auto;
+  overflow-y: visible;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
@@ -162,7 +163,20 @@ code,
   font-weight: 500;
   border-bottom-color: var(--brand);
 }
-
+.nav button.drift-alert {
+  position: relative;
+}
+.nav button.drift-alert::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+  pointer-events: none;
+}
 /* Sections */
 .section {
   display: none;
@@ -816,6 +830,17 @@ code,
 .form-input-sm {
   padding: 5px 7px;
   font-size: 12px;
+}
+.form-input-compact {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.holdings-search-input {
+  min-width: 0;
+  max-width: 220px;
+  border-radius: 999px;
+  background: var(--surface);
+  padding-inline: 10px;
 }
 .form-grid {
   display: grid;
@@ -1833,26 +1858,36 @@ input[type='color'] {
   border-color: var(--brand-border);
   outline: none;
 }
-.info-tip-pop {
+.info-tip-pop,
+.drift-alert-pop {
   position: fixed;
   background: var(--surface);
-  color: var(--ink);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 6px 10px;
   font-size: 11px;
-  font-weight: 400;
-  font-style: normal;
   line-height: 1.4;
   white-space: normal;
-  width: max-content;
-  max-width: 240px;
   z-index: 9999;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   pointer-events: none;
+}
+.info-tip-pop {
+  color: var(--ink);
+  padding: 6px 10px;
+  font-weight: 400;
+  font-style: normal;
+  width: max-content;
+  max-width: 240px;
   text-transform: none;
   letter-spacing: normal;
   text-align: left;
+}
+.drift-alert-pop {
+  color: var(--ink-2);
+  padding: 6px 8px;
+  line-height: 1.35;
+  min-width: 180px;
+  max-width: 220px;
 }
 
 /* ── ETF info popover (click-to-reveal ISIN + name) ───── */

@@ -120,7 +120,7 @@ export async function getCachedConfig(): Promise<CachedConfig | null> {
   }
 }
 
-export async function setCachedConfig(config: CachedConfig): Promise<void> {
+export async function setCachedConfig(config: CachedConfig): Promise<boolean> {
   try {
     await Promise.all([
       setIfChanged(KEYS.CONFIG_ACCOUNTS, config.accounts),
@@ -128,8 +128,10 @@ export async function setCachedConfig(config: CachedConfig): Promise<void> {
       setIfChanged(KEYS.CONFIG_SETTINGS, config.settings),
       setIfChanged(KEYS.SCHEMA_VERSION, CACHE_VERSION),
     ]);
+    return true;
   } catch {
     // Quota or other IDB error - degrade gracefully
+    return false;
   }
 }
 
@@ -146,11 +148,13 @@ export async function getCachedSnapshots(): Promise<Snapshot[] | null> {
   }
 }
 
-export async function setCachedSnapshots(snaps: Snapshot[]): Promise<void> {
+export async function setCachedSnapshots(snaps: Snapshot[]): Promise<boolean> {
   try {
     await setIfChanged(KEYS.SNAPSHOTS, snaps);
+    return true;
   } catch {
     /* degrade */
+    return false;
   }
 }
 
@@ -167,11 +171,13 @@ export async function getCachedTransactions(): Promise<Transaction[] | null> {
   }
 }
 
-export async function setCachedTransactions(txs: Transaction[]): Promise<void> {
+export async function setCachedTransactions(txs: Transaction[]): Promise<boolean> {
   try {
     await setIfChanged(KEYS.TRANSACTIONS, txs);
+    return true;
   } catch {
     /* degrade */
+    return false;
   }
 }
 

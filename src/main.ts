@@ -42,7 +42,7 @@ import { computePD } from './portfolio';
 import { parseWithProfile, detectProfile, previewSummary } from './import/parse';
 import { builtInProfiles } from './import/profiles/index';
 import { renderNW } from './views/networth';
-import { renderPortfolio } from './views/portfolio';
+import { renderPortfolio, getMaxDrift } from './views/portfolio';
 import { renderDCA } from './views/contributions';
 import { renderDividends } from './views/dividends';
 import { renderSettings, refreshSettingsAfterChange, applySyncBusyState } from './views/settings';
@@ -113,6 +113,7 @@ const ALL_SECTIONS = ['networth', 'portfolio', 'settings', 'log'] as const;
 
 // ── Portfolio sub-view state ─────────────────────────────
 let _portfolioSubview: 'holdings' | 'contributions' | 'dividends' = 'holdings';
+let _driftTooltipEl: HTMLSpanElement | null = null;
 
 // ── Unified sync/write lock (shared with settings.ts - see sync/lock.ts) ──
 let _lastSyncAt = 0;
@@ -236,6 +237,17 @@ function initNav() {
   document.querySelectorAll<HTMLElement>('.nav button[data-section]').forEach((btn) => {
     btn.addEventListener('click', () => showSection(btn.dataset.section!, btn));
   });
+  const portfolioBtn = document.getElementById('tab-portfolio') as HTMLElement | null;
+  portfolioBtn?.addEventListener('mouseenter', (e) => {
+    if (_isTouchLikeEvent(e)) return;
+    showDriftTooltip(portfolioBtn);
+  });
+  portfolioBtn?.addEventListener('mouseleave', (e) => {
+    if (_isTouchLikeEvent(e)) return;
+    hideDriftTooltip();
+  });
+  portfolioBtn?.addEventListener('focus', () => showDriftTooltip(portfolioBtn));
+  portfolioBtn?.addEventListener('blur', hideDriftTooltip);
   document.querySelectorAll<HTMLElement>('[data-goto]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const target = btn.dataset.goto!;
@@ -594,21 +606,17 @@ async function syncInBackground() {
       }
       // Keep IndexedDB cache authoritative after every config write,
       // so bootFromCache() never re-hydrates stale data on next refresh.
-      try {
-        await setCachedConfig({
-          accounts: getAccounts(),
-          holdings: getHoldings(),
-          settings: getSettings(),
-        });
-      } catch {
-        // Best-effort -- a cache write failure here must never block the
-        // already-successful DB write or the UI re-render.
-      }
+      const cfgCached = await setCachedConfig({
+        accounts: getAccounts(),
+        holdings: getHoldings(),
+        settings: getSettings(),
+      });
+      if (!cfgCached) showCacheWriteWarning();
       renderAll(changed);
     });
 
     // Persist to IDB cache for next boot
-    await Promise.all([
+    const [configCached, snapsCached, txsCached] = await Promise.all([
       setCachedConfig({
         accounts: getAccounts(),
         holdings: getHoldings(),
@@ -618,6 +626,7 @@ async function syncInBackground() {
       setCachedTransactions(txs),
       setCachedImportMeta(meta),
     ]);
+    if (!configCached || !snapsCached || !txsCached) showCacheWriteWarning();
 
     setSyncStatus('ok');
     await backupCollapseToSheet();
@@ -715,15 +724,12 @@ async function loadAllData() {
       if (state.txs.length) {
         state.pd = await computeAggregatesWithCache(state.txs);
       }
-      try {
-        await setCachedConfig({
-          accounts: getAccounts(),
-          holdings: getHoldings(),
-          settings: getSettings(),
-        });
-      } catch {
-        // Best-effort cache update
-      }
+      const cached = await setCachedConfig({
+        accounts: getAccounts(),
+        holdings: getHoldings(),
+        settings: getSettings(),
+      });
+      if (!cached) showCacheWriteWarning();
       renderAll(changed);
     });
     setSyncStatus('ok');
@@ -1371,7 +1377,7 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
       state.pd = computePD(merged, { method: getCostBasisMethod() });
 
       // Update cache
-      await Promise.all([
+      const [txCached] = await Promise.all([
         setCachedTransactions(merged),
         setCachedImportMeta({ last_import: today }),
         state.pd ? setCachedAggregates(state.pd) : Promise.resolve(),
@@ -1386,6 +1392,7 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
             )
           : Promise.resolve(),
       ]);
+      if (!txCached) showCacheWriteWarning();
 
       renderAll();
       showMsg('import-msg', `✓ ${merged.length} transactions saved`, true);
@@ -1798,4 +1805,94 @@ function renderAll(changed?: ConfigChangeKind) {
   applyReadOnlyMode();
   // Re-inject transient feedback message if still within its display window
   reinjectPendingMsg();
+  updateDriftBadge();
+}
+
+/** Shows a dot badge on the Portfolio tab when max allocation drift exceeds 5 pp. */
+function updateDriftBadge(): void {
+  const btn = document.getElementById('tab-portfolio');
+  if (!btn) return;
+  const max = getMaxDrift(state.pd, state.snaps);
+  if (max !== null && max > 5) {
+    btn.classList.add('drift-alert');
+    btn.setAttribute('aria-label', `Portfolio (drift alert: ${Math.round(max)}pp)`);
+    btn.setAttribute(
+      'data-drift-alert',
+      `Allocation drift is ${Math.round(max)}pp above target. Open Portfolio to review it.`,
+    );
+  } else {
+    btn.classList.remove('drift-alert');
+    btn.removeAttribute('aria-label');
+    btn.removeAttribute('data-drift-alert');
+    hideDriftTooltip();
+  }
+}
+
+function showDriftTooltip(trigger: HTMLElement): void {
+  const text = trigger.dataset.driftAlert || '';
+  if (!trigger.classList.contains('drift-alert') || !text) {
+    hideDriftTooltip();
+    return;
+  }
+  if (!_driftTooltipEl) {
+    _driftTooltipEl = document.createElement('span');
+    _driftTooltipEl.className = 'drift-alert-pop';
+  }
+  _driftTooltipEl.textContent = text;
+  if (!_driftTooltipEl.isConnected) document.body.appendChild(_driftTooltipEl);
+  positionDriftTooltip(trigger, _driftTooltipEl);
+}
+
+function hideDriftTooltip(): void {
+  _driftTooltipEl?.remove();
+}
+
+function positionDriftTooltip(trigger: HTMLElement, pop: HTMLElement): void {
+  const rect = trigger.getBoundingClientRect();
+  const top = rect.bottom + 8;
+  const left = rect.right;
+  pop.style.top = `${top}px`;
+  pop.style.left = `${left}px`;
+  pop.style.transform = 'translateX(-100%)';
+  requestAnimationFrame(() => {
+    const popRect = pop.getBoundingClientRect();
+    let nextLeft = left;
+    let nextTop = top;
+    let transform = 'translateX(-100%)';
+    if (popRect.right > window.innerWidth - 4) nextLeft = window.innerWidth - 4;
+    if (popRect.left < 4) {
+      nextLeft = 4;
+      transform = 'none';
+    }
+    if (popRect.bottom > window.innerHeight - 4) {
+      nextTop = rect.top - 8;
+      transform = transform === 'none' ? 'translateY(-100%)' : transform + ' translateY(-100%)';
+    }
+    pop.style.left = `${nextLeft}px`;
+    pop.style.top = `${nextTop}px`;
+    pop.style.transform = transform;
+  });
+}
+
+function _isTouchLikeEvent(e: MouseEvent): boolean {
+  return e.sourceCapabilities?.firesTouchEvents ?? false;
+}
+
+/**
+ * Shows a one-time dismissible warning banner when an IDB cache write fails.
+ * Multiple failures within a session only show the banner once.
+ */
+function showCacheWriteWarning(): void {
+  if (document.getElementById('cache-warn-banner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'cache-warn-banner';
+  banner.className = 'status-bar status-warn';
+  banner.style.cssText =
+    'position:sticky;top:0;z-index:100;padding:8px 12px;display:flex;align-items:center;gap:8px';
+  banner.innerHTML =
+    'Local cache could not be saved. Reopen the app while online to reload from your backup.' +
+    '<button aria-label="Dismiss" style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:16px;line-height:1;color:inherit">&#x2715;</button>';
+  banner.querySelector('button')?.addEventListener('click', () => banner.remove());
+  const main = document.querySelector('main') || document.body;
+  main.prepend(banner);
 }

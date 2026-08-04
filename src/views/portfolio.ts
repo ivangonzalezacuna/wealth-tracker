@@ -212,8 +212,8 @@ function renderAllocationBreakdowns(
 }
 
 // Module-level filter state (survives re-renders)
-let _showExited = false;
 let _holdingsFilter = 'held'; // 'held' | 'closed' | 'all'
+let _holdingsSearch = '';
 const HOLD_PAGE_SIZE = 10;
 let _holdPage = 1;
 let _holdSort: SortState = { key: null, dir: null };
@@ -398,6 +398,14 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     displayList = held;
   }
 
+  // Apply text search (ISIN or name, case-insensitive)
+  if (_holdingsSearch) {
+    const q = _holdingsSearch.toLowerCase();
+    displayList = displayList.filter(
+      (e) => e.isin.toLowerCase().includes(q) || (e.name || '').toLowerCase().includes(q),
+    );
+  }
+
   const defaultOrdered = displayList.slice().sort((a, b) => (b.cost || 0) - (a.cost || 0));
 
   // Apply user sort on top of the default allocation order
@@ -421,6 +429,8 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
         <button class="btn btn-sm btn-ghost ${_holdingsFilter === 'closed' ? 'active' : ''}" data-filter="closed">Closed${exitedCount > 0 ? ' (' + exitedCount + ')' : ''}</button>
         <button class="btn btn-sm btn-ghost ${_holdingsFilter === 'all' ? 'active' : ''}" data-filter="all">All</button>
       </div>
+      <input id="port-holdings-search" type="search" class="form-input form-input-sm holdings-search-input" placeholder="Search ISIN or name"
+        value="${esc(_holdingsSearch)}" style="flex:1" aria-label="Search holdings by ISIN or name">
     </div>`;
 
   const rows = pageItems
@@ -475,6 +485,23 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
       _holdPage = 1;
       _holdSort = { key: null, dir: null };
       renderHoldingsTable(pd, snaps);
+    });
+  }
+
+  // Bind search input (re-bound each render since the element is recreated)
+  const searchInput = document.getElementById('port-holdings-search') as HTMLInputElement | null;
+  if (searchInput) {
+    searchInput.addEventListener('input', (event) => {
+      const input = event.currentTarget as HTMLInputElement;
+      _holdingsSearch = input.value;
+      _holdPage = 1;
+      renderHoldingsTable(pd, snaps);
+      const nextInput = document.getElementById('port-holdings-search') as HTMLInputElement | null;
+      if (nextInput) {
+        nextInput.focus();
+        const pos = _holdingsSearch.length;
+        nextInput.setSelectionRange(pos, pos);
+      }
     });
   }
 
@@ -547,6 +574,8 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   if (!has) return;
 
   _holdPage = 1;
+  _holdingsFilter = 'held';
+  _holdingsSearch = '';
 
   const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
   const snapEtfValues = extractSnapEtfValues(latSnap);
@@ -1004,4 +1033,31 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
 
   attachEtfPopovers(driftEl);
   attachInfoTips(driftEl);
+}
+
+/**
+ * Returns the maximum allocation drift (in percentage points) across all held
+ * positions, or null when there is not enough data to compute drift.
+ * Used by the nav badge to alert the user when drift exceeds the threshold.
+ */
+export function getMaxDrift(pd: PortfolioData | null, snaps: Snapshot[]): number | null {
+  if (!pd || Object.keys(pd.etfs).length === 0) return null;
+  const holdings = getHoldings();
+  const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
+  const snapEtfValues = extractSnapEtfValues(latSnap);
+  const hasSnapValues = Object.keys(snapEtfValues).length > 0;
+  const allEtfs = Object.values(pd.etfs);
+  const { held } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
+  const primaryInvTotal = primaryInvestmentValue(latSnap, getAccounts());
+  const hasHeldPositions = held.length > 0;
+  const totalValue =
+    hasSnapValues || !hasHeldPositions ? (primaryInvTotal ?? pd.totalInv) : pd.totalInv;
+  const drift = computeDrift(
+    holdings,
+    pd.etfs,
+    totalValue,
+    hasSnapValues ? snapEtfValues : undefined,
+  );
+  if (drift.length === 0) return null;
+  return maxDrift(drift);
 }
