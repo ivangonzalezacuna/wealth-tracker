@@ -1120,10 +1120,15 @@ function attachCostBasisListeners(root: HTMLElement): void {
 
 function goalRowHtml(goal: NamedGoal, idx: number, collapsed = false): string {
   const summary = goal.label || (goal.targetNetWorth ? `\u20AC${esc(goal.targetNetWorth)}` : `Goal ${idx + 1}`);
+  const metaParts: string[] = [];
+  if (goal.targetNetWorth) metaParts.push(`\u20AC${esc(goal.targetNetWorth)}`);
+  if (goal.targetDate) metaParts.push(esc(goal.targetDate));
+  const metaStr = metaParts.join(' \u00B7 ');
   return `
     <div class="settings-item item-collapsible goal-row${collapsed ? ' item-collapsed' : ''}" data-goal-idx="${idx}">
       <div class="settings-item-header js-item-toggle goal-row-header">
         <span class="settings-item-title goal-row-summary">${esc(summary)}</span>
+        ${metaStr ? `<span style="font-size:11px;color:var(--ink-3);white-space:nowrap" class="settings-item-meta">${metaStr}</span>` : ''}
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           <span class="item-chevron"></span>
           <button class="btn btn-sm btn-danger goal-remove-btn" data-idx="${idx}">\u2715</button>
@@ -1152,7 +1157,7 @@ function goalListHtml(goals: NamedGoal[], _settings: Settings): string {
   const rows = goals.map((g, i) => goalRowHtml(g, i, i >= 1)).join('');
   return `
     <div id="settings-goals-list" class="settings-items">${rows}</div>
-    <button class="btn btn-sm" id="btn-add-goal" style="margin-bottom:.75rem">+ Add goal</button>`;
+    <button class="btn btn-outline btn-sm" id="btn-add-goal" style="margin-top:.5rem">+ Add goal</button>`;
 }
 
 function renderGoalCard(settings: Settings): string {
@@ -1160,14 +1165,16 @@ function renderGoalCard(settings: Settings): string {
   return `
     <div class="card card-collapsible" id="settings-card-goal" data-card-key="goal">
       <div class="card-header js-card-toggle">
-        <div class="card-title">Goals &amp; Benchmark</div>
+        <div class="card-title">Goals</div>
         <span class="card-chevron"></span>
       </div>
       <div class="card-body">
         <p class="note" style="margin-bottom:.75rem">Add one or more net-worth targets to track on the Net Worth tab. Each goal shows progress, remaining amount, and ETA.</p>
         <div id="settings-goal-fields">${goalListHtml(goals, settings)}</div>
-        <div style="display:flex;gap:10px;margin-top:.75rem">
-          <button class="btn btn-primary btn-sm" id="btn-save-goal">Save</button>
+        <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" id="btn-expand-goals">Expand all</button>
+          <button class="btn btn-outline btn-sm" id="btn-collapse-goals">Collapse all</button>
+          <button class="btn btn-primary btn-sm" id="btn-save-goal">Save goals</button>
           <span id="goal-msg" style="font-size:12px;line-height:28px"></span>
         </div>
       </div>
@@ -1204,6 +1211,18 @@ function attachGoalListeners(root: HTMLElement): void {
     root.querySelectorAll('.goal-row').forEach((r, i) => {
       r.setAttribute('data-goal-idx', String(i));
       r.querySelectorAll('[data-idx]').forEach((el) => el.setAttribute('data-idx', String(i)));
+    });
+  });
+
+  // Expand all / collapse all
+  root.querySelector('#btn-expand-goals')?.addEventListener('click', () => {
+    root.querySelectorAll('#settings-goals-list .goal-row').forEach((row) => {
+      row.classList.remove('item-collapsed');
+    });
+  });
+  root.querySelector('#btn-collapse-goals')?.addEventListener('click', () => {
+    root.querySelectorAll('#settings-goals-list .goal-row').forEach((row) => {
+      row.classList.add('item-collapsed');
     });
   });
 

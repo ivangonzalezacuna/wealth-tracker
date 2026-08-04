@@ -486,7 +486,7 @@ describe('Busy state - cost-basis, goal, cache, backup', () => {
     resolveWrite!();
     await new Promise((r) => setTimeout(r, 0));
     expect(btn.disabled).toBe(false);
-    expect(btn.textContent).toBe('Save');
+    expect(btn.textContent).toBe('Save goals');
   });
 
   it('Force resync button shows busy text during resync', async () => {
@@ -949,9 +949,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
       resolveWrite();
       await tick();
       expect(btn.disabled).toBe(false);
-      expect(btn.textContent).toBe('Save');
-
-      // Restore default mock
+      expect(btn.textContent).toBe('Save goals');
       (setSettings as ReturnType<typeof vi.fn>).mockImplementation(async () => {});
     });
 
