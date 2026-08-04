@@ -71,13 +71,14 @@ Returns (CAGR, IRR, YoY) are shown in isolation. There is no way to overlay or c
 - **Impact:** Users cannot assess whether their investment decisions have added or destroyed value relative to simply buying a passive index. This is the single most important context for evaluating an investment strategy.
 - **What is needed:** An optional user-configured benchmark ticker (or a hardcoded set of common indices) with return data shown alongside portfolio metrics on the Net Worth tab.
 
-### 2.3 No Risk Metrics (MEDIUM)
+### 2.3 No Risk Metrics (MEDIUM) - RESOLVED
 
 The app tracks returns but not risk. There is no volatility, standard deviation, Sharpe ratio, Sortino ratio, maximum drawdown, or correlation analysis anywhere in the codebase.
 
 - **Confirmed in:** Codebase-wide search for "volatility", "sharpe", "drawdown", "correlation" returns no results in calculation files.
 - **Impact:** A user with a 7 % annual return cannot tell whether that return required 5 % volatility or 30 %. Risk-adjusted return is a foundational wealth management concept and its absence limits the app's utility for serious portfolio evaluation.
 - **What is needed:** At minimum, annualized volatility of monthly net-worth changes and a maximum drawdown figure, both computable from the existing snapshot history without any external data.
+- **Resolution:** Annualized volatility (sample standard deviation of monthly returns scaled by sqrt(12)) and maximum drawdown (largest peak-to-trough decline in total net worth) are now computed from the snapshot series and displayed as KPI tiles on the Net Worth tab, each with a concise tooltip.
 
 ### 2.4 No Per-Account Performance Analytics (MEDIUM)
 

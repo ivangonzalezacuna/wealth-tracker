@@ -135,6 +135,50 @@ export function monthlyGrowthHistory(
   return points;
 }
 
+/**
+ * Annualized volatility of monthly net-worth returns.
+ * Uses the sample standard deviation of period-over-period percentage returns,
+ * then scales to annual by multiplying by sqrt(12).
+ * Returns null when fewer than 3 snapshots exist (need at least 2 return periods).
+ */
+export function annualizedVolatility(snaps: Snapshot[]): number | null {
+  if (snaps.length < 3) return null;
+  const returns: number[] = [];
+  for (let i = 1; i < snaps.length; i++) {
+    const prev = snapTotal(snaps[i - 1]);
+    if (prev <= 0) return null;
+    returns.push(snapTotal(snaps[i]) / prev - 1);
+  }
+  if (returns.length < 2) return null;
+  const mean = returns.reduce((s, r) => s + r, 0) / returns.length;
+  const variance =
+    returns.reduce((s, r) => s + (r - mean) ** 2, 0) / (returns.length - 1);
+  return Math.sqrt(variance) * Math.sqrt(12);
+}
+
+/**
+ * Maximum drawdown from the highest peak to the subsequent trough
+ * across the full snapshot series (total net worth).
+ * Returns a negative fraction (e.g. -0.15 means a 15% peak-to-trough decline).
+ * Returns null when fewer than 2 snapshots exist.
+ * Returns 0 when the series is monotonically non-decreasing (no drawdown at all).
+ */
+export function maxDrawdown(snaps: Snapshot[]): number | null {
+  if (snaps.length < 2) return null;
+  let peak = snapTotal(snaps[0]);
+  let maxDD = 0;
+  for (let i = 1; i < snaps.length; i++) {
+    const val = snapTotal(snaps[i]);
+    if (val > peak) {
+      peak = val;
+    } else if (peak > 0) {
+      const dd = (val - peak) / peak;
+      if (dd < maxDD) maxDD = dd;
+    }
+  }
+  return maxDD;
+}
+
 function parseYearMonth(d: string): { year: number; month: number } | null {
   if (!d) return null;
   const parts = d.split('-');

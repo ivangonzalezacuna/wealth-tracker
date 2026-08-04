@@ -6,6 +6,8 @@ import {
   monthlyGrowthHistory,
   twr,
   xirr,
+  annualizedVolatility,
+  maxDrawdown,
 } from './insights';
 import type { Snapshot } from '../types';
 import * as utils from '../utils';
@@ -222,5 +224,118 @@ describe('monthlyGrowthHistory', () => {
     ];
     const points = monthlyGrowthHistory(snaps, accounts, { '2026-02': 400 }, primaryValueFn);
     expect(points[0]).toEqual({ month: '2026-02', contributed: 400, market: -600, total: -200 });
+  });
+});
+
+describe('annualizedVolatility', () => {
+  it('returns null with fewer than 3 snapshots', () => {
+    expect(annualizedVolatility([])).toBeNull();
+    expect(annualizedVolatility([{ date: '2026-01' }])).toBeNull();
+    expect(annualizedVolatility([{ date: '2026-01' }, { date: '2026-02' }])).toBeNull();
+  });
+
+  it('returns null when a starting snapshot total is non-positive', () => {
+    vi.spyOn(utils, 'snapTotal').mockReturnValueOnce(0).mockReturnValueOnce(1000).mockReturnValueOnce(1050);
+    const snaps: Snapshot[] = [
+      { date: '2026-01' },
+      { date: '2026-02' },
+      { date: '2026-03' },
+    ];
+    expect(annualizedVolatility(snaps)).toBeNull();
+  });
+
+  it('returns 0 for a flat series (no variance)', () => {
+    vi.spyOn(utils, 'snapTotal').mockReturnValue(1000);
+    const snaps: Snapshot[] = [
+      { date: '2026-01' },
+      { date: '2026-02' },
+      { date: '2026-03' },
+    ];
+    expect(annualizedVolatility(snaps)).toBeCloseTo(0, 10);
+  });
+
+  it('computes correct annualized volatility for known returns', () => {
+    // Monthly returns: +5%, -3%, +2% (4 snapshots needed for 3 returns)
+    vi.spyOn(utils, 'snapTotal')
+      .mockReturnValueOnce(10000)
+      .mockReturnValueOnce(10500)
+      .mockReturnValueOnce(10500)
+      .mockReturnValueOnce(10185)
+      .mockReturnValueOnce(10185)
+      .mockReturnValueOnce(10388.7);
+    const snaps: Snapshot[] = [
+      { date: '2026-01' },
+      { date: '2026-02' },
+      { date: '2026-03' },
+      { date: '2026-04' },
+    ];
+    const vol = annualizedVolatility(snaps);
+    expect(vol).not.toBeNull();
+    const returns = [0.05, -0.03, 0.02];
+    const m = returns.reduce((s, r) => s + r, 0) / 3;
+    const sv = returns.reduce((s, r) => s + (r - m) ** 2, 0) / 2;
+    const expected = Math.sqrt(sv) * Math.sqrt(12);
+    expect(vol).toBeCloseTo(expected, 5);
+  });
+});
+
+describe('maxDrawdown', () => {
+  it('returns null for fewer than 2 snapshots', () => {
+    expect(maxDrawdown([])).toBeNull();
+    expect(maxDrawdown([{ date: '2026-01' }])).toBeNull();
+  });
+
+  it('returns 0 for a monotonically increasing series', () => {
+    vi.spyOn(utils, 'snapTotal')
+      .mockReturnValueOnce(1000)
+      .mockReturnValueOnce(1100)
+      .mockReturnValueOnce(1200);
+    const snaps: Snapshot[] = [
+      { date: '2026-01' },
+      { date: '2026-02' },
+      { date: '2026-03' },
+    ];
+    expect(maxDrawdown(snaps)).toBe(0);
+  });
+
+  it('computes the correct drawdown for a simple peak-trough sequence', () => {
+    // 1000 -> 1200 (peak) -> 900 (trough) -> 1100
+    // drawdown = (900 - 1200) / 1200 = -0.25
+    vi.spyOn(utils, 'snapTotal')
+      .mockReturnValueOnce(1000)
+      .mockReturnValueOnce(1200)
+      .mockReturnValueOnce(900)
+      .mockReturnValueOnce(1100);
+    const snaps: Snapshot[] = [
+      { date: '2026-01' },
+      { date: '2026-02' },
+      { date: '2026-03' },
+      { date: '2026-04' },
+    ];
+    expect(maxDrawdown(snaps)).toBeCloseTo(-0.25, 8);
+  });
+
+  it('picks the worst drawdown when there are multiple troughs', () => {
+    // peak 1200, trough 900 (-25%), then peak 1400, trough 1050 (-25%)
+    vi.spyOn(utils, 'snapTotal')
+      .mockReturnValueOnce(1000)
+      .mockReturnValueOnce(1200)
+      .mockReturnValueOnce(900)
+      .mockReturnValueOnce(1400)
+      .mockReturnValueOnce(1050);
+    const snaps: Snapshot[] = [
+      { date: '2026-01' },
+      { date: '2026-02' },
+      { date: '2026-03' },
+      { date: '2026-04' },
+      { date: '2026-05' },
+    ];
+    expect(maxDrawdown(snaps)).toBeCloseTo(-0.25, 8);
+  });
+
+  it('handles a flat series with 0 drawdown', () => {
+    vi.spyOn(utils, 'snapTotal').mockReturnValueOnce(5000).mockReturnValueOnce(5000);
+    const snaps: Snapshot[] = [{ date: '2026-01' }, { date: '2026-02' }];
+    expect(maxDrawdown(snaps)).toBe(0);
   });
 });

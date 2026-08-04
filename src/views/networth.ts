@@ -21,7 +21,7 @@ import {
 } from '../store/config';
 import { primaryInvestmentValue, allInvestmentAccountsValue } from '../model/accounts';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
-import { cagr, findYoYSnapshot, monthlyGrowthHistory, twr, xirr } from '../model/insights';
+import { cagr, findYoYSnapshot, monthlyGrowthHistory, twr, xirr, annualizedVolatility, maxDrawdown } from '../model/insights';
 import type { MonthlyGrowthPoint } from '../model/insights';
 import {
   formatMonthsEta,
@@ -126,6 +126,8 @@ export function renderNW(
     investmentFlows.push({ date: terminalDate, amount: latestInvestmentValue });
   }
   const irrVal = latestInvestmentValue !== null ? xirr(investmentFlows) : null;
+  const volatilityVal = annualizedVolatility(snaps);
+  const maxDDVal = maxDrawdown(snaps);
   // Keep primaryInvestmentValue for the growth breakdown chart (contribution tracking
   // still targets only the primary investment account).
   const latestPrimaryValue = primaryInvestmentValue(s, accounts);
@@ -229,6 +231,18 @@ export function renderNW(
         irrVal !== null
           ? `XIRR, annualized${monthsSpan < 24 ? ' (early data, interpret with caution)' : ''}`
           : 'needs complete cash-flow series',
+    })}
+    ${kpiTile({
+      label: `Volatility${infoTip('Annualized standard deviation of monthly net-worth percentage changes. Measures how much your total balance fluctuates month to month. Higher volatility means a bumpier ride. Computed from all available snapshots; early estimates are less stable.')}`,
+      value: volatilityVal !== null ? fmtPctNeg(volatilityVal * 100) : '-',
+      valueClass: '',
+      sub: volatilityVal !== null ? 'annualized, all history' : 'needs 3 snapshots',
+    })}
+    ${kpiTile({
+      label: `Max drawdown${infoTip('Largest peak-to-trough decline in total net worth across all recorded history, as a percentage of the prior peak. A value of -20% means your net worth fell 20% from a high point at some stage. Recoveries after the trough are not reflected here.')}`,
+      value: maxDDVal !== null ? (maxDDVal === 0 ? '0%' : fmtPctNeg(maxDDVal * 100)) : '-',
+      valueClass: maxDDVal === null ? '' : maxDDVal < 0 ? 'neg' : '',
+      sub: maxDDVal !== null ? 'all history, total net worth' : 'needs 2 snapshots',
     })}
   `;
 
