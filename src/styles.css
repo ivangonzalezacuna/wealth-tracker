@@ -162,6 +162,20 @@ code,
   font-weight: 500;
   border-bottom-color: var(--brand);
 }
+.nav button.drift-alert {
+  position: relative;
+}
+.nav button.drift-alert::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+  pointer-events: none;
+}
 
 /* Sections */
 .section {

@@ -42,7 +42,7 @@ import { computePD } from './portfolio';
 import { parseWithProfile, detectProfile, previewSummary } from './import/parse';
 import { builtInProfiles } from './import/profiles/index';
 import { renderNW } from './views/networth';
-import { renderPortfolio } from './views/portfolio';
+import { renderPortfolio, getMaxDrift } from './views/portfolio';
 import { renderDCA } from './views/contributions';
 import { renderDividends } from './views/dividends';
 import { renderSettings, refreshSettingsAfterChange, applySyncBusyState } from './views/settings';
@@ -594,21 +594,17 @@ async function syncInBackground() {
       }
       // Keep IndexedDB cache authoritative after every config write,
       // so bootFromCache() never re-hydrates stale data on next refresh.
-      try {
-        await setCachedConfig({
-          accounts: getAccounts(),
-          holdings: getHoldings(),
-          settings: getSettings(),
-        });
-      } catch {
-        // Best-effort -- a cache write failure here must never block the
-        // already-successful DB write or the UI re-render.
-      }
+      const cfgCached = await setCachedConfig({
+        accounts: getAccounts(),
+        holdings: getHoldings(),
+        settings: getSettings(),
+      });
+      if (!cfgCached) showCacheWriteWarning();
       renderAll(changed);
     });
 
     // Persist to IDB cache for next boot
-    await Promise.all([
+    const [configCached, snapsCached, txsCached] = await Promise.all([
       setCachedConfig({
         accounts: getAccounts(),
         holdings: getHoldings(),
@@ -618,6 +614,7 @@ async function syncInBackground() {
       setCachedTransactions(txs),
       setCachedImportMeta(meta),
     ]);
+    if (!configCached || !snapsCached || !txsCached) showCacheWriteWarning();
 
     setSyncStatus('ok');
     await backupCollapseToSheet();
@@ -715,15 +712,12 @@ async function loadAllData() {
       if (state.txs.length) {
         state.pd = await computeAggregatesWithCache(state.txs);
       }
-      try {
-        await setCachedConfig({
-          accounts: getAccounts(),
-          holdings: getHoldings(),
-          settings: getSettings(),
-        });
-      } catch {
-        // Best-effort cache update
-      }
+      const cached = await setCachedConfig({
+        accounts: getAccounts(),
+        holdings: getHoldings(),
+        settings: getSettings(),
+      });
+      if (!cached) showCacheWriteWarning();
       renderAll(changed);
     });
     setSyncStatus('ok');
@@ -1371,7 +1365,7 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
       state.pd = computePD(merged, { method: getCostBasisMethod() });
 
       // Update cache
-      await Promise.all([
+      const [txCached] = await Promise.all([
         setCachedTransactions(merged),
         setCachedImportMeta({ last_import: today }),
         state.pd ? setCachedAggregates(state.pd) : Promise.resolve(),
@@ -1386,6 +1380,7 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
             )
           : Promise.resolve(),
       ]);
+      if (!txCached) showCacheWriteWarning();
 
       renderAll();
       showMsg('import-msg', `✓ ${merged.length} transactions saved`, true);
@@ -1798,4 +1793,38 @@ function renderAll(changed?: ConfigChangeKind) {
   applyReadOnlyMode();
   // Re-inject transient feedback message if still within its display window
   reinjectPendingMsg();
+  updateDriftBadge();
+}
+
+/** Shows a dot badge on the Portfolio tab when max allocation drift exceeds 5 pp. */
+function updateDriftBadge(): void {
+  const btn = document.getElementById('tab-portfolio');
+  if (!btn) return;
+  const max = getMaxDrift(state.pd, state.snaps);
+  if (max !== null && max > 5) {
+    btn.classList.add('drift-alert');
+    btn.setAttribute('aria-label', `Portfolio (drift alert: ${Math.round(max)}pp)`);
+  } else {
+    btn.classList.remove('drift-alert');
+    btn.removeAttribute('aria-label');
+  }
+}
+
+/**
+ * Shows a one-time dismissible warning banner when an IDB cache write fails.
+ * Multiple failures within a session only show the banner once.
+ */
+function showCacheWriteWarning(): void {
+  if (document.getElementById('cache-warn-banner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'cache-warn-banner';
+  banner.className = 'status-bar status-warn';
+  banner.style.cssText =
+    'position:sticky;top:0;z-index:100;padding:8px 12px;display:flex;align-items:center;gap:8px';
+  banner.innerHTML =
+    'Local cache could not be saved. Reopen the app while online to reload from your backup.' +
+    '<button aria-label="Dismiss" style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:16px;line-height:1;color:inherit">&#x2715;</button>';
+  banner.querySelector('button')?.addEventListener('click', () => banner.remove());
+  const main = document.querySelector('main') || document.body;
+  main.prepend(banner);
 }

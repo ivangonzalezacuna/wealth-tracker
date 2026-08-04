@@ -158,13 +158,14 @@ The import engine is designed to be bank-agnostic and adding a new profile requi
 - **Impact:** Users at DEGIRO, Scalable Capital, Interactive Brokers, Fineco, or any other broker cannot import CSV data without writing their own profile. This significantly limits the app's addressable audience.
 - **What is needed:** Community-contributed profiles for the most common European brokers (DEGIRO, Scalable Capital, Consorsbank, Comdirect). The profile format is already well-defined and documented.
 
-### 4.4 No Holdings Search or Text Filter (LOW)
+### 4.4 No Holdings Search or Text Filter (LOW) - RESOLVED
 
 The holdings table supports pagination and a held/closed/all toggle, but has no text search or ISIN filter box.
 
 - **Confirmed in:** `src/views/portfolio.ts:364-476` (filter buttons only, no search input)
 - **Impact:** Users with 20+ positions cannot quickly find a specific holding without scrolling through paginated results.
 - **What is needed:** A simple text input that filters the holdings table by ISIN or name, similar to the existing snapshot notes search on the Log tab.
+- **Resolution:** A text search input has been added to the holdings filter bar. Typing filters the holdings list by ISIN or name (case-insensitive) and resets pagination to page 1.
 
 ### 4.5 Only One Financial Goal Supported (LOW)
 
@@ -182,13 +183,14 @@ The net-worth forecast on the Net Worth tab projects forward using contributions
 - **Impact:** Users approaching or in retirement cannot use the forecast to answer "Will my portfolio last until age 90 if I withdraw €2,000/month?" This is the most common retirement planning question.
 - **What is needed:** An optional annual withdrawal rate field in the forecast parameters. The existing `forecastMultiAccountSeries` function would need a negative contribution component.
 
-### 4.7 No Rebalancing Drift Alerts or Notifications (LOW)
+### 4.7 No Rebalancing Drift Alerts or Notifications (LOW) - PARTIALLY RESOLVED
 
 The portfolio drift card computes allocation deviation visually but generates no alert when drift exceeds a user-defined threshold. Users must manually navigate to the Portfolio tab to check.
 
 - **Confirmed in:** `src/model/drift.ts` (`ON_TARGET_DRIFT_EPS = 0.5` for the rebalance plan, no notification mechanism), `src/views/portfolio.ts:771`
 - **Impact:** The rebalancing workflow relies on the user proactively checking the drift card each month. An alert (PWA notification or a badge on the tab) would reduce the cognitive load of the monthly workflow.
 - **What is needed:** A badge or prominent indicator on the Portfolio tab when any holding's drift exceeds a configurable threshold (e.g., 5 percentage points).
+- **Resolution:** A small orange dot badge now appears on the Portfolio tab button whenever max allocation drift exceeds 5 percentage points. The badge disappears when drift returns to within threshold. The threshold is fixed at 5 pp (matching existing drift card status labels); a user-configurable threshold remains a future enhancement.
 
 ---
 
@@ -251,13 +253,14 @@ IDB quota errors are caught silently (see 6.6) but the app never proactively che
 - **Confirmed in:** `src/db/connection.ts` (no `navigator.storage.estimate()` calls), `src/cache/db.ts`
 - **What is needed:** A one-time `navigator.storage.estimate()` check on startup and a persistent warning banner if available quota is below a safe threshold (e.g., below 10 MB with the db already at 5 MB).
 
-### 6.6 IDB Cache Write Failures Are Silently Ignored (MEDIUM)
+### 6.6 IDB Cache Write Failures Are Silently Ignored (MEDIUM) - PARTIALLY RESOLVED
 
 IDB (IndexedDB) cache writes in `src/cache/db.ts` catch all errors and discard them (`catch { // Quota or other IDB error - degrade gracefully }`). The main sync path in `main.ts` also wraps post-import cache writes in a bare `try/catch` with no user-visible feedback. This is intentional for quota resilience, but a failure after the user has confirmed an import means the next app load will show stale data with no warning.
 
 - **Confirmed in:** `src/cache/db.ts:131-133` (`setCachedConfig`), `src/main.ts:604-607` (post-import cache write in a silent catch)
 - **Impact:** The risk is narrower than a general "silent data loss" bug. The authoritative DB write (Google Sheets via Drive) must have already succeeded. The symptom is stale cache data on next boot, not lost transactions. However, users on low-storage devices (private mode, iOS) will not understand why data appears to have disappeared after a reload.
 - **What is needed:** Log a console warning with enough context to diagnose quota failures, and display a one-time "Local cache could not be saved. Reopen the app while online to reload from your backup." banner if the IDB write fails after an import or settings save.
+- **Resolution:** `setCachedConfig`, `setCachedSnapshots`, and `setCachedTransactions` now return a boolean indicating success. The main sync, post-import, and config-change paths check the return value and display a one-time dismissible warning banner ("Local cache could not be saved. Reopen the app while online to reload from your backup.") when any of these writes fail. Storage quota monitoring (finding 6.5) remains open.
 
 ---
 
@@ -273,13 +276,14 @@ The following issues were identified during codebase verification of the origina
 - **Impact:** Users who configure a custom broker format cannot save or share it. Related to finding 4.3; without persistence, any custom-profile UI is unusable.
 - **What is needed:** A `custom_profiles` key in the IDB cache (or a DB table), serialization in the backup JSON, and a settings card to create/edit/delete custom profiles.
 
-### 7.2 IRR Calculation Ignores SELL Proceeds as Inflows (HIGH)
+### 7.2 IRR Calculation Ignores SELL Proceeds as Inflows (HIGH) - PARTIALLY RESOLVED
 
 The IRR tooltip in `src/views/networth.ts:215` states: "SELL and dividend cash movements stay inside the account value and are not counted separately." The cash-flow series passed to `xirr()` uses BUY outflows and the current account value as the terminal inflow. When a user sells a position and the proceeds leave the tracked account, those cash flows are not modelled as explicit inflows, potentially overstating IRR for portfolios with significant realized exits.
 
 - **Confirmed in:** `src/model/insights.ts` (IRR cash-flow construction), `src/views/networth.ts:215` (tooltip acknowledges the limitation)
 - **Impact:** For users who sold positions and withdrew proceeds, the IRR figure overstates investment performance. The tooltip partially acknowledges this but does not make the limitation prominent enough for a user to catch it.
 - **What is needed:** At minimum, expand the tooltip to clearly warn that IRR is only reliable when sell proceeds remain within the tracked account. Ideally, construct the IRR cash-flow series from individual BUY and SELL transaction records where available, falling back to the current approach otherwise.
+- **Resolution:** The IRR info-tip now explicitly states that if sell proceeds were withdrawn from tracked accounts, those cash flows are not modelled as inflows, and the IRR figure may overstate performance for portfolios with significant realized exits. Full cash-flow reconstruction from BUY/SELL transaction records remains a future improvement.
 
 ### 7.3 No Confirmation Dialog on Snapshot Delete (MEDIUM) - RESOLVED
 
