@@ -22,6 +22,14 @@ function computeAvgCost(txs: Transaction[]): CostBasisResult {
       shares += Math.abs(tx.shares || 0);
       costBasis += cost;
       buys += 1;
+    } else if (tx.type === TxType.SPLIT) {
+      // SPLIT: tx.shares holds the ratio (e.g. 2 for a 2:1 split).
+      // Share count is multiplied by the ratio; total cost basis is unchanged.
+      const ratio = Math.abs(tx.shares || 0);
+      if (ratio > 0 && shares > 0) {
+        shares *= ratio;
+        // costBasis stays the same; cost-per-share is implicitly reduced
+      }
     } else if (tx.type === TxType.SELL) {
       const sharesSold = Math.abs(tx.shares || 0);
       if (shares <= ZERO_THRESHOLD || sharesSold <= 0) continue;
@@ -76,6 +84,16 @@ function computeFIFO(txs: Transaction[]): CostBasisResult {
       const cost = Math.abs(tx.amount) + fee;
       lots.push({ shares: s, unitCost: cost / s });
       buys += 1;
+    } else if (tx.type === TxType.SPLIT) {
+      // SPLIT: tx.shares holds the ratio. Multiply each lot's shares by ratio,
+      // divide unitCost by ratio so total cost basis stays the same.
+      const ratio = Math.abs(tx.shares || 0);
+      if (ratio > 0 && lots.length > 0) {
+        for (const lot of lots) {
+          lot.shares *= ratio;
+          lot.unitCost /= ratio;
+        }
+      }
     } else if (tx.type === TxType.SELL) {
       let sharesSold = Math.abs(tx.shares || 0);
       if (sharesSold <= 0) continue;
@@ -128,7 +146,7 @@ export function computeCostBasis(
   // Group transactions by ISIN
   const byIsin: Record<string, Transaction[]> = {};
   for (const tx of txs) {
-    if (tx.type !== TxType.BUY && tx.type !== TxType.SELL) continue;
+    if (tx.type !== TxType.BUY && tx.type !== TxType.SELL && tx.type !== TxType.SPLIT) continue;
     const key = tx.isin || '';
     if (!key) continue;
     if (!byIsin[key]) byIsin[key] = [];

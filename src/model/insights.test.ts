@@ -8,6 +8,8 @@ import {
   xirr,
   annualizedVolatility,
   maxDrawdown,
+  cagrPerAccount,
+  trailingDividendYield,
 } from './insights';
 import type { Snapshot } from '../types';
 import * as utils from '../utils';
@@ -328,5 +330,96 @@ describe('maxDrawdown', () => {
     vi.spyOn(utils, 'snapTotal').mockReturnValueOnce(5000).mockReturnValueOnce(5000);
     const snaps: Snapshot[] = [{ date: '2026-01' }, { date: '2026-02' }];
     expect(maxDrawdown(snaps)).toBe(0);
+  });
+});
+
+describe('cagrPerAccount', () => {
+  const makeSnap = (date: string, vals: Record<string, number>): import('../types').Snapshot => ({
+    date,
+    ...vals,
+  });
+  const makeAcct = (id: string, label: string): import('../types').Account => ({
+    id,
+    label,
+    color: '#aabbcc',
+  });
+
+  it('returns empty array when fewer than 2 snapshots', () => {
+    const snaps = [makeSnap('2024-01', { acct1: 1000 })];
+    expect(cagrPerAccount(snaps, [makeAcct('acct1', 'Savings')])).toHaveLength(0);
+  });
+
+  it('excludes accounts with fewer than 12 months of non-zero data', () => {
+    const snaps = [makeSnap('2024-01', { acct1: 1000 }), makeSnap('2024-06', { acct1: 1100 })];
+    expect(cagrPerAccount(snaps, [makeAcct('acct1', 'Savings')])).toHaveLength(0);
+  });
+
+  it('computes CAGR for an account with 24 months of data', () => {
+    const start = 10000;
+    const end = 12000;
+    const snaps = [makeSnap('2022-01', { acct1: start }), makeSnap('2024-01', { acct1: end })];
+    const results = cagrPerAccount(snaps, [makeAcct('acct1', 'ETF Account')]);
+    expect(results).toHaveLength(1);
+    expect(results[0].label).toBe('ETF Account');
+    expect(results[0].monthsSpan).toBe(24);
+    expect(results[0].cagrValue).not.toBeNull();
+    // CAGR = (12000/10000)^(12/24) - 1 = sqrt(1.2) - 1 ~ 9.54%
+    expect(results[0].cagrValue!).toBeCloseTo(Math.sqrt(1.2) - 1, 4);
+  });
+
+  it('skips accounts with no values in snapshots', () => {
+    const snaps = [makeSnap('2022-01', { acct1: 1000 }), makeSnap('2024-01', { acct1: 1200 })];
+    const results = cagrPerAccount(snaps, [makeAcct('acct1', 'A'), makeAcct('acct2', 'B')]);
+    expect(results).toHaveLength(1);
+    expect(results[0].accountId).toBe('acct1');
+  });
+
+  it('handles multiple accounts independently', () => {
+    const snaps = [
+      makeSnap('2022-01', { acct1: 10000, acct2: 5000 }),
+      makeSnap('2024-01', { acct1: 14000, acct2: 6000 }),
+    ];
+    const results = cagrPerAccount(snaps, [makeAcct('acct1', 'A'), makeAcct('acct2', 'B')]);
+    expect(results).toHaveLength(2);
+    const a = results.find((r) => r.accountId === 'acct1')!;
+    const b = results.find((r) => r.accountId === 'acct2')!;
+    expect(a.cagrValue).not.toBeNull();
+    expect(b.cagrValue).not.toBeNull();
+    expect(a.cagrValue).not.toBeCloseTo(b.cagrValue!);
+  });
+});
+
+describe('trailingDividendYield', () => {
+  it('returns null when totalInvested is 0', () => {
+    expect(trailingDividendYield([{ date: '2025-01', net: 100 }], 0)).toBeNull();
+  });
+
+  it('returns null when no dividends in trailing 12 months', () => {
+    // Very old dividend date
+    expect(trailingDividendYield([{ date: '2020-01', net: 100 }], 10000)).toBeNull();
+  });
+
+  it('returns null when divHist is empty', () => {
+    expect(trailingDividendYield([], 10000)).toBeNull();
+  });
+
+  it('computes yield correctly from recent dividends', () => {
+    const now = new Date();
+    const recentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const result = trailingDividendYield([{ date: recentMonth, net: 200 }], 10000);
+    expect(result).not.toBeNull();
+    expect(result!).toBeCloseTo(2); // 200 / 10000 * 100 = 2%
+  });
+
+  it('yields higher when denominator is dist-only capital (excluding acc holdings)', () => {
+    // Scenario: 200 net dividends, 5000 in dist holdings, 5000 in acc holdings (total 10000).
+    // Using total capital: 200/10000 = 2%. Using dist-only capital: 200/5000 = 4%.
+    const now = new Date();
+    const recentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const divHist = [{ date: recentMonth, net: 200 }];
+    const totalResult = trailingDividendYield(divHist, 10000);
+    const distOnlyResult = trailingDividendYield(divHist, 5000);
+    expect(totalResult!).toBeCloseTo(2);
+    expect(distOnlyResult!).toBeCloseTo(4); // more accurate: only dist capital in denominator
   });
 });

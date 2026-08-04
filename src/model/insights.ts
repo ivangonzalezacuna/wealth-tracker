@@ -233,3 +233,73 @@ export function xirr(cashFlows: XirrCashFlow[]): number | null {
   }
   return null;
 }
+
+// ── Per-account CAGR ──────────────────────────────────────────────
+
+export interface AccountCagrResult {
+  accountId: string;
+  label: string;
+  cagrValue: number | null;
+  monthsSpan: number;
+}
+
+/**
+ * Compute CAGR for each account separately, using per-account snapshot values.
+ * Only accounts with at least 12 months of non-zero values are included.
+ */
+export function cagrPerAccount(snaps: Snapshot[], accounts: Account[]): AccountCagrResult[] {
+  if (snaps.length < 2) return [];
+  const results: AccountCagrResult[] = [];
+
+  for (const acct of accounts) {
+    const key = acct.id || acct.key || '';
+    if (!key) continue;
+
+    // Collect non-zero snapshot values for this account
+    const values = snaps
+      .map((s) => ({ date: s.date, value: (s[key] as number) || 0 }))
+      .filter((s) => s.value > 0);
+
+    if (values.length < 2) continue;
+
+    const first = values[0];
+    const last = values[values.length - 1];
+    const fd = parseYearMonth(first.date);
+    const ld = parseYearMonth(last.date);
+    if (!fd || !ld) continue;
+    const months = (ld.year - fd.year) * 12 + (ld.month - fd.month);
+    if (months < 12) continue;
+
+    results.push({
+      accountId: key,
+      label: acct.label || `${acct.moneyType} ${acct.institution}`.trim() || key,
+      cagrValue: cagr(first.value, last.value, months),
+      monthsSpan: months,
+    });
+  }
+
+  return results;
+}
+
+// ── Trailing dividend yield ───────────────────────────────────────
+
+/**
+ * Compute trailing 12-month net dividend yield as a percentage.
+ * Returns null when totalInvested is zero or fewer than 12 months of dividend data exist.
+ */
+export function trailingDividendYield(
+  divHist: Array<{ date: string; net: number }>,
+  totalInvested: number,
+): number | null {
+  if (totalInvested <= 0 || divHist.length === 0) return null;
+  const cutoff = new Date();
+  cutoff.setFullYear(cutoff.getFullYear() - 1);
+  const sum = divHist
+    .filter((d) => {
+      const dateStr = d.date.length === 7 ? `${d.date}-01` : d.date;
+      return new Date(dateStr) >= cutoff;
+    })
+    .reduce((s, d) => s + d.net, 0);
+  if (sum <= 0) return null;
+  return (sum / totalInvested) * 100;
+}

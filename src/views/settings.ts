@@ -761,6 +761,10 @@ function renderHoldingRow(h: Holding, i: number): string {
           <select id="hold-interval-${i}" class="form-input form-input-sm" data-field="contribInterval">${intervalOptions}</select>
         </div>
         <div class="settings-field">
+          <label class="settings-field-label" for="hold-ter-${i}">TER (%)${infoTip('Total Expense Ratio: the annual fee charged by the fund, as a percentage (e.g. 0.20 for 0.20%). These costs are deducted by the fund manager directly from the fund assets throughout the year, so they are already reflected in the ETF price and your returns. No money is deducted from your broker balance. Used here to estimate the annual fee drag on your portfolio.')}</label>
+          <input id="hold-ter-${i}" class="form-input form-input-sm" data-field="ter" value="${h.ter || ''}" type="number" min="0" step="0.01" max="5" placeholder="e.g. 0.20">
+        </div>
+        <div class="settings-field">
           <label class="settings-field-label" for="hold-fold-into-${i}">Successor ISIN${infoTip('When an ETF merges into another, enter the new ISIN here. Transactions are consolidated under the successor.')}</label>
           <input id="hold-fold-into-${i}" class="form-input form-input-sm" data-field="foldInto" value="${esc(h.foldInto)}" placeholder="ISIN of successor">
           ${h.foldInto ? `<p class="note" style="margin-top:4px;color:var(--warn)">Fund merger path active. This consolidation path is implemented but has not been verified against a real provider-side fund merger. Cross-check realized P&L manually after the merge.</p>` : ''}
@@ -882,6 +886,7 @@ function attachHoldingListeners(root: HTMLElement): void {
       region: 'developed',
       foldInto: '',
       order: holds.length + 1,
+      ter: 0,
     });
     rerenderHoldingsTable(root, holds);
   });
@@ -1013,6 +1018,7 @@ function collectHoldings(root: HTMLElement): Holding[] {
     assetClass: (row.querySelector('[data-field="assetClass"]') as HTMLSelectElement).value.trim(),
     region: (row.querySelector('[data-field="region"]') as HTMLSelectElement).value.trim(),
     foldInto: (row.querySelector('[data-field="foldInto"]') as HTMLInputElement).value.trim(),
+    ter: parseFloat((row.querySelector('[data-field="ter"]') as HTMLInputElement).value) || 0,
   }));
 
   // When no filter is active or no cached list, return DOM rows directly

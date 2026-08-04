@@ -218,3 +218,89 @@ describe('computeCostBasis (multi-ISIN)', () => {
     expect(result['B'].exited).toBe(false);
   });
 });
+
+describe('costbasis: SPLIT transaction type', () => {
+  function split(date: string, ratio: number): Transaction {
+    return {
+      id: '',
+      source: '',
+      name: '',
+      isin: 'IE00B4L5Y983',
+      type: TxType.SPLIT,
+      date,
+      shares: ratio,
+      price: 0,
+      amount: 0,
+      fee: 0,
+      tax: 0,
+      currency: 'EUR',
+      fxRate: 0,
+    };
+  }
+
+  it('avg-cost: 2:1 split doubles shares without changing total cost basis', () => {
+    const txs = [
+      buy('2024-01-01', 10, 1000), // 10 shares @ avg 100
+      split('2024-02-01', 2), // 2:1 split -> 20 shares @ avg 50
+    ];
+    const r = _computeAvgCost(txs);
+    expect(r.shares).toBeCloseTo(20);
+    expect(r.costBasis).toBeCloseTo(1000); // unchanged
+    expect(r.exited).toBe(false);
+  });
+
+  it('avg-cost: 3:2 split adjusts shares correctly', () => {
+    const txs = [
+      buy('2024-01-01', 10, 1000),
+      split('2024-02-01', 1.5), // 3:2 split
+    ];
+    const r = _computeAvgCost(txs);
+    expect(r.shares).toBeCloseTo(15);
+    expect(r.costBasis).toBeCloseTo(1000);
+  });
+
+  it('avg-cost: sell after split uses post-split share count', () => {
+    const txs = [
+      buy('2024-01-01', 10, 1000), // 10 shares @ avg 100
+      split('2024-02-01', 2), // 20 shares @ avg 50
+      sell('2024-03-01', 10, 600), // sell 10 post-split shares; cost = 10 * 50 = 500
+    ];
+    const r = _computeAvgCost(txs);
+    expect(r.shares).toBeCloseTo(10);
+    expect(r.realizedPnL).toBeCloseTo(100); // 600 - 500
+    expect(r.costBasis).toBeCloseTo(500); // 10 remaining @ 50
+  });
+
+  it('fifo: 2:1 split doubles each lot shares, halves unit cost', () => {
+    const txs = [
+      buy('2024-01-01', 10, 1000), // lot: 10 @ 100
+      split('2024-02-01', 2), // lot: 20 @ 50
+    ];
+    const r = _computeFIFO(txs);
+    expect(r.shares).toBeCloseTo(20);
+    expect(r.costBasis).toBeCloseTo(1000);
+  });
+
+  it('fifo: 3:2 split on two lots', () => {
+    const txs = [
+      buy('2024-01-01', 10, 1000), // lot 1: 10 @ 100
+      buy('2024-02-01', 10, 1500), // lot 2: 10 @ 150
+      split('2024-03-01', 1.5), // lot 1: 15 @ 66.67; lot 2: 15 @ 100
+    ];
+    const r = _computeFIFO(txs);
+    expect(r.shares).toBeCloseTo(30);
+    expect(r.costBasis).toBeCloseTo(2500); // unchanged
+  });
+
+  it('fifo: sell after split uses post-split shares and unit costs', () => {
+    const txs = [
+      buy('2024-01-01', 10, 1000), // lot: 10 @ 100
+      split('2024-02-01', 2), // lot: 20 @ 50
+      sell('2024-03-01', 10, 600), // sell 10; cost = 10 * 50 = 500; pnl = 100
+    ];
+    const r = _computeFIFO(txs);
+    expect(r.shares).toBeCloseTo(10);
+    expect(r.realizedPnL).toBeCloseTo(100);
+    expect(r.costBasis).toBeCloseTo(500);
+  });
+});

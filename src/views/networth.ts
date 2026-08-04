@@ -24,6 +24,7 @@ import {
   xirr,
   annualizedVolatility,
   maxDrawdown,
+  cagrPerAccount,
 } from '../model/insights';
 import type { MonthlyGrowthPoint } from '../model/insights';
 import {
@@ -214,6 +215,9 @@ export function renderNW(
   const accounts = getAccounts();
   _lastAccounts = accounts;
 
+  // Per-account CAGR map (keyed by accountId)
+  const acctCagrMap = new Map(cagrPerAccount(snaps, accounts).map((r) => [r.accountId, r]));
+
   // Extra KPIs: YoY + CAGR
   const firstTotal = snaps.length > 0 ? snapTotal(snaps[0]) : 0;
   const firstDate = snaps[0]?.date || '';
@@ -274,14 +278,20 @@ export function renderNW(
       }</div>
     </div>
     ${activeA
-      .map(
-        (a) => `
+      .map((a) => {
+        const acctCagr = acctCagrMap.get(a.key);
+        const cagrSub =
+          acctCagr && acctCagr.cagrValue !== null
+            ? `<div class="kpi-sub ${acctCagr.cagrValue >= 0 ? 'pos' : 'neg'}">CAGR ${fmtPctNeg(acctCagr.cagrValue * 100)} (${acctCagr.monthsSpan}m)</div>`
+            : '';
+        return `
       <div class="kpi">
         <div class="kpi-label">${esc(a.label)}</div>
         <div class="kpi-val">${fmtEur2((s[a.key] as number) || 0)}</div>
         <div class="kpi-sub">${fmtPctVal(total > 0 ? (((s[a.key] as number) || 0) / total) * 100 : 0)} of total</div>
-      </div>`,
-      )
+        ${cagrSub}
+      </div>`;
+      })
       .join('')}
     ${(() => {
       const accts = getAccounts();

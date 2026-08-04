@@ -33,13 +33,14 @@ Unrealized gain/loss for each position is only shown when the user manually ente
 - **Impact:** The majority of sessions show stale or absent unrealized P&L data. Cost-basis-based drift can be significantly misleading for high-gain positions.
 - **What is needed:** At minimum, a clear prompt or reminder on the snapshot form to complete the ETF breakdown; ideally, a price-feed integration or last-price carry-forward.
 
-### 1.3 No Corporate Action Support: Stock Splits, Mergers, Spinoffs (MEDIUM)
+### 1.3 No Corporate Action Support: Stock Splits, Mergers, Spinoffs (MEDIUM) - RESOLVED
 
 `TxType` defines nine transaction types (BUY, SELL, DIVIDEND, INTEREST, FEE, TAX, DEPOSIT, WITHDRAWAL, TRANSFER). There is no SPLIT, SPINOFF, or RIGHTS type. When a holding undergoes a 2:1 split or a spinoff, users must manually adjust share counts and cost basis with no guided workflow.
 
 - **Confirmed in:** `src/types.ts:3-13`, `src/model/costbasis.ts` (no split logic)
 - **Impact:** Any user holding a position that splits will have a wrong cost-per-share figure and incorrect IRR until they manually fix it. The existing `foldInto` field partially handles ETF mergers but is limited to a direct ISIN replacement and is unverified against real data (confirmed in README Known Limitations).
 - **What is needed:** A SPLIT transaction type that adjusts shares and unit cost without altering total cost basis, and a SPINOFF type that allocates cost basis proportionally.
+- **Resolution:** `TxType.SPLIT` has been added. A SPLIT transaction uses the `shares` field as the split ratio (e.g. 2 for a 2:1 split). Both the average-cost and FIFO engines handle SPLIT: shares are multiplied by the ratio and the cost-per-share is divided by the ratio, leaving total cost basis unchanged. SPLIT can be imported via CSV using `type: SPLIT`. SPINOFF support remains a future enhancement.
 
 ### 1.4 Allocation Drift Falls Back to Cost Basis When Market Values Are Missing (MEDIUM) - PARTIALLY RESOLVED
 
@@ -80,21 +81,23 @@ The app tracks returns but not risk. There is no volatility, standard deviation,
 - **What is needed:** At minimum, annualized volatility of monthly net-worth changes and a maximum drawdown figure, both computable from the existing snapshot history without any external data.
 - **Resolution:** Annualized volatility (sample standard deviation of monthly returns scaled by sqrt(12)) and maximum drawdown (largest peak-to-trough decline in total net worth) are now computed from the snapshot series and displayed as KPI tiles on the Net Worth tab, each with a concise tooltip.
 
-### 2.4 No Per-Account Performance Analytics (MEDIUM)
+### 2.4 No Per-Account Performance Analytics (MEDIUM) - RESOLVED
 
 CAGR and IRR are computed at the portfolio level only. There is no way to see which account (broker) is performing better or compare the IRR of the pension account versus the ETF brokerage.
 
 - **Confirmed in:** `src/model/insights.ts`, `src/views/networth.ts` (IRR uses aggregate investment value)
 - **Impact:** Users with multiple accounts and brokers cannot identify which relationships or strategies are working and optimize their allocation accordingly.
 - **What is needed:** Per-account CAGR derived from per-account snapshot values, and optionally per-account IRR for investment-type accounts.
+- **Resolution:** `cagrPerAccount()` in `src/model/insights.ts` computes per-account CAGR from each account's snapshot value series (at least 12 months required). A collapsible "Per-account CAGR" card is shown below the main KPI row on the Net Worth tab, with a tile per qualifying account showing CAGR and history span. Per-account IRR remains a future enhancement.
 
-### 2.5 No Dividend Income Forecasting or Yield Projection (LOW)
+### 2.5 No Dividend Income Forecasting or Yield Projection (LOW) - REMOVED
 
 The forecast on the Net Worth tab projects asset value growth. There is no separate projection of future dividend or interest income based on current yield and portfolio size.
 
 - **Confirmed in:** `src/model/forecast.ts` (only net worth projection), `src/views/dividends.ts` (historical data only)
 - **Impact:** Income investors and those planning for retirement using dividend income cannot answer "What will my annual dividend income be in 10 years?"
 - **What is needed:** A simple forward projection: current yield rate multiplied by the projected portfolio value series from the existing forecast engine.
+- **Resolution attempt:** A `dividendProjectionSeries()` function and a projection card on the Dividends tab were implemented, but the approach was fundamentally flawed: the projection applied the dividend yield to the total portfolio value (all accounts, including accumulating ETFs and cash) rather than only to the distributing holdings' value. This caused the projected dividend income to be wildly overstated for users whose portfolio is mostly accumulating. The feature was removed to avoid misleading output. A correct implementation would need to track the distributing fraction of the portfolio value through the forecast, which is not currently possible with the single-value-per-account snapshot model.
 
 ---
 
@@ -116,13 +119,14 @@ The `tax` field in a transaction is a plain number. There is no metadata about t
 - **Impact:** Tax reporting is manual. Users in Germany (Abgeltungsteuer), the UK (CGT), or the US (short/long-term distinction) cannot generate a compliant tax summary from the app's data.
 - **What is needed:** An optional jurisdiction field on the account (not per-transaction) and a per-lot holding-period calculation derived from BUY date to SELL date using the existing lot data.
 
-### 3.3 No Expense Ratio (TER/OCF) Tracking (LOW)
+### 3.3 No Expense Ratio (TER/OCF) Tracking (LOW) - RESOLVED
 
 The `Holding` interface stores `isin`, `name`, `assetClass`, `region`, and `color`, but no total expense ratio (TER) or ongoing charges figure (OCF).
 
 - **Confirmed in:** `src/types.ts:62-75` (Holding interface), `src/views/settings.ts:612-629` (ASSET_CLASSES, no fee field)
 - **Impact:** Users cannot calculate the annual fee drag on their portfolio, identify expensive holdings, or compare the cost of equivalent ETFs.
 - **What is needed:** An optional `ter` field on the `Holding` type, populated by the user, with a "total annual fee drag" KPI tile on the portfolio summary card.
+- **Resolution:** An optional `ter` (%) field has been added to the `Holding` type, the holdings DB schema (migration 5), and the Holdings settings form. `computeFeeDrag()` in `src/model/holdings.ts` computes the annual cost as the sum of each position's value multiplied by its TER, preferring snapshot market values over cost basis. An "Annual fee drag" KPI tile is now shown in the Portfolio tab summary card. When no TERs are configured, the tile shows a prompt to add TER values in Settings.
 
 ### 3.4 No Structured Tax Export (LOW)
 
@@ -342,9 +346,9 @@ The following limitations are already acknowledged in the README or PR history a
 10. Add a "tax year summary" export (Area 3.4)
 11. Surface allocation drift warning badge when tolerance is exceeded (Area 4.7)
 12. Add a holdings text search/filter (Area 4.4)
-13. Add expense ratio (TER) field to holdings and a fee-drag KPI (Area 3.3)
+13. ~~Add expense ratio (TER) field to holdings and a fee-drag KPI (Area 3.3)~~ - DONE
 14. Support withdrawal/drawdown in the forecast model (Area 4.6)
-15. Add a SPLIT transaction type (Area 1.3)
+15. ~~Add a SPLIT transaction type (Area 1.3)~~ - DONE
 16. Add a confirmation dialog to snapshot delete (Area 7.3)
 17. Clarify or fix IRR calculation for portfolios with withdrawn sell proceeds (Area 7.2)
 18. Align all text boxes to a shared themed style instead of mixed default browser formatting
@@ -353,12 +357,12 @@ The following limitations are already acknowledged in the README or PR history a
 
 19. Benchmark comparison overlay on the Net Worth chart (Area 2.2)
 20. ~~Annualized volatility and maximum drawdown metrics (Area 2.3)~~ - DONE
-21. Multiple named goals with per-goal progress tracking (Area 4.5)
+21. ~~Multiple named goals with per-goal progress tracking (Area 4.5)~~ - DONE
 22. First-class non-ISIN asset support (crypto, real estate, commodities) (Area 5.1)
-23. Per-account CAGR/IRR breakdown (Area 2.4)
+23. ~~Per-account CAGR/IRR breakdown (Area 2.4)~~ - DONE
 24. Tax jurisdiction field on accounts for holding-period and short/long-term gain tracking (Area 3.2)
 25. Tax-loss harvesting identification view (Area 3.1)
-26. Dividend income forward projection (Area 2.5)
+26. Dividend income forward projection (Area 2.5) - removed due to fundamental accuracy issue (see Area 2.5)
 27. ~~Storage quota monitoring (Area 6.5)~~ - DONE
 28. Additional European broker import profiles: DEGIRO, Scalable Capital, Interactive Brokers (Area 4.3)
 29. Custom import profile persistence and UI (Area 7.1)

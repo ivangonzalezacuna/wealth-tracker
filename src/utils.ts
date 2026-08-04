@@ -57,12 +57,17 @@ export function fmtPctSigned(n: number, d = 1): string {
 }
 
 /**
- * Unsigned percentage with a smart decimal: shows 1 decimal only when the
- * value is not a whole number (e.g. 45 → "45%", 45.1 → "45.1%").
+ * Unsigned percentage with a smart decimal. By default shows 1 decimal only
+ * when the value is not a whole number (e.g. 45 => "45%", 45.1 => "45.1%").
+ * Pass decimals=2 to always show 2 decimal places (e.g. 0.33 => "0.33%").
  * Uses English-style period decimal (consistent with the inline cost-basis
  * and drift target/actual columns).
  */
-export function fmtPctVal(n: number): string {
+export function fmtPctVal(n: number, decimals: 1 | 2 = 1): string {
+  if (decimals === 2) {
+    const rounded = Math.round(n * 100) / 100;
+    return rounded.toFixed(2) + '%';
+  }
   const rounded = Math.round(n * 10) / 10;
   return (rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(1)) + '%';
 }

@@ -60,7 +60,7 @@ export async function saveAccounts(accounts: Account[]): Promise<void> {
 export async function loadHoldings(): Promise<Holding[]> {
   const db = await getDb();
   const result = db.exec(
-    'SELECT isin, name, short_name, color, acc, active, contrib_amount, contrib_interval, asset_class, region, fold_into, "order" FROM holdings ORDER BY "order" ASC',
+    'SELECT isin, name, short_name, color, acc, active, contrib_amount, contrib_interval, asset_class, region, fold_into, "order", ter FROM holdings ORDER BY "order" ASC',
   );
   if (result.length === 0) return [];
   return result[0].values.map(rowToHolding);
@@ -70,7 +70,7 @@ export async function loadHoldings(): Promise<Holding[]> {
 export async function saveHoldings(holdings: Holding[]): Promise<void> {
   const db = await getDb();
   const stmt = db.prepare(
-    'INSERT INTO holdings (isin, name, short_name, color, acc, active, contrib_amount, contrib_interval, asset_class, region, fold_into, "order") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO holdings (isin, name, short_name, color, acc, active, contrib_amount, contrib_interval, asset_class, region, fold_into, "order", ter) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   try {
     db.run('BEGIN');
@@ -89,6 +89,7 @@ export async function saveHoldings(holdings: Holding[]): Promise<void> {
         h.region || '',
         h.foldInto || '',
         h.order ?? 0,
+        h.ter ?? 0,
       ]);
     }
     db.run('COMMIT');
@@ -225,5 +226,6 @@ function rowToHolding(row: unknown[]): Holding {
     region: String(row[9] ?? ''),
     foldInto: String(row[10] ?? ''),
     order: Number(row[11]) || 0,
+    ter: Number(row[12]) || 0,
   };
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitHoldings, validateHoldings } from './holdings';
+import { splitHoldings, validateHoldings, computeFeeDrag } from './holdings';
 import type { Holding } from '../types';
 
 describe('splitHoldings', () => {
@@ -150,5 +150,85 @@ describe('validateHoldings', () => {
 
   it('returns empty array for empty input', () => {
     expect(validateHoldings([])).toHaveLength(0);
+  });
+});
+
+describe('computeFeeDrag', () => {
+  const makeEtf = (
+    isin: string,
+    cost: number,
+    marketValue?: number,
+  ): import('../types').EtfPosition => ({
+    isin,
+    shortName: isin,
+    name: '',
+    color: '',
+    acc: true,
+    active: true,
+    shares: 10,
+    cost,
+    divNet: 0,
+    taxPaid: 0,
+    buys: 1,
+    realizedPnL: 0,
+    totalFees: 0,
+    exited: false,
+    marketValue: marketValue ?? null,
+  });
+
+  const makeHolding = (isin: string, ter: number): import('../types').Holding => ({
+    isin,
+    name: '',
+    shortName: isin,
+    color: '',
+    acc: true,
+    active: true,
+    contribAmount: 0,
+    contribInterval: 'weekly',
+    assetClass: 'equity',
+    region: 'developed',
+    foldInto: '',
+    order: 1,
+    ter,
+  });
+
+  it('returns null when no holdings have a TER configured', () => {
+    const etfs = [makeEtf('IE00B4L5Y983', 1000)];
+    const holdings = [makeHolding('IE00B4L5Y983', 0)];
+    expect(computeFeeDrag(etfs, holdings, {})).toBeNull();
+  });
+
+  it('computes annual cost using cost basis when no market value is available', () => {
+    const etfs = [makeEtf('IE00B4L5Y983', 10000)];
+    const holdings = [makeHolding('IE00B4L5Y983', 0.2)];
+    const result = computeFeeDrag(etfs, holdings, {});
+    expect(result).not.toBeNull();
+    expect(result!.annualCost).toBeCloseTo(20); // 10000 * 0.2 / 100
+    expect(result!.costPct).toBeCloseTo(0.002);
+    expect(result!.coveredCount).toBe(1);
+  });
+
+  it('prefers snapshot market value over cost basis', () => {
+    const etfs = [makeEtf('IE00B4L5Y983', 10000)];
+    const holdings = [makeHolding('IE00B4L5Y983', 0.2)];
+    const snapEtfValues = { IE00B4L5Y983: 15000 };
+    const result = computeFeeDrag(etfs, holdings, snapEtfValues);
+    expect(result!.annualCost).toBeCloseTo(30); // 15000 * 0.2 / 100
+  });
+
+  it('sums across multiple positions', () => {
+    const etfs = [makeEtf('ISIN1', 5000), makeEtf('ISIN2', 3000)];
+    const holdings = [makeHolding('ISIN1', 0.2), makeHolding('ISIN2', 0.5)];
+    const result = computeFeeDrag(etfs, holdings, {});
+    expect(result!.annualCost).toBeCloseTo(25); // 5000*0.2/100 + 3000*0.5/100 = 10 + 15
+    expect(result!.coveredCount).toBe(2);
+  });
+
+  it('skips positions without a TER configured', () => {
+    const etfs = [makeEtf('ISIN1', 5000), makeEtf('ISIN2', 3000)];
+    const holdings = [makeHolding('ISIN1', 0.2), makeHolding('ISIN2', 0)];
+    const result = computeFeeDrag(etfs, holdings, {});
+    expect(result!.coveredCount).toBe(1);
+    expect(result!.annualCost).toBeCloseTo(10);
   });
 });

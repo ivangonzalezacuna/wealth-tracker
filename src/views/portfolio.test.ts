@@ -650,7 +650,7 @@ describe('renderPortfolio', () => {
     renderPortfolio(makePD(), []);
     renderPortfolio(makePD(), []);
     const kpis = document.getElementById('port-kpis')!;
-    expect(kpis.children.length).toBe(4);
+    expect(kpis.children.length).toBe(5); // Total invested, Market value, Unrealized P&L, Realized P&L, Annual fee drag
     // Only one set of data rows (non-header, non-total, non-filter)
     const rows = document.getElementById('port-table')!.querySelectorAll('.hold-row:not(.th)');
     expect(rows.length).toBe(1);
