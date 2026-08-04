@@ -41,13 +41,13 @@ export function attachInfoTips(root: HTMLElement | Document = document): void {
     });
 
     // Desktop hover (non-touch) - show on enter, hide on leave
-    el.addEventListener('mouseenter', (e) => {
+    el.addEventListener('mouseenter', () => {
       // Skip hover behavior on touch devices (avoids double-fire)
-      if (_isTouchEvent(e as MouseEvent)) return;
+      if (_isTouchEvent()) return;
       _showPopover(el as HTMLElement);
     });
-    el.addEventListener('mouseleave', (e) => {
-      if (_isTouchEvent(e as MouseEvent)) return;
+    el.addEventListener('mouseleave', () => {
+      if (_isTouchEvent()) return;
       _hidePopover(el as HTMLElement);
     });
     el.addEventListener('focus', () => _showPopover(el as HTMLElement));
@@ -74,7 +74,7 @@ if (typeof window !== 'undefined') {
   );
 }
 
-function _isTouchEvent(_e: MouseEvent): boolean {
+function _isTouchEvent(): boolean {
   return _hasTouch;
 }
 
@@ -112,29 +112,42 @@ function _togglePopover(trigger: HTMLElement): void {
 
 function _positionPopover(trigger: HTMLElement, pop: HTMLElement): void {
   const rect = trigger.getBoundingClientRect();
-  // Place above the trigger, centered horizontally
-  const top = rect.top - 6;
   const left = rect.left + rect.width / 2;
 
+  // Initially render hidden above the trigger to measure its dimensions
+  pop.style.visibility = 'hidden';
   pop.style.left = `${left}px`;
-  pop.style.top = `${top}px`;
+  pop.style.top = `${rect.top - 6}px`;
   pop.style.transform = 'translate(-50%, -100%)';
 
-  // After positioning, check if it overflows the viewport top - flip below if so
   requestAnimationFrame(() => {
     const popRect = pop.getBoundingClientRect();
-    if (popRect.top < 4) {
-      // Flip below
-      const belowTop = rect.bottom + 6;
-      pop.style.top = `${belowTop}px`;
-      pop.style.transform = 'translate(-50%, 0)';
+    const fitsAbove = rect.top - 6 - popRect.height >= 4;
+    let top: number;
+    let transform: string;
+
+    if (fitsAbove) {
+      top = rect.top - 6;
+      transform = 'translate(-50%, -100%)';
+    } else {
+      // Not enough room above - show below the trigger instead
+      top = rect.bottom + 6;
+      transform = 'translate(-50%, 0)';
     }
-    // Check horizontal overflow
-    if (popRect.left < 4) {
-      pop.style.left = `${4 + popRect.width / 2}px`;
-    } else if (popRect.right > window.innerWidth - 4) {
-      pop.style.left = `${window.innerWidth - 4 - popRect.width / 2}px`;
+
+    pop.style.top = `${top}px`;
+    pop.style.transform = transform;
+
+    // Clamp horizontal position to viewport
+    const reRect = pop.getBoundingClientRect();
+    let nextLeft = left;
+    if (reRect.left < 4) {
+      nextLeft = 4 + popRect.width / 2;
+    } else if (reRect.right > window.innerWidth - 4) {
+      nextLeft = window.innerWidth - 4 - popRect.width / 2;
     }
+    pop.style.left = `${nextLeft}px`;
+    pop.style.visibility = '';
   });
 }
 

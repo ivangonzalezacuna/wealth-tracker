@@ -1866,7 +1866,7 @@ function positionDriftTooltip(trigger: HTMLElement, pop: HTMLElement): void {
     }
     if (popRect.bottom > window.innerHeight - 4) {
       nextTop = rect.top - 8;
-      transform += transform === 'none' ? ' translateY(-100%)' : ' translateY(-100%)';
+      transform = transform === 'none' ? 'translateY(-100%)' : transform + ' translateY(-100%)';
     }
     pop.style.left = `${nextLeft}px`;
     pop.style.top = `${nextTop}px`;
