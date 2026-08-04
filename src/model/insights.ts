@@ -239,13 +239,8 @@ export function xirr(cashFlows: XirrCashFlow[]): number | null {
 export interface AccountCagrResult {
   accountId: string;
   label: string;
-  color: string;
   cagrValue: number | null;
-  firstDate: string;
-  lastDate: string;
   monthsSpan: number;
-  firstValue: number;
-  lastValue: number;
 }
 
 /**
@@ -278,13 +273,8 @@ export function cagrPerAccount(snaps: Snapshot[], accounts: Account[]): AccountC
     results.push({
       accountId: key,
       label: acct.label || `${acct.moneyType} ${acct.institution}`.trim() || key,
-      color: acct.color || '',
       cagrValue: cagr(first.value, last.value, months),
-      firstDate: first.date,
-      lastDate: last.date,
       monthsSpan: months,
-      firstValue: first.value,
-      lastValue: last.value,
     });
   }
 

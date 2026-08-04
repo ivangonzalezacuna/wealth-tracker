@@ -378,8 +378,6 @@ export function renderNW(
     })}
   `;
 
-  // Per-account CAGR is embedded directly in account KPI tiles above.
-
   const chartA = ACCTS.filter((a) => snaps.some((sn) => ((sn[a.key] as number) || 0) > 0));
 
   // Range-sliced view for the history chart
