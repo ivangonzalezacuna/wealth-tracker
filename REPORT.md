@@ -249,12 +249,13 @@ The Content-Security-Policy in `netlify.toml` includes `style-src 'self' 'unsafe
 - **Impact:** A failed mid-restore leaves the database in an indeterminate state that is difficult to diagnose and recover from.
 - **What is needed:** Wrap the entire restore sequence in a single SQLite transaction so that either all writes succeed or none do. The error should be surfaced to the user with a "Restore failed - original data preserved" message.
 
-### 6.5 No Storage Quota Monitoring (LOW)
+### 6.5 No Storage Quota Monitoring (LOW) - RESOLVED
 
 IDB quota errors are caught silently (see 6.6) but the app never proactively checks available storage. Users on iOS or in private browsing mode have much lower IDB quotas and will hit the limit sooner.
 
 - **Confirmed in:** `src/db/connection.ts` (no `navigator.storage.estimate()` calls), `src/cache/db.ts`
 - **What is needed:** A one-time `navigator.storage.estimate()` check on startup and a persistent warning banner if available quota is below a safe threshold (e.g., below 10 MB with the db already at 5 MB).
+- **Resolution:** `checkStorageQuota()` in `src/storage.ts` runs on boot via `navigator.storage.estimate()`. If usage exceeds 85% or the total quota is under 50 MB, a persistent dismissible yellow banner is shown prompting the user to export a backup. The banner is session-dismissed and does not reappear until the next page load.
 
 ### 6.6 IDB Cache Write Failures Are Silently Ignored (MEDIUM) - PARTIALLY RESOLVED
 
@@ -350,14 +351,14 @@ The following limitations are already acknowledged in the README or PR history a
 ### Nice to have (long-term roadmap)
 
 19. Benchmark comparison overlay on the Net Worth chart (Area 2.2)
-20. Annualized volatility and maximum drawdown metrics (Area 2.3)
+20. ~~Annualized volatility and maximum drawdown metrics (Area 2.3)~~ - DONE
 21. Multiple named goals with per-goal progress tracking (Area 4.5)
 22. First-class non-ISIN asset support (crypto, real estate, commodities) (Area 5.1)
 23. Per-account CAGR/IRR breakdown (Area 2.4)
 24. Tax jurisdiction field on accounts for holding-period and short/long-term gain tracking (Area 3.2)
 25. Tax-loss harvesting identification view (Area 3.1)
 26. Dividend income forward projection (Area 2.5)
-27. Storage quota monitoring (Area 6.5)
+27. ~~Storage quota monitoring (Area 6.5)~~ - DONE
 28. Additional European broker import profiles: DEGIRO, Scalable Capital, Interactive Brokers (Area 4.3)
 29. Custom import profile persistence and UI (Area 7.1)
 30. Surface config audit log (`config_history`) in the UI (Area 7.4)
