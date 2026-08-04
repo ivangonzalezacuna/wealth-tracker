@@ -42,6 +42,7 @@ let _fcRange: '60' | '120' | '240' = '60'; // 5y / 10y / 20y forecast horizon
 let _inflationRate = 0; // annual inflation % for real-return forecast overlay
 let _lastSnaps: Snapshot[] = [];
 let _lastAccounts: Account[] = [];
+let _activeGoalIdx = 0; // which goal tab is selected in the consolidated goals card
 
 /** Apply annual inflation to convert a nominal forecast series to real values. */
 function _deflateByInflation(
@@ -85,64 +86,103 @@ function _renderGoalCards(): void {
     goalEl.innerHTML = '';
     return;
   }
-  goalEl.innerHTML = goals
-    .map((goal) => {
-      const rawNW = (goal.targetNetWorth || '').replace(/\./g, '').replace(',', '.');
-      const target = parseFloat(rawNW);
-      if (isNaN(target) || target <= 0) return '';
-      // Skip goals already reached
-      if (total >= target) return '';
-      const pctComplete = Math.min(100, Math.round((total / target) * 100));
-      const remaining = Math.max(0, target - total);
-      const etaMonths = forecastMonthsToTargetMulti(accountInputs, target);
-      const targetDate = (goal.targetDate || '').trim();
-      const validTargetDate = /^\d{4}-\d{2}$/.test(targetDate) ? targetDate : null;
 
-      let etaText = '';
-      let isOnTrack: boolean | null = null;
-      if (etaMonths !== null) {
-        const etaFormatted = formatMonthsEta(etaMonths);
-        const now = new Date();
-        const etaDate = new Date(now.getFullYear(), now.getMonth() + etaMonths, 1);
-        const etaDateStr = `${etaDate.getFullYear()}-${String(etaDate.getMonth() + 1).padStart(2, '0')}`;
-        const etaDateFmt = fmtMon(etaDateStr);
-        if (validTargetDate) {
-          isOnTrack = etaDateStr <= validTargetDate;
-          etaText = isOnTrack
-            ? `<span class="pos">On track for ${fmtMon(validTargetDate)}</span> (ETA ${etaFormatted}, ${etaDateFmt})`
-            : `<span class="neg">Behind schedule</span> (ETA ${etaFormatted}, ${etaDateFmt}; target was ${fmtMon(validTargetDate)})`;
-        } else {
-          etaText = `ETA ${etaFormatted} (${etaDateFmt})`;
-        }
+  // Build per-goal panel HTML; skip reached or invalid goals.
+  type GoalPanel = { title: string; html: string };
+  const panels: GoalPanel[] = [];
+
+  for (const goal of goals) {
+    const rawNW = (goal.targetNetWorth || '').replace(/\./g, '').replace(',', '.');
+    const target = parseFloat(rawNW);
+    if (isNaN(target) || target <= 0) continue;
+    if (total >= target) continue;
+
+    const pctComplete = Math.min(100, Math.round((total / target) * 100));
+    const remaining = Math.max(0, target - total);
+    const etaMonths = forecastMonthsToTargetMulti(accountInputs, target);
+    const targetDate = (goal.targetDate || '').trim();
+    const validTargetDate = /^\d{4}-\d{2}$/.test(targetDate) ? targetDate : null;
+
+    let etaText = '';
+    let isOnTrack: boolean | null = null;
+    if (etaMonths !== null) {
+      const etaFormatted = formatMonthsEta(etaMonths);
+      const now = new Date();
+      const etaDate = new Date(now.getFullYear(), now.getMonth() + etaMonths, 1);
+      const etaDateStr = `${etaDate.getFullYear()}-${String(etaDate.getMonth() + 1).padStart(2, '0')}`;
+      const etaDateFmt = fmtMon(etaDateStr);
+      if (validTargetDate) {
+        isOnTrack = etaDateStr <= validTargetDate;
+        etaText = isOnTrack
+          ? `<span class="pos">On track for ${fmtMon(validTargetDate)}</span> (ETA ${etaFormatted}, ${etaDateFmt})`
+          : `<span class="neg">Behind schedule</span> (ETA ${etaFormatted}, ${etaDateFmt}; target was ${fmtMon(validTargetDate)})`;
       } else {
-        const hasGrowthPotential = accountInputs.some(
-          (a) => a.annualContrib > 0 || a.annualReturnPct > 0,
-        );
-        etaText = hasGrowthPotential
-          ? '<span class="neg">Target not reachable within the 100-year forecast horizon. Consider increasing contributions or return rate.</span>'
-          : 'Unable to estimate (set contributions or return rate)';
+        etaText = `ETA ${etaFormatted} (${etaDateFmt})`;
       }
+    } else {
+      const hasGrowthPotential = accountInputs.some(
+        (a) => a.annualContrib > 0 || a.annualReturnPct > 0,
+      );
+      etaText = hasGrowthPotential
+        ? '<span class="neg">Target not reachable within the 100-year forecast horizon. Consider increasing contributions or return rate.</span>'
+        : 'Unable to estimate (set contributions or return rate)';
+    }
 
-      const title = goal.label ? esc(goal.label) : 'Goal';
-      return `
-        <div class="card" style="margin-bottom:.75rem">
-          <div class="card-title">${title}</div>
-          <div class="row"><div class="row-label">Target</div><div class="row-val">${fmtEur(target)}</div></div>
-          <div class="row"><div class="row-label">Current</div><div class="row-val">${fmtEur(total)}</div></div>
-          <div class="row"><div class="row-label">Remaining</div><div class="row-val">${fmtEur(remaining)}</div></div>
-          <div style="margin:.75rem 0">
-            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-              <span>${fmtPctVal(Math.min(100, (total / target) * 100))} complete</span>
-              <span>${fmtEur(total)} / ${fmtEur(target)}</span>
-            </div>
-            <div style="height:8px;background:var(--surface-3);border-radius:var(--radius-xs);overflow:hidden">
-              <div style="width:${pctComplete}%;height:100%;background:${pctComplete >= 100 ? 'var(--pos)' : isOnTrack === false ? 'var(--warn)' : 'var(--brand)'};border-radius:var(--radius-xs);transition:width .3s"></div>
-            </div>
-          </div>
-          <div class="row" style="align-items:flex-start"><div class="row-label">ETA</div><div class="row-val" style="font-size:12px;text-align:left;flex-shrink:1;overflow-wrap:break-word;word-break:break-word;min-width:0">${etaText}${_inflationRate > 0 ? '<br><span class="note" style="font-size:11px">ETA is in nominal terms; inflation is not factored in.</span>' : ''}</div></div>
-        </div>`;
-    })
-    .join('');
+    const title = goal.label ? esc(goal.label) : 'Goal';
+    const panelHtml = `
+      <div class="row"><div class="row-label">Target</div><div class="row-val">${fmtEur(target)}</div></div>
+      <div class="row"><div class="row-label">Current</div><div class="row-val">${fmtEur(total)}</div></div>
+      <div class="row"><div class="row-label">Remaining</div><div class="row-val">${fmtEur(remaining)}</div></div>
+      <div style="margin:.75rem 0">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+          <span>${fmtPctVal(Math.min(100, (total / target) * 100))} complete</span>
+          <span>${fmtEur(total)} / ${fmtEur(target)}</span>
+        </div>
+        <div style="height:8px;background:var(--surface-3);border-radius:var(--radius-xs);overflow:hidden">
+          <div style="width:${pctComplete}%;height:100%;background:${pctComplete >= 100 ? 'var(--pos)' : isOnTrack === false ? 'var(--warn)' : 'var(--brand)'};border-radius:var(--radius-xs);transition:width .3s"></div>
+        </div>
+      </div>
+      <div class="row" style="align-items:flex-start"><div class="row-label">ETA</div><div class="row-val" style="font-size:12px;text-align:left;flex-shrink:1;overflow-wrap:break-word;word-break:break-word;min-width:0">${etaText}${_inflationRate > 0 ? '<br><span class="note" style="font-size:11px">ETA is in nominal terms; inflation is not factored in.</span>' : ''}</div></div>`;
+    panels.push({ title, html: panelHtml });
+  }
+
+  if (panels.length === 0) {
+    goalEl.innerHTML = '';
+    return;
+  }
+
+  // Clamp active index in case goals were added/removed.
+  _activeGoalIdx = Math.min(_activeGoalIdx, panels.length - 1);
+
+  if (panels.length === 1) {
+    // Single goal: plain card, no tab strip.
+    goalEl.innerHTML = `
+      <div class="card" style="margin-bottom:.75rem">
+        <div class="card-title">${panels[0].title}</div>
+        ${panels[0].html}
+      </div>`;
+  } else {
+    // Multiple goals: single card with a tab strip at the top.
+    const tabs = panels
+      .map(
+        (p, i) =>
+          `<button class="btn btn-sm btn-ghost${i === _activeGoalIdx ? ' active' : ''}" data-goal-tab="${i}">${p.title}</button>`,
+      )
+      .join('');
+    goalEl.innerHTML = `
+      <div class="card" style="margin-bottom:.75rem" id="nw-goal-card">
+        <div class="card-title">Goals</div>
+        <div class="range-toggle" id="nw-goal-tabs" style="margin-bottom:.75rem;flex-wrap:wrap">${tabs}</div>
+        <div id="nw-goal-panel">${panels[_activeGoalIdx].html}</div>
+      </div>`;
+
+    document.getElementById('nw-goal-tabs')?.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('[data-goal-tab]') as HTMLElement | null;
+      if (!btn) return;
+      _activeGoalIdx = parseInt(btn.dataset.goalTab!);
+      _renderGoalCards();
+    });
+  }
 }
 
 /**
