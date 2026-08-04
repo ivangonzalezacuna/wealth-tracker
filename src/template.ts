@@ -185,7 +185,6 @@ export function appTemplate(): string {
         <div id="div-annual"></div>
         <div id="div-annual-pagination" class="pagination"></div>
       </div>
-      <div id="div-projection"></div>
     </div>
   </div>
 </div>

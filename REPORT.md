@@ -90,14 +90,14 @@ CAGR and IRR are computed at the portfolio level only. There is no way to see wh
 - **What is needed:** Per-account CAGR derived from per-account snapshot values, and optionally per-account IRR for investment-type accounts.
 - **Resolution:** `cagrPerAccount()` in `src/model/insights.ts` computes per-account CAGR from each account's snapshot value series (at least 12 months required). A collapsible "Per-account CAGR" card is shown below the main KPI row on the Net Worth tab, with a tile per qualifying account showing CAGR and history span. Per-account IRR remains a future enhancement.
 
-### 2.5 No Dividend Income Forecasting or Yield Projection (LOW) - RESOLVED
+### 2.5 No Dividend Income Forecasting or Yield Projection (LOW) - REMOVED
 
 The forecast on the Net Worth tab projects asset value growth. There is no separate projection of future dividend or interest income based on current yield and portfolio size.
 
 - **Confirmed in:** `src/model/forecast.ts` (only net worth projection), `src/views/dividends.ts` (historical data only)
 - **Impact:** Income investors and those planning for retirement using dividend income cannot answer "What will my annual dividend income be in 10 years?"
 - **What is needed:** A simple forward projection: current yield rate multiplied by the projected portfolio value series from the existing forecast engine.
-- **Resolution:** `dividendProjectionSeries()` in `src/model/forecast.ts` multiplies projected portfolio values by a configurable annual yield. `trailingDividendYield()` in `src/model/insights.ts` computes the trailing 12-month yield from dividend history. A collapsible "Dividend income projection" card has been added to the Dividends tab with a 5/10/20-year range toggle, an editable yield input (pre-filled from trailing yield), a projected annual income bar chart, and a plain-text summary line. Requires at least 12 months of dividend history; otherwise shows a note.
+- **Resolution attempt:** A `dividendProjectionSeries()` function and a projection card on the Dividends tab were implemented, but the approach was fundamentally flawed: the projection applied the dividend yield to the total portfolio value (all accounts, including accumulating ETFs and cash) rather than only to the distributing holdings' value. This caused the projected dividend income to be wildly overstated for users whose portfolio is mostly accumulating. The feature was removed to avoid misleading output. A correct implementation would need to track the distributing fraction of the portfolio value through the forecast, which is not currently possible with the single-value-per-account snapshot model.
 
 ---
 
@@ -362,7 +362,7 @@ The following limitations are already acknowledged in the README or PR history a
 23. ~~Per-account CAGR/IRR breakdown (Area 2.4)~~ - DONE
 24. Tax jurisdiction field on accounts for holding-period and short/long-term gain tracking (Area 3.2)
 25. Tax-loss harvesting identification view (Area 3.1)
-26. ~~Dividend income forward projection (Area 2.5)~~ - DONE
+26. Dividend income forward projection (Area 2.5) - removed due to fundamental accuracy issue (see Area 2.5)
 27. ~~Storage quota monitoring (Area 6.5)~~ - DONE
 28. Additional European broker import profiles: DEGIRO, Scalable Capital, Interactive Brokers (Area 4.3)
 29. Custom import profile persistence and UI (Area 7.1)

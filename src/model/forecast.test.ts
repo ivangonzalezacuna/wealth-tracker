@@ -5,7 +5,6 @@ import {
   forecastSeries,
   forecastMultiAccountSeries,
   forecastMonthsToTargetMulti,
-  dividendProjectionSeries,
 } from './forecast';
 
 describe('forecastMonthsToTarget', () => {
@@ -218,28 +217,3 @@ describe('forecastMonthsToTargetMulti', () => {
   });
 });
 
-describe('dividendProjectionSeries', () => {
-  it('returns empty array when yield is 0 or negative', () => {
-    const forecast = [{ month: '2025-01', value: 100000 }];
-    expect(dividendProjectionSeries(forecast, 0)).toHaveLength(0);
-    expect(dividendProjectionSeries(forecast, -1)).toHaveLength(0);
-  });
-
-  it('returns empty array when forecast is empty', () => {
-    expect(dividendProjectionSeries([], 2)).toHaveLength(0);
-  });
-
-  it('computes monthly and annual income correctly', () => {
-    const forecast = [
-      { month: '2025-01', value: 120000 },
-      { month: '2025-02', value: 121000 },
-    ];
-    const result = dividendProjectionSeries(forecast, 2);
-    expect(result).toHaveLength(2);
-    // 120000 * 2% / 12 = 200
-    expect(result[0].monthlyIncome).toBeCloseTo(200);
-    expect(result[0].annualIncome).toBeCloseTo(2400);
-    expect(result[1].monthlyIncome).toBeCloseTo((121000 * 0.02) / 12);
-    expect(result[0].month).toBe('2025-01');
-  });
-});

@@ -1,19 +1,15 @@
-import { fmtEur2, fmtMon, fmtDay, esc, safeColor, kpiTile, fmtPctVal } from '../utils';
+import { fmtEur2, fmtMon, fmtDay, esc, safeColor, kpiTile } from '../utils';
 import type { PortfolioData, DivHistEntry, IntHistEntry, Transaction, Snapshot } from '../types';
 import { T } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { attachEtfPopovers } from '../ui/etfPopover';
 import { getAccounts, getCostBasisMethod, getHoldings } from '../store/config';
 import { computeCostBasis } from '../model/costbasis';
-import { dividendProjectionSeries, forecastMultiAccountSeries } from '../model/forecast';
-import { trailingDividendYield } from '../model/insights';
 import type { SortState } from './tableSort';
 import { applySort, bindSortableHeader } from './tableSort';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow, getSortGetters } from './tableColumns';
 import { renderPagination } from './pagination';
-import Chart from 'chart.js/auto';
-import { resolvedT } from '../theme';
 
 const DIV_PAGE_SIZE = 12;
 const ANNUAL_PAGE_SIZE = 8;
@@ -129,7 +125,6 @@ export function renderDividends(
   attachIntFilterListeners(pd);
   renderIntTable(pd);
   renderAnnualSummary(pd, txs);
-  renderDivProjection(pd, snaps);
 
   attachInfoTips(document.getElementById('subview-dividends')!);
 }
@@ -606,235 +601,4 @@ function attachIntFilterListeners(pd: PortfolioData): void {
       renderIntTable(_lastPd || pd);
     });
   }
-}
-
-// ── Dividend income projection ─────────────────────────────────────
-
-const DIV_PROJ_YIELD_KEY = 'div:proj-yield';
-let _divProjRange: '60' | '120' | '240' = '60';
-let _divProjYield: number | null = null;
-let _divProjChart: Chart | null = null;
-let _divProjPd: PortfolioData | null = null;
-let _divProjSnaps: Snapshot[] = [];
-
-function _loadPersistedYield(): number | null {
-  try {
-    const raw = localStorage.getItem(DIV_PROJ_YIELD_KEY);
-    if (raw === null) return null;
-    const v = parseFloat(raw);
-    return isFinite(v) && v >= 0 ? v : null;
-  } catch {
-    return null;
-  }
-}
-
-function _savePersistedYield(value: number): void {
-  try {
-    localStorage.setItem(DIV_PROJ_YIELD_KEY, String(value));
-  } catch {
-    // ignore storage errors
-  }
-}
-
-function renderDivProjection(pd: PortfolioData, snaps: Snapshot[]): void {
-  const el = document.getElementById('div-projection');
-  if (!el) return;
-
-  _divProjPd = pd;
-  _divProjSnaps = snaps;
-
-  // Require at least 12 months of dividend history to show the projection
-  const cutoff = new Date();
-  cutoff.setFullYear(cutoff.getFullYear() - 1);
-  const div12m = pd.divHist.filter((d) => {
-    const dateStr = d.date.length === 7 ? `${d.date}-01` : d.date;
-    return new Date(dateStr) >= cutoff;
-  });
-  const has12mDiv = div12m.length > 0 && div12m.reduce((s, d) => s + d.net, 0) > 0;
-
-  if (!has12mDiv) {
-    el.innerHTML = `
-      <div class="card" id="div-card-projection">
-        <div class="card-header">
-          <div class="card-title">Dividend income projection${infoTip('Forward projection of annual dividend income based on your portfolio forecast and a configurable yield rate. Requires at least 12 months of dividend history.')}</div>
-        </div>
-        <div class="card-body">
-          <p class="note">At least 12 months of dividend history is needed to show the income projection.</p>
-        </div>
-      </div>`;
-    return;
-  }
-
-  // Only count cost basis of distributing (non-acc) holdings for the yield denominator,
-  // since acc holdings do not pay dividends and would artificially dilute the yield.
-  const distInv = Object.values(pd.etfs)
-    .filter((e) => !e.acc)
-    .reduce((s, e) => s + e.cost, 0);
-
-  // Use persisted yield if available, otherwise seed from trailing 12m calculation
-  if (_divProjYield === null) {
-    const persisted = _loadPersistedYield();
-    _divProjYield =
-      persisted !== null ? persisted : (trailingDividendYield(pd.divHist, distInv) ?? 0);
-  }
-
-  const calculatedYield = trailingDividendYield(pd.divHist, distInv) ?? 0;
-  el.innerHTML = _renderDivProjCard(calculatedYield);
-  attachInfoTips(el);
-  _attachDivProjListeners(el, pd, snaps, calculatedYield);
-  _renderDivProjChart(pd, snaps);
-}
-
-function _renderDivProjCard(calculatedYield: number): string {
-  const yieldVal = _divProjYield ?? 0;
-  const calcHint =
-    calculatedYield > 0
-      ? `<span style="font-size:12px;color:var(--ink-3)">Calculated from history: ${fmtPctVal(calculatedYield, 2)}</span>`
-      : '';
-  return `
-    <div class="card" id="div-card-projection">
-      <div class="card-header">
-        <div class="card-title">Dividend income projection${infoTip('Forward projection of estimated annual dividend income based on your portfolio growth forecast and a configurable yield. The yield is seeded from your trailing 12-month dividend income divided by current invested capital. You can override it and your value will be remembered.')}</div>
-      </div>
-      <div class="card-body">
-        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <label for="div-proj-yield" style="font-size:13px;color:var(--ink-2)">Annual yield (%)</label>
-            <input id="div-proj-yield" class="form-input form-input-sm" type="number" min="0" max="100" step="0.1" value="${yieldVal.toFixed(2)}" style="width:80px">
-            ${calcHint}
-            ${calculatedYield > 0 ? `<button id="div-proj-yield-reset" class="btn btn-sm btn-ghost">Reset to calculated</button>` : ''}
-          </div>
-          <div class="range-toggle" id="div-proj-range-toggle">
-            <button class="btn btn-sm btn-ghost ${_divProjRange === '60' ? 'active' : ''}" data-proj-range="60">5Y</button>
-            <button class="btn btn-sm btn-ghost ${_divProjRange === '120' ? 'active' : ''}" data-proj-range="120">10Y</button>
-            <button class="btn btn-sm btn-ghost ${_divProjRange === '240' ? 'active' : ''}" data-proj-range="240">20Y</button>
-          </div>
-        </div>
-        <div id="div-proj-eta" style="font-size:13px;color:var(--ink-2);margin-bottom:10px"></div>
-        <div class="chart-wrap"><canvas id="c-div-proj"></canvas></div>
-      </div>
-    </div>`;
-}
-
-function _renderDivProjChart(pd: PortfolioData, snaps: Snapshot[]): void {
-  if (_divProjChart) {
-    _divProjChart.destroy();
-    _divProjChart = null;
-  }
-
-  const canvas = document.getElementById('c-div-proj') as HTMLCanvasElement | null;
-  if (!canvas) return;
-
-  const yieldPct = _divProjYield ?? 0;
-  const months = parseInt(_divProjRange);
-
-  // Build portfolio forecast from latest snapshot + account settings
-  const accounts = getAccounts();
-  const latestSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
-  const startDate = latestSnap?.date ?? new Date().toISOString().slice(0, 7);
-
-  const accountInputs = accounts.map((a) => ({
-    current: latestSnap ? (latestSnap[a.id || ''] as number) || 0 : 0,
-    annualReturnPct: a.annualReturnPct ?? 0,
-    annualContrib: 0, // conservative: no contribution assumption for income projection
-  }));
-
-  const forecast = forecastMultiAccountSeries(accountInputs, months, startDate);
-  const projection = dividendProjectionSeries(forecast, yieldPct);
-
-  // Aggregate to annual buckets for the bar chart
-  const annualMap: Record<string, number> = {};
-  for (const p of projection) {
-    const year = p.month.slice(0, 4);
-    annualMap[year] = (annualMap[year] || 0) + p.monthlyIncome;
-  }
-  const labels = Object.keys(annualMap).sort();
-  const data = labels.map((y) => Math.round(annualMap[y]));
-
-  // ETA: first year projected income crosses a round threshold
-  const lastAnnual = data.length > 0 ? data[data.length - 1] : 0;
-  const etaEl = document.getElementById('div-proj-eta');
-  if (etaEl) {
-    if (yieldPct <= 0) {
-      etaEl.textContent = 'Enter a yield above to see the projection.';
-    } else {
-      etaEl.textContent = `Projected annual dividend income in ${months / 12} years: ${fmtEur2(lastAnnual)} (at ${fmtPctVal(yieldPct)} yield)`;
-    }
-  }
-
-  const C = resolvedT();
-  _divProjChart = new Chart(canvas, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: 'Projected annual income',
-          data,
-          backgroundColor: C.pos,
-          borderColor: C.pos,
-          borderWidth: 1,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => ` ${fmtEur2(ctx.raw as number)}`,
-          },
-        },
-      },
-      scales: {
-        y: {
-          ticks: { color: C.ink4, callback: (v) => fmtEur2(v as number) },
-          grid: { color: C.line },
-        },
-        x: { ticks: { color: C.ink4 }, grid: { color: C.line } },
-      },
-    },
-  });
-}
-
-function _attachDivProjListeners(
-  el: HTMLElement,
-  pd: PortfolioData,
-  snaps: Snapshot[],
-  calculatedYield: number,
-): void {
-  // Yield input
-  const yieldInput = el.querySelector('#div-proj-yield') as HTMLInputElement | null;
-  if (yieldInput) {
-    yieldInput.addEventListener('input', () => {
-      _divProjYield = parseFloat(yieldInput.value) || 0;
-      _savePersistedYield(_divProjYield);
-      _renderDivProjChart(pd, snaps);
-    });
-  }
-
-  // Reset to calculated button
-  const resetBtn = el.querySelector('#div-proj-yield-reset') as HTMLButtonElement | null;
-  if (resetBtn && yieldInput) {
-    resetBtn.addEventListener('click', () => {
-      _divProjYield = calculatedYield;
-      _savePersistedYield(_divProjYield);
-      yieldInput.value = _divProjYield.toFixed(2);
-      _renderDivProjChart(pd, snaps);
-    });
-  }
-
-  // Range toggle
-  el.querySelector('#div-proj-range-toggle')?.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest('[data-proj-range]') as HTMLElement | null;
-    if (!btn) return;
-    const newRange = btn.dataset.projRange as '60' | '120' | '240';
-    if (newRange === _divProjRange) return;
-    _divProjRange = newRange;
-    el.querySelectorAll('#div-proj-range-toggle [data-proj-range]').forEach((b) =>
-      b.classList.toggle('active', (b as HTMLElement).dataset.projRange === newRange),
-    );
-    _renderDivProjChart(pd, snaps);
-  });
 }
