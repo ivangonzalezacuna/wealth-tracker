@@ -11,4 +11,13 @@ declare global {
     __exportBackup?: () => Promise<void>;
     __restoreFromBackup?: (file: File) => Promise<'cancelled' | 'done'>;
   }
+
+  // Non-standard InputDeviceCapabilities API (Chrome/Android)
+  interface InputDeviceCapabilities {
+    firesTouchEvents: boolean;
+  }
+
+  interface MouseEvent {
+    readonly sourceCapabilities: InputDeviceCapabilities | null;
+  }
 }
