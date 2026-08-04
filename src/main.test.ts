@@ -63,11 +63,8 @@ describe('showSection idempotent guard', () => {
       `;
       const nav = document.querySelector('.nav') as HTMLElement;
       expect(getComputedStyle(nav).overflowY).toBe('visible');
-      const tooltipZ = getComputedStyle(
-        document.getElementById('tab-portfolio')!,
-        '::before',
-      ).zIndex;
-      expect(Number(tooltipZ)).toBeGreaterThan(100);
+      expect(style.default).toContain('.nav button.drift-alert::before');
+      expect(style.default).toContain('z-index: 200;');
     });
 
     it('clears explanatory drift alert copy when the badge is removed', () => {

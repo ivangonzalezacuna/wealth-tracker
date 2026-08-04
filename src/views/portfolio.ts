@@ -574,6 +574,8 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   if (!has) return;
 
   _holdPage = 1;
+  _holdingsFilter = 'held';
+  _holdingsSearch = '';
 
   const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
   const snapEtfValues = extractSnapEtfValues(latSnap);
