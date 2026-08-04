@@ -1245,6 +1245,51 @@ function clearSnapForm() {
     const el = document.getElementById(`snap-${a.key}`) as HTMLInputElement | null;
     if (el) el.value = '';
   }
+
+  function getLatestSnapshotValues(): Record<string, number | string | undefined> | null {
+    if (state.snaps.length === 0) return null;
+    return state.snaps[state.snaps.length - 1];
+  }
+
+  function prefillSnapFormFromLatest(): void {
+    const latest = getLatestSnapshotValues();
+    if (!latest) return;
+
+    for (const a of getACCTSList()) {
+      const el = document.getElementById(`snap-${a.key}`) as HTMLInputElement | null;
+      if (el && !el.value) {
+        const value = latest[a.key];
+        if (typeof value === 'number') el.value = String(value);
+      }
+    }
+
+    let hasEtfValues = false;
+    for (const [key, val] of Object.entries(latest)) {
+      if (!key.startsWith('etf_') || typeof val !== 'number' || val <= 0) continue;
+      const isin = key.slice(4);
+      const etfEl = document.getElementById(`snap-etf-${isin}`) as HTMLInputElement | null;
+      if (etfEl && !etfEl.value) {
+        etfEl.value = String(val);
+        hasEtfValues = true;
+      }
+    }
+
+    if (hasEtfValues) {
+      document.querySelectorAll<HTMLElement>('.snap-etf-section').forEach((section) => {
+        section.style.display = '';
+      });
+      document.querySelectorAll<HTMLElement>('.snap-etf-toggle').forEach((btn) => {
+        btn.setAttribute('aria-expanded', 'true');
+        const chevron = btn.querySelector('.snap-etf-chevron') as HTMLElement | null;
+        if (chevron) chevron.textContent = '\u25be';
+      });
+      for (const a of getAccounts()) {
+        if (a.isPrimaryInvestment && (a.moneyType || '').toLowerCase() === 'investment') {
+          _updateSnapEtfRecon(a.id || a.key || '');
+        }
+      }
+    }
+  }
   const notes = document.getElementById('snap-notes') as HTMLInputElement | null;
   if (notes) notes.value = '';
 
@@ -1587,6 +1632,7 @@ function renderSnapForm(pd?: PortfolioData | null) {
     dateEl.max = currentMonth();
     if (!dateEl.value) dateEl.value = currentMonth();
   }
+  prefillSnapFormFromLatest();
 }
 
 /** Returns ISINs of all non-exited positions, sorted for stable comparison. */

@@ -299,6 +299,7 @@ describe('renderNW', () => {
     renderNW(makePD(), snaps);
     const kpis = document.getElementById('nw-kpis')!.innerHTML;
     expect(kpis).toContain('CAGR');
+    expect(kpis).toContain('TWR');
     expect(kpis).toContain('IRR (investments)');
   });
 

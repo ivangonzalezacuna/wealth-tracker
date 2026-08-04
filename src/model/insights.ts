@@ -29,6 +29,30 @@ export function cagr(first: number, last: number, months: number): number | null
 }
 
 /**
+ * Time-weighted return using linked sub-period returns between consecutive
+ * snapshots. Returns null when fewer than 2 periods exist or any period starts
+ * at a non-positive value.
+ */
+export function twr(
+  snaps: Snapshot[],
+  contributionsByMonth: Record<string, number>,
+): number | null {
+  if (snaps.length < 2) return null;
+  let growth = 1;
+  let periods = 0;
+  for (let i = 1; i < snaps.length; i++) {
+    const prevTotal = snapTotal(snaps[i - 1]);
+    const curTotal = snapTotal(snaps[i]);
+    if (prevTotal <= 0) return null;
+    const contribution = contributionsByMonth[snaps[i].date] || 0;
+    const periodReturn = (curTotal - contribution) / prevTotal - 1;
+    growth *= 1 + periodReturn;
+    periods++;
+  }
+  return periods > 0 ? growth - 1 : null;
+}
+
+/**
  * Find the snapshot nearest to 12 months before the latest snapshot.
  * Returns null when fewer than 13 snapshots' months of history exist.
  */

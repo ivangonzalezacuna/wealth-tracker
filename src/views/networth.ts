@@ -21,7 +21,7 @@ import {
 } from '../store/config';
 import { primaryInvestmentValue, allInvestmentAccountsValue } from '../model/accounts';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
-import { cagr, findYoYSnapshot, monthlyGrowthHistory, xirr } from '../model/insights';
+import { cagr, findYoYSnapshot, monthlyGrowthHistory, twr, xirr } from '../model/insights';
 import type { MonthlyGrowthPoint } from '../model/insights';
 import {
   formatMonthsEta,
@@ -104,6 +104,7 @@ export function renderNW(
     yoyData && yoyData.total > 0 ? ((total - yoyData.total) / yoyData.total) * 100 : null;
 
   const cagrVal = cagr(firstTotal, total, monthsSpan);
+  const twrVal = twr(snaps, pd?.monthly || {});
   // Use all investment-type accounts for the IRR terminal value so multi-account
   // portfolios are not understated. Falls back to null (IRR hidden) when no
   // investment account has a snapshot value.
@@ -211,6 +212,12 @@ export function renderNW(
       })}`
         : ''
     }
+    ${kpiTile({
+      label: `TWR${infoTip('Time-weighted return, linked across snapshot periods and net of recorded contributions. Useful for assessing portfolio performance with less distortion from contribution timing than IRR.')}`,
+      value: twrVal !== null ? fmtPctNeg(twrVal * 100) : '-',
+      valueClass: twrVal === null ? '' : twrVal >= 0 ? 'pos' : 'neg',
+      sub: twrVal !== null ? 'linked monthly returns' : 'needs 2 snapshots and valid starting value',
+    })}
     ${kpiTile({
       label: `IRR (investments)${infoTip('Money-weighted annual return on invested capital. Uses BUY cash outflows plus current primary investment value. SELL and dividend cash movements stay inside the account value and are not counted separately. If sell proceeds were withdrawn from your tracked accounts, those cash flows are not modelled as explicit inflows, so the IRR figure may overstate performance for portfolios with significant realized exits.')}`,
       value: irrVal !== null ? fmtPctNeg(irrVal * 100) : '-',
