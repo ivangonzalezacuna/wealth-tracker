@@ -441,7 +441,9 @@ describe('restore savepoint error handling', () => {
   }
 
   it('preserves the original underlying error instead of replacing it with a missing savepoint error', async () => {
-    const restoreTransactionsMock = vi.fn().mockRejectedValue(new Error('table holdings has no column named ter'));
+    const restoreTransactionsMock = vi
+      .fn()
+      .mockRejectedValue(new Error('table holdings has no column named ter'));
     const runInSavepointMock = vi.fn(async (_name: string, fn: () => Promise<void>) => {
       try {
         await fn();
@@ -450,7 +452,9 @@ describe('restore savepoint error handling', () => {
       }
     });
 
-    await expect(emulateRestoreFailure(runInSavepointMock, restoreTransactionsMock)).rejects.toThrow(
+    await expect(
+      emulateRestoreFailure(runInSavepointMock, restoreTransactionsMock),
+    ).rejects.toThrow(
       'Restore failed - your original data has been preserved. (table holdings has no column named ter)',
     );
   });
