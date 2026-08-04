@@ -71,30 +71,38 @@ export async function mergeTransactions(
  */
 export async function restoreTransactions(txs: Transaction[]): Promise<void> {
   const db = await getDb();
-  db.run('DELETE FROM transactions');
   const stmt = db.prepare(
     'INSERT INTO transactions (id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
-  for (const t of txs) {
-    stmt.run([
-      t.id,
-      t.date,
-      t.source || '',
-      t.type,
-      t.name,
-      t.isin || '',
-      t.shares,
-      t.price,
-      t.amount,
-      t.fee || 0,
-      t.tax || 0,
-      t.currency || 'EUR',
-      t.fxRate || 0,
-      t.note || '',
-      t.category || '',
-    ]);
+  try {
+    db.run('BEGIN');
+    db.run('DELETE FROM transactions');
+    for (const t of txs) {
+      stmt.run([
+        t.id,
+        t.date,
+        t.source || '',
+        t.type,
+        t.name,
+        t.isin || '',
+        t.shares,
+        t.price,
+        t.amount,
+        t.fee || 0,
+        t.tax || 0,
+        t.currency || 'EUR',
+        t.fxRate || 0,
+        t.note || '',
+        t.category || '',
+      ]);
+    }
+    db.run('COMMIT');
+  } catch (err) {
+    db.run('ROLLBACK');
+    throw err;
+  } finally {
+    stmt.free();
   }
-  stmt.free();
   await persistDb();
 }
 

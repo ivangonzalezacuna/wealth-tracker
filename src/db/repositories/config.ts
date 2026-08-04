@@ -21,28 +21,36 @@ export async function loadAccounts(): Promise<Account[]> {
 /** Save accounts (full replace). */
 export async function saveAccounts(accounts: Account[]): Promise<void> {
   const db = await getDb();
-  db.run('DELETE FROM accounts');
   const stmt = db.prepare(
     'INSERT INTO accounts (id, money_type, institution, label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
-  for (const a of accounts) {
-    stmt.run([
-      a.id || a.key || '',
-      a.moneyType || '',
-      a.institution || '',
-      a.label || '',
-      a.color || '',
-      a.isPrimaryInvestment ? 1 : 0,
-      a.order ?? 0,
-      a.annualReturnPct ?? 0,
-      a.contribAmount ?? 0,
-      a.contribInterval || 'monthly',
-      a.locked ? 1 : 0,
-      a.lockedUntil || '',
-      a.extraContrib ?? 0,
-    ]);
+  try {
+    db.run('BEGIN');
+    db.run('DELETE FROM accounts');
+    for (const a of accounts) {
+      stmt.run([
+        a.id || a.key || '',
+        a.moneyType || '',
+        a.institution || '',
+        a.label || '',
+        a.color || '',
+        a.isPrimaryInvestment ? 1 : 0,
+        a.order ?? 0,
+        a.annualReturnPct ?? 0,
+        a.contribAmount ?? 0,
+        a.contribInterval || 'monthly',
+        a.locked ? 1 : 0,
+        a.lockedUntil || '',
+        a.extraContrib ?? 0,
+      ]);
+    }
+    db.run('COMMIT');
+  } catch (err) {
+    db.run('ROLLBACK');
+    throw err;
+  } finally {
+    stmt.free();
   }
-  stmt.free();
   await persistDb();
 }
 
@@ -61,27 +69,35 @@ export async function loadHoldings(): Promise<Holding[]> {
 /** Save holdings (full replace). */
 export async function saveHoldings(holdings: Holding[]): Promise<void> {
   const db = await getDb();
-  db.run('DELETE FROM holdings');
   const stmt = db.prepare(
     'INSERT INTO holdings (isin, name, short_name, color, acc, active, contrib_amount, contrib_interval, asset_class, region, fold_into, "order") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
-  for (const h of holdings) {
-    stmt.run([
-      h.isin,
-      h.name || '',
-      h.shortName || '',
-      h.color || '',
-      h.acc ? 1 : 0,
-      h.active ? 1 : 0,
-      h.contribAmount ?? 0,
-      h.contribInterval || 'weekly',
-      h.assetClass || '',
-      h.region || '',
-      h.foldInto || '',
-      h.order ?? 0,
-    ]);
+  try {
+    db.run('BEGIN');
+    db.run('DELETE FROM holdings');
+    for (const h of holdings) {
+      stmt.run([
+        h.isin,
+        h.name || '',
+        h.shortName || '',
+        h.color || '',
+        h.acc ? 1 : 0,
+        h.active ? 1 : 0,
+        h.contribAmount ?? 0,
+        h.contribInterval || 'weekly',
+        h.assetClass || '',
+        h.region || '',
+        h.foldInto || '',
+        h.order ?? 0,
+      ]);
+    }
+    db.run('COMMIT');
+  } catch (err) {
+    db.run('ROLLBACK');
+    throw err;
+  } finally {
+    stmt.free();
   }
-  stmt.free();
   await persistDb();
 }
 
@@ -116,14 +132,22 @@ export async function deleteSetting(key: string): Promise<void> {
 /** Full replace of all settings (backup restore). */
 export async function replaceAllSettings(settings: Settings): Promise<void> {
   const db = await getDb();
-  db.run('DELETE FROM settings');
   const stmt = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
-  for (const [k, v] of Object.entries(settings)) {
-    if (v !== null && v !== undefined) {
-      stmt.run([k, String(v)]);
+  try {
+    db.run('BEGIN');
+    db.run('DELETE FROM settings');
+    for (const [k, v] of Object.entries(settings)) {
+      if (v !== null && v !== undefined) {
+        stmt.run([k, String(v)]);
+      }
     }
+    db.run('COMMIT');
+  } catch (err) {
+    db.run('ROLLBACK');
+    throw err;
+  } finally {
+    stmt.free();
   }
-  stmt.free();
   await persistDb();
 }
 
