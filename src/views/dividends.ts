@@ -7,7 +7,6 @@ import { getAccounts, getCostBasisMethod, getHoldings } from '../store/config';
 import { computeCostBasis } from '../model/costbasis';
 import { dividendProjectionSeries, forecastMultiAccountSeries } from '../model/forecast';
 import { trailingDividendYield } from '../model/insights';
-import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 import type { SortState } from './tableSort';
 import { applySort, bindSortableHeader } from './tableSort';
 import type { ColumnDef } from './tableColumns';
@@ -611,12 +610,31 @@ function attachIntFilterListeners(pd: PortfolioData): void {
 
 // ── Dividend income projection ─────────────────────────────────────
 
-const DIV_PROJ_COLLAPSE_KEY = 'div:income-projection';
+const DIV_PROJ_YIELD_KEY = 'div:proj-yield';
 let _divProjRange: '60' | '120' | '240' = '60';
 let _divProjYield: number | null = null;
 let _divProjChart: Chart | null = null;
 let _divProjPd: PortfolioData | null = null;
 let _divProjSnaps: Snapshot[] = [];
+
+function _loadPersistedYield(): number | null {
+  try {
+    const raw = localStorage.getItem(DIV_PROJ_YIELD_KEY);
+    if (raw === null) return null;
+    const v = parseFloat(raw);
+    return isFinite(v) && v >= 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function _savePersistedYield(value: number): void {
+  try {
+    localStorage.setItem(DIV_PROJ_YIELD_KEY, String(value));
+  } catch {
+    // ignore storage errors
+  }
+}
 
 function renderDivProjection(pd: PortfolioData, snaps: Snapshot[]): void {
   const el = document.getElementById('div-projection');
@@ -636,44 +654,49 @@ function renderDivProjection(pd: PortfolioData, snaps: Snapshot[]): void {
 
   if (!has12mDiv) {
     el.innerHTML = `
-      <div class="card card-collapsible collapsed" id="div-card-projection" data-card-key="div-projection">
-        <div class="card-header js-div-proj-toggle" style="cursor:pointer">
+      <div class="card" id="div-card-projection">
+        <div class="card-header">
           <div class="card-title">Dividend income projection${infoTip('Forward projection of annual dividend income based on your portfolio forecast and a configurable yield rate. Requires at least 12 months of dividend history.')}</div>
-          <span class="card-chevron"></span>
         </div>
         <div class="card-body">
           <p class="note">At least 12 months of dividend history is needed to show the income projection.</p>
         </div>
       </div>`;
-    _attachDivProjToggle(el);
     return;
   }
 
-  // Compute auto-fill yield from trailing 12m dividends
+  // Use persisted yield if available, otherwise seed from trailing 12m calculation
   if (_divProjYield === null) {
-    _divProjYield = trailingDividendYield(pd.divHist, pd.totalInv) ?? 0;
+    const persisted = _loadPersistedYield();
+    _divProjYield =
+      persisted !== null ? persisted : (trailingDividendYield(pd.divHist, pd.totalInv) ?? 0);
   }
 
-  const collapsed = isCollapsed(DIV_PROJ_COLLAPSE_KEY);
-  el.innerHTML = _renderDivProjCard(pd, snaps, collapsed);
+  const calculatedYield = trailingDividendYield(pd.divHist, pd.totalInv) ?? 0;
+  el.innerHTML = _renderDivProjCard(calculatedYield);
   attachInfoTips(el);
-  _attachDivProjListeners(el, pd, snaps);
-  if (!collapsed) _renderDivProjChart(pd, snaps);
+  _attachDivProjListeners(el, pd, snaps, calculatedYield);
+  _renderDivProjChart(pd, snaps);
 }
 
-function _renderDivProjCard(pd: PortfolioData, snaps: Snapshot[], collapsed: boolean): string {
+function _renderDivProjCard(calculatedYield: number): string {
   const yieldVal = _divProjYield ?? 0;
+  const calcHint =
+    calculatedYield > 0
+      ? `<span style="font-size:12px;color:var(--ink-3)">Calculated from history: ${fmtPctVal(calculatedYield)}</span>`
+      : '';
   return `
-    <div class="card card-collapsible${collapsed ? ' collapsed' : ''}" id="div-card-projection">
-      <div class="card-header js-div-proj-toggle" style="cursor:pointer">
-        <div class="card-title">Dividend income projection${infoTip('Forward projection of estimated annual dividend income based on your portfolio growth forecast and a configurable yield. Yield is pre-filled from your trailing 12-month dividend income divided by current invested capital.')}</div>
-        <span class="card-chevron"></span>
+    <div class="card" id="div-card-projection">
+      <div class="card-header">
+        <div class="card-title">Dividend income projection${infoTip('Forward projection of estimated annual dividend income based on your portfolio growth forecast and a configurable yield. The yield is seeded from your trailing 12-month dividend income divided by current invested capital. You can override it and your value will be remembered.')}</div>
       </div>
       <div class="card-body">
         <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
-          <div style="display:flex;align-items:center;gap:6px">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             <label for="div-proj-yield" style="font-size:13px;color:var(--ink-2)">Annual yield (%)</label>
             <input id="div-proj-yield" class="form-input form-input-sm" type="number" min="0" max="100" step="0.1" value="${yieldVal.toFixed(2)}" style="width:80px">
+            ${calcHint}
+            ${calculatedYield > 0 ? `<button id="div-proj-yield-reset" class="btn btn-sm btn-ghost">Reset to calculated</button>` : ''}
           </div>
           <div class="range-toggle" id="div-proj-range-toggle">
             <button class="btn btn-sm btn-ghost ${_divProjRange === '60' ? 'active' : ''}" data-proj-range="60">5Y</button>
@@ -769,26 +792,29 @@ function _renderDivProjChart(pd: PortfolioData, snaps: Snapshot[]): void {
   });
 }
 
-function _attachDivProjToggle(el: HTMLElement): void {
-  el.querySelector('.js-div-proj-toggle')?.addEventListener('click', () => {
-    const card = document.getElementById('div-card-projection');
-    if (!card) return;
-    const nowCollapsed = toggleCollapsed(DIV_PROJ_COLLAPSE_KEY);
-    card.classList.toggle('collapsed', nowCollapsed);
-    if (!nowCollapsed && _divProjPd) {
-      _renderDivProjChart(_divProjPd, _divProjSnaps);
-    }
-  });
-}
-
-function _attachDivProjListeners(el: HTMLElement, pd: PortfolioData, snaps: Snapshot[]): void {
-  _attachDivProjToggle(el);
-
+function _attachDivProjListeners(
+  el: HTMLElement,
+  pd: PortfolioData,
+  snaps: Snapshot[],
+  calculatedYield: number,
+): void {
   // Yield input
   const yieldInput = el.querySelector('#div-proj-yield') as HTMLInputElement | null;
   if (yieldInput) {
     yieldInput.addEventListener('input', () => {
       _divProjYield = parseFloat(yieldInput.value) || 0;
+      _savePersistedYield(_divProjYield);
+      _renderDivProjChart(pd, snaps);
+    });
+  }
+
+  // Reset to calculated button
+  const resetBtn = el.querySelector('#div-proj-yield-reset') as HTMLButtonElement | null;
+  if (resetBtn && yieldInput) {
+    resetBtn.addEventListener('click', () => {
+      _divProjYield = calculatedYield;
+      _savePersistedYield(_divProjYield);
+      yieldInput.value = _divProjYield.toFixed(2);
       _renderDivProjChart(pd, snaps);
     });
   }
