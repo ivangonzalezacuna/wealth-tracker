@@ -1860,23 +1860,13 @@ function attachBackupListeners(root: HTMLElement): void {
   });
 }
 
-
 // ── Config history (audit log) ──────────────────────────────────────────────
 
-/** Format an ISO timestamp to a concise local datetime string. */
 function fmtHistoryTimestamp(iso: string): string {
   if (!iso) return '';
   try {
-    return new Date(iso).toLocaleString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
+    return new Date(iso).toLocaleString(undefined, { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  } catch { return iso; }
 }
 
 export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
@@ -1884,26 +1874,21 @@ export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
   if (entries.length === 0) {
     body = '<p class="note" style="margin-top:.5rem">No changes recorded yet.</p>';
   } else {
-    const rows = entries
-      .map(
-        (e) => `
+    const hdrStyle = 'text-align:left;font-size:11px;color:var(--ink-3);border-bottom:1px solid var(--line)';
+    const rows = entries.map((e) => `
       <tr>
         <td style="white-space:nowrap;padding-right:1rem;color:var(--ink-3);font-size:11px">${esc(fmtHistoryTimestamp(e.timestamp))}</td>
         <td style="padding-right:.75rem;font-size:12px;color:var(--ink-2)">${esc(e.entity)}</td>
         <td style="font-size:12px">${esc(e.summary)}</td>
-      </tr>`,
-      )
-      .join('');
+      </tr>`).join('');
     body = `
       <div style="overflow-x:auto;margin-top:.5rem">
         <table style="border-collapse:collapse;width:100%;min-width:400px">
-          <thead>
-            <tr style="text-align:left;font-size:11px;color:var(--ink-3);border-bottom:1px solid var(--line)">
-              <th style="padding-bottom:.4rem;padding-right:1rem">When</th>
-              <th style="padding-bottom:.4rem;padding-right:.75rem">What</th>
-              <th style="padding-bottom:.4rem">Summary</th>
-            </tr>
-          </thead>
+          <thead><tr style="${hdrStyle}">
+            <th style="padding-bottom:.4rem;padding-right:1rem">When</th>
+            <th style="padding-bottom:.4rem;padding-right:.75rem">What</th>
+            <th style="padding-bottom:.4rem">Summary</th>
+          </tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>

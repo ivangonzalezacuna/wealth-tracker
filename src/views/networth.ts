@@ -88,8 +88,7 @@ function _renderGoalCards(): void {
   }
 
   // Build per-goal panel HTML; skip reached or invalid goals.
-  type GoalPanel = { title: string; html: string };
-  const panels: GoalPanel[] = [];
+  const panels: Array<{ title: string; html: string }> = [];
 
   for (const goal of goals) {
     const rawNW = (goal.targetNetWorth || '').replace(/\./g, '').replace(',', '.');
@@ -107,8 +106,8 @@ function _renderGoalCards(): void {
     let isOnTrack: boolean | null = null;
     if (etaMonths !== null) {
       const etaFormatted = formatMonthsEta(etaMonths);
-      const now = new Date();
-      const etaDate = new Date(now.getFullYear(), now.getMonth() + etaMonths, 1);
+      const etaDate = new Date();
+      etaDate.setMonth(etaDate.getMonth() + etaMonths, 1);
       const etaDateStr = `${etaDate.getFullYear()}-${String(etaDate.getMonth() + 1).padStart(2, '0')}`;
       const etaDateFmt = fmtMon(etaDateStr);
       if (validTargetDate) {
@@ -805,16 +804,10 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     : null;
 
   const _allGoals = getGoals();
+  const DEADLINE_COLORS = ['rgba(255,160,30,0.9)', 'rgba(200,80,200,0.9)', 'rgba(30,190,180,0.9)', 'rgba(220,60,60,0.9)'];
 
-  // Deadline markers: one vertical line per goal that has a targetDate in the chart range.
-  // Collect deadlines as { label: string, labelIndex: number } for use in the inline plugin.
+  // Deadline markers: vertical line + dot per goal that has a targetDate in the chart range.
   const goalDeadlines: Array<{ title: string; labelIndex: number; color: string; targetNW: number | null }> = [];
-  const DEADLINE_COLORS = [
-    'rgba(255,160,30,0.9)',
-    'rgba(200,80,200,0.9)',
-    'rgba(30,190,180,0.9)',
-    'rgba(220,60,60,0.9)',
-  ];
   _allGoals.forEach((g, gi) => {
     const dl = (g.targetDate || '').trim();
     if (!/^\d{4}-\d{2}$/.test(dl)) return;
@@ -909,33 +902,21 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
             goalDeadlines.forEach((d) => {
               const x = scales['x'].getPixelForValue(d.labelIndex);
               if (x < chartArea.left || x > chartArea.right) return;
-              // Vertical dashed line
-              ctx.beginPath();
-              ctx.moveTo(x, chartArea.top);
-              ctx.lineTo(x, chartArea.bottom);
               ctx.strokeStyle = d.color;
               ctx.lineWidth = 1.5;
               ctx.setLineDash([4, 3]);
-              ctx.stroke();
+              ctx.beginPath(); ctx.moveTo(x, chartArea.top); ctx.lineTo(x, chartArea.bottom); ctx.stroke();
               ctx.setLineDash([]);
-              // Label at the top
               ctx.fillStyle = d.color;
               ctx.font = '10px sans-serif';
               ctx.textAlign = 'left';
-              const textX = x + 3;
-              const textY = chartArea.top + 12;
-              ctx.fillText(d.title, textX, textY);
-              // Dot at (deadline, targetNW)
+              ctx.fillText(d.title, x + 3, chartArea.top + 12);
               if (d.targetNW !== null && scales['y']) {
                 const y = scales['y'].getPixelForValue(d.targetNW);
                 if (y >= chartArea.top && y <= chartArea.bottom) {
-                  ctx.beginPath();
-                  ctx.arc(x, y, 5, 0, Math.PI * 2);
-                  ctx.fillStyle = d.color;
-                  ctx.fill();
-                  ctx.strokeStyle = 'var(--surface-1)';
-                  ctx.lineWidth = 1.5;
-                  ctx.stroke();
+                  ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2);
+                  ctx.fillStyle = d.color; ctx.fill();
+                  ctx.strokeStyle = 'var(--surface-1)'; ctx.lineWidth = 1.5; ctx.stroke();
                 }
               }
             });
