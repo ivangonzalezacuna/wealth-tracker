@@ -119,6 +119,16 @@ export function getCostBasisMethod(): 'fifo' | 'avgco' {
   return v === 'fifo' ? 'fifo' : 'avgco';
 }
 
+/** Benchmark: label (e.g. "MSCI World") and annual return assumption (fraction, not percent). */
+export function getBenchmark(): { label: string; annualReturn: number } | null {
+  const label = (_settings.benchmarkLabel || '').trim();
+  const raw = (_settings.benchmarkAnnualReturnPct || '').trim();
+  if (!label || !raw) return null;
+  const pct = parseFloat(raw);
+  if (!isFinite(pct)) return null;
+  return { label, annualReturn: pct / 100 };
+}
+
 // ── Register re-render callback ──────────────────────────
 export function onConfigChange(fn: (changed: ConfigChangeKind) => void): void {
   _onChange = fn;

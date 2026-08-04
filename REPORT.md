@@ -63,13 +63,13 @@ The app calculates CAGR and XIRR (money-weighted IRR). Neither metric isolates m
 - **What is needed:** A TWR calculation using snapshot-to-snapshot return chaining, which is compatible with the existing monthly snapshot data structure.
 - **Resolution:** A TWR KPI is now shown alongside CAGR and IRR on the Net Worth tab. It links consecutive snapshot-period returns and nets out recorded monthly contributions so performance can be assessed with less distortion from contribution timing.
 
-### 2.2 No Benchmark Comparison (MEDIUM)
+### 2.2 No Benchmark Comparison (MEDIUM) - RESOLVED
 
 Returns (CAGR, IRR, YoY) are shown in isolation. There is no way to overlay or compare against a market index (MSCI World, S&P 500, STOXX 600, etc.).
 
 - **Confirmed in:** `src/views/networth.ts`, `src/model/insights.ts` (no benchmark data structure or calculation)
 - **Impact:** Users cannot assess whether their investment decisions have added or destroyed value relative to simply buying a passive index. This is the single most important context for evaluating an investment strategy.
-- **What is needed:** An optional user-configured benchmark ticker (or a hardcoded set of common indices) with return data shown alongside portfolio metrics on the Net Worth tab.
+- **Resolution:** Added optional manual benchmark configuration (name + annual return %) in Settings → Goal & Benchmark. When configured, a "vs {Benchmark}" KPI tile appears on the Net Worth tab showing CAGR delta (e.g. +1.3% vs 8%/yr assumption). `getBenchmark()` reads the settings; tile is hidden when benchmark is not configured or CAGR is unavailable.
 
 ### 2.3 No Risk Metrics (MEDIUM) - RESOLVED
 

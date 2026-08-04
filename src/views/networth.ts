@@ -18,6 +18,7 @@ import {
   getTotalAnnualContrib,
   getTargetNetWorth,
   getTargetDate,
+  getBenchmark,
 } from '../store/config';
 import { primaryInvestmentValue, allInvestmentAccountsValue } from '../model/accounts';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
@@ -104,6 +105,7 @@ export function renderNW(
     yoyData && yoyData.total > 0 ? ((total - yoyData.total) / yoyData.total) * 100 : null;
 
   const cagrVal = cagr(firstTotal, total, monthsSpan);
+  const benchmark = getBenchmark();
   const twrVal = twr(snaps, pd?.monthly || {});
   // Use all investment-type accounts for the IRR terminal value so multi-account
   // portfolios are not understated. Falls back to null (IRR hidden) when no
@@ -212,6 +214,19 @@ export function renderNW(
         valueClass: cagrVal >= 0 ? 'pos' : 'neg',
         sub: `${monthsSpan} months${monthsSpan < 24 ? ' (early data)' : ''}`,
       })}`
+        : ''
+    }
+    ${
+      benchmark !== null && cagrVal !== null
+        ? (() => {
+            const diff = cagrVal - benchmark.annualReturn;
+            return kpiTile({
+              label: `vs ${esc(benchmark.label)}${infoTip(`Difference between your CAGR (balance growth) and the manually configured benchmark return (${fmtPctNeg(benchmark.annualReturn * 100)} / yr). A positive value means your balance grew faster than the benchmark assumption. Note: CAGR is a balance metric and includes contributions; it is not a pure investment return. Configure the benchmark label and return in Settings under Goal. Data source: manual user assumption.`)}`,
+              value: diff >= 0 ? `+${fmtPctNeg(diff * 100)}` : fmtPctNeg(diff * 100),
+              valueClass: diff >= 0 ? 'pos' : 'neg',
+              sub: `CAGR vs ${fmtPctNeg(benchmark.annualReturn * 100)}/yr assumption`,
+            });
+          })()
         : ''
     }
     ${kpiTile({

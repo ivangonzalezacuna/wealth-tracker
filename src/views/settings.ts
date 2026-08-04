@@ -1122,6 +1122,8 @@ function attachCostBasisListeners(root: HTMLElement): void {
 function goalFieldsHtml(settings: Settings): string {
   const targetNW = settings.targetNetWorth || '';
   const targetDate = settings.targetDate || '';
+  const benchmarkLabel = settings.benchmarkLabel || '';
+  const benchmarkPct = settings.benchmarkAnnualReturnPct || '';
   return `
     <div class="form-grid" style="max-width:500px">
       <div class="form-group">
@@ -1133,6 +1135,14 @@ function goalFieldsHtml(settings: Settings): string {
         <label class="form-label" for="set-target-date">Target date (optional)</label>
         <input class="form-input" id="set-target-date" type="month" value="${esc(targetDate)}">
         <span class="note">Leave empty for ETA-only mode (no deadline).</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="set-benchmark-label">Benchmark name (optional)${infoTip('Label for a benchmark to compare against your CAGR on the Net Worth tab. Example: MSCI World. Leave empty to hide the comparison tile.')}</label>
+        <input class="form-input" id="set-benchmark-label" type="text" value="${esc(benchmarkLabel)}" placeholder="e.g. MSCI World">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="set-benchmark-pct">Benchmark annual return assumption (%)${infoTip('Manual annual return assumption for the benchmark, as a percentage. Example: 8 for 8%/yr. This is a user-supplied assumption, not real index data.')}</label>
+        <input class="form-input" id="set-benchmark-pct" type="number" min="-50" max="100" step="0.1" value="${esc(benchmarkPct)}" placeholder="e.g. 8">
       </div>
     </div>`;
 }
@@ -1161,11 +1171,21 @@ function attachGoalListeners(root: HTMLElement): void {
     const nwVal = (root.querySelector('#set-target-nw') as HTMLInputElement | null)?.value || '';
     const dateVal =
       (root.querySelector('#set-target-date') as HTMLInputElement | null)?.value || '';
+    const benchmarkLabelVal =
+      (root.querySelector('#set-benchmark-label') as HTMLInputElement | null)?.value || '';
+    const benchmarkPctVal =
+      (root.querySelector('#set-benchmark-pct') as HTMLInputElement | null)?.value || '';
     try {
       await withCardGuard(
         'goal',
         btn,
-        () => setSettings({ targetNetWorth: nwVal, targetDate: dateVal }),
+        () =>
+          setSettings({
+            targetNetWorth: nwVal,
+            targetDate: dateVal,
+            benchmarkLabel: benchmarkLabelVal,
+            benchmarkAnnualReturnPct: benchmarkPctVal,
+          }),
         {
           busyText: 'Saving...',
         },
