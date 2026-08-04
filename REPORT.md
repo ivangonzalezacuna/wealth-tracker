@@ -243,16 +243,62 @@ The Content-Security-Policy in `netlify.toml` includes `style-src 'self' 'unsafe
 - **Impact:** A failed mid-restore leaves the database in an indeterminate state that is difficult to diagnose and recover from.
 - **What is needed:** Wrap the entire restore sequence in a single SQLite transaction so that either all writes succeed or none do. The error should be surfaced to the user with a "Restore failed - original data preserved" message.
 
-### 6.5 No Storage Quota or IndexedDB Failure Monitoring (LOW)
+### 6.5 No Storage Quota Monitoring (LOW)
 
-IDB persistence failures (quota exceeded, private mode storage blocked) are not monitored or reported. The user will see stale data on next load without understanding why.
+IDB quota errors are caught silently (see 6.6) but the app never proactively checks available storage. Users on iOS or in private browsing mode have much lower IDB quotas and will hit the limit sooner.
 
-- **Confirmed in:** `src/db/connection.ts` (no `navigator.storage.estimate()` calls or quota error handling), `src/cache/db.ts`
+- **Confirmed in:** `src/db/connection.ts` (no `navigator.storage.estimate()` calls), `src/cache/db.ts`
 - **What is needed:** A one-time `navigator.storage.estimate()` check on startup and a persistent warning banner if available quota is below a safe threshold (e.g., below 10 MB with the db already at 5 MB).
+
+### 6.6 IDB Cache Write Failures Are Silently Ignored (MEDIUM)
+
+IDB (IndexedDB) cache writes in `src/cache/db.ts` catch all errors and discard them (`catch { // Quota or other IDB error - degrade gracefully }`). The main sync path in `main.ts` also wraps post-import cache writes in a bare `try/catch` with no user-visible feedback. This is intentional for quota resilience, but a failure after the user has confirmed an import means the next app load will show stale data with no warning.
+
+- **Confirmed in:** `src/cache/db.ts:131-133` (`setCachedConfig`), `src/main.ts:604-607` (post-import cache write in a silent catch)
+- **Impact:** The risk is narrower than a general "silent data loss" bug. The authoritative DB write (Google Sheets via Drive) must have already succeeded. The symptom is stale cache data on next boot, not lost transactions. However, users on low-storage devices (private mode, iOS) will not understand why data appears to have disappeared after a reload.
+- **What is needed:** Log a console warning with enough context to diagnose quota failures, and display a one-time "Local cache could not be saved. Reopen the app while online to reload from your backup." banner if the IDB write fails after an import or settings save.
 
 ---
 
-## Area 7: Known Limitations (Documented, Pending Resolution)
+## Area 7: Additional Findings (Post-Review Verification)
+
+The following issues were identified during codebase verification of the original report findings and were not present in the initial review.
+
+### 7.1 Custom Import Profiles Cannot Be Persisted or Reused (MEDIUM)
+
+`src/import/profile.ts` exports `buildProfileFromMapping()`, described in a comment as "the extension point for the future interactive column-mapper UI." However, there is no storage mechanism for user-defined profiles (no DB table, no IDB key, no export field). Even if the mapping UI were built, profiles would be lost on every page reload.
+
+- **Confirmed in:** `src/import/profile.ts` (`buildProfileFromMapping` is never called from `main.ts` or any view), `src/import/profiles/index.ts` (only built-in profiles exposed)
+- **Impact:** Users who configure a custom broker format cannot save or share it. Related to finding 4.3; without persistence, any custom-profile UI is unusable.
+- **What is needed:** A `custom_profiles` key in the IDB cache (or a DB table), serialization in the backup JSON, and a settings card to create/edit/delete custom profiles.
+
+### 7.2 IRR Calculation Ignores SELL Proceeds as Inflows (HIGH)
+
+The IRR tooltip in `src/views/networth.ts:215` states: "SELL and dividend cash movements stay inside the account value and are not counted separately." The cash-flow series passed to `xirr()` uses BUY outflows and the current account value as the terminal inflow. When a user sells a position and the proceeds leave the tracked account, those cash flows are not modelled as explicit inflows, potentially overstating IRR for portfolios with significant realized exits.
+
+- **Confirmed in:** `src/model/insights.ts` (IRR cash-flow construction), `src/views/networth.ts:215` (tooltip acknowledges the limitation)
+- **Impact:** For users who sold positions and withdrew proceeds, the IRR figure overstates investment performance. The tooltip partially acknowledges this but does not make the limitation prominent enough for a user to catch it.
+- **What is needed:** At minimum, expand the tooltip to clearly warn that IRR is only reliable when sell proceeds remain within the tracked account. Ideally, construct the IRR cash-flow series from individual BUY and SELL transaction records where available, falling back to the current approach otherwise.
+
+### 7.3 No Confirmation Dialog on Snapshot Delete (MEDIUM)
+
+Deleting a snapshot in the Log tab does not show a confirmation dialog. Account and holding deletions in Settings use `confirmDialog`, but the snapshot delete action bypasses this guard.
+
+- **Confirmed in:** `src/views/log.ts` (delete handler calls the repository directly), `src/views/settings.ts` (uses `confirmDialog` for account and holding deletes)
+- **Impact:** A single misclick permanently deletes a month's snapshot with no undo. Snapshots are the primary data source for the net-worth chart and IRR calculation; losing one distorts both.
+- **What is needed:** Wrap the snapshot delete handler in the same `confirmDialog` pattern used in Settings.
+
+### 7.4 Config Audit Log Is Never Surfaced in the UI (LOW)
+
+`src/db/repositories/config.ts` writes to a `config_history` table for every account, holding, and settings change. The table is populated correctly but there is no view, tab, or settings card where a user can inspect the log.
+
+- **Confirmed in:** `src/db/schema.ts:84-92` (table defined), `src/store/config.ts:180-454` (writes on every config save), no read path outside tests
+- **Impact:** The audit capability exists at the data layer but provides no user value. Users who accidentally misconfigure accounts cannot see what changed or when.
+- **What is needed:** A read-only "Config history" section in Settings (collapsible) that lists the last N entries from `config_history` with timestamp and summary.
+
+---
+
+## Area 8: Known Limitations (Documented, Pending Resolution)
 
 The following limitations are already acknowledged in the README or PR history and are listed here for completeness and to indicate they are active roadmap items rather than unknown gaps.
 
@@ -260,8 +306,10 @@ The following limitations are already acknowledged in the README or PR history a
 |---|---|---|
 | Multi-currency FX conversion | FX rate stored, never applied. UI warning in PR #125. | High - needs base-currency setting and conversion. |
 | Selling shares via UI | SELL recognized by engine, no UI form. Documented in README. | High - blocks rebalancing and exit workflows. |
-| ETF merger/consolidation (foldInto) | Code path exists, tested on synthetic data only. | Medium - unverified against real data. |
+| ETF merger/consolidation (foldInto) | Code path exists, tested on synthetic data only. In-UI warning shown when foldInto is set. | Medium - unverified against real data. |
 | More broker import profiles | Only Trade Republic and N26. Framework is open. | Medium - community contribution opportunity. |
+| IRR accuracy when sell proceeds leave the account | Tooltip acknowledges the limitation but does not quantify the distortion. | Medium - see finding 7.2. |
+| Custom import profiles not persistable | `buildProfileFromMapping()` exists but has no storage or UI. | Medium - see finding 7.1. |
 
 ---
 
@@ -279,26 +327,31 @@ The following limitations are already acknowledged in the README or PR history a
 5. Add HSTS and evaluate removing `'unsafe-inline'` from CSP (Area 6.3)
 6. Protect backup restore against partial writes (Area 6.4)
 7. Free prepared statements in try-finally blocks (Area 6.2)
-8. Add a TWR metric alongside CAGR/IRR (Area 2.1)
-9. Add a "tax year summary" export (Area 3.4)
-10. Surface allocation drift warning badge when tolerance is exceeded (Area 4.7)
-11. Add a holdings text search/filter (Area 4.4)
-12. Add expense ratio (TER) field to holdings and a fee-drag KPI (Area 3.3)
-13. Support withdrawal/drawdown in the forecast model (Area 4.6)
-14. Add a SPLIT transaction type (Area 1.3)
+8. Show user-visible warning when IDB cache write fails after import or settings save (Area 6.6)
+9. Add a TWR metric alongside CAGR/IRR (Area 2.1)
+10. Add a "tax year summary" export (Area 3.4)
+11. Surface allocation drift warning badge when tolerance is exceeded (Area 4.7)
+12. Add a holdings text search/filter (Area 4.4)
+13. Add expense ratio (TER) field to holdings and a fee-drag KPI (Area 3.3)
+14. Support withdrawal/drawdown in the forecast model (Area 4.6)
+15. Add a SPLIT transaction type (Area 1.3)
+16. Add a confirmation dialog to snapshot delete (Area 7.3)
+17. Clarify or fix IRR calculation for portfolios with withdrawn sell proceeds (Area 7.2)
 
 ### Nice to have (long-term roadmap)
 
-15. Benchmark comparison overlay on the Net Worth chart (Area 2.2)
-16. Annualized volatility and maximum drawdown metrics (Area 2.3)
-17. Multiple named goals with per-goal progress tracking (Area 4.5)
-18. First-class non-ISIN asset support (crypto, real estate, commodities) (Area 5.1)
-19. Per-account CAGR/IRR breakdown (Area 2.4)
-20. Tax jurisdiction field on accounts for holding-period and short/long-term gain tracking (Area 3.2)
-21. Tax-loss harvesting identification view (Area 3.1)
-22. Dividend income forward projection (Area 2.5)
-23. Storage quota monitoring (Area 6.5)
-24. Additional European broker import profiles: DEGIRO, Scalable Capital, Interactive Brokers (Area 4.3)
+18. Benchmark comparison overlay on the Net Worth chart (Area 2.2)
+19. Annualized volatility and maximum drawdown metrics (Area 2.3)
+20. Multiple named goals with per-goal progress tracking (Area 4.5)
+21. First-class non-ISIN asset support (crypto, real estate, commodities) (Area 5.1)
+22. Per-account CAGR/IRR breakdown (Area 2.4)
+23. Tax jurisdiction field on accounts for holding-period and short/long-term gain tracking (Area 3.2)
+24. Tax-loss harvesting identification view (Area 3.1)
+25. Dividend income forward projection (Area 2.5)
+26. Storage quota monitoring (Area 6.5)
+27. Additional European broker import profiles: DEGIRO, Scalable Capital, Interactive Brokers (Area 4.3)
+28. Custom import profile persistence and UI (Area 7.1)
+29. Surface config audit log (`config_history`) in the UI (Area 7.4)
 
 ---
 
