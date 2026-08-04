@@ -46,9 +46,9 @@ describe('cagr', () => {
 
     it('chains monthly returns net of contributions', () => {
       const snaps: Snapshot[] = [
-        { date: '2026-01-01', acct: 1000 },
-        { date: '2026-02-01', acct: 1200 },
-        { date: '2026-03-01', acct: 1430 },
+        { date: '2026-01-01', trade_republic: 1000 },
+        { date: '2026-02-01', trade_republic: 1200 },
+        { date: '2026-03-01', trade_republic: 1430 },
       ];
       const result = twr(snaps, { '2026-02-01': 100, '2026-03-01': 100 });
       expect(result).toBeCloseTo(0.3, 5);
@@ -56,8 +56,8 @@ describe('cagr', () => {
 
     it('returns null when a period starts from zero or below', () => {
       const snaps: Snapshot[] = [
-        { date: '2026-01-01', acct: 0 },
-        { date: '2026-02-01', acct: 100 },
+        { date: '2026-01-01', trade_republic: 0 },
+        { date: '2026-02-01', trade_republic: 100 },
       ];
       expect(twr(snaps, { '2026-02-01': 100 })).toBeNull();
     });
