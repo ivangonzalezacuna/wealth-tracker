@@ -571,50 +571,6 @@ describe('restore side effects sequencing', () => {
     ]);
   });
 
-  it('updates last_backup_at without triggering nested restore side effects', async () => {
-    const calls: string[] = [];
-
-    async function runWithConfigSideEffectsSuspendedMock<T>(fn: () => Promise<T>): Promise<T> {
-      calls.push('suspend:start');
-      try {
-        return await fn();
-      } finally {
-        calls.push('suspend:end');
-      }
-    }
-
-    const restoreFlow = async (): Promise<void> => {
-      await runWithConfigSideEffectsSuspendedMock(async () => {
-        calls.push('setAccounts');
-        calls.push('setHoldings');
-        calls.push('replaceSettings');
-      });
-      calls.push('saveSnapshots');
-      calls.push('restoreTransactions');
-      await runWithConfigSideEffectsSuspendedMock(async () => {
-        calls.push('setLastBackupAt');
-      });
-      calls.push('scheduleUpload');
-      calls.push('renderAll');
-    };
-
-    await restoreFlow();
-
-    expect(calls).toEqual([
-      'suspend:start',
-      'setAccounts',
-      'setHoldings',
-      'replaceSettings',
-      'suspend:end',
-      'saveSnapshots',
-      'restoreTransactions',
-      'suspend:start',
-      'setLastBackupAt',
-      'suspend:end',
-      'scheduleUpload',
-      'renderAll',
-    ]);
-  });
 });
 
 // ── withButtonGuard tests for saveSnapshot ─────────

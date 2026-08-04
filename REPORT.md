@@ -248,6 +248,7 @@ The Content-Security-Policy in `netlify.toml` includes `style-src 'self' 'unsafe
 - **Impact:** A failed mid-restore leaves the database in an indeterminate state that is difficult to diagnose and recover from.
 - **What is needed:** Wrap the entire restore sequence in a single SQLite transaction so that either all writes succeed or none do. The error should be surfaced to the user with a "Restore failed - original data preserved" message.
 - **Resolution:** A `runInSavepoint(name, fn)` helper has been added to `src/db/connection.ts` and exported from `src/db/index.ts`. It wraps an async callback in a SQLite `SAVEPOINT`/`RELEASE`/`ROLLBACK TO SAVEPOINT` so all inner transactions (which each use their own `BEGIN`/`COMMIT`) commit normally while still being atomically undoable as a group. The entire restore sequence in `restoreFromBackup()` is now wrapped in this savepoint. On any failure the savepoint is rolled back before the error is re-thrown, and the error message surfaces to the user as "Restore failed - your original data has been preserved."
+- **Attempted (failed):** Wrapping the trailing `setSetting('last_backup_at', ...)` call (which runs after the savepoint, outside the DB write group) in `runWithConfigSideEffectsSuspended` to prevent it from triggering reactive config side effects was tested and failed. That nesting approach was rolled back. The `last_backup_at` write currently remains a plain `setSetting` call outside the suspended scope. May revisit later.
 
 ### 6.5 No Storage Quota Monitoring (LOW)
 

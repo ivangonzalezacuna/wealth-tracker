@@ -872,9 +872,7 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
       setCachedTransactions(transactions),
       setCachedImportMeta(importMeta),
     ]);
-    await runWithConfigSideEffectsSuspended(async () => {
-      await setSetting('last_backup_at', new Date().toISOString());
-    });
+    await setSetting('last_backup_at', new Date().toISOString());
     renderAll();
     return 'done';
   } finally {
