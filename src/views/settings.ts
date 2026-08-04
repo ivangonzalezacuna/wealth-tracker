@@ -1465,6 +1465,13 @@ function _itemStableKey(item: HTMLElement): string | null {
     const isin = (item.querySelector('[data-field="isin"]') as HTMLInputElement | null)?.value;
     return isin ? 'item:hold:' + isin : null;
   }
+  // Goal rows: use label, falling back to targetNetWorth
+  if (item.classList.contains('settings-goal-row')) {
+    const label = (item.querySelector('[data-field="label"]') as HTMLInputElement | null)?.value?.trim();
+    const nw = (item.querySelector('[data-field="targetNetWorth"]') as HTMLInputElement | null)?.value?.trim();
+    const key = label || nw;
+    return key ? 'item:goal:' + key : null;
+  }
   return null;
 }
 
