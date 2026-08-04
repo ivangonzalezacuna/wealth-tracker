@@ -446,6 +446,7 @@ describe('restore savepoint error handling', () => {
           expect(ensureCurrentSchemaMock).toHaveBeenCalledTimes(1);
         });
       });
+
       return 'ok';
     } catch (err) {
       throw new Error(
@@ -490,6 +491,84 @@ describe('restore savepoint error handling', () => {
     ).rejects.toThrow(
       'Restore failed - your original data has been preserved. (table holdings has no column named ter)',
     );
+  });
+});
+
+describe('restore side effects sequencing', () => {
+  it('defers config side effects until the whole restore succeeds', async () => {
+    const calls: string[] = [];
+
+    async function runWithConfigSideEffectsSuspendedMock<T>(fn: () => Promise<T>): Promise<T> {
+      calls.push('suspend:start');
+      try {
+        return await fn();
+      } finally {
+        calls.push('suspend:end');
+      }
+    }
+
+    const restoreFlow = async (): Promise<void> => {
+      await runWithConfigSideEffectsSuspendedMock(async () => {
+        calls.push('setAccounts');
+        calls.push('setHoldings');
+        calls.push('replaceSettings');
+      });
+      calls.push('saveSnapshots');
+      calls.push('restoreTransactions');
+      calls.push('saveImportMeta');
+      calls.push('scheduleUpload');
+      calls.push('cacheState');
+      calls.push('renderAll');
+    };
+
+    await restoreFlow();
+
+    expect(calls).toEqual([
+      'suspend:start',
+      'setAccounts',
+      'setHoldings',
+      'replaceSettings',
+      'suspend:end',
+      'saveSnapshots',
+      'restoreTransactions',
+      'saveImportMeta',
+      'scheduleUpload',
+      'cacheState',
+      'renderAll',
+    ]);
+  });
+
+  it('does not trigger trailing side effects when restore fails before completion', async () => {
+    const calls: string[] = [];
+
+    async function runWithConfigSideEffectsSuspendedMock<T>(fn: () => Promise<T>): Promise<T> {
+      calls.push('suspend:start');
+      try {
+        return await fn();
+      } finally {
+        calls.push('suspend:end');
+      }
+    }
+
+    const restoreFlow = async (): Promise<void> => {
+      await runWithConfigSideEffectsSuspendedMock(async () => {
+        calls.push('setAccounts');
+        calls.push('setHoldings');
+        calls.push('replaceSettings');
+      });
+      calls.push('saveSnapshots');
+      throw new Error('restore failed');
+    };
+
+    await expect(restoreFlow()).rejects.toThrow('restore failed');
+    expect(calls).toEqual([
+      'suspend:start',
+      'setAccounts',
+      'setHoldings',
+      'replaceSettings',
+      'suspend:end',
+      'saveSnapshots',
+    ]);
   });
 });
 

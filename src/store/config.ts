@@ -46,6 +46,7 @@ let _loaded = false;
 export type ConfigChangeKind = 'accounts' | 'holdings' | 'settings';
 let _onChange: ((changed: ConfigChangeKind) => void) | null = null;
 let _warnedReservedAccountPrefix = false;
+let _suspendConfigSideEffects = false;
 
 // ── Public accessors (read at render time) ───────────────
 
@@ -177,9 +178,11 @@ export async function setAccounts(accounts: Account[]): Promise<void> {
   _accounts = accounts;
   try {
     await dbSaveAccounts(accounts);
-    await logConfigChange('Accounts', `updated ${accounts.length} accounts`);
-    scheduleUpload();
-    if (_onChange) _onChange('accounts');
+    if (!_suspendConfigSideEffects) {
+      await logConfigChange('Accounts', `updated ${accounts.length} accounts`);
+      scheduleUpload();
+      if (_onChange) _onChange('accounts');
+    }
   } catch (err) {
     _accounts = previous;
     throw err;
@@ -191,9 +194,11 @@ export async function setHoldings(holdings: Holding[]): Promise<void> {
   _holdings = holdings;
   try {
     await dbSaveHoldings(holdings);
-    await logConfigChange('Holdings', `updated ${holdings.length} holdings`);
-    scheduleUpload();
-    if (_onChange) _onChange('holdings');
+    if (!_suspendConfigSideEffects) {
+      await logConfigChange('Holdings', `updated ${holdings.length} holdings`);
+      scheduleUpload();
+      if (_onChange) _onChange('holdings');
+    }
   } catch (err) {
     _holdings = previous;
     throw err;
@@ -242,12 +247,24 @@ export async function replaceSettings(settings: Settings): Promise<void> {
   _settings = { ...settings };
   try {
     await persistSettings();
-    await logConfigChange('Settings', 'restored from backup');
-    scheduleUpload();
-    if (_onChange) _onChange('settings');
+    if (!_suspendConfigSideEffects) {
+      await logConfigChange('Settings', 'restored from backup');
+      scheduleUpload();
+      if (_onChange) _onChange('settings');
+    }
   } catch (err) {
     _settings = previous;
     throw err;
+  }
+}
+
+export async function runWithConfigSideEffectsSuspended<T>(fn: () => Promise<T>): Promise<T> {
+  const previous = _suspendConfigSideEffects;
+  _suspendConfigSideEffects = true;
+  try {
+    return await fn();
+  } finally {
+    _suspendConfigSideEffects = previous;
   }
 }
 

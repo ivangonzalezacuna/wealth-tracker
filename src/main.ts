@@ -27,6 +27,7 @@ import {
   setAccounts,
   setHoldings,
   replaceSettings,
+  runWithConfigSideEffectsSuspended,
   hydrateConfigFromCache,
   setSetting,
 } from './store/config';
@@ -821,9 +822,11 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
     // back all previous writes. The original data is preserved on error.
     try {
       await runInSavepoint('restore', async () => {
-        await setAccounts(accounts);
-        await setHoldings(holdings);
-        await replaceSettings(settings);
+        await runWithConfigSideEffectsSuspended(async () => {
+          await setAccounts(accounts);
+          await setHoldings(holdings);
+          await replaceSettings(settings);
+        });
         await saveSnapshots(snapshots);
         await restoreTransactions(transactions);
         if (importMeta.last_import) await saveImportMeta(importMeta.last_import);
