@@ -297,13 +297,14 @@ Deleting a snapshot in the Log tab does not show a confirmation dialog. Account 
 - **Impact:** A single misclick permanently deletes a month's snapshot with no undo. Snapshots are the primary data source for the net-worth chart and IRR calculation; losing one distorts both.
 - **Resolution:** Already implemented. `delSnap()` in `src/main.ts` calls `confirmDialog` with a danger variant before deleting. Finding was outdated at time of review.
 
-### 7.4 Config Audit Log Is Never Surfaced in the UI (LOW)
+### 7.4 Config Audit Log Is Never Surfaced in the UI (LOW) - RESOLVED
 
 `src/db/repositories/config.ts` writes to a `config_history` table for every account, holding, and settings change. The table is populated correctly but there is no view, tab, or settings card where a user can inspect the log.
 
 - **Confirmed in:** `src/db/schema.ts:84-92` (table defined), `src/store/config.ts:180-454` (writes on every config save), no read path outside tests
 - **Impact:** The audit capability exists at the data layer but provides no user value. Users who accidentally misconfigure accounts cannot see what changed or when.
 - **What is needed:** A read-only "Config history" section in Settings (collapsible) that lists the last N entries from `config_history` with timestamp and summary.
+- **Resolution:** A read-only collapsible "Config history" card is now shown at the bottom of Settings. It loads the last 50 entries from `config_history` asynchronously after the Settings tab renders, and displays them in a compact table with timestamp, entity, and summary columns. The card is collapsed by default and shows an empty-state message when no changes have been recorded yet.
 
 ---
 
@@ -361,7 +362,7 @@ The following limitations are already acknowledged in the README or PR history a
 27. ~~Storage quota monitoring (Area 6.5)~~ - DONE
 28. Additional European broker import profiles: DEGIRO, Scalable Capital, Interactive Brokers (Area 4.3)
 29. Custom import profile persistence and UI (Area 7.1)
-30. Surface config audit log (`config_history`) in the UI (Area 7.4)
+30. ~~Surface config audit log (`config_history`) in the UI (Area 7.4)~~ - DONE
 
 ---
 

@@ -166,6 +166,31 @@ export async function logConfigChange(entity: string, summary: string): Promise<
   await persistDb();
 }
 
+export interface ConfigHistoryEntry {
+  id: number;
+  timestamp: string;
+  source: string;
+  entity: string;
+  summary: string;
+}
+
+/** Load the most recent N config history entries, newest first. */
+export async function loadConfigHistory(limit = 50): Promise<ConfigHistoryEntry[]> {
+  const db = await getDb();
+  const result = db.exec(
+    'SELECT id, timestamp, source, entity, summary FROM config_history ORDER BY id DESC LIMIT ?',
+    [limit],
+  );
+  if (result.length === 0) return [];
+  return result[0].values.map((row) => ({
+    id: Number(row[0]),
+    timestamp: String(row[1] ?? ''),
+    source: String(row[2] ?? ''),
+    entity: String(row[3] ?? ''),
+    summary: String(row[4] ?? ''),
+  }));
+}
+
 // ── Internal helpers ──────────────────────────────────────────────
 
 function rowToAccount(row: unknown[]): Account {

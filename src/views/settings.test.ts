@@ -53,6 +53,7 @@ vi.mock('../store/config', () => ({
 
 vi.mock('../db', () => ({
   loadTransactions: vi.fn(async () => []),
+  loadConfigHistory: vi.fn(async () => []),
 }));
 
 // Collapse state: use real in-memory implementation for testability

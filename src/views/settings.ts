@@ -14,7 +14,8 @@ import {
   retireAccountIdsSafely,
 } from '../store/config';
 import type { ConfigChangeKind } from '../store/config';
-import { loadTransactions } from '../db';
+import { loadTransactions, loadConfigHistory } from '../db';
+import type { ConfigHistoryEntry } from '../db';
 import {
   validatePrimaryInvestment,
   validateAccountRanges,
@@ -43,7 +44,7 @@ function intervalOptionsHtml(selected: ContribInterval): string {
 }
 
 /** Card key -> render fn, used by repaintCard() to scope a re-render to one card. */
-type CardKey = 'accounts' | 'holdings' | 'cost-basis' | 'goal' | 'rules' | 'cache' | 'backup';
+type CardKey = 'accounts' | 'holdings' | 'cost-basis' | 'goal' | 'rules' | 'cache' | 'backup' | 'config-history';
 
 /** One busy flag per card. Every Save/Delete/action handler in a card must
  *  go through withCardGuard (never withButtonGuard directly), so two actions
@@ -158,6 +159,10 @@ function repaintCard(key: CardKey): void {
     case 'backup':
       html = renderBackupCard();
       break;
+    case 'config-history':
+      // Read-only card; re-render with empty entries as placeholder (async load follows)
+      html = renderConfigHistoryCard([]);
+      break;
   }
 
   existing.outerHTML = html;
@@ -186,6 +191,9 @@ function repaintCard(key: CardKey): void {
       break;
     case 'backup':
       attachBackupListeners(fresh);
+      break;
+    case 'config-history':
+      // No listeners needed for the read-only config history card
       break;
   }
   attachCardCollapseListeners(fresh);
@@ -219,6 +227,7 @@ export function renderSettings(): void {
     ${renderRulesCard(settings)}
     ${renderCacheCard()}
     ${renderBackupCard()}
+    ${renderConfigHistoryCard([])}
   `;
 
   attachAccountListeners(el);
@@ -230,6 +239,17 @@ export function renderSettings(): void {
   attachBackupListeners(el);
   attachColorPickerSync(el);
   attachCardCollapseListeners(el);
+
+  // Load and render config history asynchronously after initial paint
+  void loadConfigHistory(50).then((entries) => {
+    const card = document.getElementById('settings-card-config-history');
+    if (card) card.outerHTML = renderConfigHistoryCard(entries);
+    const fresh = document.getElementById('settings-card-config-history');
+    if (fresh) {
+      attachCardCollapseListeners(fresh);
+      if (isCollapsed('card:config-history')) fresh.classList.add('collapsed');
+    }
+  });
 
   // Reapply persisted collapse state after re-render
   el.querySelectorAll('.card-collapsible').forEach((card) => {
@@ -1777,4 +1797,67 @@ function attachBackupListeners(root: HTMLElement): void {
       showMsg('backup-msg', 'Restore failed: ' + err.message, false);
     }
   });
+}
+
+
+// ── Config history (audit log) ──────────────────────────────────────────────
+
+/** Format an ISO timestamp to a concise local datetime string. */
+function fmtHistoryTimestamp(iso: string): string {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
+}
+
+export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
+  let body: string;
+  if (entries.length === 0) {
+    body = '<p class="note" style="margin-top:.5rem">No changes recorded yet.</p>';
+  } else {
+    const rows = entries
+      .map(
+        (e) => `
+      <tr>
+        <td style="white-space:nowrap;padding-right:1rem;color:var(--ink-3);font-size:11px">${esc(fmtHistoryTimestamp(e.timestamp))}</td>
+        <td style="padding-right:.75rem;font-size:12px;color:var(--ink-2)">${esc(e.entity)}</td>
+        <td style="font-size:12px">${esc(e.summary)}</td>
+      </tr>`,
+      )
+      .join('');
+    body = `
+      <div style="overflow-x:auto;margin-top:.5rem">
+        <table style="border-collapse:collapse;width:100%;min-width:400px">
+          <thead>
+            <tr style="text-align:left;font-size:11px;color:var(--ink-3);border-bottom:1px solid var(--line)">
+              <th style="padding-bottom:.4rem;padding-right:1rem">When</th>
+              <th style="padding-bottom:.4rem;padding-right:.75rem">What</th>
+              <th style="padding-bottom:.4rem">Summary</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <p class="note" style="margin-top:.6rem">Showing the last ${entries.length} change${entries.length === 1 ? '' : 's'}.</p>`;
+  }
+
+  return `
+    <div class="card card-collapsible collapsed" id="settings-card-config-history" data-card-key="config-history">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Config history</div>
+        <span class="card-chevron"></span>
+      </div>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.5rem">Read-only log of recent configuration changes (accounts, holdings, settings).</p>
+        ${body}
+      </div>
+    </div>`;
 }
