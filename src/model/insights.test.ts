@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   monthlyGrowthSplit,
   cagr,
@@ -8,6 +8,11 @@ import {
   xirr,
 } from './insights';
 import type { Snapshot } from '../types';
+import * as utils from '../utils';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('monthlyGrowthSplit', () => {
   it('splits delta into contributed and market', () => {
@@ -45,19 +50,25 @@ describe('cagr', () => {
     });
 
     it('chains monthly returns net of contributions', () => {
+      vi.spyOn(utils, 'snapTotal')
+        .mockReturnValueOnce(1000)
+        .mockReturnValueOnce(1200)
+        .mockReturnValueOnce(1200)
+        .mockReturnValueOnce(1430);
       const snaps: Snapshot[] = [
-        { date: '2026-01-01', trade_republic: 1000 },
-        { date: '2026-02-01', trade_republic: 1200 },
-        { date: '2026-03-01', trade_republic: 1430 },
+        { date: '2026-01-01' },
+        { date: '2026-02-01' },
+        { date: '2026-03-01' },
       ];
       const result = twr(snaps, { '2026-02-01': 100, '2026-03-01': 100 });
       expect(result).toBeCloseTo(0.3, 5);
     });
 
     it('returns null when a period starts from zero or below', () => {
+      vi.spyOn(utils, 'snapTotal').mockReturnValueOnce(0);
       const snaps: Snapshot[] = [
-        { date: '2026-01-01', trade_republic: 0 },
-        { date: '2026-02-01', trade_republic: 100 },
+        { date: '2026-01-01' },
+        { date: '2026-02-01' },
       ];
       expect(twr(snaps, { '2026-02-01': 100 })).toBeNull();
     });
