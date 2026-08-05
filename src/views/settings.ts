@@ -1274,24 +1274,22 @@ function renderAlertsCard(_settings: Settings): string {
       </div>
       <div class="card-body">
         <p class="note" style="margin-bottom:.75rem">Configure alert conditions for drift and other notifications.</p>
-        <div class="settings-item">
-          <div style="display:flex;flex-direction:column;gap:.5rem;margin-bottom:.75rem">
-            <label class="settings-field-label" for="alert-drift-threshold">
-              Drift alert threshold (percentage points)
-              ${infoTip('A badge appears on the Portfolio tab when max drift exceeds this threshold. Status colors in the drift table also use this threshold (2× for high drift).')}
-            </label>
-            <input
-              type="number"
-              id="alert-drift-threshold"
-              class="settings-input"
-              value="${threshold}"
-              min="1"
-              max="20"
-              step="0.5"
-              style="width:100px"
-              placeholder="5"
-            />
-          </div>
+        <div class="settings-field">
+          <label class="settings-field-label" for="alert-drift-threshold">
+            Drift alert threshold (percentage points)
+            ${infoTip('A badge appears on the Portfolio tab when max drift exceeds this threshold. Status colors in the drift table also use this threshold (2× for high drift).')}
+          </label>
+          <input
+            type="number"
+            id="alert-drift-threshold"
+            class="form-input form-input-sm"
+            value="${threshold}"
+            min="1"
+            max="20"
+            step="0.5"
+            style="width:100px"
+            placeholder="5"
+          />
         </div>
         <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
           <button class="btn btn-primary btn-sm" id="btn-save-alerts">Save alerts</button>

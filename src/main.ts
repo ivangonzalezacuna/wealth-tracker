@@ -58,6 +58,7 @@ import {
   withButtonGuard,
   fmtEur2,
   safeColor,
+  fmtPctVal,
 } from './utils';
 import { parseNum } from './csv';
 import { navHash, parseNavHash } from './nav';
@@ -1865,10 +1866,10 @@ function updateDriftBadge(): void {
   const threshold = getAlertSettings().driftThresholdPct || 5;
   if (max !== null && max > threshold) {
     btn.classList.add('drift-alert');
-    btn.setAttribute('aria-label', `Portfolio (drift alert: ${Math.round(max)}pp)`);
+    btn.setAttribute('aria-label', `Portfolio (drift alert: ${fmtPctVal(max)})`);
     btn.setAttribute(
       'data-drift-alert',
-      `Allocation drift is ${Math.round(max)}pp above target. Open Portfolio to review it.`,
+      `Allocation drift is ${fmtPctVal(max)} above target. Open Portfolio to review it.`,
     );
   } else {
     btn.classList.remove('drift-alert');
