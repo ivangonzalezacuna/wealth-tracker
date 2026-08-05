@@ -177,6 +177,9 @@ code,
   background: var(--warn);
   pointer-events: none;
 }
+.nav button.drift-alert-high::after {
+  background: var(--neg);
+}
 /* Sections */
 .section {
   display: none;

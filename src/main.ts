@@ -1864,15 +1864,24 @@ function updateDriftBadge(): void {
   if (!btn) return;
   const max = getMaxDrift(state.pd, state.snaps);
   const threshold = getAlertSettings().driftThresholdPct || 5;
+  const highThreshold = threshold * 2;
+
   if (max !== null && max > threshold) {
+    const isHigh = max > highThreshold;
     btn.classList.add('drift-alert');
+    btn.classList.toggle('drift-alert-high', isHigh);
     btn.setAttribute('aria-label', `Portfolio (drift alert: ${fmtPctVal(max)})`);
+
+    const severityLabel = isHigh ? 'High drift' : 'Moderate drift';
+    const thresholdLabel = isHigh
+      ? `over ${fmtPctVal(highThreshold)} (high threshold)`
+      : `over ${fmtPctVal(threshold)} (threshold)`;
     btn.setAttribute(
       'data-drift-alert',
-      `Allocation drift is ${fmtPctVal(max)} above target. Open Portfolio to review it.`,
+      `${severityLabel}: max allocation drift is ${fmtPctVal(max)}, ${thresholdLabel}. Open Portfolio to review it.`,
     );
   } else {
-    btn.classList.remove('drift-alert');
+    btn.classList.remove('drift-alert', 'drift-alert-high');
     btn.removeAttribute('aria-label');
     btn.removeAttribute('data-drift-alert');
     hideDriftTooltip();
