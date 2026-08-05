@@ -261,14 +261,14 @@ IDB quota errors are caught silently (see 6.6) but the app never proactively che
 - **What is needed:** A one-time `navigator.storage.estimate()` check on startup and a persistent warning banner if available quota is below a safe threshold (e.g., below 10 MB with the db already at 5 MB).
 - **Resolution:** `checkStorageQuota()` in `src/storage.ts` runs on boot via `navigator.storage.estimate()`. If usage exceeds 85% or the total quota is under 50 MB, a persistent dismissible yellow banner is shown prompting the user to export a backup. The banner is session-dismissed and does not reappear until the next page load.
 
-### 6.6 IDB Cache Write Failures Are Silently Ignored (MEDIUM) - PARTIALLY RESOLVED
+### 6.6 IDB Cache Write Failures Are Silently Ignored (MEDIUM) - RESOLVED
 
 IDB (IndexedDB) cache writes in `src/cache/db.ts` catch all errors and discard them (`catch { // Quota or other IDB error - degrade gracefully }`). The main sync path in `main.ts` also wraps post-import cache writes in a bare `try/catch` with no user-visible feedback. This is intentional for quota resilience, but a failure after the user has confirmed an import means the next app load will show stale data with no warning.
 
 - **Confirmed in:** `src/cache/db.ts:131-133` (`setCachedConfig`), `src/main.ts:604-607` (post-import cache write in a silent catch)
 - **Impact:** The risk is narrower than a general "silent data loss" bug. The authoritative DB write (Google Sheets via Drive) must have already succeeded. The symptom is stale cache data on next boot, not lost transactions. However, users on low-storage devices (private mode, iOS) will not understand why data appears to have disappeared after a reload.
 - **What is needed:** Log a console warning with enough context to diagnose quota failures, and display a one-time "Local cache could not be saved. Reopen the app while online to reload from your backup." banner if the IDB write fails after an import or settings save.
-- **Resolution:** `setCachedConfig`, `setCachedSnapshots`, and `setCachedTransactions` now return a boolean indicating success. The main sync, post-import, and config-change paths check the return value and display a one-time dismissible warning banner ("Local cache could not be saved. Reopen the app while online to reload from your backup.") when any of these writes fail. Storage quota monitoring (finding 6.5) remains open.
+- **Resolution:** `setCachedConfig`, `setCachedSnapshots`, and `setCachedTransactions` now return a boolean indicating success. All write paths (main sync via `syncInBackground`, full load via `loadAllData`, post-import, config-change, snapshot save, and snapshot delete) check the return value and display a one-time dismissible warning banner ("Local cache could not be saved. Reopen the app while online to reload from your backup.") when any of these writes fail. Storage quota monitoring (finding 6.5) remains open.
 
 ---
 
@@ -284,7 +284,7 @@ The following issues were identified during codebase verification of the origina
 - **Impact:** Users who configure a custom broker format cannot save or share it. Related to finding 4.3; without persistence, any custom-profile UI is unusable.
 - **What is needed:** A `custom_profiles` key in the IDB cache (or a DB table), serialization in the backup JSON, and a settings card to create/edit/delete custom profiles.
 
-### 7.2 IRR Calculation Ignores SELL Proceeds as Inflows (HIGH) - PARTIALLY RESOLVED
+### 7.2 IRR Calculation Ignores SELL Proceeds as Inflows (HIGH) - RESOLVED
 
 The IRR tooltip in `src/views/networth.ts:215` states: "SELL and dividend cash movements stay inside the account value and are not counted separately." The cash-flow series passed to `xirr()` uses BUY outflows and the current account value as the terminal inflow. When a user sells a position and the proceeds leave the tracked account, those cash flows are not modelled as explicit inflows, potentially overstating IRR for portfolios with significant realized exits.
 
@@ -331,26 +331,26 @@ The following limitations are already acknowledged in the README or PR history a
 
 ### Must address (highest user impact)
 
-1. **Wrap all DELETE+INSERT sequences in SQLite transactions** (Area 6.1) - data integrity risk
+1. ~~**Wrap all DELETE+INSERT sequences in SQLite transactions** (Area 6.1)~~ - DONE
 2. **Add a UI form to record manual sell transactions** (Area 4.2) - blocked workflow
 3. **Apply FX conversion using stored `fxRate` field** (Area 1.1) - silent data error for multi-currency users
 4. Pre-populate the monthly snapshot form from the previous month's values (Area 4.1) - resolved
 
 ### Should address (meaningful improvement)
 
-5. Add HSTS and evaluate removing `'unsafe-inline'` from CSP (Area 6.3)
+5. Add HSTS and evaluate removing `'unsafe-inline'` from CSP (Area 6.3) - HSTS done; `'unsafe-inline'` removal open (Chart.js runtime styles)
 6. Protect backup restore against partial writes (Area 6.4)
-7. Free prepared statements in try-finally blocks (Area 6.2)
-8. Show user-visible warning when IDB cache write fails after import or settings save (Area 6.6)
+7. ~~Free prepared statements in try-finally blocks (Area 6.2)~~ - DONE
+8. ~~Show user-visible warning when IDB cache write fails after import or settings save (Area 6.6)~~ - DONE
 9. Add a TWR metric alongside CAGR/IRR (Area 2.1) - resolved
 10. Add a "tax year summary" export (Area 3.4)
-11. Surface allocation drift warning badge when tolerance is exceeded (Area 4.7)
-12. Add a holdings text search/filter (Area 4.4)
+11. ~~Surface allocation drift warning badge when tolerance is exceeded (Area 4.7)~~ - DONE
+12. ~~Add a holdings text search/filter (Area 4.4)~~ - DONE
 13. ~~Add expense ratio (TER) field to holdings and a fee-drag KPI (Area 3.3)~~ - DONE
 14. Support withdrawal/drawdown in the forecast model (Area 4.6)
 15. ~~Add a SPLIT transaction type (Area 1.3)~~ - DONE
-16. Add a confirmation dialog to snapshot delete (Area 7.3)
-17. Clarify or fix IRR calculation for portfolios with withdrawn sell proceeds (Area 7.2)
+16. ~~Add a confirmation dialog to snapshot delete (Area 7.3)~~ - DONE
+17. ~~Clarify or fix IRR calculation for portfolios with withdrawn sell proceeds (Area 7.2)~~ - DONE
 18. Align all text boxes to a shared themed style instead of mixed default browser formatting
 
 ### Nice to have (long-term roadmap)
