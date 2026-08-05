@@ -883,8 +883,10 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
   const highThreshold = threshold * 2;
 
   const max = maxDrift(drift);
-  const statusColor = max > highThreshold ? 'var(--neg)' : max > threshold ? 'var(--warn)' : 'var(--pos)';
-  const statusLabel = max > highThreshold ? 'High drift' : max > threshold ? 'Moderate drift' : 'On target';
+  const statusColor =
+    max > highThreshold ? 'var(--neg)' : max > threshold ? 'var(--warn)' : 'var(--pos)';
+  const statusLabel =
+    max > highThreshold ? 'High drift' : max > threshold ? 'Moderate drift' : 'On target';
 
   const rows = drift
     .map((d) => {

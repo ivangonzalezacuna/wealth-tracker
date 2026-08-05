@@ -54,6 +54,7 @@ const MOCK_HOLDINGS = [
 vi.mock('../store/config', () => ({
   getAccounts: () => MOCK_ACCOUNTS,
   getHoldings: () => MOCK_HOLDINGS,
+  getAlertSettings: () => ({ driftThresholdPct: 5 }),
   isConfigLoaded: () => true,
   getISIN_ORDER: () => ['IE00TEST1'],
   getMETA: () => ({ IWDA: { color: '#222222', acc: true, active: true } }),

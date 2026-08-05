@@ -45,7 +45,15 @@ function intervalOptionsHtml(selected: ContribInterval): string {
 
 /** Card key -> render fn, used by repaintCard() to scope a re-render to one card. */
 type CardKey =
-  'accounts' | 'holdings' | 'cost-basis' | 'goal' | 'alerts' | 'rules' | 'cache' | 'backup' | 'config-history';
+  | 'accounts'
+  | 'holdings'
+  | 'cost-basis'
+  | 'goal'
+  | 'alerts'
+  | 'rules'
+  | 'cache'
+  | 'backup'
+  | 'config-history';
 
 /** One busy flag per card. Every Save/Delete/action handler in a card must
  *  go through withCardGuard (never withButtonGuard directly), so two actions
@@ -1298,7 +1306,7 @@ function attachAlertsListeners(root: HTMLElement): void {
     const btn = root.querySelector('#btn-save-alerts') as HTMLButtonElement;
     const input = root.querySelector('#alert-drift-threshold') as HTMLInputElement;
     const value = parseFloat(input.value);
-    
+
     if (isNaN(value) || value < 1 || value > 20) {
       showMsg('alerts-msg', 'Threshold must be between 1 and 20', false);
       return;
@@ -1306,9 +1314,14 @@ function attachAlertsListeners(root: HTMLElement): void {
 
     const alertSettings = { driftThresholdPct: value };
     try {
-      await withCardGuard('alerts', btn, () => setSettings({ alerts: JSON.stringify(alertSettings) }), {
-        busyText: 'Saving...',
-      });
+      await withCardGuard(
+        'alerts',
+        btn,
+        () => setSettings({ alerts: JSON.stringify(alertSettings) }),
+        {
+          busyText: 'Saving...',
+        },
+      );
       showMsg('alerts-msg', 'Saved', true);
       // Trigger drift badge update in main.ts
       if (typeof (window as any).updateDriftBadge === 'function') {

@@ -12,7 +12,14 @@ import {
 } from '../db';
 import { scheduleUpload } from '../sync/engine';
 import { CONFIG } from '../config';
-import type { Account, Holding, Settings, ContribInterval, NamedGoal, AlertSettings } from '../types';
+import type {
+  Account,
+  Holding,
+  Settings,
+  ContribInterval,
+  NamedGoal,
+  AlertSettings,
+} from '../types';
 import { totalAnnualContrib, INTERVAL_PER_YEAR } from '../model/contributions';
 import type { CachedConfig } from '../cache/db';
 import { validateAccountIds } from '../model/accounts';
@@ -152,9 +159,10 @@ export function getAlertSettings(): AlertSettings {
       const parsed = JSON.parse(raw);
       if (typeof parsed === 'object' && parsed !== null) {
         return {
-          driftThresholdPct: typeof parsed.driftThresholdPct === 'number' 
-            ? parsed.driftThresholdPct 
-            : DEFAULT_DRIFT_THRESHOLD,
+          driftThresholdPct:
+            typeof parsed.driftThresholdPct === 'number'
+              ? parsed.driftThresholdPct
+              : DEFAULT_DRIFT_THRESHOLD,
         };
       }
     } catch {
