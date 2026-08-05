@@ -356,7 +356,7 @@ export function renderNW(
           : 'needs 2 snapshots and valid starting value',
     })}
     ${kpiTile({
-      label: `IRR (investments)${infoTip('Money-weighted annual return on invested capital (XIRR). Heavily influenced by the size and timing of your contributions: large deposits just before a good period inflate this number, while large deposits before a bad period deflate it. This figure is unstable and can swing wildly when history is under 2 years. Uses BUY cash outflows plus current primary investment value. SELL and dividend cash movements stay inside the account value and are not counted separately.')}`,
+      label: `IRR (investments)${infoTip('Money-weighted annual return on invested capital (XIRR). Heavily influenced by the size and timing of your contributions: large deposits just before a good period inflate this number, while large deposits before a bad period deflate it. This figure is unstable and can swing wildly when history is under 2 years. Uses BUY cash outflows plus current primary investment value. SELL and dividend cash movements stay inside the account value and are not counted separately. If you sold positions and withdrew the proceeds from your tracked accounts, those cash flows are not modelled as inflows, and this figure may overstate your actual investment performance.')}`,
       value: irrVal !== null ? fmtPctNeg(irrVal * 100) : '-',
       valueClass: irrVal === null ? '' : irrVal >= 0 ? 'pos' : 'neg',
       sub:

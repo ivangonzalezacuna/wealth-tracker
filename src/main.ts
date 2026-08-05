@@ -702,7 +702,7 @@ async function loadAllData() {
     state.pd = txs.length ? computePD(txs, { method: getCostBasisMethod() }) : null;
 
     // Cache everything
-    await Promise.all([
+    const [configCachedLA, snapsCachedLA, txsCachedLA] = await Promise.all([
       setCachedConfig({
         accounts: getAccounts(),
         holdings: getHoldings(),
@@ -723,6 +723,7 @@ async function loadAllData() {
           )
         : Promise.resolve(),
     ]);
+    if (!configCachedLA || !snapsCachedLA || !txsCachedLA) showCacheWriteWarning();
 
     onConfigChange(async (changed) => {
       if (state.txs.length) {
@@ -1107,7 +1108,8 @@ async function saveSnapshot() {
             state.snaps.push(snap);
             state.snaps.sort((a, b) => a.date.localeCompare(b.date));
           }
-          await setCachedSnapshots(state.snaps);
+          const snapCached = await setCachedSnapshots(state.snaps);
+          if (!snapCached) showCacheWriteWarning();
           clearSnapForm();
           renderAll();
         } finally {
@@ -1223,7 +1225,8 @@ async function delSnap(date: string, btn?: HTMLButtonElement) {
     try {
       await saveSnapshots(state.snaps);
       scheduleUpload();
-      await setCachedSnapshots(state.snaps);
+      const snapCachedDel = await setCachedSnapshots(state.snaps);
+      if (!snapCachedDel) showCacheWriteWarning();
       renderAll();
     } catch (err) {
       // Roll back optimistic delete on write failure.
