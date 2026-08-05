@@ -190,14 +190,14 @@ The net-worth forecast on the Net Worth tab projects forward using contributions
 - **Impact:** Users approaching or in retirement cannot use the forecast to answer "Will my portfolio last until age 90 if I withdraw €2,000/month?" This is the most common retirement planning question.
 - **What is needed:** An optional annual withdrawal rate field in the forecast parameters. The existing `forecastMultiAccountSeries` function would need a negative contribution component.
 
-### 4.7 No Rebalancing Drift Alerts or Notifications (LOW) - PARTIALLY RESOLVED
+### 4.7 No Rebalancing Drift Alerts or Notifications (LOW) - RESOLVED
 
 The portfolio drift card computes allocation deviation visually but generates no alert when drift exceeds a user-defined threshold. Users must manually navigate to the Portfolio tab to check.
 
 - **Confirmed in:** `src/model/drift.ts` (`ON_TARGET_DRIFT_EPS = 0.5` for the rebalance plan, no notification mechanism), `src/views/portfolio.ts:771`
 - **Impact:** The rebalancing workflow relies on the user proactively checking the drift card each month. An alert (PWA notification or a badge on the tab) would reduce the cognitive load of the monthly workflow.
 - **What is needed:** A badge or prominent indicator on the Portfolio tab when any holding's drift exceeds a configurable threshold (e.g., 5 percentage points).
-- **Resolution:** A small orange dot badge now appears on the Portfolio tab button whenever max allocation drift exceeds 5 percentage points. The badge disappears when drift returns to within threshold. The threshold is fixed at 5 pp (matching existing drift card status labels); a user-configurable threshold remains a future enhancement.
+- **Resolution:** A small orange dot badge now appears on the Portfolio tab button whenever max allocation drift exceeds the configured threshold. The threshold is user-configurable via the "Alerts & Notifications" settings card (default 5 percentage points). Status colors in the drift table also adapt to the configured threshold (2× threshold for high drift). The badge disappears when drift returns within the threshold. The alerts settings card is designed to be extensible for future alert conditions.
 
 ---
 

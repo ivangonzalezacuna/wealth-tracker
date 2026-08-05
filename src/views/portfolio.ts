@@ -13,7 +13,7 @@ import {
   kpiTile,
 } from '../utils';
 import { getISIN_ORDERList, getMETAMap } from '../constants';
-import { getAccounts, getHoldings } from '../store/config';
+import { getAccounts, getHoldings, getAlertSettings } from '../store/config';
 import { primaryInvestmentValue } from '../model/accounts';
 import { splitHoldings, computeFeeDrag } from '../model/holdings';
 import { computeDrift, maxDrift, computeRebalancePlan } from '../model/drift';
@@ -878,14 +878,20 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
     return;
   }
 
+  const alertSettings = getAlertSettings();
+  const threshold = alertSettings.driftThresholdPct || 5;
+  const highThreshold = threshold * 2;
+
   const max = maxDrift(drift);
-  const statusColor = max > 10 ? 'var(--neg)' : max > 5 ? 'var(--warn)' : 'var(--pos)';
-  const statusLabel = max > 10 ? 'High drift' : max > 5 ? 'Moderate drift' : 'On target';
+  const statusColor =
+    max > highThreshold ? 'var(--neg)' : max > threshold ? 'var(--warn)' : 'var(--pos)';
+  const statusLabel =
+    max > highThreshold ? 'High drift' : max > threshold ? 'Moderate drift' : 'On target';
 
   const rows = drift
     .map((d) => {
       const driftColor =
-        Math.abs(d.driftPct) > 5
+        Math.abs(d.driftPct) > threshold
           ? 'var(--neg)'
           : Math.abs(d.driftPct) > 2
             ? 'var(--warn)'

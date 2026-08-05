@@ -98,6 +98,12 @@ export interface NamedGoal {
   targetDate: string;
 }
 
+// ─── Alert Settings ──────────────────────────────────────
+
+export interface AlertSettings {
+  driftThresholdPct?: number; // percentage points, e.g. 5 for 5pp drift alert badge
+}
+
 // ─── Import profile ──────────────────────────────────────────────
 
 export interface ImportProfileColumns {

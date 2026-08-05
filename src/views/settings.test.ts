@@ -44,6 +44,7 @@ vi.mock('../store/config', () => ({
   getTargetNetWorth: () => null,
   getTargetDate: () => null,
   getGoals: () => [],
+  getAlertSettings: () => ({ driftThresholdPct: 5 }),
   setAccounts: vi.fn(async () => {}),
   setHoldings: vi.fn(async () => {}),
   setSettings: vi.fn(async () => {}),

@@ -9,6 +9,7 @@ import {
   isConfigLoaded,
   getCostBasisMethod,
   getGoals,
+  getAlertSettings,
   getRetiredAccountIds,
   retireAccountIdsSafely,
 } from '../store/config';
@@ -44,7 +45,15 @@ function intervalOptionsHtml(selected: ContribInterval): string {
 
 /** Card key -> render fn, used by repaintCard() to scope a re-render to one card. */
 type CardKey =
-  'accounts' | 'holdings' | 'cost-basis' | 'goal' | 'rules' | 'cache' | 'backup' | 'config-history';
+  | 'accounts'
+  | 'holdings'
+  | 'cost-basis'
+  | 'goal'
+  | 'alerts'
+  | 'rules'
+  | 'cache'
+  | 'backup'
+  | 'config-history';
 
 /** One busy flag per card. Every Save/Delete/action handler in a card must
  *  go through withCardGuard (never withButtonGuard directly), so two actions
@@ -155,6 +164,9 @@ function repaintCard(key: CardKey): void {
     case 'goal':
       html = renderGoalCard(settings);
       break;
+    case 'alerts':
+      html = renderAlertsCard(settings);
+      break;
     case 'rules':
       html = renderRulesCard(settings);
       break;
@@ -229,6 +241,7 @@ export function renderSettings(): void {
     ${renderHoldingsCard(holdings)}
     ${renderCostBasisCard(settings)}
     ${renderGoalCard(settings)}
+    ${renderAlertsCard(settings)}
     ${renderRulesCard(settings)}
     ${renderCacheCard()}
     ${renderBackupCard()}
@@ -239,6 +252,7 @@ export function renderSettings(): void {
   attachHoldingListeners(el);
   attachCostBasisListeners(el);
   attachGoalListeners(el);
+  attachAlertsListeners(el);
   attachRulesListeners(el);
   attachCacheListeners(el);
   attachBackupListeners(el);
@@ -1243,6 +1257,76 @@ function attachGoalListeners(root: HTMLElement): void {
       showMsg('goal-msg', 'Saved', true);
     } catch (err) {
       showMsg('goal-msg', 'Error: ' + (err as Error).message, false);
+    }
+  });
+}
+
+// ── Alerts & Notifications ───────────────────────────────
+
+function renderAlertsCard(_settings: Settings): string {
+  const alertSettings = getAlertSettings();
+  const threshold = alertSettings.driftThresholdPct || 5;
+  return `
+    <div class="card card-collapsible" id="settings-card-alerts" data-card-key="alerts">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Alerts & Notifications</div>
+        <span class="card-chevron"></span>
+      </div>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.75rem">Configure alert conditions for drift and other notifications.</p>
+        <div class="settings-field">
+          <label class="settings-field-label" for="alert-drift-threshold">
+            Drift alert threshold (percentage points)
+            ${infoTip('A badge appears on the Portfolio tab when max drift exceeds this threshold. Status colors in the drift table also use this threshold (2× for high drift).')}
+          </label>
+          <input
+            type="number"
+            id="alert-drift-threshold"
+            class="form-input form-input-sm"
+            value="${threshold}"
+            min="1"
+            max="20"
+            step="0.5"
+            style="width:100px"
+            placeholder="5"
+          />
+        </div>
+        <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm" id="btn-save-alerts">Save alerts</button>
+          <span id="alerts-msg" style="font-size:12px;line-height:28px"></span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function attachAlertsListeners(root: HTMLElement): void {
+  root.querySelector('#btn-save-alerts')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-save-alerts') as HTMLButtonElement;
+    const input = root.querySelector('#alert-drift-threshold') as HTMLInputElement;
+    const value = parseFloat(input.value);
+
+    if (isNaN(value) || value < 1 || value > 20) {
+      showMsg('alerts-msg', 'Threshold must be between 1 and 20', false);
+      return;
+    }
+
+    const alertSettings = { driftThresholdPct: value };
+    try {
+      await withCardGuard(
+        'alerts',
+        btn,
+        () => setSettings({ alerts: JSON.stringify(alertSettings) }),
+        {
+          busyText: 'Saving...',
+        },
+      );
+      showMsg('alerts-msg', 'Saved', true);
+      // Trigger drift badge update in main.ts
+      if (typeof (window as any).updateDriftBadge === 'function') {
+        (window as any).updateDriftBadge();
+      }
+    } catch (err) {
+      showMsg('alerts-msg', 'Error: ' + (err as Error).message, false);
     }
   });
 }

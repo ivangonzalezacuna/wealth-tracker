@@ -23,6 +23,7 @@ import {
   getHoldings,
   getAccounts,
   getSettings,
+  getAlertSettings,
   setAccounts,
   setHoldings,
   replaceSettings,
@@ -57,6 +58,7 @@ import {
   withButtonGuard,
   fmtEur2,
   safeColor,
+  fmtPctVal,
 } from './utils';
 import { parseNum } from './csv';
 import { navHash, parseNavHash } from './nav';
@@ -1856,20 +1858,30 @@ function renderAll(changed?: ConfigChangeKind) {
   updateDriftBadge();
 }
 
-/** Shows a dot badge on the Portfolio tab when max allocation drift exceeds 5 pp. */
+/** Shows a dot badge on the Portfolio tab when max allocation drift exceeds the configured threshold. */
 function updateDriftBadge(): void {
   const btn = document.getElementById('tab-portfolio');
   if (!btn) return;
   const max = getMaxDrift(state.pd, state.snaps);
-  if (max !== null && max > 5) {
+  const threshold = getAlertSettings().driftThresholdPct || 5;
+  const highThreshold = threshold * 2;
+
+  if (max !== null && max > threshold) {
+    const isHigh = max > highThreshold;
     btn.classList.add('drift-alert');
-    btn.setAttribute('aria-label', `Portfolio (drift alert: ${Math.round(max)}pp)`);
+    btn.classList.toggle('drift-alert-high', isHigh);
+    btn.setAttribute('aria-label', `Portfolio (drift alert: ${fmtPctVal(max)})`);
+
+    const severityLabel = isHigh ? 'High drift' : 'Moderate drift';
+    const thresholdLabel = isHigh
+      ? `over ${fmtPctVal(highThreshold)} (high threshold)`
+      : `over ${fmtPctVal(threshold)} (threshold)`;
     btn.setAttribute(
       'data-drift-alert',
-      `Allocation drift is ${Math.round(max)}pp above target. Open Portfolio to review it.`,
+      `${severityLabel}: max allocation drift is ${fmtPctVal(max)}, ${thresholdLabel}. Open Portfolio to review it.`,
     );
   } else {
-    btn.classList.remove('drift-alert');
+    btn.classList.remove('drift-alert', 'drift-alert-high');
     btn.removeAttribute('aria-label');
     btn.removeAttribute('data-drift-alert');
     hideDriftTooltip();
@@ -1921,6 +1933,9 @@ function positionDriftTooltip(trigger: HTMLElement, pop: HTMLElement): void {
     pop.style.transform = transform;
   });
 }
+
+// Export updateDriftBadge so it can be called from settings when alert threshold changes
+(window as any).updateDriftBadge = updateDriftBadge;
 
 function _isTouchLikeEvent(e: MouseEvent): boolean {
   return e.sourceCapabilities?.firesTouchEvents ?? false;
