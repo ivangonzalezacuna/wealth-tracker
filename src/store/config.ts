@@ -12,7 +12,7 @@ import {
 } from '../db';
 import { scheduleUpload } from '../sync/engine';
 import { CONFIG } from '../config';
-import type { Account, Holding, Settings, ContribInterval, NamedGoal } from '../types';
+import type { Account, Holding, Settings, ContribInterval, NamedGoal, AlertSettings } from '../types';
 import { totalAnnualContrib, INTERVAL_PER_YEAR } from '../model/contributions';
 import type { CachedConfig } from '../cache/db';
 import { validateAccountIds } from '../model/accounts';
@@ -139,6 +139,29 @@ export function getGoals(): NamedGoal[] {
     return [{ label: 'Goal', targetNetWorth: legacyNW, targetDate: legacyDate }];
   }
   return [];
+}
+
+const ALERTS_KEY = 'alerts';
+const DEFAULT_DRIFT_THRESHOLD = 5;
+
+/** Get alert settings with defaults. */
+export function getAlertSettings(): AlertSettings {
+  const raw = (_settings[ALERTS_KEY] || '').trim();
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed === 'object' && parsed !== null) {
+        return {
+          driftThresholdPct: typeof parsed.driftThresholdPct === 'number' 
+            ? parsed.driftThresholdPct 
+            : DEFAULT_DRIFT_THRESHOLD,
+        };
+      }
+    } catch {
+      // fall through
+    }
+  }
+  return { driftThresholdPct: DEFAULT_DRIFT_THRESHOLD };
 }
 
 // ── Register re-render callback ──────────────────────────

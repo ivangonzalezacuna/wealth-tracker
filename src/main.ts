@@ -23,6 +23,7 @@ import {
   getHoldings,
   getAccounts,
   getSettings,
+  getAlertSettings,
   setAccounts,
   setHoldings,
   replaceSettings,
@@ -1856,12 +1857,13 @@ function renderAll(changed?: ConfigChangeKind) {
   updateDriftBadge();
 }
 
-/** Shows a dot badge on the Portfolio tab when max allocation drift exceeds 5 pp. */
+/** Shows a dot badge on the Portfolio tab when max allocation drift exceeds the configured threshold. */
 function updateDriftBadge(): void {
   const btn = document.getElementById('tab-portfolio');
   if (!btn) return;
   const max = getMaxDrift(state.pd, state.snaps);
-  if (max !== null && max > 5) {
+  const threshold = getAlertSettings().driftThresholdPct || 5;
+  if (max !== null && max > threshold) {
     btn.classList.add('drift-alert');
     btn.setAttribute('aria-label', `Portfolio (drift alert: ${Math.round(max)}pp)`);
     btn.setAttribute(
@@ -1921,6 +1923,9 @@ function positionDriftTooltip(trigger: HTMLElement, pop: HTMLElement): void {
     pop.style.transform = transform;
   });
 }
+
+// Export updateDriftBadge so it can be called from settings when alert threshold changes
+(window as any).updateDriftBadge = updateDriftBadge;
 
 function _isTouchLikeEvent(e: MouseEvent): boolean {
   return e.sourceCapabilities?.firesTouchEvents ?? false;
