@@ -66,6 +66,8 @@ export function appTemplate(): string {
     </div>
     <div id="nw-goal"></div>
     <div id="nw-forecast"></div>
+    <div id="nw-analytics"></div>
+    <div id="nw-allocation"></div>
   </div>
 </div>
 

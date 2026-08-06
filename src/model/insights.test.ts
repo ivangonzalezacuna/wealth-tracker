@@ -8,10 +8,30 @@ import {
   xirr,
   annualizedVolatility,
   maxDrawdown,
+  maxDrawdownFull,
   cagrPerAccount,
   trailingDividendYield,
+  monthlyReturns,
+  monthlyReturnSeries,
+  totalReturn,
+  absoluteGain,
+  ytdReturn,
+  downsideDeviation,
+  sharpeRatio,
+  sortinoRatio,
+  calmarRatio,
+  averageDrawdown,
+  drawdownDuration,
+  rollingCagrSeries,
+  annualReturns,
+  trailing12mIncome,
+  dividendYieldPct,
+  yieldOnCostPct,
+  dividendGrowthYoY,
+  dividendCagr,
+  incomeByMonth,
 } from './insights';
-import type { Snapshot } from '../types';
+import type { Snapshot, Transaction } from '../types';
 import * as utils from '../utils';
 
 afterEach(() => {
@@ -421,5 +441,394 @@ describe('trailingDividendYield', () => {
     const distOnlyResult = trailingDividendYield(divHist, 5000);
     expect(totalResult!).toBeCloseTo(2);
     expect(distOnlyResult!).toBeCloseTo(4); // more accurate: only dist capital in denominator
+  });
+});
+
+// ── New analytics function tests ──────────────────────────────────
+
+describe('monthlyReturns', () => {
+  it('returns null for fewer than 2 snapshots', () => {
+    expect(monthlyReturns([])).toBeNull();
+    expect(monthlyReturns([{ date: '2026-01' }])).toBeNull();
+  });
+
+  it('returns null when a period starts at zero', () => {
+    vi.spyOn(utils, 'snapTotal').mockReturnValueOnce(0).mockReturnValueOnce(1000);
+    const snaps: Snapshot[] = [{ date: '2026-01' }, { date: '2026-02' }];
+    expect(monthlyReturns(snaps)).toBeNull();
+  });
+
+  it('computes returns for a growing series', () => {
+    vi.spyOn(utils, 'snapTotal')
+      .mockReturnValueOnce(1000)
+      .mockReturnValueOnce(1100)
+      .mockReturnValueOnce(1100)
+      .mockReturnValueOnce(1210);
+    const snaps: Snapshot[] = [{ date: '2026-01' }, { date: '2026-02' }, { date: '2026-03' }];
+    const r = monthlyReturns(snaps);
+    expect(r).not.toBeNull();
+    expect(r!.length).toBe(2);
+    expect(r![0]).toBeCloseTo(0.1);
+    expect(r![1]).toBeCloseTo(0.1);
+  });
+});
+
+describe('monthlyReturnSeries', () => {
+  it('returns empty array for fewer than 2 snapshots', () => {
+    expect(monthlyReturnSeries([])).toEqual([]);
+    expect(monthlyReturnSeries([{ date: '2026-01' }])).toEqual([]);
+  });
+
+  it('includes year and month metadata', () => {
+    vi.spyOn(utils, 'snapTotal').mockReturnValueOnce(1000).mockReturnValueOnce(1050);
+    const snaps: Snapshot[] = [{ date: '2026-01' }, { date: '2026-02' }];
+    const series = monthlyReturnSeries(snaps);
+    expect(series).toHaveLength(1);
+    expect(series[0].year).toBe(2026);
+    expect(series[0].month).toBe(2);
+    expect(series[0].ret).toBeCloseTo(0.05);
+  });
+});
+
+describe('maxDrawdownFull', () => {
+  it('returns null for fewer than 2 snapshots', () => {
+    expect(maxDrawdownFull([])).toBeNull();
+  });
+
+  it('returns scalar matching maxDrawdown and a series', () => {
+    vi.spyOn(utils, 'snapTotal')
+      .mockReturnValueOnce(1000)
+      .mockReturnValueOnce(1200)
+      .mockReturnValueOnce(900)
+      .mockReturnValueOnce(1100);
+    const snaps: Snapshot[] = [
+      { date: '2026-01' },
+      { date: '2026-02' },
+      { date: '2026-03' },
+      { date: '2026-04' },
+    ];
+    const result = maxDrawdownFull(snaps);
+    expect(result).not.toBeNull();
+    expect(result!.scalar).toBeCloseTo(-0.25, 8);
+    expect(result!.series).toHaveLength(3);
+    expect(result!.series[0].date).toBe('2026-02');
+    expect(result!.series[1].drawdown).toBeCloseTo(-0.25, 8);
+  });
+});
+
+describe('totalReturn', () => {
+  it('returns null when first <= 0', () => {
+    expect(totalReturn(0, 1000)).toBeNull();
+    expect(totalReturn(-100, 1000)).toBeNull();
+  });
+
+  it('computes total return correctly', () => {
+    expect(totalReturn(10000, 12000)).toBeCloseTo(0.2);
+    expect(totalReturn(10000, 8000)).toBeCloseTo(-0.2);
+  });
+});
+
+describe('absoluteGain', () => {
+  it('subtracts contributed from current value', () => {
+    expect(absoluteGain(15000, 10000)).toBe(5000);
+    expect(absoluteGain(8000, 10000)).toBe(-2000);
+  });
+});
+
+describe('ytdReturn', () => {
+  it('returns null for fewer than 2 snapshots', () => {
+    expect(ytdReturn([])).toBeNull();
+    expect(ytdReturn([{ date: '2026-01' }])).toBeNull();
+  });
+
+  it('returns a value when snapshots span the current year start', () => {
+    const yr = new Date().getFullYear();
+    const prevYear = yr - 1;
+    const snaps: Snapshot[] = [
+      { date: `${prevYear}-12`, savings: 10000 },
+      { date: `${yr}-06`, savings: 11000 },
+    ];
+    vi.spyOn(utils, 'snapTotal').mockReturnValueOnce(10000).mockReturnValueOnce(11000);
+    const result = ytdReturn(snaps);
+    expect(result).not.toBeNull();
+    expect(result!).toBeCloseTo(0.1);
+  });
+});
+
+describe('downsideDeviation', () => {
+  it('returns null for empty array', () => {
+    expect(downsideDeviation([])).toBeNull();
+  });
+
+  it('returns 0 when all returns are positive', () => {
+    expect(downsideDeviation([0.05, 0.03, 0.07])).toBeCloseTo(0);
+  });
+
+  it('computes correctly for mixed returns', () => {
+    const returns = [0.05, -0.03, 0.02, -0.01];
+    const result = downsideDeviation(returns);
+    expect(result).not.toBeNull();
+    const sumSq = Math.pow(0.03, 2) + Math.pow(0.01, 2);
+    const expected = Math.sqrt(sumSq / 4) * Math.sqrt(12);
+    expect(result!).toBeCloseTo(expected, 5);
+  });
+});
+
+describe('sharpeRatio', () => {
+  it('returns null when volatility is 0', () => {
+    expect(sharpeRatio(0.1, 0, 0.02)).toBeNull();
+  });
+
+  it('computes sharpe correctly', () => {
+    expect(sharpeRatio(0.1, 0.2, 0.02)).toBeCloseTo((0.1 - 0.02) / 0.2);
+  });
+});
+
+describe('sortinoRatio', () => {
+  it('returns null when downside deviation is 0', () => {
+    expect(sortinoRatio(0.1, 0, 0.02)).toBeNull();
+  });
+
+  it('computes sortino correctly', () => {
+    expect(sortinoRatio(0.1, 0.1, 0.02)).toBeCloseTo((0.1 - 0.02) / 0.1);
+  });
+});
+
+describe('calmarRatio', () => {
+  it('returns null when maxDd is 0', () => {
+    expect(calmarRatio(0.1, 0)).toBeNull();
+  });
+
+  it('computes calmar correctly', () => {
+    expect(calmarRatio(0.1, -0.2)).toBeCloseTo(0.5);
+  });
+});
+
+describe('averageDrawdown', () => {
+  it('returns null for empty series', () => {
+    expect(averageDrawdown([])).toBeNull();
+  });
+
+  it('computes mean of drawdown values', () => {
+    const series = [
+      { date: '2026-01', drawdown: 0 },
+      { date: '2026-02', drawdown: -0.1 },
+      { date: '2026-03', drawdown: -0.2 },
+    ];
+    expect(averageDrawdown(series)).toBeCloseTo(-0.1, 5);
+  });
+});
+
+describe('drawdownDuration', () => {
+  it('returns 0 for no drawdown', () => {
+    expect(drawdownDuration([{ date: '2026-01', drawdown: 0 }])).toBe(0);
+  });
+
+  it('finds the max consecutive run below zero', () => {
+    const series = [
+      { date: '2026-01', drawdown: 0 },
+      { date: '2026-02', drawdown: -0.05 },
+      { date: '2026-03', drawdown: -0.1 },
+      { date: '2026-04', drawdown: 0 },
+      { date: '2026-05', drawdown: -0.03 },
+    ];
+    expect(drawdownDuration(series)).toBe(2);
+  });
+});
+
+describe('rollingCagrSeries', () => {
+  it('returns empty for insufficient snapshots', () => {
+    const snaps: Snapshot[] = [{ date: '2024-01' }, { date: '2025-01' }];
+    expect(rollingCagrSeries(snaps, 12)).toEqual([]);
+  });
+
+  it('produces one result per qualifying window', () => {
+    const snaps: Snapshot[] = Array.from({ length: 14 }, (_, i) => ({
+      date: `${2024 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}`,
+    }));
+    vi.spyOn(utils, 'snapTotal').mockReturnValue(1000);
+    const result = rollingCagrSeries(snaps, 12);
+    expect(result.length).toBeGreaterThan(0);
+  });
+});
+
+describe('annualReturns', () => {
+  it('returns empty for fewer than 2 snapshots', () => {
+    expect(annualReturns([])).toEqual([]);
+    expect(annualReturns([{ date: '2024-06' }])).toEqual([]);
+  });
+
+  it('computes year-over-year returns from last snap per year', () => {
+    const snaps: Snapshot[] = [
+      { date: '2023-06', savings: 10000 },
+      { date: '2023-12', savings: 11000 },
+      { date: '2024-12', savings: 13200 },
+    ];
+    vi.spyOn(utils, 'snapTotal')
+      .mockReturnValueOnce(11000) // prevSnap = 2023-12 (last snap of 2023)
+      .mockReturnValueOnce(13200); // curSnap = 2024-12
+    const results = annualReturns(snaps);
+    expect(results).toHaveLength(1);
+    expect(results[0].year).toBe(2024);
+    expect(results[0].return).toBeCloseTo(0.2, 5);
+  });
+});
+
+describe('trailing12mIncome', () => {
+  const now = new Date();
+  const recentDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-15`;
+  const makeTx = (type: string, amount: number, date = recentDate): Transaction => ({
+    id: '1',
+    date,
+    source: 'test',
+    type,
+    name: 'test',
+    isin: '',
+    shares: 0,
+    price: 0,
+    amount,
+    fee: 0,
+    tax: 0,
+    currency: 'EUR',
+    fxRate: 1,
+  });
+
+  it('sums DIVIDEND and INTEREST in trailing 12 months', () => {
+    const txs: Transaction[] = [
+      makeTx('DIVIDEND', 100),
+      makeTx('INTEREST', 50),
+      makeTx('BUY', 1000),
+    ];
+    expect(trailing12mIncome(txs)).toBeCloseTo(150);
+  });
+
+  it('excludes transactions older than 12 months', () => {
+    const old = makeTx('DIVIDEND', 500, '2020-01-01');
+    expect(trailing12mIncome([old])).toBeCloseTo(0);
+  });
+});
+
+describe('dividendYieldPct', () => {
+  it('returns null when portfolioValue <= 0', () => {
+    expect(dividendYieldPct(100, 0)).toBeNull();
+  });
+
+  it('computes yield as fraction', () => {
+    expect(dividendYieldPct(200, 10000)).toBeCloseTo(0.02);
+  });
+});
+
+describe('yieldOnCostPct', () => {
+  it('returns null when costBasis <= 0', () => {
+    expect(yieldOnCostPct(100, 0)).toBeNull();
+  });
+
+  it('computes yield on cost as fraction', () => {
+    expect(yieldOnCostPct(300, 10000)).toBeCloseTo(0.03);
+  });
+});
+
+describe('dividendGrowthYoY', () => {
+  it('returns null when last year had no income', () => {
+    expect(dividendGrowthYoY([])).toBeNull();
+  });
+
+  it('computes growth correctly', () => {
+    const now = new Date();
+    const yr = now.getFullYear();
+    const makeTx = (amount: number, year: number): Transaction => ({
+      id: '1',
+      date: `${year}-06-01`,
+      source: 'test',
+      type: 'DIVIDEND',
+      name: 'div',
+      isin: '',
+      shares: 0,
+      price: 0,
+      amount,
+      fee: 0,
+      tax: 0,
+      currency: 'EUR',
+      fxRate: 1,
+    });
+    const txs: Transaction[] = [makeTx(100, yr - 1), makeTx(120, yr)];
+    const result = dividendGrowthYoY(txs);
+    expect(result).not.toBeNull();
+    expect(result!).toBeCloseTo(0.2, 5);
+  });
+});
+
+describe('dividendCagr', () => {
+  it('returns null when fewer than 2 years of data', () => {
+    const tx: Transaction = {
+      id: '1',
+      date: '2024-01-01',
+      source: 'test',
+      type: 'DIVIDEND',
+      name: '',
+      isin: '',
+      shares: 0,
+      price: 0,
+      amount: 100,
+      fee: 0,
+      tax: 0,
+      currency: 'EUR',
+      fxRate: 1,
+    };
+    expect(dividendCagr([tx])).toBeNull();
+  });
+
+  it('computes CAGR for multi-year dividend series', () => {
+    const make = (amount: number, date: string): Transaction => ({
+      id: '1',
+      date,
+      source: 'test',
+      type: 'DIVIDEND',
+      name: '',
+      isin: '',
+      shares: 0,
+      price: 0,
+      amount,
+      fee: 0,
+      tax: 0,
+      currency: 'EUR',
+      fxRate: 1,
+    });
+    const txs: Transaction[] = [make(100, '2022-06-01'), make(121, '2024-06-01')];
+    const result = dividendCagr(txs);
+    expect(result).not.toBeNull();
+    // 100 -> 121 over 24 months = (121/100)^(12/24) - 1 = 0.1
+    expect(result!).toBeCloseTo(0.1, 3);
+  });
+});
+
+describe('incomeByMonth', () => {
+  it('returns 12 entries by default', () => {
+    expect(incomeByMonth([], 12)).toHaveLength(12);
+  });
+
+  it('sums income per month', () => {
+    const now = new Date();
+    const curMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const txs: Transaction[] = [
+      {
+        id: '1',
+        date: curMonth,
+        source: 'test',
+        type: 'DIVIDEND',
+        name: '',
+        isin: '',
+        shares: 0,
+        price: 0,
+        amount: 200,
+        fee: 0,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 1,
+      },
+    ];
+    const result = incomeByMonth(txs, 1);
+    expect(result).toHaveLength(1);
+    expect(result[0].amount).toBeCloseTo(200);
   });
 });

@@ -50,6 +50,7 @@ type CardKey =
   | 'cost-basis'
   | 'goal'
   | 'alerts'
+  | 'analytics'
   | 'rules'
   | 'cache'
   | 'backup'
@@ -167,6 +168,9 @@ function repaintCard(key: CardKey): void {
     case 'alerts':
       html = renderAlertsCard(settings);
       break;
+    case 'analytics':
+      html = renderAnalyticsCard(settings);
+      break;
     case 'rules':
       html = renderRulesCard(settings);
       break;
@@ -242,6 +246,7 @@ export function renderSettings(): void {
     ${renderCostBasisCard(settings)}
     ${renderGoalCard(settings)}
     ${renderAlertsCard(settings)}
+    ${renderAnalyticsCard(settings)}
     ${renderRulesCard(settings)}
     ${renderCacheCard()}
     ${renderBackupCard()}
@@ -253,6 +258,7 @@ export function renderSettings(): void {
   attachCostBasisListeners(el);
   attachGoalListeners(el);
   attachAlertsListeners(el);
+  attachAnalyticsListeners(el);
   attachRulesListeners(el);
   attachCacheListeners(el);
   attachBackupListeners(el);
@@ -1278,6 +1284,55 @@ function attachGoalListeners(root: HTMLElement): void {
       showMsg('goal-msg', 'Saved', true);
     } catch (err) {
       showMsg('goal-msg', 'Error: ' + (err as Error).message, false);
+    }
+  });
+}
+
+// ── Analytics settings ───────────────────────────────────
+
+function renderAnalyticsCard(settings: Settings): string {
+  const riskFreeRate = settings.riskFreeRate ?? '2';
+  return `
+    <div class="card card-collapsible" id="settings-card-analytics" data-card-key="analytics">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Analytics</div>
+        <span class="card-chevron"></span>
+      </div>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.75rem">Settings used in advanced analytics calculations on the Net Worth tab.</p>
+        <div class="settings-field">
+          <label class="settings-field-label" for="set-risk-free-rate">Risk-free rate (% per year)${infoTip('Annual risk-free rate used in Sharpe and Sortino ratio calculations. Typically the yield on short-term government bonds in your currency (e.g. 2% for EUR). Stored as a percentage: enter 2 for 2%.')}</label>
+          <input
+            id="set-risk-free-rate"
+            class="form-input form-input-sm"
+            type="number"
+            min="0"
+            max="20"
+            step="0.1"
+            value="${esc(riskFreeRate)}"
+            style="max-width:120px"
+          >
+        </div>
+        <div style="display:flex;gap:10px;margin-top:.75rem">
+          <button class="btn btn-primary btn-sm" id="btn-save-analytics">Save</button>
+          <span id="analytics-msg" style="font-size:12px;line-height:28px"></span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function attachAnalyticsListeners(root: HTMLElement): void {
+  root.querySelector('#btn-save-analytics')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-save-analytics') as HTMLButtonElement;
+    const val =
+      (root.querySelector('#set-risk-free-rate') as HTMLInputElement | null)?.value?.trim() || '2';
+    try {
+      await withCardGuard('analytics', btn, () => setSetting('riskFreeRate', val), {
+        busyText: 'Saving...',
+      });
+      showMsg('analytics-msg', 'Saved', true);
+    } catch (err) {
+      showMsg('analytics-msg', 'Error: ' + (err as Error).message, false);
     }
   });
 }

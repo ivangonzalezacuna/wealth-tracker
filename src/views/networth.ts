@@ -13,7 +13,13 @@ import {
   kpiTile,
 } from '../utils';
 import { getACCTSList, FORECAST_RANGE_LABELS } from '../constants';
-import { getAccounts, getTotalAnnualContrib, getGoals } from '../store/config';
+import {
+  getAccounts,
+  getTotalAnnualContrib,
+  getGoals,
+  getSettings,
+  getHoldings,
+} from '../store/config';
 import { primaryInvestmentValue, allInvestmentAccountsValue } from '../model/accounts';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import {
@@ -24,9 +30,28 @@ import {
   xirr,
   annualizedVolatility,
   maxDrawdown,
+  maxDrawdownFull,
   cagrPerAccount,
+  totalReturn,
+  absoluteGain,
+  ytdReturn,
+  downsideDeviation,
+  sharpeRatio,
+  sortinoRatio,
+  calmarRatio,
+  averageDrawdown,
+  drawdownDuration,
+  rollingCagrSeries,
+  annualReturns,
+  monthlyReturns,
+  monthlyReturnSeries,
+  trailing12mIncome,
+  dividendYieldPct,
+  dividendGrowthYoY,
+  dividendCagr,
+  incomeByMonth,
 } from '../model/insights';
-import type { MonthlyGrowthPoint } from '../model/insights';
+import type { MonthlyGrowthPoint, DrawdownPoint } from '../model/insights';
 import {
   formatMonthsEta,
   forecastMultiAccountSeries,
@@ -258,6 +283,11 @@ export function renderNW(
   // still targets only the primary investment account).
   const latestPrimaryValue = primaryInvestmentValue(s, accounts);
 
+  // Analytics: total return, absolute gain, YTD
+  const totalReturnVal = totalReturn(firstTotal, total);
+  const absGainVal = absoluteGain(total, firstTotal);
+  const ytdReturnVal = ytdReturn(snaps);
+
   // Growth split (contributions vs market)
   const growthPoints = pd
     ? monthlyGrowthHistory(snaps, accounts, pd.monthly, primaryInvestmentValue)
@@ -376,6 +406,26 @@ export function renderNW(
       valueClass: maxDDVal === null ? '' : maxDDVal < 0 ? 'neg' : '',
       sub: maxDDVal !== null ? 'all history, total net worth' : 'needs 2 snapshots',
     })}
+    ${
+      totalReturnVal !== null
+        ? kpiTile({
+            label: `Total return${infoTip('Total gain as a percentage of your first recorded net worth. Shows how much your net worth has grown since you started tracking.')}`,
+            value: fmtPctNeg(totalReturnVal * 100),
+            valueClass: totalReturnVal >= 0 ? 'pos' : 'neg',
+            sub: fmtEurSigned(absGainVal, 2) + ' since ' + fmtMon(snaps[0].date),
+          })
+        : ''
+    }
+    ${
+      ytdReturnVal !== null
+        ? kpiTile({
+            label: `YTD${infoTip('Year-to-date return: change in total net worth from the snapshot nearest to January 1 of the current year.')}`,
+            value: fmtPctNeg(ytdReturnVal * 100),
+            valueClass: ytdReturnVal >= 0 ? 'pos' : 'neg',
+            sub: 'since start of year',
+          })
+        : ''
+    }
   `;
 
   const chartA = ACCTS.filter((a) => snaps.some((sn) => ((sn[a.key] as number) || 0) > 0));
@@ -484,6 +534,12 @@ export function renderNW(
 
   // Forecast chart
   _renderForecastChart(snaps, accounts);
+
+  // Level 2 + 3 analytics cards
+  _renderAnalyticsCards(snaps, txs);
+
+  // Allocation card
+  _renderAllocationCard(snaps, accounts);
 
   attachInfoTips(document.getElementById('networth')!);
 }
@@ -1099,4 +1155,662 @@ function _monthsDiff(a: string, b: string): number {
   const [ay, am] = a.split('-').map(Number);
   const [by, bm] = b.split('-').map(Number);
   return (by - ay) * 12 + (bm - am);
+}
+
+// ── Level 2 + 3 analytics cards ───────────────────────────────────
+
+function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
+  const el = document.getElementById('nw-analytics');
+  if (!el) return;
+
+  const months = snaps.length >= 2 ? _monthsDiff(snaps[0].date, snaps[snaps.length - 1].date) : 0;
+  const settings = getSettings();
+  const rfRaw = parseFloat(settings.riskFreeRate ?? '2');
+  const riskFreeRate = isFinite(rfRaw) ? rfRaw / 100 : 0.02;
+  const hasEnough12 = months >= 12;
+  const hasEnough24 = months >= 24;
+
+  // Annual returns table (always shown when there is multi-year data)
+  const annualRets = annualReturns(snaps);
+
+  // Monthly return series for heatmap
+  const returnSeries = monthlyReturnSeries(snaps);
+
+  // Full drawdown series
+  const ddFull = maxDrawdownFull(snaps);
+  const ddSeries: DrawdownPoint[] = ddFull?.series ?? [];
+
+  // Risk-adjusted metrics (require 12+ months)
+  const volatility = annualizedVolatility(snaps);
+  const maxDd = maxDrawdownFull(snaps)?.scalar ?? null;
+  const cagrSnaps =
+    snaps.length >= 2
+      ? cagr(
+          snapTotal(snaps[0]),
+          snapTotal(snaps[snaps.length - 1]),
+          _monthsDiff(snaps[0].date, snaps[snaps.length - 1].date),
+        )
+      : null;
+  const monthlyRets = snaps.length >= 2 ? (monthlyReturns(snaps) ?? []) : [];
+  const downsideDev = downsideDeviation(monthlyRets);
+  const avgDd = averageDrawdown(ddSeries);
+  const ddDuration = drawdownDuration(ddSeries);
+  const calmar = cagrSnaps !== null && maxDd !== null ? calmarRatio(cagrSnaps, maxDd) : null;
+  const sharpe =
+    cagrSnaps !== null && volatility !== null
+      ? sharpeRatio(cagrSnaps, volatility, riskFreeRate)
+      : null;
+  const sortino =
+    cagrSnaps !== null && downsideDev !== null
+      ? sortinoRatio(cagrSnaps, downsideDev, riskFreeRate)
+      : null;
+
+  // Rolling CAGR (36+ months)
+  const rollingCagr36 = months >= 36 ? rollingCagrSeries(snaps, 36) : [];
+
+  // Income analytics
+  const incomeTransactions = txs.filter((tx) => tx.type === 'DIVIDEND' || tx.type === 'INTEREST');
+  const hasIncome = incomeTransactions.length > 0;
+  const trailing12 = hasIncome ? trailing12mIncome(txs) : 0;
+  const latestTotal = snaps.length > 0 ? snapTotal(snaps[snaps.length - 1]) : 0;
+  const divYield = hasIncome && latestTotal > 0 ? dividendYieldPct(trailing12, latestTotal) : null;
+  const divGrowth = hasIncome ? dividendGrowthYoY(txs) : null;
+  const divCagr = hasIncome ? dividendCagr(txs) : null;
+  const incomeByMonthData = hasIncome ? incomeByMonth(txs, 12) : [];
+
+  // ── Level 2: Performance Details card ──
+  const noDataMsg = (req: string) =>
+    `<p class="note" style="margin:.5rem 0">Need at least ${req} of history.</p>`;
+
+  const annualRetTableHtml =
+    annualRets.length > 0
+      ? `<table class="tbl-simple" style="width:100%;font-size:13px;border-collapse:collapse;margin-top:.5rem">
+          <thead><tr style="color:var(--ink-3);font-size:11px;text-align:left">
+            <th style="padding:4px 8px">Year</th>
+            <th style="padding:4px 8px">Return</th>
+            <th style="padding:4px 8px;width:120px"></th>
+          </tr></thead>
+          <tbody>
+            ${annualRets
+              .map((r) => {
+                const barW = Math.min(100, Math.abs(r.return) * 300);
+                const barColor = r.return >= 0 ? 'var(--pos)' : 'var(--neg)';
+                return `<tr style="border-top:1px solid var(--line-2)">
+                  <td style="padding:4px 8px">${r.year}</td>
+                  <td style="padding:4px 8px;font-weight:500" class="${r.return >= 0 ? 'pos' : 'neg'}">${fmtPctNeg(r.return * 100)}</td>
+                  <td style="padding:4px 8px">
+                    <div style="height:10px;background:var(--line-2);border-radius:3px;overflow:hidden">
+                      <div style="height:100%;width:${barW}%;background:${barColor};border-radius:3px"></div>
+                    </div>
+                  </td>
+                </tr>`;
+              })
+              .join('')}
+          </tbody>
+        </table>`
+      : noDataMsg('2 years');
+
+  const heatmapHtml = (() => {
+    if (!hasEnough12 || returnSeries.length === 0) return noDataMsg('12 months');
+    const years = [...new Set(returnSeries.map((r) => r.year))].sort((a, b) => a - b);
+    const MONTH_LABELS = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    const byKey = new Map(returnSeries.map((r) => [`${r.year}-${r.month}`, r.ret]));
+    const cellColor = (ret: number | undefined) => {
+      if (ret === undefined) return 'transparent';
+      const intensity = Math.min(1, Math.abs(ret) * 12);
+      const lightness = 97 - intensity * 30;
+      const sat = intensity * 75;
+      return ret >= 0 ? `hsl(142,${sat}%,${lightness}%)` : `hsl(0,${sat}%,${lightness}%)`;
+    };
+    const header = `<tr><th style="padding:2px 4px;font-size:10px;color:var(--ink-3);text-align:left;font-weight:400">Year</th>
+      ${MONTH_LABELS.map((m) => `<th style="padding:2px 4px;font-size:10px;color:var(--ink-3);font-weight:400">${m}</th>`).join('')}</tr>`;
+    const rows = years
+      .map((y) => {
+        const cells = Array.from({ length: 12 }, (_, i) => {
+          const ret = byKey.get(`${y}-${i + 1}`);
+          const bg = cellColor(ret);
+          const txt = ret !== undefined ? fmtPctNeg(ret * 100) : '';
+          const color = ret !== undefined && Math.abs(ret) > 0.08 ? 'var(--bg)' : 'var(--ink)';
+          return `<td style="padding:3px 4px;font-size:10px;text-align:center;background:${bg};color:${color};border-radius:3px">${txt}</td>`;
+        });
+        return `<tr><td style="padding:3px 6px;font-size:11px;color:var(--ink-3);white-space:nowrap">${y}</td>${cells.join('')}</tr>`;
+      })
+      .join('');
+    return `<div style="overflow-x:auto;margin-top:.5rem">
+      <table style="border-collapse:separate;border-spacing:2px;min-width:560px"><thead>${header}</thead><tbody>${rows}</tbody></table>
+    </div>`;
+  })();
+
+  // ── Level 3: Advanced Analytics card ──
+  const rfNote = settings.riskFreeRate
+    ? `using ${rfRaw}% risk-free rate`
+    : `using default 2% risk-free rate, <a href="#settings" style="color:var(--accent)">configure in Settings</a>`;
+
+  const advancedBody = `
+    <div style="margin-bottom:1rem">
+      <div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem">Risk</div>
+      <div class="kpi-row" style="margin-bottom:.75rem">
+        ${kpiTile({
+          label: `Volatility${infoTip('Annualized standard deviation of monthly net-worth returns. Higher means more month-to-month variation.')}`,
+          value: volatility !== null ? fmtPctNeg(volatility * 100) : '-',
+          sub: volatility !== null ? 'annualized' : 'needs 3 snapshots',
+        })}
+        ${kpiTile({
+          label: `Max drawdown${infoTip('Largest peak-to-trough decline across all history.')}`,
+          value: maxDd !== null ? (maxDd === 0 ? '0%' : fmtPctNeg(maxDd * 100)) : '-',
+          valueClass: maxDd !== null && maxDd < 0 ? 'neg' : '',
+          sub: maxDd !== null ? 'all history' : 'needs 2 snapshots',
+        })}
+        ${kpiTile({
+          label: `Avg drawdown${infoTip('Average of all per-month drawdown values. A less extreme version of max drawdown, showing the typical depth when underwater.')}`,
+          value: avgDd !== null ? fmtPctNeg(avgDd * 100) : '-',
+          valueClass: avgDd !== null && avgDd < 0 ? 'neg' : '',
+          sub: avgDd !== null ? 'all history' : 'needs 2 snapshots',
+        })}
+        ${kpiTile({
+          label: `Drawdown duration${infoTip('Longest consecutive run of months where net worth was below a prior peak.')}`,
+          value: ddSeries.length > 0 ? `${ddDuration} mo` : '-',
+          sub: ddSeries.length > 0 ? 'max consecutive months below peak' : 'needs 2 snapshots',
+        })}
+      </div>
+      ${
+        ddSeries.length >= 2
+          ? `<div class="chart-wrap chart-h-sm" style="margin-bottom:.5rem"><canvas id="c-nw-drawdown"></canvas></div>`
+          : ''
+      }
+    </div>
+
+    <div style="margin-bottom:1rem">
+      <div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.25rem">Risk-Adjusted Performance</div>
+      <p class="note" style="margin-bottom:.5rem">${rfNote}</p>
+      <div class="kpi-row">
+        ${kpiTile({
+          label: `Sharpe${infoTip('(CAGR - risk-free rate) / volatility. Measures return earned per unit of total risk. Higher is better.')}`,
+          value: sharpe !== null ? sharpe.toFixed(2) : hasEnough12 ? '-' : '-',
+          sub:
+            sharpe !== null
+              ? `rf ${rfRaw}%`
+              : hasEnough12
+                ? 'needs positive volatility'
+                : 'needs 12 months',
+        })}
+        ${kpiTile({
+          label: `Sortino${infoTip('(CAGR - risk-free rate) / downside deviation. Like Sharpe but only penalizes downside risk.')}`,
+          value: sortino !== null ? sortino.toFixed(2) : '-',
+          sub:
+            sortino !== null
+              ? `rf ${rfRaw}%`
+              : hasEnough12
+                ? 'needs downside moves'
+                : 'needs 12 months',
+        })}
+        ${kpiTile({
+          label: `Calmar${infoTip('CAGR / |max drawdown|. Measures return relative to worst loss. A value above 1 means CAGR exceeds max drawdown magnitude.')}`,
+          value: calmar !== null ? calmar.toFixed(2) : '-',
+          sub: calmar !== null ? 'CAGR / |max DD|' : 'needs CAGR and drawdown',
+        })}
+      </div>
+    </div>
+
+    ${
+      hasEnough24 && rollingCagr36.length > 0
+        ? `<div style="margin-bottom:1rem">
+          <div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem">Rolling 3-Year CAGR</div>
+          <div class="chart-wrap chart-h-sm"><canvas id="c-nw-rolling-cagr"></canvas></div>
+        </div>`
+        : ''
+    }
+
+    ${
+      hasIncome
+        ? `<div>
+          <div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem">Income</div>
+          <div class="kpi-row" style="margin-bottom:.75rem">
+            ${kpiTile({
+              label: `Trailing 12M income${infoTip('Total dividends and interest received in the last 12 months.')}`,
+              value: fmtEur2(trailing12),
+              sub: 'DIVIDEND + INTEREST',
+            })}
+            ${
+              divYield !== null
+                ? kpiTile({
+                    label: `Dividend yield${infoTip('Trailing 12-month income divided by current total portfolio value.')}`,
+                    value: fmtPctNeg(divYield * 100),
+                    sub: 'trailing 12M / portfolio value',
+                  })
+                : ''
+            }
+            ${
+              divGrowth !== null
+                ? kpiTile({
+                    label: `Income growth YoY${infoTip("This year's income vs last year's income as a percentage change.")}`,
+                    value: fmtPctNeg(divGrowth * 100),
+                    valueClass: divGrowth >= 0 ? 'pos' : 'neg',
+                    sub: 'vs prior year',
+                  })
+                : ''
+            }
+            ${
+              divCagr !== null
+                ? kpiTile({
+                    label: `Income CAGR${infoTip('Compound annual growth rate of annual income from dividends and interest.')}`,
+                    value: fmtPctNeg(divCagr * 100),
+                    valueClass: divCagr >= 0 ? 'pos' : 'neg',
+                    sub: 'annual income growth',
+                  })
+                : ''
+            }
+          </div>
+          <div class="chart-wrap chart-h-sm"><canvas id="c-nw-income-month"></canvas></div>
+        </div>`
+        : ''
+    }
+  `;
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">Performance Details</div>
+      <div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-top:.75rem;margin-bottom:.25rem">Annual Returns</div>
+      ${annualRetTableHtml}
+      ${
+        hasEnough12
+          ? `<div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-top:1rem;margin-bottom:.25rem">Monthly Return Heatmap</div>
+           ${heatmapHtml}`
+          : ''
+      }
+    </div>
+    <div class="card card-collapsible collapsed" id="nw-advanced-analytics-card">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Advanced Analytics</div>
+        <span class="card-chevron"></span>
+      </div>
+      <div class="card-body">
+        ${
+          hasEnough24
+            ? advancedBody
+            : `<p class="note">Advanced analytics are available after ${24 - months} more months of history (need 24 months, have ${months}).</p>`
+        }
+      </div>
+    </div>
+  `;
+
+  // Attach collapse toggle for the advanced analytics card
+  const advCard = document.getElementById('nw-advanced-analytics-card');
+  if (advCard) {
+    const header = advCard.querySelector('.card-header');
+    header?.addEventListener('click', () => {
+      advCard.classList.toggle('collapsed');
+      // Render charts when card is first opened
+      if (!advCard.classList.contains('collapsed')) {
+        _renderDrawdownChart(ddSeries);
+        if (rollingCagr36.length > 0) _renderRollingCagrChart(rollingCagr36);
+        if (hasIncome) _renderIncomeByMonthChart(incomeByMonthData);
+      }
+    });
+  }
+}
+
+function _renderDrawdownChart(series: DrawdownPoint[]): void {
+  const el = document.getElementById('c-nw-drawdown') as HTMLCanvasElement | null;
+  if (!el || series.length < 2) return;
+  _destroyChart('c-nw-drawdown');
+  const C = resolvedT();
+  const labels = series.map((p) => p.date);
+  const data = series.map((p) => p.drawdown * 100);
+  CH['c-nw-drawdown'] = new Chart(el, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Drawdown',
+          data,
+          fill: true,
+          borderColor: 'rgba(220,53,69,0.8)',
+          backgroundColor: 'rgba(220,53,69,0.15)',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          tension: 0.2,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          reverse: false,
+          ticks: {
+            callback: (v) => `${Number(v).toFixed(1)}%`,
+            font: { size: 10 },
+            color: C.ink3,
+          },
+          grid: { color: C.line },
+          max: 0,
+        },
+        x: {
+          ticks: { font: { size: 10 }, color: C.ink3, maxTicksLimit: 8 },
+          grid: { display: false },
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          ...TOOLTIP_BOX,
+          callbacks: {
+            label: (ctx) => ` ${(ctx.parsed.y ?? 0).toFixed(2)}%`,
+          },
+        },
+      },
+    },
+  });
+}
+
+function _renderRollingCagrChart(series: { month: string; cagr: number }[]): void {
+  const el = document.getElementById('c-nw-rolling-cagr') as HTMLCanvasElement | null;
+  if (!el || series.length === 0) return;
+  _destroyChart('c-nw-rolling-cagr');
+  const C = resolvedT();
+  CH['c-nw-rolling-cagr'] = new Chart(el, {
+    type: 'line',
+    data: {
+      labels: series.map((p) => p.month),
+      datasets: [
+        {
+          label: '3Y Rolling CAGR',
+          data: series.map((p) => p.cagr * 100),
+          fill: false,
+          borderColor: C.brandChart,
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.3,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          ticks: {
+            callback: (v) => `${Number(v).toFixed(1)}%`,
+            font: { size: 10 },
+            color: C.ink3,
+          },
+          grid: { color: C.line },
+        },
+        x: {
+          ticks: { font: { size: 10 }, color: C.ink3, maxTicksLimit: 8 },
+          grid: { display: false },
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          ...TOOLTIP_BOX,
+          callbacks: { label: (ctx) => ` ${(ctx.parsed.y ?? 0).toFixed(2)}%` },
+        },
+      },
+    },
+  });
+}
+
+function _renderIncomeByMonthChart(data: { month: string; amount: number }[]): void {
+  const el = document.getElementById('c-nw-income-month') as HTMLCanvasElement | null;
+  if (!el) return;
+  _destroyChart('c-nw-income-month');
+  const hasAny = data.some((d) => d.amount > 0);
+  if (!hasAny) return;
+  const C = resolvedT();
+  CH['c-nw-income-month'] = new Chart(el, {
+    type: 'bar',
+    data: {
+      labels: data.map((d) => d.month),
+      datasets: [
+        {
+          label: 'Income',
+          data: data.map((d) => d.amount),
+          backgroundColor: C.brandChart + '99',
+          borderColor: C.brandChart,
+          borderWidth: 1,
+          borderRadius: 3,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          ticks: {
+            callback: (v) => fmtEur(Number(v)),
+            font: { size: 10 },
+            color: C.ink3,
+          },
+          grid: { color: C.line },
+        },
+        x: {
+          ticks: { font: { size: 10 }, color: C.ink3 },
+          grid: { display: false },
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          ...TOOLTIP_BOX,
+          callbacks: { label: (ctx) => ` ${fmtEur2(Number(ctx.raw))}` },
+        },
+      },
+    },
+  });
+}
+
+// ── Allocation card ───────────────────────────────────────────────
+
+function _renderAllocationCard(snaps: Snapshot[], accounts: Account[]): void {
+  const el = document.getElementById('nw-allocation');
+  if (!el) return;
+
+  if (snaps.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+
+  const s = snaps[snaps.length - 1];
+  const holdings = getHoldings();
+
+  // Account allocation (always available from snapshot)
+  const acctData = accounts
+    .filter((a) => {
+      const key = a.id || a.key || '';
+      return key && ((s[key] as number) || 0) > 0;
+    })
+    .map((a) => {
+      const key = a.id || a.key || '';
+      return { label: a.label || key, value: (s[key] as number) || 0, color: a.color || '#888' };
+    });
+
+  // Asset class allocation (from holdings metadata with account as proxy value)
+  const assetClassMap: Record<string, number> = {};
+  const regionMap: Record<string, number> = {};
+  for (const h of holdings) {
+    if (!h.isin || !h.active) continue;
+    const cls = h.assetClass || 'Other';
+    const reg = h.region || 'Other';
+    // Use contribAmount as a weight proxy when no position values are available
+    assetClassMap[cls] = (assetClassMap[cls] || 0) + h.contribAmount;
+    regionMap[reg] = (regionMap[reg] || 0) + h.contribAmount;
+  }
+
+  const hasAssetClass = Object.keys(assetClassMap).length > 1;
+  const hasRegion = Object.keys(regionMap).length > 1;
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">Allocation</div>
+      <div class="two-col" style="margin-top:.75rem">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem">By Account</div>
+          <div id="nw-alloc-acct-legend" class="legend" style="margin-bottom:.5rem"></div>
+          <div class="chart-wrap chart-h-sm"><canvas id="c-nw-alloc-acct"></canvas></div>
+        </div>
+        ${
+          hasAssetClass
+            ? `<div>
+              <div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem">By Asset Class${infoTip('Weighted by configured contribution amounts from Holdings settings. Reflects target allocation, not market value, unless market prices are recorded.')}</div>
+              <div id="nw-alloc-class-legend" class="legend" style="margin-bottom:.5rem"></div>
+              <div class="chart-wrap chart-h-sm"><canvas id="c-nw-alloc-class"></canvas></div>
+            </div>`
+            : '<div></div>'
+        }
+        ${
+          hasRegion
+            ? `<div>
+              <div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem">By Region${infoTip('Weighted by configured contribution amounts from Holdings settings.')}</div>
+              <div id="nw-alloc-region-legend" class="legend" style="margin-bottom:.5rem"></div>
+              <div class="chart-wrap chart-h-sm"><canvas id="c-nw-alloc-region"></canvas></div>
+            </div>`
+            : ''
+        }
+      </div>
+    </div>
+  `;
+
+  // Render account allocation donut
+  if (acctData.length > 0) {
+    _destroyChart('c-nw-alloc-acct');
+    const legendEl = document.getElementById('nw-alloc-acct-legend');
+    if (legendEl) {
+      legendEl.innerHTML = renderLegendHtml(
+        acctData.map((d) => ({ label: d.label, color: d.color })),
+      );
+      bindLegendToggle(legendEl, null as unknown as Chart, {});
+    }
+    CH['c-nw-alloc-acct'] = new Chart(
+      document.getElementById('c-nw-alloc-acct') as HTMLCanvasElement,
+      {
+        type: 'doughnut',
+        data: {
+          labels: acctData.map((d) => d.label),
+          datasets: [
+            {
+              data: acctData.map((d) => d.value),
+              backgroundColor: acctData.map((d) => safeColor(d.color)),
+              borderWidth: 1,
+              borderColor: resolvedT().bg,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '62%',
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              ...TOOLTIP_BOX,
+              callbacks: {
+                label: (ctx) => ` ${esc(String(ctx.label))}: ${fmtEur2(Number(ctx.raw))}`,
+              },
+            },
+          },
+        },
+      },
+    );
+    const legendBindEl = document.getElementById('nw-alloc-acct-legend');
+    if (legendBindEl) bindLegendToggle(legendBindEl, CH['c-nw-alloc-acct'], {});
+  }
+
+  // Render asset class donut
+  if (hasAssetClass) {
+    _renderAllocationDonut('c-nw-alloc-class', 'nw-alloc-class-legend', assetClassMap);
+  }
+
+  // Render region donut
+  if (hasRegion) {
+    _renderAllocationDonut('c-nw-alloc-region', 'nw-alloc-region-legend', regionMap);
+  }
+}
+
+/** Render a simple donut chart from a label -> value map, with auto-generated colors. */
+function _renderAllocationDonut(
+  canvasId: string,
+  legendId: string,
+  dataMap: Record<string, number>,
+): void {
+  const el = document.getElementById(canvasId) as HTMLCanvasElement | null;
+  if (!el) return;
+  _destroyChart(canvasId);
+
+  const total = Object.values(dataMap).reduce((s, v) => s + v, 0);
+  if (total <= 0) return;
+
+  const PALETTE = [
+    '#4e79a7',
+    '#f28e2b',
+    '#e15759',
+    '#76b7b2',
+    '#59a14f',
+    '#edc948',
+    '#b07aa1',
+    '#ff9da7',
+    '#9c755f',
+    '#bab0ac',
+  ];
+  const entries = Object.entries(dataMap).sort((a, b) => b[1] - a[1]);
+  const colors = entries.map((_, i) => PALETTE[i % PALETTE.length]);
+
+  const legendEl = document.getElementById(legendId);
+  if (legendEl) {
+    legendEl.innerHTML = renderLegendHtml(
+      entries.map(([label], i) => ({ label, color: colors[i] })),
+    );
+  }
+
+  CH[canvasId] = new Chart(el, {
+    type: 'doughnut',
+    data: {
+      labels: entries.map(([k]) => k),
+      datasets: [
+        {
+          data: entries.map(([, v]) => v),
+          backgroundColor: colors,
+          borderWidth: 1,
+          borderColor: resolvedT().bg,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '62%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          ...TOOLTIP_BOX,
+          callbacks: {
+            label: (ctx) => {
+              const pct = total > 0 ? ((Number(ctx.raw) / total) * 100).toFixed(1) : '0';
+              return ` ${esc(String(ctx.label))}: ${pct}%`;
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (legendEl) bindLegendToggle(legendEl, CH[canvasId], {});
 }

@@ -89,6 +89,7 @@ export interface Snapshot {
 export interface Settings {
   costBasisMethod?: string;
   annualReturnPct?: string;
+  riskFreeRate?: string;
   [key: string]: string | null | undefined;
 }
 

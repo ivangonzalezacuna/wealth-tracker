@@ -1,4 +1,4 @@
-import type { Snapshot, Account } from '../types';
+import type { Snapshot, Account, Transaction } from '../types';
 import { snapTotal } from '../utils';
 
 export interface XirrCashFlow {
@@ -136,21 +136,79 @@ export function monthlyGrowthHistory(
 }
 
 /**
- * Annualized volatility: sample std-dev of monthly net-worth % returns, scaled by sqrt(12).
- * Returns null when fewer than 3 snapshots exist.
+ * Monthly percentage returns series extracted from snapshot totals.
+ * Returns null when fewer than 2 snapshots or any starting snapshot has a non-positive total.
  */
-export function annualizedVolatility(snaps: Snapshot[]): number | null {
-  if (snaps.length < 3) return null;
+export function monthlyReturns(snaps: Snapshot[]): number[] | null {
+  if (snaps.length < 2) return null;
   const returns: number[] = [];
   for (let i = 1; i < snaps.length; i++) {
     const prev = snapTotal(snaps[i - 1]);
     if (prev <= 0) return null;
     returns.push(snapTotal(snaps[i]) / prev - 1);
   }
-  if (returns.length < 2) return null;
+  return returns;
+}
+
+/**
+ * Monthly return series with date metadata (year, month, return fraction).
+ * Used for heatmap rendering.
+ */
+export function monthlyReturnSeries(
+  snaps: Snapshot[],
+): { year: number; month: number; ret: number }[] {
+  if (snaps.length < 2) return [];
+  const result: { year: number; month: number; ret: number }[] = [];
+  for (let i = 1; i < snaps.length; i++) {
+    const prev = snapTotal(snaps[i - 1]);
+    if (prev <= 0) continue;
+    const cur = snapTotal(snaps[i]);
+    const d = _parseYM(snaps[i].date);
+    if (!d) continue;
+    result.push({ year: d.year, month: d.month, ret: cur / prev - 1 });
+  }
+  return result;
+}
+
+/**
+ * Annualized volatility: sample std-dev of monthly net-worth % returns, scaled by sqrt(12).
+ * Returns null when fewer than 3 snapshots exist.
+ */
+export function annualizedVolatility(snaps: Snapshot[]): number | null {
+  if (snaps.length < 3) return null;
+  const returns = monthlyReturns(snaps);
+  if (!returns || returns.length < 2) return null;
   const mean = returns.reduce((s, r) => s + r, 0) / returns.length;
   const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / (returns.length - 1);
   return Math.sqrt(variance) * Math.sqrt(12);
+}
+
+/** Point in a per-snapshot drawdown series. */
+export interface DrawdownPoint {
+  date: string;
+  drawdown: number; // fraction, e.g. -0.10 means 10% below prior peak
+}
+
+/**
+ * Computes both the max drawdown scalar and the full per-snapshot drawdown series.
+ * The series starts from snaps[1] (one entry per snapshot after the first).
+ * Returns null when fewer than 2 snapshots.
+ */
+export function maxDrawdownFull(
+  snaps: Snapshot[],
+): { scalar: number; series: DrawdownPoint[] } | null {
+  if (snaps.length < 2) return null;
+  let peak = snapTotal(snaps[0]);
+  let maxDD = 0;
+  const series: DrawdownPoint[] = [];
+  for (let i = 1; i < snaps.length; i++) {
+    const val = snapTotal(snaps[i]);
+    if (val > peak) peak = val;
+    const dd = peak > 0 ? (val - peak) / peak : 0;
+    series.push({ date: snaps[i].date, drawdown: dd });
+    if (dd < maxDD) maxDD = dd;
+  }
+  return { scalar: maxDD, series };
 }
 
 /**
@@ -159,20 +217,286 @@ export function annualizedVolatility(snaps: Snapshot[]): number | null {
  */
 export function maxDrawdown(snaps: Snapshot[]): number | null {
   if (snaps.length < 2) return null;
-  let peak = snapTotal(snaps[0]);
-  let maxDD = 0;
-  for (let i = 1; i < snaps.length; i++) {
-    const val = snapTotal(snaps[i]);
-    if (val > peak) peak = val;
-    else if (peak > 0) {
-      const dd = (val - peak) / peak;
-      if (dd < maxDD) maxDD = dd;
-    }
-  }
-  return maxDD;
+  const result = maxDrawdownFull(snaps);
+  return result ? result.scalar : null;
 }
 
+// ── New analytics functions ───────────────────────────────────────
+
+/**
+ * Total portfolio return as a fraction: (current - first) / first.
+ * Returns null when first <= 0.
+ */
+export function totalReturn(first: number, current: number): number | null {
+  if (first <= 0) return null;
+  return (current - first) / first;
+}
+
+/** Absolute gain in currency: current value minus total contributed. */
+export function absoluteGain(current: number, totalContributed: number): number {
+  return current - totalContributed;
+}
+
+/**
+ * Year-to-date return: total return from the snapshot nearest to Jan 1
+ * of the current year to the latest snapshot. If the portfolio started
+ * during the current year, return is computed from inception.
+ * Returns null when fewer than 2 snapshots.
+ */
+export function ytdReturn(snaps: Snapshot[]): number | null {
+  if (snaps.length < 2) return null;
+  const currentYear = new Date().getFullYear();
+  const janTarget = currentYear * 12 + 1;
+  const latest = snaps[snaps.length - 1];
+  let bestSnap: Snapshot | null = null;
+  let bestDist = Infinity;
+  for (const sn of snaps) {
+    if (sn === latest) continue;
+    const d = _parseYM(sn.date);
+    if (!d) continue;
+    const val = d.year * 12 + d.month;
+    const dist = Math.abs(val - janTarget);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestSnap = sn;
+    }
+  }
+  if (!bestSnap) return null;
+  return totalReturn(snapTotal(bestSnap), snapTotal(latest));
+}
+
+/**
+ * Downside deviation: annualized square root of mean squared negative monthly returns.
+ * Uses a 0% threshold (semi-deviation below zero). Returns null for empty input.
+ */
+export function downsideDeviation(returns: number[]): number | null {
+  if (returns.length === 0) return null;
+  const sumSq = returns.reduce((s, r) => s + Math.pow(Math.min(r, 0), 2), 0);
+  return Math.sqrt(sumSq / returns.length) * Math.sqrt(12);
+}
+
+/**
+ * Sharpe ratio: (CAGR - riskFreeRate) / annualizedVolatility.
+ * Returns null when volatility is 0.
+ */
+export function sharpeRatio(
+  cagrVal: number,
+  volatility: number,
+  riskFreeRate: number,
+): number | null {
+  if (volatility === 0) return null;
+  return (cagrVal - riskFreeRate) / volatility;
+}
+
+/**
+ * Sortino ratio: (CAGR - riskFreeRate) / downsideDeviation.
+ * Returns null when downside deviation is 0.
+ */
+export function sortinoRatio(
+  cagrVal: number,
+  downsideDev: number,
+  riskFreeRate: number,
+): number | null {
+  if (downsideDev === 0) return null;
+  return (cagrVal - riskFreeRate) / downsideDev;
+}
+
+/**
+ * Calmar ratio: CAGR / |maxDrawdown|.
+ * Returns null when maxDrawdown is 0.
+ */
+export function calmarRatio(cagrVal: number, maxDd: number): number | null {
+  if (maxDd === 0) return null;
+  return cagrVal / Math.abs(maxDd);
+}
+
+/**
+ * Average drawdown: arithmetic mean of all drawdown fractions in the series.
+ * Returns null for an empty series.
+ */
+export function averageDrawdown(series: DrawdownPoint[]): number | null {
+  if (series.length === 0) return null;
+  return series.reduce((s, p) => s + p.drawdown, 0) / series.length;
+}
+
+/**
+ * Drawdown duration: maximum number of consecutive months where the portfolio
+ * is below its prior peak (drawdown < 0).
+ */
+export function drawdownDuration(series: DrawdownPoint[]): number {
+  let maxLen = 0;
+  let cur = 0;
+  for (const p of series) {
+    if (p.drawdown < 0) {
+      cur++;
+      if (cur > maxLen) maxLen = cur;
+    } else {
+      cur = 0;
+    }
+  }
+  return maxLen;
+}
+
+/**
+ * Rolling CAGR series: for each snapshot at position i >= windowMonths, compute
+ * the CAGR over [i - windowMonths, i]. Returns an empty array when there are
+ * fewer than windowMonths + 1 snapshots.
+ */
+export function rollingCagrSeries(
+  snaps: Snapshot[],
+  windowMonths: number,
+): { month: string; cagr: number }[] {
+  const result: { month: string; cagr: number }[] = [];
+  for (let i = windowMonths; i < snaps.length; i++) {
+    const startSnap = snaps[i - windowMonths];
+    const endSnap = snaps[i];
+    const startD = _parseYM(startSnap.date);
+    const endD = _parseYM(endSnap.date);
+    if (!startD || !endD) continue;
+    const months = (endD.year - startD.year) * 12 + (endD.month - startD.month);
+    if (months < windowMonths) continue;
+    const c = cagr(snapTotal(startSnap), snapTotal(endSnap), months);
+    if (c !== null) result.push({ month: endSnap.date, cagr: c });
+  }
+  return result;
+}
+
+/**
+ * Annual returns table: year-over-year return derived from the last snapshot of
+ * each calendar year. Returns an empty array when fewer than 2 snapshots.
+ */
+export function annualReturns(snaps: Snapshot[]): { year: number; return: number }[] {
+  if (snaps.length < 2) return [];
+  const byYear = new Map<number, Snapshot>();
+  for (const sn of snaps) {
+    const d = _parseYM(sn.date);
+    if (!d) continue;
+    const existing = byYear.get(d.year);
+    if (!existing) {
+      byYear.set(d.year, sn);
+    } else {
+      const ed = _parseYM(existing.date);
+      if (ed && d.month > ed.month) byYear.set(d.year, sn);
+    }
+  }
+  const years = Array.from(byYear.keys()).sort((a, b) => a - b);
+  const results: { year: number; return: number }[] = [];
+  for (let i = 1; i < years.length; i++) {
+    const prevSnap = byYear.get(years[i - 1])!;
+    const curSnap = byYear.get(years[i])!;
+    const prevTotal = snapTotal(prevSnap);
+    const curTotal = snapTotal(curSnap);
+    if (prevTotal <= 0) continue;
+    results.push({ year: years[i], return: (curTotal - prevTotal) / prevTotal });
+  }
+  return results;
+}
+
+// ── Income analytics ──────────────────────────────────────────────
+
+/**
+ * Sum of DIVIDEND and INTEREST transaction amounts in the trailing 12 months.
+ */
+export function trailing12mIncome(txs: Transaction[]): number {
+  const cutoff = new Date();
+  cutoff.setFullYear(cutoff.getFullYear() - 1);
+  return txs
+    .filter((tx) => {
+      if (tx.type !== 'DIVIDEND' && tx.type !== 'INTEREST') return false;
+      const dateStr = tx.date.length === 7 ? `${tx.date}-01` : tx.date;
+      return new Date(dateStr) >= cutoff;
+    })
+    .reduce((s, tx) => s + (tx.amount || 0), 0);
+}
+
+/**
+ * Dividend yield as a fraction: annualIncome / portfolioValue.
+ * Returns null when portfolioValue <= 0.
+ */
+export function dividendYieldPct(annualIncome: number, portfolioValue: number): number | null {
+  if (portfolioValue <= 0) return null;
+  return annualIncome / portfolioValue;
+}
+
+/**
+ * Yield on cost as a fraction: annualIncome / totalCostBasis.
+ * Returns null when totalCostBasis <= 0.
+ */
+export function yieldOnCostPct(annualIncome: number, totalCostBasis: number): number | null {
+  if (totalCostBasis <= 0) return null;
+  return annualIncome / totalCostBasis;
+}
+
+/**
+ * Dividend growth year-over-year: (this year income - last year income) / last year income.
+ * Returns null when last year had no income.
+ */
+export function dividendGrowthYoY(txs: Transaction[]): number | null {
+  const thisYear = new Date().getFullYear();
+  const sumYear = (yr: number) =>
+    txs
+      .filter((tx) => {
+        if (tx.type !== 'DIVIDEND' && tx.type !== 'INTEREST') return false;
+        const dateStr = tx.date.length === 7 ? `${tx.date}-01` : tx.date;
+        return new Date(dateStr).getFullYear() === yr;
+      })
+      .reduce((s, tx) => s + (tx.amount || 0), 0);
+  const thisYearIncome = sumYear(thisYear);
+  const lastYearIncome = sumYear(thisYear - 1);
+  if (lastYearIncome <= 0) return null;
+  return (thisYearIncome - lastYearIncome) / lastYearIncome;
+}
+
+/**
+ * Dividend CAGR: compound annual growth rate applied to annual dividend totals.
+ * Returns null when fewer than 2 years of dividend data exist.
+ */
+export function dividendCagr(txs: Transaction[]): number | null {
+  const annualTotals = new Map<number, number>();
+  for (const tx of txs) {
+    if (tx.type !== 'DIVIDEND' && tx.type !== 'INTEREST') continue;
+    const dateStr = tx.date.length === 7 ? `${tx.date}-01` : tx.date;
+    const yr = new Date(dateStr).getFullYear();
+    annualTotals.set(yr, (annualTotals.get(yr) || 0) + (tx.amount || 0));
+  }
+  if (annualTotals.size < 2) return null;
+  const years = Array.from(annualTotals.keys()).sort((a, b) => a - b);
+  const first = annualTotals.get(years[0])!;
+  const last = annualTotals.get(years[years.length - 1])!;
+  const span = (years[years.length - 1] - years[0]) * 12;
+  return cagr(first, last, span);
+}
+
+/**
+ * Income (DIVIDEND + INTEREST) broken down by month for the last N months.
+ * Each entry is { month: 'YYYY-MM', amount: number }.
+ */
+export function incomeByMonth(
+  txs: Transaction[],
+  months = 12,
+): { month: string; amount: number }[] {
+  const now = new Date();
+  const result: { month: string; amount: number }[] = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const total = txs
+      .filter((tx) => {
+        if (tx.type !== 'DIVIDEND' && tx.type !== 'INTEREST') return false;
+        return tx.date.startsWith(month) || tx.date === month;
+      })
+      .reduce((s, tx) => s + (tx.amount || 0), 0);
+    result.push({ month, amount: total });
+  }
+  return result;
+}
+
+// private helpers shared across this module
 function parseYearMonth(d: string): { year: number; month: number } | null {
+  return _parseYM(d);
+}
+
+function _parseYM(d: string): { year: number; month: number } | null {
   if (!d) return null;
   const parts = d.split('-');
   if (parts.length < 2) return null;
