@@ -390,13 +390,18 @@ function showUpdateBanner(onReload: () => void): void {
 
 // ── Online/offline listeners ─────────────────────────────
 function initOnlineListeners() {
-  window.addEventListener('online', () => {
+  window.addEventListener('online', async () => {
     state.offline = false;
     setSyncStatus('ok', 'Back online');
-    // Push any writes made while offline before triggering a pull, so
-    // local-only changes are not overwritten by a cloud download.
-    scheduleUpload();
-    // Trigger a guarded background resync if conditions are met
+    // Push local DB immediately before any pull/resync path, so reconnect
+    // never downloads cloud state on top of local offline writes.
+    const pushed = await pushToCloud();
+    if (!pushed) {
+      // Retry soon and avoid a pull until push succeeds, preventing overwrite.
+      scheduleUpload();
+      return;
+    }
+    // Trigger a guarded background resync if conditions are met.
     autoResyncIfNeeded();
   });
   window.addEventListener('offline', () => {

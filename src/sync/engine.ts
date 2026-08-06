@@ -95,26 +95,28 @@ export async function pullFromCloud(): Promise<boolean> {
 
 /**
  * Push: upload the current local DB to Drive AppData.
- * Called immediately (not debounced) - use scheduleUpload for debounced pushes.
+ * Called immediately (not debounced), use scheduleUpload for debounced pushes.
  */
-export async function pushToCloud(): Promise<void> {
-  if (_syncing) return;
+export async function pushToCloud(): Promise<boolean> {
+  if (_syncing) return false;
   _syncing = true;
   try {
     setStatus('uploading');
     const data = exportDb();
     if (!data) {
       setStatus('done');
-      return;
+      return true;
     }
 
     const modifiedTime = await uploadDbFile(data);
     await setLastSyncTimestamp(modifiedTime);
     await setDriveVersion(modifiedTime);
     setStatus('done');
+    return true;
   } catch (err) {
     console.error('[sync] push failed:', err);
     setStatus('error');
+    return false;
   } finally {
     _syncing = false;
   }
