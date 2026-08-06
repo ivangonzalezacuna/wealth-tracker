@@ -11,9 +11,10 @@ import {
   upsertSnapshot,
   loadTransactions,
   mergeTransactions,
-  restoreTransactions,
   saveImportMeta,
   loadImportMeta,
+  restoreAllData,
+  logConfigChange,
 } from './db';
 import { pullFromCloud, pushToCloud, scheduleUpload } from './sync/engine';
 import {
@@ -24,9 +25,6 @@ import {
   getAccounts,
   getSettings,
   getAlertSettings,
-  setAccounts,
-  setHoldings,
-  replaceSettings,
   hydrateConfigFromCache,
   setSetting,
 } from './store/config';
@@ -395,6 +393,9 @@ function initOnlineListeners() {
   window.addEventListener('online', () => {
     state.offline = false;
     setSyncStatus('ok', 'Back online');
+    // Push any writes made while offline before triggering a pull, so
+    // local-only changes are not overwritten by a cloud download.
+    scheduleUpload();
     // Trigger a guarded background resync if conditions are met
     autoResyncIfNeeded();
   });
@@ -791,8 +792,6 @@ window.__exportBackup = exportBackup;
 
 // ── Backup restore ────────────────────────────────────────
 export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done'> {
-  if (state.offline || !navigator.onLine)
-    throw new Error('Cannot restore while offline. Please reconnect and try again.');
   if (!isSignedIn()) throw new Error('Sign in first.');
   // Note: no isSyncBusy() check here - the caller (withCardGuard) already
   // holds the busy lock, so checking it would always self-deadlock.
@@ -818,26 +817,29 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
   setSyncing(true);
   try {
     const { accounts, holdings, settings, snapshots, transactions, importMeta } = backup.data;
-    await setAccounts(accounts);
-    await setHoldings(holdings);
-    await replaceSettings(settings);
+
+    // Write all five tables atomically in one SQLite transaction.
+    // Either everything is replaced or nothing is (full rollback on error).
+    await restoreAllData({ accounts, holdings, settings, snapshots, transactions });
+
+    // Reload in-memory config store from the freshly written SQLite tables.
+    await loadConfig();
+    await logConfigChange('Restore', 'restored from backup');
 
     // Reapply collapse/expand UI state from the backup
     const rawCollapse = settings['ui_collapse_state'];
     if (rawCollapse) {
       try {
-        const parsed = JSON.parse(rawCollapse);
-        if (parsed && typeof parsed === 'object') {
-          replaceCollapseState(parsed);
-          await setCollapseState(parsed);
+        const parsedCollapse = JSON.parse(rawCollapse);
+        if (parsedCollapse && typeof parsedCollapse === 'object') {
+          replaceCollapseState(parsedCollapse);
+          await setCollapseState(parsedCollapse);
         }
       } catch {
         /* malformed; leave current collapse state as-is */
       }
     }
 
-    await saveSnapshots(snapshots);
-    await restoreTransactions(transactions);
     if (importMeta.last_import) await saveImportMeta(importMeta.last_import);
     scheduleUpload();
 
@@ -1014,11 +1016,6 @@ function setDefaultMonth() {
 }
 
 async function saveSnapshot() {
-  // Block writes when offline
-  if (state.offline || !navigator.onLine) {
-    showMsg('snap-msg', 'Cannot save while offline. Please reconnect and try again.', false);
-    return;
-  }
   if (!isSignedIn()) {
     showMsg('snap-msg', 'Please sign in first.', false);
     return;
@@ -1118,7 +1115,13 @@ async function saveSnapshot() {
       },
       { busyText: 'Saving...' },
     );
-    showMsg('snap-msg', 'Saved \u2713', true);
+    showMsg(
+      'snap-msg',
+      state.offline || !navigator.onLine
+        ? 'Saved locally. Will sync to Drive when back online.'
+        : 'Saved \u2713',
+      true,
+    );
   } catch (err) {
     showMsg('snap-msg', 'Error: ' + (err as Error).message, false);
   }
@@ -1201,11 +1204,6 @@ function editSnap(date: string) {
 }
 
 async function delSnap(date: string, btn?: HTMLButtonElement) {
-  // Block writes when offline
-  if (state.offline || !navigator.onLine) {
-    showMsg('snap-msg', 'Cannot delete while offline. Please reconnect and try again.', false);
-    return;
-  }
   if (!isSignedIn()) return;
   if (isSyncBusy()) {
     showMsg('snap-msg', 'A sync or save is in progress. Try again in a moment.', false);
@@ -1241,6 +1239,9 @@ async function delSnap(date: string, btn?: HTMLButtonElement) {
       await withButtonGuard(btn, run, { busyText: 'Removing...', keepDisabledOnSuccess: true });
     } else {
       await run();
+    }
+    if (state.offline || !navigator.onLine) {
+      showMsg('snap-msg', 'Deleted locally. Will sync to Drive when back online.', true);
     }
   } catch (err) {
     showMsg('snap-msg', 'Delete failed: ' + (err as Error).message, false);
@@ -1334,11 +1335,6 @@ function initCSVDrop() {
 }
 
 async function handleCSVFile(file: File) {
-  // Block writes when offline
-  if (state.offline || !navigator.onLine) {
-    showMsg('import-msg', 'Cannot import while offline. Please reconnect and try again.', false);
-    return;
-  }
   if (!isSignedIn()) {
     showMsg('import-msg', 'Please sign in before importing.', false);
     return;
@@ -1447,10 +1443,18 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
       if (!txCached) showCacheWriteWarning();
 
       renderAll();
-      showMsg('import-msg', `✓ ${merged.length} transactions saved`, true);
+      showMsg(
+        'import-msg',
+        state.offline || !navigator.onLine
+          ? `\u2713 ${merged.length} transactions saved locally. Will sync to Drive when back online.`
+          : `\u2713 ${merged.length} transactions saved`,
+        true,
+      );
 
       // Push to cloud immediately so a page reload won't pull
       // the stale cloud DB and overwrite the freshly imported data.
+      // When offline, pushToCloud() fails gracefully; the data is safe
+      // in local SQLite and will be pushed on next Sync Now or write.
       await pushToCloud();
     } catch (err) {
       showMsg('import-msg', 'Error: ' + (err as Error).message, false);

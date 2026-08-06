@@ -245,13 +245,13 @@ The Content-Security-Policy in `netlify.toml` includes `style-src 'self' 'unsafe
 - **Impact:** `'unsafe-inline'` for styles weakens the CSP against CSS injection. Missing HSTS means a user on a hostile network could be downgraded to HTTP on their first visit before the browser learns the site is HTTPS-only.
 - **Resolution:** HSTS header (`max-age=63072000; includeSubDomains; preload`) added to `netlify.toml`. The `'unsafe-inline'` style-src issue remains open because Chart.js injects inline styles at runtime; a nonce-based approach would require changes to the Chart.js integration.
 
-### 6.4 Backup Restore Does Not Protect Against Partial Writes (MEDIUM)
+### 6.4 Backup Restore Does Not Protect Against Partial Writes (MEDIUM) - RESOLVED
 
-`restoreFromBackup()` in `main.ts` runs a sequence of `await setAccounts(...)`, `await setHoldings(...)`, `await replaceSettings(...)`, `await saveSnapshots(...)`, `await restoreTransactions(...)` inside a `try`/`finally`. The `finally` only clears the sync flag. If `setAccounts` succeeds but `setHoldings` throws, the in-database accounts are replaced with the backup's accounts while holdings remain the old values, creating an inconsistent state.
+`restoreFromBackup()` in `main.ts` ran a sequence of `await setAccounts(...)`, `await setHoldings(...)`, `await replaceSettings(...)`, `await saveSnapshots(...)`, `await restoreTransactions(...)` inside a `try`/`finally`. The `finally` only cleared the sync flag. If `setAccounts` succeeded but `setHoldings` threw, the in-database accounts were replaced with the backup's accounts while holdings remained the old values, creating an inconsistent state.
 
 - **Confirmed in:** `src/main.ts:808-856` (no rollback, `finally` only clears `_syncing`)
-- **Impact:** A failed mid-restore leaves the database in an indeterminate state that is difficult to diagnose and recover from.
-- **What is needed:** Wrap the entire restore sequence in a single SQLite transaction so that either all writes succeed or none do. The error should be surfaced to the user with a "Restore failed - original data preserved" message.
+- **Impact:** A failed mid-restore left the database in an indeterminate state that was difficult to diagnose and recover from.
+- **Resolution:** A new `restoreAllData()` function in `src/db/repositories/config.ts` wraps all five table writes (accounts, holdings, settings, snapshots, transactions) in a single `BEGIN`/`COMMIT`/`ROLLBACK` block using a single `getDb()` call, followed by one `persistDb()`. `restoreFromBackup()` now calls `restoreAllData()` instead of the five separate calls, then reloads the in-memory config store via `loadConfig()`. Either all five tables are replaced atomically or none are.
 
 ### 6.5 No Storage Quota Monitoring (LOW) - RESOLVED
 
@@ -266,7 +266,7 @@ IDB quota errors are caught silently (see 6.6) but the app never proactively che
 IDB (IndexedDB) cache writes in `src/cache/db.ts` catch all errors and discard them (`catch { // Quota or other IDB error - degrade gracefully }`). The main sync path in `main.ts` also wraps post-import cache writes in a bare `try/catch` with no user-visible feedback. This is intentional for quota resilience, but a failure after the user has confirmed an import means the next app load will show stale data with no warning.
 
 - **Confirmed in:** `src/cache/db.ts:131-133` (`setCachedConfig`), `src/main.ts:604-607` (post-import cache write in a silent catch)
-- **Impact:** The risk is narrower than a general "silent data loss" bug. The authoritative DB write (Google Sheets via Drive) must have already succeeded. The symptom is stale cache data on next boot, not lost transactions. However, users on low-storage devices (private mode, iOS) will not understand why data appears to have disappeared after a reload.
+- **Impact:** The risk is narrower than a general "silent data loss" bug. The authoritative write (to local SQLite) must have already succeeded. The symptom is stale cache data on next boot, not lost data. However, users on low-storage devices (private mode, iOS) will not understand why data appears to have disappeared after a reload.
 - **What is needed:** Log a console warning with enough context to diagnose quota failures, and display a one-time "Local cache could not be saved. Reopen the app while online to reload from your backup." banner if the IDB write fails after an import or settings save.
 - **Resolution:** `setCachedConfig`, `setCachedSnapshots`, and `setCachedTransactions` now return a boolean indicating success. All write paths (main sync via `syncInBackground`, full load via `loadAllData`, post-import, config-change, snapshot save, and snapshot delete) check the return value and display a one-time dismissible warning banner ("Local cache could not be saved. Reopen the app while online to reload from your backup.") when any of these writes fail. Storage quota monitoring (finding 6.5) remains open.
 
@@ -339,7 +339,7 @@ The following limitations are already acknowledged in the README or PR history a
 ### Should address (meaningful improvement)
 
 5. Add HSTS and evaluate removing `'unsafe-inline'` from CSP (Area 6.3) - HSTS done; `'unsafe-inline'` removal open (Chart.js runtime styles)
-6. Protect backup restore against partial writes (Area 6.4)
+6. ~~Protect backup restore against partial writes (Area 6.4)~~ - DONE
 7. ~~Free prepared statements in try-finally blocks (Area 6.2)~~ - DONE
 8. ~~Show user-visible warning when IDB cache write fails after import or settings save (Area 6.6)~~ - DONE
 9. Add a TWR metric alongside CAGR/IRR (Area 2.1) - resolved
@@ -376,9 +376,9 @@ This report focuses on gaps, but the following areas are solid and should be pre
 
 - **Cost-basis engine:** Both average-cost and FIFO are correctly implemented with edge-case handling for partial lots and exited positions.
 - **Contribution rebalance planner:** The buy-only drift correction with mixed-cadence normalization is a well-thought-out feature that handles the real-world complexity of weekly vs. monthly contributions.
-- **Sync architecture:** The last-write-wins Drive sync with a 5-second debounce is appropriately simple for a single-user app. The separation of IDB cache (fast boot) from Drive sync (authoritative) is correct.
+- **Sync architecture:** The last-write-wins Drive sync with a 5-second debounce is appropriately simple for a single-user app. The local SQLite database (persisted in IndexedDB) is the authoritative store; Drive AppData is a sync target, not the source of truth. All writes go to local SQLite first and are pushed to Drive opportunistically when online.
 - **Dark/light theme:** Full dark mode support using `prefers-color-scheme` with Chart.js color rebinding on OS theme change.
-- **PWA:** Installable, offline-capable for read operations, with a working service worker update flow.
+- **PWA:** Installable, offline-capable (reads and writes both work offline; Drive sync catches up automatically when back online), with a working service worker update flow.
 - **Data portability:** Full JSON export/restore is well-structured, versioned with migration support, and exports everything needed to move to another instance.
 - **Security:** The `drive.appdata` scope restriction, CSP (aside from `unsafe-inline`), and X-Frame-Options headers are appropriately configured.
 - **Inflation-adjusted forecast:** The forecast chart includes a live inflation rate input that overlays real (purchasing-power-adjusted) projections alongside nominal projections.

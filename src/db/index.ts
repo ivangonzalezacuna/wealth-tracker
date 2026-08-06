@@ -23,6 +23,7 @@ export {
   setSetting,
   deleteSetting,
   replaceAllSettings,
+  restoreAllData,
   logConfigChange,
   loadConfigHistory,
 } from './repositories/config';
