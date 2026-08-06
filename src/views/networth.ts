@@ -60,7 +60,7 @@ import {
 import type { AccountForecastInput } from '../model/forecast';
 import type { Snapshot, PortfolioData, Account, Transaction } from '../types';
 import Chart from 'chart.js/auto';
-import { T, R, resolvedT } from '../theme';
+import { T, R, resolvedT, HUE, DATA_PALETTE } from '../theme';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 
@@ -344,12 +344,12 @@ export function renderNW(
         : `${fmtPctVal(total > 0 ? (locked / total) * 100 : 0)} of total`;
       return `
       <div class="kpi">
-        <div class="kpi-label">Liquid${infoTip('Net worth accessible now, excluding pension and retirement accounts marked as locked.')}</div>
+        <div class="kpi-label"><span class="kpi-label-text">Liquid</span>${infoTip('Net worth accessible now, excluding pension and retirement accounts marked as locked.')}</div>
         <div class="kpi-val">${fmtEur2(liquid)}</div>
         <div class="kpi-sub">${fmtPctVal(total > 0 ? (liquid / total) * 100 : 0)} of total</div>
       </div>
       <div class="kpi">
-        <div class="kpi-label">Locked${infoTip('Funds in pension/retirement accounts not accessible until retirement age.')}</div>
+        <div class="kpi-label"><span class="kpi-label-text">Locked</span>${infoTip('Funds in pension/retirement accounts not accessible until retirement age.')}</div>
         <div class="kpi-val">${fmtEur2(locked)}</div>
         <div class="kpi-sub">${lockedSub}</div>
       </div>`;
@@ -358,7 +358,8 @@ export function renderNW(
       yoyAbs !== null
         ? `
       ${kpiTile({
-        label: `YoY${infoTip('Year-over-Year: Change in total net worth compared to the same month one year ago.')}`,
+        label: 'YoY',
+        tip: 'Year-over-Year: Change in total net worth compared to the same month one year ago.',
         value: fmtEurSigned(yoyAbs, 2),
         valueClass: yoyAbs >= 0 ? 'pos' : 'neg',
         sub: `${yoyPct !== null ? fmtPctSigned(yoyPct) : '-'} vs ${fmtMon(yoyData!.snap.date)}`,
@@ -369,7 +370,8 @@ export function renderNW(
       cagrVal !== null
         ? `
       ${kpiTile({
-        label: `CAGR (balance)${infoTip('Compound annual growth rate of your total tracked net worth from your first recorded snapshot to today. This is a balance-growth metric, not a return on invested capital. See IRR for the investment return. Treat this number with caution until you have at least 2-3 years of history.')}`,
+        label: 'CAGR (balance)',
+        tip: 'Compound annual growth rate of your total tracked net worth from your first recorded snapshot to today. This is a balance-growth metric, not a return on invested capital. See IRR for the investment return. Treat this number with caution until you have at least 2-3 years of history.',
         value: fmtPctNeg(cagrVal * 100),
         valueClass: cagrVal >= 0 ? 'pos' : 'neg',
         sub: `${monthsSpan} months${monthsSpan < 24 ? ' (early data)' : ''}`,
@@ -377,7 +379,8 @@ export function renderNW(
         : ''
     }
     ${kpiTile({
-      label: `TWR${infoTip('Time-weighted return, linked across snapshot periods and net of recorded contributions. Measures investment performance per period, independently of how much money was contributed or when. TWR can be negative even when your total balance is positive: this happens when you made large deposits just before a recovery, so the gains came from your timing, not from the assets themselves performing well.')}`,
+      label: 'TWR',
+      tip: 'Time-weighted return, linked across snapshot periods and net of recorded contributions. Measures investment performance per period, independently of how much money was contributed or when. TWR can be negative even when your total balance is positive: this happens when you made large deposits just before a recovery, so the gains came from your timing, not from the assets themselves performing well.',
       value: twrVal !== null ? fmtPctNeg(twrVal * 100) : '-',
       valueClass: twrVal === null ? '' : twrVal >= 0 ? 'pos' : 'neg',
       sub:
@@ -386,7 +389,8 @@ export function renderNW(
           : 'needs 2 snapshots and valid starting value',
     })}
     ${kpiTile({
-      label: `IRR (investments)${infoTip('Money-weighted annual return on invested capital (XIRR). Heavily influenced by the size and timing of your contributions: large deposits just before a good period inflate this number, while large deposits before a bad period deflate it. This figure is unstable and can swing wildly when history is under 2 years. Uses BUY cash outflows plus current primary investment value. SELL and dividend cash movements stay inside the account value and are not counted separately. If you sold positions and withdrew the proceeds from your tracked accounts, those cash flows are not modelled as inflows, and this figure may overstate your actual investment performance.')}`,
+      label: 'IRR (investments)',
+      tip: 'Money-weighted annual return on invested capital (XIRR). Heavily influenced by the size and timing of your contributions: large deposits just before a good period inflate this number, while large deposits before a bad period deflate it. This figure is unstable and can swing wildly when history is under 2 years. Uses BUY cash outflows plus current primary investment value. SELL and dividend cash movements stay inside the account value and are not counted separately. If you sold positions and withdrew the proceeds from your tracked accounts, those cash flows are not modelled as inflows, and this figure may overstate your actual investment performance.',
       value: irrVal !== null ? fmtPctNeg(irrVal * 100) : '-',
       valueClass: irrVal === null ? '' : irrVal >= 0 ? 'pos' : 'neg',
       sub:
@@ -395,13 +399,15 @@ export function renderNW(
           : 'needs complete cash-flow series',
     })}
     ${kpiTile({
-      label: `Volatility${infoTip('Annualized standard deviation of monthly net-worth percentage changes. Measures how much your total balance fluctuates month to month. Higher volatility means a bumpier ride. Computed from all available snapshots; early estimates are less stable.')}`,
+      label: 'Volatility',
+      tip: 'Annualized standard deviation of monthly net-worth percentage changes. Measures how much your total balance fluctuates month to month. Higher volatility means a bumpier ride. Computed from all available snapshots; early estimates are less stable.',
       value: volatilityVal !== null ? fmtPctNeg(volatilityVal * 100) : '-',
       valueClass: '',
       sub: volatilityVal !== null ? 'annualized, all history' : 'needs 3 snapshots',
     })}
     ${kpiTile({
-      label: `Max drawdown${infoTip('Largest peak-to-trough decline in total net worth across all recorded history, as a percentage of the prior peak. A value of -20% means your net worth fell 20% from a high point at some stage. Recoveries after the trough are not reflected here.')}`,
+      label: 'Max drawdown',
+      tip: 'Largest peak-to-trough decline in total net worth across all recorded history, as a percentage of the prior peak. A value of -20% means your net worth fell 20% from a high point at some stage. Recoveries after the trough are not reflected here.',
       value: maxDDVal !== null ? (maxDDVal === 0 ? '0%' : fmtPctNeg(maxDDVal * 100)) : '-',
       valueClass: maxDDVal === null ? '' : maxDDVal < 0 ? 'neg' : '',
       sub: maxDDVal !== null ? 'all history, total net worth' : 'needs 2 snapshots',
@@ -409,7 +415,8 @@ export function renderNW(
     ${
       totalReturnVal !== null
         ? kpiTile({
-            label: `Total return${infoTip('Total gain as a percentage of your first recorded net worth. Shows how much your net worth has grown since you started tracking.')}`,
+            label: 'Total return',
+            tip: 'Total gain as a percentage of your first recorded net worth. Shows how much your net worth has grown since you started tracking.',
             value: fmtPctNeg(totalReturnVal * 100),
             valueClass: totalReturnVal >= 0 ? 'pos' : 'neg',
             sub: fmtEurSigned(absGainVal, 2) + ' since ' + fmtMon(snaps[0].date),
@@ -419,7 +426,8 @@ export function renderNW(
     ${
       ytdReturnVal !== null
         ? kpiTile({
-            label: `YTD${infoTip('Year-to-date return: change in total net worth from the snapshot nearest to January 1 of the current year.')}`,
+            label: 'YTD',
+            tip: 'Year-to-date return: change in total net worth from the snapshot nearest to January 1 of the current year.',
             value: fmtPctNeg(ytdReturnVal * 100),
             valueClass: ytdReturnVal >= 0 ? 'pos' : 'neg',
             sub: 'since start of year',
@@ -1273,8 +1281,10 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
       const intensity = Math.min(1, Math.abs(ret) * 12);
       const lightness = 95 - intensity * 45;
       const sat = Math.max(0, intensity * 85);
-      const bg = ret >= 0 ? `hsl(142,${sat}%,${lightness}%)` : `hsl(0,${sat}%,${lightness}%)`;
-      const text = lightness <= 65 ? '#fff' : '#1a1a1a';
+      const C = resolvedT();
+      const hue = ret >= 0 ? HUE.pos : HUE.neg;
+      const bg = `hsl(${hue},${sat}%,${lightness}%)`;
+      const text = lightness <= 65 ? C.white : C.ink;
       return { bg, text };
     };
     const header = `<tr><th style="padding:2px 4px;font-size:10px;color:var(--ink-3);text-align:left;font-weight:400">Year</th>
@@ -1305,24 +1315,28 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
       <div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem">Risk</div>
       <div class="kpi-row" style="margin-bottom:.75rem">
         ${kpiTile({
-          label: `Volatility${infoTip('Annualized standard deviation of monthly net-worth returns. Higher means more month-to-month variation.')}`,
+          label: 'Volatility',
+          tip: 'Annualized standard deviation of monthly net-worth returns. Higher means more month-to-month variation.',
           value: volatility !== null ? fmtPctNeg(volatility * 100) : '-',
           sub: volatility !== null ? 'annualized' : 'needs 3 snapshots',
         })}
         ${kpiTile({
-          label: `Max drawdown${infoTip('Largest peak-to-trough decline across all history.')}`,
+          label: 'Max drawdown',
+          tip: 'Largest peak-to-trough decline across all history.',
           value: maxDd !== null ? (maxDd === 0 ? '0%' : fmtPctNeg(maxDd * 100)) : '-',
           valueClass: maxDd !== null && maxDd < 0 ? 'neg' : '',
           sub: maxDd !== null ? 'all history' : 'needs 2 snapshots',
         })}
         ${kpiTile({
-          label: `Avg drawdown${infoTip('Average of all per-month drawdown values. A less extreme version of max drawdown, showing the typical depth when underwater.')}`,
+          label: 'Avg drawdown',
+          tip: 'Average of all per-month drawdown values. A less extreme version of max drawdown, showing the typical depth when underwater.',
           value: avgDd !== null ? fmtPctNeg(avgDd * 100) : '-',
           valueClass: avgDd !== null && avgDd < 0 ? 'neg' : '',
           sub: avgDd !== null ? 'all history' : 'needs 2 snapshots',
         })}
         ${kpiTile({
-          label: `Drawdown duration${infoTip('Longest consecutive run of months where net worth was below a prior peak.')}`,
+          label: 'Drawdown duration',
+          tip: 'Longest consecutive run of months where net worth was below a prior peak.',
           value: ddSeries.length > 0 ? `${ddDuration} mo` : '-',
           sub: ddSeries.length > 0 ? 'max consecutive months below peak' : 'needs 2 snapshots',
         })}
@@ -1339,7 +1353,8 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
       <p class="note" style="margin-bottom:.5rem">${rfNote}</p>
       <div class="kpi-row">
         ${kpiTile({
-          label: `Sharpe${infoTip('(CAGR - risk-free rate) / volatility. Measures return earned per unit of total risk. Higher is better.')}`,
+          label: 'Sharpe',
+          tip: '(CAGR - risk-free rate) / volatility. Measures return earned per unit of total risk. Higher is better.',
           value: sharpe !== null ? sharpe.toFixed(2) : hasEnough12 ? '-' : '-',
           sub:
             sharpe !== null
@@ -1349,7 +1364,8 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
                 : 'needs 12 months',
         })}
         ${kpiTile({
-          label: `Sortino${infoTip('(CAGR - risk-free rate) / downside deviation. Like Sharpe but only penalizes downside risk.')}`,
+          label: 'Sortino',
+          tip: '(CAGR - risk-free rate) / downside deviation. Like Sharpe but only penalizes downside risk.',
           value: sortino !== null ? sortino.toFixed(2) : '-',
           sub:
             sortino !== null
@@ -1359,7 +1375,8 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
                 : 'needs 12 months',
         })}
         ${kpiTile({
-          label: `Calmar${infoTip('CAGR / |max drawdown|. Measures return relative to worst loss. A value above 1 means CAGR exceeds max drawdown magnitude.')}`,
+          label: 'Calmar',
+          tip: 'CAGR / |max drawdown|. Measures return relative to worst loss. A value above 1 means CAGR exceeds max drawdown magnitude.',
           value: calmar !== null ? calmar.toFixed(2) : '-',
           sub: calmar !== null ? 'CAGR / |max DD|' : 'needs CAGR and drawdown',
         })}
@@ -1381,14 +1398,16 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
           <div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem">Income</div>
           <div class="kpi-row" style="margin-bottom:.75rem">
             ${kpiTile({
-              label: `Trailing 12M income${infoTip('Total dividends and interest received in the last 12 months.')}`,
+              label: 'Trailing 12M income',
+              tip: 'Total dividends and interest received in the last 12 months.',
               value: fmtEur2(trailing12),
               sub: 'DIVIDEND + INTEREST',
             })}
             ${
               divYield !== null
                 ? kpiTile({
-                    label: `Dividend yield${infoTip('Trailing 12-month income divided by current total portfolio value.')}`,
+                    label: 'Dividend yield',
+                    tip: 'Trailing 12-month income divided by current total portfolio value.',
                     value: fmtPctNeg(divYield * 100),
                     sub: 'trailing 12M / portfolio value',
                   })
@@ -1397,7 +1416,8 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
             ${
               divGrowth !== null
                 ? kpiTile({
-                    label: `Income growth YoY${infoTip("This year's income vs last year's income as a percentage change.")}`,
+                    label: 'Income growth YoY',
+                    tip: "This year's income vs last year's income as a percentage change.",
                     value: fmtPctNeg(divGrowth * 100),
                     valueClass: divGrowth >= 0 ? 'pos' : 'neg',
                     sub: 'vs prior year',
@@ -1407,7 +1427,8 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
             ${
               divCagr !== null
                 ? kpiTile({
-                    label: `Income CAGR${infoTip('Compound annual growth rate of annual income from dividends and interest.')}`,
+                    label: 'Income CAGR',
+                    tip: 'Compound annual growth rate of annual income from dividends and interest.',
                     value: fmtPctNeg(divCagr * 100),
                     valueClass: divCagr >= 0 ? 'pos' : 'neg',
                     sub: 'annual income growth',
@@ -1758,20 +1779,8 @@ function _renderAllocationDonut(
   const total = Object.values(dataMap).reduce((s, v) => s + v, 0);
   if (total <= 0) return;
 
-  const PALETTE = [
-    '#4e79a7',
-    '#f28e2b',
-    '#e15759',
-    '#76b7b2',
-    '#59a14f',
-    '#edc948',
-    '#b07aa1',
-    '#ff9da7',
-    '#9c755f',
-    '#bab0ac',
-  ];
   const entries = Object.entries(dataMap).sort((a, b) => b[1] - a[1]);
-  const colors = entries.map((_, i) => PALETTE[i % PALETTE.length]);
+  const colors = entries.map((_, i) => DATA_PALETTE[i % DATA_PALETTE.length]);
 
   const legendEl = document.getElementById(legendId);
   if (legendEl) {

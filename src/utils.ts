@@ -1,5 +1,6 @@
 import { getACCTSList } from './constants';
 import type { Snapshot } from './types';
+import { infoTip } from './ui/infoTip';
 
 export function snapTotal(s: Snapshot): number {
   const accts: Array<{ key?: string; id?: string }> = getACCTSList();
@@ -198,14 +199,17 @@ export function safeColor(c: string | null | undefined): string {
  * Renders one KPI tile (`.kpi` block used across Portfolio, Dividends,
  * Contributions, and Net Worth). `value` and `sub` must already be
  * pre-formatted/escaped by the caller, this only assembles the markup.
+ * Pass `tip` to show an info tooltip beside the label.
  */
 export function kpiTile(opts: {
   label: string;
+  tip?: string;
   value: string;
   valueClass?: string;
   sub?: string;
 }): string {
   const cls = opts.valueClass ? ` ${opts.valueClass}` : '';
   const sub = opts.sub ? `<div class="kpi-sub">${opts.sub}</div>` : '';
-  return `<div class="kpi"><div class="kpi-label">${opts.label}</div><div class="kpi-val${cls}">${opts.value}</div>${sub}</div>`;
+  const tipHtml = opts.tip ? infoTip(opts.tip) : '';
+  return `<div class="kpi"><div class="kpi-label"><span class="kpi-label-text">${opts.label}</span>${tipHtml}</div><div class="kpi-val${cls}">${opts.value}</div>${sub}</div>`;
 }

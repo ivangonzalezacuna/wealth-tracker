@@ -86,19 +86,21 @@ export function renderDividends(
       : null;
 
   document.getElementById('div-kpis')!.innerHTML = `
-    ${kpiTile({ label: `Gross dividends${infoTip('Before tax: Total distribution payments received from ETFs and stocks, before withholding tax is deducted.')}`, value: fmtEur2(totalGross) })}
+    ${kpiTile({ label: 'Gross dividends', tip: 'Before tax: Total distribution payments received from ETFs and stocks, before withholding tax is deducted.', value: fmtEur2(totalGross) })}
     ${kpiTile({ label: 'Tax withheld', value: fmtEur2(Math.abs(pd.totalTax)), valueClass: pd.totalTax >= 0 ? 'neg' : 'pos', sub: 'on dividends' })}
     ${kpiTile({ label: 'Net received', value: fmtEur2(pd.totalDivNet), valueClass: 'pos', sub: 'dividends' })}
     ${kpiTile({ label: 'Gross interest', value: fmtEur2(pd.totalIntGross), sub: 'on cash savings' })}
     ${kpiTile({ label: 'Tax on savings', value: fmtEur2(pd.totalIntTax), valueClass: pd.totalIntTax > 0 ? 'neg' : 'ok', sub: 'withheld + refunds' })}
     ${kpiTile({ label: 'Net interest', value: fmtEur2(pd.totalInterest), valueClass: 'pos', sub: 'received' })}
     ${kpiTile({
-      label: `Investment income yield (12m)${infoTip('Net dividends received in the last 12 months divided by ETF invested capital (cost basis). Scope is investment assets only.')}`,
+      label: 'Investment income yield (12m)',
+      tip: 'Net dividends received in the last 12 months divided by ETF invested capital (cost basis). Scope is investment assets only.',
       value: incomeYield === null ? '-' : `${incomeYield.toFixed(2).replace('.', ',')}%`,
       sub: incomeYield === null ? 'need 12 months of history' : 'net dividends / ETF cost basis',
     })}
     ${kpiTile({
-      label: `Savings income yield (12m)${infoTip('Net interest received in the last 12 months divided by the latest savings-account balance snapshot. Scope is savings accounts only.')}`,
+      label: 'Savings income yield (12m)',
+      tip: 'Net interest received in the last 12 months divided by the latest savings-account balance snapshot. Scope is savings accounts only.',
       value: savingsYield === null ? '-' : `${savingsYield.toFixed(2).replace('.', ',')}%`,
       sub:
         savingsYield === null
@@ -108,7 +110,8 @@ export function renderDividends(
           : 'net interest / latest savings balance',
     })}
     ${kpiTile({
-      label: `Combined income yield (12m)${infoTip('Combined net dividends plus net interest in the last 12 months divided by ETF cost basis plus latest savings-account balance.')}`,
+      label: 'Combined income yield (12m)',
+      tip: 'Combined net dividends plus net interest in the last 12 months divided by ETF cost basis plus latest savings-account balance.',
       value: combinedYield === null ? '-' : `${combinedYield.toFixed(2).replace('.', ',')}%`,
       sub:
         combinedYield === null

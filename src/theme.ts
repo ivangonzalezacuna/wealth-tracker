@@ -19,6 +19,32 @@ export const T = {
   white: '#fff',
 } as const;
 
+/**
+ * HSL hue angles used for the return heatmap, derived from the pos/neg theme colors.
+ * Kept separate from T so that resolvedT() stays typed as Record<string, string>.
+ */
+export const HUE = {
+  pos: 162,
+  neg: 0,
+} as const;
+
+/**
+ * Categorical data palette shared across all doughnut/pie/segment charts.
+ * Centralised here so every chart uses consistent colors.
+ */
+export const DATA_PALETTE: readonly string[] = [
+  '#4e79a7',
+  '#f28e2b',
+  '#e15759',
+  '#76b7b2',
+  '#59a14f',
+  '#edc948',
+  '#b07aa1',
+  '#ff9da7',
+  '#9c755f',
+  '#bab0ac',
+];
+
 export const R = {
   none: 0,
   xs: 4,

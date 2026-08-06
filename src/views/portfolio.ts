@@ -67,150 +67,6 @@ function renderSourceBreakdown(bySource: Record<string, number>, signed = false)
     .join('');
 }
 
-function foldedIsin(isin: string, holdingByIsin: Record<string, { foldInto: string }>): string {
-  let cur = isin;
-  const seen = new Set<string>();
-  while (holdingByIsin[cur]?.foldInto) {
-    if (seen.has(cur)) break;
-    seen.add(cur);
-    cur = holdingByIsin[cur].foldInto;
-  }
-  return cur;
-}
-
-function allocationWeightsInfo(
-  held: EtfPosition[],
-  snapEtfValues: Record<string, number>,
-  latSnap: Snapshot | null,
-): { useMarketValues: boolean; note: string } {
-  const hasAnyMarketValues = Object.keys(snapEtfValues).length > 0;
-  const hasCompleteMarketValues =
-    held.length > 0 && held.every((e) => snapEtfValues[e.isin] !== undefined);
-  const useMarketValues = hasCompleteMarketValues;
-  const note = useMarketValues
-    ? `Allocation weights use market values from ${latSnap ? fmtMon(latSnap.date) : 'latest snapshot'}.`
-    : hasAnyMarketValues
-      ? 'Allocation weights use current cost basis because latest snapshot ETF values are incomplete.'
-      : 'Allocation weights use current cost basis because market values are not available in the latest snapshot.';
-  return { useMarketValues, note };
-}
-
-function renderAllocationBreakdowns(
-  held: EtfPosition[],
-  snapEtfValues: Record<string, number>,
-  latSnap: Snapshot | null,
-): void {
-  const C = resolvedT();
-  const ASSET_CLASS_LABELS: Record<string, string> = {
-    equity: 'Equity',
-    bond: 'Bond',
-    reit: 'REIT',
-    commodity: 'Commodity',
-    cash: 'Cash',
-    other: 'Other',
-  };
-  const REGION_LABELS: Record<string, string> = {
-    developed: 'Developed',
-    emerging: 'Emerging',
-    global: 'Global',
-    europe: 'Europe',
-    us: 'US',
-    other: 'Other',
-  };
-  const normalizeLabel = (kind: 'assetClass' | 'region', value: string): string =>
-    kind === 'assetClass'
-      ? ASSET_CLASS_LABELS[value] || value.replace(/\b\w/g, (c) => c.toUpperCase())
-      : REGION_LABELS[value] || value.replace(/\b\w/g, (c) => c.toUpperCase());
-
-  const holdings = getHoldings();
-  const holdingByIsin = Object.fromEntries(holdings.map((h) => [h.isin, h]));
-  const { useMarketValues } = allocationWeightsInfo(held, snapEtfValues, latSnap);
-
-  const byClass: Record<string, number> = {};
-  const byRegion: Record<string, number> = {};
-  for (const e of held) {
-    const targetIsin = foldedIsin(e.isin, holdingByIsin);
-    const targetHolding = holdingByIsin[targetIsin] || holdingByIsin[e.isin];
-    const weight = useMarketValues ? (snapEtfValues[e.isin] ?? 0) : e.cost;
-    if (weight <= 0) continue;
-    const assetClass = targetHolding?.assetClass || 'other';
-    const region = targetHolding?.region || 'other';
-    byClass[assetClass] = (byClass[assetClass] || 0) + weight;
-    byRegion[region] = (byRegion[region] || 0) + weight;
-  }
-
-  const drawBreakdown = (
-    chartId: string,
-    legendId: string,
-    rows: Array<{ label: string; value: number }>,
-    kind: 'assetClass' | 'region',
-    paletteSeed = 0,
-  ) => {
-    const labels = rows.map((r) => r.label);
-    const values = rows.map((r) => r.value);
-    const total = values.reduce((s, v) => s + v, 0);
-    const colors = rows.map((_, i) => {
-      const hue = (paletteSeed + i * 57) % 360;
-      return `hsl(${hue} 60% 55%)`;
-    });
-    if (CH[chartId]) CH[chartId].destroy();
-    CH[chartId] = new Chart(document.getElementById(chartId) as HTMLCanvasElement, {
-      type: 'doughnut',
-      data: {
-        labels: labels.map((l) => normalizeLabel(kind, l)),
-        datasets: [
-          {
-            data: values,
-            backgroundColor: colors,
-            borderColor: C.surface,
-            borderWidth: 2,
-            hoverOffset: 4,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '62%',
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: C.surface,
-            ...TOOLTIP_BOX,
-            borderColor: C.line,
-            borderWidth: 1,
-            titleColor: C.ink,
-            bodyColor: C.ink2,
-            padding: 10,
-            cornerRadius: 8,
-            callbacks: {
-              label: (ctx) => ` ${fmtEur2(ctx.raw as number)}`,
-              labelColor: tooltipSwatch(C.surface),
-            },
-          },
-        },
-      },
-    });
-    const items = rows.map((r, i) => ({
-      label: normalizeLabel(kind, r.label),
-      meta: total > 0 ? fmtPctVal((r.value / total) * 100) : '0%',
-      color: colors[i],
-    }));
-    const legendEl = document.getElementById(legendId);
-    if (legendEl) legendEl.innerHTML = renderLegendHtml(items);
-  };
-
-  const classRows = Object.entries(byClass)
-    .map(([label, value]) => ({ label, value }))
-    .sort((a, b) => b.value - a.value);
-  const regionRows = Object.entries(byRegion)
-    .map(([label, value]) => ({ label, value }))
-    .sort((a, b) => b.value - a.value);
-
-  drawBreakdown('c-port-alloc-class', 'port-alloc-class-legend', classRows, 'assetClass', 15);
-  drawBreakdown('c-port-alloc-region', 'port-alloc-region-legend', regionRows, 'region', 180);
-}
-
 // Module-level filter state (survives re-renders)
 let _holdingsFilter = 'held'; // 'held' | 'closed' | 'all'
 let _holdingsSearch = '';
@@ -639,7 +495,8 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
             : 'add a snapshot',
     })}
     ${kpiTile({
-      label: `Unrealized P&amp;L${infoTip('Gain or loss on positions still held. Computed as market value minus invested capital (cost basis). Not locked in until you sell.')}`,
+      label: 'Unrealized P&amp;L',
+      tip: 'Gain or loss on positions still held. Computed as market value minus invested capital (cost basis). Not locked in until you sell.',
       value: gain !== null ? fmtEurNeg(gain, 2) : '-',
       valueClass: gain === null ? '' : gain >= 0 ? 'pos' : 'neg',
       sub:
@@ -650,7 +507,8 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
             : '',
     })}
     ${kpiTile({
-      label: `Realized P&amp;L${infoTip('Gain or loss already locked in from shares you have sold. Computed as sell proceeds minus the cost basis of those shares, including fees.')}`,
+      label: 'Realized P&amp;L',
+      tip: 'Gain or loss already locked in from shares you have sold. Computed as sell proceeds minus the cost basis of those shares, including fees.',
       value: fmtEurNeg(pd.realizedPnL, 2),
       valueClass: pd.realizedPnL >= 0 ? 'pos' : 'neg',
       sub: 'from sells',
@@ -658,13 +516,15 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     ${
       feeDrag !== null
         ? kpiTile({
-            label: `Annual fee drag${infoTip('Estimated annual cost of fund management fees (TER) across all held positions. These costs are deducted by the fund manager directly from the fund assets, so they are already reflected in the ETF price and your returns. This figure is informational only; no money is deducted from your balance. Computed as the sum of each position value multiplied by its configured TER. Add TER values in Settings to see this figure. Positions without a TER configured are excluded.')}`,
+            label: 'Annual fee drag',
+            tip: 'Estimated annual cost of fund management fees (TER) across all held positions. These costs are deducted by the fund manager directly from the fund assets, so they are already reflected in the ETF price and your returns. This figure is informational only; no money is deducted from your balance. Computed as the sum of each position value multiplied by its configured TER. Add TER values in Settings to see this figure. Positions without a TER configured are excluded.',
             value: fmtEur2(feeDrag.annualCost),
             valueClass: 'neg',
             sub: `${fmtPctVal(feeDrag.costPct * 100)} of holdings${feeDrag.coveredCount < Object.values(pd.etfs).filter((e) => !e.exited).length ? ' (partial)' : ''}`,
           })
         : kpiTile({
-            label: `Annual fee drag${infoTip('Estimated annual cost of fund management fees (TER) across all held positions. These costs are deducted by the fund manager directly from the fund assets, so they are already reflected in the ETF price and your returns. This figure is informational only; no money is deducted from your balance. Add TER values to your holdings in Settings to enable this calculation.')}`,
+            label: 'Annual fee drag',
+            tip: 'Estimated annual cost of fund management fees (TER) across all held positions. These costs are deducted by the fund manager directly from the fund assets, so they are already reflected in the ETF price and your returns. This figure is informational only; no money is deducted from your balance. Add TER values to your holdings in Settings to enable this calculation.',
             value: '-',
             sub: 'add TER in Settings',
           })
@@ -759,7 +619,6 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
       color: e.color,
     })),
   );
-  renderAllocationBreakdowns(held, snapEtfValues, latSnap);
 
   const mvRow =
     snapMarketValue !== null

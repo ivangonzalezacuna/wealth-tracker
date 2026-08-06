@@ -348,15 +348,15 @@ describe('renderPortfolio', () => {
 
   it('creates allocation charts on first render', () => {
     renderPortfolio(makePD(), []);
-    expect(chartInstances.length).toBe(3);
+    expect(chartInstances.length).toBe(1);
     expect(chartInstances[0].destroyed).toBe(false);
   });
 
   it('destroys the prior chart and creates a new one on re-render', () => {
     renderPortfolio(makePD(), []);
-    expect(chartInstances.length).toBe(3);
+    expect(chartInstances.length).toBe(1);
     renderPortfolio(makePD(), []);
-    expect(chartInstances.length).toBe(6);
+    expect(chartInstances.length).toBe(2);
     expect(chartInstances[0].destroyed).toBe(true);
   });
 
@@ -493,55 +493,6 @@ describe('renderPortfolio', () => {
     expect(drift.innerHTML).toContain('market values');
   });
 
-  it('allocation breakdown consolidates foldInto positions by successor class/region', () => {
-    MOCK_HOLDINGS.splice(
-      0,
-      MOCK_HOLDINGS.length,
-      {
-        isin: 'IE00TEST1',
-        shortName: 'IWDA',
-        name: 'World',
-        color: '#222222',
-        acc: true,
-        active: true,
-        contribAmount: 50,
-        contribInterval: 'weekly',
-        assetClass: 'equity',
-        region: 'developed',
-        foldInto: '',
-        order: 1,
-      } as any,
-      {
-        isin: 'IE00OLD',
-        shortName: 'OLD',
-        name: 'Legacy',
-        color: '#444444',
-        acc: true,
-        active: false,
-        contribAmount: 0,
-        contribInterval: 'weekly',
-        assetClass: 'bond',
-        region: 'emerging',
-        foldInto: 'IE00TEST1',
-        order: 2,
-      } as any,
-    );
-    const pd = makePD({
-      etfs: {
-        IE00TEST1: makeEtf({ isin: 'IE00TEST1', cost: 1000 }),
-        IE00OLD: makeEtf({ isin: 'IE00OLD', shortName: 'OLD', cost: 500 }),
-      },
-      totalInv: 1500,
-    });
-    renderPortfolio(pd, []);
-    const classLegend = document.getElementById('port-alloc-class-legend')!.textContent!;
-    const regionLegend = document.getElementById('port-alloc-region-legend')!.textContent!;
-    expect(classLegend).toContain('Equity');
-    expect(classLegend).not.toContain('Bond');
-    expect(regionLegend).toContain('Developed');
-    expect(regionLegend).not.toContain('Emerging');
-  });
-
   it('falls back to cost-basis allocation when snapshot ETF values are partial', () => {
     MOCK_HOLDINGS.splice(
       0,
@@ -587,9 +538,6 @@ describe('renderPortfolio', () => {
     const note = document.getElementById('port-drift')!.textContent || '';
     expect(note).toContain('Allocation is based on purchase cost');
     expect(note).toContain('Actual from market values');
-    const classLegend = document.getElementById('port-alloc-class-legend')!.textContent || '';
-    expect(classLegend).toContain('66.7%');
-    expect(classLegend).toContain('33.3%');
   });
 
   it('does not render the allocation-weights note in the drift card', () => {
@@ -659,7 +607,7 @@ describe('renderPortfolio', () => {
 
   it('chart config contains the correct labels and data', () => {
     renderPortfolio(makePD(), []);
-    expect(chartInstances.length).toBe(3);
+    expect(chartInstances.length).toBe(1);
     const config = chartInstances[0].config as { data: { labels: string[]; datasets: unknown[] } };
     expect(config.data.labels).toContain('IWDA');
     expect(config.data.datasets[0]).toHaveProperty('data');

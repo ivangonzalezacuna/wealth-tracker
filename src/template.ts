@@ -103,18 +103,6 @@ export function appTemplate(): string {
           <div id="port-summary"></div>
         </div>
       </div>
-      <div class="two-col">
-        <div class="card">
-          <div class="card-title">Allocation by asset class</div>
-          <div id="port-alloc-class-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm"><canvas id="c-port-alloc-class"></canvas></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Allocation by region</div>
-          <div id="port-alloc-region-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm"><canvas id="c-port-alloc-region"></canvas></div>
-        </div>
-      </div>
       <div id="port-drift"></div>
     </div>
   </div>

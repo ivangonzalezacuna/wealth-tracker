@@ -11,7 +11,7 @@ import { applySort, bindSortableHeader } from './tableSort';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow, getSortGetters } from './tableColumns';
 import { renderPagination } from './pagination';
-import { infoTip, attachInfoTips } from '../ui/infoTip';
+import { attachInfoTips } from '../ui/infoTip';
 
 const CH: Record<string, Chart> = {};
 const DCA_PAGE_SIZE = 12;
@@ -44,7 +44,7 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const lastAmt = pd.monthly[lastM] || 0;
 
   document.getElementById('dca-kpis')!.innerHTML = `
-    ${kpiTile({ label: `Current cost basis${infoTip('The sum of purchase costs for all current open positions, net of any sold shares. Does not include positions fully exited.')}`, value: fmtEur(total), sub: 'all savings plans' })}
+    ${kpiTile({ label: 'Current cost basis', tip: 'The sum of purchase costs for all current open positions, net of any sold shares. Does not include positions fully exited.', value: fmtEur(total), sub: 'all savings plans' })}
     ${kpiTile({ label: 'Active months', value: String(n), sub: `${fmtMon(pd.months[0])} \u2192 ${fmtMon(lastM)}` })}
     ${kpiTile({ label: 'Avg / month', value: fmtEur(avg) })}
     ${kpiTile({ label: 'Latest month', value: fmtEur(lastAmt), sub: fmtMon(lastM) })}
