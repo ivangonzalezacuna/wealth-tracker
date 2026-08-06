@@ -334,7 +334,7 @@ The following limitations are already acknowledged in the README or PR history a
 1. ~~**Wrap all DELETE+INSERT sequences in SQLite transactions** (Area 6.1)~~ - DONE
 2. **Add a UI form to record manual sell transactions** (Area 4.2) - blocked workflow
 3. **Apply FX conversion using stored `fxRate` field** (Area 1.1) - silent data error for multi-currency users
-4. Pre-populate the monthly snapshot form from the previous month's values (Area 4.1) - resolved
+4. ~~Pre-populate the monthly snapshot form from the previous month's values (Area 4.1)~~ - DONE
 
 ### Should address (meaningful improvement)
 
@@ -342,7 +342,7 @@ The following limitations are already acknowledged in the README or PR history a
 6. ~~Protect backup restore against partial writes (Area 6.4)~~ - DONE
 7. ~~Free prepared statements in try-finally blocks (Area 6.2)~~ - DONE
 8. ~~Show user-visible warning when IDB cache write fails after import or settings save (Area 6.6)~~ - DONE
-9. Add a TWR metric alongside CAGR/IRR (Area 2.1) - resolved
+9. ~~Add a TWR metric alongside CAGR/IRR (Area 2.1)~~ - DONE
 10. Add a "tax year summary" export (Area 3.4)
 11. ~~Surface allocation drift warning badge when tolerance is exceeded (Area 4.7)~~ - DONE
 12. ~~Add a holdings text search/filter (Area 4.4)~~ - DONE
