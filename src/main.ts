@@ -125,6 +125,9 @@ function setSyncing(v: boolean): void {
   applySyncBusyState();
   // Also disable write controls outside Settings (snapshot Save, CSV import, etc.).
   applyReadOnlyMode();
+  // Reflect syncing state on the Sync now button so users see auto-syncs too.
+  const syncNowBtn = document.getElementById('btn-sync-now') as HTMLButtonElement | null;
+  if (syncNowBtn) syncNowBtn.textContent = v ? 'Syncing\u2026' : 'Sync now';
 }
 function isSyncBusy(): boolean {
   return isBusy();
