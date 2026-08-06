@@ -1268,12 +1268,14 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
       'Dec',
     ];
     const byKey = new Map(returnSeries.map((r) => [`${r.year}-${r.month}`, r.ret]));
-    const cellColor = (ret: number | undefined) => {
-      if (ret === undefined) return 'transparent';
+    const cellColor = (ret: number | undefined): { bg: string; text: string } => {
+      if (ret === undefined) return { bg: 'transparent', text: '' };
       const intensity = Math.min(1, Math.abs(ret) * 12);
-      const lightness = 97 - intensity * 30;
-      const sat = intensity * 75;
-      return ret >= 0 ? `hsl(142,${sat}%,${lightness}%)` : `hsl(0,${sat}%,${lightness}%)`;
+      const lightness = 95 - intensity * 45;
+      const sat = Math.max(0, intensity * 85);
+      const bg = ret >= 0 ? `hsl(142,${sat}%,${lightness}%)` : `hsl(0,${sat}%,${lightness}%)`;
+      const text = lightness <= 65 ? '#fff' : '#1a1a1a';
+      return { bg, text };
     };
     const header = `<tr><th style="padding:2px 4px;font-size:10px;color:var(--ink-3);text-align:left;font-weight:400">Year</th>
       ${MONTH_LABELS.map((m) => `<th style="padding:2px 4px;font-size:10px;color:var(--ink-3);font-weight:400">${m}</th>`).join('')}</tr>`;
@@ -1281,10 +1283,9 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
       .map((y) => {
         const cells = Array.from({ length: 12 }, (_, i) => {
           const ret = byKey.get(`${y}-${i + 1}`);
-          const bg = cellColor(ret);
+          const { bg, text } = cellColor(ret);
           const txt = ret !== undefined ? fmtPctNeg(ret * 100) : '';
-          const color = ret !== undefined && Math.abs(ret) > 0.08 ? 'var(--bg)' : 'var(--ink)';
-          return `<td style="padding:3px 4px;font-size:10px;text-align:center;background:${bg};color:${color};border-radius:3px">${txt}</td>`;
+          return `<td style="padding:3px 4px;font-size:10px;text-align:center;background:${bg};color:${text};border-radius:3px">${txt}</td>`;
         });
         return `<tr><td style="padding:3px 6px;font-size:11px;color:var(--ink-3);white-space:nowrap">${y}</td>${cells.join('')}</tr>`;
       })
@@ -1366,7 +1367,7 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
     </div>
 
     ${
-      hasEnough24 && rollingCagr36.length > 0
+      rollingCagr36.length > 0
         ? `<div style="margin-bottom:1rem">
           <div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem">Rolling 3-Year CAGR</div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-nw-rolling-cagr"></canvas></div>
@@ -1439,9 +1440,9 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
       </div>
       <div class="card-body">
         ${
-          hasEnough24
+          hasEnough12
             ? advancedBody
-            : `<p class="note">Advanced analytics are available after ${24 - months} more months of history (need 24 months, have ${months}).</p>`
+            : `<p class="note">Advanced analytics are available after ${12 - months} more months of history (need 12 months, have ${months}).</p>`
         }
       </div>
     </div>
@@ -1697,7 +1698,6 @@ function _renderAllocationCard(snaps: Snapshot[], accounts: Account[]): void {
       legendEl.innerHTML = renderLegendHtml(
         acctData.map((d) => ({ label: d.label, color: d.color })),
       );
-      bindLegendToggle(legendEl, null as unknown as Chart, {});
     }
     CH['c-nw-alloc-acct'] = new Chart(
       document.getElementById('c-nw-alloc-acct') as HTMLCanvasElement,
