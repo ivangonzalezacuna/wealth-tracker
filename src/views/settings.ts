@@ -1224,14 +1224,35 @@ function rerenderGoalsTable(root: HTMLElement, goals: NamedGoal[]): void {
   attachItemCollapseListeners(tbl);
   tbl.querySelectorAll('.js-del-goal').forEach((btn) => {
     btn.addEventListener('click', () =>
-      deleteGoal(root, parseInt((btn as HTMLElement).dataset.idx!)),
+      deleteGoal(root, parseInt((btn as HTMLElement).dataset.idx!), btn as HTMLButtonElement),
     );
   });
 }
 
-function deleteGoal(root: HTMLElement, idx: number): void {
-  const goals = collectGoals(root).filter((_, i) => i !== idx);
-  rerenderGoalsTable(root, goals);
+async function deleteGoal(root: HTMLElement, idx: number, btn: HTMLButtonElement): Promise<void> {
+  if (isCardBusy('goal') || isBusy()) return;
+  const goals = collectGoals(root);
+  const goal = goals[idx];
+  const title =
+    goal?.label || (goal?.targetNetWorth ? `\u20AC${goal.targetNetWorth}` : `Goal ${idx + 1}`);
+  const ok = await confirmDialog({
+    title: `Remove ${esc(title)}?`,
+    body: 'This removes the goal from your configuration.',
+    confirmLabel: 'Remove',
+    danger: true,
+  });
+  if (!ok) return;
+  const updated = goals.filter((_, i) => i !== idx);
+  try {
+    await withCardGuard('goal', btn, () => setSettings({ goals: JSON.stringify(updated) }), {
+      busyText: 'Removing...',
+      keepDisabledOnSuccess: true,
+    });
+    rerenderGoalsTable(root, updated);
+    showMsg('goal-msg', 'Removed', true);
+  } catch (err) {
+    showMsg('goal-msg', 'Error: ' + (err as Error).message, false);
+  }
 }
 
 function attachGoalListeners(root: HTMLElement): void {
@@ -1243,7 +1264,7 @@ function attachGoalListeners(root: HTMLElement): void {
 
   root.querySelectorAll('.js-del-goal').forEach((btn) => {
     btn.addEventListener('click', () =>
-      deleteGoal(root, parseInt((btn as HTMLElement).dataset.idx!)),
+      deleteGoal(root, parseInt((btn as HTMLElement).dataset.idx!), btn as HTMLButtonElement),
     );
   });
 
@@ -1885,6 +1906,10 @@ function renderCacheCard(): string {
 
 function attachCacheListeners(root: HTMLElement): void {
   root.querySelector('#btn-force-resync')?.addEventListener('click', async () => {
+    if (!navigator.onLine) {
+      showMsg('resync-msg', 'Unavailable offline. Connect to the internet first.', false);
+      return;
+    }
     const btn = root.querySelector('#btn-force-resync') as HTMLButtonElement;
     try {
       await withCardGuard('cache', btn, () => window.__forceFullResync!(), {

@@ -252,7 +252,6 @@ describe('restoreFromBackup guard logic', () => {
     syncBusy: boolean;
     fileContent: string;
   }): string | null {
-    if (opts.offline || !navigator.onLine) return 'Cannot restore while offline.';
     if (!opts.signedIn) return 'Sign in first.';
     if (opts.syncBusy) return 'A sync or save is in progress.';
 
@@ -267,14 +266,27 @@ describe('restoreFromBackup guard logic', () => {
     return null; // passes all guards
   }
 
-  it('rejects when offline', () => {
+  it('allows restore when offline (writes to local SQLite, syncs when back online)', () => {
+    const validBackup = JSON.stringify({
+      schemaVersion: 1,
+      app: 'wealth-tracker',
+      exportedAt: '2026-01-01T00:00:00Z',
+      data: {
+        accounts: [],
+        holdings: [],
+        settings: {},
+        snapshots: [],
+        transactions: [],
+        importMeta: {},
+      },
+    });
     const err = restoreGuard({
       offline: true,
       signedIn: true,
       syncBusy: false,
-      fileContent: '{}',
+      fileContent: validBackup,
     });
-    expect(err).toContain('offline');
+    expect(err).toBeNull();
   });
 
   it('rejects when not signed in', () => {

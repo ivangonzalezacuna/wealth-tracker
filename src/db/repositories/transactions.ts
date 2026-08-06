@@ -39,26 +39,34 @@ export async function mergeTransactions(
     const stmt = db.prepare(
       'INSERT OR IGNORE INTO transactions (id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     );
-    for (const t of newTxs) {
-      stmt.run([
-        t.id,
-        t.date,
-        t.source || '',
-        t.type,
-        t.name,
-        t.isin || '',
-        t.shares,
-        t.price,
-        t.amount,
-        t.fee || 0,
-        t.tax || 0,
-        t.currency || 'EUR',
-        t.fxRate || 0,
-        t.note || '',
-        t.category || '',
-      ]);
+    try {
+      db.run('BEGIN');
+      for (const t of newTxs) {
+        stmt.run([
+          t.id,
+          t.date,
+          t.source || '',
+          t.type,
+          t.name,
+          t.isin || '',
+          t.shares,
+          t.price,
+          t.amount,
+          t.fee || 0,
+          t.tax || 0,
+          t.currency || 'EUR',
+          t.fxRate || 0,
+          t.note || '',
+          t.category || '',
+        ]);
+      }
+      db.run('COMMIT');
+    } catch (err) {
+      db.run('ROLLBACK');
+      throw err;
+    } finally {
+      stmt.free();
     }
-    stmt.free();
     await persistDb();
   }
 

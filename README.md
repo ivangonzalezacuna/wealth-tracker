@@ -85,11 +85,13 @@ For Vercel, Cloudflare Pages, or similar:
 
 The app stores all your data in a **local SQLite database** (sql.js WASM) running in the browser. This database is:
 
-1. **Persisted locally** in IndexedDB (survives reloads and restarts)
-2. **Synced to Google Drive AppData** (hidden per-app folder) for cloud backup and cross-device access
+1. **Persisted locally** in IndexedDB (survives reloads and restarts) - this is the authoritative store
+2. **Synced to Google Drive AppData** (hidden per-app folder) as a cloud copy for multi-device access and safety
 3. **Cached in a separate IDB store** for instant page load (~50ms from cache while full sync runs in background)
 
 There is no backend. Your data never leaves your browser except to your own Google Drive.
+
+All writes (snapshots, CSV imports, settings changes, backup restores) go to local SQLite immediately, regardless of connectivity. Drive sync is opportunistic: changes are pushed automatically after a short debounce when online, and any writes made offline are pushed the next time connectivity is restored.
 
 ## Stack
 
@@ -129,7 +131,7 @@ Once these three steps are done, the setup banner disappears and you have full a
 2. Go to the **+ Log** tab
 3. Enter account balances (~2 min)
 4. For investment accounts, optionally expand **ETF breakdown** to record the current market value of each ETF position (see below)
-5. Hit **Save snapshot** (synced to Drive within seconds)
+5. Hit **Save snapshot** (saved immediately; synced to Drive within seconds when online)
 6. Re-import your broker CSV whenever you want updated cost-basis or dividend data
 
 #### Per-ETF market values in snapshots
@@ -257,7 +259,7 @@ The JSON backup is human-readable and can be processed by any tool. The SQLite d
 
 ## Installing as an app (PWA)
 
-The app installs like a native app and works offline for viewing. Writes require a connection for Drive sync.
+The app installs like a native app and works offline. All writes (snapshots, imports, settings) are saved immediately to the local SQLite database. They sync to Drive automatically when connectivity is restored.
 
 - **Android (Chrome):** three-dot menu > Add to Home screen
 - **iOS (Safari):** Share icon > Add to Home Screen
