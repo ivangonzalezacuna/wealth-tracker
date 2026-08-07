@@ -43,7 +43,7 @@ function intervalOptionsHtml(selected: ContribInterval): string {
     .join('');
 }
 
-/** Card key -> render fn, used by repaintCard() to scope a re-render to one card. */
+/** Card key — identifies which settings card an action belongs to. */
 type CardKey =
   | 'accounts'
   | 'holdings'
@@ -137,86 +137,6 @@ export function applySyncBusyState(): void {
       btn.title = '';
     }
   });
-}
-
-/** Re-render exactly one Settings card in place; re-attach only its own
- *  listeners; reapply its persisted collapse state. Touches no sibling card. */
-function repaintCard(key: CardKey): void {
-  const id = `settings-card-${key}`;
-  const existing = document.getElementById(id);
-  if (!existing) return; // settings not currently rendered - nothing to do
-
-  const accounts = getAccounts();
-  const holdings = getHoldings();
-  const settings = getSettings();
-
-  let html: string;
-  switch (key) {
-    case 'accounts':
-      html = renderAccountsCard(accounts);
-      break;
-    case 'holdings':
-      html = renderHoldingsCard(holdings);
-      break;
-    case 'cost-basis':
-      html = renderCostBasisCard(settings);
-      break;
-    case 'goal':
-      html = renderGoalCard(settings);
-      break;
-    case 'alerts':
-      html = renderAlertsCard(settings);
-      break;
-    case 'rules':
-      html = renderRulesCard(settings);
-      break;
-    case 'cache':
-      html = renderCacheCard();
-      break;
-    case 'backup':
-      html = renderBackupCard();
-      break;
-    case 'config-history':
-      // Read-only card; re-render with empty entries as placeholder (async load follows)
-      html = renderConfigHistoryCard([]);
-      break;
-  }
-
-  existing.outerHTML = html;
-  const fresh = document.getElementById(id);
-  if (!fresh) return;
-
-  switch (key) {
-    case 'accounts':
-      attachAccountListeners(fresh);
-      break;
-    case 'holdings':
-      attachHoldingListeners(fresh);
-      attachColorPickerSync(fresh);
-      break;
-    case 'cost-basis':
-      attachCostBasisListeners(fresh);
-      break;
-    case 'goal':
-      attachGoalListeners(fresh);
-      break;
-    case 'rules':
-      attachRulesListeners(fresh);
-      break;
-    case 'cache':
-      attachCacheListeners(fresh);
-      break;
-    case 'backup':
-      attachBackupListeners(fresh);
-      break;
-    case 'config-history':
-      // No listeners needed for the read-only config history card
-      break;
-  }
-  attachCardCollapseListeners(fresh);
-  if (isCollapsed('card:' + key)) fresh.classList.add('collapsed');
-  attachInfoTips(fresh);
-  applySyncBusyState();
 }
 
 /**

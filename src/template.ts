@@ -1,5 +1,33 @@
 import { CONFIG } from './config';
 
+function rangeToggleHtml(
+  id: string,
+  ariaLabel: string,
+  activeRange: '12' | '36' | 'all' = 'all',
+): string {
+  const btn = (range: '12' | '36' | 'all', label: string) =>
+    `<button class="btn btn-sm btn-ghost${range === activeRange ? ' active' : ''}" data-range="${range}">${label}</button>`;
+  return `<div class="range-toggle" id="${id}" role="group" aria-label="${ariaLabel}">${btn('12', '1Y')}${btn('36', '3Y')}${btn('all', 'All')}</div>`;
+}
+
+function metricExplainerCard(
+  icon: string,
+  title: string,
+  description: string,
+  benchmark: string,
+  adviceLabel: string,
+  advice: string,
+): string {
+  const p = (style: string, html: string) =>
+    `<p style="font-size:12px;color:var(--ink-2);${style}">${html}</p>`;
+  return `<div class="card" style="padding:.75rem 1rem;margin:0">
+              <div style="font-size:12px;font-weight:600;margin-bottom:.25rem">${icon} ${title}</div>
+              ${p('margin:0 0 .25rem', description)}
+              ${p('margin:0 0 .25rem', `<strong>Good to aim for:</strong> ${benchmark}`)}
+              ${p('margin:0', `<strong>${adviceLabel}:</strong> ${advice}`)}
+            </div>`;
+}
+
 export function appTemplate(): string {
   return `
 <header>
@@ -38,11 +66,7 @@ export function appTemplate(): string {
       <div class="card-title" id="nw-chart-title">Net worth: stacked by account</div>
       <div class="chart-controls">
         <div id="nw-chart-legend" class="legend"></div>
-        <div class="range-toggle" id="nw-range-toggle" role="group" aria-label="History range">
-          <button class="btn btn-sm btn-ghost" data-range="12">1Y</button>
-          <button class="btn btn-sm btn-ghost" data-range="36">3Y</button>
-          <button class="btn btn-sm btn-ghost active" data-range="all">All</button>
-        </div>
+        ${rangeToggleHtml('nw-range-toggle', 'History range')}
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-hist"></canvas></div>
     </div>
@@ -105,13 +129,7 @@ export function appTemplate(): string {
         <div class="card-title">Monthly invested: stacked by ETF (savings plan executions)</div>
         <div class="chart-controls">
           <div id="dca-legend" class="legend"></div>
-          <div class="range-toggle" id="dca-range-toggle" role="group" aria-label="Contributions range">
-            <button class="btn btn-sm btn-ghost" data-range="12">1Y</button>
-            <button class="btn btn-sm btn-ghost" data-range="36">3Y</button>
-            <button class="btn btn-sm btn-ghost active" data-range="all">All</button>
-          </div>
-        </div>
-        <div class="chart-wrap chart-h-lg"><canvas id="c-dca-bar"></canvas></div>
+          ${rangeToggleHtml('dca-range-toggle', 'Contributions range')}
       </div>
       <div class="two-col">
         <div class="card">
@@ -184,11 +202,7 @@ export function appTemplate(): string {
       <div class="card-title">Portfolio growth over time</div>
       <div class="chart-controls">
         <div id="an-growth-legend" class="legend"></div>
-        <div class="range-toggle" id="an-growth-range-toggle" role="group" aria-label="Growth range">
-          <button class="btn btn-sm btn-ghost" data-range="12">1Y</button>
-          <button class="btn btn-sm btn-ghost" data-range="36">3Y</button>
-          <button class="btn btn-sm btn-ghost active" data-range="all">All</button>
-        </div>
+        ${rangeToggleHtml('an-growth-range-toggle', 'Growth range')}
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-an-growth"></canvas></div>
     </div>
@@ -199,11 +213,7 @@ export function appTemplate(): string {
         <div class="card-title">Growth breakdown: contributed vs market</div>
         <div class="chart-controls">
           <div id="an-contrib-legend" class="legend"></div>
-          <div class="range-toggle" id="an-contrib-range-toggle" role="group" aria-label="Contributions vs market range">
-            <button class="btn btn-sm btn-ghost" data-range="12">1Y</button>
-            <button class="btn btn-sm btn-ghost" data-range="36">3Y</button>
-            <button class="btn btn-sm btn-ghost active" data-range="all">All</button>
-          </div>
+          ${rangeToggleHtml('an-contrib-range-toggle', 'Contributions vs market range')}
         </div>
         <div class="chart-wrap chart-h-md"><canvas id="c-an-contrib"></canvas></div>
         <p class="note">Market movement is the residual after subtracting contributions from the total change. Use IRR for a money-weighted investment return metric.</p>
@@ -280,103 +290,62 @@ export function appTemplate(): string {
           </summary>
           <div style="margin-top:.5rem;display:flex;flex-direction:column;gap:.5rem">
 
-            <div class="card" style="padding:.75rem 1rem;margin:0">
-              <div style="font-size:12px;font-weight:600;margin-bottom:.25rem">📈 Volatility</div>
-              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
-                How bumpy is the ride? Volatility measures how much your portfolio value fluctuates month to month.
-                A higher number means larger swings - both up and down.
-              </p>
-              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
-                <strong>Good to aim for:</strong> Below 10% is relatively calm for a long-term portfolio; 15-20% is typical for a global equity fund.
-              </p>
-              <p style="font-size:12px;color:var(--ink-2);margin:0">
-                <strong>How to reduce it:</strong> Diversify across uncorrelated asset classes (e.g., bonds alongside equities) or add more stable assets like cash.
-              </p>
-            </div>
-
-            <div class="card" style="padding:.75rem 1rem;margin:0">
-              <div style="font-size:12px;font-weight:600;margin-bottom:.25rem">📉 Max Drawdown</div>
-              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
-                The biggest drop your portfolio has ever taken from a peak before recovering.
-                A max drawdown of −20% means your portfolio fell 20% at its worst moment.
-              </p>
-              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
-                <strong>Good to aim for:</strong> A well-diversified portfolio typically sees max drawdowns of −10% to −30%; less than −10% is very resilient.
-              </p>
-              <p style="font-size:12px;color:var(--ink-2);margin:0">
-                <strong>How to reduce it:</strong> Add defensive assets (bonds, cash, gold) or diversify across regions and sectors so that different parts of your portfolio fall at different times.
-              </p>
-            </div>
-
-            <div class="card" style="padding:.75rem 1rem;margin:0">
-              <div style="font-size:12px;font-weight:600;margin-bottom:.25rem">⚖️ Calmar Ratio</div>
-              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
-                How much annual growth (CAGR) do you get for every unit of maximum loss you have endured?
-                A Calmar of 1.0 means your annual return equals your worst drawdown; higher is better.
-              </p>
-              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
-                <strong>Good to aim for:</strong> Above 0.5 is decent; above 1.0 is good; above 2.0 is excellent.
-              </p>
-              <p style="font-size:12px;color:var(--ink-2);margin:0">
-                <strong>How to improve it:</strong> Growing your CAGR (longer investment horizon, higher-return assets) or reducing your worst drawdown both raise this ratio.
-              </p>
-            </div>
-
-            <div class="card" style="padding:.75rem 1rem;margin:0">
-              <div style="font-size:12px;font-weight:600;margin-bottom:.25rem">📊 Sharpe Ratio</div>
-              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
-                Are you being rewarded enough for the risk you are taking?
-                Sharpe compares your return above the risk-free rate (e.g., a savings account) to the total ups and downs in your portfolio.
-              </p>
-              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
-                <strong>Good to aim for:</strong> Above 1.0 is considered good; above 2.0 is excellent. Below 0 means you'd have been better off in a savings account.
-              </p>
-              <p style="font-size:12px;color:var(--ink-2);margin:0">
-                <strong>How to improve it:</strong> Either raise your returns (diversified growth assets, lower fees) or reduce volatility. The risk-free rate is configurable in Settings.
-              </p>
-            </div>
-
-            <div class="card" style="padding:.75rem 1rem;margin:0">
-              <div style="font-size:12px;font-weight:600;margin-bottom:.25rem">🎯 Sortino Ratio</div>
-              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
-                Like the Sharpe ratio, but it only penalises downward swings; good months don't count against you.
-                A Sortino higher than your Sharpe means your losses are smaller than your gains, which is ideal.
-              </p>
-              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
-                <strong>Good to aim for:</strong> Above 1.0 is solid; above 2.0 is excellent. A Sortino well above your Sharpe indicates your portfolio has more upside than downside volatility.
-              </p>
-              <p style="font-size:12px;color:var(--ink-2);margin:0">
-                <strong>How to improve it:</strong> Focus on reducing losing months, for example by adding assets that are less correlated to your main equity holdings.
-              </p>
-            </div>
-
-            <div class="card" style="padding:.75rem 1rem;margin:0">
-              <div style="font-size:12px;font-weight:600;margin-bottom:.25rem">〰️ Avg Drawdown</div>
-              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
-                The average depth below a previous peak, taken across all months where the portfolio was underwater.
-                It gives a better sense of the typical pain level than the one worst moment (max drawdown).
-              </p>
-              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
-                <strong>Good to aim for:</strong> As close to 0% as possible. For a long-term equity portfolio, −3% to −8% average is common.
-              </p>
-              <p style="font-size:12px;color:var(--ink-2);margin:0">
-                <strong>How to reduce it:</strong> Consistent contributions during downturns (cost-averaging) and a diversified portfolio that recovers faster both help shrink the average drawdown.
-              </p>
-            </div>
-
-            <div class="card" style="padding:.75rem 1rem;margin:0">
-              <div style="font-size:12px;font-weight:600;margin-bottom:.25rem">⏱️ DD Duration</div>
-              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
-                The longest consecutive streak of months where your portfolio was below its previous high-water mark.
-                Shorter is better: it means your portfolio recovered quickly after downturns.
-              </p>
-              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
-                <strong>Good to aim for:</strong> Under 12 months is resilient; 12-24 months is normal for a global equity portfolio; above 36 months warrants a review of your asset mix.
-              </p>
-              <p style="font-size:12px;color:var(--ink-2);margin:0">
-                <strong>How to reduce it:</strong> Diversify across asset classes that don't fall simultaneously, and keep contributing regularly so that new purchases at lower prices speed up the recovery.
-              </p>
-            </div>
+            ${metricExplainerCard(
+              '📈',
+              'Volatility',
+              'How bumpy is the ride? Volatility measures how much your portfolio value fluctuates month to month. A higher number means larger swings - both up and down.',
+              'Below 10% is relatively calm for a long-term portfolio; 15-20% is typical for a global equity fund.',
+              'How to reduce it',
+              'Diversify across uncorrelated asset classes (e.g., bonds alongside equities) or add more stable assets like cash.',
+            )}
+            ${metricExplainerCard(
+              '📉',
+              'Max Drawdown',
+              'The biggest drop your portfolio has ever taken from a peak before recovering. A max drawdown of −20% means your portfolio fell 20% at its worst moment.',
+              'A well-diversified portfolio typically sees max drawdowns of −10% to −30%; less than −10% is very resilient.',
+              'How to reduce it',
+              'Add defensive assets (bonds, cash, gold) or diversify across regions and sectors so that different parts of your portfolio fall at different times.',
+            )}
+            ${metricExplainerCard(
+              '⚖️',
+              'Calmar Ratio',
+              'How much annual growth (CAGR) do you get for every unit of maximum loss you have endured? A Calmar of 1.0 means your annual return equals your worst drawdown; higher is better.',
+              'Above 0.5 is decent; above 1.0 is good; above 2.0 is excellent.',
+              'How to improve it',
+              'Growing your CAGR (longer investment horizon, higher-return assets) or reducing your worst drawdown both raise this ratio.',
+            )}
+            ${metricExplainerCard(
+              '📊',
+              'Sharpe Ratio',
+              'Are you being rewarded enough for the risk you are taking? Sharpe compares your return above the risk-free rate (e.g., a savings account) to the total ups and downs in your portfolio.',
+              'Above 1.0 is considered good; above 2.0 is excellent. Below 0 means you&#39;d have been better off in a savings account.',
+              'How to improve it',
+              'Either raise your returns (diversified growth assets, lower fees) or reduce volatility. The risk-free rate is configurable in Settings.',
+            )}
+            ${metricExplainerCard(
+              '🎯',
+              'Sortino Ratio',
+              'Like the Sharpe ratio, but it only penalises downward swings; good months don&#39;t count against you. A Sortino higher than your Sharpe means your losses are smaller than your gains, which is ideal.',
+              'Above 1.0 is solid; above 2.0 is excellent. A Sortino well above your Sharpe indicates your portfolio has more upside than downside volatility.',
+              'How to improve it',
+              'Focus on reducing losing months, for example by adding assets that are less correlated to your main equity holdings.',
+            )}
+            ${metricExplainerCard(
+              '〰️',
+              'Avg Drawdown',
+              'The average depth below a previous peak, taken across all months where the portfolio was underwater. It gives a better sense of the typical pain level than the one worst moment (max drawdown).',
+              'As close to 0% as possible. For a long-term equity portfolio, −3% to −8% average is common.',
+              'How to reduce it',
+              'Consistent contributions during downturns (cost-averaging) and a diversified portfolio that recovers faster both help shrink the average drawdown.',
+            )}
+            ${metricExplainerCard(
+              '⏱️',
+              'DD Duration',
+              'The longest consecutive streak of months where your portfolio was below its previous high-water mark. Shorter is better: it means your portfolio recovered quickly after downturns.',
+              'Under 12 months is resilient; 12-24 months is normal for a global equity portfolio; above 36 months warrants a review of your asset mix.',
+              'How to reduce it',
+              'Diversify across asset classes that don&#39;t fall simultaneously, and keep contributing regularly so that new purchases at lower prices speed up the recovery.',
+            )}
 
           </div>
         </details>
@@ -400,11 +369,7 @@ export function appTemplate(): string {
               Income by month (dividends and interest)
             </div>
             <div class="chart-controls" style="margin-bottom:4px">
-              <div class="range-toggle" id="an-income-range-toggle" role="group" aria-label="Income range">
-                <button class="btn btn-sm btn-ghost active" data-range="12">1Y</button>
-                <button class="btn btn-sm btn-ghost" data-range="36">3Y</button>
-                <button class="btn btn-sm btn-ghost" data-range="all">All</button>
-              </div>
+              ${rangeToggleHtml('an-income-range-toggle', 'Income range', '12')}
             </div>
             <div class="chart-wrap chart-h-md"><canvas id="c-an-income"></canvas></div>
           </div>

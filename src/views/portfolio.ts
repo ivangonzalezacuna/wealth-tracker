@@ -20,7 +20,7 @@ import { computeDrift, maxDrift, computeRebalancePlan } from '../model/drift';
 import { builtInProfiles } from '../import/profiles/index';
 import type { PortfolioData, Snapshot, EtfPosition, ContribInterval } from '../types';
 import Chart from 'chart.js/auto';
-import { T, R, resolvedT } from '../theme';
+import { R, resolvedT } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { attachEtfPopovers } from '../ui/etfPopover';
 import type { SortState } from './tableSort';
@@ -65,17 +65,6 @@ function renderSourceBreakdown(bySource: Record<string, number>, signed = false)
       return `<div class="row" style="padding-left:1rem"><div class="row-label" style="font-size:12px;color:var(--ink-3)">${esc(sourceLabel(src))}</div><div class="row-val" style="font-size:12px">${display}</div></div>`;
     })
     .join('');
-}
-
-function foldedIsin(isin: string, holdingByIsin: Record<string, { foldInto: string }>): string {
-  let cur = isin;
-  const seen = new Set<string>();
-  while (holdingByIsin[cur]?.foldInto) {
-    if (seen.has(cur)) break;
-    seen.add(cur);
-    cur = holdingByIsin[cur].foldInto;
-  }
-  return cur;
 }
 
 // Module-level filter state (survives re-renders)
@@ -233,7 +222,6 @@ function holdingsColumns(
  */
 function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   const ISIN_ORDER = getISIN_ORDERList();
-  const META = getMETAMap();
   const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
   const snapEtfValues = extractSnapEtfValues(latSnap);
   const columns = holdingsColumns(pd, snapEtfValues);
@@ -434,7 +422,6 @@ function renderHoldPagination(totalPages: number, pd: PortfolioData, snaps: Snap
  */
 export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const ISIN_ORDER = getISIN_ORDERList();
-  const META = getMETAMap();
   const has = pd && Object.keys(pd.etfs).length > 0;
   document.getElementById('port-empty')!.style.display = has ? 'none' : 'block';
   document.getElementById('port-content')!.style.display = has ? 'block' : 'none';

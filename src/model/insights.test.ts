@@ -9,7 +9,6 @@ import {
   annualizedVolatility,
   maxDrawdown,
   cagrPerAccount,
-  trailingDividendYield,
 } from './insights';
 import type { Snapshot } from '../types';
 import * as utils from '../utils';
@@ -387,40 +386,5 @@ describe('cagrPerAccount', () => {
     expect(a.cagrValue).not.toBeNull();
     expect(b.cagrValue).not.toBeNull();
     expect(a.cagrValue).not.toBeCloseTo(b.cagrValue!);
-  });
-});
-
-describe('trailingDividendYield', () => {
-  it('returns null when totalInvested is 0', () => {
-    expect(trailingDividendYield([{ date: '2025-01', net: 100 }], 0)).toBeNull();
-  });
-
-  it('returns null when no dividends in trailing 12 months', () => {
-    // Very old dividend date
-    expect(trailingDividendYield([{ date: '2020-01', net: 100 }], 10000)).toBeNull();
-  });
-
-  it('returns null when divHist is empty', () => {
-    expect(trailingDividendYield([], 10000)).toBeNull();
-  });
-
-  it('computes yield correctly from recent dividends', () => {
-    const now = new Date();
-    const recentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const result = trailingDividendYield([{ date: recentMonth, net: 200 }], 10000);
-    expect(result).not.toBeNull();
-    expect(result!).toBeCloseTo(2); // 200 / 10000 * 100 = 2%
-  });
-
-  it('yields higher when denominator is dist-only capital (excluding acc holdings)', () => {
-    // Scenario: 200 net dividends, 5000 in dist holdings, 5000 in acc holdings (total 10000).
-    // Using total capital: 200/10000 = 2%. Using dist-only capital: 200/5000 = 4%.
-    const now = new Date();
-    const recentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const divHist = [{ date: recentMonth, net: 200 }];
-    const totalResult = trailingDividendYield(divHist, 10000);
-    const distOnlyResult = trailingDividendYield(divHist, 5000);
-    expect(totalResult!).toBeCloseTo(2);
-    expect(distOnlyResult!).toBeCloseTo(4); // more accurate: only dist capital in denominator
   });
 });

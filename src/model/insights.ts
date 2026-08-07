@@ -21,10 +21,11 @@ export function monthlyGrowthSplit(
 
 /**
  * Compound annual growth rate.
- * Returns null when months < 12 or first <= 0.
+ * Returns null when months < 12, first <= 0, or last < 0 (avoids NaN from
+ * fractional exponentiation of a negative base).
  */
 export function cagr(first: number, last: number, months: number): number | null {
-  if (months < 12 || first <= 0) return null;
+  if (months < 12 || first <= 0 || last < 0) return null;
   return Math.pow(last / first, 12 / months) - 1;
 }
 
@@ -256,12 +257,15 @@ export function absoluteGain(current: number, totalContributed: number): number 
 }
 
 /**
- * Average drawdown: mean of all per-month drawdown fractions in the series.
- * Returns null when the series is empty.
+ * Average drawdown: mean drawdown fraction across months where the portfolio
+ * was below its prior peak (i.e. drawdown < 0). Returns null when the series
+ * is empty or the portfolio never drew down.
  */
 export function avgDrawdown(series: DrawdownPoint[]): number | null {
   if (series.length === 0) return null;
-  return series.reduce((s, pt) => s + pt.drawdown, 0) / series.length;
+  const underwater = series.filter((pt) => pt.drawdown < 0);
+  if (underwater.length === 0) return null;
+  return underwater.reduce((s, pt) => s + pt.drawdown, 0) / underwater.length;
 }
 
 /**
@@ -372,8 +376,8 @@ export function annualReturns(snaps: Snapshot[]): { year: number; return: number
     const year = years[i];
     const yearSnaps = byYear.get(year)!.sort((a, b) => a.date.localeCompare(b.date));
     let startVal: number | null = null;
-    if (i > 0) {
-      // Use nearest snapshot to Dec of prior year as start
+    if (i > 0 && years[i - 1] === year - 1) {
+      // Consecutive prior year available: use nearest snapshot to Dec of that year
       const prevYearSnaps = byYear.get(years[i - 1])!;
       const decSnaps = prevYearSnaps.filter((s) => parseYearMonth(s.date)?.month === 12);
       const startSnap =
@@ -382,7 +386,7 @@ export function annualReturns(snaps: Snapshot[]): { year: number; return: number
           : prevYearSnaps[prevYearSnaps.length - 1];
       startVal = snapTotal(startSnap);
     } else {
-      // First year: return from first snapshot to last snapshot of that year
+      // First year, or gap in data: use first snapshot of this year as baseline
       startVal = snapTotal(yearSnaps[0]);
     }
     if (startVal === null || startVal <= 0) continue;
@@ -611,27 +615,4 @@ export function cagrPerAccount(snaps: Snapshot[], accounts: Account[]): AccountC
   }
 
   return results;
-}
-
-// ── Trailing dividend yield ───────────────────────────────────────
-
-/**
- * Compute trailing 12-month net dividend yield as a percentage.
- * Returns null when totalInvested is zero or fewer than 12 months of dividend data exist.
- */
-export function trailingDividendYield(
-  divHist: Array<{ date: string; net: number }>,
-  totalInvested: number,
-): number | null {
-  if (totalInvested <= 0 || divHist.length === 0) return null;
-  const cutoff = new Date();
-  cutoff.setFullYear(cutoff.getFullYear() - 1);
-  const sum = divHist
-    .filter((d) => {
-      const dateStr = d.date.length === 7 ? `${d.date}-01` : d.date;
-      return new Date(dateStr) >= cutoff;
-    })
-    .reduce((s, d) => s + d.net, 0);
-  if (sum <= 0) return null;
-  return (sum / totalInvested) * 100;
 }

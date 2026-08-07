@@ -69,6 +69,27 @@ function _destroyChart(id: string): void {
   }
 }
 
+function _attachRangeToggle(
+  id: string,
+  getRange: () => '12' | '36' | 'all',
+  setRange: (r: '12' | '36' | 'all') => void,
+  rerender: () => void,
+): void {
+  const toggle = document.getElementById(id) as (HTMLElement & { _bound?: boolean }) | null;
+  if (!toggle || toggle._bound) return;
+  toggle._bound = true;
+  toggle.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
+    if (!btn) return;
+    const newRange = (btn.dataset.range as '12' | '36' | 'all') || 'all';
+    if (newRange === getRange()) return;
+    setRange(newRange);
+    toggle.querySelectorAll('.btn').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    rerender();
+  });
+}
+
 // ── Month diff helper ──────────────────────────────────────
 
 function _monthsDiff(a: string, b: string): number {
@@ -431,20 +452,14 @@ function _renderGrowthChart(snaps: Snapshot[]): void {
 }
 
 function _attachGrowthRangeToggle(snaps: Snapshot[]): void {
-  const toggle = document.getElementById('an-growth-range-toggle') as
-    (HTMLElement & { _bound?: boolean }) | null;
-  if (!toggle || toggle._bound) return;
-  toggle._bound = true;
-  toggle.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
-    if (!btn) return;
-    const newRange = (btn.dataset.range as '12' | '36' | 'all') || 'all';
-    if (newRange === _anGrowthRange) return;
-    _anGrowthRange = newRange;
-    toggle.querySelectorAll('.btn').forEach((b) => b.classList.remove('active'));
-    btn.classList.add('active');
-    _renderGrowthChart(snaps);
-  });
+  _attachRangeToggle(
+    'an-growth-range-toggle',
+    () => _anGrowthRange,
+    (r) => {
+      _anGrowthRange = r;
+    },
+    () => _renderGrowthChart(snaps),
+  );
 }
 
 // ── Contributions vs market chart ──────────────────────────
@@ -542,20 +557,14 @@ function _renderContribChart(points: MonthlyGrowthPoint[]): void {
 }
 
 function _attachContribRangeToggle(points: MonthlyGrowthPoint[]): void {
-  const toggle = document.getElementById('an-contrib-range-toggle') as
-    (HTMLElement & { _bound?: boolean }) | null;
-  if (!toggle || toggle._bound) return;
-  toggle._bound = true;
-  toggle.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
-    if (!btn) return;
-    const newRange = (btn.dataset.range as '12' | '36' | 'all') || 'all';
-    if (newRange === _anContribRange) return;
-    _anContribRange = newRange;
-    toggle.querySelectorAll('.btn').forEach((b) => b.classList.remove('active'));
-    btn.classList.add('active');
-    _renderContribChart(points);
-  });
+  _attachRangeToggle(
+    'an-contrib-range-toggle',
+    () => _anContribRange,
+    (r) => {
+      _anContribRange = r;
+    },
+    () => _renderContribChart(points),
+  );
 }
 
 // ── Monthly return heatmap ─────────────────────────────────
@@ -762,7 +771,12 @@ function _getHoldingSlices(
     if (!pos) continue;
     const value = pos.cost || 0;
     if (value <= 0) continue;
-    const key = dim === 'class' ? h.assetClass || 'Other' : h.region || 'Other';
+    const key =
+      dim === 'class'
+        ? h.assetClass || 'Other'
+        : dim === 'sector'
+          ? h.sector || 'Other'
+          : h.region || 'Other';
     const normalized = key.charAt(0).toUpperCase() + key.slice(1);
     const existing = buckets.get(normalized);
     if (existing) {
@@ -854,8 +868,9 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
         ? 'an-alloc-currency-card'
         : null;
 
-  // Hide card if no data
+  // Hide card if no data; destroy any previous chart to avoid stale display
   if (slices.length === 0) {
+    _destroyChart(canvasId);
     if (cardId) {
       const cardEl = document.getElementById(cardId);
       if (cardEl) cardEl.style.display = 'none';
@@ -1309,18 +1324,12 @@ function _renderIncomeChart(monthlyBreakdown: { month: string; amount: number }[
 }
 
 function _attachIncomeRangeToggle(monthlyBreakdown: { month: string; amount: number }[]): void {
-  const toggle = document.getElementById('an-income-range-toggle') as
-    (HTMLElement & { _bound?: boolean }) | null;
-  if (!toggle || toggle._bound) return;
-  toggle._bound = true;
-  toggle.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
-    if (!btn) return;
-    const newRange = (btn.dataset.range as '12' | '36' | 'all') || '12';
-    if (newRange === _anIncomeRange) return;
-    _anIncomeRange = newRange;
-    toggle.querySelectorAll('.btn').forEach((b) => b.classList.remove('active'));
-    btn.classList.add('active');
-    _renderIncomeChart(monthlyBreakdown);
-  });
+  _attachRangeToggle(
+    'an-income-range-toggle',
+    () => _anIncomeRange,
+    (r) => {
+      _anIncomeRange = r;
+    },
+    () => _renderIncomeChart(monthlyBreakdown),
+  );
 }

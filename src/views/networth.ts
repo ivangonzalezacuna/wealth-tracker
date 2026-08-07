@@ -860,11 +860,3 @@ function _destroyChart(id: string): void {
     delete CH[id];
   }
 }
-
-/** Months between two YYYY-MM date strings. */
-function _monthsDiff(a: string, b: string): number {
-  if (!a || !b) return 0;
-  const [ay, am] = a.split('-').map(Number);
-  const [by, bm] = b.split('-').map(Number);
-  return (by - ay) * 12 + (bm - am);
-}

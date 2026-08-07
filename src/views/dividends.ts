@@ -1,6 +1,5 @@
 import { fmtEur2, fmtMon, fmtDay, esc, safeColor, kpiTile } from '../utils';
 import type { PortfolioData, DivHistEntry, IntHistEntry, Transaction } from '../types';
-import { T } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { attachEtfPopovers } from '../ui/etfPopover';
 import { getCostBasisMethod, getHoldings } from '../store/config';
@@ -31,7 +30,6 @@ let _lastTxs: Transaction[] = [];
  */
 export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = []): void {
   const hasPD = !!pd;
-  const hasDiv = hasPD && pd.divHist.length > 0;
 
   document.getElementById('div-empty')!.style.display = hasPD ? 'none' : 'block';
   document.getElementById('div-content')!.style.display = hasPD ? 'block' : 'none';

@@ -71,6 +71,7 @@ export interface Holding {
   contribInterval: ContribInterval; // execution cadence
   assetClass: string;
   region: string;
+  sector?: string; // optional; used by the sector allocation chart
   foldInto: string;
   order: number;
   ter?: number; // total expense ratio in %, e.g. 0.2 for 0.20%
