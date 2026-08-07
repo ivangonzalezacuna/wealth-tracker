@@ -868,11 +868,76 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
   }
 
   const total = slices.reduce((s, x) => s + x.value, 0);
-  const C = resolvedT();
 
+  // When there is only one slice the donut chart conveys no additional
+  // information beyond the label itself. Destroy any previous chart and
+  // replace it with a clear full-concentration block instead.
   _destroyChart(canvasId);
   const canvas = document.getElementById(canvasId) as HTMLCanvasElement | null;
   if (!canvas) return;
+
+  if (slices.length === 1) {
+    const slice = slices[0];
+    // Hide the canvas — we render a text block in its place.
+    canvas.style.display = 'none';
+
+    const legendEl = document.getElementById(legendId);
+    if (legendEl) {
+      // Check whether the other mode (all vs active) would yield more slices so
+      // we can show a helpful hint nudging the user to switch.
+      let otherModeHasMore = false;
+      if (dim !== 'acct') {
+        const otherMode = mode === 'active' ? 'all' : 'active';
+        let otherSlices: { label: string; value: number; color: string }[] = [];
+        if (dim === 'currency') {
+          otherSlices = _getCurrencySlices(_lastTxs, otherMode, holdings);
+        } else {
+          otherSlices = _getHoldingSlices(
+            holdings,
+            pd,
+            dim as Exclude<AllocDim, 'acct' | 'currency'>,
+            otherMode,
+          );
+        }
+        otherModeHasMore = otherSlices.length > 1;
+      }
+
+      const hint =
+        mode === 'active' && otherModeHasMore
+          ? `<p class="note" style="margin-top:6px">Switch to <em>All assets</em> to see the full breakdown.</p>`
+          : '';
+
+      legendEl.style.flexWrap = 'wrap';
+      legendEl.style.maxWidth = '100%';
+      legendEl.innerHTML = `
+        <div class="alloc-full-concentration" style="
+          display:flex;align-items:center;gap:10px;
+          background:${esc(safeColor(slice.color))}1a;
+          border-left:4px solid ${esc(safeColor(slice.color))};
+          border-radius:6px;padding:10px 14px;margin-top:4px
+        ">
+          <span style="
+            display:inline-block;width:12px;height:12px;border-radius:50%;flex-shrink:0;
+            background:${esc(safeColor(slice.color))}
+          "></span>
+          <span style="font-weight:600;font-size:13px">${esc(slice.label)}</span>
+          <span style="margin-left:auto;font-size:13px;font-weight:600">100%</span>
+          <span style="font-size:12px;color:var(--ink-2)">${fmtEur(slice.value)}</span>
+        </div>
+        ${hint}`;
+    }
+
+    // Render toggle button so the user can switch to the other mode.
+    if (dim !== 'acct') {
+      _renderAllocToggleBtn(dim);
+    }
+    return;
+  }
+
+  // Multi-slice: restore canvas visibility (it may have been hidden on a prior single-slice render).
+  canvas.style.display = '';
+
+  const C = resolvedT();
 
   CH[canvasId] = new Chart(canvas, {
     type: 'doughnut',
@@ -922,10 +987,6 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
         color: s.color,
       })),
     );
-    // Single-slice note: communicates full concentration clearly
-    if (slices.length === 1) {
-      legendEl.innerHTML += `<p class="note" style="margin-top:4px">100% ${esc(slices[0].label)}</p>`;
-    }
   }
 
   // Render toggle button (not applicable for account dimension)

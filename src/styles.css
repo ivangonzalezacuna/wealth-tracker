@@ -349,6 +349,14 @@ code,
   transform: rotate(-90deg);
 }
 
+/* Explainer <details> chevron: closed by default, arrow points right; open rotates down */
+details:not([open]) > summary .card-chevron {
+  transform: rotate(-90deg);
+}
+details[open] > summary .card-chevron {
+  transform: rotate(0deg);
+}
+
 /* Rows */
 .row {
   display: flex;

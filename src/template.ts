@@ -272,6 +272,115 @@ export function appTemplate(): string {
       <div id="an-advanced-content" style="padding-top:.75rem">
         <div class="kpi-row" id="an-kpis-risk"></div>
 
+        <!-- Collapsible plain-language explainer for each advanced metric -->
+        <details id="an-metrics-explainer" style="margin:.5rem 0 1rem">
+          <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);padding:.25rem 0;user-select:none">
+            <span class="card-chevron" style="width:14px;height:14px"></span>
+            What do these metrics mean?
+          </summary>
+          <div style="margin-top:.5rem;display:flex;flex-direction:column;gap:.5rem">
+
+            <div class="card" style="padding:.75rem 1rem;margin:0">
+              <div style="font-size:12px;font-weight:600;margin-bottom:.25rem">📈 Volatility</div>
+              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
+                How bumpy is the ride? Volatility measures how much your portfolio value fluctuates month to month.
+                A higher number means larger swings — both up and down.
+              </p>
+              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
+                <strong>Good to aim for:</strong> Below 10% is relatively calm for a long-term portfolio; 15–20% is typical for a global equity fund.
+              </p>
+              <p style="font-size:12px;color:var(--ink-2);margin:0">
+                <strong>How to reduce it:</strong> Diversify across uncorrelated asset classes (e.g., bonds alongside equities) or add more stable assets like cash.
+              </p>
+            </div>
+
+            <div class="card" style="padding:.75rem 1rem;margin:0">
+              <div style="font-size:12px;font-weight:600;margin-bottom:.25rem">📉 Max Drawdown</div>
+              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
+                The biggest drop your portfolio has ever taken from a peak before recovering.
+                A max drawdown of −20% means your portfolio fell 20% at its worst moment.
+              </p>
+              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
+                <strong>Good to aim for:</strong> A well-diversified portfolio typically sees max drawdowns of −10% to −30%; less than −10% is very resilient.
+              </p>
+              <p style="font-size:12px;color:var(--ink-2);margin:0">
+                <strong>How to reduce it:</strong> Add defensive assets (bonds, cash, gold) or diversify across regions and sectors so that different parts of your portfolio fall at different times.
+              </p>
+            </div>
+
+            <div class="card" style="padding:.75rem 1rem;margin:0">
+              <div style="font-size:12px;font-weight:600;margin-bottom:.25rem">⚖️ Calmar Ratio</div>
+              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
+                How much annual growth (CAGR) do you get for every unit of maximum loss you have endured?
+                A Calmar of 1.0 means your annual return equals your worst drawdown; higher is better.
+              </p>
+              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
+                <strong>Good to aim for:</strong> Above 0.5 is decent; above 1.0 is good; above 2.0 is excellent.
+              </p>
+              <p style="font-size:12px;color:var(--ink-2);margin:0">
+                <strong>How to improve it:</strong> Growing your CAGR (longer investment horizon, higher-return assets) or reducing your worst drawdown both raise this ratio.
+              </p>
+            </div>
+
+            <div class="card" style="padding:.75rem 1rem;margin:0">
+              <div style="font-size:12px;font-weight:600;margin-bottom:.25rem">📊 Sharpe Ratio</div>
+              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
+                Are you being rewarded enough for the risk you are taking?
+                Sharpe compares your return above the risk-free rate (e.g., a savings account) to the total ups and downs in your portfolio.
+              </p>
+              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
+                <strong>Good to aim for:</strong> Above 1.0 is considered good; above 2.0 is excellent. Below 0 means you'd have been better off in a savings account.
+              </p>
+              <p style="font-size:12px;color:var(--ink-2);margin:0">
+                <strong>How to improve it:</strong> Either raise your returns (diversified growth assets, lower fees) or reduce volatility. The risk-free rate is configurable in Settings.
+              </p>
+            </div>
+
+            <div class="card" style="padding:.75rem 1rem;margin:0">
+              <div style="font-size:12px;font-weight:600;margin-bottom:.25rem">🎯 Sortino Ratio</div>
+              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
+                Like the Sharpe ratio, but it only penalises downward swings — good months don't count against you.
+                A Sortino higher than your Sharpe means your losses are smaller than your gains, which is ideal.
+              </p>
+              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
+                <strong>Good to aim for:</strong> Above 1.0 is solid; above 2.0 is excellent. A Sortino well above your Sharpe indicates your portfolio has more upside than downside volatility.
+              </p>
+              <p style="font-size:12px;color:var(--ink-2);margin:0">
+                <strong>How to improve it:</strong> Focus on reducing losing months — for example by adding assets that are less correlated to your main equity holdings.
+              </p>
+            </div>
+
+            <div class="card" style="padding:.75rem 1rem;margin:0">
+              <div style="font-size:12px;font-weight:600;margin-bottom:.25rem">〰️ Avg Drawdown</div>
+              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
+                The average depth below a previous peak, taken across all months where the portfolio was underwater.
+                It gives a better sense of the typical pain level than the one worst moment (max drawdown).
+              </p>
+              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
+                <strong>Good to aim for:</strong> As close to 0% as possible. For a long-term equity portfolio, −3% to −8% average is common.
+              </p>
+              <p style="font-size:12px;color:var(--ink-2);margin:0">
+                <strong>How to reduce it:</strong> Consistent contributions during downturns (cost-averaging) and a diversified portfolio that recovers faster both help shrink the average drawdown.
+              </p>
+            </div>
+
+            <div class="card" style="padding:.75rem 1rem;margin:0">
+              <div style="font-size:12px;font-weight:600;margin-bottom:.25rem">⏱️ DD Duration</div>
+              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
+                The longest consecutive streak of months where your portfolio was below its previous high-water mark.
+                Shorter is better — it means your portfolio recovered quickly after downturns.
+              </p>
+              <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
+                <strong>Good to aim for:</strong> Under 12 months is resilient; 12–24 months is normal for a global equity portfolio; above 36 months warrants a review of your asset mix.
+              </p>
+              <p style="font-size:12px;color:var(--ink-2);margin:0">
+                <strong>How to reduce it:</strong> Diversify across asset classes that don't fall simultaneously, and keep contributing regularly so that new purchases at lower prices speed up the recovery.
+              </p>
+            </div>
+
+          </div>
+        </details>
+
         <div class="card" id="an-drawdown-card" style="margin:0 0 1rem">
           <div class="card-title">Drawdown history</div>
           <div class="chart-wrap chart-h-md"><canvas id="c-an-drawdown"></canvas></div>
