@@ -391,8 +391,10 @@ describe('renderPortfolio', () => {
     });
     renderPortfolio(pd, []);
 
-    const labels = (chartInstances[0].config as { data: { labels: string[] } }).data.labels;
-    expect(labels).toEqual(['IWDA', 'EIMI', 'BOND']);
+    const labels = (
+      chartInstances[0].config as { data: { labels: [string, string][] } }
+    ).data.labels;
+    expect(labels.map((l) => l[0])).toEqual(['IWDA', 'EIMI', 'BOND']);
 
     const rows = Array.from(
       document.querySelectorAll('#port-table .hold-row:not(.th) .hold-name'),
@@ -608,8 +610,10 @@ describe('renderPortfolio', () => {
   it('chart config contains the correct labels and data', () => {
     renderPortfolio(makePD(), []);
     expect(chartInstances.length).toBe(1);
-    const config = chartInstances[0].config as { data: { labels: string[]; datasets: unknown[] } };
-    expect(config.data.labels).toContain('IWDA');
+    const config = chartInstances[0].config as {
+      data: { labels: [string, string][]; datasets: unknown[] };
+    };
+    expect(config.data.labels.map((l) => l[0])).toContain('IWDA');
     expect(config.data.datasets[0]).toHaveProperty('data');
   });
 

@@ -538,8 +538,9 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   // Render holdings table (filter-dependent)
   renderHoldingsTable(pd, snaps);
 
-  // Bar chart - only held positions with cost > 0
-  const donutE = held.filter((e) => e.cost > 0).sort((a, b) => b.cost - a.cost);
+  // Bar chart - all positions (open and closed) with cost > 0
+  const donutE = allEtfs.filter((e) => e.cost > 0).sort((a, b) => b.cost - a.cost);
+  const donutTotal = donutE.reduce((s, e) => s + e.cost, 0);
   const C = resolvedT();
   if (CH['c-port-donut']) {
     CH['c-port-donut'].destroy();
@@ -547,7 +548,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   CH['c-port-donut'] = new Chart(document.getElementById('c-port-donut') as HTMLCanvasElement, {
     type: 'bar',
     data: {
-      labels: donutE.map((e) => e.shortName),
+      labels: donutE.map((e) => [e.shortName, fmtEur(e.cost)]),
       datasets: [
         {
           data: donutE.map((e) => e.cost),
@@ -608,14 +609,20 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
             callback: (v) => ((v as number) / 1000).toFixed(0) + 'k\u00A0\u20AC',
           },
         },
-        y: { grid: { display: false }, ticks: { color: C.ink2, font: { size: 12 } } },
+        y: {
+          grid: { display: false },
+          ticks: {
+            color: (ctx) => (ctx.index % 2 === 1 ? C.ink4 : C.ink2),
+            font: (ctx) => ({ size: ctx.index % 2 === 1 ? 10 : 12 }),
+          },
+        },
       },
     },
   });
   document.getElementById('port-donut-legend')!.innerHTML = renderLegendHtml(
     donutE.map((e) => ({
       label: e.shortName,
-      meta: pd.totalInv > 0 ? fmtPctVal((e.cost / pd.totalInv) * 100) : '0%',
+      meta: donutTotal > 0 ? fmtPctVal((e.cost / donutTotal) * 100) : '0%',
       color: e.color,
     })),
   );

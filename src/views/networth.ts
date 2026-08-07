@@ -1268,6 +1268,19 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
     const byKey = new Map(returnSeries.map((r) => [`${r.year}-${r.month}`, r.ret]));
     const annualByYear = new Map(annualRets.map((r) => [r.year, r.return]));
 
+    // For years without a full-year comparison (e.g. the first year in the series),
+    // compute the compounded return from available monthly data as a fallback total.
+    const compoundedByYear = new Map<number, number>();
+    for (const y of years) {
+      if (annualByYear.has(y)) continue;
+      const monthsForYear = returnSeries.filter((r) => r.year === y);
+      if (monthsForYear.length === 0) continue;
+      compoundedByYear.set(
+        y,
+        monthsForYear.reduce((prod, r) => prod * (1 + r.ret), 1) - 1,
+      );
+    }
+
     const cellStyle = (ret: number | undefined, isAnnual = false): string => {
       if (ret === undefined) {
         return [
@@ -1297,7 +1310,7 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
         .join(';');
     };
 
-    const gridCols = `grid-template-columns:44px repeat(12,minmax(0,1fr)) 54px`;
+    const gridCols = `grid-template-columns:44px repeat(12,40px) 62px`;
 
     const header = `<div style="display:grid;${gridCols};gap:2px;align-items:end;margin-bottom:3px;padding:0 2px">
       <div style="font-size:10px;color:${C.ink3};font-weight:500;padding-bottom:2px">Year</div>
@@ -1313,7 +1326,7 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
           const txt = ret !== undefined ? fmtPctNeg(ret * 100) : '';
           return `<div style="padding:4px 1px;font-size:10px;text-align:center;${style};font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden">${txt}</div>`;
         });
-        const annualRet = annualByYear.get(y);
+        const annualRet = annualByYear.get(y) ?? compoundedByYear.get(y);
         const annualStyle = cellStyle(annualRet, true);
         const annualTxt = annualRet !== undefined ? fmtPctNeg(annualRet * 100) : '';
         return `<div style="display:grid;${gridCols};gap:2px;align-items:stretch;margin-bottom:2px;padding:0 2px">
@@ -1349,7 +1362,7 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
       <span style="font-size:10px;color:${C.ink3}">gain</span>
     </div>`;
 
-    return `<div style="overflow-x:auto;margin-top:.5rem;padding-bottom:.25rem">${header}${rows}${legend}</div>`;
+    return `<div style="overflow-x:auto;margin-top:.5rem;padding-bottom:.25rem"><div style="min-width:586px">${header}${rows}${legend}</div></div>`;
   })();
 
   // ── Level 3: Advanced Analytics card ──
