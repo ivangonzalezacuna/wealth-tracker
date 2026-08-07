@@ -75,7 +75,6 @@ export function appTemplate(): string {
         <div class="card-title">Latest snapshot</div>
         <div id="nw-detail"></div>
       </div>
-      <div id="nw-analytics-callout" class="card" style="align-self:start"></div>
     </div>
     <div id="nw-goal"></div>
     <div id="nw-forecast"></div>

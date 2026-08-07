@@ -358,12 +358,6 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   if (s.notes) det += `<p class="note" style="margin-top:.5rem">${esc(s.notes)}</p>`;
   document.getElementById('nw-detail')!.innerHTML = det;
 
-  // Analytics callout
-  const calloutEl = document.getElementById('nw-analytics-callout');
-  if (calloutEl) {
-    calloutEl.innerHTML = `<p class="note" style="margin:0">For performance and risk analytics, see the <button class="btn btn-ghost btn-sm" data-section="analytics" style="padding:0 4px;font-size:12px">Analytics</button> tab.</p>`;
-  }
-
   // Goal progress cards (one per named goal)
   _renderGoalCards();
 
