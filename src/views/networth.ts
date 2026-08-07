@@ -29,7 +29,6 @@ import {
   twr,
   xirr,
   annualizedVolatility,
-  maxDrawdown,
   maxDrawdownFull,
   cagrPerAccount,
   totalReturn,
@@ -42,6 +41,7 @@ import {
   averageDrawdown,
   drawdownDuration,
   rollingCagrSeries,
+  rollingVolatilitySeries,
   annualReturns,
   monthlyReturns,
   monthlyReturnSeries,
@@ -277,8 +277,6 @@ export function renderNW(
     investmentFlows.push({ date: terminalDate, amount: latestInvestmentValue });
   }
   const irrVal = latestInvestmentValue !== null ? xirr(investmentFlows) : null;
-  const volatilityVal = annualizedVolatility(snaps);
-  const maxDDVal = maxDrawdown(snaps);
   // Keep primaryInvestmentValue for the growth breakdown chart (contribution tracking
   // still targets only the primary investment account).
   const latestPrimaryValue = primaryInvestmentValue(s, accounts);
@@ -397,20 +395,6 @@ export function renderNW(
         irrVal !== null
           ? `XIRR, annualized${monthsSpan < 24 ? ' (early data, interpret with caution)' : ''}`
           : 'needs complete cash-flow series',
-    })}
-    ${kpiTile({
-      label: 'Volatility',
-      tip: 'Annualized standard deviation of monthly net-worth percentage changes. Measures how much your total balance fluctuates month to month. Higher volatility means a bumpier ride. Computed from all available snapshots; early estimates are less stable.',
-      value: volatilityVal !== null ? fmtPctNeg(volatilityVal * 100) : '-',
-      valueClass: '',
-      sub: volatilityVal !== null ? 'annualized, all history' : 'needs 3 snapshots',
-    })}
-    ${kpiTile({
-      label: 'Max drawdown',
-      tip: 'Largest peak-to-trough decline in total net worth across all recorded history, as a percentage of the prior peak. A value of -20% means your net worth fell 20% from a high point at some stage. Recoveries after the trough are not reflected here.',
-      value: maxDDVal !== null ? (maxDDVal === 0 ? '0%' : fmtPctNeg(maxDDVal * 100)) : '-',
-      valueClass: maxDDVal === null ? '' : maxDDVal < 0 ? 'neg' : '',
-      sub: maxDDVal !== null ? 'all history, total net worth' : 'needs 2 snapshots',
     })}
     ${
       totalReturnVal !== null
@@ -1216,6 +1200,9 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
   // Rolling CAGR (36+ months)
   const rollingCagr36 = months >= 36 ? rollingCagrSeries(snaps, 36) : [];
 
+  // Rolling volatility (24+ months)
+  const rollingVol24 = months >= 24 ? rollingVolatilitySeries(snaps, 12) : [];
+
   // Income analytics
   const incomeTransactions = txs.filter((tx) => tx.type === 'DIVIDEND' || tx.type === 'INTEREST');
   const hasIncome = incomeTransactions.length > 0;
@@ -1354,7 +1341,7 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
       <div class="kpi-row">
         ${kpiTile({
           label: 'Sharpe',
-          tip: '(CAGR - risk-free rate) / volatility. Measures return earned per unit of total risk. Higher is better.',
+          tip: '(CAGR - risk-free rate) / volatility. Measures return per unit of total risk. Values above 1 are generally good, above 2 are excellent. Higher is always better.',
           value: sharpe !== null ? sharpe.toFixed(2) : hasEnough12 ? '-' : '-',
           sub:
             sharpe !== null
@@ -1365,7 +1352,7 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
         })}
         ${kpiTile({
           label: 'Sortino',
-          tip: '(CAGR - risk-free rate) / downside deviation. Like Sharpe but only penalizes downside risk.',
+          tip: '(CAGR - risk-free rate) / downside deviation. Like Sharpe but only penalizes downside moves, not upside swings. Values above 1 are generally good. A higher Sortino than Sharpe means most of your volatility is upside.',
           value: sortino !== null ? sortino.toFixed(2) : '-',
           sub:
             sortino !== null
@@ -1376,7 +1363,7 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
         })}
         ${kpiTile({
           label: 'Calmar',
-          tip: 'CAGR / |max drawdown|. Measures return relative to worst loss. A value above 1 means CAGR exceeds max drawdown magnitude.',
+          tip: 'CAGR / |max drawdown|. Measures return relative to worst loss. A value above 1 means CAGR exceeds max drawdown magnitude. Values above 0.5 are generally acceptable; above 1 is strong.',
           value: calmar !== null ? calmar.toFixed(2) : '-',
           sub: calmar !== null ? 'CAGR / |max DD|' : 'needs CAGR and drawdown',
         })}
@@ -1388,6 +1375,16 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
         ? `<div style="margin-bottom:1rem">
           <div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem">Rolling 3-Year CAGR</div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-nw-rolling-cagr"></canvas></div>
+        </div>`
+        : ''
+    }
+
+    ${
+      rollingVol24.length > 0
+        ? `<div style="margin-bottom:1rem">
+          <div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem">Rolling 12-Month Volatility</div>
+          <p class="note" style="margin-bottom:.4rem">Annualized volatility computed over a trailing 12-month window at each point.</p>
+          <div class="chart-wrap chart-h-sm"><canvas id="c-nw-rolling-vol"></canvas></div>
         </div>`
         : ''
     }
@@ -1407,7 +1404,7 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
               divYield !== null
                 ? kpiTile({
                     label: 'Dividend yield',
-                    tip: 'Trailing 12-month income divided by current total portfolio value.',
+                    tip: 'Trailing 12-month income divided by current total portfolio value. Represents the income return rate of your portfolio.',
                     value: fmtPctNeg(divYield * 100),
                     sub: 'trailing 12M / portfolio value',
                   })
@@ -1417,7 +1414,7 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
               divGrowth !== null
                 ? kpiTile({
                     label: 'Income growth YoY',
-                    tip: "This year's income vs last year's income as a percentage change.",
+                    tip: "This year's total income vs last year's as a percentage change. Positive means your income stream is growing.",
                     value: fmtPctNeg(divGrowth * 100),
                     valueClass: divGrowth >= 0 ? 'pos' : 'neg',
                     sub: 'vs prior year',
@@ -1428,7 +1425,7 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
               divCagr !== null
                 ? kpiTile({
                     label: 'Income CAGR',
-                    tip: 'Compound annual growth rate of annual income from dividends and interest.',
+                    tip: 'Compound annual growth rate of your yearly income from dividends and interest. Measures how consistently your income stream grows over time.',
                     value: fmtPctNeg(divCagr * 100),
                     valueClass: divCagr >= 0 ? 'pos' : 'neg',
                     sub: 'annual income growth',
@@ -1436,6 +1433,7 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
                 : ''
             }
           </div>
+          <p class="note" style="margin-bottom:.4rem">Monthly income (dividends + interest received) over the last 12 months. Bar height represents the total income received in that calendar month.</p>
           <div class="chart-wrap chart-h-sm"><canvas id="c-nw-income-month"></canvas></div>
         </div>`
         : ''
@@ -1479,6 +1477,7 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
       if (!advCard.classList.contains('collapsed')) {
         _renderDrawdownChart(ddSeries);
         if (rollingCagr36.length > 0) _renderRollingCagrChart(rollingCagr36);
+        if (rollingVol24.length > 0) _renderRollingVolChart(rollingVol24);
         if (hasIncome) _renderIncomeByMonthChart(incomeByMonthData);
       }
     });
@@ -1583,6 +1582,64 @@ function _renderRollingCagrChart(series: { month: string; cagr: number }[]): voi
         legend: { display: false },
         tooltip: {
           ...TOOLTIP_BOX,
+          callbacks: { label: (ctx) => ` ${(ctx.parsed.y ?? 0).toFixed(2)}%` },
+        },
+      },
+    },
+  });
+}
+
+function _renderRollingVolChart(series: { month: string; volatility: number }[]): void {
+  const el = document.getElementById('c-nw-rolling-vol') as HTMLCanvasElement | null;
+  if (!el || series.length === 0) return;
+  _destroyChart('c-nw-rolling-vol');
+  const C = resolvedT();
+  CH['c-nw-rolling-vol'] = new Chart(el, {
+    type: 'line',
+    data: {
+      labels: series.map((p) => p.month),
+      datasets: [
+        {
+          label: 'Rolling 12M Volatility',
+          data: series.map((p) => p.volatility * 100),
+          fill: true,
+          borderColor: C.brandChart,
+          backgroundColor: C.brandChart + '22',
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.3,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          min: 0,
+          ticks: {
+            callback: (v) => `${Number(v).toFixed(1)}%`,
+            font: { size: 10 },
+            color: C.ink3,
+          },
+          grid: { color: C.line },
+        },
+        x: {
+          ticks: { font: { size: 10 }, color: C.ink3, maxTicksLimit: 8 },
+          grid: { display: false },
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: C.surface,
+          ...TOOLTIP_BOX,
+          borderColor: C.line,
+          borderWidth: 1,
+          titleColor: C.ink,
+          bodyColor: C.ink2,
+          padding: 10,
+          cornerRadius: 8,
           callbacks: { label: (ctx) => ` ${(ctx.parsed.y ?? 0).toFixed(2)}%` },
         },
       },
@@ -1791,7 +1848,12 @@ function _renderAllocationCard(snaps: Snapshot[], accounts: Account[]): void {
 
   // Render asset class donut
   if (hasAssetClass) {
-    _renderAllocationDonut('c-nw-alloc-class', 'nw-alloc-class-legend', assetClassMap, ASSET_CLASS_LABELS);
+    _renderAllocationDonut(
+      'c-nw-alloc-class',
+      'nw-alloc-class-legend',
+      assetClassMap,
+      ASSET_CLASS_LABELS,
+    );
   }
 
   // Render region donut

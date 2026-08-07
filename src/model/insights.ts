@@ -362,9 +362,29 @@ export function rollingCagrSeries(
 }
 
 /**
- * Annual returns table: year-over-year return derived from the last snapshot of
- * each calendar year. Returns an empty array when fewer than 2 snapshots.
+ * Rolling annualized volatility series.
+ * For each snapshot i (starting at index windowMonths), computes the
+ * annualized standard deviation of monthly returns in the preceding
+ * windowMonths-long window.
  */
+export function rollingVolatilitySeries(
+  snaps: Snapshot[],
+  windowMonths: number,
+): { month: string; volatility: number }[] {
+  if (snaps.length < windowMonths + 1) return [];
+  const result: { month: string; volatility: number }[] = [];
+  for (let i = windowMonths; i < snaps.length; i++) {
+    const window = snaps.slice(i - windowMonths, i + 1);
+    const rets = monthlyReturns(window);
+    if (!rets || rets.length < 2) continue;
+    const mean = rets.reduce((s, r) => s + r, 0) / rets.length;
+    const variance = rets.reduce((s, r) => s + (r - mean) ** 2, 0) / (rets.length - 1);
+    const vol = Math.sqrt(variance) * Math.sqrt(12);
+    result.push({ month: snaps[i].date, volatility: vol });
+  }
+  return result;
+}
+
 export function annualReturns(snaps: Snapshot[]): { year: number; return: number }[] {
   if (snaps.length < 2) return [];
   const byYear = new Map<number, Snapshot>();
