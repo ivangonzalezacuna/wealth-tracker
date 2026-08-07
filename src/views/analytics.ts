@@ -940,7 +940,7 @@ function _renderAllocToggleBtn(dim: AllocDim): void {
   const wrapEl = document.getElementById(wrapId);
   if (!wrapEl) return;
   const mode = _allocMode[dim] ?? 'active';
-  wrapEl.innerHTML = `<div class="range-toggle" style="font-size:11px;margin-top:8px">
+  wrapEl.innerHTML = `<div class="range-toggle" style="font-size:11px">
     <button class="btn btn-sm btn-ghost${mode === 'all' ? ' active' : ''}" data-alloc-mode="all" data-alloc-dim="${dim}">All assets</button>
     <button class="btn btn-sm btn-ghost${mode === 'active' ? ' active' : ''}" data-alloc-mode="active" data-alloc-dim="${dim}">Active only</button>
   </div>`;

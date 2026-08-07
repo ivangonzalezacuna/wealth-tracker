@@ -1800,7 +1800,7 @@ function showPortfolioSubview(sub: string, force = false): void {
 function renderPortfolioSubview(sub: string): void {
   if (sub === 'holdings') renderPortfolio(state.pd, state.snaps);
   else if (sub === 'contributions') renderDCA(state.pd, state.snaps);
-  else if (sub === 'dividends') renderDividends(state.pd, state.txs, state.snaps);
+  else if (sub === 'dividends') renderDividends(state.pd, state.txs);
 }
 
 // ── Section dispatcher ────────────────────────────────────

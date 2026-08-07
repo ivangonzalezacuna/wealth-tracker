@@ -95,8 +95,8 @@ describe('renderDividends', () => {
     expect(kpisText).toContain('Tax withheld');
     expect(kpisText).toContain('Net received');
     expect(kpisText).toContain('Gross interest');
-    expect(kpisText).toContain('Investment income yield (12m)');
-    expect(kpisText).toContain('Savings income yield (12m)');
+    expect(kpisText).not.toContain('Investment income yield (12m)');
+    expect(kpisText).not.toContain('Savings income yield (12m)');
   });
 
   it('flips the Tax withheld tile to positive styling when totalTax < 0', () => {
@@ -138,7 +138,7 @@ describe('renderDividends', () => {
     renderDividends(makePD());
     renderDividends(makePD());
     const kpisEl = document.getElementById('div-kpis')!;
-    expect(kpisEl.children.length).toBe(9);
+    expect(kpisEl.children.length).toBe(6);
   });
 
   it('renders annual summary table', () => {
@@ -274,29 +274,6 @@ describe('renderDividends', () => {
     expect(annualText).not.toContain('Dividend taxes paid');
     expect(annualText).not.toContain('Profit / loss');
     expect(annualText).not.toContain('Realized profit and loss from sells');
-  });
-
-  it('shows placeholder for income yield when less than 12 months history', () => {
-    renderDividends(
-      makePD({
-        divHist: [
-          {
-            date: '2026-01-15',
-            isin: '',
-            shortName: 'IWDA',
-            color: '#111',
-            gross: 12.5,
-            tax: 3.13,
-            net: 9.37,
-          },
-        ],
-        intHist: [],
-      }),
-    );
-    expect(document.getElementById('div-kpis')!.textContent).toContain(
-      'Investment income yield (12m)',
-    );
-    expect(document.getElementById('div-kpis')!.textContent).toContain('need 12 months of history');
   });
 
   it('renders pagination when divHist exceeds page size', () => {

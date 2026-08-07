@@ -178,7 +178,7 @@ export function appTemplate(): string {
     <!-- Level 1: Performance Summary (always visible) -->
     <div class="kpi-row" id="an-kpis-l1"></div>
     <div class="section-label" id="an-perf-detail-heading" style="display:none;padding:.4rem 0 .1rem;font-size:11px;color:var(--ink-3);font-weight:500;text-transform:uppercase;letter-spacing:.04em">Performance Detail</div>
-    <div class="kpi-row" id="an-kpis-l2" style="margin-top:0"></div>
+    <div class="kpi-row" id="an-kpis-l2" style="margin-top:8px"></div>
 
     <div class="card card-primary">
       <div class="card-title">Portfolio growth over time</div>
@@ -231,7 +231,7 @@ export function appTemplate(): string {
         </div>
         <div class="card">
           <div class="card-title">Allocation by asset class</div>
-          <div id="an-alloc-class-toggle-wrap"></div>
+          <div id="an-alloc-class-toggle-wrap" class="chart-controls"></div>
           <div id="an-alloc-class-legend" class="legend"></div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-class"></canvas></div>
         </div>
@@ -240,13 +240,13 @@ export function appTemplate(): string {
       <div class="two-col">
         <div class="card">
           <div class="card-title">Allocation by region</div>
-          <div id="an-alloc-region-toggle-wrap"></div>
+          <div id="an-alloc-region-toggle-wrap" class="chart-controls"></div>
           <div id="an-alloc-region-legend" class="legend"></div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-region"></canvas></div>
         </div>
         <div class="card" id="an-alloc-sector-card">
           <div class="card-title">Allocation by sector</div>
-          <div id="an-alloc-sector-toggle-wrap"></div>
+          <div id="an-alloc-sector-toggle-wrap" class="chart-controls"></div>
           <div id="an-alloc-sector-legend" class="legend"></div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-sector"></canvas></div>
         </div>
@@ -255,7 +255,7 @@ export function appTemplate(): string {
       <div class="two-col">
         <div class="card" id="an-alloc-currency-card">
           <div class="card-title">Allocation by currency</div>
-          <div id="an-alloc-currency-toggle-wrap"></div>
+          <div id="an-alloc-currency-toggle-wrap" class="chart-controls"></div>
           <div id="an-alloc-currency-legend" class="legend"></div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-currency"></canvas></div>
         </div>
@@ -263,11 +263,11 @@ export function appTemplate(): string {
     </div>
 
     <!-- Level 3: Advanced Analytics (collapsible) -->
-    <details id="an-advanced" class="card card-collapsible" style="margin-top:.5rem">
-      <summary style="cursor:pointer;font-weight:500;font-size:14px;padding:.25rem 0;list-style:none;display:flex;align-items:center;gap:6px">
+    <details id="an-advanced" class="card-collapsible" style="margin-top:1rem">
+      <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;padding:.4rem 0 .1rem;font-size:11px;color:var(--ink-3);font-weight:500;text-transform:uppercase;letter-spacing:.04em">
         <span class="card-chevron" id="an-advanced-arrow"></span>
         Advanced Analytics
-        <span id="an-advanced-gate" style="font-size:11px;color:var(--ink-3);font-weight:400;margin-left:4px"></span>
+        <span id="an-advanced-gate" style="font-size:11px;color:var(--ink-3);font-weight:400;margin-left:4px;text-transform:none;letter-spacing:0"></span>
       </summary>
       <div id="an-advanced-content" style="padding-top:.75rem">
         <div class="kpi-row" id="an-kpis-risk"></div>
