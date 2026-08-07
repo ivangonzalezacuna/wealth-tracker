@@ -531,7 +531,7 @@ export function renderNW(
   _renderAnalyticsCards(snaps, txs);
 
   // Allocation card
-  _renderAllocationCard(snaps, accounts);
+  _renderAllocationCard(snaps, accounts, pd);
 
   attachInfoTips(document.getElementById('networth')!);
 }
@@ -1247,6 +1247,9 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
 
   const heatmapHtml = (() => {
     if (!hasEnough12 || returnSeries.length === 0) return noDataMsg('12 months');
+    const C = resolvedT();
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
     const years = [...new Set(returnSeries.map((r) => r.year))].sort((a, b) => a - b);
     const MONTH_LABELS = [
       'Jan',
@@ -1263,33 +1266,90 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
       'Dec',
     ];
     const byKey = new Map(returnSeries.map((r) => [`${r.year}-${r.month}`, r.ret]));
-    const cellColor = (ret: number | undefined): { bg: string; text: string } => {
-      if (ret === undefined) return { bg: 'transparent', text: '' };
-      const intensity = Math.min(1, Math.abs(ret) * 12);
-      const lightness = 95 - intensity * 45;
-      const sat = Math.max(0, intensity * 85);
+    const annualByYear = new Map(annualRets.map((r) => [r.year, r.return]));
+
+    const cellStyle = (ret: number | undefined, isAnnual = false): string => {
+      if (ret === undefined) {
+        return [
+          `background:${C.surface3}`,
+          `color:transparent`,
+          `border-radius:var(--radius-xs)`,
+        ].join(';');
+      }
+      const intensity = Math.min(1, Math.abs(ret) * 10);
       const hue = ret >= 0 ? HUE.pos : HUE.neg;
-      const bg = `hsl(${hue},${sat}%,${lightness}%)`;
-      // Use absolute colors so contrast is correct in both light and dark themes.
-      const text = lightness <= 65 ? '#ffffff' : '#1c1a16';
-      return { bg, text };
+      let bg: string;
+      let text: string;
+      if (isDark) {
+        const lightness = 10 + intensity * 40;
+        const sat = 10 + intensity * 75;
+        bg = `hsl(${hue},${sat.toFixed(0)}%,${lightness.toFixed(0)}%)`;
+        text = intensity > 0.35 ? C.white : C.ink3;
+      } else {
+        const lightness = 97 - intensity * 47;
+        const sat = intensity * 88;
+        bg = `hsl(${hue},${sat.toFixed(0)}%,${lightness.toFixed(0)}%)`;
+        text = lightness <= 62 ? C.white : C.ink;
+      }
+      const fw = isAnnual ? 'font-weight:600;' : '';
+      return [`background:${bg}`, `color:${text}`, `border-radius:var(--radius-xs)`, fw]
+        .filter(Boolean)
+        .join(';');
     };
-    const header = `<tr><th style="padding:2px 4px;font-size:10px;color:var(--ink-3);text-align:left;font-weight:400">Year</th>
-      ${MONTH_LABELS.map((m) => `<th style="padding:2px 4px;font-size:10px;color:var(--ink-3);font-weight:400">${m}</th>`).join('')}</tr>`;
+
+    const gridCols = `grid-template-columns:44px repeat(12,minmax(0,1fr)) 54px`;
+
+    const header = `<div style="display:grid;${gridCols};gap:2px;align-items:end;margin-bottom:3px;padding:0 2px">
+      <div style="font-size:10px;color:${C.ink3};font-weight:500;padding-bottom:2px">Year</div>
+      ${MONTH_LABELS.map((m) => `<div style="font-size:9px;color:${C.ink3};font-weight:500;text-align:center;padding-bottom:2px">${m}</div>`).join('')}
+      <div style="font-size:9px;color:${C.ink3};font-weight:600;text-align:center;padding-bottom:2px">Total</div>
+    </div>`;
+
     const rows = years
       .map((y) => {
         const cells = Array.from({ length: 12 }, (_, i) => {
           const ret = byKey.get(`${y}-${i + 1}`);
-          const { bg, text } = cellColor(ret);
+          const style = cellStyle(ret);
           const txt = ret !== undefined ? fmtPctNeg(ret * 100) : '';
-          return `<td style="padding:3px 4px;font-size:10px;text-align:center;background:${bg};color:${text};border-radius:3px">${txt}</td>`;
+          return `<div style="padding:4px 1px;font-size:10px;text-align:center;${style};font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden">${txt}</div>`;
         });
-        return `<tr><td style="padding:3px 6px;font-size:11px;color:var(--ink-3);white-space:nowrap">${y}</td>${cells.join('')}</tr>`;
+        const annualRet = annualByYear.get(y);
+        const annualStyle = cellStyle(annualRet, true);
+        const annualTxt = annualRet !== undefined ? fmtPctNeg(annualRet * 100) : '';
+        return `<div style="display:grid;${gridCols};gap:2px;align-items:stretch;margin-bottom:2px;padding:0 2px">
+          <div style="font-size:11px;color:${C.ink2};font-weight:500;display:flex;align-items:center">${y}</div>
+          ${cells.join('')}
+          <div style="padding:4px 3px;font-size:10px;text-align:center;${annualStyle};font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden">${annualTxt}</div>
+        </div>`;
       })
       .join('');
-    return `<div style="overflow-x:auto;margin-top:.5rem">
-      <table style="border-collapse:separate;border-spacing:2px;min-width:560px"><thead>${header}</thead><tbody>${rows}</tbody></table>
+
+    const legendSteps = 6;
+    const buildLegendSwatches = (hue: number): string =>
+      Array.from({ length: legendSteps }, (_, i) => {
+        const intensity = (i + 1) / legendSteps;
+        let bg: string;
+        if (isDark) {
+          const lightness = 10 + intensity * 40;
+          const sat = 10 + intensity * 75;
+          bg = `hsl(${hue},${sat.toFixed(0)}%,${lightness.toFixed(0)}%)`;
+        } else {
+          const lightness = 97 - intensity * 47;
+          const sat = intensity * 88;
+          bg = `hsl(${hue},${sat.toFixed(0)}%,${lightness.toFixed(0)}%)`;
+        }
+        return `<div style="width:14px;height:14px;border-radius:3px;background:${bg}"></div>`;
+      }).join('');
+
+    const legend = `<div style="display:flex;align-items:center;gap:5px;margin-top:10px;padding:0 2px">
+      <span style="font-size:10px;color:${C.ink3}">loss</span>
+      ${buildLegendSwatches(HUE.neg)}
+      <div style="width:14px;height:14px;border-radius:3px;background:${C.surface3}"></div>
+      ${buildLegendSwatches(HUE.pos)}
+      <span style="font-size:10px;color:${C.ink3}">gain</span>
     </div>`;
+
+    return `<div style="overflow-x:auto;margin-top:.5rem;padding-bottom:.25rem">${header}${rows}${legend}</div>`;
   })();
 
   // ── Level 3: Advanced Analytics card ──
@@ -1447,7 +1507,8 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
       ${annualRetTableHtml}
       ${
         hasEnough12
-          ? `<div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-top:1rem;margin-bottom:.25rem">Monthly Return Heatmap</div>
+          ? `<div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-top:1rem;margin-bottom:.15rem">Monthly Return Heatmap</div>
+           <p class="note" style="margin-bottom:.25rem">Each cell shows the net-worth return for that month. The rightmost column shows the compounded annual total.</p>
            ${heatmapHtml}`
           : ''
       }
@@ -1717,7 +1778,11 @@ const REGION_LABELS: Record<string, string> = {
   other: 'Other',
 };
 
-function _renderAllocationCard(snaps: Snapshot[], accounts: Account[]): void {
+function _renderAllocationCard(
+  snaps: Snapshot[],
+  accounts: Account[],
+  pd: PortfolioData | null,
+): void {
   const el = document.getElementById('nw-allocation');
   if (!el) return;
 
@@ -1740,16 +1805,18 @@ function _renderAllocationCard(snaps: Snapshot[], accounts: Account[]): void {
       return { label: a.label || key, value: (s[key] as number) || 0, color: a.color || '#888' };
     });
 
-  // Asset class allocation (from holdings metadata with account as proxy value)
+  // Asset class allocation (from holdings metadata, valued by cost basis when available)
   const assetClassMap: Record<string, number> = {};
   const regionMap: Record<string, number> = {};
   for (const h of holdings) {
     if (!h.isin || !h.active) continue;
     const cls = h.assetClass || 'other';
     const reg = h.region || 'other';
-    // Use contribAmount as a weight proxy when no position values are available
-    assetClassMap[cls] = (assetClassMap[cls] || 0) + h.contribAmount;
-    regionMap[reg] = (regionMap[reg] || 0) + h.contribAmount;
+    // Prefer actual cost basis so holdings with zero contribAmount still appear
+    const value = pd?.etfs[h.isin]?.cost ?? h.contribAmount;
+    if (value <= 0) continue;
+    assetClassMap[cls] = (assetClassMap[cls] || 0) + value;
+    regionMap[reg] = (regionMap[reg] || 0) + value;
   }
 
   const hasAssetClass = Object.keys(assetClassMap).length > 1;
@@ -1767,7 +1834,7 @@ function _renderAllocationCard(snaps: Snapshot[], accounts: Account[]): void {
         ${
           hasAssetClass
             ? `<div>
-              <div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem">By Asset Class${infoTip('Weighted by configured contribution amounts from Holdings settings. Reflects target allocation, not market value, unless market prices are recorded.')}</div>
+              <div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem">By Asset Class${infoTip('Weighted by cost basis (amount invested). Falls back to configured contribution amounts when no transactions are recorded.')}</div>
               <div id="nw-alloc-class-legend" class="legend" style="margin-bottom:.5rem"></div>
               <div class="chart-wrap chart-h-sm"><canvas id="c-nw-alloc-class"></canvas></div>
             </div>`
@@ -1776,7 +1843,7 @@ function _renderAllocationCard(snaps: Snapshot[], accounts: Account[]): void {
         ${
           hasRegion
             ? `<div>
-              <div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem">By Region${infoTip('Weighted by configured contribution amounts from Holdings settings.')}</div>
+              <div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem">By Region${infoTip('Weighted by cost basis (amount invested). Falls back to configured contribution amounts when no transactions are recorded.')}</div>
               <div id="nw-alloc-region-legend" class="legend" style="margin-bottom:.5rem"></div>
               <div class="chart-wrap chart-h-sm"><canvas id="c-nw-alloc-region"></canvas></div>
             </div>`
@@ -1834,9 +1901,7 @@ function _renderAllocationCard(snaps: Snapshot[], accounts: Account[]): void {
               cornerRadius: 8,
               callbacks: {
                 label: (ctx) => {
-                  const pct =
-                    acctTotal > 0 ? ((Number(ctx.raw) / acctTotal) * 100).toFixed(1) : '0';
-                  return ` ${esc(String(ctx.label))}: ${pct}%`;
+                  return ` ${esc(String(ctx.label))}: ${fmtEur(Number(ctx.raw))}`;
                 },
               },
             },
@@ -1879,8 +1944,7 @@ function _renderAllocationDonut(
   const entries = Object.entries(dataMap).sort((a, b) => b[1] - a[1]);
   const colors = entries.map((_, i) => DATA_PALETTE[i % DATA_PALETTE.length]);
 
-  const normalizeLabel = (key: string): string =>
-    (labelMap && labelMap[key]) || key.replace(/\b\w/g, (c) => c.toUpperCase());
+  const normalizeLabel = (key: string): string => (labelMap && labelMap[key]) || key;
 
   const legendEl = document.getElementById(legendId);
   if (legendEl) {
@@ -1925,8 +1989,7 @@ function _renderAllocationDonut(
           cornerRadius: 8,
           callbacks: {
             label: (ctx) => {
-              const pct = total > 0 ? ((Number(ctx.raw) / total) * 100).toFixed(1) : '0';
-              return ` ${esc(String(ctx.label))}: ${pct}%`;
+              return ` ${esc(String(ctx.label))}: ${fmtEur(Number(ctx.raw))}`;
             },
           },
         },
