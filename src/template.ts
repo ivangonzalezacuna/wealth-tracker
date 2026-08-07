@@ -189,6 +189,7 @@ export function appTemplate(): string {
 
     <!-- Level 1: Performance Summary (always visible) -->
     <div class="kpi-row" id="an-kpis-l1"></div>
+    <div class="section-label" id="an-perf-detail-heading" style="display:none;padding:.4rem 0 .1rem;font-size:11px;color:var(--ink-3);font-weight:500;text-transform:uppercase;letter-spacing:.04em">Performance Detail</div>
     <div class="kpi-row" id="an-kpis-l2" style="margin-top:0"></div>
 
     <div class="card card-primary">
@@ -223,15 +224,15 @@ export function appTemplate(): string {
       <div class="card">
         <div class="card-title">Monthly return heatmap</div>
         <div id="an-heatmap-note" class="note" style="display:none"></div>
+        <div id="an-heatmap-pager" style="display:none;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;color:var(--ink-2)">
+          <button class="btn btn-sm btn-ghost" id="an-heatmap-prev">&#8249;</button>
+          <span id="an-heatmap-page-label" style="min-width:80px;text-align:center"></span>
+          <button class="btn btn-sm btn-ghost" id="an-heatmap-next">&#8250;</button>
+        </div>
         <div id="an-heatmap-wrap" style="overflow-x:auto">
           <div id="an-heatmap"></div>
         </div>
         <p class="note" id="an-heatmap-footer">Color intensity is weighted by portfolio value: months with more capital show more saturated colors.</p>
-      </div>
-
-      <div id="an-annual-table-card" class="card">
-        <div class="card-title">Annual returns</div>
-        <div id="an-annual-table"></div>
       </div>
 
       <div class="two-col">
@@ -281,10 +282,6 @@ export function appTemplate(): string {
           <div id="an-alloc-currency-legend" class="legend"></div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-currency"></canvas></div>
         </div>
-        <div class="card" id="an-drift-card" style="display:none">
-          <div class="card-title">Drift from target allocation</div>
-          <div id="an-drift"></div>
-        </div>
       </div>
     </div>
 
@@ -310,9 +307,19 @@ export function appTemplate(): string {
         </div>
 
         <div id="an-income" style="display:none">
+          <div class="section-label" style="padding:.4rem 0 .1rem;font-size:11px;color:var(--ink-3);font-weight:500;text-transform:uppercase;letter-spacing:.04em">Income (dividends and interest)</div>
           <div class="kpi-row" id="an-kpis-income"></div>
           <div class="card" style="margin:0 0 1rem">
-            <div class="card-title">Income by month (dividends and interest)</div>
+            <div class="card-title">
+              Income by month (dividends and interest)
+            </div>
+            <div class="chart-controls" style="margin-bottom:4px">
+              <div class="range-toggle" id="an-income-range-toggle" role="group" aria-label="Income range">
+                <button class="btn btn-sm btn-ghost active" data-range="12">1Y</button>
+                <button class="btn btn-sm btn-ghost" data-range="36">3Y</button>
+                <button class="btn btn-sm btn-ghost" data-range="all">All</button>
+              </div>
+            </div>
             <div class="chart-wrap chart-h-md"><canvas id="c-an-income"></canvas></div>
           </div>
         </div>

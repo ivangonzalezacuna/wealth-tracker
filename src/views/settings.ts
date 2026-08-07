@@ -1287,6 +1287,7 @@ function attachGoalListeners(root: HTMLElement): void {
 function renderAlertsCard(_settings: Settings): string {
   const alertSettings = getAlertSettings();
   const threshold = alertSettings.driftThresholdPct || 5;
+  const riskFreeRate = parseFloat(_settings.riskFreeRate || '2');
   return `
     <div class="card card-collapsible" id="settings-card-alerts" data-card-key="alerts">
       <div class="card-header js-card-toggle">
@@ -1298,7 +1299,7 @@ function renderAlertsCard(_settings: Settings): string {
         <div class="settings-field">
           <label class="settings-field-label" for="alert-drift-threshold">
             Drift alert threshold (percentage points)
-            ${infoTip('A badge appears on the Portfolio tab when max drift exceeds this threshold. Status colors in the drift table also use this threshold (2× for high drift).')}
+            ${infoTip('A badge appears on the Portfolio tab when max drift exceeds this threshold. Status colors in the drift table also use this threshold (2x for high drift).')}
           </label>
           <input
             type="number"
@@ -1312,8 +1313,25 @@ function renderAlertsCard(_settings: Settings): string {
             placeholder="5"
           />
         </div>
+        <div class="settings-field" style="margin-top:.75rem">
+          <label class="settings-field-label" for="alert-risk-free-rate">
+            Risk-free rate (%)
+            ${infoTip('Annual risk-free rate used in Sharpe and Sortino ratio calculations on the Analytics tab. Typically the yield on short-term government bonds (e.g. 3-month T-bills).')}
+          </label>
+          <input
+            type="number"
+            id="alert-risk-free-rate"
+            class="form-input form-input-sm"
+            value="${riskFreeRate}"
+            min="0"
+            max="20"
+            step="0.1"
+            style="width:100px"
+            placeholder="2"
+          />
+        </div>
         <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
-          <button class="btn btn-primary btn-sm" id="btn-save-alerts">Save alerts</button>
+          <button class="btn btn-primary btn-sm" id="btn-save-alerts">Save</button>
           <span id="alerts-msg" style="font-size:12px;line-height:28px"></span>
         </div>
       </div>
@@ -1324,10 +1342,16 @@ function attachAlertsListeners(root: HTMLElement): void {
   root.querySelector('#btn-save-alerts')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-alerts') as HTMLButtonElement;
     const input = root.querySelector('#alert-drift-threshold') as HTMLInputElement;
+    const rfrInput = root.querySelector('#alert-risk-free-rate') as HTMLInputElement;
     const value = parseFloat(input.value);
+    const rfrValue = parseFloat(rfrInput.value);
 
     if (isNaN(value) || value < 1 || value > 20) {
       showMsg('alerts-msg', 'Threshold must be between 1 and 20', false);
+      return;
+    }
+    if (isNaN(rfrValue) || rfrValue < 0 || rfrValue > 20) {
+      showMsg('alerts-msg', 'Risk-free rate must be between 0 and 20', false);
       return;
     }
 
@@ -1336,7 +1360,11 @@ function attachAlertsListeners(root: HTMLElement): void {
       await withCardGuard(
         'alerts',
         btn,
-        () => setSettings({ alerts: JSON.stringify(alertSettings) }),
+        () =>
+          setSettings({
+            alerts: JSON.stringify(alertSettings),
+            riskFreeRate: String(rfrValue),
+          }),
         {
           busyText: 'Saving...',
         },

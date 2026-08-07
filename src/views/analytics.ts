@@ -35,7 +35,6 @@ import {
   dividendMetrics,
   type MonthlyGrowthPoint,
 } from '../model/insights';
-import { computeDrift } from '../model/drift';
 import { getAccounts, getHoldings, getSettings } from '../store/config';
 import { allInvestmentAccountsValue, primaryInvestmentValue } from '../model/accounts';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
@@ -47,14 +46,17 @@ import type { Snapshot, PortfolioData, Transaction, Holding } from '../types';
 const CH: Record<string, Chart> = {};
 let _anGrowthRange: '12' | '36' | 'all' = 'all';
 let _anContribRange: '12' | '36' | 'all' = 'all';
+let _anIncomeRange: '12' | '36' | 'all' = '12';
 let _lastSnaps: Snapshot[] = [];
 let _lastPd: PortfolioData | null = null;
 let _lastTxs: Transaction[] = [];
 
+// Heatmap paging: page 0 = most recent 3 years
+let _heatmapPage = 0;
+
 // Allocation toggle state: 'active' | 'all'
 const _allocMode: Record<string, 'active' | 'all'> = {
   class: 'active',
-  acct: 'active',
   region: 'active',
   sector: 'active',
   currency: 'active',
@@ -106,9 +108,13 @@ export function renderAnalytics(
   const latestDate = s.date || '';
   const monthsSpan = _monthsDiff(firstDate, latestDate);
 
+  // Compute investment-side value once (used for both absolute gain and IRR)
+  const latestInvestmentValue = allInvestmentAccountsValue(s, accounts);
+
   // ── Level 1 KPIs ─────────────────────────────────────────
   const totalReturnVal = totalReturn(firstTotal, total);
-  const absoluteGainVal = pd ? absoluteGain(total, pd.totalInv) : null;
+  const absoluteGainVal =
+    pd && latestInvestmentValue !== null ? absoluteGain(latestInvestmentValue, pd.totalInv) : null;
   const ytdVal = ytdReturn(snaps);
   const cagrVal = cagr(firstTotal, total, monthsSpan);
   const yoyData = findYoYSnapshot(snaps);
@@ -118,7 +124,6 @@ export function renderAnalytics(
 
   // Level 2 performance KPIs (TWR + IRR)
   const twrVal = twr(snaps, pd?.monthly || {});
-  const latestInvestmentValue = allInvestmentAccountsValue(s, accounts);
   const terminalDate = s.date && s.date.length === 7 ? `${s.date}-01` : s.date;
   const investmentFlows = txs
     .map((tx) => {
@@ -144,10 +149,10 @@ export function renderAnalytics(
     ${
       absoluteGainVal !== null
         ? kpiTile({
-            label: `Absolute Gain${infoTip('Portfolio value minus total amount invested (cost basis). Shows the actual euro gain or loss in your account.')}`,
+            label: `Absolute Gain${infoTip('Investment portfolio value minus total cost basis. Shows the actual euro gain or loss on your investment accounts only.')}`,
             value: fmtEurNeg(absoluteGainVal, 2),
             valueClass: absoluteGainVal >= 0 ? 'pos' : 'neg',
-            sub: `of ${fmtEur(pd!.totalInv)} invested`,
+            sub: `of ${fmtEur(pd!.totalInv)} invested (cost basis)`,
           })
         : kpiTile({ label: 'Absolute Gain', value: '-', sub: 'import transactions to calculate' })
     }
@@ -191,8 +196,10 @@ export function renderAnalytics(
     }
   `;
 
+  const perfHeading = document.getElementById('an-perf-detail-heading');
+  if (perfHeading) perfHeading.style.display = '';
+
   document.getElementById('an-kpis-l2')!.innerHTML = `
-    <div style="width:100%;padding:.25rem 0 .4rem;font-size:11px;color:var(--ink-3);font-weight:500;text-transform:uppercase;letter-spacing:.04em">Performance Detail</div>
     ${kpiTile({
       label: `TWR${infoTip('Time-weighted return, linked across snapshot periods and net of contributions. Measures investment performance per period, independently of how much money was contributed or when.')}`,
       value: twrVal !== null ? fmtPctNeg(twrVal * 100) : '-',
@@ -230,16 +237,12 @@ export function renderAnalytics(
     _attachContribRangeToggle(growthPoints);
 
     // Heatmap
+    _heatmapPage = 0;
     _renderHeatmap(snaps);
-
-    // Annual return table
-    _renderAnnualTable(snaps);
+    _attachHeatmapPager(snaps);
 
     // Allocation donuts
     _renderAllocationDonuts(holdings, pd);
-
-    // Drift
-    _renderDrift(holdings, pd, s);
   }
 
   // ── Level 3: Advanced (collapsible) ──────────────────────
@@ -388,6 +391,7 @@ function _renderGrowthChart(snaps: Snapshot[]): void {
           fill: false,
           tension: 0.3,
           order: 1,
+          hidden: true,
         })),
       ],
     },
@@ -564,6 +568,8 @@ function _attachContribRangeToggle(points: MonthlyGrowthPoint[]): void {
 
 // ── Monthly return heatmap ─────────────────────────────────
 
+const HEATMAP_PAGE_SIZE = 3;
+
 function _renderHeatmap(snaps: Snapshot[]): void {
   const heatmapEl = document.getElementById('an-heatmap');
   const noteEl = document.getElementById('an-heatmap-note');
@@ -571,6 +577,7 @@ function _renderHeatmap(snaps: Snapshot[]): void {
 
   const volResult = annualizedVolatility(snaps);
   const weighted = weightedMonthlyReturns(volResult.monthlyReturns);
+  const annualData = annualReturns(snaps);
 
   if (weighted.length === 0) {
     heatmapEl.innerHTML = '<p class="note">Add more snapshots to see the return heatmap.</p>';
@@ -587,8 +594,37 @@ function _renderHeatmap(snaps: Snapshot[]): void {
   // Find extremes for color scale (use weightedReturn for color intensity)
   const maxAbs = Math.max(...weighted.map((m) => Math.abs(m.weightedReturn)), 0.001);
 
-  // Get year range
-  const years = Array.from(new Set(weighted.map((m) => m.year))).sort((a, b) => a - b);
+  // Get year list (oldest first)
+  const allYears = Array.from(new Set(weighted.map((m) => m.year))).sort((a, b) => a - b);
+
+  // Paging: page 0 = most recent page
+  const totalPages = Math.max(1, Math.ceil(allYears.length / HEATMAP_PAGE_SIZE));
+  // Clamp page index
+  if (_heatmapPage >= totalPages) _heatmapPage = totalPages - 1;
+  if (_heatmapPage < 0) _heatmapPage = 0;
+
+  // Page 0 = last 3 years, page 1 = prior 3, etc. (reverse order so newest is page 0)
+  const reversedPages = [];
+  for (let p = 0; p < totalPages; p++) {
+    const start = allYears.length - (p + 1) * HEATMAP_PAGE_SIZE;
+    const end = allYears.length - p * HEATMAP_PAGE_SIZE;
+    reversedPages.push(allYears.slice(Math.max(0, start), end));
+  }
+  const years = reversedPages[_heatmapPage] || [];
+
+  // Update pager UI
+  const pagerEl = document.getElementById('an-heatmap-pager');
+  const prevBtn = document.getElementById('an-heatmap-prev') as HTMLButtonElement | null;
+  const nextBtn = document.getElementById('an-heatmap-next') as HTMLButtonElement | null;
+  const pageLabelEl = document.getElementById('an-heatmap-page-label');
+  if (pagerEl) pagerEl.style.display = totalPages > 1 ? 'flex' : 'none';
+  if (pageLabelEl && years.length > 0) {
+    pageLabelEl.textContent =
+      years.length === 1 ? String(years[0]) : `${years[0]}\u2013${years[years.length - 1]}`;
+  }
+  if (prevBtn) prevBtn.disabled = _heatmapPage >= totalPages - 1;
+  if (nextBtn) nextBtn.disabled = _heatmapPage <= 0;
+
   const MONTH_LABELS = [
     'Jan',
     'Feb',
@@ -612,22 +648,28 @@ function _renderHeatmap(snaps: Snapshot[]): void {
   for (const m of weighted) {
     lookup.set(`${m.year}-${m.month}`, m);
   }
-
-  let html = `<table class="an-heatmap-table" style="border-collapse:collapse;font-size:11px;min-width:${12 * 46 + 60}px">`;
-  // Header row
-  html +=
-    '<thead><tr><th style="width:52px;text-align:left;padding:2px 4px;color:var(--ink-3)"></th>';
-  for (const ml of MONTH_LABELS) {
-    html += `<th style="width:42px;text-align:center;padding:2px 2px;color:var(--ink-3);font-weight:normal">${ml}</th>`;
+  const annualLookup = new Map<number, number>();
+  for (const a of annualData) {
+    annualLookup.set(a.year, a.return);
   }
+
+  const CELL_W = 42;
+  const minW = 12 * CELL_W + 56 + 64;
+  let html = `<table class="an-heatmap-table" style="border-collapse:collapse;font-size:11px;min-width:${minW}px">`;
+  // Header row
+  html += `<thead><tr><th style="width:52px;text-align:left;padding:2px 4px;color:var(--ink-3)"></th>`;
+  for (const ml of MONTH_LABELS) {
+    html += `<th style="width:${CELL_W}px;text-align:center;padding:2px;color:var(--ink-3);font-weight:normal">${ml}</th>`;
+  }
+  html += `<th style="width:60px;text-align:right;padding:2px 4px;color:var(--ink-3);font-weight:normal">Year</th>`;
   html += '</tr></thead><tbody>';
 
-  for (const year of years) {
+  for (const year of [...years].reverse()) {
     html += `<tr><td style="padding:2px 4px;color:var(--ink-2);font-weight:500">${year}</td>`;
     for (let mo = 1; mo <= 12; mo++) {
       const entry = lookup.get(`${year}-${mo}`);
       if (!entry) {
-        html += `<td style="padding:1px 2px"><div style="width:40px;height:28px;border-radius:${R.xs}px;background:var(--line)"></div></td>`;
+        html += `<td style="padding:1px 2px;text-align:center"><div style="width:${CELL_W - 2}px;height:28px;border-radius:${R.xs}px;background:var(--line)"></div></td>`;
         continue;
       }
       const intensity = Math.min(Math.abs(entry.weightedReturn) / maxAbs, 1);
@@ -635,16 +677,47 @@ function _renderHeatmap(snaps: Snapshot[]): void {
       const color = _heatmapColor(entry.weightedReturn, intensity, isDark);
       const textColor = _heatmapTextColor(intensity, entry.weightedReturn);
       const sign = rawPct > 0 ? '+' : '';
-      html += `<td style="padding:1px 2px" title="${year}-${String(mo).padStart(2, '0')}: ${sign}${rawPct.toFixed(1)}%">
-        <div style="width:40px;height:28px;border-radius:${R.xs}px;background:${color};display:flex;align-items:center;justify-content:center">
-          <span style="color:${textColor};font-size:10px;font-weight:500">${sign}${rawPct.toFixed(0)}%</span>
+      html += `<td style="padding:1px 2px;text-align:center" title="${year}-${String(mo).padStart(2, '0')}: ${sign}${rawPct.toFixed(1)}%">
+        <div style="width:${CELL_W - 2}px;height:28px;border-radius:${R.xs}px;background:${color};display:flex;align-items:center;justify-content:center">
+          <span style="color:${textColor};font-size:10px;font-weight:500">${sign}${rawPct.toFixed(1)}%</span>
         </div>
       </td>`;
+    }
+    // Annual total column
+    const annualRet = annualLookup.get(year);
+    if (annualRet !== undefined) {
+      const annPct = annualRet * 100;
+      const annSign = annPct > 0 ? '+' : '';
+      const annCls = annPct >= 0 ? C.pos : C.neg;
+      html += `<td style="padding:2px 4px;text-align:right;font-weight:600;color:${annCls};white-space:nowrap">${annSign}${annPct.toFixed(1)}%</td>`;
+    } else {
+      html += `<td style="padding:2px 4px;text-align:right;color:var(--ink-3)">-</td>`;
     }
     html += '</tr>';
   }
   html += '</tbody></table>';
   heatmapEl.innerHTML = html;
+}
+
+function _attachHeatmapPager(snaps: Snapshot[]): void {
+  const prevBtn = document.getElementById('an-heatmap-prev') as
+    (HTMLElement & { _bound?: boolean }) | null;
+  const nextBtn = document.getElementById('an-heatmap-next') as
+    (HTMLElement & { _bound?: boolean }) | null;
+  if (prevBtn && !prevBtn._bound) {
+    prevBtn._bound = true;
+    prevBtn.addEventListener('click', () => {
+      _heatmapPage++;
+      _renderHeatmap(snaps);
+    });
+  }
+  if (nextBtn && !nextBtn._bound) {
+    nextBtn._bound = true;
+    nextBtn.addEventListener('click', () => {
+      _heatmapPage = Math.max(0, _heatmapPage - 1);
+      _renderHeatmap(snaps);
+    });
+  }
 }
 
 function _heatmapColor(weightedReturn: number, intensity: number, isDark: boolean): string {
@@ -667,47 +740,6 @@ function _heatmapTextColor(intensity: number, weightedReturn: number): string {
   // Use white text on saturated backgrounds, dark text on light ones
   if (intensity > 0.5) return '#fff';
   return weightedReturn !== 0 ? 'var(--ink)' : 'var(--ink-3)';
-}
-
-// ── Annual return table ────────────────────────────────────
-
-function _renderAnnualTable(snaps: Snapshot[]): void {
-  const card = document.getElementById('an-annual-table-card');
-  const el = document.getElementById('an-annual-table');
-  if (!el) return;
-
-  const rows = annualReturns(snaps);
-  if (rows.length === 0) {
-    if (card) card.style.display = 'none';
-    return;
-  }
-  if (card) card.style.display = '';
-
-  // Find max abs return for bar scale
-  const maxAbs = Math.max(...rows.map((r) => Math.abs(r.return)), 0.001);
-
-  const C = resolvedT();
-  let html = `<div class="tbl" role="table" aria-label="Annual returns">
-    <div role="row" class="tbl-head" style="display:grid;grid-template-columns:60px 100px 1fr;gap:8px;padding:4px 8px;font-size:11px;color:var(--ink-3)">
-      <div role="columnheader">Year</div>
-      <div role="columnheader">Return</div>
-      <div role="columnheader"></div>
-    </div>`;
-  for (const row of rows.slice().reverse()) {
-    const pct = row.return * 100;
-    const barWidth = Math.round((Math.abs(row.return) / maxAbs) * 80);
-    const barColor = pct >= 0 ? C.pos : C.neg;
-    const cls = pct >= 0 ? 'pos' : 'neg';
-    html += `<div role="row" style="display:grid;grid-template-columns:60px 100px 1fr;gap:8px;padding:5px 8px;align-items:center;border-top:1px solid var(--line)">
-      <div role="cell" style="font-weight:500">${row.year}</div>
-      <div role="cell" class="${cls}" style="font-weight:500">${pct > 0 ? '+' : ''}${pct.toFixed(1)}%</div>
-      <div role="cell">
-        <div style="height:10px;width:${barWidth}%;min-width:2px;background:${barColor};border-radius:${R.xs}px"></div>
-      </div>
-    </div>`;
-  }
-  html += '</div>';
-  el.innerHTML = html;
 }
 
 // ── Allocation donuts ──────────────────────────────────────
@@ -879,11 +911,7 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
           padding: 10,
           cornerRadius: 8,
           callbacks: {
-            label: (ctx) => {
-              const val = ctx.raw as number;
-              const pct = total > 0 ? (val / total) * 100 : 0;
-              return ` ${fmtEur(val)} (${fmtPctVal(pct)})`;
-            },
+            label: (ctx) => ` ${fmtEur(ctx.raw as number)}`,
             labelColor: tooltipSwatch(C.surface),
           },
         },
@@ -893,6 +921,8 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
 
   const legendEl = document.getElementById(legendId);
   if (legendEl) {
+    legendEl.style.flexWrap = 'wrap';
+    legendEl.style.maxWidth = '100%';
     legendEl.innerHTML = renderLegendHtml(
       slices.map((s) => ({
         label: s.label,
@@ -902,80 +932,42 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
     );
   }
 
-  // Render toggle button
-  _renderAllocToggleBtn(dim);
+  // Render toggle button (not applicable for account dimension)
+  if (dim !== 'acct') {
+    _renderAllocToggleBtn(dim);
+  }
 }
 
 function _renderAllocToggleBtn(dim: AllocDim): void {
+  if (dim === 'acct') return;
   const wrapId = `an-alloc-${dim}-toggle-wrap`;
   const wrapEl = document.getElementById(wrapId);
   if (!wrapEl) return;
-  const mode = _allocMode[dim];
-  wrapEl.innerHTML = `<button class="btn btn-ghost btn-sm" data-alloc-dim="${dim}" style="font-size:11px;padding:2px 6px">${mode === 'active' ? 'Active only' : 'All assets'}</button>`;
+  const mode = _allocMode[dim] ?? 'active';
+  wrapEl.innerHTML = `<div class="range-toggle" style="font-size:11px">
+    <button class="btn btn-sm btn-ghost${mode === 'all' ? ' active' : ''}" data-alloc-mode="all" data-alloc-dim="${dim}">All assets</button>
+    <button class="btn btn-sm btn-ghost${mode === 'active' ? ' active' : ''}" data-alloc-mode="active" data-alloc-dim="${dim}">Active only</button>
+  </div>`;
   if (!(wrapEl as HTMLElement & { _dimBound?: boolean })._dimBound) {
     (wrapEl as HTMLElement & { _dimBound?: boolean })._dimBound = true;
-    wrapEl.addEventListener('click', () => {
+    wrapEl.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('[data-alloc-mode]') as HTMLElement | null;
+      if (!btn) return;
+      const newMode = btn.dataset.allocMode as 'active' | 'all';
+      const dimKey = btn.dataset.allocDim as AllocDim;
+      if (!dimKey || _allocMode[dimKey] === newMode) return;
+      _allocMode[dimKey] = newMode;
       const holdings = getHoldings();
       const pd = _lastPd;
-      _allocMode[dim] = _allocMode[dim] === 'active' ? 'all' : 'active';
-      _renderAllocDonut(dim, holdings, pd);
+      _renderAllocDonut(dimKey, holdings, pd);
     });
   }
 }
 
 function _attachAllocToggle(dim: AllocDim): void {
-  _renderAllocToggleBtn(dim);
-}
-
-// ── Drift from target ──────────────────────────────────────
-
-function _renderDrift(holdings: Holding[], pd: PortfolioData | null, latestSnap: Snapshot): void {
-  const driftCard = document.getElementById('an-drift-card');
-  const driftEl = document.getElementById('an-drift');
-  if (!driftEl || !driftCard) return;
-
-  if (!pd || holdings.length === 0) {
-    driftCard.style.display = 'none';
-    return;
+  if (dim !== 'acct') {
+    _renderAllocToggleBtn(dim);
   }
-
-  const total = snapTotal(latestSnap);
-  const entries = computeDrift(holdings, pd.etfs, total);
-
-  if (entries.length === 0) {
-    driftCard.style.display = 'none';
-    return;
-  }
-  driftCard.style.display = '';
-
-  // Find max abs drift for bar scale
-  const maxAbs = Math.max(...entries.map((e) => Math.abs(e.driftPct)), 1);
-
-  let html = `<div class="tbl" role="table" aria-label="Drift from target allocation">
-    <div role="row" style="display:grid;grid-template-columns:100px 80px 80px 1fr;gap:8px;padding:4px 8px;font-size:11px;color:var(--ink-3)">
-      <div role="columnheader">Holding</div>
-      <div role="columnheader" style="text-align:right">Target</div>
-      <div role="columnheader" style="text-align:right">Actual</div>
-      <div role="columnheader">Drift</div>
-    </div>`;
-
-  for (const e of entries) {
-    const driftCls = e.driftPct > 0 ? 'neg' : e.driftPct < 0 ? 'pos' : '';
-    const barWidth = Math.round((Math.abs(e.driftPct) / maxAbs) * 80);
-    const barColor = e.driftPct > 0 ? 'var(--neg)' : 'var(--pos)';
-    const sign = e.driftPct > 0 ? '+' : '';
-    html += `<div role="row" style="display:grid;grid-template-columns:100px 80px 80px 1fr;gap:8px;padding:5px 8px;align-items:center;border-top:1px solid var(--line)">
-      <div role="cell" style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.name || e.shortName)}">${esc(e.shortName)}</div>
-      <div role="cell" style="text-align:right">${fmtPctVal(e.targetPct)}</div>
-      <div role="cell" style="text-align:right">${fmtPctVal(e.actualPct)}</div>
-      <div role="cell" style="display:flex;align-items:center;gap:6px">
-        <span class="${driftCls}" style="font-weight:500;min-width:44px">${sign}${fmtPctVal(e.driftPct)}</span>
-        <div style="height:8px;width:${barWidth}%;min-width:2px;background:${barColor};border-radius:${R.xs}px"></div>
-      </div>
-    </div>`;
-  }
-  html += '</div>';
-  driftEl.innerHTML = html;
 }
 
 // ── Drawdown chart ─────────────────────────────────────────
@@ -1032,7 +1024,6 @@ function _renderDrawdownChart(series: { date: string; drawdown: number }[]): voi
       },
       scales: {
         y: {
-          reverse: true,
           grid: { color: C.line },
           ticks: {
             color: C.ink4,
@@ -1146,7 +1137,6 @@ function _renderIncomeAnalytics(
   const metrics = dividendMetrics(txs, currentPortfolioValue, totalCostBasis);
 
   document.getElementById('an-kpis-income')!.innerHTML = `
-    <div style="width:100%;padding:.25rem 0 .4rem;font-size:11px;color:var(--ink-3);font-weight:500;text-transform:uppercase;letter-spacing:.04em">Income (Dividends and Interest)</div>
     ${kpiTile({
       label: `Trailing 12M Income${infoTip('Sum of all DIVIDEND and INTEREST transactions received in the last 12 months.')}`,
       value: fmtEur2(metrics.trailing12m),
@@ -1193,26 +1183,30 @@ function _renderIncomeAnalytics(
   `;
 
   _renderIncomeChart(metrics.monthlyBreakdown);
+  _attachIncomeRangeToggle(metrics.monthlyBreakdown);
 }
 
+let _lastIncomeBreakdown: { month: string; amount: number }[] = [];
+
 function _renderIncomeChart(monthlyBreakdown: { month: string; amount: number }[]): void {
+  _lastIncomeBreakdown = monthlyBreakdown;
   const canvas = document.getElementById('c-an-income') as HTMLCanvasElement | null;
   if (!canvas) return;
   _destroyChart('c-an-income');
 
-  // Show last 12 months
-  const last12 = monthlyBreakdown.slice(-12);
-  if (last12.length === 0) return;
+  const view =
+    _anIncomeRange === 'all' ? monthlyBreakdown : monthlyBreakdown.slice(-parseInt(_anIncomeRange));
+  if (view.length === 0) return;
 
   const C = resolvedT();
   CH['c-an-income'] = new Chart(canvas, {
     type: 'bar',
     data: {
-      labels: last12.map((p) => fmtMon(p.month)),
+      labels: view.map((p) => fmtMon(p.month)),
       datasets: [
         {
           label: 'Income',
-          data: last12.map((p) => p.amount),
+          data: view.map((p) => p.amount),
           backgroundColor: C.pos,
           borderRadius: R.xs,
           borderSkipped: false,
@@ -1250,5 +1244,22 @@ function _renderIncomeChart(monthlyBreakdown: { month: string; amount: number }[
         },
       },
     },
+  });
+}
+
+function _attachIncomeRangeToggle(monthlyBreakdown: { month: string; amount: number }[]): void {
+  const toggle = document.getElementById('an-income-range-toggle') as
+    (HTMLElement & { _bound?: boolean }) | null;
+  if (!toggle || toggle._bound) return;
+  toggle._bound = true;
+  toggle.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
+    if (!btn) return;
+    const newRange = (btn.dataset.range as '12' | '36' | 'all') || '12';
+    if (newRange === _anIncomeRange) return;
+    _anIncomeRange = newRange;
+    toggle.querySelectorAll('.btn').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    _renderIncomeChart(monthlyBreakdown);
   });
 }
