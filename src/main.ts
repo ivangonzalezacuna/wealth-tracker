@@ -1893,8 +1893,8 @@ function updateDriftBadge(): void {
 
     const severityLabel = isHigh ? 'High drift' : 'Moderate drift';
     const thresholdLabel = isHigh
-      ? `over ${fmtPctVal(highThreshold)} (high threshold)`
-      : `over ${fmtPctVal(threshold)} (threshold)`;
+      ? `over ${fmtPctVal(highThreshold, 'auto')} (high threshold)`
+      : `over ${fmtPctVal(threshold, 'auto')} (threshold)`;
     btn.setAttribute(
       'data-drift-alert',
       `${severityLabel}: max allocation drift is ${fmtPctVal(max)}, ${thresholdLabel}. Open Portfolio to review it.`,

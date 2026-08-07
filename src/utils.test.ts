@@ -155,6 +155,17 @@ describe('fmtPctVal', () => {
     expect(fmtPctVal(2.1, 2)).toBe('2.10%');
     expect(fmtPctVal(0.336, 2)).toBe('0.34%');
   });
+
+  it("decimals='auto': uses minimum precision to faithfully represent the value", () => {
+    expect(fmtPctVal(5, 'auto')).toBe('5%');
+    expect(fmtPctVal(5.1, 'auto')).toBe('5.1%');
+    expect(fmtPctVal(5.05, 'auto')).toBe('5.05%');
+    expect(fmtPctVal(10.1, 'auto')).toBe('10.1%');
+    expect(fmtPctVal(10.05, 'auto')).toBe('10.05%');
+    expect(fmtPctVal(44.95, 'auto')).toBe('44.95%');
+    expect(fmtPctVal(45.0, 'auto')).toBe('45%');
+    expect(fmtPctVal(0, 'auto')).toBe('0%');
+  });
 });
 
 describe('esc', () => {
