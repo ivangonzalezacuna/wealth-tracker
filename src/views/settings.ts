@@ -1327,12 +1327,9 @@ function attachAnalyticsListeners(root: HTMLElement): void {
     }
 
     try {
-      await withCardGuard(
-        'analytics',
-        btn,
-        () => setSettings({ riskFreeRate: String(rfrValue) }),
-        { busyText: 'Saving...' },
-      );
+      await withCardGuard('analytics', btn, () => setSettings({ riskFreeRate: String(rfrValue) }), {
+        busyText: 'Saving...',
+      });
       showMsg('analytics-msg', 'Saved', true);
     } catch (err) {
       showMsg('analytics-msg', 'Error: ' + (err as Error).message, false);
