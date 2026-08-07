@@ -1,5 +1,5 @@
 // ── Hash-based navigation helpers ────────────────────────
-const VALID_SECTIONS = ['networth', 'portfolio', 'settings', 'log'] as const;
+const VALID_SECTIONS = ['networth', 'portfolio', 'settings', 'log', 'analytics'] as const;
 const VALID_SUBVIEWS = ['holdings', 'contributions', 'dividends'] as const;
 
 /** Compute the canonical hash for the current nav state. */

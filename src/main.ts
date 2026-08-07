@@ -42,6 +42,7 @@ import { computePD } from './portfolio';
 import { parseWithProfile, detectProfile, previewSummary } from './import/parse';
 import { builtInProfiles } from './import/profiles/index';
 import { renderNW } from './views/networth';
+import { renderAnalytics } from './views/analytics';
 import { renderPortfolio, getMaxDrift } from './views/portfolio';
 import { renderDCA } from './views/contributions';
 import { renderDividends } from './views/dividends';
@@ -110,7 +111,7 @@ const state: {
 // ── Render-on-show state ─────────────────────────────────
 let _activeSection = 'networth';
 const _dirty = new Set<string>();
-const ALL_SECTIONS = ['networth', 'portfolio', 'settings', 'log'] as const;
+const ALL_SECTIONS = ['networth', 'portfolio', 'analytics', 'settings', 'log'] as const;
 
 // ── Portfolio sub-view state ─────────────────────────────
 let _portfolioSubview: 'holdings' | 'contributions' | 'dividends' = 'holdings';
@@ -1821,7 +1822,7 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
   try {
     switch (id) {
       case 'networth':
-        renderNW(state.pd, state.snaps, state.txs);
+        renderNW(state.pd, state.snaps);
         break;
       case 'portfolio':
         renderPortfolioSubview(_portfolioSubview);
@@ -1832,6 +1833,9 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
         } else {
           renderSettings();
         }
+        break;
+      case 'analytics':
+        renderAnalytics(state.pd, state.snaps, state.txs);
         break;
       case 'log':
         renderLog({

@@ -17,6 +17,7 @@ export function appTemplate(): string {
 <nav class="nav" role="tablist" aria-label="Main sections">
   <button id="tab-networth" class="active" data-section="networth" role="tab" aria-selected="true" aria-controls="networth">Net worth</button>
   <button id="tab-portfolio" data-section="portfolio" role="tab" aria-selected="false" aria-controls="portfolio">Portfolio</button>
+  <button id="tab-analytics" data-section="analytics" role="tab" aria-selected="false" aria-controls="analytics">Analytics</button>
   <button id="tab-settings" data-section="settings" role="tab" aria-selected="false" aria-controls="settings">Settings</button>
   <button id="tab-log" class="log-btn" data-section="log" role="tab" aria-selected="false" aria-controls="log" aria-label="Update (add snapshot or import CSV)">＋ Update</button>
 </nav>
@@ -50,19 +51,7 @@ export function appTemplate(): string {
         <div class="card-title">Latest snapshot</div>
         <div id="nw-detail"></div>
       </div>
-    </div>
-    <div class="card">
-      <div class="card-title">Growth breakdown: contributed vs market</div>
-      <div class="chart-controls">
-        <div id="nw-growth-legend" class="legend"></div>
-        <div class="range-toggle" id="nw-growth-range-toggle" role="group" aria-label="Growth breakdown range">
-          <button class="btn btn-sm btn-ghost" data-range="12">1Y</button>
-          <button class="btn btn-sm btn-ghost" data-range="36">3Y</button>
-          <button class="btn btn-sm btn-ghost active" data-range="all">All</button>
-        </div>
-      </div>
-      <div class="chart-wrap chart-h-md"><canvas id="c-nw-growth"></canvas></div>
-      <p class="note">Market movement is the residual after subtracting contributions from the total change. Use IRR above for a money-weighted investment return metric.</p>
+      <div id="nw-analytics-callout" class="card" style="align-self:start"></div>
     </div>
     <div id="nw-goal"></div>
     <div id="nw-forecast"></div>
@@ -185,6 +174,151 @@ export function appTemplate(): string {
         <div id="div-annual-pagination" class="pagination"></div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ════ ANALYTICS ════ -->
+<div id="analytics" class="section" role="tabpanel" aria-labelledby="tab-analytics">
+  <div id="an-empty" style="display:none"><div class="card"><div class="empty-state">
+    <div style="font-size:2.4rem;margin-bottom:.75rem">📈</div>
+    <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.4rem">No snapshots yet</div>
+    <p style="font-size:13px;margin-bottom:1.25rem;max-width:340px;margin-left:auto;margin-right:auto">Add at least one monthly snapshot to see analytics. Performance and risk metrics appear as your history grows.</p>
+    <button class="btn btn-primary" data-goto="log">Add first snapshot →</button>
+  </div></div></div>
+  <div id="an-content" style="display:none">
+
+    <!-- Level 1: Performance Summary (always visible) -->
+    <div class="kpi-row" id="an-kpis-l1"></div>
+    <div class="kpi-row" id="an-kpis-l2" style="margin-top:0"></div>
+
+    <div class="card card-primary">
+      <div class="card-title">Portfolio growth over time</div>
+      <div class="chart-controls">
+        <div id="an-growth-legend" class="legend"></div>
+        <div class="range-toggle" id="an-growth-range-toggle" role="group" aria-label="Growth range">
+          <button class="btn btn-sm btn-ghost" data-range="12">1Y</button>
+          <button class="btn btn-sm btn-ghost" data-range="36">3Y</button>
+          <button class="btn btn-sm btn-ghost active" data-range="all">All</button>
+        </div>
+      </div>
+      <div class="chart-wrap chart-h-lg"><canvas id="c-an-growth"></canvas></div>
+    </div>
+
+    <!-- Level 2: Heatmap + Allocation (2+ snapshots) -->
+    <div id="an-level2">
+      <div class="card">
+        <div class="card-title">Growth breakdown: contributed vs market</div>
+        <div class="chart-controls">
+          <div id="an-contrib-legend" class="legend"></div>
+          <div class="range-toggle" id="an-contrib-range-toggle" role="group" aria-label="Contributions vs market range">
+            <button class="btn btn-sm btn-ghost" data-range="12">1Y</button>
+            <button class="btn btn-sm btn-ghost" data-range="36">3Y</button>
+            <button class="btn btn-sm btn-ghost active" data-range="all">All</button>
+          </div>
+        </div>
+        <div class="chart-wrap chart-h-md"><canvas id="c-an-contrib"></canvas></div>
+        <p class="note">Market movement is the residual after subtracting contributions from the total change. Use IRR for a money-weighted investment return metric.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Monthly return heatmap</div>
+        <div id="an-heatmap-note" class="note" style="display:none"></div>
+        <div id="an-heatmap-wrap" style="overflow-x:auto">
+          <div id="an-heatmap"></div>
+        </div>
+        <p class="note" id="an-heatmap-footer">Color intensity is weighted by portfolio value: months with more capital show more saturated colors.</p>
+      </div>
+
+      <div id="an-annual-table-card" class="card">
+        <div class="card-title">Annual returns</div>
+        <div id="an-annual-table"></div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">
+            Allocation by asset class
+            <span id="an-alloc-class-toggle-wrap" style="margin-left:8px"></span>
+          </div>
+          <div id="an-alloc-class-legend" class="legend"></div>
+          <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-class"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">
+            Allocation by account
+            <span id="an-alloc-acct-toggle-wrap" style="margin-left:8px"></span>
+          </div>
+          <div id="an-alloc-acct-legend" class="legend"></div>
+          <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-acct"></canvas></div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">
+            Allocation by region
+            <span id="an-alloc-region-toggle-wrap" style="margin-left:8px"></span>
+          </div>
+          <div id="an-alloc-region-legend" class="legend"></div>
+          <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-region"></canvas></div>
+        </div>
+        <div class="card" id="an-alloc-sector-card">
+          <div class="card-title">
+            Allocation by sector
+            <span id="an-alloc-sector-toggle-wrap" style="margin-left:8px"></span>
+          </div>
+          <div id="an-alloc-sector-legend" class="legend"></div>
+          <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-sector"></canvas></div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="card" id="an-alloc-currency-card">
+          <div class="card-title">
+            Allocation by currency
+            <span id="an-alloc-currency-toggle-wrap" style="margin-left:8px"></span>
+          </div>
+          <div id="an-alloc-currency-legend" class="legend"></div>
+          <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-currency"></canvas></div>
+        </div>
+        <div class="card" id="an-drift-card" style="display:none">
+          <div class="card-title">Drift from target allocation</div>
+          <div id="an-drift"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Level 3: Advanced Analytics (collapsible) -->
+    <details id="an-advanced" class="card" style="margin-top:1rem">
+      <summary style="cursor:pointer;font-weight:500;font-size:14px;padding:.25rem 0;list-style:none;display:flex;align-items:center;gap:6px">
+        <span id="an-advanced-arrow" style="font-size:10px;transition:transform .15s">▶</span>
+        Advanced Analytics
+        <span id="an-advanced-gate" style="font-size:11px;color:var(--ink-3);font-weight:400;margin-left:4px"></span>
+      </summary>
+      <div id="an-advanced-content" style="padding-top:.75rem">
+        <div class="kpi-row" id="an-kpis-risk"></div>
+
+        <div class="card" id="an-drawdown-card" style="margin:0 0 1rem">
+          <div class="card-title">Drawdown history</div>
+          <div class="chart-wrap chart-h-md"><canvas id="c-an-drawdown"></canvas></div>
+        </div>
+
+        <div class="card" id="an-rolling-cagr-card" style="margin:0 0 1rem">
+          <div class="card-title">Rolling 3-year CAGR</div>
+          <div id="an-rolling-cagr-note" class="note" style="display:none"></div>
+          <div class="chart-wrap chart-h-md"><canvas id="c-an-rolling-cagr"></canvas></div>
+        </div>
+
+        <div id="an-income" style="display:none">
+          <div class="kpi-row" id="an-kpis-income"></div>
+          <div class="card" style="margin:0 0 1rem">
+            <div class="card-title">Income by month (dividends and interest)</div>
+            <div class="chart-wrap chart-h-md"><canvas id="c-an-income"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </details>
+
   </div>
 </div>
 
