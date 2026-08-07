@@ -157,6 +157,19 @@ export function isSignedIn(): boolean {
   return _token !== null && Date.now() < _token.expires_at - 60_000;
 }
 
+/**
+ * Returns true if the user has ever completed a successful OAuth grant in this
+ * browser. Used to distinguish "authenticated but temporarily offline/token-
+ * expired" from "never signed in at all".
+ */
+export function hasEverGranted(): boolean {
+  try {
+    return localStorage.getItem(GRANTED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export function signOut(): void {
   const t = _token?.access_token;
   _token = null;
