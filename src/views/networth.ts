@@ -1281,10 +1281,10 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
       const intensity = Math.min(1, Math.abs(ret) * 12);
       const lightness = 95 - intensity * 45;
       const sat = Math.max(0, intensity * 85);
-      const C = resolvedT();
       const hue = ret >= 0 ? HUE.pos : HUE.neg;
       const bg = `hsl(${hue},${sat}%,${lightness}%)`;
-      const text = lightness <= 65 ? C.white : C.ink;
+      // Use absolute colors so contrast is correct in both light and dark themes.
+      const text = lightness <= 65 ? '#ffffff' : '#1c1a16';
       return { bg, text };
     };
     const header = `<tr><th style="padding:2px 4px;font-size:10px;color:var(--ink-3);text-align:left;font-weight:400">Year</th>
@@ -1642,6 +1642,24 @@ function _renderIncomeByMonthChart(data: { month: string; amount: number }[]): v
 
 // ── Allocation card ───────────────────────────────────────────────
 
+const ASSET_CLASS_LABELS: Record<string, string> = {
+  equity: 'Equity',
+  bond: 'Bond',
+  reit: 'REIT',
+  commodity: 'Commodity',
+  cash: 'Cash',
+  other: 'Other',
+};
+
+const REGION_LABELS: Record<string, string> = {
+  developed: 'Developed',
+  emerging: 'Emerging',
+  global: 'Global',
+  europe: 'Europe',
+  us: 'US',
+  other: 'Other',
+};
+
 function _renderAllocationCard(snaps: Snapshot[], accounts: Account[]): void {
   const el = document.getElementById('nw-allocation');
   if (!el) return;
@@ -1670,8 +1688,8 @@ function _renderAllocationCard(snaps: Snapshot[], accounts: Account[]): void {
   const regionMap: Record<string, number> = {};
   for (const h of holdings) {
     if (!h.isin || !h.active) continue;
-    const cls = h.assetClass || 'Other';
-    const reg = h.region || 'Other';
+    const cls = h.assetClass || 'other';
+    const reg = h.region || 'other';
     // Use contribAmount as a weight proxy when no position values are available
     assetClassMap[cls] = (assetClassMap[cls] || 0) + h.contribAmount;
     regionMap[reg] = (regionMap[reg] || 0) + h.contribAmount;
@@ -1711,15 +1729,21 @@ function _renderAllocationCard(snaps: Snapshot[], accounts: Account[]): void {
     </div>
   `;
 
-  // Render account allocation donut
+  // Render account allocation donut (static legend with percentage)
   if (acctData.length > 0) {
     _destroyChart('c-nw-alloc-acct');
+    const acctTotal = acctData.reduce((s, d) => s + d.value, 0);
     const legendEl = document.getElementById('nw-alloc-acct-legend');
     if (legendEl) {
       legendEl.innerHTML = renderLegendHtml(
-        acctData.map((d) => ({ label: d.label, color: d.color })),
+        acctData.map((d) => ({
+          label: d.label,
+          color: d.color,
+          meta: acctTotal > 0 ? ((d.value / acctTotal) * 100).toFixed(1) + '%' : '0%',
+        })),
       );
     }
+    const C = resolvedT();
     CH['c-nw-alloc-acct'] = new Chart(
       document.getElementById('c-nw-alloc-acct') as HTMLCanvasElement,
       {
@@ -1730,8 +1754,9 @@ function _renderAllocationCard(snaps: Snapshot[], accounts: Account[]): void {
             {
               data: acctData.map((d) => d.value),
               backgroundColor: acctData.map((d) => safeColor(d.color)),
-              borderWidth: 1,
-              borderColor: resolvedT().bg,
+              borderWidth: 2,
+              borderColor: C.bg,
+              hoverOffset: 4,
             },
           ],
         },
@@ -1742,27 +1767,36 @@ function _renderAllocationCard(snaps: Snapshot[], accounts: Account[]): void {
           plugins: {
             legend: { display: false },
             tooltip: {
+              backgroundColor: C.surface,
               ...TOOLTIP_BOX,
+              borderColor: C.line,
+              borderWidth: 1,
+              titleColor: C.ink,
+              bodyColor: C.ink2,
+              padding: 10,
+              cornerRadius: 8,
               callbacks: {
-                label: (ctx) => ` ${esc(String(ctx.label))}: ${fmtEur2(Number(ctx.raw))}`,
+                label: (ctx) => {
+                  const pct =
+                    acctTotal > 0 ? ((Number(ctx.raw) / acctTotal) * 100).toFixed(1) : '0';
+                  return ` ${esc(String(ctx.label))}: ${pct}%`;
+                },
               },
             },
           },
         },
       },
     );
-    const legendBindEl = document.getElementById('nw-alloc-acct-legend');
-    if (legendBindEl) bindLegendToggle(legendBindEl, CH['c-nw-alloc-acct'], {});
   }
 
   // Render asset class donut
   if (hasAssetClass) {
-    _renderAllocationDonut('c-nw-alloc-class', 'nw-alloc-class-legend', assetClassMap);
+    _renderAllocationDonut('c-nw-alloc-class', 'nw-alloc-class-legend', assetClassMap, ASSET_CLASS_LABELS);
   }
 
   // Render region donut
   if (hasRegion) {
-    _renderAllocationDonut('c-nw-alloc-region', 'nw-alloc-region-legend', regionMap);
+    _renderAllocationDonut('c-nw-alloc-region', 'nw-alloc-region-legend', regionMap, REGION_LABELS);
   }
 }
 
@@ -1771,6 +1805,7 @@ function _renderAllocationDonut(
   canvasId: string,
   legendId: string,
   dataMap: Record<string, number>,
+  labelMap?: Record<string, string>,
 ): void {
   const el = document.getElementById(canvasId) as HTMLCanvasElement | null;
   if (!el) return;
@@ -1782,23 +1817,32 @@ function _renderAllocationDonut(
   const entries = Object.entries(dataMap).sort((a, b) => b[1] - a[1]);
   const colors = entries.map((_, i) => DATA_PALETTE[i % DATA_PALETTE.length]);
 
+  const normalizeLabel = (key: string): string =>
+    (labelMap && labelMap[key]) || key.replace(/\b\w/g, (c) => c.toUpperCase());
+
   const legendEl = document.getElementById(legendId);
   if (legendEl) {
     legendEl.innerHTML = renderLegendHtml(
-      entries.map(([label], i) => ({ label, color: colors[i] })),
+      entries.map(([label], i) => ({
+        label: normalizeLabel(label),
+        color: colors[i],
+        meta: total > 0 ? ((entries[i][1] / total) * 100).toFixed(1) + '%' : '0%',
+      })),
     );
   }
 
+  const C = resolvedT();
   CH[canvasId] = new Chart(el, {
     type: 'doughnut',
     data: {
-      labels: entries.map(([k]) => k),
+      labels: entries.map(([k]) => normalizeLabel(k)),
       datasets: [
         {
           data: entries.map(([, v]) => v),
           backgroundColor: colors,
-          borderWidth: 1,
-          borderColor: resolvedT().bg,
+          borderWidth: 2,
+          borderColor: C.bg,
+          hoverOffset: 4,
         },
       ],
     },
@@ -1809,7 +1853,14 @@ function _renderAllocationDonut(
       plugins: {
         legend: { display: false },
         tooltip: {
+          backgroundColor: C.surface,
           ...TOOLTIP_BOX,
+          borderColor: C.line,
+          borderWidth: 1,
+          titleColor: C.ink,
+          bodyColor: C.ink2,
+          padding: 10,
+          cornerRadius: 8,
           callbacks: {
             label: (ctx) => {
               const pct = total > 0 ? ((Number(ctx.raw) / total) * 100).toFixed(1) : '0';
@@ -1820,6 +1871,4 @@ function _renderAllocationDonut(
       },
     },
   });
-
-  if (legendEl) bindLegendToggle(legendEl, CH[canvasId], {});
 }

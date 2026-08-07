@@ -1465,13 +1465,6 @@ code,
   }
   .kpi-label {
     font-size: 10px;
-    flex-wrap: wrap;
-    line-height: 1.2;
-  }
-  .kpi-label-text {
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
   }
   .kpi-val {
     font-size: 16px;
