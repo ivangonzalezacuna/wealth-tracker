@@ -171,6 +171,55 @@ export function monthlyReturnSeries(
 }
 
 /**
+ * Monthly return series adjusted for contributions (time-weighted return per period).
+ * Each period subtracts the recorded contribution before computing the ratio, so the
+ * result reflects investment performance independent of when cash was added or removed.
+ * When no contribution is recorded for a period the result equals the raw return.
+ * Used for heatmap rendering.
+ */
+export function monthlyTwrSeries(
+  snaps: Snapshot[],
+  contributionsByMonth: Record<string, number>,
+): { year: number; month: number; ret: number }[] {
+  if (snaps.length < 2) return [];
+  const result: { year: number; month: number; ret: number }[] = [];
+  for (let i = 1; i < snaps.length; i++) {
+    const prev = snapTotal(snaps[i - 1]);
+    if (prev <= 0) continue;
+    const cur = snapTotal(snaps[i]);
+    const contribution = contributionsByMonth[snaps[i].date] || 0;
+    const d = _parseYM(snaps[i].date);
+    if (!d) continue;
+    result.push({ year: d.year, month: d.month, ret: (cur - contribution) / prev - 1 });
+  }
+  return result;
+}
+
+/**
+ * Annual time-weighted return per calendar year.
+ * Chains the contribution-adjusted monthly sub-period returns within each year.
+ * Mirrors the TWR formula used by the main TWR KPI.
+ */
+export function annualTwrByYear(
+  snaps: Snapshot[],
+  contributionsByMonth: Record<string, number>,
+): { year: number; return: number }[] {
+  const series = monthlyTwrSeries(snaps, contributionsByMonth);
+  const byYear = new Map<number, number[]>();
+  for (const s of series) {
+    const arr = byYear.get(s.year) ?? [];
+    arr.push(s.ret);
+    byYear.set(s.year, arr);
+  }
+  return Array.from(byYear.keys())
+    .sort((a, b) => a - b)
+    .map((y) => ({
+      year: y,
+      return: byYear.get(y)!.reduce((prod, r) => prod * (1 + r), 1) - 1,
+    }));
+}
+
+/**
  * Annualized volatility: sample std-dev of monthly net-worth % returns, scaled by sqrt(12).
  * Returns null when fewer than 3 snapshots exist.
  */

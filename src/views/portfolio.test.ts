@@ -391,9 +391,8 @@ describe('renderPortfolio', () => {
     });
     renderPortfolio(pd, []);
 
-    const labels = (
-      chartInstances[0].config as { data: { labels: [string, string][] } }
-    ).data.labels;
+    const labels = (chartInstances[0].config as { data: { labels: [string, string][] } }).data
+      .labels;
     expect(labels.map((l) => l[0])).toEqual(['IWDA', 'EIMI', 'BOND']);
 
     const rows = Array.from(

@@ -44,7 +44,8 @@ import {
   rollingVolatilitySeries,
   annualReturns,
   monthlyReturns,
-  monthlyReturnSeries,
+  monthlyTwrSeries,
+  annualTwrByYear,
   trailing12mIncome,
   dividendYieldPct,
   dividendGrowthYoY,
@@ -528,7 +529,7 @@ export function renderNW(
   _renderForecastChart(snaps, accounts);
 
   // Level 2 + 3 analytics cards
-  _renderAnalyticsCards(snaps, txs);
+  _renderAnalyticsCards(snaps, txs, pd?.monthly ?? {});
 
   // Allocation card
   _renderAllocationCard(snaps, accounts, pd);
@@ -1151,7 +1152,11 @@ function _monthsDiff(a: string, b: string): number {
 
 // ── Level 2 + 3 analytics cards ───────────────────────────────────
 
-function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
+function _renderAnalyticsCards(
+  snaps: Snapshot[],
+  txs: Transaction[],
+  monthly: Record<string, number> = {},
+): void {
   const el = document.getElementById('nw-analytics');
   if (!el) return;
 
@@ -1165,8 +1170,8 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
   // Annual returns table (always shown when there is multi-year data)
   const annualRets = annualReturns(snaps);
 
-  // Monthly return series for heatmap
-  const returnSeries = monthlyReturnSeries(snaps);
+  // Monthly TWR series for heatmap (contribution-adjusted per period)
+  const returnSeries = monthlyTwrSeries(snaps, monthly);
 
   // Full drawdown series
   const ddFull = maxDrawdownFull(snaps);
@@ -1266,20 +1271,9 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
       'Dec',
     ];
     const byKey = new Map(returnSeries.map((r) => [`${r.year}-${r.month}`, r.ret]));
-    const annualByYear = new Map(annualRets.map((r) => [r.year, r.return]));
 
-    // For years without a full-year comparison (e.g. the first year in the series),
-    // compute the compounded return from available monthly data as a fallback total.
-    const compoundedByYear = new Map<number, number>();
-    for (const y of years) {
-      if (annualByYear.has(y)) continue;
-      const monthsForYear = returnSeries.filter((r) => r.year === y);
-      if (monthsForYear.length === 0) continue;
-      compoundedByYear.set(
-        y,
-        monthsForYear.reduce((prod, r) => prod * (1 + r.ret), 1) - 1,
-      );
-    }
+    // Annual TWR per year: chain the contribution-adjusted monthly sub-period returns.
+    const twrByYearMap = new Map(annualTwrByYear(snaps, monthly).map((r) => [r.year, r.return]));
 
     const cellStyle = (ret: number | undefined, isAnnual = false): string => {
       if (ret === undefined) {
@@ -1326,7 +1320,7 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
           const txt = ret !== undefined ? fmtPctNeg(ret * 100) : '';
           return `<div style="padding:4px 1px;font-size:10px;text-align:center;${style};font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden">${txt}</div>`;
         });
-        const annualRet = annualByYear.get(y) ?? compoundedByYear.get(y);
+        const annualRet = twrByYearMap.get(y);
         const annualStyle = cellStyle(annualRet, true);
         const annualTxt = annualRet !== undefined ? fmtPctNeg(annualRet * 100) : '';
         return `<div style="display:grid;${gridCols};gap:2px;align-items:stretch;margin-bottom:2px;padding:0 2px">
@@ -1914,7 +1908,9 @@ function _renderAllocationCard(
               cornerRadius: 8,
               callbacks: {
                 label: (ctx) => {
-                  return ` ${esc(String(ctx.label))}: ${fmtEur(Number(ctx.raw))}`;
+                  const pct =
+                    acctTotal > 0 ? ((Number(ctx.raw) / acctTotal) * 100).toFixed(1) : '0';
+                  return ` ${esc(String(ctx.label))}: ${fmtEur(Number(ctx.raw))} (${pct}%)`;
                 },
               },
             },
@@ -2002,7 +1998,8 @@ function _renderAllocationDonut(
           cornerRadius: 8,
           callbacks: {
             label: (ctx) => {
-              return ` ${esc(String(ctx.label))}: ${fmtEur(Number(ctx.raw))}`;
+              const pct = total > 0 ? ((Number(ctx.raw) / total) * 100).toFixed(1) : '0';
+              return ` ${esc(String(ctx.label))}: ${fmtEur(Number(ctx.raw))} (${pct}%)`;
             },
           },
         },
