@@ -43,13 +43,14 @@ function intervalOptionsHtml(selected: ContribInterval): string {
     .join('');
 }
 
-/** Card key -> render fn, used by repaintCard() to scope a re-render to one card. */
+/** Card key — identifies which settings card an action belongs to. */
 type CardKey =
   | 'accounts'
   | 'holdings'
   | 'cost-basis'
   | 'goal'
   | 'alerts'
+  | 'analytics'
   | 'rules'
   | 'cache'
   | 'backup'
@@ -139,86 +140,6 @@ export function applySyncBusyState(): void {
   });
 }
 
-/** Re-render exactly one Settings card in place; re-attach only its own
- *  listeners; reapply its persisted collapse state. Touches no sibling card. */
-function repaintCard(key: CardKey): void {
-  const id = `settings-card-${key}`;
-  const existing = document.getElementById(id);
-  if (!existing) return; // settings not currently rendered - nothing to do
-
-  const accounts = getAccounts();
-  const holdings = getHoldings();
-  const settings = getSettings();
-
-  let html: string;
-  switch (key) {
-    case 'accounts':
-      html = renderAccountsCard(accounts);
-      break;
-    case 'holdings':
-      html = renderHoldingsCard(holdings);
-      break;
-    case 'cost-basis':
-      html = renderCostBasisCard(settings);
-      break;
-    case 'goal':
-      html = renderGoalCard(settings);
-      break;
-    case 'alerts':
-      html = renderAlertsCard(settings);
-      break;
-    case 'rules':
-      html = renderRulesCard(settings);
-      break;
-    case 'cache':
-      html = renderCacheCard();
-      break;
-    case 'backup':
-      html = renderBackupCard();
-      break;
-    case 'config-history':
-      // Read-only card; re-render with empty entries as placeholder (async load follows)
-      html = renderConfigHistoryCard([]);
-      break;
-  }
-
-  existing.outerHTML = html;
-  const fresh = document.getElementById(id);
-  if (!fresh) return;
-
-  switch (key) {
-    case 'accounts':
-      attachAccountListeners(fresh);
-      break;
-    case 'holdings':
-      attachHoldingListeners(fresh);
-      attachColorPickerSync(fresh);
-      break;
-    case 'cost-basis':
-      attachCostBasisListeners(fresh);
-      break;
-    case 'goal':
-      attachGoalListeners(fresh);
-      break;
-    case 'rules':
-      attachRulesListeners(fresh);
-      break;
-    case 'cache':
-      attachCacheListeners(fresh);
-      break;
-    case 'backup':
-      attachBackupListeners(fresh);
-      break;
-    case 'config-history':
-      // No listeners needed for the read-only config history card
-      break;
-  }
-  attachCardCollapseListeners(fresh);
-  if (isCollapsed('card:' + key)) fresh.classList.add('collapsed');
-  attachInfoTips(fresh);
-  applySyncBusyState();
-}
-
 /**
  * Render the Settings section - user-friendly forms for Accounts, Holdings, Settings.
  * Only shown after config is loaded (sign-in required).
@@ -242,6 +163,7 @@ export function renderSettings(): void {
     ${renderCostBasisCard(settings)}
     ${renderGoalCard(settings)}
     ${renderAlertsCard(settings)}
+    ${renderAnalyticsCard(settings)}
     ${renderRulesCard(settings)}
     ${renderCacheCard()}
     ${renderBackupCard()}
@@ -253,6 +175,7 @@ export function renderSettings(): void {
   attachCostBasisListeners(el);
   attachGoalListeners(el);
   attachAlertsListeners(el);
+  attachAnalyticsListeners(el);
   attachRulesListeners(el);
   attachCacheListeners(el);
   attachBackupListeners(el);
@@ -1298,7 +1221,7 @@ function renderAlertsCard(_settings: Settings): string {
         <div class="settings-field">
           <label class="settings-field-label" for="alert-drift-threshold">
             Drift alert threshold (percentage points)
-            ${infoTip('A badge appears on the Portfolio tab when max drift exceeds this threshold. Status colors in the drift table also use this threshold (2× for high drift).')}
+            ${infoTip('A badge appears on the Portfolio tab when max drift exceeds this threshold. Status colors in the drift table also use this threshold (2x for high drift).')}
           </label>
           <input
             type="number"
@@ -1307,13 +1230,13 @@ function renderAlertsCard(_settings: Settings): string {
             value="${threshold}"
             min="1"
             max="20"
-            step="0.5"
+            step="0.01"
             style="width:100px"
             placeholder="5"
           />
         </div>
         <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
-          <button class="btn btn-primary btn-sm" id="btn-save-alerts">Save alerts</button>
+          <button class="btn btn-primary btn-sm" id="btn-save-alerts">Save</button>
           <span id="alerts-msg" style="font-size:12px;line-height:28px"></span>
         </div>
       </div>
@@ -1336,7 +1259,10 @@ function attachAlertsListeners(root: HTMLElement): void {
       await withCardGuard(
         'alerts',
         btn,
-        () => setSettings({ alerts: JSON.stringify(alertSettings) }),
+        () =>
+          setSettings({
+            alerts: JSON.stringify(alertSettings),
+          }),
         {
           busyText: 'Saving...',
         },
@@ -1348,6 +1274,65 @@ function attachAlertsListeners(root: HTMLElement): void {
       }
     } catch (err) {
       showMsg('alerts-msg', 'Error: ' + (err as Error).message, false);
+    }
+  });
+}
+
+// ── Analytics settings ───────────────────────────────────
+
+function renderAnalyticsCard(settings: Settings): string {
+  const riskFreeRate = parseFloat(settings.riskFreeRate || '2');
+  return `
+    <div class="card card-collapsible" id="settings-card-analytics" data-card-key="analytics">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Analytics</div>
+        <span class="card-chevron"></span>
+      </div>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.75rem">Configure parameters used in performance and risk calculations.</p>
+        <div class="settings-field">
+          <label class="settings-field-label" for="analytics-risk-free-rate">
+            Risk-free rate (%)
+            ${infoTip('Annual risk-free rate used in Sharpe and Sortino ratio calculations on the Analytics tab. Typically the yield on short-term government bonds (e.g. 3-month T-bills).')}
+          </label>
+          <input
+            type="number"
+            id="analytics-risk-free-rate"
+            class="form-input form-input-sm"
+            value="${riskFreeRate}"
+            min="0"
+            max="20"
+            step="0.01"
+            style="width:100px"
+            placeholder="2"
+          />
+        </div>
+        <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm" id="btn-save-analytics">Save</button>
+          <span id="analytics-msg" style="font-size:12px;line-height:28px"></span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function attachAnalyticsListeners(root: HTMLElement): void {
+  root.querySelector('#btn-save-analytics')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-save-analytics') as HTMLButtonElement;
+    const rfrInput = root.querySelector('#analytics-risk-free-rate') as HTMLInputElement;
+    const rfrValue = parseFloat(rfrInput.value);
+
+    if (isNaN(rfrValue) || rfrValue < 0 || rfrValue > 20) {
+      showMsg('analytics-msg', 'Risk-free rate must be between 0 and 20', false);
+      return;
+    }
+
+    try {
+      await withCardGuard('analytics', btn, () => setSettings({ riskFreeRate: String(rfrValue) }), {
+        busyText: 'Saving...',
+      });
+      showMsg('analytics-msg', 'Saved', true);
+    } catch (err) {
+      showMsg('analytics-msg', 'Error: ' + (err as Error).message, false);
     }
   });
 }

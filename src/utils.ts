@@ -60,10 +60,20 @@ export function fmtPctSigned(n: number, d = 1): string {
  * Unsigned percentage with a smart decimal. By default shows 1 decimal only
  * when the value is not a whole number (e.g. 45 => "45%", 45.1 => "45.1%").
  * Pass decimals=2 to always show 2 decimal places (e.g. 0.33 => "0.33%").
+ * Pass decimals='auto' to use the minimum precision needed to faithfully represent
+ * the value: 0 decimals for whole numbers, 1 for x.y values, 2 for x.yz values
+ * (e.g. 5 => "5%", 5.1 => "5.1%", 5.05 => "5.05%").
  * Uses English-style period decimal (consistent with the inline cost-basis
  * and drift target/actual columns).
  */
-export function fmtPctVal(n: number, decimals: 1 | 2 = 1): string {
+export function fmtPctVal(n: number, decimals: 1 | 2 | 'auto' = 1): string {
+  if (decimals === 'auto') {
+    const r2 = Math.round(n * 100) / 100;
+    const r1 = Math.round(n * 10) / 10;
+    if (r2 % 1 !== 0 && r2 !== r1) return r2.toFixed(2) + '%';
+    if (r1 % 1 !== 0) return r1.toFixed(1) + '%';
+    return Math.round(n).toFixed(0) + '%';
+  }
   if (decimals === 2) {
     const rounded = Math.round(n * 100) / 100;
     return rounded.toFixed(2) + '%';
@@ -207,5 +217,12 @@ export function kpiTile(opts: {
 }): string {
   const cls = opts.valueClass ? ` ${opts.valueClass}` : '';
   const sub = opts.sub ? `<div class="kpi-sub">${opts.sub}</div>` : '';
-  return `<div class="kpi"><div class="kpi-label">${opts.label}</div><div class="kpi-val${cls}">${opts.value}</div>${sub}</div>`;
+  // Separate any trailing info-tip span from the label text so the label layout
+  // can use flexbox without the badge ever wrapping to a new line.
+  const tipIdx = opts.label.indexOf('<span class="info-tip"');
+  const labelHtml =
+    tipIdx >= 0
+      ? `<span class="kpi-label-text">${opts.label.slice(0, tipIdx)}</span>${opts.label.slice(tipIdx)}`
+      : `<span class="kpi-label-text">${opts.label}</span>`;
+  return `<div class="kpi"><div class="kpi-label">${labelHtml}</div><div class="kpi-val${cls}">${opts.value}</div>${sub}</div>`;
 }

@@ -42,6 +42,7 @@ import { computePD } from './portfolio';
 import { parseWithProfile, detectProfile, previewSummary } from './import/parse';
 import { builtInProfiles } from './import/profiles/index';
 import { renderNW } from './views/networth';
+import { renderAnalytics } from './views/analytics';
 import { renderPortfolio, getMaxDrift } from './views/portfolio';
 import { renderDCA } from './views/contributions';
 import { renderDividends } from './views/dividends';
@@ -110,7 +111,7 @@ const state: {
 // ── Render-on-show state ─────────────────────────────────
 let _activeSection = 'networth';
 const _dirty = new Set<string>();
-const ALL_SECTIONS = ['networth', 'portfolio', 'settings', 'log'] as const;
+const ALL_SECTIONS = ['networth', 'portfolio', 'analytics', 'settings', 'log'] as const;
 
 // ── Portfolio sub-view state ─────────────────────────────
 let _portfolioSubview: 'holdings' | 'contributions' | 'dividends' = 'holdings';
@@ -1799,7 +1800,7 @@ function showPortfolioSubview(sub: string, force = false): void {
 function renderPortfolioSubview(sub: string): void {
   if (sub === 'holdings') renderPortfolio(state.pd, state.snaps);
   else if (sub === 'contributions') renderDCA(state.pd, state.snaps);
-  else if (sub === 'dividends') renderDividends(state.pd, state.txs, state.snaps);
+  else if (sub === 'dividends') renderDividends(state.pd, state.txs);
 }
 
 // ── Section dispatcher ────────────────────────────────────
@@ -1821,7 +1822,7 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
   try {
     switch (id) {
       case 'networth':
-        renderNW(state.pd, state.snaps, state.txs);
+        renderNW(state.pd, state.snaps);
         break;
       case 'portfolio':
         renderPortfolioSubview(_portfolioSubview);
@@ -1832,6 +1833,9 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
         } else {
           renderSettings();
         }
+        break;
+      case 'analytics':
+        renderAnalytics(state.pd, state.snaps, state.txs);
         break;
       case 'log':
         renderLog({
@@ -1889,8 +1893,8 @@ function updateDriftBadge(): void {
 
     const severityLabel = isHigh ? 'High drift' : 'Moderate drift';
     const thresholdLabel = isHigh
-      ? `over ${fmtPctVal(highThreshold)} (high threshold)`
-      : `over ${fmtPctVal(threshold)} (threshold)`;
+      ? `over ${fmtPctVal(highThreshold, 'auto')} (high threshold)`
+      : `over ${fmtPctVal(threshold, 'auto')} (threshold)`;
     btn.setAttribute(
       'data-drift-alert',
       `${severityLabel}: max allocation drift is ${fmtPctVal(max)}, ${thresholdLabel}. Open Portfolio to review it.`,

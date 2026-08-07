@@ -9,7 +9,6 @@ import {
   annualizedVolatility,
   maxDrawdown,
   cagrPerAccount,
-  trailingDividendYield,
 } from './insights';
 import type { Snapshot } from '../types';
 import * as utils from '../utils';
@@ -230,25 +229,25 @@ describe('monthlyGrowthHistory', () => {
 });
 
 describe('annualizedVolatility', () => {
-  it('returns null with fewer than 3 snapshots', () => {
-    expect(annualizedVolatility([])).toBeNull();
-    expect(annualizedVolatility([{ date: '2026-01' }])).toBeNull();
-    expect(annualizedVolatility([{ date: '2026-01' }, { date: '2026-02' }])).toBeNull();
+  it('returns annualized: null with fewer than 3 snapshots', () => {
+    expect(annualizedVolatility([]).annualized).toBeNull();
+    expect(annualizedVolatility([{ date: '2026-01' }]).annualized).toBeNull();
+    expect(annualizedVolatility([{ date: '2026-01' }, { date: '2026-02' }]).annualized).toBeNull();
   });
 
-  it('returns null when a starting snapshot total is non-positive', () => {
+  it('returns annualized: null when a starting snapshot total is non-positive', () => {
     vi.spyOn(utils, 'snapTotal')
       .mockReturnValueOnce(0)
       .mockReturnValueOnce(1000)
       .mockReturnValueOnce(1050);
     const snaps: Snapshot[] = [{ date: '2026-01' }, { date: '2026-02' }, { date: '2026-03' }];
-    expect(annualizedVolatility(snaps)).toBeNull();
+    expect(annualizedVolatility(snaps).annualized).toBeNull();
   });
 
   it('returns 0 for a flat series (no variance)', () => {
     vi.spyOn(utils, 'snapTotal').mockReturnValue(1000);
     const snaps: Snapshot[] = [{ date: '2026-01' }, { date: '2026-02' }, { date: '2026-03' }];
-    expect(annualizedVolatility(snaps)).toBeCloseTo(0, 10);
+    expect(annualizedVolatility(snaps).annualized).toBeCloseTo(0, 10);
   });
 
   it('computes correct annualized volatility for known returns', () => {
@@ -266,29 +265,30 @@ describe('annualizedVolatility', () => {
       { date: '2026-03' },
       { date: '2026-04' },
     ];
-    const vol = annualizedVolatility(snaps);
-    expect(vol).not.toBeNull();
+    const result = annualizedVolatility(snaps);
+    expect(result.annualized).not.toBeNull();
     const returns = [0.05, -0.03, 0.02];
     const m = returns.reduce((s, r) => s + r, 0) / 3;
     const sv = returns.reduce((s, r) => s + (r - m) ** 2, 0) / 2;
     const expected = Math.sqrt(sv) * Math.sqrt(12);
-    expect(vol).toBeCloseTo(expected, 5);
+    expect(result.annualized).toBeCloseTo(expected, 5);
+    expect(result.monthlyReturns.length).toBe(3);
   });
 });
 
 describe('maxDrawdown', () => {
-  it('returns null for fewer than 2 snapshots', () => {
-    expect(maxDrawdown([])).toBeNull();
-    expect(maxDrawdown([{ date: '2026-01' }])).toBeNull();
+  it('returns max: null for fewer than 2 snapshots', () => {
+    expect(maxDrawdown([]).max).toBeNull();
+    expect(maxDrawdown([{ date: '2026-01' }]).max).toBeNull();
   });
 
-  it('returns 0 for a monotonically increasing series', () => {
+  it('returns max: 0 for a monotonically increasing series', () => {
     vi.spyOn(utils, 'snapTotal')
       .mockReturnValueOnce(1000)
       .mockReturnValueOnce(1100)
       .mockReturnValueOnce(1200);
     const snaps: Snapshot[] = [{ date: '2026-01' }, { date: '2026-02' }, { date: '2026-03' }];
-    expect(maxDrawdown(snaps)).toBe(0);
+    expect(maxDrawdown(snaps).max).toBe(0);
   });
 
   it('computes the correct drawdown for a simple peak-trough sequence', () => {
@@ -305,7 +305,7 @@ describe('maxDrawdown', () => {
       { date: '2026-03' },
       { date: '2026-04' },
     ];
-    expect(maxDrawdown(snaps)).toBeCloseTo(-0.25, 8);
+    expect(maxDrawdown(snaps).max).toBeCloseTo(-0.25, 8);
   });
 
   it('picks the worst drawdown when there are multiple troughs', () => {
@@ -323,13 +323,13 @@ describe('maxDrawdown', () => {
       { date: '2026-04' },
       { date: '2026-05' },
     ];
-    expect(maxDrawdown(snaps)).toBeCloseTo(-0.25, 8);
+    expect(maxDrawdown(snaps).max).toBeCloseTo(-0.25, 8);
   });
 
   it('handles a flat series with 0 drawdown', () => {
     vi.spyOn(utils, 'snapTotal').mockReturnValueOnce(5000).mockReturnValueOnce(5000);
     const snaps: Snapshot[] = [{ date: '2026-01' }, { date: '2026-02' }];
-    expect(maxDrawdown(snaps)).toBe(0);
+    expect(maxDrawdown(snaps).max).toBe(0);
   });
 });
 
@@ -386,40 +386,5 @@ describe('cagrPerAccount', () => {
     expect(a.cagrValue).not.toBeNull();
     expect(b.cagrValue).not.toBeNull();
     expect(a.cagrValue).not.toBeCloseTo(b.cagrValue!);
-  });
-});
-
-describe('trailingDividendYield', () => {
-  it('returns null when totalInvested is 0', () => {
-    expect(trailingDividendYield([{ date: '2025-01', net: 100 }], 0)).toBeNull();
-  });
-
-  it('returns null when no dividends in trailing 12 months', () => {
-    // Very old dividend date
-    expect(trailingDividendYield([{ date: '2020-01', net: 100 }], 10000)).toBeNull();
-  });
-
-  it('returns null when divHist is empty', () => {
-    expect(trailingDividendYield([], 10000)).toBeNull();
-  });
-
-  it('computes yield correctly from recent dividends', () => {
-    const now = new Date();
-    const recentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const result = trailingDividendYield([{ date: recentMonth, net: 200 }], 10000);
-    expect(result).not.toBeNull();
-    expect(result!).toBeCloseTo(2); // 200 / 10000 * 100 = 2%
-  });
-
-  it('yields higher when denominator is dist-only capital (excluding acc holdings)', () => {
-    // Scenario: 200 net dividends, 5000 in dist holdings, 5000 in acc holdings (total 10000).
-    // Using total capital: 200/10000 = 2%. Using dist-only capital: 200/5000 = 4%.
-    const now = new Date();
-    const recentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const divHist = [{ date: recentMonth, net: 200 }];
-    const totalResult = trailingDividendYield(divHist, 10000);
-    const distOnlyResult = trailingDividendYield(divHist, 5000);
-    expect(totalResult!).toBeCloseTo(2);
-    expect(distOnlyResult!).toBeCloseTo(4); // more accurate: only dist capital in denominator
   });
 });

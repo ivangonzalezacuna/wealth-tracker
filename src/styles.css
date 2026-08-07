@@ -226,6 +226,15 @@ code,
   letter-spacing: 0.06em;
   color: var(--ink-3);
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+.kpi-label-text {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -338,6 +347,14 @@ code,
 }
 .card-collapsible.collapsed .card-chevron {
   transform: rotate(-90deg);
+}
+
+/* Explainer <details> chevron: closed by default, arrow points right; open rotates down */
+details:not([open]) > summary .card-chevron {
+  transform: rotate(-90deg);
+}
+details[open] > summary .card-chevron {
+  transform: rotate(0deg);
 }
 
 /* Rows */
@@ -1458,10 +1475,10 @@ code,
   }
   .kpi-label {
     font-size: 10px;
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
     line-height: 1.2;
+  }
+  .kpi-label-text {
+    white-space: normal;
   }
   .kpi-val {
     font-size: 16px;

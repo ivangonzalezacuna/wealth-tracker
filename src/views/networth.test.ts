@@ -282,83 +282,13 @@ describe('renderNW', () => {
     expect(kpis).toContain('unlocks 2055-2060');
   });
 
-  it('renders YoY tile given 13+ months of snapshot history', () => {
-    const snaps = makeMonthlySnaps(14);
-    renderNW(makePD(), snaps);
-    const kpis = document.getElementById('nw-kpis')!.innerHTML;
-    expect(kpis).toContain('YoY');
-  });
-
-  it('does not render YoY tile with fewer than 13 months', () => {
-    const snaps = makeMonthlySnaps(5);
-    renderNW(makePD(), snaps);
-    const kpis = document.getElementById('nw-kpis')!.innerHTML;
-    expect(kpis).not.toContain('YoY');
-  });
-
-  it('renders CAGR tile given sufficient history', () => {
+  it('forecast chart renders given snapshots and accounts', () => {
     const snaps = makeMonthlySnaps(14);
     renderNW(makePD(), snaps);
     const kpis = document.getElementById('nw-kpis')!.innerHTML;
     expect(kpis).toContain('CAGR');
-    expect(kpis).toContain('TWR');
-    expect(kpis).toContain('IRR (investments)');
-  });
-
-  it('does not double-count SELL proceeds in IRR cash flows', () => {
-    const snaps = [makeSnap('2026-01-01', 1000, 500)];
-    renderNW(makePD(), snaps, [
-      {
-        id: 'b1',
-        date: '2025-01-01',
-        source: 'trade_republic',
-        type: 'BUY',
-        name: 'ETF',
-        isin: 'IE00TEST1',
-        shares: 1,
-        price: 1000,
-        amount: 1000,
-        fee: 0,
-        tax: 0,
-        currency: 'EUR',
-        fxRate: 1,
-      },
-      {
-        id: 's1',
-        date: '2025-12-31',
-        source: 'trade_republic',
-        type: 'SELL',
-        name: 'ETF',
-        isin: 'IE00TEST1',
-        shares: 1,
-        price: 1000,
-        amount: 1000,
-        fee: 0,
-        tax: 0,
-        currency: 'EUR',
-        fxRate: 1,
-      },
-    ]);
-    const kpisText = document.getElementById('nw-kpis')!.textContent || '';
-    expect(kpisText).toContain('IRR (investments)');
-    expect(kpisText).toMatch(/IRR \(investments\).*0%/s);
-  });
-
-  it('growth chart includes "Contributed" dataset label', () => {
-    const months = ['2025-01', '2025-02', '2025-03'];
-    const monthly: Record<string, number> = { '2025-01': 100, '2025-02': 100, '2025-03': 100 };
-    const snaps = [
-      makeSnap('2025-01-01', 1000, 500),
-      makeSnap('2025-02-01', 1100, 550),
-      makeSnap('2025-03-01', 1200, 600),
-    ];
-    renderNW(makePD({ months, monthly, totalInv: 300 }), snaps);
-    // Find the growth chart (c-nw-growth) among chart instances
-    const growthChart = chartInstances.find((c) => {
-      const cfg = c.config as { data?: { datasets?: Array<{ label?: string }> } };
-      return cfg?.data?.datasets?.some((d) => d.label === 'Contributed');
-    });
-    expect(growthChart).toBeDefined();
+    expect(kpis).not.toContain('TWR');
+    expect(kpis).not.toContain('IRR (investments)');
   });
 
   it('forecast chart renders given snapshots and accounts', () => {
@@ -393,25 +323,6 @@ describe('renderNW', () => {
     const toggle = document.getElementById('nw-range-toggle')!;
     const btn36 = toggle.querySelector('[data-range="36"]') as HTMLElement;
     btn36.click();
-
-    expect(chartInstances.length).toBeGreaterThan(countBefore);
-  });
-
-  it('growth range toggle re-creates the growth chart on click', () => {
-    const months = Array.from({ length: 14 }, (_, i) => {
-      const y = 2024 + Math.floor(i / 12);
-      const m = (i % 12) + 1;
-      return `${y}-${String(m).padStart(2, '0')}`;
-    });
-    const monthly: Record<string, number> = {};
-    months.forEach((m) => (monthly[m] = 100));
-    const snaps = makeMonthlySnaps(14);
-    renderNW(makePD({ months, monthly, totalInv: 1400 }), snaps);
-    const countBefore = chartInstances.length;
-
-    const toggle = document.getElementById('nw-growth-range-toggle')!;
-    const btn12 = toggle.querySelector('[data-range="12"]') as HTMLElement;
-    btn12.click();
 
     expect(chartInstances.length).toBeGreaterThan(countBefore);
   });

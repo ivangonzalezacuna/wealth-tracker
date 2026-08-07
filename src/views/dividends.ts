@@ -1,9 +1,8 @@
 import { fmtEur2, fmtMon, fmtDay, esc, safeColor, kpiTile } from '../utils';
-import type { PortfolioData, DivHistEntry, IntHistEntry, Transaction, Snapshot } from '../types';
-import { T } from '../theme';
+import type { PortfolioData, DivHistEntry, IntHistEntry, Transaction } from '../types';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { attachEtfPopovers } from '../ui/etfPopover';
-import { getAccounts, getCostBasisMethod, getHoldings } from '../store/config';
+import { getCostBasisMethod, getHoldings } from '../store/config';
 import { computeCostBasis } from '../model/costbasis';
 import type { SortState } from './tableSort';
 import { applySort, bindSortableHeader } from './tableSort';
@@ -29,13 +28,8 @@ let _lastTxs: Transaction[] = [];
  * dividend and interest history tables. Shows the empty state if no
  * dividend history exists yet.
  */
-export function renderDividends(
-  pd: PortfolioData | null,
-  txs: Transaction[] = [],
-  snaps: Snapshot[] = [],
-): void {
+export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = []): void {
   const hasPD = !!pd;
-  const hasDiv = hasPD && pd.divHist.length > 0;
 
   document.getElementById('div-empty')!.style.display = hasPD ? 'none' : 'block';
   document.getElementById('div-content')!.style.display = hasPD ? 'block' : 'none';
@@ -51,40 +45,6 @@ export function renderDividends(
   _expandedAnnualYear = '';
 
   const totalGross = pd.divHist.reduce((s, d) => s + d.gross, 0);
-  const allIncomeDates = [
-    ...pd.divHist.map((d) => d.date),
-    ...pd.intHist.map((i) => i.date),
-  ].sort();
-  const has12mHistory =
-    allIncomeDates.length > 1 &&
-    (() => {
-      const first = new Date(
-        allIncomeDates[0].length === 7 ? `${allIncomeDates[0]}-01` : allIncomeDates[0],
-      );
-      const last = new Date(
-        allIncomeDates[allIncomeDates.length - 1].length === 7
-          ? `${allIncomeDates[allIncomeDates.length - 1]}-01`
-          : allIncomeDates[allIncomeDates.length - 1],
-      );
-      return (last.getTime() - first.getTime()) / 86_400_000 >= 365;
-    })();
-  const cutoff = new Date();
-  cutoff.setFullYear(cutoff.getFullYear() - 1);
-  const div12m = pd.divHist
-    .filter((d) => new Date(d.date) >= cutoff)
-    .reduce((sum, d) => sum + d.net, 0);
-  const int12m = pd.intHist
-    .filter((i) => new Date(i.date.length === 7 ? `${i.date}-01` : i.date) >= cutoff)
-    .reduce((sum, i) => sum + i.net, 0);
-  const incomeYield = has12mHistory && pd.totalInv > 0 ? (div12m / pd.totalInv) * 100 : null;
-  const savingsBase = latestSavingsBalance(snaps);
-  const savingsYield =
-    has12mHistory && savingsBase !== null && savingsBase > 0 ? (int12m / savingsBase) * 100 : null;
-  const combinedYield =
-    has12mHistory && pd.totalInv > 0 && savingsBase !== null && savingsBase > 0
-      ? ((div12m + int12m) / (pd.totalInv + savingsBase)) * 100
-      : null;
-
   document.getElementById('div-kpis')!.innerHTML = `
     ${kpiTile({ label: `Gross dividends${infoTip('Before tax: Total distribution payments received from ETFs and stocks, before withholding tax is deducted.')}`, value: fmtEur2(totalGross) })}
     ${kpiTile({ label: 'Tax withheld', value: fmtEur2(Math.abs(pd.totalTax)), valueClass: pd.totalTax >= 0 ? 'neg' : 'pos', sub: 'on dividends' })}
@@ -92,29 +52,6 @@ export function renderDividends(
     ${kpiTile({ label: 'Gross interest', value: fmtEur2(pd.totalIntGross), sub: 'on cash savings' })}
     ${kpiTile({ label: 'Tax on savings', value: fmtEur2(pd.totalIntTax), valueClass: pd.totalIntTax > 0 ? 'neg' : 'ok', sub: 'withheld + refunds' })}
     ${kpiTile({ label: 'Net interest', value: fmtEur2(pd.totalInterest), valueClass: 'pos', sub: 'received' })}
-    ${kpiTile({
-      label: `Investment income yield (12m)${infoTip('Net dividends received in the last 12 months divided by ETF invested capital (cost basis). Scope is investment assets only.')}`,
-      value: incomeYield === null ? '-' : `${incomeYield.toFixed(2).replace('.', ',')}%`,
-      sub: incomeYield === null ? 'need 12 months of history' : 'net dividends / ETF cost basis',
-    })}
-    ${kpiTile({
-      label: `Savings income yield (12m)${infoTip('Net interest received in the last 12 months divided by the latest savings-account balance snapshot. Scope is savings accounts only.')}`,
-      value: savingsYield === null ? '-' : `${savingsYield.toFixed(2).replace('.', ',')}%`,
-      sub:
-        savingsYield === null
-          ? savingsBase === null
-            ? 'add a savings snapshot balance'
-            : 'need 12 months of history'
-          : 'net interest / latest savings balance',
-    })}
-    ${kpiTile({
-      label: `Combined income yield (12m)${infoTip('Combined net dividends plus net interest in the last 12 months divided by ETF cost basis plus latest savings-account balance.')}`,
-      value: combinedYield === null ? '-' : `${combinedYield.toFixed(2).replace('.', ',')}%`,
-      sub:
-        combinedYield === null
-          ? 'requires investment + savings base'
-          : 'net dividends + net interest / combined base',
-    })}
   `;
 
   populateDivYearFilter(pd.divHist);
@@ -328,28 +265,6 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
     _expandedAnnualYear = '';
     renderAnnualSummary(_lastPd!, _lastTxs);
   });
-}
-
-function latestSavingsBalance(snaps: Snapshot[]): number | null {
-  const latest = snaps.length > 0 ? snaps[snaps.length - 1] : null;
-  if (!latest) return null;
-  const savings = getAccounts().filter((a) => (a.moneyType || '').toLowerCase() === 'savings');
-  if (!savings.length) return null;
-  const byLowerKey: Record<string, number> = {};
-  for (const [k, v] of Object.entries(latest)) {
-    if (typeof v === 'number') byLowerKey[k.toLowerCase()] = v;
-  }
-  let found = false;
-  let sum = 0;
-  for (const a of savings) {
-    const key = (a.id || '').toLowerCase();
-    if (!key) continue;
-    if (key in byLowerKey) {
-      found = true;
-      sum += byLowerKey[key];
-    }
-  }
-  return found ? sum : null;
 }
 
 function dividendColumns(pd: PortfolioData): ColumnDef<DivHistEntry>[] {

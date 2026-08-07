@@ -14,26 +14,15 @@ import {
 } from '../utils';
 import { getACCTSList, FORECAST_RANGE_LABELS } from '../constants';
 import { getAccounts, getTotalAnnualContrib, getGoals } from '../store/config';
-import { primaryInvestmentValue, allInvestmentAccountsValue } from '../model/accounts';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
-import {
-  cagr,
-  findYoYSnapshot,
-  monthlyGrowthHistory,
-  twr,
-  xirr,
-  annualizedVolatility,
-  maxDrawdown,
-  cagrPerAccount,
-} from '../model/insights';
-import type { MonthlyGrowthPoint } from '../model/insights';
+import { cagrPerAccount } from '../model/insights';
 import {
   formatMonthsEta,
   forecastMultiAccountSeries,
   forecastMonthsToTargetMulti,
 } from '../model/forecast';
 import type { AccountForecastInput } from '../model/forecast';
-import type { Snapshot, PortfolioData, Account, Transaction } from '../types';
+import type { Snapshot, PortfolioData, Account } from '../types';
 import Chart from 'chart.js/auto';
 import { T, R, resolvedT } from '../theme';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
@@ -41,8 +30,6 @@ import { infoTip, attachInfoTips } from '../ui/infoTip';
 
 const CH: Record<string, Chart> = {};
 let _nwRange: '12' | '36' | 'all' = 'all';
-let _nwGrowthRange: '12' | '36' | 'all' = 'all';
-let _nwGrowthPoints: MonthlyGrowthPoint[] = [];
 let _fcRange: '60' | '120' | '240' = '60'; // 5y / 10y / 20y forecast horizon
 let _inflationRate = 0; // annual inflation % for real-return forecast overlay
 let _lastSnaps: Snapshot[] = [];
@@ -193,11 +180,7 @@ function _renderGoalCards(): void {
  * Renders the Net Worth tab: lead KPI (with MoM delta), per-account KPI tiles,
  * YoY/CAGR tiles, the history chart, growth-breakdown chart, and goal progress.
  */
-export function renderNW(
-  pd: PortfolioData | null,
-  snaps: Snapshot[],
-  txs: Transaction[] = [],
-): void {
+export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const ACCTS = getACCTSList();
   const has = snaps.length > 0;
   document.getElementById('nw-empty')!.style.display = has ? 'none' : 'block';
@@ -217,52 +200,6 @@ export function renderNW(
 
   // Per-account CAGR map (keyed by accountId)
   const acctCagrMap = new Map(cagrPerAccount(snaps, accounts).map((r) => [r.accountId, r]));
-
-  // Extra KPIs: YoY + CAGR
-  const firstTotal = snaps.length > 0 ? snapTotal(snaps[0]) : 0;
-  const firstDate = snaps[0]?.date || '';
-  const latestDate = s.date || '';
-  const monthsSpan = _monthsDiff(firstDate, latestDate);
-
-  const yoyData = findYoYSnapshot(snaps);
-  const yoyAbs = yoyData ? total - yoyData.total : null;
-  const yoyPct =
-    yoyData && yoyData.total > 0 ? ((total - yoyData.total) / yoyData.total) * 100 : null;
-
-  const cagrVal = cagr(firstTotal, total, monthsSpan);
-  const twrVal = twr(snaps, pd?.monthly || {});
-  // Use all investment-type accounts for the IRR terminal value so multi-account
-  // portfolios are not understated. Falls back to null (IRR hidden) when no
-  // investment account has a snapshot value.
-  const latestInvestmentValue = allInvestmentAccountsValue(s, accounts);
-  const terminalDate = s.date && s.date.length === 7 ? `${s.date}-01` : s.date;
-  const investmentFlows = txs
-    .map((tx) => {
-      const date = tx.date && tx.date.length === 7 ? `${tx.date}-01` : tx.date;
-      if (!date) return null;
-      // Only BUY cash outflows are included. The current portfolio value (snapshot)
-      // already reflects the state after sells, so SELL proceeds must NOT be added
-      // here or they would be double-counted against the terminal value.
-      if (tx.type === 'BUY')
-        return { date, amount: -(Math.abs(tx.amount) + Math.abs(tx.fee || 0)) };
-      return null;
-    })
-    .filter((cf): cf is { date: string; amount: number } => !!cf);
-  if (latestInvestmentValue !== null) {
-    investmentFlows.push({ date: terminalDate, amount: latestInvestmentValue });
-  }
-  const irrVal = latestInvestmentValue !== null ? xirr(investmentFlows) : null;
-  const volatilityVal = annualizedVolatility(snaps);
-  const maxDDVal = maxDrawdown(snaps);
-  // Keep primaryInvestmentValue for the growth breakdown chart (contribution tracking
-  // still targets only the primary investment account).
-  const latestPrimaryValue = primaryInvestmentValue(s, accounts);
-
-  // Growth split (contributions vs market)
-  const growthPoints = pd
-    ? monthlyGrowthHistory(snaps, accounts, pd.monthly, primaryInvestmentValue)
-    : [];
-  _nwGrowthPoints = growthPoints;
 
   document.getElementById('nw-kpis')!.innerHTML = `
     <div class="kpi kpi-lead">
@@ -324,58 +261,6 @@ export function renderNW(
         <div class="kpi-sub">${lockedSub}</div>
       </div>`;
     })()}
-    ${
-      yoyAbs !== null
-        ? `
-      ${kpiTile({
-        label: `YoY${infoTip('Year-over-Year: Change in total net worth compared to the same month one year ago.')}`,
-        value: fmtEurSigned(yoyAbs, 2),
-        valueClass: yoyAbs >= 0 ? 'pos' : 'neg',
-        sub: `${yoyPct !== null ? fmtPctSigned(yoyPct) : '-'} vs ${fmtMon(yoyData!.snap.date)}`,
-      })}`
-        : ''
-    }
-    ${
-      cagrVal !== null
-        ? `
-      ${kpiTile({
-        label: `CAGR (balance)${infoTip('Compound annual growth rate of your total tracked net worth from your first recorded snapshot to today. This is a balance-growth metric, not a return on invested capital. See IRR for the investment return. Treat this number with caution until you have at least 2-3 years of history.')}`,
-        value: fmtPctNeg(cagrVal * 100),
-        valueClass: cagrVal >= 0 ? 'pos' : 'neg',
-        sub: `${monthsSpan} months${monthsSpan < 24 ? ' (early data)' : ''}`,
-      })}`
-        : ''
-    }
-    ${kpiTile({
-      label: `TWR${infoTip('Time-weighted return, linked across snapshot periods and net of recorded contributions. Measures investment performance per period, independently of how much money was contributed or when. TWR can be negative even when your total balance is positive: this happens when you made large deposits just before a recovery, so the gains came from your timing, not from the assets themselves performing well.')}`,
-      value: twrVal !== null ? fmtPctNeg(twrVal * 100) : '-',
-      valueClass: twrVal === null ? '' : twrVal >= 0 ? 'pos' : 'neg',
-      sub:
-        twrVal !== null
-          ? `${monthsSpan} months, not annualized${monthsSpan < 24 ? ' (early data)' : ''}`
-          : 'needs 2 snapshots and valid starting value',
-    })}
-    ${kpiTile({
-      label: `IRR (investments)${infoTip('Money-weighted annual return on invested capital (XIRR). Heavily influenced by the size and timing of your contributions: large deposits just before a good period inflate this number, while large deposits before a bad period deflate it. This figure is unstable and can swing wildly when history is under 2 years. Uses BUY cash outflows plus current primary investment value. SELL and dividend cash movements stay inside the account value and are not counted separately. If you sold positions and withdrew the proceeds from your tracked accounts, those cash flows are not modelled as inflows, and this figure may overstate your actual investment performance.')}`,
-      value: irrVal !== null ? fmtPctNeg(irrVal * 100) : '-',
-      valueClass: irrVal === null ? '' : irrVal >= 0 ? 'pos' : 'neg',
-      sub:
-        irrVal !== null
-          ? `XIRR, annualized${monthsSpan < 24 ? ' (early data, interpret with caution)' : ''}`
-          : 'needs complete cash-flow series',
-    })}
-    ${kpiTile({
-      label: `Volatility${infoTip('Annualized standard deviation of monthly net-worth percentage changes. Measures how much your total balance fluctuates month to month. Higher volatility means a bumpier ride. Computed from all available snapshots; early estimates are less stable.')}`,
-      value: volatilityVal !== null ? fmtPctNeg(volatilityVal * 100) : '-',
-      valueClass: '',
-      sub: volatilityVal !== null ? 'annualized, all history' : 'needs 3 snapshots',
-    })}
-    ${kpiTile({
-      label: `Max drawdown${infoTip('Largest peak-to-trough decline in total net worth across all recorded history, as a percentage of the prior peak. A value of -20% means your net worth fell 20% from a high point at some stage. Recoveries after the trough are not reflected here.')}`,
-      value: maxDDVal !== null ? (maxDDVal === 0 ? '0%' : fmtPctNeg(maxDDVal * 100)) : '-',
-      valueClass: maxDDVal === null ? '' : maxDDVal < 0 ? 'neg' : '',
-      sub: maxDDVal !== null ? 'all history, total net worth' : 'needs 2 snapshots',
-    })}
   `;
 
   const chartA = ACCTS.filter((a) => snaps.some((sn) => ((sn[a.key] as number) || 0) > 0));
@@ -472,12 +357,6 @@ export function renderNW(
   }
   if (s.notes) det += `<p class="note" style="margin-top:.5rem">${esc(s.notes)}</p>`;
   document.getElementById('nw-detail')!.innerHTML = det;
-
-  // Growth breakdown chart
-  _renderGrowthChart();
-
-  // Bind growth range toggle once
-  _attachNWGrowthRangeToggle();
 
   // Goal progress cards (one per named goal)
   _renderGoalCards();
@@ -604,123 +483,6 @@ function _bindLegendToggle(chart: Chart): void {
   if (!legendEl) return;
   // Index 0 = Total - always visible, never togglable.
   bindLegendToggle(legendEl, chart, { skipIndex: [0] });
-}
-
-// ── Growth breakdown chart (contributed vs market) ──
-
-function _renderGrowthChart(): void {
-  const C = resolvedT();
-  const el = document.getElementById('c-nw-growth');
-  if (!el) return;
-  _destroyChart('c-nw-growth');
-
-  if (_nwGrowthPoints.length === 0) {
-    // No resolvable history yet (e.g. no primary-investment account set, or <2 snapshots).
-    // Hide the parent card rather than render an empty chart.
-    const card = el.closest('.card') as HTMLElement | null;
-    if (card) card.style.display = 'none';
-    return;
-  }
-  const card = el.closest('.card') as HTMLElement | null;
-  if (card) card.style.display = '';
-
-  const view =
-    _nwGrowthRange === 'all' ? _nwGrowthPoints : _nwGrowthPoints.slice(-parseInt(_nwGrowthRange));
-
-  CH['c-nw-growth'] = new Chart(el as HTMLCanvasElement, {
-    type: 'bar',
-    data: {
-      labels: view.map((p) => fmtMon(p.month)),
-      datasets: [
-        {
-          label: 'Contributed',
-          data: view.map((p) => p.contributed),
-          backgroundColor: C.brand,
-          stack: 'growth',
-        },
-        {
-          label: 'Market movement',
-          data: view.map((p) => p.market),
-          backgroundColor: view.map((p) => (p.market >= 0 ? C.pos : C.neg)),
-          stack: 'growth',
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          mode: 'index',
-          intersect: false,
-          backgroundColor: C.surface,
-          ...TOOLTIP_BOX,
-          borderColor: C.line,
-          borderWidth: 1,
-          titleColor: C.ink,
-          bodyColor: C.ink2,
-          padding: 10,
-          cornerRadius: 8,
-          callbacks: {
-            label: (ctx) =>
-              ` ${ctx.dataset.label}: ${ctx.dataset.label === 'Contributed' ? fmtEur2(ctx.raw as number) : fmtEurSigned(ctx.raw as number, 2)}`,
-            labelColor: tooltipSwatch(C.surface),
-            footer: (items) =>
-              ` Total: ${fmtEurSigned(
-                items.reduce((s, i) => s + (i.raw as number), 0),
-                2,
-              )}`,
-          },
-          footerFont: { weight: 'bold' },
-        },
-      },
-      scales: {
-        y: {
-          stacked: true,
-          grid: { color: C.line },
-          ticks: {
-            color: C.ink4,
-            callback: (v) => '\u20AC' + (v as number).toFixed(0),
-          },
-        },
-        x: {
-          stacked: true,
-          grid: { display: false },
-          ticks: { color: C.ink2, font: { size: 10 }, maxRotation: 0, autoSkip: true },
-        },
-      },
-    },
-  });
-
-  // Build custom HTML legend and bind toggle
-  const legendEl = document.getElementById('nw-growth-legend');
-  if (legendEl) {
-    legendEl.innerHTML = renderLegendHtml([
-      { label: 'Contributed', color: C.brand },
-      { label: 'Market movement', color: C.pos, color2: C.neg },
-    ]);
-    bindLegendToggle(legendEl, CH['c-nw-growth'], { skipIndex: [] });
-  }
-}
-
-// ── Growth range toggle binding ──
-
-function _attachNWGrowthRangeToggle(): void {
-  const toggle = document.getElementById('nw-growth-range-toggle') as
-    (HTMLElement & { _bound?: boolean }) | null;
-  if (!toggle || toggle._bound) return;
-  toggle._bound = true;
-  toggle.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
-    if (!btn) return;
-    const newRange = (btn.dataset.range as '12' | '36' | 'all') || 'all';
-    if (newRange === _nwGrowthRange) return;
-    _nwGrowthRange = newRange;
-    toggle.querySelectorAll('.btn').forEach((b) => b.classList.remove('active'));
-    btn.classList.add('active');
-    _renderGrowthChart();
-  });
 }
 
 // ── Range toggle binding ──
@@ -1091,12 +853,4 @@ function _destroyChart(id: string): void {
     CH[id].destroy();
     delete CH[id];
   }
-}
-
-/** Months between two YYYY-MM date strings. */
-function _monthsDiff(a: string, b: string): number {
-  if (!a || !b) return 0;
-  const [ay, am] = a.split('-').map(Number);
-  const [by, bm] = b.split('-').map(Number);
-  return (by - ay) * 12 + (bm - am);
 }
