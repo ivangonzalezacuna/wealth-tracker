@@ -332,7 +332,7 @@ export function renderAnalytics(
         label: `Sharpe${infoTip('(CAGR minus risk-free rate) divided by annualized volatility. Measures return per unit of total risk. Configure the risk-free rate in Settings.')}`,
         value: sharpe !== null ? sharpe.toFixed(2) : '-',
         valueClass: '',
-        sub: sharpe !== null ? `rf = ${(riskFreeRate * 100).toFixed(1)}%` : 'needs 12+ months',
+        sub: sharpe !== null ? `rf = ${(riskFreeRate * 100).toFixed(2)}%` : 'needs 12+ months',
       })}
       ${kpiTile({
         label: `Sortino${infoTip('Like Sharpe, but uses only downside volatility (negative months). Higher Sortino than Sharpe means your losses are smaller than your gains. For quant and FIRE investors.')}`,

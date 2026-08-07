@@ -50,6 +50,7 @@ type CardKey =
   | 'cost-basis'
   | 'goal'
   | 'alerts'
+  | 'analytics'
   | 'rules'
   | 'cache'
   | 'backup'
@@ -162,6 +163,7 @@ export function renderSettings(): void {
     ${renderCostBasisCard(settings)}
     ${renderGoalCard(settings)}
     ${renderAlertsCard(settings)}
+    ${renderAnalyticsCard(settings)}
     ${renderRulesCard(settings)}
     ${renderCacheCard()}
     ${renderBackupCard()}
@@ -173,6 +175,7 @@ export function renderSettings(): void {
   attachCostBasisListeners(el);
   attachGoalListeners(el);
   attachAlertsListeners(el);
+  attachAnalyticsListeners(el);
   attachRulesListeners(el);
   attachCacheListeners(el);
   attachBackupListeners(el);
@@ -1207,7 +1210,6 @@ function attachGoalListeners(root: HTMLElement): void {
 function renderAlertsCard(_settings: Settings): string {
   const alertSettings = getAlertSettings();
   const threshold = alertSettings.driftThresholdPct || 5;
-  const riskFreeRate = parseFloat(_settings.riskFreeRate || '2');
   return `
     <div class="card card-collapsible" id="settings-card-alerts" data-card-key="alerts">
       <div class="card-header js-card-toggle">
@@ -1228,26 +1230,9 @@ function renderAlertsCard(_settings: Settings): string {
             value="${threshold}"
             min="1"
             max="20"
-            step="0.5"
+            step="0.01"
             style="width:100px"
             placeholder="5"
-          />
-        </div>
-        <div class="settings-field" style="margin-top:.75rem">
-          <label class="settings-field-label" for="alert-risk-free-rate">
-            Risk-free rate (%)
-            ${infoTip('Annual risk-free rate used in Sharpe and Sortino ratio calculations on the Analytics tab. Typically the yield on short-term government bonds (e.g. 3-month T-bills).')}
-          </label>
-          <input
-            type="number"
-            id="alert-risk-free-rate"
-            class="form-input form-input-sm"
-            value="${riskFreeRate}"
-            min="0"
-            max="20"
-            step="0.1"
-            style="width:100px"
-            placeholder="2"
           />
         </div>
         <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
@@ -1262,16 +1247,10 @@ function attachAlertsListeners(root: HTMLElement): void {
   root.querySelector('#btn-save-alerts')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-alerts') as HTMLButtonElement;
     const input = root.querySelector('#alert-drift-threshold') as HTMLInputElement;
-    const rfrInput = root.querySelector('#alert-risk-free-rate') as HTMLInputElement;
     const value = parseFloat(input.value);
-    const rfrValue = parseFloat(rfrInput.value);
 
     if (isNaN(value) || value < 1 || value > 20) {
       showMsg('alerts-msg', 'Threshold must be between 1 and 20', false);
-      return;
-    }
-    if (isNaN(rfrValue) || rfrValue < 0 || rfrValue > 20) {
-      showMsg('alerts-msg', 'Risk-free rate must be between 0 and 20', false);
       return;
     }
 
@@ -1283,7 +1262,6 @@ function attachAlertsListeners(root: HTMLElement): void {
         () =>
           setSettings({
             alerts: JSON.stringify(alertSettings),
-            riskFreeRate: String(rfrValue),
           }),
         {
           busyText: 'Saving...',
@@ -1296,6 +1274,68 @@ function attachAlertsListeners(root: HTMLElement): void {
       }
     } catch (err) {
       showMsg('alerts-msg', 'Error: ' + (err as Error).message, false);
+    }
+  });
+}
+
+// ── Analytics settings ───────────────────────────────────
+
+function renderAnalyticsCard(settings: Settings): string {
+  const riskFreeRate = parseFloat(settings.riskFreeRate || '2');
+  return `
+    <div class="card card-collapsible" id="settings-card-analytics" data-card-key="analytics">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Analytics</div>
+        <span class="card-chevron"></span>
+      </div>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.75rem">Configure parameters used in performance and risk calculations.</p>
+        <div class="settings-field">
+          <label class="settings-field-label" for="analytics-risk-free-rate">
+            Risk-free rate (%)
+            ${infoTip('Annual risk-free rate used in Sharpe and Sortino ratio calculations on the Analytics tab. Typically the yield on short-term government bonds (e.g. 3-month T-bills).')}
+          </label>
+          <input
+            type="number"
+            id="analytics-risk-free-rate"
+            class="form-input form-input-sm"
+            value="${riskFreeRate}"
+            min="0"
+            max="20"
+            step="0.01"
+            style="width:100px"
+            placeholder="2"
+          />
+        </div>
+        <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm" id="btn-save-analytics">Save</button>
+          <span id="analytics-msg" style="font-size:12px;line-height:28px"></span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function attachAnalyticsListeners(root: HTMLElement): void {
+  root.querySelector('#btn-save-analytics')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-save-analytics') as HTMLButtonElement;
+    const rfrInput = root.querySelector('#analytics-risk-free-rate') as HTMLInputElement;
+    const rfrValue = parseFloat(rfrInput.value);
+
+    if (isNaN(rfrValue) || rfrValue < 0 || rfrValue > 20) {
+      showMsg('analytics-msg', 'Risk-free rate must be between 0 and 20', false);
+      return;
+    }
+
+    try {
+      await withCardGuard(
+        'analytics',
+        btn,
+        () => setSettings({ riskFreeRate: String(rfrValue) }),
+        { busyText: 'Saving...' },
+      );
+      showMsg('analytics-msg', 'Saved', true);
+    } catch (err) {
+      showMsg('analytics-msg', 'Error: ' + (err as Error).message, false);
     }
   });
 }
