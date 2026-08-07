@@ -174,12 +174,10 @@ const DOM_FIXTURE = `
     <div id="port-kpis"></div>
     <div id="port-table-header"></div>
     <div id="port-table"></div>
-    <canvas id="c-port-donut"></canvas>
-    <div id="port-donut-legend"></div>
-    <canvas id="c-port-alloc-class"></canvas>
-    <div id="port-alloc-class-legend"></div>
-    <canvas id="c-port-alloc-region"></canvas>
-    <div id="port-alloc-region-legend"></div>
+    <canvas id="c-port-active-donut"></canvas>
+    <div id="port-active-donut-legend"></div>
+    <canvas id="c-port-all-donut"></canvas>
+    <div id="port-all-donut-legend"></div>
     <div id="port-summary"></div>
     <div id="port-drift"></div>
     <div id="port-pagination"></div>
@@ -348,15 +346,15 @@ describe('renderPortfolio', () => {
 
   it('creates allocation charts on first render', () => {
     renderPortfolio(makePD(), []);
-    expect(chartInstances.length).toBe(1);
+    expect(chartInstances.length).toBe(2);
     expect(chartInstances[0].destroyed).toBe(false);
   });
 
   it('destroys the prior chart and creates a new one on re-render', () => {
     renderPortfolio(makePD(), []);
-    expect(chartInstances.length).toBe(1);
-    renderPortfolio(makePD(), []);
     expect(chartInstances.length).toBe(2);
+    renderPortfolio(makePD(), []);
+    expect(chartInstances.length).toBe(4);
     expect(chartInstances[0].destroyed).toBe(true);
   });
 
@@ -391,9 +389,8 @@ describe('renderPortfolio', () => {
     });
     renderPortfolio(pd, []);
 
-    const labels = (chartInstances[0].config as { data: { labels: [string, string][] } }).data
-      .labels;
-    expect(labels.map((l) => l[0])).toEqual(['IWDA', 'EIMI', 'BOND']);
+    const labels = (chartInstances[0].config as { data: { labels: string[] } }).data.labels;
+    expect(labels).toEqual(['IWDA', 'EIMI', 'BOND']);
 
     const rows = Array.from(
       document.querySelectorAll('#port-table .hold-row:not(.th) .hold-name'),
@@ -608,33 +605,25 @@ describe('renderPortfolio', () => {
 
   it('chart config contains the correct labels and data', () => {
     renderPortfolio(makePD(), []);
-    expect(chartInstances.length).toBe(1);
+    expect(chartInstances.length).toBe(2);
     const config = chartInstances[0].config as {
-      data: { labels: [string, string][]; datasets: unknown[] };
+      data: { labels: string[]; datasets: unknown[] };
     };
-    expect(config.data.labels.map((l) => l[0])).toContain('IWDA');
+    expect(config.data.labels).toContain('IWDA');
     expect(config.data.datasets[0]).toHaveProperty('data');
   });
 
-  it('uses a square leading edge and the existing trailing radius for allocation bars', () => {
+  it('uses a doughnut chart type for cost basis allocation', () => {
     renderPortfolio(makePD(), []);
-    const config = chartInstances[0].config as {
-      data: { datasets: Array<{ borderRadius: unknown; borderSkipped: unknown }> };
-    };
-    expect(config.data.datasets[0].borderRadius).toEqual({
-      topLeft: 0,
-      bottomLeft: 0,
-      topRight: 4,
-      bottomRight: 4,
-    });
-    expect(config.data.datasets[0].borderSkipped).toBe(false);
+    const config = chartInstances[0].config as { type: string };
+    expect(config.type).toBe('doughnut');
   });
 
-  it('renders donut legend with short name and percentage', () => {
+  it('renders active donut legend with short name and value', () => {
     renderPortfolio(makePD(), []);
-    const legend = document.getElementById('port-donut-legend')!.textContent!;
+    const legend = document.getElementById('port-active-donut-legend')!.textContent!;
     expect(legend).toContain('IWDA');
-    expect(legend).toContain('100%');
+    expect(legend).toContain('1.000');
   });
 
   it('integrates allocation percentage into the cost basis cell', () => {

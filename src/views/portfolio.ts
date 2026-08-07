@@ -20,7 +20,7 @@ import { computeDrift, maxDrift, computeRebalancePlan } from '../model/drift';
 import { builtInProfiles } from '../import/profiles/index';
 import type { PortfolioData, Snapshot, EtfPosition, ContribInterval } from '../types';
 import Chart from 'chart.js/auto';
-import { T, R, resolvedT } from '../theme';
+import { T, resolvedT } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { attachEtfPopovers } from '../ui/etfPopover';
 import type { SortState } from './tableSort';
@@ -28,7 +28,7 @@ import { applySort, bindSortableHeader } from './tableSort';
 import { renderPagination } from './pagination';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow, getSortGetters } from './tableColumns';
-import { TOOLTIP_BOX, renderLegendHtml, tooltipSwatch } from './chartLegend';
+import { TOOLTIP_BOX, renderLegendHtml } from './chartLegend';
 
 const CH: Record<string, Chart> = {};
 
@@ -538,94 +538,15 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   // Render holdings table (filter-dependent)
   renderHoldingsTable(pd, snaps);
 
-  // Bar chart - all positions (open and closed) with cost > 0
-  const donutE = allEtfs.filter((e) => e.cost > 0).sort((a, b) => b.cost - a.cost);
-  const donutTotal = donutE.reduce((s, e) => s + e.cost, 0);
+  // Cost basis donut charts - active (held) and all (including closed)
+  const activeE = held.filter((e) => e.cost > 0).sort((a, b) => b.cost - a.cost);
+  const activeTotal = activeE.reduce((s, e) => s + e.cost, 0);
+  const allDonutE = allEtfs.filter((e) => e.cost > 0).sort((a, b) => b.cost - a.cost);
+  const allTotal = allDonutE.reduce((s, e) => s + e.cost, 0);
   const C = resolvedT();
-  if (CH['c-port-donut']) {
-    CH['c-port-donut'].destroy();
-  }
-  CH['c-port-donut'] = new Chart(document.getElementById('c-port-donut') as HTMLCanvasElement, {
-    type: 'bar',
-    data: {
-      labels: donutE.map((e) => [e.shortName, fmtEur(e.cost)]),
-      datasets: [
-        {
-          data: donutE.map((e) => e.cost),
-          backgroundColor: donutE.map((e) => safeColor(e.color)),
-          borderColor: donutE.map((e) => safeColor(e.color)),
-          borderWidth: 1,
-          borderRadius: {
-            topLeft: R.none,
-            bottomLeft: R.none,
-            topRight: R.xs,
-            bottomRight: R.xs,
-          },
-          borderSkipped: false,
-        },
-      ],
-    },
-    options: {
-      indexAxis: 'y',
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: C.surface,
-          ...TOOLTIP_BOX,
-          borderColor: C.line,
-          borderWidth: 1,
-          titleColor: C.ink,
-          bodyColor: C.ink2,
-          footerColor: C.ink4,
-          footerFont: { weight: 'normal' as const, size: 10 },
-          footerMarginTop: 6,
-          padding: 10,
-          cornerRadius: 8,
-          callbacks: {
-            label: (ctx) => ` ${fmtEur(ctx.raw as number)}`,
-            labelColor: tooltipSwatch(C.surface),
-            footer: (items) => {
-              if (!items.length) return '';
-              const idx = items[0].dataIndex;
-              const e = donutE[idx];
-              if (!e) return '';
-              const h = getHoldings().find((x) => x.isin === e.isin);
-              const name = h?.name || e.name || '';
-              const lines: string[] = [];
-              if (name) lines.push(name);
-              lines.push(e.isin);
-              return lines;
-            },
-          },
-        },
-      },
-      scales: {
-        x: {
-          grid: { color: C.line },
-          ticks: {
-            color: C.ink4,
-            callback: (v) => ((v as number) / 1000).toFixed(0) + 'k\u00A0\u20AC',
-          },
-        },
-        y: {
-          grid: { display: false },
-          ticks: {
-            color: (ctx) => (ctx.index % 2 === 1 ? C.ink4 : C.ink2),
-            font: (ctx) => ({ size: ctx.index % 2 === 1 ? 10 : 12 }),
-          },
-        },
-      },
-    },
-  });
-  document.getElementById('port-donut-legend')!.innerHTML = renderLegendHtml(
-    donutE.map((e) => ({
-      label: e.shortName,
-      meta: donutTotal > 0 ? fmtPctVal((e.cost / donutTotal) * 100) : '0%',
-      color: e.color,
-    })),
-  );
+
+  _renderPortDonut('c-port-active-donut', 'port-active-donut-legend', activeE, activeTotal, C);
+  _renderPortDonut('c-port-all-donut', 'port-all-donut-legend', allDonutE, allTotal, C);
 
   const mvRow =
     snapMarketValue !== null
@@ -948,4 +869,69 @@ export function getMaxDrift(pd: PortfolioData | null, snaps: Snapshot[]): number
   );
   if (drift.length === 0) return null;
   return maxDrift(drift);
+}
+
+/** Renders a cost-basis donut chart and its legend for the holdings view. */
+function _renderPortDonut(
+  canvasId: string,
+  legendId: string,
+  etfs: EtfPosition[],
+  total: number,
+  C: ReturnType<typeof resolvedT>,
+): void {
+  if (CH[canvasId]) {
+    CH[canvasId].destroy();
+  }
+  const el = document.getElementById(canvasId) as HTMLCanvasElement | null;
+  if (!el) return;
+
+  CH[canvasId] = new Chart(el, {
+    type: 'doughnut',
+    data: {
+      labels: etfs.map((e) => e.shortName),
+      datasets: [
+        {
+          data: etfs.map((e) => e.cost),
+          backgroundColor: etfs.map((e) => safeColor(e.color)),
+          borderColor: etfs.map((e) => safeColor(e.color)),
+          borderWidth: 2,
+          hoverOffset: 4,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '62%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: C.surface,
+          ...TOOLTIP_BOX,
+          borderColor: C.line,
+          borderWidth: 1,
+          titleColor: C.ink,
+          bodyColor: C.ink2,
+          padding: 10,
+          cornerRadius: 8,
+          callbacks: {
+            label: (ctx) => {
+              const pct = total > 0 ? ((Number(ctx.raw) / total) * 100).toFixed(1) : '0';
+              return ` ${esc(String(ctx.label))}: ${fmtEur(Number(ctx.raw))} (${pct}%)`;
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const legendEl = document.getElementById(legendId);
+  if (legendEl) {
+    legendEl.innerHTML = renderLegendHtml(
+      etfs.map((e) => ({
+        label: `${e.shortName}: ${fmtEur(e.cost)}`,
+        color: e.color,
+      })),
+    );
+  }
 }

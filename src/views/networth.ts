@@ -1275,10 +1275,7 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
       if (annualByYear.has(y)) continue;
       const monthsForYear = returnSeries.filter((r) => r.year === y);
       if (monthsForYear.length === 0) continue;
-      compoundedByYear.set(
-        y,
-        monthsForYear.reduce((prod, r) => prod * (1 + r.ret), 1) - 1,
-      );
+      compoundedByYear.set(y, monthsForYear.reduce((prod, r) => prod * (1 + r.ret), 1) - 1);
     }
 
     const cellStyle = (ret: number | undefined, isAnnual = false): string => {
@@ -1310,7 +1307,7 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
         .join(';');
     };
 
-    const gridCols = `grid-template-columns:44px repeat(12,40px) 62px`;
+    const gridCols = `grid-template-columns:3.5rem repeat(12,1fr) 4.5rem`;
 
     const header = `<div style="display:grid;${gridCols};gap:2px;align-items:end;margin-bottom:3px;padding:0 2px">
       <div style="font-size:10px;color:${C.ink3};font-weight:500;padding-bottom:2px">Year</div>
@@ -1324,7 +1321,10 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
           const ret = byKey.get(`${y}-${i + 1}`);
           const style = cellStyle(ret);
           const txt = ret !== undefined ? fmtPctNeg(ret * 100) : '';
-          return `<div style="padding:4px 1px;font-size:10px;text-align:center;${style};font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden">${txt}</div>`;
+          const info = txt ? `${MONTH_LABELS[i]} ${y}: ${txt}` : '';
+          const titleAttr = info ? ` title="${info}"` : '';
+          const dataAttr = info ? ` data-info="${info}"` : '';
+          return `<div${titleAttr}${dataAttr} style="padding:5px 1px;${style};cursor:${info ? 'pointer' : 'default'}"></div>`;
         });
         const annualRet = annualByYear.get(y) ?? compoundedByYear.get(y);
         const annualStyle = cellStyle(annualRet, true);
@@ -1362,7 +1362,9 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
       <span style="font-size:10px;color:${C.ink3}">gain</span>
     </div>`;
 
-    return `<div style="overflow-x:auto;margin-top:.5rem;padding-bottom:.25rem"><div style="min-width:586px">${header}${rows}${legend}</div></div>`;
+    const infoBar = `<div data-heatmap-info style="font-size:12px;min-height:1.4em;color:${C.ink2};margin-top:6px;padding:0 2px;text-align:center"></div>`;
+
+    return `<div data-heatmap-container style="margin-top:.5rem">${header}${rows}${legend}${infoBar}</div>`;
   })();
 
   // ── Level 3: Advanced Analytics card ──
@@ -1521,7 +1523,7 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
       ${
         hasEnough12
           ? `<div style="font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-top:1rem;margin-bottom:.15rem">Monthly Return Heatmap</div>
-           <p class="note" style="margin-bottom:.25rem">Each cell shows the net-worth return for that month. The rightmost column shows the compounded annual total.</p>
+           <p class="note" style="margin-bottom:.25rem">Color intensity shows return magnitude. Click a cell to see its value; the rightmost column shows the compounded annual total.</p>
            ${heatmapHtml}`
           : ''
       }
@@ -1540,6 +1542,17 @@ function _renderAnalyticsCards(snaps: Snapshot[], txs: Transaction[]): void {
       </div>
     </div>
   `;
+
+  // Attach heatmap cell click listener
+  const heatmapContainer = el.querySelector('[data-heatmap-container]') as HTMLElement | null;
+  const heatmapInfoEl = el.querySelector('[data-heatmap-info]') as HTMLElement | null;
+  if (heatmapContainer && heatmapInfoEl) {
+    heatmapContainer.addEventListener('click', (ev) => {
+      const cell = (ev.target as HTMLElement).closest('[data-info]') as HTMLElement | null;
+      if (!cell) return;
+      heatmapInfoEl.textContent = cell.dataset.info ?? '';
+    });
+  }
 
   // Attach collapse toggle for the advanced analytics card
   const advCard = document.getElementById('nw-advanced-analytics-card');
@@ -1874,9 +1887,8 @@ function _renderAllocationCard(
     if (legendEl) {
       legendEl.innerHTML = renderLegendHtml(
         acctData.map((d) => ({
-          label: d.label,
+          label: `${d.label}: ${fmtEur(d.value)}`,
           color: d.color,
-          meta: acctTotal > 0 ? ((d.value / acctTotal) * 100).toFixed(1) + '%' : '0%',
         })),
       );
     }
@@ -1965,9 +1977,8 @@ function _renderAllocationDonut(
   if (legendEl) {
     legendEl.innerHTML = renderLegendHtml(
       entries.map(([label], i) => ({
-        label: normalizeLabel(label),
+        label: `${normalizeLabel(label)}: ${fmtEur(entries[i][1])}`,
         color: colors[i],
-        meta: total > 0 ? ((entries[i][1] / total) * 100).toFixed(1) + '%' : '0%',
       })),
     );
   }

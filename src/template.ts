@@ -92,16 +92,24 @@ export function appTemplate(): string {
         <div class="tbl" role="table" aria-label="Holdings"><div id="port-table"></div></div>
         <div id="port-pagination" class="pagination"></div>
       </div>
-      <div class="two-col">
-        <div class="card">
-          <div class="card-title">Cost basis allocation</div>
-          <div id="port-donut-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm"><canvas id="c-port-donut"></canvas></div>
+      <div class="card">
+        <div class="card-title">Cost basis allocation</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+          <div style="flex:1;min-width:150px">
+            <div style="font-size:11px;color:var(--ink-3);margin-bottom:4px">Active</div>
+            <div id="port-active-donut-legend" class="legend" style="font-size:11px;margin-bottom:4px"></div>
+            <div class="chart-wrap" style="height:130px"><canvas id="c-port-active-donut"></canvas></div>
+          </div>
+          <div style="flex:1;min-width:150px">
+            <div style="font-size:11px;color:var(--ink-3);margin-bottom:4px">All (incl. closed)</div>
+            <div id="port-all-donut-legend" class="legend" style="font-size:11px;margin-bottom:4px"></div>
+            <div class="chart-wrap" style="height:130px"><canvas id="c-port-all-donut"></canvas></div>
+          </div>
         </div>
-        <div class="card">
-          <div class="card-title">Summary</div>
-          <div id="port-summary"></div>
-        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Summary</div>
+        <div id="port-summary"></div>
       </div>
       <div id="port-drift"></div>
     </div>
