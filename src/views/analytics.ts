@@ -58,8 +58,6 @@ let _heatmapPage = 0;
 const _allocMode: Record<string, 'active' | 'all'> = {
   class: 'active',
   region: 'active',
-  sector: 'active',
-  currency: 'active',
 };
 
 function _destroyChart(id: string): void {
@@ -745,10 +743,10 @@ function _heatmapTextColor(intensity: number, weightedReturn: number): string {
 
 // ── Allocation donuts ──────────────────────────────────────
 
-type AllocDim = 'class' | 'acct' | 'region' | 'sector' | 'currency';
+type AllocDim = 'class' | 'acct' | 'region';
 
 function _renderAllocationDonuts(holdings: Holding[], pd: PortfolioData | null): void {
-  const dims: AllocDim[] = ['acct', 'class', 'region', 'sector', 'currency'];
+  const dims: AllocDim[] = ['acct', 'class', 'region'];
   for (const dim of dims) {
     _renderAllocDonut(dim, holdings, pd);
     _attachAllocToggle(dim);
@@ -758,7 +756,7 @@ function _renderAllocationDonuts(holdings: Holding[], pd: PortfolioData | null):
 function _getHoldingSlices(
   holdings: Holding[],
   pd: PortfolioData | null,
-  dim: Exclude<AllocDim, 'acct' | 'currency'>,
+  dim: Exclude<AllocDim, 'acct'>,
   mode: 'active' | 'all',
 ): { label: string; value: number; color: string }[] {
   if (!pd) return [];
@@ -771,12 +769,7 @@ function _getHoldingSlices(
     if (!pos) continue;
     const value = pos.cost || 0;
     if (value <= 0) continue;
-    const key =
-      dim === 'class'
-        ? h.assetClass || 'Other'
-        : dim === 'sector'
-          ? h.sector || 'Other'
-          : h.region || 'Other';
+    const key = dim === 'class' ? h.assetClass || 'Other' : h.region || 'Other';
     const normalized = key.charAt(0).toUpperCase() + key.slice(1);
     const existing = buckets.get(normalized);
     if (existing) {
@@ -814,72 +807,23 @@ function _getAccountSlices(
     .sort((a, b) => b.value - a.value);
 }
 
-function _getCurrencySlices(
-  txs: Transaction[],
-  mode: 'active' | 'all',
-  holdings: Holding[],
-): { label: string; value: number; color: string }[] {
-  const activeIsins =
-    mode === 'active' ? new Set(holdings.filter((h) => h.active).map((h) => h.isin)) : null;
-  const buckets = new Map<string, number>();
-  for (const tx of txs) {
-    if (tx.type !== 'BUY') continue;
-    if (activeIsins && !activeIsins.has(tx.isin)) continue;
-    const cur = tx.currency || 'EUR';
-    buckets.set(cur, (buckets.get(cur) || 0) + Math.abs(tx.amount));
-  }
-  const CURRENCY_COLORS: Record<string, string> = {
-    EUR: '#2a78d6',
-    USD: '#1baf7a',
-    GBP: '#9b59b6',
-    CHF: '#e67e22',
-    JPY: '#e74c3c',
-    SEK: '#3498db',
-    DKK: '#27ae60',
-    NOK: '#8e44ad',
-  };
-  return Array.from(buckets.entries())
-    .map(([label, value], i) => ({
-      label,
-      value,
-      color: CURRENCY_COLORS[label] || `hsl(${(i * 60) % 360}, 60%, 50%)`,
-    }))
-    .sort((a, b) => b.value - a.value);
-}
-
 function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData | null): void {
   const mode = _allocMode[dim];
   let slices: { label: string; value: number; color: string }[] = [];
 
   if (dim === 'acct') {
     slices = _getAccountSlices(_lastSnaps, mode);
-  } else if (dim === 'currency') {
-    slices = _getCurrencySlices(_lastTxs, mode, holdings);
   } else {
-    slices = _getHoldingSlices(holdings, pd, dim as Exclude<AllocDim, 'acct' | 'currency'>, mode);
+    slices = _getHoldingSlices(holdings, pd, dim as Exclude<AllocDim, 'acct'>, mode);
   }
 
   const canvasId = `c-an-alloc-${dim}`;
   const legendId = `an-alloc-${dim}-legend`;
-  const cardId =
-    dim === 'sector'
-      ? 'an-alloc-sector-card'
-      : dim === 'currency'
-        ? 'an-alloc-currency-card'
-        : null;
 
   // Hide card if no data; destroy any previous chart to avoid stale display
   if (slices.length === 0) {
     _destroyChart(canvasId);
-    if (cardId) {
-      const cardEl = document.getElementById(cardId);
-      if (cardEl) cardEl.style.display = 'none';
-    }
     return;
-  }
-  if (cardId) {
-    const cardEl = document.getElementById(cardId);
-    if (cardEl) cardEl.style.display = '';
   }
 
   const total = slices.reduce((s, x) => s + x.value, 0);
@@ -905,17 +849,12 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
       let otherModeHasMore = false;
       if (dim !== 'acct') {
         const otherMode = mode === 'active' ? 'all' : 'active';
-        let otherSlices: { label: string; value: number; color: string }[] = [];
-        if (dim === 'currency') {
-          otherSlices = _getCurrencySlices(_lastTxs, otherMode, holdings);
-        } else {
-          otherSlices = _getHoldingSlices(
-            holdings,
-            pd,
-            dim as Exclude<AllocDim, 'acct' | 'currency'>,
-            otherMode,
-          );
-        }
+        const otherSlices = _getHoldingSlices(
+          holdings,
+          pd,
+          dim as Exclude<AllocDim, 'acct'>,
+          otherMode,
+        );
         otherModeHasMore = otherSlices.length > 1;
       }
 

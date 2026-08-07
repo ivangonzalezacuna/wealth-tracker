@@ -256,21 +256,6 @@ export function appTemplate(): string {
           <div id="an-alloc-region-legend" class="legend"></div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-region"></canvas></div>
         </div>
-        <div class="card" id="an-alloc-sector-card">
-          <div class="card-title">Allocation by sector</div>
-          <div id="an-alloc-sector-toggle-wrap" class="chart-controls"></div>
-          <div id="an-alloc-sector-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-sector"></canvas></div>
-        </div>
-      </div>
-
-      <div class="two-col">
-        <div class="card" id="an-alloc-currency-card">
-          <div class="card-title">Allocation by currency</div>
-          <div id="an-alloc-currency-toggle-wrap" class="chart-controls"></div>
-          <div id="an-alloc-currency-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-currency"></canvas></div>
-        </div>
       </div>
     </div>
 
@@ -306,7 +291,7 @@ export function appTemplate(): string {
               'The biggest drop your portfolio has ever taken from a peak before recovering. A max drawdown of −20% means your portfolio fell 20% at its worst moment.',
               'A well-diversified portfolio typically sees max drawdowns of −10% to −30%; less than −10% is very resilient.',
               'How to reduce it',
-              'Add defensive assets (bonds, cash, gold) or diversify across regions and sectors so that different parts of your portfolio fall at different times.',
+              'Add defensive assets (bonds, cash, gold) or diversify across regions so that different parts of your portfolio fall at different times.',
             )}
             ${metricExplainerCard(
               '⚖️',
