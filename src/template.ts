@@ -130,6 +130,8 @@ export function appTemplate(): string {
         <div class="chart-controls">
           <div id="dca-legend" class="legend"></div>
           ${rangeToggleHtml('dca-range-toggle', 'Contributions range')}
+        </div>
+        <div class="chart-wrap chart-h-lg"><canvas id="c-dca-bar"></canvas></div>
       </div>
       <div class="two-col">
         <div class="card">
