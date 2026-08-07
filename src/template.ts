@@ -90,18 +90,6 @@ export function appTemplate(): string {
           <div id="port-summary"></div>
         </div>
       </div>
-      <div class="two-col">
-        <div class="card">
-          <div class="card-title">Allocation by asset class</div>
-          <div id="port-alloc-class-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm"><canvas id="c-port-alloc-class"></canvas></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Allocation by region</div>
-          <div id="port-alloc-region-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm"><canvas id="c-port-alloc-region"></canvas></div>
-        </div>
-      </div>
       <div id="port-drift"></div>
     </div>
   </div>
@@ -237,37 +225,28 @@ export function appTemplate(): string {
 
       <div class="two-col">
         <div class="card">
-          <div class="card-title">
-            Allocation by asset class
-            <span id="an-alloc-class-toggle-wrap" style="margin-left:8px"></span>
-          </div>
-          <div id="an-alloc-class-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-class"></canvas></div>
-        </div>
-        <div class="card">
-          <div class="card-title">
-            Allocation by account
-            <span id="an-alloc-acct-toggle-wrap" style="margin-left:8px"></span>
-          </div>
+          <div class="card-title">Allocation by account</div>
           <div id="an-alloc-acct-legend" class="legend"></div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-acct"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Allocation by asset class</div>
+          <div id="an-alloc-class-toggle-wrap"></div>
+          <div id="an-alloc-class-legend" class="legend"></div>
+          <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-class"></canvas></div>
         </div>
       </div>
 
       <div class="two-col">
         <div class="card">
-          <div class="card-title">
-            Allocation by region
-            <span id="an-alloc-region-toggle-wrap" style="margin-left:8px"></span>
-          </div>
+          <div class="card-title">Allocation by region</div>
+          <div id="an-alloc-region-toggle-wrap"></div>
           <div id="an-alloc-region-legend" class="legend"></div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-region"></canvas></div>
         </div>
         <div class="card" id="an-alloc-sector-card">
-          <div class="card-title">
-            Allocation by sector
-            <span id="an-alloc-sector-toggle-wrap" style="margin-left:8px"></span>
-          </div>
+          <div class="card-title">Allocation by sector</div>
+          <div id="an-alloc-sector-toggle-wrap"></div>
           <div id="an-alloc-sector-legend" class="legend"></div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-sector"></canvas></div>
         </div>
@@ -275,10 +254,8 @@ export function appTemplate(): string {
 
       <div class="two-col">
         <div class="card" id="an-alloc-currency-card">
-          <div class="card-title">
-            Allocation by currency
-            <span id="an-alloc-currency-toggle-wrap" style="margin-left:8px"></span>
-          </div>
+          <div class="card-title">Allocation by currency</div>
+          <div id="an-alloc-currency-toggle-wrap"></div>
           <div id="an-alloc-currency-legend" class="legend"></div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-currency"></canvas></div>
         </div>
@@ -286,9 +263,9 @@ export function appTemplate(): string {
     </div>
 
     <!-- Level 3: Advanced Analytics (collapsible) -->
-    <details id="an-advanced" class="card" style="margin-top:1rem">
+    <details id="an-advanced" class="card card-collapsible" style="margin-top:.5rem">
       <summary style="cursor:pointer;font-weight:500;font-size:14px;padding:.25rem 0;list-style:none;display:flex;align-items:center;gap:6px">
-        <span id="an-advanced-arrow" style="font-size:10px;transition:transform .15s">▶</span>
+        <span class="card-chevron" id="an-advanced-arrow"></span>
         Advanced Analytics
         <span id="an-advanced-gate" style="font-size:11px;color:var(--ink-3);font-weight:400;margin-left:4px"></span>
       </summary>

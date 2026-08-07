@@ -207,5 +207,12 @@ export function kpiTile(opts: {
 }): string {
   const cls = opts.valueClass ? ` ${opts.valueClass}` : '';
   const sub = opts.sub ? `<div class="kpi-sub">${opts.sub}</div>` : '';
-  return `<div class="kpi"><div class="kpi-label">${opts.label}</div><div class="kpi-val${cls}">${opts.value}</div>${sub}</div>`;
+  // Separate any trailing info-tip span from the label text so the label layout
+  // can use flexbox without the badge ever wrapping to a new line.
+  const tipIdx = opts.label.indexOf('<span class="info-tip"');
+  const labelHtml =
+    tipIdx >= 0
+      ? `<span class="kpi-label-text">${opts.label.slice(0, tipIdx)}</span>${opts.label.slice(tipIdx)}`
+      : `<span class="kpi-label-text">${opts.label}</span>`;
+  return `<div class="kpi"><div class="kpi-label">${labelHtml}</div><div class="kpi-val${cls}">${opts.value}</div>${sub}</div>`;
 }

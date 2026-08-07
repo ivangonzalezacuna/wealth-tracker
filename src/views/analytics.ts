@@ -139,6 +139,9 @@ export function renderAnalytics(
   }
   const irrVal = latestInvestmentValue !== null ? xirr(investmentFlows) : null;
 
+  // Net worth absolute gain (always available once we have 2+ snapshots)
+  const netWorthGainVal = snaps.length >= 2 ? total - firstTotal : null;
+
   document.getElementById('an-kpis-l1')!.innerHTML = `
     ${kpiTile({
       label: `Total Return${infoTip('Total percentage gain or loss from your first snapshot to today. Measures balance growth, not investment performance. For a cash-flow adjusted return, see IRR.')}`,
@@ -147,14 +150,28 @@ export function renderAnalytics(
       sub: totalReturnVal !== null ? `since ${fmtMon(firstDate)}` : 'needs 2 snapshots',
     })}
     ${
+      netWorthGainVal !== null
+        ? kpiTile({
+            label: `Net Worth Gain${infoTip('Total net worth today minus total net worth at your first snapshot. Includes all accounts: investments, savings, and any other tracked balances.')}`,
+            value: fmtEurNeg(netWorthGainVal, 2),
+            valueClass: netWorthGainVal >= 0 ? 'pos' : 'neg',
+            sub: `since ${fmtMon(firstDate)}`,
+          })
+        : kpiTile({ label: 'Net Worth Gain', value: '-', sub: 'needs 2 snapshots' })
+    }
+    ${
       absoluteGainVal !== null
         ? kpiTile({
-            label: `Absolute Gain${infoTip('Investment portfolio value minus total cost basis. Shows the actual euro gain or loss on your investment accounts only.')}`,
+            label: `Investment Gain${infoTip('Investment account value minus total purchase cost basis (buy transactions). Covers investment-type accounts only, not savings or cash accounts.')}`,
             value: fmtEurNeg(absoluteGainVal, 2),
             valueClass: absoluteGainVal >= 0 ? 'pos' : 'neg',
             sub: `of ${fmtEur(pd!.totalInv)} invested (cost basis)`,
           })
-        : kpiTile({ label: 'Absolute Gain', value: '-', sub: 'import transactions to calculate' })
+        : kpiTile({
+            label: 'Investment Gain',
+            value: '-',
+            sub: 'import transactions to calculate',
+          })
     }
     ${
       ytdVal !== null
@@ -328,14 +345,15 @@ export function renderAnalytics(
     _renderIncomeAnalytics(txs, total, pd?.totalInv || 0);
   }
 
-  // Bind advanced section open/close arrow
+  // Bind advanced section open/close arrow via CSS class
   const advancedEl = document.getElementById('an-advanced') as HTMLDetailsElement | null;
   if (advancedEl && !(advancedEl as HTMLDetailsElement & { _arrowBound?: boolean })._arrowBound) {
     (advancedEl as HTMLDetailsElement & { _arrowBound?: boolean })._arrowBound = true;
     advancedEl.addEventListener('toggle', () => {
-      const arrow = document.getElementById('an-advanced-arrow');
-      if (arrow) arrow.style.transform = advancedEl.open ? 'rotate(90deg)' : '';
+      advancedEl.classList.toggle('collapsed', !advancedEl.open);
     });
+    // Sync initial state
+    advancedEl.classList.toggle('collapsed', !advancedEl.open);
   }
 
   attachInfoTips(document.getElementById('analytics')!);
@@ -345,25 +363,16 @@ export function renderAnalytics(
 
 function _renderGrowthChart(snaps: Snapshot[]): void {
   const C = resolvedT();
-  const accounts = getAccounts();
-  const chartA = accounts
-    .filter((a) => snaps.some((sn) => ((sn[a.id || ''] as number) || 0) > 0))
-    .map((a) => ({ key: a.id || '', label: a.label || '', color: a.color || '#888' }));
 
   const view = _anGrowthRange === 'all' ? snaps : snaps.slice(-parseInt(_anGrowthRange));
 
   _destroyChart('c-an-growth');
+  document.getElementById('an-growth-legend')!.innerHTML = '';
   if (view.length < 2) {
-    document.getElementById('an-growth-legend')!.innerHTML = '';
     return;
   }
 
   const totalData = view.map((s) => snapTotal(s));
-
-  document.getElementById('an-growth-legend')!.innerHTML = renderLegendHtml([
-    { label: 'Total', color: C.brand, dashed: false },
-    ...chartA.map((a) => ({ label: a.label, color: a.color })),
-  ]);
 
   CH['c-an-growth'] = new Chart(document.getElementById('c-an-growth') as HTMLCanvasElement, {
     type: 'line',
@@ -371,7 +380,7 @@ function _renderGrowthChart(snaps: Snapshot[]): void {
       labels: view.map((s) => fmtMon(s.date)),
       datasets: [
         {
-          label: 'Total',
+          label: 'Total net worth',
           data: totalData,
           borderColor: C.brand,
           backgroundColor: C.brandWeak,
@@ -379,20 +388,7 @@ function _renderGrowthChart(snaps: Snapshot[]): void {
           pointRadius: view.length > 24 ? 0 : 3,
           fill: true,
           tension: 0.3,
-          order: 0,
         },
-        ...chartA.map((a) => ({
-          label: a.label,
-          data: view.map((sn) => (sn[a.key] as number) || 0),
-          borderColor: safeColor(a.color),
-          backgroundColor: 'transparent',
-          borderWidth: 1.5,
-          pointRadius: 0,
-          fill: false,
-          tension: 0.3,
-          order: 1,
-          hidden: true,
-        })),
       ],
     },
     options: {
@@ -431,10 +427,6 @@ function _renderGrowthChart(snaps: Snapshot[]): void {
         },
       },
     },
-  });
-
-  bindLegendToggle(document.getElementById('an-growth-legend')!, CH['c-an-growth'], {
-    skipIndex: [0],
   });
 }
 
@@ -747,7 +739,7 @@ function _heatmapTextColor(intensity: number, weightedReturn: number): string {
 type AllocDim = 'class' | 'acct' | 'region' | 'sector' | 'currency';
 
 function _renderAllocationDonuts(holdings: Holding[], pd: PortfolioData | null): void {
-  const dims: AllocDim[] = ['class', 'acct', 'region', 'sector', 'currency'];
+  const dims: AllocDim[] = ['acct', 'class', 'region', 'sector', 'currency'];
   for (const dim of dims) {
     _renderAllocDonut(dim, holdings, pd);
     _attachAllocToggle(dim);
@@ -930,6 +922,10 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
         color: s.color,
       })),
     );
+    // Single-slice note: communicates full concentration clearly
+    if (slices.length === 1) {
+      legendEl.innerHTML += `<p class="note" style="margin-top:4px">100% ${esc(slices[0].label)}</p>`;
+    }
   }
 
   // Render toggle button (not applicable for account dimension)
@@ -944,7 +940,7 @@ function _renderAllocToggleBtn(dim: AllocDim): void {
   const wrapEl = document.getElementById(wrapId);
   if (!wrapEl) return;
   const mode = _allocMode[dim] ?? 'active';
-  wrapEl.innerHTML = `<div class="range-toggle" style="font-size:11px">
+  wrapEl.innerHTML = `<div class="range-toggle" style="font-size:11px;margin-top:8px">
     <button class="btn btn-sm btn-ghost${mode === 'all' ? ' active' : ''}" data-alloc-mode="all" data-alloc-dim="${dim}">All assets</button>
     <button class="btn btn-sm btn-ghost${mode === 'active' ? ' active' : ''}" data-alloc-mode="active" data-alloc-dim="${dim}">Active only</button>
   </div>`;
