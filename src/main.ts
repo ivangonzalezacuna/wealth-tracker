@@ -4,7 +4,7 @@ import { checkStorageQuota } from './storage';
 import { CONFIG } from './config';
 import { getACCTSList } from './constants';
 import { appTemplate } from './template';
-import { signIn as gisSignIn, signOut, isSignedIn } from './auth/google';
+import { signIn as gisSignIn, signOut, isSignedIn, hasEverGranted } from './auth/google';
 import {
   loadSnapshots,
   saveSnapshots,
@@ -1213,7 +1213,10 @@ function editSnap(date: string) {
 }
 
 async function delSnap(date: string, btn?: HTMLButtonElement) {
-  if (!isSignedIn()) return;
+  // Block only when the user has never authenticated at all.
+  // A temporarily-expired token (e.g. while offline) must not prevent a
+  // local write; the cloud sync will be scheduled once the token is valid again.
+  if (!isSignedIn() && !hasEverGranted()) return;
   if (isSyncBusy()) {
     showMsg('snap-msg', 'A sync or save is in progress. Try again in a moment.', false);
     return;
@@ -1231,7 +1234,10 @@ async function delSnap(date: string, btn?: HTMLButtonElement) {
     setSyncing(true);
     try {
       await saveSnapshots(state.snaps);
-      scheduleUpload();
+      // Only schedule an immediate upload when a valid token is available.
+      // When offline/token-expired, the 'online' event handler (or the next
+      // successful silent token refresh) will call scheduleUpload() automatically.
+      if (isSignedIn()) scheduleUpload();
       const snapCachedDel = await setCachedSnapshots(state.snaps);
       if (!snapCachedDel) showCacheWriteWarning();
       renderAll();
