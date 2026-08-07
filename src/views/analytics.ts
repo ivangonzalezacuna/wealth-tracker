@@ -878,8 +878,10 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
 
   if (slices.length === 1) {
     const slice = slices[0];
-    // Hide the canvas — we render a text block in its place.
+    // Hide the canvas and its fixed-height wrapper; we render a compact text block in their place.
     canvas.style.display = 'none';
+    const canvasWrap = canvas.closest('.chart-wrap') as HTMLElement | null;
+    if (canvasWrap) canvasWrap.style.display = 'none';
 
     const legendEl = document.getElementById(legendId);
     if (legendEl) {
@@ -934,8 +936,10 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
     return;
   }
 
-  // Multi-slice: restore canvas visibility (it may have been hidden on a prior single-slice render).
+  // Multi-slice: restore canvas and its wrapper visibility (they may have been hidden on a prior single-slice render).
   canvas.style.display = '';
+  const canvasWrap = canvas.closest('.chart-wrap') as HTMLElement | null;
+  if (canvasWrap) canvasWrap.style.display = '';
 
   const C = resolvedT();
 

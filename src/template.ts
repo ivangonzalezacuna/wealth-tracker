@@ -284,10 +284,10 @@ export function appTemplate(): string {
               <div style="font-size:12px;font-weight:600;margin-bottom:.25rem">📈 Volatility</div>
               <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
                 How bumpy is the ride? Volatility measures how much your portfolio value fluctuates month to month.
-                A higher number means larger swings — both up and down.
+                A higher number means larger swings - both up and down.
               </p>
               <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
-                <strong>Good to aim for:</strong> Below 10% is relatively calm for a long-term portfolio; 15–20% is typical for a global equity fund.
+                <strong>Good to aim for:</strong> Below 10% is relatively calm for a long-term portfolio; 15-20% is typical for a global equity fund.
               </p>
               <p style="font-size:12px;color:var(--ink-2);margin:0">
                 <strong>How to reduce it:</strong> Diversify across uncorrelated asset classes (e.g., bonds alongside equities) or add more stable assets like cash.
@@ -339,14 +339,14 @@ export function appTemplate(): string {
             <div class="card" style="padding:.75rem 1rem;margin:0">
               <div style="font-size:12px;font-weight:600;margin-bottom:.25rem">🎯 Sortino Ratio</div>
               <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
-                Like the Sharpe ratio, but it only penalises downward swings — good months don't count against you.
+                Like the Sharpe ratio, but it only penalises downward swings; good months don't count against you.
                 A Sortino higher than your Sharpe means your losses are smaller than your gains, which is ideal.
               </p>
               <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
                 <strong>Good to aim for:</strong> Above 1.0 is solid; above 2.0 is excellent. A Sortino well above your Sharpe indicates your portfolio has more upside than downside volatility.
               </p>
               <p style="font-size:12px;color:var(--ink-2);margin:0">
-                <strong>How to improve it:</strong> Focus on reducing losing months — for example by adding assets that are less correlated to your main equity holdings.
+                <strong>How to improve it:</strong> Focus on reducing losing months, for example by adding assets that are less correlated to your main equity holdings.
               </p>
             </div>
 
@@ -368,10 +368,10 @@ export function appTemplate(): string {
               <div style="font-size:12px;font-weight:600;margin-bottom:.25rem">⏱️ DD Duration</div>
               <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
                 The longest consecutive streak of months where your portfolio was below its previous high-water mark.
-                Shorter is better — it means your portfolio recovered quickly after downturns.
+                Shorter is better: it means your portfolio recovered quickly after downturns.
               </p>
               <p style="font-size:12px;color:var(--ink-2);margin:0 0 .25rem">
-                <strong>Good to aim for:</strong> Under 12 months is resilient; 12–24 months is normal for a global equity portfolio; above 36 months warrants a review of your asset mix.
+                <strong>Good to aim for:</strong> Under 12 months is resilient; 12-24 months is normal for a global equity portfolio; above 36 months warrants a review of your asset mix.
               </p>
               <p style="font-size:12px;color:var(--ink-2);margin:0">
                 <strong>How to reduce it:</strong> Diversify across asset classes that don't fall simultaneously, and keep contributing regularly so that new purchases at lower prices speed up the recovery.
@@ -394,7 +394,7 @@ export function appTemplate(): string {
 
         <div id="an-income" style="display:none">
           <div class="section-label" style="padding:.4rem 0 .1rem;font-size:11px;color:var(--ink-3);font-weight:500;text-transform:uppercase;letter-spacing:.04em">Income (dividends and interest)</div>
-          <div class="kpi-row" id="an-kpis-income"></div>
+          <div class="kpi-row" id="an-kpis-income" style="margin-top:8px"></div>
           <div class="card" style="margin:0 0 1rem">
             <div class="card-title">
               Income by month (dividends and interest)

@@ -72,6 +72,16 @@ shows whether returns are consistent or driven by a single good year.
 
 Sub-sections: Risk, Risk-Adjusted Performance, Income, Allocation, Historical.
 
+**Metrics explainer panel:** A collapsible `<details>` panel ("What do these metrics mean?") is
+rendered directly below the risk KPI tiles. It is collapsed by default so experienced users are
+not interrupted. Each metric card inside it contains three parts:
+
+- **What it is** -- a plain-language one-sentence description.
+- **Good to aim for** -- a concrete benchmark or direction.
+- **How to improve it** -- one actionable tip.
+
+This panel is purely static HTML; it requires no additional model logic.
+
 ---
 
 ## 2. Performance Metrics
@@ -187,6 +197,31 @@ No minimum history required. Derived from the latest snapshot and holding/accoun
 **Drift visualization:** `src/model/drift.ts` already contains the drift computation.
 A horizontal bar chart showing actual vs target per asset class is a high-value,
 low-effort addition.
+
+### All assets / Active only toggle
+
+Each allocation donut (except Account) renders an **All assets / Active only** toggle.
+The `active` mode filters to holdings whose `active` flag is true; the `all` mode
+includes every holding that has ever been tracked. The two modes can produce
+very different charts for the same portfolio (e.g., a single active ETF vs multiple
+historical positions).
+
+### Single-slice (100% concentration) state
+
+When a donut dimension yields exactly one slice the chart is suppressed entirely.
+A compact **concentration block** is shown in its place: a colored left-border banner
+displaying the slice color, label, "100%", and the EUR value. The card collapses to
+the natural height of that block so no dead whitespace remains.
+
+If the currently active mode produces a single slice but the other mode would reveal
+more slices, a hint is appended: _"Switch to All assets to see the full breakdown."_
+The toggle button is still rendered so the user can act on the hint.
+
+This design follows guidance from both wealth-management and UX review:
+
+- A donut with one segment adds no analytical value; remove it.
+- Concentration should be communicated as an explicit signal, not empty space.
+- The card should collapse to content height to avoid dead whitespace in the dashboard.
 
 ---
 
