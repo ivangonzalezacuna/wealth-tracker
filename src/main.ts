@@ -963,8 +963,7 @@ function renderSetupBanner(): void {
       .join('');
 
     const firstStep = bonusSteps[0];
-    const ctaLabel =
-      firstStep.id === 'import-csv' ? 'Import CSV' : 'Configure in Settings';
+    const ctaLabel = firstStep.id === 'import-csv' ? 'Import CSV' : 'Configure in Settings';
     el.innerHTML = `
       <div class="card setup-card" style="margin-bottom:1rem;padding:.75rem 1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
         <div style="font-weight:500;font-size:13px;color:var(--ink)">Recommended next steps</div>
