@@ -1,7 +1,7 @@
 /** Row-to-Transaction mappers for old (10-col) and new (14-col) sheet formats. */
 
 import { parseNum } from '../csv';
-import type { Transaction } from '../types';
+import type { Transaction, TxTypeValue } from '../types';
 
 /**
  * Map a new 14-col sheet row to a Transaction object.
@@ -12,7 +12,7 @@ export function newRowToTx(row: (string | number | boolean)[]): Transaction {
     id: String(row[0] ?? ''),
     date: String(row[1] ?? ''),
     source: String(row[2] ?? ''),
-    type: String(row[3] ?? ''),
+    type: String(row[3] ?? '') as TxTypeValue,
     name: String(row[4] ?? ''),
     isin: String(row[5] ?? ''),
     shares: parseNum(String(row[6] ?? '')),
@@ -36,7 +36,7 @@ export function oldRowToTx(row: (string | number | boolean)[]): Transaction {
     date: String(row[1] ?? ''),
     source: 'trade_republic',
     category: String(row[2] ?? ''),
-    type: String(row[3] ?? ''),
+    type: String(row[3] ?? '') as TxTypeValue,
     name: String(row[4] ?? ''),
     isin: String(row[5] ?? ''),
     shares: parseNum(String(row[6] ?? '')),

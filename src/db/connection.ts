@@ -240,7 +240,7 @@ export async function importDb(data: Uint8Array): Promise<void> {
  */
 function getLocalTransactionRows(db: Database): unknown[][] {
   const result = db.exec(
-    'SELECT id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category FROM transactions',
+    'SELECT id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category FROM transactions ORDER BY date ASC, rowid ASC',
   );
   if (result.length === 0) return [];
   return result[0].values;

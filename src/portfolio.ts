@@ -34,6 +34,7 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
   let totalInterest = 0;
   const interestBySource: Record<string, number> = {};
   const taxBySource: Record<string, number> = {};
+  let standaloneFees = 0;
 
   // Ensure all ISINs from basis engine are represented
   for (const [isin, basis] of Object.entries(basisByIsin)) {
@@ -110,7 +111,7 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
         tax: taxAbs,
         color: meta.color || '#898781',
       });
-    } else if (tx.type === TxType.INTEREST || tx.type === 'INTEREST_PAYMENT') {
+    } else if (tx.type === TxType.INTEREST) {
       totalInterest += tx.amount;
       const intMonth = tx.date.slice(0, 7); // YYYY-MM
       intByMonth[intMonth] = (intByMonth[intMonth] || 0) + tx.amount;
@@ -128,6 +129,11 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
       const taxVal = tx.tax || tx.amount || 0;
       const src = tx.source || 'unknown';
       taxBySource[src] = (taxBySource[src] || 0) + taxVal;
+    } else if (tx.type === TxType.FEE) {
+      // Standalone FEE rows (e.g. TR custody fees) that are not embedded in a
+      // BUY/SELL row. The cost-basis engine already captures fees inside trades;
+      // this branch covers broker/custody fees arriving as their own rows.
+      standaloneFees += Math.abs(tx.amount || 0) + Math.abs(tx.fee || 0);
     } else if (tx.type === TxType.TRANSFER) {
       // TRANSFER moves cash between accounts and does not change total net worth.
       // Portfolio computations (cost basis, P&L, dividends) are unaffected.
@@ -160,7 +166,8 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
   const totalInv = Object.values(etfs).reduce((s, e) => s + e.cost, 0);
   const totalDivNet = Object.values(etfs).reduce((s, e) => s + e.divNet, 0);
   const totalTax = Object.values(etfs).reduce((s, e) => s + e.taxPaid, 0);
-  const totalFees = Object.values(etfs).reduce((s, e) => s + (e.totalFees || 0), 0);
+  const totalFees =
+    Object.values(etfs).reduce((s, e) => s + (e.totalFees || 0), 0) + standaloneFees;
   const realizedPnL = Object.values(etfs).reduce((s, e) => s + (e.realizedPnL || 0), 0);
   const totalIntGross = intHist.reduce((s, i) => s + i.gross, 0);
   const totalIntTax = intHist.reduce((s, i) => s + i.tax, 0);

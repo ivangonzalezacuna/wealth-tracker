@@ -22,7 +22,7 @@ export interface Transaction {
   date: string;
   source: string;
   category?: string;
-  type: string;
+  type: TxTypeValue;
   name: string;
   isin: string;
   shares: number;

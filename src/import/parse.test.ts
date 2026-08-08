@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { TxType } from '../model/tx';
+import type { TxTypeValue } from '../types';
 import {
   parseWithProfile,
   detectProfile,
@@ -269,7 +270,7 @@ describe('unmapped types handling', () => {
 
   it('unmapped rows have type preserved uppercased', () => {
     const { transactions } = parseWithProfile(TR_CSV_WITH_UNMAPPED, tradeRepublicProfile);
-    const stockSplits = transactions.filter((t) => t.type === 'STOCK_SPLIT');
+    const stockSplits = transactions.filter((t) => t.type === ('STOCK_SPLIT' as TxTypeValue));
     expect(stockSplits).toHaveLength(2);
   });
 });
