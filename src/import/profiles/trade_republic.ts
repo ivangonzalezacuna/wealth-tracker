@@ -44,6 +44,7 @@ export const tradeRepublicProfile: ImportProfile = {
     CUSTOMER_OUTPAYMENT: TxType.WITHDRAWAL,
     TRANSFER_OUTBOUND: TxType.WITHDRAWAL,
     TAX_OPTIMIZATION: TxType.TAX,
+    STOCK_SPLIT: TxType.SPLIT,
   },
 
   match: {
