@@ -466,19 +466,19 @@ export function dividendMetrics(
     .map(([month, amount]) => ({ month, amount }));
 
   const datedMonths = transactions
-   .map((t) => t.date.substring(0, 7))
-   .filter((month) => parseYearMonth(month) !== null)
-   .sort((a, b) => a.localeCompare(b));
+    .map((t) => t.date.substring(0, 7))
+    .filter((month) => parseYearMonth(month) !== null)
+    .sort((a, b) => a.localeCompare(b));
   const asOfMonth = datedMonths[datedMonths.length - 1] || null;
   const anchorVal = asOfMonth ? _yearMonthToIndex(asOfMonth) : null;
 
   // Trailing 12m income, anchored to the latest imported transaction month.
   const trailing12m = monthlyBreakdown
-   .filter((m) => {
-     const idx = _yearMonthToIndex(m.month);
-     return anchorVal !== null && idx !== null && idx >= anchorVal - 11 && idx <= anchorVal;
-   })
-   .reduce((s, m) => s + m.amount, 0);
+    .filter((m) => {
+      const idx = _yearMonthToIndex(m.month);
+      return anchorVal !== null && idx !== null && idx >= anchorVal - 11 && idx <= anchorVal;
+    })
+    .reduce((s, m) => s + m.amount, 0);
 
   // Yield and yield on cost
   const yieldPct = currentPortfolioValue > 0 ? trailing12m / currentPortfolioValue : null;
@@ -487,14 +487,14 @@ export function dividendMetrics(
   // YoY growth: trailing 12m income versus the prior trailing 12m window,
   // both anchored to the latest imported transaction month.
   const prior12m =
-   anchorVal === null
-     ? 0
-     : monthlyBreakdown
-         .filter((m) => {
-           const idx = _yearMonthToIndex(m.month);
-           return idx !== null && idx >= anchorVal - 23 && idx <= anchorVal - 12;
-         })
-         .reduce((s, m) => s + m.amount, 0);
+    anchorVal === null
+      ? 0
+      : monthlyBreakdown
+          .filter((m) => {
+            const idx = _yearMonthToIndex(m.month);
+            return idx !== null && idx >= anchorVal - 23 && idx <= anchorVal - 12;
+          })
+          .reduce((s, m) => s + m.amount, 0);
   const yoyGrowth = prior12m > 0 ? (trailing12m - prior12m) / prior12m : null;
 
   // Dividend CAGR from annual totals
@@ -514,7 +514,15 @@ export function dividendMetrics(
     }
   }
 
-  return { trailing12m, yieldPct, yieldOnCost, yoyGrowth, monthlyBreakdown, dividendCagr, asOfMonth };
+  return {
+    trailing12m,
+    yieldPct,
+    yieldOnCost,
+    yoyGrowth,
+    monthlyBreakdown,
+    dividendCagr,
+    asOfMonth,
+  };
 }
 
 function parseYearMonth(d: string): { year: number; month: number } | null {

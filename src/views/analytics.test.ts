@@ -51,6 +51,14 @@ vi.mock('../store/config', () => ({
   getAccounts: () => MOCK_ACCOUNTS,
   getHoldings: () => [],
   getSettings: () => ({ riskFreeRate: '2' }),
+  isConfigLoaded: () => true,
+  getACCTS: () => [
+    { key: 'acct_inv', label: 'Broker', color: '#111111' },
+    { key: 'acct_cash', label: 'Cash', color: '#222222' },
+  ],
+  getISINMap: () => ({}),
+  getMETA: () => ({}),
+  getISIN_ORDER: () => [],
 }));
 
 import { renderAnalytics } from './analytics';
@@ -86,6 +94,14 @@ describe('renderAnalytics', () => {
   beforeEach(() => {
     document.body.innerHTML = appTemplate();
     chartInstances.length = 0;
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn().mockReturnValue({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    });
   });
 
   it('uses investment account value for dividend yield and anchors income windows to imported data', () => {
@@ -146,7 +162,9 @@ describe('renderAnalytics', () => {
     const yoyTile = incomeTiles.find((el) => el.textContent?.includes('Income Growth (YoY)'));
 
     expect(yieldTile?.querySelector('.kpi-val')?.textContent).toBe('10%');
-    expect(yieldTile?.querySelector('.kpi-sub')?.textContent).toBe('trailing 12M / investment value');
+    expect(yieldTile?.querySelector('.kpi-sub')?.textContent).toBe(
+      'trailing 12M / investment value',
+    );
     expect(trailingTile?.querySelector('.kpi-sub')?.textContent).toBe('through Mar 2026');
     expect(yoyTile?.querySelector('.kpi-sub')?.textContent).toBe('through Mar 2026 vs prior 12M');
   });

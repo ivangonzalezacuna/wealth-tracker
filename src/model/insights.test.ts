@@ -155,7 +155,7 @@ describe('dividendMetrics', () => {
     const metrics = dividendMetrics(
       [
         { type: 'DIVIDEND', date: '2024-05-15', amount: 10 },
-        { type: 'DIVIDEND', date: '2025-01-15', amount: 20 },
+        { type: 'DIVIDEND', date: '2025-04-15', amount: 20 },
         { type: 'DIVIDEND', date: '2025-12-15', amount: 30 },
         { type: 'BUY', date: '2026-03-01', amount: 1000 },
       ],

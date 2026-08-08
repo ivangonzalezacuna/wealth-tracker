@@ -292,7 +292,9 @@ export function renderAnalytics(
   const riskMetricsReady = monthsSpan >= 24;
 
   if (advancedGate) {
-    advancedGate.textContent = riskMetricsReady ? '' : `(${Math.max(monthsSpan, 0)}/24 months for risk metrics)`;
+    advancedGate.textContent = riskMetricsReady
+      ? ''
+      : `(${Math.max(monthsSpan, 0)}/24 months for risk metrics)`;
   }
 
   if (advancedContent) {
@@ -1162,7 +1164,9 @@ function _renderIncomeAnalytics(
   if (!hasIncome) return;
 
   const metrics = dividendMetrics(txs, currentPortfolioValue, totalCostBasis);
-  const throughLabel = metrics.asOfMonth ? `through ${fmtMon(metrics.asOfMonth)}` : 'latest import window';
+  const throughLabel = metrics.asOfMonth
+    ? `through ${fmtMon(metrics.asOfMonth)}`
+    : 'latest import window';
 
   document.getElementById('an-kpis-income')!.innerHTML = `
     ${kpiTile({
