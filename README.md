@@ -123,7 +123,12 @@ Accounts can optionally be marked as **locked** (e.g. pension or AVD accounts) w
 
 Go to the **+ Log** tab. Enter the current value for each account, then hit **Save snapshot**. This records your net worth for the month.
 
-Once these three steps are done, the setup banner disappears and you have full access to all views: Net Worth, Portfolio, DCA (contributions), and Dividends.
+Once these three steps are done, the setup banner transitions to a **"Recommended next steps"** prompt with two optional-but-important actions:
+
+- **Import transactions** — imports your broker CSV to unlock cost-basis tracking, realized P&L, and dividend analytics (Portfolio and Dividends tabs)
+- **Configure holdings** — adds ETF/fund definitions to your investment account in Settings, enabling the Portfolio drift view
+
+The banner disappears automatically once both are completed, or you can dismiss it manually at any time.
 
 ### Monthly workflow
 
