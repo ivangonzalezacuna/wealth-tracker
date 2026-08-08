@@ -11,6 +11,7 @@ import {
   upsertSnapshot,
   loadTransactions,
   mergeTransactions,
+  countAmendedRows,
   saveImportMeta,
   loadImportMeta,
   restoreAllData,
@@ -1606,6 +1607,18 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
   `
       : '';
 
+  // Amended-rows warning: rows that already exist but differ in at least one data field.
+  // Computed once against the current stored set; the merge will silently keep the stored values.
+  const amendedCount = countAmendedRows(state.txs, allRows);
+  const amendedHtml =
+    amendedCount > 0
+      ? `
+    <div class="status-bar status-warn" style="margin:.6rem 0">
+      ⚠ ${amendedCount} row${amendedCount > 1 ? 's' : ''} already exist and differ from the imported file — re-import does not overwrite existing data.
+    </div>
+  `
+      : '';
+
   function renderPreview() {
     const includedCount = summary.total - excludedRows.size;
     const totalPages = Math.max(1, Math.ceil(allRows.length / PAGE_SIZE));
@@ -1686,6 +1699,7 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
         ${unmappedHtml}
         ${hideDateWarning ? '' : dateErrorsHtml}
         ${numberErrorsHtml}
+        ${amendedHtml}
         ${previewTableHtml}
         ${pageInfoHtml}
         <div style="display:flex;gap:10px;margin-top:.85rem">

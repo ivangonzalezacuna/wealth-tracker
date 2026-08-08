@@ -17,6 +17,7 @@ import {
   setLastSyncTimestamp,
   getLastSyncTimestamp,
   setDriveVersion,
+  getDriveVersion,
 } from '../db/repositories/meta';
 import { downloadDbFile, uploadDbFile, getCloudModifiedTime } from './drive';
 
@@ -65,6 +66,16 @@ export async function pullFromCloud(): Promise<boolean> {
     }
 
     const localTime = await getLastSyncTimestamp();
+    const storedVersion = await getDriveVersion();
+
+    // Skip download when the stored Drive version matches the current cloud modifiedTime.
+    // This is a clock-skew-resistant guard: if the cloud file hasn't changed since our
+    // last sync, the version strings will be identical regardless of local clock drift.
+    if (storedVersion && storedVersion === cloudTime) {
+      setStatus('done');
+      return false;
+    }
+
     if (localTime && new Date(localTime) >= new Date(cloudTime)) {
       // Local is same or newer - no download needed.
       setStatus('done');

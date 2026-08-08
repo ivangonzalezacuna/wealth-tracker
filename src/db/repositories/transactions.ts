@@ -75,6 +75,29 @@ export async function mergeTransactions(
 }
 
 /**
+ * Count incoming transactions that already exist (same txKey) but differ in
+ * at least one data field (shares, price, fee, tax). These are broker
+ * corrections that the append-only merge silently ignores.
+ */
+export function countAmendedRows(existing: Transaction[], incoming: Transaction[]): number {
+  const existingMap = new Map(existing.map((t) => [txKey(t), t]));
+  let count = 0;
+  for (const t of incoming) {
+    const stored = existingMap.get(txKey(t));
+    if (!stored) continue;
+    if (
+      stored.shares !== t.shares ||
+      stored.price !== t.price ||
+      stored.fee !== t.fee ||
+      stored.tax !== t.tax
+    ) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/**
  * Full overwrite of the transactions table - used by backup restore.
  */
 export async function restoreTransactions(txs: Transaction[]): Promise<void> {
