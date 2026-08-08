@@ -75,10 +75,7 @@ function _renderGoalCards(): void {
   const liquidAccounts = accounts.filter(
     (a) => !a.locked || (a.lockedUntil ? parseInt(a.lockedUntil, 10) <= currentYear : false),
   );
-  const liquidTotal = liquidAccounts.reduce(
-    (sum, a) => sum + ((s[a.id || ''] as number) || 0),
-    0,
-  );
+  const liquidTotal = liquidAccounts.reduce((sum, a) => sum + ((s[a.id || ''] as number) || 0), 0);
   const allTotal = snapTotal(s);
   const lockedTotal = allTotal - liquidTotal;
   const accountInputs = _buildAccountForecastInputs(s, liquidAccounts);
