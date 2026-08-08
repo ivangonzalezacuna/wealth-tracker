@@ -1526,6 +1526,19 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
   `
       : '';
 
+  const totalNumberErrors = summary.numberErrors.reduce((s, e) => s + e.count, 0);
+  const numberErrorsList = summary.numberErrors
+    .map((e) => `<code>${esc(e.field)}: ${esc(e.raw)}</code> (${e.count})`)
+    .join(', ');
+  const numberErrorsHtml =
+    totalNumberErrors > 0
+      ? `
+    <div class="status-bar status-warn" style="margin:.6rem 0">
+      ⚠ ${totalNumberErrors} cell${totalNumberErrors > 1 ? 's' : ''} with unparseable number (coerced to 0): ${numberErrorsList}
+    </div>
+  `
+      : '';
+
   function renderPreview() {
     const includedCount = summary.total - excludedRows.size;
     const totalPages = Math.max(1, Math.ceil(allRows.length / PAGE_SIZE));
@@ -1605,6 +1618,7 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
         </div>
         ${unmappedHtml}
         ${hideDateWarning ? '' : dateErrorsHtml}
+        ${numberErrorsHtml}
         ${previewTableHtml}
         ${pageInfoHtml}
         <div style="display:flex;gap:10px;margin-top:.85rem">

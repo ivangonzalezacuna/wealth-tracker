@@ -19,12 +19,18 @@ const _lastWritten = new Map<string, string>();
 /** Compute a cheap fingerprint for dedup (not cryptographic). */
 function _fingerprint(value: unknown): string {
   if (Array.isArray(value)) {
-    // For arrays: length + first/last element identity is sufficient.
     const len = value.length;
     if (len === 0) return 'arr:0';
-    const first = JSON.stringify(value[0]);
-    const last = len > 1 ? JSON.stringify(value[len - 1]) : first;
-    return `arr:${len}:${first.length}:${last.length}`;
+    // Hash all elements so middle-row changes are detected.
+    // djb2-style: cheap, deterministic, good enough for cache dedup.
+    let hash = 5381;
+    for (const item of value) {
+      const s = JSON.stringify(item);
+      for (let i = 0; i < s.length; i++) {
+        hash = ((hash << 5) + hash + s.charCodeAt(i)) >>> 0;
+      }
+    }
+    return `arr:${len}:${hash}`;
   }
   if (value && typeof value === 'object') {
     // Include stringified scalar values so changes in numeric totals

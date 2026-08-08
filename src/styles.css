@@ -1472,7 +1472,7 @@ details[open] > summary .card-chevron {
   .nav button {
     font-size: 11px;
     padding: 8px 10px;
-    min-height: 36px;
+    min-height: 44px;
   }
   .kpi-row {
     grid-template-columns: 1fr 1fr;
