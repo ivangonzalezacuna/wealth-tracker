@@ -1622,8 +1622,7 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
       showMsg('import-msg', 'Import cancelled.', false);
     });
     document.getElementById('btn-dismiss-date-warn')?.addEventListener('click', () => {
-      hideDateWarning = true;
-      renderPreview();
+      document.getElementById('import-date-warn')?.remove();
     });
     document.getElementById('btn-prev-import-page')?.addEventListener('click', () => {
       if (currentPage > 0) {

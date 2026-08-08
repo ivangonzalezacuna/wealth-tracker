@@ -291,7 +291,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   const rows = pageItems
     .map((e) => {
       const isExited = e.exited || e.shares < 1e-6;
-      return `<div class="tbl-row hold-row" role="row" tabindex="0" aria-expanded="false" aria-controls="hold-detail-panel"${isExited ? ' style="opacity:0.6"' : ''} data-etf-key="${esc(e.isin)}">
+      return `<div class="tbl-row hold-row" role="row" tabindex="0" aria-expanded="false"${isExited ? ' style="opacity:0.6"' : ''} data-etf-key="${esc(e.isin)}">
     ${renderTableRow(columns, e)}
   </div>`;
     })
@@ -396,7 +396,6 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
         })
         .join('');
       const panel = document.createElement('div');
-      panel.id = 'hold-detail-panel';
       panel.className = 'hold-detail';
       panel.innerHTML = `
         <div><span class="hold-detail-label">Name</span><span class="hold-detail-value" style="font-size:11px">${esc(displayName)}</span></div>

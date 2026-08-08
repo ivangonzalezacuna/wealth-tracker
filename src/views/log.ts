@@ -249,7 +249,7 @@ function renderSnapList(
     ${pageItems
       .map(
         (s) =>
-          `<div class="snap-row-compact" role="row" tabindex="0" aria-expanded="${String(isCollapsed('snap:' + s.date))}" aria-controls="snap-detail-panel" data-date="${s.date}">
+          `<div class="snap-row-compact" role="row" tabindex="0" aria-expanded="${String(isCollapsed('snap:' + s.date))}" data-date="${s.date}">
         ${renderTableRow(columns, s)}
       </div>`,
       )
@@ -312,10 +312,7 @@ function renderSnapList(
       const date = (row as HTMLElement).dataset.date;
       if (date && isCollapsed('snap:' + date)) {
         const snap = snaps.find((s) => s.date === date);
-        if (snap) {
-          _expandSnapRow(row as HTMLElement, snap, date, listEl, onEdit, onDel);
-          (row as HTMLElement).setAttribute('aria-expanded', 'true');
-        }
+        if (snap) _expandSnapRow(row as HTMLElement, snap, date, listEl, onEdit, onDel);
       }
     });
   }
@@ -345,7 +342,6 @@ function _expandSnapRow(
     )
     .join('');
   const panel = document.createElement('div');
-  panel.id = 'snap-detail-panel';
   panel.className = 'hold-detail snap-detail';
   panel.innerHTML = `
     ${detailRows}
