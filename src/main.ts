@@ -1478,12 +1478,6 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
     }
   }
 
-  // Auto-confirm when no unmapped types and no invalid dates (clean import)
-  if (summary.unmapped.length === 0 && summary.dateErrors.length === 0) {
-    confirmImport();
-    return;
-  }
-
   // Build type counts string
   const typeCounts = Object.entries(summary.byCounts)
     .sort(([, a], [, b]) => b - a)
