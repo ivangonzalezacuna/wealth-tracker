@@ -262,10 +262,10 @@ export function appTemplate(): string {
     <details id="an-advanced" class="card-collapsible" style="margin-top:1rem">
       <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;padding:.4rem 0 .1rem;font-size:11px;color:var(--ink-3);font-weight:500;text-transform:uppercase;letter-spacing:.04em">
         <span class="card-chevron" id="an-advanced-arrow"></span>
-        Advanced Analytics
-        <span id="an-advanced-gate" style="font-size:11px;color:var(--ink-3);font-weight:400;margin-left:4px;text-transform:none;letter-spacing:0"></span>
+        Advanced analytics
       </summary>
       <div id="an-advanced-content" style="padding-top:.75rem">
+        <div id="an-risk-metrics-note" class="note" style="display:none"></div>
         <div class="kpi-row" id="an-kpis-risk"></div>
 
         <!-- Collapsible plain-language explainer for each advanced metric -->

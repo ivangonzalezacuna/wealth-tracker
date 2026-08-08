@@ -99,6 +99,16 @@ function _monthsDiff(a: string, b: string): number {
   );
 }
 
+function _shiftMonth(ym: string, deltaMonths: number): string | null {
+  const parts = ym.split('-');
+  if (parts.length < 2) return null;
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  if (!isFinite(year) || !isFinite(month) || month < 1 || month > 12) return null;
+  const d = new Date(Date.UTC(year, month - 1 + deltaMonths, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
 // ── Main render ───────────────────────────────────────────
 
 export function renderAnalytics(
@@ -286,15 +296,18 @@ export function renderAnalytics(
   const ddResult = maxDrawdown(snaps);
   const cagrForRisk = cagrVal;
   const dd = ddResult.max;
-  const advancedGate = document.getElementById('an-advanced-gate');
   const advancedContent = document.getElementById('an-advanced-content');
+  const riskMetricsNoteEl = document.getElementById('an-risk-metrics-note');
 
   const riskMetricsReady = monthsSpan >= 24;
 
-  if (advancedGate) {
-    advancedGate.textContent = riskMetricsReady
-      ? ''
-      : `(${Math.max(monthsSpan, 0)}/24 months for risk metrics)`;
+  if (riskMetricsNoteEl) {
+    if (riskMetricsReady) {
+      riskMetricsNoteEl.style.display = 'none';
+    } else {
+      riskMetricsNoteEl.textContent = `${Math.max(monthsSpan, 0)}/24 months recorded. Risk metrics require 24 months of history.`;
+      riskMetricsNoteEl.style.display = '';
+    }
   }
 
   if (advancedContent) {
@@ -362,7 +375,7 @@ export function renderAnalytics(
         sub: ddDur > 0 ? 'longest underwater streak' : 'no drawdown in history',
       })}
     `
-        : '<p class="note">Risk metrics unlock after 24 months of snapshot history to avoid over-interpreting sparse data.</p>';
+        : '';
     }
 
     if (explainerEl) explainerEl.style.display = riskMetricsReady ? '' : 'none';
@@ -1167,6 +1180,11 @@ function _renderIncomeAnalytics(
   const throughLabel = metrics.asOfMonth
     ? `through ${fmtMon(metrics.asOfMonth)}`
     : 'latest import window';
+  const priorWindowMonth = metrics.asOfMonth ? _shiftMonth(metrics.asOfMonth, -12) : null;
+  const yoyWindowLabel =
+    metrics.asOfMonth && priorWindowMonth
+      ? `${fmtMon(metrics.asOfMonth)} vs ${fmtMon(priorWindowMonth)} (12M windows)`
+      : `${throughLabel} vs prior 12M`;
 
   document.getElementById('an-kpis-income')!.innerHTML = `
     ${kpiTile({
@@ -1198,7 +1216,7 @@ function _renderIncomeAnalytics(
             label: `Income Growth (YoY)${infoTip('Trailing 12-month income compared with the prior trailing 12 months, anchored to your latest imported transaction month.')}`,
             value: fmtPctSigned(metrics.yoyGrowth * 100),
             valueClass: metrics.yoyGrowth >= 0 ? 'pos' : 'neg',
-            sub: `${throughLabel} vs prior 12M`,
+            sub: yoyWindowLabel,
           })
         : ''
     }
