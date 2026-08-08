@@ -24,6 +24,7 @@ export const FORECAST_RANGE_LABELS: Record<string, string> = {
   '60': '5 years',
   '120': '10 years',
   '240': '20 years',
+  '360': '30 years',
 };
 
 // ISIN → shortName (live from store when loaded, else from static config)

@@ -20,7 +20,7 @@ let _dcaYear = '';
 let _dcaRange = 'all'; // '12', '36', 'all'
 let _dcaTblSort: SortState = { key: null, dir: null };
 let _lastPd: PortfolioData | null = null;
-let _dcaFcRange: '60' | '120' | '240' = '60'; // 5y / 10y / 20y forecast horizon
+let _dcaFcRange: '60' | '120' | '240' | '360' = '60'; // 5y / 10y / 20y / 30y forecast horizon
 
 /**
  * Renders the Contributions (DCA) tab: monthly-total KPI tiles, the
@@ -182,6 +182,7 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
           <button class="btn btn-sm btn-ghost ${_dcaFcRange === '60' ? 'active' : ''}" data-range="60">5Y</button>
           <button class="btn btn-sm btn-ghost ${_dcaFcRange === '120' ? 'active' : ''}" data-range="120">10Y</button>
           <button class="btn btn-sm btn-ghost ${_dcaFcRange === '240' ? 'active' : ''}" data-range="240">20Y</button>
+          <button class="btn btn-sm btn-ghost ${_dcaFcRange === '360' ? 'active' : ''}" data-range="360">30Y</button>
         </div>
       </div>
       <div class="chart-wrap chart-h-md"><canvas id="c-dca-proj"></canvas></div>
@@ -299,7 +300,7 @@ function _attachDCAForecastRangeToggle(pd: PortfolioData, accounts: Account[]): 
   toggle.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
     if (!btn) return;
-    const newRange = (btn.dataset.range as '60' | '120' | '240') || '60';
+    const newRange = (btn.dataset.range as '60' | '120' | '240' | '360') || '60';
     if (newRange === _dcaFcRange) return;
     _dcaFcRange = newRange;
     _renderDCAForecast(pd, accounts);

@@ -69,7 +69,7 @@ vi.mock('../constants', () => ({
   getISIN_ORDERList: () => ['IE00TEST1'],
   getISIN: () => ({ IE00TEST1: 'IWDA' }),
   getMETAMap: () => ({ IWDA: { color: '#222222', acc: true, active: true } }),
-  FORECAST_RANGE_LABELS: { '60': '5 years', '120': '10 years', '240': '20 years' },
+  FORECAST_RANGE_LABELS: { '60': '5 years', '120': '10 years', '240': '20 years', '360': '30 years' },
 }));
 
 import { renderDCA } from './contributions';
@@ -119,6 +119,7 @@ const DOM_FIXTURE = `
         <button class="btn active" data-range="60">5Y</button>
         <button class="btn" data-range="120">10Y</button>
         <button class="btn" data-range="240">20Y</button>
+        <button class="btn" data-range="360">30Y</button>
       </div>
     </div>
     <select id="dca-year-filter"></select>
