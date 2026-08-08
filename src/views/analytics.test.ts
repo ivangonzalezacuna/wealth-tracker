@@ -166,7 +166,9 @@ describe('renderAnalytics', () => {
       'trailing 12M / investment value',
     );
     expect(trailingTile?.querySelector('.kpi-sub')?.textContent).toBe('through Mar 2026');
-    expect(yoyTile?.querySelector('.kpi-sub')?.textContent).toBe('Mar 2026 vs Mar 2025 (12M windows)');
+    expect(yoyTile?.querySelector('.kpi-sub')?.textContent).toBe(
+      'Mar 2026 vs Mar 2025 (12M windows)',
+    );
   });
 
   it('gates risk metrics until 24 months of history while keeping income analytics visible', () => {
@@ -191,7 +193,9 @@ describe('renderAnalytics', () => {
 
     renderAnalytics(makePd(), snaps, txs);
 
-    expect(document.querySelector('#an-advanced summary')?.textContent).toContain('Advanced analytics');
+    expect(document.querySelector('#an-advanced summary')?.textContent).toContain(
+      'Advanced analytics',
+    );
     expect(document.querySelector('#an-advanced summary')?.textContent).not.toContain('/24 months');
     expect(document.getElementById('an-risk-metrics-note')?.textContent).toContain(
       '/24 months recorded. Risk metrics require 24 months of history.',
