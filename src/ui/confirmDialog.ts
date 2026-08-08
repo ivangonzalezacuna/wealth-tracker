@@ -2,12 +2,11 @@
 
 let _activeResolve: ((v: boolean) => void) | null = null;
 let _activeTrigger: HTMLElement | null = null;
+let _activeOverlay: HTMLElement | null = null;
 
 export interface ConfirmOptions {
   title: string;
   body?: string;
-  /** Pre-built HTML body (not escaped). Use only with trusted content. Takes precedence over `body`. */
-  bodyHtml?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   danger?: boolean; // true => confirm button uses .btn-danger styling
@@ -24,7 +23,7 @@ export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
     overlay.innerHTML = `
       <div class="confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
         <div class="confirm-title" id="confirm-title">${_esc(opts.title)}</div>
-        ${opts.bodyHtml ? `<div class="confirm-body">${opts.bodyHtml}</div>` : opts.body ? `<div class="confirm-body">${_esc(opts.body)}</div>` : ''}
+        ${opts.body ? `<div class="confirm-body">${_esc(opts.body)}</div>` : ''}
         <div class="confirm-actions">
           <button class="btn btn-sm btn-ghost js-confirm-cancel">${_esc(opts.cancelLabel || 'Cancel')}</button>
           <button class="btn btn-sm ${opts.danger ? 'btn-danger' : 'btn-primary'} js-confirm-ok">${_esc(opts.confirmLabel || 'Confirm')}</button>
@@ -32,6 +31,7 @@ export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
       </div>`;
     document.body.appendChild(overlay);
     document.body.style.overflow = 'hidden';
+    _activeOverlay = overlay;
 
     const okBtn = overlay.querySelector('.js-confirm-ok') as HTMLElement;
     const cancelBtn = overlay.querySelector('.js-confirm-cancel') as HTMLElement;
@@ -48,10 +48,29 @@ export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
 }
 
 function _onKeydown(e: KeyboardEvent): void {
-  if (e.key === 'Escape') _dismiss(false);
-  if (e.key === 'Enter') {
-    const overlay = document.querySelector('.confirm-overlay');
-    if (overlay) _dismiss(true);
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    _dismiss(false);
+    return;
+  }
+  if (e.key !== 'Tab' || !_activeOverlay) return;
+  const focusables = Array.from(
+    _activeOverlay.querySelectorAll('button:not([disabled])'),
+  ) as HTMLElement[];
+  if (!focusables.length) return;
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const active = document.activeElement as HTMLElement | null;
+  if (e.shiftKey) {
+    if (active === first || !active || !_activeOverlay.contains(active)) {
+      e.preventDefault();
+      last.focus();
+    }
+    return;
+  }
+  if (active === last || !active || !_activeOverlay.contains(active)) {
+    e.preventDefault();
+    first.focus();
   }
 }
 
@@ -60,6 +79,7 @@ function _dismiss(result: boolean): void {
   overlay?.remove();
   document.body.style.overflow = '';
   document.removeEventListener('keydown', _onKeydown);
+  _activeOverlay = null;
   if (_activeTrigger && document.body.contains(_activeTrigger)) _activeTrigger.focus();
   _activeTrigger = null;
   const resolve = _activeResolve;

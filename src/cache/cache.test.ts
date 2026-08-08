@@ -3,7 +3,8 @@
  * cache invalidation on version bump, and cold-boot from cache.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Transaction } from '../types';
+import { TxType } from '../model/tx';
+import type { Transaction, TxTypeValue } from '../types';
 
 // ── Mock idb-keyval (in-memory store) ────────────────────────────
 const mockStore = new Map<string, any>();
@@ -42,7 +43,7 @@ import {
 
 // ── Helpers ──────────────────────────────────────────────────────
 
-function makeTx(id: string, date: string, type = 'BUY'): Transaction {
+function makeTx(id: string, date: string, type: TxTypeValue = TxType.BUY): Transaction {
   return {
     id,
     date,

@@ -841,11 +841,15 @@ details[open] > summary .card-chevron {
   background: var(--bg);
   color: var(--ink);
   outline: none;
-  transition: border 0.15s;
+  transition:
+    border 0.15s,
+    box-shadow 0.15s;
 }
-.form-input:focus {
+.form-input:focus-visible {
   border-color: var(--brand-border);
   background: var(--surface);
+  outline: 2px solid var(--brand-border);
+  outline-offset: 2px;
 }
 .form-input-sm {
   padding: 5px 7px;
@@ -919,6 +923,10 @@ details[open] > summary .card-chevron {
   background: transparent;
   color: var(--neg);
   border: 1px solid var(--neg-border);
+}
+.btn:focus-visible {
+  outline: 2px solid var(--brand-border);
+  outline-offset: 2px;
 }
 .btn:disabled,
 .btn:disabled:hover {
@@ -1262,9 +1270,10 @@ details[open] > summary .card-chevron {
   font-variant-numeric: tabular-nums;
 }
 .forecast-inflation-input:focus {
-  outline: none;
   border-color: var(--brand-border);
   background: var(--surface);
+  outline: 2px solid var(--brand-border);
+  outline-offset: 2px;
 }
 .forecast-inflation-unit {
   color: var(--ink-3);
@@ -1872,11 +1881,19 @@ input[type='color'] {
   border: 1px solid var(--line);
 }
 .info-tip:hover,
-.info-tip:focus {
+.info-tip:focus-visible {
   background: var(--brand-weak);
   color: var(--brand);
   border-color: var(--brand-border);
-  outline: none;
+  outline: 2px solid var(--brand-border);
+  outline-offset: 2px;
+}
+.snap-row-compact[tabindex='0']:focus-visible,
+.annual-row[tabindex='0']:focus-visible,
+#port-table .hold-row[tabindex='0']:focus-visible {
+  outline: 2px solid var(--brand-border);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 .info-tip-pop,
 .drift-alert-pop {
@@ -1969,6 +1986,7 @@ input[type='color'] {
   color: var(--ink-2);
   margin-bottom: 14px;
   line-height: 1.4;
+  white-space: pre-line;
 }
 .confirm-actions {
   display: flex;

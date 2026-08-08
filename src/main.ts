@@ -817,7 +817,7 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
 
   const ok = await confirmDialog({
     title: 'Restore from backup?',
-    bodyHtml: summarizeBackup(backup),
+    body: summarizeBackup(backup),
     confirmLabel: 'Restore',
     danger: true,
   });
@@ -1421,6 +1421,15 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
   const container = document.getElementById('import-preview');
   if (!container) return;
   const cont = container; // capture for closures
+  const allRows = parsed.transactions;
+  const excludedRows = new Set<number>();
+  const PAGE_SIZE = 25;
+  let currentPage = 0;
+  let hideDateWarning = false;
+
+  function getIncludedRows() {
+    return allRows.filter((_, idx) => !excludedRows.has(idx));
+  }
 
   // Confirm handler - save to database
   async function confirmImport() {
@@ -1428,11 +1437,16 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
       showMsg('import-msg', 'A sync or save is in progress. Try again in a moment.', false);
       return;
     }
+    const includedRows = getIncludedRows();
+    if (includedRows.length === 0) {
+      showMsg('import-msg', 'No rows selected for import. Include at least one row.', false);
+      return;
+    }
     cont.innerHTML = '';
     cont.style.display = 'none';
     setSyncing(true);
     try {
-      const merged = await mergeTransactions(state.txs, parsed.transactions);
+      const merged = await mergeTransactions(state.txs, includedRows);
       const today = new Date().toISOString().slice(0, 10);
       await saveImportMeta(today);
       state.txs = merged;
@@ -1461,8 +1475,8 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
       showMsg(
         'import-msg',
         state.offline || !navigator.onLine
-          ? `\u2713 ${merged.length} transactions saved locally. Will sync to Drive when back online.`
-          : `\u2713 ${merged.length} transactions saved`,
+          ? `\u2713 Imported ${includedRows.length} row${includedRows.length > 1 ? 's' : ''} locally (${excludedRows.size} excluded). Will sync to Drive when back online.`
+          : `\u2713 Imported ${includedRows.length} row${includedRows.length > 1 ? 's' : ''} (${excludedRows.size} excluded).`,
         true,
       );
 
@@ -1476,12 +1490,6 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
     } finally {
       setSyncing(false);
     }
-  }
-
-  // Auto-confirm when no unmapped types and no invalid dates (clean import)
-  if (summary.unmapped.length === 0 && summary.dateErrors.length === 0) {
-    confirmImport();
-    return;
   }
 
   // Build type counts string
@@ -1518,76 +1526,128 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
   `
       : '';
 
-  // Sample table (first ~10 rows)
-  const sampleRows = summary.sample;
-  const sampleHtml =
-    sampleRows.length > 0
-      ? `
-    <div style="overflow-x:auto;margin-top:.6rem;-webkit-overflow-scrolling:touch">
-      <table style="width:100%;font-size:11px;border-collapse:collapse">
-        <thead>
-          <tr style="color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em">
-            <th style="padding:4px 6px;text-align:left">Date</th>
-            <th style="padding:4px 6px;text-align:left">Type</th>
-            <th style="padding:4px 6px;text-align:left">Name</th>
-            <th style="padding:4px 6px;text-align:right">Shares</th>
-            <th style="padding:4px 6px;text-align:right">Amount</th>
-            <th style="padding:4px 6px;text-align:left">Currency</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${sampleRows
-            .map(
-              (tx) => `
-            <tr style="border-top:1px solid var(--line)">
-              <td style="padding:4px 6px">${esc(tx.date)}</td>
-              <td style="padding:4px 6px">${esc(tx.type)}</td>
-              <td style="padding:4px 6px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(tx.name)}</td>
-              <td style="padding:4px 6px;text-align:right">${tx.shares || ''}</td>
-              <td style="padding:4px 6px;text-align:right">${tx.amount}</td>
-              <td style="padding:4px 6px">${esc(tx.currency)}</td>
+  function renderPreview() {
+    const includedCount = summary.total - excludedRows.size;
+    const totalPages = Math.max(1, Math.ceil(allRows.length / PAGE_SIZE));
+    currentPage = Math.min(currentPage, totalPages - 1);
+    const start = currentPage * PAGE_SIZE;
+    const end = Math.min(start + PAGE_SIZE, allRows.length);
+    const pageRows = allRows.slice(start, end);
+
+    const previewTableHtml =
+      pageRows.length > 0
+        ? `
+      <div style="overflow-x:auto;margin-top:.6rem;-webkit-overflow-scrolling:touch">
+        <table style="width:100%;font-size:11px;border-collapse:collapse">
+          <thead>
+            <tr style="color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em">
+              <th style="padding:4px 6px;text-align:left">Date</th>
+              <th style="padding:4px 6px;text-align:left">Type</th>
+              <th style="padding:4px 6px;text-align:left">Name</th>
+              <th style="padding:4px 6px;text-align:right">Shares</th>
+              <th style="padding:4px 6px;text-align:right">Amount</th>
+              <th style="padding:4px 6px;text-align:left">Currency</th>
+              <th style="padding:4px 6px;text-align:right">Action</th>
             </tr>
-          `,
-            )
-            .join('')}
-        </tbody>
-      </table>
-    </div>
-  `
-      : '';
-
-  container.innerHTML = `
-    <div class="card" style="margin-top:.75rem">
-      <div class="card-title">Import preview</div>
-      <div style="margin:.6rem 0;font-size:13px">
-        <span style="font-weight:500">Profile:</span> ${esc(profile.label)}
+          </thead>
+          <tbody>
+            ${pageRows
+              .map((tx, idxOnPage) => {
+                const idx = start + idxOnPage;
+                const excluded = excludedRows.has(idx);
+                return `
+                <tr style="border-top:1px solid var(--line);opacity:${excluded ? '0.5' : '1'}">
+                  <td style="padding:4px 6px">${esc(tx.date)}</td>
+                  <td style="padding:4px 6px">${esc(tx.type)}</td>
+                  <td style="padding:4px 6px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(tx.name)}</td>
+                  <td style="padding:4px 6px;text-align:right">${tx.shares || ''}</td>
+                  <td style="padding:4px 6px;text-align:right">${tx.amount}</td>
+                  <td style="padding:4px 6px">${esc(tx.currency)}</td>
+                  <td style="padding:4px 6px;text-align:right">
+                    <button class="btn btn-ghost btn-sm" data-toggle-exclude="1" data-idx="${idx}">
+                      ${excluded ? 'Include' : 'Exclude'}
+                    </button>
+                  </td>
+                </tr>
+              `;
+              })
+              .join('')}
+          </tbody>
+        </table>
       </div>
-      <div style="font-size:13px">
-        <span style="font-weight:500">${summary.total}</span> rows parsed: ${typeCounts}
+    `
+        : '';
+
+    const pageInfoHtml =
+      allRows.length > 0
+        ? `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:.6rem">
+        <div class="note">
+          Showing rows ${start + 1}-${end} of ${allRows.length}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="btn btn-ghost btn-sm" id="btn-prev-import-page" ${currentPage === 0 ? 'disabled' : ''}>Previous</button>
+          <span class="note">Page ${currentPage + 1} / ${totalPages}</span>
+          <button class="btn btn-ghost btn-sm" id="btn-next-import-page" ${currentPage >= totalPages - 1 ? 'disabled' : ''}>Next</button>
+        </div>
       </div>
-      ${unmappedHtml}
-      ${dateErrorsHtml}
-      ${sampleHtml}
-      <div style="display:flex;gap:10px;margin-top:.85rem">
-        <button class="btn btn-primary" id="btn-confirm-import">Confirm import</button>
-        <button class="btn btn-ghost" id="btn-cancel-import">Cancel</button>
+    `
+        : '<div class="note" style="margin-top:.6rem">No parsed rows to preview.</div>';
+
+    cont.innerHTML = `
+      <div class="card" style="margin-top:.75rem">
+        <div class="card-title">Import preview</div>
+        <div style="margin:.6rem 0;font-size:13px">
+          <span style="font-weight:500">Profile:</span> ${esc(profile.label)}
+        </div>
+        <div style="font-size:13px">
+          <span style="font-weight:500">${summary.total}</span> rows parsed (${includedCount} included, ${excludedRows.size} excluded): ${typeCounts}
+        </div>
+        ${unmappedHtml}
+        ${hideDateWarning ? '' : dateErrorsHtml}
+        ${previewTableHtml}
+        ${pageInfoHtml}
+        <div style="display:flex;gap:10px;margin-top:.85rem">
+          <button class="btn btn-primary" id="btn-confirm-import" ${includedCount === 0 ? 'disabled' : ''}>Confirm import (${includedCount})</button>
+          <button class="btn btn-ghost" id="btn-cancel-import">Cancel</button>
+        </div>
       </div>
-    </div>
-  `;
-  container.style.display = 'block';
+    `;
+    cont.style.display = 'block';
 
-  document.getElementById('btn-confirm-import')?.addEventListener('click', () => confirmImport());
+    document.getElementById('btn-confirm-import')?.addEventListener('click', () => confirmImport());
+    document.getElementById('btn-cancel-import')?.addEventListener('click', () => {
+      cont.innerHTML = '';
+      cont.style.display = 'none';
+      showMsg('import-msg', 'Import cancelled.', false);
+    });
+    document.getElementById('btn-dismiss-date-warn')?.addEventListener('click', () => {
+      document.getElementById('import-date-warn')?.remove();
+    });
+    document.getElementById('btn-prev-import-page')?.addEventListener('click', () => {
+      if (currentPage > 0) {
+        currentPage -= 1;
+        renderPreview();
+      }
+    });
+    document.getElementById('btn-next-import-page')?.addEventListener('click', () => {
+      if (currentPage < totalPages - 1) {
+        currentPage += 1;
+        renderPreview();
+      }
+    });
+    document.querySelectorAll<HTMLButtonElement>('[data-toggle-exclude="1"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.dataset.idx);
+        if (!Number.isInteger(idx)) return;
+        if (excludedRows.has(idx)) excludedRows.delete(idx);
+        else excludedRows.add(idx);
+        renderPreview();
+      });
+    });
+  }
 
-  // Cancel handler
-  document.getElementById('btn-cancel-import')?.addEventListener('click', () => {
-    container.innerHTML = '';
-    container.style.display = 'none';
-    showMsg('import-msg', 'Import cancelled.', false);
-  });
-
-  document.getElementById('btn-dismiss-date-warn')?.addEventListener('click', () => {
-    document.getElementById('import-date-warn')?.remove();
-  });
+  renderPreview();
 }
 
 // ── Update subtitle ───────────────────────────────────────

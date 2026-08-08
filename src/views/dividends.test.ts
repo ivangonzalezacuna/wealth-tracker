@@ -189,6 +189,32 @@ describe('renderDividends', () => {
     expect(groups[2].textContent).toBe('Profit / loss');
   });
 
+  it('supports keyboard expansion and updates aria-expanded in the annual summary', () => {
+    renderDividends(makePD(), [
+      {
+        id: 'b1',
+        date: '2026-03-15',
+        source: 'trade_republic',
+        type: 'BUY',
+        name: 'ETF',
+        isin: 'X',
+        shares: 1,
+        price: 5,
+        amount: 5,
+        fee: 0,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 1,
+      },
+    ]);
+    const annualRow = document.querySelector('[data-annual-year="2026"]') as HTMLElement;
+    expect(annualRow.getAttribute('aria-expanded')).toBe('false');
+    annualRow.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(document.querySelector('.annual-detail')).not.toBeNull();
+    const rerenderedRow = document.querySelector('[data-annual-year="2026"]') as HTMLElement;
+    expect(rerenderedRow.getAttribute('aria-expanded')).toBe('true');
+  });
+
   it('uses cost-basis realized P&L instead of raw sell proceeds in annual summary', () => {
     renderDividends(makePD({ divHist: [], intHist: [] }), [
       {

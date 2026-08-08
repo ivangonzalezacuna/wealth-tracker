@@ -591,6 +591,19 @@ describe('renderPortfolio', () => {
     expect(table.querySelector('.hold-detail')).toBeNull();
   });
 
+  it('supports keyboard expansion and updates aria-expanded on holdings rows', () => {
+    renderPortfolio(makePD(), []);
+    const table = document.getElementById('port-table')!;
+    const row = table.querySelector('.hold-row:not(.th)') as HTMLElement;
+    expect(row.getAttribute('aria-expanded')).toBe('false');
+    row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(table.querySelector('.hold-detail')).not.toBeNull();
+    expect(row.getAttribute('aria-expanded')).toBe('true');
+    row.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+    expect(table.querySelector('.hold-detail')).toBeNull();
+    expect(row.getAttribute('aria-expanded')).toBe('false');
+  });
+
   it('re-render does not throw or duplicate KPI tiles or table rows', () => {
     renderPortfolio(makePD(), []);
     renderPortfolio(makePD(), []);

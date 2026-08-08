@@ -156,7 +156,7 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
         taxesPaid > 0 ? 'var(--neg)' : taxesPaid < 0 ? 'var(--pos)' : 'var(--ink-3)';
       const detailOpen = _expandedAnnualYear === y;
       const detail = renderAnnualDetail(r);
-      return `<div class="tbl-row annual-row" role="row" data-annual-year="${y}">
+      return `<div class="tbl-row annual-row" role="row" tabindex="0" aria-expanded="${String(detailOpen)}" data-annual-year="${y}">
         <div style="font-weight:500">${y}</div>
         <div style="text-align:right;color:${taxesPaidColor}">${fmtEur2(taxesPaid)}</div>
         <div style="text-align:right;color:${benefitsNet >= 0 ? 'var(--pos)' : 'var(--neg)'};font-weight:500">${fmtEur2(benefitsNet)}</div>
@@ -184,6 +184,12 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
       const y = row.dataset.annualYear || '';
       _expandedAnnualYear = _expandedAnnualYear === y ? '' : y;
       renderAnnualSummary(_lastPd!, _lastTxs);
+    });
+    annualEl.addEventListener('keydown', (ev) => {
+      const row = (ev.target as HTMLElement).closest('[data-annual-year]') as HTMLElement | null;
+      if (!row || (ev.key !== 'Enter' && ev.key !== ' ')) return;
+      ev.preventDefault();
+      row.click();
     });
   }
 

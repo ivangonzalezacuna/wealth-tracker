@@ -4,7 +4,7 @@
  */
 
 import { getDb, persistDb } from '../connection';
-import type { Transaction } from '../../types';
+import type { Transaction, TxTypeValue } from '../../types';
 
 /** Build a deduplication key for a transaction. */
 export function txKey(t: Transaction): string {
@@ -16,7 +16,7 @@ export function txKey(t: Transaction): string {
 export async function loadTransactions(): Promise<Transaction[]> {
   const db = await getDb();
   const result = db.exec(
-    'SELECT id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category FROM transactions ORDER BY date ASC',
+    'SELECT id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category FROM transactions ORDER BY date ASC, rowid ASC',
   );
   if (result.length === 0) return [];
   return result[0].values.map(rowToTransaction);
@@ -121,7 +121,7 @@ function rowToTransaction(row: unknown[]): Transaction {
     id: String(row[0] ?? ''),
     date: String(row[1] ?? ''),
     source: String(row[2] ?? ''),
-    type: String(row[3] ?? ''),
+    type: String(row[3] ?? '') as TxTypeValue,
     name: String(row[4] ?? ''),
     isin: String(row[5] ?? ''),
     shares: Number(row[6]) || 0,

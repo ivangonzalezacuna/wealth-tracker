@@ -146,6 +146,48 @@ describe('computePD', () => {
     expect(pd.totalFees).toBeCloseTo(8);
   });
 
+  it('standalone FEE rows contribute to totalFees', () => {
+    const txs = [
+      buyTx('IE00B4L5Y983', '2024-01-01', 10, 1000, 5),
+      // Standalone custody fee — no ISIN, amount is the fee charge
+      {
+        id: '',
+        source: '',
+        type: TxType.FEE,
+        date: '2024-01-31',
+        isin: '',
+        name: 'Custody fee',
+        shares: 0,
+        price: 0,
+        amount: -2,
+        fee: 0,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 0,
+      } as import('./types').Transaction,
+      // Standalone FEE with fee field instead of amount
+      {
+        id: '',
+        source: '',
+        type: TxType.FEE,
+        date: '2024-02-28',
+        isin: '',
+        name: 'Account fee',
+        shares: 0,
+        price: 0,
+        amount: 0,
+        fee: 1.5,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 0,
+      } as import('./types').Transaction,
+    ];
+    const pd = computePD(txs);
+
+    // 5 (embedded BUY fee) + 2 (standalone FEE amount) + 1.5 (standalone FEE fee field)
+    expect(pd.totalFees).toBeCloseTo(8.5);
+  });
+
   it('DCA monthly only counts BUYs (excludes sells)', () => {
     const txs = [
       buyTx('IE00B4L5Y983', '2024-01-15', 10, 1000),
@@ -287,5 +329,27 @@ describe('computePD', () => {
 
     // totalTax is only dividend tax (refunds go to taxBySource, not subtracted)
     expect(pd.totalTax).toBeCloseTo(3.44);
+  });
+
+  it('same-day transactions preserve insertion order (stable sort)', () => {
+    // FIFO correctness depends on same-date events being processed in the order they
+    // arrive (i.e. the order loadTransactions() returns them via ORDER BY rowid ASC).
+    // computePD uses a stable JS sort, so the caller-supplied order is preserved for
+    // ties. This test confirms that two same-day BUYs followed by a SELL are matched
+    // FIFO against the first BUY (cheaper lot) when that lot was inserted first.
+    const isin = 'IE00B4L5Y983';
+    const txs = [
+      // Lot A — inserted first (lower rowid) — lower cost basis per share
+      buyTx(isin, '2024-03-01', 5, 500), // avg 100/share
+      // Lot B — inserted second (higher rowid) — higher cost basis per share
+      buyTx(isin, '2024-03-01', 5, 600), // avg 120/share
+      sellTx(isin, '2024-03-01', 5, 700), // sell 5 shares
+    ];
+    const pd = computePD(txs, { method: 'fifo' });
+
+    // FIFO: first 5 shares (lot A at cost 500) are sold for 700 → realized P&L = +200
+    expect(pd.realizedPnL).toBeCloseTo(200);
+    // Remaining lot B (5 shares at cost 600) still open
+    expect(pd.etfs[isin].cost).toBeCloseTo(600);
   });
 });

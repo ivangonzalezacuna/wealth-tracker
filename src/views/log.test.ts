@@ -98,6 +98,25 @@ describe('renderLog', () => {
     expect(detail!.innerHTML).toContain('js-del-snap');
   });
 
+  it('supports keyboard expansion and updates aria-expanded', () => {
+    const snaps = [makeSnap('2026-01-01')];
+    renderLog({
+      txs: [],
+      snaps,
+      importMeta: null,
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+    });
+    const row = document.querySelector('.snap-row-compact:not(.th)') as HTMLElement;
+    expect(row.getAttribute('aria-expanded')).toBe('false');
+    row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(document.querySelector('.snap-detail')).not.toBeNull();
+    expect(row.getAttribute('aria-expanded')).toBe('true');
+    row.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+    expect(document.querySelector('.snap-detail')).toBeNull();
+    expect(row.getAttribute('aria-expanded')).toBe('false');
+  });
+
   it('invokes onEditSnap when edit button is clicked', () => {
     const onEdit = vi.fn();
     const snaps = [makeSnap('2026-03-01')];

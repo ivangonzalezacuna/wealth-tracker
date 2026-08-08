@@ -9,6 +9,7 @@ import { builtInProfiles } from './profiles/index';
 import type {
   ImportProfile,
   Transaction,
+  TxTypeValue,
   DecimalMode,
   DateFormat,
   ParseResult,
@@ -268,7 +269,7 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
     }
 
     // The canonical type for the tx: use mapped value or preserve raw (uppercased)
-    const txType = canonicalType || (rawType || '').toUpperCase() || 'UNKNOWN';
+    const txType = (canonicalType || (rawType || '').toUpperCase() || 'UNKNOWN') as TxTypeValue;
 
     const amount = parseNumber(get('amount'), profile.decimal);
     const tax = parseNumber(get('tax'), profile.decimal);
