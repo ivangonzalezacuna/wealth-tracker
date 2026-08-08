@@ -572,6 +572,20 @@ export function xirr(cashFlows: XirrCashFlow[]): number | null {
     years: (cf.day - day0) / 365,
   }));
 
+  /** NPV at a given rate. */
+  function npv(r: number): number | null {
+    let f = 0;
+    for (const cf of yearFracs) {
+      const base = 1 + r;
+      if (base <= 0) return null;
+      const disc = Math.pow(base, cf.years);
+      if (!isFinite(disc)) return null;
+      f += cf.amount / disc;
+    }
+    return isFinite(f) ? f : null;
+  }
+
+  // ── Newton-Raphson (fast path, good initial guess) ───────────────
   let rate = 0.1;
   const tol = 1e-6;
   for (let i = 0; i < 100; i++) {
@@ -584,13 +598,34 @@ export function xirr(cashFlows: XirrCashFlow[]): number | null {
       f += cf.amount / disc;
       df += (-cf.years * cf.amount) / (disc * base);
     }
-    if (!isFinite(f) || !isFinite(df) || Math.abs(df) < 1e-12) return null;
+    if (!isFinite(f) || !isFinite(df) || Math.abs(df) < 1e-12) break;
     const next = rate - f / df;
-    if (!isFinite(next)) return null;
+    if (!isFinite(next)) break;
     if (Math.abs(next - rate) < tol) return next;
     rate = next;
   }
-  return null;
+
+  // ── Bisection fallback (robust, slower) ──────────────────────────
+  // Search in (-0.9999, 100) — covers from -99.99% to +10000% annual return.
+  let lo = -0.9999;
+  let hi = 100;
+  let fLo = npv(lo);
+  const fHi = npv(hi);
+  if (fLo === null || fHi === null || fLo * fHi > 0) return null;
+  for (let i = 0; i < 200; i++) {
+    const mid = (lo + hi) / 2;
+    if (hi - lo < tol) return mid;
+    const fMid = npv(mid);
+    if (fMid === null) return null;
+    if (fMid === 0) return mid;
+    if (fLo * fMid < 0) {
+      hi = mid;
+    } else {
+      lo = mid;
+      fLo = fMid;
+    }
+  }
+  return (lo + hi) / 2;
 }
 
 // ── Per-account CAGR ──────────────────────────────────────────────

@@ -68,8 +68,20 @@ function _renderGoalCards(): void {
   const accounts = _lastAccounts;
   if (snaps.length === 0) return;
   const s = snaps[snaps.length - 1];
-  const total = snapTotal(s);
-  const accountInputs = _buildAccountForecastInputs(s, accounts);
+
+  // Exclude accounts that are locked and whose unlock year is still in the future.
+  // Locked pension/AVD funds cannot be used to meet a near-term liquid goal.
+  const currentYear = new Date().getFullYear();
+  const liquidAccounts = accounts.filter(
+    (a) => !a.locked || (a.lockedUntil ? parseInt(a.lockedUntil, 10) <= currentYear : false),
+  );
+  const liquidTotal = liquidAccounts.reduce(
+    (sum, a) => sum + ((s[a.id || ''] as number) || 0),
+    0,
+  );
+  const allTotal = snapTotal(s);
+  const lockedTotal = allTotal - liquidTotal;
+  const accountInputs = _buildAccountForecastInputs(s, liquidAccounts);
 
   const goalEl = document.getElementById('nw-goal');
   if (!goalEl) return;
@@ -86,10 +98,10 @@ function _renderGoalCards(): void {
     const rawNW = (goal.targetNetWorth || '').replace(/\./g, '').replace(',', '.');
     const target = parseFloat(rawNW);
     if (isNaN(target) || target <= 0) continue;
-    if (total >= target) continue;
+    if (liquidTotal >= target) continue;
 
-    const pctComplete = Math.min(100, Math.round((total / target) * 100));
-    const remaining = Math.max(0, target - total);
+    const pctComplete = Math.min(100, Math.round((liquidTotal / target) * 100));
+    const remaining = Math.max(0, target - liquidTotal);
     const etaMonths = forecastMonthsToTargetMulti(accountInputs, target);
     const targetDate = (goal.targetDate || '').trim();
     const validTargetDate = /^\d{4}-\d{2}$/.test(targetDate) ? targetDate : null;
@@ -120,20 +132,25 @@ function _renderGoalCards(): void {
     }
 
     const title = goal.label ? esc(goal.label) : 'Goal';
+    const lockedNote =
+      lockedTotal > 0
+        ? `<p class="note" style="margin-top:4px">Excludes ${fmtEur(lockedTotal)} in locked (pension/retirement) accounts — those funds are not accessible for this goal.</p>`
+        : '';
     const panelHtml = `
       <div class="row"><div class="row-label">Target</div><div class="row-val">${fmtEur(target)}</div></div>
-      <div class="row"><div class="row-label">Current</div><div class="row-val">${fmtEur(total)}</div></div>
+      <div class="row"><div class="row-label">Current (liquid)</div><div class="row-val">${fmtEur(liquidTotal)}</div></div>
       <div class="row"><div class="row-label">Remaining</div><div class="row-val">${fmtEur(remaining)}</div></div>
       <div style="margin:.75rem 0">
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-          <span>${fmtPctVal(Math.min(100, (total / target) * 100))} complete</span>
-          <span>${fmtEur(total)} / ${fmtEur(target)}</span>
+          <span>${fmtPctVal(Math.min(100, (liquidTotal / target) * 100))} complete</span>
+          <span>${fmtEur(liquidTotal)} / ${fmtEur(target)}</span>
         </div>
         <div style="height:8px;background:var(--surface-3);border-radius:var(--radius-xs);overflow:hidden">
           <div style="width:${pctComplete}%;height:100%;background:${pctComplete >= 100 ? 'var(--pos)' : isOnTrack === false ? 'var(--warn)' : 'var(--brand)'};border-radius:var(--radius-xs);transition:width .3s"></div>
         </div>
       </div>
-      <div class="row" style="align-items:flex-start"><div class="row-label">ETA</div><div class="row-val" style="font-size:12px;text-align:left;flex-shrink:1;overflow-wrap:break-word;word-break:break-word;min-width:0">${etaText}${_inflationRate > 0 ? '<br><span class="note" style="font-size:11px">ETA is in nominal terms; inflation is not factored in.</span>' : ''}</div></div>`;
+      <div class="row" style="align-items:flex-start"><div class="row-label">ETA</div><div class="row-val" style="font-size:12px;text-align:left;flex-shrink:1;overflow-wrap:break-word;word-break:break-word;min-width:0">${etaText}${_inflationRate > 0 ? '<br><span class="note" style="font-size:11px">ETA is in nominal terms; inflation is not factored in.</span>' : ''}</div></div>
+      ${lockedNote}`;
     panels.push({ title, html: panelHtml });
   }
 
