@@ -9,6 +9,7 @@ import {
   annualizedVolatility,
   maxDrawdown,
   cagrPerAccount,
+  dividendMetrics,
 } from './insights';
 import type { Snapshot } from '../types';
 import * as utils from '../utils';
@@ -146,6 +147,40 @@ describe('findYoYSnapshot', () => {
     expect(result).not.toBeNull();
     // 12 months before 2026-01 = 2025-01
     expect(result!.snap.date).toBe('2025-01');
+  });
+});
+
+describe('dividendMetrics', () => {
+  it('anchors trailing income windows to the latest imported transaction month', () => {
+    const metrics = dividendMetrics(
+      [
+        { type: 'DIVIDEND', date: '2024-05-15', amount: 10 },
+        { type: 'DIVIDEND', date: '2025-04-15', amount: 20 },
+        { type: 'DIVIDEND', date: '2025-12-15', amount: 30 },
+        { type: 'BUY', date: '2026-03-01', amount: 1000 },
+      ],
+      1000,
+      800,
+    );
+
+    expect(metrics.asOfMonth).toBe('2026-03');
+    expect(metrics.trailing12m).toBe(50);
+    expect(metrics.yoyGrowth).toBeCloseTo(4);
+  });
+
+  it('uses current investment value for yield inputs without requiring wall-clock dates', () => {
+    const metrics = dividendMetrics(
+      [
+        { type: 'DIVIDEND', date: '2025-04-15', amount: 12 },
+        { type: 'DIVIDEND', date: '2026-03-15', amount: 108 },
+      ],
+      1000,
+      1200,
+    );
+
+    expect(metrics.trailing12m).toBe(120);
+    expect(metrics.yieldPct).toBeCloseTo(0.12);
+    expect(metrics.yieldOnCost).toBeCloseTo(0.1);
   });
 });
 

@@ -441,6 +441,7 @@ export interface DividendMetrics {
   yoyGrowth: number | null;
   monthlyBreakdown: { month: string; amount: number }[];
   dividendCagr: number | null;
+  asOfMonth: string | null;
 }
 
 /**
@@ -464,29 +465,37 @@ export function dividendMetrics(
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([month, amount]) => ({ month, amount }));
 
-  // Trailing 12m income
-  const cutoffDate = new Date();
-  cutoffDate.setFullYear(cutoffDate.getFullYear() - 1);
-  const cutoffStr = cutoffDate.toISOString().substring(0, 7);
+  const datedMonths = transactions
+    .map((t) => t.date.substring(0, 7))
+    .filter((month) => parseYearMonth(month) !== null)
+    .sort((a, b) => a.localeCompare(b));
+  const asOfMonth = datedMonths[datedMonths.length - 1] || null;
+  const anchorVal = asOfMonth ? _yearMonthToIndex(asOfMonth) : null;
+
+  // Trailing 12m income, anchored to the latest imported transaction month.
   const trailing12m = monthlyBreakdown
-    .filter((m) => m.month >= cutoffStr)
+    .filter((m) => {
+      const idx = _yearMonthToIndex(m.month);
+      return anchorVal !== null && idx !== null && idx >= anchorVal - 11 && idx <= anchorVal;
+    })
     .reduce((s, m) => s + m.amount, 0);
 
   // Yield and yield on cost
   const yieldPct = currentPortfolioValue > 0 ? trailing12m / currentPortfolioValue : null;
   const yieldOnCost = totalCostBasis > 0 ? trailing12m / totalCostBasis : null;
 
-  // YoY growth: compare full calendar years (last complete year vs this year so far)
-  const thisYear = new Date().getFullYear();
-  const thisYearStr = String(thisYear);
-  const lastYearStr = String(thisYear - 1);
-  const thisYearIncome = monthlyBreakdown
-    .filter((m) => m.month.startsWith(thisYearStr))
-    .reduce((s, m) => s + m.amount, 0);
-  const lastYearIncome = monthlyBreakdown
-    .filter((m) => m.month.startsWith(lastYearStr))
-    .reduce((s, m) => s + m.amount, 0);
-  const yoyGrowth = lastYearIncome > 0 ? (thisYearIncome - lastYearIncome) / lastYearIncome : null;
+  // YoY growth: trailing 12m income versus the prior trailing 12m window,
+  // both anchored to the latest imported transaction month.
+  const prior12m =
+    anchorVal === null
+      ? 0
+      : monthlyBreakdown
+          .filter((m) => {
+            const idx = _yearMonthToIndex(m.month);
+            return idx !== null && idx >= anchorVal - 23 && idx <= anchorVal - 12;
+          })
+          .reduce((s, m) => s + m.amount, 0);
+  const yoyGrowth = prior12m > 0 ? (trailing12m - prior12m) / prior12m : null;
 
   // Dividend CAGR from annual totals
   const byYear = new Map<number, number>();
@@ -505,7 +514,15 @@ export function dividendMetrics(
     }
   }
 
-  return { trailing12m, yieldPct, yieldOnCost, yoyGrowth, monthlyBreakdown, dividendCagr };
+  return {
+    trailing12m,
+    yieldPct,
+    yieldOnCost,
+    yoyGrowth,
+    monthlyBreakdown,
+    dividendCagr,
+    asOfMonth,
+  };
 }
 
 function parseYearMonth(d: string): { year: number; month: number } | null {
@@ -516,6 +533,12 @@ function parseYearMonth(d: string): { year: number; month: number } | null {
   const month = parseInt(parts[1], 10);
   if (isNaN(year) || isNaN(month)) return null;
   return { year, month };
+}
+
+function _yearMonthToIndex(d: string): number | null {
+  const parsed = parseYearMonth(d);
+  if (!parsed) return null;
+  return parsed.year * 12 + (parsed.month - 1);
 }
 
 function toUtcDay(date: string): number | null {

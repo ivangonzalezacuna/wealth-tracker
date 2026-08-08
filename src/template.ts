@@ -189,7 +189,7 @@ export function appTemplate(): string {
   <div id="an-empty" style="display:none"><div class="card"><div class="empty-state">
     <div style="font-size:2.4rem;margin-bottom:.75rem">📈</div>
     <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.4rem">No snapshots yet</div>
-    <p style="font-size:13px;margin-bottom:1.25rem;max-width:340px;margin-left:auto;margin-right:auto">Add at least one monthly snapshot to see analytics. Performance and risk metrics appear as your history grows.</p>
+    <p style="font-size:13px;margin-bottom:1.25rem;max-width:340px;margin-left:auto;margin-right:auto">Add at least one monthly snapshot to see analytics. Income metrics update from imported data, and risk metrics unlock after 24 months of snapshot history.</p>
     <button class="btn btn-primary" data-goto="log">Add first snapshot →</button>
   </div></div></div>
   <div id="an-content" style="display:none">
@@ -262,10 +262,13 @@ export function appTemplate(): string {
     <details id="an-advanced" class="card-collapsible" style="margin-top:1rem">
       <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;padding:.4rem 0 .1rem;font-size:11px;color:var(--ink-3);font-weight:500;text-transform:uppercase;letter-spacing:.04em">
         <span class="card-chevron" id="an-advanced-arrow"></span>
-        Advanced Analytics
-        <span id="an-advanced-gate" style="font-size:11px;color:var(--ink-3);font-weight:400;margin-left:4px;text-transform:none;letter-spacing:0"></span>
+        Advanced analytics
       </summary>
       <div id="an-advanced-content" style="padding-top:.75rem">
+        <div class="card" id="an-risk-metrics-note-card" style="margin:0 0 1rem;display:none">
+          <div class="card-title">Risk analytics</div>
+          <div id="an-risk-metrics-note" class="note"></div>
+        </div>
         <div class="kpi-row" id="an-kpis-risk"></div>
 
         <!-- Collapsible plain-language explainer for each advanced metric -->

@@ -170,6 +170,10 @@ For detailed cost-basis, realized P&L, and dividend tracking, import your broker
 
 Transactions are merged (deduplicated by date + type + amount), so you can re-import updated CSVs safely.
 
+Income analytics on the Analytics tab are anchored to your latest imported transaction month, so
+trailing-12-month income and income growth do not drift just because calendar time passed. Dividend
+yield is calculated against the current value of investment accounts, not total household net worth.
+
 ---
 
 ## Development
