@@ -249,7 +249,7 @@ function renderSnapList(
     ${pageItems
       .map(
         (s) =>
-          `<div class="snap-row-compact" role="row" data-date="${s.date}">
+          `<div class="snap-row-compact" role="row" tabindex="0" aria-expanded="${String(isCollapsed('snap:' + s.date))}" aria-controls="snap-detail-panel" data-date="${s.date}">
         ${renderTableRow(columns, s)}
       </div>`,
       )
@@ -281,6 +281,10 @@ function renderSnapList(
       if (existing) {
         const wasThis = existing.previousElementSibling === row;
         const prevDate = (existing.previousElementSibling as HTMLElement | null)?.dataset?.date;
+        (existing.previousElementSibling as HTMLElement | null)?.setAttribute(
+          'aria-expanded',
+          'false',
+        );
         existing.remove();
         if (prevDate) toggleCollapsed('snap:' + prevDate); // mark collapsed
         if (wasThis) return;
@@ -290,6 +294,15 @@ function renderSnapList(
       if (!snap) return;
       if (date) toggleCollapsed('snap:' + date); // mark expanded
       _expandSnapRow(row, snap, date!, listEl, onEdit, onDel);
+      row.setAttribute('aria-expanded', 'true');
+    });
+    listEl.addEventListener('keydown', (e) => {
+      const row = (e.target as HTMLElement).closest(
+        '.snap-row-compact:not(.th)',
+      ) as HTMLElement | null;
+      if (!row || (e.key !== 'Enter' && e.key !== ' ')) return;
+      e.preventDefault();
+      row.click();
     });
   }
 
@@ -299,7 +312,10 @@ function renderSnapList(
       const date = (row as HTMLElement).dataset.date;
       if (date && isCollapsed('snap:' + date)) {
         const snap = snaps.find((s) => s.date === date);
-        if (snap) _expandSnapRow(row as HTMLElement, snap, date, listEl, onEdit, onDel);
+        if (snap) {
+          _expandSnapRow(row as HTMLElement, snap, date, listEl, onEdit, onDel);
+          (row as HTMLElement).setAttribute('aria-expanded', 'true');
+        }
       }
     });
   }
@@ -329,6 +345,7 @@ function _expandSnapRow(
     )
     .join('');
   const panel = document.createElement('div');
+  panel.id = 'snap-detail-panel';
   panel.className = 'hold-detail snap-detail';
   panel.innerHTML = `
     ${detailRows}

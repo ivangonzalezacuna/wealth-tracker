@@ -50,10 +50,17 @@ describe('confirmDialog', () => {
     expect(document.querySelector('.confirm-overlay')).toBeNull();
   });
 
-  it('pressing Enter while open resolves true', async () => {
+  it('pressing Enter while open does not auto-confirm', async () => {
     const p = confirmDialog({ title: 'Delete?' });
+    let resolved: boolean | null = null;
+    void p.then((value) => {
+      resolved = value;
+    });
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
-    expect(await p).toBe(true);
+    await Promise.resolve();
+    expect(resolved).toBeNull();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(await p).toBe(false);
     expect(document.querySelector('.confirm-overlay')).toBeNull();
   });
 
@@ -105,6 +112,16 @@ describe('confirmDialog', () => {
   it('focuses cancel button by default', () => {
     confirmDialog({ title: 'Delete?' });
     const cancel = document.querySelector('.js-confirm-cancel') as HTMLElement;
+    expect(document.activeElement).toBe(cancel);
+  });
+
+  it('traps Tab inside the dialog', () => {
+    confirmDialog({ title: 'Delete?' });
+    const cancel = document.querySelector('.js-confirm-cancel') as HTMLElement;
+    const ok = document.querySelector('.js-confirm-ok') as HTMLElement;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true }));
+    expect(document.activeElement).toBe(ok);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab' }));
     expect(document.activeElement).toBe(cancel);
   });
 });
