@@ -235,10 +235,17 @@ export interface DateErrorRow {
   count: number;
 }
 
+export interface NumberErrorRow {
+  field: string; // e.g. 'amount', 'shares'
+  raw: string; // original cell value that failed to parse
+  count: number;
+}
+
 export interface ParseResult {
   transactions: Transaction[];
   unmapped: UnmappedType[];
   dateErrors: DateErrorRow[];
+  numberErrors: NumberErrorRow[];
 }
 
 export interface PreviewSummary {
@@ -247,4 +254,5 @@ export interface PreviewSummary {
   sample: Transaction[];
   unmapped: UnmappedType[];
   dateErrors: DateErrorRow[];
+  numberErrors: NumberErrorRow[];
 }

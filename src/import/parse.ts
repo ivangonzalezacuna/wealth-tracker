@@ -57,6 +57,7 @@ function detectSeparator(headerLine: string): string {
 export function parseNumber(s: string | null | undefined, mode: DecimalMode = 'auto'): number {
   if (!s) return 0;
   let str = s.trim();
+  if (!str) return 0;
 
   if (mode === 'comma' || (mode === 'auto' && isGermanNumber(str))) {
     // German: dots are thousands, comma is decimal
@@ -66,7 +67,8 @@ export function parseNumber(s: string | null | undefined, mode: DecimalMode = 'a
     str = str.replace(/,/g, '');
   }
   // mode === 'auto' and not German → assume dot-decimal (default parseFloat)
-  return parseFloat(str) || 0;
+  const n = parseFloat(str);
+  return isNaN(n) ? NaN : n;
 }
 
 /** Detect German number format: 1.234,56 or plain 12,34. */
@@ -207,7 +209,7 @@ export function detectProfile(
 
 export function parseWithProfile(text: string, profile: ImportProfile): ParseResult {
   const lines = joinQuotedLines(text.trim().split('\n'));
-  if (lines.length < 2) return { transactions: [], unmapped: [], dateErrors: [] };
+  if (lines.length < 2) return { transactions: [], unmapped: [], dateErrors: [], numberErrors: [] };
 
   // Resolve delimiter
   const sep = profile.delimiter === 'auto' ? detectSeparator(lines[0]) : profile.delimiter || ',';
@@ -229,6 +231,7 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
   const transactions: Transaction[] = [];
   const unmappedCounts: Record<string, number> = {};
   const dateErrorCounts: Record<string, number> = {};
+  const numberErrorCounts: Record<string, { field: string; raw: string; count: number }> = {};
   const idCounts: Record<string, number> = {}; // counter for deterministic ID generation
 
   for (let i = 1; i < lines.length; i++) {
@@ -271,10 +274,26 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
     // The canonical type for the tx: use mapped value or preserve raw (uppercased)
     const txType = (canonicalType || (rawType || '').toUpperCase() || 'UNKNOWN') as TxTypeValue;
 
-    const amount = parseNumber(get('amount'), profile.decimal);
-    const tax = parseNumber(get('tax'), profile.decimal);
+    /** Parse a number field, tracking non-empty cells that fail to parse. */
+    const parseField = (field: string): number => {
+      const raw = get(field);
+      const n = parseNumber(raw, profile.decimal);
+      if (isNaN(n) && raw && raw.trim()) {
+        const key = `${field}|${raw.trim()}`;
+        if (numberErrorCounts[key]) {
+          numberErrorCounts[key].count++;
+        } else {
+          numberErrorCounts[key] = { field, raw: raw.trim(), count: 1 };
+        }
+        return 0;
+      }
+      return n;
+    };
+
+    const amount = parseField('amount');
+    const tax = parseField('tax');
     const isin = get('isin') || get('symbol');
-    const shares = parseNumber(get('shares'), profile.decimal);
+    const shares = parseField('shares');
 
     // Generate a deterministic ID when the CSV provides none.
     // Profiles that lack an id column must declare `idColumns` to specify
@@ -300,12 +319,12 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
       name: get('name'),
       isin,
       shares,
-      price: parseNumber(get('price'), profile.decimal),
+      price: parseField('price'),
       amount,
-      fee: parseNumber(get('fee'), profile.decimal),
+      fee: parseField('fee'),
       tax,
       currency: get('currency') || profile.defaultCurrency,
-      fxRate: parseNumber(get('fxRate'), profile.decimal),
+      fxRate: parseField('fxRate'),
     });
   }
 
@@ -362,15 +381,16 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
   const dateErrors = Object.entries(dateErrorCounts)
     .map(([raw, count]) => ({ raw, count }))
     .sort((a, b) => b.count - a.count);
+  const numberErrors = Object.values(numberErrorCounts).sort((a, b) => b.count - a.count);
 
-  return { transactions: filtered, unmapped, dateErrors };
+  return { transactions: filtered, unmapped, dateErrors, numberErrors };
 }
 
 /**
  * Generate a preview summary for parsed results.
  */
 export function previewSummary(parsed: ParseResult): PreviewSummary {
-  const { transactions, unmapped, dateErrors } = parsed;
+  const { transactions, unmapped, dateErrors, numberErrors } = parsed;
   const byCounts: Record<string, number> = {};
   for (const tx of transactions) {
     byCounts[tx.type] = (byCounts[tx.type] || 0) + 1;
@@ -380,6 +400,7 @@ export function previewSummary(parsed: ParseResult): PreviewSummary {
     byCounts,
     unmapped,
     dateErrors,
+    numberErrors,
     sample: transactions.slice(0, 10),
   };
 }

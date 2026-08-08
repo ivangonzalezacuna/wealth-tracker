@@ -220,7 +220,7 @@ code,
   letter-spacing: -0.02em;
 }
 .kpi-label {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -279,7 +279,7 @@ code,
   padding: 1.5rem;
 }
 .card-title {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--ink-2);
   margin-bottom: 0;
@@ -975,7 +975,7 @@ details[open] > summary .card-chevron {
 
 /* Misc */
 .note {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-3);
   font-style: italic;
   line-height: 1.5;
@@ -1472,7 +1472,7 @@ details[open] > summary .card-chevron {
   .nav button {
     font-size: 11px;
     padding: 8px 10px;
-    min-height: 36px;
+    min-height: 44px;
   }
   .kpi-row {
     grid-template-columns: 1fr 1fr;
