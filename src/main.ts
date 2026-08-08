@@ -1387,7 +1387,7 @@ function showProfilePicker(csvText: string) {
     .map((p) => `<option value="${esc(p.id)}">${esc(p.label)}</option>`)
     .join('');
 
-  container.innerHTML = `
+  cont.innerHTML = `
     <div class="card" style="margin-top:.75rem">
       <div class="card-title">Select import profile</div>
       <p class="note" style="margin-bottom:.75rem">Could not auto-detect the CSV format. Please select the matching bank/broker profile:</p>
@@ -1400,7 +1400,7 @@ function showProfilePicker(csvText: string) {
       <button class="btn btn-ghost btn-sm" id="btn-cancel-profile">Cancel</button>
     </div>
   `;
-  container.style.display = 'block';
+  cont.style.display = 'block';
 
   document.getElementById('btn-apply-profile')?.addEventListener('click', () => {
     const id = (document.getElementById('profile-select') as HTMLSelectElement | null)?.value;
@@ -1408,8 +1408,8 @@ function showProfilePicker(csvText: string) {
     if (profile) showImportPreview(csvText, profile);
   });
   document.getElementById('btn-cancel-profile')?.addEventListener('click', () => {
-    container.innerHTML = '';
-    container.style.display = 'none';
+    cont.innerHTML = '';
+    cont.style.display = 'none';
     showMsg('import-msg', 'Import cancelled.', false);
   });
 }
