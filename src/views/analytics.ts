@@ -289,12 +289,17 @@ export function renderAnalytics(
   const advancedGate = document.getElementById('an-advanced-gate');
   const advancedContent = document.getElementById('an-advanced-content');
 
+  const riskMetricsReady = monthsSpan >= 24;
+
   if (advancedGate) {
-    advancedGate.textContent =
-      monthsSpan < 12 ? `(${monthsSpan}/12 months for full analytics)` : '';
+    advancedGate.textContent = riskMetricsReady ? '' : `(${Math.max(monthsSpan, 0)}/24 months for risk metrics)`;
   }
 
   if (advancedContent) {
+    const riskKpisEl = document.getElementById('an-kpis-risk');
+    const explainerEl = document.getElementById('an-metrics-explainer') as HTMLElement | null;
+    const drawdownCardEl = document.getElementById('an-drawdown-card') as HTMLElement | null;
+
     // Risk KPIs
     const downDev = downsideDeviation(volResult.monthlyReturns);
     const sharpe =
@@ -309,59 +314,66 @@ export function renderAnalytics(
     const avgDD = avgDrawdown(ddResult.series);
     const ddDur = drawdownDuration(ddResult.series);
 
-    document.getElementById('an-kpis-risk')!.innerHTML = `
+    if (riskKpisEl) {
+      riskKpisEl.innerHTML = riskMetricsReady
+        ? `
       ${kpiTile({
-        label: `Volatility${infoTip('Annualized standard deviation of monthly net-worth percentage changes. Higher volatility means a bumpier ride. Meaningful after 12+ months of data.')}`,
+        label: `Volatility${infoTip('Annualized standard deviation of monthly net-worth percentage changes. Higher volatility means a bumpier ride. Unlocked after 24 months of snapshot history.')}`,
         value: volResult.annualized !== null ? fmtPctNeg(volResult.annualized * 100) : '-',
         valueClass: '',
-        sub: volResult.annualized !== null ? 'annualized, all history' : 'needs 3 snapshots',
+        sub: volResult.annualized !== null ? 'annualized, all history' : 'needs more data',
       })}
       ${kpiTile({
-        label: `Max Drawdown${infoTip('Largest peak-to-trough decline as a percentage of the prior peak. A value of -20% means your net worth fell 20% from a high point at some stage.')}`,
+        label: `Max Drawdown${infoTip('Largest peak-to-trough decline as a percentage of the prior peak. Risk metrics unlock after 24 months of snapshot history.')}`,
         value: dd !== null ? (dd === 0 ? '0%' : fmtPctNeg(dd * 100)) : '-',
         valueClass: dd === null ? '' : dd < 0 ? 'neg' : '',
-        sub: dd !== null ? 'all history' : 'needs 2 snapshots',
+        sub: dd !== null ? 'all history' : 'needs more data',
       })}
       ${kpiTile({
-        label: `Calmar${infoTip('CAGR divided by absolute max drawdown. Higher is better. Valued by FIRE investors evaluating sequence-of-returns risk. Requires 12+ months of CAGR and a drawdown.')}`,
+        label: `Calmar${infoTip('CAGR divided by absolute max drawdown. Higher is better. Unlocked after 24 months of snapshot history.')}`,
         value: calmar !== null ? calmar.toFixed(2) : '-',
         valueClass: calmar === null ? '' : calmar >= 0 ? 'pos' : 'neg',
-        sub: calmar !== null ? 'CAGR / |Max DD|' : 'needs CAGR and drawdown',
+        sub: calmar !== null ? 'CAGR / |Max DD|' : 'needs more data',
       })}
       ${kpiTile({
-        label: `Sharpe${infoTip('(CAGR minus risk-free rate) divided by annualized volatility. Measures return per unit of total risk. Configure the risk-free rate in Settings.')}`,
+        label: `Sharpe${infoTip('(CAGR minus risk-free rate) divided by annualized volatility. Measures return per unit of total risk. Unlocked after 24 months of snapshot history.')}`,
         value: sharpe !== null ? sharpe.toFixed(2) : '-',
         valueClass: '',
-        sub: sharpe !== null ? `rf = ${(riskFreeRate * 100).toFixed(2)}%` : 'needs 12+ months',
+        sub: sharpe !== null ? `rf = ${(riskFreeRate * 100).toFixed(2)}%` : 'needs more data',
       })}
       ${kpiTile({
-        label: `Sortino${infoTip('Like Sharpe, but uses only downside volatility (negative months). Higher Sortino than Sharpe means your losses are smaller than your gains. For quant and FIRE investors.')}`,
+        label: `Sortino${infoTip('Like Sharpe, but uses only downside volatility (negative months). Unlocked after 24 months of snapshot history.')}`,
         value: sortino !== null ? sortino.toFixed(2) : '-',
         valueClass: '',
-        sub: sortino !== null ? 'downside risk only' : 'needs 12+ months',
+        sub: sortino !== null ? 'downside risk only' : 'needs more data',
       })}
       ${kpiTile({
-        label: `Avg Drawdown${infoTip('Average of all per-month drawdown fractions. Less extreme than max drawdown; shows typical underwater depth.')}`,
+        label: `Avg Drawdown${infoTip('Average of all per-month drawdown fractions. Risk metrics unlock after 24 months of snapshot history.')}`,
         value: avgDD !== null && avgDD < 0 ? fmtPctNeg(avgDD * 100) : avgDD === 0 ? '0%' : '-',
         valueClass: avgDD !== null && avgDD < 0 ? 'neg' : '',
-        sub: avgDD !== null ? 'mean of all drawdown months' : 'needs 2 snapshots',
+        sub: avgDD !== null ? 'mean of all drawdown months' : 'needs more data',
       })}
       ${kpiTile({
-        label: `DD Duration${infoTip('Maximum number of consecutive months where the portfolio was below its prior peak. Shorter is better. For FIRE investors concerned with sequence of returns.')}`,
+        label: `DD Duration${infoTip('Maximum number of consecutive months where the portfolio was below its prior peak. Risk metrics unlock after 24 months of snapshot history.')}`,
         value: ddDur > 0 ? `${ddDur} mo` : ddResult.series.length > 0 ? '0 mo' : '-',
         valueClass: '',
         sub: ddDur > 0 ? 'longest underwater streak' : 'no drawdown in history',
       })}
-    `;
+    `
+        : '<p class="note">Risk metrics unlock after 24 months of snapshot history to avoid over-interpreting sparse data.</p>';
+    }
 
-    // Drawdown chart
-    _renderDrawdownChart(ddResult.series);
+    if (explainerEl) explainerEl.style.display = riskMetricsReady ? '' : 'none';
+    if (drawdownCardEl) drawdownCardEl.style.display = riskMetricsReady ? '' : 'none';
+
+    if (riskMetricsReady) _renderDrawdownChart(ddResult.series);
+    else _destroyChart('c-an-drawdown');
 
     // Rolling CAGR
     _renderRollingCagrChart(snaps);
 
     // Income analytics
-    _renderIncomeAnalytics(txs, total, pd?.totalInv || 0);
+    _renderIncomeAnalytics(txs, latestInvestmentValue || 0, pd?.totalInv || 0);
   }
 
   // Bind advanced section open/close arrow via CSS class
@@ -1150,19 +1162,20 @@ function _renderIncomeAnalytics(
   if (!hasIncome) return;
 
   const metrics = dividendMetrics(txs, currentPortfolioValue, totalCostBasis);
+  const throughLabel = metrics.asOfMonth ? `through ${fmtMon(metrics.asOfMonth)}` : 'latest import window';
 
   document.getElementById('an-kpis-income')!.innerHTML = `
     ${kpiTile({
-      label: `Trailing 12M Income${infoTip('Sum of all DIVIDEND and INTEREST transactions received in the last 12 months.')}`,
+      label: `Trailing 12M Income${infoTip('Sum of all DIVIDEND and INTEREST transactions received in the trailing 12-month window anchored to your latest imported transaction month.')}`,
       value: fmtEur2(metrics.trailing12m),
-      sub: 'last 12 months',
+      sub: throughLabel,
     })}
     ${
       metrics.yieldPct !== null
         ? kpiTile({
-            label: `Dividend Yield${infoTip('Trailing 12-month income divided by current portfolio value. Shows income as a percentage of your investment.')}`,
+            label: `Dividend Yield${infoTip('Trailing 12-month income divided by the current value of your investment accounts. Excludes cash, savings, pension, and other non-investment balances.')}`,
             value: fmtPctNeg(metrics.yieldPct * 100),
-            sub: 'trailing 12M / portfolio value',
+            sub: 'trailing 12M / investment value',
           })
         : ''
     }
@@ -1178,10 +1191,10 @@ function _renderIncomeAnalytics(
     ${
       metrics.yoyGrowth !== null
         ? kpiTile({
-            label: `Income Growth (YoY)${infoTip('Year-over-year change in total income. Positive growth means your income stream is expanding. Relevant for dividend growth investors and FIRE planning.')}`,
+            label: `Income Growth (YoY)${infoTip('Trailing 12-month income compared with the prior trailing 12 months, anchored to your latest imported transaction month.')}`,
             value: fmtPctSigned(metrics.yoyGrowth * 100),
             valueClass: metrics.yoyGrowth >= 0 ? 'pos' : 'neg',
-            sub: 'this year vs last year',
+            sub: `${throughLabel} vs prior 12M`,
           })
         : ''
     }

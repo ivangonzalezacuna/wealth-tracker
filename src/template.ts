@@ -189,7 +189,7 @@ export function appTemplate(): string {
   <div id="an-empty" style="display:none"><div class="card"><div class="empty-state">
     <div style="font-size:2.4rem;margin-bottom:.75rem">📈</div>
     <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.4rem">No snapshots yet</div>
-    <p style="font-size:13px;margin-bottom:1.25rem;max-width:340px;margin-left:auto;margin-right:auto">Add at least one monthly snapshot to see analytics. Performance and risk metrics appear as your history grows.</p>
+    <p style="font-size:13px;margin-bottom:1.25rem;max-width:340px;margin-left:auto;margin-right:auto">Add at least one monthly snapshot to see analytics. Income metrics update from imported data, and risk metrics unlock after 24 months of snapshot history.</p>
     <button class="btn btn-primary" data-goto="log">Add first snapshot →</button>
   </div></div></div>
   <div id="an-content" style="display:none">
