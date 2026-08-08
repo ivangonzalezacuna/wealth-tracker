@@ -1387,7 +1387,7 @@ function showProfilePicker(csvText: string) {
     .map((p) => `<option value="${esc(p.id)}">${esc(p.label)}</option>`)
     .join('');
 
-  cont.innerHTML = `
+  container.innerHTML = `
     <div class="card" style="margin-top:.75rem">
       <div class="card-title">Select import profile</div>
       <p class="note" style="margin-bottom:.75rem">Could not auto-detect the CSV format. Please select the matching bank/broker profile:</p>
@@ -1400,7 +1400,7 @@ function showProfilePicker(csvText: string) {
       <button class="btn btn-ghost btn-sm" id="btn-cancel-profile">Cancel</button>
     </div>
   `;
-  cont.style.display = 'block';
+  container.style.display = 'block';
 
   document.getElementById('btn-apply-profile')?.addEventListener('click', () => {
     const id = (document.getElementById('profile-select') as HTMLSelectElement | null)?.value;
@@ -1408,8 +1408,8 @@ function showProfilePicker(csvText: string) {
     if (profile) showImportPreview(csvText, profile);
   });
   document.getElementById('btn-cancel-profile')?.addEventListener('click', () => {
-    cont.innerHTML = '';
-    cont.style.display = 'none';
+    container.innerHTML = '';
+    container.style.display = 'none';
     showMsg('import-msg', 'Import cancelled.', false);
   });
 }
@@ -1594,7 +1594,7 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
     `
         : '<div class="note" style="margin-top:.6rem">No parsed rows to preview.</div>';
 
-    container.innerHTML = `
+    cont.innerHTML = `
       <div class="card" style="margin-top:.75rem">
         <div class="card-title">Import preview</div>
         <div style="margin:.6rem 0;font-size:13px">
@@ -1613,12 +1613,12 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
         </div>
       </div>
     `;
-    container.style.display = 'block';
+    cont.style.display = 'block';
 
     document.getElementById('btn-confirm-import')?.addEventListener('click', () => confirmImport());
     document.getElementById('btn-cancel-import')?.addEventListener('click', () => {
-      container.innerHTML = '';
-      container.style.display = 'none';
+      cont.innerHTML = '';
+      cont.style.display = 'none';
       showMsg('import-msg', 'Import cancelled.', false);
     });
     document.getElementById('btn-dismiss-date-warn')?.addEventListener('click', () => {
