@@ -379,6 +379,7 @@ export function renderAnalytics(
         : '';
     }
 
+    if (riskKpisEl) riskKpisEl.style.display = riskMetricsReady ? '' : 'none';
     if (explainerEl) explainerEl.style.display = riskMetricsReady ? '' : 'none';
     if (drawdownCardEl) drawdownCardEl.style.display = riskMetricsReady ? '' : 'none';
 
