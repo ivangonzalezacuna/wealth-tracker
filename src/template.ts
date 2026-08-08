@@ -265,7 +265,10 @@ export function appTemplate(): string {
         Advanced analytics
       </summary>
       <div id="an-advanced-content" style="padding-top:.75rem">
-        <div id="an-risk-metrics-note" class="note" style="display:none"></div>
+        <div class="card" id="an-risk-metrics-note-card" style="margin:0 0 1rem;display:none">
+          <div class="card-title">Risk analytics</div>
+          <div id="an-risk-metrics-note" class="note"></div>
+        </div>
         <div class="kpi-row" id="an-kpis-risk"></div>
 
         <!-- Collapsible plain-language explainer for each advanced metric -->

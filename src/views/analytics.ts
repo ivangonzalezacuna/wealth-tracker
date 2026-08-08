@@ -297,16 +297,17 @@ export function renderAnalytics(
   const cagrForRisk = cagrVal;
   const dd = ddResult.max;
   const advancedContent = document.getElementById('an-advanced-content');
+  const riskMetricsNoteCardEl = document.getElementById('an-risk-metrics-note-card');
   const riskMetricsNoteEl = document.getElementById('an-risk-metrics-note');
 
   const riskMetricsReady = monthsSpan >= 24;
 
   if (riskMetricsNoteEl) {
     if (riskMetricsReady) {
-      riskMetricsNoteEl.style.display = 'none';
+      if (riskMetricsNoteCardEl) riskMetricsNoteCardEl.style.display = 'none';
     } else {
       riskMetricsNoteEl.textContent = `${Math.max(monthsSpan, 0)}/24 months recorded. Risk metrics require 24 months of history.`;
-      riskMetricsNoteEl.style.display = '';
+      if (riskMetricsNoteCardEl) riskMetricsNoteCardEl.style.display = '';
     }
   }
 

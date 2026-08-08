@@ -200,6 +200,7 @@ describe('renderAnalytics', () => {
     expect(document.getElementById('an-risk-metrics-note')?.textContent).toContain(
       '/24 months recorded. Risk metrics require 24 months of history.',
     );
+    expect((document.getElementById('an-risk-metrics-note-card') as HTMLElement).style.display).toBe('');
     expect(document.getElementById('an-kpis-risk')?.textContent).toBe('');
     expect((document.getElementById('an-drawdown-card') as HTMLElement).style.display).toBe('none');
     expect((document.getElementById('an-income') as HTMLElement).style.display).toBe('');
