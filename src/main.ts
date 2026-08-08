@@ -817,7 +817,7 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
 
   const ok = await confirmDialog({
     title: 'Restore from backup?',
-    bodyHtml: summarizeBackup(backup),
+    body: summarizeBackup(backup),
     confirmLabel: 'Restore',
     danger: true,
   });

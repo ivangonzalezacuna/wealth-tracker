@@ -94,18 +94,12 @@ describe('confirmDialog', () => {
     expect(ok.classList.contains('btn-danger')).toBe(false);
   });
 
-  it('bodyHtml renders raw HTML without escaping', () => {
-    confirmDialog({ title: 'Restore?', bodyHtml: '<strong>Bold</strong> text' });
+  it('body text preserves line breaks as escaped text content', () => {
+    confirmDialog({ title: 'Restore?', body: 'Line 1\nLine 2' });
     const body = document.querySelector('.confirm-body')!;
-    expect(body.innerHTML).toContain('<strong>Bold</strong>');
-    expect(body.querySelector('strong')).not.toBeNull();
-  });
-
-  it('bodyHtml takes precedence over body', () => {
-    confirmDialog({ title: 'Test?', body: 'plain text', bodyHtml: '<em>html</em>' });
-    const body = document.querySelector('.confirm-body')!;
-    expect(body.innerHTML).toContain('<em>html</em>');
-    expect(body.innerHTML).not.toContain('plain text');
+    expect(body.innerHTML).toContain('Line 1');
+    expect(body.innerHTML).toContain('Line 2');
+    expect(body.innerHTML).not.toContain('<br>');
   });
 
   it('focuses cancel button by default', () => {

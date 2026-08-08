@@ -145,6 +145,29 @@ describe('validateBackup', () => {
     expect(validateBackup(obj)).toBeNull();
   });
 
+  it('invalid exportedAt returns null', () => {
+    const obj = { ...validBackupObj(), exportedAt: 'not-a-date' };
+    expect(validateBackup(obj)).toBeNull();
+  });
+
+  it('transaction with non-finite amount returns null', () => {
+    const obj = validBackupObj();
+    (obj.data.transactions as any)[0].amount = Number.NaN;
+    expect(validateBackup(obj)).toBeNull();
+  });
+
+  it('snapshot with invalid date returns null', () => {
+    const obj = validBackupObj();
+    (obj.data.snapshots as any)[0].date = '2026/01';
+    expect(validateBackup(obj)).toBeNull();
+  });
+
+  it('importMeta with non-string value returns null', () => {
+    const obj = validBackupObj();
+    (obj.data.importMeta as any).last_import = 123;
+    expect(validateBackup(obj)).toBeNull();
+  });
+
   it('null input returns null', () => {
     expect(validateBackup(null)).toBeNull();
   });
@@ -166,6 +189,7 @@ describe('summarizeBackup', () => {
     expect(summary).toContain('Backup from');
     expect(summary).toContain('Transactions:');
     expect(summary).toContain('Last snapshot:');
+    expect(summary).toContain('\n');
   });
 
   it('handles empty transactions gracefully', () => {

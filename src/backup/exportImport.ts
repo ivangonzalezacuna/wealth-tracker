@@ -65,21 +65,30 @@ export function backupFilename(now: Date = new Date()): string {
 
 /** Returns the typed BackupFile on success, null on any shape mismatch - never throws. */
 export function validateBackup(raw: unknown): BackupFile | null {
-  if (!raw || typeof raw !== 'object') return null;
+  if (!isRecord(raw)) return null;
   const b = raw as Partial<BackupFile>;
   if (b.app !== 'wealth-tracker') return null;
-  if (typeof b.schemaVersion !== 'number' || b.schemaVersion > BACKUP_SCHEMA_VERSION) return null;
+  if (
+    typeof b.schemaVersion !== 'number' ||
+    !Number.isInteger(b.schemaVersion) ||
+    b.schemaVersion < 1 ||
+    b.schemaVersion > BACKUP_SCHEMA_VERSION
+  )
+    return null;
+  if (!isIsoTimestamp(b.exportedAt)) return null;
   const d = b.data as Partial<BackupFile['data']> | undefined;
-  if (!d || typeof d !== 'object') return null;
+  if (!isRecord(d)) return null;
   if (
     !Array.isArray(d.accounts) ||
+    !d.accounts.every(isValidAccount) ||
     !Array.isArray(d.holdings) ||
-    !d.settings ||
-    typeof d.settings !== 'object' ||
+    !d.holdings.every(isValidHolding) ||
+    !isValidSettings(d.settings) ||
     !Array.isArray(d.snapshots) ||
+    !d.snapshots.every(isValidSnapshot) ||
     !Array.isArray(d.transactions) ||
-    !d.importMeta ||
-    typeof d.importMeta !== 'object'
+    !d.transactions.every(isValidTransaction) ||
+    !isStringMap(d.importMeta)
   )
     return null;
   return b as BackupFile;
@@ -122,14 +131,12 @@ export function summarizeBackup(b: BackupFile): string {
     lastSnap ? `Last snapshot: ${lastSnap}` : '',
   ].filter(Boolean);
 
-  return (
-    `<div style="margin-bottom:.5rem"><strong>Backup from ${when}</strong></div>` +
-    `<div style="margin-bottom:.4rem">${counts}</div>` +
-    detailLines
-      .map((line) => `<div style="font-size:12px;color:var(--ink-2)">${line}</div>`)
-      .join('') +
-    `<div style="font-size:12px;color:var(--ink-2);margin-top:.5rem">⚠ This will replace all your current data.</div>`
-  );
+  return [
+    `Backup from ${when}`,
+    counts,
+    ...detailLines,
+    '⚠ This will replace all your current data.',
+  ].join('\n');
 }
 
 // ── Backup staleness ──────────────────────────────────────
@@ -141,4 +148,117 @@ export function isBackupStale(lastBackupAt: string | undefined, now: Date = new 
   const last = new Date(lastBackupAt).getTime();
   if (isNaN(last)) return true;
   return (now.getTime() - last) / 86_400_000 >= BACKUP_REMINDER_DAYS;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isOptionalString(value: unknown): value is string | undefined {
+  return value === undefined || typeof value === 'string';
+}
+
+function isOptionalBoolean(value: unknown): value is boolean | undefined {
+  return value === undefined || typeof value === 'boolean';
+}
+
+function isOptionalFiniteNumber(value: unknown): value is number | undefined {
+  return value === undefined || isFiniteNumber(value);
+}
+
+function isIsoTimestamp(value: unknown): value is string {
+  return typeof value === 'string' && !isNaN(new Date(value).getTime());
+}
+
+function isMonthOrDayDate(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}(-\d{2})?$/.test(value)) return false;
+  const normalized = value.length === 7 ? `${value}-01` : value;
+  return !isNaN(new Date(normalized).getTime());
+}
+
+function isStringMap(value: unknown): value is Record<string, string> {
+  return isRecord(value) && Object.values(value).every((entry) => typeof entry === 'string');
+}
+
+function isValidSettings(value: unknown): value is Settings {
+  return (
+    isRecord(value) &&
+    Object.values(value).every((entry) => entry == null || typeof entry === 'string')
+  );
+}
+
+function isValidAccount(value: unknown): value is Account {
+  if (!isRecord(value) || typeof value.label !== 'string') return false;
+  return (
+    isOptionalString(value.id) &&
+    isOptionalString(value.key) &&
+    isOptionalString(value.moneyType) &&
+    isOptionalString(value.institution) &&
+    isOptionalString(value.color) &&
+    isOptionalBoolean(value.isPrimaryInvestment) &&
+    isOptionalFiniteNumber(value.order) &&
+    isOptionalFiniteNumber(value.annualReturnPct) &&
+    isOptionalFiniteNumber(value.contribAmount) &&
+    isOptionalString(value.contribInterval) &&
+    isOptionalBoolean(value.locked) &&
+    isOptionalString(value.lockedUntil) &&
+    isOptionalFiniteNumber(value.extraContrib)
+  );
+}
+
+function isValidHolding(value: unknown): value is Holding {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.isin === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.shortName === 'string' &&
+    typeof value.color === 'string' &&
+    typeof value.acc === 'boolean' &&
+    typeof value.active === 'boolean' &&
+    isFiniteNumber(value.contribAmount) &&
+    typeof value.contribInterval === 'string' &&
+    typeof value.assetClass === 'string' &&
+    typeof value.region === 'string' &&
+    typeof value.foldInto === 'string' &&
+    isFiniteNumber(value.order) &&
+    isOptionalFiniteNumber(value.ter)
+  );
+}
+
+function isValidSnapshot(value: unknown): value is Snapshot {
+  if (!isRecord(value) || !isMonthOrDayDate(value.date)) return false;
+  for (const [key, entry] of Object.entries(value)) {
+    if (key === 'date') continue;
+    if (key === 'notes') {
+      if (!isOptionalString(entry)) return false;
+      continue;
+    }
+    if (!isFiniteNumber(entry)) return false;
+  }
+  return true;
+}
+
+function isValidTransaction(value: unknown): value is Transaction {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === 'string' &&
+    isMonthOrDayDate(value.date) &&
+    typeof value.source === 'string' &&
+    isOptionalString(value.category) &&
+    typeof value.type === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.isin === 'string' &&
+    isFiniteNumber(value.shares) &&
+    isFiniteNumber(value.price) &&
+    isFiniteNumber(value.amount) &&
+    isFiniteNumber(value.fee) &&
+    isFiniteNumber(value.tax) &&
+    typeof value.currency === 'string' &&
+    isFiniteNumber(value.fxRate) &&
+    isOptionalString(value.note)
+  );
 }

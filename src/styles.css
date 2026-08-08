@@ -1969,6 +1969,7 @@ input[type='color'] {
   color: var(--ink-2);
   margin-bottom: 14px;
   line-height: 1.4;
+  white-space: pre-line;
 }
 .confirm-actions {
   display: flex;
