@@ -147,6 +147,23 @@ vi.mock('../ui/confirmDialog', () => ({
   confirmDialog: vi.fn(async () => true),
 }));
 
+vi.mock('../ui/accountDialog', () => ({
+  accountDialog: vi.fn(async () => null),
+}));
+
+vi.mock('../ui/holdingDialog', () => ({
+  holdingDialog: vi.fn(async () => null),
+}));
+
+vi.mock('../model/accountTypes', () => ({
+  ACCOUNT_TYPES: [
+    { value: 'investment', label: 'Investment' },
+    { value: 'cash', label: 'Cash' },
+  ],
+  ASSET_CLASSES: [{ value: 'equity', label: 'Equity' }],
+  REGIONS: [{ value: 'developed', label: 'Developed' }],
+}));
+
 import {
   renderSettings,
   generateId,
@@ -218,25 +235,14 @@ describe('Settings scoped re-render (repaintCard)', () => {
     expect(fresh.classList.contains('collapsed')).toBe(true);
   });
 
-  it('color-picker two-way sync works after renderSettings()', () => {
+  it('holdings card has read-only rows with Edit buttons after renderSettings()', () => {
     const holdingsCard = document.getElementById('settings-card-holdings')!;
-    const swatch = holdingsCard.querySelector('.color-picker-swatch') as HTMLInputElement;
-    const hex = holdingsCard.querySelector('.color-picker-hex') as HTMLInputElement;
-
-    // Verify color picker elements exist
-    expect(swatch).not.toBeNull();
-    expect(hex).not.toBeNull();
-
-    // attachColorPickerSync wires swatch→hex sync
-    // Simulate: change swatch value and fire input event
-    swatch.value = '#ff0000';
-    swatch.dispatchEvent(new Event('input'));
-    expect(hex.value).toBe('#ff0000');
-
-    // Reverse: hex→swatch
-    hex.value = '#00ff00';
-    hex.dispatchEvent(new Event('input'));
-    expect(swatch.value).toBe('#00ff00');
+    // Rows are now read-only summaries; color pickers live inside the dialog
+    const colorPickers = holdingsCard.querySelectorAll('.color-picker-swatch');
+    expect(colorPickers.length).toBe(0);
+    // Each holding row has an Edit button
+    const editBtns = holdingsCard.querySelectorAll('.js-edit-hold');
+    expect(editBtns.length).toBeGreaterThan(0);
   });
 
   it('data-card-key attributes are preserved alongside new ids', () => {
@@ -413,22 +419,18 @@ describe('Info-tip rebinding after rerenderAccountsTable', () => {
     renderSettings();
   });
 
-  it('info-tip icons in Accounts rows get data-tip-bound after rerender', () => {
-    // Initial render should have info tips bound
+  it('accounts card rows are read-only summaries with Edit buttons after rerender', () => {
+    // Rows are now read-only; editing is via accountDialog
     const accountsCard = document.getElementById('settings-card-accounts')!;
-    const tips = accountsCard.querySelectorAll('.info-tip');
-    expect(tips.length).toBeGreaterThan(0);
+    const editBtns = accountsCard.querySelectorAll('.js-edit-acct');
+    expect(editBtns.length).toBeGreaterThan(0);
 
-    // After refreshSettingsAfterChange, tips should be re-bound
+    // After refreshSettingsAfterChange, edit buttons should still be present
     refreshSettingsAfterChange('accounts');
-    const tipsAfter = document
+    const editBtnsAfter = document
       .getElementById('settings-card-accounts')!
-      .querySelectorAll('.info-tip');
-    expect(tipsAfter.length).toBeGreaterThan(0);
-    // The attachInfoTips function was called (bound attribute set)
-    tipsAfter.forEach((tip) => {
-      expect(tip.getAttribute('data-tip-bound')).toBe('1');
-    });
+      .querySelectorAll('.js-edit-acct');
+    expect(editBtnsAfter.length).toBeGreaterThan(0);
   });
 });
 
@@ -1171,44 +1173,46 @@ describe('Button-disable verification: synchronous disable and double-click prev
     });
   });
 
-  describe('holdings inline suggestions', () => {
-    it('fills ISIN from known transaction name without overwriting typed ISIN', async () => {
-      const { loadTransactions } = await import('../db');
-      (loadTransactions as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
-        {
-          id: 'tx-known',
-          date: '2026-01-01',
-          source: 'manual',
-          type: 'BUY',
-          name: 'Known Fund',
-          isin: 'IE00KNOWN',
-          shares: 1,
-          price: 10,
-          amount: -10,
-          fee: 0,
-          tax: 0,
-          currency: 'EUR',
-          fxRate: 1,
-        },
-      ]);
+  describe('holdings dialog-based add', () => {
+    it('opens holdingDialog when btn-add-hold is clicked', async () => {
+      const { holdingDialog } = await import('../ui/holdingDialog');
+      (holdingDialog as ReturnType<typeof vi.fn>).mockClear();
 
       renderSettings();
       await tick();
 
       (document.getElementById('btn-add-hold') as HTMLButtonElement).click();
-      const rows = document.querySelectorAll('.settings-hold-row');
-      const row = rows[rows.length - 1] as HTMLElement;
-      const nameEl = row.querySelector('[data-field="name"]') as HTMLInputElement;
-      const isinEl = row.querySelector('[data-field="isin"]') as HTMLInputElement;
+      await tick();
 
-      nameEl.value = 'Known Fund';
-      nameEl.dispatchEvent(new Event('change', { bubbles: true }));
-      expect(isinEl.value).toBe('IE00KNOWN');
+      expect(holdingDialog as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1);
+    });
 
-      isinEl.value = 'MANUALISIN';
-      nameEl.value = 'Known Fund';
-      nameEl.dispatchEvent(new Event('change', { bubbles: true }));
-      expect(isinEl.value).toBe('MANUALISIN');
+    it('adds a row when holdingDialog resolves with a holding', async () => {
+      const { holdingDialog } = await import('../ui/holdingDialog');
+      (holdingDialog as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        isin: 'IE00KNOWN',
+        shortName: 'KNOWN',
+        name: 'Known Fund',
+        color: '#111111',
+        acc: true,
+        active: true,
+        contribAmount: 0,
+        contribInterval: 'weekly',
+        assetClass: 'equity',
+        region: 'developed',
+        foldInto: '',
+        order: 2,
+      });
+
+      renderSettings();
+      await tick();
+
+      const rowsBefore = document.querySelectorAll('.settings-hold-row').length;
+      (document.getElementById('btn-add-hold') as HTMLButtonElement).click();
+      await tick();
+
+      const rowsAfter = document.querySelectorAll('.settings-hold-row').length;
+      expect(rowsAfter).toBe(rowsBefore + 1);
     });
   });
 });

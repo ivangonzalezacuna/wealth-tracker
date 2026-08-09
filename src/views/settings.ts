@@ -30,12 +30,14 @@ import { formatEnglishDateTime } from '../dateFormat';
 import {
   buildKnownSecuritySuggestions,
   normalizeInstitution,
-  normalizeSuggestionName,
   type KnownSecuritySuggestions,
 } from '../model/securitySuggestions';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { confirmDialog } from '../ui/confirmDialog';
+import { accountDialog } from '../ui/accountDialog';
+import { holdingDialog } from '../ui/holdingDialog';
+import { ACCOUNT_TYPES, ASSET_CLASSES, REGIONS } from '../model/accountTypes';
 import { isSignedIn } from '../auth/google';
 import { isBackupStale } from '../backup/exportImport';
 import { isBusy, setBusy } from '../sync/lock';
@@ -268,13 +270,8 @@ export function refreshSettingsAfterChange(changed: ConfigChangeKind): void {
 
 // ── Accounts ──────────────────────────────────────────────
 
-const ACCOUNT_TYPES = [
-  { value: 'investment', label: 'Investment' },
-  { value: 'savings', label: 'Savings' },
-  { value: 'pension', label: 'Pension' },
-  { value: 'avd', label: 'AVD (Altersvorsorgedepot)' },
-  { value: 'cash', label: 'Cash' },
-];
+/** In-memory list of accounts — kept in sync by add/edit/delete dialog operations. */
+let _accounts: Account[] | null = null;
 
 function accountSuggestionLists(accounts: Account[]): { labels: string[]; institutions: string[] } {
   const labels = [...new Set(accounts.map((a) => a.label.trim()).filter(Boolean))].sort((a, b) =>
@@ -286,38 +283,9 @@ function accountSuggestionLists(accounts: Account[]): { labels: string[]; instit
   return { labels, institutions };
 }
 
-function refreshAccountDatalists(root: HTMLElement, accounts: Account[]): void {
-  const suggestions = accountSuggestionLists(accounts);
-  const labelList = root.querySelector('#settings-account-label-list');
-  if (labelList) {
-    labelList.innerHTML = suggestions.labels
-      .map((label) => `<option value="${esc(label)}"></option>`)
-      .join('');
-  }
-  const institutionList = root.querySelector('#settings-account-institution-list');
-  if (institutionList) {
-    institutionList.innerHTML = suggestions.institutions
-      .map((value) => `<option value="${esc(value)}"></option>`)
-      .join('');
-  }
-}
-
-function holdingsSuggestionLists(suggestions: KnownSecuritySuggestions): {
-  names: string[];
-  isins: string[];
-} {
-  const names = [...new Set(suggestions.pairs.map((p) => p.name))].sort((a, b) =>
-    a.localeCompare(b),
-  );
-  const isins = [...new Set(suggestions.pairs.map((p) => p.isin))].sort((a, b) =>
-    a.localeCompare(b),
-  );
-  return { names, isins };
-}
-
 function renderAccountsCard(accounts: Account[]): string {
+  _accounts = accounts.slice();
   const rows = accounts.map((a, i) => renderAccountRow(a, i)).join('');
-  const suggestions = accountSuggestionLists(accounts);
 
   return `
     <div class="card card-collapsible" id="settings-card-accounts" data-card-key="accounts">
@@ -330,12 +298,6 @@ function renderAccountsCard(accounts: Account[]): string {
         <div id="settings-accounts-tbl" class="settings-items">
           ${rows}
         </div>
-        <datalist id="settings-account-label-list">
-          ${suggestions.labels.map((label) => `<option value="${esc(label)}"></option>`).join('')}
-        </datalist>
-        <datalist id="settings-account-institution-list">
-          ${suggestions.institutions.map((value) => `<option value="${esc(value)}"></option>`).join('')}
-        </datalist>
         <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
           <button class="btn btn-outline btn-sm" id="btn-add-acct">+ Add account</button>
           <button class="btn btn-primary btn-sm" id="btn-save-accts">Save accounts</button>
@@ -346,120 +308,30 @@ function renderAccountsCard(accounts: Account[]): string {
 }
 
 function renderAccountRow(a: Account, i: number): string {
-  const typeOptions = ACCOUNT_TYPES.map(
-    (t) =>
-      `<option value="${t.value}" ${a.moneyType === t.value ? 'selected' : ''}>${t.label}</option>`,
-  ).join('');
+  const typeLabel = esc(
+    ACCOUNT_TYPES.find((t) => t.value === a.moneyType)?.label || a.moneyType || '',
+  );
+  const color = a.color || 'var(--ink-4)';
+  const meta = [
+    typeLabel,
+    a.institution ? esc(a.institution) : '',
+    a.isPrimaryInvestment ? 'Primary' : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return `
-    <div class="settings-item settings-acct-row item-collapsible" data-idx="${i}">
-      <div class="settings-item-header js-item-toggle">
-        <span class="leg-sq" style="background:${esc(a.color) || 'var(--ink-4)'};flex-shrink:0"></span>
+    <div class="settings-item settings-acct-row" data-idx="${i}">
+      <div class="settings-item-header">
+        <span class="leg-sq" style="background:${esc(color)};flex-shrink:0"></span>
         <span class="settings-item-title">${esc(a.label) || 'New account'}</span>
-        <span style="font-size:11px;color:var(--ink-3);white-space:nowrap" class="settings-item-meta">${esc(ACCOUNT_TYPES.find((t) => t.value === a.moneyType)?.label || a.moneyType)}${a.isPrimaryInvestment ? ' \u00B7 Primary' : ''}</span>
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-          <span class="item-chevron"></span>
+        <span style="font-size:11px;color:var(--ink-3);white-space:nowrap" class="settings-item-meta">${meta}</span>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto">
+          <button class="btn btn-sm btn-outline js-edit-acct" data-idx="${i}">Edit</button>
           <button class="btn btn-sm btn-danger js-del-acct" data-idx="${i}">\u2715</button>
         </div>
       </div>
-      <div class="settings-item-fields">
-        <div class="settings-field">
-          <label class="settings-field-label" for="acct-label-${i}">Name</label>
-          <input id="acct-label-${i}" class="form-input form-input-sm" data-field="label" value="${esc(a.label)}" placeholder="e.g. Main ETF portfolio" list="settings-account-label-list">
-        </div>
-        <div class="settings-field">
-          <label class="settings-field-label" for="acct-type-${i}">Type</label>
-          <select id="acct-type-${i}" class="form-input form-input-sm" data-field="moneyType">${typeOptions}</select>
-        </div>
-        <div class="settings-field">
-          <label class="settings-field-label" for="acct-institution-${i}">Institution</label>
-          <input id="acct-institution-${i}" class="form-input form-input-sm" data-field="institution" value="${esc(a.institution)}" placeholder="e.g. Trade Republic" list="settings-account-institution-list">
-        </div>
-        <div class="settings-field settings-field-compact">
-          <label class="settings-field-label" for="acct-color-hex-${i}">Color</label>
-          <div class="color-picker-wrap">
-            <input type="color" class="color-picker-swatch" data-field="color" value="${esc(a.color)}" aria-label="Color picker">
-            <input id="acct-color-hex-${i}" class="form-input form-input-sm color-picker-hex" data-field="color-hex" value="${esc(a.color)}" placeholder="#888888" maxlength="7">
-          </div>
-        </div>
-        <div class="settings-field">
-          <label class="settings-field-label" for="acct-return-${i}">Annual return assumption (%)${infoTip("Used for this account's slice of the 5-year forecast on the Net Worth tab. Cash/savings are typically 0% unless they earn interest.")}</label>
-          <input id="acct-return-${i}" class="form-input form-input-sm" data-field="annualReturnPct" type="number" min="0" max="30" step="0.1" value="${esc(String(a.annualReturnPct ?? 0))}">
-        </div>
-        <div class="js-contrib-note" style="${a.isPrimaryInvestment ? 'flex-basis:100%' : 'display:none'}">
-          <p class="note">Contribution amount for the primary investment account comes from the ETF contribution plan in the Holdings card below, not from this account row.</p>
-        </div>
-        <div class="js-contrib-fields" style="${a.isPrimaryInvestment ? 'display:none' : 'display:contents'}">
-        <div class="settings-field">
-          <label class="settings-field-label" for="acct-contrib-${i}">Recurring contribution (\u20AC per execution)${infoTip("How much moves into this account each time, at the interval set below. Used in the Net Worth forecast alongside this account's return rate.")}</label>
-          <input id="acct-contrib-${i}" class="form-input form-input-sm" data-field="contribAmount" type="number" min="0" step="1" value="${esc(String(a.contribAmount ?? 0))}">
-        </div>
-        <div class="settings-field">
-          <label class="settings-field-label" for="acct-interval-${i}">Contribution interval${infoTip('How often the recurring contribution above is added: weekly, every two weeks, monthly, or quarterly.')}</label>
-          <select id="acct-interval-${i}" class="form-input form-input-sm" data-field="contribInterval">
-            ${intervalOptionsHtml(a.contribInterval || 'monthly')}
-          </select>
-        </div>
-        </div>
-        <div class="settings-field settings-field-inline">
-          <span class="settings-field-label" aria-hidden="true">&nbsp;</span>
-          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="isPrimaryInvestment" ${a.isPrimaryInvestment ? 'checked' : ''}> Primary investment${infoTip('Used to split net-worth growth into contributions vs market returns. Only investment-type accounts (broker, depot) should be marked.')}</label>
-        </div>
-        <div class="settings-field settings-field-inline">
-          <span class="settings-field-label" aria-hidden="true">&nbsp;</span>
-          <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="locked" ${a.locked ? 'checked' : ''}> Locked until retirement${infoTip('Funds in this account are not accessible until retirement age. Used to separate liquid net worth from locked retirement assets in the Net Worth overview.')}</label>
-        </div>
-        <div class="js-locked-fields" style="${a.locked ? 'display:contents' : 'display:none'}">
-        <div class="settings-field">
-          <label class="settings-field-label" for="acct-locked-until-${i}">Accessible from (year)${infoTip('The year when funds in this account become accessible. Shown in the Net Worth overview to indicate when locked assets unlock.')}</label>
-          <input id="acct-locked-until-${i}" class="form-input form-input-sm" data-field="lockedUntil" type="number" min="2025" max="2100" step="1" value="${esc(a.lockedUntil || '')}" placeholder="e.g. 2055">
-        </div>
-        <div class="settings-field">
-          <label class="settings-field-label" for="acct-extra-contrib-${i}">Extra contribution (\u20AC per execution)${infoTip('Additional contribution at the same interval as your personal one, e.g. employer match, state subsidy (AVD Zulage), or other top-up. Included in forecast projections.')}</label>
-          <input id="acct-extra-contrib-${i}" class="form-input form-input-sm" data-field="extraContrib" type="number" min="0" step="1" value="${esc(String(a.extraContrib ?? 0))}">
-        </div>
-        </div>
-      </div>
-      <input type="hidden" data-field="id" value="${esc(a.id)}">
     </div>`;
-}
-
-/** Bind change listeners on isPrimaryInvestment checkboxes to dynamically show/hide contribution fields. */
-function attachPrimaryToggleListeners(scope: Element): void {
-  scope.querySelectorAll<HTMLInputElement>('[data-field="isPrimaryInvestment"]').forEach((cb) => {
-    cb.addEventListener('change', () => {
-      const row = cb.closest('.settings-acct-row');
-      if (!row) return;
-      const note = row.querySelector('.js-contrib-note') as HTMLElement | null;
-      const fields = row.querySelector('.js-contrib-fields') as HTMLElement | null;
-      if (note) note.style.display = cb.checked ? '' : 'none';
-      if (fields) fields.style.display = cb.checked ? 'none' : 'contents';
-    });
-  });
-  scope.querySelectorAll<HTMLInputElement>('[data-field="locked"]').forEach((cb) => {
-    cb.addEventListener('change', () => {
-      const row = cb.closest('.settings-acct-row');
-      if (!row) return;
-      const lockedFields = row.querySelector('.js-locked-fields') as HTMLElement | null;
-      if (lockedFields) lockedFields.style.display = cb.checked ? 'contents' : 'none';
-    });
-  });
-}
-
-function attachAccountSuggestionListeners(scope: Element): void {
-  const canonicalInstitutions = new Map<string, string>();
-  scope.querySelectorAll<HTMLInputElement>('[data-field="institution"]').forEach((input) => {
-    const normalized = normalizeInstitution(input.value);
-    if (!normalized) return;
-    canonicalInstitutions.set(normalized.toLowerCase(), normalized);
-  });
-  scope.querySelectorAll<HTMLInputElement>('[data-field="institution"]').forEach((input) => {
-    input.addEventListener('blur', () => {
-      const normalized = normalizeInstitution(input.value);
-      const canonical = canonicalInstitutions.get(normalized.toLowerCase()) || normalized;
-      input.value = canonical;
-    });
-  });
 }
 
 /** Shared account-delete implementation. setAccounts runs before
@@ -477,7 +349,7 @@ async function deleteAccount(
   btn: HTMLButtonElement,
 ): Promise<void> {
   if (isCardBusy('accounts') || isBusy()) return;
-  const accounts = collectAccounts(root);
+  const accounts = _accounts ?? [];
   const a = accounts[idx];
   const accountKeys = [a?.id, a?.key].filter((k): k is string => !!k && k.trim().length > 0);
   if (accountKeys.length > 0) {
@@ -501,19 +373,19 @@ async function deleteAccount(
     danger: true,
   });
   if (!ok) return;
-  accounts.splice(idx, 1);
+  const updated = accounts.filter((_, i) => i !== idx);
   try {
     let retiredOk = true;
     await withCardGuard(
       'accounts',
       btn,
       async () => {
-        await setAccounts(accounts);
+        await setAccounts(updated);
         if (a?.id) retiredOk = await retireAccountIdsSafely([a.id]);
       },
       { busyText: 'Removing...', keepDisabledOnSuccess: true },
     );
-    rerenderAccountsTable(root, accounts);
+    rerenderAccountsTable(root, updated);
     showMsg(
       'accts-msg',
       retiredOk ? 'Removed' : 'Removed (will finish reserving its id once back online)',
@@ -525,25 +397,43 @@ async function deleteAccount(
 }
 
 function attachAccountListeners(root: HTMLElement): void {
-  attachPrimaryToggleListeners(root);
-  attachAccountSuggestionListeners(root);
-  root.querySelector('#btn-add-acct')?.addEventListener('click', () => {
-    const accounts = collectAccounts(root);
-    accounts.push({
-      id: '',
-      moneyType: 'cash',
-      institution: '',
-      label: '',
-      color: '#888888',
-      isPrimaryInvestment: false,
-      order: accounts.length + 1,
+  root.querySelector('#btn-add-acct')?.addEventListener('click', async () => {
+    const suggestions = accountSuggestionLists(_accounts ?? []);
+    const draft = await accountDialog({
+      labelSuggestions: suggestions.labels,
+      institutionSuggestions: suggestions.institutions,
     });
-    rerenderAccountsTable(root, accounts);
+    if (!draft) return;
+    draft.order = (_accounts?.length ?? 0) + 1;
+    const updated = [...(_accounts ?? []), draft];
+    rerenderAccountsTable(root, updated);
+    showMsg('accts-msg', 'Account added — click Save to persist.', true);
+  });
+
+  root.addEventListener('click', async (e) => {
+    const editBtn = (e.target as Element).closest('.js-edit-acct') as HTMLElement | null;
+    if (!editBtn) return;
+    const idx = parseInt(editBtn.dataset.idx ?? '');
+    if (isNaN(idx)) return;
+    const accounts = _accounts ?? [];
+    const existing = accounts[idx];
+    if (!existing) return;
+    const suggestions = accountSuggestionLists(accounts);
+    const draft = await accountDialog({
+      existing,
+      labelSuggestions: suggestions.labels,
+      institutionSuggestions: suggestions.institutions,
+    });
+    if (!draft) return;
+    draft.order = existing.order;
+    const updated = accounts.map((a, i) => (i === idx ? draft : a));
+    rerenderAccountsTable(root, updated);
+    showMsg('accts-msg', 'Account updated — click Save to persist.', true);
   });
 
   root.querySelector('#btn-save-accts')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-accts') as HTMLButtonElement;
-    const accounts = collectAccounts(root);
+    const accounts = _accounts ?? [];
     if (accounts.some((a) => !a.label)) {
       showMsg('accts-msg', 'Each account needs a name.', false);
       return;
@@ -587,74 +477,30 @@ function attachAccountListeners(root: HTMLElement): void {
     }
   });
 
-  root.querySelectorAll('.js-del-acct').forEach((btn) => {
-    btn.addEventListener('click', () =>
-      deleteAccount(root, parseInt((btn as HTMLElement).dataset.idx!), btn as HTMLButtonElement),
-    );
+  root.addEventListener('click', (e) => {
+    const delBtn = (e.target as Element).closest('.js-del-acct') as HTMLButtonElement | null;
+    if (!delBtn) return;
+    const idx = parseInt(delBtn.dataset.idx ?? '');
+    if (!isNaN(idx)) deleteAccount(root, idx, delBtn);
   });
 }
 
-function collectAccounts(root: HTMLElement): Account[] {
-  const rows = root.querySelectorAll('.settings-acct-row');
-  return [...rows].map((row, i) => {
-    const isPrimary = (row.querySelector('[data-field="isPrimaryInvestment"]') as HTMLInputElement)
-      .checked;
-    const contribEl = row.querySelector('[data-field="contribAmount"]') as HTMLInputElement | null;
-    const intervalEl = row.querySelector(
-      '[data-field="contribInterval"]',
-    ) as HTMLSelectElement | null;
-    return {
-      id: (row.querySelector('[data-field="id"]') as HTMLInputElement).value.trim(),
-      moneyType: (row.querySelector('[data-field="moneyType"]') as HTMLInputElement).value.trim(),
-      institution: normalizeInstitution(
-        (row.querySelector('[data-field="institution"]') as HTMLInputElement).value,
-      ),
-      label: (row.querySelector('[data-field="label"]') as HTMLInputElement).value.trim(),
-      color: (row.querySelector('[data-field="color"]') as HTMLInputElement).value.trim(),
-      isPrimaryInvestment: isPrimary,
-      order: i + 1,
-      annualReturnPct:
-        parseFloat(
-          (row.querySelector('[data-field="annualReturnPct"]') as HTMLInputElement).value,
-        ) || 0,
-      // Primary investment contribution comes from Holdings, so zero out its per-account fields.
-      contribAmount: isPrimary ? 0 : parseFloat(contribEl?.value || '') || 0,
-      contribInterval: isPrimary
-        ? 'monthly'
-        : contribEl
-          ? ((intervalEl?.value || 'monthly') as ContribInterval)
-          : 'monthly',
-      locked: (row.querySelector('[data-field="locked"]') as HTMLInputElement).checked,
-      lockedUntil: (
-        row.querySelector('[data-field="lockedUntil"]') as HTMLInputElement
-      ).value.trim(),
-      extraContrib:
-        parseFloat((row.querySelector('[data-field="extraContrib"]') as HTMLInputElement).value) ||
-        0,
-    };
-  });
+function collectAccounts(_root: HTMLElement): Account[] {
+  return _accounts ?? [];
 }
 
 function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
+  _accounts = accounts.slice();
   const tbl = root.querySelector('#settings-accounts-tbl') as HTMLElement | null;
   if (!tbl) return;
-  refreshAccountDatalists(root, accounts);
   const rows = accounts.map((a, i) => renderAccountRow(a, i)).join('');
   tbl.innerHTML = rows;
-  attachColorPickerSync(tbl);
-  attachPrimaryToggleListeners(tbl);
-  attachAccountSuggestionListeners(tbl);
-  attachItemCollapseListeners(tbl);
-  attachInfoTips(tbl);
-  tbl.querySelectorAll('.js-del-acct').forEach((btn) => {
-    btn.addEventListener('click', () =>
-      deleteAccount(root, parseInt((btn as HTMLElement).dataset.idx!), btn as HTMLButtonElement),
-    );
-  });
 }
 
 // ── Holdings ──────────────────────────────────────────────
 
+/** In-memory list of holdings — kept in sync by add/edit/delete dialog operations. */
+let _holdings: Holding[] | null = null;
 let _holdingsSettingsFilter = 'all'; // 'all' | 'active' | 'closed'
 let _allHoldings: Holding[] | null = null; // cached full holdings list for filtered views
 let _knownSecuritySuggestions: KnownSecuritySuggestions = {
@@ -664,31 +510,14 @@ let _knownSecuritySuggestions: KnownSecuritySuggestions = {
 };
 let _suggestionTransactions: Transaction[] = [];
 
-const ASSET_CLASSES = [
-  { value: 'equity', label: 'Equity' },
-  { value: 'bond', label: 'Bond' },
-  { value: 'reit', label: 'REIT' },
-  { value: 'commodity', label: 'Commodity' },
-  { value: 'other', label: 'Other' },
-];
-
-const REGIONS = [
-  { value: 'developed', label: 'Developed' },
-  { value: 'emerging', label: 'Emerging' },
-  { value: 'global', label: 'Global' },
-  { value: 'europe', label: 'Europe' },
-  { value: 'us', label: 'US' },
-  { value: 'other', label: 'Other' },
-];
-
 function renderHoldingsCard(holdings: Holding[]): string {
   // Cache the full list for merge-back when filter is active
+  _holdings = holdings.slice();
   _allHoldings = holdings.slice();
   _knownSecuritySuggestions = buildKnownSecuritySuggestions(holdings, _suggestionTransactions);
 
   const activeCount = holdings.filter((h) => h.active).length;
   const closedCount = holdings.filter((h) => !h.active).length;
-  const suggestionLists = holdingsSuggestionLists(_knownSecuritySuggestions);
 
   // Apply filter
   let filtered;
@@ -701,7 +530,7 @@ function renderHoldingsCard(holdings: Holding[]): string {
   }
 
   const rows = filtered
-    .map((h, i) => {
+    .map((h) => {
       // Store original index so delete/edit operations target the right holding
       const origIdx = holdings.indexOf(h);
       return renderHoldingRow(h, origIdx);
@@ -726,12 +555,6 @@ function renderHoldingsCard(holdings: Holding[]): string {
         <div id="settings-holdings-tbl" class="settings-items">
           ${rows}
         </div>
-        <datalist id="settings-holding-isin-list">
-          ${suggestionLists.isins.map((isin) => `<option value="${esc(isin)}"></option>`).join('')}
-        </datalist>
-        <datalist id="settings-holding-name-list">
-          ${suggestionLists.names.map((name) => `<option value="${esc(name)}"></option>`).join('')}
-        </datalist>
         <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
           <button class="btn btn-outline btn-sm" id="btn-add-hold">+ Add holding</button>
           <button class="btn btn-outline btn-sm" id="btn-autofill-holds">Auto-fill from transactions</button>
@@ -743,123 +566,24 @@ function renderHoldingsCard(holdings: Holding[]): string {
 }
 
 function renderHoldingRow(h: Holding, i: number): string {
-  const classOptions = ASSET_CLASSES.map(
-    (c) =>
-      `<option value="${c.value}" ${h.assetClass === c.value ? 'selected' : ''}>${c.label}</option>`,
-  ).join('');
-  const regionOptions = REGIONS.map(
-    (r) =>
-      `<option value="${r.value}" ${h.region === r.value ? 'selected' : ''}>${r.label}</option>`,
-  ).join('');
-  const intervalOptions = intervalOptionsHtml(h.contribInterval || 'weekly');
-
   const statusBadge = h.active
     ? '<span class="badge b-active">Active</span>'
     : '<span class="badge b-closed">Closed</span>';
+  const color = h.color || 'var(--ink-4)';
 
   return `
-    <div class="settings-item settings-hold-row item-collapsible" data-idx="${i}">
-      <div class="settings-item-header js-item-toggle">
-        <span class="leg-sq" style="background:${esc(h.color) || 'var(--ink-4)'};flex-shrink:0"></span>
+    <div class="settings-item settings-hold-row" data-idx="${i}">
+      <div class="settings-item-header">
+        <span class="leg-sq" style="background:${esc(color)};flex-shrink:0"></span>
         <span class="settings-item-title">${esc(h.shortName) || esc(h.isin) || 'New holding'}${h.name ? ` <span style="font-weight:normal;color:var(--ink-3);font-size:12px">(${esc(h.name)})</span>` : ''}</span>
         <span style="font-size:11px;color:var(--ink-3);white-space:nowrap" class="settings-item-meta">${h.acc ? 'Acc' : 'Dist'}</span>
         ${statusBadge}
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-          <span class="item-chevron"></span>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto">
+          <button class="btn btn-sm btn-outline js-edit-hold" data-idx="${i}">Edit</button>
           <button class="btn btn-sm btn-danger js-del-hold" data-idx="${i}">\u2715</button>
         </div>
       </div>
-      <div class="settings-item-fields">
-        <div class="settings-field">
-          <label class="settings-field-label" for="hold-isin-${i}">ISIN${infoTip('International Securities Identification Number: 12-character unique ID for a financial instrument.')}</label>
-          <input id="hold-isin-${i}" class="form-input form-input-sm" data-field="isin" value="${esc(h.isin)}" placeholder="e.g. IE00B4L5Y983" list="settings-holding-isin-list">
-        </div>
-        <div class="settings-field">
-          <label class="settings-field-label" for="hold-short-name-${i}">Short name${infoTip('A short label (max 10 chars) used in charts and legends.')}</label>
-          <input id="hold-short-name-${i}" class="form-input form-input-sm" data-field="shortName" value="${esc(h.shortName)}" placeholder="e.g. IWDA">
-        </div>
-        <div class="settings-field">
-          <label class="settings-field-label" for="hold-name-${i}">Name${infoTip('Full instrument name, as shown in your broker statements.')}</label>
-          <input id="hold-name-${i}" class="form-input form-input-sm" data-field="name" value="${esc(h.name)}" placeholder="e.g. iShares Core MSCI World UCITS ETF" list="settings-holding-name-list">
-        </div>
-        <div class="settings-field">
-          <label class="settings-field-label" for="hold-class-${i}">Asset class${infoTip('The category this holding belongs to. Used to group and describe your allocation; does not affect any calculation.')}</label>
-          <select id="hold-class-${i}" class="form-input form-input-sm" data-field="assetClass">${classOptions}</select>
-        </div>
-        <div class="settings-field">
-          <label class="settings-field-label" for="hold-region-${i}">Region${infoTip('The geographic focus of this holding. Used to describe your allocation; does not affect any calculation.')}</label>
-          <select id="hold-region-${i}" class="form-input form-input-sm" data-field="region">${regionOptions}</select>
-        </div>
-        <div class="settings-field">
-          <label class="settings-field-label" for="hold-contrib-${i}">Contribution (\u20AC)${infoTip("The amount contributed to this specific ETF each time, at the interval set below. Sets this holding's share of the Contributions forecast and Allocation drift target.")}</label>
-          <input id="hold-contrib-${i}" class="form-input form-input-sm" data-field="contribAmount" value="${h.contribAmount || ''}" type="number" min="0" placeholder="0">
-        </div>
-        <div class="settings-field">
-          <label class="settings-field-label" for="hold-interval-${i}">Interval${infoTip('How often the contribution above is added: weekly, every two weeks, monthly, or quarterly.')}</label>
-          <select id="hold-interval-${i}" class="form-input form-input-sm" data-field="contribInterval">${intervalOptions}</select>
-        </div>
-        <div class="settings-field">
-          <label class="settings-field-label" for="hold-ter-${i}">TER (%)${infoTip('Total Expense Ratio: the annual fee charged by the fund, as a percentage (e.g. 0.20 for 0.20%). These costs are deducted by the fund manager directly from the fund assets throughout the year, so they are already reflected in the ETF price and your returns. No money is deducted from your broker balance. Used here to estimate the annual fee drag on your portfolio.')}</label>
-          <input id="hold-ter-${i}" class="form-input form-input-sm" data-field="ter" value="${h.ter || ''}" type="number" min="0" step="0.01" max="5" placeholder="e.g. 0.20">
-        </div>
-        <input type="hidden" data-field="foldInto" value="${esc(h.foldInto)}">
-        <div class="settings-field settings-field-compact">
-          <label class="settings-field-label" for="hold-color-hex-${i}">Color</label>
-          <div class="color-picker-wrap">
-            <input type="color" class="color-picker-swatch" data-field="color" value="${esc(h.color)}" aria-label="Color picker">
-            <input id="hold-color-hex-${i}" class="form-input form-input-sm color-picker-hex" data-field="color-hex" value="${esc(h.color)}" placeholder="#888888" maxlength="7">
-          </div>
-        </div>
-        <div class="settings-field-checkbox-group">
-          <span class="settings-field-label" aria-hidden="true">&nbsp;</span>
-          <div class="settings-field-checkbox-row">
-            <div class="settings-field settings-field-inline">
-              <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="acc" ${h.acc ? 'checked' : ''}> Accumulating${infoTip('Acc (accumulating) ETFs reinvest dividends internally. Dist (distributing) ETFs pay dividends to your account.')}</label>
-            </div>
-            <div class="settings-field settings-field-inline">
-              <label class="settings-field-label" style="cursor:pointer"><input type="checkbox" data-field="active" ${h.active ? 'checked' : ''}> Active</label>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>`;
-}
-
-function refreshHoldingDatalists(root: HTMLElement): void {
-  const suggestionLists = holdingsSuggestionLists(_knownSecuritySuggestions);
-  const isinList = root.querySelector('#settings-holding-isin-list');
-  if (isinList) {
-    isinList.innerHTML = suggestionLists.isins
-      .map((isin) => `<option value="${esc(isin)}"></option>`)
-      .join('');
-  }
-  const nameList = root.querySelector('#settings-holding-name-list');
-  if (nameList) {
-    nameList.innerHTML = suggestionLists.names
-      .map((name) => `<option value="${esc(name)}"></option>`)
-      .join('');
-  }
-}
-
-function attachHoldingSuggestionListeners(scope: Element): void {
-  scope.querySelectorAll<HTMLElement>('.settings-hold-row').forEach((row) => {
-    const isinEl = row.querySelector('[data-field="isin"]') as HTMLInputElement | null;
-    const nameEl = row.querySelector('[data-field="name"]') as HTMLInputElement | null;
-    if (!isinEl || !nameEl) return;
-
-    const syncByIsin = (): void => {
-      const pair = _knownSecuritySuggestions.byIsin[isinEl.value.trim().toUpperCase()];
-      if (pair && !nameEl.value.trim()) nameEl.value = pair.name;
-    };
-    const syncByName = (): void => {
-      const pair = _knownSecuritySuggestions.byName[normalizeSuggestionName(nameEl.value)];
-      if (pair && !isinEl.value.trim()) isinEl.value = pair.isin;
-    };
-    isinEl.addEventListener('change', syncByIsin);
-    isinEl.addEventListener('blur', syncByIsin);
-    nameEl.addEventListener('change', syncByName);
-    nameEl.addEventListener('blur', syncByName);
-  });
 }
 
 /**
@@ -881,14 +605,6 @@ function applyHoldingsFilter(root: HTMLElement): void {
         return renderHoldingRow(h, origIdx);
       })
       .join('');
-    attachColorPickerSync(tbl as HTMLElement);
-    attachHoldingSuggestionListeners(tbl as HTMLElement);
-    attachItemCollapseListeners(tbl as HTMLElement);
-    (tbl as HTMLElement).querySelectorAll('.js-del-hold').forEach((btn) => {
-      btn.addEventListener('click', () =>
-        deleteHolding(root, parseInt((btn as HTMLElement).dataset.idx!), btn as HTMLButtonElement),
-      );
-    });
   }
 
   // Update filter-button active state and counts
@@ -909,7 +625,7 @@ async function deleteHolding(
   btn: HTMLButtonElement,
 ): Promise<void> {
   if (isCardBusy('holdings') || isBusy()) return;
-  const holds = collectHoldings(root);
+  const holds = _holdings ?? [];
   const hold = holds[idx];
   const ok = await confirmDialog({
     title: `Remove ${esc(hold?.shortName || hold?.isin || 'this holding')}?`,
@@ -918,13 +634,13 @@ async function deleteHolding(
     danger: true,
   });
   if (!ok) return;
-  holds.splice(idx, 1);
+  const updated = holds.filter((_, i) => i !== idx);
   try {
-    await withCardGuard('holdings', btn, () => setHoldings(holds), {
+    await withCardGuard('holdings', btn, () => setHoldings(updated), {
       busyText: 'Removing...',
       keepDisabledOnSuccess: true,
     });
-    rerenderHoldingsTable(root, holds);
+    rerenderHoldingsTable(root, updated);
     showMsg('holds-msg', 'Removed', true);
   } catch (err) {
     showMsg('holds-msg', 'Error: ' + (err as Error).message, false);
@@ -932,9 +648,6 @@ async function deleteHolding(
 }
 
 function attachHoldingListeners(root: HTMLElement): void {
-  const initialTbl = root.querySelector('#settings-holdings-tbl') as HTMLElement | null;
-  if (initialTbl) attachHoldingSuggestionListeners(initialTbl);
-
   void loadTransactions()
     .then((txs) => {
       _suggestionTransactions = Array.isArray(txs) ? txs : [];
@@ -942,9 +655,6 @@ function attachHoldingListeners(root: HTMLElement): void {
         getHoldings(),
         _suggestionTransactions,
       );
-      refreshHoldingDatalists(root);
-      const tbl = root.querySelector('#settings-holdings-tbl') as HTMLElement | null;
-      if (tbl) attachHoldingSuggestionListeners(tbl);
     })
     .catch(() => undefined);
 
@@ -959,24 +669,35 @@ function attachHoldingListeners(root: HTMLElement): void {
     });
   }
 
-  root.querySelector('#btn-add-hold')?.addEventListener('click', () => {
-    const holds = collectHoldings(root);
-    holds.push({
-      isin: '',
-      shortName: '',
-      name: '',
-      color: '#888888',
-      acc: true,
-      active: true,
-      contribAmount: 0,
-      contribInterval: 'weekly' as ContribInterval,
-      assetClass: 'equity',
-      region: 'developed',
-      foldInto: '',
-      order: holds.length + 1,
-      ter: 0,
+  root.querySelector('#btn-add-hold')?.addEventListener('click', async () => {
+    const order = (_holdings?.length ?? 0) + 1;
+    const draft = await holdingDialog({
+      suggestions: _knownSecuritySuggestions,
+      order,
     });
-    rerenderHoldingsTable(root, holds);
+    if (!draft) return;
+    const updated = [...(_holdings ?? []), draft];
+    rerenderHoldingsTable(root, updated);
+    showMsg('holds-msg', 'Holding added — click Save to persist.', true);
+  });
+
+  root.addEventListener('click', async (e) => {
+    const editBtn = (e.target as Element).closest('.js-edit-hold') as HTMLElement | null;
+    if (!editBtn) return;
+    const idx = parseInt(editBtn.dataset.idx ?? '');
+    if (isNaN(idx)) return;
+    const holds = _holdings ?? _allHoldings ?? [];
+    const existing = holds[idx];
+    if (!existing) return;
+    const draft = await holdingDialog({
+      existing,
+      suggestions: _knownSecuritySuggestions,
+    });
+    if (!draft) return;
+    const all = _allHoldings ?? holds;
+    const updated = all.map((h, i) => (i === idx ? { ...draft, order: h.order } : h));
+    rerenderHoldingsTable(root, updated);
+    showMsg('holds-msg', 'Holding updated — click Save to persist.', true);
   });
 
   root.querySelector('#btn-autofill-holds')?.addEventListener('click', async () => {
@@ -992,7 +713,6 @@ function attachHoldingListeners(root: HTMLElement): void {
             getHoldings(),
             _suggestionTransactions,
           );
-          refreshHoldingDatalists(root);
           const buys = txs.filter((t) => t.type === 'BUY' && t.isin);
           if (buys.length === 0) {
             showMsg('holds-msg', 'No BUY transactions found. Import a CSV first.', false);
@@ -1014,7 +734,7 @@ function attachHoldingListeners(root: HTMLElement): void {
             }
           }
           // Merge with existing holdings (skip already-configured ISINs)
-          const holds = collectHoldings(root);
+          const holds = (_holdings ?? []).slice();
           const existing = new Set(holds.map((h) => h.isin));
           let added = 0;
           for (const [isin, name] of Object.entries(isinMap)) {
@@ -1068,7 +788,7 @@ function attachHoldingListeners(root: HTMLElement): void {
 
   root.querySelector('#btn-save-holds')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-holds') as HTMLButtonElement;
-    const holds = collectHoldings(root);
+    const holds = _holdings ?? [];
     if (holds.some((h) => !h.isin || !h.shortName)) {
       showMsg('holds-msg', 'Each holding needs an ISIN and short name.', false);
       return;
@@ -1086,64 +806,24 @@ function attachHoldingListeners(root: HTMLElement): void {
     }
   });
 
-  root.querySelectorAll('.js-del-hold').forEach((btn) => {
-    btn.addEventListener('click', () =>
-      deleteHolding(root, parseInt((btn as HTMLElement).dataset.idx!), btn as HTMLButtonElement),
-    );
+  root.addEventListener('click', (e) => {
+    const delBtn = (e.target as Element).closest('.js-del-hold') as HTMLButtonElement | null;
+    if (!delBtn) return;
+    const idx = parseInt(delBtn.dataset.idx ?? '');
+    if (!isNaN(idx)) deleteHolding(root, idx, delBtn);
   });
 }
 
-function collectHoldings(root: HTMLElement): Holding[] {
-  const rows = root.querySelectorAll('.settings-hold-row');
-  const fromDOM = [...rows].map((row) => ({
-    idx: parseInt((row as HTMLElement).dataset.idx!),
-    isin: (row.querySelector('[data-field="isin"]') as HTMLInputElement).value.trim(),
-    shortName: (row.querySelector('[data-field="shortName"]') as HTMLInputElement).value.trim(),
-    name: (row.querySelector('[data-field="name"]') as HTMLInputElement).value.trim(),
-    color: (row.querySelector('[data-field="color"]') as HTMLInputElement).value.trim(),
-    acc: (row.querySelector('[data-field="acc"]') as HTMLInputElement).checked,
-    active: (row.querySelector('[data-field="active"]') as HTMLInputElement).checked,
-    contribAmount:
-      parseFloat((row.querySelector('[data-field="contribAmount"]') as HTMLInputElement).value) ||
-      0,
-    contribInterval: ((
-      row.querySelector('[data-field="contribInterval"]') as HTMLSelectElement
-    ).value.trim() || 'weekly') as ContribInterval,
-    assetClass: (row.querySelector('[data-field="assetClass"]') as HTMLSelectElement).value.trim(),
-    region: (row.querySelector('[data-field="region"]') as HTMLSelectElement).value.trim(),
-    foldInto: (row.querySelector('[data-field="foldInto"]') as HTMLInputElement).value.trim(),
-    ter: parseFloat((row.querySelector('[data-field="ter"]') as HTMLInputElement).value) || 0,
-  }));
-
-  // When no filter is active or no cached list, return DOM rows directly
-  if (_holdingsSettingsFilter === 'all' || !_allHoldings) {
-    return fromDOM.map((h, i) => {
-      const { idx, ...rest } = h;
-      return { ...rest, order: i + 1 };
-    });
-  }
-
-  // Merge DOM edits back into the full cached list
-  const merged = _allHoldings.slice();
-  for (const h of fromDOM) {
-    const { idx, ...rest } = h;
-    if (idx >= 0 && idx < merged.length) {
-      merged[idx] = { ...rest, order: idx + 1 };
-    }
-  }
-  // Re-number order
-  merged.forEach((h, i) => {
-    h.order = i + 1;
-  });
-  return merged;
+function collectHoldings(_root: HTMLElement): Holding[] {
+  return _holdings ?? [];
 }
 
 function rerenderHoldingsTable(root: HTMLElement, holdings: Holding[]): void {
   // Update cache and reset filter to show all when modifying
+  _holdings = holdings.slice();
   _allHoldings = holdings.slice();
   _knownSecuritySuggestions = buildKnownSecuritySuggestions(holdings, _suggestionTransactions);
   _holdingsSettingsFilter = 'all';
-  refreshHoldingDatalists(root);
   const tbl = root.querySelector('#settings-holdings-tbl');
   if (!tbl) return;
   const rows = holdings.map((h, i) => renderHoldingRow(h, i)).join('');
@@ -1162,15 +842,6 @@ function rerenderHoldingsTable(root: HTMLElement, holdings: Holding[]): void {
       if (el.dataset.hfilter === 'closed') el.textContent = `Closed (${closedCount})`;
     });
   }
-  attachColorPickerSync(tbl as HTMLElement);
-  attachHoldingSuggestionListeners(tbl as HTMLElement);
-  attachItemCollapseListeners(tbl as HTMLElement);
-  attachInfoTips(tbl as HTMLElement);
-  tbl.querySelectorAll('.js-del-hold').forEach((btn) => {
-    btn.addEventListener('click', () =>
-      deleteHolding(root, parseInt((btn as HTMLElement).dataset.idx!), btn as HTMLButtonElement),
-    );
-  });
 }
 
 // ── Cost-basis method ───────────────────────────────────
