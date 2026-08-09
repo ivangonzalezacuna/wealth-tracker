@@ -97,7 +97,7 @@ export async function findDbFile(): Promise<DriveFile | null> {
   return withRetry(async () => {
     const token = await getToken();
     const query = encodeURIComponent(`name='${DB_FILENAME}' and trashed=false`);
-    const url = `${DRIVE_API}/files?spaces=appDataFolder&q=${query}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc,name,id`;
+    const url = `${DRIVE_API}/files?spaces=appDataFolder&q=${query}&fields=files(id,name,modifiedTime)`;
     const res = await checkedFetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });

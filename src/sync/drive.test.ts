@@ -34,7 +34,7 @@ describe('findDbFile', () => {
     const file = await findDbFile();
 
     expect(fetchSpy).toHaveBeenCalledWith(
-      expect.stringContaining('orderBy=modifiedTime desc,name,id'),
+      expect.stringContaining('fields=files(id,name,modifiedTime)'),
       expect.any(Object),
     );
     expect(file?.id).toBe('a');
