@@ -70,7 +70,12 @@ vi.mock('../constants', () => ({
     { key: 'acct1', label: 'Trade Republic', color: '#111111' },
     { key: 'acct2', label: 'Savings', color: '#222222' },
   ],
-  FORECAST_RANGE_LABELS: { '60': '5 years', '120': '10 years', '240': '20 years' },
+  FORECAST_RANGE_LABELS: {
+    '60': '5 years',
+    '120': '10 years',
+    '240': '20 years',
+    '360': '30 years',
+  },
 }));
 
 import { renderNW } from './networth';
@@ -143,6 +148,7 @@ const DOM_FIXTURE = `
           <button class="btn active" data-range="60">5Y</button>
           <button class="btn" data-range="120">10Y</button>
           <button class="btn" data-range="240">20Y</button>
+          <button class="btn" data-range="360">30Y</button>
         </div>
       </div>
     </div>

@@ -10,6 +10,7 @@ export {
   mergeTransactions,
   restoreTransactions,
   txKey,
+  countAmendedRows,
 } from './repositories/transactions';
 
 export { loadSnapshots, upsertSnapshot, saveSnapshots } from './repositories/snapshots';

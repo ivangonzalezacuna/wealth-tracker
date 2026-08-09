@@ -161,6 +161,9 @@ export function annualizedVolatility(snaps: Snapshot[]): VolatilityResult {
   for (let i = 1; i < snaps.length; i++) {
     const prev = snapTotal(snaps[i - 1]);
     if (prev <= 0) return { annualized: null, monthlyReturns };
+    // Skip pairs that span more than one calendar month: the return cannot be
+    // attributed to a single month period and would distort volatility estimates.
+    if (monthsBetween(snaps[i - 1].date, snaps[i].date) > 1) continue;
     monthlyReturns.push({
       date: snaps[i].date,
       startValue: prev,
@@ -349,7 +352,9 @@ export function rollingCagr(
   for (let i = windowMonths; i < snaps.length; i++) {
     const startVal = snapTotal(snaps[i - windowMonths]);
     const endVal = snapTotal(snaps[i]);
-    const c = cagr(startVal, endVal, windowMonths);
+    // Use actual elapsed calendar months so skipped months are properly accounted for.
+    const actualMonths = monthsBetween(snaps[i - windowMonths].date, snaps[i].date);
+    const c = cagr(startVal, endVal, actualMonths > 0 ? actualMonths : windowMonths);
     if (c !== null) result.push({ month: snaps[i].date, cagr: c });
   }
   return result;
@@ -533,6 +538,17 @@ function parseYearMonth(d: string): { year: number; month: number } | null {
   const month = parseInt(parts[1], 10);
   if (isNaN(year) || isNaN(month)) return null;
   return { year, month };
+}
+
+/**
+ * Calendar-month distance between two YYYY-MM dates.
+ * Returns 0 when either date is unparseable.
+ */
+export function monthsBetween(a: string, b: string): number {
+  const da = parseYearMonth(a);
+  const db = parseYearMonth(b);
+  if (!da || !db) return 0;
+  return Math.abs((db.year - da.year) * 12 + (db.month - da.month));
 }
 
 function _yearMonthToIndex(d: string): number | null {

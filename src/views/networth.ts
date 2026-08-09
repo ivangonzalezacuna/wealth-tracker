@@ -30,7 +30,7 @@ import { infoTip, attachInfoTips } from '../ui/infoTip';
 
 const CH: Record<string, Chart> = {};
 let _nwRange: '12' | '36' | 'all' = 'all';
-let _fcRange: '60' | '120' | '240' = '60'; // 5y / 10y / 20y forecast horizon
+let _fcRange: '60' | '120' | '240' | '360' = '60'; // 5y / 10y / 20y / 30y forecast horizon
 let _inflationRate = 0; // annual inflation % for real-return forecast overlay
 let _lastSnaps: Snapshot[] = [];
 let _lastAccounts: Account[] = [];
@@ -532,7 +532,7 @@ function _attachForecastRangeToggle(snaps: Snapshot[], accounts: Account[]): voi
   toggle.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
     if (!btn) return;
-    const newRange = (btn.dataset.range as '60' | '120' | '240') || '60';
+    const newRange = (btn.dataset.range as '60' | '120' | '240' | '360') || '60';
     if (newRange === _fcRange) return;
     _fcRange = newRange;
     _renderForecastChart(snaps, accounts);
@@ -660,6 +660,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           <button class="btn btn-sm btn-ghost ${_fcRange === '60' ? 'active' : ''}" data-range="60">5Y</button>
           <button class="btn btn-sm btn-ghost ${_fcRange === '120' ? 'active' : ''}" data-range="120">10Y</button>
           <button class="btn btn-sm btn-ghost ${_fcRange === '240' ? 'active' : ''}" data-range="240">20Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '360' ? 'active' : ''}" data-range="360">30Y</button>
         </div>
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast"></canvas></div>

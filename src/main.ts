@@ -11,6 +11,7 @@ import {
   upsertSnapshot,
   loadTransactions,
   mergeTransactions,
+  countAmendedRows,
   saveImportMeta,
   loadImportMeta,
   restoreAllData,
@@ -919,7 +920,73 @@ function renderSetupBanner(): void {
   });
 
   if (step === 'done') {
-    el.style.display = 'none';
+    // Show optional next-step hints until the user has imported transactions
+    // and configured at least one holding on an investment account. Both are
+    // optional but unlock Portfolio / Dividends functionality.
+    const hasTransactions = state.txs.length > 0;
+    const hasHoldings = getHoldings().length > 0;
+    if (hasTransactions && hasHoldings) {
+      el.style.display = 'none';
+      return;
+    }
+
+    const bonusSteps = [
+      ...(!hasTransactions
+        ? [
+            {
+              id: 'import-csv',
+              label: 'Import transactions',
+              note: 'enables cost-basis, P&L & dividends',
+            },
+          ]
+        : []),
+      ...(!hasHoldings
+        ? [
+            {
+              id: 'configure-holdings',
+              label: 'Configure holdings',
+              note: 'enables Portfolio & drift view',
+            },
+          ]
+        : []),
+    ];
+
+    const stepsHtml = bonusSteps
+      .map(
+        (s, i) => `
+      <span class="setup-step ${i === 0 ? 'step-current' : ''}">
+        <span class="step-check">${i === 0 ? '→' : '○'}</span>
+        ${s.label} <span style="color:var(--ink-3);font-size:10px">(${s.note})</span>
+      </span>
+    `,
+      )
+      .join('');
+
+    const firstStep = bonusSteps[0];
+    const ctaLabel = firstStep.id === 'import-csv' ? 'Import CSV' : 'Configure in Settings';
+    el.innerHTML = `
+      <div class="card setup-card" style="margin-bottom:1rem;padding:.75rem 1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+        <div style="font-weight:500;font-size:13px;color:var(--ink)">Recommended next steps</div>
+        <div class="setup-steps" style="display:flex;gap:.75rem;font-size:12px">${stepsHtml}</div>
+        <div style="margin-left:auto;display:flex;gap:.5rem;align-items:center">
+          <button class="btn btn-primary btn-sm" id="setup-cta">${ctaLabel}</button>
+          <button class="btn btn-ghost btn-sm" id="setup-dismiss" title="Dismiss">✕</button>
+        </div>
+      </div>
+    `;
+    el.style.display = 'block';
+
+    document.getElementById('setup-cta')?.addEventListener('click', () => {
+      if (firstStep.id === 'import-csv') {
+        showSection('log', document.querySelector('.nav button[data-section="log"]'));
+      } else {
+        showSection('settings', document.querySelector('.nav button[data-section="settings"]'));
+      }
+    });
+    document.getElementById('setup-dismiss')?.addEventListener('click', () => {
+      _bannerDismissed = true;
+      el.style.display = 'none';
+    });
     return;
   }
 
@@ -1539,6 +1606,18 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
   `
       : '';
 
+  // Amended-rows warning: rows that already exist but differ in at least one data field.
+  // Computed once against the current stored set; the merge will silently keep the stored values.
+  const amendedCount = countAmendedRows(state.txs, allRows);
+  const amendedHtml =
+    amendedCount > 0
+      ? `
+    <div class="status-bar status-warn" style="margin:.6rem 0">
+      ⚠ ${amendedCount} row${amendedCount > 1 ? 's' : ''} already exist and differ from the imported file — re-import does not overwrite existing data.
+    </div>
+  `
+      : '';
+
   function renderPreview() {
     const includedCount = summary.total - excludedRows.size;
     const totalPages = Math.max(1, Math.ceil(allRows.length / PAGE_SIZE));
@@ -1619,6 +1698,7 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
         ${unmappedHtml}
         ${hideDateWarning ? '' : dateErrorsHtml}
         ${numberErrorsHtml}
+        ${amendedHtml}
         ${previewTableHtml}
         ${pageInfoHtml}
         <div style="display:flex;gap:10px;margin-top:.85rem">

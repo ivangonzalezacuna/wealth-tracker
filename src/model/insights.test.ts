@@ -10,6 +10,8 @@ import {
   maxDrawdown,
   cagrPerAccount,
   dividendMetrics,
+  monthsBetween,
+  rollingCagr,
 } from './insights';
 import type { Snapshot } from '../types';
 import * as utils from '../utils';
@@ -421,5 +423,89 @@ describe('cagrPerAccount', () => {
     expect(a.cagrValue).not.toBeNull();
     expect(b.cagrValue).not.toBeNull();
     expect(a.cagrValue).not.toBeCloseTo(b.cagrValue!);
+  });
+});
+
+describe('monthsBetween', () => {
+  it('returns 1 for consecutive months', () => {
+    expect(monthsBetween('2026-01', '2026-02')).toBe(1);
+    expect(monthsBetween('2025-12', '2026-01')).toBe(1);
+  });
+
+  it('returns 0 for the same month', () => {
+    expect(monthsBetween('2026-03', '2026-03')).toBe(0);
+  });
+
+  it('returns correct distance across years', () => {
+    expect(monthsBetween('2024-01', '2026-01')).toBe(24);
+    expect(monthsBetween('2025-06', '2026-01')).toBe(7);
+  });
+
+  it('is symmetric', () => {
+    expect(monthsBetween('2026-01', '2026-04')).toBe(monthsBetween('2026-04', '2026-01'));
+  });
+
+  it('returns 0 for unparseable dates', () => {
+    expect(monthsBetween('', '2026-01')).toBe(0);
+    expect(monthsBetween('2026-01', 'bad')).toBe(0);
+  });
+});
+
+describe('annualizedVolatility — skipped month handling', () => {
+  it('excludes multi-month gaps from the monthly return series', () => {
+    // 4 snapshots but with a 2-month gap between index 1 and 2
+    // Dates: Jan, Feb, Apr (gap!), May — only Jan→Feb and Apr→May are single-month pairs
+    vi.spyOn(utils, 'snapTotal')
+      .mockReturnValueOnce(10000) // Jan prev
+      .mockReturnValueOnce(10500) // Feb cur  → Jan→Feb included (1 month gap)
+      .mockReturnValueOnce(10500) // Feb prev (for next pair check — gap=2, skipped)
+      .mockReturnValueOnce(10000) // Apr prev
+      .mockReturnValueOnce(10100) // May cur  → Apr→May included (1 month gap)
+      .mockReturnValueOnce(10100); // extra call guard
+
+    const snaps: Snapshot[] = [
+      { date: '2026-01' },
+      { date: '2026-02' },
+      { date: '2026-04' }, // skipped March
+      { date: '2026-05' },
+    ];
+    const result = annualizedVolatility(snaps);
+    // Only 2 monthly return points should survive (Jan→Feb and Apr→May)
+    expect(result.monthlyReturns.length).toBe(2);
+  });
+
+  it('returns annualized: null when too few consecutive pairs survive after gap filtering', () => {
+    // Only a single consecutive pair remains — not enough for variance
+    vi.spyOn(utils, 'snapTotal')
+      .mockReturnValueOnce(10000)
+      .mockReturnValueOnce(10500)
+      .mockReturnValue(10500);
+
+    // 3 snapshots but only 1 is a consecutive pair (Jan→Feb); Feb→Apr is a gap
+    const snaps: Snapshot[] = [{ date: '2026-01' }, { date: '2026-02' }, { date: '2026-04' }];
+    const result = annualizedVolatility(snaps);
+    expect(result.annualized).toBeNull();
+    expect(result.monthlyReturns.length).toBe(1);
+  });
+});
+
+describe('rollingCagr — actual elapsed months', () => {
+  it('uses actual elapsed months when snapshots have gaps', () => {
+    // windowMonths = 1 (index step), but the two snapshots are 15 calendar months apart.
+    // Old code: cagr(start, end, 1) → null (< 12 months minimum)
+    // New code: cagr(start, end, 15) → a real CAGR value
+    vi.spyOn(utils, 'snapTotal')
+      .mockReturnValueOnce(10000) // startVal (snaps[0])
+      .mockReturnValueOnce(12000); // endVal (snaps[1])
+
+    const snaps: Snapshot[] = [
+      { date: '2024-01' },
+      { date: '2025-04' }, // 15 calendar months later
+    ];
+    const result = rollingCagr(snaps, 1);
+    // actualMonths = 15 — enough for cagr() to return a result
+    expect(result.length).toBe(1);
+    // CAGR(10000, 12000, 15) = (12000/10000)^(12/15) - 1 = 1.2^0.8 - 1
+    expect(result[0].cagr).toBeCloseTo(Math.pow(1.2, 12 / 15) - 1, 4);
   });
 });

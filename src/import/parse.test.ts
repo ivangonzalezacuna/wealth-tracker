@@ -256,22 +256,24 @@ describe('unmapped types handling', () => {
     // Total rows = 4 (1 BUY + 2 STOCK_SPLIT + 1 REBATE)
     expect(transactions).toHaveLength(4);
 
-    // Unmapped: STOCK_SPLIT|CORPORATE_ACTION (2 rows) + REBATE (1 row)
-    expect(unmapped.length).toBeGreaterThanOrEqual(2);
+    // STOCK_SPLIT is now mapped to TxType.SPLIT; only REBATE is unmapped
+    expect(unmapped.length).toBeGreaterThanOrEqual(1);
 
     const stockSplit = unmapped.find((u) => u.type.includes('STOCK_SPLIT'));
-    expect(stockSplit).toBeDefined();
-    expect(stockSplit!.count).toBe(2);
+    expect(stockSplit).toBeUndefined();
 
     const rebate = unmapped.find((u) => u.type === 'REBATE');
     expect(rebate).toBeDefined();
     expect(rebate!.count).toBe(1);
   });
 
-  it('unmapped rows have type preserved uppercased', () => {
+  it('STOCK_SPLIT rows are mapped to TxType.SPLIT, not preserved as unknown', () => {
     const { transactions } = parseWithProfile(TR_CSV_WITH_UNMAPPED, tradeRepublicProfile);
-    const stockSplits = transactions.filter((t) => t.type === ('STOCK_SPLIT' as TxTypeValue));
+    const stockSplits = transactions.filter((t) => t.type === 'SPLIT');
     expect(stockSplits).toHaveLength(2);
+    // No raw STOCK_SPLIT strings survive
+    const rawSplits = transactions.filter((t) => t.type === ('STOCK_SPLIT' as TxTypeValue));
+    expect(rawSplits).toHaveLength(0);
   });
 });
 

@@ -85,13 +85,13 @@ For Vercel, Cloudflare Pages, or similar:
 
 The app stores all your data in a **local SQLite database** (sql.js WASM) running in the browser. This database is:
 
-1. **Persisted locally** in IndexedDB (survives reloads and restarts) - this is the authoritative store
-2. **Synced to Google Drive AppData** (hidden per-app folder) as a cloud copy for multi-device access and safety
+1. **Persisted locally** in IndexedDB (survives reloads and restarts) — this is the primary working store for all reads and writes
+2. **Synced to Google Drive AppData** (hidden per-app folder) as a cloud backup and cross-device copy
 3. **Cached in a separate IDB store** for instant page load (~50ms from cache while full sync runs in background)
 
 There is no backend. Your data never leaves your browser except to your own Google Drive.
 
-All writes (snapshots, CSV imports, settings changes, backup restores) go to local SQLite immediately, regardless of connectivity. Drive sync is opportunistic: changes are pushed automatically after a short debounce when online, and any writes made offline are pushed the next time connectivity is restored.
+All writes (snapshots, CSV imports, settings changes, backup restores) go to local SQLite immediately, regardless of connectivity. On startup, the app checks whether the Google Drive copy is newer than the local one; if it is, the cloud copy is downloaded and replaces the local database (for example, when picking up changes made on another device). Drive sync is otherwise opportunistic: changes are pushed automatically after a short debounce when online, and any writes made offline are pushed the next time connectivity is restored.
 
 ## Stack
 
@@ -123,7 +123,12 @@ Accounts can optionally be marked as **locked** (e.g. pension or AVD accounts) w
 
 Go to the **+ Log** tab. Enter the current value for each account, then hit **Save snapshot**. This records your net worth for the month.
 
-Once these three steps are done, the setup banner disappears and you have full access to all views: Net Worth, Portfolio, DCA (contributions), and Dividends.
+Once these three steps are done, the setup banner transitions to a **"Recommended next steps"** prompt with two optional-but-important actions:
+
+- **Import transactions** — imports your broker CSV to unlock cost-basis tracking, realized P&L, and dividend analytics (Portfolio and Dividends tabs)
+- **Configure holdings** — adds ETF/fund definitions to your investment account in Settings, enabling the Portfolio drift view
+
+The banner disappears automatically once both are completed, or you can dismiss it manually at any time.
 
 ### Monthly workflow
 
@@ -168,7 +173,7 @@ For detailed cost-basis, realized P&L, and dividend tracking, import your broker
 2. Select or drag your broker CSV (Trade Republic and N26 savings are supported)
 3. Preview the detected transactions and confirm
 
-Transactions are merged (deduplicated by date + type + amount), so you can re-import updated CSVs safely.
+Transactions are merged with existing data using an append-only strategy: new rows are inserted, but rows that already exist (matched by date + type + amount) are not overwritten. This means re-importing an updated CSV is safe — it will add genuinely new transactions — but amended or corrected rows from your broker will not replace what is already stored. The import preview will warn you if the file contains rows that differ from existing records.
 
 Income analytics on the Analytics tab are anchored to your latest imported transaction month, so
 trailing-12-month income and income growth do not drift just because calendar time passed. Dividend
