@@ -28,15 +28,33 @@ import { downloadDbFile, uploadDbFile, getCloudModifiedTime } from './drive';
 let _uploadTimer: ReturnType<typeof setTimeout> | null = null;
 let _syncing = false;
 let _onSyncStatusChange: ((status: SyncStatus) => void) | null = null;
+let _pendingConflict: SyncConflict | null = null;
 
 const UPLOAD_DEBOUNCE_MS = 5_000; // 5 seconds after last write
 
-export type SyncStatus = 'idle' | 'syncing' | 'uploading' | 'downloading' | 'error' | 'done';
+export type SyncStatus =
+  | 'idle'
+  | 'syncing'
+  | 'uploading'
+  | 'downloading'
+  | 'conflict'
+  | 'error'
+  | 'done';
+
+export interface SyncConflict {
+  source: 'pull' | 'push';
+  cloudModifiedTime: string;
+  lastSyncedAt: string | null;
+  lastLocalChangeAt: string | null;
+}
 
 export class SyncConflictError extends Error {
-  constructor(message: string) {
-    super(message);
+  readonly conflict: SyncConflict;
+
+  constructor(conflict: SyncConflict) {
+    super('Drive changed elsewhere and this device also has local changes.');
     this.name = 'SyncConflictError';
+    this.conflict = conflict;
   }
 }
 
@@ -47,8 +65,39 @@ export function onSyncStatus(fn: (status: SyncStatus) => void): void {
   _onSyncStatusChange = fn;
 }
 
+export function getPendingSyncConflict(): SyncConflict | null {
+  return _pendingConflict;
+}
+
 function setStatus(s: SyncStatus): void {
   _onSyncStatusChange?.(s);
+}
+
+function clearPendingConflict(): void {
+  _pendingConflict = null;
+}
+
+function raiseConflict(conflict: SyncConflict): never {
+  _pendingConflict = conflict;
+  setStatus('conflict');
+  throw new SyncConflictError(conflict);
+}
+
+function hasUnsyncedLocalChanges(
+  lastLocalChangeAt: string | null,
+  lastSyncedAt: string | null,
+): boolean {
+  return !!lastLocalChangeAt && (!lastSyncedAt || new Date(lastLocalChangeAt) > new Date(lastSyncedAt));
+}
+
+async function finalizeSuccessfulSync(modifiedTime: string, syncStartedAt: string): Promise<void> {
+  await setLastSyncTimestamp(modifiedTime);
+  await setDriveVersion(modifiedTime);
+  const latestLocalChangeAt = await getLastLocalChangeTimestamp();
+  if (!latestLocalChangeAt || new Date(latestLocalChangeAt) <= new Date(syncStartedAt)) {
+    await setLastLocalChangeTimestamp(modifiedTime);
+  }
+  clearPendingConflict();
 }
 
 /** Is a sync currently in progress? */
@@ -94,12 +143,13 @@ export async function pullFromCloud(): Promise<boolean> {
 
     // Conflict guard: cloud is newer, but this device has local changes that
     // were never synced to Drive yet. Refuse silent overwrite.
-    const hasUnsyncedLocalChanges =
-      !!localChangeTime && (!localTime || new Date(localChangeTime) > new Date(localTime));
-    if (hasUnsyncedLocalChanges) {
-      throw new SyncConflictError(
-        'Cloud has a newer copy, but this device also has unsynced local changes. Refusing to overwrite local history silently.',
-      );
+    if (hasUnsyncedLocalChanges(localChangeTime, localTime)) {
+      raiseConflict({
+        source: 'pull',
+        cloudModifiedTime: cloudTime,
+        lastSyncedAt: localTime,
+        lastLocalChangeAt: localChangeTime,
+      });
     }
 
     // Cloud is newer - download and replace.
@@ -111,11 +161,11 @@ export async function pullFromCloud(): Promise<boolean> {
     }
 
     await importDb(result.data);
-    await setLastSyncTimestamp(result.modifiedTime);
-    await setDriveVersion(result.modifiedTime);
+    await finalizeSuccessfulSync(result.modifiedTime, result.modifiedTime);
     setStatus('done');
     return true;
   } catch (err) {
+    if (err instanceof SyncConflictError) throw err;
     console.error('[sync] pull failed:', err);
     setStatus('error');
     throw err;
@@ -128,11 +178,30 @@ export async function pullFromCloud(): Promise<boolean> {
  * Push: upload the current local DB to Drive AppData.
  * Called immediately (not debounced), use scheduleUpload for debounced pushes.
  */
-export async function pushToCloud(): Promise<boolean> {
+export async function pushToCloud(opts: { skipConflictCheck?: boolean } = {}): Promise<boolean> {
   if (_syncing) return false;
   _syncing = true;
   try {
     setStatus('uploading');
+    const syncStartedAt = new Date().toISOString();
+    const localTime = await getLastSyncTimestamp();
+    const localChangeTime = await getLastLocalChangeTimestamp();
+    const storedVersion = await getDriveVersion();
+    const cloudTime = await getCloudModifiedTime();
+    if (
+      !opts.skipConflictCheck &&
+      cloudTime &&
+      hasUnsyncedLocalChanges(localChangeTime, localTime) &&
+      (!storedVersion || storedVersion !== cloudTime)
+    ) {
+      raiseConflict({
+        source: 'push',
+        cloudModifiedTime: cloudTime,
+        lastSyncedAt: localTime,
+        lastLocalChangeAt: localChangeTime,
+      });
+    }
+
     const data = exportDb();
     if (!data) {
       setStatus('done');
@@ -140,12 +209,11 @@ export async function pushToCloud(): Promise<boolean> {
     }
 
     const modifiedTime = await uploadDbFile(data);
-    await setLastSyncTimestamp(modifiedTime);
-    await setDriveVersion(modifiedTime);
-    await setLastLocalChangeTimestamp(modifiedTime);
+    await finalizeSuccessfulSync(modifiedTime, syncStartedAt);
     setStatus('done');
     return true;
   } catch (err) {
+    if (err instanceof SyncConflictError) throw err;
     console.error('[sync] push failed:', err);
     setStatus('error');
     return false;
@@ -163,7 +231,7 @@ export function scheduleUpload(): void {
   if (_uploadTimer) clearTimeout(_uploadTimer);
   _uploadTimer = setTimeout(() => {
     _uploadTimer = null;
-    pushToCloud();
+    void pushToCloud().catch(() => {});
   }, UPLOAD_DEBOUNCE_MS);
 }
 
@@ -185,5 +253,34 @@ export async function forceSync(): Promise<void> {
   if (!downloaded) {
     // If we didn't download (local is current), push our state up.
     await pushToCloud();
+  }
+}
+
+export async function overwriteCloudWithLocal(): Promise<boolean> {
+  const pushed = await pushToCloud({ skipConflictCheck: true });
+  if (pushed) clearPendingConflict();
+  return pushed;
+}
+
+export async function replaceLocalWithCloud(): Promise<boolean> {
+  if (_syncing) return false;
+  _syncing = true;
+  try {
+    setStatus('downloading');
+    const result = await downloadDbFile();
+    if (!result) {
+      setStatus('done');
+      return false;
+    }
+    await importDb(result.data, { preserveLocalTransactions: false });
+    await finalizeSuccessfulSync(result.modifiedTime, result.modifiedTime);
+    setStatus('done');
+    return true;
+  } catch (err) {
+    console.error('[sync] conflict download failed:', err);
+    setStatus('error');
+    throw err;
+  } finally {
+    _syncing = false;
   }
 }

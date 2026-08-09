@@ -156,6 +156,8 @@ import { withButtonGuard } from '../utils';
 
 function setupDOM(): void {
   document.body.innerHTML = '<div id="settings-content"></div>';
+  (window as any).__hasSyncConflict = () => false;
+  (window as any).__openSyncConflictResolver = vi.fn(async () => {});
 }
 
 describe('Settings scoped re-render (repaintCard)', () => {
@@ -1004,6 +1006,23 @@ describe('Button-disable verification: synchronous disable and double-click prev
   });
 
   describe('#btn-force-resync (cache card)', () => {
+    it('shows conflict-specific copy and action when a sync conflict is pending', async () => {
+      const openConflictResolver = vi.fn(async () => {});
+      (window as any).__hasSyncConflict = () => true;
+      (window as any).__openSyncConflictResolver = openConflictResolver;
+
+      renderSettings();
+
+      expect(document.getElementById('btn-resolve-sync-conflict')).not.toBeNull();
+      expect(document.getElementById('settings-card-cache')?.textContent).toContain(
+        'Sync is paused because Drive changed elsewhere and this device also has local changes.',
+      );
+
+      (document.getElementById('btn-resolve-sync-conflict') as HTMLButtonElement).click();
+      await tick();
+      expect(openConflictResolver).toHaveBeenCalledTimes(1);
+    });
+
     it('disables synchronously and prevents double-click', async () => {
       let callCount = 0;
       let resolveResync!: (value?: unknown) => void;

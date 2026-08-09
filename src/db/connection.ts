@@ -185,22 +185,28 @@ export function exportDb(): Uint8Array | null {
  * Replace the local database with a downloaded copy (from Drive AppData).
  * Re-initializes the singleton and persists to IndexedDB.
  *
- * To guard against stale cloud content (CDN caching, replication lag),
- * any transactions that exist locally but NOT in the cloud DB are
- * re-inserted after the import so data is never silently lost.
+ * By default, to guard against stale cloud content (CDN caching, replication
+ * lag), any transactions that exist locally but NOT in the cloud DB are
+ * re-inserted after the import so data is never silently lost. Callers can
+ * disable that preservation when they need a true full replacement.
  *
  * The previous database is kept open until every step succeeds so that a
  * failure in mergeLocalTransactions or persistDb never leaves _db pointing
  * at a partially-initialised database while IndexedDB still holds the old
  * content.
  */
-export async function importDb(data: Uint8Array): Promise<void> {
+export async function importDb(
+  data: Uint8Array,
+  opts: { preserveLocalTransactions?: boolean } = {},
+): Promise<void> {
   const SQL = await getSqlJs();
   const previousDb = _db;
+  const preserveLocalTransactions = opts.preserveLocalTransactions !== false;
 
   // Snapshot local transaction IDs before replacing, so we can merge back
   // any that are missing from the cloud copy.
-  const localTxRows = previousDb ? getLocalTransactionRows(previousDb) : [];
+  const localTxRows =
+    preserveLocalTransactions && previousDb ? getLocalTransactionRows(previousDb) : [];
 
   let newDb: Database | null = null;
   try {
@@ -213,7 +219,7 @@ export async function importDb(data: Uint8Array): Promise<void> {
     }
 
     // Merge back local-only transactions that the cloud copy doesn't have.
-    if (localTxRows.length > 0) {
+    if (preserveLocalTransactions && localTxRows.length > 0) {
       mergeLocalTransactions(newDb, localTxRows);
     }
 
