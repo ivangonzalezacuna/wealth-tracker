@@ -160,6 +160,19 @@ function refreshConflictAccess(): void {
   if (document.getElementById('settings-content')) renderSettings();
 }
 
+/**
+ * Handle a SyncConflictError uniformly: update the status pill, refresh
+ * ARIA attributes and open the resolver. Returns true when the error was a
+ * conflict (caller should stop further processing), false otherwise.
+ */
+function handleSyncConflict(err: unknown): boolean {
+  if (!(err instanceof SyncConflictError)) return false;
+  setSyncStatus('conflict');
+  refreshConflictAccess();
+  void openSyncConflictResolver();
+  return true;
+}
+
 /** True when data is shown from cache but no valid auth token exists. */
 function isReadOnly(): boolean {
   return state.cacheLoaded && !isSignedIn();
@@ -429,12 +442,7 @@ function initOnlineListeners() {
     try {
       pushed = await pushToCloud();
     } catch (err) {
-      if (err instanceof SyncConflictError) {
-        setSyncStatus('conflict');
-        refreshConflictAccess();
-        void openSyncConflictResolver();
-        return;
-      }
+      if (handleSyncConflict(err)) return;
       throw err;
     }
     if (!pushed) {
@@ -691,11 +699,7 @@ async function syncInBackground() {
     setSyncStatus('ok');
     await backupCollapseToSheet();
   } catch (err) {
-    if (err instanceof SyncConflictError) {
-      setSyncStatus('conflict');
-      refreshConflictAccess();
-      void openSyncConflictResolver();
-    } else {
+    if (!handleSyncConflict(err)) {
       setSyncStatus('error', (err as Error).message);
     }
     // If we had cached data, keep showing it
@@ -751,41 +755,7 @@ async function loadAllData() {
     // Pull from Drive if cloud is newer
     await pullFromCloud();
 
-    await loadConfig();
-    restoreCollapseFromSheet(); // restore UI prefs if IDB was empty
-    const [snaps, txs, meta] = await Promise.all([
-      loadSnapshots(),
-      loadTransactions(),
-      loadImportMeta(),
-    ]);
-    state.snaps = snaps;
-    state.txs = txs;
-    state.importMeta = meta;
-    state.pd = txs.length ? computePD(txs, { method: getCostBasisMethod() }) : null;
-
-    // Cache everything
-    const [configCachedLA, snapsCachedLA, txsCachedLA] = await Promise.all([
-      setCachedConfig({
-        accounts: getAccounts(),
-        holdings: getHoldings(),
-        settings: getSettings(),
-      }),
-      setCachedSnapshots(snaps),
-      setCachedTransactions(txs),
-      setCachedImportMeta(meta),
-      state.pd ? setCachedAggregates(state.pd) : Promise.resolve(),
-      state.pd
-        ? setInputsHash(
-            computeInputsHash(
-              txs.length,
-              txs[txs.length - 1]?.date || '',
-              getCostBasisMethod(),
-              holdingsSignature(getHoldings()),
-            ),
-          )
-        : Promise.resolve(),
-    ]);
-    if (!configCachedLA || !snapsCachedLA || !txsCachedLA) showCacheWriteWarning();
+    await refreshStateFromLocalDb();
 
     onConfigChange(async (changed) => {
       if (state.txs.length) {
@@ -802,11 +772,7 @@ async function loadAllData() {
     setSyncStatus('ok');
     await backupCollapseToSheet();
   } catch (err) {
-    if (err instanceof SyncConflictError) {
-      setSyncStatus('conflict');
-      refreshConflictAccess();
-      void openSyncConflictResolver();
-    } else {
+    if (!handleSyncConflict(err)) {
       setSyncStatus('error', (err as Error).message);
     }
   } finally {
@@ -873,7 +839,7 @@ async function refreshStateFromLocalDb(opts: { clearCaches?: boolean } = {}): Pr
   state.pd = txs.length ? computePD(txs, { method: getCostBasisMethod() }) : null;
   state.cacheLoaded = true;
 
-  await Promise.all([
+  const [configCached, snapsCached, txsCached] = await Promise.all([
     setCachedConfig({
       accounts: getAccounts(),
       holdings: getHoldings(),
@@ -894,9 +860,29 @@ async function refreshStateFromLocalDb(opts: { clearCaches?: boolean } = {}): Pr
         )
       : Promise.resolve(),
   ]);
+  if (!configCached || !snapsCached || !txsCached) showCacheWriteWarning();
 }
 
 async function openSyncConflictResolver(): Promise<void> {
+  async function resolveConflictWith(
+    action: () => Promise<boolean>,
+    dialog: { title: string; body: string; confirmLabel: string },
+  ): Promise<boolean> {
+    const ok = await confirmDialog({ ...dialog, danger: true });
+    if (!ok) return false;
+    setSyncing(true);
+    try {
+      await action();
+      await refreshStateFromLocalDb({ clearCaches: true });
+      setSyncStatus('ok');
+      refreshConflictAccess();
+      renderAll();
+    } finally {
+      setSyncing(false);
+    }
+    return true;
+  }
+
   while (getPendingSyncConflict()) {
     const choice = await conflictDialog();
     if (choice === 'cancel') return;
@@ -906,44 +892,21 @@ async function openSyncConflictResolver(): Promise<void> {
     }
 
     if (choice === 'keep-local') {
-      const ok = await confirmDialog({
+      const resolved = await resolveConflictWith(overwriteCloudWithLocal, {
         title: 'Overwrite Drive with local data?',
         body: 'This keeps this device as the source of truth and discards the newer Drive copy.',
         confirmLabel: 'Overwrite Drive',
-        danger: true,
       });
-      if (!ok) continue;
-      setSyncing(true);
-      try {
-        await overwriteCloudWithLocal();
-        await refreshStateFromLocalDb({ clearCaches: true });
-        setSyncStatus('ok');
-        refreshConflictAccess();
-        renderAll();
-      } finally {
-        setSyncing(false);
-      }
-      return;
+      if (resolved) return;
+      continue;
     }
 
-    const ok = await confirmDialog({
+    const resolved = await resolveConflictWith(replaceLocalWithCloud, {
       title: 'Replace local data with Drive?',
-      body: 'This discards this device’s unsynced local changes and replaces the local database with the Drive copy.',
+      body: 'This discards this device\u2019s unsynced local changes and replaces the local database with the Drive copy.',
       confirmLabel: 'Replace local',
-      danger: true,
     });
-    if (!ok) continue;
-    setSyncing(true);
-    try {
-      await replaceLocalWithCloud();
-      await refreshStateFromLocalDb({ clearCaches: true });
-      setSyncStatus('ok');
-      refreshConflictAccess();
-      renderAll();
-    } finally {
-      setSyncing(false);
-    }
-    return;
+    if (resolved) return;
   }
 }
 window.__openSyncConflictResolver = openSyncConflictResolver;
@@ -1705,13 +1668,7 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
       try {
         await pushToCloud();
       } catch (err) {
-        if (err instanceof SyncConflictError) {
-          setSyncStatus('conflict');
-          refreshConflictAccess();
-          void openSyncConflictResolver();
-        } else {
-          throw err;
-        }
+        if (!handleSyncConflict(err)) throw err;
       }
     } catch (err) {
       showMsg('import-msg', 'Error: ' + (err as Error).message, false);
