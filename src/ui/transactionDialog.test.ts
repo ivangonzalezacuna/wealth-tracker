@@ -56,7 +56,9 @@ describe('transactionDialog', () => {
 
   it('uses the shared dialog field spacing instead of the relaxed variant', () => {
     transactionDialog();
-    const fields = document.querySelector('.tx-dialog-overlay .dialog-fields') as HTMLElement | null;
+    const fields = document.querySelector(
+      '.tx-dialog-overlay .dialog-fields',
+    ) as HTMLElement | null;
     expect(fields).not.toBeNull();
     expect(fields?.classList.contains('dialog-fields-relaxed')).toBe(false);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
