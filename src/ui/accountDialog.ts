@@ -84,15 +84,6 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
                 list="acctd-institution-list">
               <datalist id="acctd-institution-list"></datalist>
             </div>
-            <div class="dialog-field dialog-field-compact">
-              <label class="dialog-label" for="acctd-color-hex">Color</label>
-              <div class="color-picker-wrap">
-                <input type="color" id="acctd-color" class="color-picker-swatch"
-                  value="${esc(existing?.color || '#888888')}" aria-label="Color picker">
-                <input type="text" id="acctd-color-hex" class="form-input dialog-input color-picker-hex"
-                  value="${esc(existing?.color || '#888888')}" placeholder="#888888" maxlength="7">
-              </div>
-            </div>
           </div>
           <div class="dialog-row">
             <div class="dialog-field">
@@ -151,6 +142,17 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
                 </label>
                 <input type="number" id="acctd-extra-contrib" class="form-input dialog-input"
                   value="${esc(String(existing?.extraContrib ?? 0))}" min="0" step="1" placeholder="0">
+              </div>
+            </div>
+          </div>
+          <div class="dialog-row">
+            <div class="dialog-field dialog-field-compact">
+              <label class="dialog-label" for="acctd-color-hex">Color</label>
+              <div class="color-picker-wrap">
+                <input type="color" id="acctd-color" class="color-picker-swatch"
+                  value="${esc(existing?.color || '#888888')}" aria-label="Color picker">
+                <input type="text" id="acctd-color-hex" class="form-input dialog-input color-picker-hex"
+                  value="${esc(existing?.color || '#888888')}" placeholder="#888888" maxlength="7">
               </div>
             </div>
           </div>

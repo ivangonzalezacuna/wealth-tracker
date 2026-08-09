@@ -68,4 +68,12 @@ describe('accountDialog', () => {
 
     expect(draft?.label).toBe('Main Account');
   });
+
+  it('renders color picker in the final dialog row', () => {
+    accountDialog();
+    const rows = Array.from(document.querySelectorAll('.acct-dialog-card .dialog-fields .dialog-row'));
+    const lastRow = rows[rows.length - 1] as HTMLElement | undefined;
+    expect(lastRow?.querySelector('#acctd-color')).not.toBeNull();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
 });

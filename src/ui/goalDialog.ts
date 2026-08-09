@@ -50,9 +50,11 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
               <input id="goald-target" class="form-input dialog-input" type="text" inputmode="decimal" value="${esc(existing?.targetNetWorth || '')}" placeholder="e.g. 500000">
               <span class="dialog-error" id="goald-target-err"></span>
             </div>
+          </div>
+          <div class="dialog-row">
             <div class="dialog-field">
               <label class="dialog-label" for="goald-date">
-                Target date (optional)${infoTip('Leave empty to track progress and ETA without a deadline.')}
+                Target date${infoTip('Optional. Leave empty to track progress and ETA without a deadline.')}
               </label>
               <input id="goald-date" class="form-input dialog-input" type="month" value="${esc(existing?.targetDate || '')}">
             </div>

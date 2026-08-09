@@ -2350,11 +2350,6 @@ input[type='color'] {
   padding-top: 5px;
 }
 
-/* ── Transaction dialog overrides ────────────────────────── */
-.tx-dialog-card {
-  max-width: 560px;
-}
-
 /* ── Snapshot edit-mode indicator ───────────────────────── */
 .snap-edit-indicator {
   display: flex;
