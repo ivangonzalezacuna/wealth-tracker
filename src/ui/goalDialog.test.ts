@@ -47,12 +47,12 @@ describe('goalDialog', () => {
 
     expect(getOverlay()?.querySelector('.dialog-card')).not.toBeNull();
     expect(getOverlay()?.querySelector('.goal-dialog-card')).toBeNull();
-    expect(document.getElementById('goald-label-err')?.classList.contains('dialog-error-compact')).toBe(
-      true,
-    );
-    expect(document.getElementById('goald-target-err')?.classList.contains('dialog-error-compact')).toBe(
-      true,
-    );
+    expect(
+      document.getElementById('goald-label-err')?.classList.contains('dialog-error-compact'),
+    ).toBe(true);
+    expect(
+      document.getElementById('goald-target-err')?.classList.contains('dialog-error-compact'),
+    ).toBe(true);
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
