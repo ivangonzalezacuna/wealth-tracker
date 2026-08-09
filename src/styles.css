@@ -1807,6 +1807,27 @@ input[type='color'] {
   text-overflow: ellipsis;
   flex: 0 1 40%;
 }
+.settings-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.btn-icon {
+  width: 30px;
+  min-width: 30px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-icon .btn-icon-svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
 .settings-item-fields {
   display: flex;
   flex-wrap: wrap;

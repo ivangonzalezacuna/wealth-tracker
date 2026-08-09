@@ -155,6 +155,10 @@ vi.mock('../ui/holdingDialog', () => ({
   holdingDialog: vi.fn(async () => null),
 }));
 
+vi.mock('../ui/goalDialog', () => ({
+  goalDialog: vi.fn(async () => null),
+}));
+
 vi.mock('../model/accountTypes', () => ({
   ACCOUNT_TYPES: [
     { value: 'investment', label: 'Investment' },
@@ -242,6 +246,14 @@ describe('Settings scoped re-render (repaintCard)', () => {
     expect(colorPickers.length).toBe(0);
     // Each holding row has an Edit button
     const editBtns = holdingsCard.querySelectorAll('.js-edit-hold');
+    expect(editBtns.length).toBeGreaterThan(0);
+  });
+
+  it('goals card has read-only rows with Edit buttons after renderSettings()', () => {
+    const goalsCard = document.getElementById('settings-card-goal')!;
+    const inlineGoalInputs = goalsCard.querySelectorAll('[data-field="targetNetWorth"]');
+    expect(inlineGoalInputs.length).toBe(0);
+    const editBtns = goalsCard.querySelectorAll('.js-edit-goal');
     expect(editBtns.length).toBeGreaterThan(0);
   });
 

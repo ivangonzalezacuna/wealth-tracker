@@ -37,6 +37,7 @@ import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { confirmDialog } from '../ui/confirmDialog';
 import { accountDialog } from '../ui/accountDialog';
 import { holdingDialog } from '../ui/holdingDialog';
+import { goalDialog } from '../ui/goalDialog';
 import { ACCOUNT_TYPES, ASSET_CLASSES, REGIONS } from '../model/accountTypes';
 import { isSignedIn } from '../auth/google';
 import { isBackupStale } from '../backup/exportImport';
@@ -51,6 +52,9 @@ function intervalOptionsHtml(selected: ContribInterval): string {
     )
     .join('');
 }
+
+const EDIT_ICON = `<svg class="btn-icon-svg" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M11.65 1.85a1.8 1.8 0 0 1 2.5 0l.02.02a1.78 1.78 0 0 1 0 2.5L6.18 12.35 3 13l.65-3.18L11.65 1.85Zm1.45 1.02a.38.38 0 0 0-.52 0l-.9.9 1.54 1.54.9-.9a.38.38 0 0 0 0-.52l-1.02-1.02ZM12.2 6.3l-1.54-1.54-5.7 5.7-.3 1.46 1.46-.3 6.08-5.82Z"/></svg>`;
+const DELETE_ICON = `<svg class="btn-icon-svg" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6.5 1h3a1 1 0 0 1 1 1v1H13v1H3V3h2.5V2a1 1 0 0 1 1-1Zm1 2h1V2h-1v1ZM4.5 5h7l-.5 8.1a1 1 0 0 1-1 .9H6a1 1 0 0 1-1-.9L4.5 5Zm2 1v6h1V6h-1Zm2 0v6h1V6h-1Z"/></svg>`;
 
 /** Card key — identifies which settings card an action belongs to. */
 type CardKey =
@@ -326,9 +330,9 @@ function renderAccountRow(a: Account, i: number): string {
         <span class="leg-sq" style="background:${esc(color)};flex-shrink:0"></span>
         <span class="settings-item-title">${esc(a.label) || 'New account'}</span>
         <span class="settings-item-meta">${meta}</span>
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto">
-          <button class="btn btn-sm btn-outline js-edit-acct" data-idx="${i}">Edit</button>
-          <button class="btn btn-sm btn-danger js-del-acct" data-idx="${i}">\u2715</button>
+        <div class="settings-row-actions">
+          <button class="btn btn-sm btn-outline btn-icon js-edit-acct" data-idx="${i}" aria-label="Edit account" title="Edit account">${EDIT_ICON}</button>
+          <button class="btn btn-sm btn-danger btn-icon js-del-acct" data-idx="${i}" aria-label="Delete account" title="Delete account">${DELETE_ICON}</button>
         </div>
       </div>
     </div>`;
@@ -578,9 +582,9 @@ function renderHoldingRow(h: Holding, i: number): string {
         <span class="settings-item-title">${esc(h.shortName) || esc(h.isin) || 'New holding'}${h.name ? ` <span style="font-weight:normal;color:var(--ink-3);font-size:12px">(${esc(h.name)})</span>` : ''}</span>
         <span class="settings-item-meta">${h.acc ? 'Acc' : 'Dist'}</span>
         ${statusBadge}
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto">
-          <button class="btn btn-sm btn-outline js-edit-hold" data-idx="${i}">Edit</button>
-          <button class="btn btn-sm btn-danger js-del-hold" data-idx="${i}">\u2715</button>
+        <div class="settings-row-actions">
+          <button class="btn btn-sm btn-outline btn-icon js-edit-hold" data-idx="${i}" aria-label="Edit holding" title="Edit holding">${EDIT_ICON}</button>
+          <button class="btn btn-sm btn-danger btn-icon js-del-hold" data-idx="${i}" aria-label="Delete holding" title="Delete holding">${DELETE_ICON}</button>
         </div>
       </div>
     </div>`;
@@ -898,6 +902,9 @@ function attachCostBasisListeners(root: HTMLElement): void {
 
 // ── Goal / target net worth ──────────────────────────────
 
+/** In-memory list of goals — kept in sync by add/edit/delete dialog operations. */
+let _goals: NamedGoal[] | null = null;
+
 function renderGoalRow(goal: NamedGoal, idx: number): string {
   const title =
     goal.label || (goal.targetNetWorth ? `\u20AC${esc(goal.targetNetWorth)}` : `Goal ${idx + 1}`);
@@ -906,29 +913,13 @@ function renderGoalRow(goal: NamedGoal, idx: number): string {
   if (goal.targetDate) metaParts.push(esc(goal.targetDate));
   const metaStr = metaParts.join(' \u00B7 ');
   return `
-    <div class="settings-item settings-goal-row item-collapsible" data-idx="${idx}">
-      <div class="settings-item-header js-item-toggle">
+    <div class="settings-item settings-goal-row" data-idx="${idx}">
+      <div class="settings-item-header">
         <span class="settings-item-title">${esc(title)}</span>
         ${metaStr ? `<span class="settings-item-meta">${metaStr}</span>` : ''}
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-          <span class="item-chevron"></span>
-          <button class="btn btn-sm btn-danger js-del-goal" data-idx="${idx}">\u2715</button>
-        </div>
-      </div>
-      <div class="settings-item-fields">
-        <div class="settings-field">
-          <label class="settings-field-label" for="goal-label-${idx}">Goal label</label>
-          <input id="goal-label-${idx}" class="form-input form-input-sm" data-field="label" type="text" value="${esc(goal.label)}" placeholder="e.g. Financial independence">
-        </div>
-        <div class="settings-field">
-          <label class="settings-field-label" for="goal-nw-${idx}">Target net worth (\u20AC)</label>
-          <input id="goal-nw-${idx}" class="form-input form-input-sm" data-field="targetNetWorth" type="text" inputmode="decimal" value="${esc(goal.targetNetWorth)}" placeholder="e.g. 500000">
-          <span class="note">Supports German format (100.000,00) or plain numbers.</span>
-        </div>
-        <div class="settings-field">
-          <label class="settings-field-label" for="goal-date-${idx}">Target date (optional)</label>
-          <input id="goal-date-${idx}" class="form-input form-input-sm" data-field="targetDate" type="month" value="${esc(goal.targetDate)}">
-          <span class="note">Leave empty for ETA-only mode (no deadline).</span>
+        <div class="settings-row-actions">
+          <button class="btn btn-sm btn-outline btn-icon js-edit-goal" data-idx="${idx}" aria-label="Edit goal" title="Edit goal">${EDIT_ICON}</button>
+          <button class="btn btn-sm btn-danger btn-icon js-del-goal" data-idx="${idx}" aria-label="Delete goal" title="Delete goal">${DELETE_ICON}</button>
         </div>
       </div>
     </div>`;
@@ -936,6 +927,7 @@ function renderGoalRow(goal: NamedGoal, idx: number): string {
 
 function renderGoalCard(_settings: Settings): string {
   const goals = getGoals();
+  _goals = goals.slice();
   const rows = goals.map((g, i) => renderGoalRow(g, i)).join('');
   return `
     <div class="card card-collapsible" id="settings-card-goal" data-card-key="goal">
@@ -957,35 +949,16 @@ function renderGoalCard(_settings: Settings): string {
     </div>`;
 }
 
-function collectGoals(root: HTMLElement): NamedGoal[] {
-  return [...root.querySelectorAll('.settings-goal-row')].map((row) => ({
-    label: (
-      (row.querySelector('[data-field="label"]') as HTMLInputElement | null)?.value || ''
-    ).trim(),
-    targetNetWorth: (
-      (row.querySelector('[data-field="targetNetWorth"]') as HTMLInputElement | null)?.value || ''
-    ).trim(),
-    targetDate: (
-      (row.querySelector('[data-field="targetDate"]') as HTMLInputElement | null)?.value || ''
-    ).trim(),
-  }));
-}
-
 function rerenderGoalsTable(root: HTMLElement, goals: NamedGoal[]): void {
+  _goals = goals.slice();
   const tbl = root.querySelector('#settings-goals-tbl') as HTMLElement | null;
   if (!tbl) return;
   tbl.innerHTML = goals.map((g, i) => renderGoalRow(g, i)).join('');
-  attachItemCollapseListeners(tbl);
-  tbl.querySelectorAll('.js-del-goal').forEach((btn) => {
-    btn.addEventListener('click', () =>
-      deleteGoal(root, parseInt((btn as HTMLElement).dataset.idx!), btn as HTMLButtonElement),
-    );
-  });
 }
 
 async function deleteGoal(root: HTMLElement, idx: number, btn: HTMLButtonElement): Promise<void> {
   if (isCardBusy('goal') || isBusy()) return;
-  const goals = collectGoals(root);
+  const goals = _goals ?? [];
   const goal = goals[idx];
   const title =
     goal?.label || (goal?.targetNetWorth ? `\u20AC${goal.targetNetWorth}` : `Goal ${idx + 1}`);
@@ -1010,25 +983,45 @@ async function deleteGoal(root: HTMLElement, idx: number, btn: HTMLButtonElement
 }
 
 function attachGoalListeners(root: HTMLElement): void {
-  root.querySelector('#btn-add-goal')?.addEventListener('click', () => {
-    const goals = collectGoals(root);
-    goals.push({ label: '', targetNetWorth: '', targetDate: '' });
-    rerenderGoalsTable(root, goals);
+  root.querySelector('#btn-add-goal')?.addEventListener('click', async () => {
+    const draft = await goalDialog();
+    if (!draft) return;
+    const goals = _goals ?? [];
+    rerenderGoalsTable(root, [...goals, draft]);
+    showMsg('goal-msg', 'Goal added — click Save to persist.', true);
   });
 
-  root.querySelectorAll('.js-del-goal').forEach((btn) => {
-    btn.addEventListener('click', () =>
-      deleteGoal(root, parseInt((btn as HTMLElement).dataset.idx!), btn as HTMLButtonElement),
-    );
+  root.addEventListener('click', async (e) => {
+    const editBtn = (e.target as Element).closest('.js-edit-goal') as HTMLButtonElement | null;
+    if (editBtn) {
+      const idx = parseInt(editBtn.dataset.idx ?? '');
+      if (!isNaN(idx)) {
+        const goals = _goals ?? [];
+        const existing = goals[idx];
+        if (!existing) return;
+        const draft = await goalDialog({ existing });
+        if (!draft) return;
+        const updated = goals.map((g, i) => (i === idx ? draft : g));
+        rerenderGoalsTable(root, updated);
+        showMsg('goal-msg', 'Goal updated — click Save to persist.', true);
+      }
+      return;
+    }
+
+    const delBtn = (e.target as Element).closest('.js-del-goal') as HTMLButtonElement | null;
+    if (!delBtn) return;
+    const idx = parseInt(delBtn.dataset.idx ?? '');
+    if (!isNaN(idx)) deleteGoal(root, idx, delBtn);
   });
 
   root.querySelector('#btn-save-goal')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-goal') as HTMLButtonElement;
-    const goals = collectGoals(root).filter((g) => g.targetNetWorth);
+    const goals = (_goals ?? []).filter((g) => g.targetNetWorth);
     try {
       await withCardGuard('goal', btn, () => setSettings({ goals: JSON.stringify(goals) }), {
         busyText: 'Saving...',
       });
+      rerenderGoalsTable(root, goals);
       showMsg('goal-msg', 'Saved', true);
     } catch (err) {
       showMsg('goal-msg', 'Error: ' + (err as Error).message, false);
