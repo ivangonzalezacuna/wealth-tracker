@@ -120,7 +120,7 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
             <div class="dialog-row">
               <div class="dialog-field">
                 <label class="dialog-label" for="acctd-contrib">
-                  Recurring contribution (€)${infoTip('How much moves into this account each time, at the interval below.')}
+                  Contribution (€)${infoTip('How much moves into this account each time, at the interval below.')}
                 </label>
                 <input type="number" id="acctd-contrib" class="form-input dialog-input"
                   value="${esc(String(existing?.contribAmount ?? 0))}" min="0" step="1" placeholder="0">

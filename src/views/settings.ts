@@ -24,9 +24,9 @@ import {
 } from '../model/accounts';
 import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
-import { showMsg, reinjectPendingMsg, withButtonGuard, esc } from '../utils';
+import { showMsg, reinjectPendingMsg, withButtonGuard, esc, fmtEur } from '../utils';
 import type { Account, Holding, Settings, ContribInterval, NamedGoal, Transaction } from '../types';
-import { formatEnglishDateTime } from '../dateFormat';
+import { formatEnglishDateTime, formatEnglishMonth } from '../dateFormat';
 import {
   buildKnownSecuritySuggestions,
   normalizeInstitution,
@@ -905,12 +905,17 @@ function attachCostBasisListeners(root: HTMLElement): void {
 /** In-memory list of goals — kept in sync by add/edit/delete dialog operations. */
 let _goals: NamedGoal[] | null = null;
 
+function _fmtGoalNW(raw: string): string {
+  const n = parseFloat(raw.replace(/\./g, '').replace(',', '.'));
+  return isFinite(n) ? fmtEur(n) : `\u20AC${raw}`;
+}
+
 function renderGoalRow(goal: NamedGoal, idx: number): string {
-  const title =
-    goal.label || (goal.targetNetWorth ? `\u20AC${esc(goal.targetNetWorth)}` : `Goal ${idx + 1}`);
+  const fmtNW = goal.targetNetWorth ? _fmtGoalNW(goal.targetNetWorth) : '';
+  const title = goal.label || fmtNW || `Goal ${idx + 1}`;
   const metaParts: string[] = [];
-  if (goal.targetNetWorth) metaParts.push(`\u20AC${esc(goal.targetNetWorth)}`);
-  if (goal.targetDate) metaParts.push(esc(goal.targetDate));
+  if (fmtNW) metaParts.push(esc(fmtNW));
+  if (goal.targetDate) metaParts.push(esc(formatEnglishMonth(goal.targetDate)));
   const metaStr = metaParts.join(' \u00B7 ');
   return `
     <div class="settings-item settings-goal-row" data-idx="${idx}">
