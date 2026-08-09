@@ -30,7 +30,7 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
     overlay.setAttribute('aria-labelledby', 'goal-dialog-title');
 
     overlay.innerHTML = `
-      <div class="dialog-card goal-dialog-card">
+      <div class="dialog-card">
         <div class="dialog-header">
           <div class="dialog-title" id="goal-dialog-title">${esc(title)}</div>
         </div>
@@ -39,7 +39,7 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
             <div class="dialog-field dialog-field-wide">
               <label class="dialog-label" for="goald-label">Goal label</label>
               <input id="goald-label" class="form-input dialog-input" type="text" value="${esc(existing?.label || '')}" placeholder="e.g. Financial independence">
-              <span class="dialog-error" id="goald-label-err"></span>
+              <span class="dialog-error dialog-error-compact" id="goald-label-err"></span>
             </div>
           </div>
           <div class="dialog-row">
@@ -48,7 +48,7 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
                 Target net worth (€)${infoTip('Supports plain numbers and German-formatted amounts such as 100.000,00.')}
               </label>
               <input id="goald-target" class="form-input dialog-input" type="text" inputmode="decimal" value="${esc(existing?.targetNetWorth || '')}" placeholder="e.g. 500000">
-              <span class="dialog-error" id="goald-target-err"></span>
+              <span class="dialog-error dialog-error-compact" id="goald-target-err"></span>
             </div>
           </div>
           <div class="dialog-row">
