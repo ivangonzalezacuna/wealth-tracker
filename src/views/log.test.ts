@@ -339,7 +339,9 @@ describe('renderLog', () => {
 
     expect(document.querySelector('.js-edit-tx')).toBeNull();
     expect(document.querySelector('.js-del-tx')).toBeNull();
-    expect(document.getElementById('tx-ledger-list')?.className).toContain('tx-ledger-grid-readonly');
+    expect(document.getElementById('tx-ledger-list')?.className).toContain(
+      'tx-ledger-grid-readonly',
+    );
     expect((document.getElementById('btn-add-tx') as HTMLButtonElement).disabled).toBe(true);
   });
 });
