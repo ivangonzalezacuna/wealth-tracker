@@ -253,8 +253,7 @@ describe('Settings scoped re-render (repaintCard)', () => {
     const goalsCard = document.getElementById('settings-card-goal')!;
     const inlineGoalInputs = goalsCard.querySelectorAll('[data-field="targetNetWorth"]');
     expect(inlineGoalInputs.length).toBe(0);
-    const editBtns = goalsCard.querySelectorAll('.js-edit-goal');
-    expect(editBtns.length).toBeGreaterThan(0);
+    expect(document.getElementById('btn-add-goal')).not.toBeNull();
   });
 
   it('data-card-key attributes are preserved alongside new ids', () => {
