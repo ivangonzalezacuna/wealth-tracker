@@ -1451,7 +1451,10 @@ async function delSnap(date: string, btn?: HTMLButtonElement) {
 const MANUAL_TX_TYPES = Object.values(TxType).join(', ');
 
 function promptTransactionDraft(existing?: Transaction): Transaction | null {
-  const date = window.prompt('Date (YYYY-MM-DD)', existing?.date || new Date().toISOString().slice(0, 10));
+  const date = window.prompt(
+    'Date (YYYY-MM-DD)',
+    existing?.date || new Date().toISOString().slice(0, 10),
+  );
   if (date == null) return null;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date.trim())) throw new Error('Date must be YYYY-MM-DD.');
 
@@ -1638,7 +1641,8 @@ async function delManualTransaction(rowId: number, btn?: HTMLButtonElement): Pro
     }
   };
   try {
-    if (btn) await withButtonGuard(btn, run, { busyText: 'Deleting...', keepDisabledOnSuccess: true });
+    if (btn)
+      await withButtonGuard(btn, run, { busyText: 'Deleting...', keepDisabledOnSuccess: true });
     else await run();
     showMsg(
       'tx-msg',

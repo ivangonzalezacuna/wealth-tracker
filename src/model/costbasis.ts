@@ -33,12 +33,13 @@ function computeAvgCost(txs: Transaction[]): CostBasisResult {
       }
     } else if (tx.type === TxType.SELL) {
       const sharesSold = Math.abs(tx.shares || 0);
-      if (shares <= ZERO_THRESHOLD || sharesSold <= 0) continue;
+      if (sharesSold <= 0) continue;
       if (sharesSold > shares + ZERO_THRESHOLD) {
         throw new Error(
           `Oversell detected (${tx.isin || 'UNKNOWN'} ${tx.date}): tried to sell ${sharesSold.toFixed(8)} shares, only ${shares.toFixed(8)} available.`,
         );
       }
+      if (shares <= ZERO_THRESHOLD) continue;
 
       const avg = costBasis / shares;
       const soldCost = avg * sharesSold;

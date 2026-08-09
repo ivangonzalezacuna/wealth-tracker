@@ -482,7 +482,7 @@ function renderTxList(txs: Transaction[]): void {
   if (!listEl) return;
   if (addBtn) addBtn.disabled = _readOnly;
 
-  const types = [...new Set(txs.map((t) => t.type).filter(Boolean))].sort();
+  const types = [...new Set(txs.map((t) => t.type).filter(Boolean))].sort() as string[];
   if (typeEl) {
     const prev = typeEl.value || _txType;
     typeEl.innerHTML =
@@ -508,7 +508,8 @@ function renderTxList(txs: Transaction[]): void {
   }
 
   if (!filtered.length) {
-    listEl.innerHTML = '<div class="empty-state" style="padding:1rem;font-size:13px">No matching transactions.</div>';
+    listEl.innerHTML =
+      '<div class="empty-state" style="padding:1rem;font-size:13px">No matching transactions.</div>';
     if (paginationEl) paginationEl.innerHTML = '';
     return;
   }
