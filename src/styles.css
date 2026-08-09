@@ -2198,3 +2198,98 @@ input[type='color'] {
 #storage-warn-dismiss:hover {
   opacity: 1;
 }
+
+/* ── Transaction dialog ──────────────────────────────────── */
+.tx-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1.5rem 1rem;
+  overflow-y: auto;
+  animation: confirm-fade 0.12s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tx-dialog-overlay {
+    animation: none;
+  }
+}
+.tx-dialog-card {
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  max-width: 560px;
+  width: 100%;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  margin: auto;
+}
+.tx-dialog-header {
+  margin-bottom: 1rem;
+}
+.tx-dialog-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--ink);
+}
+.tx-dialog-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tx-dialog-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.tx-dialog-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 120px;
+  min-width: 0;
+}
+.tx-dialog-field-wide {
+  flex: 2 1 200px;
+}
+.tx-dialog-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.tx-dialog-input {
+  font-size: 13px;
+}
+.tx-dialog-error {
+  font-size: 11px;
+  color: var(--neg);
+  min-height: 14px;
+  line-height: 1.2;
+}
+.tx-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 1rem;
+}
+
+/* ── Snapshot edit-mode indicator ───────────────────────── */
+.snap-edit-indicator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  background: var(--dist-bg);
+  border: 1px solid var(--brand-border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 10px;
+}
+.snap-edit-indicator-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dist-fg);
+  flex: 1;
+}

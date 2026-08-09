@@ -99,6 +99,7 @@ import { loadCollapseState, replaceCollapseState } from './ui/collapseState';
 import { restoreCollapseFromSheet, backupCollapseToSheet } from './ui/collapseSync';
 import { confirmDialog } from './ui/confirmDialog';
 import { conflictDialog } from './ui/conflictDialog';
+import { transactionDialog } from './ui/transactionDialog';
 import { showSigninOverlay, hideSigninOverlay } from './ui/signinOverlay';
 import { withTimeout } from './sync/timeout';
 import { isBusy, setBusy } from './sync/lock';
@@ -126,6 +127,9 @@ const state: {
 let _activeSection = 'networth';
 const _dirty = new Set<string>();
 const ALL_SECTIONS = ['networth', 'portfolio', 'analytics', 'settings', 'log'] as const;
+
+// ── Snapshot edit mode ───────────────────────────────────
+let _editingSnapDate: string | null = null;
 
 // ── Portfolio sub-view state ─────────────────────────────
 let _portfolioSubview: 'holdings' | 'contributions' | 'dividends' = 'holdings';
@@ -1394,6 +1398,8 @@ function editSnap(date: string) {
   }
 
   showSection('log', document.querySelector('.nav button[data-section="log"]'));
+  _editingSnapDate = date;
+  _updateSnapEditIndicator();
   dateEl?.scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -1448,63 +1454,6 @@ async function delSnap(date: string, btn?: HTMLButtonElement) {
   }
 }
 
-const MANUAL_TX_TYPES = Object.values(TxType).join(', ');
-
-function promptTransactionDraft(existing?: Transaction): Transaction | null {
-  const date = window.prompt(
-    'Date (YYYY-MM-DD)',
-    existing?.date || new Date().toISOString().slice(0, 10),
-  );
-  if (date == null) return null;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date.trim())) throw new Error('Date must be YYYY-MM-DD.');
-
-  const type = window.prompt('Type', existing?.type || TxType.BUY);
-  if (type == null) return null;
-  const normalizedType = type.trim().toUpperCase();
-  if (!(Object.values(TxType) as string[]).includes(normalizedType)) {
-    throw new Error(`Type must be one of: ${MANUAL_TX_TYPES}`);
-  }
-
-  const name = window.prompt('Name', existing?.name || '');
-  if (name == null) return null;
-  const isin = window.prompt('ISIN', existing?.isin || '');
-  if (isin == null) return null;
-  const sharesRaw = window.prompt('Shares', String(existing?.shares ?? 0));
-  if (sharesRaw == null) return null;
-  const amountRaw = window.prompt('Amount', String(existing?.amount ?? 0));
-  if (amountRaw == null) return null;
-  const feeRaw = window.prompt('Fee', String(existing?.fee ?? 0));
-  if (feeRaw == null) return null;
-  const taxRaw = window.prompt('Tax', String(existing?.tax ?? 0));
-  if (taxRaw == null) return null;
-  const currency = window.prompt('Currency', existing?.currency || 'EUR');
-  if (currency == null) return null;
-  const fxRateRaw = window.prompt('FX rate (EUR=1)', String(existing?.fxRate ?? 0));
-  if (fxRateRaw == null) return null;
-  const note = window.prompt('Note (optional)', existing?.note || '');
-  if (note == null) return null;
-
-  const generatedId = `manual|${Date.now()}|${Math.random().toString(36).slice(2, 8)}`;
-  return {
-    rowId: existing?.rowId,
-    id: existing?.id || generatedId,
-    date: date.trim(),
-    source: existing?.source || 'manual',
-    category: existing?.category || '',
-    type: normalizedType as Transaction['type'],
-    name: name.trim(),
-    isin: isin.trim(),
-    shares: parseNum(sharesRaw),
-    price: existing?.price || 0,
-    amount: parseNum(amountRaw),
-    fee: parseNum(feeRaw),
-    tax: parseNum(taxRaw),
-    currency: currency.trim().toUpperCase() || 'EUR',
-    fxRate: parseNum(fxRateRaw),
-    note: note.trim(),
-  };
-}
-
 function computePdOrThrow(txs: Transaction[]): PortfolioData | null {
   if (!txs.length) return null;
   return computePD(txs, { method: getCostBasisMethod() });
@@ -1538,7 +1487,7 @@ async function addManualTransaction(): Promise<void> {
     return;
   }
   try {
-    const draft = promptTransactionDraft();
+    const draft = await transactionDialog();
     if (!draft) return;
     const candidate = [...state.txs, draft].sort((a, b) => a.date.localeCompare(b.date));
     const nextPd = computePdOrThrow(candidate);
@@ -1579,7 +1528,7 @@ async function editManualTransaction(rowId: number): Promise<void> {
   }
 
   try {
-    const draft = promptTransactionDraft(existing);
+    const draft = await transactionDialog({ existing });
     if (!draft) return;
     const candidate = state.txs.map((t) => (t.rowId === rowId ? { ...draft, rowId } : t));
     const nextPd = computePdOrThrow(candidate);
@@ -1671,6 +1620,50 @@ function clearSnapForm() {
   document.querySelectorAll<HTMLElement>('.snap-etf-recon').forEach((el) => {
     el.style.display = 'none';
   });
+
+  // Reset snap-date to current month
+  const dateEl = document.getElementById('snap-date') as HTMLInputElement | null;
+  if (dateEl) dateEl.value = currentMonth();
+
+  // Clear edit-mode indicator
+  _editingSnapDate = null;
+  _updateSnapEditIndicator();
+}
+
+/** Show or hide the "Editing {month}" banner inside the balance card. */
+function _updateSnapEditIndicator(): void {
+  const card = document.getElementById('balance-card');
+  if (!card) return;
+  const existing = card.querySelector('.snap-edit-indicator') as HTMLElement | null;
+  if (!_editingSnapDate) {
+    existing?.remove();
+    const saveBtn = card.querySelector('#btn-save-snap') as HTMLButtonElement | null;
+    if (saveBtn) saveBtn.textContent = 'Save monthly update';
+    return;
+  }
+  const label = fmtMon(_editingSnapDate);
+  if (existing) {
+    (existing.querySelector('.snap-edit-indicator-label') as HTMLElement).textContent =
+      `Editing ${label}`;
+    return;
+  }
+  const indicator = document.createElement('div');
+  indicator.className = 'snap-edit-indicator';
+  indicator.innerHTML = `<span class="snap-edit-indicator-label">Editing ${esc(label)}</span><button class="btn btn-ghost btn-sm snap-edit-indicator-cancel" type="button">Cancel edit</button>`;
+  const actionsRow = card.querySelector('#btn-save-snap')?.parentElement;
+  if (actionsRow) {
+    actionsRow.insertAdjacentElement('beforebegin', indicator);
+  } else {
+    card.appendChild(indicator);
+  }
+  indicator.querySelector('.snap-edit-indicator-cancel')?.addEventListener('click', () => {
+    clearSnapForm();
+    setDefaultMonth();
+    prefillSnapFormFromLatest();
+    showMsg('snap-msg', '', true);
+  });
+  const saveBtn = card.querySelector('#btn-save-snap') as HTMLButtonElement | null;
+  if (saveBtn) saveBtn.textContent = 'Save changes';
 }
 
 function getLatestSnapshotValues(): Record<string, number | string | undefined> | null {

@@ -1,0 +1,193 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { transactionDialog } from './transactionDialog';
+
+function getOverlay() {
+  return document.querySelector('.tx-dialog-overlay') as HTMLElement | null;
+}
+function getSubmit() {
+  return document.querySelector('.js-txd-submit') as HTMLElement | null;
+}
+function getCancel() {
+  return document.querySelector('.js-txd-cancel') as HTMLElement | null;
+}
+function setField(id: string, value: string) {
+  const el = document.querySelector('#' + id) as HTMLInputElement | null;
+  if (el) el.value = value;
+}
+function fillRequired() {
+  setField('txd-date', '2024-06-01');
+  setField('txd-name', 'Test Fund');
+}
+
+describe('transactionDialog', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  afterEach(() => {
+    getOverlay()?.remove();
+    document.body.style.overflow = '';
+    document.removeEventListener('keydown', () => {});
+  });
+
+  it('appends exactly one .tx-dialog-overlay', () => {
+    transactionDialog();
+    expect(document.querySelectorAll('.tx-dialog-overlay').length).toBe(1);
+  });
+
+  it('cancelling resolves null and removes overlay', async () => {
+    const p = transactionDialog();
+    getCancel()!.click();
+    expect(await p).toBeNull();
+    expect(getOverlay()).toBeNull();
+  });
+
+  it('Escape resolves null and removes overlay', async () => {
+    const p = transactionDialog();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(await p).toBeNull();
+    expect(getOverlay()).toBeNull();
+  });
+
+  it('clicking backdrop resolves null', async () => {
+    const p = transactionDialog();
+    const ov = getOverlay()!;
+    ov.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(await p).toBeNull();
+  });
+
+  it('validates required date field', async () => {
+    const p = transactionDialog();
+    fillRequired();
+    setField('txd-date', ''); // clear date
+    let settled = false;
+    void p.then(() => {
+      settled = true;
+    });
+    getSubmit()!.click();
+    await Promise.resolve();
+    expect(settled).toBe(false); // not yet resolved
+    const errEl = document.querySelector('#txd-date-err') as HTMLElement;
+    expect(errEl.textContent).not.toBe('');
+    // cancel to clean up
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await p;
+  });
+
+  it('validates required name field', async () => {
+    const p = transactionDialog();
+    setField('txd-date', '2024-06-01');
+    setField('txd-name', '');
+    let settled = false;
+    void p.then(() => {
+      settled = true;
+    });
+    getSubmit()!.click();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    const errEl = document.querySelector('#txd-name-err') as HTMLElement;
+    expect(errEl.textContent).not.toBe('');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await p;
+  });
+
+  it('submits with valid fields and resolves a Transaction', async () => {
+    const p = transactionDialog();
+    fillRequired();
+    setField('txd-amount', '100.50');
+    getSubmit()!.click();
+    const tx = await p;
+    expect(tx).not.toBeNull();
+    expect(tx!.date).toBe('2024-06-01');
+    expect(tx!.name).toBe('Test Fund');
+    expect(tx!.amount).toBeCloseTo(100.5);
+    expect(tx!.source).toBe('manual');
+  });
+
+  it('title shows "Edit transaction" when editing an existing tx', () => {
+    transactionDialog({
+      existing: {
+        id: 'x1',
+        rowId: 5,
+        date: '2024-01-15',
+        source: 'manual',
+        category: '',
+        type: 'BUY',
+        name: 'Old Name',
+        isin: 'IE001',
+        shares: 2,
+        price: 100,
+        amount: 200,
+        fee: 1,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 1,
+      },
+    });
+    const title = document.querySelector('.tx-dialog-title') as HTMLElement;
+    expect(title.textContent).toContain('Edit');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('prefills fields from existing transaction', () => {
+    transactionDialog({
+      existing: {
+        id: 'x2',
+        rowId: 7,
+        date: '2024-03-10',
+        source: 'manual',
+        category: '',
+        type: 'SELL',
+        name: 'Prefilled Fund',
+        isin: 'IE999',
+        shares: 5,
+        price: 200,
+        amount: 1000,
+        fee: 2.5,
+        tax: 1.2,
+        currency: 'USD',
+        fxRate: 1.1,
+        note: 'test note',
+      },
+    });
+    expect((document.querySelector('#txd-date') as HTMLInputElement).value).toBe('2024-03-10');
+    expect((document.querySelector('#txd-name') as HTMLInputElement).value).toBe('Prefilled Fund');
+    expect((document.querySelector('#txd-isin') as HTMLInputElement).value).toBe('IE999');
+    expect((document.querySelector('#txd-amount') as HTMLInputElement).value).toBe('1000');
+    expect((document.querySelector('#txd-note') as HTMLInputElement).value).toBe('test note');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('calling a second time resolves first call null', async () => {
+    const p1 = transactionDialog();
+    const p2 = transactionDialog();
+    expect(await p1).toBeNull();
+    expect(document.querySelectorAll('.tx-dialog-overlay').length).toBe(1);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(await p2).toBeNull();
+  });
+
+  it('traps Tab inside the dialog', () => {
+    transactionDialog();
+    const ov = getOverlay()!;
+    const focusables = Array.from(
+      ov.querySelectorAll('input:not([disabled]), select:not([disabled]), button:not([disabled])'),
+    ) as HTMLElement[];
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    last.focus();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    expect(document.activeElement).toBe(first);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('title text is HTML-escaped', () => {
+    transactionDialog({ existing: undefined });
+    const title = document.querySelector('.tx-dialog-title') as HTMLElement;
+    expect(title.innerHTML).not.toContain('<script>');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+});
