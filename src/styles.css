@@ -302,6 +302,19 @@ code,
 .card-title + .chart-controls {
   margin-top: 10px;
 }
+.card-section {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line-2);
+}
+.card-section-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.75rem;
+}
 
 /* Collapsible cards */
 .card-collapsible .card-header {
@@ -2199,8 +2212,8 @@ input[type='color'] {
   opacity: 1;
 }
 
-/* ── Snapshot dialog ────────────────────────────────────── */
-.snap-dialog-overlay {
+/* ── Shared dialog base ─────────────────────────────────── */
+.dialog-overlay {
   position: fixed;
   inset: 0;
   z-index: 1000;
@@ -2213,149 +2226,100 @@ input[type='color'] {
   animation: confirm-fade 0.12s ease-out;
 }
 @media (prefers-reduced-motion: reduce) {
-  .snap-dialog-overlay {
+  .dialog-overlay {
     animation: none;
   }
 }
-.snap-dialog-card {
+.dialog-card {
   background: var(--surface);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-md);
   padding: 1.25rem;
-  max-width: 720px;
   width: 100%;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   margin: auto;
 }
-.snap-dialog-header {
+.dialog-header {
   margin-bottom: 1rem;
 }
-.snap-dialog-title {
+.dialog-title {
   font-weight: 600;
   font-size: 15px;
   color: var(--ink);
 }
-.snap-dialog-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.snap-dialog-row {
+.dialog-row {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
 }
-.snap-dialog-field {
+.dialog-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.dialog-input {
+  font-size: 13px;
+}
+.dialog-error {
+  font-size: 11px;
+  color: var(--neg);
+  min-height: 14px;
+  line-height: 1.2;
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 1rem;
+}
+.dialog-field {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  flex: 1 1 160px;
   min-width: 0;
+}
+.dialog-fields {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Snapshot dialog overrides ──────────────────────────── */
+.snap-dialog-card {
+  max-width: 720px;
+}
+.snap-dialog-fields {
+  gap: 8px;
+}
+.snap-dialog-field {
+  flex: 1 1 160px;
 }
 .snap-dialog-field-wide {
   flex: 2 1 240px;
 }
-.snap-dialog-label {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--ink-2);
-}
-.snap-dialog-input {
-  font-size: 13px;
-}
 .snap-dialog-account {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-2);
 }
-.snap-dialog-error {
-  font-size: 11px;
-  color: var(--neg);
-  min-height: 14px;
-  line-height: 1.2;
-}
-.snap-dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 1rem;
+.snap-dialog-account:first-of-type {
+  padding-top: 0;
+  border-top: none;
 }
 
-/* ── Transaction dialog ──────────────────────────────────── */
-.tx-dialog-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 1.5rem 1rem;
-  overflow-y: auto;
-  animation: confirm-fade 0.12s ease-out;
-}
-@media (prefers-reduced-motion: reduce) {
-  .tx-dialog-overlay {
-    animation: none;
-  }
-}
+/* ── Transaction dialog overrides ────────────────────────── */
 .tx-dialog-card {
-  background: var(--surface);
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-md);
-  padding: 1.25rem;
   max-width: 560px;
-  width: 100%;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-  margin: auto;
-}
-.tx-dialog-header {
-  margin-bottom: 1rem;
-}
-.tx-dialog-title {
-  font-weight: 600;
-  font-size: 15px;
-  color: var(--ink);
 }
 .tx-dialog-fields {
-  display: flex;
-  flex-direction: column;
   gap: 10px;
-}
-.tx-dialog-row {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
 }
 .tx-dialog-field {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
   flex: 1 1 120px;
-  min-width: 0;
 }
 .tx-dialog-field-wide {
   flex: 2 1 200px;
-}
-.tx-dialog-label {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--ink-2);
-}
-.tx-dialog-input {
-  font-size: 13px;
-}
-.tx-dialog-error {
-  font-size: 11px;
-  color: var(--neg);
-  min-height: 14px;
-  line-height: 1.2;
-}
-.tx-dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 1rem;
 }
 
 /* ── Snapshot edit-mode indicator ───────────────────────── */

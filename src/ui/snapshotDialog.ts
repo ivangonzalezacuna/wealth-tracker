@@ -28,32 +28,32 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
     const title = mode === 'edit' ? 'Edit snapshot' : 'Add monthly snapshot';
 
     const overlay = document.createElement('div');
-    overlay.className = 'snap-dialog-overlay';
+    overlay.className = 'dialog-overlay snap-dialog-overlay';
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-labelledby', 'snap-dialog-title');
     overlay.innerHTML = `
-      <div class="snap-dialog-card">
-        <div class="snap-dialog-header">
-          <div class="snap-dialog-title" id="snap-dialog-title">${_esc(title)}</div>
+      <div class="dialog-card snap-dialog-card">
+        <div class="dialog-header">
+          <div class="dialog-title" id="snap-dialog-title">${_esc(title)}</div>
         </div>
-        <div class="snap-dialog-fields">
-          <div class="snap-dialog-row">
-            <div class="snap-dialog-field">
-              <label class="snap-dialog-label" for="snapd-date">Month</label>
-              <input type="month" id="snapd-date" class="form-input snap-dialog-input"
+        <div class="dialog-fields snap-dialog-fields">
+          <div class="dialog-row">
+            <div class="dialog-field snap-dialog-field">
+              <label class="dialog-label" for="snapd-date">Month</label>
+              <input type="month" id="snapd-date" class="form-input dialog-input"
                 value="${_esc(draft?.date || today)}" max="${today}">
-              <span class="snap-dialog-error" id="snapd-date-err"></span>
+              <span class="dialog-error" id="snapd-date-err"></span>
             </div>
-            <div class="snap-dialog-field snap-dialog-field-wide">
-              <label class="snap-dialog-label" for="snapd-notes">Notes (optional)</label>
-              <input type="text" id="snapd-notes" class="form-input snap-dialog-input"
+            <div class="dialog-field snap-dialog-field snap-dialog-field-wide">
+              <label class="dialog-label" for="snapd-notes">Notes (optional)</label>
+              <input type="text" id="snapd-notes" class="form-input dialog-input"
                 value="${_esc(draft?.notes || '')}" placeholder="e.g. catch-up done, got raise...">
             </div>
           </div>
           ${_renderAccountFields(opts.accounts, opts.holdings, opts.configHoldings || [], draft)}
         </div>
-        <div class="snap-dialog-actions">
+        <div class="dialog-actions">
           <button class="btn btn-sm btn-ghost js-snapd-cancel">Cancel</button>
           <button class="btn btn-sm btn-primary js-snapd-submit">${mode === 'edit' ? 'Save changes' : 'Add snapshot'}</button>
         </div>
@@ -105,14 +105,14 @@ function _renderAccountFields(
       const value = draft?.[acct.key];
       return `
         <div class="snap-dialog-account">
-          <div class="snap-dialog-field">
-            <label class="snap-dialog-label" for="snapd-acc-${_esc(acct.key)}">${_esc(acct.label)} (€)</label>
+          <div class="dialog-field snap-dialog-field">
+            <label class="dialog-label" for="snapd-acc-${_esc(acct.key)}">${_esc(acct.label)} (€)</label>
             <input type="text" inputmode="decimal" id="snapd-acc-${_esc(acct.key)}"
               data-account-key="${_esc(acct.key)}"
-              class="form-input snap-dialog-input"
+              class="form-input dialog-input"
               value="${typeof value === 'number' || typeof value === 'string' ? _esc(String(value)) : ''}"
               placeholder="total value">
-            <span class="snap-dialog-error" id="snapd-acc-${_esc(acct.key)}-err"></span>
+            <span class="dialog-error" id="snapd-acc-${_esc(acct.key)}-err"></span>
           </div>
           ${acct.showEtfBreakdown ? _renderEtfBreakdown(acct.key, holdings, configHoldings, draft) : ''}
         </div>`;
@@ -190,7 +190,7 @@ function _renderEtfBreakdown(
           <span class="snap-etf-recon-sep">&middot;</span>
           <span class="snap-etf-recon-remain">Remaining: <b>-</b></span>
         </div>
-        <span class="snap-dialog-error" id="snapd-etf-${_esc(acctKey)}-err"></span>
+        <span class="dialog-error" id="snapd-etf-${_esc(acctKey)}-err"></span>
       </div>
     </div>`;
 }

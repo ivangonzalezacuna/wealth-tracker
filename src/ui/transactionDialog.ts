@@ -30,104 +30,104 @@ export function transactionDialog(
     const title = existing ? 'Edit transaction' : 'Add transaction';
 
     const overlay = document.createElement('div');
-    overlay.className = 'tx-dialog-overlay';
+    overlay.className = 'dialog-overlay tx-dialog-overlay';
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-labelledby', 'tx-dialog-title');
     overlay.innerHTML = `
-      <div class="tx-dialog-card">
-        <div class="tx-dialog-header">
-          <div class="tx-dialog-title" id="tx-dialog-title">${_esc(title)}</div>
+      <div class="dialog-card tx-dialog-card">
+        <div class="dialog-header">
+          <div class="dialog-title" id="tx-dialog-title">${_esc(title)}</div>
         </div>
-        <div class="tx-dialog-fields">
-          <div class="tx-dialog-row">
-            <div class="tx-dialog-field">
-              <label class="tx-dialog-label" for="txd-date">Date</label>
-              <input type="date" id="txd-date" class="form-input tx-dialog-input"
+        <div class="dialog-fields tx-dialog-fields">
+          <div class="dialog-row">
+            <div class="dialog-field tx-dialog-field">
+              <label class="dialog-label" for="txd-date">Date</label>
+              <input type="date" id="txd-date" class="form-input dialog-input"
                 value="${_esc(existing?.date || today)}" max="${today}">
-              <span class="tx-dialog-error" id="txd-date-err"></span>
+              <span class="dialog-error" id="txd-date-err"></span>
             </div>
-            <div class="tx-dialog-field">
-              <label class="tx-dialog-label" for="txd-type">Type</label>
-              <select id="txd-type" class="form-input tx-dialog-input">
+            <div class="dialog-field tx-dialog-field">
+              <label class="dialog-label" for="txd-type">Type</label>
+              <select id="txd-type" class="form-input dialog-input">
                 ${TX_TYPES.map(
                   (t) =>
                     `<option value="${_esc(t)}" ${t === (existing?.type || TxType.BUY) ? 'selected' : ''}>${_esc(t)}</option>`,
                 ).join('')}
               </select>
-              <span class="tx-dialog-error" id="txd-type-err"></span>
+              <span class="dialog-error" id="txd-type-err"></span>
             </div>
           </div>
-          <div class="tx-dialog-row">
-            <div class="tx-dialog-field tx-dialog-field-wide">
-              <label class="tx-dialog-label" for="txd-name">Name</label>
-              <input type="text" id="txd-name" class="form-input tx-dialog-input"
+          <div class="dialog-row">
+            <div class="dialog-field tx-dialog-field tx-dialog-field-wide">
+              <label class="dialog-label" for="txd-name">Name</label>
+              <input type="text" id="txd-name" class="form-input dialog-input"
                 value="${_esc(existing?.name || '')}" placeholder="e.g. iShares Core MSCI World">
-              <span class="tx-dialog-error" id="txd-name-err"></span>
+              <span class="dialog-error" id="txd-name-err"></span>
             </div>
-            <div class="tx-dialog-field">
-              <label class="tx-dialog-label" for="txd-isin">ISIN</label>
-              <input type="text" id="txd-isin" class="form-input tx-dialog-input"
+            <div class="dialog-field tx-dialog-field">
+              <label class="dialog-label" for="txd-isin">ISIN</label>
+              <input type="text" id="txd-isin" class="form-input dialog-input"
                 value="${_esc(existing?.isin || '')}" placeholder="e.g. IE00B4L5Y983"
                 style="text-transform:uppercase">
-              <span class="tx-dialog-error" id="txd-isin-err"></span>
+              <span class="dialog-error" id="txd-isin-err"></span>
             </div>
           </div>
-          <div class="tx-dialog-row">
-            <div class="tx-dialog-field">
-              <label class="tx-dialog-label" for="txd-amount">Amount (€)</label>
-              <input type="text" inputmode="decimal" id="txd-amount" class="form-input tx-dialog-input"
+          <div class="dialog-row">
+            <div class="dialog-field tx-dialog-field">
+              <label class="dialog-label" for="txd-amount">Amount (€)</label>
+              <input type="text" inputmode="decimal" id="txd-amount" class="form-input dialog-input"
                 value="${_esc(existing != null ? String(existing.amount) : '')}"
                 placeholder="0.00">
-              <span class="tx-dialog-error" id="txd-amount-err"></span>
+              <span class="dialog-error" id="txd-amount-err"></span>
             </div>
-            <div class="tx-dialog-field">
-              <label class="tx-dialog-label" for="txd-shares">Shares</label>
-              <input type="text" inputmode="decimal" id="txd-shares" class="form-input tx-dialog-input"
+            <div class="dialog-field tx-dialog-field">
+              <label class="dialog-label" for="txd-shares">Shares</label>
+              <input type="text" inputmode="decimal" id="txd-shares" class="form-input dialog-input"
                 value="${_esc(existing != null ? String(existing.shares) : '')}"
                 placeholder="0">
-              <span class="tx-dialog-error" id="txd-shares-err"></span>
+              <span class="dialog-error" id="txd-shares-err"></span>
             </div>
-            <div class="tx-dialog-field">
-              <label class="tx-dialog-label" for="txd-fee">Fee (€)</label>
-              <input type="text" inputmode="decimal" id="txd-fee" class="form-input tx-dialog-input"
+            <div class="dialog-field tx-dialog-field">
+              <label class="dialog-label" for="txd-fee">Fee (€)</label>
+              <input type="text" inputmode="decimal" id="txd-fee" class="form-input dialog-input"
                 value="${_esc(existing != null ? String(existing.fee) : '')}"
                 placeholder="0">
-              <span class="tx-dialog-error" id="txd-fee-err"></span>
+              <span class="dialog-error" id="txd-fee-err"></span>
             </div>
-            <div class="tx-dialog-field">
-              <label class="tx-dialog-label" for="txd-tax">Tax (€)</label>
-              <input type="text" inputmode="decimal" id="txd-tax" class="form-input tx-dialog-input"
+            <div class="dialog-field tx-dialog-field">
+              <label class="dialog-label" for="txd-tax">Tax (€)</label>
+              <input type="text" inputmode="decimal" id="txd-tax" class="form-input dialog-input"
                 value="${_esc(existing != null ? String(existing.tax) : '')}"
                 placeholder="0">
-              <span class="tx-dialog-error" id="txd-tax-err"></span>
+              <span class="dialog-error" id="txd-tax-err"></span>
             </div>
           </div>
-          <div class="tx-dialog-row">
-            <div class="tx-dialog-field">
-              <label class="tx-dialog-label" for="txd-currency">Currency</label>
-              <input type="text" id="txd-currency" class="form-input tx-dialog-input"
+          <div class="dialog-row">
+            <div class="dialog-field tx-dialog-field">
+              <label class="dialog-label" for="txd-currency">Currency</label>
+              <input type="text" id="txd-currency" class="form-input dialog-input"
                 value="${_esc(existing?.currency || 'EUR')}" placeholder="EUR"
                 style="text-transform:uppercase" maxlength="3">
-              <span class="tx-dialog-error" id="txd-currency-err"></span>
+              <span class="dialog-error" id="txd-currency-err"></span>
             </div>
-            <div class="tx-dialog-field">
-              <label class="tx-dialog-label" for="txd-fxrate">FX rate (EUR=1)</label>
-              <input type="text" inputmode="decimal" id="txd-fxrate" class="form-input tx-dialog-input"
+            <div class="dialog-field tx-dialog-field">
+              <label class="dialog-label" for="txd-fxrate">FX rate (EUR=1)</label>
+              <input type="text" inputmode="decimal" id="txd-fxrate" class="form-input dialog-input"
                 value="${_esc(existing != null ? String(existing.fxRate) : '')}"
                 placeholder="1">
-              <span class="tx-dialog-error" id="txd-fxrate-err"></span>
+              <span class="dialog-error" id="txd-fxrate-err"></span>
             </div>
           </div>
-          <div class="tx-dialog-row">
-            <div class="tx-dialog-field tx-dialog-field-wide">
-              <label class="tx-dialog-label" for="txd-note">Note (optional)</label>
-              <input type="text" id="txd-note" class="form-input tx-dialog-input"
+          <div class="dialog-row">
+            <div class="dialog-field tx-dialog-field tx-dialog-field-wide">
+              <label class="dialog-label" for="txd-note">Note (optional)</label>
+              <input type="text" id="txd-note" class="form-input dialog-input"
                 value="${_esc(existing?.note || '')}" placeholder="Any comment…">
             </div>
           </div>
         </div>
-        <div class="tx-dialog-actions">
+        <div class="dialog-actions">
           <button class="btn btn-sm btn-ghost js-txd-cancel">Cancel</button>
           <button class="btn btn-sm btn-primary js-txd-submit">${existing ? 'Save changes' : 'Add transaction'}</button>
         </div>

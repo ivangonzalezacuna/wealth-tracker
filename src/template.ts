@@ -387,7 +387,9 @@ export function appTemplate(): string {
 
   <div id="log-content">
     <div class="card" id="csv-import-card">
-      <div class="card-title">Import transactions</div>
+      <div class="card-title">Transactions</div>
+
+      <div class="card-section-title" style="margin-top:.75rem">Import</div>
       <p class="note" style="margin-bottom:.85rem">Import your transaction export CSV. Drag your file here or click to browse. Parsed locally; data synced to your Google Drive. Re-import anytime; duplicates handled automatically.</p>
       <div class="drop-zone" id="drop-zone">
         <input type="file" id="csv-file-input" accept=".csv" aria-label="Choose CSV file to import">
@@ -398,44 +400,46 @@ export function appTemplate(): string {
       <div id="import-msg" style="font-size:12px;margin-top:.6rem;min-height:18px"></div>
       <div id="import-preview" style="display:none"></div>
       <div id="import-status" class="status-bar status-empty" style="margin-top:1rem">No CSV imported yet</div>
+
+      <div class="card-section" id="tx-ledger-card">
+        <div class="card-section-title">Ledger</div>
+        <p class="note" style="margin-bottom:.85rem">Review, audit, and correct imported transactions.</p>
+        <div class="filter-bar" id="tx-filter-bar">
+          <select id="tx-type-filter" class="form-input form-input-sm" aria-label="Filter transactions by type" style="width:auto;display:inline-block">
+            <option value="">All types</option>
+          </select>
+          <input type="text" id="tx-search" class="form-input form-input-sm" aria-label="Search transactions" placeholder="Search name, ISIN, source…" style="width:220px;display:inline-block;margin-left:6px">
+          <button class="btn btn-outline btn-sm" id="btn-add-tx" style="margin-left:auto">Add transaction</button>
+        </div>
+        <div class="tbl">
+          <div id="tx-ledger-list" class="tx-ledger-grid" role="table" aria-label="Transaction ledger"></div>
+        </div>
+        <div id="tx-pagination" class="pagination"></div>
+        <div id="tx-msg" style="font-size:12px;min-height:18px;margin-top:.5rem"></div>
+      </div>
     </div>
 
     <div class="card" id="balance-card">
-      <div class="card-title">Monthly update</div>
+      <div class="card-title">Snapshots</div>
+
+      <div class="card-section-title" style="margin-top:.75rem">Monthly update</div>
       <p class="note" style="margin-bottom:.85rem">Log your latest month-end balances in a modal dialog. Same month overwrites the previous entry.</p>
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
         <button class="btn btn-primary" id="btn-add-snap">Add monthly snapshot</button>
         <span id="snap-msg" style="font-size:12px;min-height:18px"></span>
       </div>
-    </div>
 
-    <div class="card" id="tx-ledger-card">
-      <div class="card-title">Transaction ledger</div>
-      <p class="note" style="margin-bottom:.85rem">Review, audit, and correct imported transactions.</p>
-      <div class="filter-bar" id="tx-filter-bar">
-        <select id="tx-type-filter" class="form-input form-input-sm" aria-label="Filter transactions by type" style="width:auto;display:inline-block">
-          <option value="">All types</option>
-        </select>
-        <input type="text" id="tx-search" class="form-input form-input-sm" aria-label="Search transactions" placeholder="Search name, ISIN, source…" style="width:220px;display:inline-block;margin-left:6px">
-        <button class="btn btn-outline btn-sm" id="btn-add-tx" style="margin-left:auto">Add transaction</button>
+      <div class="card-section">
+        <div class="card-section-title">History</div>
+        <div class="filter-bar" id="snap-filter-bar">
+          <select id="snap-year-filter" class="form-input form-input-sm" aria-label="Filter by year" style="width:auto;display:inline-block">
+            <option value="">All years</option>
+          </select>
+          <input type="text" id="snap-search" class="form-input form-input-sm" aria-label="Search snapshots by notes" placeholder="Search notes…" style="width:140px;display:inline-block;margin-left:6px">
+        </div>
+        <div id="snaps-list" role="table" aria-label="Snapshot history"></div>
+        <div id="snap-pagination" class="pagination"></div>
       </div>
-      <div class="tbl">
-        <div id="tx-ledger-list" class="tx-ledger-grid" role="table" aria-label="Transaction ledger"></div>
-      </div>
-      <div id="tx-pagination" class="pagination"></div>
-      <div id="tx-msg" style="font-size:12px;min-height:18px;margin-top:.5rem"></div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Snapshot history</div>
-      <div class="filter-bar" id="snap-filter-bar">
-        <select id="snap-year-filter" class="form-input form-input-sm" aria-label="Filter by year" style="width:auto;display:inline-block">
-          <option value="">All years</option>
-        </select>
-        <input type="text" id="snap-search" class="form-input form-input-sm" aria-label="Search snapshots by notes" placeholder="Search notes…" style="width:140px;display:inline-block;margin-left:6px">
-      </div>
-      <div id="snaps-list" role="table" aria-label="Snapshot history"></div>
-      <div id="snap-pagination" class="pagination"></div>
     </div>
   </div>
 </div>

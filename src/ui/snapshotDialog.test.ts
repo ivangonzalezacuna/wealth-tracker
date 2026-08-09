@@ -228,9 +228,7 @@ describe('snapshotDialog', () => {
       etf_IE00AAA: 500,
     };
     snapshotDialog(baseOpts({ existing, mode: 'edit' }));
-    expect((document.querySelector('.snap-dialog-title') as HTMLElement).textContent).toContain(
-      'Edit',
-    );
+    expect((document.querySelector('.dialog-title') as HTMLElement).textContent).toContain('Edit');
     expect((document.querySelector('#snapd-date') as HTMLInputElement).value).toBe('2024-04');
     expect((document.querySelector('#snapd-notes') as HTMLInputElement).value).toBe('Prefilled');
     expect((document.querySelector('#snapd-acc-broker') as HTMLInputElement).value).toBe('800');

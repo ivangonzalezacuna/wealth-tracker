@@ -127,7 +127,7 @@ describe('transactionDialog', () => {
         fxRate: 1,
       },
     });
-    const title = document.querySelector('.tx-dialog-title') as HTMLElement;
+    const title = document.querySelector('.dialog-title') as HTMLElement;
     expect(title.textContent).toContain('Edit');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
@@ -186,7 +186,7 @@ describe('transactionDialog', () => {
 
   it('title text is HTML-escaped', () => {
     transactionDialog({ existing: undefined });
-    const title = document.querySelector('.tx-dialog-title') as HTMLElement;
+    const title = document.querySelector('.dialog-title') as HTMLElement;
     expect(title.innerHTML).not.toContain('<script>');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
