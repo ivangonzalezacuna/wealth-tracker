@@ -206,6 +206,22 @@ transactions would also need valid FX rates into that new reporting currency. In
 stable approach is to capture and store the broker-provided or externally-fetched FX rate at import
 time, rather than recomputing old transactions from live rates later.
 
+What is still missing for full multi-currency support:
+
+- **Account-level currency metadata.** Accounts and snapshots do not yet have a first-class
+  currency contract that says "this account balance was entered in DKK" or "this one stays in EUR".
+- **Snapshot FX normalization.** Monthly snapshot balances are not yet converted with a
+  snapshot-date FX rate before being aggregated into total net worth.
+- **A configurable reporting currency.** The reporting currency is still hard-coded to `EUR`, so
+  switching the app base currency later is not yet a settings-level feature.
+- **Import/logging fallback FX lookup.** When a broker export or manual snapshot does not already
+  contain the needed FX rate, the app does not yet fetch and persist one automatically.
+- **UI/validation for missing FX.** There is not yet a dedicated user flow that blocks, warns, or
+  requests correction when a non-base snapshot/account value is missing its required FX context.
+- **End-to-end mixed-account coverage.** Transaction normalization exists, but mixed EUR/DKK/USD
+  accounts need explicit support and tests across imports, manual snapshots, totals, history, and
+  analytics.
+
 ---
 
 ## Development
