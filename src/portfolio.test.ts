@@ -353,3 +353,196 @@ describe('computePD', () => {
     expect(pd.etfs[isin].cost).toBeCloseTo(600);
   });
 });
+
+describe('computePD: mixed-currency FX normalization', () => {
+  const ISIN = 'IE00B4L5Y983';
+
+  /** BUY in a specific currency */
+  function buyFx(
+    isin: string,
+    date: string,
+    shares: number,
+    amount: number,
+    currency: string,
+    fxRate: number,
+    fee = 0,
+  ): Transaction {
+    return {
+      id: '',
+      source: '',
+      type: TxType.BUY,
+      date,
+      isin,
+      name: 'ETF',
+      shares,
+      price: 0,
+      amount: -Math.abs(amount),
+      fee,
+      tax: 0,
+      currency,
+      fxRate,
+    };
+  }
+
+  /** SELL in a specific currency */
+  function sellFx(
+    isin: string,
+    date: string,
+    shares: number,
+    amount: number,
+    currency: string,
+    fxRate: number,
+    fee = 0,
+  ): Transaction {
+    return {
+      id: '',
+      source: '',
+      type: TxType.SELL,
+      date,
+      isin,
+      name: 'ETF',
+      shares: -Math.abs(shares),
+      price: 0,
+      amount: Math.abs(amount),
+      fee,
+      tax: 0,
+      currency,
+      fxRate,
+    };
+  }
+
+  /** DIVIDEND in a specific currency */
+  function divFx(
+    isin: string,
+    date: string,
+    net: number,
+    currency: string,
+    fxRate: number,
+    tax = 0,
+  ): Transaction {
+    return {
+      id: '',
+      source: '',
+      type: TxType.DIVIDEND,
+      date,
+      isin,
+      name: 'ETF',
+      shares: 0,
+      price: 0,
+      amount: net,
+      fee: 0,
+      tax: -Math.abs(tax),
+      currency,
+      fxRate,
+    };
+  }
+
+  /** INTEREST in a specific currency */
+  function interestFx(date: string, amount: number, currency: string, fxRate: number): Transaction {
+    return {
+      id: '',
+      source: '',
+      type: TxType.INTEREST,
+      date,
+      isin: '',
+      name: 'Interest',
+      shares: 0,
+      price: 0,
+      amount,
+      fee: 0,
+      tax: 0,
+      currency,
+      fxRate,
+    };
+  }
+
+  it('USD BUY: totalInv and DCA monthly converted to EUR', () => {
+    // 1000 USD at fxRate 0.9 → 900 EUR invested
+    const txs = [buyFx(ISIN, '2024-01-15', 10, 1000, 'USD', 0.9)];
+    const pd = computePD(txs);
+
+    expect(pd.totalInv).toBeCloseTo(900);
+    expect(pd.monthly['2024-01']).toBeCloseTo(900);
+    expect(pd.etfs[ISIN].cost).toBeCloseTo(900);
+  });
+
+  it('USD BUY fee is converted to EUR in totalFees', () => {
+    // fee 5 USD at fxRate 0.9 → 4.5 EUR
+    const txs = [buyFx(ISIN, '2024-01-15', 10, 1000, 'USD', 0.9, 5)];
+    const pd = computePD(txs);
+
+    expect(pd.totalFees).toBeCloseTo(4.5);
+    expect(pd.totalInv).toBeCloseTo(904.5); // (1000 + 5) * 0.9
+  });
+
+  it('USD BUY + USD SELL: realizedPnL computed in EUR', () => {
+    // BUY 1000 USD @ 0.9 → 900 EUR cost
+    // SELL for 1200 USD @ 0.85 → 1020 EUR proceeds; realized = 120
+    const txs = [
+      buyFx(ISIN, '2024-01-01', 10, 1000, 'USD', 0.9),
+      sellFx(ISIN, '2024-02-01', 10, 1200, 'USD', 0.85),
+    ];
+    const pd = computePD(txs);
+
+    expect(pd.realizedPnL).toBeCloseTo(120);
+  });
+
+  it('USD DIVIDEND: divNet and divHist converted to EUR', () => {
+    // net 50 USD at fxRate 0.9 → 45 EUR; tax 5 USD → 4.5 EUR
+    const txs = [
+      buyFx(ISIN, '2024-01-01', 10, 1000, 'EUR', 1),
+      divFx(ISIN, '2024-06-01', 50, 'USD', 0.9, 5),
+    ];
+    const pd = computePD(txs);
+
+    expect(pd.totalDivNet).toBeCloseTo(45);
+    expect(pd.totalTax).toBeCloseTo(4.5);
+    expect(pd.divHist[0].net).toBeCloseTo(45);
+    expect(pd.divHist[0].gross).toBeCloseTo(49.5); // 45 + 4.5
+    expect(pd.divHist[0].tax).toBeCloseTo(4.5);
+  });
+
+  it('USD INTEREST: totalInterest converted to EUR', () => {
+    // 20 USD at fxRate 0.9 → 18 EUR
+    const txs = [interestFx('2024-01-31', 20, 'USD', 0.9)];
+    const pd = computePD(txs);
+
+    expect(pd.totalInterest).toBeCloseTo(18);
+    expect(pd.intHist[0].net).toBeCloseTo(18);
+  });
+
+  it('standalone USD FEE: converted to EUR in totalFees', () => {
+    const txs: Transaction[] = [
+      {
+        id: '',
+        source: '',
+        type: TxType.FEE,
+        date: '2024-01-31',
+        isin: '',
+        name: 'Custody fee',
+        shares: 0,
+        price: 0,
+        amount: -10, // 10 USD
+        fee: 0,
+        tax: 0,
+        currency: 'USD',
+        fxRate: 0.9, // → 9 EUR
+      },
+    ];
+    const pd = computePD(txs);
+    expect(pd.totalFees).toBeCloseTo(9);
+  });
+
+  it('DCA monthlyBy sums USD BUYs in EUR', () => {
+    // 500 USD @ 0.9 → 450 EUR; 800 USD @ 0.9 → 720 EUR
+    const txs = [
+      buyFx(ISIN, '2024-03-01', 5, 500, 'USD', 0.9),
+      buyFx('IE00BKM4GZ66', '2024-03-15', 10, 800, 'USD', 0.9),
+    ];
+    const pd = computePD(txs);
+
+    expect(pd.monthlyBy['2024-03'][ISIN]).toBeCloseTo(450);
+    expect(pd.monthlyBy['2024-03']['IE00BKM4GZ66']).toBeCloseTo(720);
+    expect(pd.monthly['2024-03']).toBeCloseTo(1170);
+  });
+});

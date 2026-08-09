@@ -2,6 +2,7 @@ import { getISIN, getMETAMap } from './constants';
 import { getHoldings } from './store/config';
 import { TxType } from './model/tx';
 import { computeCostBasis } from './model/costbasis';
+import { toBase } from './fx';
 import type { Transaction, PortfolioData, EtfPosition, DivHistEntry, IntHistEntry } from './types';
 
 interface ComputeOptions {
@@ -71,7 +72,9 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
       // DCA monthly - BUYs only. Fee is included so this figure matches
       // pd.totalInv (costbasis.ts uses |amount| + fee) - the fee is cash
       // that genuinely left the account for this purchase.
-      const cost = Math.abs(tx.amount) + Math.abs(tx.fee || 0);
+      const cost =
+        Math.abs(toBase(tx.amount, tx.currency, tx.fxRate)) +
+        Math.abs(toBase(tx.fee || 0, tx.currency, tx.fxRate));
       const m = tx.date.slice(0, 7);
       monthly[m] = (monthly[m] || 0) + cost;
       if (!monthlyBy[m]) monthlyBy[m] = {};
@@ -99,41 +102,46 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
         };
       }
       if (!etfs[isin].name && tx.name) etfs[isin].name = tx.name;
-      const taxAbs = Math.abs(tx.tax || 0);
-      etfs[isin].divNet += tx.amount;
+      const taxAbs = Math.abs(toBase(tx.tax || 0, tx.currency, tx.fxRate));
+      const divNet = toBase(tx.amount, tx.currency, tx.fxRate);
+      etfs[isin].divNet += divNet;
       etfs[isin].taxPaid += taxAbs;
       divHist.push({
         date: tx.date,
         isin,
         shortName: shortName || isin,
-        gross: tx.amount + taxAbs,
-        net: tx.amount,
+        gross: divNet + taxAbs,
+        net: divNet,
         tax: taxAbs,
         color: meta.color || '#898781',
       });
     } else if (tx.type === TxType.INTEREST) {
-      totalInterest += tx.amount;
+      const intAmount = toBase(tx.amount, tx.currency, tx.fxRate);
+      totalInterest += intAmount;
       const intMonth = tx.date.slice(0, 7); // YYYY-MM
-      intByMonth[intMonth] = (intByMonth[intMonth] || 0) + tx.amount;
+      intByMonth[intMonth] = (intByMonth[intMonth] || 0) + intAmount;
       const src = tx.source || 'unknown';
-      interestBySource[src] = (interestBySource[src] || 0) + tx.amount;
+      interestBySource[src] = (interestBySource[src] || 0) + intAmount;
       // Tax withheld on savings interest (e.g. TR INTEREST_PAYMENT rows
       // carry a negative tx.tax when Kapitalertragsteuer was deducted).
       if (tx.tax) {
-        taxBySource[src] = (taxBySource[src] || 0) + tx.tax;
-        intTaxByMonth[intMonth] = (intTaxByMonth[intMonth] || 0) + tx.tax;
+        const intTax = toBase(tx.tax, tx.currency, tx.fxRate);
+        taxBySource[src] = (taxBySource[src] || 0) + intTax;
+        intTaxByMonth[intMonth] = (intTaxByMonth[intMonth] || 0) + intTax;
       }
     } else if (tx.type === TxType.TAX) {
       // TAX rows: refunds (e.g. TR TAX_OPTIMIZATION) or standalone tax charges.
       // For N26 with mergeTaxIntoInterest, TAX rows are already folded into INTEREST.
-      const taxVal = tx.tax || tx.amount || 0;
+      const taxVal = toBase(tx.tax || tx.amount || 0, tx.currency, tx.fxRate);
       const src = tx.source || 'unknown';
       taxBySource[src] = (taxBySource[src] || 0) + taxVal;
     } else if (tx.type === TxType.FEE) {
       // Standalone FEE rows (e.g. TR custody fees) that are not embedded in a
       // BUY/SELL row. The cost-basis engine already captures fees inside trades;
       // this branch covers broker/custody fees arriving as their own rows.
-      standaloneFees += Math.abs(tx.amount || 0) + Math.abs(tx.fee || 0);
+      standaloneFees +=
+        Math.abs(toBase(tx.amount || 0, tx.currency, tx.fxRate)) +
+        Math.abs(toBase(tx.fee || 0, tx.currency, tx.fxRate));
     } else if (tx.type === TxType.TRANSFER) {
       // TRANSFER moves cash between accounts and does not change total net worth.
       // Portfolio computations (cost basis, P&L, dividends) are unaffected.

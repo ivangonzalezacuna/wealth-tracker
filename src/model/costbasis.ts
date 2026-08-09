@@ -1,6 +1,7 @@
 import { TxType } from './tx';
 import type { Transaction, CostBasisResult } from '../types';
 import { ZERO_THRESHOLD } from './holdings';
+import { toBase } from '../fx';
 
 /**
  * Average-cost basis engine.
@@ -14,11 +15,11 @@ function computeAvgCost(txs: Transaction[]): CostBasisResult {
   let totalFees = 0;
 
   for (const tx of txs) {
-    const fee = Math.abs(tx.fee || 0);
+    const fee = Math.abs(toBase(tx.fee || 0, tx.currency, tx.fxRate));
     totalFees += fee;
 
     if (tx.type === TxType.BUY) {
-      const cost = Math.abs(tx.amount) + fee;
+      const cost = Math.abs(toBase(tx.amount, tx.currency, tx.fxRate)) + fee;
       shares += Math.abs(tx.shares || 0);
       costBasis += cost;
       buys += 1;
@@ -36,7 +37,7 @@ function computeAvgCost(txs: Transaction[]): CostBasisResult {
 
       const avg = costBasis / shares;
       const soldCost = avg * sharesSold;
-      const proceeds = Math.abs(tx.amount) - fee;
+      const proceeds = Math.abs(toBase(tx.amount, tx.currency, tx.fxRate)) - fee;
       realizedPnL += proceeds - soldCost;
       shares -= sharesSold;
       costBasis -= soldCost;
@@ -75,13 +76,13 @@ function computeFIFO(txs: Transaction[]): CostBasisResult {
   let totalFees = 0;
 
   for (const tx of txs) {
-    const fee = Math.abs(tx.fee || 0);
+    const fee = Math.abs(toBase(tx.fee || 0, tx.currency, tx.fxRate));
     totalFees += fee;
 
     if (tx.type === TxType.BUY) {
       const s = Math.abs(tx.shares || 0);
       if (s <= 0) continue;
-      const cost = Math.abs(tx.amount) + fee;
+      const cost = Math.abs(toBase(tx.amount, tx.currency, tx.fxRate)) + fee;
       lots.push({ shares: s, unitCost: cost / s });
       buys += 1;
     } else if (tx.type === TxType.SPLIT) {
@@ -98,7 +99,7 @@ function computeFIFO(txs: Transaction[]): CostBasisResult {
       let sharesSold = Math.abs(tx.shares || 0);
       if (sharesSold <= 0) continue;
 
-      const proceeds = Math.abs(tx.amount) - fee;
+      const proceeds = Math.abs(toBase(tx.amount, tx.currency, tx.fxRate)) - fee;
       let consumedCost = 0;
       const totalSharesSold = sharesSold;
 
