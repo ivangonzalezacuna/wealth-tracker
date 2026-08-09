@@ -20,7 +20,7 @@ let _activeCleanup: (() => void) | null = null;
 let _activeSuggestions: KnownSecuritySuggestions | undefined;
 
 const TX_TYPES = Object.values(TxType);
-const SECURITY_TYPES = new Set([
+const SECURITY_TYPES: ReadonlySet<Transaction['type']> = new Set([
   TxType.BUY,
   TxType.SELL,
   TxType.DIVIDEND,
@@ -28,10 +28,18 @@ const SECURITY_TYPES = new Set([
   TxType.FEE,
   TxType.TAX,
 ]);
-const SHARES_TYPES = new Set([TxType.BUY, TxType.SELL, TxType.SPLIT]);
-const FEE_TYPES = new Set([TxType.BUY, TxType.SELL]);
-const TAX_TYPES = new Set([TxType.BUY, TxType.SELL, TxType.DIVIDEND]);
-const FX_TYPES = new Set([
+const SHARES_TYPES: ReadonlySet<Transaction['type']> = new Set([
+  TxType.BUY,
+  TxType.SELL,
+  TxType.SPLIT,
+]);
+const FEE_TYPES: ReadonlySet<Transaction['type']> = new Set([TxType.BUY, TxType.SELL]);
+const TAX_TYPES: ReadonlySet<Transaction['type']> = new Set([
+  TxType.BUY,
+  TxType.SELL,
+  TxType.DIVIDEND,
+]);
+const FX_TYPES: ReadonlySet<Transaction['type']> = new Set([
   TxType.BUY,
   TxType.SELL,
   TxType.DIVIDEND,
@@ -169,7 +177,9 @@ export function transactionDialog(
     _applyTypeVisibility(existing?.type || TxType.BUY);
 
     const typeEl = overlay.querySelector('#txd-type') as HTMLSelectElement | null;
-    typeEl?.addEventListener('change', () => _applyTypeVisibility(typeEl.value as Transaction['type']));
+    typeEl?.addEventListener('change', () =>
+      _applyTypeVisibility(typeEl.value as Transaction['type']),
+    );
 
     overlay.querySelector('.js-txd-submit')?.addEventListener('click', () => _submit());
     overlay.querySelector('.js-txd-cancel')?.addEventListener('click', () => _dismiss(null));
