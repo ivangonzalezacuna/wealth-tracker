@@ -31,6 +31,11 @@ const DOM_FIXTURE = `
   <div id="snap-table-header"></div>
   <div id="snaps-list"></div>
   <div id="snap-pagination"></div>
+  <select id="tx-type-filter"></select>
+  <input id="tx-search" />
+  <button id="btn-add-tx"></button>
+  <div id="tx-ledger-list"></div>
+  <div id="tx-pagination"></div>
   <div id="import-status"></div>
 `;
 
@@ -227,5 +232,78 @@ describe('renderLog', () => {
       onDelSnap: vi.fn(),
     });
     expect(document.getElementById('import-status')!.textContent).toContain('No CSV imported yet');
+  });
+
+  it('renders transaction ledger rows', () => {
+    renderLog({
+      txs: [
+        {
+          rowId: 10,
+          id: 'tx-1',
+          date: '2026-01-01',
+          source: 'manual',
+          type: 'BUY',
+          name: 'IWDA',
+          isin: 'IE00B4L5Y983',
+          shares: 2,
+          price: 100,
+          amount: -200,
+          fee: 0,
+          tax: 0,
+          currency: 'EUR',
+          fxRate: 1,
+        },
+      ],
+      snaps: [],
+      importMeta: { last_import: '2026-01-01' },
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+    });
+    const ledger = document.getElementById('tx-ledger-list')!;
+    expect(ledger.textContent).toContain('IWDA');
+    expect(ledger.textContent).toContain('BUY');
+  });
+
+  it('wires transaction add/edit/delete callbacks', () => {
+    const onAddTx = vi.fn();
+    const onEditTx = vi.fn();
+    const onDelTx = vi.fn();
+    renderLog({
+      txs: [
+        {
+          rowId: 10,
+          id: 'tx-1',
+          date: '2026-01-01',
+          source: 'manual',
+          type: 'BUY',
+          name: 'IWDA',
+          isin: 'IE00B4L5Y983',
+          shares: 2,
+          price: 100,
+          amount: -200,
+          fee: 0,
+          tax: 0,
+          currency: 'EUR',
+          fxRate: 1,
+        },
+      ],
+      snaps: [],
+      importMeta: { last_import: '2026-01-01' },
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+      onAddTx,
+      onEditTx,
+      onDelTx,
+    });
+
+    (document.getElementById('btn-add-tx') as HTMLButtonElement).click();
+    expect(onAddTx).toHaveBeenCalled();
+
+    const editBtn = document.querySelector('.js-edit-tx') as HTMLButtonElement;
+    const delBtn = document.querySelector('.js-del-tx') as HTMLButtonElement;
+    editBtn.click();
+    delBtn.click();
+    expect(onEditTx).toHaveBeenCalledWith(10);
+    expect(onDelTx).toHaveBeenCalledWith(10, delBtn);
   });
 });

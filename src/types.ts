@@ -18,6 +18,7 @@ export type TxTypeValue = (typeof TxType)[keyof typeof TxType];
 // ─── Transaction ─────────────────────────────────────────────────
 
 export interface Transaction {
+  rowId?: number;
   id: string;
   date: string;
   source: string;

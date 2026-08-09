@@ -12,6 +12,9 @@ import {
   loadTransactions,
   mergeTransactions,
   countAmendedRows,
+  insertTransaction,
+  updateTransaction,
+  deleteTransaction,
   saveImportMeta,
   loadImportMeta,
   restoreAllData,
@@ -48,6 +51,7 @@ import {
 import { getSetupState } from './model/setup';
 import type { SetupStep } from './model/setup';
 import { computePD } from './portfolio';
+import { TxType } from './model/tx';
 import { parseWithProfile, detectProfile, previewSummary } from './import/parse';
 import { builtInProfiles } from './import/profiles/index';
 import { renderNW } from './views/networth';
@@ -1444,6 +1448,210 @@ async function delSnap(date: string, btn?: HTMLButtonElement) {
   }
 }
 
+const MANUAL_TX_TYPES = Object.values(TxType).join(', ');
+
+function promptTransactionDraft(existing?: Transaction): Transaction | null {
+  const date = window.prompt('Date (YYYY-MM-DD)', existing?.date || new Date().toISOString().slice(0, 10));
+  if (date == null) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date.trim())) throw new Error('Date must be YYYY-MM-DD.');
+
+  const type = window.prompt('Type', existing?.type || TxType.BUY);
+  if (type == null) return null;
+  const normalizedType = type.trim().toUpperCase();
+  if (!(Object.values(TxType) as string[]).includes(normalizedType)) {
+    throw new Error(`Type must be one of: ${MANUAL_TX_TYPES}`);
+  }
+
+  const name = window.prompt('Name', existing?.name || '');
+  if (name == null) return null;
+  const isin = window.prompt('ISIN', existing?.isin || '');
+  if (isin == null) return null;
+  const sharesRaw = window.prompt('Shares', String(existing?.shares ?? 0));
+  if (sharesRaw == null) return null;
+  const amountRaw = window.prompt('Amount', String(existing?.amount ?? 0));
+  if (amountRaw == null) return null;
+  const feeRaw = window.prompt('Fee', String(existing?.fee ?? 0));
+  if (feeRaw == null) return null;
+  const taxRaw = window.prompt('Tax', String(existing?.tax ?? 0));
+  if (taxRaw == null) return null;
+  const currency = window.prompt('Currency', existing?.currency || 'EUR');
+  if (currency == null) return null;
+  const fxRateRaw = window.prompt('FX rate (EUR=1)', String(existing?.fxRate ?? 0));
+  if (fxRateRaw == null) return null;
+  const note = window.prompt('Note (optional)', existing?.note || '');
+  if (note == null) return null;
+
+  const generatedId = `manual|${Date.now()}|${Math.random().toString(36).slice(2, 8)}`;
+  return {
+    rowId: existing?.rowId,
+    id: existing?.id || generatedId,
+    date: date.trim(),
+    source: existing?.source || 'manual',
+    category: existing?.category || '',
+    type: normalizedType as Transaction['type'],
+    name: name.trim(),
+    isin: isin.trim(),
+    shares: parseNum(sharesRaw),
+    price: existing?.price || 0,
+    amount: parseNum(amountRaw),
+    fee: parseNum(feeRaw),
+    tax: parseNum(taxRaw),
+    currency: currency.trim().toUpperCase() || 'EUR',
+    fxRate: parseNum(fxRateRaw),
+    note: note.trim(),
+  };
+}
+
+function computePdOrThrow(txs: Transaction[]): PortfolioData | null {
+  if (!txs.length) return null;
+  return computePD(txs, { method: getCostBasisMethod() });
+}
+
+async function persistTransactionsState(nextPd: PortfolioData | null): Promise<void> {
+  state.txs = await loadTransactions();
+  state.pd = nextPd;
+  const txCached = await setCachedTransactions(state.txs);
+  const aggCached = nextPd ? await setCachedAggregates(nextPd) : true;
+  const hashCached = nextPd
+    ? await setInputsHash(
+        computeInputsHash(
+          state.txs.length,
+          state.txs[state.txs.length - 1]?.date || '',
+          getCostBasisMethod(),
+          holdingsSignature(getHoldings()),
+        ),
+      )
+    : true;
+  if (!txCached || !aggCached || !hashCached) showCacheWriteWarning();
+}
+
+async function addManualTransaction(): Promise<void> {
+  if (!isSignedIn() && !hasEverGranted()) {
+    showMsg('tx-msg', 'Please sign in first.', false);
+    return;
+  }
+  if (isSyncBusy()) {
+    showMsg('tx-msg', 'A sync or save is in progress. Try again in a moment.', false);
+    return;
+  }
+  try {
+    const draft = promptTransactionDraft();
+    if (!draft) return;
+    const candidate = [...state.txs, draft].sort((a, b) => a.date.localeCompare(b.date));
+    const nextPd = computePdOrThrow(candidate);
+    setSyncing(true);
+    try {
+      await insertTransaction(draft);
+      if (isSignedIn()) scheduleUpload();
+      await persistTransactionsState(nextPd);
+      renderAll();
+      showMsg(
+        'tx-msg',
+        state.offline || !navigator.onLine
+          ? 'Transaction saved locally. Will sync to Drive when back online.'
+          : 'Transaction added.',
+        true,
+      );
+    } finally {
+      setSyncing(false);
+    }
+  } catch (err) {
+    showMsg('tx-msg', 'Error: ' + (err as Error).message, false);
+  }
+}
+
+async function editManualTransaction(rowId: number): Promise<void> {
+  if (!isSignedIn() && !hasEverGranted()) {
+    showMsg('tx-msg', 'Please sign in first.', false);
+    return;
+  }
+  if (isSyncBusy()) {
+    showMsg('tx-msg', 'A sync or save is in progress. Try again in a moment.', false);
+    return;
+  }
+  const existing = state.txs.find((t) => t.rowId === rowId);
+  if (!existing) {
+    showMsg('tx-msg', 'Transaction not found.', false);
+    return;
+  }
+
+  try {
+    const draft = promptTransactionDraft(existing);
+    if (!draft) return;
+    const candidate = state.txs.map((t) => (t.rowId === rowId ? { ...draft, rowId } : t));
+    const nextPd = computePdOrThrow(candidate);
+    setSyncing(true);
+    try {
+      await updateTransaction(rowId, draft);
+      if (isSignedIn()) scheduleUpload();
+      await persistTransactionsState(nextPd);
+      renderAll();
+      showMsg(
+        'tx-msg',
+        state.offline || !navigator.onLine
+          ? 'Transaction updated locally. Will sync to Drive when back online.'
+          : 'Transaction updated.',
+        true,
+      );
+    } finally {
+      setSyncing(false);
+    }
+  } catch (err) {
+    showMsg('tx-msg', 'Error: ' + (err as Error).message, false);
+  }
+}
+
+async function delManualTransaction(rowId: number, btn?: HTMLButtonElement): Promise<void> {
+  if (!isSignedIn() && !hasEverGranted()) {
+    showMsg('tx-msg', 'Please sign in first.', false);
+    return;
+  }
+  if (isSyncBusy()) {
+    showMsg('tx-msg', 'A sync or save is in progress. Try again in a moment.', false);
+    return;
+  }
+  const tx = state.txs.find((t) => t.rowId === rowId);
+  if (!tx) {
+    showMsg('tx-msg', 'Transaction not found.', false);
+    return;
+  }
+
+  const ok = await confirmDialog({
+    title: `Delete transaction on ${tx.date}?`,
+    body: `${tx.type} ${tx.isin || tx.name || ''}`.trim() || 'This cannot be undone.',
+    confirmLabel: 'Delete',
+    danger: true,
+  });
+  if (!ok) return;
+
+  const run = async () => {
+    const candidate = state.txs.filter((t) => t.rowId !== rowId);
+    const nextPd = computePdOrThrow(candidate);
+    setSyncing(true);
+    try {
+      await deleteTransaction(rowId);
+      if (isSignedIn()) scheduleUpload();
+      await persistTransactionsState(nextPd);
+      renderAll();
+    } finally {
+      setSyncing(false);
+    }
+  };
+  try {
+    if (btn) await withButtonGuard(btn, run, { busyText: 'Deleting...', keepDisabledOnSuccess: true });
+    else await run();
+    showMsg(
+      'tx-msg',
+      state.offline || !navigator.onLine
+        ? 'Transaction deleted locally. Will sync to Drive when back online.'
+        : 'Transaction deleted.',
+      true,
+    );
+  } catch (err) {
+    showMsg('tx-msg', 'Delete failed: ' + (err as Error).message, false);
+  }
+}
+
 function clearSnapForm() {
   for (const a of getACCTSList()) {
     const el = document.getElementById(`snap-${a.key}`) as HTMLInputElement | null;
@@ -2122,6 +2330,9 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
           importMeta: state.importMeta,
           onEditSnap: editSnap,
           onDelSnap: delSnap,
+          onAddTx: addManualTransaction,
+          onEditTx: editManualTransaction,
+          onDelTx: delManualTransaction,
           readOnly: isReadOnly(),
         });
         break;

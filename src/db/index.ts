@@ -9,6 +9,9 @@ export {
   loadTransactions,
   mergeTransactions,
   restoreTransactions,
+  insertTransaction,
+  updateTransaction,
+  deleteTransaction,
   txKey,
   countAmendedRows,
 } from './repositories/transactions';

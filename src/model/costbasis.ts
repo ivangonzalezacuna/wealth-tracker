@@ -34,6 +34,11 @@ function computeAvgCost(txs: Transaction[]): CostBasisResult {
     } else if (tx.type === TxType.SELL) {
       const sharesSold = Math.abs(tx.shares || 0);
       if (shares <= ZERO_THRESHOLD || sharesSold <= 0) continue;
+      if (sharesSold > shares + ZERO_THRESHOLD) {
+        throw new Error(
+          `Oversell detected (${tx.isin || 'UNKNOWN'} ${tx.date}): tried to sell ${sharesSold.toFixed(8)} shares, only ${shares.toFixed(8)} available.`,
+        );
+      }
 
       const avg = costBasis / shares;
       const soldCost = avg * sharesSold;
@@ -98,10 +103,15 @@ function computeFIFO(txs: Transaction[]): CostBasisResult {
     } else if (tx.type === TxType.SELL) {
       let sharesSold = Math.abs(tx.shares || 0);
       if (sharesSold <= 0) continue;
+      const availableShares = lots.reduce((sum, lot) => sum + lot.shares, 0);
+      if (sharesSold > availableShares + ZERO_THRESHOLD) {
+        throw new Error(
+          `Oversell detected (${tx.isin || 'UNKNOWN'} ${tx.date}): tried to sell ${sharesSold.toFixed(8)} shares, only ${availableShares.toFixed(8)} available.`,
+        );
+      }
 
       const proceeds = Math.abs(toBase(tx.amount, tx.currency, tx.fxRate)) - fee;
       let consumedCost = 0;
-      const totalSharesSold = sharesSold;
 
       while (sharesSold > ZERO_THRESHOLD && lots.length > 0) {
         const lot = lots[0];
@@ -116,12 +126,7 @@ function computeFIFO(txs: Transaction[]): CostBasisResult {
         }
       }
 
-      // Proportional proceeds if we couldn't sell all (defensive)
-      const effectiveProceeds =
-        totalSharesSold > ZERO_THRESHOLD
-          ? proceeds * ((totalSharesSold - Math.max(sharesSold, 0)) / totalSharesSold)
-          : 0;
-      realizedPnL += effectiveProceeds - consumedCost;
+      realizedPnL += proceeds - consumedCost;
     }
   }
 

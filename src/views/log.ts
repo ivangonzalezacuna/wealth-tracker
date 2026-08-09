@@ -16,6 +16,9 @@ interface LogState {
   importMeta: Record<string, string> | null;
   onEditSnap: (date: string) => void;
   onDelSnap: (date: string, btn?: HTMLButtonElement) => void;
+  onAddTx?: () => void;
+  onEditTx?: (rowId: number) => void;
+  onDelTx?: (rowId: number, btn?: HTMLButtonElement) => void;
   readOnly?: boolean;
 }
 
@@ -26,7 +29,14 @@ let _snapSearch = '';
 let _snapTblSort: SortState = { key: null, dir: null };
 let _lastOnEdit: ((date: string) => void) | null = null;
 let _lastOnDel: ((date: string, btn?: HTMLButtonElement) => void) | null = null;
+let _lastOnAddTx: (() => void) | null = null;
+let _lastOnEditTx: ((rowId: number) => void) | null = null;
+let _lastOnDelTx: ((rowId: number, btn?: HTMLButtonElement) => void) | null = null;
 let _readOnly = false;
+let _txPage = 1;
+let _txSearch = '';
+let _txType = '';
+let _txTblSort: SortState = { key: null, dir: null };
 
 /** Renders the snapshot log tab: the add/edit form and the snapshot history list. */
 export function renderLog(state: LogState): void {
@@ -46,7 +56,13 @@ export function renderLog(state: LogState): void {
 
   _lastOnEdit = state.onEditSnap;
   _lastOnDel = state.onDelSnap;
+  _lastOnAddTx = state.onAddTx || null;
+  _lastOnEditTx = state.onEditTx || null;
+  _lastOnDelTx = state.onDelTx || null;
   _readOnly = !!state.readOnly;
+
+  attachTxListeners(txs);
+  renderTxList(txs);
 
   // Populate year filter options
   populateYearFilter(snaps);
@@ -368,4 +384,175 @@ function _expandSnapRow(
 function hidePagination(): void {
   const el = document.getElementById('snap-pagination');
   if (el) el.innerHTML = '';
+}
+
+const TX_PAGE_SIZE = 15;
+
+function txColumns(): ColumnDef<Transaction>[] {
+  return [
+    {
+      key: 'date',
+      label: 'Date',
+      sortValue: (t) => t.date,
+      cell: (t) => `<span class="snap-month">${fmtDay(t.date)}</span>`,
+    },
+    { key: 'type', label: 'Type', sortValue: (t) => t.type, cell: (t) => esc(t.type || '') },
+    { key: 'name', label: 'Name', sortValue: (t) => t.name || '', cell: (t) => esc(t.name || '-') },
+    { key: 'isin', label: 'ISIN', sortValue: (t) => t.isin || '', cell: (t) => esc(t.isin || '-') },
+    {
+      key: 'shares',
+      label: 'Shares',
+      align: 'right',
+      sortValue: (t) => t.shares || 0,
+      cell: (t) => (t.shares ? String(t.shares) : '-'),
+    },
+    {
+      key: 'amount',
+      label: 'Amount',
+      align: 'right',
+      sortValue: (t) => t.amount || 0,
+      cell: (t) => fmtEur2(t.amount || 0),
+    },
+    {
+      key: 'source',
+      label: 'Source',
+      sortValue: (t) => t.source || '',
+      cell: (t) => esc(t.source || '-'),
+    },
+  ];
+}
+
+function attachTxListeners(txs: Transaction[]): void {
+  const searchEl = document.getElementById('tx-search') as
+    (HTMLInputElement & { _bound?: boolean }) | null;
+  const typeEl = document.getElementById('tx-type-filter') as
+    (HTMLSelectElement & { _bound?: boolean }) | null;
+  const addBtn = document.getElementById('btn-add-tx') as
+    (HTMLButtonElement & { _bound?: boolean }) | null;
+  const listEl = document.getElementById('tx-ledger-list') as
+    (HTMLElement & { _bound?: boolean }) | null;
+
+  if (searchEl && !searchEl._bound) {
+    searchEl._bound = true;
+    searchEl.addEventListener('input', () => {
+      _txSearch = searchEl.value.toLowerCase();
+      _txPage = 1;
+      renderTxList(txs);
+    });
+  }
+  if (typeEl && !typeEl._bound) {
+    typeEl._bound = true;
+    typeEl.addEventListener('change', () => {
+      _txType = typeEl.value;
+      _txPage = 1;
+      renderTxList(txs);
+    });
+  }
+  if (addBtn && !addBtn._bound) {
+    addBtn._bound = true;
+    addBtn.addEventListener('click', () => {
+      if (_readOnly) return;
+      _lastOnAddTx?.();
+    });
+  }
+  if (listEl && !listEl._bound) {
+    listEl._bound = true;
+    listEl.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const editBtn = target.closest('.js-edit-tx') as HTMLButtonElement | null;
+      if (editBtn) {
+        const rowId = Number(editBtn.dataset.rowid || 0);
+        if (rowId > 0) _lastOnEditTx?.(rowId);
+        return;
+      }
+      const delBtn = target.closest('.js-del-tx') as HTMLButtonElement | null;
+      if (delBtn) {
+        const rowId = Number(delBtn.dataset.rowid || 0);
+        if (rowId > 0) _lastOnDelTx?.(rowId, delBtn);
+      }
+    });
+  }
+}
+
+function renderTxList(txs: Transaction[]): void {
+  const listEl = document.getElementById('tx-ledger-list');
+  const paginationEl = document.getElementById('tx-pagination');
+  const typeEl = document.getElementById('tx-type-filter') as HTMLSelectElement | null;
+  const addBtn = document.getElementById('btn-add-tx') as HTMLButtonElement | null;
+  if (!listEl) return;
+  if (addBtn) addBtn.disabled = _readOnly;
+
+  const types = [...new Set(txs.map((t) => t.type).filter(Boolean))].sort();
+  if (typeEl) {
+    const prev = typeEl.value || _txType;
+    typeEl.innerHTML =
+      '<option value="">All types</option>' +
+      types.map((type) => `<option value="${esc(type)}">${esc(type)}</option>`).join('');
+    if (types.includes(prev)) typeEl.value = prev;
+    _txType = typeEl.value;
+  }
+
+  if (!txs.length) {
+    listEl.innerHTML =
+      '<div class="empty-state" style="padding:1rem;font-size:13px">No transactions yet.</div>';
+    if (paginationEl) paginationEl.innerHTML = '';
+    return;
+  }
+
+  let filtered = [...txs];
+  if (_txType) filtered = filtered.filter((t) => t.type === _txType);
+  if (_txSearch) {
+    filtered = filtered.filter((t) =>
+      [t.date, t.name, t.isin, t.source, t.type].join(' ').toLowerCase().includes(_txSearch),
+    );
+  }
+
+  if (!filtered.length) {
+    listEl.innerHTML = '<div class="empty-state" style="padding:1rem;font-size:13px">No matching transactions.</div>';
+    if (paginationEl) paginationEl.innerHTML = '';
+    return;
+  }
+
+  const columns = txColumns();
+  const sorted = applySort(filtered, _txTblSort, getSortGetters(columns));
+  const totalPages = Math.max(1, Math.ceil(sorted.length / TX_PAGE_SIZE));
+  if (_txPage > totalPages) _txPage = totalPages;
+  const start = (_txPage - 1) * TX_PAGE_SIZE;
+  const pageItems = sorted.slice(start, start + TX_PAGE_SIZE);
+
+  listEl.innerHTML = `
+    <div class="snap-row-compact th" role="row" id="tx-table-header">
+      ${renderTableHeader(columns, _txTblSort)}
+      <div class="snap-cell snap-col-actions">Actions</div>
+    </div>
+    ${pageItems
+      .map((tx) => {
+        const actions =
+          _readOnly || !tx.rowId
+            ? ''
+            : `<div class="snap-cell snap-col-actions">
+            <button class="btn btn-ghost btn-sm js-edit-tx" data-rowid="${tx.rowId}">Edit</button>
+            <button class="btn btn-danger btn-sm js-del-tx" data-rowid="${tx.rowId}">Delete</button>
+          </div>`;
+        return `<div class="snap-row-compact" role="row">
+          ${renderTableRow(columns, tx)}
+          ${actions}
+        </div>`;
+      })
+      .join('')}
+  `;
+
+  const headerEl = document.getElementById('tx-table-header');
+  if (headerEl) {
+    bindSortableHeader(headerEl, _txTblSort, (newState) => {
+      _txTblSort = newState;
+      _txPage = 1;
+      renderTxList(txs);
+    });
+  }
+
+  renderPagination('tx-pagination', _txPage, totalPages, (page) => {
+    _txPage = page;
+    renderTxList(txs);
+  });
 }

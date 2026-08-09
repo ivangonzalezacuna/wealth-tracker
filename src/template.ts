@@ -421,6 +421,21 @@ export function appTemplate(): string {
       </div>
     </div>
 
+    <div class="card" id="tx-ledger-card">
+      <div class="card-title">Transaction ledger</div>
+      <p class="note" style="margin-bottom:.85rem">Review, audit, and correct imported transactions.</p>
+      <div class="filter-bar" id="tx-filter-bar">
+        <select id="tx-type-filter" class="form-input form-input-sm" aria-label="Filter transactions by type" style="width:auto;display:inline-block">
+          <option value="">All types</option>
+        </select>
+        <input type="text" id="tx-search" class="form-input form-input-sm" aria-label="Search transactions" placeholder="Search name, ISIN, source…" style="width:220px;display:inline-block;margin-left:6px">
+        <button class="btn btn-outline btn-sm" id="btn-add-tx" style="margin-left:auto">Add transaction</button>
+      </div>
+      <div id="tx-ledger-list" role="table" aria-label="Transaction ledger"></div>
+      <div id="tx-pagination" class="pagination"></div>
+      <div id="tx-msg" style="font-size:12px;min-height:18px;margin-top:.5rem"></div>
+    </div>
+
     <div class="card">
       <div class="card-title">Snapshot history</div>
       <div class="filter-bar" id="snap-filter-bar">
