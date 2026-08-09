@@ -25,7 +25,14 @@ import {
 import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { showMsg, reinjectPendingMsg, withButtonGuard, esc } from '../utils';
-import type { Account, Holding, Settings, ContribInterval, NamedGoal } from '../types';
+import type { Account, Holding, Settings, ContribInterval, NamedGoal, Transaction } from '../types';
+import { formatEnglishDateTime } from '../dateFormat';
+import {
+  buildKnownSecuritySuggestions,
+  normalizeInstitution,
+  normalizeSuggestionName,
+  type KnownSecuritySuggestions,
+} from '../model/securitySuggestions';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { confirmDialog } from '../ui/confirmDialog';
@@ -269,8 +276,44 @@ const ACCOUNT_TYPES = [
   { value: 'cash', label: 'Cash' },
 ];
 
+function accountSuggestionLists(accounts: Account[]): { labels: string[]; institutions: string[] } {
+  const labels = [...new Set(accounts.map((a) => a.label.trim()).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  const institutions = [
+    ...new Set(accounts.map((a) => normalizeInstitution(a.institution || '')).filter(Boolean)),
+  ].sort((a, b) => a.localeCompare(b));
+  return { labels, institutions };
+}
+
+function refreshAccountDatalists(root: HTMLElement, accounts: Account[]): void {
+  const suggestions = accountSuggestionLists(accounts);
+  const labelList = root.querySelector('#settings-account-label-list');
+  if (labelList) {
+    labelList.innerHTML = suggestions.labels
+      .map((label) => `<option value="${esc(label)}"></option>`)
+      .join('');
+  }
+  const institutionList = root.querySelector('#settings-account-institution-list');
+  if (institutionList) {
+    institutionList.innerHTML = suggestions.institutions
+      .map((value) => `<option value="${esc(value)}"></option>`)
+      .join('');
+  }
+}
+
+function holdingsSuggestionLists(suggestions: KnownSecuritySuggestions): {
+  names: string[];
+  isins: string[];
+} {
+  const names = [...new Set(suggestions.pairs.map((p) => p.name))].sort((a, b) => a.localeCompare(b));
+  const isins = [...new Set(suggestions.pairs.map((p) => p.isin))].sort((a, b) => a.localeCompare(b));
+  return { names, isins };
+}
+
 function renderAccountsCard(accounts: Account[]): string {
   const rows = accounts.map((a, i) => renderAccountRow(a, i)).join('');
+  const suggestions = accountSuggestionLists(accounts);
 
   return `
     <div class="card card-collapsible" id="settings-card-accounts" data-card-key="accounts">
@@ -283,6 +326,12 @@ function renderAccountsCard(accounts: Account[]): string {
         <div id="settings-accounts-tbl" class="settings-items">
           ${rows}
         </div>
+        <datalist id="settings-account-label-list">
+          ${suggestions.labels.map((label) => `<option value="${esc(label)}"></option>`).join('')}
+        </datalist>
+        <datalist id="settings-account-institution-list">
+          ${suggestions.institutions.map((value) => `<option value="${esc(value)}"></option>`).join('')}
+        </datalist>
         <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
           <button class="btn btn-outline btn-sm" id="btn-add-acct">+ Add account</button>
           <button class="btn btn-primary btn-sm" id="btn-save-accts">Save accounts</button>
@@ -312,7 +361,7 @@ function renderAccountRow(a: Account, i: number): string {
       <div class="settings-item-fields">
         <div class="settings-field">
           <label class="settings-field-label" for="acct-label-${i}">Name</label>
-          <input id="acct-label-${i}" class="form-input form-input-sm" data-field="label" value="${esc(a.label)}" placeholder="e.g. Main ETF portfolio">
+          <input id="acct-label-${i}" class="form-input form-input-sm" data-field="label" value="${esc(a.label)}" placeholder="e.g. Main ETF portfolio" list="settings-account-label-list">
         </div>
         <div class="settings-field">
           <label class="settings-field-label" for="acct-type-${i}">Type</label>
@@ -320,7 +369,7 @@ function renderAccountRow(a: Account, i: number): string {
         </div>
         <div class="settings-field">
           <label class="settings-field-label" for="acct-institution-${i}">Institution</label>
-          <input id="acct-institution-${i}" class="form-input form-input-sm" data-field="institution" value="${esc(a.institution)}" placeholder="e.g. Trade Republic">
+          <input id="acct-institution-${i}" class="form-input form-input-sm" data-field="institution" value="${esc(a.institution)}" placeholder="e.g. Trade Republic" list="settings-account-institution-list">
         </div>
         <div class="settings-field settings-field-compact">
           <label class="settings-field-label" for="acct-color-hex-${i}">Color</label>
@@ -393,6 +442,22 @@ function attachPrimaryToggleListeners(scope: Element): void {
   });
 }
 
+function attachAccountSuggestionListeners(scope: Element): void {
+  const canonicalInstitutions = new Map<string, string>();
+  scope.querySelectorAll<HTMLInputElement>('[data-field="institution"]').forEach((input) => {
+    const normalized = normalizeInstitution(input.value);
+    if (!normalized) return;
+    canonicalInstitutions.set(normalized.toLowerCase(), normalized);
+  });
+  scope.querySelectorAll<HTMLInputElement>('[data-field="institution"]').forEach((input) => {
+    input.addEventListener('blur', () => {
+      const normalized = normalizeInstitution(input.value);
+      const canonical = canonicalInstitutions.get(normalized.toLowerCase()) || normalized;
+      input.value = canonical;
+    });
+  });
+}
+
 /** Shared account-delete implementation. setAccounts runs before
  *  retireAccountIdsSafely so getAccounts() is correct the instant this
  *  resolves, closing the window where retirement's own setSetting ->
@@ -457,6 +522,7 @@ async function deleteAccount(
 
 function attachAccountListeners(root: HTMLElement): void {
   attachPrimaryToggleListeners(root);
+  attachAccountSuggestionListeners(root);
   root.querySelector('#btn-add-acct')?.addEventListener('click', () => {
     const accounts = collectAccounts(root);
     accounts.push({
@@ -536,9 +602,9 @@ function collectAccounts(root: HTMLElement): Account[] {
     return {
       id: (row.querySelector('[data-field="id"]') as HTMLInputElement).value.trim(),
       moneyType: (row.querySelector('[data-field="moneyType"]') as HTMLInputElement).value.trim(),
-      institution: (
-        row.querySelector('[data-field="institution"]') as HTMLInputElement
-      ).value.trim(),
+      institution: normalizeInstitution(
+        (row.querySelector('[data-field="institution"]') as HTMLInputElement).value,
+      ),
       label: (row.querySelector('[data-field="label"]') as HTMLInputElement).value.trim(),
       color: (row.querySelector('[data-field="color"]') as HTMLInputElement).value.trim(),
       isPrimaryInvestment: isPrimary,
@@ -568,10 +634,12 @@ function collectAccounts(root: HTMLElement): Account[] {
 function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
   const tbl = root.querySelector('#settings-accounts-tbl') as HTMLElement | null;
   if (!tbl) return;
+  refreshAccountDatalists(root, accounts);
   const rows = accounts.map((a, i) => renderAccountRow(a, i)).join('');
   tbl.innerHTML = rows;
   attachColorPickerSync(tbl);
   attachPrimaryToggleListeners(tbl);
+  attachAccountSuggestionListeners(tbl);
   attachItemCollapseListeners(tbl);
   attachInfoTips(tbl);
   tbl.querySelectorAll('.js-del-acct').forEach((btn) => {
@@ -585,6 +653,12 @@ function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
 
 let _holdingsSettingsFilter = 'all'; // 'all' | 'active' | 'closed'
 let _allHoldings: Holding[] | null = null; // cached full holdings list for filtered views
+let _knownSecuritySuggestions: KnownSecuritySuggestions = {
+  pairs: [],
+  byIsin: {},
+  byName: {},
+};
+let _suggestionTransactions: Transaction[] = [];
 
 const ASSET_CLASSES = [
   { value: 'equity', label: 'Equity' },
@@ -606,9 +680,11 @@ const REGIONS = [
 function renderHoldingsCard(holdings: Holding[]): string {
   // Cache the full list for merge-back when filter is active
   _allHoldings = holdings.slice();
+  _knownSecuritySuggestions = buildKnownSecuritySuggestions(holdings, _suggestionTransactions);
 
   const activeCount = holdings.filter((h) => h.active).length;
   const closedCount = holdings.filter((h) => !h.active).length;
+  const suggestionLists = holdingsSuggestionLists(_knownSecuritySuggestions);
 
   // Apply filter
   let filtered;
@@ -646,6 +722,12 @@ function renderHoldingsCard(holdings: Holding[]): string {
         <div id="settings-holdings-tbl" class="settings-items">
           ${rows}
         </div>
+        <datalist id="settings-holding-isin-list">
+          ${suggestionLists.isins.map((isin) => `<option value="${esc(isin)}"></option>`).join('')}
+        </datalist>
+        <datalist id="settings-holding-name-list">
+          ${suggestionLists.names.map((name) => `<option value="${esc(name)}"></option>`).join('')}
+        </datalist>
         <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
           <button class="btn btn-outline btn-sm" id="btn-add-hold">+ Add holding</button>
           <button class="btn btn-outline btn-sm" id="btn-autofill-holds">Auto-fill from transactions</button>
@@ -686,7 +768,7 @@ function renderHoldingRow(h: Holding, i: number): string {
       <div class="settings-item-fields">
         <div class="settings-field">
           <label class="settings-field-label" for="hold-isin-${i}">ISIN${infoTip('International Securities Identification Number: 12-character unique ID for a financial instrument.')}</label>
-          <input id="hold-isin-${i}" class="form-input form-input-sm" data-field="isin" value="${esc(h.isin)}" placeholder="e.g. IE00B4L5Y983">
+          <input id="hold-isin-${i}" class="form-input form-input-sm" data-field="isin" value="${esc(h.isin)}" placeholder="e.g. IE00B4L5Y983" list="settings-holding-isin-list">
         </div>
         <div class="settings-field">
           <label class="settings-field-label" for="hold-short-name-${i}">Short name${infoTip('A short label (max 10 chars) used in charts and legends.')}</label>
@@ -694,7 +776,7 @@ function renderHoldingRow(h: Holding, i: number): string {
         </div>
         <div class="settings-field">
           <label class="settings-field-label" for="hold-name-${i}">Name${infoTip('Full instrument name, as shown in your broker statements.')}</label>
-          <input id="hold-name-${i}" class="form-input form-input-sm" data-field="name" value="${esc(h.name)}" placeholder="e.g. iShares Core MSCI World UCITS ETF">
+          <input id="hold-name-${i}" class="form-input form-input-sm" data-field="name" value="${esc(h.name)}" placeholder="e.g. iShares Core MSCI World UCITS ETF" list="settings-holding-name-list">
         </div>
         <div class="settings-field">
           <label class="settings-field-label" for="hold-class-${i}">Asset class${infoTip('The category this holding belongs to. Used to group and describe your allocation; does not affect any calculation.')}</label>
@@ -739,6 +821,43 @@ function renderHoldingRow(h: Holding, i: number): string {
     </div>`;
 }
 
+function refreshHoldingDatalists(root: HTMLElement): void {
+  const suggestionLists = holdingsSuggestionLists(_knownSecuritySuggestions);
+  const isinList = root.querySelector('#settings-holding-isin-list');
+  if (isinList) {
+    isinList.innerHTML = suggestionLists.isins
+      .map((isin) => `<option value="${esc(isin)}"></option>`)
+      .join('');
+  }
+  const nameList = root.querySelector('#settings-holding-name-list');
+  if (nameList) {
+    nameList.innerHTML = suggestionLists.names
+      .map((name) => `<option value="${esc(name)}"></option>`)
+      .join('');
+  }
+}
+
+function attachHoldingSuggestionListeners(scope: Element): void {
+  scope.querySelectorAll<HTMLElement>('.settings-hold-row').forEach((row) => {
+    const isinEl = row.querySelector('[data-field="isin"]') as HTMLInputElement | null;
+    const nameEl = row.querySelector('[data-field="name"]') as HTMLInputElement | null;
+    if (!isinEl || !nameEl) return;
+
+    const syncByIsin = (): void => {
+      const pair = _knownSecuritySuggestions.byIsin[isinEl.value.trim().toUpperCase()];
+      if (pair && !nameEl.value.trim()) nameEl.value = pair.name;
+    };
+    const syncByName = (): void => {
+      const pair = _knownSecuritySuggestions.byName[normalizeSuggestionName(nameEl.value)];
+      if (pair && !isinEl.value.trim()) isinEl.value = pair.isin;
+    };
+    isinEl.addEventListener('change', syncByIsin);
+    isinEl.addEventListener('blur', syncByIsin);
+    nameEl.addEventListener('change', syncByName);
+    nameEl.addEventListener('blur', syncByName);
+  });
+}
+
 /**
  * Scoped repaint: rewrite only the holdings table rows and filter-button
  * active state. Does NOT touch sibling cards, so collapse state is preserved.
@@ -759,6 +878,7 @@ function applyHoldingsFilter(root: HTMLElement): void {
       })
       .join('');
     attachColorPickerSync(tbl as HTMLElement);
+    attachHoldingSuggestionListeners(tbl as HTMLElement);
     attachItemCollapseListeners(tbl as HTMLElement);
     (tbl as HTMLElement).querySelectorAll('.js-del-hold').forEach((btn) => {
       btn.addEventListener('click', () =>
@@ -808,6 +928,19 @@ async function deleteHolding(
 }
 
 function attachHoldingListeners(root: HTMLElement): void {
+  const initialTbl = root.querySelector('#settings-holdings-tbl') as HTMLElement | null;
+  if (initialTbl) attachHoldingSuggestionListeners(initialTbl);
+
+  void loadTransactions()
+    .then((txs) => {
+      _suggestionTransactions = txs;
+      _knownSecuritySuggestions = buildKnownSecuritySuggestions(getHoldings(), _suggestionTransactions);
+      refreshHoldingDatalists(root);
+      const tbl = root.querySelector('#settings-holdings-tbl') as HTMLElement | null;
+      if (tbl) attachHoldingSuggestionListeners(tbl);
+    })
+    .catch(() => undefined);
+
   // Filter toggle - scoped repaint, does NOT rebuild sibling cards
   const filterToggle = root.querySelector('#hold-filter-toggle');
   if (filterToggle) {
@@ -847,6 +980,9 @@ function attachHoldingListeners(root: HTMLElement): void {
         btn,
         async () => {
           const txs = await loadTransactions();
+          _suggestionTransactions = txs;
+          _knownSecuritySuggestions = buildKnownSecuritySuggestions(getHoldings(), _suggestionTransactions);
+          refreshHoldingDatalists(root);
           const buys = txs.filter((t) => t.type === 'BUY' && t.isin);
           if (buys.length === 0) {
             showMsg('holds-msg', 'No BUY transactions found. Import a CSV first.', false);
@@ -995,7 +1131,9 @@ function collectHoldings(root: HTMLElement): Holding[] {
 function rerenderHoldingsTable(root: HTMLElement, holdings: Holding[]): void {
   // Update cache and reset filter to show all when modifying
   _allHoldings = holdings.slice();
+  _knownSecuritySuggestions = buildKnownSecuritySuggestions(holdings, _suggestionTransactions);
   _holdingsSettingsFilter = 'all';
+  refreshHoldingDatalists(root);
   const tbl = root.querySelector('#settings-holdings-tbl');
   if (!tbl) return;
   const rows = holdings.map((h, i) => renderHoldingRow(h, i)).join('');
@@ -1015,6 +1153,7 @@ function rerenderHoldingsTable(root: HTMLElement, holdings: Holding[]): void {
     });
   }
   attachColorPickerSync(tbl as HTMLElement);
+  attachHoldingSuggestionListeners(tbl as HTMLElement);
   attachItemCollapseListeners(tbl as HTMLElement);
   attachInfoTips(tbl as HTMLElement);
   tbl.querySelectorAll('.js-del-hold').forEach((btn) => {
@@ -2017,13 +2156,7 @@ function attachBackupListeners(root: HTMLElement): void {
 function fmtHistoryTimestamp(iso: string): string {
   if (!iso) return '';
   try {
-    return new Date(iso).toLocaleString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return formatEnglishDateTime(new Date(iso));
   } catch {
     return iso;
   }

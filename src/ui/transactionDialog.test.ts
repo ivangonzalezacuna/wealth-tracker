@@ -3,6 +3,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { transactionDialog } from './transactionDialog';
+import type { KnownSecuritySuggestions } from '../model/securitySuggestions';
 
 function getOverlay() {
   return document.querySelector('.tx-dialog-overlay') as HTMLElement | null;
@@ -21,6 +22,21 @@ function fillRequired() {
   setField('txd-date', '2024-06-01');
   setField('txd-name', 'Test Fund');
 }
+
+const suggestions: KnownSecuritySuggestions = {
+  pairs: [
+    { isin: 'IE00AAA', name: 'Alpha Fund' },
+    { isin: 'IE00BBB', name: 'Beta Fund' },
+  ],
+  byIsin: {
+    IE00AAA: { isin: 'IE00AAA', name: 'Alpha Fund' },
+    IE00BBB: { isin: 'IE00BBB', name: 'Beta Fund' },
+  },
+  byName: {
+    'alpha fund': { isin: 'IE00AAA', name: 'Alpha Fund' },
+    'beta fund': { isin: 'IE00BBB', name: 'Beta Fund' },
+  },
+};
 
 describe('transactionDialog', () => {
   beforeEach(() => {
@@ -189,5 +205,40 @@ describe('transactionDialog', () => {
     const title = document.querySelector('.dialog-title') as HTMLElement;
     expect(title.innerHTML).not.toContain('<script>');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('autofills name when a known ISIN is selected', () => {
+    transactionDialog({ suggestions });
+    const isin = document.querySelector('#txd-isin') as HTMLInputElement;
+    isin.value = 'IE00AAA';
+    isin.dispatchEvent(new Event('change', { bubbles: true }));
+    expect((document.querySelector('#txd-name') as HTMLInputElement).value).toBe('Alpha Fund');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('autofills ISIN when a known name is selected', () => {
+    transactionDialog({ suggestions });
+    const name = document.querySelector('#txd-name') as HTMLInputElement;
+    name.value = 'Beta Fund';
+    name.dispatchEvent(new Event('change', { bubbles: true }));
+    expect((document.querySelector('#txd-isin') as HTMLInputElement).value).toBe('IE00BBB');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('blocks submit for mismatched known ISIN/name pairs', async () => {
+    const p = transactionDialog({ suggestions });
+    setField('txd-date', '2024-06-01');
+    setField('txd-name', 'Alpha Fund');
+    setField('txd-isin', 'IE00BBB');
+    let settled = false;
+    void p.then(() => {
+      settled = true;
+    });
+    getSubmit()!.click();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect((document.querySelector('#txd-isin-err') as HTMLElement).textContent).toContain('mismatch');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await p;
   });
 });

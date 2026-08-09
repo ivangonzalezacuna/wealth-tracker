@@ -1,4 +1,5 @@
 import type { Account, Holding, Settings, Snapshot, Transaction } from '../types';
+import { formatEnglishDate } from '../dateFormat';
 
 export const BACKUP_SCHEMA_VERSION = 2;
 
@@ -99,7 +100,7 @@ export function summarizeBackup(b: BackupFile): string {
   const date = new Date(b.exportedAt);
   const when = isNaN(date.getTime())
     ? b.exportedAt
-    : date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    : formatEnglishDate(date, { day: 'numeric', month: 'short', year: 'numeric' });
 
   // Transaction date range
   let txRange = '';
@@ -107,9 +108,7 @@ export function summarizeBackup(b: BackupFile): string {
     const dates = transactions.map((t) => t.date).sort();
     const fmtDate = (iso: string) => {
       const d = new Date(iso);
-      return isNaN(d.getTime())
-        ? iso
-        : d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+      return isNaN(d.getTime()) ? iso : formatEnglishDate(d, { month: 'short', year: 'numeric' });
     };
     txRange = `${fmtDate(dates[0])} – ${fmtDate(dates[dates.length - 1])}`;
   }
@@ -120,9 +119,7 @@ export function summarizeBackup(b: BackupFile): string {
     const snapDates = snapshots.map((s) => s.date).sort();
     const last = snapDates[snapDates.length - 1];
     const d = new Date(last.length <= 7 ? `${last}-01` : last);
-    lastSnap = isNaN(d.getTime())
-      ? last
-      : d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+    lastSnap = isNaN(d.getTime()) ? last : formatEnglishDate(d, { month: 'short', year: 'numeric' });
   }
 
   const counts = `${accounts.length} accounts · ${holdings.length} holdings · ${snapshots.length} snapshots · ${transactions.length} transactions`;

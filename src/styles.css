@@ -2049,24 +2049,34 @@ input[type='color'] {
 }
 
 /* ── Confirm dialog overlay ──────────────────────────── */
-.confirm-overlay {
+.confirm-overlay,
+.conflict-overlay {
   position: fixed;
   inset: 0;
   z-index: 1000;
   background: rgba(0, 0, 0, 0.4);
   display: flex;
-  align-items: center;
   justify-content: center;
   padding: 1rem;
+  animation: confirm-fade 0.12s ease-out;
 }
-.confirm-card {
+.confirm-overlay {
+  align-items: center;
+}
+.conflict-overlay {
+  align-items: center;
+}
+.confirm-card,
+.conflict-card {
   background: var(--surface);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-md);
   padding: 1.25rem;
-  max-width: 360px;
   width: 100%;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.confirm-card {
+  max-width: 360px;
 }
 .confirm-title {
   font-weight: 600;
@@ -2094,34 +2104,15 @@ input[type='color'] {
     opacity: 1;
   }
 }
-.confirm-overlay {
-  animation: confirm-fade 0.12s ease-out;
-}
 @media (prefers-reduced-motion: reduce) {
-  .confirm-overlay {
+  .confirm-overlay,
+  .conflict-overlay {
     animation: none;
   }
 }
 
-.conflict-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  animation: confirm-fade 0.12s ease-out;
-}
 .conflict-card {
-  background: var(--surface);
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-md);
-  padding: 1.25rem;
   max-width: 420px;
-  width: 100%;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 .conflict-title {
   font-weight: 600;
@@ -2151,11 +2142,6 @@ input[type='color'] {
 .conflict-actions-destructive .btn {
   flex: 1 1 180px;
   text-align: center;
-}
-@media (prefers-reduced-motion: reduce) {
-  .conflict-overlay {
-    animation: none;
-  }
 }
 
 /* ── Environment indicator banner (dev mode only) ────────────────── */
@@ -2225,6 +2211,11 @@ input[type='color'] {
   overflow-y: auto;
   animation: confirm-fade 0.12s ease-out;
 }
+.dialog-overlay.confirm-overlay,
+.dialog-overlay.conflict-overlay {
+  align-items: center;
+  padding: 1rem;
+}
 @media (prefers-reduced-motion: reduce) {
   .dialog-overlay {
     animation: none;
@@ -2272,11 +2263,20 @@ input[type='color'] {
 .dialog-input {
   font-size: 13px;
 }
+.dialog-input-uppercase {
+  text-transform: uppercase;
+}
 .dialog-error {
   font-size: 11px;
   color: var(--neg);
   min-height: 14px;
   line-height: 1.2;
+}
+.dialog-error-compact {
+  min-height: 0;
+}
+.dialog-error-compact:empty {
+  display: none;
 }
 .dialog-actions {
   display: flex;
@@ -2306,8 +2306,8 @@ input[type='color'] {
 .snap-dialog-account {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding-top: 6px;
+  gap: 4px;
+  padding-top: 5px;
   border-top: 1px solid var(--line-2);
 }
 .snap-dialog-account:first-of-type {

@@ -3,18 +3,27 @@
  * Resolves with the Transaction draft on submit, or null on cancel/dismiss.
  */
 
+import { esc } from '../utils';
+import {
+  normalizeSuggestionName,
+  type KnownSecuritySuggestions,
+} from '../model/securitySuggestions';
 import { TxType } from '../types';
 import type { Transaction } from '../types';
+import { activateModalShell, restoreFocus } from './modalShell';
 
 let _activeResolve: ((v: Transaction | null) => void) | null = null;
 let _activeTrigger: HTMLElement | null = null;
 let _activeOverlay: HTMLElement | null = null;
 let _activeExisting: Transaction | undefined = undefined;
+let _activeCleanup: (() => void) | null = null;
+let _activeSuggestions: KnownSecuritySuggestions | undefined;
 
 const TX_TYPES = Object.values(TxType);
 
 export interface TransactionDialogOptions {
   existing?: Transaction;
+  suggestions?: KnownSecuritySuggestions;
 }
 
 export function transactionDialog(
@@ -25,6 +34,7 @@ export function transactionDialog(
     _activeResolve = resolve;
     _activeTrigger = document.activeElement as HTMLElement | null;
     _activeExisting = opts.existing;
+    _activeSuggestions = opts.suggestions;
     const existing = opts.existing;
     const today = new Date().toISOString().slice(0, 10);
     const title = existing ? 'Edit transaction' : 'Add transaction';
@@ -37,14 +47,14 @@ export function transactionDialog(
     overlay.innerHTML = `
       <div class="dialog-card tx-dialog-card">
         <div class="dialog-header">
-          <div class="dialog-title" id="tx-dialog-title">${_esc(title)}</div>
+          <div class="dialog-title" id="tx-dialog-title">${esc(title)}</div>
         </div>
         <div class="dialog-fields">
           <div class="dialog-row">
             <div class="dialog-field">
               <label class="dialog-label" for="txd-date">Date</label>
               <input type="date" id="txd-date" class="form-input dialog-input"
-                value="${_esc(existing?.date || today)}" max="${today}">
+                value="${esc(existing?.date || today)}" max="${today}">
               <span class="dialog-error" id="txd-date-err"></span>
             </div>
             <div class="dialog-field">
@@ -52,7 +62,7 @@ export function transactionDialog(
               <select id="txd-type" class="form-input dialog-input">
                 ${TX_TYPES.map(
                   (t) =>
-                    `<option value="${_esc(t)}" ${t === (existing?.type || TxType.BUY) ? 'selected' : ''}>${_esc(t)}</option>`,
+                    `<option value="${esc(t)}" ${t === (existing?.type || TxType.BUY) ? 'selected' : ''}>${esc(t)}</option>`,
                 ).join('')}
               </select>
               <span class="dialog-error" id="txd-type-err"></span>
@@ -62,14 +72,14 @@ export function transactionDialog(
             <div class="dialog-field dialog-field-wide">
               <label class="dialog-label" for="txd-name">Name</label>
               <input type="text" id="txd-name" class="form-input dialog-input"
-                value="${_esc(existing?.name || '')}" placeholder="e.g. iShares Core MSCI World">
+                value="${esc(existing?.name || '')}" placeholder="e.g. iShares Core MSCI World" list="txd-name-list">
               <span class="dialog-error" id="txd-name-err"></span>
             </div>
             <div class="dialog-field">
               <label class="dialog-label" for="txd-isin">ISIN</label>
-              <input type="text" id="txd-isin" class="form-input dialog-input"
-                value="${_esc(existing?.isin || '')}" placeholder="e.g. IE00B4L5Y983"
-                style="text-transform:uppercase">
+              <input type="text" id="txd-isin" class="form-input dialog-input dialog-input-uppercase"
+                value="${esc(existing?.isin || '')}" placeholder="e.g. IE00B4L5Y983"
+                list="txd-isin-list">
               <span class="dialog-error" id="txd-isin-err"></span>
             </div>
           </div>
@@ -77,28 +87,28 @@ export function transactionDialog(
             <div class="dialog-field">
               <label class="dialog-label" for="txd-amount">Amount (€)</label>
               <input type="text" inputmode="decimal" id="txd-amount" class="form-input dialog-input"
-                value="${_esc(existing != null ? String(existing.amount) : '')}"
+                value="${esc(existing != null ? String(existing.amount) : '')}"
                 placeholder="0.00">
               <span class="dialog-error" id="txd-amount-err"></span>
             </div>
             <div class="dialog-field">
               <label class="dialog-label" for="txd-shares">Shares</label>
               <input type="text" inputmode="decimal" id="txd-shares" class="form-input dialog-input"
-                value="${_esc(existing != null ? String(existing.shares) : '')}"
+                value="${esc(existing != null ? String(existing.shares) : '')}"
                 placeholder="0">
               <span class="dialog-error" id="txd-shares-err"></span>
             </div>
             <div class="dialog-field">
               <label class="dialog-label" for="txd-fee">Fee (€)</label>
               <input type="text" inputmode="decimal" id="txd-fee" class="form-input dialog-input"
-                value="${_esc(existing != null ? String(existing.fee) : '')}"
+                value="${esc(existing != null ? String(existing.fee) : '')}"
                 placeholder="0">
               <span class="dialog-error" id="txd-fee-err"></span>
             </div>
             <div class="dialog-field">
               <label class="dialog-label" for="txd-tax">Tax (€)</label>
               <input type="text" inputmode="decimal" id="txd-tax" class="form-input dialog-input"
-                value="${_esc(existing != null ? String(existing.tax) : '')}"
+                value="${esc(existing != null ? String(existing.tax) : '')}"
                 placeholder="0">
               <span class="dialog-error" id="txd-tax-err"></span>
             </div>
@@ -106,15 +116,15 @@ export function transactionDialog(
           <div class="dialog-row">
             <div class="dialog-field">
               <label class="dialog-label" for="txd-currency">Currency</label>
-              <input type="text" id="txd-currency" class="form-input dialog-input"
-                value="${_esc(existing?.currency || 'EUR')}" placeholder="EUR"
-                style="text-transform:uppercase" maxlength="3">
+              <input type="text" id="txd-currency" class="form-input dialog-input dialog-input-uppercase"
+                value="${esc(existing?.currency || 'EUR')}" placeholder="EUR"
+                maxlength="3">
               <span class="dialog-error" id="txd-currency-err"></span>
             </div>
             <div class="dialog-field">
               <label class="dialog-label" for="txd-fxrate">FX rate (EUR=1)</label>
               <input type="text" inputmode="decimal" id="txd-fxrate" class="form-input dialog-input"
-                value="${_esc(existing != null ? String(existing.fxRate) : '')}"
+                value="${esc(existing != null ? String(existing.fxRate) : '')}"
                 placeholder="1">
               <span class="dialog-error" id="txd-fxrate-err"></span>
             </div>
@@ -123,9 +133,10 @@ export function transactionDialog(
             <div class="dialog-field dialog-field-wide">
               <label class="dialog-label" for="txd-note">Note (optional)</label>
               <input type="text" id="txd-note" class="form-input dialog-input"
-                value="${_esc(existing?.note || '')}" placeholder="Any comment…">
+                value="${esc(existing?.note || '')}" placeholder="Any comment…">
             </div>
           </div>
+          ${_renderSuggestionLists(opts.suggestions)}
         </div>
         <div class="dialog-actions">
           <button class="btn btn-sm btn-ghost js-txd-cancel">Cancel</button>
@@ -134,15 +145,18 @@ export function transactionDialog(
       </div>`;
 
     document.body.appendChild(overlay);
-    document.body.style.overflow = 'hidden';
     _activeOverlay = overlay;
+    _bindSuggestionAutoFill(overlay, opts.suggestions);
 
     overlay.querySelector('.js-txd-submit')?.addEventListener('click', () => _submit());
     overlay.querySelector('.js-txd-cancel')?.addEventListener('click', () => _dismiss(null));
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) _dismiss(null);
+    _activeCleanup = activateModalShell({
+      overlay,
+      onDismiss: () => _dismiss(null),
+      onSubmitEnter: _submit,
+      submitWhenActive: (active) => !!active?.classList.contains('js-txd-submit'),
+      focusablesSelector: 'input:not([disabled]), select:not([disabled]), button:not([disabled])',
     });
-    document.addEventListener('keydown', _onKeydown);
 
     // Focus the first input field
     (overlay.querySelector('#txd-date') as HTMLElement | null)?.focus();
@@ -202,6 +216,11 @@ function _submit(): void {
     setErr('txd-name', 'Name is required.');
     valid = false;
   }
+  if (!isinPairLooksCoherent(isinVal, nameVal, _activeSuggestions)) {
+    setErr('txd-isin', 'Known ISIN/name pair mismatch. Pick a matching pair or clear one field.');
+    setErr('txd-name', 'Known ISIN/name pair mismatch. Pick a matching pair or clear one field.');
+    valid = false;
+  }
   if (amountRaw !== '' && isNaN(_parseNum(amountRaw))) {
     setErr('txd-amount', 'Must be a number.');
     valid = false;
@@ -258,52 +277,15 @@ function _submit(): void {
   _dismiss(draft);
 }
 
-function _onKeydown(e: KeyboardEvent): void {
-  if (e.key === 'Escape') {
-    e.preventDefault();
-    _dismiss(null);
-    return;
-  }
-  if (e.key === 'Enter') {
-    // Submit on Enter only when focus is on the submit button
-    const active = document.activeElement as HTMLElement | null;
-    if (active?.classList.contains('js-txd-submit')) {
-      e.preventDefault();
-      _submit();
-    }
-    return;
-  }
-  if (e.key !== 'Tab' || !_activeOverlay) return;
-  const focusables = Array.from(
-    _activeOverlay.querySelectorAll(
-      'input:not([disabled]), select:not([disabled]), button:not([disabled])',
-    ),
-  ) as HTMLElement[];
-  if (!focusables.length) return;
-  const first = focusables[0];
-  const last = focusables[focusables.length - 1];
-  const active = document.activeElement as HTMLElement | null;
-  if (e.shiftKey) {
-    if (active === first || !active || !_activeOverlay.contains(active)) {
-      e.preventDefault();
-      last.focus();
-    }
-    return;
-  }
-  if (active === last || !active || !_activeOverlay.contains(active)) {
-    e.preventDefault();
-    first.focus();
-  }
-}
-
 function _dismiss(result: Transaction | null): void {
   const overlay = document.querySelector('.tx-dialog-overlay');
   overlay?.remove();
-  document.body.style.overflow = '';
-  document.removeEventListener('keydown', _onKeydown);
+  _activeCleanup?.();
+  _activeCleanup = null;
   _activeOverlay = null;
   _activeExisting = undefined;
-  if (_activeTrigger && document.body.contains(_activeTrigger)) _activeTrigger.focus();
+  _activeSuggestions = undefined;
+  restoreFocus(_activeTrigger);
   _activeTrigger = null;
   const resolve = _activeResolve;
   _activeResolve = null;
@@ -317,11 +299,57 @@ function _parseNum(s: string): number {
   return isNaN(n) ? NaN : n;
 }
 
-function _esc(s: string | null | undefined): string {
-  if (!s) return '';
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+function _renderSuggestionLists(suggestions: KnownSecuritySuggestions | undefined): string {
+  if (!suggestions || suggestions.pairs.length === 0) {
+    return '<datalist id="txd-name-list"></datalist><datalist id="txd-isin-list"></datalist>';
+  }
+  const byName = [...suggestions.pairs]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((pair) => `<option value="${esc(pair.name)}">${esc(pair.isin)}</option>`)
+    .join('');
+  const byIsin = [...suggestions.pairs]
+    .sort((a, b) => a.isin.localeCompare(b.isin))
+    .map((pair) => `<option value="${esc(pair.isin)}">${esc(pair.name)}</option>`)
+    .join('');
+  return `<datalist id="txd-name-list">${byName}</datalist><datalist id="txd-isin-list">${byIsin}</datalist>`;
+}
+
+function _bindSuggestionAutoFill(
+  overlay: HTMLElement,
+  suggestions: KnownSecuritySuggestions | undefined,
+): void {
+  if (!suggestions || suggestions.pairs.length === 0) return;
+  const nameEl = overlay.querySelector('#txd-name') as HTMLInputElement | null;
+  const isinEl = overlay.querySelector('#txd-isin') as HTMLInputElement | null;
+  if (!nameEl || !isinEl) return;
+
+  const applyByIsin = (): void => {
+    const match = suggestions.byIsin[isinEl.value.trim().toUpperCase()];
+    if (match) nameEl.value = match.name;
+  };
+  const applyByName = (): void => {
+    const match = suggestions.byName[normalizeSuggestionName(nameEl.value)];
+    if (match) isinEl.value = match.isin;
+  };
+
+  isinEl.addEventListener('change', applyByIsin);
+  isinEl.addEventListener('blur', applyByIsin);
+  nameEl.addEventListener('change', applyByName);
+  nameEl.addEventListener('blur', applyByName);
+}
+
+function isinPairLooksCoherent(
+  isin: string,
+  name: string,
+  suggestions: KnownSecuritySuggestions | undefined,
+): boolean {
+  if (!suggestions || !isin || !name) return true;
+  const isinKey = isin.trim().toUpperCase();
+  const nameKey = normalizeSuggestionName(name);
+  const byIsin = suggestions.byIsin[isinKey];
+  const byName = suggestions.byName[nameKey];
+  if (!byIsin && !byName) return true;
+  if (byIsin && normalizeSuggestionName(byIsin.name) !== nameKey) return false;
+  if (byName && byName.isin !== isinKey) return false;
+  return true;
 }

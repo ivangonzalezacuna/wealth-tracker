@@ -1,6 +1,7 @@
 import { getACCTSList } from './constants';
 import { APP_CURRENCY } from './fx';
 import type { Snapshot } from './types';
+import { formatEnglishDay, formatEnglishMonth } from './dateFormat';
 
 export function snapTotal(s: Snapshot): number {
   const accts: Array<{ key?: string; id?: string }> = getACCTSList();
@@ -98,22 +99,11 @@ export function currentMonth(): string {
 }
 
 export function fmtMon(d: string): string {
-  if (!d) return '-';
-  const [y, m] = d.split('-');
-  return (
-    ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][+m - 1] +
-    ' ' +
-    y
-  );
+  return formatEnglishMonth(d);
 }
 
 export function fmtDay(d: string): string {
-  if (!d) return '-';
-  return new Date(d + 'T12:00:00').toLocaleDateString('de-DE', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+  return formatEnglishDay(d);
 }
 
 // ── Transient message persistence ────────────────────────

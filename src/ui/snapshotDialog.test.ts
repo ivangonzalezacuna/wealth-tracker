@@ -263,4 +263,14 @@ describe('snapshotDialog', () => {
     expect(document.activeElement).toBe(first);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
+
+  it('keeps compact account spacing classes for regression safety', () => {
+    snapshotDialog(baseOpts());
+    const accountBlocks = document.querySelectorAll('.snap-dialog-account');
+    expect(accountBlocks.length).toBe(2);
+    expect(
+      document.querySelectorAll('.snap-dialog-account .dialog-error.dialog-error-compact').length,
+    ).toBeGreaterThan(0);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
 });

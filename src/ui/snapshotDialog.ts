@@ -1,11 +1,13 @@
 import { parseNum } from '../csv';
-import { currentMonth, fmtEur2, safeColor } from '../utils';
+import { currentMonth, fmtEur2, safeColor, esc } from '../utils';
 import type { Account, Holding, PortfolioData, Snapshot } from '../types';
+import { activateModalShell, restoreFocus } from './modalShell';
 
 let _activeResolve: ((v: Snapshot | null) => void) | null = null;
 let _activeTrigger: HTMLElement | null = null;
 let _activeOverlay: HTMLElement | null = null;
 let _activeOpts: SnapshotDialogOptions | null = null;
+let _activeCleanup: (() => void) | null = null;
 
 export interface SnapshotDialogOptions {
   existing?: Snapshot;
@@ -60,13 +62,16 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
       </div>`;
 
     document.body.appendChild(overlay);
-    document.body.style.overflow = 'hidden';
     _activeOverlay = overlay;
 
     overlay.querySelector('.js-snapd-submit')?.addEventListener('click', () => _submit());
     overlay.querySelector('.js-snapd-cancel')?.addEventListener('click', () => _dismiss(null));
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) _dismiss(null);
+    _activeCleanup = activateModalShell({
+      overlay,
+      onDismiss: () => _dismiss(null),
+      onSubmitEnter: _submit,
+      submitWhenActive: (active) => !!active?.classList.contains('js-snapd-submit'),
+      focusablesSelector: 'input:not([disabled]), button:not([disabled])',
     });
     overlay.addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest('.snap-etf-toggle') as HTMLElement | null;
@@ -80,7 +85,6 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
       const acctKey = target.dataset.acctKey || target.dataset.accountKey || '';
       if (acctKey) _updateRecon(acctKey);
     });
-    document.addEventListener('keydown', _onKeydown);
 
     for (const acct of _getDialogAccounts(opts.accounts)) {
       _updateRecon(acct.key);
@@ -112,7 +116,7 @@ function _renderAccountFields(
               class="form-input dialog-input"
               value="${typeof value === 'number' || typeof value === 'string' ? _esc(String(value)) : ''}"
               placeholder="total value">
-            <span class="dialog-error" id="snapd-acc-${_esc(acct.key)}-err"></span>
+            <span class="dialog-error dialog-error-compact" id="snapd-acc-${_esc(acct.key)}-err"></span>
           </div>
           ${acct.showEtfBreakdown ? _renderEtfBreakdown(acct.key, holdings, configHoldings, draft) : ''}
         </div>`;
@@ -190,7 +194,7 @@ function _renderEtfBreakdown(
           <span class="snap-etf-recon-sep">&middot;</span>
           <span class="snap-etf-recon-remain">Remaining: <b>-</b></span>
         </div>
-        <span class="dialog-error" id="snapd-etf-${_esc(acctKey)}-err"></span>
+        <span class="dialog-error dialog-error-compact" id="snapd-etf-${_esc(acctKey)}-err"></span>
       </div>
     </div>`;
 }
@@ -357,49 +361,14 @@ function _setSectionOpen(acctKey: string, open: boolean): void {
   }
 }
 
-function _onKeydown(e: KeyboardEvent): void {
-  if (e.key === 'Escape') {
-    e.preventDefault();
-    _dismiss(null);
-    return;
-  }
-  if (e.key === 'Enter') {
-    const active = document.activeElement as HTMLElement | null;
-    if (active?.classList.contains('js-snapd-submit')) {
-      e.preventDefault();
-      _submit();
-    }
-    return;
-  }
-  if (e.key !== 'Tab' || !_activeOverlay) return;
-  const focusables = Array.from(
-    _activeOverlay.querySelectorAll('input:not([disabled]), button:not([disabled])'),
-  ) as HTMLElement[];
-  if (!focusables.length) return;
-  const first = focusables[0];
-  const last = focusables[focusables.length - 1];
-  const active = document.activeElement as HTMLElement | null;
-  if (e.shiftKey) {
-    if (active === first || !active || !_activeOverlay.contains(active)) {
-      e.preventDefault();
-      last.focus();
-    }
-    return;
-  }
-  if (active === last || !active || !_activeOverlay.contains(active)) {
-    e.preventDefault();
-    first.focus();
-  }
-}
-
 function _dismiss(result: Snapshot | null): void {
   const overlay = document.querySelector('.snap-dialog-overlay');
   overlay?.remove();
-  document.body.style.overflow = '';
-  document.removeEventListener('keydown', _onKeydown);
+  _activeCleanup?.();
+  _activeCleanup = null;
   _activeOverlay = null;
   _activeOpts = null;
-  if (_activeTrigger && document.body.contains(_activeTrigger)) _activeTrigger.focus();
+  restoreFocus(_activeTrigger);
   _activeTrigger = null;
   const resolve = _activeResolve;
   _activeResolve = null;
@@ -430,10 +399,5 @@ function _getDialogAccounts(accounts: Account[]): Array<{
 }
 
 function _esc(s: string | null | undefined): string {
-  if (!s) return '';
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  return esc(s);
 }

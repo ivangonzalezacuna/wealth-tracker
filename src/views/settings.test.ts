@@ -147,7 +147,12 @@ vi.mock('../ui/confirmDialog', () => ({
   confirmDialog: vi.fn(async () => true),
 }));
 
-import { renderSettings, generateId, refreshSettingsAfterChange } from './settings';
+import {
+  renderSettings,
+  generateId,
+  refreshSettingsAfterChange,
+  renderConfigHistoryCard,
+} from './settings';
 import { isCollapsed } from '../ui/collapseState';
 import { isBackupStale } from '../backup/exportImport';
 import { withButtonGuard } from '../utils';
@@ -303,6 +308,20 @@ describe('Backup card nudge', () => {
   beforeEach(() => {
     _collapseState = {};
     setupDOM();
+  });
+
+  describe('Config history timestamp formatting', () => {
+    it('uses English month labels in history rows', () => {
+      const html = renderConfigHistoryCard([
+        {
+          timestamp: '2026-06-15T10:00:00.000Z',
+          entity: 'settings',
+          summary: 'Updated cost basis',
+        },
+      ] as any);
+      expect(html).toMatch(/Jun/);
+      expect(html).toContain('Updated cost basis');
+    });
   });
 
   it('shows reminder text when backup is stale', () => {
@@ -1149,6 +1168,47 @@ describe('Button-disable verification: synchronous disable and double-click prev
       resolveRestore();
       await tick();
       expect(restoreBtn.disabled).toBe(false);
+    });
+  });
+
+  describe('holdings inline suggestions', () => {
+    it('fills ISIN from known transaction name without overwriting typed ISIN', async () => {
+      const { loadTransactions } = await import('../db');
+      (loadTransactions as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        {
+          id: 'tx-known',
+          date: '2026-01-01',
+          source: 'manual',
+          type: 'BUY',
+          name: 'Known Fund',
+          isin: 'IE00KNOWN',
+          shares: 1,
+          price: 10,
+          amount: -10,
+          fee: 0,
+          tax: 0,
+          currency: 'EUR',
+          fxRate: 1,
+        },
+      ]);
+
+      renderSettings();
+      await tick();
+
+      (document.getElementById('btn-add-hold') as HTMLButtonElement).click();
+      const rows = document.querySelectorAll('.settings-hold-row');
+      const row = rows[rows.length - 1] as HTMLElement;
+      const nameEl = row.querySelector('[data-field="name"]') as HTMLInputElement;
+      const isinEl = row.querySelector('[data-field="isin"]') as HTMLInputElement;
+
+      nameEl.value = 'Known Fund';
+      nameEl.dispatchEvent(new Event('change', { bubbles: true }));
+      expect(isinEl.value).toBe('IE00KNOWN');
+
+      isinEl.value = 'MANUALISIN';
+      nameEl.value = 'Known Fund';
+      nameEl.dispatchEvent(new Event('change', { bubbles: true }));
+      expect(isinEl.value).toBe('MANUALISIN');
     });
   });
 });
