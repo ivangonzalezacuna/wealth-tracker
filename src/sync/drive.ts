@@ -78,20 +78,26 @@ async function checkedFetch(input: RequestInfo, init?: RequestInit): Promise<Res
   return res;
 }
 
-interface DriveFile {
-  id: string;
-  name: string;
-  modifiedTime: string;
-}
-
 // ── File discovery ────────────────────────────────────────────────
+
+function pickCanonicalDbFile(files: DriveFile[]): DriveFile | null {
+  if (files.length === 0) return null;
+  const sorted = [...files].sort((a, b) => {
+    const modifiedDiff = new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime();
+    if (modifiedDiff !== 0) return modifiedDiff;
+    const nameDiff = a.name.localeCompare(b.name);
+    if (nameDiff !== 0) return nameDiff;
+    return a.id.localeCompare(b.id);
+  });
+  return sorted[0] ?? null;
+}
 
 /** Find the DB file in appDataFolder. Returns file metadata or null. */
 export async function findDbFile(): Promise<DriveFile | null> {
   return withRetry(async () => {
     const token = await getToken();
     const query = encodeURIComponent(`name='${DB_FILENAME}' and trashed=false`);
-    const url = `${DRIVE_API}/files?spaces=appDataFolder&q=${query}&fields=files(id,name,modifiedTime)`;
+    const url = `${DRIVE_API}/files?spaces=appDataFolder&q=${query}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc,name,id`;
     const res = await checkedFetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -103,7 +109,7 @@ export async function findDbFile(): Promise<DriveFile | null> {
       );
     }
     const files: DriveFile[] = data.files;
-    return files.length > 0 ? files[0] : null;
+    return pickCanonicalDbFile(files);
   });
 }
 

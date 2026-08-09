@@ -56,6 +56,7 @@ vi.mock('../store/config', () => ({
 vi.mock('../db', () => ({
   loadTransactions: vi.fn(async () => []),
   loadConfigHistory: vi.fn(async () => []),
+  loadSnapshots: vi.fn(async () => []),
 }));
 
 // Collapse state: use real in-memory implementation for testability
@@ -621,6 +622,28 @@ describe('Button-disable verification: synchronous disable and double-click prev
   });
 
   describe('.js-del-acct (accounts delete)', () => {
+    it('blocks deletion when account has historical snapshot values', async () => {
+      const { loadSnapshots } = await import('../db');
+      const { setAccounts } = await import('../store/config');
+      const { showMsg } = await import('../utils');
+      (loadSnapshots as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        { date: '2026-01', acct1: 1234 },
+      ]);
+      (setAccounts as ReturnType<typeof vi.fn>).mockClear();
+      (showMsg as ReturnType<typeof vi.fn>).mockClear();
+
+      const btn = document.querySelector('.js-del-acct') as HTMLButtonElement;
+      btn.click();
+      await tick();
+
+      expect(setAccounts as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+      expect(showMsg as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+        'accts-msg',
+        expect.stringContaining('Cannot remove this account'),
+        false,
+      );
+    });
+
     it('disables synchronously and prevents double-click', async () => {
       const { setAccounts } = await import('../store/config');
       (setAccounts as ReturnType<typeof vi.fn>).mockClear();

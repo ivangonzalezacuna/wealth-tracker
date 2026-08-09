@@ -18,6 +18,8 @@ import {
   getLastSyncTimestamp,
   setDriveVersion,
   getDriveVersion,
+  getLastLocalChangeTimestamp,
+  setLastLocalChangeTimestamp,
 } from '../db/repositories/meta';
 import { downloadDbFile, uploadDbFile, getCloudModifiedTime } from './drive';
 
@@ -30,6 +32,13 @@ let _onSyncStatusChange: ((status: SyncStatus) => void) | null = null;
 const UPLOAD_DEBOUNCE_MS = 5_000; // 5 seconds after last write
 
 export type SyncStatus = 'idle' | 'syncing' | 'uploading' | 'downloading' | 'error' | 'done';
+
+export class SyncConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SyncConflictError';
+  }
+}
 
 // ── Public API ────────────────────────────────────────────────────
 
@@ -66,6 +75,7 @@ export async function pullFromCloud(): Promise<boolean> {
     }
 
     const localTime = await getLastSyncTimestamp();
+    const localChangeTime = await getLastLocalChangeTimestamp();
     const storedVersion = await getDriveVersion();
 
     // Skip download when the stored Drive version matches the current cloud modifiedTime.
@@ -80,6 +90,16 @@ export async function pullFromCloud(): Promise<boolean> {
       // Local is same or newer - no download needed.
       setStatus('done');
       return false;
+    }
+
+    // Conflict guard: cloud is newer, but this device has local changes that
+    // were never synced to Drive yet. Refuse silent overwrite.
+    const hasUnsyncedLocalChanges =
+      !!localChangeTime && (!localTime || new Date(localChangeTime) > new Date(localTime));
+    if (hasUnsyncedLocalChanges) {
+      throw new SyncConflictError(
+        'Cloud has a newer copy, but this device also has unsynced local changes. Refusing to overwrite local history silently.',
+      );
     }
 
     // Cloud is newer - download and replace.
@@ -98,7 +118,7 @@ export async function pullFromCloud(): Promise<boolean> {
   } catch (err) {
     console.error('[sync] pull failed:', err);
     setStatus('error');
-    return false;
+    throw err;
   } finally {
     _syncing = false;
   }
@@ -122,6 +142,7 @@ export async function pushToCloud(): Promise<boolean> {
     const modifiedTime = await uploadDbFile(data);
     await setLastSyncTimestamp(modifiedTime);
     await setDriveVersion(modifiedTime);
+    await setLastLocalChangeTimestamp(modifiedTime);
     setStatus('done');
     return true;
   } catch (err) {
@@ -138,6 +159,7 @@ export async function pushToCloud(): Promise<boolean> {
  * Coalesces multiple rapid writes into a single upload.
  */
 export function scheduleUpload(): void {
+  void setLastLocalChangeTimestamp(new Date().toISOString());
   if (_uploadTimer) clearTimeout(_uploadTimer);
   _uploadTimer = setTimeout(() => {
     _uploadTimer = null;
