@@ -666,7 +666,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     <div class="row"><div class="row-label">Tax on savings</div><div class="row-val ${pd.totalIntTax > 0 ? 'neg' : 'ok'}">${fmtEur2(pd.totalIntTax)}</div></div>
     <div class="row"><div class="row-label">Fees</div><div class="row-val">${fmtEur2(pd.totalFees)}</div></div>
     ${totalReturnRow}
-    <p class="note">Cost basis exact from CSV. ${valueNote} Mixed-currency positions compute in account currency (no FX conversion).</p>
+    <p class="note">Cost basis exact from CSV. ${valueNote} Non-EUR transactions are converted to EUR using the imported FX rate.</p>
   `;
   const portSummary = document.getElementById('port-summary');
   if (portSummary) attachInfoTips(portSummary);

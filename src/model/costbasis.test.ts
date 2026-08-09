@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { computeCostBasis, _computeAvgCost, _computeFIFO } from './costbasis';
 import { TxType } from './tx';
 import type { Transaction } from '../types';
@@ -302,5 +302,119 @@ describe('costbasis: SPLIT transaction type', () => {
     expect(r.shares).toBeCloseTo(10);
     expect(r.realizedPnL).toBeCloseTo(100);
     expect(r.costBasis).toBeCloseTo(500);
+  });
+});
+
+describe('costbasis: mixed-currency FX normalization', () => {
+  /** Helper: BUY in a non-EUR currency */
+  function buyFx(
+    date: string,
+    shares: number,
+    amount: number,
+    currency: string,
+    fxRate: number,
+    fee = 0,
+  ): Transaction {
+    return {
+      id: '',
+      source: '',
+      name: '',
+      isin: 'IE00B4L5Y983',
+      type: TxType.BUY,
+      date,
+      shares,
+      price: 0,
+      amount: -amount,
+      fee,
+      tax: 0,
+      currency,
+      fxRate,
+    };
+  }
+
+  /** Helper: SELL in a non-EUR currency */
+  function sellFx(
+    date: string,
+    shares: number,
+    amount: number,
+    currency: string,
+    fxRate: number,
+    fee = 0,
+  ): Transaction {
+    return {
+      id: '',
+      source: '',
+      name: '',
+      isin: 'IE00B4L5Y983',
+      type: TxType.SELL,
+      date,
+      shares: -shares,
+      price: 0,
+      amount,
+      fee,
+      tax: 0,
+      currency,
+      fxRate,
+    };
+  }
+
+  it('avg-cost: USD BUY converts cost basis to EUR via fxRate', () => {
+    // 100 USD at fxRate 0.9 → 90 EUR cost
+    const txs = [buyFx('2024-01-01', 10, 100, 'USD', 0.9)];
+    const r = _computeAvgCost(txs);
+    expect(r.costBasis).toBeCloseTo(90);
+    expect(r.shares).toBeCloseTo(10);
+  });
+
+  it('avg-cost: USD BUY fee converts to EUR via fxRate', () => {
+    // amount 100 USD + fee 2 USD, fxRate 0.9 → cost (100+2)*0.9 = 91.8 EUR
+    const txs = [buyFx('2024-01-01', 10, 100, 'USD', 0.9, 2)];
+    const r = _computeAvgCost(txs);
+    expect(r.costBasis).toBeCloseTo(91.8);
+    expect(r.totalFees).toBeCloseTo(1.8); // 2 * 0.9
+  });
+
+  it('avg-cost: mixed BUY (EUR) + SELL (USD) realizedPnL in EUR', () => {
+    // BUY 10 shares for 1000 EUR (EUR, no conversion)
+    // SELL 10 shares for 1200 USD at fxRate 0.9 → proceeds 1080 EUR
+    // realized P&L = 1080 - 1000 = 80
+    const txs = [
+      buyFx('2024-01-01', 10, 1000, 'EUR', 1),
+      sellFx('2024-02-01', 10, 1200, 'USD', 0.9),
+    ];
+    const r = _computeAvgCost(txs);
+    expect(r.realizedPnL).toBeCloseTo(80);
+    expect(r.exited).toBe(true);
+  });
+
+  it('fifo: USD BUY converts lot unitCost to EUR', () => {
+    // 100 USD for 10 shares, fxRate 0.9 → 90 EUR → 9 EUR/share
+    const txs = [buyFx('2024-01-01', 10, 100, 'USD', 0.9)];
+    const r = _computeFIFO(txs);
+    expect(r.costBasis).toBeCloseTo(90);
+    expect(r.shares).toBeCloseTo(10);
+  });
+
+  it('fifo: USD BUY + USD SELL computes realized P&L in EUR', () => {
+    // BUY 10 shares for 1000 USD at 0.9 → 900 EUR cost (90 EUR/share)
+    // SELL 10 shares for 1200 USD at 0.85 → 1020 EUR proceeds
+    // realized P&L = 1020 - 900 = 120 EUR
+    const txs = [
+      buyFx('2024-01-01', 10, 1000, 'USD', 0.9),
+      sellFx('2024-02-01', 10, 1200, 'USD', 0.85),
+    ];
+    const r = _computeFIFO(txs);
+    expect(r.realizedPnL).toBeCloseTo(120);
+    expect(r.exited).toBe(true);
+  });
+
+  it('warns and falls back to raw amount when fxRate is missing for non-EUR tx', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const txs = [buyFx('2024-01-01', 10, 100, 'USD', 0)]; // fxRate = 0 → missing
+    const r = _computeAvgCost(txs);
+    // Falls back to raw amount (100) with a warning
+    expect(r.costBasis).toBeCloseTo(100);
+    expect(warnSpy).toHaveBeenCalled();
+    vi.restoreAllMocks();
   });
 });

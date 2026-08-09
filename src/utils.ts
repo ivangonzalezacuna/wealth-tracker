@@ -1,4 +1,5 @@
 import { getACCTSList } from './constants';
+import { APP_CURRENCY } from './fx';
 import type { Snapshot } from './types';
 
 export function snapTotal(s: Snapshot): number {
@@ -15,7 +16,7 @@ export function fmt(n: number, d = 0): string {
   if (!isFinite(v)) return '–';
   return new Intl.NumberFormat('de-DE', {
     style: 'currency',
-    currency: 'EUR',
+    currency: APP_CURRENCY,
     minimumFractionDigits: d,
     maximumFractionDigits: d,
   }).format(v);

@@ -179,6 +179,49 @@ Income analytics on the Analytics tab are anchored to your latest imported trans
 trailing-12-month income and income growth do not drift just because calendar time passed. Dividend
 yield is calculated against the current value of investment accounts, not total household net worth.
 
+### Currency and FX model
+
+The app currently uses a single **reporting currency** for calculations and display. Today that
+currency is hard-coded to `EUR`.
+
+Transactions may still be stored in other currencies via the `currency` and `fxRate` fields. The
+expected contract is:
+
+- `currency` = the original transaction currency from the broker/export
+- `fxRate` = the rate that converts **from `currency` into the app reporting currency**
+- the rate should correspond to the **transaction date**, not the current/live FX rate
+
+Examples while the reporting currency is EUR:
+
+- EUR transaction → no conversion needed
+- USD transaction with `fxRate = 0.92` → `100 USD` is treated as `92 EUR`
+- DKK transaction with `fxRate = 0.134` → `1000 DKK` is treated as `134 EUR`
+
+This means mixed-currency portfolios are supported only by normalizing each transaction into one
+canonical reporting currency. The app does **not** currently model multiple reporting currencies at
+the same time.
+
+If the reporting currency ever changes in the future (for example from EUR to DKK), historical
+transactions would also need valid FX rates into that new reporting currency. In practice, the most
+stable approach is to capture and store the broker-provided or externally-fetched FX rate at import
+time, rather than recomputing old transactions from live rates later.
+
+What is still missing for full multi-currency support:
+
+- **Account-level currency metadata.** Accounts and snapshots do not yet have a first-class
+  currency contract that says "this account balance was entered in DKK" or "this one stays in EUR".
+- **Snapshot FX normalization.** Monthly snapshot balances are not yet converted with a
+  snapshot-date FX rate before being aggregated into total net worth.
+- **A configurable reporting currency.** The reporting currency is still hard-coded to `EUR`, so
+  switching the app base currency later is not yet a settings-level feature.
+- **Import/logging fallback FX lookup.** When a broker export or manual snapshot does not already
+  contain the needed FX rate, the app does not yet fetch and persist one automatically.
+- **UI/validation for missing FX.** There is not yet a dedicated user flow that blocks, warns, or
+  requests correction when a non-base snapshot/account value is missing its required FX context.
+- **End-to-end mixed-account coverage.** Transaction normalization exists, but mixed EUR/DKK/USD
+  accounts need explicit support and tests across imports, manual snapshots, totals, history, and
+  analytics.
+
 ---
 
 ## Development
