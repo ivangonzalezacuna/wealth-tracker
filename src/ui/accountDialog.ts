@@ -64,9 +64,7 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
             <div class="dialog-field dialog-field-wide">
               <label class="dialog-label" for="acctd-label">Name</label>
               <input type="text" id="acctd-label" class="form-input dialog-input"
-                value="${esc(existing?.label || '')}" placeholder="e.g. Main ETF portfolio"
-                list="acctd-label-list">
-              <datalist id="acctd-label-list"></datalist>
+                value="${esc(existing?.label || '')}" placeholder="e.g. Main ETF portfolio">
               <span class="dialog-error" id="acctd-label-err"></span>
             </div>
             <div class="dialog-field">
@@ -164,7 +162,6 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
     attachInfoTips(overlay);
 
     // Populate datalists via DOM API (no esc needed — no innerHTML)
-    _setDatalistOptions(overlay.querySelector('#acctd-label-list'), opts.labelSuggestions ?? []);
     _setDatalistOptions(
       overlay.querySelector('#acctd-institution-list'),
       opts.institutionSuggestions ?? [],

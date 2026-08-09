@@ -1781,10 +1781,6 @@ input[type='color'] {
   min-height: 40px;
   margin-bottom: 0;
 }
-.settings-item:not(.item-collapsed) .settings-item-header {
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 0.6rem;
-}
 .settings-item.item-collapsible:not(.item-collapsed) {
   padding: 0.75rem;
 }
@@ -2352,11 +2348,6 @@ input[type='color'] {
   flex-direction: column;
   gap: 4px;
   padding-top: 5px;
-  border-top: 1px solid var(--line-2);
-}
-.snap-dialog-account:first-of-type {
-  padding-top: 0;
-  border-top: none;
 }
 
 /* ── Transaction dialog overrides ────────────────────────── */

@@ -579,8 +579,7 @@ function renderHoldingRow(h: Holding, i: number): string {
     <div class="settings-item settings-hold-row" data-idx="${i}">
       <div class="settings-item-header">
         <span class="leg-sq" style="background:${esc(color)};flex-shrink:0"></span>
-        <span class="settings-item-title">${esc(h.shortName) || esc(h.isin) || 'New holding'}${h.name ? ` <span style="font-weight:normal;color:var(--ink-3);font-size:12px">(${esc(h.name)})</span>` : ''}</span>
-        <span class="settings-item-meta">${h.acc ? 'Acc' : 'Dist'}</span>
+        <span class="settings-item-title">${esc(h.shortName) || esc(h.isin) || 'New holding'}</span>
         ${statusBadge}
         <div class="settings-row-actions">
           <button class="btn btn-sm btn-outline btn-icon js-edit-hold" data-idx="${i}" aria-label="Edit holding" title="Edit holding">${EDIT_ICON}</button>
@@ -678,6 +677,7 @@ function attachHoldingListeners(root: HTMLElement): void {
     const draft = await holdingDialog({
       suggestions: _knownSecuritySuggestions,
       order,
+      existingIsins: (_holdings ?? []).map((h) => h.isin),
     });
     if (!draft) return;
     const updated = [...(_holdings ?? []), draft];
@@ -696,6 +696,9 @@ function attachHoldingListeners(root: HTMLElement): void {
     const draft = await holdingDialog({
       existing,
       suggestions: _knownSecuritySuggestions,
+      existingIsins: (_allHoldings ?? holds)
+        .filter((h) => h.isin !== existing.isin)
+        .map((h) => h.isin),
     });
     if (!draft) return;
     const all = _allHoldings ?? holds;

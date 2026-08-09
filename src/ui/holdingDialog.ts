@@ -23,6 +23,7 @@ export interface HoldingDialogOptions {
   suggestions?: KnownSecuritySuggestions;
   /** Order index to assign to a new holding. */
   order?: number;
+  existingIsins?: string[];
 }
 
 let _activeResolve: ((v: Holding | null) => void) | null = null;
@@ -32,6 +33,7 @@ let _activeExisting: Holding | undefined = undefined;
 let _activeCleanup: (() => void) | null = null;
 let _activeSuggestions: KnownSecuritySuggestions | undefined;
 let _activeOrder: number = 1;
+let _activeExistingIsins: string[] | undefined;
 
 export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding | null> {
   return new Promise<Holding | null>((resolve) => {
@@ -41,6 +43,7 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
     _activeExisting = opts.existing;
     _activeSuggestions = opts.suggestions;
     _activeOrder = opts.order ?? 1;
+    _activeExistingIsins = opts.existingIsins;
     const existing = opts.existing;
     const title = existing ? 'Edit holding' : 'Add holding';
 
@@ -148,6 +151,8 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
                   value="${esc(existing?.color || '#888888')}" placeholder="#888888" maxlength="7">
               </div>
             </div>
+          </div>
+          <div class="dialog-row">
             <div class="dialog-field">
               <label class="dialog-label" style="cursor:pointer">
                 <input type="checkbox" id="holdd-acc" ${existing?.acc !== false ? 'checked' : ''}>
@@ -243,6 +248,9 @@ function _submit(): void {
   if (!isinVal) {
     setErr('holdd-isin', 'ISIN is required.');
     valid = false;
+  } else if (_activeExistingIsins?.includes(isinVal)) {
+    setErr('holdd-isin', 'This ISIN is already defined in another holding.');
+    valid = false;
   }
   if (!shortNameVal) {
     setErr('holdd-short-name', 'Short name is required.');
@@ -284,6 +292,7 @@ function _dismiss(result: Holding | null): void {
   _activeExisting = undefined;
   _activeSuggestions = undefined;
   _activeOrder = 1;
+  _activeExistingIsins = undefined;
   restoreFocus(_activeTrigger);
   _activeTrigger = null;
   const resolve = _activeResolve;
@@ -300,7 +309,10 @@ function _fillSuggestionDatalist(
   const nameList = overlay.querySelector('#holdd-name-list');
   if (!suggestions || suggestions.pairs.length === 0) return;
 
-  const sortedByIsin = [...suggestions.pairs].sort((a, b) => a.isin.localeCompare(b.isin));
+  const existingIsins = new Set(_activeExistingIsins ?? []);
+  const sortedByIsin = suggestions.pairs
+    .filter((pair) => !existingIsins.has(pair.isin))
+    .sort((a, b) => a.isin.localeCompare(b.isin));
   const sortedByName = [...suggestions.pairs].sort((a, b) => a.name.localeCompare(b.name));
 
   if (isinList) {

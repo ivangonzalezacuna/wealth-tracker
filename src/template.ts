@@ -405,10 +405,10 @@ export function appTemplate(): string {
         <div class="card-section-title">Ledger</div>
         <p class="note" style="margin-bottom:.85rem">Review, audit, and correct imported transactions.</p>
         <div class="filter-bar" id="tx-filter-bar">
-          <select id="tx-type-filter" class="form-input form-input-sm" aria-label="Filter transactions by type" style="width:auto;display:inline-block">
+          <select id="tx-type-filter" class="form-input form-input-sm" aria-label="Filter transactions by type" style="flex-shrink:0">
             <option value="">All types</option>
           </select>
-          <input type="text" id="tx-search" class="form-input form-input-sm" aria-label="Search transactions" placeholder="Search name, ISIN, source…" style="width:220px;display:inline-block;margin-left:6px">
+          <input type="text" id="tx-search" class="form-input form-input-sm" aria-label="Search transactions" placeholder="Search name, ISIN, source…" style="flex:1;min-width:80px">
           <button class="btn btn-outline btn-sm" id="btn-add-tx" style="margin-left:auto">Add transaction</button>
         </div>
         <div class="tbl">

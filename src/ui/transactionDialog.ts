@@ -20,6 +20,25 @@ let _activeCleanup: (() => void) | null = null;
 let _activeSuggestions: KnownSecuritySuggestions | undefined;
 
 const TX_TYPES = Object.values(TxType);
+const SECURITY_TYPES = new Set([
+  TxType.BUY,
+  TxType.SELL,
+  TxType.DIVIDEND,
+  TxType.SPLIT,
+  TxType.FEE,
+  TxType.TAX,
+]);
+const SHARES_TYPES = new Set([TxType.BUY, TxType.SELL, TxType.SPLIT]);
+const FEE_TYPES = new Set([TxType.BUY, TxType.SELL]);
+const TAX_TYPES = new Set([TxType.BUY, TxType.SELL, TxType.DIVIDEND]);
+const FX_TYPES = new Set([
+  TxType.BUY,
+  TxType.SELL,
+  TxType.DIVIDEND,
+  TxType.INTEREST,
+  TxType.FEE,
+  TxType.TAX,
+]);
 
 export interface TransactionDialogOptions {
   existing?: Transaction;
@@ -49,7 +68,7 @@ export function transactionDialog(
         <div class="dialog-header">
           <div class="dialog-title" id="tx-dialog-title">${esc(title)}</div>
         </div>
-        <div class="dialog-fields">
+        <div class="dialog-fields dialog-fields-relaxed">
           <div class="dialog-row">
             <div class="dialog-field">
               <label class="dialog-label" for="txd-date">Date</label>
@@ -68,7 +87,7 @@ export function transactionDialog(
               <span class="dialog-error" id="txd-type-err"></span>
             </div>
           </div>
-          <div class="dialog-row">
+          <div class="dialog-row" id="txd-row-security">
             <div class="dialog-field dialog-field-wide">
               <label class="dialog-label" for="txd-name">Name</label>
               <input type="text" id="txd-name" class="form-input dialog-input"
@@ -84,28 +103,28 @@ export function transactionDialog(
             </div>
           </div>
           <div class="dialog-row">
-            <div class="dialog-field">
+            <div class="dialog-field" id="txd-field-amount">
               <label class="dialog-label" for="txd-amount">Amount (€)</label>
               <input type="text" inputmode="decimal" id="txd-amount" class="form-input dialog-input"
                 value="${esc(existing != null ? String(existing.amount) : '')}"
                 placeholder="0.00">
               <span class="dialog-error" id="txd-amount-err"></span>
             </div>
-            <div class="dialog-field">
+            <div class="dialog-field" id="txd-field-shares">
               <label class="dialog-label" for="txd-shares">Shares</label>
               <input type="text" inputmode="decimal" id="txd-shares" class="form-input dialog-input"
                 value="${esc(existing != null ? String(existing.shares) : '')}"
                 placeholder="0">
               <span class="dialog-error" id="txd-shares-err"></span>
             </div>
-            <div class="dialog-field">
+            <div class="dialog-field" id="txd-field-fee">
               <label class="dialog-label" for="txd-fee">Fee (€)</label>
               <input type="text" inputmode="decimal" id="txd-fee" class="form-input dialog-input"
                 value="${esc(existing != null ? String(existing.fee) : '')}"
                 placeholder="0">
               <span class="dialog-error" id="txd-fee-err"></span>
             </div>
-            <div class="dialog-field">
+            <div class="dialog-field" id="txd-field-tax">
               <label class="dialog-label" for="txd-tax">Tax (€)</label>
               <input type="text" inputmode="decimal" id="txd-tax" class="form-input dialog-input"
                 value="${esc(existing != null ? String(existing.tax) : '')}"
@@ -113,7 +132,7 @@ export function transactionDialog(
               <span class="dialog-error" id="txd-tax-err"></span>
             </div>
           </div>
-          <div class="dialog-row">
+          <div class="dialog-row" id="txd-row-fx">
             <div class="dialog-field">
               <label class="dialog-label" for="txd-currency">Currency</label>
               <input type="text" id="txd-currency" class="form-input dialog-input dialog-input-uppercase"
@@ -147,6 +166,10 @@ export function transactionDialog(
     document.body.appendChild(overlay);
     _activeOverlay = overlay;
     _bindSuggestionAutoFill(overlay, opts.suggestions);
+    _applyTypeVisibility(existing?.type || TxType.BUY);
+
+    const typeEl = overlay.querySelector('#txd-type') as HTMLSelectElement | null;
+    typeEl?.addEventListener('change', () => _applyTypeVisibility(typeEl.value as Transaction['type']));
 
     overlay.querySelector('.js-txd-submit')?.addEventListener('click', () => _submit());
     overlay.querySelector('.js-txd-cancel')?.addEventListener('click', () => _dismiss(null));
@@ -186,9 +209,18 @@ function _submit(): void {
   };
 
   // Clear errors
-  ['date', 'type', 'name', 'isin', 'amount', 'shares', 'fee', 'tax', 'currency', 'fxrate'].forEach(
-    (f) => setErr(f, ''),
-  );
+  [
+    'txd-date',
+    'txd-type',
+    'txd-name',
+    'txd-isin',
+    'txd-amount',
+    'txd-shares',
+    'txd-fee',
+    'txd-tax',
+    'txd-currency',
+    'txd-fxrate',
+  ].forEach((f) => setErr(f, ''));
 
   const dateVal = get('txd-date');
   const typeVal = get('txd-type').toUpperCase();
@@ -203,6 +235,12 @@ function _submit(): void {
   const noteVal = get('txd-note');
 
   let valid = true;
+  const securityVisible = _isVisible('txd-row-security');
+  const amountVisible = _isVisible('txd-field-amount');
+  const sharesVisible = _isVisible('txd-field-shares');
+  const feeVisible = _isVisible('txd-field-fee');
+  const taxVisible = _isVisible('txd-field-tax');
+  const fxVisible = _isVisible('txd-row-fx');
 
   if (!dateVal || !/^\d{4}-\d{2}-\d{2}$/.test(dateVal)) {
     setErr('txd-date', 'Required – use YYYY-MM-DD format.');
@@ -212,36 +250,36 @@ function _submit(): void {
     setErr('txd-type', 'Select a valid type.');
     valid = false;
   }
-  if (!nameVal) {
+  if (securityVisible && !nameVal) {
     setErr('txd-name', 'Name is required.');
     valid = false;
   }
-  if (!isinPairLooksCoherent(isinVal, nameVal, _activeSuggestions)) {
+  if (securityVisible && !isinPairLooksCoherent(isinVal, nameVal, _activeSuggestions)) {
     setErr('txd-isin', 'Known ISIN/name pair mismatch. Pick a matching pair or clear one field.');
     setErr('txd-name', 'Known ISIN/name pair mismatch. Pick a matching pair or clear one field.');
     valid = false;
   }
-  if (amountRaw !== '' && isNaN(_parseNum(amountRaw))) {
+  if (amountVisible && amountRaw !== '' && isNaN(_parseNum(amountRaw))) {
     setErr('txd-amount', 'Must be a number.');
     valid = false;
   }
-  if (sharesRaw !== '' && isNaN(_parseNum(sharesRaw))) {
+  if (sharesVisible && sharesRaw !== '' && isNaN(_parseNum(sharesRaw))) {
     setErr('txd-shares', 'Must be a number.');
     valid = false;
   }
-  if (feeRaw !== '' && isNaN(_parseNum(feeRaw))) {
+  if (feeVisible && feeRaw !== '' && isNaN(_parseNum(feeRaw))) {
     setErr('txd-fee', 'Must be a number.');
     valid = false;
   }
-  if (taxRaw !== '' && isNaN(_parseNum(taxRaw))) {
+  if (taxVisible && taxRaw !== '' && isNaN(_parseNum(taxRaw))) {
     setErr('txd-tax', 'Must be a number.');
     valid = false;
   }
-  if (!/^[A-Z]{3}$/.test(currencyVal)) {
+  if (fxVisible && !/^[A-Z]{3}$/.test(currencyVal)) {
     setErr('txd-currency', '3-letter code (e.g. EUR).');
     valid = false;
   }
-  if (fxRateRaw !== '' && isNaN(_parseNum(fxRateRaw))) {
+  if (fxVisible && fxRateRaw !== '' && isNaN(_parseNum(fxRateRaw))) {
     setErr('txd-fxrate', 'Must be a number.');
     valid = false;
   }
@@ -262,15 +300,15 @@ function _submit(): void {
     source: existing?.source || 'manual',
     category: existing?.category || '',
     type: typeVal as Transaction['type'],
-    name: nameVal,
-    isin: isinVal,
-    shares: _parseNum(sharesRaw),
+    name: securityVisible ? nameVal : '',
+    isin: securityVisible ? isinVal : '',
+    shares: sharesVisible ? _parseNum(sharesRaw) : 0,
     price: existing?.price || 0,
-    amount: _parseNum(amountRaw),
-    fee: _parseNum(feeRaw),
-    tax: _parseNum(taxRaw),
-    currency: currencyVal,
-    fxRate: _parseNum(fxRateRaw) || 1,
+    amount: amountVisible ? _parseNum(amountRaw) : 0,
+    fee: feeVisible ? _parseNum(feeRaw) : 0,
+    tax: taxVisible ? _parseNum(taxRaw) : 0,
+    currency: fxVisible ? currencyVal : existing?.currency || 'EUR',
+    fxRate: fxVisible ? _parseNum(fxRateRaw) || 1 : 1,
     note: noteVal,
   };
 
@@ -297,6 +335,27 @@ function _parseNum(s: string): number {
   // Accept both comma and dot as decimal separator
   const n = parseFloat(s.trim().replace(',', '.'));
   return isNaN(n) ? NaN : n;
+}
+
+function _isVisible(id: string): boolean {
+  if (!_activeOverlay) return false;
+  const el = _activeOverlay.querySelector('#' + id) as HTMLElement | null;
+  return !!el && el.style.display !== 'none';
+}
+
+function _applyTypeVisibility(type: Transaction['type']): void {
+  if (!_activeOverlay) return;
+  const setDisplay = (id: string, show: boolean): void => {
+    const el = _activeOverlay!.querySelector('#' + id) as HTMLElement | null;
+    if (el) el.style.display = show ? '' : 'none';
+  };
+
+  setDisplay('txd-row-security', SECURITY_TYPES.has(type));
+  setDisplay('txd-field-amount', type !== TxType.SPLIT);
+  setDisplay('txd-field-shares', SHARES_TYPES.has(type));
+  setDisplay('txd-field-fee', FEE_TYPES.has(type));
+  setDisplay('txd-field-tax', TAX_TYPES.has(type));
+  setDisplay('txd-row-fx', FX_TYPES.has(type));
 }
 
 function _renderSuggestionLists(suggestions: KnownSecuritySuggestions | undefined): string {

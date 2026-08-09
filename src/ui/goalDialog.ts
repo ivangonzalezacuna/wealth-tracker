@@ -42,7 +42,7 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
               <label class="dialog-label" for="goald-target">Target net worth (€)</label>
               <input id="goald-target" class="form-input dialog-input" type="text" inputmode="decimal" value="${esc(existing?.targetNetWorth || '')}" placeholder="e.g. 500000">
               <span class="dialog-error" id="goald-target-err"></span>
-              <span class="note">Supports German format (100.000,00) or plain numbers.</span>
+              <span class="note">Supports German (100.000,00) or plain numbers.</span>
             </div>
             <div class="dialog-field">
               <label class="dialog-label" for="goald-date">Target date (optional)</label>
