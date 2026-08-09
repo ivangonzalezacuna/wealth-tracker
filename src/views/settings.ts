@@ -1916,9 +1916,14 @@ function attachCacheListeners(root: HTMLElement): void {
   root.querySelector('#btn-resolve-sync-conflict')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-resolve-sync-conflict') as HTMLButtonElement;
     try {
-      await withCardGuard('cache', btn, () => window.__openSyncConflictResolver?.() ?? Promise.resolve(), {
-        busyText: 'Opening...',
-      });
+      await withCardGuard(
+        'cache',
+        btn,
+        () => window.__openSyncConflictResolver?.() ?? Promise.resolve(),
+        {
+          busyText: 'Opening...',
+        },
+      );
     } catch (err: any) {
       showMsg('resync-msg', 'Error: ' + (err?.message || 'unknown'), false);
     }

@@ -33,13 +33,7 @@ let _pendingConflict: SyncConflict | null = null;
 const UPLOAD_DEBOUNCE_MS = 5_000; // 5 seconds after last write
 
 export type SyncStatus =
-  | 'idle'
-  | 'syncing'
-  | 'uploading'
-  | 'downloading'
-  | 'conflict'
-  | 'error'
-  | 'done';
+  'idle' | 'syncing' | 'uploading' | 'downloading' | 'conflict' | 'error' | 'done';
 
 export interface SyncConflict {
   source: 'pull' | 'push';
@@ -87,7 +81,9 @@ function hasUnsyncedLocalChanges(
   lastLocalChangeAt: string | null,
   lastSyncedAt: string | null,
 ): boolean {
-  return !!lastLocalChangeAt && (!lastSyncedAt || new Date(lastLocalChangeAt) > new Date(lastSyncedAt));
+  return (
+    !!lastLocalChangeAt && (!lastSyncedAt || new Date(lastLocalChangeAt) > new Date(lastSyncedAt))
+  );
 }
 
 async function finalizeSuccessfulSync(modifiedTime: string, syncStartedAt: string): Promise<void> {
