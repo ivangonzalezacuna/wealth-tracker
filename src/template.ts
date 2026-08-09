@@ -431,7 +431,9 @@ export function appTemplate(): string {
         <input type="text" id="tx-search" class="form-input form-input-sm" aria-label="Search transactions" placeholder="Search name, ISIN, source…" style="width:220px;display:inline-block;margin-left:6px">
         <button class="btn btn-outline btn-sm" id="btn-add-tx" style="margin-left:auto">Add transaction</button>
       </div>
-      <div id="tx-ledger-list" role="table" aria-label="Transaction ledger"></div>
+      <div class="tbl">
+        <div id="tx-ledger-list" class="tx-ledger-grid" role="table" aria-label="Transaction ledger"></div>
+      </div>
       <div id="tx-pagination" class="pagination"></div>
       <div id="tx-msg" style="font-size:12px;min-height:18px;margin-top:.5rem"></div>
     </div>

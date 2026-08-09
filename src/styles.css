@@ -704,6 +704,86 @@ details[open] > summary .card-chevron {
   min-width: 2px;
 }
 
+/* Transaction ledger */
+#tx-ledger-list {
+  display: grid;
+  grid-template-columns:
+    minmax(11ch, 0.9fr)
+    minmax(10ch, 0.85fr)
+    minmax(18ch, 1.5fr)
+    minmax(14ch, 1.1fr)
+    minmax(9ch, 0.8fr)
+    minmax(11ch, 0.95fr)
+    minmax(11ch, 0.9fr)
+    minmax(15ch, 1fr);
+  min-width: 960px;
+}
+#tx-ledger-list.tx-ledger-grid-readonly {
+  grid-template-columns:
+    minmax(11ch, 1fr)
+    minmax(10ch, 0.9fr)
+    minmax(18ch, 1.6fr)
+    minmax(14ch, 1.2fr)
+    minmax(9ch, 0.85fr)
+    minmax(11ch, 1fr)
+    minmax(11ch, 0.95fr);
+  min-width: 860px;
+}
+#tx-ledger-list .tx-row {
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+}
+#tx-ledger-list .tx-row > [role='cell'],
+#tx-ledger-list .tx-row > [role='columnheader'] {
+  min-width: 0;
+}
+.tx-ledger-name {
+  display: block;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tx-ledger-isin {
+  display: inline-block;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 10px;
+  color: var(--ink-2);
+  letter-spacing: 0.02em;
+}
+.tx-ledger-chip,
+.tx-ledger-source {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 8px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.tx-ledger-chip {
+  color: var(--brand);
+  background: var(--brand-weak);
+}
+.tx-ledger-amount {
+  font-weight: 500;
+}
+.tx-ledger-amount.pos {
+  color: var(--pos);
+}
+.tx-ledger-amount.neg {
+  color: var(--neg);
+}
+.tx-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  white-space: nowrap;
+}
+
 /* Snapshot detail note: qualified with `.hold-detail >` so specificity
    (0,2,0) beats `.hold-detail > div`'s (0,1,1) flex shorthand. */
 .hold-detail > .snap-detail-note {

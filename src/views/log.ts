@@ -396,9 +396,24 @@ function txColumns(): ColumnDef<Transaction>[] {
       sortValue: (t) => t.date,
       cell: (t) => `<span class="snap-month">${fmtDay(t.date)}</span>`,
     },
-    { key: 'type', label: 'Type', sortValue: (t) => t.type, cell: (t) => esc(t.type || '') },
-    { key: 'name', label: 'Name', sortValue: (t) => t.name || '', cell: (t) => esc(t.name || '-') },
-    { key: 'isin', label: 'ISIN', sortValue: (t) => t.isin || '', cell: (t) => esc(t.isin || '-') },
+    {
+      key: 'type',
+      label: 'Type',
+      sortValue: (t) => t.type,
+      cell: (t) => `<span class="tx-ledger-chip">${esc(t.type || '-')}</span>`,
+    },
+    {
+      key: 'name',
+      label: 'Name',
+      sortValue: (t) => t.name || '',
+      cell: (t) => `<span class="tx-ledger-name">${esc(t.name || '-')}</span>`,
+    },
+    {
+      key: 'isin',
+      label: 'ISIN',
+      sortValue: (t) => t.isin || '',
+      cell: (t) => `<span class="tx-ledger-isin">${esc(t.isin || '-')}</span>`,
+    },
     {
       key: 'shares',
       label: 'Shares',
@@ -411,13 +426,14 @@ function txColumns(): ColumnDef<Transaction>[] {
       label: 'Amount',
       align: 'right',
       sortValue: (t) => t.amount || 0,
-      cell: (t) => fmtEur2(t.amount || 0),
+      cell: (t) =>
+        `<span class="tx-ledger-amount ${(t.amount || 0) < 0 ? 'neg' : 'pos'}">${fmtEur2(t.amount || 0)}</span>`,
     },
     {
       key: 'source',
       label: 'Source',
       sortValue: (t) => t.source || '',
-      cell: (t) => esc(t.source || '-'),
+      cell: (t) => `<span class="tx-ledger-source">${esc(t.source || '-')}</span>`,
     },
   ];
 }
@@ -481,6 +497,7 @@ function renderTxList(txs: Transaction[]): void {
   const addBtn = document.getElementById('btn-add-tx') as HTMLButtonElement | null;
   if (!listEl) return;
   if (addBtn) addBtn.disabled = _readOnly;
+  listEl.className = `tx-ledger-grid${_readOnly ? ' tx-ledger-grid-readonly' : ''}`;
 
   const types = [...new Set(txs.map((t) => t.type).filter(Boolean))].sort() as string[];
   if (typeEl) {
@@ -520,22 +537,23 @@ function renderTxList(txs: Transaction[]): void {
   if (_txPage > totalPages) _txPage = totalPages;
   const start = (_txPage - 1) * TX_PAGE_SIZE;
   const pageItems = sorted.slice(start, start + TX_PAGE_SIZE);
+  const showActions = !_readOnly;
 
   listEl.innerHTML = `
-    <div class="snap-row-compact th" role="row" id="tx-table-header">
+    <div class="tbl-row th tx-row" role="row" id="tx-table-header">
       ${renderTableHeader(columns, _txTblSort)}
-      <div class="snap-cell snap-col-actions">Actions</div>
+      ${showActions ? '<div role="columnheader" style="text-align:right">Actions</div>' : ''}
     </div>
     ${pageItems
       .map((tx) => {
         const actions =
-          _readOnly || !tx.rowId
+          !showActions || !tx.rowId
             ? ''
-            : `<div class="snap-cell snap-col-actions">
+            : `<div role="cell" class="tx-actions">
             <button class="btn btn-ghost btn-sm js-edit-tx" data-rowid="${tx.rowId}">Edit</button>
             <button class="btn btn-danger btn-sm js-del-tx" data-rowid="${tx.rowId}">Delete</button>
           </div>`;
-        return `<div class="snap-row-compact" role="row">
+        return `<div class="tbl-row tx-row" role="row">
           ${renderTableRow(columns, tx)}
           ${actions}
         </div>`;
