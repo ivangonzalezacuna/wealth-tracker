@@ -2199,6 +2199,88 @@ input[type='color'] {
   opacity: 1;
 }
 
+/* ── Snapshot dialog ────────────────────────────────────── */
+.snap-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1.5rem 1rem;
+  overflow-y: auto;
+  animation: confirm-fade 0.12s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .snap-dialog-overlay {
+    animation: none;
+  }
+}
+.snap-dialog-card {
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  max-width: 720px;
+  width: 100%;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  margin: auto;
+}
+.snap-dialog-header {
+  margin-bottom: 1rem;
+}
+.snap-dialog-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--ink);
+}
+.snap-dialog-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.snap-dialog-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.snap-dialog-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.snap-dialog-field-wide {
+  flex: 2 1 240px;
+}
+.snap-dialog-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.snap-dialog-input {
+  font-size: 13px;
+}
+.snap-dialog-account {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.snap-dialog-error {
+  font-size: 11px;
+  color: var(--neg);
+  min-height: 14px;
+  line-height: 1.2;
+}
+.snap-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 1rem;
+}
+
 /* ── Transaction dialog ──────────────────────────────────── */
 .tx-dialog-overlay {
   position: fixed;

@@ -402,21 +402,9 @@ export function appTemplate(): string {
 
     <div class="card" id="balance-card">
       <div class="card-title">Monthly update</div>
-      <p class="note" style="margin-bottom:.85rem">Enter total account balances once a month (~2 min). Same month overwrites the previous entry.</p>
-      <div class="form-grid">
-        <div class="form-group">
-          <label class="form-label">Month</label>
-          <input type="month" id="snap-date" class="form-input">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Notes (optional)</label>
-          <input type="text" id="snap-notes" class="form-input form-input-compact" placeholder="e.g. catch-up done, got raise...">
-        </div>
-        <div id="snap-acct-fields"></div>
-      </div>
-
-      <div style="display:flex;align-items:center;gap:14px;margin-top:.85rem">
-        <button class="btn btn-primary" id="btn-save-snap">Save monthly update</button>
+      <p class="note" style="margin-bottom:.85rem">Log your latest month-end balances in a modal dialog. Same month overwrites the previous entry.</p>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <button class="btn btn-primary" id="btn-add-snap">Add monthly snapshot</button>
         <span id="snap-msg" style="font-size:12px;min-height:18px"></span>
       </div>
     </div>
