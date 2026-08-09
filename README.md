@@ -179,6 +179,33 @@ Income analytics on the Analytics tab are anchored to your latest imported trans
 trailing-12-month income and income growth do not drift just because calendar time passed. Dividend
 yield is calculated against the current value of investment accounts, not total household net worth.
 
+### Currency and FX model
+
+The app currently uses a single **reporting currency** for calculations and display. Today that
+currency is hard-coded to `EUR`.
+
+Transactions may still be stored in other currencies via the `currency` and `fxRate` fields. The
+expected contract is:
+
+- `currency` = the original transaction currency from the broker/export
+- `fxRate` = the rate that converts **from `currency` into the app reporting currency**
+- the rate should correspond to the **transaction date**, not the current/live FX rate
+
+Examples while the reporting currency is EUR:
+
+- EUR transaction → no conversion needed
+- USD transaction with `fxRate = 0.92` → `100 USD` is treated as `92 EUR`
+- DKK transaction with `fxRate = 0.134` → `1000 DKK` is treated as `134 EUR`
+
+This means mixed-currency portfolios are supported only by normalizing each transaction into one
+canonical reporting currency. The app does **not** currently model multiple reporting currencies at
+the same time.
+
+If the reporting currency ever changes in the future (for example from EUR to DKK), historical
+transactions would also need valid FX rates into that new reporting currency. In practice, the most
+stable approach is to capture and store the broker-provided or externally-fetched FX rate at import
+time, rather than recomputing old transactions from live rates later.
+
 ---
 
 ## Development
