@@ -537,7 +537,7 @@ async function onSignInClick() {
     cancelled = true;
   });
   try {
-    setAuthStatus('<span class="spinner"></span>Signing in…');
+    setAuthStatus('Signing in…', false, true);
     await withTimeout(gisSignIn(), SIGNIN_TIMEOUT_MS);
 
     hideSigninOverlay();
@@ -591,14 +591,11 @@ function updateAuthUI(signedIn: boolean) {
   renderSetupBanner();
 }
 
-function setAuthStatus(msg: string, isErr = false) {
+function setAuthStatus(msg: string, isErr = false, isBusy = false) {
   const el = document.getElementById('auth-status');
   if (!el) return;
-  if (isErr) {
-    el.textContent = msg;
-  } else {
-    el.innerHTML = msg;
-  }
+  el.textContent = msg;
+  el.classList.toggle('auth-status-busy', isBusy);
   el.style.color = isErr ? 'var(--neg)' : 'var(--ink-2)';
 }
 

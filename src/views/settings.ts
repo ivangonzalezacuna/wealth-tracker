@@ -306,8 +306,12 @@ function holdingsSuggestionLists(suggestions: KnownSecuritySuggestions): {
   names: string[];
   isins: string[];
 } {
-  const names = [...new Set(suggestions.pairs.map((p) => p.name))].sort((a, b) => a.localeCompare(b));
-  const isins = [...new Set(suggestions.pairs.map((p) => p.isin))].sort((a, b) => a.localeCompare(b));
+  const names = [...new Set(suggestions.pairs.map((p) => p.name))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  const isins = [...new Set(suggestions.pairs.map((p) => p.isin))].sort((a, b) =>
+    a.localeCompare(b),
+  );
   return { names, isins };
 }
 
@@ -933,8 +937,11 @@ function attachHoldingListeners(root: HTMLElement): void {
 
   void loadTransactions()
     .then((txs) => {
-      _suggestionTransactions = txs;
-      _knownSecuritySuggestions = buildKnownSecuritySuggestions(getHoldings(), _suggestionTransactions);
+      _suggestionTransactions = Array.isArray(txs) ? txs : [];
+      _knownSecuritySuggestions = buildKnownSecuritySuggestions(
+        getHoldings(),
+        _suggestionTransactions,
+      );
       refreshHoldingDatalists(root);
       const tbl = root.querySelector('#settings-holdings-tbl') as HTMLElement | null;
       if (tbl) attachHoldingSuggestionListeners(tbl);
@@ -980,8 +987,11 @@ function attachHoldingListeners(root: HTMLElement): void {
         btn,
         async () => {
           const txs = await loadTransactions();
-          _suggestionTransactions = txs;
-          _knownSecuritySuggestions = buildKnownSecuritySuggestions(getHoldings(), _suggestionTransactions);
+          _suggestionTransactions = Array.isArray(txs) ? txs : [];
+          _knownSecuritySuggestions = buildKnownSecuritySuggestions(
+            getHoldings(),
+            _suggestionTransactions,
+          );
           refreshHoldingDatalists(root);
           const buys = txs.filter((t) => t.type === 'BUY' && t.isin);
           if (buys.length === 0) {

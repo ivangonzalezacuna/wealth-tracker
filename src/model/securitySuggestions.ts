@@ -24,8 +24,8 @@ export function normalizeInstitution(value: string): string {
 }
 
 export function buildKnownSecuritySuggestions(
-  holdings: Holding[],
-  transactions: Transaction[],
+  holdings: Holding[] | undefined,
+  transactions: Transaction[] | undefined,
 ): KnownSecuritySuggestions {
   const byIsin = new Map<string, KnownSecurityPair>();
   const byName = new Map<string, KnownSecurityPair>();
@@ -43,8 +43,12 @@ export function buildKnownSecuritySuggestions(
     if (!byName.has(nameKey)) byName.set(nameKey, canonical);
   };
 
-  for (const holding of holdings) addPair(holding.isin || '', holding.name || holding.shortName || '');
-  for (const tx of transactions) addPair(tx.isin || '', tx.name || '');
+  for (const holding of Array.isArray(holdings) ? holdings : []) {
+    addPair(holding.isin || '', holding.name || holding.shortName || '');
+  }
+  for (const tx of Array.isArray(transactions) ? transactions : []) {
+    addPair(tx.isin || '', tx.name || '');
+  }
 
   const pairs = Array.from(byIsin.values()).sort((a, b) => a.name.localeCompare(b.name));
   const byIsinRecord: Record<string, KnownSecurityPair> = {};

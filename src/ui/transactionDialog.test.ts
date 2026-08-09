@@ -237,7 +237,9 @@ describe('transactionDialog', () => {
     getSubmit()!.click();
     await Promise.resolve();
     expect(settled).toBe(false);
-    expect((document.querySelector('#txd-isin-err') as HTMLElement).textContent).toContain('mismatch');
+    expect((document.querySelector('#txd-isin-err') as HTMLElement).textContent).toContain(
+      'mismatch',
+    );
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     await p;
   });

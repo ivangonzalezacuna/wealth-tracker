@@ -116,6 +116,20 @@ code,
   font-size: 12px;
   color: var(--ink-2);
 }
+.auth-status.auth-status-busy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.auth-status.auth-status-busy::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--line);
+  border-top-color: var(--brand);
+  border-radius: var(--radius-round);
+  animation: spin 0.7s linear infinite;
+}
 
 /* Nav */
 .nav {

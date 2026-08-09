@@ -119,7 +119,9 @@ export function summarizeBackup(b: BackupFile): string {
     const snapDates = snapshots.map((s) => s.date).sort();
     const last = snapDates[snapDates.length - 1];
     const d = new Date(last.length <= 7 ? `${last}-01` : last);
-    lastSnap = isNaN(d.getTime()) ? last : formatEnglishDate(d, { month: 'short', year: 'numeric' });
+    lastSnap = isNaN(d.getTime())
+      ? last
+      : formatEnglishDate(d, { month: 'short', year: 'numeric' });
   }
 
   const counts = `${accounts.length} accounts · ${holdings.length} holdings · ${snapshots.length} snapshots · ${transactions.length} transactions`;
