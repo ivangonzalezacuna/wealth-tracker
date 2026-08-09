@@ -69,3 +69,13 @@ export async function getDriveVersion(): Promise<string | null> {
 export async function setDriveVersion(version: string): Promise<void> {
   await setMeta('sync:drive_version', version);
 }
+
+/** Get the timestamp of the most recent local change pending upload. */
+export async function getLastLocalChangeTimestamp(): Promise<string | null> {
+  return getMeta('sync:last_local_change_at');
+}
+
+/** Set the timestamp of the most recent local change pending upload. */
+export async function setLastLocalChangeTimestamp(iso: string): Promise<void> {
+  await setMeta('sync:last_local_change_at', iso);
+}

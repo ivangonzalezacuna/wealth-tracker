@@ -17,7 +17,15 @@ import {
   restoreAllData,
   logConfigChange,
 } from './db';
-import { pullFromCloud, pushToCloud, scheduleUpload } from './sync/engine';
+import {
+  pullFromCloud,
+  pushToCloud,
+  scheduleUpload,
+  SyncConflictError,
+  getPendingSyncConflict,
+  overwriteCloudWithLocal,
+  replaceLocalWithCloud,
+} from './sync/engine';
 import {
   loadConfig,
   onConfigChange,
@@ -86,6 +94,7 @@ import { shouldAutoResync } from './sync/policy';
 import { loadCollapseState, replaceCollapseState } from './ui/collapseState';
 import { restoreCollapseFromSheet, backupCollapseToSheet } from './ui/collapseSync';
 import { confirmDialog } from './ui/confirmDialog';
+import { conflictDialog } from './ui/conflictDialog';
 import { showSigninOverlay, hideSigninOverlay } from './ui/signinOverlay';
 import { withTimeout } from './sync/timeout';
 import { isBusy, setBusy } from './sync/lock';
@@ -133,6 +142,35 @@ function setSyncing(v: boolean): void {
 }
 function isSyncBusy(): boolean {
   return isBusy();
+}
+
+function refreshConflictAccess(): void {
+  const el = document.getElementById('sync-status');
+  const actionable = !!getPendingSyncConflict();
+  if (!el) return;
+  if (actionable) {
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('title', 'Resolve sync conflict');
+  } else {
+    el.removeAttribute('role');
+    el.removeAttribute('tabindex');
+    el.removeAttribute('title');
+  }
+  if (document.getElementById('settings-content')) renderSettings();
+}
+
+/**
+ * Handle a SyncConflictError uniformly: update the status pill, refresh
+ * ARIA attributes and open the resolver. Returns true when the error was a
+ * conflict (caller should stop further processing), false otherwise.
+ */
+function handleSyncConflict(err: unknown): boolean {
+  if (!(err instanceof SyncConflictError)) return false;
+  setSyncStatus('conflict');
+  refreshConflictAccess();
+  void openSyncConflictResolver();
+  return true;
 }
 
 /** True when data is shown from cache but no valid auth token exists. */
@@ -400,7 +438,13 @@ function initOnlineListeners() {
     setSyncStatus('ok', 'Back online');
     // Push local DB immediately before any pull/resync path, so reconnect
     // never downloads cloud state on top of local offline writes.
-    const pushed = await pushToCloud();
+    let pushed = false;
+    try {
+      pushed = await pushToCloud();
+    } catch (err) {
+      if (handleSyncConflict(err)) return;
+      throw err;
+    }
     if (!pushed) {
       // Retry soon and avoid a pull until push succeeds, preventing overwrite.
       scheduleUpload();
@@ -454,6 +498,15 @@ function initAuth() {
   });
   document.getElementById('btn-sync-now')?.addEventListener('click', () => {
     if (!isSyncBusy()) syncInBackground();
+  });
+  document.getElementById('sync-status')?.addEventListener('click', () => {
+    if (getPendingSyncConflict()) void openSyncConflictResolver();
+  });
+  document.getElementById('sync-status')?.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && getPendingSyncConflict()) {
+      e.preventDefault();
+      void openSyncConflictResolver();
+    }
   });
 
   // Boot: render from cache instantly, then check for a stored token.
@@ -646,7 +699,9 @@ async function syncInBackground() {
     setSyncStatus('ok');
     await backupCollapseToSheet();
   } catch (err) {
-    setSyncStatus('error', (err as Error).message);
+    if (!handleSyncConflict(err)) {
+      setSyncStatus('error', (err as Error).message);
+    }
     // If we had cached data, keep showing it
     if (!state.cacheLoaded) {
       // No cache either - show error
@@ -700,41 +755,7 @@ async function loadAllData() {
     // Pull from Drive if cloud is newer
     await pullFromCloud();
 
-    await loadConfig();
-    restoreCollapseFromSheet(); // restore UI prefs if IDB was empty
-    const [snaps, txs, meta] = await Promise.all([
-      loadSnapshots(),
-      loadTransactions(),
-      loadImportMeta(),
-    ]);
-    state.snaps = snaps;
-    state.txs = txs;
-    state.importMeta = meta;
-    state.pd = txs.length ? computePD(txs, { method: getCostBasisMethod() }) : null;
-
-    // Cache everything
-    const [configCachedLA, snapsCachedLA, txsCachedLA] = await Promise.all([
-      setCachedConfig({
-        accounts: getAccounts(),
-        holdings: getHoldings(),
-        settings: getSettings(),
-      }),
-      setCachedSnapshots(snaps),
-      setCachedTransactions(txs),
-      setCachedImportMeta(meta),
-      state.pd ? setCachedAggregates(state.pd) : Promise.resolve(),
-      state.pd
-        ? setInputsHash(
-            computeInputsHash(
-              txs.length,
-              txs[txs.length - 1]?.date || '',
-              getCostBasisMethod(),
-              holdingsSignature(getHoldings()),
-            ),
-          )
-        : Promise.resolve(),
-    ]);
-    if (!configCachedLA || !snapsCachedLA || !txsCachedLA) showCacheWriteWarning();
+    await refreshStateFromLocalDb();
 
     onConfigChange(async (changed) => {
       if (state.txs.length) {
@@ -751,7 +772,9 @@ async function loadAllData() {
     setSyncStatus('ok');
     await backupCollapseToSheet();
   } catch (err) {
-    setSyncStatus('error', (err as Error).message);
+    if (!handleSyncConflict(err)) {
+      setSyncStatus('error', (err as Error).message);
+    }
   } finally {
     _initialLoad = false;
     setSyncing(false);
@@ -799,6 +822,95 @@ export async function exportBackup(): Promise<void> {
   URL.revokeObjectURL(url);
 }
 window.__exportBackup = exportBackup;
+
+async function refreshStateFromLocalDb(opts: { clearCaches?: boolean } = {}): Promise<void> {
+  if (opts.clearCaches) await clearCache();
+
+  await loadConfig();
+  restoreCollapseFromSheet();
+  const [snaps, txs, meta] = await Promise.all([
+    loadSnapshots(),
+    loadTransactions(),
+    loadImportMeta(),
+  ]);
+  state.snaps = snaps;
+  state.txs = txs;
+  state.importMeta = meta;
+  state.pd = txs.length ? computePD(txs, { method: getCostBasisMethod() }) : null;
+  state.cacheLoaded = true;
+
+  const [configCached, snapsCached, txsCached] = await Promise.all([
+    setCachedConfig({
+      accounts: getAccounts(),
+      holdings: getHoldings(),
+      settings: getSettings(),
+    }),
+    setCachedSnapshots(snaps),
+    setCachedTransactions(txs),
+    setCachedImportMeta(meta),
+    state.pd ? setCachedAggregates(state.pd) : Promise.resolve(),
+    state.pd
+      ? setInputsHash(
+          computeInputsHash(
+            txs.length,
+            txs[txs.length - 1]?.date || '',
+            getCostBasisMethod(),
+            holdingsSignature(getHoldings()),
+          ),
+        )
+      : Promise.resolve(),
+  ]);
+  if (!configCached || !snapsCached || !txsCached) showCacheWriteWarning();
+}
+
+async function openSyncConflictResolver(): Promise<void> {
+  async function resolveConflictWith(
+    action: () => Promise<boolean>,
+    dialog: { title: string; body: string; confirmLabel: string },
+  ): Promise<boolean> {
+    const ok = await confirmDialog({ ...dialog, danger: true });
+    if (!ok) return false;
+    setSyncing(true);
+    try {
+      await action();
+      await refreshStateFromLocalDb({ clearCaches: true });
+      setSyncStatus('ok');
+      refreshConflictAccess();
+      renderAll();
+    } finally {
+      setSyncing(false);
+    }
+    return true;
+  }
+
+  while (getPendingSyncConflict()) {
+    const choice = await conflictDialog();
+    if (choice === 'cancel') return;
+    if (choice === 'backup') {
+      await exportBackup();
+      continue;
+    }
+
+    if (choice === 'keep-local') {
+      const resolved = await resolveConflictWith(overwriteCloudWithLocal, {
+        title: 'Overwrite Drive with local data?',
+        body: 'This keeps this device as the source of truth and discards the newer Drive copy.',
+        confirmLabel: 'Overwrite Drive',
+      });
+      if (resolved) return;
+      continue;
+    }
+
+    const resolved = await resolveConflictWith(replaceLocalWithCloud, {
+      title: 'Replace local data with Drive?',
+      body: 'This discards this device\u2019s unsynced local changes and replaces the local database with the Drive copy.',
+      confirmLabel: 'Replace local',
+    });
+    if (resolved) return;
+  }
+}
+window.__openSyncConflictResolver = openSyncConflictResolver;
+window.__hasSyncConflict = () => !!getPendingSyncConflict();
 
 // ── Backup restore ────────────────────────────────────────
 export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done'> {
@@ -889,12 +1001,14 @@ function setSyncStatus(status: string, msg = '') {
     cached: ['status-info', '\uD83D\uDCE6 Showing cached data'],
     ok: ['status-ok', '\u2713 Synced'],
     offline: ['status-warn', '\uD83D\uDCF4 Offline, showing cached data'],
+    conflict: ['status-warn', '\u26A0 Sync paused \u2014 action needed'],
     error: ['status-err', '\u26A0 Sync error: ' + msg],
   };
   const [cls, text] = map[status] || ['status-empty', ''];
   el.className = 'status-pill ' + cls;
   el.innerHTML = text;
   el.style.display = status ? 'inline-flex' : 'none';
+  refreshConflictAccess();
 }
 
 // ── Setup banner (onboarding checklist) ───────────────────
@@ -1551,7 +1665,11 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
       // the stale cloud DB and overwrite the freshly imported data.
       // When offline, pushToCloud() fails gracefully; the data is safe
       // in local SQLite and will be pushed on next Sync Now or write.
-      await pushToCloud();
+      try {
+        await pushToCloud();
+      } catch (err) {
+        if (!handleSyncConflict(err)) throw err;
+      }
     } catch (err) {
       showMsg('import-msg', 'Error: ' + (err as Error).message, false);
     } finally {

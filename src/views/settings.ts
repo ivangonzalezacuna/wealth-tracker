@@ -14,7 +14,7 @@ import {
   retireAccountIdsSafely,
 } from '../store/config';
 import type { ConfigChangeKind } from '../store/config';
-import { loadTransactions, loadConfigHistory } from '../db';
+import { loadTransactions, loadConfigHistory, loadSnapshots } from '../db';
 import type { ConfigHistoryEntry } from '../db';
 import {
   validatePrimaryInvestment,
@@ -410,9 +410,24 @@ async function deleteAccount(
   if (isCardBusy('accounts') || isBusy()) return;
   const accounts = collectAccounts(root);
   const a = accounts[idx];
+  const accountKeys = [a?.id, a?.key].filter((k): k is string => !!k && k.trim().length > 0);
+  if (accountKeys.length > 0) {
+    const snaps = await loadSnapshots();
+    const hasHistory = snaps.some((s) =>
+      accountKeys.some((key) => typeof s[key] === 'number' && Number(s[key]) !== 0),
+    );
+    if (hasHistory) {
+      showMsg(
+        'accts-msg',
+        'Cannot remove this account because it has historical snapshot values. Removing it would rewrite historical totals. Keep it and rename it (for example, "Closed - …").',
+        false,
+      );
+      return;
+    }
+  }
   const ok = await confirmDialog({
     title: `Remove ${esc(a?.label || 'this account')}?`,
-    body: 'This removes it from your configuration. Historical data is not affected, and its old data column stays reserved so a future account never accidentally reuses it.',
+    body: 'This removes it from your configuration. The account has no stored snapshot balances, so historical totals stay unchanged. Its old data column stays reserved so a future account never accidentally reuses it.',
     confirmLabel: 'Remove',
     danger: true,
   });
@@ -1869,6 +1884,7 @@ function subtractMonths(dateStr: string, months: number): string {
 // ── Cache / Force resync ──────────────────────────────────
 
 function renderCacheCard(): string {
+  const hasConflict = window.__hasSyncConflict?.() ?? false;
   return `
     <div class="card card-collapsible" id="settings-card-cache" data-card-key="cache">
       <div class="card-header js-card-toggle">
@@ -1876,16 +1892,42 @@ function renderCacheCard(): string {
         <span class="card-chevron"></span>
       </div>
       <div class="card-body">
-        <p class="note" style="margin-bottom:.75rem">Data is stored locally in SQLite and synced to Google Drive. Use Force full resync to re-download from Drive.</p>
+        <p class="note" style="margin-bottom:.75rem">Data is stored locally in SQLite and synced to Google Drive. If sync pauses because both copies changed, resolve the conflict here and export a backup first if you want the safest path.</p>
+        ${
+          hasConflict
+            ? '<p class="note" style="margin-bottom:.75rem;color:var(--warn-fg)">Sync is paused because Drive changed elsewhere and this device also has local changes.</p>'
+            : ''
+        }
         <div style="display:flex;gap:10px;margin-top:.5rem;align-items:center;flex-wrap:wrap">
+          ${
+            hasConflict
+              ? '<button class="btn btn-primary btn-sm" id="btn-resolve-sync-conflict">Resolve sync conflict</button>'
+              : ''
+          }
           <button class="btn btn-outline btn-sm" id="btn-force-resync">Force full resync</button>
           <span id="resync-msg" style="font-size:12px;line-height:28px"></span>
         </div>
+        <p class="note" style="margin-top:.75rem">Force full resync clears cached views and re-checks Drive. It is not the primary tool for resolving a sync conflict.</p>
       </div>
     </div>`;
 }
 
 function attachCacheListeners(root: HTMLElement): void {
+  root.querySelector('#btn-resolve-sync-conflict')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-resolve-sync-conflict') as HTMLButtonElement;
+    try {
+      await withCardGuard(
+        'cache',
+        btn,
+        () => window.__openSyncConflictResolver?.() ?? Promise.resolve(),
+        {
+          busyText: 'Opening...',
+        },
+      );
+    } catch (err: any) {
+      showMsg('resync-msg', 'Error: ' + (err?.message || 'unknown'), false);
+    }
+  });
   root.querySelector('#btn-force-resync')?.addEventListener('click', async () => {
     if (!navigator.onLine) {
       showMsg('resync-msg', 'Unavailable offline. Connect to the internet first.', false);

@@ -56,6 +56,7 @@ vi.mock('../store/config', () => ({
 vi.mock('../db', () => ({
   loadTransactions: vi.fn(async () => []),
   loadConfigHistory: vi.fn(async () => []),
+  loadSnapshots: vi.fn(async () => []),
 }));
 
 // Collapse state: use real in-memory implementation for testability
@@ -155,6 +156,8 @@ import { withButtonGuard } from '../utils';
 
 function setupDOM(): void {
   document.body.innerHTML = '<div id="settings-content"></div>';
+  (window as any).__hasSyncConflict = () => false;
+  (window as any).__openSyncConflictResolver = vi.fn(async () => {});
 }
 
 describe('Settings scoped re-render (repaintCard)', () => {
@@ -621,6 +624,28 @@ describe('Button-disable verification: synchronous disable and double-click prev
   });
 
   describe('.js-del-acct (accounts delete)', () => {
+    it('blocks deletion when account has historical snapshot values', async () => {
+      const { loadSnapshots } = await import('../db');
+      const { setAccounts } = await import('../store/config');
+      const { showMsg } = await import('../utils');
+      (loadSnapshots as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        { date: '2026-01', acct1: 1234 },
+      ]);
+      (setAccounts as ReturnType<typeof vi.fn>).mockClear();
+      (showMsg as ReturnType<typeof vi.fn>).mockClear();
+
+      const btn = document.querySelector('.js-del-acct') as HTMLButtonElement;
+      btn.click();
+      await tick();
+
+      expect(setAccounts as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+      expect(showMsg as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+        'accts-msg',
+        expect.stringContaining('Cannot remove this account'),
+        false,
+      );
+    });
+
     it('disables synchronously and prevents double-click', async () => {
       const { setAccounts } = await import('../store/config');
       (setAccounts as ReturnType<typeof vi.fn>).mockClear();
@@ -981,6 +1006,23 @@ describe('Button-disable verification: synchronous disable and double-click prev
   });
 
   describe('#btn-force-resync (cache card)', () => {
+    it('shows conflict-specific copy and action when a sync conflict is pending', async () => {
+      const openConflictResolver = vi.fn(async () => {});
+      (window as any).__hasSyncConflict = () => true;
+      (window as any).__openSyncConflictResolver = openConflictResolver;
+
+      renderSettings();
+
+      expect(document.getElementById('btn-resolve-sync-conflict')).not.toBeNull();
+      expect(document.getElementById('settings-card-cache')?.textContent).toContain(
+        'Sync is paused because Drive changed elsewhere and this device also has local changes.',
+      );
+
+      (document.getElementById('btn-resolve-sync-conflict') as HTMLButtonElement).click();
+      await tick();
+      expect(openConflictResolver).toHaveBeenCalledTimes(1);
+    });
+
     it('disables synchronously and prevents double-click', async () => {
       let callCount = 0;
       let resolveResync!: (value?: unknown) => void;
