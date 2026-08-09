@@ -37,15 +37,15 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
         <div class="dialog-header">
           <div class="dialog-title" id="snap-dialog-title">${_esc(title)}</div>
         </div>
-        <div class="dialog-fields snap-dialog-fields">
-          <div class="dialog-row">
-            <div class="dialog-field snap-dialog-field">
+        <div class="dialog-fields dialog-fields-relaxed">
+          <div class="dialog-row dialog-row-relaxed">
+            <div class="dialog-field">
               <label class="dialog-label" for="snapd-date">Month</label>
               <input type="month" id="snapd-date" class="form-input dialog-input"
                 value="${_esc(draft?.date || today)}" max="${today}">
               <span class="dialog-error" id="snapd-date-err"></span>
             </div>
-            <div class="dialog-field snap-dialog-field snap-dialog-field-wide">
+            <div class="dialog-field dialog-field-wide">
               <label class="dialog-label" for="snapd-notes">Notes (optional)</label>
               <input type="text" id="snapd-notes" class="form-input dialog-input"
                 value="${_esc(draft?.notes || '')}" placeholder="e.g. catch-up done, got raise...">
@@ -105,7 +105,7 @@ function _renderAccountFields(
       const value = draft?.[acct.key];
       return `
         <div class="snap-dialog-account">
-          <div class="dialog-field snap-dialog-field">
+          <div class="dialog-field">
             <label class="dialog-label" for="snapd-acc-${_esc(acct.key)}">${_esc(acct.label)} (€)</label>
             <input type="text" inputmode="decimal" id="snapd-acc-${_esc(acct.key)}"
               data-account-key="${_esc(acct.key)}"

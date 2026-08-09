@@ -2252,6 +2252,18 @@ input[type='color'] {
   gap: 10px;
   flex-wrap: wrap;
 }
+.dialog-row .dialog-field {
+  flex: 1 1 120px;
+}
+.dialog-row .dialog-field.dialog-field-wide {
+  flex: 2 1 200px;
+}
+.dialog-row-relaxed .dialog-field {
+  flex-basis: 160px;
+}
+.dialog-row-relaxed .dialog-field.dialog-field-wide {
+  flex-basis: 240px;
+}
 .dialog-label {
   font-size: 12px;
   font-weight: 500;
@@ -2281,20 +2293,15 @@ input[type='color'] {
 .dialog-fields {
   display: flex;
   flex-direction: column;
+  gap: 10px;
+}
+.dialog-fields-relaxed {
+  gap: 8px;
 }
 
 /* ── Snapshot dialog overrides ──────────────────────────── */
 .snap-dialog-card {
   max-width: 720px;
-}
-.snap-dialog-fields {
-  gap: 8px;
-}
-.snap-dialog-field {
-  flex: 1 1 160px;
-}
-.snap-dialog-field-wide {
-  flex: 2 1 240px;
 }
 .snap-dialog-account {
   display: flex;
@@ -2311,15 +2318,6 @@ input[type='color'] {
 /* ── Transaction dialog overrides ────────────────────────── */
 .tx-dialog-card {
   max-width: 560px;
-}
-.tx-dialog-fields {
-  gap: 10px;
-}
-.tx-dialog-field {
-  flex: 1 1 120px;
-}
-.tx-dialog-field-wide {
-  flex: 2 1 200px;
 }
 
 /* ── Snapshot edit-mode indicator ───────────────────────── */
