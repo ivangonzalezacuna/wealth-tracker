@@ -1798,6 +1798,15 @@ input[type='color'] {
   white-space: nowrap;
   flex: 1 1 auto;
 }
+.settings-item-meta {
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 1 40%;
+}
 .settings-item-fields {
   display: flex;
   flex-wrap: wrap;

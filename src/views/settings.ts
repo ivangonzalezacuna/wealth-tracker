@@ -325,7 +325,7 @@ function renderAccountRow(a: Account, i: number): string {
       <div class="settings-item-header">
         <span class="leg-sq" style="background:${esc(color)};flex-shrink:0"></span>
         <span class="settings-item-title">${esc(a.label) || 'New account'}</span>
-        <span style="font-size:11px;color:var(--ink-3);white-space:nowrap" class="settings-item-meta">${meta}</span>
+        <span class="settings-item-meta">${meta}</span>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto">
           <button class="btn btn-sm btn-outline js-edit-acct" data-idx="${i}">Edit</button>
           <button class="btn btn-sm btn-danger js-del-acct" data-idx="${i}">\u2715</button>
@@ -576,7 +576,7 @@ function renderHoldingRow(h: Holding, i: number): string {
       <div class="settings-item-header">
         <span class="leg-sq" style="background:${esc(color)};flex-shrink:0"></span>
         <span class="settings-item-title">${esc(h.shortName) || esc(h.isin) || 'New holding'}${h.name ? ` <span style="font-weight:normal;color:var(--ink-3);font-size:12px">(${esc(h.name)})</span>` : ''}</span>
-        <span style="font-size:11px;color:var(--ink-3);white-space:nowrap" class="settings-item-meta">${h.acc ? 'Acc' : 'Dist'}</span>
+        <span class="settings-item-meta">${h.acc ? 'Acc' : 'Dist'}</span>
         ${statusBadge}
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto">
           <button class="btn btn-sm btn-outline js-edit-hold" data-idx="${i}">Edit</button>
@@ -909,7 +909,7 @@ function renderGoalRow(goal: NamedGoal, idx: number): string {
     <div class="settings-item settings-goal-row item-collapsible" data-idx="${idx}">
       <div class="settings-item-header js-item-toggle">
         <span class="settings-item-title">${esc(title)}</span>
-        ${metaStr ? `<span class="settings-item-meta" style="font-size:11px;color:var(--ink-3);white-space:nowrap">${metaStr}</span>` : ''}
+        ${metaStr ? `<span class="settings-item-meta">${metaStr}</span>` : ''}
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           <span class="item-chevron"></span>
           <button class="btn btn-sm btn-danger js-del-goal" data-idx="${idx}">\u2715</button>
