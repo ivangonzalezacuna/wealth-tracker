@@ -142,17 +142,6 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
             </div>
           </div>
           <div class="dialog-row">
-            <div class="dialog-field dialog-field-compact">
-              <label class="dialog-label" for="holdd-color-hex">Color</label>
-              <div class="color-picker-wrap">
-                <input type="color" id="holdd-color" class="color-picker-swatch"
-                  value="${esc(existing?.color || '#888888')}" aria-label="Color picker">
-                <input type="text" id="holdd-color-hex" class="form-input dialog-input color-picker-hex"
-                  value="${esc(existing?.color || '#888888')}" placeholder="#888888" maxlength="7">
-              </div>
-            </div>
-          </div>
-          <div class="dialog-row">
             <div class="dialog-field">
               <label class="dialog-label" style="cursor:pointer">
                 <input type="checkbox" id="holdd-acc" ${existing?.acc !== false ? 'checked' : ''}>
@@ -164,6 +153,17 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
                 <input type="checkbox" id="holdd-active" ${existing?.active !== false ? 'checked' : ''}>
                 Active
               </label>
+            </div>
+          </div>
+          <div class="dialog-row">
+            <div class="dialog-field dialog-field-compact">
+              <label class="dialog-label" for="holdd-color-hex">Color</label>
+              <div class="color-picker-wrap">
+                <input type="color" id="holdd-color" class="color-picker-swatch"
+                  value="${esc(existing?.color || '#888888')}" aria-label="Color picker">
+                <input type="text" id="holdd-color-hex" class="form-input dialog-input color-picker-hex"
+                  value="${esc(existing?.color || '#888888')}" placeholder="#888888" maxlength="7">
+              </div>
             </div>
           </div>
         </div>
@@ -307,13 +307,11 @@ function _fillSuggestionDatalist(
 ): void {
   const isinList = overlay.querySelector('#holdd-isin-list');
   const nameList = overlay.querySelector('#holdd-name-list');
-  if (!suggestions || suggestions.pairs.length === 0) return;
+  const availablePairs = _availableSuggestionPairs(suggestions);
+  if (availablePairs.length === 0) return;
 
-  const existingIsins = new Set(_activeExistingIsins ?? []);
-  const sortedByIsin = suggestions.pairs
-    .filter((pair) => !existingIsins.has(pair.isin))
-    .sort((a, b) => a.isin.localeCompare(b.isin));
-  const sortedByName = [...suggestions.pairs].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedByIsin = [...availablePairs].sort((a, b) => a.isin.localeCompare(b.isin));
+  const sortedByName = [...availablePairs].sort((a, b) => a.name.localeCompare(b.name));
 
   if (isinList) {
     isinList.replaceChildren(
@@ -343,17 +341,18 @@ function _bindSuggestionAutoFill(
   overlay: HTMLElement,
   suggestions: KnownSecuritySuggestions | undefined,
 ): void {
-  if (!suggestions || suggestions.pairs.length === 0) return;
+  const filteredSuggestions = _filterSuggestions(suggestions);
+  if (!filteredSuggestions || filteredSuggestions.pairs.length === 0) return;
   const isinEl = overlay.querySelector('#holdd-isin') as HTMLInputElement | null;
   const nameEl = overlay.querySelector('#holdd-name') as HTMLInputElement | null;
   if (!isinEl || !nameEl) return;
 
   const applyByIsin = (): void => {
-    const match = suggestions.byIsin[isinEl.value.trim().toUpperCase()];
+    const match = filteredSuggestions.byIsin[isinEl.value.trim().toUpperCase()];
     if (match && !nameEl.value.trim()) nameEl.value = match.name;
   };
   const applyByName = (): void => {
-    const match = suggestions.byName[normalizeSuggestionName(nameEl.value)];
+    const match = filteredSuggestions.byName[normalizeSuggestionName(nameEl.value)];
     if (match && !isinEl.value.trim()) isinEl.value = match.isin;
   };
 
@@ -361,4 +360,28 @@ function _bindSuggestionAutoFill(
   isinEl.addEventListener('blur', applyByIsin);
   nameEl.addEventListener('change', applyByName);
   nameEl.addEventListener('blur', applyByName);
+}
+
+function _availableSuggestionPairs(
+  suggestions: KnownSecuritySuggestions | undefined,
+): KnownSecuritySuggestions['pairs'] {
+  if (!suggestions || suggestions.pairs.length === 0) return [];
+  const existingIsins = new Set(
+    (_activeExistingIsins ?? []).map((isin) => isin.trim().toUpperCase()),
+  );
+  return suggestions.pairs.filter((pair) => !existingIsins.has(pair.isin.trim().toUpperCase()));
+}
+
+function _filterSuggestions(
+  suggestions: KnownSecuritySuggestions | undefined,
+): KnownSecuritySuggestions | undefined {
+  const pairs = _availableSuggestionPairs(suggestions);
+  if (pairs.length === 0) return undefined;
+  const byIsin: KnownSecuritySuggestions['byIsin'] = {};
+  const byName: KnownSecuritySuggestions['byName'] = {};
+  for (const pair of pairs) {
+    byIsin[pair.isin] = pair;
+    byName[normalizeSuggestionName(pair.name)] = pair;
+  }
+  return { pairs, byIsin, byName };
 }

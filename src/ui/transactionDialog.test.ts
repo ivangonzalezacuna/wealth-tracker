@@ -54,6 +54,14 @@ describe('transactionDialog', () => {
     expect(document.querySelectorAll('.tx-dialog-overlay').length).toBe(1);
   });
 
+  it('uses the shared dialog field spacing instead of the relaxed variant', () => {
+    transactionDialog();
+    const fields = document.querySelector('.tx-dialog-card .dialog-fields') as HTMLElement | null;
+    expect(fields).not.toBeNull();
+    expect(fields?.classList.contains('dialog-fields-relaxed')).toBe(false);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
   it('cancelling resolves null and removes overlay', async () => {
     const p = transactionDialog();
     getCancel()!.click();

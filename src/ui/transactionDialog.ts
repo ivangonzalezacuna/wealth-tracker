@@ -76,7 +76,7 @@ export function transactionDialog(
         <div class="dialog-header">
           <div class="dialog-title" id="tx-dialog-title">${esc(title)}</div>
         </div>
-        <div class="dialog-fields dialog-fields-relaxed">
+        <div class="dialog-fields">
           <div class="dialog-row">
             <div class="dialog-field">
               <label class="dialog-label" for="txd-date">Date</label>

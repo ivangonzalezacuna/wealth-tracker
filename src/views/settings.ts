@@ -22,6 +22,7 @@ import {
   validateAccountIds,
   validateAccountLabels,
 } from '../model/accounts';
+import { validateGoalLabels } from '../model/goals';
 import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { showMsg, reinjectPendingMsg, withButtonGuard, esc, fmtEur } from '../utils';
@@ -404,6 +405,7 @@ function attachAccountListeners(root: HTMLElement): void {
   root.querySelector('#btn-add-acct')?.addEventListener('click', async () => {
     const suggestions = accountSuggestionLists(_accounts ?? []);
     const draft = await accountDialog({
+      existingLabels: (_accounts ?? []).map((a) => a.label),
       labelSuggestions: suggestions.labels,
       institutionSuggestions: suggestions.institutions,
     });
@@ -425,6 +427,7 @@ function attachAccountListeners(root: HTMLElement): void {
     const suggestions = accountSuggestionLists(accounts);
     const draft = await accountDialog({
       existing,
+      existingLabels: accounts.filter((_, i) => i !== idx).map((a) => a.label),
       labelSuggestions: suggestions.labels,
       institutionSuggestions: suggestions.institutions,
     });
@@ -992,7 +995,7 @@ async function deleteGoal(root: HTMLElement, idx: number, btn: HTMLButtonElement
 
 function attachGoalListeners(root: HTMLElement): void {
   root.querySelector('#btn-add-goal')?.addEventListener('click', async () => {
-    const draft = await goalDialog();
+    const draft = await goalDialog({ existingLabels: (_goals ?? []).map((goal) => goal.label) });
     if (!draft) return;
     const goals = _goals ?? [];
     rerenderGoalsTable(root, [...goals, draft]);
@@ -1007,7 +1010,10 @@ function attachGoalListeners(root: HTMLElement): void {
         const goals = _goals ?? [];
         const existing = goals[idx];
         if (!existing) return;
-        const draft = await goalDialog({ existing });
+        const draft = await goalDialog({
+          existing,
+          existingLabels: goals.filter((_, i) => i !== idx).map((goal) => goal.label),
+        });
         if (!draft) return;
         const updated = goals.map((g, i) => (i === idx ? draft : g));
         rerenderGoalsTable(root, updated);
@@ -1025,6 +1031,11 @@ function attachGoalListeners(root: HTMLElement): void {
   root.querySelector('#btn-save-goal')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-goal') as HTMLButtonElement;
     const goals = (_goals ?? []).filter((g) => g.targetNetWorth);
+    const labelErr = validateGoalLabels(goals);
+    if (labelErr) {
+      showMsg('goal-msg', labelErr, false);
+      return;
+    }
     try {
       await withCardGuard('goal', btn, () => setSettings({ goals: JSON.stringify(goals) }), {
         busyText: 'Saving...',

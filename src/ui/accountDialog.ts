@@ -16,6 +16,8 @@ export interface AccountDialogOptions {
   labelSuggestions?: string[];
   /** Suggestions for the institution autocomplete. */
   institutionSuggestions?: string[];
+  /** Existing account labels excluding the record being edited. */
+  existingLabels?: string[];
 }
 
 let _activeResolve: ((v: Account | null) => void) | null = null;
@@ -23,6 +25,7 @@ let _activeTrigger: HTMLElement | null = null;
 let _activeOverlay: HTMLElement | null = null;
 let _activeExisting: Account | undefined = undefined;
 let _activeCleanup: (() => void) | null = null;
+let _activeExistingLabelsList: string[] = [];
 
 export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account | null> {
   return new Promise<Account | null>((resolve) => {
@@ -30,6 +33,7 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
     _activeResolve = resolve;
     _activeTrigger = document.activeElement as HTMLElement | null;
     _activeExisting = opts.existing;
+    _activeExistingLabelsList = opts.existingLabels ?? [];
     const existing = opts.existing;
     const title = existing ? 'Edit account' : 'Add account';
 
@@ -249,6 +253,15 @@ function _submit(): void {
   } else if (!/[a-zA-Z0-9]/.test(labelVal)) {
     setErr('acctd-label', 'Name must contain at least one letter or digit.');
     valid = false;
+  } else {
+    const normalized = labelVal.trim().replace(/\s+/g, ' ').toLowerCase();
+    const existingLabels = new Set(
+      _activeExistingLabelsList.map((label) => label.trim().replace(/\s+/g, ' ').toLowerCase()),
+    );
+    if (existingLabels.has(normalized)) {
+      setErr('acctd-label', 'This account name is already defined in another account.');
+      valid = false;
+    }
   }
 
   const returnPct = returnRaw !== '' ? parseFloat(returnRaw) : 0;
@@ -293,6 +306,7 @@ function _dismiss(result: Account | null): void {
   _activeCleanup = null;
   _activeOverlay = null;
   _activeExisting = undefined;
+  _activeExistingLabelsList = [];
   restoreFocus(_activeTrigger);
   _activeTrigger = null;
   const resolve = _activeResolve;

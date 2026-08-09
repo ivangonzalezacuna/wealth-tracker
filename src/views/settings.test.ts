@@ -133,6 +133,10 @@ vi.mock('../model/holdings', () => ({
   validateHoldings: () => [],
 }));
 
+vi.mock('../model/goals', () => ({
+  validateGoalLabels: () => null,
+}));
+
 vi.mock('../ui/infoTip', () => ({
   infoTip: (text: string) =>
     `<span class="info-tip" data-tip="${text}" aria-label="${text}" tabindex="0">?</span>`,
