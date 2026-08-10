@@ -33,6 +33,7 @@ export function appTemplate(): string {
 <header>
   <h1>${CONFIG.app.title}</h1>
   <div class="sub" id="app-sub">${CONFIG.app.subtitle}</div>
+  <button id="btn-theme-toggle" class="btn-theme-toggle" aria-label="Switch theme: currently Light" title="Theme: Light (click to cycle Light → Dark → System)"><svg class="theme-toggle-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="3.1" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.4v2M8 12.6v2M1.4 8h2M12.6 8h2M3.34 3.34l1.42 1.42M11.24 11.24l1.42 1.42M12.66 3.34l-1.42 1.42M4.76 11.24l-1.42 1.42" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></button>
   <div id="auth-bar">
     <span id="auth-status" class="auth-status"></span>
     <span id="sync-status" class="status-pill" style="display:none"></span>
@@ -69,6 +70,7 @@ export function appTemplate(): string {
         ${rangeToggleHtml('nw-range-toggle', 'History range')}
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-hist"></canvas></div>
+      <div class="chart-data-table-wrap" id="c-nw-hist-table-wrap" hidden></div>
     </div>
     <div class="two-col">
       <div class="card">
@@ -206,6 +208,7 @@ export function appTemplate(): string {
         ${rangeToggleHtml('an-growth-range-toggle', 'Growth range')}
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-an-growth"></canvas></div>
+      <div class="chart-data-table-wrap" id="c-an-growth-table-wrap" hidden></div>
     </div>
 
     <!-- Level 2: Heatmap + Allocation (2+ snapshots) -->
@@ -232,6 +235,11 @@ export function appTemplate(): string {
           <div id="an-heatmap"></div>
         </div>
         <p class="note" id="an-heatmap-footer">Color intensity is weighted by portfolio value: months with more capital show more saturated colors.</p>
+      </div>
+
+      <div class="card" id="an-annual-table-card">
+        <div class="card-title">Annual returns</div>
+        <div id="an-annual-table"></div>
       </div>
 
       <div class="two-col">
@@ -342,6 +350,7 @@ export function appTemplate(): string {
         <div class="card" id="an-drawdown-card" style="margin:0 0 1rem">
           <div class="card-title">Drawdown history</div>
           <div class="chart-wrap chart-h-md"><canvas id="c-an-drawdown"></canvas></div>
+          <div class="chart-data-table-wrap" id="c-an-drawdown-table-wrap" hidden></div>
         </div>
 
         <div class="card" id="an-rolling-cagr-card" style="margin:0 0 1rem">
@@ -361,6 +370,7 @@ export function appTemplate(): string {
               ${rangeToggleHtml('an-income-range-toggle', 'Income range', '12')}
             </div>
             <div class="chart-wrap chart-h-md"><canvas id="c-an-income"></canvas></div>
+            <div class="chart-data-table-wrap" id="c-an-income-table-wrap" hidden></div>
           </div>
         </div>
       </div>

@@ -1,3 +1,33 @@
+export type UserThemePref = 'light' | 'dark' | 'system';
+const USER_THEME_KEY = 'wt-theme';
+
+/** Read the persisted user theme preference. Returns 'system' if none is stored. */
+export function getUserThemePref(): UserThemePref {
+  try {
+    const v = localStorage.getItem(USER_THEME_KEY);
+    if (v === 'light' || v === 'dark' || v === 'system') return v;
+  } catch {
+    // localStorage unavailable (e.g. in tests without jsdom)
+  }
+  return 'system';
+}
+
+/**
+ * Persist a user theme preference, apply a `data-theme` attribute to `<html>`,
+ * and notify all theme-change listeners so Chart.js canvases re-render.
+ */
+export function setUserTheme(pref: UserThemePref): void {
+  try {
+    localStorage.setItem(USER_THEME_KEY, pref);
+  } catch {
+    // ignore
+  }
+  if (typeof document !== 'undefined') {
+    document.documentElement.setAttribute('data-theme', pref);
+  }
+  for (const fn of _themeListeners) fn();
+}
+
 /** Shared design tokens used from TS - mirror the CSS :root tokens in styles.css. */
 export const T = {
   bg: '#f5f4f0',
@@ -29,7 +59,10 @@ export const R = {
 
 /** Runtime dark-mode resolution for Chart.js context at render-time. */
 export function resolvedT(): Record<keyof typeof T, string> {
-  const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const pref = getUserThemePref();
+  const dark =
+    pref === 'dark' ||
+    (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   if (!dark) return T;
   return {
     ...T,

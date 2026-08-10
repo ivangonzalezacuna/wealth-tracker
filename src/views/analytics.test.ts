@@ -207,4 +207,38 @@ describe('renderAnalytics', () => {
     expect((document.getElementById('an-drawdown-card') as HTMLElement).style.display).toBe('none');
     expect((document.getElementById('an-income') as HTMLElement).style.display).toBe('');
   });
+
+  it('renders growth chart data table wrap after renderAnalytics with 2+ snapshots', () => {
+    const snaps = [makeSnap('2025-01', 900, 0), makeSnap('2025-02', 950, 0)];
+    renderAnalytics(makePd(), snaps, []);
+    const wrap = document.getElementById('c-an-growth-table-wrap');
+    expect(wrap).not.toBeNull();
+    // Wrap should be visible (removeAttribute('hidden') was called)
+    expect(wrap?.hasAttribute('hidden')).toBe(false);
+    // Toggle button should be present
+    expect(wrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
+    // Table should be present (hidden by default)
+    const table = wrap?.querySelector('.chart-data-table') as HTMLTableElement | null;
+    expect(table).not.toBeNull();
+    expect(table?.getAttribute('aria-label')).toBe('Portfolio growth over time data');
+  });
+
+  it('renders annual returns table when at least one full year of data is present', () => {
+    // Two snapshots spanning early 2024 to early 2025 gives one annual data point
+    const snaps = [makeSnap('2024-01', 800, 0), makeSnap('2024-12', 900, 0)];
+    renderAnalytics(makePd(), snaps, []);
+    const card = document.getElementById('an-annual-table-card');
+    const table = document.getElementById('an-annual-table');
+    expect(card?.style.display).not.toBe('none');
+    // Table should contain at least one year row
+    expect(table?.querySelector('tbody tr')).not.toBeNull();
+  });
+
+  it('hides the level-2 section (including annual table card) when fewer than 2 snapshots exist', () => {
+    // Single snapshot → level-2 block (which contains the annual table card) is hidden
+    const snaps = [makeSnap('2025-06', 1000, 0)];
+    renderAnalytics(makePd(), snaps, []);
+    const level2 = document.getElementById('an-level2') as HTMLElement;
+    expect(level2.style.display).toBe('none');
+  });
 });
