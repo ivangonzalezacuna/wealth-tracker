@@ -86,7 +86,21 @@ describe('parseAccounts', () => {
         'contribAmount',
         'contribInterval',
       ],
-      ['acct1', 'investment', 'TR', 'Main', '#111', true, 1, 5, '2035-01', 12000, 12.5, 200, 'quarterly'],
+      [
+        'acct1',
+        'investment',
+        'TR',
+        'Main',
+        '#111',
+        true,
+        1,
+        5,
+        '2035-01',
+        12000,
+        12.5,
+        200,
+        'quarterly',
+      ],
     ];
     const accounts = parseAccounts(rows);
     expect(accounts).toHaveLength(1);

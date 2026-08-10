@@ -259,7 +259,9 @@ describe('renderAnalytics', () => {
     const level2 = document.getElementById('an-level2')!;
     const cards = Array.from(level2.querySelectorAll(':scope > .card'));
     expect(cards[1]?.querySelector('.card-title')?.textContent).toContain('Annual returns');
-    expect(cards[2]?.querySelector('.card-title')?.textContent).toContain('Monthly return pattern view');
+    expect(cards[2]?.querySelector('.card-title')?.textContent).toContain(
+      'Monthly return pattern view',
+    );
     expect(document.getElementById('an-heatmap-footer')?.textContent).toContain(
       'not a trading or rebalancing signal',
     );

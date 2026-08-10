@@ -238,7 +238,13 @@ function _submit(): void {
 
   const { get, getChecked, setErr } = makeDialogHelpers(overlay);
 
-  ['acctd-label', 'acctd-return', 'acctd-tax-drag', 'acctd-drawdown-start', 'acctd-withdrawal'].forEach((f) => setErr(f, ''));
+  [
+    'acctd-label',
+    'acctd-return',
+    'acctd-tax-drag',
+    'acctd-drawdown-start',
+    'acctd-withdrawal',
+  ].forEach((f) => setErr(f, ''));
 
   const labelVal = get('acctd-label');
   const typeVal = get('acctd-type') || 'cash';

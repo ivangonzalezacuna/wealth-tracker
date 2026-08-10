@@ -625,7 +625,8 @@ function _renderHeatmap(snaps: Snapshot[]): void {
       footerEl.textContent =
         'Pattern view only: color intensity is weighted by portfolio value. This is not a trading or rebalancing signal.';
     }
-    heatmapEl.innerHTML = '<p class="note">Add more snapshots to unlock the monthly pattern view.</p>';
+    heatmapEl.innerHTML =
+      '<p class="note">Add more snapshots to unlock the monthly pattern view.</p>';
     return;
   }
 

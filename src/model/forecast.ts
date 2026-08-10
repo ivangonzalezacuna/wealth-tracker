@@ -77,7 +77,8 @@ function advanceAccountValues(
 function monthOffsetFromStart(startDate: string, month: string): number {
   const [sy, sm] = startDate.slice(0, 7).split('-').map(Number);
   const [y, m] = month.split('-').map(Number);
-  if (!isFinite(sy) || !isFinite(sm) || !isFinite(y) || !isFinite(m)) return Number.POSITIVE_INFINITY;
+  if (!isFinite(sy) || !isFinite(sm) || !isFinite(y) || !isFinite(m))
+    return Number.POSITIVE_INFINITY;
   return (y - sy) * 12 + (m - sm);
 }
 
@@ -97,8 +98,13 @@ export function forecastMultiAccountSeries(
   months: number,
   startDate: string,
 ): Array<{ month: string; value: number }> {
-  const { perAccountMonthlyRate, perAccountMonthlyContrib, perAccountMonthlyWithdrawal, values: initialValues, perAccountTaxDragPct } =
-    prepareAccountInputs(accounts);
+  const {
+    perAccountMonthlyRate,
+    perAccountMonthlyContrib,
+    perAccountMonthlyWithdrawal,
+    values: initialValues,
+    perAccountTaxDragPct,
+  } = prepareAccountInputs(accounts);
   const startMonth = startDate.slice(0, 7);
   const perAccountDrawdownStartOffset = accounts.map((a) =>
     isValidMonth(a.drawdownStartMonth)
