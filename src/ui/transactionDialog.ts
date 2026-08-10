@@ -105,14 +105,15 @@ export function transactionDialog(
               <label class="dialog-label" for="txd-name">Name</label>
               <input type="text" id="txd-name" class="form-input dialog-input"
                 value="${esc(existing?.name || '')}" placeholder="e.g. iShares Core MSCI World"
-                list="txd-name-list">
+                list="txd-name-list" autocomplete="off">
               <datalist id="txd-name-list"></datalist>
               <span class="dialog-error dialog-error-compact" id="txd-name-err"></span>
             </div>
             <div class="dialog-field">
               <label class="dialog-label" for="txd-isin">ISIN</label>
               <input type="text" id="txd-isin" class="form-input dialog-input dialog-input-uppercase"
-                value="${esc(existing?.isin || '')}" placeholder="e.g. IE00B4L5Y983" list="txd-isin-list">
+                value="${esc(existing?.isin || '')}" placeholder="e.g. IE00B4L5Y983" list="txd-isin-list"
+                autocomplete="off">
               <datalist id="txd-isin-list"></datalist>
               <span class="dialog-error dialog-error-compact" id="txd-isin-err"></span>
             </div>
