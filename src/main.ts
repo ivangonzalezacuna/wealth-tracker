@@ -102,7 +102,7 @@ import { withTimeout } from './sync/timeout';
 import { isBusy, setBusy } from './sync/lock';
 import { registerSW } from 'virtual:pwa-register';
 import type { Snapshot, Transaction, PortfolioData, ImportProfile, Account } from './types';
-import { buildKnownSecuritySuggestions } from './model/securitySuggestions';
+import { buildSecuritySuggestions } from './model/securitySuggestions';
 
 // ── App state ────────────────────────────────────────────
 const state: {
@@ -1347,7 +1347,7 @@ async function addManualTransaction(): Promise<void> {
     return;
   }
   try {
-    const suggestions = buildKnownSecuritySuggestions(getHoldings(), state.txs);
+    const suggestions = buildSecuritySuggestions(getHoldings(), state.txs);
     const draft = await transactionDialog({ suggestions });
     if (!draft) return;
     const candidate = [...state.txs, draft].sort((a, b) => a.date.localeCompare(b.date));
@@ -1389,7 +1389,7 @@ async function editManualTransaction(rowId: number): Promise<void> {
   }
 
   try {
-    const suggestions = buildKnownSecuritySuggestions(getHoldings(), state.txs);
+    const suggestions = buildSecuritySuggestions(getHoldings(), state.txs);
     const draft = await transactionDialog({ existing, suggestions });
     if (!draft) return;
     const candidate = state.txs.map((t) => (t.rowId === rowId ? { ...draft, rowId } : t));

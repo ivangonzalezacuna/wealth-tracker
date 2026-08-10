@@ -19,8 +19,6 @@ import { infoTip, attachInfoTips } from './infoTip';
 
 export interface AccountDialogOptions {
   existing?: Account;
-  /** Suggestions for the account label autocomplete. */
-  labelSuggestions?: string[];
   /** Suggestions for the institution autocomplete. */
   institutionSuggestions?: string[];
   /** Existing account labels excluding the record being edited. */

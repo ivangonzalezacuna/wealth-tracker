@@ -209,17 +209,12 @@ export function focusFirstInvalid(overlay: HTMLElement): void {
   (overlay.querySelector('[aria-invalid="true"]') as HTMLElement | null)?.focus();
 }
 
-export function populateDatalist(
-  datalist: Element | null,
-  values: readonly string[],
-  labelForValue?: (value: string) => string,
-): void {
+export function populateDatalist(datalist: Element | null, values: readonly string[]): void {
   if (!datalist) return;
   datalist.replaceChildren(
     ...values.map((value) => {
       const opt = document.createElement('option');
       opt.value = value;
-      if (labelForValue) opt.label = labelForValue(value);
       return opt;
     }),
   );

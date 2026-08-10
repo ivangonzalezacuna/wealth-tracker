@@ -4,7 +4,7 @@
  */
 
 import { esc } from '../utils';
-import type { KnownSecuritySuggestions } from '../model/securitySuggestions';
+import type { SecuritySuggestions } from '../model/securitySuggestions';
 import { TxType } from '../types';
 import type { Transaction } from '../types';
 import {
@@ -12,20 +12,14 @@ import {
   createDialogController,
   focusFirstInvalid,
   makeDialogHelpers,
+  populateDatalist,
 } from './modalShell';
-import {
-  bindSecuritySuggestionAutoFill,
-  populateSecuritySuggestionLists,
-  securitySuggestionPairLooksCoherent,
-} from './securitySuggestionFields';
 
 let _activeExisting: Transaction | undefined = undefined;
-let _activeSuggestions: KnownSecuritySuggestions | undefined;
 const _dialog = createDialogController<Transaction | null>(null, {
   overlaySelector: '.tx-dialog-overlay',
   reset: () => {
     _activeExisting = undefined;
-    _activeSuggestions = undefined;
   },
 });
 
@@ -60,7 +54,7 @@ const FX_TYPES: ReadonlySet<Transaction['type']> = new Set([
 
 export interface TransactionDialogOptions {
   existing?: Transaction;
-  suggestions?: KnownSecuritySuggestions;
+  suggestions?: SecuritySuggestions;
 }
 
 export function transactionDialog(
@@ -69,7 +63,6 @@ export function transactionDialog(
   return new Promise<Transaction | null>((resolve) => {
     _dialog.begin(resolve);
     _activeExisting = opts.existing;
-    _activeSuggestions = opts.suggestions;
     const existing = opts.existing;
     const today = new Date().toISOString().slice(0, 10);
     const title = existing ? 'Edit transaction' : 'Add transaction';
@@ -182,27 +175,8 @@ export function transactionDialog(
 
     document.body.appendChild(overlay);
     _dialog.setOverlay(overlay);
-    populateSecuritySuggestionLists(
-      overlay,
-      {
-        isinInputId: 'txd-isin',
-        isinListId: 'txd-isin-list',
-        nameInputId: 'txd-name',
-        nameListId: 'txd-name-list',
-      },
-      opts.suggestions,
-    );
-    bindSecuritySuggestionAutoFill(
-      overlay,
-      {
-        isinInputId: 'txd-isin',
-        isinListId: 'txd-isin-list',
-        nameInputId: 'txd-name',
-        nameListId: 'txd-name-list',
-      },
-      opts.suggestions,
-      { overwritePeerField: true },
-    );
+    populateDatalist(overlay.querySelector('#txd-isin-list'), opts.suggestions?.isins ?? []);
+    populateDatalist(overlay.querySelector('#txd-name-list'), opts.suggestions?.names ?? []);
     _applyTypeVisibility(existing?.type || TxType.BUY);
 
     const typeEl = overlay.querySelector('#txd-type') as HTMLSelectElement | null;
@@ -275,14 +249,6 @@ function _submit(): void {
   }
   if (securityVisible && !nameVal) {
     setErr('txd-name', 'Name is required.');
-    valid = false;
-  }
-  if (
-    securityVisible &&
-    !securitySuggestionPairLooksCoherent(isinVal, nameVal, _activeSuggestions)
-  ) {
-    setErr('txd-isin', 'Known ISIN/name pair mismatch. Pick a matching pair or clear one field.');
-    setErr('txd-name', 'Known ISIN/name pair mismatch. Pick a matching pair or clear one field.');
     valid = false;
   }
   if (amountVisible && amountRaw !== '' && isNaN(_parseNum(amountRaw))) {

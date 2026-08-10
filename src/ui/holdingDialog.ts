@@ -1,34 +1,26 @@
 /**
  * Promise-based add/edit holding modal. All fields visible at once with inline validation.
  * Resolves with the Holding draft on submit, or null on cancel/dismiss.
- *
- * Autocomplete for ISIN and Name is provided via DOM-built datalists (no HTML escaping needed
- * for suggestion values) backed by KnownSecuritySuggestions. Selecting an ISIN auto-fills the
- * Name field and vice versa.
  */
 
 import { esc } from '../utils';
 import type { Holding, ContribInterval } from '../types';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { ASSET_CLASSES, REGIONS } from '../model/accountTypes';
-import type { KnownSecuritySuggestions } from '../model/securitySuggestions';
+import type { SecuritySuggestions } from '../model/securitySuggestions';
 import {
   bindColorInputs,
   bootstrapDialog,
   createDialogController,
   focusFirstInvalid,
   makeDialogHelpers,
+  populateDatalist,
 } from './modalShell';
-import {
-  bindSecuritySuggestionAutoFill,
-  filterKnownSecuritySuggestions,
-  populateSecuritySuggestionLists,
-} from './securitySuggestionFields';
 import { infoTip, attachInfoTips } from './infoTip';
 
 export interface HoldingDialogOptions {
   existing?: Holding;
-  suggestions?: KnownSecuritySuggestions;
+  suggestions?: SecuritySuggestions;
   /** Order index to assign to a new holding. */
   order?: number;
   existingIsins?: string[];
@@ -185,33 +177,10 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
     _dialog.setOverlay(overlay);
     attachInfoTips(overlay);
 
-    const filteredSuggestions = filterKnownSecuritySuggestions(
-      opts.suggestions,
-      opts.existingIsins ?? [],
-    );
-    populateSecuritySuggestionLists(
-      overlay,
-      {
-        isinInputId: 'holdd-isin',
-        isinListId: 'holdd-isin-list',
-        nameInputId: 'holdd-name',
-        nameListId: 'holdd-name-list',
-      },
-      filteredSuggestions,
-    );
+    populateDatalist(overlay.querySelector('#holdd-isin-list'), opts.suggestions?.isins ?? []);
+    populateDatalist(overlay.querySelector('#holdd-name-list'), opts.suggestions?.names ?? []);
 
     bindColorInputs(overlay, 'holdd-color', 'holdd-color-hex');
-
-    bindSecuritySuggestionAutoFill(
-      overlay,
-      {
-        isinInputId: 'holdd-isin',
-        isinListId: 'holdd-isin-list',
-        nameInputId: 'holdd-name',
-        nameListId: 'holdd-name-list',
-      },
-      filteredSuggestions,
-    );
 
     _dialog.setCleanup(
       bootstrapDialog({

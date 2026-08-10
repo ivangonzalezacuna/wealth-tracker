@@ -29,9 +29,9 @@ import { showMsg, reinjectPendingMsg, withButtonGuard, esc, fmtEur } from '../ut
 import type { Account, Holding, Settings, ContribInterval, NamedGoal, Transaction } from '../types';
 import { formatEnglishDateTime, formatEnglishMonth } from '../dateFormat';
 import {
-  buildKnownSecuritySuggestions,
+  buildSecuritySuggestions,
   normalizeInstitution,
-  type KnownSecuritySuggestions,
+  type SecuritySuggestions,
 } from '../model/securitySuggestions';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
@@ -278,14 +278,10 @@ export function refreshSettingsAfterChange(changed: ConfigChangeKind): void {
 /** In-memory list of accounts — kept in sync by add/edit/delete dialog operations. */
 let _accounts: Account[] | null = null;
 
-function accountSuggestionLists(accounts: Account[]): { labels: string[]; institutions: string[] } {
-  const labels = [...new Set(accounts.map((a) => a.label.trim()).filter(Boolean))].sort((a, b) =>
-    a.localeCompare(b),
-  );
-  const institutions = [
+function accountInstitutionList(accounts: Account[]): string[] {
+  return [
     ...new Set(accounts.map((a) => normalizeInstitution(a.institution || '')).filter(Boolean)),
   ].sort((a, b) => a.localeCompare(b));
-  return { labels, institutions };
 }
 
 function renderAccountsCard(accounts: Account[]): string {
@@ -403,11 +399,9 @@ async function deleteAccount(
 
 function attachAccountListeners(root: HTMLElement): void {
   root.querySelector('#btn-add-acct')?.addEventListener('click', async () => {
-    const suggestions = accountSuggestionLists(_accounts ?? []);
     const draft = await accountDialog({
       existingLabels: (_accounts ?? []).map((a) => a.label),
-      labelSuggestions: suggestions.labels,
-      institutionSuggestions: suggestions.institutions,
+      institutionSuggestions: accountInstitutionList(_accounts ?? []),
     });
     if (!draft) return;
     draft.order = (_accounts?.length ?? 0) + 1;
@@ -424,12 +418,10 @@ function attachAccountListeners(root: HTMLElement): void {
     const accounts = _accounts ?? [];
     const existing = accounts[idx];
     if (!existing) return;
-    const suggestions = accountSuggestionLists(accounts);
     const draft = await accountDialog({
       existing,
       existingLabels: accounts.filter((_, i) => i !== idx).map((a) => a.label),
-      labelSuggestions: suggestions.labels,
-      institutionSuggestions: suggestions.institutions,
+      institutionSuggestions: accountInstitutionList(accounts),
     });
     if (!draft) return;
     draft.order = existing.order;
@@ -510,10 +502,9 @@ function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
 let _holdings: Holding[] | null = null;
 let _holdingsSettingsFilter = 'all'; // 'all' | 'active' | 'closed'
 let _allHoldings: Holding[] | null = null; // cached full holdings list for filtered views
-let _knownSecuritySuggestions: KnownSecuritySuggestions = {
-  pairs: [],
-  byIsin: {},
-  byName: {},
+let _securitySuggestions: SecuritySuggestions = {
+  isins: [],
+  names: [],
 };
 let _suggestionTransactions: Transaction[] = [];
 
@@ -521,7 +512,7 @@ function renderHoldingsCard(holdings: Holding[]): string {
   // Cache the full list for merge-back when filter is active
   _holdings = holdings.slice();
   _allHoldings = holdings.slice();
-  _knownSecuritySuggestions = buildKnownSecuritySuggestions(holdings, _suggestionTransactions);
+  _securitySuggestions = buildSecuritySuggestions(holdings, _suggestionTransactions);
 
   const activeCount = holdings.filter((h) => h.active).length;
   const closedCount = holdings.filter((h) => !h.active).length;
@@ -657,10 +648,7 @@ function attachHoldingListeners(root: HTMLElement): void {
   void loadTransactions()
     .then((txs) => {
       _suggestionTransactions = Array.isArray(txs) ? txs : [];
-      _knownSecuritySuggestions = buildKnownSecuritySuggestions(
-        getHoldings(),
-        _suggestionTransactions,
-      );
+      _securitySuggestions = buildSecuritySuggestions(getHoldings(), _suggestionTransactions);
     })
     .catch(() => undefined);
 
@@ -678,7 +666,7 @@ function attachHoldingListeners(root: HTMLElement): void {
   root.querySelector('#btn-add-hold')?.addEventListener('click', async () => {
     const order = (_holdings?.length ?? 0) + 1;
     const draft = await holdingDialog({
-      suggestions: _knownSecuritySuggestions,
+      suggestions: _securitySuggestions,
       order,
       existingIsins: (_holdings ?? []).map((h) => h.isin),
     });
@@ -698,7 +686,7 @@ function attachHoldingListeners(root: HTMLElement): void {
     if (!existing) return;
     const draft = await holdingDialog({
       existing,
-      suggestions: _knownSecuritySuggestions,
+      suggestions: _securitySuggestions,
       existingIsins: (_allHoldings ?? holds)
         .filter((h) => h.isin !== existing.isin)
         .map((h) => h.isin),
@@ -719,10 +707,7 @@ function attachHoldingListeners(root: HTMLElement): void {
         async () => {
           const txs = await loadTransactions();
           _suggestionTransactions = Array.isArray(txs) ? txs : [];
-          _knownSecuritySuggestions = buildKnownSecuritySuggestions(
-            getHoldings(),
-            _suggestionTransactions,
-          );
+          _securitySuggestions = buildSecuritySuggestions(getHoldings(), _suggestionTransactions);
           const buys = txs.filter((t) => t.type === 'BUY' && t.isin);
           if (buys.length === 0) {
             showMsg('holds-msg', 'No BUY transactions found. Import a CSV first.', false);
@@ -824,15 +809,11 @@ function attachHoldingListeners(root: HTMLElement): void {
   });
 }
 
-function collectHoldings(_root: HTMLElement): Holding[] {
-  return _holdings ?? [];
-}
-
 function rerenderHoldingsTable(root: HTMLElement, holdings: Holding[]): void {
   // Update cache and reset filter to show all when modifying
   _holdings = holdings.slice();
   _allHoldings = holdings.slice();
-  _knownSecuritySuggestions = buildKnownSecuritySuggestions(holdings, _suggestionTransactions);
+  _securitySuggestions = buildSecuritySuggestions(holdings, _suggestionTransactions);
   _holdingsSettingsFilter = 'all';
   const tbl = root.querySelector('#settings-holdings-tbl');
   if (!tbl) return;
