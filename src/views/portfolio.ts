@@ -838,12 +838,11 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
               : 'Underweight';
         const suggestedCell =
           e.suggestedAmt < 0.005
-            ? `<span style="color:var(--warn)">hold</span>`
+            ? `<span style="color:var(--ink-3)">€0.00</span><span style="color:var(--ink-3);font-size:11px">${suffix}</span>`
             : `${fmtEur2(e.suggestedAmt)}<span style="color:var(--ink-3);font-size:11px">${suffix}</span>`;
         return `
-        <div class="tbl-row" role="row" data-rebalance-state="${esc(e.state)}" style="grid-template-columns:1.5fr 1fr 1fr 1fr">
-          <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:var(--radius-xs);background:${safeColor(e.color)};margin-right:6px"></span>${esc(e.shortName)}</div>
-          <div role="cell"><span class="rebalance-state-badge rebalance-state-${esc(e.state)}">${stateLabel}</span></div>
+        <div class="tbl-row" role="row" data-rebalance-state="${esc(e.state)}" style="grid-template-columns:2fr 1fr 1fr">
+          <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:var(--radius-xs);background:${safeColor(e.color)};margin-right:6px"></span>${esc(e.shortName)}<br><span class="rebalance-state-badge rebalance-state-${esc(e.state)}" style="margin-left:14px">${stateLabel}</span></div>
           <div role="cell" style="text-align:right">${suggestedCell}</div>
           <div role="cell" style="text-align:right;color:var(--ink-3);font-size:11px">${fmtPctSigned(e.projectedDriftPct)}</div>
         </div>`;
@@ -874,9 +873,8 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
             </div>
           </div>
           <div class="tbl" role="table" aria-label="Contribution rebalance plan">
-            <div class="tbl-row th" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr">
+            <div class="tbl-row th" role="row" style="grid-template-columns:2fr 1fr 1fr">
               <div role="columnheader">ETF</div>
-              <div role="columnheader">Status</div>
               <div role="columnheader" style="text-align:right">Amount</div>
               <div role="columnheader" style="text-align:right">Projected drift</div>
             </div>

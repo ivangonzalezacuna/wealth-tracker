@@ -812,15 +812,22 @@ describe('renderPortfolio', () => {
   });
 
   it('sell advisory mentions reviewing tax and fee impact', () => {
+    // Use a large portfolio where monthly contributions (500€/mo) cannot close
+    // the entire underweight gap in 12 months — IWDA remains overweight, so the
+    // sell advisory is triggered.
+    // IWDA: 80000 (80%, target 70%) → overweight +10%
+    // EM:   20000 (20%, target 30%) → underweight −10%
+    // projectedTotal at 12 months = 106000, needToBuy[EM] = 106000*0.3-20000=11800
+    // totalBudget = 6000 < 11800 → insufficient, IWDA stays overweight → sell warning.
     setRebalanceHoldings();
     const pd = makeRebalancePd({
       etfs: {
-        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 9500 }),
-        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 500 }),
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 80000 }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 20000 }),
       },
-      totalInv: 10000,
+      totalInv: 100000,
     });
-    const snap = makeRebalanceSnap({ etf_IE00TEST1: 9500, etf_IE00TEST2: 500 });
+    const snap = makeRebalanceSnap({ acct1: 100000, etf_IE00TEST1: 80000, etf_IE00TEST2: 20000 });
     renderPortfolio(pd, [snap]);
     const drift = document.getElementById('port-drift')!;
     expect(drift.textContent).toContain('taxes');

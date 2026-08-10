@@ -412,4 +412,80 @@ describe('computeRebalancePlan', () => {
     const totalAllocated = plan.reduce((s, e) => s + e.suggestedAmt, 0);
     expect(totalAllocated).toBeCloseTo(totalMonthlyBudget, 0);
   });
+
+  it('overweight holding receives surplus when budget exceeds underweight gaps', () => {
+    // With a large budget the underweight gap is fully covered and the surplus is
+    // redistributed proportionally, so the overweight holding does get contributions.
+    const drift = [
+      {
+        isin: 'A',
+        name: 'A',
+        shortName: 'A',
+        color: '#f00',
+        targetPct: 70,
+        actualPct: 65,
+        driftPct: -5,
+        actualValue: 6500,
+        targetValue: 7000,
+        deltaValue: -500,
+        valuationMode: 'market' as const,
+      },
+      {
+        isin: 'B',
+        name: 'B',
+        shortName: 'B',
+        color: '#0f0',
+        targetPct: 30,
+        actualPct: 35,
+        driftPct: 5,
+        actualValue: 3500,
+        targetValue: 3000,
+        deltaValue: 500,
+        valuationMode: 'market' as const,
+      },
+    ];
+    // totalBudget = 12 * 2000 = 24000, totalValue = 10000
+    // projectedTotal = 34000, needToBuy[A] = 34000*0.7 - 6500 = 17300, needToBuy[B] = 0
+    // totalNeed = 17300 < 24000 → excess = 6700
+    // B receives excess * 0.3 = 2010 over 12 months → monthly > 0
+    const plan = computeRebalancePlan(drift, 2000, 10000, 12, 'monthly');
+    const b = plan.find((e) => e.isin === 'B')!;
+    expect(b.state).toBe('overweight');
+    expect(b.suggestedAmt).toBeGreaterThan(0);
+  });
+
+  it('projected drift approaches zero when budget is sufficient to cover all gaps', () => {
+    const drift = [
+      {
+        isin: 'A',
+        name: 'A',
+        shortName: 'A',
+        color: '#f00',
+        targetPct: 70,
+        actualPct: 65,
+        driftPct: -5,
+        actualValue: 6500,
+        targetValue: 7000,
+        deltaValue: -500,
+        valuationMode: 'market' as const,
+      },
+      {
+        isin: 'B',
+        name: 'B',
+        shortName: 'B',
+        color: '#0f0',
+        targetPct: 30,
+        actualPct: 35,
+        driftPct: 5,
+        actualValue: 3500,
+        targetValue: 3000,
+        deltaValue: 500,
+        valuationMode: 'market' as const,
+      },
+    ];
+    const plan = computeRebalancePlan(drift, 2000, 10000, 12, 'monthly');
+    for (const e of plan) {
+      expect(Math.abs(e.projectedDriftPct)).toBeLessThan(2);
+    }
+  });
 });
