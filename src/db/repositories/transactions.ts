@@ -107,7 +107,7 @@ export async function mergeTransactions(
           t.date,
           t.source || '',
           t.type,
-          t.name,
+          t.name || '',
           t.isin || '',
           t.shares,
           t.price,
@@ -149,7 +149,8 @@ export function countAmendedRows(existing: Transaction[], incoming: Transaction[
       stored.shares !== t.shares ||
       stored.price !== t.price ||
       stored.fee !== t.fee ||
-      stored.tax !== t.tax
+      stored.tax !== t.tax ||
+      stored.amount !== t.amount
     ) {
       count++;
     }
@@ -174,7 +175,7 @@ export async function restoreTransactions(txs: Transaction[]): Promise<void> {
         t.date,
         t.source || '',
         t.type,
-        t.name,
+        t.name || '',
         t.isin || '',
         t.shares,
         t.price,

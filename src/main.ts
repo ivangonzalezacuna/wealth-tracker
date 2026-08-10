@@ -1053,6 +1053,17 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
       setCachedSnapshots(snapshots),
       setCachedTransactions(transactions),
       setCachedImportMeta(importMeta),
+      state.pd ? setCachedAggregates(state.pd) : Promise.resolve(),
+      state.pd
+        ? setInputsHash(
+            computeInputsHash(
+              transactions.length,
+              transactions[transactions.length - 1]?.date || '',
+              getCostBasisMethod(),
+              holdingsSignature(getHoldings()),
+            ),
+          )
+        : Promise.resolve(),
     ]);
     await setSetting('last_backup_at', new Date().toISOString());
     renderAll();

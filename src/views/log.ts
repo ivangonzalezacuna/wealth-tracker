@@ -34,6 +34,8 @@ let _lastOnAddTx: (() => void) | null = null;
 let _lastOnEditTx: ((rowId: number) => void) | null = null;
 let _lastOnDelTx: ((rowId: number, btn?: HTMLButtonElement) => void) | null = null;
 let _readOnly = false;
+let _snaps: Snapshot[] = [];
+let _txs: Transaction[] = [];
 let _txPage = 1;
 let _txSearch = '';
 let _txType = '';
@@ -61,14 +63,16 @@ export function renderLog(state: LogState): void {
   _lastOnEditTx = state.onEditTx || null;
   _lastOnDelTx = state.onDelTx || null;
   _readOnly = !!state.readOnly;
+  _snaps = snaps;
+  _txs = txs;
 
-  attachTxListeners(txs);
-  renderTxList(txs);
+  attachTxListeners();
+  renderTxList(_txs);
 
   // Populate year filter options
-  populateYearFilter(snaps);
-  attachFilterListeners(snaps);
-  renderSnapList(snaps, state.onEditSnap, state.onDelSnap);
+  populateYearFilter(_snaps);
+  attachFilterListeners();
+  renderSnapList(_snaps, state.onEditSnap, state.onDelSnap);
 }
 
 // ── Curated transaction summary ──────────────────────────────────
@@ -130,7 +134,7 @@ function populateYearFilter(snaps: Snapshot[]): void {
       .join('');
 }
 
-function attachFilterListeners(snaps: Snapshot[]): void {
+function attachFilterListeners(): void {
   const yearEl = document.getElementById('snap-year-filter') as
     (HTMLSelectElement & { _bound?: boolean }) | null;
   const searchEl = document.getElementById('snap-search') as
@@ -142,7 +146,7 @@ function attachFilterListeners(snaps: Snapshot[]): void {
       _snapYear = yearEl.value;
       _snapPage = 1;
       _snapTblSort = { key: null, dir: null };
-      if (_lastOnEdit && _lastOnDel) renderSnapList(snaps, _lastOnEdit, _lastOnDel);
+      if (_lastOnEdit && _lastOnDel) renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
     });
   }
   if (searchEl && !searchEl._bound) {
@@ -151,7 +155,7 @@ function attachFilterListeners(snaps: Snapshot[]): void {
       _snapSearch = searchEl.value.toLowerCase();
       _snapPage = 1;
       _snapTblSort = { key: null, dir: null };
-      if (_lastOnEdit && _lastOnDel) renderSnapList(snaps, _lastOnEdit, _lastOnDel);
+      if (_lastOnEdit && _lastOnDel) renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
     });
   }
 }
@@ -272,7 +276,7 @@ function renderSnapList(
   bindSortedTableHeader(document.getElementById('snap-table-header'), _snapTblSort, (newState) => {
     _snapTblSort = newState;
     _snapPage = 1;
-    renderSnapList(snaps, onEdit, onDel);
+    renderSnapList(_snaps, onEdit, onDel);
   });
 
   // Row tap-to-expand detail panel (delegated on #snaps-list)
@@ -287,14 +291,14 @@ function renderSnapList(
       const row = target.closest('.snap-row-compact:not(.th)') as HTMLElement | null;
       if (!row) return;
       const date = row.dataset.date;
-      const snap = snaps.find((s) => s.date === date);
+      const snap = _snaps.find((s) => s.date === date);
       if (!snap) return;
       toggleSingleDetailRow({
         container: listEl,
         row,
         item: snap,
         detailSelector: '.snap-detail',
-        createDetail: () => _createSnapDetail(snap, date!, onEdit, onDel),
+        createDetail: () => _createSnapDetail(snap, date!, _lastOnEdit!, _lastOnDel!),
         onExpandedChange: (detailRow, expanded) => {
           const detailDate = detailRow.dataset.date;
           if (detailDate) setCollapsed('snap:' + detailDate, expanded);
@@ -437,7 +441,7 @@ function txColumns(): ColumnDef<Transaction>[] {
   ];
 }
 
-function attachTxListeners(txs: Transaction[]): void {
+function attachTxListeners(): void {
   const searchEl = document.getElementById('tx-search') as
     (HTMLInputElement & { _bound?: boolean }) | null;
   const typeEl = document.getElementById('tx-type-filter') as
@@ -452,7 +456,7 @@ function attachTxListeners(txs: Transaction[]): void {
     searchEl.addEventListener('input', () => {
       _txSearch = searchEl.value.toLowerCase();
       _txPage = 1;
-      renderTxList(txs);
+      renderTxList(_txs);
     });
   }
   if (typeEl && !typeEl._bound) {
@@ -460,7 +464,7 @@ function attachTxListeners(txs: Transaction[]): void {
     typeEl.addEventListener('change', () => {
       _txType = typeEl.value;
       _txPage = 1;
-      renderTxList(txs);
+      renderTxList(_txs);
     });
   }
   if (addBtn && !addBtn._bound) {

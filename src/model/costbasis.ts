@@ -19,8 +19,10 @@ function computeAvgCost(txs: Transaction[]): CostBasisResult {
     totalFees += fee;
 
     if (tx.type === TxType.BUY) {
+      const buyShares = Math.abs(tx.shares || 0);
+      if (buyShares <= 0) continue;
       const cost = Math.abs(toBase(tx.amount, tx.currency, tx.fxRate)) + fee;
-      shares += Math.abs(tx.shares || 0);
+      shares += buyShares;
       costBasis += cost;
       buys += 1;
     } else if (tx.type === TxType.SPLIT) {
