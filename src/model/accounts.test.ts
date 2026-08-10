@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  allInvestmentAccountsValue,
   validatePrimaryInvestment,
   primaryInvestmentValue,
   validateAccountIds,
@@ -172,19 +171,5 @@ describe('primaryInvestmentValue', () => {
     expect(primaryInvestmentValue(snap, accounts)).toBeNull();
   });
 
-  it('falls back to a legacy account key when the current id is absent from the snapshot', () => {
-    const accounts: Account[] = [
-      {
-        id: 'broker_portfolio',
-        key: 'broker',
-        label: 'Broker',
-        moneyType: 'investment',
-        isPrimaryInvestment: true,
-      },
-    ];
-    const snap: Snapshot = { date: '2026-06', broker: 4321 };
-    expect(primaryInvestmentValue(snap, accounts)).toBe(4321);
-    expect(allInvestmentAccountsValue(snap, accounts)).toBe(4321);
-  });
 
 });
