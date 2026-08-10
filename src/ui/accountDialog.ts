@@ -89,7 +89,7 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
               <label class="dialog-label" for="acctd-institution">Institution</label>
               <input type="text" id="acctd-institution" class="form-input dialog-input"
                 value="${esc(existing?.institution || '')}" placeholder="e.g. Trade Republic"
-                list="acctd-institution-list">
+                list="acctd-institution-list" autocomplete="off">
               <datalist id="acctd-institution-list"></datalist>
             </div>
           </div>
