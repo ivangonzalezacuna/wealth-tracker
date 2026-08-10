@@ -4,7 +4,6 @@ import type { SortState } from './tableSort';
 import { applySort, bindSortableHeader } from './tableSort';
 
 export interface SortedPaginatedResult<T> {
-  sorted: T[];
   pageItems: T[];
   page: number;
   totalPages: number;
@@ -23,7 +22,6 @@ export function sortAndPaginate<T>(
   const nextPage = Math.min(Math.max(page, 1), totalPages);
   const start = (nextPage - 1) * pageSize;
   return {
-    sorted,
     pageItems: sorted.slice(start, start + pageSize),
     page: nextPage,
     totalPages,

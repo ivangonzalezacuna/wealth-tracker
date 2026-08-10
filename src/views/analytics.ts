@@ -39,6 +39,7 @@ import { getAccounts, getHoldings, getSettings } from '../store/config';
 import { allInvestmentAccountsValue, primaryInvestmentValue } from '../model/accounts';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
+import { writeChartTable } from './chartTable';
 import { T, R, resolvedT } from '../theme';
 import Chart from 'chart.js/auto';
 import type { Snapshot, PortfolioData, Transaction, Holding } from '../types';
@@ -107,81 +108,6 @@ function _shiftMonth(ym: string, deltaMonths: number): string | null {
   if (!isFinite(year) || !isFinite(month) || month < 1 || month > 12) return null;
   const d = new Date(Date.UTC(year, month - 1 + deltaMonths, 1));
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-}
-
-/**
- * Populate (or refresh) an accessible data-table mirror inside a `.chart-data-table-wrap`.
- * The table is always present in the DOM for screen readers; a toggle button lets sighted
- * users show or hide it. Re-calling this function updates the content in place.
- * Tables with more than PAGE_SIZE rows show pagination controls. The scroll wrapper allows
- * wide tables to scroll horizontally without overflowing the page.
- */
-const _CHART_TABLE_PAGE_SIZE = 25;
-
-function _writeChartTable(
-  wrapId: string,
-  ariaLabel: string,
-  headers: string[],
-  rows: (string | number)[][],
-): void {
-  const wrap = document.getElementById(wrapId);
-  if (!wrap) return;
-  // Check whether the table is currently visible (persisted across re-renders)
-  const existingTable = wrap.querySelector('.chart-data-table') as HTMLTableElement | null;
-  const wasVisible = existingTable ? !existingTable.hidden : false;
-
-  const totalPages = Math.max(1, Math.ceil(rows.length / _CHART_TABLE_PAGE_SIZE));
-  let currentPage = 0;
-
-  const thCells = headers.map((h) => `<th scope="col">${esc(String(h))}</th>`).join('');
-  const renderBodyRows = (page: number): string =>
-    rows
-      .slice(page * _CHART_TABLE_PAGE_SIZE, (page + 1) * _CHART_TABLE_PAGE_SIZE)
-      .map((r) => `<tr>${r.map((c) => `<td>${esc(String(c))}</td>`).join('')}</tr>`)
-      .join('');
-
-  const paginationHtml =
-    totalPages > 1
-      ? `<div class="chart-data-table-pagination">
-        <button class="chart-data-table-prev" type="button" aria-label="Previous page" disabled>&#8249;</button>
-        <span class="chart-data-table-page-info">1 / ${totalPages}</span>
-        <button class="chart-data-table-next" type="button" aria-label="Next page">&#8250;</button>
-      </div>`
-      : '';
-
-  const tableHtml = `<div class="chart-data-table-scroll"><table class="chart-data-table" role="table" aria-label="${esc(ariaLabel)}"${wasVisible ? '' : ' hidden'}>
-    <thead><tr>${thCells}</tr></thead>
-    <tbody>${renderBodyRows(0)}</tbody>
-  </table></div>${paginationHtml}`;
-
-  const toggleLabel = wasVisible ? 'Hide data table' : 'Show data table';
-  wrap.innerHTML = `<button class="chart-data-table-toggle" type="button" aria-expanded="${wasVisible}">${toggleLabel}</button>${tableHtml}`;
-
-  const btn = wrap.querySelector('.chart-data-table-toggle') as HTMLButtonElement;
-  const table = wrap.querySelector('.chart-data-table') as HTMLTableElement;
-  btn.addEventListener('click', () => {
-    const visible = !table.hidden;
-    table.hidden = visible;
-    btn.textContent = visible ? 'Show data table' : 'Hide data table';
-    btn.setAttribute('aria-expanded', String(!visible));
-  });
-
-  if (totalPages > 1) {
-    const prevBtn = wrap.querySelector('.chart-data-table-prev') as HTMLButtonElement;
-    const nextBtn = wrap.querySelector('.chart-data-table-next') as HTMLButtonElement;
-    const pageInfo = wrap.querySelector('.chart-data-table-page-info') as HTMLSpanElement;
-    const goToPage = (page: number): void => {
-      currentPage = page;
-      table.querySelector('tbody')!.innerHTML = renderBodyRows(currentPage);
-      pageInfo.textContent = `${currentPage + 1} / ${totalPages}`;
-      prevBtn.disabled = currentPage === 0;
-      nextBtn.disabled = currentPage === totalPages - 1;
-    };
-    prevBtn.addEventListener('click', () => goToPage(currentPage - 1));
-    nextBtn.addEventListener('click', () => goToPage(currentPage + 1));
-  }
-
-  wrap.removeAttribute('hidden');
 }
 
 // ── Main render ───────────────────────────────────────────
@@ -555,7 +481,7 @@ function _renderGrowthChart(snaps: Snapshot[]): void {
     },
   });
 
-  _writeChartTable(
+  writeChartTable(
     'c-an-growth-table-wrap',
     'Portfolio growth over time data',
     ['Month', 'Net Worth (€)'],
@@ -576,10 +502,7 @@ function _attachGrowthRangeToggle(snaps: Snapshot[]): void {
 
 // ── Contributions vs market chart ──────────────────────────
 
-let _growthPoints: MonthlyGrowthPoint[] = [];
-
 function _renderContribChart(points: MonthlyGrowthPoint[]): void {
-  _growthPoints = points;
   const C = resolvedT();
   const el = document.getElementById('c-an-contrib');
   if (!el) return;
@@ -948,7 +871,6 @@ function _getHoldingSlices(
   if (!pd) return [];
   const filtered = mode === 'active' ? holdings.filter((h) => h.active) : holdings;
   const buckets = new Map<string, { value: number; color: string }>();
-  const colorMap = new Map<string, string>();
 
   for (const h of filtered) {
     const pos = pd.etfs[h.isin];
@@ -962,7 +884,6 @@ function _getHoldingSlices(
       existing.value += value;
     } else {
       buckets.set(normalized, { value, color: h.color || '#888' });
-      colorMap.set(normalized, h.color || '#888');
     }
   }
 
@@ -982,7 +903,6 @@ function _getAccountSlices(
     .filter((a) => {
       const val = (s[a.id || ''] as number) || 0;
       if (val <= 0 && mode === 'active') return false;
-      if (val <= 0) return false;
       return true;
     })
     .map((a) => ({
@@ -1239,7 +1159,7 @@ function _renderDrawdownChart(series: { date: string; drawdown: number }[]): voi
     },
   });
 
-  _writeChartTable(
+  writeChartTable(
     'c-an-drawdown-table-wrap',
     'Drawdown history data',
     ['Month', 'Drawdown (%)'],
@@ -1462,7 +1382,7 @@ function _renderIncomeChart(monthlyBreakdown: { month: string; amount: number }[
     },
   });
 
-  _writeChartTable(
+  writeChartTable(
     'c-an-income-table-wrap',
     'Income by month data',
     ['Month', 'Income (€)'],

@@ -27,12 +27,6 @@ import { validateAccountIds } from '../model/accounts';
 // Valid contribution intervals, derived from the canonical INTERVAL_PER_YEAR map
 const VALID_INTERVALS = new Set(Object.keys(INTERVAL_PER_YEAR));
 
-// Type for reinvestment rules from static config
-interface ReinvestmentRule {
-  label: string;
-  value: string;
-}
-
 interface HoldingMeta {
   color: string;
   acc: boolean;

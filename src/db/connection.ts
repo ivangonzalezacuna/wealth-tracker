@@ -22,10 +22,7 @@ const IDB_KEY = 'main.db';
 let _db: Database | null = null;
 let _sqlPromise: ReturnType<typeof initSqlJs> | null = null;
 
-// Serializes all persistDb() calls so concurrent async writers never race
-// on IndexedDB. Each call waits for the previous persist to complete before
-// exporting and writing the next snapshot. Errors propagate to the caller
-// without poisoning the chain.
+// Promise chain serializing concurrent IDB writes (see persistDb).
 let _persistChain: Promise<void> = Promise.resolve();
 
 /** Get (or lazily create) the sql.js SQL engine. */

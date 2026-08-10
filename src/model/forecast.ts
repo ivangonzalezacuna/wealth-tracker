@@ -21,6 +21,26 @@ export interface AccountForecastInput {
   annualReturnPct: number;
 }
 
+function prepareAccountInputs(accounts: AccountForecastInput[]): {
+  perAccountMonthlyRate: number[];
+  perAccountMonthlyContrib: number[];
+  values: number[];
+} {
+  const perAccountMonthlyRate = accounts.map(
+    (a) => Math.pow(1 + a.annualReturnPct / 100, 1 / 12) - 1,
+  );
+  // Defense-in-depth: treat NaN/Infinity as 0% growth rather than poisoning the result.
+  for (let i = 0; i < perAccountMonthlyRate.length; i++) {
+    if (!isFinite(perAccountMonthlyRate[i])) perAccountMonthlyRate[i] = 0;
+  }
+
+  return {
+    perAccountMonthlyRate,
+    perAccountMonthlyContrib: accounts.map((a) => a.annualContrib / 12),
+    values: accounts.map((a) => a.current),
+  };
+}
+
 /**
  * Sum of independent per-account compounding projections.
  * Each account compounds at its own rate and receives its own monthly
@@ -33,16 +53,9 @@ export function forecastMultiAccountSeries(
   months: number,
   startDate: string,
 ): Array<{ month: string; value: number }> {
-  const perAccountMonthlyRate = accounts.map(
-    (a) => Math.pow(1 + a.annualReturnPct / 100, 1 / 12) - 1,
-  );
-  // Defense-in-depth: if any rate is NaN/Infinity (e.g. annualReturnPct < -100),
-  // treat it as 0% growth rather than poisoning the entire series with NaN.
-  for (let i = 0; i < perAccountMonthlyRate.length; i++) {
-    if (!isFinite(perAccountMonthlyRate[i])) perAccountMonthlyRate[i] = 0;
-  }
-  const perAccountMonthlyContrib = accounts.map((a) => a.annualContrib / 12);
-  let values = accounts.map((a) => a.current);
+  const { perAccountMonthlyRate, perAccountMonthlyContrib, values: initialValues } =
+    prepareAccountInputs(accounts);
+  let values = initialValues;
 
   const result: Array<{ month: string; value: number }> = [];
   let [year, mon] = startDate.split('-').map(Number);
@@ -81,15 +94,9 @@ export function forecastMonthsToTargetMulti(
   const anyGrowthPotential = accounts.some((a) => a.annualContrib > 0 || a.annualReturnPct > 0);
   if (!anyGrowthPotential) return null;
 
-  const perAccountMonthlyRate = accounts.map(
-    (a) => Math.pow(1 + a.annualReturnPct / 100, 1 / 12) - 1,
-  );
-  // Defense-in-depth: treat NaN/Infinity as 0% growth.
-  for (let i = 0; i < perAccountMonthlyRate.length; i++) {
-    if (!isFinite(perAccountMonthlyRate[i])) perAccountMonthlyRate[i] = 0;
-  }
-  const perAccountMonthlyContrib = accounts.map((a) => a.annualContrib / 12);
-  let values = accounts.map((a) => a.current);
+  const { perAccountMonthlyRate, perAccountMonthlyContrib, values: initialValues } =
+    prepareAccountInputs(accounts);
+  let values = initialValues;
 
   let months = 0;
   const maxMonths = 1200;

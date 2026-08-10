@@ -1,5 +1,5 @@
 /**
- * Schema migrations - each entry migrates from version N-1 → N.
+ * Schema migrations - MIGRATIONS[v] upgrades schema version v-1 to v.
  *
  * Index 0 is unused (version 0 means "no DB yet", handled by SCHEMA_DDL).
  * Each migration is an array of SQL statements run in a transaction.
@@ -8,7 +8,7 @@
 export const MIGRATIONS: string[][] = [
   // [0] placeholder - version 0 → 1 is handled by SCHEMA_DDL in schema.ts
   [],
-  // [1] version 1 → 2: remove symbol from transactions, rename ticker→short_name in holdings
+  // [1] version 0 → 1: remove symbol from transactions, rename ticker→short_name in holdings
   [
     // Transactions: recreate without symbol column
     `CREATE TABLE IF NOT EXISTS transactions_v2 (
@@ -53,7 +53,7 @@ export const MIGRATIONS: string[][] = [
     `DROP TABLE holdings`,
     `ALTER TABLE holdings_v2 RENAME TO holdings`,
   ],
-  // [2] placeholder - version 1 → 2 migration is index [1] above; this slot aligns array indices with schema versions
+  // [2] placeholder - no version 1 → 2 migration; this slot aligns indices with schema versions
   [],
   // [3] version 2 → 3: add locked, locked_until, extra_contrib columns to accounts
   [

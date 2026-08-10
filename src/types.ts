@@ -175,8 +175,6 @@ export interface EtfPosition {
   realizedPnL: number;
   totalFees: number;
   exited: boolean;
-  costBasis?: number;
-  divTax?: number;
   marketValue?: number | null;
   unrealizedPnL?: number | null;
 }

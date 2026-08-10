@@ -25,6 +25,7 @@ import type { Snapshot, PortfolioData, Account } from '../types';
 import Chart from 'chart.js/auto';
 import { T, R, resolvedT } from '../theme';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
+import { writeChartTable } from './chartTable';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 
 const CH: Record<string, Chart> = {};
@@ -34,80 +35,6 @@ let _inflationRate = 0; // annual inflation % for real-return forecast overlay
 let _lastSnaps: Snapshot[] = [];
 let _lastAccounts: Account[] = [];
 let _activeGoalIdx = 0; // which goal tab is selected in the consolidated goals card
-
-/**
- * Populate (or refresh) an accessible data-table mirror inside a `.chart-data-table-wrap`.
- * The table is always present in the DOM for screen readers; a toggle button lets sighted
- * users show or hide it. Re-calling this function updates the content in place.
- * Tables with more than PAGE_SIZE rows show pagination controls. The scroll wrapper allows
- * wide tables to scroll horizontally without overflowing the page.
- */
-const _CHART_TABLE_PAGE_SIZE = 25;
-
-function _writeChartTable(
-  wrapId: string,
-  ariaLabel: string,
-  headers: string[],
-  rows: (string | number)[][],
-): void {
-  const wrap = document.getElementById(wrapId);
-  if (!wrap) return;
-  const existingTable = wrap.querySelector('.chart-data-table') as HTMLTableElement | null;
-  const wasVisible = existingTable ? !existingTable.hidden : false;
-
-  const totalPages = Math.max(1, Math.ceil(rows.length / _CHART_TABLE_PAGE_SIZE));
-  let currentPage = 0;
-
-  const thCells = headers.map((h) => `<th scope="col">${esc(String(h))}</th>`).join('');
-  const renderBodyRows = (page: number): string =>
-    rows
-      .slice(page * _CHART_TABLE_PAGE_SIZE, (page + 1) * _CHART_TABLE_PAGE_SIZE)
-      .map((r) => `<tr>${r.map((c) => `<td>${esc(String(c))}</td>`).join('')}</tr>`)
-      .join('');
-
-  const paginationHtml =
-    totalPages > 1
-      ? `<div class="chart-data-table-pagination">
-        <button class="chart-data-table-prev" type="button" aria-label="Previous page" disabled>&#8249;</button>
-        <span class="chart-data-table-page-info">1 / ${totalPages}</span>
-        <button class="chart-data-table-next" type="button" aria-label="Next page">&#8250;</button>
-      </div>`
-      : '';
-
-  const tableHtml = `<div class="chart-data-table-scroll"><table class="chart-data-table" role="table" aria-label="${esc(ariaLabel)}"${wasVisible ? '' : ' hidden'}>
-    <thead><tr>${thCells}</tr></thead>
-    <tbody>${renderBodyRows(0)}</tbody>
-  </table></div>${paginationHtml}`;
-
-  const toggleLabel = wasVisible ? 'Hide data table' : 'Show data table';
-  wrap.innerHTML = `<button class="chart-data-table-toggle" type="button" aria-expanded="${wasVisible}">${toggleLabel}</button>${tableHtml}`;
-
-  const btn = wrap.querySelector('.chart-data-table-toggle') as HTMLButtonElement;
-  const table = wrap.querySelector('.chart-data-table') as HTMLTableElement;
-  btn.addEventListener('click', () => {
-    const visible = !table.hidden;
-    table.hidden = visible;
-    btn.textContent = visible ? 'Show data table' : 'Hide data table';
-    btn.setAttribute('aria-expanded', String(!visible));
-  });
-
-  if (totalPages > 1) {
-    const prevBtn = wrap.querySelector('.chart-data-table-prev') as HTMLButtonElement;
-    const nextBtn = wrap.querySelector('.chart-data-table-next') as HTMLButtonElement;
-    const pageInfo = wrap.querySelector('.chart-data-table-page-info') as HTMLSpanElement;
-    const goToPage = (page: number): void => {
-      currentPage = page;
-      table.querySelector('tbody')!.innerHTML = renderBodyRows(currentPage);
-      pageInfo.textContent = `${currentPage + 1} / ${totalPages}`;
-      prevBtn.disabled = currentPage === 0;
-      nextBtn.disabled = currentPage === totalPages - 1;
-    };
-    prevBtn.addEventListener('click', () => goToPage(currentPage - 1));
-    nextBtn.addEventListener('click', () => goToPage(currentPage + 1));
-  }
-
-  wrap.removeAttribute('hidden');
-}
 
 /** Apply annual inflation to convert a nominal forecast series to real values. */
 function _deflateByInflation(
@@ -420,7 +347,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
       },
     });
 
-    _writeChartTable(
+    writeChartTable(
       'c-nw-hist-table-wrap',
       'Account breakdown data',
       ['Account', 'Value (€)'],
@@ -567,7 +494,7 @@ function _renderNWHistChart(
   CH['c-nw-hist'] = chart;
 
   // Write accessible data table for screen readers / keyboard users
-  _writeChartTable(
+  writeChartTable(
     'c-nw-hist-table-wrap',
     'Net worth history data',
     ['Month', 'Total Net Worth (€)', ...chartA.map((a) => a.label + ' (€)')],
