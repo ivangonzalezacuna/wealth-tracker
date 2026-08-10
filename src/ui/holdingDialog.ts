@@ -122,7 +122,7 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
           <div class="dialog-row">
             <div class="dialog-field">
               <label class="dialog-label" for="holdd-target-pct">
-                Target allocation (%)${infoTip('Strategic allocation target for this holding as a percentage of the total portfolio.')}
+                Target (%)${infoTip('Strategic allocation target for this holding as a percentage of the total portfolio.')}
               </label>
               <input type="number" id="holdd-target-pct" class="form-input dialog-input"
                 value="${esc(String(existing?.targetPct ?? ''))}" min="0" max="100" step="0.1" placeholder="e.g. 60">

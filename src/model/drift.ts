@@ -258,13 +258,28 @@ export function computeRebalancePlan(
     const suggestedAmt = Math.round(amtFromMonthly(monthlySuggested) * 100) / 100;
     const suggestedPct = Math.round((monthlySuggested / totalMonthlyBudget) * 1000) / 10;
 
-    // Estimate projected drift after K months with this plan.
-    const targetAmt = projectedTotal * (d.targetPct / 100);
-    const kContrib = onTargetIsins.has(d.isin)
-      ? monthlySuggested * months
-      : projectedState === 'underweight' && sumUnderweightGap > 0
-        ? ((availablePool * (gapByIsin.get(d.isin) ?? 0)) / sumUnderweightGap) * months
+    // Estimate projected drift after K months with an improved model.
+    // When the total redirected budget exceeds the sum of all underweight gaps,
+    // the underweight holdings would overshoot their target if the excess is ignored.
+    // Instead, cap each underweight holding's contribution at its gap and redistribute
+    // the excess pro-rata across all holdings (including formerly overweight ones).
+    const totalAvailableContrib = availablePool * months;
+    const excessContrib =
+      sumUnderweightGap > 0 && totalAvailableContrib > sumUnderweightGap
+        ? totalAvailableContrib - sumUnderweightGap
         : 0;
+
+    let kContrib: number;
+    if (onTargetIsins.has(d.isin)) {
+      kContrib = monthlySuggested * months;
+    } else if (projectedState === 'underweight' && sumUnderweightGap > 0) {
+      const gap_i = gapByIsin.get(d.isin) ?? 0;
+      kContrib = gap_i + excessContrib * (d.targetPct / totalTargetPct);
+    } else if (projectedState === 'overweight') {
+      kContrib = excessContrib * (d.targetPct / totalTargetPct);
+    } else {
+      kContrib = 0;
+    }
     const newValue = d.actualValue + kContrib;
     const newActualPct = (newValue / projectedTotal) * 100;
     const projectedDriftPct = newActualPct - d.targetPct;

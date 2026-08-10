@@ -791,10 +791,10 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
   const needsSell = plan12.some((e) => e.projectedDriftPct > 0.05);
 
   const intervalLabels: Record<string, string> = {
-    weekly: 'Wkly',
-    biweekly: '2Wk',
-    monthly: 'Mo',
-    quarterly: 'Qtr',
+    weekly: 'Weekly',
+    biweekly: 'Biweekly',
+    monthly: 'Monthly',
+    quarterly: 'Quarterly',
   };
 
   let rebalanceSection = '';
@@ -842,8 +842,8 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
             : `${fmtEur2(e.suggestedAmt)}<span style="color:var(--ink-3);font-size:11px">${suffix}</span>`;
         return `
         <div class="tbl-row" role="row" data-rebalance-state="${esc(e.state)}" style="grid-template-columns:1.5fr 1fr 1fr 1fr">
-          <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:var(--radius-xs);background:${safeColor(e.color)};margin-right:6px"></span>${esc(e.shortName)} <span class="rebalance-state-badge rebalance-state-${esc(e.state)}">${stateLabel}</span></div>
-          <div role="cell" style="text-align:right">${fmtPctVal(e.suggestedPct)}</div>
+          <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:var(--radius-xs);background:${safeColor(e.color)};margin-right:6px"></span>${esc(e.shortName)}</div>
+          <div role="cell"><span class="rebalance-state-badge rebalance-state-${esc(e.state)}">${stateLabel}</span></div>
           <div role="cell" style="text-align:right">${suggestedCell}</div>
           <div role="cell" style="text-align:right;color:var(--ink-3);font-size:11px">${fmtPctSigned(e.projectedDriftPct)}</div>
         </div>`;
@@ -866,7 +866,9 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
             <div class="range-toggle rebalance-range-toggle" role="group" aria-label="Rebalance timeline">
               ${pickerBtns}
             </div>
-            <span class="rebalance-picker-label" style="margin-left:.75rem">Cadence:</span>
+          </div>
+          <div class="rebalance-picker-row">
+            <span class="rebalance-picker-label">Cadence:</span>
             <div class="range-toggle rebalance-range-toggle" role="group" aria-label="Calibration interval">
               ${intervalBtns}
             </div>
@@ -874,7 +876,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
           <div class="tbl" role="table" aria-label="Contribution rebalance plan">
             <div class="tbl-row th" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr">
               <div role="columnheader">ETF</div>
-              <div role="columnheader" style="text-align:right">Share</div>
+              <div role="columnheader">Status</div>
               <div role="columnheader" style="text-align:right">Amount</div>
               <div role="columnheader" style="text-align:right">Projected drift</div>
             </div>
