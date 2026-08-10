@@ -30,6 +30,7 @@ export interface StaticHolding {
   color: string;
   acc: boolean;
   active: boolean;
+  targetPct?: number;
   contribAmount?: number;
   interval?: ContribInterval;
   assetClass?: string;

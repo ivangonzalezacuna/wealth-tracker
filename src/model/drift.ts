@@ -19,14 +19,17 @@ export interface DriftEntry {
 }
 
 /**
- * Compute per-holding drift between target allocation (from contribution weights)
- * and actual allocation (from current cost basis or market value).
+ * Compute per-holding drift between target allocation and actual allocation
+ * (from current cost basis or market value).
  *
- * Active holdings (contribAmount > 0) drive the target allocation.
+ * Target allocation source:
+ * - Preferred: explicit strategic targets via holding.targetPct
+ * - Fallback: annualized contribution weights (legacy behavior)
+ *
  * Inactive-but-held positions (shares > 0, not exited) are included with
  * target 0%, showing how much allocation they currently consume.
  *
- * @param holdings - configured holdings (active ones with contribAmount define target)
+ * @param holdings - configured holdings
  * @param positions - current ETF positions from portfolio data
  * @param totalValue - total portfolio value (snapshot primary account value, or sum of costs)
  * @param snapEtfValues - optional ISIN to current market value map from the latest snapshot
@@ -39,13 +42,22 @@ export function computeDrift(
 ): DriftEntry[] {
   if (totalValue <= 0) return [];
 
-  // Target allocation: based on annualized contribution weights
-  const activeWithTarget = holdings.filter((h) => h.active && h.contribAmount > 0);
-  const totalAnnual = activeWithTarget.reduce(
-    (sum, h) => sum + annualizeContrib(h.contribAmount, h.contribInterval),
-    0,
-  );
-  if (totalAnnual <= 0) return [];
+  const activeHoldings = holdings.filter((h) => h.active);
+  const strategic = activeHoldings.filter((h) => (h.targetPct ?? 0) > 0);
+  const hasStrategicTargets = strategic.length > 0;
+  const totalTargetPct = strategic.reduce((sum, h) => sum + (h.targetPct ?? 0), 0);
+  const activeWithTarget = hasStrategicTargets
+    ? activeHoldings
+    : activeHoldings.filter((h) => h.contribAmount > 0);
+  if (activeWithTarget.length === 0) return [];
+  const totalAnnual = hasStrategicTargets
+    ? 0
+    : activeWithTarget.reduce(
+        (sum, h) => sum + annualizeContrib(h.contribAmount, h.contribInterval),
+        0,
+      );
+  if (!hasStrategicTargets && totalAnnual <= 0) return [];
+  if (hasStrategicTargets && totalTargetPct <= 0) return [];
 
   const result: DriftEntry[] = [];
   const handledIsins = new Set<string>();
@@ -53,7 +65,9 @@ export function computeDrift(
   for (const h of activeWithTarget) {
     handledIsins.add(h.isin);
     const annual = annualizeContrib(h.contribAmount, h.contribInterval);
-    const targetPct = (annual / totalAnnual) * 100;
+    const targetPct = hasStrategicTargets
+      ? ((h.targetPct ?? 0) / totalTargetPct) * 100
+      : (annual / totalAnnual) * 100;
 
     // Prefer snapshot market value when available; fall back to cost basis.
     const pos = positions[h.isin];

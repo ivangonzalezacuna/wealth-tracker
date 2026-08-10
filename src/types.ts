@@ -68,6 +68,7 @@ export interface Holding {
   color: string;
   acc: boolean;
   active: boolean;
+  targetPct?: number; // strategic allocation target in %, optional; drift falls back to contribution weights when absent
   contribAmount: number; // amount per execution
   contribInterval: ContribInterval; // execution cadence
   assetClass: string;

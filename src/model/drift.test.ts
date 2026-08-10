@@ -89,6 +89,39 @@ describe('computeDrift', () => {
     expect(etfB.driftPct).toBe(-20);
   });
 
+  it('uses strategic targetPct when provided instead of contribution weights', () => {
+    const holdings = [
+      makeHolding({
+        isin: 'A',
+        shortName: 'ETF_A',
+        targetPct: 80,
+        contribAmount: 10,
+        contribInterval: 'monthly',
+      }),
+      makeHolding({
+        isin: 'B',
+        shortName: 'ETF_B',
+        targetPct: 20,
+        contribAmount: 1000,
+        contribInterval: 'monthly',
+      }),
+    ];
+    const positions = {
+      A: makePosition({ isin: 'A', cost: 5000 }),
+      B: makePosition({ isin: 'B', cost: 5000 }),
+    };
+    const drift = computeDrift(holdings, positions, 10000);
+    const etfA = drift.find((d) => d.shortName === 'ETF_A')!;
+    const etfB = drift.find((d) => d.shortName === 'ETF_B')!;
+
+    expect(etfA.targetPct).toBe(80);
+    expect(etfA.actualPct).toBe(50);
+    expect(etfA.driftPct).toBe(-30);
+    expect(etfB.targetPct).toBe(20);
+    expect(etfB.actualPct).toBe(50);
+    expect(etfB.driftPct).toBe(30);
+  });
+
   it('uses snapEtfValues when provided instead of cost basis', () => {
     const holdings = [makeHolding({ contribAmount: 50, contribInterval: 'weekly' })];
     const positions = { IE00B4L5Y983: makePosition({ cost: 8000 }) };

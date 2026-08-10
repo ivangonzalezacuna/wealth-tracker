@@ -467,6 +467,9 @@ async function seedFromConfig(seedAccounts: boolean, seedHoldings: boolean): Pro
         const totalWeekly = CONFIG.projection?.weeklyTarget || 200;
         contribAmount = Math.round((totalWeekly * slice.pct) / 100);
       }
+      const targetPct =
+        h.targetPct ??
+        (slice && Number.isFinite(slice.pct) && slice.pct > 0 ? Number(slice.pct) : undefined);
       const contribInterval: ContribInterval = h.interval || 'weekly';
       const assetClass = h.assetClass || 'equity';
       const region = h.region || 'developed';
@@ -479,6 +482,7 @@ async function seedFromConfig(seedAccounts: boolean, seedHoldings: boolean): Pro
         color: h.color,
         acc: h.acc,
         active: h.active,
+        ...(targetPct !== undefined ? { targetPct } : {}),
         contribAmount,
         contribInterval,
         assetClass,

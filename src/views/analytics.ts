@@ -41,7 +41,7 @@ import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import { T, R, resolvedT } from '../theme';
 import Chart from 'chart.js/auto';
-import type { Snapshot, PortfolioData, Transaction, Holding } from '../types';
+import type { Snapshot, PortfolioData, Transaction, Holding, Account } from '../types';
 
 const CH: Record<string, Chart> = {};
 let _anGrowthRange: '12' | '36' | 'all' = 'all';
@@ -59,6 +59,34 @@ const _allocMode: Record<string, 'active' | 'all'> = {
   class: 'active',
   region: 'active',
 };
+
+function buildInvestmentSnapshots(snaps: Snapshot[], accounts: Account[]): Snapshot[] {
+  const investmentIds = new Set(
+    accounts
+      .filter((a) => (a.moneyType || '').toLowerCase() === 'investment')
+      .map((a) => (a.id || a.key || '').toLowerCase())
+      .filter((id) => !!id),
+  );
+  if (!investmentIds.size) return [];
+  const result: Snapshot[] = [];
+  for (const s of snaps) {
+    const projected: Snapshot = { date: s.date };
+    let hasInvestmentValue = false;
+    for (const a of accounts) {
+      const key = (a.id || a.key || '').trim();
+      if (!key) continue;
+      const val = Number(s[key]) || 0;
+      if (investmentIds.has(key.toLowerCase())) {
+        projected[key] = val;
+        hasInvestmentValue = true;
+      } else {
+        projected[key] = 0;
+      }
+    }
+    if (hasInvestmentValue) result.push(projected);
+  }
+  return result;
+}
 
 function _destroyChart(id: string): void {
   if (CH[id]) {
@@ -204,6 +232,7 @@ export function renderAnalytics(
   const holdings = getHoldings();
   const settings = getSettings();
   const riskFreeRate = parseFloat(settings.riskFreeRate || '2') / 100;
+  const investmentSnaps = buildInvestmentSnapshots(snaps, accounts);
 
   const s = snaps[snaps.length - 1];
   const total = snapTotal(s);
@@ -227,7 +256,10 @@ export function renderAnalytics(
     yoyData && yoyData.total > 0 ? ((total - yoyData.total) / yoyData.total) * 100 : null;
 
   // Level 2 performance KPIs (TWR + IRR)
-  const twrVal = twr(snaps, pd?.monthly || {});
+  const twrVal = twr(investmentSnaps, pd?.monthly || {});
+  const firstInvestmentDate = investmentSnaps[0]?.date || '';
+  const latestInvestmentDate = investmentSnaps[investmentSnaps.length - 1]?.date || '';
+  const investmentMonthsSpan = _monthsDiff(firstInvestmentDate, latestInvestmentDate);
   const terminalDate = s.date && s.date.length === 7 ? `${s.date}-01` : s.date;
   const investmentFlows = txs
     .map((tx) => {
@@ -327,7 +359,7 @@ export function renderAnalytics(
       valueClass: twrVal === null ? '' : twrVal >= 0 ? 'pos' : 'neg',
       sub:
         twrVal !== null
-          ? `${monthsSpan} months, not annualized${monthsSpan < 24 ? ' (early data)' : ''}`
+          ? `${investmentMonthsSpan} months, not annualized${investmentMonthsSpan < 24 ? ' (early data)' : ''}`
           : 'needs 2 snapshots',
     })}
     ${kpiTile({
@@ -370,21 +402,28 @@ export function renderAnalytics(
   }
 
   // ── Level 3: Advanced (collapsible) ──────────────────────
-  const volResult = annualizedVolatility(snaps);
-  const ddResult = maxDrawdown(snaps);
-  const cagrForRisk = cagrVal;
+  const volResult = annualizedVolatility(investmentSnaps);
+  const ddResult = maxDrawdown(investmentSnaps);
+  const cagrForRisk =
+    investmentSnaps.length >= 2
+      ? cagr(
+          snapTotal(investmentSnaps[0]),
+          snapTotal(investmentSnaps[investmentSnaps.length - 1]),
+          investmentMonthsSpan,
+        )
+      : null;
   const dd = ddResult.max;
   const advancedContent = document.getElementById('an-advanced-content');
   const riskMetricsNoteCardEl = document.getElementById('an-risk-metrics-note-card');
   const riskMetricsNoteEl = document.getElementById('an-risk-metrics-note');
 
-  const riskMetricsReady = monthsSpan >= 24;
+  const riskMetricsReady = investmentMonthsSpan >= 24;
 
   if (riskMetricsNoteEl) {
     if (riskMetricsReady) {
       if (riskMetricsNoteCardEl) riskMetricsNoteCardEl.style.display = 'none';
     } else {
-      riskMetricsNoteEl.textContent = `${Math.max(monthsSpan, 0)}/24 months recorded. Risk metrics require 24 months of history.`;
+      riskMetricsNoteEl.textContent = `${Math.max(investmentMonthsSpan, 0)}/24 months recorded. Risk metrics require 24 months of history.`;
       if (riskMetricsNoteCardEl) riskMetricsNoteCardEl.style.display = '';
     }
   }
@@ -412,13 +451,13 @@ export function renderAnalytics(
       riskKpisEl.innerHTML = riskMetricsReady
         ? `
       ${kpiTile({
-        label: `Volatility${infoTip('Annualized standard deviation of monthly net-worth percentage changes. Higher volatility means a bumpier ride. Unlocked after 24 months of snapshot history.')}`,
+        label: `Volatility${infoTip('Annualized standard deviation of monthly investment-value percentage changes. Higher volatility means a bumpier ride. Unlocked after 24 months of snapshot history.')}`,
         value: volResult.annualized !== null ? fmtPctNeg(volResult.annualized * 100) : '-',
         valueClass: '',
         sub: volResult.annualized !== null ? 'annualized, all history' : 'needs more data',
       })}
       ${kpiTile({
-        label: `Max Drawdown${infoTip('Largest peak-to-trough decline as a percentage of the prior peak. Risk metrics unlock after 24 months of snapshot history.')}`,
+        label: `Max Drawdown${infoTip('Largest peak-to-trough decline in investment value as a percentage of the prior peak. Risk metrics unlock after 24 months of snapshot history.')}`,
         value: dd !== null ? (dd === 0 ? '0%' : fmtPctNeg(dd * 100)) : '-',
         valueClass: dd === null ? '' : dd < 0 ? 'neg' : '',
         sub: dd !== null ? 'all history' : 'needs more data',

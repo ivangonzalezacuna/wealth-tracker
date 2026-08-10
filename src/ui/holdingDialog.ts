@@ -129,6 +129,13 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
           </div>
           <div class="dialog-row">
             <div class="dialog-field">
+              <label class="dialog-label" for="holdd-target-pct">
+                Target allocation (%)${infoTip('Optional strategic allocation target for this holding. When at least one active holding has a target, drift uses these targets instead of contribution weights.')}
+              </label>
+              <input type="number" id="holdd-target-pct" class="form-input dialog-input"
+                value="${esc(String(existing?.targetPct ?? ''))}" min="0" max="100" step="0.1" placeholder="e.g. 60">
+            </div>
+            <div class="dialog-field">
               <label class="dialog-label" for="holdd-contrib">
                 Contribution (€)${infoTip('The amount contributed to this ETF each time, at the interval below.')}
               </label>
@@ -218,6 +225,7 @@ function _submit(): void {
   const assetClassVal = get('holdd-class') || 'equity';
   const regionVal = get('holdd-region') || 'developed';
   const contribRaw = get('holdd-contrib');
+  const targetPctRaw = get('holdd-target-pct');
   const intervalVal = get('holdd-interval') || 'weekly';
   const terRaw = get('holdd-ter');
   const colorVal = get('holdd-color-hex') || get('holdd-color') || '#888888';
@@ -251,6 +259,7 @@ function _submit(): void {
     color: /^#[0-9a-fA-F]{6}$/.test(colorVal) ? colorVal : existing?.color || '#888888',
     acc: isAcc,
     active: isActive,
+    targetPct: targetPctRaw !== '' ? parseFloat(targetPctRaw) || 0 : undefined,
     contribAmount: parseFloat(contribRaw) || 0,
     contribInterval: (intervalVal || 'weekly') as ContribInterval,
     assetClass: assetClassVal,

@@ -773,6 +773,12 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
     ? `Actual from market values (snapshot: ${fmtMon(latSnap!.date)}). Legacy = inactive positions still held.`
     : `Actual from cost basis (no ETF values in latest snapshot). Legacy = inactive positions still held.`;
   const hasCostMode = drift.some((d) => d.valuationMode === 'cost');
+  const hasStrategicTargets =
+    holdings.some((h) => h.active && (h.targetPct ?? 0) > 0) &&
+    holdings.filter((h) => h.active).reduce((sum, h) => sum + (h.targetPct ?? 0), 0) > 0;
+  const targetSourceNote = hasStrategicTargets
+    ? 'Target from strategic allocation.'
+    : 'Target from contribution weights.';
   const costModeBanner = hasCostMode
     ? `<div class="status-bar status-warn" style="margin-bottom:.6rem">Allocation is based on purchase cost, not current market value. Enter ETF values in your next snapshot for market-based drift.</div>`
     : '';
@@ -891,7 +897,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
         </div>
         ${rows}
       </div>
-      <p class="note" style="margin-top:.5rem">Target from contribution weights. ${noteSource} Delta = amount to sell/buy to reach target.</p>
+      <p class="note" style="margin-top:.5rem">${targetSourceNote} ${noteSource} Delta = amount to sell/buy to reach target.</p>
       ${rebalanceSection}
     </div>`;
 

@@ -218,6 +218,7 @@ function isValidHolding(value: unknown): value is Holding {
     typeof value.color === 'string' &&
     typeof value.acc === 'boolean' &&
     typeof value.active === 'boolean' &&
+    isOptionalFiniteNumber(value.targetPct) &&
     isFiniteNumber(value.contribAmount) &&
     typeof value.contribInterval === 'string' &&
     typeof value.assetClass === 'string' &&

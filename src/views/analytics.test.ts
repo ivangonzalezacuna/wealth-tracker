@@ -208,6 +208,19 @@ describe('renderAnalytics', () => {
     expect((document.getElementById('an-income') as HTMLElement).style.display).toBe('');
   });
 
+  it('computes TWR from investment snapshots, not total net-worth balances', () => {
+    const pd = makePd();
+    pd.monthly = {};
+    const snaps = [makeSnap('2026-01', 1000, 1000), makeSnap('2026-02', 1000, 2000)];
+
+    renderAnalytics(pd, snaps, []);
+
+    const twrTile = Array.from(document.querySelectorAll('#an-kpis-l2 .kpi')).find((el) =>
+      el.textContent?.includes('TWR'),
+    );
+    expect(twrTile?.querySelector('.kpi-val')?.textContent).toBe('0%');
+  });
+
   it('renders growth chart data table wrap after renderAnalytics with 2+ snapshots', () => {
     const snaps = [makeSnap('2025-01', 900, 0), makeSnap('2025-02', 950, 0)];
     renderAnalytics(makePd(), snaps, []);
