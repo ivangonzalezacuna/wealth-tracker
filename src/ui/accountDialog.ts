@@ -8,8 +8,8 @@ import type { Account, ContribInterval } from '../types';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { ACCOUNT_TYPES } from '../model/accountTypes';
 import {
-  activateModalShell,
   bindColorInputs,
+  bootstrapDialog,
   createDialogController,
   focusFirstInvalid,
   makeDialogHelpers,
@@ -196,19 +196,18 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
       if (lockedBlock) lockedBlock.style.display = lockedCb.checked ? '' : 'none';
     });
 
-    overlay.querySelector('.js-acctd-submit')?.addEventListener('click', () => _submit());
-    overlay.querySelector('.js-acctd-cancel')?.addEventListener('click', () => _dismiss(null));
     _dialog.setCleanup(
-      activateModalShell({
+      bootstrapDialog({
         overlay,
         onDismiss: () => _dismiss(null),
-        onSubmitEnter: _submit,
-        submitWhenActive: (active) => !!active?.classList.contains('js-acctd-submit'),
+        onCancel: () => _dismiss(null),
+        onSubmit: _submit,
+        cancelSelector: '.js-acctd-cancel',
+        submitSelector: '.js-acctd-submit',
         focusablesSelector: 'input:not([disabled]), select:not([disabled]), button:not([disabled])',
+        initialFocusSelector: '#acctd-label',
       }),
     );
-
-    (overlay.querySelector('#acctd-label') as HTMLElement | null)?.focus();
   });
 }
 

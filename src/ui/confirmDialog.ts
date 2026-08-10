@@ -1,7 +1,7 @@
 /** Promise-based confirmation dialog. Resolves true on confirm, false on cancel/dismiss. Single instance. */
 
 import { esc } from '../utils';
-import { activateModalShell, createDialogController } from './modalShell';
+import { bootstrapDialog, createDialogController } from './modalShell';
 
 const _dialog = createDialogController(false, {
   overlaySelector: '.confirm-overlay',
@@ -32,21 +32,19 @@ export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
       </div>`;
     document.body.appendChild(overlay);
 
-    const okBtn = overlay.querySelector('.js-confirm-ok') as HTMLElement;
-    const cancelBtn = overlay.querySelector('.js-confirm-cancel') as HTMLElement;
-    okBtn.addEventListener('click', () => _dismiss(true));
-    cancelBtn.addEventListener('click', () => _dismiss(false));
     _dialog.setOverlay(overlay);
     _dialog.setCleanup(
-      activateModalShell({
+      bootstrapDialog({
         overlay,
         onDismiss: () => _dismiss(false),
+        onCancel: () => _dismiss(false),
+        onSubmit: () => _dismiss(true),
+        cancelSelector: '.js-confirm-cancel',
+        submitSelector: '.js-confirm-ok',
         focusablesSelector: 'button:not([disabled])',
+        initialFocusSelector: '.js-confirm-cancel',
       }),
     );
-
-    // Focus the cancel button by default (safer default for destructive actions)
-    cancelBtn.focus();
   });
 }
 

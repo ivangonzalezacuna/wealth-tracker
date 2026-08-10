@@ -1,6 +1,6 @@
 export type ConflictResolutionChoice = 'backup' | 'keep-local' | 'keep-cloud' | 'cancel';
 
-import { activateModalShell, createDialogController } from './modalShell';
+import { bootstrapDialog, createDialogController } from './modalShell';
 
 const _dialog = createDialogController<ConflictResolutionChoice>('cancel', {
   overlaySelector: '.conflict-overlay',
@@ -29,26 +29,26 @@ export function conflictDialog(): Promise<ConflictResolutionChoice> {
 
     document.body.appendChild(overlay);
 
-    const backupBtn = overlay.querySelector('.js-conflict-backup') as HTMLElement;
-    const keepLocalBtn = overlay.querySelector('.js-conflict-keep-local') as HTMLElement;
-    const keepCloudBtn = overlay.querySelector('.js-conflict-keep-cloud') as HTMLElement;
-
-    backupBtn.addEventListener('click', () => dismiss('backup'));
-    (overlay.querySelector('.js-conflict-cancel') as HTMLElement).addEventListener('click', () =>
-      dismiss('cancel'),
+    (overlay.querySelector('.js-conflict-backup') as HTMLElement).addEventListener('click', () =>
+      dismiss('backup'),
     );
-    keepLocalBtn.addEventListener('click', () => dismiss('keep-local'));
-    keepCloudBtn.addEventListener('click', () => dismiss('keep-cloud'));
+    (overlay.querySelector('.js-conflict-keep-local') as HTMLElement).addEventListener('click', () =>
+      dismiss('keep-local'),
+    );
+    (overlay.querySelector('.js-conflict-keep-cloud') as HTMLElement).addEventListener('click', () =>
+      dismiss('keep-cloud'),
+    );
     _dialog.setOverlay(overlay);
     _dialog.setCleanup(
-      activateModalShell({
+      bootstrapDialog({
         overlay,
         onDismiss: () => dismiss('cancel'),
+        onCancel: () => dismiss('cancel'),
+        cancelSelector: '.js-conflict-cancel',
         focusablesSelector: 'button:not([disabled])',
+        initialFocusSelector: '.js-conflict-backup',
       }),
     );
-
-    backupBtn.focus();
   });
 }
 

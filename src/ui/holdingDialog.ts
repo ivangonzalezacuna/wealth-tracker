@@ -11,18 +11,19 @@ import { esc } from '../utils';
 import type { Holding, ContribInterval } from '../types';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { ASSET_CLASSES, REGIONS } from '../model/accountTypes';
+import type { KnownSecuritySuggestions } from '../model/securitySuggestions';
 import {
-  normalizeSuggestionName,
-  type KnownSecuritySuggestions,
-} from '../model/securitySuggestions';
-import {
-  activateModalShell,
   bindColorInputs,
+  bootstrapDialog,
   createDialogController,
   focusFirstInvalid,
   makeDialogHelpers,
-  populateDatalist,
 } from './modalShell';
+import {
+  bindSecuritySuggestionAutoFill,
+  filterKnownSecuritySuggestions,
+  populateSecuritySuggestionLists,
+} from './securitySuggestionFields';
 import { infoTip, attachInfoTips } from './infoTip';
 
 export interface HoldingDialogOptions {
@@ -34,14 +35,12 @@ export interface HoldingDialogOptions {
 }
 
 let _activeExisting: Holding | undefined = undefined;
-let _activeSuggestions: KnownSecuritySuggestions | undefined;
 let _activeOrder: number = 1;
 let _activeExistingIsins: string[] | undefined;
 const _dialog = createDialogController<Holding | null>(null, {
   overlaySelector: '.hold-dialog-overlay',
   reset: () => {
     _activeExisting = undefined;
-    _activeSuggestions = undefined;
     _activeOrder = 1;
     _activeExistingIsins = undefined;
   },
@@ -51,7 +50,6 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
   return new Promise<Holding | null>((resolve) => {
     _dialog.begin(resolve);
     _activeExisting = opts.existing;
-    _activeSuggestions = opts.suggestions;
     _activeOrder = opts.order ?? 1;
     _activeExistingIsins = opts.existingIsins;
     const existing = opts.existing;
@@ -187,27 +185,46 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
     _dialog.setOverlay(overlay);
     attachInfoTips(overlay);
 
-    // Populate datalists via DOM API — no HTML escaping needed for suggestion values
-    _fillSuggestionDatalist(overlay, opts.suggestions);
+    const filteredSuggestions = filterKnownSecuritySuggestions(
+      opts.suggestions,
+      opts.existingIsins ?? [],
+    );
+    populateSecuritySuggestionLists(
+      overlay,
+      {
+        isinInputId: 'holdd-isin',
+        isinListId: 'holdd-isin-list',
+        nameInputId: 'holdd-name',
+        nameListId: 'holdd-name-list',
+      },
+      filteredSuggestions,
+    );
 
     bindColorInputs(overlay, 'holdd-color', 'holdd-color-hex');
 
-    // ISIN ↔ Name autocomplete cross-fill
-    _bindSuggestionAutoFill(overlay, opts.suggestions);
-
-    overlay.querySelector('.js-holdd-submit')?.addEventListener('click', () => _submit());
-    overlay.querySelector('.js-holdd-cancel')?.addEventListener('click', () => _dismiss(null));
-    _dialog.setCleanup(
-      activateModalShell({
-        overlay,
-        onDismiss: () => _dismiss(null),
-        onSubmitEnter: _submit,
-        submitWhenActive: (active) => !!active?.classList.contains('js-holdd-submit'),
-        focusablesSelector: 'input:not([disabled]), select:not([disabled]), button:not([disabled])',
-      }),
+    bindSecuritySuggestionAutoFill(
+      overlay,
+      {
+        isinInputId: 'holdd-isin',
+        isinListId: 'holdd-isin-list',
+        nameInputId: 'holdd-name',
+        nameListId: 'holdd-name-list',
+      },
+      filteredSuggestions,
     );
 
-    (overlay.querySelector('#holdd-isin') as HTMLElement | null)?.focus();
+    _dialog.setCleanup(
+      bootstrapDialog({
+        overlay,
+        onDismiss: () => _dismiss(null),
+        onCancel: () => _dismiss(null),
+        onSubmit: _submit,
+        cancelSelector: '.js-holdd-cancel',
+        submitSelector: '.js-holdd-submit',
+        focusablesSelector: 'input:not([disabled]), select:not([disabled]), button:not([disabled])',
+        initialFocusSelector: '#holdd-isin',
+      }),
+    );
   });
 }
 
@@ -272,83 +289,4 @@ function _submit(): void {
 
 function _dismiss(result: Holding | null): void {
   _dialog.dismiss(result);
-}
-
-/** Populate ISIN and Name datalists via DOM API — no escaping required. */
-function _fillSuggestionDatalist(
-  overlay: HTMLElement,
-  suggestions: KnownSecuritySuggestions | undefined,
-): void {
-  const isinList = overlay.querySelector('#holdd-isin-list');
-  const nameList = overlay.querySelector('#holdd-name-list');
-  const availablePairs = _availableSuggestionPairs(suggestions);
-  if (availablePairs.length === 0) return;
-
-  const sortedByIsin = [...availablePairs].sort((a, b) => a.isin.localeCompare(b.isin));
-  const sortedByName = [...availablePairs].sort((a, b) => a.name.localeCompare(b.name));
-
-  populateDatalist(
-    isinList,
-    sortedByIsin.map((pair) => pair.isin),
-    (isin) => {
-      return sortedByIsin.find((pair) => pair.isin === isin)?.name || '';
-    },
-  );
-  populateDatalist(
-    nameList,
-    sortedByName.map((pair) => pair.name),
-    (name) => {
-      return sortedByName.find((pair) => pair.name === name)?.isin || '';
-    },
-  );
-}
-
-/** Cross-fill ISIN ↔ Name when one is selected from a datalist suggestion. */
-function _bindSuggestionAutoFill(
-  overlay: HTMLElement,
-  suggestions: KnownSecuritySuggestions | undefined,
-): void {
-  const filteredSuggestions = _filterSuggestions(suggestions);
-  if (!filteredSuggestions || filteredSuggestions.pairs.length === 0) return;
-  const isinEl = overlay.querySelector('#holdd-isin') as HTMLInputElement | null;
-  const nameEl = overlay.querySelector('#holdd-name') as HTMLInputElement | null;
-  if (!isinEl || !nameEl) return;
-
-  const applyByIsin = (): void => {
-    const match = filteredSuggestions.byIsin[isinEl.value.trim().toUpperCase()];
-    if (match && !nameEl.value.trim()) nameEl.value = match.name;
-  };
-  const applyByName = (): void => {
-    const match = filteredSuggestions.byName[normalizeSuggestionName(nameEl.value)];
-    if (match && !isinEl.value.trim()) isinEl.value = match.isin;
-  };
-
-  isinEl.addEventListener('change', applyByIsin);
-  isinEl.addEventListener('blur', applyByIsin);
-  nameEl.addEventListener('change', applyByName);
-  nameEl.addEventListener('blur', applyByName);
-}
-
-function _availableSuggestionPairs(
-  suggestions: KnownSecuritySuggestions | undefined,
-): KnownSecuritySuggestions['pairs'] {
-  if (!suggestions || suggestions.pairs.length === 0) return [];
-  const existingIsins = new Set(
-    (_activeExistingIsins ?? []).map((isin) => isin.trim().toUpperCase()),
-  );
-  return suggestions.pairs.filter((pair) => !existingIsins.has(pair.isin.trim().toUpperCase()));
-}
-
-function _filterSuggestions(
-  suggestions: KnownSecuritySuggestions | undefined,
-): KnownSecuritySuggestions | undefined {
-  const pairs = _availableSuggestionPairs(suggestions);
-  if (pairs.length === 0) return undefined;
-  const byIsin: KnownSecuritySuggestions['byIsin'] = {};
-  const byName: KnownSecuritySuggestions['byName'] = {};
-  for (const pair of pairs) {
-    byIsin[pair.isin] = pair;
-    byName[normalizeSuggestionName(pair.name)] = pair;
-  }
-  return { pairs, byIsin, byName };
 }

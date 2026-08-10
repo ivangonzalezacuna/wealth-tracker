@@ -6,6 +6,18 @@ export interface ModalShellOptions {
   focusablesSelector?: string;
 }
 
+export interface DialogBootstrapOptions {
+  overlay: HTMLElement;
+  onDismiss: () => void;
+  onCancel?: () => void;
+  onSubmit?: () => void;
+  cancelSelector?: string;
+  submitSelector?: string;
+  focusablesSelector?: string;
+  initialFocusSelector?: string;
+  submitWhenActive?: (active: HTMLElement | null) => boolean;
+}
+
 const DEFAULT_FOCUSABLES =
   'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])';
 
@@ -31,6 +43,54 @@ export function activateModalShell(opts: ModalShellOptions): () => void {
       e.preventDefault();
       onDismiss();
       return;
+    }
+
+    export function bootstrapDialog(opts: DialogBootstrapOptions): () => void {
+      const {
+        overlay,
+        onDismiss,
+        onCancel,
+        onSubmit,
+        cancelSelector,
+        submitSelector,
+        focusablesSelector,
+        initialFocusSelector,
+      } = opts;
+
+      const cancelEl = cancelSelector ? (overlay.querySelector(cancelSelector) as HTMLElement | null) : null;
+      const submitEl = submitSelector ? (overlay.querySelector(submitSelector) as HTMLElement | null) : null;
+      const handleCancel = (): void => {
+        onCancel?.();
+      };
+      const handleSubmit = (): void => {
+        onSubmit?.();
+      };
+
+      cancelEl?.addEventListener('click', handleCancel);
+      submitEl?.addEventListener('click', handleSubmit);
+
+      const cleanupShell = activateModalShell({
+        overlay,
+        onDismiss,
+        onSubmitEnter: onSubmit,
+        submitWhenActive:
+          opts.submitWhenActive ||
+          (onSubmit && submitSelector
+            ? (active) => !!active?.matches(submitSelector)
+            : undefined),
+        focusablesSelector,
+      });
+
+      (initialFocusSelector
+        ? (overlay.querySelector(initialFocusSelector) as HTMLElement | null)
+        : null
+      )?.focus();
+
+      return () => {
+        cancelEl?.removeEventListener('click', handleCancel);
+        submitEl?.removeEventListener('click', handleSubmit);
+        cleanupShell();
+      };
     }
     if (e.key === 'Enter' && opts.onSubmitEnter && opts.submitWhenActive) {
       const active = document.activeElement as HTMLElement | null;

@@ -2,7 +2,7 @@ import { parseNum } from '../csv';
 import { currentMonth, fmtEur2, safeColor, esc } from '../utils';
 import type { Account, Holding, PortfolioData, Snapshot } from '../types';
 import {
-  activateModalShell,
+  bootstrapDialog,
   createDialogController,
   focusFirstInvalid,
   makeDialogHelpers,
@@ -69,15 +69,16 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
     document.body.appendChild(overlay);
     _dialog.setOverlay(overlay);
 
-    overlay.querySelector('.js-snapd-submit')?.addEventListener('click', () => _submit());
-    overlay.querySelector('.js-snapd-cancel')?.addEventListener('click', () => _dismiss(null));
     _dialog.setCleanup(
-      activateModalShell({
+      bootstrapDialog({
         overlay,
         onDismiss: () => _dismiss(null),
-        onSubmitEnter: _submit,
-        submitWhenActive: (active) => !!active?.classList.contains('js-snapd-submit'),
+        onCancel: () => _dismiss(null),
+        onSubmit: _submit,
+        cancelSelector: '.js-snapd-cancel',
+        submitSelector: '.js-snapd-submit',
         focusablesSelector: 'input:not([disabled]), button:not([disabled])',
+        initialFocusSelector: '#snapd-date',
       }),
     );
     overlay.addEventListener('click', (e) => {
@@ -96,8 +97,6 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
     for (const acct of _getDialogAccounts(opts.accounts)) {
       _updateRecon(acct.key);
     }
-
-    (overlay.querySelector('#snapd-date') as HTMLElement | null)?.focus();
   });
 }
 

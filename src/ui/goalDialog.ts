@@ -1,7 +1,7 @@
 import { esc } from '../utils';
 import type { NamedGoal } from '../types';
 import {
-  activateModalShell,
+  bootstrapDialog,
   createDialogController,
   focusFirstInvalid,
   makeDialogHelpers,
@@ -75,19 +75,18 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
     _dialog.setOverlay(overlay);
     attachInfoTips(overlay);
 
-    overlay.querySelector('.js-goald-submit')?.addEventListener('click', () => _submit());
-    overlay.querySelector('.js-goald-cancel')?.addEventListener('click', () => _dismiss(null));
     _dialog.setCleanup(
-      activateModalShell({
+      bootstrapDialog({
         overlay,
         onDismiss: () => _dismiss(null),
-        onSubmitEnter: _submit,
-        submitWhenActive: (active) => !!active?.classList.contains('js-goald-submit'),
+        onCancel: () => _dismiss(null),
+        onSubmit: _submit,
+        cancelSelector: '.js-goald-cancel',
+        submitSelector: '.js-goald-submit',
         focusablesSelector: 'input:not([disabled]), button:not([disabled])',
+        initialFocusSelector: '#goald-label',
       }),
     );
-
-    (overlay.querySelector('#goald-label') as HTMLElement | null)?.focus();
   });
 }
 

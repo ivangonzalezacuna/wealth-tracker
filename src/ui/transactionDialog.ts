@@ -4,18 +4,20 @@
  */
 
 import { esc } from '../utils';
-import {
-  normalizeSuggestionName,
-  type KnownSecuritySuggestions,
-} from '../model/securitySuggestions';
+import type { KnownSecuritySuggestions } from '../model/securitySuggestions';
 import { TxType } from '../types';
 import type { Transaction } from '../types';
 import {
-  activateModalShell,
+  bootstrapDialog,
   createDialogController,
   focusFirstInvalid,
   makeDialogHelpers,
 } from './modalShell';
+import {
+  bindSecuritySuggestionAutoFill,
+  populateSecuritySuggestionLists,
+  securitySuggestionPairLooksCoherent,
+} from './securitySuggestionFields';
 
 let _activeExisting: Transaction | undefined = undefined;
 let _activeSuggestions: KnownSecuritySuggestions | undefined;
@@ -169,7 +171,8 @@ export function transactionDialog(
                 value="${esc(existing?.note || '')}" placeholder="Any comment…">
             </div>
           </div>
-          ${_renderSuggestionLists(opts.suggestions)}
+          <datalist id="txd-name-list"></datalist>
+          <datalist id="txd-isin-list"></datalist>
         </div>
         <div class="dialog-actions">
           <button class="btn btn-sm btn-ghost js-txd-cancel">Cancel</button>
@@ -179,7 +182,27 @@ export function transactionDialog(
 
     document.body.appendChild(overlay);
     _dialog.setOverlay(overlay);
-    _bindSuggestionAutoFill(overlay, opts.suggestions);
+    populateSecuritySuggestionLists(
+      overlay,
+      {
+        isinInputId: 'txd-isin',
+        isinListId: 'txd-isin-list',
+        nameInputId: 'txd-name',
+        nameListId: 'txd-name-list',
+      },
+      opts.suggestions,
+    );
+    bindSecuritySuggestionAutoFill(
+      overlay,
+      {
+        isinInputId: 'txd-isin',
+        isinListId: 'txd-isin-list',
+        nameInputId: 'txd-name',
+        nameListId: 'txd-name-list',
+      },
+      opts.suggestions,
+      { overwritePeerField: true },
+    );
     _applyTypeVisibility(existing?.type || TxType.BUY);
 
     const typeEl = overlay.querySelector('#txd-type') as HTMLSelectElement | null;
@@ -187,20 +210,18 @@ export function transactionDialog(
       _applyTypeVisibility(typeEl.value as Transaction['type']),
     );
 
-    overlay.querySelector('.js-txd-submit')?.addEventListener('click', () => _submit());
-    overlay.querySelector('.js-txd-cancel')?.addEventListener('click', () => _dismiss(null));
     _dialog.setCleanup(
-      activateModalShell({
+      bootstrapDialog({
         overlay,
         onDismiss: () => _dismiss(null),
-        onSubmitEnter: _submit,
-        submitWhenActive: (active) => !!active?.classList.contains('js-txd-submit'),
+        onCancel: () => _dismiss(null),
+        onSubmit: _submit,
+        cancelSelector: '.js-txd-cancel',
+        submitSelector: '.js-txd-submit',
         focusablesSelector: 'input:not([disabled]), select:not([disabled]), button:not([disabled])',
+        initialFocusSelector: '#txd-date',
       }),
     );
-
-    // Focus the first input field
-    (overlay.querySelector('#txd-date') as HTMLElement | null)?.focus();
   });
 }
 
@@ -256,7 +277,7 @@ function _submit(): void {
     setErr('txd-name', 'Name is required.');
     valid = false;
   }
-  if (securityVisible && !isinPairLooksCoherent(isinVal, nameVal, _activeSuggestions)) {
+  if (securityVisible && !securitySuggestionPairLooksCoherent(isinVal, nameVal, _activeSuggestions)) {
     setErr('txd-isin', 'Known ISIN/name pair mismatch. Pick a matching pair or clear one field.');
     setErr('txd-name', 'Known ISIN/name pair mismatch. Pick a matching pair or clear one field.');
     valid = false;
@@ -347,59 +368,4 @@ function _applyTypeVisibility(type: Transaction['type']): void {
   setDisplay('txd-field-fee', FEE_TYPES.has(type));
   setDisplay('txd-field-tax', TAX_TYPES.has(type));
   setDisplay('txd-row-fx', FX_TYPES.has(type));
-}
-
-function _renderSuggestionLists(suggestions: KnownSecuritySuggestions | undefined): string {
-  if (!suggestions || suggestions.pairs.length === 0) {
-    return '<datalist id="txd-name-list"></datalist><datalist id="txd-isin-list"></datalist>';
-  }
-  const byName = [...suggestions.pairs]
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((pair) => `<option value="${esc(pair.name)}">${esc(pair.isin)}</option>`)
-    .join('');
-  const byIsin = [...suggestions.pairs]
-    .sort((a, b) => a.isin.localeCompare(b.isin))
-    .map((pair) => `<option value="${esc(pair.isin)}">${esc(pair.name)}</option>`)
-    .join('');
-  return `<datalist id="txd-name-list">${byName}</datalist><datalist id="txd-isin-list">${byIsin}</datalist>`;
-}
-
-function _bindSuggestionAutoFill(
-  overlay: HTMLElement,
-  suggestions: KnownSecuritySuggestions | undefined,
-): void {
-  if (!suggestions || suggestions.pairs.length === 0) return;
-  const nameEl = overlay.querySelector('#txd-name') as HTMLInputElement | null;
-  const isinEl = overlay.querySelector('#txd-isin') as HTMLInputElement | null;
-  if (!nameEl || !isinEl) return;
-
-  const applyByIsin = (): void => {
-    const match = suggestions.byIsin[isinEl.value.trim().toUpperCase()];
-    if (match) nameEl.value = match.name;
-  };
-  const applyByName = (): void => {
-    const match = suggestions.byName[normalizeSuggestionName(nameEl.value)];
-    if (match) isinEl.value = match.isin;
-  };
-
-  isinEl.addEventListener('change', applyByIsin);
-  isinEl.addEventListener('blur', applyByIsin);
-  nameEl.addEventListener('change', applyByName);
-  nameEl.addEventListener('blur', applyByName);
-}
-
-function isinPairLooksCoherent(
-  isin: string,
-  name: string,
-  suggestions: KnownSecuritySuggestions | undefined,
-): boolean {
-  if (!suggestions || !isin || !name) return true;
-  const isinKey = isin.trim().toUpperCase();
-  const nameKey = normalizeSuggestionName(name);
-  const byIsin = suggestions.byIsin[isinKey];
-  const byName = suggestions.byName[nameKey];
-  if (!byIsin && !byName) return true;
-  if (byIsin && normalizeSuggestionName(byIsin.name) !== nameKey) return false;
-  if (byName && byName.isin !== isinKey) return false;
-  return true;
 }
