@@ -566,9 +566,7 @@ function attachAccountListeners(root: HTMLElement): void {
     }
     // Auto-generate IDs for accounts that don't have one
     const taken = new Set([
-      ...accounts
-        .map((a) => (a.id || a.key || '').trim())
-        .filter((id) => !!id),
+      ...accounts.map((a) => (a.id || a.key || '').trim()).filter((id) => !!id),
       ...getRetiredAccountIds(),
     ]);
     for (const a of accounts) {

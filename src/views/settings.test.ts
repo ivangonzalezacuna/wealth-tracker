@@ -697,9 +697,8 @@ describe('Button-disable verification: synchronous disable and double-click prev
 
     it('reuses legacy key as id when account id is missing', async () => {
       const { setAccounts } = await import('../store/config');
-      const { loadSnapshots, saveSnapshots } = await import('../db');
+      const { saveSnapshots } = await import('../db');
       (setAccounts as ReturnType<typeof vi.fn>).mockClear();
-      (loadSnapshots as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
       (saveSnapshots as ReturnType<typeof vi.fn>).mockClear();
 
       const original = { ...MOCK_ACCOUNTS[0] };

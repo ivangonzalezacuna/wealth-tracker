@@ -60,7 +60,6 @@ const _allocMode: Record<string, 'active' | 'all'> = {
   region: 'active',
 };
 
-
 function _destroyChart(id: string): void {
   if (CH[id]) {
     CH[id].destroy();

@@ -170,6 +170,4 @@ describe('primaryInvestmentValue', () => {
     const snap: Snapshot = { date: '2026-06', cash: 5000 };
     expect(primaryInvestmentValue(snap, accounts)).toBeNull();
   });
-
-
 });
