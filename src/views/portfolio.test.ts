@@ -43,8 +43,7 @@ const MOCK_HOLDINGS = [
     color: '#222222',
     acc: true,
     active: true,
-    contribAmount: 50,
-    contribInterval: 'weekly',
+    targetPct: 50,
     assetClass: 'equity',
     region: 'developed',
     foldInto: '',
@@ -55,6 +54,8 @@ vi.mock('../store/config', () => ({
   getAccounts: () => MOCK_ACCOUNTS,
   getHoldings: () => MOCK_HOLDINGS,
   getAlertSettings: () => ({ driftThresholdPct: 5 }),
+  getMonthlyContribBudget: () => 500,
+  getCalibrationInterval: () => 'monthly',
   isConfigLoaded: () => true,
   getISIN_ORDER: () => ['IE00TEST1'],
   getMETA: () => ({ IWDA: { color: '#222222', acc: true, active: true } }),
@@ -122,8 +123,7 @@ function setRebalanceHoldings(): void {
       color: '#222222',
       acc: true,
       active: true,
-      contribAmount: 70,
-      contribInterval: 'monthly',
+      targetPct: 70,
       assetClass: 'equity',
       region: 'developed',
       foldInto: '',
@@ -136,8 +136,7 @@ function setRebalanceHoldings(): void {
       color: '#333333',
       acc: true,
       active: true,
-      contribAmount: 30,
-      contribInterval: 'monthly',
+      targetPct: 30,
       assetClass: 'equity',
       region: 'emerging',
       foldInto: '',
@@ -187,6 +186,7 @@ describe('renderPortfolio', () => {
     document.body.innerHTML = DOM_FIXTURE;
     chartInstances.length = 0;
     localStorage.removeItem('drift-rebalance-months');
+    localStorage.removeItem('drift-calibration-interval');
     MOCK_HOLDINGS.splice(0, MOCK_HOLDINGS.length, {
       isin: 'IE00TEST1',
       shortName: 'IWDA',
@@ -194,8 +194,7 @@ describe('renderPortfolio', () => {
       color: '#222222',
       acc: true,
       active: true,
-      contribAmount: 50,
-      contribInterval: 'weekly',
+      targetPct: 50,
       assetClass: 'equity',
       region: 'developed',
       foldInto: '',
@@ -500,8 +499,7 @@ describe('renderPortfolio', () => {
         color: '#222222',
         acc: true,
         active: true,
-        contribAmount: 50,
-        contribInterval: 'weekly',
+        targetPct: 50,
         assetClass: 'equity',
         region: 'developed',
         foldInto: '',
@@ -514,8 +512,7 @@ describe('renderPortfolio', () => {
         color: '#333333',
         acc: true,
         active: true,
-        contribAmount: 0,
-        contribInterval: 'weekly',
+        targetPct: 0,
         assetClass: 'bond',
         region: 'us',
         foldInto: '',
@@ -744,6 +741,16 @@ describe('renderPortfolio', () => {
     expect(drift.textContent).toContain('reduce max drift from');
   });
 
+  it('shows the target cadence amount alongside the suggested amount', () => {
+    setRebalanceHoldings();
+    const pd = makeRebalancePd();
+    localStorage.setItem('drift-calibration-interval', 'weekly');
+    renderPortfolio(pd, [makeRebalanceSnap()]);
+    const drift = document.getElementById('port-drift')!;
+    expect(drift.textContent || '').toMatch(/Target\s+80,77\s*€\/wk/);
+    expect(drift.textContent || '').toMatch(/Target\s+34,62\s*€\/wk/);
+  });
+
   it('rebalance picker click updates selected month and re-renders', () => {
     setRebalanceHoldings();
     const pd = makeRebalancePd();
@@ -816,15 +823,22 @@ describe('renderPortfolio', () => {
   });
 
   it('sell advisory mentions reviewing tax and fee impact', () => {
+    // Use a large portfolio where monthly contributions (500€/mo) cannot close
+    // the entire underweight gap in 12 months — IWDA remains overweight, so the
+    // sell advisory is triggered.
+    // IWDA: 80000 (80%, target 70%) → overweight +10%
+    // EM:   20000 (20%, target 30%) → underweight −10%
+    // projectedTotal at 12 months = 106000, needToBuy[EM] = 106000*0.3-20000=11800
+    // totalBudget = 6000 < 11800 → insufficient, IWDA stays overweight → sell warning.
     setRebalanceHoldings();
     const pd = makeRebalancePd({
       etfs: {
-        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 9500 }),
-        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 500 }),
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 80000 }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 20000 }),
       },
-      totalInv: 10000,
+      totalInv: 100000,
     });
-    const snap = makeRebalanceSnap({ etf_IE00TEST1: 9500, etf_IE00TEST2: 500 });
+    const snap = makeRebalanceSnap({ acct1: 100000, etf_IE00TEST1: 80000, etf_IE00TEST2: 20000 });
     renderPortfolio(pd, [snap]);
     const drift = document.getElementById('port-drift')!;
     expect(drift.textContent).toContain('taxes');
@@ -846,8 +860,7 @@ describe('renderPortfolio', () => {
         color: '#222222',
         acc: true,
         active: true,
-        contribAmount: 60,
-        contribInterval: 'monthly',
+        targetPct: 60,
         assetClass: 'equity',
         region: 'developed',
         foldInto: '',
@@ -860,8 +873,7 @@ describe('renderPortfolio', () => {
         color: '#333333',
         acc: true,
         active: true,
-        contribAmount: 25,
-        contribInterval: 'monthly',
+        targetPct: 25,
         assetClass: 'equity',
         region: 'emerging',
         foldInto: '',
@@ -874,8 +886,7 @@ describe('renderPortfolio', () => {
         color: '#444444',
         acc: false,
         active: true,
-        contribAmount: 15,
-        contribInterval: 'monthly',
+        targetPct: 15,
         assetClass: 'fixed income',
         region: 'global',
         foldInto: '',

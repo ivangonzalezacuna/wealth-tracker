@@ -60,7 +60,7 @@ vi.mock('../store/config', () => ({
   getTargetNetWorth: () => 100000,
   getTargetDate: () => '2030-01',
   getHoldings: () => [],
-  getTotalAnnualContrib: () => 2600,
+  getMonthlyContribBudget: () => 500,
   isConfigLoaded: () => true,
   getGoals: vi.fn(() => []),
 }));

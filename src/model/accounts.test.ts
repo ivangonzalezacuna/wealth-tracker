@@ -52,75 +52,6 @@ describe('primaryInvestmentValue', () => {
     expect(primaryInvestmentValue(snap, accounts)).toBe(15000);
   });
 
-  describe('validateAccountIds', () => {
-    it('accepts valid ids', () => {
-      const accounts: Account[] = [
-        { id: 'broker_1', label: 'Broker' },
-        { id: 'cash_2', label: 'Cash' },
-      ];
-      expect(validateAccountIds(accounts)).toBeNull();
-    });
-
-    it('rejects empty id', () => {
-      const accounts: Account[] = [{ id: '', label: 'No ID' }];
-      expect(validateAccountIds(accounts)).toContain('empty ID');
-    });
-
-    it('rejects duplicate ids', () => {
-      const accounts: Account[] = [
-        { id: 'same_id', label: 'A' },
-        { id: 'same_id', label: 'B' },
-      ];
-      expect(validateAccountIds(accounts)).toContain('Duplicate account ID');
-    });
-
-    it('rejects reserved etf_ prefix', () => {
-      const accounts: Account[] = [{ id: 'etf_broker', label: 'ETF Broker' }];
-      expect(validateAccountIds(accounts)).toContain('reserved');
-    });
-  });
-
-  describe('validateAccountLabels', () => {
-    it('returns null when all labels contain alphanumeric characters', () => {
-      const accounts: Account[] = [
-        { label: 'Main Account', moneyType: 'investment' },
-        { label: 'N26', moneyType: 'savings' },
-      ];
-      expect(validateAccountLabels(accounts)).toBeNull();
-    });
-
-    it('returns null for empty labels (empty-name check is handled separately)', () => {
-      const accounts: Account[] = [{ label: '', moneyType: 'cash' }];
-      expect(validateAccountLabels(accounts)).toBeNull();
-    });
-
-    it('rejects labels with only symbols like "!"', () => {
-      const accounts: Account[] = [{ label: '!', moneyType: 'cash' }];
-      const err = validateAccountLabels(accounts);
-      expect(err).not.toBeNull();
-      expect(err).toContain('!');
-      expect(err).toContain('letter or digit');
-    });
-
-    it('rejects labels with only punctuation', () => {
-      const accounts: Account[] = [{ label: '---', moneyType: 'cash' }];
-      expect(validateAccountLabels(accounts)).not.toBeNull();
-    });
-
-    it('accepts labels mixing letters and symbols', () => {
-      const accounts: Account[] = [{ label: 'N26 (main)', moneyType: 'savings' }];
-      expect(validateAccountLabels(accounts)).toBeNull();
-    });
-
-    it('rejects duplicate labels after trimming and lowercasing', () => {
-      const accounts: Account[] = [
-        { label: 'Main Portfolio', moneyType: 'investment' },
-        { label: '  main portfolio  ', moneyType: 'cash' },
-      ];
-      expect(validateAccountLabels(accounts)).toContain('Duplicate account name');
-    });
-  });
-
   it('returns null when no account is primary', () => {
     const accounts: Account[] = [
       { id: 'n26', label: 'N26', moneyType: 'savings', isPrimaryInvestment: false },
@@ -169,5 +100,74 @@ describe('primaryInvestmentValue', () => {
     // Snapshot has no 'tr' key at all
     const snap: Snapshot = { date: '2026-06', cash: 5000 };
     expect(primaryInvestmentValue(snap, accounts)).toBeNull();
+  });
+});
+
+describe('validateAccountIds', () => {
+  it('accepts valid ids', () => {
+    const accounts: Account[] = [
+      { id: 'broker_1', label: 'Broker' },
+      { id: 'cash_2', label: 'Cash' },
+    ];
+    expect(validateAccountIds(accounts)).toBeNull();
+  });
+
+  it('rejects empty id', () => {
+    const accounts: Account[] = [{ id: '', label: 'No ID' }];
+    expect(validateAccountIds(accounts)).toContain('empty ID');
+  });
+
+  it('rejects duplicate ids', () => {
+    const accounts: Account[] = [
+      { id: 'same_id', label: 'A' },
+      { id: 'same_id', label: 'B' },
+    ];
+    expect(validateAccountIds(accounts)).toContain('Duplicate account ID');
+  });
+
+  it('rejects reserved etf_ prefix', () => {
+    const accounts: Account[] = [{ id: 'etf_broker', label: 'ETF Broker' }];
+    expect(validateAccountIds(accounts)).toContain('reserved');
+  });
+});
+
+describe('validateAccountLabels', () => {
+  it('returns null when all labels contain alphanumeric characters', () => {
+    const accounts: Account[] = [
+      { label: 'Main Account', moneyType: 'investment' },
+      { label: 'N26', moneyType: 'savings' },
+    ];
+    expect(validateAccountLabels(accounts)).toBeNull();
+  });
+
+  it('returns null for empty labels (empty-name check is handled separately)', () => {
+    const accounts: Account[] = [{ label: '', moneyType: 'cash' }];
+    expect(validateAccountLabels(accounts)).toBeNull();
+  });
+
+  it('rejects labels with only symbols like "!"', () => {
+    const accounts: Account[] = [{ label: '!', moneyType: 'cash' }];
+    const err = validateAccountLabels(accounts);
+    expect(err).not.toBeNull();
+    expect(err).toContain('!');
+    expect(err).toContain('letter or digit');
+  });
+
+  it('rejects labels with only punctuation', () => {
+    const accounts: Account[] = [{ label: '---', moneyType: 'cash' }];
+    expect(validateAccountLabels(accounts)).not.toBeNull();
+  });
+
+  it('accepts labels mixing letters and symbols', () => {
+    const accounts: Account[] = [{ label: 'N26 (main)', moneyType: 'savings' }];
+    expect(validateAccountLabels(accounts)).toBeNull();
+  });
+
+  it('rejects duplicate labels after trimming and lowercasing', () => {
+    const accounts: Account[] = [
+      { label: 'Main Portfolio', moneyType: 'investment' },
+      { label: '  main portfolio  ', moneyType: 'cash' },
+    ];
+    expect(validateAccountLabels(accounts)).toContain('Duplicate account name');
   });
 });

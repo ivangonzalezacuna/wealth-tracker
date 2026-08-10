@@ -234,7 +234,7 @@ describe('computePD', () => {
 
     // FIFO: sold 10 from lot 1 @ 100 = cost 1000; realized = 1400-1000 = 400
     expect(pd.realizedPnL).toBeCloseTo(400);
-    expect(pd.etfs['IE00B4L5Y983'].costBasis || pd.etfs['IE00B4L5Y983'].cost).toBeCloseTo(1500);
+    expect(pd.etfs['IE00B4L5Y983'].cost).toBeCloseTo(1500);
   });
 
   it('returns empty structures for empty input', () => {

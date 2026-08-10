@@ -12,9 +12,11 @@ import {
   getAlertSettings,
   getRetiredAccountIds,
   retireAccountIdsSafely,
+  getMonthlyContribBudget,
+  getCalibrationInterval,
 } from '../store/config';
 import type { ConfigChangeKind } from '../store/config';
-import { loadTransactions, loadConfigHistory, loadSnapshots } from '../db';
+import { loadTransactions, loadConfigHistory, loadSnapshots, saveSnapshots } from '../db';
 import type { ConfigHistoryEntry } from '../db';
 import {
   validatePrimaryInvestment,
@@ -26,7 +28,15 @@ import { validateGoalLabels } from '../model/goals';
 import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { showMsg, reinjectPendingMsg, withButtonGuard, esc, fmtEur } from '../utils';
-import type { Account, Holding, Settings, ContribInterval, NamedGoal, Transaction } from '../types';
+import type {
+  Account,
+  Holding,
+  Settings,
+  ContribInterval,
+  NamedGoal,
+  Transaction,
+  Snapshot,
+} from '../types';
 import { formatEnglishDateTime, formatEnglishMonth } from '../dateFormat';
 import { normalizeInstitution } from '../model/securitySuggestions';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
@@ -61,6 +71,7 @@ const DELETE_ICON = `<svg class="btn-icon-svg" viewBox="0 0 16 16" aria-hidden="
 type CardKey =
   | 'accounts'
   | 'holdings'
+  | 'contributions'
   | 'cost-basis'
   | 'goal'
   | 'alerts'
@@ -174,6 +185,7 @@ export function renderSettings(): void {
   el.innerHTML = `
     ${renderAccountsCard(accounts)}
     ${renderHoldingsCard(holdings)}
+    ${renderContributionsCard(settings)}
     ${renderCostBasisCard(settings)}
     ${renderGoalCard(settings)}
     ${renderAlertsCard(settings)}
@@ -186,6 +198,7 @@ export function renderSettings(): void {
 
   attachAccountListeners(el);
   attachHoldingListeners(el);
+  attachContributionsListeners(el);
   attachCostBasisListeners(el);
   attachGoalListeners(el);
   attachAlertsListeners(el);
@@ -470,6 +483,41 @@ async function deleteAccount(
   });
 }
 
+async function migrateLegacySnapshotKeys(accounts: Account[]): Promise<void> {
+  const keyMap = new Map<string, string>();
+  for (const account of accounts) {
+    const from = String(account.key || '')
+      .trim()
+      .toLowerCase();
+    const to = String(account.id || '')
+      .trim()
+      .toLowerCase();
+    if (!from || !to || from === to) continue;
+    keyMap.set(from, to);
+  }
+  if (keyMap.size === 0) return;
+
+  const snapshots = await loadSnapshots();
+  let changed = false;
+  const migrated = snapshots.map((snap) => {
+    const next: Record<string, unknown> = { ...snap };
+    for (const [legacyKey, currentKey] of keyMap.entries()) {
+      const match = Object.keys(next).find((k) => k.toLowerCase() === legacyKey);
+      if (!match || match === currentKey) continue;
+      const legacyValue = next[match];
+      const currentValue = next[currentKey];
+      if (typeof legacyValue === 'number' && typeof currentValue !== 'number') {
+        next[currentKey] = legacyValue;
+        changed = true;
+      }
+      delete next[match];
+      changed = true;
+    }
+    return next as Snapshot;
+  });
+  if (changed) await saveSnapshots(migrated);
+}
+
 function attachAccountListeners(root: HTMLElement): void {
   const controller = createEditableListController<Account>({
     getItems: () => _accounts ?? [],
@@ -518,12 +566,13 @@ function attachAccountListeners(root: HTMLElement): void {
     }
     // Auto-generate IDs for accounts that don't have one
     const taken = new Set([
-      ...accounts.filter((a) => a.id).map((a) => a.id!),
+      ...accounts.map((a) => (a.id || a.key || '').trim()).filter((id) => !!id),
       ...getRetiredAccountIds(),
     ]);
     for (const a of accounts) {
       if (!a.id) {
-        a.id = generateId(a.label, taken);
+        const legacyKey = String(a.key || '').trim();
+        a.id = legacyKey || generateId(a.label, taken);
         taken.add(a.id);
       }
     }
@@ -543,7 +592,15 @@ function attachAccountListeners(root: HTMLElement): void {
       return;
     }
     try {
-      await withCardGuard('accounts', btn, () => setAccounts(accounts), { busyText: 'Saving...' });
+      await withCardGuard(
+        'accounts',
+        btn,
+        async () => {
+          await migrateLegacySnapshotKeys(accounts);
+          await setAccounts(accounts);
+        },
+        { busyText: 'Saving...' },
+      );
       showMsg('accts-msg', 'Saved', true);
     } catch (err) {
       showMsg('accts-msg', 'Error: ' + (err as Error).message, false);
@@ -610,7 +667,7 @@ function renderHoldingsCard(holdings: Holding[]): string {
         <span class="card-chevron"></span>
       </div>
       <div class="card-body">
-        <p class="note" style="margin-bottom:.75rem">ETF positions in your portfolio. Active holdings receive contributions on their configured schedule (weekly, biweekly, monthly, or quarterly). Closed positions can be folded into a successor fund.</p>
+        <p class="note" style="margin-bottom:.75rem">ETF positions in your portfolio. Set a target allocation percentage on each active holding to use the drift and rebalance features. Closed positions can be folded into a successor fund.</p>
         <div class="filter-bar" style="margin-bottom:8px">
           <div class="range-toggle" id="hold-filter-toggle">
             <button class="btn btn-sm btn-ghost ${_holdingsSettingsFilter === 'all' ? 'active' : ''}" data-hfilter="all">All (${holdings.length})</button>
@@ -820,8 +877,6 @@ function attachHoldingListeners(root: HTMLElement): void {
               color: randomColor(),
               acc: parsed.acc,
               active: isActive,
-              contribAmount: 0,
-              contribInterval: 'weekly' as ContribInterval,
               assetClass: parsed.assetClass,
               region: parsed.region,
               foldInto: '',
@@ -925,6 +980,70 @@ function costBasisFieldsHtml(current: string): string {
         <span class="note">FIFO matches the German Abgeltungsteuer ordering rule. Average cost is simpler but may diverge on partial sells.</span>
       </div>
     </div>`;
+}
+
+// ── Portfolio contributions ──────────────────────────────────────
+
+function renderContributionsCard(_settings: Settings): string {
+  const intervalOptions = Object.entries(INTERVAL_LABELS)
+    .map(
+      ([val, label]) =>
+        `<option value="${esc(val)}" ${getCalibrationInterval() === val ? 'selected' : ''}>${esc(label)}</option>`,
+    )
+    .join('');
+
+  return `
+    <div class="card card-collapsible" id="settings-card-contributions" data-card-key="contributions">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Portfolio contributions</div>
+        <span class="card-chevron"></span>
+      </div>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.75rem">Configure the total monthly contribution budget and the cadence used for the rebalance plan in the Portfolio tab.</p>
+        <div class="form-group">
+          <label class="form-label" for="set-monthly-budget">
+            Monthly contribution budget (€)${infoTip('Total amount you invest per month across all ETFs. Used to size the suggested contribution amounts in the drift rebalance plan.')}
+          </label>
+          <input type="number" id="set-monthly-budget" class="form-input"
+            value="${esc(String(getMonthlyContribBudget() || ''))}" min="0" step="1" placeholder="e.g. 500">
+        </div>
+        <div class="form-group" style="margin-top:.75rem">
+          <label class="form-label" for="set-calibration-interval">
+            Calibration interval${infoTip('The contribution cadence used to express suggested amounts in the drift rebalance plan (e.g. Monthly shows how much to invest per month per ETF).')}
+          </label>
+          <select id="set-calibration-interval" class="form-input">${intervalOptions}</select>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary btn-sm" id="btn-save-contributions">Save</button>
+          <span id="contributions-msg" class="form-msg"></span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function attachContributionsListeners(root: HTMLElement): void {
+  root.querySelector('#btn-save-contributions')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-save-contributions') as HTMLButtonElement;
+    const budget =
+      (root.querySelector('#set-monthly-budget') as HTMLInputElement | null)?.value || '';
+    const interval =
+      (root.querySelector('#set-calibration-interval') as HTMLSelectElement | null)?.value ||
+      'monthly';
+    try {
+      await withCardGuard(
+        'contributions',
+        btn,
+        async () => {
+          await setSetting('monthly_contrib_budget', budget);
+          await setSetting('calibration_interval', interval);
+        },
+        { busyText: 'Saving...' },
+      );
+      showMsg('contributions-msg', 'Saved', true);
+    } catch (err) {
+      showMsg('contributions-msg', 'Error: ' + (err as Error).message, false);
+    }
+  });
 }
 
 function renderCostBasisCard(settings: Settings): string {

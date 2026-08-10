@@ -54,12 +54,30 @@ export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = [
     ${kpiTile({ label: 'Net interest', value: fmtEur2(pd.totalInterest), valueClass: 'pos', sub: 'received' })}
   `;
 
-  populateDivYearFilter(pd.divHist);
-  attachDivFilterListeners(pd);
+  populateYearFilter('div-year-filter', pd.divHist);
+  attachYearFilterListener(
+    'div-year-filter',
+    (year) => {
+      _divYear = year;
+    },
+    () => {
+      _divPage = 1;
+    },
+    () => renderDivTable(_lastPd || pd),
+  );
   renderDivTable(pd);
 
-  populateIntYearFilter(pd.intHist);
-  attachIntFilterListeners(pd);
+  populateYearFilter('int-year-filter', pd.intHist);
+  attachYearFilterListener(
+    'int-year-filter',
+    (year) => {
+      _intYear = year;
+    },
+    () => {
+      _intPage = 1;
+    },
+    () => renderIntTable(_lastPd || pd),
+  );
   renderIntTable(pd);
   renderAnnualSummary(pd, txs);
 
@@ -474,10 +492,10 @@ function renderIntPagination(totalPages: number, pd: PortfolioData): void {
   });
 }
 
-function populateDivYearFilter(divHist: PortfolioData['divHist']): void {
-  const select = document.getElementById('div-year-filter');
+function populateYearFilter(elementId: string, items: Array<{ date: string }>): void {
+  const select = document.getElementById(elementId);
   if (!select) return;
-  const years = [...new Set(divHist.map((d) => d.date.slice(0, 4)))].sort().reverse();
+  const years = [...new Set(items.map((item) => item.date.slice(0, 4)))].sort().reverse();
   const current = (select as HTMLSelectElement).value;
   select.innerHTML =
     '<option value="">All years</option>' +
@@ -486,40 +504,20 @@ function populateDivYearFilter(divHist: PortfolioData['divHist']): void {
       .join('');
 }
 
-function attachDivFilterListeners(pd: PortfolioData): void {
-  const yearEl = document.getElementById('div-year-filter') as
+function attachYearFilterListener(
+  elementId: string,
+  setYear: (year: string) => void,
+  resetPage: () => void,
+  render: () => void,
+): void {
+  const yearEl = document.getElementById(elementId) as
     (HTMLSelectElement & { _bound?: boolean }) | null;
   if (yearEl && !yearEl._bound) {
     yearEl._bound = true;
     yearEl.addEventListener('change', () => {
-      _divYear = yearEl.value;
-      _divPage = 1;
-      renderDivTable(_lastPd || pd);
-    });
-  }
-}
-
-function populateIntYearFilter(intHist: PortfolioData['intHist']): void {
-  const select = document.getElementById('int-year-filter');
-  if (!select) return;
-  const years = [...new Set(intHist.map((i) => i.date.slice(0, 4)))].sort().reverse();
-  const current = (select as HTMLSelectElement).value;
-  select.innerHTML =
-    '<option value="">All years</option>' +
-    years
-      .map((y) => `<option value="${y}" ${y === current ? 'selected' : ''}>${y}</option>`)
-      .join('');
-}
-
-function attachIntFilterListeners(pd: PortfolioData): void {
-  const yearEl = document.getElementById('int-year-filter') as
-    (HTMLSelectElement & { _bound?: boolean }) | null;
-  if (yearEl && !yearEl._bound) {
-    yearEl._bound = true;
-    yearEl.addEventListener('change', () => {
-      _intYear = yearEl.value;
-      _intPage = 1;
-      renderIntTable(_lastPd || pd);
+      setYear(yearEl.value);
+      resetPage();
+      render();
     });
   }
 }

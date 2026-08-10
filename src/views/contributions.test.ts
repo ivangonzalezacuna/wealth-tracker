@@ -45,7 +45,7 @@ const MOCK_ACCOUNTS = [
 
 vi.mock('../store/config', () => ({
   getAccounts: () => MOCK_ACCOUNTS,
-  getTotalAnnualContrib: () => 2600,
+  getMonthlyContribBudget: () => 500,
   getHoldings: () => [
     {
       isin: 'IE00TEST1',
@@ -54,8 +54,7 @@ vi.mock('../store/config', () => ({
       color: '#222222',
       acc: true,
       active: true,
-      contribAmount: 50,
-      contribInterval: 'weekly',
+      targetPct: 100,
       assetClass: 'equity',
       region: 'developed',
       foldInto: '',

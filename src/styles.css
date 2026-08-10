@@ -1472,6 +1472,37 @@ summary.section-label {
   color: var(--ink-2);
   font-size: 12px;
 }
+.rebalance-plan-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.rebalance-etf-cell {
+  min-width: 0;
+}
+.rebalance-amount-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: right;
+}
+.rebalance-amount-primary {
+  white-space: nowrap;
+}
+.rebalance-amount-suffix {
+  color: var(--ink-3);
+  font-size: 11px;
+}
+.rebalance-amount-meta {
+  color: var(--ink-3);
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.rebalance-drift-cell {
+  text-align: right;
+  color: var(--ink-3);
+  font-size: 11px;
+}
 .rebalance-state-badge {
   display: inline-block;
   margin-left: 0.35rem;

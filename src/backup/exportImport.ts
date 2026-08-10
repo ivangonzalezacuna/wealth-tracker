@@ -1,7 +1,7 @@
 import type { Account, Holding, Settings, Snapshot, Transaction } from '../types';
 import { formatEnglishDate } from '../dateFormat';
 
-export const BACKUP_SCHEMA_VERSION = 2;
+export const BACKUP_SCHEMA_VERSION = 3;
 
 export interface BackupFile {
   schemaVersion: number;
@@ -40,6 +40,39 @@ export const MIGRATIONS: Record<number, Migration> = {
       return { ...rest, isin: (rest.isin as string) || (symbol as string) || '' };
     });
     return { ...data, holdings, transactions } as typeof data;
+  },
+  2: (data) => {
+    // v2->v3: per-holding contribAmount/contribInterval removed; targetPct derived from weights.
+    const INTERVAL_MULTIPLIER: Record<string, number> = {
+      weekly: 52,
+      biweekly: 26,
+      monthly: 12,
+      quarterly: 4,
+    };
+    const rawHoldings = data.holdings as unknown as Record<string, unknown>[];
+    const totalAnnual = rawHoldings
+      .filter((h) => h.active && Number(h.contribAmount) > 0)
+      .reduce((sum, h) => {
+        const mult = INTERVAL_MULTIPLIER[String(h.contribInterval || 'monthly')] ?? 12;
+        return sum + Number(h.contribAmount) * mult;
+      }, 0);
+    const holdings = rawHoldings.map((h) => {
+      const { contribAmount, contribInterval, ...rest } = h;
+      if (
+        (rest.targetPct === undefined || rest.targetPct === 0) &&
+        Number(contribAmount) > 0 &&
+        h.active &&
+        totalAnnual > 0
+      ) {
+        const mult = INTERVAL_MULTIPLIER[String(contribInterval || 'monthly')] ?? 12;
+        const tgt = Math.round(((Number(contribAmount) * mult * 100) / totalAnnual) * 10) / 10;
+        return { ...rest, targetPct: tgt };
+      }
+      return rest;
+    });
+    // Seed calibration_interval in settings if not already present.
+    const settings = { calibration_interval: 'monthly', ...data.settings };
+    return { ...data, holdings, settings } as unknown as typeof data;
   },
 };
 
@@ -218,8 +251,7 @@ function isValidHolding(value: unknown): value is Holding {
     typeof value.color === 'string' &&
     typeof value.acc === 'boolean' &&
     typeof value.active === 'boolean' &&
-    isFiniteNumber(value.contribAmount) &&
-    typeof value.contribInterval === 'string' &&
+    isOptionalFiniteNumber(value.targetPct) &&
     typeof value.assetClass === 'string' &&
     typeof value.region === 'string' &&
     typeof value.foldInto === 'string' &&

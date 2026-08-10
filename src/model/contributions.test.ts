@@ -1,29 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  annualizeContrib,
-  totalAnnualContrib,
-  INTERVAL_PER_YEAR,
-  INTERVAL_LABELS,
-} from './contributions';
-import type { Holding, ContribInterval } from '../types';
-
-function makeHolding(overrides: Partial<Holding> = {}): Holding {
-  return {
-    isin: 'IE00B4L5Y983',
-    shortName: 'IWDA',
-    name: '',
-    color: '#2a78d6',
-    acc: true,
-    active: true,
-    contribAmount: 50,
-    contribInterval: 'weekly',
-    assetClass: 'equity',
-    region: 'developed',
-    foldInto: '',
-    order: 1,
-    ...overrides,
-  };
-}
+import { annualizeContrib, INTERVAL_PER_YEAR, INTERVAL_LABELS } from './contributions';
 
 describe('INTERVAL_PER_YEAR', () => {
   it('has correct factors', () => {
@@ -63,45 +39,5 @@ describe('annualizeContrib', () => {
 
   it('zero amount returns zero', () => {
     expect(annualizeContrib(0, 'weekly')).toBe(0);
-  });
-});
-
-describe('totalAnnualContrib', () => {
-  it('sums annualized contributions from active holdings', () => {
-    const holdings: Holding[] = [
-      makeHolding({ contribAmount: 50, contribInterval: 'weekly' }), // 50×52 = 2600
-      makeHolding({ contribAmount: 100, contribInterval: 'monthly' }), // 100×12 = 1200
-    ];
-    expect(totalAnnualContrib(holdings)).toBe(3800);
-  });
-
-  it('ignores inactive holdings', () => {
-    const holdings: Holding[] = [
-      makeHolding({ contribAmount: 50, contribInterval: 'weekly', active: true }), // 2600
-      makeHolding({ contribAmount: 100, contribInterval: 'weekly', active: false }), // excluded
-    ];
-    expect(totalAnnualContrib(holdings)).toBe(2600);
-  });
-
-  it('ignores holdings with zero contribAmount', () => {
-    const holdings: Holding[] = [
-      makeHolding({ contribAmount: 0, contribInterval: 'weekly', active: true }),
-      makeHolding({ contribAmount: 50, contribInterval: 'biweekly' }), // 50×26 = 1300
-    ];
-    expect(totalAnnualContrib(holdings)).toBe(1300);
-  });
-
-  it('returns 0 for empty array', () => {
-    expect(totalAnnualContrib([])).toBe(0);
-  });
-
-  it('handles mixed intervals correctly', () => {
-    const holdings: Holding[] = [
-      makeHolding({ contribAmount: 50, contribInterval: 'weekly' }), // 2600
-      makeHolding({ contribAmount: 100, contribInterval: 'biweekly' }), // 2600
-      makeHolding({ contribAmount: 200, contribInterval: 'monthly' }), // 2400
-      makeHolding({ contribAmount: 600, contribInterval: 'quarterly' }), // 2400
-    ];
-    expect(totalAnnualContrib(holdings)).toBe(10000);
   });
 });

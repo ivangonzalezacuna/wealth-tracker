@@ -6,7 +6,7 @@
  */
 
 /** Schema version - bump when DDL changes require a migration. */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 /**
  * SQL statements executed on first database creation (version 0 → 1).
@@ -59,8 +59,7 @@ export const SCHEMA_DDL: string[] = [
     color TEXT NOT NULL DEFAULT '',
     acc INTEGER NOT NULL DEFAULT 0,
     active INTEGER NOT NULL DEFAULT 1,
-    contrib_amount REAL NOT NULL DEFAULT 0,
-    contrib_interval TEXT NOT NULL DEFAULT 'weekly',
+    target_pct REAL NOT NULL DEFAULT 0,
     asset_class TEXT NOT NULL DEFAULT '',
     region TEXT NOT NULL DEFAULT '',
     fold_into TEXT NOT NULL DEFAULT '',

@@ -136,7 +136,7 @@ function _renderEtfBreakdown(
   if (held.length === 0) return '';
 
   const activeIsins = new Set(
-    configHoldings.filter((h) => h.active && h.contribAmount > 0).map((h) => h.isin),
+    configHoldings.filter((h) => h.active && (h.targetPct ?? 0) > 0).map((h) => h.isin),
   );
   const contributing = held.filter((pos) => activeIsins.has(pos.isin));
   const legacy = held.filter((pos) => !activeIsins.has(pos.isin));

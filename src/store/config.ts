@@ -20,18 +20,12 @@ import type {
   NamedGoal,
   AlertSettings,
 } from '../types';
-import { totalAnnualContrib, INTERVAL_PER_YEAR } from '../model/contributions';
+import { INTERVAL_PER_YEAR } from '../model/contributions';
 import type { CachedConfig } from '../cache/db';
 import { validateAccountIds } from '../model/accounts';
 
 // Valid contribution intervals, derived from the canonical INTERVAL_PER_YEAR map
 const VALID_INTERVALS = new Set(Object.keys(INTERVAL_PER_YEAR));
-
-// Type for reinvestment rules from static config
-interface ReinvestmentRule {
-  label: string;
-  value: string;
-}
 
 interface HoldingMeta {
   color: string;
@@ -102,9 +96,20 @@ export function getISIN_ORDER(): string[] {
   return _holdings.map((h) => h.isin);
 }
 
-/** Computed: total annualized contribution from all active holdings. */
-export function getTotalAnnualContrib(): number {
-  return totalAnnualContrib(_holdings);
+/** Computed: global monthly contribution budget from settings (in EUR). */
+export function getMonthlyContribBudget(): number {
+  const raw = (_settings.monthly_contrib_budget || '').trim();
+  const n = parseFloat(raw);
+  return isNaN(n) || n <= 0 ? 0 : n;
+}
+
+/** Computed: global calibration interval from settings (default 'monthly'). */
+export function getCalibrationInterval(): ContribInterval {
+  const raw = ((_settings.calibration_interval as string) || '').toLowerCase().trim();
+  if (raw === 'weekly' || raw === 'biweekly' || raw === 'monthly' || raw === 'quarterly') {
+    return raw as ContribInterval;
+  }
+  return 'monthly';
 }
 
 /** Goal: target net worth (number or null if unset). */
@@ -462,12 +467,9 @@ async function seedFromConfig(seedAccounts: boolean, seedHoldings: boolean): Pro
   if (seedHoldings && staticHoldings.length > 0) {
     const holdings: Holding[] = staticHoldings.map((h, i) => {
       const slice = slices.find((s) => s.isin === h.isin || s.shortName === h.shortName);
-      let contribAmount = h.contribAmount || 0;
-      if (!contribAmount && slice && h.active) {
-        const totalWeekly = CONFIG.projection?.weeklyTarget || 200;
-        contribAmount = Math.round((totalWeekly * slice.pct) / 100);
-      }
-      const contribInterval: ContribInterval = h.interval || 'weekly';
+      const targetPct =
+        h.targetPct ??
+        (slice && Number.isFinite(slice.pct) && slice.pct > 0 ? Number(slice.pct) : undefined);
       const assetClass = h.assetClass || 'equity';
       const region = h.region || 'developed';
       const foldInto = h.foldInto || '';
@@ -479,8 +481,7 @@ async function seedFromConfig(seedAccounts: boolean, seedHoldings: boolean): Pro
         color: h.color,
         acc: h.acc,
         active: h.active,
-        contribAmount,
-        contribInterval,
+        ...(targetPct !== undefined ? { targetPct } : {}),
         assetClass,
         region,
         foldInto,
