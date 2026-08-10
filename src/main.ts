@@ -561,18 +561,24 @@ function _updateThemeToggleLabel(): void {
   const btn = document.getElementById('btn-theme-toggle');
   if (!btn) return;
   const pref = getUserThemePref();
-  const labels: Record<string, string> = {
-    light: '☀️ Light',
-    dark: '🌙 Dark',
-    system: '🖥️ System',
+  const icons: Record<string, string> = {
+    light: '☀️',
+    dark: '🌙',
+    system: '🖥️',
   };
   const aria: Record<string, string> = {
     light: 'Switch theme: currently Light',
     dark: 'Switch theme: currently Dark',
     system: 'Switch theme: currently System',
   };
-  btn.textContent = labels[pref] ?? '☀️ Light';
+  const title: Record<string, string> = {
+    light: 'Theme: Light (click to cycle Light → Dark → System)',
+    dark: 'Theme: Dark (click to cycle Light → Dark → System)',
+    system: 'Theme: System (click to cycle Light → Dark → System)',
+  };
+  btn.textContent = icons[pref] ?? '☀️';
   btn.setAttribute('aria-label', aria[pref] ?? 'Switch theme');
+  btn.setAttribute('title', title[pref] ?? 'Switch theme');
 }
 
 /** Trigger syncInBackground only when shouldAutoResync passes. */

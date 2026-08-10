@@ -76,6 +76,9 @@ h1 {
   font-weight: 500;
   margin-bottom: 0.2rem;
 }
+header {
+  position: relative;
+}
 .sub {
   font-size: 13px;
   color: var(--ink-3);
@@ -2446,10 +2449,15 @@ input[type='color'] {
 /* ── Theme toggle button ────────────────────────────────── */
 .btn-theme-toggle {
   display: inline-flex;
+  position: absolute;
+  top: 0;
+  right: 0;
   align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  padding: 3px 8px;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+  padding: 0;
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: var(--surface);

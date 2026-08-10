@@ -33,11 +33,11 @@ export function appTemplate(): string {
 <header>
   <h1>${CONFIG.app.title}</h1>
   <div class="sub" id="app-sub">${CONFIG.app.subtitle}</div>
+  <button id="btn-theme-toggle" class="btn-theme-toggle" aria-label="Switch theme: currently Light" title="Theme: Light (click to cycle Light → Dark → System)">☀️</button>
   <div id="auth-bar">
     <span id="auth-status" class="auth-status"></span>
     <span id="sync-status" class="status-pill" style="display:none"></span>
     <button id="btn-sync-now" class="btn btn-ghost btn-sm" style="display:none" title="Incremental sync (does not clear cache)">Sync now</button>
-    <button id="btn-theme-toggle" class="btn-theme-toggle" aria-label="Switch theme: Light" title="Cycle theme: Light → Dark → System">☀️ Light</button>
     <button id="btn-signin-global" class="btn btn-primary btn-sm" style="display:none">Sign in</button>
     <button id="btn-signout" class="btn btn-ghost btn-sm" style="display:none">Sign out</button>
   </div>

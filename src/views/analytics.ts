@@ -863,7 +863,7 @@ function _renderAnnualTable(snaps: Snapshot[]): void {
         const delta = (row.return - prior.return) * 100;
         const dSign = delta >= 0 ? '+' : '';
         const dColor = delta >= 0 ? C.pos : C.neg;
-        deltaCell = `<td style="color:${dColor}">${dSign}${delta.toFixed(1)} pp</td>`;
+        deltaCell = `<td style="color:${dColor}">${dSign}${delta.toFixed(1)}%</td>`;
       }
 
       const sparkline = `<svg width="32" height="${MAX_BAR_H + 4}" viewBox="0 0 32 ${MAX_BAR_H + 4}" aria-hidden="true" style="display:block;margin:auto">
@@ -884,7 +884,7 @@ function _renderAnnualTable(snaps: Snapshot[]): void {
       <tr style="border-bottom:1px solid var(--line);color:var(--ink-3);font-weight:500">
         <th style="text-align:left;padding:4px 6px">Year</th>
         <th style="text-align:left;padding:4px 6px">Return</th>
-        <th style="text-align:center;padding:4px 6px">Bar</th>
+        <th style="text-align:center;padding:4px 6px" title="Relative bar height scaled to the largest absolute annual return shown in this table">Relative bar</th>
         <th style="text-align:left;padding:4px 6px">vs prior year</th>
       </tr>
     </thead>
