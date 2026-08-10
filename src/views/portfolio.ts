@@ -17,18 +17,19 @@ import { getAccounts, getHoldings, getAlertSettings } from '../store/config';
 import { primaryInvestmentValue } from '../model/accounts';
 import { splitHoldings, computeFeeDrag } from '../model/holdings';
 import { computeDrift, maxDrift, computeRebalancePlan } from '../model/drift';
-import { builtInProfiles } from '../import/profiles/index';
+import { sourceLabel } from '../import/profiles/index';
 import type { PortfolioData, Snapshot, EtfPosition, ContribInterval } from '../types';
 import Chart from 'chart.js/auto';
 import { R, resolvedT } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { attachEtfPopovers } from '../ui/etfPopover';
 import type { SortState } from './tableSort';
-import { applySort, bindSortableHeader } from './tableSort';
 import { renderPagination } from './pagination';
 import type { ColumnDef } from './tableColumns';
-import { renderTableHeader, renderTableRow, getSortGetters } from './tableColumns';
+import { renderTableHeader, renderTableRow } from './tableColumns';
 import { TOOLTIP_BOX, renderLegendHtml, tooltipSwatch } from './chartLegend';
+import { toggleSingleDetailRow } from './expandableRows';
+import { bindSortedTableHeader, sortAndPaginate } from './tableView';
 
 const CH: Record<string, Chart> = {};
 
@@ -45,12 +46,6 @@ function extractSnapEtfValues(snap: Snapshot | null): Record<string, number> {
     }
   }
   return out;
-}
-
-/** Resolve a profile source ID (e.g. 'trade_republic') to its display label. */
-function sourceLabel(id: string): string {
-  const profile = builtInProfiles.find((p) => p.id === id);
-  return profile?.label || id.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /** Render per-source sub-rows for a breakdown map (only when 2+ sources). */
@@ -264,12 +259,14 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   const defaultOrdered = displayList.slice().sort((a, b) => (b.cost || 0) - (a.cost || 0));
 
   // Apply user sort on top of the default allocation order
-  const sorted = applySort(defaultOrdered, _holdSort, getSortGetters(columns));
-
-  // Pagination
-  const totalPages = Math.ceil(sorted.length / HOLD_PAGE_SIZE);
-  if (_holdPage > totalPages) _holdPage = Math.max(1, totalPages);
-  const pageItems = sorted.slice((_holdPage - 1) * HOLD_PAGE_SIZE, _holdPage * HOLD_PAGE_SIZE);
+  const { pageItems, page, totalPages } = sortAndPaginate(
+    defaultOrdered,
+    columns,
+    _holdSort,
+    _holdPage,
+    HOLD_PAGE_SIZE,
+  );
+  _holdPage = page;
   const pageItemsByKey = new Map(pageItems.map((e) => [e.isin, e]));
 
   // Update module-level refs so the click handler (bound once) always sees fresh data
@@ -319,14 +316,11 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   if (portTable) attachInfoTips(portTable);
 
   // Bind sort handler on header row
-  const holdHeaderEl = document.getElementById('port-table-header');
-  if (holdHeaderEl) {
-    bindSortableHeader(holdHeaderEl, _holdSort, (newState) => {
-      _holdSort = newState;
-      _holdPage = 1;
-      renderHoldingsTable(pd, snaps);
-    });
-  }
+  bindSortedTableHeader(document.getElementById('port-table-header'), _holdSort, (newState) => {
+    _holdSort = newState;
+    _holdPage = 1;
+    renderHoldingsTable(pd, snaps);
+  });
 
   // Bind filter listeners once (_bound guard prevents stacking)
   const filterToggle = document.getElementById('port-filter-toggle') as
@@ -368,43 +362,16 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     tbl.addEventListener('click', (ev) => {
       const row = (ev.target as HTMLElement).closest('.hold-row:not(.th)') as HTMLElement | null;
       if (!row) return;
-      const existing = tbl.querySelector('.hold-detail') as HTMLElement | null;
-      if (existing) {
-        const prevRow = existing.previousElementSibling as HTMLElement | null;
-        const wasThis = prevRow === row;
-        prevRow?.setAttribute('aria-expanded', 'false');
-        existing.remove();
-        if (wasThis) return;
-      }
       const etfKey = row.dataset.etfKey;
       const e = etfKey ? _pageItemsByKey.get(etfKey) : undefined;
       if (!e) return;
-      const meta = getMETAMap()[e.isin] || {};
-      const active = meta.active ? 'Active' : 'Closed';
-      const acc = e.acc ? 'Accumulating' : 'Distributing';
-      // Prefer holding settings name (live) over position name (stale from computePD)
-      const holdCfg = getHoldings().find((h) => h.isin === e.isin);
-      const displayName = holdCfg?.name || e.name || '';
-      const detailCols = _currentColumns.filter((c) => c.detail);
-      const detailColRows = detailCols
-        .map((c) => {
-          const value = c.cell ? c.cell(e) : '';
-          const detailValueClass = c.detailValueClass ? c.detailValueClass(e) : '';
-          const valueClass = detailValueClass ? ` ${detailValueClass}` : '';
-          const rowClass = c.mobileHidden ? ' class="hold-detail-mobile-only"' : '';
-          return `<div${rowClass}><span class="hold-detail-label">${c.label}</span><span class="hold-detail-value${valueClass}">${value}</span></div>`;
-        })
-        .join('');
-      const panel = document.createElement('div');
-      panel.className = 'hold-detail';
-      panel.innerHTML = `
-        <div><span class="hold-detail-label">Name</span><span class="hold-detail-value" style="font-size:11px">${esc(displayName)}</span></div>
-        <div><span class="hold-detail-label">ISIN</span><span class="hold-detail-value hold-detail-isin">${esc(e.isin)}</span></div>
-        <div><span class="hold-detail-label">Status</span><span class="hold-detail-value">${active}</span></div>
-        <div><span class="hold-detail-label">Type</span><span class="hold-detail-value">${acc}</span></div>
-        ${detailColRows}`;
-      row.insertAdjacentElement('afterend', panel);
-      row.setAttribute('aria-expanded', 'true');
+      toggleSingleDetailRow({
+        container: tbl,
+        row,
+        item: e,
+        detailSelector: '.hold-detail',
+        createDetail: () => _createHoldingDetail(e),
+      });
     });
     tbl.addEventListener('keydown', (ev) => {
       const row = (ev.target as HTMLElement).closest('.hold-row:not(.th)') as HTMLElement | null;
@@ -423,6 +390,33 @@ function renderHoldPagination(totalPages: number, pd: PortfolioData, snaps: Snap
     _holdPage = p;
     renderHoldingsTable(pd, snaps);
   });
+}
+
+function _createHoldingDetail(e: EtfPosition): HTMLElement {
+  const meta = getMETAMap()[e.isin] || {};
+  const active = meta.active ? 'Active' : 'Closed';
+  const acc = e.acc ? 'Accumulating' : 'Distributing';
+  const holdCfg = getHoldings().find((h) => h.isin === e.isin);
+  const displayName = holdCfg?.name || e.name || '';
+  const detailCols = _currentColumns.filter((c) => c.detail);
+  const detailColRows = detailCols
+    .map((c) => {
+      const value = c.cell ? c.cell(e) : '';
+      const detailValueClass = c.detailValueClass ? c.detailValueClass(e) : '';
+      const valueClass = detailValueClass ? ` ${detailValueClass}` : '';
+      const rowClass = c.mobileHidden ? ' class="hold-detail-mobile-only"' : '';
+      return `<div${rowClass}><span class="hold-detail-label">${c.label}</span><span class="hold-detail-value${valueClass}">${value}</span></div>`;
+    })
+    .join('');
+  const panel = document.createElement('div');
+  panel.className = 'hold-detail';
+  panel.innerHTML = `
+    <div><span class="hold-detail-label">Name</span><span class="hold-detail-value" style="font-size:11px">${esc(displayName)}</span></div>
+    <div><span class="hold-detail-label">ISIN</span><span class="hold-detail-value hold-detail-isin">${esc(e.isin)}</span></div>
+    <div><span class="hold-detail-label">Status</span><span class="hold-detail-value">${active}</span></div>
+    <div><span class="hold-detail-label">Type</span><span class="hold-detail-value">${acc}</span></div>
+    ${detailColRows}`;
+  return panel;
 }
 
 /**

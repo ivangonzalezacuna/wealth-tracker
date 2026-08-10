@@ -1,20 +1,20 @@
 export type ConflictResolutionChoice = 'backup' | 'keep-local' | 'keep-cloud' | 'cancel';
 
-let _activeResolve: ((value: ConflictResolutionChoice) => void) | null = null;
-let _activeTrigger: HTMLElement | null = null;
-let _activeOverlay: HTMLElement | null = null;
+import { createDialogController, DIALOG_BUTTON_FOCUSABLES, openDialogShell } from './modalShell';
+
+const _dialog = createDialogController<ConflictResolutionChoice>('cancel', {
+  overlaySelector: '.conflict-overlay',
+});
 
 export function conflictDialog(): Promise<ConflictResolutionChoice> {
   return new Promise<ConflictResolutionChoice>((resolve) => {
-    dismiss('cancel');
-    _activeResolve = resolve;
-    _activeTrigger = document.activeElement as HTMLElement | null;
+    _dialog.begin(resolve);
 
     const overlay = document.createElement('div');
-    overlay.className = 'conflict-overlay';
+    overlay.className = 'dialog-overlay conflict-overlay';
     overlay.innerHTML = `
-      <div class="conflict-card" role="alertdialog" aria-modal="true" aria-labelledby="conflict-title">
-        <div class="conflict-title" id="conflict-title">Sync conflict</div>
+      <div class="dialog-card conflict-card" role="alertdialog" aria-modal="true" aria-labelledby="conflict-title">
+        <div class="dialog-title conflict-title" id="conflict-title">Sync conflict</div>
         <div class="conflict-body">Drive changed elsewhere and this device also has local changes.</div>
         <div class="conflict-note">Sync is paused to avoid silently discarding data. Export a backup first, then choose which copy to keep.</div>
         <div class="conflict-actions">
@@ -27,64 +27,28 @@ export function conflictDialog(): Promise<ConflictResolutionChoice> {
         </div>
       </div>`;
 
-    document.body.appendChild(overlay);
-    document.body.style.overflow = 'hidden';
-    _activeOverlay = overlay;
-
-    const backupBtn = overlay.querySelector('.js-conflict-backup') as HTMLElement;
-    const cancelBtn = overlay.querySelector('.js-conflict-cancel') as HTMLElement;
-    const keepLocalBtn = overlay.querySelector('.js-conflict-keep-local') as HTMLElement;
-    const keepCloudBtn = overlay.querySelector('.js-conflict-keep-cloud') as HTMLElement;
-
-    backupBtn.addEventListener('click', () => dismiss('backup'));
-    cancelBtn.addEventListener('click', () => dismiss('cancel'));
-    keepLocalBtn.addEventListener('click', () => dismiss('keep-local'));
-    keepCloudBtn.addEventListener('click', () => dismiss('keep-cloud'));
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) dismiss('cancel');
+    (overlay.querySelector('.js-conflict-backup') as HTMLElement).addEventListener('click', () =>
+      dismiss('backup'),
+    );
+    (overlay.querySelector('.js-conflict-keep-local') as HTMLElement).addEventListener(
+      'click',
+      () => dismiss('keep-local'),
+    );
+    (overlay.querySelector('.js-conflict-keep-cloud') as HTMLElement).addEventListener(
+      'click',
+      () => dismiss('keep-cloud'),
+    );
+    openDialogShell(_dialog, {
+      overlay,
+      onDismiss: () => dismiss('cancel'),
+      onCancel: () => dismiss('cancel'),
+      cancelSelector: '.js-conflict-cancel',
+      focusablesSelector: DIALOG_BUTTON_FOCUSABLES,
+      initialFocusSelector: '.js-conflict-backup',
     });
-    document.addEventListener('keydown', onKeydown);
-
-    backupBtn.focus();
   });
 }
 
-function onKeydown(e: KeyboardEvent): void {
-  if (e.key === 'Escape') {
-    e.preventDefault();
-    dismiss('cancel');
-    return;
-  }
-  if (e.key !== 'Tab' || !_activeOverlay) return;
-  const focusables = Array.from(
-    _activeOverlay.querySelectorAll('button:not([disabled])'),
-  ) as HTMLElement[];
-  if (!focusables.length) return;
-  const first = focusables[0];
-  const last = focusables[focusables.length - 1];
-  const active = document.activeElement as HTMLElement | null;
-  if (e.shiftKey) {
-    if (active === first || !active || !_activeOverlay.contains(active)) {
-      e.preventDefault();
-      last.focus();
-    }
-    return;
-  }
-  if (active === last || !active || !_activeOverlay.contains(active)) {
-    e.preventDefault();
-    first.focus();
-  }
-}
-
 function dismiss(result: ConflictResolutionChoice): void {
-  const overlay = document.querySelector('.conflict-overlay');
-  overlay?.remove();
-  document.body.style.overflow = '';
-  document.removeEventListener('keydown', onKeydown);
-  _activeOverlay = null;
-  if (_activeTrigger && document.body.contains(_activeTrigger)) _activeTrigger.focus();
-  _activeTrigger = null;
-  const resolve = _activeResolve;
-  _activeResolve = null;
-  if (resolve) resolve(result);
+  _dialog.dismiss(result);
 }

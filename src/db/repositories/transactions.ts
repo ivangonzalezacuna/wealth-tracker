@@ -16,10 +16,70 @@ export function txKey(t: Transaction): string {
 export async function loadTransactions(): Promise<Transaction[]> {
   const db = await getDb();
   const result = db.exec(
-    'SELECT id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category FROM transactions ORDER BY date ASC, rowid ASC',
+    'SELECT rowid, id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category FROM transactions ORDER BY date ASC, rowid ASC',
   );
   if (result.length === 0) return [];
   return result[0].values.map(rowToTransaction);
+}
+
+/** Insert one transaction row. */
+export async function insertTransaction(tx: Transaction): Promise<void> {
+  const db = await getDb();
+  db.run(
+    'INSERT INTO transactions (id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [
+      tx.id,
+      tx.date,
+      tx.source || '',
+      tx.type,
+      tx.name || '',
+      tx.isin || '',
+      tx.shares || 0,
+      tx.price || 0,
+      tx.amount || 0,
+      tx.fee || 0,
+      tx.tax || 0,
+      tx.currency || 'EUR',
+      tx.fxRate || 0,
+      tx.note || '',
+      tx.category || '',
+    ],
+  );
+  await persistDb();
+}
+
+/** Update one transaction row by SQLite rowid. */
+export async function updateTransaction(rowId: number, tx: Transaction): Promise<void> {
+  const db = await getDb();
+  db.run(
+    'UPDATE transactions SET id=?, date=?, source=?, type=?, name=?, isin=?, shares=?, price=?, amount=?, fee=?, tax=?, currency=?, fx_rate=?, note=?, category=? WHERE rowid=?',
+    [
+      tx.id,
+      tx.date,
+      tx.source || '',
+      tx.type,
+      tx.name || '',
+      tx.isin || '',
+      tx.shares || 0,
+      tx.price || 0,
+      tx.amount || 0,
+      tx.fee || 0,
+      tx.tax || 0,
+      tx.currency || 'EUR',
+      tx.fxRate || 0,
+      tx.note || '',
+      tx.category || '',
+      rowId,
+    ],
+  );
+  await persistDb();
+}
+
+/** Delete one transaction row by SQLite rowid. */
+export async function deleteTransaction(rowId: number): Promise<void> {
+  const db = await getDb();
+  db.run('DELETE FROM transactions WHERE rowid = ?', [rowId]);
+  await persistDb();
 }
 
 /**
@@ -47,7 +107,7 @@ export async function mergeTransactions(
           t.date,
           t.source || '',
           t.type,
-          t.name,
+          t.name || '',
           t.isin || '',
           t.shares,
           t.price,
@@ -89,7 +149,8 @@ export function countAmendedRows(existing: Transaction[], incoming: Transaction[
       stored.shares !== t.shares ||
       stored.price !== t.price ||
       stored.fee !== t.fee ||
-      stored.tax !== t.tax
+      stored.tax !== t.tax ||
+      stored.amount !== t.amount
     ) {
       count++;
     }
@@ -114,7 +175,7 @@ export async function restoreTransactions(txs: Transaction[]): Promise<void> {
         t.date,
         t.source || '',
         t.type,
-        t.name,
+        t.name || '',
         t.isin || '',
         t.shares,
         t.price,
@@ -141,20 +202,21 @@ export async function restoreTransactions(txs: Transaction[]): Promise<void> {
 
 function rowToTransaction(row: unknown[]): Transaction {
   return {
-    id: String(row[0] ?? ''),
-    date: String(row[1] ?? ''),
-    source: String(row[2] ?? ''),
-    type: String(row[3] ?? '') as TxTypeValue,
-    name: String(row[4] ?? ''),
-    isin: String(row[5] ?? ''),
-    shares: Number(row[6]) || 0,
-    price: Number(row[7]) || 0,
-    amount: Number(row[8]) || 0,
-    fee: Number(row[9]) || 0,
-    tax: Number(row[10]) || 0,
-    currency: String(row[11] ?? 'EUR'),
-    fxRate: Number(row[12]) || 0,
-    note: String(row[13] ?? ''),
-    category: String(row[14] ?? ''),
+    rowId: Number(row[0]) || undefined,
+    id: String(row[1] ?? ''),
+    date: String(row[2] ?? ''),
+    source: String(row[3] ?? ''),
+    type: String(row[4] ?? '') as TxTypeValue,
+    name: String(row[5] ?? ''),
+    isin: String(row[6] ?? ''),
+    shares: Number(row[7]) || 0,
+    price: Number(row[8]) || 0,
+    amount: Number(row[9]) || 0,
+    fee: Number(row[10]) || 0,
+    tax: Number(row[11]) || 0,
+    currency: String(row[12] ?? 'EUR'),
+    fxRate: Number(row[13]) || 0,
+    note: String(row[14] ?? ''),
+    category: String(row[15] ?? ''),
   };
 }

@@ -192,6 +192,14 @@ describe('summarizeBackup', () => {
     expect(summary).toContain('\n');
   });
 
+  it('renders summary dates in English month labels', () => {
+    const b = validBackupObj();
+    const summary = summarizeBackup(b);
+    expect(summary).toMatch(/Backup from .*Jun.*2026/);
+    expect(summary).toMatch(/Transactions: .*Dec.*2025/);
+    expect(summary).toMatch(/Last snapshot: .*Jan.*2026/);
+  });
+
   it('handles empty transactions gracefully', () => {
     const b = validBackupObj();
     b.data = { ...b.data, transactions: [] };

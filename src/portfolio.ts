@@ -1,6 +1,6 @@
 import { getISIN, getMETAMap } from './constants';
 import { getHoldings } from './store/config';
-import { TxType } from './model/tx';
+import { TxType } from './types';
 import { computeCostBasis } from './model/costbasis';
 import { toBase } from './fx';
 import type { Transaction, PortfolioData, EtfPosition, DivHistEntry, IntHistEntry } from './types';

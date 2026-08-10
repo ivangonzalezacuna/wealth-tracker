@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { computeCostBasis, _computeAvgCost, _computeFIFO } from './costbasis';
-import { TxType } from './tx';
+import { TxType } from '../types';
 import type { Transaction } from '../types';
 
 /** Helper to build a minimal BUY transaction. */
@@ -84,13 +84,14 @@ describe('costbasis: average cost', () => {
     expect(r.totalFees).toBeCloseTo(5);
   });
 
-  it('sell with no shares is safely ignored', () => {
+  it('throws on oversell when no shares are held', () => {
     const txs = [sell('2024-01-01', 10, 1100)];
-    const r = _computeAvgCost(txs);
-    expect(r.shares).toBe(0);
-    expect(r.costBasis).toBe(0);
-    expect(r.realizedPnL).toBe(0);
-    expect(r.exited).toBe(true);
+    expect(() => _computeAvgCost(txs)).toThrow(/Oversell detected/);
+  });
+
+  it('throws on partial oversell after buys', () => {
+    const txs = [buy('2024-01-01', 10, 1000), sell('2024-02-01', 11, 1200)];
+    expect(() => _computeAvgCost(txs)).toThrow(/Oversell detected/);
   });
 });
 
@@ -128,12 +129,14 @@ describe('costbasis: FIFO', () => {
     expect(r.totalFees).toBeCloseTo(10);
   });
 
-  it('sell with no shares is safely ignored (no lots)', () => {
+  it('throws on oversell when no shares are held (no lots)', () => {
     const txs = [sell('2024-01-01', 10, 1100)];
-    const r = _computeFIFO(txs);
-    expect(r.shares).toBe(0);
-    expect(r.realizedPnL).toBe(0);
-    expect(r.exited).toBe(true);
+    expect(() => _computeFIFO(txs)).toThrow(/Oversell detected/);
+  });
+
+  it('throws on partial oversell after buys', () => {
+    const txs = [buy('2024-01-01', 10, 1000), sell('2024-02-01', 12, 1200)];
+    expect(() => _computeFIFO(txs)).toThrow(/Oversell detected/);
   });
 });
 

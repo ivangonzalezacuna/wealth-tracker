@@ -1,39 +1,68 @@
 import { describe, it, expect } from 'vitest';
 import {
-  forecastMonthsToTarget,
   formatMonthsEta,
-  forecastSeries,
   forecastMultiAccountSeries,
   forecastMonthsToTargetMulti,
 } from './forecast';
 
-describe('forecastMonthsToTarget', () => {
+describe('forecastMonthsToTargetMulti (single-account)', () => {
   it('returns null when target already met', () => {
-    expect(forecastMonthsToTarget(100_000, 50_000, 10_000, 7)).toBeNull();
+    expect(
+      forecastMonthsToTargetMulti(
+        [{ current: 100_000, annualContrib: 10_000, annualReturnPct: 7 }],
+        50_000,
+      ),
+    ).toBeNull();
   });
 
   it('returns null when target equals current', () => {
-    expect(forecastMonthsToTarget(100_000, 100_000, 10_000, 7)).toBeNull();
+    expect(
+      forecastMonthsToTargetMulti(
+        [{ current: 100_000, annualContrib: 10_000, annualReturnPct: 7 }],
+        100_000,
+      ),
+    ).toBeNull();
   });
 
   it('returns null when target is zero or negative', () => {
-    expect(forecastMonthsToTarget(50_000, 0, 10_000, 7)).toBeNull();
-    expect(forecastMonthsToTarget(50_000, -1, 10_000, 7)).toBeNull();
+    expect(
+      forecastMonthsToTargetMulti(
+        [{ current: 50_000, annualContrib: 10_000, annualReturnPct: 7 }],
+        0,
+      ),
+    ).toBeNull();
+    expect(
+      forecastMonthsToTargetMulti(
+        [{ current: 50_000, annualContrib: 10_000, annualReturnPct: 7 }],
+        -1,
+      ),
+    ).toBeNull();
   });
 
   it('returns null when no growth possible (zero contrib + zero return)', () => {
-    expect(forecastMonthsToTarget(50_000, 100_000, 0, 0)).toBeNull();
+    expect(
+      forecastMonthsToTargetMulti(
+        [{ current: 50_000, annualContrib: 0, annualReturnPct: 0 }],
+        100_000,
+      ),
+    ).toBeNull();
   });
 
   it('calculates months with contributions only (0% return)', () => {
     // 50k remaining, 12k/year = 1k/month → 50 months
-    const months = forecastMonthsToTarget(50_000, 100_000, 12_000, 0);
+    const months = forecastMonthsToTargetMulti(
+      [{ current: 50_000, annualContrib: 12_000, annualReturnPct: 0 }],
+      100_000,
+    );
     expect(months).toBe(50);
   });
 
   it('calculates months with both contributions and growth', () => {
     // 50k → 100k with 10k/year contrib and 7% annual return
-    const months = forecastMonthsToTarget(50_000, 100_000, 10_000, 7);
+    const months = forecastMonthsToTargetMulti(
+      [{ current: 50_000, annualContrib: 10_000, annualReturnPct: 7 }],
+      100_000,
+    );
     expect(months).not.toBeNull();
     expect(months).toBeGreaterThan(0);
     expect(months).toBeLessThan(120); // should be reachable within 10 years
@@ -41,7 +70,10 @@ describe('forecastMonthsToTarget', () => {
 
   it('works with growth only (0 contributions)', () => {
     // 50k → 100k at 7% annual (rule of ~10 years)
-    const months = forecastMonthsToTarget(50_000, 100_000, 0, 7);
+    const months = forecastMonthsToTargetMulti(
+      [{ current: 50_000, annualContrib: 0, annualReturnPct: 7 }],
+      100_000,
+    );
     expect(months).not.toBeNull();
     expect(months).toBeGreaterThan(100);
     expect(months).toBeLessThan(140);
@@ -49,7 +81,10 @@ describe('forecastMonthsToTarget', () => {
 
   it('returns null for unreachable targets (capped at 1200 months)', () => {
     // Very small growth, very large target
-    const months = forecastMonthsToTarget(100, 1_000_000_000, 1, 0.01);
+    const months = forecastMonthsToTargetMulti(
+      [{ current: 100, annualContrib: 1, annualReturnPct: 0.01 }],
+      1_000_000_000,
+    );
     expect(months).toBeNull();
   });
 });
@@ -74,35 +109,55 @@ describe('formatMonthsEta', () => {
   });
 });
 
-describe('forecastSeries', () => {
+describe('forecastMultiAccountSeries (single-account)', () => {
   it('generates correct number of points', () => {
-    const series = forecastSeries(50_000, 12_000, 7, 12, '2024-06');
+    const series = forecastMultiAccountSeries(
+      [{ current: 50_000, annualContrib: 12_000, annualReturnPct: 7 }],
+      12,
+      '2024-06',
+    );
     expect(series).toHaveLength(12);
   });
 
   it('first point starts from next month', () => {
-    const series = forecastSeries(50_000, 12_000, 7, 3, '2024-06');
+    const series = forecastMultiAccountSeries(
+      [{ current: 50_000, annualContrib: 12_000, annualReturnPct: 7 }],
+      3,
+      '2024-06',
+    );
     expect(series[0].month).toBe('2024-07');
     expect(series[1].month).toBe('2024-08');
     expect(series[2].month).toBe('2024-09');
   });
 
   it('handles year rollover', () => {
-    const series = forecastSeries(50_000, 12_000, 7, 3, '2024-11');
+    const series = forecastMultiAccountSeries(
+      [{ current: 50_000, annualContrib: 12_000, annualReturnPct: 7 }],
+      3,
+      '2024-11',
+    );
     expect(series[0].month).toBe('2024-12');
     expect(series[1].month).toBe('2025-01');
     expect(series[2].month).toBe('2025-02');
   });
 
   it('values grow over time', () => {
-    const series = forecastSeries(50_000, 12_000, 7, 12, '2024-01');
+    const series = forecastMultiAccountSeries(
+      [{ current: 50_000, annualContrib: 12_000, annualReturnPct: 7 }],
+      12,
+      '2024-01',
+    );
     for (let i = 1; i < series.length; i++) {
       expect(series[i].value).toBeGreaterThan(series[i - 1].value);
     }
   });
 
   it('with zero return and contrib, values increase by monthly contrib', () => {
-    const series = forecastSeries(50_000, 12_000, 0, 3, '2024-01');
+    const series = forecastMultiAccountSeries(
+      [{ current: 50_000, annualContrib: 12_000, annualReturnPct: 0 }],
+      3,
+      '2024-01',
+    );
     // Each month adds 1000 (12000/12)
     expect(series[0].value).toBe(51_000);
     expect(series[1].value).toBe(52_000);
@@ -129,34 +184,21 @@ describe('forecastMultiAccountSeries', () => {
     );
 
     // Single-account paths computed separately
-    const investSeries = forecastSeries(investStart, investContrib, 7, months, startDate);
-    const cashSeries = forecastSeries(cashStart, 0, 0, months, startDate);
+    const investSeries = forecastMultiAccountSeries(
+      [{ current: investStart, annualContrib: investContrib, annualReturnPct: 7 }],
+      months,
+      startDate,
+    );
+    const cashSeries = forecastMultiAccountSeries(
+      [{ current: cashStart, annualContrib: 0, annualReturnPct: 0 }],
+      months,
+      startDate,
+    );
 
     expect(multi).toHaveLength(months);
     for (let i = 0; i < months; i++) {
       expect(multi[i].value).toBe(investSeries[i].value + cashSeries[i].value);
       expect(multi[i].month).toBe(investSeries[i].month);
-    }
-  });
-
-  it('single account reproduces forecastSeries output exactly', () => {
-    const start = 50_000;
-    const contrib = 12_000;
-    const rate = 7;
-    const months = 24;
-    const startDate = '2024-06';
-
-    const single = forecastSeries(start, contrib, rate, months, startDate);
-    const multi = forecastMultiAccountSeries(
-      [{ current: start, annualContrib: contrib, annualReturnPct: rate }],
-      months,
-      startDate,
-    );
-
-    expect(multi).toHaveLength(single.length);
-    for (let i = 0; i < months; i++) {
-      expect(multi[i].month).toBe(single[i].month);
-      expect(multi[i].value).toBe(single[i].value);
     }
   });
 
@@ -206,7 +248,10 @@ describe('forecastMonthsToTargetMulti', () => {
     );
 
     // Old buggy single-rate: projects ENTIRE 50k at 7% with 2400/yr contrib
-    const buggyMonths = forecastMonthsToTarget(50_000, 100_000, 2_400, 7);
+    const buggyMonths = forecastMonthsToTargetMulti(
+      [{ current: 50_000, annualContrib: 2_400, annualReturnPct: 7 }],
+      100_000,
+    );
 
     expect(multiMonths).not.toBeNull();
     expect(buggyMonths).not.toBeNull();

@@ -111,6 +111,14 @@ describe('primaryInvestmentValue', () => {
       const accounts: Account[] = [{ label: 'N26 (main)', moneyType: 'savings' }];
       expect(validateAccountLabels(accounts)).toBeNull();
     });
+
+    it('rejects duplicate labels after trimming and lowercasing', () => {
+      const accounts: Account[] = [
+        { label: 'Main Portfolio', moneyType: 'investment' },
+        { label: '  main portfolio  ', moneyType: 'cash' },
+      ];
+      expect(validateAccountLabels(accounts)).toContain('Duplicate account name');
+    });
   });
 
   it('returns null when no account is primary', () => {

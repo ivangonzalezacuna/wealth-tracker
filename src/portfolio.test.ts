@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { TxType } from './model/tx';
+import { TxType } from './types';
 import type { Transaction } from './types';
 
 // Stub constants module so computePD doesn't reach into Google Sheets
@@ -9,8 +9,8 @@ vi.mock('./constants', () => ({
     IE00BKM4GZ66: 'EIMI',
   }),
   getMETAMap: () => ({
-    IWDA: { color: '#4a90d9', acc: true, active: true },
-    EIMI: { color: '#e8a838', acc: true, active: true },
+    IE00B4L5Y983: { color: '#4a90d9', acc: true, active: true },
+    IE00BKM4GZ66: { color: '#e8a838', acc: true, active: true },
   }),
 }));
 

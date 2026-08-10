@@ -24,13 +24,24 @@ export function validateAccountIds(accounts: Account[]): string | null {
 
 /** Returns an error string if any account label contains no alphanumeric characters, else null. */
 export function validateAccountLabels(accounts: Account[]): string | null {
+  const seen = new Map<string, string>();
   for (const a of accounts) {
     const label = (a.label || '').trim();
     if (label && !/[a-zA-Z0-9]/.test(label)) {
       return `"${label}" is not a valid account name. Names must contain at least one letter or digit.`;
     }
+    const normalized = normalizeAccountLabel(label);
+    if (!normalized) continue;
+    if (seen.has(normalized)) {
+      return `Duplicate account name "${label}". Account names must be unique.`;
+    }
+    seen.set(normalized, label);
   }
   return null;
+}
+
+export function normalizeAccountLabel(label: string): string {
+  return label.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
 /** Returns an error string if the primary-investment flagging is invalid, else null. */

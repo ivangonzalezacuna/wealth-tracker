@@ -3,7 +3,6 @@ import {
   fmtEur,
   fmtEur2,
   fmtMon,
-  fmtEurNeg,
   fmtPctNeg,
   fmtEurSigned,
   fmtPctSigned,

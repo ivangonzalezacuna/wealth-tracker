@@ -3,7 +3,7 @@
  * cache invalidation on version bump, and cold-boot from cache.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { TxType } from '../model/tx';
+import { TxType } from '../types';
 import type { Transaction, TxTypeValue } from '../types';
 
 // ── Mock idb-keyval (in-memory store) ────────────────────────────

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseNum, parseCSV } from './csv';
-import { TxType } from './model/tx';
+import { TxType } from './types';
 
 describe('parseNum', () => {
   it('parses German comma-decimal "1234,56"', () => {

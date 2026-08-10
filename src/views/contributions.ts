@@ -7,9 +7,9 @@ import Chart from 'chart.js/auto';
 import { T, R, resolvedT } from '../theme';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import type { SortState } from './tableSort';
-import { applySort, bindSortableHeader } from './tableSort';
+import { bindSortedTableHeader, sortAndPaginate } from './tableView';
 import type { ColumnDef } from './tableColumns';
-import { renderTableHeader, renderTableRow, getSortGetters } from './tableColumns';
+import { renderTableHeader, renderTableRow } from './tableColumns';
 import { renderPagination } from './pagination';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 
@@ -544,16 +544,15 @@ function renderDCATable(pd: PortfolioData): void {
   const columns = dcaColumns(pd);
 
   // Apply sort (before pagination)
-  const sorted = applySort(months, _dcaTblSort, getSortGetters(columns));
-
   // Calculate filtered total
   const filteredTotal = months.reduce((sum, m) => sum + (pd.monthly[m] || 0), 0);
 
-  // Pagination
-  const totalPages = Math.ceil(sorted.length / DCA_PAGE_SIZE);
-  if (_dcaPage > totalPages) _dcaPage = Math.max(1, totalPages);
-  const start = (_dcaPage - 1) * DCA_PAGE_SIZE;
-  const pageMonths = sorted.slice(start, start + DCA_PAGE_SIZE);
+  const {
+    pageItems: pageMonths,
+    page,
+    totalPages,
+  } = sortAndPaginate(months, columns, _dcaTblSort, _dcaPage, DCA_PAGE_SIZE);
+  _dcaPage = page;
 
   const tRows = pageMonths
     .map(
@@ -573,14 +572,11 @@ function renderDCATable(pd: PortfolioData): void {
     </div>`;
 
   // Bind sort handler on header row
-  const dcaHeaderEl = document.getElementById('dca-table-header');
-  if (dcaHeaderEl) {
-    bindSortableHeader(dcaHeaderEl, _dcaTblSort, (newState) => {
-      _dcaTblSort = newState;
-      _dcaPage = 1;
-      renderDCATable(pd);
-    });
-  }
+  bindSortedTableHeader(document.getElementById('dca-table-header'), _dcaTblSort, (newState) => {
+    _dcaTblSort = newState;
+    _dcaPage = 1;
+    renderDCATable(pd);
+  });
 
   // Pagination controls
   renderDCAPagination(totalPages, pd);

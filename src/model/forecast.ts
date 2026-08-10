@@ -105,30 +105,3 @@ export function forecastMonthsToTargetMulti(
 
   return months >= maxMonths ? null : months;
 }
-
-// ── Single-account convenience wrappers ──────────────────
-
-/** Single-account wrapper for forecastMonthsToTargetMulti. */
-export function forecastMonthsToTarget(
-  current: number,
-  target: number,
-  annualContrib: number,
-  annualReturnPct: number,
-): number | null {
-  return forecastMonthsToTargetMulti([{ current, annualContrib, annualReturnPct }], target);
-}
-
-/** Single-account wrapper for forecastMultiAccountSeries. */
-export function forecastSeries(
-  startValue: number,
-  annualContrib: number,
-  annualReturnPct: number,
-  months: number,
-  startDate: string, // YYYY-MM
-): Array<{ month: string; value: number }> {
-  return forecastMultiAccountSeries(
-    [{ current: startValue, annualContrib, annualReturnPct }],
-    months,
-    startDate,
-  );
-}
