@@ -117,6 +117,26 @@ function sumSnapshotValues(snap: Snapshot, accounts: Account[]): number | null {
   return found ? sum : null;
 }
 
+function sumUnmappedSnapshotValues(snap: Snapshot, accounts: Account[]): number | null {
+  const knownKeys = new Set<string>();
+  for (const account of accounts) {
+    for (const key of accountSnapshotKeyCandidates(account)) {
+      knownKeys.add(key);
+    }
+  }
+  let found = false;
+  let sum = 0;
+  for (const [rawKey, value] of Object.entries(snap)) {
+    if (rawKey === 'date' || rawKey === 'notes') continue;
+    if (rawKey.toLowerCase().startsWith('etf_')) continue;
+    if (typeof value !== 'number') continue;
+    if (knownKeys.has(rawKey.toLowerCase())) continue;
+    found = true;
+    sum += value;
+  }
+  return found ? sum : null;
+}
+
 /** Current market value of the primary investment account(s) from a snapshot. */
 export function primaryInvestmentValue(snap: Snapshot | null, accounts: Account[]): number | null {
   if (!snap) return null;
@@ -139,5 +159,7 @@ export function allInvestmentAccountsValue(
   if (!snap) return null;
   const investment = accounts.filter((a) => (a.moneyType || '').toLowerCase() === 'investment');
   if (!investment.length) return null;
-  return sumSnapshotValues(snap, investment);
+  const matched = sumSnapshotValues(snap, investment);
+  if (matched !== null) return matched;
+  return sumUnmappedSnapshotValues(snap, accounts);
 }
