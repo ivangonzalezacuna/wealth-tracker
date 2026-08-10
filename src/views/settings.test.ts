@@ -59,6 +59,7 @@ vi.mock('../db', () => ({
   loadTransactions: vi.fn(async () => []),
   loadConfigHistory: vi.fn(async () => []),
   loadSnapshots: vi.fn(async () => []),
+  saveSnapshots: vi.fn(async () => {}),
 }));
 
 // Collapse state: use real in-memory implementation for testability
@@ -624,6 +625,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
       const btn = document.getElementById('btn-save-accts') as HTMLButtonElement;
       btn.click();
       await tick();
+      await tick();
 
       expect(btn.disabled).toBe(true);
       expect(btn.textContent).toBe('Saving...');
@@ -651,6 +653,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
       const btn = document.getElementById('btn-save-accts') as HTMLButtonElement;
       btn.click();
       await tick();
+      await tick();
 
       expect(btn.disabled).toBe(false);
       expect(btn.textContent).toBe('Save accounts');
@@ -659,6 +662,65 @@ describe('Button-disable verification: synchronous disable and double-click prev
         'Error: Network error',
         false,
       );
+    });
+
+    it('migrates legacy snapshot keys to current account ids before saving', async () => {
+      const { setAccounts } = await import('../store/config');
+      const { loadSnapshots, saveSnapshots } = await import('../db');
+      (setAccounts as ReturnType<typeof vi.fn>).mockClear();
+      (loadSnapshots as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        { date: '2026-01', legacy_tr: 1234, cash: 55 },
+      ]);
+      (saveSnapshots as ReturnType<typeof vi.fn>).mockClear();
+
+      const original = { ...MOCK_ACCOUNTS[0] };
+      try {
+        MOCK_ACCOUNTS[0] = {
+          ...MOCK_ACCOUNTS[0],
+          id: 'tr_portfolio',
+          key: 'legacy_tr',
+        } as any;
+        renderSettings();
+
+        const btn = document.getElementById('btn-save-accts') as HTMLButtonElement;
+        btn.click();
+        await tick();
+
+        expect(saveSnapshots as ReturnType<typeof vi.fn>).toHaveBeenCalledWith([
+          { date: '2026-01', tr_portfolio: 1234, cash: 55 },
+        ]);
+        expect(setAccounts as ReturnType<typeof vi.fn>).toHaveBeenCalled();
+      } finally {
+        MOCK_ACCOUNTS[0] = original;
+      }
+    });
+
+    it('reuses legacy key as id when account id is missing', async () => {
+      const { setAccounts } = await import('../store/config');
+      const { loadSnapshots, saveSnapshots } = await import('../db');
+      (setAccounts as ReturnType<typeof vi.fn>).mockClear();
+      (loadSnapshots as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      (saveSnapshots as ReturnType<typeof vi.fn>).mockClear();
+
+      const original = { ...MOCK_ACCOUNTS[0] };
+      try {
+        MOCK_ACCOUNTS[0] = {
+          ...MOCK_ACCOUNTS[0],
+          key: 'legacy_account_id',
+        } as any;
+        delete (MOCK_ACCOUNTS[0] as any).id;
+        renderSettings();
+
+        const btn = document.getElementById('btn-save-accts') as HTMLButtonElement;
+        btn.click();
+        await tick();
+
+        const savedAccounts = (setAccounts as ReturnType<typeof vi.fn>).mock.calls[0][0];
+        expect(savedAccounts[0].id).toBe('legacy_account_id');
+        expect(saveSnapshots as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+      } finally {
+        MOCK_ACCOUNTS[0] = original;
+      }
     });
   });
 

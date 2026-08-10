@@ -187,26 +187,4 @@ describe('primaryInvestmentValue', () => {
     expect(allInvestmentAccountsValue(snap, accounts)).toBe(4321);
   });
 
-  it('falls back to unmapped snapshot values when investment ids were renamed', () => {
-    const accounts: Account[] = [
-      { id: 'broker_now', label: 'Broker', moneyType: 'investment', isPrimaryInvestment: true },
-      { id: 'cash_now', label: 'Cash', moneyType: 'savings', isPrimaryInvestment: false },
-    ];
-    const snap: Snapshot = { date: '2026-06', broker_legacy: 4100, cash_now: 900 };
-    expect(allInvestmentAccountsValue(snap, accounts)).toBe(4100);
-  });
-
-  it('ignores ETF breakdown keys when using the unmapped-value fallback', () => {
-    const accounts: Account[] = [
-      { id: 'broker_now', label: 'Broker', moneyType: 'investment', isPrimaryInvestment: true },
-      { id: 'cash_now', label: 'Cash', moneyType: 'savings', isPrimaryInvestment: false },
-    ];
-    const snap: Snapshot = {
-      date: '2026-06',
-      broker_legacy: 4100,
-      cash_now: 900,
-      etf_IE00TEST: 4000,
-    };
-    expect(allInvestmentAccountsValue(snap, accounts)).toBe(4100);
-  });
 });

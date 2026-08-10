@@ -16,7 +16,7 @@ import {
   getCalibrationInterval,
 } from '../store/config';
 import type { ConfigChangeKind } from '../store/config';
-import { loadTransactions, loadConfigHistory, loadSnapshots } from '../db';
+import { loadTransactions, loadConfigHistory, loadSnapshots, saveSnapshots } from '../db';
 import type { ConfigHistoryEntry } from '../db';
 import {
   validatePrimaryInvestment,
@@ -28,7 +28,15 @@ import { validateGoalLabels } from '../model/goals';
 import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { showMsg, reinjectPendingMsg, withButtonGuard, esc, fmtEur } from '../utils';
-import type { Account, Holding, Settings, ContribInterval, NamedGoal, Transaction } from '../types';
+import type {
+  Account,
+  Holding,
+  Settings,
+  ContribInterval,
+  NamedGoal,
+  Transaction,
+  Snapshot,
+} from '../types';
 import { formatEnglishDateTime, formatEnglishMonth } from '../dateFormat';
 import { normalizeInstitution } from '../model/securitySuggestions';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
@@ -475,6 +483,41 @@ async function deleteAccount(
   });
 }
 
+async function migrateLegacySnapshotKeys(accounts: Account[]): Promise<void> {
+  const keyMap = new Map<string, string>();
+  for (const account of accounts) {
+    const from = String(account.key || '')
+      .trim()
+      .toLowerCase();
+    const to = String(account.id || '')
+      .trim()
+      .toLowerCase();
+    if (!from || !to || from === to) continue;
+    keyMap.set(from, to);
+  }
+  if (keyMap.size === 0) return;
+
+  const snapshots = await loadSnapshots();
+  let changed = false;
+  const migrated = snapshots.map((snap) => {
+    const next: Record<string, unknown> = { ...snap };
+    for (const [legacyKey, currentKey] of keyMap.entries()) {
+      const match = Object.keys(next).find((k) => k.toLowerCase() === legacyKey);
+      if (!match || match === currentKey) continue;
+      const legacyValue = next[match];
+      const currentValue = next[currentKey];
+      if (typeof legacyValue === 'number' && typeof currentValue !== 'number') {
+        next[currentKey] = legacyValue;
+        changed = true;
+      }
+      delete next[match];
+      changed = true;
+    }
+    return next as Snapshot;
+  });
+  if (changed) await saveSnapshots(migrated);
+}
+
 function attachAccountListeners(root: HTMLElement): void {
   const controller = createEditableListController<Account>({
     getItems: () => _accounts ?? [],
@@ -523,12 +566,15 @@ function attachAccountListeners(root: HTMLElement): void {
     }
     // Auto-generate IDs for accounts that don't have one
     const taken = new Set([
-      ...accounts.filter((a) => a.id).map((a) => a.id!),
+      ...accounts
+        .map((a) => (a.id || a.key || '').trim())
+        .filter((id) => !!id),
       ...getRetiredAccountIds(),
     ]);
     for (const a of accounts) {
       if (!a.id) {
-        a.id = generateId(a.label, taken);
+        const legacyKey = String(a.key || '').trim();
+        a.id = legacyKey || generateId(a.label, taken);
         taken.add(a.id);
       }
     }
@@ -548,7 +594,15 @@ function attachAccountListeners(root: HTMLElement): void {
       return;
     }
     try {
-      await withCardGuard('accounts', btn, () => setAccounts(accounts), { busyText: 'Saving...' });
+      await withCardGuard(
+        'accounts',
+        btn,
+        async () => {
+          await migrateLegacySnapshotKeys(accounts);
+          await setAccounts(accounts);
+        },
+        { busyText: 'Saving...' },
+      );
       showMsg('accts-msg', 'Saved', true);
     } catch (err) {
       showMsg('accts-msg', 'Error: ' + (err as Error).message, false);
