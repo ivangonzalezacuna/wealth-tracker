@@ -39,7 +39,7 @@ import { confirmDialog } from '../ui/confirmDialog';
 import { accountDialog } from '../ui/accountDialog';
 import { holdingDialog } from '../ui/holdingDialog';
 import { goalDialog } from '../ui/goalDialog';
-import { ACCOUNT_TYPES, ASSET_CLASSES, REGIONS } from '../model/accountTypes';
+import { ACCOUNT_TYPES } from '../model/accountTypes';
 import { isSignedIn } from '../auth/google';
 import { isBackupStale } from '../backup/exportImport';
 import { isBusy, setBusy } from '../sync/lock';

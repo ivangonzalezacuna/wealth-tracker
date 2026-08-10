@@ -1,7 +1,7 @@
 import { getACCTSList } from './constants';
 import { APP_CURRENCY } from './fx';
 import type { Snapshot } from './types';
-import { formatEnglishDay, formatEnglishMonth } from './dateFormat';
+export { formatEnglishMonth as fmtMon, formatEnglishDay as fmtDay } from './dateFormat';
 
 export function snapTotal(s: Snapshot): number {
   const accts: Array<{ key?: string; id?: string }> = getACCTSList();
@@ -96,14 +96,6 @@ export function fmtShares(n: number): string {
 export function currentMonth(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-export function fmtMon(d: string): string {
-  return formatEnglishMonth(d);
-}
-
-export function fmtDay(d: string): string {
-  return formatEnglishDay(d);
 }
 
 // ── Transient message persistence ────────────────────────

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { computeCostBasis, _computeAvgCost, _computeFIFO } from './costbasis';
-import { TxType } from './tx';
+import { TxType } from '../types';
 import type { Transaction } from '../types';
 
 /** Helper to build a minimal BUY transaction. */

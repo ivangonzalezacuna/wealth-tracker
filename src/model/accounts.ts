@@ -40,7 +40,7 @@ export function validateAccountLabels(accounts: Account[]): string | null {
   return null;
 }
 
-export function normalizeAccountLabel(label: string): string {
+function normalizeAccountLabel(label: string): string {
   return label.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 

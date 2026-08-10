@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { TxType } from '../model/tx';
+import { TxType } from '../types';
 import type { TxTypeValue } from '../types';
 import {
   parseWithProfile,

@@ -51,7 +51,6 @@ import {
 import { getSetupState } from './model/setup';
 import type { SetupStep } from './model/setup';
 import { computePD } from './portfolio';
-import { TxType } from './model/tx';
 import { parseWithProfile, detectProfile, previewSummary } from './import/parse';
 import { builtInProfiles } from './import/profiles/index';
 import { renderNW } from './views/networth';
@@ -68,11 +67,8 @@ import {
   esc,
   currentMonth,
   withButtonGuard,
-  fmtEur2,
-  safeColor,
   fmtPctVal,
 } from './utils';
-import { parseNum } from './csv';
 import { navHash, parseNavHash } from './nav';
 import {
   isCacheValid,

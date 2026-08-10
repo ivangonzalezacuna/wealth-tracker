@@ -1,4 +1,4 @@
-import { TxType } from './tx';
+import { TxType } from '../types';
 import type { Transaction, CostBasisResult } from '../types';
 import { ZERO_THRESHOLD } from './holdings';
 import { toBase } from '../fx';

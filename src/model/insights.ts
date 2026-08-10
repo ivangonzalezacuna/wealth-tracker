@@ -61,26 +61,23 @@ export function findYoYSnapshot(snaps: Snapshot[]): { snap: Snapshot; total: num
   if (snaps.length < 2) return null;
 
   const latest = snaps[snaps.length - 1];
-  const latestDate = parseYearMonth(latest.date);
-  if (!latestDate) return null;
+  const latestIdx = _yearMonthToIndex(latest.date);
+  if (latestIdx === null) return null;
 
-  const tY = latestDate.year - 1;
-  const tM = latestDate.month;
-  const targetVal = tY * 12 + tM;
+  const targetVal = latestIdx - 12;
 
   // Need at least 12 months of history
-  const firstDate = parseYearMonth(snaps[0].date);
-  if (!firstDate) return null;
-  const span = latestDate.year * 12 + latestDate.month - (firstDate.year * 12 + firstDate.month);
+  const firstIdx = _yearMonthToIndex(snaps[0].date);
+  if (firstIdx === null) return null;
+  const span = latestIdx - firstIdx;
   if (span < 12) return null;
 
   let bestSnap: Snapshot | null = null;
   let bestDist = Infinity;
   for (const sn of snaps) {
     if (sn === latest) continue;
-    const d = parseYearMonth(sn.date);
-    if (!d) continue;
-    const val = d.year * 12 + d.month;
+    const val = _yearMonthToIndex(sn.date);
+    if (val === null) continue;
     const dist = Math.abs(val - targetVal);
     if (dist < bestDist) {
       bestDist = dist;
@@ -229,19 +226,18 @@ export function totalReturn(first: number, current: number): number | null {
 export function ytdReturn(snaps: Snapshot[]): number | null {
   if (snaps.length < 2) return null;
   const latest = snaps[snaps.length - 1];
-  const latestDate = parseYearMonth(latest.date);
-  if (!latestDate) return null;
-  const currentYear = latestDate.year;
+  const latestIdx = _yearMonthToIndex(latest.date);
+  if (latestIdx === null) return null;
+  const currentYear = parseInt(latest.date.substring(0, 4), 10);
   // Find snapshot closest to Dec of previous year (target: Dec prev year)
-  const targetVal = (currentYear - 1) * 12 + 12;
+  const targetVal = _yearMonthToIndex(`${currentYear - 1}-12`)!;
   let ytdSnap: Snapshot | null = null;
   let bestDist = Infinity;
   for (const sn of snaps) {
     if (sn === latest) continue;
-    const d = parseYearMonth(sn.date);
-    if (!d) continue;
-    const val = d.year * 12 + d.month;
-    if (val >= latestDate.year * 12 + latestDate.month) continue;
+    const val = _yearMonthToIndex(sn.date);
+    if (val === null) continue;
+    if (val >= latestIdx) continue;
     const dist = Math.abs(val - targetVal);
     if (dist < bestDist) {
       bestDist = dist;
@@ -674,10 +670,10 @@ export function cagrPerAccount(snaps: Snapshot[], accounts: Account[]): AccountC
 
     const first = values[0];
     const last = values[values.length - 1];
-    const fd = parseYearMonth(first.date);
-    const ld = parseYearMonth(last.date);
-    if (!fd || !ld) continue;
-    const months = (ld.year - fd.year) * 12 + (ld.month - fd.month);
+    const firstIdx = _yearMonthToIndex(first.date);
+    const lastIdx = _yearMonthToIndex(last.date);
+    if (firstIdx === null || lastIdx === null) continue;
+    const months = lastIdx - firstIdx;
     if (months < 12) continue;
 
     results.push({

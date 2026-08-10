@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { TxType } from './model/tx';
+import { TxType } from './types';
 import type { Transaction } from './types';
 
 // Stub constants module so computePD doesn't reach into Google Sheets

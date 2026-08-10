@@ -1,4 +1,4 @@
-import { TxType } from '../../model/tx';
+import { TxType } from '../../types';
 import type { ImportProfile } from '../../types';
 
 /**

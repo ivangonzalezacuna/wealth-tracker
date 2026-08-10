@@ -17,7 +17,7 @@ import { getAccounts, getHoldings, getAlertSettings } from '../store/config';
 import { primaryInvestmentValue } from '../model/accounts';
 import { splitHoldings, computeFeeDrag } from '../model/holdings';
 import { computeDrift, maxDrift, computeRebalancePlan } from '../model/drift';
-import { builtInProfiles } from '../import/profiles/index';
+import { sourceLabel } from '../import/profiles/index';
 import type { PortfolioData, Snapshot, EtfPosition, ContribInterval } from '../types';
 import Chart from 'chart.js/auto';
 import { R, resolvedT } from '../theme';
@@ -45,12 +45,6 @@ function extractSnapEtfValues(snap: Snapshot | null): Record<string, number> {
     }
   }
   return out;
-}
-
-/** Resolve a profile source ID (e.g. 'trade_republic') to its display label. */
-function sourceLabel(id: string): string {
-  const profile = builtInProfiles.find((p) => p.id === id);
-  return profile?.label || id.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /** Render per-source sub-rows for a breakdown map (only when 2+ sources). */

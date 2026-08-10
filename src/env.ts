@@ -16,7 +16,7 @@ export function isDev(): boolean {
   return ENV_LABEL === 'DEVELOPMENT';
 }
 
-export function getEnvLabel(): string {
+function getEnvLabel(): string {
   return ENV_LABEL;
 }
 
