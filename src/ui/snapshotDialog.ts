@@ -1,7 +1,7 @@
 import { parseNum } from '../csv';
 import { currentMonth, fmtEur2, safeColor, esc } from '../utils';
 import type { Account, Holding, PortfolioData, Snapshot } from '../types';
-import { activateModalShell, restoreFocus } from './modalShell';
+import { activateModalShell, makeDialogHelpers, restoreFocus } from './modalShell';
 
 let _activeResolve: ((v: Snapshot | null) => void) | null = null;
 let _activeTrigger: HTMLElement | null = null;
@@ -202,14 +202,7 @@ function _renderEtfBreakdown(
 function _submit(): void {
   if (!_activeOverlay || !_activeOpts) return;
 
-  const setErr = (id: string, msg: string): void => {
-    const el = _activeOverlay!.querySelector('#' + id + '-err') as HTMLElement | null;
-    if (el) el.textContent = msg;
-    const field = _activeOverlay!.querySelector('#' + id) as HTMLElement | null;
-    if (!field) return;
-    if (msg) field.setAttribute('aria-invalid', 'true');
-    else field.removeAttribute('aria-invalid');
-  };
+  const { setErr } = makeDialogHelpers(_activeOverlay);
   const setSectionErr = (acctKey: string, msg: string): void => {
     const el = _activeOverlay!.querySelector(`#snapd-etf-${acctKey}-err`) as HTMLElement | null;
     if (el) el.textContent = msg;

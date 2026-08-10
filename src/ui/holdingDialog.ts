@@ -15,7 +15,7 @@ import {
   normalizeSuggestionName,
   type KnownSecuritySuggestions,
 } from '../model/securitySuggestions';
-import { activateModalShell, restoreFocus } from './modalShell';
+import { activateModalShell, makeDialogHelpers, restoreFocus } from './modalShell';
 import { infoTip, attachInfoTips } from './infoTip';
 
 export interface HoldingDialogOptions {
@@ -212,22 +212,7 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
 function _submit(): void {
   if (!_activeOverlay) return;
 
-  const get = (id: string): string =>
-    (_activeOverlay!.querySelector('#' + id) as HTMLInputElement | null)?.value.trim() || '';
-  const getChecked = (id: string): boolean =>
-    !!(_activeOverlay!.querySelector('#' + id) as HTMLInputElement | null)?.checked;
-  const setErr = (id: string, msg: string): void => {
-    const el = _activeOverlay!.querySelector('#' + id + '-err') as HTMLElement | null;
-    if (el) {
-      el.textContent = msg;
-      const field = _activeOverlay!.querySelector('#' + id) as HTMLElement | null;
-      if (msg) {
-        field?.setAttribute('aria-invalid', 'true');
-      } else {
-        field?.removeAttribute('aria-invalid');
-      }
-    }
-  };
+  const { get, getChecked, setErr } = makeDialogHelpers(_activeOverlay);
 
   ['holdd-isin', 'holdd-short-name'].forEach((f) => setErr(f, ''));
 

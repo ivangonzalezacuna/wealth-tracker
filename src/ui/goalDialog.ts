@@ -1,6 +1,6 @@
 import { esc } from '../utils';
 import type { NamedGoal } from '../types';
-import { activateModalShell, restoreFocus } from './modalShell';
+import { activateModalShell, makeDialogHelpers, restoreFocus } from './modalShell';
 import { infoTip, attachInfoTips } from './infoTip';
 
 export interface GoalDialogOptions {
@@ -86,16 +86,7 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
 
 function _submit(): void {
   if (!_activeOverlay) return;
-  const get = (id: string): string =>
-    (_activeOverlay!.querySelector('#' + id) as HTMLInputElement | null)?.value.trim() || '';
-  const setErr = (id: string, msg: string): void => {
-    const el = _activeOverlay!.querySelector('#' + id + '-err') as HTMLElement | null;
-    if (!el) return;
-    el.textContent = msg;
-    const field = _activeOverlay!.querySelector('#' + id) as HTMLElement | null;
-    if (msg) field?.setAttribute('aria-invalid', 'true');
-    else field?.removeAttribute('aria-invalid');
-  };
+  const { get, setErr } = makeDialogHelpers(_activeOverlay);
 
   setErr('goald-label', '');
   setErr('goald-target', '');

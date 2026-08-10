@@ -7,7 +7,7 @@ import { esc } from '../utils';
 import type { Account, ContribInterval } from '../types';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { ACCOUNT_TYPES } from '../model/accountTypes';
-import { activateModalShell, restoreFocus } from './modalShell';
+import { activateModalShell, makeDialogHelpers, restoreFocus } from './modalShell';
 import { infoTip, attachInfoTips } from './infoTip';
 
 export interface AccountDialogOptions {
@@ -216,22 +216,7 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
 function _submit(): void {
   if (!_activeOverlay) return;
 
-  const get = (id: string): string =>
-    (_activeOverlay!.querySelector('#' + id) as HTMLInputElement | null)?.value.trim() || '';
-  const getChecked = (id: string): boolean =>
-    !!(_activeOverlay!.querySelector('#' + id) as HTMLInputElement | null)?.checked;
-  const setErr = (id: string, msg: string): void => {
-    const el = _activeOverlay!.querySelector('#' + id + '-err') as HTMLElement | null;
-    if (el) {
-      el.textContent = msg;
-      const field = _activeOverlay!.querySelector('#' + id) as HTMLElement | null;
-      if (msg) {
-        field?.setAttribute('aria-invalid', 'true');
-      } else {
-        field?.removeAttribute('aria-invalid');
-      }
-    }
-  };
+  const { get, getChecked, setErr } = makeDialogHelpers(_activeOverlay);
 
   ['acctd-label', 'acctd-return'].forEach((f) => setErr(f, ''));
 

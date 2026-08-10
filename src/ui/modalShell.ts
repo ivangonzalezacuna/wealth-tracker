@@ -66,3 +66,20 @@ export function activateModalShell(opts: ModalShellOptions): () => void {
 export function restoreFocus(target: HTMLElement | null): void {
   if (target && document.body.contains(target)) target.focus();
 }
+
+/** Returns lightweight field-access helpers scoped to a dialog overlay element. */
+export function makeDialogHelpers(overlay: HTMLElement) {
+  const get = (id: string): string =>
+    (overlay.querySelector('#' + id) as HTMLInputElement | null)?.value.trim() || '';
+  const getChecked = (id: string): boolean =>
+    !!(overlay.querySelector('#' + id) as HTMLInputElement | null)?.checked;
+  const setErr = (id: string, msg: string): void => {
+    const el = overlay.querySelector('#' + id + '-err') as HTMLElement | null;
+    const field = overlay.querySelector('#' + id) as HTMLElement | null;
+    if (el) el.textContent = msg;
+    if (!field) return;
+    if (msg) field.setAttribute('aria-invalid', 'true');
+    else field.removeAttribute('aria-invalid');
+  };
+  return { get, getChecked, setErr };
+}

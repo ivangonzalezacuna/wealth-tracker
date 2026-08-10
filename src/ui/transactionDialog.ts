@@ -10,7 +10,7 @@ import {
 } from '../model/securitySuggestions';
 import { TxType } from '../types';
 import type { Transaction } from '../types';
-import { activateModalShell, restoreFocus } from './modalShell';
+import { activateModalShell, makeDialogHelpers, restoreFocus } from './modalShell';
 
 let _activeResolve: ((v: Transaction | null) => void) | null = null;
 let _activeTrigger: HTMLElement | null = null;
@@ -199,24 +199,7 @@ export function transactionDialog(
 function _submit(): void {
   if (!_activeOverlay) return;
 
-  const get = (id: string): string =>
-    (_activeOverlay!.querySelector('#' + id) as HTMLInputElement | null)?.value.trim() || '';
-  const setErr = (id: string, msg: string): void => {
-    const el = _activeOverlay!.querySelector('#' + id + '-err') as HTMLElement | null;
-    if (el) {
-      el.textContent = msg;
-      if (msg) {
-        (_activeOverlay!.querySelector('#' + id) as HTMLElement | null)?.setAttribute(
-          'aria-invalid',
-          'true',
-        );
-      } else {
-        (_activeOverlay!.querySelector('#' + id) as HTMLElement | null)?.removeAttribute(
-          'aria-invalid',
-        );
-      }
-    }
-  };
+  const { get, setErr } = makeDialogHelpers(_activeOverlay);
 
   // Clear errors
   [
