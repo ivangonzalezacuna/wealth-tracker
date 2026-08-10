@@ -55,11 +55,7 @@ describe('holdingDialog', () => {
     holdingDialog({ suggestions });
 
     expect(getOptions('holdd-pair-isin')).toEqual(['', 'IE00AAA', 'IE00BBB']);
-    expect(getOptions('holdd-pair-name')).toEqual([
-      '',
-      'IE00AAA',
-      'IE00BBB',
-    ]);
+    expect(getOptions('holdd-pair-name')).toEqual(['', 'IE00AAA', 'IE00BBB']);
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
