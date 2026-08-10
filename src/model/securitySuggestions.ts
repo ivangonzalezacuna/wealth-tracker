@@ -37,6 +37,8 @@ export function filterSecuritySuggestions(
   );
   if (excluded.size === 0) return { pairs: [...(suggestions?.pairs ?? [])] };
   return {
-    pairs: (suggestions?.pairs ?? []).filter((pair) => !excluded.has(pair.isin)),
+    pairs: (suggestions?.pairs ?? []).filter(
+      (pair) => !excluded.has(pair.isin.trim().toUpperCase()),
+    ),
   };
 }

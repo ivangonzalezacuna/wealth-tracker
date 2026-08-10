@@ -29,14 +29,14 @@ export interface HoldingDialogOptions {
 
 let _activeExisting: Holding | undefined = undefined;
 let _activeOrder: number = 1;
-let _activeExistingIsins: string[] | undefined;
+let _activeExistingIsins: Set<string> = new Set();
 let _activeSuggestionPairs: SecuritySuggestions['pairs'] = [];
 const _dialog = createDialogController<Holding | null>(null, {
   overlaySelector: '.hold-dialog-overlay',
   reset: () => {
     _activeExisting = undefined;
     _activeOrder = 1;
-    _activeExistingIsins = undefined;
+    _activeExistingIsins = new Set();
     _activeSuggestionPairs = [];
   },
 });
@@ -46,7 +46,9 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
     _dialog.begin(resolve);
     _activeExisting = opts.existing;
     _activeOrder = opts.order ?? 1;
-    _activeExistingIsins = opts.existingIsins;
+    _activeExistingIsins = new Set(
+      (opts.existingIsins ?? []).map((isin) => isin.trim().toUpperCase()),
+    );
     _activeSuggestionPairs = filterSecuritySuggestions(opts.suggestions, opts.existingIsins).pairs;
     const existing = opts.existing;
     const title = existing ? 'Edit holding' : 'Add holding';
@@ -226,7 +228,7 @@ function _submit(): void {
   if (!isinVal) {
     setErr('holdd-isin', 'ISIN is required.');
     valid = false;
-  } else if (_activeExistingIsins?.includes(isinVal)) {
+  } else if (_activeExistingIsins.has(isinVal)) {
     setErr('holdd-isin', 'This ISIN is already defined in another holding.');
     valid = false;
   }

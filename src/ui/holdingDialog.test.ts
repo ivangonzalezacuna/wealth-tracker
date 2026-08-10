@@ -67,6 +67,21 @@ describe('holdingDialog', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
 
+  it('filters mixed-case suggestion isins by existing holdings isins', () => {
+    holdingDialog({
+      suggestions: {
+        pairs: [
+          { isin: 'ie00aaa', name: 'Alpha Fund' },
+          { isin: 'IE00BBB', name: 'Beta Fund' },
+        ],
+      },
+      existingIsins: ['IE00AAA'],
+    });
+    expect(getOptions('holdd-isin-list')).toEqual(['IE00BBB']);
+    expect(getOptions('holdd-name-list')).toEqual(['Beta Fund']);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
   it('syncs ISIN/name fields when selecting a known ETF value', () => {
     holdingDialog({ suggestions });
     const isinInput = document.querySelector('#holdd-isin') as HTMLInputElement;

@@ -47,4 +47,17 @@ describe('security suggestions', () => {
     );
     expect(filtered.pairs).toEqual([{ isin: 'IE00BBB', name: 'Beta Fund' }]);
   });
+
+  it('filters suggestions even when suggestion isins are mixed-case', () => {
+    const filtered = filterSecuritySuggestions(
+      {
+        pairs: [
+          { isin: 'ie00aaa', name: 'Alpha Fund' },
+          { isin: 'IE00BBB', name: 'Beta Fund' },
+        ],
+      },
+      ['IE00AAA'],
+    );
+    expect(filtered.pairs).toEqual([{ isin: 'IE00BBB', name: 'Beta Fund' }]);
+  });
 });
