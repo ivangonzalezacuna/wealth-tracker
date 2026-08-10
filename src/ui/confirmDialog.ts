@@ -39,9 +39,9 @@ export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
     _dialog.setOverlay(overlay);
     _dialog.setCleanup(
       activateModalShell({
-      overlay,
-      onDismiss: () => _dismiss(false),
-      focusablesSelector: 'button:not([disabled])',
+        overlay,
+        onDismiss: () => _dismiss(false),
+        focusablesSelector: 'button:not([disabled])',
       }),
     );
 

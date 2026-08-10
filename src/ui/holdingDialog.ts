@@ -199,11 +199,11 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
     overlay.querySelector('.js-holdd-cancel')?.addEventListener('click', () => _dismiss(null));
     _dialog.setCleanup(
       activateModalShell({
-      overlay,
-      onDismiss: () => _dismiss(null),
-      onSubmitEnter: _submit,
-      submitWhenActive: (active) => !!active?.classList.contains('js-holdd-submit'),
-      focusablesSelector: 'input:not([disabled]), select:not([disabled]), button:not([disabled])',
+        overlay,
+        onDismiss: () => _dismiss(null),
+        onSubmitEnter: _submit,
+        submitWhenActive: (active) => !!active?.classList.contains('js-holdd-submit'),
+        focusablesSelector: 'input:not([disabled]), select:not([disabled]), button:not([disabled])',
       }),
     );
 
@@ -287,12 +287,20 @@ function _fillSuggestionDatalist(
   const sortedByIsin = [...availablePairs].sort((a, b) => a.isin.localeCompare(b.isin));
   const sortedByName = [...availablePairs].sort((a, b) => a.name.localeCompare(b.name));
 
-  populateDatalist(isinList, sortedByIsin.map((pair) => pair.isin), (isin) => {
-    return sortedByIsin.find((pair) => pair.isin === isin)?.name || '';
-  });
-  populateDatalist(nameList, sortedByName.map((pair) => pair.name), (name) => {
-    return sortedByName.find((pair) => pair.name === name)?.isin || '';
-  });
+  populateDatalist(
+    isinList,
+    sortedByIsin.map((pair) => pair.isin),
+    (isin) => {
+      return sortedByIsin.find((pair) => pair.isin === isin)?.name || '';
+    },
+  );
+  populateDatalist(
+    nameList,
+    sortedByName.map((pair) => pair.name),
+    (name) => {
+      return sortedByName.find((pair) => pair.name === name)?.isin || '';
+    },
+  );
 }
 
 /** Cross-fill ISIN ↔ Name when one is selected from a datalist suggestion. */

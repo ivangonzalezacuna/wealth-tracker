@@ -73,11 +73,11 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
     overlay.querySelector('.js-snapd-cancel')?.addEventListener('click', () => _dismiss(null));
     _dialog.setCleanup(
       activateModalShell({
-      overlay,
-      onDismiss: () => _dismiss(null),
-      onSubmitEnter: _submit,
-      submitWhenActive: (active) => !!active?.classList.contains('js-snapd-submit'),
-      focusablesSelector: 'input:not([disabled]), button:not([disabled])',
+        overlay,
+        onDismiss: () => _dismiss(null),
+        onSubmitEnter: _submit,
+        submitWhenActive: (active) => !!active?.classList.contains('js-snapd-submit'),
+        focusablesSelector: 'input:not([disabled]), button:not([disabled])',
       }),
     );
     overlay.addEventListener('click', (e) => {
@@ -225,7 +225,8 @@ function _submit(): void {
       .forEach((el) => (el as HTMLElement).removeAttribute('aria-invalid'));
   }
 
-  const date = (overlay.querySelector('#snapd-date') as HTMLInputElement | null)?.value.trim() || '';
+  const date =
+    (overlay.querySelector('#snapd-date') as HTMLInputElement | null)?.value.trim() || '';
   if (!date || !/^\d{4}-\d{2}$/.test(date)) {
     setErr('snapd-date', 'Required – use YYYY-MM format.');
   } else if (date > currentMonth()) {

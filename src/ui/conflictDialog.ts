@@ -42,9 +42,9 @@ export function conflictDialog(): Promise<ConflictResolutionChoice> {
     _dialog.setOverlay(overlay);
     _dialog.setCleanup(
       activateModalShell({
-      overlay,
-      onDismiss: () => dismiss('cancel'),
-      focusablesSelector: 'button:not([disabled])',
+        overlay,
+        onDismiss: () => dismiss('cancel'),
+        focusablesSelector: 'button:not([disabled])',
       }),
     );
 

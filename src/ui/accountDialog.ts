@@ -176,7 +176,10 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
     attachInfoTips(overlay);
 
     // Populate datalists via DOM API (no esc needed — no innerHTML)
-    populateDatalist(overlay.querySelector('#acctd-institution-list'), opts.institutionSuggestions ?? []);
+    populateDatalist(
+      overlay.querySelector('#acctd-institution-list'),
+      opts.institutionSuggestions ?? [],
+    );
     bindColorInputs(overlay, 'acctd-color', 'acctd-color-hex');
 
     // Primary investment toggle — show/hide contrib block
@@ -197,11 +200,11 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
     overlay.querySelector('.js-acctd-cancel')?.addEventListener('click', () => _dismiss(null));
     _dialog.setCleanup(
       activateModalShell({
-      overlay,
-      onDismiss: () => _dismiss(null),
-      onSubmitEnter: _submit,
-      submitWhenActive: (active) => !!active?.classList.contains('js-acctd-submit'),
-      focusablesSelector: 'input:not([disabled]), select:not([disabled]), button:not([disabled])',
+        overlay,
+        onDismiss: () => _dismiss(null),
+        onSubmitEnter: _submit,
+        submitWhenActive: (active) => !!active?.classList.contains('js-acctd-submit'),
+        focusablesSelector: 'input:not([disabled]), select:not([disabled]), button:not([disabled])',
       }),
     );
 

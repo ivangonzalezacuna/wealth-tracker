@@ -191,11 +191,11 @@ export function transactionDialog(
     overlay.querySelector('.js-txd-cancel')?.addEventListener('click', () => _dismiss(null));
     _dialog.setCleanup(
       activateModalShell({
-      overlay,
-      onDismiss: () => _dismiss(null),
-      onSubmitEnter: _submit,
-      submitWhenActive: (active) => !!active?.classList.contains('js-txd-submit'),
-      focusablesSelector: 'input:not([disabled]), select:not([disabled]), button:not([disabled])',
+        overlay,
+        onDismiss: () => _dismiss(null),
+        onSubmitEnter: _submit,
+        submitWhenActive: (active) => !!active?.classList.contains('js-txd-submit'),
+        focusablesSelector: 'input:not([disabled]), select:not([disabled]), button:not([disabled])',
       }),
     );
 

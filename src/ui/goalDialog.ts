@@ -79,11 +79,11 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
     overlay.querySelector('.js-goald-cancel')?.addEventListener('click', () => _dismiss(null));
     _dialog.setCleanup(
       activateModalShell({
-      overlay,
-      onDismiss: () => _dismiss(null),
-      onSubmitEnter: _submit,
-      submitWhenActive: (active) => !!active?.classList.contains('js-goald-submit'),
-      focusablesSelector: 'input:not([disabled]), button:not([disabled])',
+        overlay,
+        onDismiss: () => _dismiss(null),
+        onSubmitEnter: _submit,
+        submitWhenActive: (active) => !!active?.classList.contains('js-goald-submit'),
+        focusablesSelector: 'input:not([disabled]), button:not([disabled])',
       }),
     );
 
