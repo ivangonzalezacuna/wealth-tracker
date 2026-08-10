@@ -7,10 +7,7 @@ import { esc } from '../utils';
 import type { Holding, ContribInterval } from '../types';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { ASSET_CLASSES, REGIONS } from '../model/accountTypes';
-import {
-  filterSecuritySuggestions,
-  type SecuritySuggestions,
-} from '../model/securitySuggestions';
+import { filterSecuritySuggestions, type SecuritySuggestions } from '../model/securitySuggestions';
 import {
   bindColorInputs,
   createDialogController,
