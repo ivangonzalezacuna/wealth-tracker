@@ -41,6 +41,20 @@ function prepareAccountInputs(accounts: AccountForecastInput[]): {
   };
 }
 
+function advanceAccountValues(
+  values: number[],
+  perAccountMonthlyContrib: number[],
+  perAccountMonthlyRate: number[],
+): { values: number[]; total: number } {
+  const nextValues = values.map(
+    (v, idx) => (v + perAccountMonthlyContrib[idx]) * (1 + perAccountMonthlyRate[idx]),
+  );
+  return {
+    values: nextValues,
+    total: nextValues.reduce((sum, value) => sum + value, 0),
+  };
+}
+
 /**
  * Sum of independent per-account compounding projections.
  * Each account compounds at its own rate and receives its own monthly
@@ -69,13 +83,11 @@ export function forecastMultiAccountSeries(
       mon = 1;
       year++;
     }
-    values = values.map(
-      (v, idx) => (v + perAccountMonthlyContrib[idx]) * (1 + perAccountMonthlyRate[idx]),
-    );
-    const total = values.reduce((s, v) => s + v, 0);
+    const next = advanceAccountValues(values, perAccountMonthlyContrib, perAccountMonthlyRate);
+    values = next.values;
     result.push({
       month: `${year}-${String(mon).padStart(2, '0')}`,
-      value: Math.round(total),
+      value: Math.round(next.total),
     });
   }
 
@@ -109,10 +121,9 @@ export function forecastMonthsToTargetMulti(
   let total = current;
 
   while (total < target && months < maxMonths) {
-    values = values.map(
-      (v, idx) => (v + perAccountMonthlyContrib[idx]) * (1 + perAccountMonthlyRate[idx]),
-    );
-    total = values.reduce((s, v) => s + v, 0);
+    const next = advanceAccountValues(values, perAccountMonthlyContrib, perAccountMonthlyRate);
+    values = next.values;
+    total = next.total;
     months++;
   }
 
