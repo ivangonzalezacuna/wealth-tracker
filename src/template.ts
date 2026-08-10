@@ -223,8 +223,13 @@ export function appTemplate(): string {
         <p class="note">Market movement is the residual after subtracting contributions from the total change. Use IRR for a money-weighted investment return metric.</p>
       </div>
 
+      <div class="card" id="an-annual-table-card">
+        <div class="card-title">Annual returns</div>
+        <div id="an-annual-table"></div>
+      </div>
+
       <div class="card">
-        <div class="card-title">Monthly return heatmap</div>
+        <div class="card-title">Monthly return pattern view</div>
         <div id="an-heatmap-note" class="note" style="display:none"></div>
         <div id="an-heatmap-pager" style="display:none;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;color:var(--ink-2)">
           <button class="btn btn-sm btn-ghost" id="an-heatmap-prev">&#8249;</button>
@@ -234,12 +239,7 @@ export function appTemplate(): string {
         <div id="an-heatmap-wrap" style="overflow-x:auto">
           <div id="an-heatmap"></div>
         </div>
-        <p class="note" id="an-heatmap-footer">Color intensity is weighted by portfolio value: months with more capital show more saturated colors.</p>
-      </div>
-
-      <div class="card" id="an-annual-table-card">
-        <div class="card-title">Annual returns</div>
-        <div id="an-annual-table"></div>
+        <p class="note" id="an-heatmap-footer">Pattern view only: color intensity is weighted by portfolio value. This is not a trading or rebalancing signal.</p>
       </div>
 
       <div class="two-col">

@@ -25,6 +25,9 @@ const EXISTING_ACCOUNT: Account = {
   institution: 'Broker',
   color: '#123456',
   annualReturnPct: 7,
+  annualTaxDragPct: 12,
+  drawdownStartMonth: '2040-01',
+  annualWithdrawal: 12000,
 };
 
 describe('accountDialog', () => {
@@ -77,5 +80,17 @@ describe('accountDialog', () => {
     const lastRow = rows[rows.length - 1] as HTMLElement | undefined;
     expect(lastRow?.querySelector('#acctd-color')).not.toBeNull();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('returns drawdown and tax drag fields in submitted draft', async () => {
+    const p = accountDialog({ existing: EXISTING_ACCOUNT });
+    setField('acctd-tax-drag', '15');
+    setField('acctd-drawdown-start', '2038-06');
+    setField('acctd-withdrawal', '18000');
+    getSubmit()!.click();
+    const draft = await p;
+    expect(draft?.annualTaxDragPct).toBe(15);
+    expect(draft?.drawdownStartMonth).toBe('2038-06');
+    expect(draft?.annualWithdrawal).toBe(18000);
   });
 });

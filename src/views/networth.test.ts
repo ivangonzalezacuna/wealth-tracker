@@ -38,6 +38,9 @@ const MOCK_ACCOUNTS: any[] = [
     isPrimaryInvestment: true,
     order: 1,
     annualReturnPct: 7,
+    annualTaxDragPct: 10,
+    drawdownStartMonth: '2035-01',
+    annualWithdrawal: 12000,
     contribAmount: 50,
     contribInterval: 'weekly',
   },
@@ -50,6 +53,9 @@ const MOCK_ACCOUNTS: any[] = [
     isPrimaryInvestment: false,
     order: 2,
     annualReturnPct: 2,
+    annualTaxDragPct: 0,
+    drawdownStartMonth: '',
+    annualWithdrawal: 0,
     contribAmount: 100,
     contribInterval: 'monthly',
   },
@@ -302,6 +308,15 @@ describe('renderNW', () => {
     renderNW(makePD(), snaps);
     // The forecast chart should be among the created charts
     expect(chartInstances.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('forecast assumptions copy includes phased drawdown and tax drag context', () => {
+    const snaps = [makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)];
+    renderNW(makePD(), snaps);
+    const forecast = document.getElementById('nw-forecast')!.textContent || '';
+    expect(forecast).toContain('Deterministic two-phase projection');
+    expect(forecast).toContain('drawdown');
+    expect(forecast).toContain('tax drag');
   });
 
   it('forecast range toggle re-creates the forecast chart on click', () => {

@@ -241,4 +241,27 @@ describe('renderAnalytics', () => {
     const level2 = document.getElementById('an-level2') as HTMLElement;
     expect(level2.style.display).toBe('none');
   });
+
+  it('shows guidance instead of heatmap when history is below 24 months', () => {
+    const snaps = Array.from({ length: 12 }).map((_, i) =>
+      makeSnap(`2025-${String(i + 1).padStart(2, '0')}`, 1000 + i * 20, 0),
+    );
+    renderAnalytics(makePd(), snaps, []);
+    const heatmapText = document.getElementById('an-heatmap')?.textContent || '';
+    const noteText = document.getElementById('an-heatmap-note')?.textContent || '';
+    expect(heatmapText).toContain('Need 24 months');
+    expect(noteText).toContain('24 months');
+  });
+
+  it('renders annual returns card before monthly pattern view and de-emphasized copy', () => {
+    const snaps = [makeSnap('2024-01', 800, 0), makeSnap('2024-12', 900, 0)];
+    renderAnalytics(makePd(), snaps, []);
+    const level2 = document.getElementById('an-level2')!;
+    const cards = Array.from(level2.querySelectorAll(':scope > .card'));
+    expect(cards[1]?.querySelector('.card-title')?.textContent).toContain('Annual returns');
+    expect(cards[2]?.querySelector('.card-title')?.textContent).toContain('Monthly return pattern view');
+    expect(document.getElementById('an-heatmap-footer')?.textContent).toContain(
+      'not a trading or rebalancing signal',
+    );
+  });
 });

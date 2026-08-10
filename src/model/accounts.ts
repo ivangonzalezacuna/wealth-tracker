@@ -66,6 +66,18 @@ export function validateAccountRanges(accounts: Account[]): string | null {
     if (pct < -100) {
       return `"${a.label || a.id}": annual return cannot be below −100%.`;
     }
+    const taxDragPct = a.annualTaxDragPct ?? 0;
+    if (taxDragPct < 0 || taxDragPct > 100) {
+      return `"${a.label || a.id}": annual tax drag must be between 0% and 100%.`;
+    }
+    const annualWithdrawal = a.annualWithdrawal ?? 0;
+    if (annualWithdrawal < 0) {
+      return `"${a.label || a.id}": annual withdrawal cannot be negative.`;
+    }
+    const drawdownStartMonth = (a.drawdownStartMonth || '').trim();
+    if (drawdownStartMonth && !/^\d{4}-\d{2}$/.test(drawdownStartMonth)) {
+      return `"${a.label || a.id}": drawdown start month must use YYYY-MM format.`;
+    }
   }
   return null;
 }

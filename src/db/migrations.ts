@@ -133,4 +133,10 @@ export const MIGRATIONS: string[][] = [
     // Step 4: seed the global calibration_interval setting (default monthly)
     `INSERT OR IGNORE INTO settings (key, value) VALUES ('calibration_interval', 'monthly')`,
   ],
+  // [7] version 6 → 7: add deterministic drawdown/tax-drag forecast fields to accounts
+  [
+    `ALTER TABLE accounts ADD COLUMN drawdown_start_month TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE accounts ADD COLUMN annual_withdrawal REAL NOT NULL DEFAULT 0`,
+    `ALTER TABLE accounts ADD COLUMN annual_tax_drag_pct REAL NOT NULL DEFAULT 0`,
+  ],
 ];

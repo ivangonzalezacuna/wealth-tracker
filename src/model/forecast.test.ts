@@ -163,6 +163,56 @@ describe('forecastMultiAccountSeries (single-account)', () => {
     expect(series[1].value).toBe(52_000);
     expect(series[2].value).toBe(53_000);
   });
+
+  it('supports delayed drawdown start month', () => {
+    const series = forecastMultiAccountSeries(
+      [
+        {
+          current: 12_000,
+          annualContrib: 12_000,
+          annualReturnPct: 0,
+          drawdownStartMonth: '2025-01',
+          annualWithdrawal: 6_000,
+        },
+      ],
+      4,
+      '2024-10',
+    );
+    expect(series.map((p) => p.value)).toEqual([13_000, 14_000, 13_500, 13_000]);
+  });
+
+  it('clamps balances at zero when withdrawals exceed balance', () => {
+    const series = forecastMultiAccountSeries(
+      [
+        {
+          current: 1_000,
+          annualContrib: 0,
+          annualReturnPct: 0,
+          drawdownStartMonth: '2024-01',
+          annualWithdrawal: 24_000,
+        },
+      ],
+      2,
+      '2024-01',
+    );
+    expect(series[0].value).toBe(0);
+    expect(series[1].value).toBe(0);
+  });
+
+  it('applies tax drag to projected growth only', () => {
+    const noTax = forecastMultiAccountSeries(
+      [{ current: 100_000, annualContrib: 0, annualReturnPct: 12, annualTaxDragPct: 0 }],
+      12,
+      '2024-01',
+    );
+    const withTax = forecastMultiAccountSeries(
+      [{ current: 100_000, annualContrib: 0, annualReturnPct: 12, annualTaxDragPct: 25 }],
+      12,
+      '2024-01',
+    );
+    expect(withTax[11].value).toBeLessThan(noTax[11].value);
+    expect(withTax[0].value).toBeGreaterThan(100_000);
+  });
 });
 
 describe('forecastMultiAccountSeries', () => {
@@ -259,5 +309,22 @@ describe('forecastMonthsToTargetMulti', () => {
     // because the 10k cash never compounds - so it takes longer (or equal) to reach the goal.
     // With meaningful cash weight (10k/50k = 20%), it should be strictly greater.
     expect(multiMonths!).toBeGreaterThan(buggyMonths!);
+  });
+
+  it('uses phased drawdown assumptions for goal ETA path', () => {
+    const months = forecastMonthsToTargetMulti(
+      [
+        {
+          current: 50_000,
+          annualContrib: 12_000,
+          annualReturnPct: 0,
+          drawdownStartMonth: '2025-01',
+          annualWithdrawal: 12_000,
+        },
+      ],
+      65_000,
+      '2024-01',
+    );
+    expect(months).toBeNull();
   });
 });

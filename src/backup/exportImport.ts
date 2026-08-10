@@ -234,6 +234,9 @@ function isValidAccount(value: unknown): value is Account {
     isOptionalBoolean(value.isPrimaryInvestment) &&
     isOptionalFiniteNumber(value.order) &&
     isOptionalFiniteNumber(value.annualReturnPct) &&
+    isOptionalString(value.drawdownStartMonth) &&
+    isOptionalFiniteNumber(value.annualWithdrawal) &&
+    isOptionalFiniteNumber(value.annualTaxDragPct) &&
     isOptionalFiniteNumber(value.contribAmount) &&
     isOptionalString(value.contribInterval) &&
     isOptionalBoolean(value.locked) &&

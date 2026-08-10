@@ -51,7 +51,7 @@ import {
 } from '../db';
 
 describe('parseAccounts', () => {
-  it('legacy sheet (no new columns) defaults to annualReturnPct:0, contribAmount:0, contribInterval:monthly', () => {
+  it('legacy sheet defaults forecast extras and contribution fields', () => {
     const rows: (string | number | boolean)[][] = [
       ['id', 'moneyType', 'institution', 'label', 'color', 'isPrimaryInvestment', 'order'],
       ['acct1', 'investment', 'TR', 'Main', '#111', true, 1],
@@ -61,12 +61,15 @@ describe('parseAccounts', () => {
     expect(accounts).toHaveLength(2);
     for (const a of accounts) {
       expect(a.annualReturnPct).toBe(0);
+      expect(a.drawdownStartMonth).toBe('');
+      expect(a.annualWithdrawal).toBe(0);
+      expect(a.annualTaxDragPct).toBe(0);
       expect(a.contribAmount).toBe(0);
       expect(a.contribInterval).toBe('monthly');
     }
   });
 
-  it('new-format sheet parses annualReturnPct, contribAmount, contribInterval correctly', () => {
+  it('new-format sheet parses drawdown/tax-drag and contribution fields', () => {
     const rows: (string | number | boolean)[][] = [
       [
         'id',
@@ -77,14 +80,20 @@ describe('parseAccounts', () => {
         'isPrimaryInvestment',
         'order',
         'annualReturnPct',
+        'drawdownStartMonth',
+        'annualWithdrawal',
+        'annualTaxDragPct',
         'contribAmount',
         'contribInterval',
       ],
-      ['acct1', 'investment', 'TR', 'Main', '#111', true, 1, 5, 200, 'quarterly'],
+      ['acct1', 'investment', 'TR', 'Main', '#111', true, 1, 5, '2035-01', 12000, 12.5, 200, 'quarterly'],
     ];
     const accounts = parseAccounts(rows);
     expect(accounts).toHaveLength(1);
     expect(accounts[0].annualReturnPct).toBe(5);
+    expect(accounts[0].drawdownStartMonth).toBe('2035-01');
+    expect(accounts[0].annualWithdrawal).toBe(12000);
+    expect(accounts[0].annualTaxDragPct).toBe(12.5);
     expect(accounts[0].contribAmount).toBe(200);
     expect(accounts[0].contribInterval).toBe('quarterly');
   });

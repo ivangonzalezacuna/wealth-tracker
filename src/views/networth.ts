@@ -58,7 +58,14 @@ function _buildAccountForecastInputs(snap: Snapshot, accounts: Account[]): Accou
         : annualizeContrib(a.contribAmount || 0, a.contribInterval || 'monthly');
     const extraContrib = annualizeContrib(a.extraContrib || 0, a.contribInterval || 'monthly');
     const annualContrib = personalContrib + extraContrib;
-    return { current, annualContrib, annualReturnPct };
+    return {
+      current,
+      annualContrib,
+      annualReturnPct,
+      drawdownStartMonth: a.drawdownStartMonth || '',
+      annualWithdrawal: a.annualWithdrawal ?? 0,
+      annualTaxDragPct: a.annualTaxDragPct ?? 0,
+    };
   });
 }
 
@@ -99,7 +106,7 @@ function _renderGoalCards(): void {
 
     const pctComplete = Math.min(100, Math.round((liquidTotal / target) * 100));
     const remaining = Math.max(0, target - liquidTotal);
-    const etaMonths = forecastMonthsToTargetMulti(accountInputs, target);
+    const etaMonths = forecastMonthsToTargetMulti(accountInputs, target, s.date);
     const targetDate = (goal.targetDate || '').trim();
     const validTargetDate = /^\d{4}-\d{2}$/.test(targetDate) ? targetDate : null;
 
@@ -121,7 +128,7 @@ function _renderGoalCards(): void {
       }
     } else {
       const hasGrowthPotential = accountInputs.some(
-        (a) => a.annualContrib > 0 || a.annualReturnPct > 0,
+        (a) => a.annualContrib > 0 || a.annualReturnPct > 0 || (a.annualWithdrawal ?? 0) > 0,
       );
       etaText = hasGrowthPotential
         ? '<span class="neg">Target not reachable within the 100-year forecast horizon. Consider increasing contributions or return rate.</span>'
@@ -572,7 +579,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   const latestSnap = snaps[snaps.length - 1];
   const accountInputs = _buildAccountForecastInputs(latestSnap, accounts);
   const hasGrowthPotential = accountInputs.some(
-    (a) => a.annualContrib > 0 || a.annualReturnPct > 0,
+    (a) => a.annualContrib > 0 || a.annualReturnPct > 0 || (a.annualWithdrawal ?? 0) > 0,
   );
   if (!hasGrowthPotential) {
     forecastEl.innerHTML = '';
@@ -650,6 +657,14 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     .map((a, idx) => {
       const inp = accountInputs[idx];
       const retStr = `${a.annualReturnPct ?? 0}% return`;
+      const drawdownStart = (a.drawdownStartMonth || '').trim();
+      const withdrawal = a.annualWithdrawal ?? 0;
+      const taxDrag = a.annualTaxDragPct ?? 0;
+      const drawdownStr =
+        /^\d{4}-\d{2}$/.test(drawdownStart) && withdrawal > 0
+          ? `drawdown from ${fmtMon(drawdownStart)} at ${fmtEur(Math.round(withdrawal))}/yr`
+          : 'no drawdown configured';
+      const taxDragStr = taxDrag > 0 ? `${taxDrag}% tax drag on growth` : '0% tax drag';
       let contribStr: string;
       if (a.isPrimaryInvestment && (a.moneyType || '').toLowerCase() === 'investment') {
         contribStr =
@@ -666,7 +681,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
             : 'no contributions';
         contribStr = extra > 0 ? `${personalStr} + ${fmtEur(extra)} extra` : personalStr;
       }
-      return `<span style="color:var(--ink-2)">${esc(a.label || 'Account')}: ${retStr}, ${contribStr}</span>`;
+      return `<span style="color:var(--ink-2)">${esc(a.label || 'Account')}: ${retStr}, ${contribStr}, ${drawdownStr}, ${taxDragStr}</span>`;
     })
     .join('<br>');
 
@@ -704,7 +719,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
             }
           </div>
         </div>
-        <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX.${goalDeadlines.length > 0 ? ' Goal deadlines and target amounts are shown as markers on the chart.' : ''}</div>
+        <div style="margin-top:4px;color:var(--ink-4)">Deterministic two-phase projection: accumulation before each account’s drawdown start month, then withdrawals. Tax drag is applied only to projected growth. This does not include glide paths, spending shocks, jurisdiction-specific tax rules, pension annuitization, fees, or FX.${goalDeadlines.length > 0 ? ' Goal deadlines and target amounts are shown as markers on the chart.' : ''}</div>
       </div>
     </div>`;
 

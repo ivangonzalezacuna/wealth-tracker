@@ -102,6 +102,32 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
                 value="${esc(String(existing?.annualReturnPct ?? 0))}" min="-100" max="100" step="0.1" placeholder="0">
               <span class="dialog-error" id="acctd-return-err"></span>
             </div>
+            <div class="dialog-field">
+              <label class="dialog-label" for="acctd-tax-drag">
+                Annual tax drag (%)${infoTip('Applied to projected growth only in the deterministic forecast.')}
+              </label>
+              <input type="number" id="acctd-tax-drag" class="form-input dialog-input"
+                value="${esc(String(existing?.annualTaxDragPct ?? 0))}" min="0" max="100" step="0.1" placeholder="0">
+              <span class="dialog-error" id="acctd-tax-drag-err"></span>
+            </div>
+          </div>
+          <div class="dialog-row">
+            <div class="dialog-field">
+              <label class="dialog-label" for="acctd-drawdown-start">
+                Drawdown start (YYYY-MM)${infoTip('Month when retirement drawdown begins for this account.')}
+              </label>
+              <input type="month" id="acctd-drawdown-start" class="form-input dialog-input"
+                value="${esc(existing?.drawdownStartMonth || '')}">
+              <span class="dialog-error" id="acctd-drawdown-start-err"></span>
+            </div>
+            <div class="dialog-field">
+              <label class="dialog-label" for="acctd-withdrawal">
+                Annual withdrawal (€)${infoTip('Withdrawn yearly after drawdown starts.')}
+              </label>
+              <input type="number" id="acctd-withdrawal" class="form-input dialog-input"
+                value="${esc(String(existing?.annualWithdrawal ?? 0))}" min="0" step="1" placeholder="0">
+              <span class="dialog-error" id="acctd-withdrawal-err"></span>
+            </div>
           </div>
           <div class="dialog-row">
             <div class="dialog-field dialog-field-wide">
@@ -212,13 +238,16 @@ function _submit(): void {
 
   const { get, getChecked, setErr } = makeDialogHelpers(overlay);
 
-  ['acctd-label', 'acctd-return'].forEach((f) => setErr(f, ''));
+  ['acctd-label', 'acctd-return', 'acctd-tax-drag', 'acctd-drawdown-start', 'acctd-withdrawal'].forEach((f) => setErr(f, ''));
 
   const labelVal = get('acctd-label');
   const typeVal = get('acctd-type') || 'cash';
   const institutionVal = get('acctd-institution');
   const colorVal = get('acctd-color-hex') || get('acctd-color') || '#888888';
   const returnRaw = get('acctd-return');
+  const taxDragRaw = get('acctd-tax-drag');
+  const drawdownStartRaw = get('acctd-drawdown-start');
+  const withdrawalRaw = get('acctd-withdrawal');
   const isPrimary = getChecked('acctd-primary');
   const isLocked = getChecked('acctd-locked');
   const contribRaw = get('acctd-contrib');
@@ -251,6 +280,27 @@ function _submit(): void {
     setErr('acctd-return', 'Cannot be below −100%.');
     valid = false;
   }
+  const taxDragPct = taxDragRaw !== '' ? parseFloat(taxDragRaw) : 0;
+  if (taxDragRaw !== '' && isNaN(taxDragPct)) {
+    setErr('acctd-tax-drag', 'Must be a number.');
+    valid = false;
+  } else if (taxDragPct < 0 || taxDragPct > 100) {
+    setErr('acctd-tax-drag', 'Must be between 0 and 100.');
+    valid = false;
+  }
+  const annualWithdrawal = withdrawalRaw !== '' ? parseFloat(withdrawalRaw) : 0;
+  if (withdrawalRaw !== '' && isNaN(annualWithdrawal)) {
+    setErr('acctd-withdrawal', 'Must be a number.');
+    valid = false;
+  } else if (annualWithdrawal < 0) {
+    setErr('acctd-withdrawal', 'Cannot be negative.');
+    valid = false;
+  }
+  const drawdownStartMonth = drawdownStartRaw.trim();
+  if (drawdownStartMonth && !/^\d{4}-\d{2}$/.test(drawdownStartMonth)) {
+    setErr('acctd-drawdown-start', 'Use YYYY-MM format.');
+    valid = false;
+  }
 
   if (!valid) {
     focusFirstInvalid(overlay);
@@ -267,6 +317,9 @@ function _submit(): void {
     isPrimaryInvestment: isPrimary,
     order: existing?.order,
     annualReturnPct: isNaN(returnPct) ? 0 : returnPct,
+    drawdownStartMonth,
+    annualWithdrawal: isNaN(annualWithdrawal) ? 0 : annualWithdrawal,
+    annualTaxDragPct: isNaN(taxDragPct) ? 0 : taxDragPct,
     contribAmount: isPrimary ? 0 : parseFloat(contribRaw) || 0,
     contribInterval: isPrimary ? 'monthly' : ((intervalVal || 'monthly') as ContribInterval),
     locked: isLocked,

@@ -605,6 +605,7 @@ function _attachContribRangeToggle(points: MonthlyGrowthPoint[]): void {
 // ── Monthly return heatmap ─────────────────────────────────
 
 const HEATMAP_PAGE_SIZE = 3;
+const HEATMAP_MIN_MONTHS = 24;
 
 function _renderHeatmap(snaps: Snapshot[]): void {
   const heatmapEl = document.getElementById('an-heatmap');
@@ -614,17 +615,45 @@ function _renderHeatmap(snaps: Snapshot[]): void {
   const volResult = annualizedVolatility(snaps);
   const weighted = weightedMonthlyReturns(volResult.monthlyReturns);
   const annualData = annualReturns(snaps);
+  const footerEl = document.getElementById('an-heatmap-footer');
+  const pagerEl = document.getElementById('an-heatmap-pager');
 
   if (weighted.length === 0) {
-    heatmapEl.innerHTML = '<p class="note">Add more snapshots to see the return heatmap.</p>';
+    if (pagerEl) pagerEl.style.display = 'none';
+    if (noteEl) noteEl.style.display = 'none';
+    if (footerEl) {
+      footerEl.textContent =
+        'Pattern view only: color intensity is weighted by portfolio value. This is not a trading or rebalancing signal.';
+    }
+    heatmapEl.innerHTML = '<p class="note">Add more snapshots to unlock the monthly pattern view.</p>';
     return;
   }
 
   const monthsCount = weighted.length;
+  if (monthsCount < HEATMAP_MIN_MONTHS) {
+    if (pagerEl) pagerEl.style.display = 'none';
+    if (noteEl) {
+      noteEl.textContent =
+        'Pattern view appears after 24 months of history. Focus on contribution consistency and annual returns first.';
+      noteEl.style.display = '';
+    }
+    if (footerEl) {
+      footerEl.textContent =
+        'Not a trading or rebalancing signal. Use this only as a long-horizon pattern check once enough history is available.';
+    }
+    heatmapEl.innerHTML =
+      '<p class="note">Need 24 months of snapshot history before showing monthly return patterns.</p>';
+    return;
+  }
+
   if (noteEl) {
     noteEl.textContent =
-      monthsCount < 12 ? 'Seasonal patterns emerge after 12 months of data.' : '';
-    noteEl.style.display = monthsCount < 12 ? '' : 'none';
+      'Pattern view only. Do not use this as a timing, trading, or rebalancing signal.';
+    noteEl.style.display = '';
+  }
+  if (footerEl) {
+    footerEl.textContent =
+      'Pattern view only: color intensity is weighted by portfolio value. Not a trading or rebalancing signal.';
   }
 
   // Find extremes for color scale (use weightedReturn for color intensity)
@@ -649,7 +678,6 @@ function _renderHeatmap(snaps: Snapshot[]): void {
   const years = reversedPages[_heatmapPage] || [];
 
   // Update pager UI
-  const pagerEl = document.getElementById('an-heatmap-pager');
   const prevBtn = document.getElementById('an-heatmap-prev') as HTMLButtonElement | null;
   const nextBtn = document.getElementById('an-heatmap-next') as HTMLButtonElement | null;
   const pageLabelEl = document.getElementById('an-heatmap-page-label');

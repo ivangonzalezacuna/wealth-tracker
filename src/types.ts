@@ -48,6 +48,9 @@ export interface Account {
   isPrimaryInvestment?: boolean;
   order?: number;
   annualReturnPct?: number; // per-account forecast growth assumption, default 0
+  drawdownStartMonth?: string; // YYYY-MM month when retirement drawdown starts
+  annualWithdrawal?: number; // annual withdrawal amount after drawdown starts
+  annualTaxDragPct?: number; // annual tax drag on projected growth in %
   contribAmount?: number; // recurring contribution amount per execution, default 0
   contribInterval?: ContribInterval; // default 'monthly'; ignored for the primary investment account
   locked?: boolean; // true = funds not accessible until retirement (pension, AVD)

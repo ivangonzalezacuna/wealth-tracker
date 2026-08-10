@@ -422,6 +422,9 @@ export function parseAccounts(rows: (string | number | boolean)[][]): Account[] 
       isPrimaryInvestment: toBool(r[hdr.indexOf('isprimaryinvestment')]),
       order: toNum(r[hdr.indexOf('order')]),
       annualReturnPct: toNum(r[hdr.indexOf('annualreturnpct')]),
+      drawdownStartMonth: String(r[hdr.indexOf('drawdownstartmonth')] ?? ''),
+      annualWithdrawal: toNum(r[hdr.indexOf('annualwithdrawal')]),
+      annualTaxDragPct: toNum(r[hdr.indexOf('annualtaxdragpct')]),
       contribAmount: toNum(r[hdr.indexOf('contribamount')]),
       contribInterval: (VALID_INTERVALS.has(
         String(r[hdr.indexOf('contribinterval')] ?? '')

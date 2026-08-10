@@ -19,11 +19,16 @@ export interface AccountForecastInput {
   current: number;
   annualContrib: number;
   annualReturnPct: number;
+  drawdownStartMonth?: string;
+  annualWithdrawal?: number;
+  annualTaxDragPct?: number;
 }
 
 function prepareAccountInputs(accounts: AccountForecastInput[]): {
   perAccountMonthlyRate: number[];
   perAccountMonthlyContrib: number[];
+  perAccountMonthlyWithdrawal: number[];
+  perAccountTaxDragPct: number[];
   values: number[];
 } {
   const perAccountMonthlyRate = accounts.map(
@@ -37,6 +42,8 @@ function prepareAccountInputs(accounts: AccountForecastInput[]): {
   return {
     perAccountMonthlyRate,
     perAccountMonthlyContrib: accounts.map((a) => a.annualContrib / 12),
+    perAccountMonthlyWithdrawal: accounts.map((a) => (a.annualWithdrawal ?? 0) / 12),
+    perAccountTaxDragPct: accounts.map((a) => a.annualTaxDragPct ?? 0),
     values: accounts.map((a) => a.current),
   };
 }
@@ -44,15 +51,38 @@ function prepareAccountInputs(accounts: AccountForecastInput[]): {
 function advanceAccountValues(
   values: number[],
   perAccountMonthlyContrib: number[],
+  perAccountMonthlyWithdrawal: number[],
   perAccountMonthlyRate: number[],
+  perAccountTaxDragPct: number[],
+  perAccountDrawdownStartOffset: number[],
+  monthOffset: number,
 ): { values: number[]; total: number } {
-  const nextValues = values.map(
-    (v, idx) => (v + perAccountMonthlyContrib[idx]) * (1 + perAccountMonthlyRate[idx]),
-  );
+  const nextValues = values.map((v, idx) => {
+    const inDrawdown = monthOffset >= perAccountDrawdownStartOffset[idx];
+    const monthlyContrib = inDrawdown ? 0 : perAccountMonthlyContrib[idx];
+    const monthlyWithdrawal = inDrawdown ? perAccountMonthlyWithdrawal[idx] : 0;
+    const base = Math.max(0, v + monthlyContrib);
+    const projectedGrowth = base * perAccountMonthlyRate[idx];
+    const taxDragPct = perAccountTaxDragPct[idx];
+    const growthAfterTax =
+      projectedGrowth > 0 ? projectedGrowth * (1 - taxDragPct / 100) : projectedGrowth;
+    return Math.max(0, base + growthAfterTax - monthlyWithdrawal);
+  });
   return {
     values: nextValues,
     total: nextValues.reduce((sum, value) => sum + value, 0),
   };
+}
+
+function monthOffsetFromStart(startDate: string, month: string): number {
+  const [sy, sm] = startDate.slice(0, 7).split('-').map(Number);
+  const [y, m] = month.split('-').map(Number);
+  if (!isFinite(sy) || !isFinite(sm) || !isFinite(y) || !isFinite(m)) return Number.POSITIVE_INFINITY;
+  return (y - sy) * 12 + (m - sm);
+}
+
+function isValidMonth(value: string | undefined): value is string {
+  return !!value && /^\d{4}-\d{2}$/.test(value);
 }
 
 /**
@@ -67,11 +97,14 @@ export function forecastMultiAccountSeries(
   months: number,
   startDate: string,
 ): Array<{ month: string; value: number }> {
-  const {
-    perAccountMonthlyRate,
-    perAccountMonthlyContrib,
-    values: initialValues,
-  } = prepareAccountInputs(accounts);
+  const { perAccountMonthlyRate, perAccountMonthlyContrib, perAccountMonthlyWithdrawal, values: initialValues, perAccountTaxDragPct } =
+    prepareAccountInputs(accounts);
+  const startMonth = startDate.slice(0, 7);
+  const perAccountDrawdownStartOffset = accounts.map((a) =>
+    isValidMonth(a.drawdownStartMonth)
+      ? Math.max(0, monthOffsetFromStart(startMonth, a.drawdownStartMonth))
+      : Number.POSITIVE_INFINITY,
+  );
   let values = initialValues;
 
   const result: Array<{ month: string; value: number }> = [];
@@ -83,7 +116,15 @@ export function forecastMultiAccountSeries(
       mon = 1;
       year++;
     }
-    const next = advanceAccountValues(values, perAccountMonthlyContrib, perAccountMonthlyRate);
+    const next = advanceAccountValues(
+      values,
+      perAccountMonthlyContrib,
+      perAccountMonthlyWithdrawal,
+      perAccountMonthlyRate,
+      perAccountTaxDragPct,
+      perAccountDrawdownStartOffset,
+      i + 1,
+    );
     values = next.values;
     result.push({
       month: `${year}-${String(mon).padStart(2, '0')}`,
@@ -103,17 +144,24 @@ export function forecastMultiAccountSeries(
 export function forecastMonthsToTargetMulti(
   accounts: AccountForecastInput[],
   target: number,
+  startDate = new Date().toISOString().slice(0, 7),
 ): number | null {
   const current = accounts.reduce((s, a) => s + a.current, 0);
   if (current >= target || target <= 0 || current < 0) return null;
-  const anyGrowthPotential = accounts.some((a) => a.annualContrib > 0 || a.annualReturnPct > 0);
-  if (!anyGrowthPotential) return null;
 
   const {
     perAccountMonthlyRate,
     perAccountMonthlyContrib,
+    perAccountMonthlyWithdrawal,
+    perAccountTaxDragPct,
     values: initialValues,
   } = prepareAccountInputs(accounts);
+  const startMonth = startDate.slice(0, 7);
+  const perAccountDrawdownStartOffset = accounts.map((a) =>
+    isValidMonth(a.drawdownStartMonth)
+      ? Math.max(0, monthOffsetFromStart(startMonth, a.drawdownStartMonth))
+      : Number.POSITIVE_INFINITY,
+  );
   let values = initialValues;
 
   let months = 0;
@@ -121,7 +169,15 @@ export function forecastMonthsToTargetMulti(
   let total = current;
 
   while (total < target && months < maxMonths) {
-    const next = advanceAccountValues(values, perAccountMonthlyContrib, perAccountMonthlyRate);
+    const next = advanceAccountValues(
+      values,
+      perAccountMonthlyContrib,
+      perAccountMonthlyWithdrawal,
+      perAccountMonthlyRate,
+      perAccountTaxDragPct,
+      perAccountDrawdownStartOffset,
+      months + 1,
+    );
     values = next.values;
     total = next.total;
     months++;
