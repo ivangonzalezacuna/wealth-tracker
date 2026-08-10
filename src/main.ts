@@ -562,9 +562,11 @@ function _updateThemeToggleLabel(): void {
   if (!btn) return;
   const pref = getUserThemePref();
   const icons: Record<string, string> = {
-    light: '☀️',
-    dark: '🌙',
-    system: '🖥️',
+    light:
+      '<svg class="theme-toggle-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="3.1" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.4v2M8 12.6v2M1.4 8h2M12.6 8h2M3.34 3.34l1.42 1.42M11.24 11.24l1.42 1.42M12.66 3.34l-1.42 1.42M4.76 11.24l-1.42 1.42" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+    dark: '<svg class="theme-toggle-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M10.6 1.7a5.9 5.9 0 1 0 3.7 8.5A6.3 6.3 0 0 1 10.6 1.7Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
+    system:
+      '<svg class="theme-toggle-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="2.2" y="2.4" width="11.6" height="8.2" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 13h4M8 10.8V13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
   };
   const aria: Record<string, string> = {
     light: 'Switch theme: currently Light',
@@ -576,7 +578,7 @@ function _updateThemeToggleLabel(): void {
     dark: 'Theme: Dark (click to cycle Light → Dark → System)',
     system: 'Theme: System (click to cycle Light → Dark → System)',
   };
-  btn.textContent = icons[pref] ?? '☀️';
+  btn.innerHTML = icons[pref] ?? icons.light;
   btn.setAttribute('aria-label', aria[pref] ?? 'Switch theme');
   btn.setAttribute('title', title[pref] ?? 'Switch theme');
 }

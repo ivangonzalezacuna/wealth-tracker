@@ -2469,6 +2469,11 @@ input[type='color'] {
   user-select: none;
   -webkit-user-select: none;
 }
+.btn-theme-toggle .theme-toggle-icon {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
 .btn-theme-toggle:hover,
 .btn-theme-toggle:focus-visible {
   background: var(--brand-weak);

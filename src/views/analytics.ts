@@ -884,7 +884,7 @@ function _renderAnnualTable(snaps: Snapshot[]): void {
       <tr style="border-bottom:1px solid var(--line);color:var(--ink-3);font-weight:500">
         <th style="text-align:left;padding:4px 6px">Year</th>
         <th style="text-align:left;padding:4px 6px">Return</th>
-        <th style="text-align:center;padding:4px 6px" title="Relative bar height scaled to the largest absolute annual return shown in this table">Relative bar</th>
+        <th style="text-align:center;padding:4px 6px">Bar${infoTip('Relative bar height scaled to the largest absolute annual return shown in this table.')}</th>
         <th style="text-align:left;padding:4px 6px">vs prior year</th>
       </tr>
     </thead>
