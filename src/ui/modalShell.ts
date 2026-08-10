@@ -9,6 +9,14 @@ export interface ModalShellOptions {
 const DEFAULT_FOCUSABLES =
   'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])';
 
+export interface DialogController<Result> {
+  begin(resolve: (value: Result) => void): void;
+  setCleanup(cleanup: (() => void) | null): void;
+  setOverlay(overlay: HTMLElement | null): void;
+  overlay(): HTMLElement | null;
+  dismiss(result: Result): void;
+}
+
 export function activateModalShell(opts: ModalShellOptions): () => void {
   const { overlay, onDismiss } = opts;
   const priorOverflow = document.body.style.overflow;
@@ -82,4 +90,92 @@ export function makeDialogHelpers(overlay: HTMLElement) {
     else field.removeAttribute('aria-invalid');
   };
   return { get, getChecked, setErr };
+}
+
+export function createDialogController<Result>(
+  defaultResult: Result,
+  opts: {
+    overlaySelector?: string;
+    reset?: () => void;
+  } = {},
+): DialogController<Result> {
+  let activeResolve: ((value: Result) => void) | null = null;
+  let activeTrigger: HTMLElement | null = null;
+  let activeOverlay: HTMLElement | null = null;
+  let activeCleanup: (() => void) | null = null;
+
+  const cleanup = (): void => {
+    const overlay =
+      activeOverlay ||
+      (opts.overlaySelector
+        ? (document.querySelector(opts.overlaySelector) as HTMLElement | null)
+        : null);
+    overlay?.remove();
+    activeOverlay = null;
+    activeCleanup?.();
+    activeCleanup = null;
+    opts.reset?.();
+    restoreFocus(activeTrigger);
+    activeTrigger = null;
+  };
+
+  return {
+    begin(resolve) {
+      this.dismiss(defaultResult);
+      activeResolve = resolve;
+      activeTrigger = document.activeElement as HTMLElement | null;
+    },
+    setCleanup(cleanupFn) {
+      activeCleanup = cleanupFn;
+    },
+    setOverlay(overlay) {
+      activeOverlay = overlay;
+    },
+    overlay() {
+      return activeOverlay;
+    },
+    dismiss(result) {
+      cleanup();
+      const resolve = activeResolve;
+      activeResolve = null;
+      resolve?.(result);
+    },
+  };
+}
+
+export function focusFirstInvalid(overlay: HTMLElement): void {
+  (overlay.querySelector('[aria-invalid="true"]') as HTMLElement | null)?.focus();
+}
+
+export function populateDatalist(
+  datalist: Element | null,
+  values: readonly string[],
+  labelForValue?: (value: string) => string,
+): void {
+  if (!datalist) return;
+  datalist.replaceChildren(
+    ...values.map((value) => {
+      const opt = document.createElement('option');
+      opt.value = value;
+      if (labelForValue) opt.label = labelForValue(value);
+      return opt;
+    }),
+  );
+}
+
+export function bindColorInputs(
+  overlay: HTMLElement,
+  colorInputId: string,
+  colorHexInputId: string,
+): void {
+  const colorSwatch = overlay.querySelector('#' + colorInputId) as HTMLInputElement | null;
+  const colorHex = overlay.querySelector('#' + colorHexInputId) as HTMLInputElement | null;
+  colorSwatch?.addEventListener('input', () => {
+    if (colorHex) colorHex.value = colorSwatch.value;
+  });
+  colorHex?.addEventListener('input', () => {
+    if (/^#[0-9a-fA-F]{6}$/.test(colorHex.value) && colorSwatch) {
+      colorSwatch.value = colorHex.value;
+    }
+  });
 }

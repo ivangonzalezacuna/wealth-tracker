@@ -1,6 +1,11 @@
 import { esc } from '../utils';
 import type { NamedGoal } from '../types';
-import { activateModalShell, makeDialogHelpers, restoreFocus } from './modalShell';
+import {
+  activateModalShell,
+  createDialogController,
+  focusFirstInvalid,
+  makeDialogHelpers,
+} from './modalShell';
 import { infoTip, attachInfoTips } from './infoTip';
 
 export interface GoalDialogOptions {
@@ -8,17 +13,17 @@ export interface GoalDialogOptions {
   existingLabels?: string[];
 }
 
-let _activeResolve: ((v: NamedGoal | null) => void) | null = null;
-let _activeTrigger: HTMLElement | null = null;
-let _activeOverlay: HTMLElement | null = null;
-let _activeCleanup: (() => void) | null = null;
 let _activeExistingLabels: string[] = [];
+const _dialog = createDialogController<NamedGoal | null>(null, {
+  overlaySelector: '.goal-dialog-overlay',
+  reset: () => {
+    _activeExistingLabels = [];
+  },
+});
 
 export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | null> {
   return new Promise<NamedGoal | null>((resolve) => {
-    _dismiss(null);
-    _activeResolve = resolve;
-    _activeTrigger = document.activeElement as HTMLElement | null;
+    _dialog.begin(resolve);
     _activeExistingLabels = opts.existingLabels ?? [];
     const existing = opts.existing;
     const title = existing ? 'Edit goal' : 'Add goal';
@@ -67,26 +72,29 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
       </div>`;
 
     document.body.appendChild(overlay);
-    _activeOverlay = overlay;
+    _dialog.setOverlay(overlay);
     attachInfoTips(overlay);
 
     overlay.querySelector('.js-goald-submit')?.addEventListener('click', () => _submit());
     overlay.querySelector('.js-goald-cancel')?.addEventListener('click', () => _dismiss(null));
-    _activeCleanup = activateModalShell({
+    _dialog.setCleanup(
+      activateModalShell({
       overlay,
       onDismiss: () => _dismiss(null),
       onSubmitEnter: _submit,
       submitWhenActive: (active) => !!active?.classList.contains('js-goald-submit'),
       focusablesSelector: 'input:not([disabled]), button:not([disabled])',
-    });
+      }),
+    );
 
     (overlay.querySelector('#goald-label') as HTMLElement | null)?.focus();
   });
 }
 
 function _submit(): void {
-  if (!_activeOverlay) return;
-  const { get, setErr } = makeDialogHelpers(_activeOverlay);
+  const overlay = _dialog.overlay();
+  if (!overlay) return;
+  const { get, setErr } = makeDialogHelpers(overlay);
 
   setErr('goald-label', '');
   setErr('goald-target', '');
@@ -106,9 +114,8 @@ function _submit(): void {
   if (!targetNetWorth) {
     setErr('goald-target', 'Target net worth is required.');
   }
-  if (_activeOverlay.querySelector('[aria-invalid="true"]')) {
-    const firstErr = _activeOverlay.querySelector('[aria-invalid="true"]') as HTMLElement | null;
-    firstErr?.focus();
+  if (overlay.querySelector('[aria-invalid="true"]')) {
+    focusFirstInvalid(overlay);
     return;
   }
 
@@ -121,14 +128,5 @@ function _submit(): void {
 }
 
 function _dismiss(result: NamedGoal | null): void {
-  if (_activeOverlay) _activeOverlay.remove();
-  _activeCleanup?.();
-  _activeCleanup = null;
-  const resolve = _activeResolve;
-  _activeResolve = null;
-  _activeOverlay = null;
-  _activeExistingLabels = [];
-  resolve?.(result);
-  if (_activeTrigger) restoreFocus(_activeTrigger);
-  _activeTrigger = null;
+  _dialog.dismiss(result);
 }

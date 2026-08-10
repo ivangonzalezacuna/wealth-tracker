@@ -10,14 +10,22 @@ import {
 } from '../model/securitySuggestions';
 import { TxType } from '../types';
 import type { Transaction } from '../types';
-import { activateModalShell, makeDialogHelpers, restoreFocus } from './modalShell';
+import {
+  activateModalShell,
+  createDialogController,
+  focusFirstInvalid,
+  makeDialogHelpers,
+} from './modalShell';
 
-let _activeResolve: ((v: Transaction | null) => void) | null = null;
-let _activeTrigger: HTMLElement | null = null;
-let _activeOverlay: HTMLElement | null = null;
 let _activeExisting: Transaction | undefined = undefined;
-let _activeCleanup: (() => void) | null = null;
 let _activeSuggestions: KnownSecuritySuggestions | undefined;
+const _dialog = createDialogController<Transaction | null>(null, {
+  overlaySelector: '.tx-dialog-overlay',
+  reset: () => {
+    _activeExisting = undefined;
+    _activeSuggestions = undefined;
+  },
+});
 
 const TX_TYPES = Object.values(TxType);
 const SECURITY_TYPES: ReadonlySet<Transaction['type']> = new Set([
@@ -57,9 +65,7 @@ export function transactionDialog(
   opts: TransactionDialogOptions = {},
 ): Promise<Transaction | null> {
   return new Promise<Transaction | null>((resolve) => {
-    _dismiss(null);
-    _activeResolve = resolve;
-    _activeTrigger = document.activeElement as HTMLElement | null;
+    _dialog.begin(resolve);
     _activeExisting = opts.existing;
     _activeSuggestions = opts.suggestions;
     const existing = opts.existing;
@@ -172,7 +178,7 @@ export function transactionDialog(
       </div>`;
 
     document.body.appendChild(overlay);
-    _activeOverlay = overlay;
+    _dialog.setOverlay(overlay);
     _bindSuggestionAutoFill(overlay, opts.suggestions);
     _applyTypeVisibility(existing?.type || TxType.BUY);
 
@@ -183,13 +189,15 @@ export function transactionDialog(
 
     overlay.querySelector('.js-txd-submit')?.addEventListener('click', () => _submit());
     overlay.querySelector('.js-txd-cancel')?.addEventListener('click', () => _dismiss(null));
-    _activeCleanup = activateModalShell({
+    _dialog.setCleanup(
+      activateModalShell({
       overlay,
       onDismiss: () => _dismiss(null),
       onSubmitEnter: _submit,
       submitWhenActive: (active) => !!active?.classList.contains('js-txd-submit'),
       focusablesSelector: 'input:not([disabled]), select:not([disabled]), button:not([disabled])',
-    });
+      }),
+    );
 
     // Focus the first input field
     (overlay.querySelector('#txd-date') as HTMLElement | null)?.focus();
@@ -197,9 +205,10 @@ export function transactionDialog(
 }
 
 function _submit(): void {
-  if (!_activeOverlay) return;
+  const overlay = _dialog.overlay();
+  if (!overlay) return;
 
-  const { get, setErr } = makeDialogHelpers(_activeOverlay);
+  const { get, setErr } = makeDialogHelpers(overlay);
 
   // Clear errors
   [
@@ -278,9 +287,7 @@ function _submit(): void {
   }
 
   if (!valid) {
-    // Focus the first invalid field
-    const firstErr = _activeOverlay!.querySelector('[aria-invalid="true"]') as HTMLElement | null;
-    firstErr?.focus();
+    focusFirstInvalid(overlay);
     return;
   }
 
@@ -309,18 +316,7 @@ function _submit(): void {
 }
 
 function _dismiss(result: Transaction | null): void {
-  const overlay = document.querySelector('.tx-dialog-overlay');
-  overlay?.remove();
-  _activeCleanup?.();
-  _activeCleanup = null;
-  _activeOverlay = null;
-  _activeExisting = undefined;
-  _activeSuggestions = undefined;
-  restoreFocus(_activeTrigger);
-  _activeTrigger = null;
-  const resolve = _activeResolve;
-  _activeResolve = null;
-  if (resolve) resolve(result);
+  _dialog.dismiss(result);
 }
 
 function _parseNum(s: string): number {
@@ -331,15 +327,17 @@ function _parseNum(s: string): number {
 }
 
 function _isVisible(id: string): boolean {
-  if (!_activeOverlay) return false;
-  const el = _activeOverlay.querySelector('#' + id) as HTMLElement | null;
+  const overlay = _dialog.overlay();
+  if (!overlay) return false;
+  const el = overlay.querySelector('#' + id) as HTMLElement | null;
   return !!el && el.style.display !== 'none';
 }
 
 function _applyTypeVisibility(type: Transaction['type']): void {
-  if (!_activeOverlay) return;
+  const overlay = _dialog.overlay();
+  if (!overlay) return;
   const setDisplay = (id: string, show: boolean): void => {
-    const el = _activeOverlay!.querySelector('#' + id) as HTMLElement | null;
+    const el = overlay.querySelector('#' + id) as HTMLElement | null;
     if (el) el.style.display = show ? '' : 'none';
   };
 

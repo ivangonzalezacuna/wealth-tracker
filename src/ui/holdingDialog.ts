@@ -15,7 +15,14 @@ import {
   normalizeSuggestionName,
   type KnownSecuritySuggestions,
 } from '../model/securitySuggestions';
-import { activateModalShell, makeDialogHelpers, restoreFocus } from './modalShell';
+import {
+  activateModalShell,
+  bindColorInputs,
+  createDialogController,
+  focusFirstInvalid,
+  makeDialogHelpers,
+  populateDatalist,
+} from './modalShell';
 import { infoTip, attachInfoTips } from './infoTip';
 
 export interface HoldingDialogOptions {
@@ -26,20 +33,23 @@ export interface HoldingDialogOptions {
   existingIsins?: string[];
 }
 
-let _activeResolve: ((v: Holding | null) => void) | null = null;
-let _activeTrigger: HTMLElement | null = null;
-let _activeOverlay: HTMLElement | null = null;
 let _activeExisting: Holding | undefined = undefined;
-let _activeCleanup: (() => void) | null = null;
 let _activeSuggestions: KnownSecuritySuggestions | undefined;
 let _activeOrder: number = 1;
 let _activeExistingIsins: string[] | undefined;
+const _dialog = createDialogController<Holding | null>(null, {
+  overlaySelector: '.hold-dialog-overlay',
+  reset: () => {
+    _activeExisting = undefined;
+    _activeSuggestions = undefined;
+    _activeOrder = 1;
+    _activeExistingIsins = undefined;
+  },
+});
 
 export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding | null> {
   return new Promise<Holding | null>((resolve) => {
-    _dismiss(null);
-    _activeResolve = resolve;
-    _activeTrigger = document.activeElement as HTMLElement | null;
+    _dialog.begin(resolve);
     _activeExisting = opts.existing;
     _activeSuggestions = opts.suggestions;
     _activeOrder = opts.order ?? 1;
@@ -174,45 +184,38 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
       </div>`;
 
     document.body.appendChild(overlay);
-    _activeOverlay = overlay;
+    _dialog.setOverlay(overlay);
     attachInfoTips(overlay);
 
     // Populate datalists via DOM API — no HTML escaping needed for suggestion values
     _fillSuggestionDatalist(overlay, opts.suggestions);
 
-    // Color picker sync
-    const colorSwatch = overlay.querySelector('#holdd-color') as HTMLInputElement | null;
-    const colorHex = overlay.querySelector('#holdd-color-hex') as HTMLInputElement | null;
-    colorSwatch?.addEventListener('input', () => {
-      if (colorHex) colorHex.value = colorSwatch.value;
-    });
-    colorHex?.addEventListener('input', () => {
-      if (/^#[0-9a-fA-F]{6}$/.test(colorHex.value) && colorSwatch) {
-        colorSwatch.value = colorHex.value;
-      }
-    });
+    bindColorInputs(overlay, 'holdd-color', 'holdd-color-hex');
 
     // ISIN ↔ Name autocomplete cross-fill
     _bindSuggestionAutoFill(overlay, opts.suggestions);
 
     overlay.querySelector('.js-holdd-submit')?.addEventListener('click', () => _submit());
     overlay.querySelector('.js-holdd-cancel')?.addEventListener('click', () => _dismiss(null));
-    _activeCleanup = activateModalShell({
+    _dialog.setCleanup(
+      activateModalShell({
       overlay,
       onDismiss: () => _dismiss(null),
       onSubmitEnter: _submit,
       submitWhenActive: (active) => !!active?.classList.contains('js-holdd-submit'),
       focusablesSelector: 'input:not([disabled]), select:not([disabled]), button:not([disabled])',
-    });
+      }),
+    );
 
     (overlay.querySelector('#holdd-isin') as HTMLElement | null)?.focus();
   });
 }
 
 function _submit(): void {
-  if (!_activeOverlay) return;
+  const overlay = _dialog.overlay();
+  if (!overlay) return;
 
-  const { get, getChecked, setErr } = makeDialogHelpers(_activeOverlay);
+  const { get, getChecked, setErr } = makeDialogHelpers(overlay);
 
   ['holdd-isin', 'holdd-short-name'].forEach((f) => setErr(f, ''));
 
@@ -243,8 +246,7 @@ function _submit(): void {
   }
 
   if (!valid) {
-    const firstErr = _activeOverlay!.querySelector('[aria-invalid="true"]') as HTMLElement | null;
-    firstErr?.focus();
+    focusFirstInvalid(overlay);
     return;
   }
 
@@ -269,20 +271,7 @@ function _submit(): void {
 }
 
 function _dismiss(result: Holding | null): void {
-  const overlay = document.querySelector('.hold-dialog-overlay');
-  overlay?.remove();
-  _activeCleanup?.();
-  _activeCleanup = null;
-  _activeOverlay = null;
-  _activeExisting = undefined;
-  _activeSuggestions = undefined;
-  _activeOrder = 1;
-  _activeExistingIsins = undefined;
-  restoreFocus(_activeTrigger);
-  _activeTrigger = null;
-  const resolve = _activeResolve;
-  _activeResolve = null;
-  if (resolve) resolve(result);
+  _dialog.dismiss(result);
 }
 
 /** Populate ISIN and Name datalists via DOM API — no escaping required. */
@@ -298,27 +287,12 @@ function _fillSuggestionDatalist(
   const sortedByIsin = [...availablePairs].sort((a, b) => a.isin.localeCompare(b.isin));
   const sortedByName = [...availablePairs].sort((a, b) => a.name.localeCompare(b.name));
 
-  if (isinList) {
-    isinList.replaceChildren(
-      ...sortedByIsin.map((pair) => {
-        const opt = document.createElement('option');
-        opt.value = pair.isin;
-        opt.label = pair.name;
-        return opt;
-      }),
-    );
-  }
-
-  if (nameList) {
-    nameList.replaceChildren(
-      ...sortedByName.map((pair) => {
-        const opt = document.createElement('option');
-        opt.value = pair.name;
-        opt.label = pair.isin;
-        return opt;
-      }),
-    );
-  }
+  populateDatalist(isinList, sortedByIsin.map((pair) => pair.isin), (isin) => {
+    return sortedByIsin.find((pair) => pair.isin === isin)?.name || '';
+  });
+  populateDatalist(nameList, sortedByName.map((pair) => pair.name), (name) => {
+    return sortedByName.find((pair) => pair.name === name)?.isin || '';
+  });
 }
 
 /** Cross-fill ISIN ↔ Name when one is selected from a datalist suggestion. */

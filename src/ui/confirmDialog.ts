@@ -1,11 +1,11 @@
 /** Promise-based confirmation dialog. Resolves true on confirm, false on cancel/dismiss. Single instance. */
 
 import { esc } from '../utils';
-import { activateModalShell, restoreFocus } from './modalShell';
+import { activateModalShell, createDialogController } from './modalShell';
 
-let _activeResolve: ((v: boolean) => void) | null = null;
-let _activeTrigger: HTMLElement | null = null;
-let _activeCleanup: (() => void) | null = null;
+const _dialog = createDialogController(false, {
+  overlaySelector: '.confirm-overlay',
+});
 
 export interface ConfirmOptions {
   title: string;
@@ -17,9 +17,7 @@ export interface ConfirmOptions {
 
 export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
-    _dismiss(false); // close any existing dialog first, resolving it false
-    _activeResolve = resolve;
-    _activeTrigger = document.activeElement as HTMLElement | null;
+    _dialog.begin(resolve);
 
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay confirm-overlay';
@@ -38,11 +36,14 @@ export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
     const cancelBtn = overlay.querySelector('.js-confirm-cancel') as HTMLElement;
     okBtn.addEventListener('click', () => _dismiss(true));
     cancelBtn.addEventListener('click', () => _dismiss(false));
-    _activeCleanup = activateModalShell({
+    _dialog.setOverlay(overlay);
+    _dialog.setCleanup(
+      activateModalShell({
       overlay,
       onDismiss: () => _dismiss(false),
       focusablesSelector: 'button:not([disabled])',
-    });
+      }),
+    );
 
     // Focus the cancel button by default (safer default for destructive actions)
     cancelBtn.focus();
@@ -50,13 +51,5 @@ export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
 }
 
 function _dismiss(result: boolean): void {
-  const overlay = document.querySelector('.confirm-overlay');
-  overlay?.remove();
-  _activeCleanup?.();
-  _activeCleanup = null;
-  restoreFocus(_activeTrigger);
-  _activeTrigger = null;
-  const resolve = _activeResolve;
-  _activeResolve = null;
-  if (resolve) resolve(result);
+  _dialog.dismiss(result);
 }

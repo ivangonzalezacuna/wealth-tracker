@@ -1,13 +1,20 @@
 import { parseNum } from '../csv';
 import { currentMonth, fmtEur2, safeColor, esc } from '../utils';
 import type { Account, Holding, PortfolioData, Snapshot } from '../types';
-import { activateModalShell, makeDialogHelpers, restoreFocus } from './modalShell';
+import {
+  activateModalShell,
+  createDialogController,
+  focusFirstInvalid,
+  makeDialogHelpers,
+} from './modalShell';
 
-let _activeResolve: ((v: Snapshot | null) => void) | null = null;
-let _activeTrigger: HTMLElement | null = null;
-let _activeOverlay: HTMLElement | null = null;
 let _activeOpts: SnapshotDialogOptions | null = null;
-let _activeCleanup: (() => void) | null = null;
+const _dialog = createDialogController<Snapshot | null>(null, {
+  overlaySelector: '.snap-dialog-overlay',
+  reset: () => {
+    _activeOpts = null;
+  },
+});
 
 export interface SnapshotDialogOptions {
   existing?: Snapshot;
@@ -20,9 +27,7 @@ export interface SnapshotDialogOptions {
 
 export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | null> {
   return new Promise<Snapshot | null>((resolve) => {
-    _dismiss(null);
-    _activeResolve = resolve;
-    _activeTrigger = document.activeElement as HTMLElement | null;
+    _dialog.begin(resolve);
     _activeOpts = opts;
     const draft = opts.existing || opts.prefill;
     const mode = opts.mode || (opts.existing ? 'edit' : 'add');
@@ -62,17 +67,19 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
       </div>`;
 
     document.body.appendChild(overlay);
-    _activeOverlay = overlay;
+    _dialog.setOverlay(overlay);
 
     overlay.querySelector('.js-snapd-submit')?.addEventListener('click', () => _submit());
     overlay.querySelector('.js-snapd-cancel')?.addEventListener('click', () => _dismiss(null));
-    _activeCleanup = activateModalShell({
+    _dialog.setCleanup(
+      activateModalShell({
       overlay,
       onDismiss: () => _dismiss(null),
       onSubmitEnter: _submit,
       submitWhenActive: (active) => !!active?.classList.contains('js-snapd-submit'),
       focusablesSelector: 'input:not([disabled]), button:not([disabled])',
-    });
+      }),
+    );
     overlay.addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest('.snap-etf-toggle') as HTMLElement | null;
       if (!btn) return;
@@ -200,11 +207,12 @@ function _renderEtfBreakdown(
 }
 
 function _submit(): void {
-  if (!_activeOverlay || !_activeOpts) return;
+  const overlay = _dialog.overlay();
+  if (!overlay || !_activeOpts) return;
 
-  const { setErr } = makeDialogHelpers(_activeOverlay);
+  const { setErr } = makeDialogHelpers(overlay);
   const setSectionErr = (acctKey: string, msg: string): void => {
-    const el = _activeOverlay!.querySelector(`#snapd-etf-${acctKey}-err`) as HTMLElement | null;
+    const el = overlay.querySelector(`#snapd-etf-${acctKey}-err`) as HTMLElement | null;
     if (el) el.textContent = msg;
   };
 
@@ -212,13 +220,12 @@ function _submit(): void {
   for (const acct of _getDialogAccounts(_activeOpts.accounts)) {
     setErr(`snapd-acc-${acct.key}`, '');
     setSectionErr(acct.key, '');
-    _activeOverlay!
+    overlay
       .querySelectorAll(`[data-acct-key="${acct.key}"]`)
       .forEach((el) => (el as HTMLElement).removeAttribute('aria-invalid'));
   }
 
-  const date =
-    (_activeOverlay.querySelector('#snapd-date') as HTMLInputElement | null)?.value.trim() || '';
+  const date = (overlay.querySelector('#snapd-date') as HTMLInputElement | null)?.value.trim() || '';
   if (!date || !/^\d{4}-\d{2}$/.test(date)) {
     setErr('snapd-date', 'Required – use YYYY-MM format.');
   } else if (date > currentMonth()) {
@@ -227,15 +234,12 @@ function _submit(): void {
 
   const snap: Snapshot = {
     date,
-    notes:
-      (_activeOverlay.querySelector('#snapd-notes') as HTMLInputElement | null)?.value.trim() || '',
+    notes: (overlay.querySelector('#snapd-notes') as HTMLInputElement | null)?.value.trim() || '',
   };
-  let valid = !(_activeOverlay.querySelector('#snapd-date-err') as HTMLElement | null)?.textContent;
+  let valid = !(overlay.querySelector('#snapd-date-err') as HTMLElement | null)?.textContent;
 
   for (const acct of _getDialogAccounts(_activeOpts.accounts)) {
-    const totalInput = _activeOverlay.querySelector(
-      `#snapd-acc-${acct.key}`,
-    ) as HTMLInputElement | null;
+    const totalInput = overlay.querySelector(`#snapd-acc-${acct.key}`) as HTMLInputElement | null;
     const totalRaw = totalInput?.value.trim() || '';
     const totalVal = parseNum(totalRaw);
     if (totalRaw !== '' && isNaN(totalVal)) {
@@ -244,9 +248,7 @@ function _submit(): void {
     }
     snap[acct.key] = totalRaw === '' ? 0 : totalVal;
 
-    const section = _activeOverlay.querySelector(
-      `#snapd-etf-section-${acct.key}`,
-    ) as HTMLElement | null;
+    const section = overlay.querySelector(`#snapd-etf-section-${acct.key}`) as HTMLElement | null;
     if (!section) continue;
 
     const inputs = Array.from(section.querySelectorAll<HTMLInputElement>('[data-etf-isin]'));
@@ -287,8 +289,7 @@ function _submit(): void {
   }
 
   if (!valid) {
-    const firstErr = _activeOverlay.querySelector('[aria-invalid="true"]') as HTMLElement | null;
-    firstErr?.focus();
+    focusFirstInvalid(overlay);
     return;
   }
 
@@ -296,16 +297,13 @@ function _submit(): void {
 }
 
 function _updateRecon(acctKey: string): void {
-  if (!_activeOverlay) return;
-  const section = _activeOverlay.querySelector(
-    `#snapd-etf-section-${acctKey}`,
-  ) as HTMLElement | null;
-  const reconEl = _activeOverlay.querySelector(`#snapd-etf-recon-${acctKey}`) as HTMLElement | null;
+  const overlay = _dialog.overlay();
+  if (!overlay) return;
+  const section = overlay.querySelector(`#snapd-etf-section-${acctKey}`) as HTMLElement | null;
+  const reconEl = overlay.querySelector(`#snapd-etf-recon-${acctKey}`) as HTMLElement | null;
   if (!section || !reconEl) return;
 
-  const totalInput = _activeOverlay.querySelector(
-    `#snapd-acc-${acctKey}`,
-  ) as HTMLInputElement | null;
+  const totalInput = overlay.querySelector(`#snapd-acc-${acctKey}`) as HTMLInputElement | null;
   const totalVal = parseNum(String(totalInput?.value ?? ''));
 
   let allocated = 0;
@@ -339,11 +337,10 @@ function _updateRecon(acctKey: string): void {
 }
 
 function _setSectionOpen(acctKey: string, open: boolean): void {
-  if (!_activeOverlay) return;
-  const section = _activeOverlay.querySelector(
-    `#snapd-etf-section-${acctKey}`,
-  ) as HTMLElement | null;
-  const btn = _activeOverlay.querySelector(
+  const overlay = _dialog.overlay();
+  if (!overlay) return;
+  const section = overlay.querySelector(`#snapd-etf-section-${acctKey}`) as HTMLElement | null;
+  const btn = overlay.querySelector(
     `.snap-etf-toggle[data-acct-key="${acctKey}"]`,
   ) as HTMLElement | null;
   if (section) section.style.display = open ? '' : 'none';
@@ -355,17 +352,7 @@ function _setSectionOpen(acctKey: string, open: boolean): void {
 }
 
 function _dismiss(result: Snapshot | null): void {
-  const overlay = document.querySelector('.snap-dialog-overlay');
-  overlay?.remove();
-  _activeCleanup?.();
-  _activeCleanup = null;
-  _activeOverlay = null;
-  _activeOpts = null;
-  restoreFocus(_activeTrigger);
-  _activeTrigger = null;
-  const resolve = _activeResolve;
-  _activeResolve = null;
-  if (resolve) resolve(result);
+  _dialog.dismiss(result);
 }
 
 function _getDialogAccounts(accounts: Account[]): Array<{

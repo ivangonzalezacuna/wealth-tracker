@@ -7,7 +7,14 @@ import { esc } from '../utils';
 import type { Account, ContribInterval } from '../types';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { ACCOUNT_TYPES } from '../model/accountTypes';
-import { activateModalShell, makeDialogHelpers, restoreFocus } from './modalShell';
+import {
+  activateModalShell,
+  bindColorInputs,
+  createDialogController,
+  focusFirstInvalid,
+  makeDialogHelpers,
+  populateDatalist,
+} from './modalShell';
 import { infoTip, attachInfoTips } from './infoTip';
 
 export interface AccountDialogOptions {
@@ -20,18 +27,19 @@ export interface AccountDialogOptions {
   existingLabels?: string[];
 }
 
-let _activeResolve: ((v: Account | null) => void) | null = null;
-let _activeTrigger: HTMLElement | null = null;
-let _activeOverlay: HTMLElement | null = null;
 let _activeExisting: Account | undefined = undefined;
-let _activeCleanup: (() => void) | null = null;
 let _activeExistingLabelsList: string[] = [];
+const _dialog = createDialogController<Account | null>(null, {
+  overlaySelector: '.acct-dialog-overlay',
+  reset: () => {
+    _activeExisting = undefined;
+    _activeExistingLabelsList = [];
+  },
+});
 
 export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account | null> {
   return new Promise<Account | null>((resolve) => {
-    _dismiss(null);
-    _activeResolve = resolve;
-    _activeTrigger = document.activeElement as HTMLElement | null;
+    _dialog.begin(resolve);
     _activeExisting = opts.existing;
     _activeExistingLabelsList = opts.existingLabels ?? [];
     const existing = opts.existing;
@@ -164,26 +172,12 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
       </div>`;
 
     document.body.appendChild(overlay);
-    _activeOverlay = overlay;
+    _dialog.setOverlay(overlay);
     attachInfoTips(overlay);
 
     // Populate datalists via DOM API (no esc needed — no innerHTML)
-    _setDatalistOptions(
-      overlay.querySelector('#acctd-institution-list'),
-      opts.institutionSuggestions ?? [],
-    );
-
-    // Color picker sync
-    const colorSwatch = overlay.querySelector('#acctd-color') as HTMLInputElement | null;
-    const colorHex = overlay.querySelector('#acctd-color-hex') as HTMLInputElement | null;
-    colorSwatch?.addEventListener('input', () => {
-      if (colorHex) colorHex.value = colorSwatch.value;
-    });
-    colorHex?.addEventListener('input', () => {
-      if (/^#[0-9a-fA-F]{6}$/.test(colorHex.value) && colorSwatch) {
-        colorSwatch.value = colorHex.value;
-      }
-    });
+    populateDatalist(overlay.querySelector('#acctd-institution-list'), opts.institutionSuggestions ?? []);
+    bindColorInputs(overlay, 'acctd-color', 'acctd-color-hex');
 
     // Primary investment toggle — show/hide contrib block
     const primaryCb = overlay.querySelector('#acctd-primary') as HTMLInputElement | null;
@@ -201,22 +195,25 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
 
     overlay.querySelector('.js-acctd-submit')?.addEventListener('click', () => _submit());
     overlay.querySelector('.js-acctd-cancel')?.addEventListener('click', () => _dismiss(null));
-    _activeCleanup = activateModalShell({
+    _dialog.setCleanup(
+      activateModalShell({
       overlay,
       onDismiss: () => _dismiss(null),
       onSubmitEnter: _submit,
       submitWhenActive: (active) => !!active?.classList.contains('js-acctd-submit'),
       focusablesSelector: 'input:not([disabled]), select:not([disabled]), button:not([disabled])',
-    });
+      }),
+    );
 
     (overlay.querySelector('#acctd-label') as HTMLElement | null)?.focus();
   });
 }
 
 function _submit(): void {
-  if (!_activeOverlay) return;
+  const overlay = _dialog.overlay();
+  if (!overlay) return;
 
-  const { get, getChecked, setErr } = makeDialogHelpers(_activeOverlay);
+  const { get, getChecked, setErr } = makeDialogHelpers(overlay);
 
   ['acctd-label', 'acctd-return'].forEach((f) => setErr(f, ''));
 
@@ -261,8 +258,7 @@ function _submit(): void {
   }
 
   if (!valid) {
-    const firstErr = _activeOverlay!.querySelector('[aria-invalid="true"]') as HTMLElement | null;
-    firstErr?.focus();
+    focusFirstInvalid(overlay);
     return;
   }
 
@@ -287,28 +283,5 @@ function _submit(): void {
 }
 
 function _dismiss(result: Account | null): void {
-  const overlay = document.querySelector('.acct-dialog-overlay');
-  overlay?.remove();
-  _activeCleanup?.();
-  _activeCleanup = null;
-  _activeOverlay = null;
-  _activeExisting = undefined;
-  _activeExistingLabelsList = [];
-  restoreFocus(_activeTrigger);
-  _activeTrigger = null;
-  const resolve = _activeResolve;
-  _activeResolve = null;
-  if (resolve) resolve(result);
-}
-
-/** Populate a datalist using DOM API — no HTML escaping needed. */
-function _setDatalistOptions(datalist: Element | null, values: string[]): void {
-  if (!datalist) return;
-  datalist.replaceChildren(
-    ...values.map((v) => {
-      const opt = document.createElement('option');
-      opt.value = v;
-      return opt;
-    }),
-  );
+  _dialog.dismiss(result);
 }
