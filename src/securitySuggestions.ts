@@ -1,7 +1,10 @@
 import { loadTransactions } from './db';
-import { buildSecuritySuggestions, type SecuritySuggestions } from './model/securitySuggestions';
-import { getHoldings } from './store/config';
-import type { Holding, Transaction } from './types';
+import {
+  buildSecuritySuggestions,
+  filterSecuritySuggestions,
+  type SecuritySuggestions,
+} from './model/securitySuggestions';
+import type { Transaction } from './types';
 
 function normalizeTransactions(transactions: Transaction[] | undefined): Transaction[] {
   return Array.isArray(transactions) ? transactions : [];
@@ -9,9 +12,15 @@ function normalizeTransactions(transactions: Transaction[] | undefined): Transac
 
 export function buildAppSecuritySuggestions(
   transactions: Transaction[] | undefined,
-  holdings: Holding[] = getHoldings(),
 ): SecuritySuggestions {
-  return buildSecuritySuggestions(holdings, normalizeTransactions(transactions));
+  return buildSecuritySuggestions(normalizeTransactions(transactions));
+}
+
+export function buildHoldingSecuritySuggestions(
+  transactions: Transaction[] | undefined,
+  existingIsins: string[] | undefined,
+): SecuritySuggestions {
+  return filterSecuritySuggestions(buildAppSecuritySuggestions(transactions), existingIsins);
 }
 
 export async function loadAppSecuritySuggestions(): Promise<{

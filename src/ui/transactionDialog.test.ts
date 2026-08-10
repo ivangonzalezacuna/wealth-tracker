@@ -24,8 +24,10 @@ function fillRequired() {
 }
 
 const suggestions: SecuritySuggestions = {
-  isins: ['IE00AAA', 'IE00BBB'],
-  names: ['Alpha Fund', 'Beta Fund'],
+  pairs: [
+    { isin: 'IE00AAA', name: 'Alpha Fund' },
+    { isin: 'IE00BBB', name: 'Beta Fund' },
+  ],
 };
 
 describe('transactionDialog', () => {
@@ -207,16 +209,26 @@ describe('transactionDialog', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
 
-  it('populates ISIN and name datalists from suggestions', () => {
+  it('populates ISIN and name selectors from suggestions', () => {
     transactionDialog({ suggestions });
-    const isinOpts = Array.from(document.querySelectorAll('#txd-isin-list option')).map(
+    const isinOpts = Array.from(document.querySelectorAll('#txd-pair-isin option')).map(
       (o) => (o as HTMLOptionElement).value,
     );
-    const nameOpts = Array.from(document.querySelectorAll('#txd-name-list option')).map(
+    const nameOpts = Array.from(document.querySelectorAll('#txd-pair-name option')).map(
       (o) => (o as HTMLOptionElement).value,
     );
-    expect(isinOpts).toEqual(['IE00AAA', 'IE00BBB']);
-    expect(nameOpts).toEqual(['Alpha Fund', 'Beta Fund']);
+    expect(isinOpts).toEqual(['', 'IE00AAA', 'IE00BBB']);
+    expect(nameOpts).toEqual(['', 'IE00AAA', 'IE00BBB']);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('syncs ISIN and name inputs from pair selection', () => {
+    transactionDialog({ suggestions });
+    const nameSelect = document.querySelector('#txd-pair-name') as HTMLSelectElement;
+    nameSelect.value = 'IE00BBB';
+    nameSelect.dispatchEvent(new Event('change'));
+    expect((document.querySelector('#txd-isin') as HTMLInputElement).value).toBe('IE00BBB');
+    expect((document.querySelector('#txd-name') as HTMLInputElement).value).toBe('Beta Fund');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
 });

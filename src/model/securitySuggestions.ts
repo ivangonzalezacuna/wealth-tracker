@@ -1,8 +1,12 @@
-import type { Holding, Transaction } from '../types';
+import type { Transaction } from '../types';
+
+export interface SecuritySuggestionPair {
+  isin: string;
+  name: string;
+}
 
 export interface SecuritySuggestions {
-  isins: string[];
-  names: string[];
+  pairs: SecuritySuggestionPair[];
 }
 
 export function normalizeInstitution(value: string): string {
@@ -10,20 +14,29 @@ export function normalizeInstitution(value: string): string {
 }
 
 export function buildSecuritySuggestions(
-  holdings: Holding[] | undefined,
   transactions: Transaction[] | undefined,
 ): SecuritySuggestions {
-  const isinSet = new Set<string>();
-  const nameSet = new Set<string>();
-  for (const h of Array.isArray(holdings) ? holdings : []) {
-    if (h.isin) isinSet.add(h.isin.trim().toUpperCase());
-    const name = (h.name || h.shortName || '').trim();
-    if (name) nameSet.add(name);
-  }
+  const byIsin = new Map<string, SecuritySuggestionPair>();
   for (const tx of Array.isArray(transactions) ? transactions : []) {
-    if (tx.isin) isinSet.add(tx.isin.trim().toUpperCase());
+    const isin = tx.isin.trim().toUpperCase();
     const name = (tx.name || '').trim();
-    if (name) nameSet.add(name);
+    if (!isin || !name) continue;
+    byIsin.set(isin, { isin, name });
   }
-  return { isins: [...isinSet].sort(), names: [...nameSet].sort() };
+  return {
+    pairs: [...byIsin.values()].sort((a, b) => a.isin.localeCompare(b.isin)),
+  };
+}
+
+export function filterSecuritySuggestions(
+  suggestions: SecuritySuggestions | undefined,
+  existingIsins: string[] | undefined,
+): SecuritySuggestions {
+  const excluded = new Set(
+    (Array.isArray(existingIsins) ? existingIsins : []).map((isin) => isin.trim().toUpperCase()),
+  );
+  if (excluded.size === 0) return { pairs: [...(suggestions?.pairs ?? [])] };
+  return {
+    pairs: (suggestions?.pairs ?? []).filter((pair) => !excluded.has(pair.isin)),
+  };
 }
