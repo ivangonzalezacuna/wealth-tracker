@@ -62,8 +62,14 @@ const _allocMode: Record<string, 'active' | 'all'> = {
 
 function buildInvestmentSnapshots(snaps: Snapshot[], accounts: Account[]): Snapshot[] {
   const accountKeys = accounts.map((a) => (a.id || a.key || '').trim()).filter((key) => !!key);
-  const investmentAccounts = accounts.filter((a) => (a.moneyType || '').toLowerCase() === 'investment');
-  const investmentProjectionKey = (investmentAccounts[0]?.id || investmentAccounts[0]?.key || '').trim();
+  const investmentAccounts = accounts.filter(
+    (a) => (a.moneyType || '').toLowerCase() === 'investment',
+  );
+  const investmentProjectionKey = (
+    investmentAccounts[0]?.id ||
+    investmentAccounts[0]?.key ||
+    ''
+  ).trim();
   if (!accountKeys.length || !investmentProjectionKey) return [];
   const result: Snapshot[] = [];
   for (const s of snaps) {
