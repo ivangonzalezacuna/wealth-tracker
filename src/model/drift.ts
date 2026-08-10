@@ -141,6 +141,8 @@ export interface RebalancePlanEntry {
   isin: string;
   shortName: string;
   color: string;
+  /** Per-execution amount when contributions follow target weights at the selected cadence. */
+  targetAmt: number;
   /** Suggested share of total budget for this holding (0-100). */
   suggestedPct: number;
   /** Suggested amount per execution in the global calibration cadence. */
@@ -238,7 +240,9 @@ export function computeRebalancePlan(
   for (let i = 0; i < activeDrift.length; i++) {
     const d = activeDrift[i];
     const monthlySuggested = kContrib[i] / months;
+    const monthlyTarget = totalMonthlyBudget * (d.targetPct / totalTargetPct);
     const suggestedAmt = Math.round(amtFromMonthly(monthlySuggested) * 100) / 100;
+    const targetAmt = Math.round(amtFromMonthly(monthlyTarget) * 100) / 100;
     const suggestedPct = Math.round((monthlySuggested / totalMonthlyBudget) * 1000) / 10;
 
     const newValue = d.actualValue + kContrib[i];
@@ -249,6 +253,7 @@ export function computeRebalancePlan(
       isin: d.isin,
       shortName: d.shortName,
       color: d.color,
+      targetAmt,
       suggestedPct,
       suggestedAmt,
       state: stateOf(d),

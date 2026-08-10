@@ -186,6 +186,7 @@ describe('renderPortfolio', () => {
     document.body.innerHTML = DOM_FIXTURE;
     chartInstances.length = 0;
     localStorage.removeItem('drift-rebalance-months');
+    localStorage.removeItem('drift-calibration-interval');
     MOCK_HOLDINGS.splice(0, MOCK_HOLDINGS.length, {
       isin: 'IE00TEST1',
       shortName: 'IWDA',
@@ -738,6 +739,16 @@ describe('renderPortfolio', () => {
     const drift = document.getElementById('port-drift')!;
     expect(drift.innerHTML).toContain('Contribution rebalance');
     expect(drift.textContent).toContain('reduce max drift from');
+  });
+
+  it('shows the target cadence amount alongside the suggested amount', () => {
+    setRebalanceHoldings();
+    const pd = makeRebalancePd();
+    localStorage.setItem('drift-calibration-interval', 'weekly');
+    renderPortfolio(pd, [makeRebalanceSnap()]);
+    const drift = document.getElementById('port-drift')!;
+    expect(drift.textContent || '').toMatch(/Target\s+80,77\s*€\/wk/);
+    expect(drift.textContent || '').toMatch(/Target\s+34,62\s*€\/wk/);
   });
 
   it('rebalance picker click updates selected month and re-renders', () => {
