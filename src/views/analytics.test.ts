@@ -26,7 +26,7 @@ vi.mock('chart.js/auto', () => ({
   },
 }));
 
-const MOCK_ACCOUNTS = [
+const MOCK_ACCOUNTS: Account[] = [
   {
     id: 'acct_inv',
     moneyType: 'investment',
@@ -52,10 +52,12 @@ vi.mock('../store/config', () => ({
   getHoldings: () => [],
   getSettings: () => ({ riskFreeRate: '2' }),
   isConfigLoaded: () => true,
-  getACCTS: () => [
-    { key: 'acct_inv', label: 'Broker', color: '#111111' },
-    { key: 'acct_cash', label: 'Cash', color: '#222222' },
-  ],
+  getACCTS: () =>
+    MOCK_ACCOUNTS.map((a) => ({
+      key: a.id || a.key || '',
+      label: a.label,
+      color: a.color || '',
+    })),
   getISINMap: () => ({}),
   getMETA: () => ({}),
   getISIN_ORDER: () => [],
@@ -63,7 +65,7 @@ vi.mock('../store/config', () => ({
 
 import { renderAnalytics } from './analytics';
 import { appTemplate } from '../template';
-import type { PortfolioData, Snapshot, Transaction } from '../types';
+import type { Account, PortfolioData, Snapshot, Transaction } from '../types';
 
 function makeSnap(date: string, investment: number, cash = 0): Snapshot {
   return { date, acct_inv: investment, acct_cash: cash };
@@ -94,6 +96,8 @@ describe('renderAnalytics', () => {
   beforeEach(() => {
     document.body.innerHTML = appTemplate();
     chartInstances.length = 0;
+    delete (MOCK_ACCOUNTS[0] as { key?: string }).key;
+    delete (MOCK_ACCOUNTS[1] as { key?: string }).key;
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       value: vi.fn().mockReturnValue({
@@ -219,6 +223,23 @@ describe('renderAnalytics', () => {
       el.textContent?.includes('TWR'),
     );
     expect(twrTile?.querySelector('.kpi-val')?.textContent).toBe('0%');
+  });
+
+  it('computes TWR when legacy snapshots use an account key different from the current id', () => {
+    const pd = makePd();
+    pd.monthly = {};
+    (MOCK_ACCOUNTS[0] as { key?: string }).key = 'legacy_inv';
+    const snaps: Snapshot[] = [
+      { date: '2026-01', legacy_inv: 1000, acct_cash: 0 },
+      { date: '2026-02', legacy_inv: 1100, acct_cash: 0 },
+    ];
+
+    renderAnalytics(pd, snaps, []);
+
+    const twrTile = Array.from(document.querySelectorAll('#an-kpis-l2 .kpi')).find((el) =>
+      el.textContent?.includes('TWR'),
+    );
+    expect(twrTile?.querySelector('.kpi-val')?.textContent).toBe('10%');
   });
 
   it('renders growth chart data table wrap after renderAnalytics with 2+ snapshots', () => {

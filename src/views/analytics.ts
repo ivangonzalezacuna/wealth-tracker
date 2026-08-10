@@ -61,29 +61,18 @@ const _allocMode: Record<string, 'active' | 'all'> = {
 };
 
 function buildInvestmentSnapshots(snaps: Snapshot[], accounts: Account[]): Snapshot[] {
-  const investmentIds = new Set(
-    accounts
-      .filter((a) => (a.moneyType || '').toLowerCase() === 'investment')
-      .map((a) => (a.id || a.key || '').toLowerCase())
-      .filter((id) => !!id),
-  );
-  if (!investmentIds.size) return [];
+  const accountKeys = accounts.map((a) => (a.id || a.key || '').trim()).filter((key) => !!key);
+  const investmentAccounts = accounts.filter((a) => (a.moneyType || '').toLowerCase() === 'investment');
+  const investmentProjectionKey = (investmentAccounts[0]?.id || investmentAccounts[0]?.key || '').trim();
+  if (!accountKeys.length || !investmentProjectionKey) return [];
   const result: Snapshot[] = [];
   for (const s of snaps) {
+    const investmentTotal = allInvestmentAccountsValue(s, accounts);
+    if (investmentTotal === null) continue;
     const projected: Snapshot = { date: s.date };
-    let hasInvestmentValue = false;
-    for (const a of accounts) {
-      const key = (a.id || a.key || '').trim();
-      if (!key) continue;
-      const val = Number(s[key]) || 0;
-      if (investmentIds.has(key.toLowerCase())) {
-        projected[key] = val;
-        hasInvestmentValue = true;
-      } else {
-        projected[key] = 0;
-      }
-    }
-    if (hasInvestmentValue) result.push(projected);
+    for (const key of accountKeys) projected[key] = 0;
+    projected[investmentProjectionKey] = investmentTotal;
+    result.push(projected);
   }
   return result;
 }

@@ -71,18 +71,47 @@ export function validateAccountRanges(accounts: Account[]): string | null {
 }
 
 /** Returns the sum of snapshot values for accounts matching the given list (case-insensitive key lookup). */
-function sumSnapshotValues(snap: Snapshot, accounts: Account[]): number | null {
+function snapshotNumericValuesByLowerKey(snap: Snapshot): Record<string, number> {
   const byLowerKey: Record<string, number> = {};
   for (const [k, v] of Object.entries(snap)) {
     if (typeof v === 'number') byLowerKey[k.toLowerCase()] = v;
   }
+  return byLowerKey;
+}
+
+function accountSnapshotKeyCandidates(account: Account): string[] {
+  const seen = new Set<string>();
+  const candidates: string[] = [];
+  for (const raw of [account.id, account.key]) {
+    const key = String(raw || '')
+      .trim()
+      .toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    candidates.push(key);
+  }
+  return candidates;
+}
+
+function snapshotValueForAccount(
+  byLowerKey: Record<string, number>,
+  account: Account,
+): number | null {
+  for (const key of accountSnapshotKeyCandidates(account)) {
+    if (key in byLowerKey) return byLowerKey[key];
+  }
+  return null;
+}
+
+function sumSnapshotValues(snap: Snapshot, accounts: Account[]): number | null {
+  const byLowerKey = snapshotNumericValuesByLowerKey(snap);
   let found = false;
   let sum = 0;
   for (const a of accounts) {
-    const key = (a.id || '').toLowerCase();
-    if (key in byLowerKey) {
+    const value = snapshotValueForAccount(byLowerKey, a);
+    if (value !== null) {
       found = true;
-      sum += byLowerKey[key];
+      sum += value;
     }
   }
   return found ? sum : null;
