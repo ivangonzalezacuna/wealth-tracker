@@ -2504,8 +2504,41 @@ input[type='color'] {
   outline-offset: 2px;
   border-radius: 2px;
 }
+.chart-data-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.chart-data-table-pagination {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.chart-data-table-prev,
+.chart-data-table-next {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 5px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1.2;
+  color: var(--ink-2);
+}
+.chart-data-table-prev:disabled,
+.chart-data-table-next:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.chart-data-table-prev:not(:disabled):hover,
+.chart-data-table-next:not(:disabled):hover {
+  color: var(--brand);
+  border-color: var(--brand-border);
+}
 .chart-data-table {
-  width: 100%;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: 11px;
   margin-top: 6px;
