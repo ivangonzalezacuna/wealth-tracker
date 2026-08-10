@@ -303,10 +303,10 @@ function renderAccountsCard(accounts: Account[]): string {
         <div id="settings-accounts-tbl" class="settings-items">
           ${rows}
         </div>
-        <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
+        <div class="form-actions">
           <button class="btn btn-outline btn-sm" id="btn-add-acct">+ Add account</button>
           <button class="btn btn-primary btn-sm" id="btn-save-accts">Save accounts</button>
-          <span id="accts-msg" style="font-size:12px;line-height:28px"></span>
+          <span id="accts-msg" class="form-msg"></span>
         </div>
       </div>
     </div>`;
@@ -562,11 +562,11 @@ function renderHoldingsCard(holdings: Holding[]): string {
         <div id="settings-holdings-tbl" class="settings-items">
           ${rows}
         </div>
-        <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
+        <div class="form-actions">
           <button class="btn btn-outline btn-sm" id="btn-add-hold">+ Add holding</button>
           <button class="btn btn-outline btn-sm" id="btn-autofill-holds">Auto-fill from transactions</button>
           <button class="btn btn-primary btn-sm" id="btn-save-holds">Save holdings</button>
-          <span id="holds-msg" style="font-size:12px;line-height:28px"></span>
+          <span id="holds-msg" class="form-msg"></span>
         </div>
       </div>
     </div>`;
@@ -882,9 +882,9 @@ function renderCostBasisCard(settings: Settings): string {
       <div class="card-body">
         <p class="note" style="margin-bottom:.75rem">Choose how realized gains are calculated when you sell shares.</p>
         <div id="settings-costbasis-fields">${costBasisFieldsHtml(current)}</div>
-        <div style="display:flex;gap:10px;margin-top:.75rem">
+        <div class="form-actions">
           <button class="btn btn-primary btn-sm" id="btn-save-cost-basis">Save cost-basis method</button>
-          <span id="costbasis-msg" style="font-size:12px;line-height:28px"></span>
+          <span id="costbasis-msg" class="form-msg"></span>
         </div>
       </div>
     </div>`;
@@ -951,10 +951,10 @@ function renderGoalCard(_settings: Settings): string {
         <div id="settings-goals-tbl" class="settings-items">
           ${rows}
         </div>
-        <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
+        <div class="form-actions">
           <button class="btn btn-outline btn-sm" id="btn-add-goal">+ Add goal</button>
           <button class="btn btn-primary btn-sm" id="btn-save-goal">Save goals</button>
-          <span id="goal-msg" style="font-size:12px;line-height:28px"></span>
+          <span id="goal-msg" class="form-msg"></span>
         </div>
       </div>
     </div>`;
@@ -1078,9 +1078,9 @@ function renderAlertsCard(_settings: Settings): string {
             placeholder="5"
           />
         </div>
-        <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
+        <div class="form-actions">
           <button class="btn btn-primary btn-sm" id="btn-save-alerts">Save</button>
-          <span id="alerts-msg" style="font-size:12px;line-height:28px"></span>
+          <span id="alerts-msg" class="form-msg"></span>
         </div>
       </div>
     </div>`;
@@ -1150,9 +1150,9 @@ function renderAnalyticsCard(settings: Settings): string {
             placeholder="2"
           />
         </div>
-        <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
+        <div class="form-actions">
           <button class="btn btn-primary btn-sm" id="btn-save-analytics">Save</button>
-          <span id="analytics-msg" style="font-size:12px;line-height:28px"></span>
+          <span id="analytics-msg" class="form-msg"></span>
         </div>
       </div>
     </div>`;
@@ -1229,10 +1229,10 @@ function renderRulesCard(settings: Settings): string {
         <div id="settings-rules-tbl" class="settings-items">
           ${rows}
         </div>
-        <div style="display:flex;gap:10px;margin-top:.75rem;flex-wrap:wrap">
+        <div class="form-actions">
           <button class="btn btn-outline btn-sm" id="btn-add-rule">+ Add rule</button>
           <button class="btn btn-primary btn-sm" id="btn-save-rules">Save rules</button>
-          <span id="rules-msg" style="font-size:12px;line-height:28px"></span>
+          <span id="rules-msg" class="form-msg"></span>
         </div>
       </div>
     </div>`;
@@ -1737,7 +1737,7 @@ function renderCacheCard(): string {
               : ''
           }
           <button class="btn btn-outline btn-sm" id="btn-force-resync">Force full resync</button>
-          <span id="resync-msg" style="font-size:12px;line-height:28px"></span>
+          <span id="resync-msg" class="form-msg"></span>
         </div>
         <p class="note" style="margin-top:.75rem">Force full resync clears cached views and re-checks Drive. It is not the primary tool for resolving a sync conflict.</p>
       </div>

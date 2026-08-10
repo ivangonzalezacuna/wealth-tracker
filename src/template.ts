@@ -55,8 +55,8 @@ export function appTemplate(): string {
 <!-- ════ NET WORTH ════ -->
 <div id="networth" class="section active" role="tabpanel" aria-labelledby="tab-networth">
   <div id="nw-empty" style="display:none"><div class="card"><div class="empty-state">
-    <div style="font-size:2.4rem;margin-bottom:.75rem">📊</div>
-    <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.4rem">No snapshots yet</div>
+    <div class="empty-icon">📊</div>
+    <div class="empty-title">No snapshots yet</div>
     <p style="font-size:13px;margin-bottom:1.25rem;max-width:340px;margin-left:auto;margin-right:auto">Log your first monthly entry to start tracking net worth across all accounts. Takes ~2 minutes per month.</p>
     <button class="btn btn-primary" data-goto="log">Add first snapshot →</button>
   </div></div></div>
@@ -90,8 +90,8 @@ export function appTemplate(): string {
   </div>
   <div class="subview" id="subview-holdings" role="tabpanel" aria-labelledby="tab-holdings" style="display:block">
     <div id="port-empty" style="display:none"><div class="card"><div class="empty-state">
-      <div style="font-size:2rem;margin-bottom:.75rem">📂</div>
-      <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.4rem">No transaction data imported</div>
+      <div class="empty-icon">📂</div>
+      <div class="empty-title">No transaction data imported</div>
       <p style="font-size:13px;margin-bottom:1rem">Import your transaction export CSV to see exact cost basis, shares, and dividends.</p>
       <button class="btn btn-primary" data-goto="log">Import CSV →</button>
     </div></div></div>
@@ -118,8 +118,8 @@ export function appTemplate(): string {
   </div>
   <div class="subview" id="subview-contributions" role="tabpanel" aria-labelledby="tab-contributions" style="display:none">
     <div id="dca-empty" style="display:none"><div class="card"><div class="empty-state">
-      <div style="font-size:2rem;margin-bottom:.5rem">📅</div>
-      <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.75rem">No transaction data imported</div>
+      <div class="empty-icon">📅</div>
+      <div class="empty-title">No transaction data imported</div>
       <button class="btn btn-primary" data-goto="log">Import CSV →</button>
     </div></div></div>
     <div id="dca-content" style="display:none">
@@ -149,8 +149,8 @@ export function appTemplate(): string {
   </div>
   <div class="subview" id="subview-dividends" role="tabpanel" aria-labelledby="tab-dividends" style="display:none">
     <div id="div-empty" style="display:none"><div class="card"><div class="empty-state">
-      <div style="font-size:2rem;margin-bottom:.5rem">💰</div>
-      <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.75rem">No transaction data imported</div>
+      <div class="empty-icon">💰</div>
+      <div class="empty-title">No transaction data imported</div>
       <button class="btn btn-primary" data-goto="log">Import CSV →</button>
     </div></div></div>
     <div id="div-content" style="display:none">
@@ -187,8 +187,8 @@ export function appTemplate(): string {
 <!-- ════ ANALYTICS ════ -->
 <div id="analytics" class="section" role="tabpanel" aria-labelledby="tab-analytics">
   <div id="an-empty" style="display:none"><div class="card"><div class="empty-state">
-    <div style="font-size:2.4rem;margin-bottom:.75rem">📈</div>
-    <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.4rem">No snapshots yet</div>
+    <div class="empty-icon">📈</div>
+    <div class="empty-title">No snapshots yet</div>
     <p style="font-size:13px;margin-bottom:1.25rem;max-width:340px;margin-left:auto;margin-right:auto">Add at least one monthly snapshot to see analytics. Income metrics update from imported data, and risk metrics unlock after 24 months of snapshot history.</p>
     <button class="btn btn-primary" data-goto="log">Add first snapshot →</button>
   </div></div></div>
@@ -196,7 +196,7 @@ export function appTemplate(): string {
 
     <!-- Level 1: Performance Summary (always visible) -->
     <div class="kpi-row" id="an-kpis-l1"></div>
-    <div class="section-label" id="an-perf-detail-heading" style="display:none;padding:.4rem 0 .1rem;font-size:11px;color:var(--ink-3);font-weight:500;text-transform:uppercase;letter-spacing:.04em">Performance Detail</div>
+    <div class="section-label" id="an-perf-detail-heading" style="display:none">Performance Detail</div>
     <div class="kpi-row" id="an-kpis-l2" style="margin-top:8px"></div>
 
     <div class="card card-primary">
@@ -260,7 +260,7 @@ export function appTemplate(): string {
 
     <!-- Level 3: Advanced Analytics (collapsible) -->
     <details id="an-advanced" class="card-collapsible" style="margin-top:1rem">
-      <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;padding:.4rem 0 .1rem;font-size:11px;color:var(--ink-3);font-weight:500;text-transform:uppercase;letter-spacing:.04em">
+      <summary class="section-label">
         <span class="card-chevron" id="an-advanced-arrow"></span>
         Advanced analytics
       </summary>
@@ -351,7 +351,7 @@ export function appTemplate(): string {
         </div>
 
         <div id="an-income" style="display:none">
-          <div class="section-label" style="padding:.4rem 0 .1rem;font-size:11px;color:var(--ink-3);font-weight:500;text-transform:uppercase;letter-spacing:.04em">Income (dividends and interest)</div>
+          <div class="section-label">Income (dividends and interest)</div>
           <div class="kpi-row" id="an-kpis-income" style="margin-top:8px"></div>
           <div class="card" style="margin:0 0 1rem">
             <div class="card-title">
@@ -378,8 +378,8 @@ export function appTemplate(): string {
 <div id="log" class="section" role="tabpanel" aria-labelledby="tab-log">
   <div id="auth-prompt" class="card" style="display:none">
     <div class="empty-state">
-      <div style="font-size:2rem;margin-bottom:.75rem">🔐</div>
-      <div style="font-weight:500;font-size:14px;color:var(--ink);margin-bottom:.5rem">Sign in to sync data</div>
+      <div class="empty-icon">🔐</div>
+      <div class="empty-title">Sign in to sync data</div>
       <p style="font-size:13px;margin-bottom:1.25rem;color:var(--ink-2)">Your data is stored securely in your Google Drive. Sign in once and it syncs across all devices.</p>
       <button id="btn-signin" class="btn btn-primary">Sign in with Google</button>
     </div>

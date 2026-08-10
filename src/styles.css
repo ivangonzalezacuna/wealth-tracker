@@ -1088,6 +1088,31 @@ details[open] > summary .card-chevron {
   line-height: 1.5;
   margin-top: 0.5rem;
 }
+.section-label {
+  padding: 0.4rem 0 0.1rem;
+  font-size: 11px;
+  color: var(--ink-3);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+summary.section-label {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+.form-msg {
+  font-size: 12px;
+  line-height: 28px;
+}
 .ok {
   color: var(--pos);
 }
@@ -1213,6 +1238,16 @@ details[open] > summary .card-chevron {
   text-align: center;
   padding: 2.5rem 1rem;
   color: var(--ink-3);
+}
+.empty-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+.empty-title {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--ink);
+  margin-bottom: 0.4rem;
 }
 .divider {
   border: none;
