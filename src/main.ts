@@ -102,7 +102,7 @@ import { withTimeout } from './sync/timeout';
 import { isBusy, setBusy } from './sync/lock';
 import { registerSW } from 'virtual:pwa-register';
 import type { Snapshot, Transaction, PortfolioData, ImportProfile, Account } from './types';
-import { buildSecuritySuggestions } from './model/securitySuggestions';
+import { buildAppSecuritySuggestions } from './securitySuggestions';
 
 // ── App state ────────────────────────────────────────────
 const state: {
@@ -148,6 +148,82 @@ function setSyncing(v: boolean): void {
 }
 function isSyncBusy(): boolean {
   return isBusy();
+}
+
+type WriteAccessMode = 'signed-in' | 'signed-in-or-granted';
+
+function ensureWriteAccess(msgId: string, mode: WriteAccessMode = 'signed-in'): boolean {
+  if (mode === 'signed-in') {
+    if (!isSignedIn()) {
+      showMsg(msgId, 'Please sign in first.', false);
+      return false;
+    }
+  } else if (!isSignedIn() && !hasEverGranted()) {
+    showMsg(msgId, 'Please sign in first.', false);
+    return false;
+  }
+  if (isSyncBusy()) {
+    showMsg(msgId, 'A sync or save is in progress. Try again in a moment.', false);
+    return false;
+  }
+  return true;
+}
+
+async function runSynchronizedWrite(opts: {
+  action: () => Promise<void>;
+  button?: HTMLButtonElement;
+  busyText?: string;
+  keepDisabledOnSuccess?: boolean;
+}): Promise<void> {
+  const run = async () => {
+    setSyncing(true);
+    try {
+      await opts.action();
+    } finally {
+      setSyncing(false);
+    }
+  };
+  if (opts.button) {
+    await withButtonGuard(opts.button, run, {
+      busyText: opts.busyText,
+      keepDisabledOnSuccess: opts.keepDisabledOnSuccess,
+    });
+    return;
+  }
+  await run();
+}
+
+function showSyncAwareSuccess(msgId: string, onlineMessage: string, offlineMessage: string): void {
+  showMsg(msgId, state.offline || !navigator.onLine ? offlineMessage : onlineMessage, true);
+}
+
+async function performWriteAction(opts: {
+  msgId: string;
+  access?: WriteAccessMode;
+  action: () => Promise<void>;
+  button?: HTMLButtonElement;
+  busyText?: string;
+  keepDisabledOnSuccess?: boolean;
+  onlineMessage?: string;
+  offlineMessage?: string;
+  errorPrefix?: string;
+}): Promise<boolean> {
+  if (!ensureWriteAccess(opts.msgId, opts.access)) return false;
+  try {
+    await runSynchronizedWrite({
+      action: opts.action,
+      button: opts.button,
+      busyText: opts.busyText,
+      keepDisabledOnSuccess: opts.keepDisabledOnSuccess,
+    });
+    if (opts.onlineMessage && opts.offlineMessage) {
+      showSyncAwareSuccess(opts.msgId, opts.onlineMessage, opts.offlineMessage);
+    }
+    return true;
+  } catch (err) {
+    showMsg(opts.msgId, (opts.errorPrefix || 'Error: ') + (err as Error).message, false);
+    return false;
+  }
 }
 
 function refreshConflictAccess(): void {
@@ -1161,14 +1237,6 @@ function initSnapForm() {
 }
 
 async function saveSnapshot(snap: Snapshot) {
-  if (!isSignedIn()) {
-    showMsg('snap-msg', 'Please sign in first.', false);
-    return;
-  }
-  if (isSyncBusy()) {
-    showMsg('snap-msg', 'A sync or save is in progress. Try again in a moment.', false);
-    return;
-  }
   const date = snap.date;
   if (!date) {
     showMsg('snap-msg', 'Please select a month.', false);
@@ -1180,41 +1248,27 @@ async function saveSnapshot(snap: Snapshot) {
   }
 
   const btn = document.getElementById('btn-add-snap') as HTMLButtonElement;
-  try {
-    await withButtonGuard(
-      btn,
-      async () => {
-        setSyncing(true);
-        try {
-          // Write to local DB first; only mutate local state on success.
-          await upsertSnapshot(snap);
-          scheduleUpload();
-          const idx = state.snaps.findIndex((s) => s.date === date);
-          if (idx >= 0) state.snaps[idx] = snap;
-          else {
-            state.snaps.push(snap);
-            state.snaps.sort((a, b) => a.date.localeCompare(b.date));
-          }
-          const snapCached = await setCachedSnapshots(state.snaps);
-          if (!snapCached) showCacheWriteWarning();
-          clearSnapForm();
-          renderAll();
-        } finally {
-          setSyncing(false);
-        }
-      },
-      { busyText: 'Saving...' },
-    );
-    showMsg(
-      'snap-msg',
-      state.offline || !navigator.onLine
-        ? 'Saved locally. Will sync to Drive when back online.'
-        : 'Saved ✓',
-      true,
-    );
-  } catch (err) {
-    showMsg('snap-msg', 'Error: ' + (err as Error).message, false);
-  }
+  await performWriteAction({
+    msgId: 'snap-msg',
+    button: btn,
+    busyText: 'Saving...',
+    action: async () => {
+      await upsertSnapshot(snap);
+      scheduleUpload();
+      const idx = state.snaps.findIndex((s) => s.date === date);
+      if (idx >= 0) state.snaps[idx] = snap;
+      else {
+        state.snaps.push(snap);
+        state.snaps.sort((a, b) => a.date.localeCompare(b.date));
+      }
+      const snapCached = await setCachedSnapshots(state.snaps);
+      if (!snapCached) showCacheWriteWarning();
+      clearSnapForm();
+      renderAll();
+    },
+    onlineMessage: 'Saved ✓',
+    offlineMessage: 'Saved locally. Will sync to Drive when back online.',
+  });
 }
 
 /**
@@ -1224,14 +1278,7 @@ async function saveSnapshot(snap: Snapshot) {
  * Both paths run under the unified sync lock.
  */
 async function saveMonthlyUpdate() {
-  if (!isSignedIn()) {
-    showMsg('snap-msg', 'Please sign in first.', false);
-    return;
-  }
-  if (isSyncBusy()) {
-    showMsg('snap-msg', 'A sync or save is in progress. Try again in a moment.', false);
-    return;
-  }
+  if (!ensureWriteAccess('snap-msg')) return;
 
   let existing = _editingSnapDate
     ? state.snaps.find((s) => s.date === _editingSnapDate)
@@ -1264,14 +1311,7 @@ function editSnap(date: string) {
 }
 
 async function delSnap(date: string, btn?: HTMLButtonElement) {
-  // Block only when the user has never authenticated at all.
-  // A temporarily-expired token (e.g. while offline) must not prevent a
-  // local write; the cloud sync will be scheduled once the token is valid again.
-  if (!isSignedIn() && !hasEverGranted()) return;
-  if (isSyncBusy()) {
-    showMsg('snap-msg', 'A sync or save is in progress. Try again in a moment.', false);
-    return;
-  }
+  if (!ensureWriteAccess('snap-msg', 'signed-in-or-granted')) return;
   const ok = await confirmDialog({
     title: `Delete snapshot for ${fmtMon(date)}?`,
     body: 'This cannot be undone.',
@@ -1279,39 +1319,30 @@ async function delSnap(date: string, btn?: HTMLButtonElement) {
     danger: true,
   });
   if (!ok) return;
-  const run = async () => {
-    const previous = state.snaps;
-    state.snaps = state.snaps.filter((s) => s.date !== date);
-    setSyncing(true);
-    try {
-      await saveSnapshots(state.snaps);
-      // Only schedule an immediate upload when a valid token is available.
-      // When offline/token-expired, the 'online' event handler (or the next
-      // successful silent token refresh) will call scheduleUpload() automatically.
-      if (isSignedIn()) scheduleUpload();
-      const snapCachedDel = await setCachedSnapshots(state.snaps);
-      if (!snapCachedDel) showCacheWriteWarning();
-      renderAll();
-    } catch (err) {
-      // Roll back optimistic delete on write failure.
-      state.snaps = previous;
-      throw err;
-    } finally {
-      setSyncing(false);
-    }
-  };
-  try {
-    if (btn) {
-      await withButtonGuard(btn, run, { busyText: 'Removing...', keepDisabledOnSuccess: true });
-    } else {
-      await run();
-    }
-    if (state.offline || !navigator.onLine) {
-      showMsg('snap-msg', 'Deleted locally. Will sync to Drive when back online.', true);
-    }
-  } catch (err) {
-    showMsg('snap-msg', 'Delete failed: ' + (err as Error).message, false);
-  }
+  await performWriteAction({
+    msgId: 'snap-msg',
+    access: 'signed-in-or-granted',
+    button: btn,
+    busyText: 'Removing...',
+    keepDisabledOnSuccess: true,
+    errorPrefix: 'Delete failed: ',
+    action: async () => {
+      const previous = state.snaps;
+      state.snaps = state.snaps.filter((s) => s.date !== date);
+      try {
+        await saveSnapshots(state.snaps);
+        if (isSignedIn()) scheduleUpload();
+        const snapCachedDel = await setCachedSnapshots(state.snaps);
+        if (!snapCachedDel) showCacheWriteWarning();
+        renderAll();
+      } catch (err) {
+        state.snaps = previous;
+        throw err;
+      }
+    },
+    onlineMessage: 'Snapshot deleted.',
+    offlineMessage: 'Deleted locally. Will sync to Drive when back online.',
+  });
 }
 
 function computePdOrThrow(txs: Transaction[]): PortfolioData | null {
@@ -1338,50 +1369,32 @@ async function persistTransactionsState(nextPd: PortfolioData | null): Promise<v
 }
 
 async function addManualTransaction(): Promise<void> {
-  if (!isSignedIn() && !hasEverGranted()) {
-    showMsg('tx-msg', 'Please sign in first.', false);
-    return;
-  }
-  if (isSyncBusy()) {
-    showMsg('tx-msg', 'A sync or save is in progress. Try again in a moment.', false);
-    return;
-  }
+  if (!ensureWriteAccess('tx-msg', 'signed-in-or-granted')) return;
   try {
-    const suggestions = buildSecuritySuggestions(getHoldings(), state.txs);
+    const suggestions = buildAppSecuritySuggestions(state.txs);
     const draft = await transactionDialog({ suggestions });
     if (!draft) return;
     const candidate = [...state.txs, draft].sort((a, b) => a.date.localeCompare(b.date));
     const nextPd = computePdOrThrow(candidate);
-    setSyncing(true);
-    try {
-      await insertTransaction(draft);
-      if (isSignedIn()) scheduleUpload();
-      await persistTransactionsState(nextPd);
-      renderAll();
-      showMsg(
-        'tx-msg',
-        state.offline || !navigator.onLine
-          ? 'Transaction saved locally. Will sync to Drive when back online.'
-          : 'Transaction added.',
-        true,
-      );
-    } finally {
-      setSyncing(false);
-    }
+    await performWriteAction({
+      msgId: 'tx-msg',
+      access: 'signed-in-or-granted',
+      action: async () => {
+        await insertTransaction(draft);
+        if (isSignedIn()) scheduleUpload();
+        await persistTransactionsState(nextPd);
+        renderAll();
+      },
+      onlineMessage: 'Transaction added.',
+      offlineMessage: 'Transaction saved locally. Will sync to Drive when back online.',
+    });
   } catch (err) {
     showMsg('tx-msg', 'Error: ' + (err as Error).message, false);
   }
 }
 
 async function editManualTransaction(rowId: number): Promise<void> {
-  if (!isSignedIn() && !hasEverGranted()) {
-    showMsg('tx-msg', 'Please sign in first.', false);
-    return;
-  }
-  if (isSyncBusy()) {
-    showMsg('tx-msg', 'A sync or save is in progress. Try again in a moment.', false);
-    return;
-  }
+  if (!ensureWriteAccess('tx-msg', 'signed-in-or-granted')) return;
   const existing = state.txs.find((t) => t.rowId === rowId);
   if (!existing) {
     showMsg('tx-msg', 'Transaction not found.', false);
@@ -1389,41 +1402,30 @@ async function editManualTransaction(rowId: number): Promise<void> {
   }
 
   try {
-    const suggestions = buildSecuritySuggestions(getHoldings(), state.txs);
+    const suggestions = buildAppSecuritySuggestions(state.txs);
     const draft = await transactionDialog({ existing, suggestions });
     if (!draft) return;
     const candidate = state.txs.map((t) => (t.rowId === rowId ? { ...draft, rowId } : t));
     const nextPd = computePdOrThrow(candidate);
-    setSyncing(true);
-    try {
-      await updateTransaction(rowId, draft);
-      if (isSignedIn()) scheduleUpload();
-      await persistTransactionsState(nextPd);
-      renderAll();
-      showMsg(
-        'tx-msg',
-        state.offline || !navigator.onLine
-          ? 'Transaction updated locally. Will sync to Drive when back online.'
-          : 'Transaction updated.',
-        true,
-      );
-    } finally {
-      setSyncing(false);
-    }
+    await performWriteAction({
+      msgId: 'tx-msg',
+      access: 'signed-in-or-granted',
+      action: async () => {
+        await updateTransaction(rowId, draft);
+        if (isSignedIn()) scheduleUpload();
+        await persistTransactionsState(nextPd);
+        renderAll();
+      },
+      onlineMessage: 'Transaction updated.',
+      offlineMessage: 'Transaction updated locally. Will sync to Drive when back online.',
+    });
   } catch (err) {
     showMsg('tx-msg', 'Error: ' + (err as Error).message, false);
   }
 }
 
 async function delManualTransaction(rowId: number, btn?: HTMLButtonElement): Promise<void> {
-  if (!isSignedIn() && !hasEverGranted()) {
-    showMsg('tx-msg', 'Please sign in first.', false);
-    return;
-  }
-  if (isSyncBusy()) {
-    showMsg('tx-msg', 'A sync or save is in progress. Try again in a moment.', false);
-    return;
-  }
+  if (!ensureWriteAccess('tx-msg', 'signed-in-or-granted')) return;
   const tx = state.txs.find((t) => t.rowId === rowId);
   if (!tx) {
     showMsg('tx-msg', 'Transaction not found.', false);
@@ -1437,34 +1439,24 @@ async function delManualTransaction(rowId: number, btn?: HTMLButtonElement): Pro
     danger: true,
   });
   if (!ok) return;
-
-  const run = async () => {
-    const candidate = state.txs.filter((t) => t.rowId !== rowId);
-    const nextPd = computePdOrThrow(candidate);
-    setSyncing(true);
-    try {
+  const candidate = state.txs.filter((t) => t.rowId !== rowId);
+  const nextPd = computePdOrThrow(candidate);
+  await performWriteAction({
+    msgId: 'tx-msg',
+    access: 'signed-in-or-granted',
+    button: btn,
+    busyText: 'Deleting...',
+    keepDisabledOnSuccess: true,
+    errorPrefix: 'Delete failed: ',
+    action: async () => {
       await deleteTransaction(rowId);
       if (isSignedIn()) scheduleUpload();
       await persistTransactionsState(nextPd);
       renderAll();
-    } finally {
-      setSyncing(false);
-    }
-  };
-  try {
-    if (btn)
-      await withButtonGuard(btn, run, { busyText: 'Deleting...', keepDisabledOnSuccess: true });
-    else await run();
-    showMsg(
-      'tx-msg',
-      state.offline || !navigator.onLine
-        ? 'Transaction deleted locally. Will sync to Drive when back online.'
-        : 'Transaction deleted.',
-      true,
-    );
-  } catch (err) {
-    showMsg('tx-msg', 'Delete failed: ' + (err as Error).message, false);
-  }
+    },
+    onlineMessage: 'Transaction deleted.',
+    offlineMessage: 'Transaction deleted locally. Will sync to Drive when back online.',
+  });
 }
 
 function clearSnapForm() {

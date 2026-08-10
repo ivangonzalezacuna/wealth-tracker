@@ -1,7 +1,7 @@
 /** Promise-based confirmation dialog. Resolves true on confirm, false on cancel/dismiss. Single instance. */
 
 import { esc } from '../utils';
-import { bootstrapDialog, createDialogController } from './modalShell';
+import { createDialogController, DIALOG_BUTTON_FOCUSABLES, openDialogShell } from './modalShell';
 
 const _dialog = createDialogController(false, {
   overlaySelector: '.confirm-overlay',
@@ -30,21 +30,16 @@ export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
           <button class="btn btn-sm ${opts.danger ? 'btn-danger' : 'btn-primary'} js-confirm-ok">${esc(opts.confirmLabel || 'Confirm')}</button>
         </div>
       </div>`;
-    document.body.appendChild(overlay);
-
-    _dialog.setOverlay(overlay);
-    _dialog.setCleanup(
-      bootstrapDialog({
-        overlay,
-        onDismiss: () => _dismiss(false),
-        onCancel: () => _dismiss(false),
-        onSubmit: () => _dismiss(true),
-        cancelSelector: '.js-confirm-cancel',
-        submitSelector: '.js-confirm-ok',
-        focusablesSelector: 'button:not([disabled])',
-        initialFocusSelector: '.js-confirm-cancel',
-      }),
-    );
+    openDialogShell(_dialog, {
+      overlay,
+      onDismiss: () => _dismiss(false),
+      onCancel: () => _dismiss(false),
+      onSubmit: () => _dismiss(true),
+      cancelSelector: '.js-confirm-cancel',
+      submitSelector: '.js-confirm-ok',
+      focusablesSelector: DIALOG_BUTTON_FOCUSABLES,
+      initialFocusSelector: '.js-confirm-cancel',
+    });
   });
 }
 

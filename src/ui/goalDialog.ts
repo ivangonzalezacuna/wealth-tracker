@@ -1,10 +1,12 @@
 import { esc } from '../utils';
 import type { NamedGoal } from '../types';
+import { normalizeGoalLabel } from '../model/goals';
 import {
-  bootstrapDialog,
   createDialogController,
+  DIALOG_INPUT_FOCUSABLES,
   focusFirstInvalid,
   makeDialogHelpers,
+  openDialogShell,
 } from './modalShell';
 import { infoTip, attachInfoTips } from './infoTip';
 
@@ -71,22 +73,17 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
         </div>
       </div>`;
 
-    document.body.appendChild(overlay);
-    _dialog.setOverlay(overlay);
+    openDialogShell(_dialog, {
+      overlay,
+      onDismiss: () => _dismiss(null),
+      onCancel: () => _dismiss(null),
+      onSubmit: _submit,
+      cancelSelector: '.js-goald-cancel',
+      submitSelector: '.js-goald-submit',
+      focusablesSelector: DIALOG_INPUT_FOCUSABLES,
+      initialFocusSelector: '#goald-label',
+    });
     attachInfoTips(overlay);
-
-    _dialog.setCleanup(
-      bootstrapDialog({
-        overlay,
-        onDismiss: () => _dismiss(null),
-        onCancel: () => _dismiss(null),
-        onSubmit: _submit,
-        cancelSelector: '.js-goald-cancel',
-        submitSelector: '.js-goald-submit',
-        focusablesSelector: 'input:not([disabled]), button:not([disabled])',
-        initialFocusSelector: '#goald-label',
-      }),
-    );
   });
 }
 
@@ -100,12 +97,11 @@ function _submit(): void {
 
   const label = get('goald-label');
   const targetNetWorth = get('goald-target');
-  const normalizedLabel = label.trim().replace(/\s+/g, ' ').toLowerCase();
+  const normalizedLabel = normalizeGoalLabel(label);
   if (
     normalizedLabel &&
     _activeExistingLabels.some(
-      (existingLabel) =>
-        existingLabel.trim().replace(/\s+/g, ' ').toLowerCase() === normalizedLabel,
+      (existingLabel) => normalizeGoalLabel(existingLabel) === normalizedLabel,
     )
   ) {
     setErr('goald-label', 'This goal name is already defined in another goal.');

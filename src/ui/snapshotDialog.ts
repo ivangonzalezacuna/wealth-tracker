@@ -2,10 +2,11 @@ import { parseNum } from '../csv';
 import { currentMonth, fmtEur2, safeColor, esc } from '../utils';
 import type { Account, Holding, PortfolioData, Snapshot } from '../types';
 import {
-  bootstrapDialog,
   createDialogController,
+  DIALOG_INPUT_FOCUSABLES,
   focusFirstInvalid,
   makeDialogHelpers,
+  openDialogShell,
 } from './modalShell';
 
 let _activeOpts: SnapshotDialogOptions | null = null;
@@ -66,21 +67,16 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
         </div>
       </div>`;
 
-    document.body.appendChild(overlay);
-    _dialog.setOverlay(overlay);
-
-    _dialog.setCleanup(
-      bootstrapDialog({
-        overlay,
-        onDismiss: () => _dismiss(null),
-        onCancel: () => _dismiss(null),
-        onSubmit: _submit,
-        cancelSelector: '.js-snapd-cancel',
-        submitSelector: '.js-snapd-submit',
-        focusablesSelector: 'input:not([disabled]), button:not([disabled])',
-        initialFocusSelector: '#snapd-date',
-      }),
-    );
+    openDialogShell(_dialog, {
+      overlay,
+      onDismiss: () => _dismiss(null),
+      onCancel: () => _dismiss(null),
+      onSubmit: _submit,
+      cancelSelector: '.js-snapd-cancel',
+      submitSelector: '.js-snapd-submit',
+      focusablesSelector: DIALOG_INPUT_FOCUSABLES,
+      initialFocusSelector: '#snapd-date',
+    });
     overlay.addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest('.snap-etf-toggle') as HTMLElement | null;
       if (!btn) return;

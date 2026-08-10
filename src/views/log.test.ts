@@ -15,6 +15,10 @@ vi.mock('../constants', () => ({
 let _collapseState: Record<string, boolean> = {};
 vi.mock('../ui/collapseState', () => ({
   isCollapsed: (key: string) => !!_collapseState[key],
+  setCollapsed: (key: string, collapsed: boolean) => {
+    if (collapsed) _collapseState[key] = true;
+    else delete _collapseState[key];
+  },
   toggleCollapsed: (key: string) => {
     _collapseState[key] = !_collapseState[key];
     return _collapseState[key];

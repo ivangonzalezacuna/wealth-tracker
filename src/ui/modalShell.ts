@@ -20,6 +20,10 @@ export interface DialogBootstrapOptions {
 
 const DEFAULT_FOCUSABLES =
   'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])';
+export const DIALOG_FOCUSABLES =
+  'input:not([disabled]), select:not([disabled]), button:not([disabled])';
+export const DIALOG_INPUT_FOCUSABLES = 'input:not([disabled]), button:not([disabled])';
+export const DIALOG_BUTTON_FOCUSABLES = 'button:not([disabled])';
 
 export interface DialogController<Result> {
   begin(resolve: (value: Result) => void): void;
@@ -131,6 +135,16 @@ export function bootstrapDialog(opts: DialogBootstrapOptions): () => void {
     submitEl?.removeEventListener('click', handleSubmit);
     cleanupShell();
   };
+}
+
+export function openDialogShell<Result>(
+  controller: DialogController<Result>,
+  opts: DialogBootstrapOptions,
+): HTMLElement {
+  document.body.appendChild(opts.overlay);
+  controller.setOverlay(opts.overlay);
+  controller.setCleanup(bootstrapDialog(opts));
+  return opts.overlay;
 }
 
 export function restoreFocus(target: HTMLElement | null): void {

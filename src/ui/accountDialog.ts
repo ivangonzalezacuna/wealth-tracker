@@ -7,12 +7,14 @@ import { esc } from '../utils';
 import type { Account, ContribInterval } from '../types';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { ACCOUNT_TYPES } from '../model/accountTypes';
+import { normalizeAccountLabel } from '../model/accounts';
 import {
   bindColorInputs,
-  bootstrapDialog,
   createDialogController,
+  DIALOG_FOCUSABLES,
   focusFirstInvalid,
   makeDialogHelpers,
+  openDialogShell,
   populateDatalist,
 } from './modalShell';
 import { infoTip, attachInfoTips } from './infoTip';
@@ -169,8 +171,16 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
         </div>
       </div>`;
 
-    document.body.appendChild(overlay);
-    _dialog.setOverlay(overlay);
+    openDialogShell(_dialog, {
+      overlay,
+      onDismiss: () => _dismiss(null),
+      onCancel: () => _dismiss(null),
+      onSubmit: _submit,
+      cancelSelector: '.js-acctd-cancel',
+      submitSelector: '.js-acctd-submit',
+      focusablesSelector: DIALOG_FOCUSABLES,
+      initialFocusSelector: '#acctd-label',
+    });
     attachInfoTips(overlay);
 
     // Populate datalists via DOM API (no esc needed — no innerHTML)
@@ -193,19 +203,6 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
     lockedCb?.addEventListener('change', () => {
       if (lockedBlock) lockedBlock.style.display = lockedCb.checked ? '' : 'none';
     });
-
-    _dialog.setCleanup(
-      bootstrapDialog({
-        overlay,
-        onDismiss: () => _dismiss(null),
-        onCancel: () => _dismiss(null),
-        onSubmit: _submit,
-        cancelSelector: '.js-acctd-cancel',
-        submitSelector: '.js-acctd-submit',
-        focusablesSelector: 'input:not([disabled]), select:not([disabled]), button:not([disabled])',
-        initialFocusSelector: '#acctd-label',
-      }),
-    );
   });
 }
 
@@ -238,10 +235,8 @@ function _submit(): void {
     setErr('acctd-label', 'Name must contain at least one letter or digit.');
     valid = false;
   } else {
-    const normalized = labelVal.trim().replace(/\s+/g, ' ').toLowerCase();
-    const existingLabels = new Set(
-      _activeExistingLabelsList.map((label) => label.trim().replace(/\s+/g, ' ').toLowerCase()),
-    );
+    const normalized = normalizeAccountLabel(labelVal);
+    const existingLabels = new Set(_activeExistingLabelsList.map(normalizeAccountLabel));
     if (existingLabels.has(normalized)) {
       setErr('acctd-label', 'This account name is already defined in another account.');
       valid = false;

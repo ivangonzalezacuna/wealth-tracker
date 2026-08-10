@@ -3,12 +3,13 @@ import { snapTotal, fmtEur2, fmtMon, fmtDay, esc, safeColor } from '../utils';
 import { sourceLabel } from '../import/profiles/index';
 import type { Snapshot, Transaction } from '../types';
 import { T } from '../theme';
-import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
+import { isCollapsed, setCollapsed } from '../ui/collapseState';
 import type { SortState } from './tableSort';
-import { applySort, bindSortableHeader } from './tableSort';
 import type { ColumnDef } from './tableColumns';
-import { renderTableHeader, renderTableRow, getSortGetters } from './tableColumns';
+import { renderTableHeader, renderTableRow } from './tableColumns';
 import { renderPagination } from './pagination';
+import { toggleSingleDetailRow } from './expandableRows';
+import { bindSortedTableHeader, sortAndPaginate } from './tableView';
 
 interface LogState {
   txs: Transaction[];
@@ -243,13 +244,14 @@ function renderSnapList(
   const columns = snapColumns();
 
   // Apply sort (before pagination)
-  const sorted = applySort(filtered, _snapTblSort, getSortGetters(columns));
-
-  // Pagination
-  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
-  if (_snapPage > totalPages) _snapPage = totalPages;
-  const start = (_snapPage - 1) * PAGE_SIZE;
-  const pageItems = sorted.slice(start, start + PAGE_SIZE);
+  const { pageItems, page, totalPages } = sortAndPaginate(
+    filtered,
+    columns,
+    _snapTblSort,
+    _snapPage,
+    PAGE_SIZE,
+  );
+  _snapPage = page;
 
   // Compact row layout - fixed 3-column (Month / Net worth / segment indicator)
   el.innerHTML = `
@@ -267,14 +269,11 @@ function renderSnapList(
   `;
 
   // Bind sort handler on header row
-  const snapHeaderEl = document.getElementById('snap-table-header');
-  if (snapHeaderEl) {
-    bindSortableHeader(snapHeaderEl, _snapTblSort, (newState) => {
-      _snapTblSort = newState;
-      _snapPage = 1;
-      renderSnapList(snaps, onEdit, onDel);
-    });
-  }
+  bindSortedTableHeader(document.getElementById('snap-table-header'), _snapTblSort, (newState) => {
+    _snapTblSort = newState;
+    _snapPage = 1;
+    renderSnapList(snaps, onEdit, onDel);
+  });
 
   // Row tap-to-expand detail panel (delegated on #snaps-list)
   const listEl = document.getElementById('snaps-list') as
@@ -287,24 +286,20 @@ function renderSnapList(
       if (target.closest('.js-edit-snap') || target.closest('.js-del-snap')) return;
       const row = target.closest('.snap-row-compact:not(.th)') as HTMLElement | null;
       if (!row) return;
-      const existing = listEl.querySelector('.snap-detail') as HTMLElement | null;
-      if (existing) {
-        const wasThis = existing.previousElementSibling === row;
-        const prevDate = (existing.previousElementSibling as HTMLElement | null)?.dataset?.date;
-        (existing.previousElementSibling as HTMLElement | null)?.setAttribute(
-          'aria-expanded',
-          'false',
-        );
-        existing.remove();
-        if (prevDate) toggleCollapsed('snap:' + prevDate); // mark collapsed
-        if (wasThis) return;
-      }
       const date = row.dataset.date;
       const snap = snaps.find((s) => s.date === date);
       if (!snap) return;
-      if (date) toggleCollapsed('snap:' + date); // mark expanded
-      _expandSnapRow(row, snap, date!, listEl, onEdit, onDel);
-      row.setAttribute('aria-expanded', 'true');
+      toggleSingleDetailRow({
+        container: listEl,
+        row,
+        item: snap,
+        detailSelector: '.snap-detail',
+        createDetail: () => _createSnapDetail(snap, date!, onEdit, onDel),
+        onExpandedChange: (detailRow, expanded) => {
+          const detailDate = detailRow.dataset.date;
+          if (detailDate) setCollapsed('snap:' + detailDate, expanded);
+        },
+      });
     });
     listEl.addEventListener('keydown', (e) => {
       const row = (e.target as HTMLElement).closest(
@@ -322,7 +317,19 @@ function renderSnapList(
       const date = (row as HTMLElement).dataset.date;
       if (date && isCollapsed('snap:' + date)) {
         const snap = snaps.find((s) => s.date === date);
-        if (snap) _expandSnapRow(row as HTMLElement, snap, date, listEl, onEdit, onDel);
+        if (snap) {
+          toggleSingleDetailRow({
+            container: listEl,
+            row: row as HTMLElement,
+            item: snap,
+            detailSelector: '.snap-detail',
+            createDetail: () => _createSnapDetail(snap, date, onEdit, onDel),
+            onExpandedChange: (detailRow, expanded) => {
+              const detailDate = detailRow.dataset.date;
+              if (detailDate) setCollapsed('snap:' + detailDate, expanded);
+            },
+          });
+        }
       }
     });
   }
@@ -334,15 +341,13 @@ function renderSnapList(
   });
 }
 
-/** Expand a snapshot row into its detail panel. */
-function _expandSnapRow(
-  row: HTMLElement,
+/** Build the detail panel shown beneath an expanded snapshot row. */
+function _createSnapDetail(
   snap: Snapshot,
   date: string,
-  listEl: HTMLElement,
   onEdit: (d: string) => void,
   onDel: (d: string, btn?: HTMLButtonElement) => void,
-): void {
+): HTMLElement {
   const accts = getACCTSList();
   const detailRows = accts
     .filter((a) => ((snap[a.key] as number) || 0) > 0)
@@ -364,7 +369,6 @@ function _expandSnapRow(
       <button class="btn btn-sm btn-danger js-del-snap" data-date="${date}">Delete</button>
     </div>`
     }`;
-  row.insertAdjacentElement('afterend', panel);
   panel.querySelector('.js-edit-snap')?.addEventListener('click', (ev) => {
     ev.stopPropagation();
     onEdit(date);
@@ -373,6 +377,7 @@ function _expandSnapRow(
     ev.stopPropagation();
     onDel(date, ev.currentTarget as HTMLButtonElement);
   });
+  return panel;
 }
 
 function hidePagination(): void {
@@ -526,11 +531,14 @@ function renderTxList(txs: Transaction[]): void {
   }
 
   const columns = txColumns();
-  const sorted = applySort(filtered, _txTblSort, getSortGetters(columns));
-  const totalPages = Math.max(1, Math.ceil(sorted.length / TX_PAGE_SIZE));
-  if (_txPage > totalPages) _txPage = totalPages;
-  const start = (_txPage - 1) * TX_PAGE_SIZE;
-  const pageItems = sorted.slice(start, start + TX_PAGE_SIZE);
+  const { pageItems, page, totalPages } = sortAndPaginate(
+    filtered,
+    columns,
+    _txTblSort,
+    _txPage,
+    TX_PAGE_SIZE,
+  );
+  _txPage = page;
   const showActions = !_readOnly;
 
   listEl.innerHTML = `
@@ -555,14 +563,11 @@ function renderTxList(txs: Transaction[]): void {
       .join('')}
   `;
 
-  const headerEl = document.getElementById('tx-table-header');
-  if (headerEl) {
-    bindSortableHeader(headerEl, _txTblSort, (newState) => {
-      _txTblSort = newState;
-      _txPage = 1;
-      renderTxList(txs);
-    });
-  }
+  bindSortedTableHeader(document.getElementById('tx-table-header'), _txTblSort, (newState) => {
+    _txTblSort = newState;
+    _txPage = 1;
+    renderTxList(txs);
+  });
 
   renderPagination('tx-pagination', _txPage, totalPages, (page) => {
     _txPage = page;

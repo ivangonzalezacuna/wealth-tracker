@@ -28,11 +28,7 @@ import { INTERVAL_LABELS } from '../model/contributions';
 import { showMsg, reinjectPendingMsg, withButtonGuard, esc, fmtEur } from '../utils';
 import type { Account, Holding, Settings, ContribInterval, NamedGoal, Transaction } from '../types';
 import { formatEnglishDateTime, formatEnglishMonth } from '../dateFormat';
-import {
-  buildSecuritySuggestions,
-  normalizeInstitution,
-  type SecuritySuggestions,
-} from '../model/securitySuggestions';
+import { normalizeInstitution, type SecuritySuggestions } from '../model/securitySuggestions';
 import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { confirmDialog } from '../ui/confirmDialog';
@@ -43,6 +39,7 @@ import { ACCOUNT_TYPES } from '../model/accountTypes';
 import { isSignedIn } from '../auth/google';
 import { isBackupStale } from '../backup/exportImport';
 import { isBusy, setBusy } from '../sync/lock';
+import { buildAppSecuritySuggestions, loadAppSecuritySuggestions } from '../securitySuggestions';
 
 /** Build <option> HTML for an interval <select>, marking `selected` the matching value. */
 function intervalOptionsHtml(selected: ContribInterval): string {
@@ -284,6 +281,81 @@ function accountInstitutionList(accounts: Account[]): string[] {
   ].sort((a, b) => a.localeCompare(b));
 }
 
+interface EditableListController<T> {
+  items(): T[];
+  previewAdd(next: T, message: string): T[];
+  previewUpdate(index: number, next: T, message: string): T[];
+}
+
+function createEditableListController<T>(opts: {
+  getItems: () => T[];
+  apply: (items: T[]) => void;
+  msgId: string;
+}): EditableListController<T> {
+  return {
+    items: () => opts.getItems(),
+    previewAdd(next, message) {
+      const updated = [...opts.getItems(), next];
+      opts.apply(updated);
+      showMsg(opts.msgId, message, true);
+      return updated;
+    },
+    previewUpdate(index, next, message) {
+      const updated = opts.getItems().map((item, itemIndex) => (itemIndex === index ? next : item));
+      opts.apply(updated);
+      showMsg(opts.msgId, message, true);
+      return updated;
+    },
+  };
+}
+
+async function persistListRemoval<T>(opts: {
+  controller: EditableListController<T>;
+  index: number;
+  root: HTMLElement;
+  btn: HTMLButtonElement;
+  cardKey: CardKey;
+  persist: (items: T[]) => Promise<unknown>;
+  rerender: (root: HTMLElement, items: T[]) => void;
+  confirmTitle: string;
+  confirmBody: string;
+  msgId: string;
+  successMessage: string;
+  busyText: string;
+  keepDisabledOnSuccess?: boolean;
+  confirmLabel?: string;
+  afterPersist?: (items: T[]) => Promise<string | void>;
+}): Promise<void> {
+  const ok = await confirmDialog({
+    title: opts.confirmTitle,
+    body: opts.confirmBody,
+    confirmLabel: opts.confirmLabel || 'Remove',
+    danger: true,
+  });
+  if (!ok) return;
+  const updated = opts.controller.items().filter((_, itemIndex) => itemIndex !== opts.index);
+  try {
+    let successMessage = opts.successMessage;
+    await withCardGuard(
+      opts.cardKey,
+      opts.btn,
+      async () => {
+        await opts.persist(updated);
+        const result = await opts.afterPersist?.(updated);
+        if (result) successMessage = result;
+      },
+      {
+        busyText: opts.busyText,
+        keepDisabledOnSuccess: opts.keepDisabledOnSuccess,
+      },
+    );
+    opts.rerender(opts.root, updated);
+    showMsg(opts.msgId, successMessage, true);
+  } catch (err) {
+    showMsg(opts.msgId, 'Error: ' + (err as Error).message, false);
+  }
+}
+
 function renderAccountsCard(accounts: Account[]): string {
   _accounts = accounts.slice();
   const rows = accounts.map((a, i) => renderAccountRow(a, i)).join('');
@@ -367,47 +439,48 @@ async function deleteAccount(
       return;
     }
   }
-  const ok = await confirmDialog({
-    title: `Remove ${esc(a?.label || 'this account')}?`,
-    body: 'This removes it from your configuration. The account has no stored snapshot balances, so historical totals stay unchanged. Its old data column stays reserved so a future account never accidentally reuses it.',
-    confirmLabel: 'Remove',
-    danger: true,
+  const controller = createEditableListController<Account>({
+    getItems: () => _accounts ?? [],
+    apply: (updated) => rerenderAccountsTable(root, updated),
+    msgId: 'accts-msg',
   });
-  if (!ok) return;
-  const updated = accounts.filter((_, i) => i !== idx);
-  try {
-    let retiredOk = true;
-    await withCardGuard(
-      'accounts',
-      btn,
-      async () => {
-        await setAccounts(updated);
-        if (a?.id) retiredOk = await retireAccountIdsSafely([a.id]);
-      },
-      { busyText: 'Removing...', keepDisabledOnSuccess: true },
-    );
-    rerenderAccountsTable(root, updated);
-    showMsg(
-      'accts-msg',
-      retiredOk ? 'Removed' : 'Removed (will finish reserving its id once back online)',
-      true,
-    );
-  } catch (err) {
-    showMsg('accts-msg', 'Error: ' + (err as Error).message, false);
-  }
+  await persistListRemoval({
+    controller,
+    index: idx,
+    root,
+    btn,
+    cardKey: 'accounts',
+    persist: async (updated) => setAccounts(updated),
+    rerender: rerenderAccountsTable,
+    confirmTitle: `Remove ${esc(a?.label || 'this account')}?`,
+    confirmBody:
+      'This removes it from your configuration. The account has no stored snapshot balances, so historical totals stay unchanged. Its old data column stays reserved so a future account never accidentally reuses it.',
+    msgId: 'accts-msg',
+    successMessage: 'Removed',
+    busyText: 'Removing...',
+    keepDisabledOnSuccess: true,
+    afterPersist: async () => {
+      if (!a?.id) return;
+      const retiredOk = await retireAccountIdsSafely([a.id]);
+      return retiredOk ? 'Removed' : 'Removed (will finish reserving its id once back online)';
+    },
+  });
 }
 
 function attachAccountListeners(root: HTMLElement): void {
+  const controller = createEditableListController<Account>({
+    getItems: () => _accounts ?? [],
+    apply: (updated) => rerenderAccountsTable(root, updated),
+    msgId: 'accts-msg',
+  });
   root.querySelector('#btn-add-acct')?.addEventListener('click', async () => {
     const draft = await accountDialog({
-      existingLabels: (_accounts ?? []).map((a) => a.label),
-      institutionSuggestions: accountInstitutionList(_accounts ?? []),
+      existingLabels: controller.items().map((a) => a.label),
+      institutionSuggestions: accountInstitutionList(controller.items()),
     });
     if (!draft) return;
-    draft.order = (_accounts?.length ?? 0) + 1;
-    const updated = [...(_accounts ?? []), draft];
-    rerenderAccountsTable(root, updated);
-    showMsg('accts-msg', 'Account added — click Save to persist.', true);
+    draft.order = controller.items().length + 1;
+    controller.previewAdd(draft, 'Account added — click Save to persist.');
   });
 
   root.addEventListener('click', async (e) => {
@@ -415,7 +488,7 @@ function attachAccountListeners(root: HTMLElement): void {
     if (!editBtn) return;
     const idx = parseInt(editBtn.dataset.idx ?? '');
     if (isNaN(idx)) return;
-    const accounts = _accounts ?? [];
+    const accounts = controller.items();
     const existing = accounts[idx];
     if (!existing) return;
     const draft = await accountDialog({
@@ -425,9 +498,7 @@ function attachAccountListeners(root: HTMLElement): void {
     });
     if (!draft) return;
     draft.order = existing.order;
-    const updated = accounts.map((a, i) => (i === idx ? draft : a));
-    rerenderAccountsTable(root, updated);
-    showMsg('accts-msg', 'Account updated — click Save to persist.', true);
+    controller.previewUpdate(idx, draft, 'Account updated — click Save to persist.');
   });
 
   root.querySelector('#btn-save-accts')?.addEventListener('click', async () => {
@@ -512,7 +583,7 @@ function renderHoldingsCard(holdings: Holding[]): string {
   // Cache the full list for merge-back when filter is active
   _holdings = holdings.slice();
   _allHoldings = holdings.slice();
-  _securitySuggestions = buildSecuritySuggestions(holdings, _suggestionTransactions);
+  _securitySuggestions = buildAppSecuritySuggestions(_suggestionTransactions, holdings);
 
   const activeCount = holdings.filter((h) => h.active).length;
   const closedCount = holdings.filter((h) => !h.active).length;
@@ -624,31 +695,38 @@ async function deleteHolding(
   if (isCardBusy('holdings') || isBusy()) return;
   const holds = _holdings ?? [];
   const hold = holds[idx];
-  const ok = await confirmDialog({
-    title: `Remove ${esc(hold?.shortName || hold?.isin || 'this holding')}?`,
-    body: 'This removes it from your configuration. Historical data is not affected.',
-    confirmLabel: 'Remove',
-    danger: true,
+  const controller = createEditableListController<Holding>({
+    getItems: () => _holdings ?? _allHoldings ?? [],
+    apply: (updated) => rerenderHoldingsTable(root, updated),
+    msgId: 'holds-msg',
   });
-  if (!ok) return;
-  const updated = holds.filter((_, i) => i !== idx);
-  try {
-    await withCardGuard('holdings', btn, () => setHoldings(updated), {
-      busyText: 'Removing...',
-      keepDisabledOnSuccess: true,
-    });
-    rerenderHoldingsTable(root, updated);
-    showMsg('holds-msg', 'Removed', true);
-  } catch (err) {
-    showMsg('holds-msg', 'Error: ' + (err as Error).message, false);
-  }
+  await persistListRemoval({
+    controller,
+    index: idx,
+    root,
+    btn,
+    cardKey: 'holdings',
+    persist: async (updated) => setHoldings(updated),
+    rerender: rerenderHoldingsTable,
+    confirmTitle: `Remove ${esc(hold?.shortName || hold?.isin || 'this holding')}?`,
+    confirmBody: 'This removes it from your configuration. Historical data is not affected.',
+    msgId: 'holds-msg',
+    successMessage: 'Removed',
+    busyText: 'Removing...',
+    keepDisabledOnSuccess: true,
+  });
 }
 
 function attachHoldingListeners(root: HTMLElement): void {
-  void loadTransactions()
+  const controller = createEditableListController<Holding>({
+    getItems: () => _holdings ?? _allHoldings ?? [],
+    apply: (updated) => rerenderHoldingsTable(root, updated),
+    msgId: 'holds-msg',
+  });
+  void loadAppSecuritySuggestions()
     .then((txs) => {
-      _suggestionTransactions = Array.isArray(txs) ? txs : [];
-      _securitySuggestions = buildSecuritySuggestions(getHoldings(), _suggestionTransactions);
+      _suggestionTransactions = txs.transactions;
+      _securitySuggestions = txs.suggestions;
     })
     .catch(() => undefined);
 
@@ -664,16 +742,14 @@ function attachHoldingListeners(root: HTMLElement): void {
   }
 
   root.querySelector('#btn-add-hold')?.addEventListener('click', async () => {
-    const order = (_holdings?.length ?? 0) + 1;
+    const order = controller.items().length + 1;
     const draft = await holdingDialog({
       suggestions: _securitySuggestions,
       order,
-      existingIsins: (_holdings ?? []).map((h) => h.isin),
+      existingIsins: controller.items().map((h) => h.isin),
     });
     if (!draft) return;
-    const updated = [...(_holdings ?? []), draft];
-    rerenderHoldingsTable(root, updated);
-    showMsg('holds-msg', 'Holding added — click Save to persist.', true);
+    controller.previewAdd(draft, 'Holding added — click Save to persist.');
   });
 
   root.addEventListener('click', async (e) => {
@@ -681,21 +757,20 @@ function attachHoldingListeners(root: HTMLElement): void {
     if (!editBtn) return;
     const idx = parseInt(editBtn.dataset.idx ?? '');
     if (isNaN(idx)) return;
-    const holds = _holdings ?? _allHoldings ?? [];
+    const holds = controller.items();
     const existing = holds[idx];
     if (!existing) return;
     const draft = await holdingDialog({
       existing,
       suggestions: _securitySuggestions,
-      existingIsins: (_allHoldings ?? holds)
-        .filter((h) => h.isin !== existing.isin)
-        .map((h) => h.isin),
+      existingIsins: holds.filter((h) => h.isin !== existing.isin).map((h) => h.isin),
     });
     if (!draft) return;
-    const all = _allHoldings ?? holds;
-    const updated = all.map((h, i) => (i === idx ? { ...draft, order: h.order } : h));
-    rerenderHoldingsTable(root, updated);
-    showMsg('holds-msg', 'Holding updated — click Save to persist.', true);
+    controller.previewUpdate(
+      idx,
+      { ...draft, order: existing.order },
+      'Holding updated — click Save to persist.',
+    );
   });
 
   root.querySelector('#btn-autofill-holds')?.addEventListener('click', async () => {
@@ -705,9 +780,10 @@ function attachHoldingListeners(root: HTMLElement): void {
         'holdings',
         btn,
         async () => {
-          const txs = await loadTransactions();
-          _suggestionTransactions = Array.isArray(txs) ? txs : [];
-          _securitySuggestions = buildSecuritySuggestions(getHoldings(), _suggestionTransactions);
+          const txData = await loadAppSecuritySuggestions();
+          const txs = txData.transactions;
+          _suggestionTransactions = txs;
+          _securitySuggestions = txData.suggestions;
           const buys = txs.filter((t) => t.type === 'BUY' && t.isin);
           if (buys.length === 0) {
             showMsg('holds-msg', 'No BUY transactions found. Import a CSV first.', false);
@@ -729,7 +805,7 @@ function attachHoldingListeners(root: HTMLElement): void {
             }
           }
           // Merge with existing holdings (skip already-configured ISINs)
-          const holds = (_holdings ?? []).slice();
+          const holds = controller.items().slice();
           const existing = new Set(holds.map((h) => h.isin));
           let added = 0;
           for (const [isin, name] of Object.entries(isinMap)) {
@@ -813,7 +889,7 @@ function rerenderHoldingsTable(root: HTMLElement, holdings: Holding[]): void {
   // Update cache and reset filter to show all when modifying
   _holdings = holdings.slice();
   _allHoldings = holdings.slice();
-  _securitySuggestions = buildSecuritySuggestions(holdings, _suggestionTransactions);
+  _securitySuggestions = buildAppSecuritySuggestions(_suggestionTransactions, holdings);
   _holdingsSettingsFilter = 'all';
   const tbl = root.querySelector('#settings-holdings-tbl');
   if (!tbl) return;
@@ -954,33 +1030,40 @@ async function deleteGoal(root: HTMLElement, idx: number, btn: HTMLButtonElement
   const goal = goals[idx];
   const title =
     goal?.label || (goal?.targetNetWorth ? `\u20AC${goal.targetNetWorth}` : `Goal ${idx + 1}`);
-  const ok = await confirmDialog({
-    title: `Remove ${esc(title)}?`,
-    body: 'This removes the goal from your configuration.',
-    confirmLabel: 'Remove',
-    danger: true,
+  const controller = createEditableListController<NamedGoal>({
+    getItems: () => _goals ?? [],
+    apply: (updated) => rerenderGoalsTable(root, updated),
+    msgId: 'goal-msg',
   });
-  if (!ok) return;
-  const updated = goals.filter((_, i) => i !== idx);
-  try {
-    await withCardGuard('goal', btn, () => setSettings({ goals: JSON.stringify(updated) }), {
-      busyText: 'Removing...',
-      keepDisabledOnSuccess: true,
-    });
-    rerenderGoalsTable(root, updated);
-    showMsg('goal-msg', 'Removed', true);
-  } catch (err) {
-    showMsg('goal-msg', 'Error: ' + (err as Error).message, false);
-  }
+  await persistListRemoval({
+    controller,
+    index: idx,
+    root,
+    btn,
+    cardKey: 'goal',
+    persist: async (updated) => setSettings({ goals: JSON.stringify(updated) }),
+    rerender: rerenderGoalsTable,
+    confirmTitle: `Remove ${esc(title)}?`,
+    confirmBody: 'This removes the goal from your configuration.',
+    msgId: 'goal-msg',
+    successMessage: 'Removed',
+    busyText: 'Removing...',
+    keepDisabledOnSuccess: true,
+  });
 }
 
 function attachGoalListeners(root: HTMLElement): void {
+  const controller = createEditableListController<NamedGoal>({
+    getItems: () => _goals ?? [],
+    apply: (updated) => rerenderGoalsTable(root, updated),
+    msgId: 'goal-msg',
+  });
   root.querySelector('#btn-add-goal')?.addEventListener('click', async () => {
-    const draft = await goalDialog({ existingLabels: (_goals ?? []).map((goal) => goal.label) });
+    const draft = await goalDialog({
+      existingLabels: controller.items().map((goal) => goal.label),
+    });
     if (!draft) return;
-    const goals = _goals ?? [];
-    rerenderGoalsTable(root, [...goals, draft]);
-    showMsg('goal-msg', 'Goal added — click Save to persist.', true);
+    controller.previewAdd(draft, 'Goal added — click Save to persist.');
   });
 
   root.addEventListener('click', async (e) => {
@@ -988,7 +1071,7 @@ function attachGoalListeners(root: HTMLElement): void {
     if (editBtn) {
       const idx = parseInt(editBtn.dataset.idx ?? '');
       if (!isNaN(idx)) {
-        const goals = _goals ?? [];
+        const goals = controller.items();
         const existing = goals[idx];
         if (!existing) return;
         const draft = await goalDialog({
@@ -996,9 +1079,7 @@ function attachGoalListeners(root: HTMLElement): void {
           existingLabels: goals.filter((_, i) => i !== idx).map((goal) => goal.label),
         });
         if (!draft) return;
-        const updated = goals.map((g, i) => (i === idx ? draft : g));
-        rerenderGoalsTable(root, updated);
-        showMsg('goal-msg', 'Goal updated — click Save to persist.', true);
+        controller.previewUpdate(idx, draft, 'Goal updated — click Save to persist.');
       }
       return;
     }

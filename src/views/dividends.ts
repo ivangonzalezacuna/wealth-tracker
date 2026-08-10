@@ -5,9 +5,9 @@ import { attachEtfPopovers } from '../ui/etfPopover';
 import { getCostBasisMethod, getHoldings } from '../store/config';
 import { computeCostBasis } from '../model/costbasis';
 import type { SortState } from './tableSort';
-import { applySort, bindSortableHeader } from './tableSort';
+import { bindSortedTableHeader, sortAndPaginate } from './tableView';
 import type { ColumnDef } from './tableColumns';
-import { renderTableHeader, renderTableRow, getSortGetters } from './tableColumns';
+import { renderTableHeader, renderTableRow } from './tableColumns';
 import { renderPagination } from './pagination';
 
 const DIV_PAGE_SIZE = 12;
@@ -336,11 +336,14 @@ function renderDivTable(pd: PortfolioData): void {
   const columns = dividendColumns(pd);
 
   // Apply sort (before pagination)
-  const sorted = applySort(list, _divTblSort, getSortGetters(columns));
-
-  const totalPages = Math.ceil(sorted.length / DIV_PAGE_SIZE);
-  if (_divPage > totalPages) _divPage = Math.max(1, totalPages);
-  const pageItems = sorted.slice((_divPage - 1) * DIV_PAGE_SIZE, _divPage * DIV_PAGE_SIZE);
+  const { pageItems, page, totalPages } = sortAndPaginate(
+    list,
+    columns,
+    _divTblSort,
+    _divPage,
+    DIV_PAGE_SIZE,
+  );
+  _divPage = page;
 
   const dRows = pageItems
     .map(
@@ -365,14 +368,11 @@ function renderDivTable(pd: PortfolioData): void {
     : '<p class="note">No dividends found in imported transactions yet.</p>';
 
   // Bind sort handler on header row
-  const divHeaderEl = document.getElementById('div-table-header');
-  if (divHeaderEl) {
-    bindSortableHeader(divHeaderEl, _divTblSort, (newState) => {
-      _divTblSort = newState;
-      _divPage = 1;
-      renderDivTable(pd);
-    });
-  }
+  bindSortedTableHeader(document.getElementById('div-table-header'), _divTblSort, (newState) => {
+    _divTblSort = newState;
+    _divPage = 1;
+    renderDivTable(pd);
+  });
 
   // Attach ETF info popovers on shortName spans
   const divHistEl = document.getElementById('div-history');
@@ -435,11 +435,14 @@ function renderIntTable(pd: PortfolioData): void {
   const columns = intColumns();
 
   // Apply sort (before pagination)
-  const sorted = applySort(list, _intTblSort, getSortGetters(columns));
-
-  const totalPages = Math.ceil(sorted.length / DIV_PAGE_SIZE);
-  if (_intPage > totalPages) _intPage = Math.max(1, totalPages);
-  const pageItems = sorted.slice((_intPage - 1) * DIV_PAGE_SIZE, _intPage * DIV_PAGE_SIZE);
+  const { pageItems, page, totalPages } = sortAndPaginate(
+    list,
+    columns,
+    _intTblSort,
+    _intPage,
+    DIV_PAGE_SIZE,
+  );
+  _intPage = page;
 
   document.getElementById('div-interest')!.innerHTML =
     list.length > 0
@@ -455,14 +458,11 @@ function renderIntTable(pd: PortfolioData): void {
       : '<p class="note">No interest payments found in imported transactions.</p>';
 
   // Bind sort handler on header row
-  const intHeaderEl = document.getElementById('int-table-header');
-  if (intHeaderEl) {
-    bindSortableHeader(intHeaderEl, _intTblSort, (newState) => {
-      _intTblSort = newState;
-      _intPage = 1;
-      renderIntTable(pd);
-    });
-  }
+  bindSortedTableHeader(document.getElementById('int-table-header'), _intTblSort, (newState) => {
+    _intTblSort = newState;
+    _intPage = 1;
+    renderIntTable(pd);
+  });
 
   renderIntPagination(totalPages, pd);
 }

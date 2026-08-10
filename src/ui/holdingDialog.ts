@@ -10,10 +10,11 @@ import { ASSET_CLASSES, REGIONS } from '../model/accountTypes';
 import type { SecuritySuggestions } from '../model/securitySuggestions';
 import {
   bindColorInputs,
-  bootstrapDialog,
   createDialogController,
+  DIALOG_FOCUSABLES,
   focusFirstInvalid,
   makeDialogHelpers,
+  openDialogShell,
   populateDatalist,
 } from './modalShell';
 import { infoTip, attachInfoTips } from './infoTip';
@@ -173,27 +174,22 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
         </div>
       </div>`;
 
-    document.body.appendChild(overlay);
-    _dialog.setOverlay(overlay);
+    openDialogShell(_dialog, {
+      overlay,
+      onDismiss: () => _dismiss(null),
+      onCancel: () => _dismiss(null),
+      onSubmit: _submit,
+      cancelSelector: '.js-holdd-cancel',
+      submitSelector: '.js-holdd-submit',
+      focusablesSelector: DIALOG_FOCUSABLES,
+      initialFocusSelector: '#holdd-isin',
+    });
     attachInfoTips(overlay);
 
     populateDatalist(overlay.querySelector('#holdd-isin-list'), opts.suggestions?.isins ?? []);
     populateDatalist(overlay.querySelector('#holdd-name-list'), opts.suggestions?.names ?? []);
 
     bindColorInputs(overlay, 'holdd-color', 'holdd-color-hex');
-
-    _dialog.setCleanup(
-      bootstrapDialog({
-        overlay,
-        onDismiss: () => _dismiss(null),
-        onCancel: () => _dismiss(null),
-        onSubmit: _submit,
-        cancelSelector: '.js-holdd-cancel',
-        submitSelector: '.js-holdd-submit',
-        focusablesSelector: 'input:not([disabled]), select:not([disabled]), button:not([disabled])',
-        initialFocusSelector: '#holdd-isin',
-      }),
-    );
   });
 }
 

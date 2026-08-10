@@ -8,10 +8,11 @@ import type { SecuritySuggestions } from '../model/securitySuggestions';
 import { TxType } from '../types';
 import type { Transaction } from '../types';
 import {
-  bootstrapDialog,
   createDialogController,
+  DIALOG_FOCUSABLES,
   focusFirstInvalid,
   makeDialogHelpers,
+  openDialogShell,
   populateDatalist,
 } from './modalShell';
 
@@ -173,8 +174,16 @@ export function transactionDialog(
         </div>
       </div>`;
 
-    document.body.appendChild(overlay);
-    _dialog.setOverlay(overlay);
+    openDialogShell(_dialog, {
+      overlay,
+      onDismiss: () => _dismiss(null),
+      onCancel: () => _dismiss(null),
+      onSubmit: _submit,
+      cancelSelector: '.js-txd-cancel',
+      submitSelector: '.js-txd-submit',
+      focusablesSelector: DIALOG_FOCUSABLES,
+      initialFocusSelector: '#txd-date',
+    });
     populateDatalist(overlay.querySelector('#txd-isin-list'), opts.suggestions?.isins ?? []);
     populateDatalist(overlay.querySelector('#txd-name-list'), opts.suggestions?.names ?? []);
     _applyTypeVisibility(existing?.type || TxType.BUY);
@@ -182,19 +191,6 @@ export function transactionDialog(
     const typeEl = overlay.querySelector('#txd-type') as HTMLSelectElement | null;
     typeEl?.addEventListener('change', () =>
       _applyTypeVisibility(typeEl.value as Transaction['type']),
-    );
-
-    _dialog.setCleanup(
-      bootstrapDialog({
-        overlay,
-        onDismiss: () => _dismiss(null),
-        onCancel: () => _dismiss(null),
-        onSubmit: _submit,
-        cancelSelector: '.js-txd-cancel',
-        submitSelector: '.js-txd-submit',
-        focusablesSelector: 'input:not([disabled]), select:not([disabled]), button:not([disabled])',
-        initialFocusSelector: '#txd-date',
-      }),
     );
   });
 }

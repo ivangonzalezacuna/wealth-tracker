@@ -1,6 +1,6 @@
 export type ConflictResolutionChoice = 'backup' | 'keep-local' | 'keep-cloud' | 'cancel';
 
-import { bootstrapDialog, createDialogController } from './modalShell';
+import { createDialogController, DIALOG_BUTTON_FOCUSABLES, openDialogShell } from './modalShell';
 
 const _dialog = createDialogController<ConflictResolutionChoice>('cancel', {
   overlaySelector: '.conflict-overlay',
@@ -27,8 +27,6 @@ export function conflictDialog(): Promise<ConflictResolutionChoice> {
         </div>
       </div>`;
 
-    document.body.appendChild(overlay);
-
     (overlay.querySelector('.js-conflict-backup') as HTMLElement).addEventListener('click', () =>
       dismiss('backup'),
     );
@@ -40,17 +38,14 @@ export function conflictDialog(): Promise<ConflictResolutionChoice> {
       'click',
       () => dismiss('keep-cloud'),
     );
-    _dialog.setOverlay(overlay);
-    _dialog.setCleanup(
-      bootstrapDialog({
-        overlay,
-        onDismiss: () => dismiss('cancel'),
-        onCancel: () => dismiss('cancel'),
-        cancelSelector: '.js-conflict-cancel',
-        focusablesSelector: 'button:not([disabled])',
-        initialFocusSelector: '.js-conflict-backup',
-      }),
-    );
+    openDialogShell(_dialog, {
+      overlay,
+      onDismiss: () => dismiss('cancel'),
+      onCancel: () => dismiss('cancel'),
+      cancelSelector: '.js-conflict-cancel',
+      focusablesSelector: DIALOG_BUTTON_FOCUSABLES,
+      initialFocusSelector: '.js-conflict-backup',
+    });
   });
 }
 
