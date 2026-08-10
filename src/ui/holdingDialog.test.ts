@@ -51,26 +51,27 @@ describe('holdingDialog', () => {
     getOverlay()?.remove();
   });
 
-  it('populates ISIN and name selectors from suggestions', () => {
+  it('populates ISIN and name autocomplete lists from suggestions', () => {
     holdingDialog({ suggestions });
 
-    expect(getOptions('holdd-pair-isin')).toEqual(['', 'IE00AAA', 'IE00BBB']);
-    expect(getOptions('holdd-pair-name')).toEqual(['', 'IE00AAA', 'IE00BBB']);
+    expect(getOptions('holdd-isin-list')).toEqual(['IE00AAA', 'IE00BBB']);
+    expect(getOptions('holdd-name-list')).toEqual(['Alpha Fund', 'Beta Fund']);
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
 
-  it('filters selector options by existing holdings isins', () => {
+  it('filters autocomplete options by existing holdings isins', () => {
     holdingDialog({ suggestions, existingIsins: ['IE00AAA'] });
-    expect(getOptions('holdd-pair-isin')).toEqual(['', 'IE00BBB']);
+    expect(getOptions('holdd-isin-list')).toEqual(['IE00BBB']);
+    expect(getOptions('holdd-name-list')).toEqual(['Beta Fund']);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
 
-  it('syncs ISIN/name fields when selecting a known ETF', () => {
+  it('syncs ISIN/name fields when selecting a known ETF value', () => {
     holdingDialog({ suggestions });
-    const select = document.querySelector('#holdd-pair-isin') as HTMLSelectElement;
-    select.value = 'IE00BBB';
-    select.dispatchEvent(new Event('change'));
+    const isinInput = document.querySelector('#holdd-isin') as HTMLInputElement;
+    isinInput.value = 'IE00BBB';
+    isinInput.dispatchEvent(new Event('change'));
     expect((document.querySelector('#holdd-isin') as HTMLInputElement).value).toBe('IE00BBB');
     expect((document.querySelector('#holdd-name') as HTMLInputElement).value).toBe('Beta Fund');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));

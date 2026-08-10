@@ -14,6 +14,7 @@ import {
   makeDialogHelpers,
   openDialogShell,
 } from './modalShell';
+import { attachSecurityAutocomplete } from './securityAutocomplete';
 
 let _activeExisting: Transaction | undefined = undefined;
 let _activeSuggestionPairs: SecuritySuggestionPair[] = [];
@@ -99,31 +100,20 @@ export function transactionDialog(
               <span class="dialog-error dialog-error-compact" id="txd-type-err"></span>
             </div>
           </div>
-          <div class="dialog-row" id="txd-row-security">
-            <div class="dialog-field">
-              <label class="dialog-label" for="txd-pair-isin">Known ETF by ISIN (optional)</label>
-              <select id="txd-pair-isin" class="form-input dialog-input">
-                <option value="">Select ISIN…</option>
-              </select>
-            </div>
-            <div class="dialog-field dialog-field-wide">
-              <label class="dialog-label" for="txd-pair-name">Known ETF by name (optional)</label>
-              <select id="txd-pair-name" class="form-input dialog-input">
-                <option value="">Select ETF…</option>
-              </select>
-            </div>
-          </div>
           <div class="dialog-row" id="txd-row-security-fields">
             <div class="dialog-field dialog-field-wide">
               <label class="dialog-label" for="txd-name">Name</label>
               <input type="text" id="txd-name" class="form-input dialog-input"
-                value="${esc(existing?.name || '')}" placeholder="e.g. iShares Core MSCI World">
+                value="${esc(existing?.name || '')}" placeholder="e.g. iShares Core MSCI World"
+                list="txd-name-list">
+              <datalist id="txd-name-list"></datalist>
               <span class="dialog-error dialog-error-compact" id="txd-name-err"></span>
             </div>
             <div class="dialog-field">
               <label class="dialog-label" for="txd-isin">ISIN</label>
               <input type="text" id="txd-isin" class="form-input dialog-input dialog-input-uppercase"
-                value="${esc(existing?.isin || '')}" placeholder="e.g. IE00B4L5Y983">
+                value="${esc(existing?.isin || '')}" placeholder="e.g. IE00B4L5Y983" list="txd-isin-list">
+              <datalist id="txd-isin-list"></datalist>
               <span class="dialog-error dialog-error-compact" id="txd-isin-err"></span>
             </div>
           </div>
@@ -197,9 +187,14 @@ export function transactionDialog(
       focusablesSelector: DIALOG_FOCUSABLES,
       initialFocusSelector: '#txd-date',
     });
-    _populatePairSelectors(overlay, _activeSuggestionPairs);
-    _syncPairSelectorsFromFields(overlay);
-    _attachPairSelectorHandlers(overlay);
+    attachSecurityAutocomplete({
+      overlay,
+      pairs: _activeSuggestionPairs,
+      isinInputId: 'txd-isin',
+      isinListId: 'txd-isin-list',
+      nameInputId: 'txd-name',
+      nameListId: 'txd-name-list',
+    });
     _applyTypeVisibility(existing?.type || TxType.BUY);
 
     const typeEl = overlay.querySelector('#txd-type') as HTMLSelectElement | null;
@@ -242,7 +237,7 @@ function _submit(): void {
   const noteVal = get('txd-note');
 
   let valid = true;
-  const securityVisible = _isVisible('txd-row-security');
+  const securityVisible = _isVisible('txd-row-security-fields');
   const amountVisible = _isVisible('txd-field-amount');
   const sharesVisible = _isVisible('txd-field-shares');
   const feeVisible = _isVisible('txd-field-fee');
@@ -342,84 +337,10 @@ function _applyTypeVisibility(type: Transaction['type']): void {
   };
 
   const showSecurity = SECURITY_TYPES.has(type);
-  setDisplay('txd-row-security', showSecurity);
   setDisplay('txd-row-security-fields', showSecurity);
   setDisplay('txd-field-amount', type !== TxType.SPLIT);
   setDisplay('txd-field-shares', SHARES_TYPES.has(type));
   setDisplay('txd-field-fee', FEE_TYPES.has(type));
   setDisplay('txd-field-tax', TAX_TYPES.has(type));
   setDisplay('txd-row-fx', FX_TYPES.has(type));
-}
-
-function _populatePairSelectors(overlay: HTMLElement, pairs: SecuritySuggestionPair[]): void {
-  const isinSelect = overlay.querySelector('#txd-pair-isin') as HTMLSelectElement | null;
-  const nameSelect = overlay.querySelector('#txd-pair-name') as HTMLSelectElement | null;
-  if (!isinSelect || !nameSelect) return;
-
-  for (const pair of pairs) {
-    const isinOpt = document.createElement('option');
-    isinOpt.value = pair.isin;
-    isinOpt.textContent = pair.isin;
-    isinSelect.appendChild(isinOpt);
-
-    const nameOpt = document.createElement('option');
-    nameOpt.value = pair.isin;
-    nameOpt.textContent = `${pair.name} (${pair.isin})`;
-    nameSelect.appendChild(nameOpt);
-  }
-}
-
-function _syncPairSelectorsFromFields(overlay: HTMLElement): void {
-  const isinInput = overlay.querySelector('#txd-isin') as HTMLInputElement | null;
-  const nameInput = overlay.querySelector('#txd-name') as HTMLInputElement | null;
-  const isinSelect = overlay.querySelector('#txd-pair-isin') as HTMLSelectElement | null;
-  const nameSelect = overlay.querySelector('#txd-pair-name') as HTMLSelectElement | null;
-  if (!isinInput || !nameInput || !isinSelect || !nameSelect) return;
-
-  const byIsin = new Map(_activeSuggestionPairs.map((pair) => [pair.isin, pair]));
-  const isin = isinInput.value.trim().toUpperCase();
-  const name = nameInput.value.trim();
-  const selected =
-    (isin && byIsin.get(isin)) ||
-    _activeSuggestionPairs.find((pair) => pair.name === name) ||
-    undefined;
-  const selectedValue = selected?.isin ?? '';
-  isinSelect.value = selectedValue;
-  nameSelect.value = selectedValue;
-}
-
-function _attachPairSelectorHandlers(overlay: HTMLElement): void {
-  const isinSelect = overlay.querySelector('#txd-pair-isin') as HTMLSelectElement | null;
-  const nameSelect = overlay.querySelector('#txd-pair-name') as HTMLSelectElement | null;
-  const isinInput = overlay.querySelector('#txd-isin') as HTMLInputElement | null;
-  const nameInput = overlay.querySelector('#txd-name') as HTMLInputElement | null;
-  if (!isinSelect || !nameSelect || !isinInput || !nameInput) return;
-
-  const byIsin = new Map(_activeSuggestionPairs.map((pair) => [pair.isin, pair]));
-  const applyPair = (isin: string): void => {
-    const pair = byIsin.get(isin);
-    if (!pair) return;
-    isinInput.value = pair.isin;
-    nameInput.value = pair.name;
-    isinSelect.value = pair.isin;
-    nameSelect.value = pair.isin;
-  };
-
-  isinSelect.addEventListener('change', () => {
-    const isin = isinSelect.value;
-    if (!isin) {
-      nameSelect.value = '';
-      return;
-    }
-    applyPair(isin);
-  });
-
-  nameSelect.addEventListener('change', () => {
-    const isin = nameSelect.value;
-    if (!isin) {
-      isinSelect.value = '';
-      return;
-    }
-    applyPair(isin);
-  });
 }

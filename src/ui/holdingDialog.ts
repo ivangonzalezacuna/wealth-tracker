@@ -9,7 +9,6 @@ import { INTERVAL_LABELS } from '../model/contributions';
 import { ASSET_CLASSES, REGIONS } from '../model/accountTypes';
 import {
   filterSecuritySuggestions,
-  type SecuritySuggestionPair,
   type SecuritySuggestions,
 } from '../model/securitySuggestions';
 import {
@@ -21,6 +20,7 @@ import {
   openDialogShell,
 } from './modalShell';
 import { infoTip, attachInfoTips } from './infoTip';
+import { attachSecurityAutocomplete } from './securityAutocomplete';
 
 export interface HoldingDialogOptions {
   existing?: Holding;
@@ -33,7 +33,7 @@ export interface HoldingDialogOptions {
 let _activeExisting: Holding | undefined = undefined;
 let _activeOrder: number = 1;
 let _activeExistingIsins: string[] | undefined;
-let _activeSuggestionPairs: SecuritySuggestionPair[] = [];
+let _activeSuggestionPairs: SecuritySuggestions['pairs'] = [];
 const _dialog = createDialogController<Holding | null>(null, {
   overlaySelector: '.hold-dialog-overlay',
   reset: () => {
@@ -85,25 +85,12 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
         <div class="dialog-fields">
           <div class="dialog-row">
             <div class="dialog-field">
-              <label class="dialog-label" for="holdd-pair-isin">Known ETF by ISIN (optional)</label>
-              <select id="holdd-pair-isin" class="form-input dialog-input">
-                <option value="">Select ISIN…</option>
-              </select>
-            </div>
-            <div class="dialog-field dialog-field-wide">
-              <label class="dialog-label" for="holdd-pair-name">Known ETF by name (optional)</label>
-              <select id="holdd-pair-name" class="form-input dialog-input">
-                <option value="">Select ETF…</option>
-              </select>
-            </div>
-          </div>
-          <div class="dialog-row">
-            <div class="dialog-field">
               <label class="dialog-label" for="holdd-isin">
                 ISIN${infoTip('International Securities Identification Number: 12-character unique ID.')}
               </label>
               <input type="text" id="holdd-isin" class="form-input dialog-input dialog-input-uppercase"
-                value="${esc(existing?.isin || '')}" placeholder="e.g. IE00B4L5Y983">
+                value="${esc(existing?.isin || '')}" placeholder="e.g. IE00B4L5Y983" list="holdd-isin-list">
+              <datalist id="holdd-isin-list"></datalist>
               <span class="dialog-error" id="holdd-isin-err"></span>
             </div>
             <div class="dialog-field">
@@ -121,7 +108,9 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
                 Name${infoTip('Full instrument name, as shown in your broker statements.')}
               </label>
               <input type="text" id="holdd-name" class="form-input dialog-input"
-                value="${esc(existing?.name || '')}" placeholder="e.g. iShares Core MSCI World UCITS ETF">
+                value="${esc(existing?.name || '')}" placeholder="e.g. iShares Core MSCI World UCITS ETF"
+                list="holdd-name-list">
+              <datalist id="holdd-name-list"></datalist>
             </div>
           </div>
           <div class="dialog-row">
@@ -202,9 +191,14 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
     });
     attachInfoTips(overlay);
 
-    _populatePairSelectors(overlay, _activeSuggestionPairs);
-    _syncPairSelectorsFromFields(overlay);
-    _attachPairSelectorHandlers(overlay);
+    attachSecurityAutocomplete({
+      overlay,
+      pairs: _activeSuggestionPairs,
+      isinInputId: 'holdd-isin',
+      isinListId: 'holdd-isin-list',
+      nameInputId: 'holdd-name',
+      nameListId: 'holdd-name-list',
+    });
 
     bindColorInputs(overlay, 'holdd-color', 'holdd-color-hex');
   });
@@ -271,77 +265,4 @@ function _submit(): void {
 
 function _dismiss(result: Holding | null): void {
   _dialog.dismiss(result);
-}
-
-function _populatePairSelectors(overlay: HTMLElement, pairs: SecuritySuggestionPair[]): void {
-  const isinSelect = overlay.querySelector('#holdd-pair-isin') as HTMLSelectElement | null;
-  const nameSelect = overlay.querySelector('#holdd-pair-name') as HTMLSelectElement | null;
-  if (!isinSelect || !nameSelect) return;
-
-  for (const pair of pairs) {
-    const isinOpt = document.createElement('option');
-    isinOpt.value = pair.isin;
-    isinOpt.textContent = pair.isin;
-    isinSelect.appendChild(isinOpt);
-
-    const nameOpt = document.createElement('option');
-    nameOpt.value = pair.isin;
-    nameOpt.textContent = `${pair.name} (${pair.isin})`;
-    nameSelect.appendChild(nameOpt);
-  }
-}
-
-function _syncPairSelectorsFromFields(overlay: HTMLElement): void {
-  const isinInput = overlay.querySelector('#holdd-isin') as HTMLInputElement | null;
-  const nameInput = overlay.querySelector('#holdd-name') as HTMLInputElement | null;
-  const isinSelect = overlay.querySelector('#holdd-pair-isin') as HTMLSelectElement | null;
-  const nameSelect = overlay.querySelector('#holdd-pair-name') as HTMLSelectElement | null;
-  if (!isinInput || !nameInput || !isinSelect || !nameSelect) return;
-
-  const byIsin = new Map(_activeSuggestionPairs.map((pair) => [pair.isin, pair]));
-  const isin = isinInput.value.trim().toUpperCase();
-  const name = nameInput.value.trim();
-  const selected =
-    (isin && byIsin.get(isin)) ||
-    _activeSuggestionPairs.find((pair) => pair.name === name) ||
-    undefined;
-  const selectedValue = selected?.isin ?? '';
-  isinSelect.value = selectedValue;
-  nameSelect.value = selectedValue;
-}
-
-function _attachPairSelectorHandlers(overlay: HTMLElement): void {
-  const isinSelect = overlay.querySelector('#holdd-pair-isin') as HTMLSelectElement | null;
-  const nameSelect = overlay.querySelector('#holdd-pair-name') as HTMLSelectElement | null;
-  const isinInput = overlay.querySelector('#holdd-isin') as HTMLInputElement | null;
-  const nameInput = overlay.querySelector('#holdd-name') as HTMLInputElement | null;
-  if (!isinSelect || !nameSelect || !isinInput || !nameInput) return;
-
-  const byIsin = new Map(_activeSuggestionPairs.map((pair) => [pair.isin, pair]));
-  const applyPair = (isin: string): void => {
-    const pair = byIsin.get(isin);
-    if (!pair) return;
-    isinInput.value = pair.isin;
-    nameInput.value = pair.name;
-    isinSelect.value = pair.isin;
-    nameSelect.value = pair.isin;
-  };
-
-  isinSelect.addEventListener('change', () => {
-    const isin = isinSelect.value;
-    if (!isin) {
-      nameSelect.value = '';
-      return;
-    }
-    applyPair(isin);
-  });
-
-  nameSelect.addEventListener('change', () => {
-    const isin = nameSelect.value;
-    if (!isin) {
-      isinSelect.value = '';
-      return;
-    }
-    applyPair(isin);
-  });
 }
