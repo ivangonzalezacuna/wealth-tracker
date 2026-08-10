@@ -65,6 +65,72 @@ export const MIGRATIONS: string[][] = [
   [`ALTER TABLE transactions ADD COLUMN category TEXT NOT NULL DEFAULT ''`],
   // [5] version 4 → 5: add ter column to holdings
   [`ALTER TABLE holdings ADD COLUMN ter REAL NOT NULL DEFAULT 0`],
-  // [6] version 5 → 6: add explicit strategic target to holdings
-  [`ALTER TABLE holdings ADD COLUMN target_pct REAL NOT NULL DEFAULT 0`],
+  // [6] version 5 → 6: replace per-holding contrib_amount/contrib_interval with a single
+  //     strategic target_pct, and add a global calibration_interval setting.
+  //     Existing contrib-weight data is converted to target_pct percentages.
+  [
+    // Step 1: create the new holdings table without contrib columns
+    `CREATE TABLE IF NOT EXISTS holdings_v6 (
+      isin TEXT PRIMARY KEY,
+      name TEXT NOT NULL DEFAULT '',
+      short_name TEXT NOT NULL DEFAULT '',
+      color TEXT NOT NULL DEFAULT '',
+      acc INTEGER NOT NULL DEFAULT 0,
+      active INTEGER NOT NULL DEFAULT 1,
+      target_pct REAL NOT NULL DEFAULT 0,
+      asset_class TEXT NOT NULL DEFAULT '',
+      region TEXT NOT NULL DEFAULT '',
+      fold_into TEXT NOT NULL DEFAULT '',
+      "order" INTEGER NOT NULL DEFAULT 0,
+      ter REAL NOT NULL DEFAULT 0
+    )`,
+    // Step 2: insert rows with target_pct derived from old contrib weights.
+    // Each active holding's annualised contrib share of the total becomes target_pct.
+    // Interval multipliers: weekly=52, biweekly=26, monthly=12, quarterly=4.
+    // Holdings with zero contrib or inactive get target_pct 0.
+    `INSERT INTO holdings_v6 (isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter)
+     SELECT
+       isin, name, short_name, color, acc, active,
+       CASE
+         WHEN active = 1 AND contrib_amount > 0 AND (
+           SELECT SUM(
+             contrib_amount * CASE contrib_interval
+               WHEN 'weekly' THEN 52
+               WHEN 'biweekly' THEN 26
+               WHEN 'monthly' THEN 12
+               WHEN 'quarterly' THEN 4
+               ELSE 12
+             END)
+           FROM holdings
+           WHERE active = 1 AND contrib_amount > 0
+         ) > 0
+         THEN ROUND(
+           contrib_amount * CASE contrib_interval
+             WHEN 'weekly' THEN 52
+             WHEN 'biweekly' THEN 26
+             WHEN 'monthly' THEN 12
+             WHEN 'quarterly' THEN 4
+             ELSE 12
+           END * 100.0 / (
+             SELECT SUM(
+               contrib_amount * CASE contrib_interval
+                 WHEN 'weekly' THEN 52
+                 WHEN 'biweekly' THEN 26
+                 WHEN 'monthly' THEN 12
+                 WHEN 'quarterly' THEN 4
+                 ELSE 12
+               END)
+             FROM holdings
+             WHERE active = 1 AND contrib_amount > 0
+           ), 1)
+         ELSE 0
+       END,
+       asset_class, region, fold_into, "order", ter
+     FROM holdings`,
+    // Step 3: swap tables
+    `DROP TABLE holdings`,
+    `ALTER TABLE holdings_v6 RENAME TO holdings`,
+    // Step 4: seed the global calibration_interval setting (default monthly)
+    `INSERT OR IGNORE INTO settings (key, value) VALUES ('calibration_interval', 'monthly')`,
+  ],
 ];

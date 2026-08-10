@@ -4,8 +4,7 @@
  */
 
 import { esc } from '../utils';
-import type { Holding, ContribInterval } from '../types';
-import { INTERVAL_LABELS } from '../model/contributions';
+import type { Holding } from '../types';
 import { ASSET_CLASSES, REGIONS } from '../model/accountTypes';
 import { filterSecuritySuggestions, type SecuritySuggestions } from '../model/securitySuggestions';
 import {
@@ -62,13 +61,6 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
       (r) =>
         `<option value="${esc(r.value)}" ${(existing?.region || 'developed') === r.value ? 'selected' : ''}>${esc(r.label)}</option>`,
     ).join('');
-
-    const intervalOptions = Object.entries(INTERVAL_LABELS)
-      .map(
-        ([val, label]) =>
-          `<option value="${val}" ${(existing?.contribInterval || 'weekly') === val ? 'selected' : ''}>${label}</option>`,
-      )
-      .join('');
 
     const overlay = document.createElement('div');
     overlay.className = 'dialog-overlay hold-dialog-overlay';
@@ -130,21 +122,10 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
           <div class="dialog-row">
             <div class="dialog-field">
               <label class="dialog-label" for="holdd-target-pct">
-                Target allocation (%)${infoTip('Optional strategic allocation target for this holding. When at least one active holding has a target, drift uses these targets instead of contribution weights.')}
+                Target allocation (%)${infoTip('Strategic allocation target for this holding as a percentage of the total portfolio.')}
               </label>
               <input type="number" id="holdd-target-pct" class="form-input dialog-input"
                 value="${esc(String(existing?.targetPct ?? ''))}" min="0" max="100" step="0.1" placeholder="e.g. 60">
-            </div>
-            <div class="dialog-field">
-              <label class="dialog-label" for="holdd-contrib">
-                Contribution (€)${infoTip('The amount contributed to this ETF each time, at the interval below.')}
-              </label>
-              <input type="number" id="holdd-contrib" class="form-input dialog-input"
-                value="${esc(String(existing?.contribAmount ?? 0))}" min="0" placeholder="0">
-            </div>
-            <div class="dialog-field">
-              <label class="dialog-label" for="holdd-interval">Interval</label>
-              <select id="holdd-interval" class="form-input dialog-input">${intervalOptions}</select>
             </div>
             <div class="dialog-field">
               <label class="dialog-label" for="holdd-ter">
@@ -224,9 +205,7 @@ function _submit(): void {
   const nameVal = get('holdd-name');
   const assetClassVal = get('holdd-class') || 'equity';
   const regionVal = get('holdd-region') || 'developed';
-  const contribRaw = get('holdd-contrib');
   const targetPctRaw = get('holdd-target-pct');
-  const intervalVal = get('holdd-interval') || 'weekly';
   const terRaw = get('holdd-ter');
   const colorVal = get('holdd-color-hex') || get('holdd-color') || '#888888';
   const isAcc = getChecked('holdd-acc');
@@ -260,8 +239,6 @@ function _submit(): void {
     acc: isAcc,
     active: isActive,
     targetPct: targetPctRaw !== '' ? parseFloat(targetPctRaw) || 0 : undefined,
-    contribAmount: parseFloat(contribRaw) || 0,
-    contribInterval: (intervalVal || 'weekly') as ContribInterval,
     assetClass: assetClassVal,
     region: regionVal,
     foldInto: existing?.foldInto || '',

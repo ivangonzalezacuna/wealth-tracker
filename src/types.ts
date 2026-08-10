@@ -68,9 +68,7 @@ export interface Holding {
   color: string;
   acc: boolean;
   active: boolean;
-  targetPct?: number; // strategic allocation target in %, optional; drift falls back to contribution weights when absent
-  contribAmount: number; // amount per execution
-  contribInterval: ContribInterval; // execution cadence
+  targetPct?: number; // strategic allocation target in %, optional
   assetClass: string;
   region: string;
   foldInto: string;
@@ -91,6 +89,8 @@ export interface Snapshot {
 export interface Settings {
   costBasisMethod?: string;
   annualReturnPct?: string;
+  calibrationInterval?: string; // global contribution cadence: 'weekly'|'biweekly'|'monthly'|'quarterly'
+  monthlyContribBudget?: string; // total monthly contribution budget in EUR
   [key: string]: string | null | undefined;
 }
 

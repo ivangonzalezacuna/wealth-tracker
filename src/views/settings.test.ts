@@ -45,6 +45,8 @@ vi.mock('../store/config', () => ({
   getTargetDate: () => null,
   getGoals: () => [],
   getAlertSettings: () => ({ driftThresholdPct: 5 }),
+  getMonthlyContribBudget: () => 500,
+  getCalibrationInterval: () => 'monthly',
   setAccounts: vi.fn(async () => {}),
   setHoldings: vi.fn(async () => {}),
   setSettings: vi.fn(async () => {}),
@@ -197,10 +199,11 @@ describe('Settings scoped re-render (repaintCard)', () => {
     renderSettings();
   });
 
-  it('all six card IDs are present after renderSettings()', () => {
+  it('all seven card IDs are present after renderSettings()', () => {
     const ids = [
       'settings-card-accounts',
       'settings-card-holdings',
+      'settings-card-contributions',
       'settings-card-cost-basis',
       'settings-card-goal',
       'settings-card-rules',

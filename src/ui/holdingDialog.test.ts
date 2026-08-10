@@ -34,8 +34,6 @@ const existingHolding: Holding = {
   color: '#123456',
   acc: true,
   active: true,
-  contribAmount: 0,
-  contribInterval: 'monthly',
   assetClass: 'equity',
   region: 'developed',
   foldInto: '',

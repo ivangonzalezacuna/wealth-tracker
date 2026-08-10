@@ -12,7 +12,7 @@ import {
   kpiTile,
 } from '../utils';
 import { getACCTSList, FORECAST_RANGE_LABELS } from '../constants';
-import { getAccounts, getTotalAnnualContrib, getGoals } from '../store/config';
+import { getAccounts, getMonthlyContribBudget, getGoals } from '../store/config';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import { cagrPerAccount } from '../model/insights';
 import {
@@ -127,7 +127,7 @@ function _buildAccountForecastInputs(snap: Snapshot, accounts: Account[]): Accou
     const annualReturnPct = a.annualReturnPct || 0;
     const personalContrib =
       a.isPrimaryInvestment && (a.moneyType || '').toLowerCase() === 'investment'
-        ? getTotalAnnualContrib()
+        ? getMonthlyContribBudget() * 12
         : annualizeContrib(a.contribAmount || 0, a.contribInterval || 'monthly');
     const extraContrib = annualizeContrib(a.extraContrib || 0, a.contribInterval || 'monthly');
     const annualContrib = personalContrib + extraContrib;

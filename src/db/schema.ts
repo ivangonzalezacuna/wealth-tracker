@@ -60,8 +60,6 @@ export const SCHEMA_DDL: string[] = [
     acc INTEGER NOT NULL DEFAULT 0,
     active INTEGER NOT NULL DEFAULT 1,
     target_pct REAL NOT NULL DEFAULT 0,
-    contrib_amount REAL NOT NULL DEFAULT 0,
-    contrib_interval TEXT NOT NULL DEFAULT 'weekly',
     asset_class TEXT NOT NULL DEFAULT '',
     region TEXT NOT NULL DEFAULT '',
     fold_into TEXT NOT NULL DEFAULT '',

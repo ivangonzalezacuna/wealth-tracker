@@ -10,8 +10,6 @@
  *  them empty and configure everything through the Settings UI after sign-in.
  */
 
-import type { ContribInterval } from './types';
-
 export interface StaticAccountForm {
   label: string;
   placeholder: string;
@@ -31,8 +29,6 @@ export interface StaticHolding {
   acc: boolean;
   active: boolean;
   targetPct?: number;
-  contribAmount?: number;
-  interval?: ContribInterval;
   assetClass?: string;
   region?: string;
   foldInto?: string;
