@@ -53,8 +53,11 @@ export function forecastMultiAccountSeries(
   months: number,
   startDate: string,
 ): Array<{ month: string; value: number }> {
-  const { perAccountMonthlyRate, perAccountMonthlyContrib, values: initialValues } =
-    prepareAccountInputs(accounts);
+  const {
+    perAccountMonthlyRate,
+    perAccountMonthlyContrib,
+    values: initialValues,
+  } = prepareAccountInputs(accounts);
   let values = initialValues;
 
   const result: Array<{ month: string; value: number }> = [];
@@ -94,8 +97,11 @@ export function forecastMonthsToTargetMulti(
   const anyGrowthPotential = accounts.some((a) => a.annualContrib > 0 || a.annualReturnPct > 0);
   if (!anyGrowthPotential) return null;
 
-  const { perAccountMonthlyRate, perAccountMonthlyContrib, values: initialValues } =
-    prepareAccountInputs(accounts);
+  const {
+    perAccountMonthlyRate,
+    perAccountMonthlyContrib,
+    values: initialValues,
+  } = prepareAccountInputs(accounts);
   let values = initialValues;
 
   let months = 0;

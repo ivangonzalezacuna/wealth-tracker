@@ -492,10 +492,7 @@ function renderIntPagination(totalPages: number, pd: PortfolioData): void {
   });
 }
 
-function populateYearFilter(
-  elementId: string,
-  items: Array<{ date: string }>,
-): void {
+function populateYearFilter(elementId: string, items: Array<{ date: string }>): void {
   const select = document.getElementById(elementId);
   if (!select) return;
   const years = [...new Set(items.map((item) => item.date.slice(0, 4)))].sort().reverse();
