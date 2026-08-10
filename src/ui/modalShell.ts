@@ -44,54 +44,6 @@ export function activateModalShell(opts: ModalShellOptions): () => void {
       onDismiss();
       return;
     }
-
-    export function bootstrapDialog(opts: DialogBootstrapOptions): () => void {
-      const {
-        overlay,
-        onDismiss,
-        onCancel,
-        onSubmit,
-        cancelSelector,
-        submitSelector,
-        focusablesSelector,
-        initialFocusSelector,
-      } = opts;
-
-      const cancelEl = cancelSelector ? (overlay.querySelector(cancelSelector) as HTMLElement | null) : null;
-      const submitEl = submitSelector ? (overlay.querySelector(submitSelector) as HTMLElement | null) : null;
-      const handleCancel = (): void => {
-        onCancel?.();
-      };
-      const handleSubmit = (): void => {
-        onSubmit?.();
-      };
-
-      cancelEl?.addEventListener('click', handleCancel);
-      submitEl?.addEventListener('click', handleSubmit);
-
-      const cleanupShell = activateModalShell({
-        overlay,
-        onDismiss,
-        onSubmitEnter: onSubmit,
-        submitWhenActive:
-          opts.submitWhenActive ||
-          (onSubmit && submitSelector
-            ? (active) => !!active?.matches(submitSelector)
-            : undefined),
-        focusablesSelector,
-      });
-
-      (initialFocusSelector
-        ? (overlay.querySelector(initialFocusSelector) as HTMLElement | null)
-        : null
-      )?.focus();
-
-      return () => {
-        cancelEl?.removeEventListener('click', handleCancel);
-        submitEl?.removeEventListener('click', handleSubmit);
-        cleanupShell();
-      };
-    }
     if (e.key === 'Enter' && opts.onSubmitEnter && opts.submitWhenActive) {
       const active = document.activeElement as HTMLElement | null;
       if (opts.submitWhenActive(active)) {
@@ -128,6 +80,56 @@ export function activateModalShell(opts: ModalShellOptions): () => void {
     overlay.removeEventListener('click', onOverlayClick);
     document.removeEventListener('keydown', onKeydown);
     document.body.style.overflow = priorOverflow;
+  };
+}
+
+export function bootstrapDialog(opts: DialogBootstrapOptions): () => void {
+  const {
+    overlay,
+    onDismiss,
+    onCancel,
+    onSubmit,
+    cancelSelector,
+    submitSelector,
+    focusablesSelector,
+    initialFocusSelector,
+  } = opts;
+
+  const cancelEl = cancelSelector
+    ? (overlay.querySelector(cancelSelector) as HTMLElement | null)
+    : null;
+  const submitEl = submitSelector
+    ? (overlay.querySelector(submitSelector) as HTMLElement | null)
+    : null;
+  const handleCancel = (): void => {
+    onCancel?.();
+  };
+  const handleSubmit = (): void => {
+    onSubmit?.();
+  };
+
+  cancelEl?.addEventListener('click', handleCancel);
+  submitEl?.addEventListener('click', handleSubmit);
+
+  const cleanupShell = activateModalShell({
+    overlay,
+    onDismiss,
+    onSubmitEnter: onSubmit,
+    submitWhenActive:
+      opts.submitWhenActive ||
+      (onSubmit && submitSelector ? (active) => !!active?.matches(submitSelector) : undefined),
+    focusablesSelector,
+  });
+
+  (initialFocusSelector
+    ? (overlay.querySelector(initialFocusSelector) as HTMLElement | null)
+    : null
+  )?.focus();
+
+  return () => {
+    cancelEl?.removeEventListener('click', handleCancel);
+    submitEl?.removeEventListener('click', handleSubmit);
+    cleanupShell();
   };
 }
 

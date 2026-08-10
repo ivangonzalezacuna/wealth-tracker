@@ -52,12 +52,16 @@ describe('securitySuggestionFields', () => {
       filtered,
     );
 
-    expect(Array.from(overlay.querySelectorAll('#isin-list option')).map((el) => el.getAttribute('value'))).toEqual([
-      'IE00BBB',
-    ]);
-    expect(Array.from(overlay.querySelectorAll('#name-list option')).map((el) => el.getAttribute('value'))).toEqual([
-      'Beta Fund',
-    ]);
+    expect(
+      Array.from(overlay.querySelectorAll('#isin-list option')).map((el) =>
+        el.getAttribute('value'),
+      ),
+    ).toEqual(['IE00BBB']);
+    expect(
+      Array.from(overlay.querySelectorAll('#name-list option')).map((el) =>
+        el.getAttribute('value'),
+      ),
+    ).toEqual(['Beta Fund']);
   });
 
   it('supports overwrite and preserve autofill modes', () => {

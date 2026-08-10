@@ -277,7 +277,10 @@ function _submit(): void {
     setErr('txd-name', 'Name is required.');
     valid = false;
   }
-  if (securityVisible && !securitySuggestionPairLooksCoherent(isinVal, nameVal, _activeSuggestions)) {
+  if (
+    securityVisible &&
+    !securitySuggestionPairLooksCoherent(isinVal, nameVal, _activeSuggestions)
+  ) {
     setErr('txd-isin', 'Known ISIN/name pair mismatch. Pick a matching pair or clear one field.');
     setErr('txd-name', 'Known ISIN/name pair mismatch. Pick a matching pair or clear one field.');
     valid = false;

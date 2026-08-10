@@ -32,11 +32,13 @@ export function conflictDialog(): Promise<ConflictResolutionChoice> {
     (overlay.querySelector('.js-conflict-backup') as HTMLElement).addEventListener('click', () =>
       dismiss('backup'),
     );
-    (overlay.querySelector('.js-conflict-keep-local') as HTMLElement).addEventListener('click', () =>
-      dismiss('keep-local'),
+    (overlay.querySelector('.js-conflict-keep-local') as HTMLElement).addEventListener(
+      'click',
+      () => dismiss('keep-local'),
     );
-    (overlay.querySelector('.js-conflict-keep-cloud') as HTMLElement).addEventListener('click', () =>
-      dismiss('keep-cloud'),
+    (overlay.querySelector('.js-conflict-keep-cloud') as HTMLElement).addEventListener(
+      'click',
+      () => dismiss('keep-cloud'),
     );
     _dialog.setOverlay(overlay);
     _dialog.setCleanup(
