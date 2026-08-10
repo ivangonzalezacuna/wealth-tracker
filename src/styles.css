@@ -1473,7 +1473,7 @@ summary.section-label {
   font-size: 12px;
 }
 .rebalance-plan-row {
-  grid-template-columns: minmax(0, 40%) minmax(0, 30%) minmax(0, 30%);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 .rebalance-etf-cell {
   min-width: 0;
