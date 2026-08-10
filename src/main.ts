@@ -126,9 +126,6 @@ let _activeSection = 'networth';
 const _dirty = new Set<string>();
 const ALL_SECTIONS = ['networth', 'portfolio', 'analytics', 'settings', 'log'] as const;
 
-// ── Snapshot edit mode ───────────────────────────────────
-let _editingSnapDate: string | null = null;
-
 // ── Portfolio sub-view state ─────────────────────────────
 let _portfolioSubview: 'holdings' | 'contributions' | 'dividends' = 'holdings';
 let _driftTooltipEl: HTMLSpanElement | null = null;
@@ -1233,7 +1230,7 @@ function renderSetupBanner(): void {
 
 // ── Snapshot form ─────────────────────────────────────────
 function initSnapForm() {
-  document.getElementById('btn-add-snap')?.addEventListener('click', saveMonthlyUpdate);
+  document.getElementById('btn-add-snap')?.addEventListener('click', () => saveMonthlyUpdate());
 }
 
 async function saveSnapshot(snap: Snapshot) {
@@ -1263,7 +1260,6 @@ async function saveSnapshot(snap: Snapshot) {
       }
       const snapCached = await setCachedSnapshots(state.snaps);
       if (!snapCached) showCacheWriteWarning();
-      clearSnapForm();
       renderAll();
     },
     onlineMessage: 'Saved ✓',
@@ -1277,16 +1273,10 @@ async function saveSnapshot(snap: Snapshot) {
  * CSV import remains a separate confirm action within the same card.
  * Both paths run under the unified sync lock.
  */
-async function saveMonthlyUpdate() {
+async function saveMonthlyUpdate(editDate?: string) {
   if (!ensureWriteAccess('snap-msg')) return;
 
-  let existing = _editingSnapDate
-    ? state.snaps.find((s) => s.date === _editingSnapDate)
-    : undefined;
-  if (_editingSnapDate && !existing) {
-    clearSnapForm();
-    existing = undefined;
-  }
+  let existing = editDate ? state.snaps.find((s) => s.date === editDate) : undefined;
 
   const snap = await snapshotDialog({
     mode: existing ? 'edit' : 'add',
@@ -1305,9 +1295,7 @@ function editSnap(date: string) {
   if (!s) return;
 
   showSection('log', document.querySelector('.nav button[data-section="log"]'));
-  _editingSnapDate = date;
-  _updateSnapEditIndicator();
-  void saveMonthlyUpdate();
+  void saveMonthlyUpdate(date);
 }
 
 async function delSnap(date: string, btn?: HTMLButtonElement) {
@@ -1457,44 +1445,6 @@ async function delManualTransaction(rowId: number, btn?: HTMLButtonElement): Pro
     onlineMessage: 'Transaction deleted.',
     offlineMessage: 'Transaction deleted locally. Will sync to Drive when back online.',
   });
-}
-
-function clearSnapForm() {
-  _editingSnapDate = null;
-  _updateSnapEditIndicator();
-}
-
-/** Show or hide the "Editing {month}" banner inside the balance card. */
-function _updateSnapEditIndicator(): void {
-  const card = document.getElementById('balance-card');
-  if (!card) return;
-  const existing = card.querySelector('.snap-edit-indicator') as HTMLElement | null;
-  const actionBtn = card.querySelector('#btn-add-snap') as HTMLButtonElement | null;
-  if (!_editingSnapDate) {
-    existing?.remove();
-    if (actionBtn) actionBtn.textContent = 'Add monthly snapshot';
-    return;
-  }
-  const label = fmtMon(_editingSnapDate);
-  if (existing) {
-    (existing.querySelector('.snap-edit-indicator-label') as HTMLElement).textContent =
-      `Editing ${label}`;
-  } else {
-    const indicator = document.createElement('div');
-    indicator.className = 'snap-edit-indicator';
-    indicator.innerHTML = `<span class="snap-edit-indicator-label">Editing ${esc(label)}</span><button class="btn btn-ghost btn-sm snap-edit-indicator-cancel" type="button">Cancel edit</button>`;
-    const actionsRow = actionBtn?.parentElement;
-    if (actionsRow) {
-      actionsRow.insertAdjacentElement('beforebegin', indicator);
-    } else {
-      card.appendChild(indicator);
-    }
-    indicator.querySelector('.snap-edit-indicator-cancel')?.addEventListener('click', () => {
-      clearSnapForm();
-      showMsg('snap-msg', '', true);
-    });
-  }
-  if (actionBtn) actionBtn.textContent = 'Edit monthly snapshot';
 }
 
 function getLatestSnapshotValues(): Record<string, number | string | undefined> | null {

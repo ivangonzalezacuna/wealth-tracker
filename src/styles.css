@@ -2384,21 +2384,3 @@ input[type='color'] {
   gap: 4px;
   padding-top: 5px;
 }
-
-/* ── Snapshot edit-mode indicator ───────────────────────── */
-.snap-edit-indicator {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 12px;
-  background: var(--dist-bg);
-  border: 1px solid var(--brand-border);
-  border-radius: var(--radius-sm);
-  margin-bottom: 10px;
-}
-.snap-edit-indicator-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--dist-fg);
-  flex: 1;
-}
