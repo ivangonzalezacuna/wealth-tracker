@@ -109,6 +109,46 @@ function _shiftMonth(ym: string, deltaMonths: number): string | null {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
+/**
+ * Populate (or refresh) an accessible data-table mirror inside a `.chart-data-table-wrap`.
+ * The table is always present in the DOM for screen readers; a toggle button lets sighted
+ * users show or hide it. Re-calling this function updates the content in place.
+ */
+function _writeChartTable(
+  wrapId: string,
+  ariaLabel: string,
+  headers: string[],
+  rows: (string | number)[][],
+): void {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  // Check whether the table is currently visible (persisted across re-renders)
+  const existingTable = wrap.querySelector('.chart-data-table') as HTMLTableElement | null;
+  const wasVisible = existingTable ? !existingTable.hidden : false;
+
+  const thCells = headers.map((h) => `<th scope="col">${esc(String(h))}</th>`).join('');
+  const bodyRows = rows
+    .map((r) => `<tr>${r.map((c) => `<td>${esc(String(c))}</td>`).join('')}</tr>`)
+    .join('');
+  const tableHtml = `<table class="chart-data-table" role="table" aria-label="${esc(ariaLabel)}"${wasVisible ? '' : ' hidden'}>
+    <thead><tr>${thCells}</tr></thead>
+    <tbody>${bodyRows}</tbody>
+  </table>`;
+
+  const toggleLabel = wasVisible ? 'Hide data table' : 'Show data table';
+  wrap.innerHTML = `<button class="chart-data-table-toggle" type="button" aria-expanded="${wasVisible}">${toggleLabel}</button>${tableHtml}`;
+
+  const btn = wrap.querySelector('.chart-data-table-toggle') as HTMLButtonElement;
+  const table = wrap.querySelector('.chart-data-table') as HTMLTableElement;
+  btn.addEventListener('click', () => {
+    const visible = !table.hidden;
+    table.hidden = visible;
+    btn.textContent = visible ? 'Show data table' : 'Hide data table';
+    btn.setAttribute('aria-expanded', String(!visible));
+  });
+  wrap.removeAttribute('hidden');
+}
+
 // ── Main render ───────────────────────────────────────────
 
 export function renderAnalytics(
@@ -286,6 +326,9 @@ export function renderAnalytics(
     _heatmapPage = 0;
     _renderHeatmap(snaps);
     _attachHeatmapPager(snaps);
+
+    // Annual returns table
+    _renderAnnualTable(snaps);
 
     // Allocation donuts
     _renderAllocationDonuts(holdings, pd);
@@ -476,6 +519,13 @@ function _renderGrowthChart(snaps: Snapshot[]): void {
       },
     },
   });
+
+  _writeChartTable(
+    'c-an-growth-table-wrap',
+    'Portfolio growth over time data',
+    ['Month', 'Net Worth (€)'],
+    view.map((s) => [fmtMon(s.date), fmtEur2(snapTotal(s))]),
+  );
 }
 
 function _attachGrowthRangeToggle(snaps: Snapshot[]): void {
@@ -768,6 +818,78 @@ function _heatmapTextColor(intensity: number, weightedReturn: number): string {
   // Use white text on saturated backgrounds, dark text on light ones
   if (intensity > 0.5) return '#fff';
   return weightedReturn !== 0 ? 'var(--ink)' : 'var(--ink-3)';
+}
+
+// ── Annual returns table ───────────────────────────────────
+
+/**
+ * Render a structured annual-returns table with a small inline SVG sparkline bar
+ * for each year. Requires at least 2 annual data points (so a prior-year delta can
+ * be shown). If fewer years are available, shows the data without the delta column.
+ */
+function _renderAnnualTable(snaps: Snapshot[]): void {
+  const el = document.getElementById('an-annual-table');
+  const card = document.getElementById('an-annual-table-card');
+  if (!el || !card) return;
+
+  const data = annualReturns(snaps);
+  if (data.length === 0) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = '';
+
+  // Show newest year first
+  const rows = [...data].reverse();
+  const MAX_BAR_H = 28; // px — maximum bar height
+
+  // Compute max abs return for scaling sparkline bars
+  const maxAbs = Math.max(...rows.map((r) => Math.abs(r.return)), 0.001);
+
+  const C = resolvedT();
+
+  const tableRows = rows
+    .map((row, i) => {
+      const pct = row.return * 100;
+      const sign = pct >= 0 ? '+' : '';
+      const color = pct >= 0 ? C.pos : C.neg;
+      const barH = Math.round((Math.abs(row.return) / maxAbs) * MAX_BAR_H);
+      const barY = MAX_BAR_H - barH;
+
+      // vs prior year delta (prior year = next item since list is newest-first)
+      const prior = rows[i + 1];
+      let deltaCell = '<td style="color:var(--ink-3)">—</td>';
+      if (prior !== undefined) {
+        const delta = (row.return - prior.return) * 100;
+        const dSign = delta >= 0 ? '+' : '';
+        const dColor = delta >= 0 ? C.pos : C.neg;
+        deltaCell = `<td style="color:${dColor}">${dSign}${delta.toFixed(1)} pp</td>`;
+      }
+
+      const sparkline = `<svg width="32" height="${MAX_BAR_H + 4}" viewBox="0 0 32 ${MAX_BAR_H + 4}" aria-hidden="true" style="display:block;margin:auto">
+        <rect x="8" y="${barY + 2}" width="16" height="${barH}" rx="2" fill="${color}" opacity="0.85"/>
+      </svg>`;
+
+      return `<tr>
+        <td style="font-weight:500;color:var(--ink)">${row.year}</td>
+        <td style="color:${color};font-weight:600">${sign}${pct.toFixed(1)}%</td>
+        <td style="text-align:center">${sparkline}</td>
+        ${deltaCell}
+      </tr>`;
+    })
+    .join('');
+
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead>
+      <tr style="border-bottom:1px solid var(--line);color:var(--ink-3);font-weight:500">
+        <th style="text-align:left;padding:4px 6px">Year</th>
+        <th style="text-align:left;padding:4px 6px">Return</th>
+        <th style="text-align:center;padding:4px 6px">Bar</th>
+        <th style="text-align:left;padding:4px 6px">vs prior year</th>
+      </tr>
+    </thead>
+    <tbody style="color:var(--ink-2)">${tableRows}</tbody>
+  </table>`;
 }
 
 // ── Allocation donuts ──────────────────────────────────────
@@ -1081,6 +1203,13 @@ function _renderDrawdownChart(series: { date: string; drawdown: number }[]): voi
       },
     },
   });
+
+  _writeChartTable(
+    'c-an-drawdown-table-wrap',
+    'Drawdown history data',
+    ['Month', 'Drawdown (%)'],
+    series.map((p) => [fmtMon(p.date), (p.drawdown * 100).toFixed(1) + '%']),
+  );
 }
 
 // ── Rolling CAGR chart ─────────────────────────────────────
@@ -1297,6 +1426,13 @@ function _renderIncomeChart(monthlyBreakdown: { month: string; amount: number }[
       },
     },
   });
+
+  _writeChartTable(
+    'c-an-income-table-wrap',
+    'Income by month data',
+    ['Month', 'Income (€)'],
+    view.map((p) => [fmtMon(p.month), fmtEur2(p.amount)]),
+  );
 }
 
 function _attachIncomeRangeToggle(monthlyBreakdown: { month: string; amount: number }[]): void {

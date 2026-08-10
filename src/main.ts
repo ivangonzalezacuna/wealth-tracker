@@ -89,7 +89,7 @@ import {
   holdingsSignature,
   setCollapseState,
 } from './cache/db';
-import { onThemeChange } from './theme';
+import { onThemeChange, setUserTheme, getUserThemePref } from './theme';
 import { shouldAutoResync } from './sync/policy';
 import { loadCollapseState, replaceCollapseState } from './ui/collapseState';
 import { restoreCollapseFromSheet, backupCollapseToSheet } from './ui/collapseSync';
@@ -342,6 +342,9 @@ function isInitialLoad(): boolean {
 logEnvironment();
 document.getElementById('app')!.innerHTML = appTemplate();
 injectEnvBanner();
+// Apply persisted theme preference before first render to avoid flash
+setUserTheme(getUserThemePref());
+_updateThemeToggleLabel();
 void checkStorageQuota(); // fire-and-forget storage check
 loadCollapseState(); // fire-and-forget: loads persisted UI collapse state from IDB
 initNav();
@@ -546,6 +549,30 @@ function initOnlineListeners() {
  *  action triggers the next re-render. */
 function initThemeListener() {
   onThemeChange(() => renderAll());
+  document.getElementById('btn-theme-toggle')?.addEventListener('click', () => {
+    const next =
+      getUserThemePref() === 'light' ? 'dark' : getUserThemePref() === 'dark' ? 'system' : 'light';
+    setUserTheme(next);
+    _updateThemeToggleLabel();
+  });
+}
+
+function _updateThemeToggleLabel(): void {
+  const btn = document.getElementById('btn-theme-toggle');
+  if (!btn) return;
+  const pref = getUserThemePref();
+  const labels: Record<string, string> = {
+    light: '☀️ Light',
+    dark: '🌙 Dark',
+    system: '🖥️ System',
+  };
+  const aria: Record<string, string> = {
+    light: 'Switch theme: currently Light',
+    dark: 'Switch theme: currently Dark',
+    system: 'Switch theme: currently System',
+  };
+  btn.textContent = labels[pref] ?? '☀️ Light';
+  btn.setAttribute('aria-label', aria[pref] ?? 'Switch theme');
 }
 
 /** Trigger syncInBackground only when shouldAutoResync passes. */

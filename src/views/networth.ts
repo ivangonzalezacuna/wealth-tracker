@@ -35,6 +35,45 @@ let _lastSnaps: Snapshot[] = [];
 let _lastAccounts: Account[] = [];
 let _activeGoalIdx = 0; // which goal tab is selected in the consolidated goals card
 
+/**
+ * Populate (or refresh) an accessible data-table mirror inside a `.chart-data-table-wrap`.
+ * The table is always present in the DOM for screen readers; a toggle button lets sighted
+ * users show or hide it. Re-calling this function updates the content in place.
+ */
+function _writeChartTable(
+  wrapId: string,
+  ariaLabel: string,
+  headers: string[],
+  rows: (string | number)[][],
+): void {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  const existingTable = wrap.querySelector('.chart-data-table') as HTMLTableElement | null;
+  const wasVisible = existingTable ? !existingTable.hidden : false;
+
+  const thCells = headers.map((h) => `<th scope="col">${esc(String(h))}</th>`).join('');
+  const bodyRows = rows
+    .map((r) => `<tr>${r.map((c) => `<td>${esc(String(c))}</td>`).join('')}</tr>`)
+    .join('');
+  const tableHtml = `<table class="chart-data-table" role="table" aria-label="${esc(ariaLabel)}"${wasVisible ? '' : ' hidden'}>
+    <thead><tr>${thCells}</tr></thead>
+    <tbody>${bodyRows}</tbody>
+  </table>`;
+
+  const toggleLabel = wasVisible ? 'Hide data table' : 'Show data table';
+  wrap.innerHTML = `<button class="chart-data-table-toggle" type="button" aria-expanded="${wasVisible}">${toggleLabel}</button>${tableHtml}`;
+
+  const btn = wrap.querySelector('.chart-data-table-toggle') as HTMLButtonElement;
+  const table = wrap.querySelector('.chart-data-table') as HTMLTableElement;
+  btn.addEventListener('click', () => {
+    const visible = !table.hidden;
+    table.hidden = visible;
+    btn.textContent = visible ? 'Show data table' : 'Hide data table';
+    btn.setAttribute('aria-expanded', String(!visible));
+  });
+  wrap.removeAttribute('hidden');
+}
+
 /** Apply annual inflation to convert a nominal forecast series to real values. */
 function _deflateByInflation(
   series: Array<{ month: string; value: number }>,
@@ -345,6 +384,13 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
         },
       },
     });
+
+    _writeChartTable(
+      'c-nw-hist-table-wrap',
+      'Account breakdown data',
+      ['Account', 'Value (€)'],
+      chartA.map((a) => [a.label, fmtEur2((s[a.key] as number) || 0)]),
+    );
   } else {
     _renderNWHistChart(view, chartA);
   }
@@ -484,6 +530,18 @@ function _renderNWHistChart(
     },
   });
   CH['c-nw-hist'] = chart;
+
+  // Write accessible data table for screen readers / keyboard users
+  _writeChartTable(
+    'c-nw-hist-table-wrap',
+    'Net worth history data',
+    ['Month', 'Total Net Worth (€)', ...chartA.map((a) => a.label + ' (€)')],
+    view.map((sn) => [
+      fmtMon(sn.date),
+      fmtEur2(snapTotal(sn)),
+      ...chartA.map((a) => fmtEur2((sn[a.key] as number) || 0)),
+    ]),
+  );
 
   // Make legend swatches clickable to toggle datasets
   _bindLegendToggle(chart);
