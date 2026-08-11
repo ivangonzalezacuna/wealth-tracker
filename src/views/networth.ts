@@ -596,8 +596,24 @@ function _renderPlanningCard(snaps: Snapshot[], accounts: Account[]): void {
     return;
   }
 
+  const inflHint = _inflationRate > 0
+    ? 'Inflation-adjusted projection shown as dashed line on charts.'
+    : 'Set above 0 to overlay an inflation-adjusted projection on all charts.';
+
   el.innerHTML = `
     <div class="card" id="nw-planning-card">
+      <div class="card-title">Planning</div>
+      <div class="forecast-inflation" style="margin-bottom:1rem">
+        <div class="forecast-inflation-row">
+          <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation (%/yr)</label>
+          <div class="forecast-inflation-input-wrap">
+            <input id="nw-forecast-inflation" class="forecast-inflation-input" type="number" inputmode="decimal" min="0" max="20" step="0.1"
+                   value="${_inflationRate}"
+                   aria-label="Annual inflation rate for real-return projection">
+          </div>
+        </div>
+        <div class="forecast-inflation-hint">${inflHint}</div>
+      </div>
       <div class="range-toggle" id="nw-planning-tabs" role="tablist" aria-label="Planning tools" style="margin-bottom:1rem">
         <button class="btn btn-sm btn-ghost${_planningTab === 'forecast' ? ' active' : ''}" role="tab" aria-selected="${_planningTab === 'forecast'}" aria-controls="nw-fc-panel" data-planning-tab="forecast">Forecast</button>
         <button class="btn btn-sm btn-ghost${_planningTab === 'drawdown' ? ' active' : ''}" role="tab" aria-selected="${_planningTab === 'drawdown'}" aria-controls="nw-dd-panel" data-planning-tab="drawdown">Retirement</button>
@@ -610,6 +626,18 @@ function _renderPlanningCard(snaps: Snapshot[], accounts: Account[]): void {
     _renderForecastChart(snaps, accounts);
   } else {
     _renderDecumulationCard(snaps, accounts);
+  }
+
+  // Bind shared inflation input: on change, update state and re-render the active tab
+  const inflInput = document.getElementById('nw-forecast-inflation') as HTMLInputElement | null;
+  if (inflInput) {
+    inflInput.addEventListener('change', () => {
+      const v = parseFloat(inflInput.value);
+      _inflationRate = isFinite(v) && v >= 0 ? Math.min(v, 20) : 0;
+      void setSetting('nw_inflation_rate', String(_inflationRate));
+      _renderGoalCards();
+      _renderPlanningCard(_lastSnaps, _lastAccounts);
+    });
   }
 
   document.getElementById('nw-planning-tabs')?.addEventListener('click', (e) => {
@@ -768,23 +796,6 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       <div class="note" style="line-height:1.6">
         <div style="margin-bottom:4px">Assumptions per account (Settings \u2192 Accounts):</div>
         ${acctSummaryLines}
-        <div class="forecast-inflation">
-          <div class="forecast-inflation-row">
-            <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation (%/yr)</label>
-            <div class="forecast-inflation-input-wrap">
-              <input id="nw-forecast-inflation" class="forecast-inflation-input" type="number" inputmode="decimal" min="0" max="20" step="0.1"
-                     value="${_inflationRate}"
-                     aria-label="Annual inflation rate for real-return forecast">
-            </div>
-          </div>
-          <div class="forecast-inflation-hint">
-            ${
-              showReal
-                ? 'Dashed line shows the inflation-adjusted projection in today\u2019s purchasing power.'
-                : 'Set above 0 to overlay an inflation-adjusted projection.'
-            }
-          </div>
-        </div>
         <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX.${goalDeadlines.length > 0 ? ' Goal deadlines and target amounts are shown as markers on the chart.' : ''}</div>
       </div>
     `;
@@ -945,18 +956,6 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       })),
     );
     bindLegendToggle(fcLegendEl, CH['c-nw-forecast'], { rescaleX: true });
-  }
-
-  // Bind inflation input: on change, update state and re-render the forecast card
-  const inflInput = document.getElementById('nw-forecast-inflation') as HTMLInputElement | null;
-  if (inflInput) {
-    inflInput.addEventListener('change', () => {
-      const v = parseFloat(inflInput.value);
-      _inflationRate = isFinite(v) && v >= 0 ? Math.min(v, 20) : 0;
-      void setSetting('nw_inflation_rate', String(_inflationRate));
-      _renderGoalCards();
-      _renderForecastChart(_lastSnaps, _lastAccounts);
-    });
   }
 
   _attachForecastRangeToggle();
