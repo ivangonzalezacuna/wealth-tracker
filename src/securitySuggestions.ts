@@ -23,8 +23,7 @@ export async function loadAppSecuritySuggestions(): Promise<{
   transactions: Transaction[];
   suggestions: SecuritySuggestions;
 }> {
-  const loadedTransactions = await loadTransactions();
-  const transactions = Array.isArray(loadedTransactions) ? loadedTransactions : [];
+  const transactions = await loadTransactions();
   return {
     transactions,
     suggestions: buildAppSecuritySuggestions(transactions),

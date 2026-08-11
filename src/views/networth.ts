@@ -783,14 +783,15 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       <div class="card-title">Forecast: ${FORECAST_RANGE_LABELS[_fcRange]} (per-account return assumptions)</div>
       <div class="chart-controls">
         <div id="nw-forecast-legend" class="legend"></div>
-        <div class="range-toggle" id="nw-forecast-range-toggle">
-          <button class="btn btn-sm btn-ghost ${_fcRange === '60' ? 'active' : ''}" data-range="60">5Y</button>
-          <button class="btn btn-sm btn-ghost ${_fcRange === '120' ? 'active' : ''}" data-range="120">10Y</button>
-          <button class="btn btn-sm btn-ghost ${_fcRange === '240' ? 'active' : ''}" data-range="240">20Y</button>
-          <button class="btn btn-sm btn-ghost ${_fcRange === '360' ? 'active' : ''}" data-range="360">30Y</button>
+        <div class="range-toggle" id="nw-forecast-range-toggle" role="group" aria-label="Forecast range">
+          <button class="btn btn-sm btn-ghost ${_fcRange === '60' ? 'active' : ''}" data-range="60" aria-pressed="${_fcRange === '60'}">5Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '120' ? 'active' : ''}" data-range="120" aria-pressed="${_fcRange === '120'}">10Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '240' ? 'active' : ''}" data-range="240" aria-pressed="${_fcRange === '240'}">20Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '360' ? 'active' : ''}" data-range="360" aria-pressed="${_fcRange === '360'}">30Y</button>
         </div>
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast"></canvas></div>
+      <div class="chart-data-table-wrap" id="c-nw-forecast-table-wrap" hidden></div>
       <div class="note" style="line-height:1.6">
         <div style="margin-bottom:4px">Assumptions per account (Settings \u2192 Accounts):</div>
         ${acctSummaryLines}
@@ -955,6 +956,22 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     );
     bindLegendToggle(fcLegendEl, CH['c-nw-forecast'], { rescaleX: true });
   }
+
+  // Write accessible data table for screen readers / keyboard users
+  const fcFmt = (v: number | null) => (v != null ? fmtEur2(v) : '—');
+  const fcTableHeaders = showReal
+    ? ['Month', 'Actual (€)', 'Forecast nominal (€)', `Forecast real (€)`]
+    : ['Month', 'Actual (€)', 'Forecast (€)'];
+  writeChartTable(
+    'c-nw-forecast-table-wrap',
+    'Forecast data',
+    fcTableHeaders,
+    labels.map((lbl, i) =>
+      showReal && realDataFull
+        ? [lbl, fcFmt(histDataFull[i]), fcFmt(fcDataFull[i]), fcFmt(realDataFull[i])]
+        : [lbl, fcFmt(histDataFull[i]), fcFmt(fcDataFull[i])],
+    ),
+  );
 
   _attachForecastRangeToggle();
 }
@@ -1140,6 +1157,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
     _ddStrategy === 'pct' ? 'Annual withdrawal (%/yr)' : 'Monthly withdrawal (€)';
   const withdrawalStep = _ddStrategy === 'pct' ? '0.1' : '100';
   const withdrawalMin = _ddStrategy === 'pct' ? '0.1' : '0';
+  const withdrawalMax = _ddStrategy === 'pct' ? '100' : '';
 
   // Warn when within ±20% of break-even — in this zone, €/month changes cause nonlinear outcomes.
   const nearBreakEven =
@@ -1161,17 +1179,17 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
         </div>
         <div>
           <label class="planning-label" for="dd-strategy">Withdrawal strategy</label>
-          <div class="range-toggle" id="dd-strategy-toggle" style="margin-top:2px">
-            <button class="btn btn-sm btn-ghost${_ddStrategy === 'fixed' ? ' active' : ''}" data-dd-strategy="fixed">Fixed €/mo</button>
-            <button class="btn btn-sm btn-ghost${_ddStrategy === 'four-pct' ? ' active' : ''}" data-dd-strategy="four-pct">4% SWR</button>
-            <button class="btn btn-sm btn-ghost${_ddStrategy === 'pct' ? ' active' : ''}" data-dd-strategy="pct">% of balance</button>
+          <div class="range-toggle" id="dd-strategy-toggle" style="margin-top:2px" role="group" aria-label="Withdrawal strategy">
+            <button class="btn btn-sm btn-ghost${_ddStrategy === 'fixed' ? ' active' : ''}" data-dd-strategy="fixed" aria-pressed="${_ddStrategy === 'fixed'}">Fixed</button>
+            <button class="btn btn-sm btn-ghost${_ddStrategy === 'four-pct' ? ' active' : ''}" data-dd-strategy="four-pct" aria-pressed="${_ddStrategy === 'four-pct'}">4% SWR</button>
+            <button class="btn btn-sm btn-ghost${_ddStrategy === 'pct' ? ' active' : ''}" data-dd-strategy="pct" aria-pressed="${_ddStrategy === 'pct'}">% of balance</button>
           </div>
         </div>
         <div>
           <label class="planning-label" for="dd-withdrawal">${withdrawalLabel}</label>
           <div class="planning-input-wrap">
             <input id="dd-withdrawal" class="planning-input" type="number" inputmode="decimal"
-                   min="${withdrawalMin}" step="${withdrawalStep}" value="${_ddWithdrawalParam}"
+                   min="${withdrawalMin}"${withdrawalMax ? ` max="${withdrawalMax}"` : ''} step="${withdrawalStep}" value="${_ddWithdrawalParam}"
                    style="width:7rem" aria-label="${withdrawalLabel}">
           </div>
         </div>
@@ -1220,7 +1238,8 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
                   </div>`
                 : ''
             }
-            <div class="chart-wrap chart-h-lg"><canvas id="c-nw-decumulation"></canvas></div>`
+            <div class="chart-wrap chart-h-lg"><canvas id="c-nw-decumulation"></canvas></div>
+            <div class="chart-data-table-wrap" id="c-nw-decumulation-table-wrap" hidden></div>`
           : `<p class="note" style="color:var(--ink-3)">
               ${
                 !corpus || corpus.liquidCorpus <= 0
@@ -1323,6 +1342,22 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
           },
         },
       });
+
+      // Write accessible data table for screen readers / keyboard users
+      const ddFmt = (v: number) => fmtEur2(v);
+      const ddTableHeaders = ddShowReal
+        ? ['Month', `Balance real (€)`, 'Balance nominal (€)', 'Withdrawal (€)']
+        : ['Month', 'Balance (€)', 'Withdrawal (€)'];
+      writeChartTable(
+        'c-nw-decumulation-table-wrap',
+        'Retirement drawdown data',
+        ddTableHeaders,
+        labels.map((lbl, i) =>
+          ddShowReal
+            ? [lbl, ddFmt(displayValues[i]), ddFmt(nominalValues[i]), ddFmt(ddSeries[i].withdrawal)]
+            : [lbl, ddFmt(nominalValues[i]), ddFmt(ddSeries[i].withdrawal)],
+        ),
+      );
     }
   }
 
@@ -1346,20 +1381,26 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
 
   withdrawalInput?.addEventListener('change', () => {
     const v = parseFloat(withdrawalInput.value);
-    if (isFinite(v) && v >= 0) {
+    if (isFinite(v) && v >= 0 && (_ddStrategy !== 'pct' || v <= 100)) {
+      withdrawalInput.removeAttribute('aria-invalid');
       _ddWithdrawalParam = v;
       void setSetting('dd_withdrawal_param', String(_ddWithdrawalParam));
       rerender();
+    } else {
+      withdrawalInput.setAttribute('aria-invalid', 'true');
     }
   });
 
   returnInput?.addEventListener('change', () => {
     const v = parseFloat(returnInput.value);
     if (isFinite(v) && v >= 0) {
+      returnInput.removeAttribute('aria-invalid');
       _ddReturnPct = Math.min(v, 20);
       _ddReturnPctManual = true;
       void setSetting('dd_return_pct', String(_ddReturnPct));
       rerender();
+    } else {
+      returnInput.setAttribute('aria-invalid', 'true');
     }
   });
 
