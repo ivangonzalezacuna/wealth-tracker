@@ -51,6 +51,7 @@ let _ddWithdrawalParam = 0; // €/month for fixed/four-pct; annual % for pct
 let _ddReturnPct = 0; // annual return % during retirement; 0 = derive from accounts on each render
 let _ddReturnPctManual = false; // true once user has edited the return-rate input
 let _stateLoaded = false; // tracks whether persisted settings have been loaded into module state
+let _planningTab: 'forecast' | 'drawdown' = 'forecast'; // active tab in the combined planning card
 
 /** Load persisted drawdown + inflation settings from the Settings store (runs once). */
 function _loadPersistedState(): void {
@@ -230,6 +231,11 @@ function _renderGoalCards(): void {
  * Renders the Net Worth tab: lead KPI (with MoM delta), per-account KPI tiles,
  * YoY/CAGR tiles, the history chart, growth-breakdown chart, and goal progress.
  */
+/** Resets module-level tab state. Exposed only for unit test teardown. */
+export function _resetPlanningTabForTest(): void {
+  _planningTab = 'forecast';
+}
+
 export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   _loadPersistedState();
   const ACCTS = getACCTSList();
@@ -419,11 +425,8 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   // Goal progress cards (one per named goal)
   _renderGoalCards();
 
-  // Forecast chart
-  _renderForecastChart(snaps, accounts);
-
-  // Retirement drawdown card
-  _renderDecumulationCard(snaps, accounts);
+  // Forecast + retirement planning card (tabbed)
+  _renderPlanningCard(snaps, accounts);
 
   attachInfoTips(document.getElementById('networth')!);
 }
@@ -582,6 +585,43 @@ function _attachNWRangeToggle(
   });
 }
 
+// ── Combined planning card (Forecast + Retirement drawdown) ──
+
+function _renderPlanningCard(snaps: Snapshot[], accounts: Account[]): void {
+  const el = document.getElementById('nw-planning');
+  if (!el) return;
+
+  if (snaps.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="card" id="nw-planning-card">
+      <div class="range-toggle" id="nw-planning-tabs" role="tablist" aria-label="Planning tools" style="margin-bottom:1rem">
+        <button class="btn btn-sm btn-ghost${_planningTab === 'forecast' ? ' active' : ''}" role="tab" aria-selected="${_planningTab === 'forecast'}" aria-controls="nw-fc-panel" data-planning-tab="forecast">Forecast</button>
+        <button class="btn btn-sm btn-ghost${_planningTab === 'drawdown' ? ' active' : ''}" role="tab" aria-selected="${_planningTab === 'drawdown'}" aria-controls="nw-dd-panel" data-planning-tab="drawdown">Retirement</button>
+      </div>
+      <div id="nw-fc-panel" role="tabpanel"${_planningTab !== 'forecast' ? ' hidden' : ''}></div>
+      <div id="nw-dd-panel" role="tabpanel"${_planningTab !== 'drawdown' ? ' hidden' : ''}></div>
+    </div>`;
+
+  if (_planningTab === 'forecast') {
+    _renderForecastChart(snaps, accounts);
+  } else {
+    _renderDecumulationCard(snaps, accounts);
+  }
+
+  document.getElementById('nw-planning-tabs')?.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('[data-planning-tab]') as HTMLElement | null;
+    if (!btn) return;
+    const tab = btn.dataset.planningTab as 'forecast' | 'drawdown';
+    if (tab === _planningTab) return;
+    _planningTab = tab;
+    _renderPlanningCard(_lastSnaps, _lastAccounts);
+  });
+}
+
 // ── Forecast range toggle binding ──
 
 function _attachForecastRangeToggle(): void {
@@ -604,7 +644,7 @@ function _attachForecastRangeToggle(): void {
 
 function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   const C = resolvedT();
-  const forecastEl = document.getElementById('nw-forecast');
+  const forecastEl = document.getElementById('nw-fc-panel');
   if (!forecastEl) return;
 
   if (snaps.length === 0) {
@@ -617,7 +657,8 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     (a) => a.annualContrib > 0 || a.annualReturnPct > 0,
   );
   if (!hasGrowthPotential) {
-    forecastEl.innerHTML = '';
+    forecastEl.innerHTML =
+      '<p class="note" style="color:var(--ink-3)">Configure return rates or contributions in Settings \u2192 Accounts to see a forecast.</p>';
     return;
   }
 
@@ -713,7 +754,6 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     .join('<br>');
 
   forecastEl.innerHTML = `
-    <div class="card">
       <div class="card-title">Forecast: ${FORECAST_RANGE_LABELS[_fcRange]} (per-account return assumptions)</div>
       <div class="chart-controls">
         <div id="nw-forecast-legend" class="legend"></div>
@@ -747,7 +787,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
         </div>
         <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX.${goalDeadlines.length > 0 ? ' Goal deadlines and target amounts are shown as markers on the chart.' : ''}</div>
       </div>
-    </div>`;
+    `;
 
   _destroyChart('c-nw-forecast');
 
@@ -915,7 +955,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       _inflationRate = isFinite(v) && v >= 0 ? Math.min(v, 20) : 0;
       void setSetting('nw_inflation_rate', String(_inflationRate));
       _renderGoalCards();
-      _renderForecastChart(snaps, accounts);
+      _renderForecastChart(_lastSnaps, _lastAccounts);
     });
   }
 
@@ -1003,7 +1043,7 @@ function _buildCorpusAtRetirement(
 
 function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
   const C = resolvedT();
-  const el = document.getElementById('nw-decumulation');
+  const el = document.getElementById('nw-dd-panel');
   if (!el) return;
 
   if (snaps.length === 0) {
@@ -1119,7 +1159,6 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
     Math.abs(_ddWithdrawalParam - breakEvenMonthly) / breakEvenMonthly < 0.2;
 
   el.innerHTML = `
-    <div class="card" style="margin-bottom:.75rem">
       <div class="card-title">Retirement drawdown${infoTip('Simulates withdrawing from your portfolio after retirement. The starting balance is projected from your current accounts using your existing growth assumptions.')}</div>
       <div class="dd-inputs-grid">
         <div>
@@ -1204,7 +1243,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
         ${corpusNote ? `<div>${corpusNote}</div>` : ''}
         <div style="color:var(--ink-4);margin-top:2px">Does not account for taxes, fees, or FX.${_inflationRate > 0 ? ` Chart shows real (inflation-adjusted) values at ${_inflationRate}% annual inflation.` : ' Return during retirement defaults to the value-weighted average of your configured account returns.'}</div>
       </div>
-    </div>`;
+    `;
 
   // Render chart if we have data
   _destroyChart('c-nw-decumulation');

@@ -72,15 +72,12 @@ export function appTemplate(): string {
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-hist"></canvas></div>
       <div class="chart-data-table-wrap" id="c-nw-hist-table-wrap" hidden></div>
     </div>
-    <div class="two-col">
-      <div class="card">
-        <div class="card-title">Latest snapshot</div>
-        <div id="nw-detail"></div>
-      </div>
+    <div class="card">
+      <div class="card-title">Latest snapshot</div>
+      <div id="nw-detail"></div>
     </div>
     <div id="nw-goal"></div>
-    <div id="nw-forecast"></div>
-    <div id="nw-decumulation"></div>
+    <div id="nw-planning"></div>
   </div>
 </div>
 

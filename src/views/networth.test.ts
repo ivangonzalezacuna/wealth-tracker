@@ -80,7 +80,7 @@ vi.mock('../constants', () => ({
   },
 }));
 
-import { renderNW } from './networth';
+import { renderNW, _resetPlanningTabForTest } from './networth';
 import type { PortfolioData, Snapshot } from '../types';
 import * as configStore from '../store/config';
 
@@ -142,29 +142,25 @@ const DOM_FIXTURE = `
         <button class="btn" data-range="all">All</button>
       </div>
     </div>
-    <div id="nw-forecast">
-      <div class="card">
-        <div id="nw-forecast-legend"></div>
-        <canvas id="c-nw-forecast"></canvas>
-        <div class="range-toggle" id="nw-forecast-range-toggle">
-          <button class="btn active" data-range="60">5Y</button>
-          <button class="btn" data-range="120">10Y</button>
-          <button class="btn" data-range="240">20Y</button>
-          <button class="btn" data-range="360">30Y</button>
-        </div>
-      </div>
-    </div>
+    <div id="nw-planning"></div>
     <div id="nw-goal"></div>
     <div id="nw-detail"></div>
-    <div id="nw-decumulation"></div>
   </div>
   <div id="networth"></div>
 `;
+
+/** Switches the planning card to the drawdown tab and returns the panel element. */
+function switchToDrawdownTab(): HTMLElement {
+  const btn = document.querySelector('[data-planning-tab="drawdown"]') as HTMLElement;
+  btn?.click();
+  return document.getElementById('nw-dd-panel') as HTMLElement;
+}
 
 describe('renderNW', () => {
   beforeEach(() => {
     document.body.innerHTML = DOM_FIXTURE;
     chartInstances.length = 0;
+    _resetPlanningTabForTest();
     delete (MOCK_ACCOUNTS[0] as any).locked;
     delete (MOCK_ACCOUNTS[0] as any).lockedUntil;
     delete (MOCK_ACCOUNTS[1] as any).locked;
@@ -379,11 +375,35 @@ describe('renderNW', () => {
     expect(leadKpis.length).toBe(1);
   });
 
+  it('planning card renders a grouped card with Forecast and Retirement tabs', () => {
+    const snaps = [makeSnap('2026-01', 5000, 2000)];
+    renderNW(makePD(), snaps);
+    const planningEl = document.getElementById('nw-planning')!;
+    expect(planningEl.querySelector('#nw-planning-tabs')).not.toBeNull();
+    expect(planningEl.innerHTML).toContain('Forecast');
+    expect(planningEl.innerHTML).toContain('Retirement');
+    // Forecast panel should be visible by default
+    const fcPanel = document.getElementById('nw-fc-panel')!;
+    expect(fcPanel.hidden).toBe(false);
+    // Drawdown panel should be hidden by default
+    const ddPanel = document.getElementById('nw-dd-panel')!;
+    expect(ddPanel.hidden).toBe(true);
+  });
+
+  it('planning card tab switch shows drawdown panel and hides forecast panel', () => {
+    const snaps = [makeSnap('2026-01', 5000, 2000)];
+    renderNW(makePD(), snaps);
+    const ddEl = switchToDrawdownTab();
+    expect(ddEl.hidden).toBe(false);
+    const fcPanel = document.getElementById('nw-fc-panel')!;
+    expect(fcPanel.hidden).toBe(true);
+  });
+
   it('decumulation card renders with a retirement date 20y in the future by default', () => {
     // Accounts with 7% return → auto-derived return should match
     const snaps = [makeSnap('2026-01', 5000, 2000)];
     renderNW(makePD(), snaps);
-    const ddEl = document.getElementById('nw-decumulation')!;
+    const ddEl = switchToDrawdownTab();
     expect(ddEl.innerHTML).not.toBe('');
     // Card title should be present
     expect(ddEl.textContent).toContain('Retirement drawdown');
@@ -396,7 +416,7 @@ describe('renderNW', () => {
   it('decumulation card shows sustainable withdrawal KPI when corpus and withdrawal are set', () => {
     const snaps = [makeSnap('2026-01', 5000, 2000)];
     renderNW(makePD(), snaps);
-    const ddEl = document.getElementById('nw-decumulation')!;
+    const ddEl = switchToDrawdownTab();
     // Should show the corpus KPIs (Lasts, Monthly income, Sustainable withdrawal)
     expect(ddEl.textContent).toContain('Lasts');
     expect(ddEl.textContent).toContain('Monthly income');
@@ -407,7 +427,7 @@ describe('renderNW', () => {
     // Set up a large portfolio so the break-even is well above 0
     const snaps = [makeSnap('2026-01', 1_000_000, 0)];
     renderNW(makePD(), snaps);
-    const ddEl = document.getElementById('nw-decumulation')!;
+    const ddEl = switchToDrawdownTab();
     // The auto-initialised withdrawal is 4% of projected corpus / 12 which should be near break-even
     // Just verify the warning can render (its presence depends on exact corpus and return values)
     // The important thing is the card doesn't throw and renders the main elements
@@ -419,6 +439,7 @@ describe('renderNW', () => {
   it('decumulation date input min attribute uses YYYY-MM format', () => {
     const snaps = [makeSnap('2026-08-15', 5000, 2000)];
     renderNW(makePD(), snaps);
+    switchToDrawdownTab();
     const dateInput = document.querySelector('#dd-retirement-date') as HTMLInputElement | null;
     expect(dateInput).not.toBeNull();
     // min should be YYYY-MM (7 chars), not YYYY-MM-DD (10 chars)
