@@ -1083,7 +1083,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
   el.innerHTML = `
     <div class="card" style="margin-bottom:.75rem">
       <div class="card-title">Retirement drawdown${infoTip('Simulates withdrawing from your portfolio after retirement. The starting balance is projected from your current accounts using your existing growth assumptions.')}</div>
-      <div style="display:flex;flex-wrap:wrap;gap:.75rem 1.5rem;margin-bottom:.75rem;align-items:flex-end">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem 1.5rem;margin-bottom:.75rem">
         <div>
           <label class="forecast-inflation-label" for="dd-retirement-date">Retirement date</label>
           <div class="forecast-inflation-input-wrap">
@@ -1142,7 +1142,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
             </div>
             ${
               nearBreakEven
-                ? `<div class="note" style="margin-bottom:.75rem;color:var(--warn-fg);background:var(--warn-bg);border:1px solid var(--warn-fg);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px">
+                ? `<div class="status-bar status-warn" style="margin-bottom:.75rem">
                     ⚠️ Your withdrawal is near the sustainable rate (${fmtEur(breakEvenMonthly)}/mo). In this zone, small changes (e.g. €1 000/mo) cause large differences over 40 years due to compounding.
                   </div>`
                 : ''
