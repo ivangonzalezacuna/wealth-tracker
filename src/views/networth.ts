@@ -564,9 +564,7 @@ function _bindLegendToggle(chart: Chart): void {
 
 // ── Range toggle binding ──
 
-function _attachNWRangeToggle(
-  chartA: Array<{ key: string; label: string; color: string }>,
-): void {
+function _attachNWRangeToggle(chartA: Array<{ key: string; label: string; color: string }>): void {
   const toggle = document.getElementById('nw-range-toggle') as
     (HTMLElement & { _bound?: boolean }) | null;
   if (!toggle || toggle._bound) return;
@@ -597,9 +595,10 @@ function _renderPlanningCard(snaps: Snapshot[], accounts: Account[]): void {
     return;
   }
 
-  const inflHint = _inflationRate > 0
-    ? 'Inflation-adjusted projection shown as dashed line on charts.'
-    : 'Set above 0 to overlay an inflation-adjusted projection on all charts.';
+  const inflHint =
+    _inflationRate > 0
+      ? 'Inflation-adjusted projection shown as dashed line on charts.'
+      : 'Set above 0 to overlay an inflation-adjusted projection on all charts.';
 
   el.innerHTML = `
     <div class="card" id="nw-planning-card">
