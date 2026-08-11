@@ -6,23 +6,37 @@
  *
  * Usage in HTML template strings:
  *   `${infoTip('Explanation text here')}`
+ *   `${infoTip('Warning text', 'warn')}`
  *
  * Attach listeners after DOM update:
  *   `attachInfoTips(rootElement)`
  */
 
+/** Visual variants for the info-tip icon and popover. */
+export type InfoTipVariant = 'warn' | 'alert';
+
+/** Icon characters used per variant. */
+const _VARIANT_ICON: Record<InfoTipVariant, string> = {
+  warn: '\u25cf', // ● filled circle
+  alert: '\u203c', // ‼ double exclamation
+};
+
 /**
  * Return an info-tip HTML snippet. Must call `attachInfoTips()` on the
  * container after inserting into DOM.
+ * Pass an optional `variant` to render a warn (●) or alert (‼) style instead
+ * of the default neutral "?" icon.
  */
-export function infoTip(text: string): string {
+export function infoTip(text: string, variant?: InfoTipVariant): string {
   // Escape for safe HTML attribute embedding
   const escaped = text
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-  return `<span class="info-tip" data-tip="${escaped}" aria-label="${escaped}" tabindex="0">?</span>`;
+  const variantClass = variant ? ` info-tip--${variant}` : '';
+  const icon = variant ? _VARIANT_ICON[variant] : '?';
+  return `<span class="info-tip${variantClass}" data-tip="${escaped}" data-tip-variant="${variant ?? ''}" aria-label="${escaped}" tabindex="0">${icon}</span>`;
 }
 
 /**
@@ -85,7 +99,8 @@ function _showPopover(trigger: HTMLElement): void {
   if ((trigger as _TipEl)._tipPop) return;
   const text = trigger.dataset.tip || '';
   const pop = document.createElement('span');
-  pop.className = 'info-tip-pop';
+  const variant = trigger.dataset.tipVariant;
+  pop.className = variant ? `info-tip-pop info-tip-pop--${variant}` : 'info-tip-pop';
   pop.textContent = text;
   // Append to body so position:fixed is relative to the viewport,
   // not broken by CSS transforms on ancestor elements.

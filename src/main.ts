@@ -98,6 +98,7 @@ import { conflictDialog } from './ui/conflictDialog';
 import { transactionDialog } from './ui/transactionDialog';
 import { snapshotDialog } from './ui/snapshotDialog';
 import { showSigninOverlay, hideSigninOverlay } from './ui/signinOverlay';
+import { attachInfoTips } from './ui/infoTip';
 import { withTimeout } from './sync/timeout';
 import { isBusy, setBusy } from './sync/lock';
 import { registerSW } from 'virtual:pwa-register';
@@ -128,8 +129,6 @@ const ALL_SECTIONS = ['networth', 'portfolio', 'analytics', 'settings', 'log'] a
 
 // ── Portfolio sub-view state ─────────────────────────────
 let _portfolioSubview: 'holdings' | 'contributions' | 'dividends' = 'holdings';
-let _driftTooltipEl: HTMLSpanElement | null = null;
-let _driftTooltipCleanup: (() => void) | null = null;
 
 // ── Unified sync/write lock (shared with settings.ts - see sync/lock.ts) ──
 let _lastSyncAt = 0;
@@ -361,17 +360,6 @@ function initNav() {
   document.querySelectorAll<HTMLElement>('.nav button[data-section]').forEach((btn) => {
     btn.addEventListener('click', () => showSection(btn.dataset.section!, btn));
   });
-  const portfolioBtn = document.getElementById('tab-portfolio') as HTMLElement | null;
-  portfolioBtn?.addEventListener('mouseenter', (e) => {
-    if (_isTouchLikeEvent(e)) return;
-    showDriftTooltip(portfolioBtn);
-  });
-  portfolioBtn?.addEventListener('mouseleave', (e) => {
-    if (_isTouchLikeEvent(e)) return;
-    hideDriftTooltip();
-  });
-  portfolioBtn?.addEventListener('focus', () => showDriftTooltip(portfolioBtn));
-  portfolioBtn?.addEventListener('blur', hideDriftTooltip);
   document.querySelectorAll<HTMLElement>('[data-goto]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const target = btn.dataset.goto!;
@@ -2013,92 +2001,38 @@ function updateDriftBadge(): void {
     const thresholdLabel = isHigh
       ? `over ${fmtPctVal(highThreshold, 'auto')} (high threshold)`
       : `over ${fmtPctVal(threshold, 'auto')} (threshold)`;
-    btn.setAttribute(
-      'data-drift-alert',
-      `${severityLabel}: max allocation drift is ${fmtPctVal(max)}, ${thresholdLabel}. Open Portfolio to review it.`,
-    );
+    const tipText = `${severityLabel}: max allocation drift is ${fmtPctVal(max)}, ${thresholdLabel}. Open Portfolio to review it.`;
+
+    // Embed an infoTip span so hover/tap reveals the drift detail using the
+    // shared popover system instead of a parallel custom implementation.
+    const variant = isHigh ? 'alert' : 'warn';
+    let tipEl = btn.querySelector<HTMLElement>('.info-tip');
+    if (!tipEl) {
+      const wrapper = document.createElement('span');
+      wrapper.innerHTML = `<span class="info-tip info-tip--${variant}" data-tip="" data-tip-variant="${variant}" aria-label="" tabindex="0">${variant === 'alert' ? '\u203c' : '\u25cf'}</span>`;
+      tipEl = wrapper.firstElementChild as HTMLElement;
+      btn.appendChild(tipEl);
+    } else {
+      // Update variant class/icon in case severity changed
+      tipEl.className = `info-tip info-tip--${variant}`;
+      tipEl.dataset.tipVariant = variant;
+      tipEl.textContent = variant === 'alert' ? '\u203c' : '\u25cf';
+      // Re-bind listeners after class change by clearing the bound flag
+      delete (tipEl as HTMLElement & { dataset: DOMStringMap }).dataset.tipBound;
+    }
+    tipEl.dataset.tip = tipText;
+    tipEl.setAttribute('aria-label', tipText);
+    attachInfoTips(btn);
   } else {
     btn.classList.remove('drift-alert', 'drift-alert-high');
     btn.removeAttribute('aria-label');
-    btn.removeAttribute('data-drift-alert');
-    hideDriftTooltip();
+    // Remove the embedded info-tip when drift clears
+    btn.querySelector('.info-tip')?.remove();
   }
-}
-
-function showDriftTooltip(trigger: HTMLElement): void {
-  const text = trigger.dataset.driftAlert || '';
-  if (!trigger.classList.contains('drift-alert') || !text) {
-    hideDriftTooltip();
-    return;
-  }
-  if (!_driftTooltipEl) {
-    _driftTooltipEl = document.createElement('span');
-    _driftTooltipEl.className = 'drift-alert-pop';
-  }
-  _driftTooltipEl.textContent = text;
-  if (!_driftTooltipEl.isConnected) document.body.appendChild(_driftTooltipEl);
-  positionDriftTooltip(trigger, _driftTooltipEl);
-
-  // Dismiss on scroll or resize (matches infoTip behaviour)
-  _driftTooltipCleanup?.();
-  const dismiss = () => hideDriftTooltip();
-  window.addEventListener('scroll', dismiss, { passive: true, capture: true });
-  window.addEventListener('resize', dismiss, { passive: true });
-  _driftTooltipCleanup = () => {
-    window.removeEventListener('scroll', dismiss, { capture: true } as EventListenerOptions);
-    window.removeEventListener('resize', dismiss);
-  };
-}
-
-function hideDriftTooltip(): void {
-  _driftTooltipEl?.remove();
-  _driftTooltipCleanup?.();
-  _driftTooltipCleanup = null;
-}
-
-function positionDriftTooltip(trigger: HTMLElement, pop: HTMLElement): void {
-  const rect = trigger.getBoundingClientRect();
-  const top = rect.bottom + 8;
-  const left = rect.right;
-  pop.style.top = `${top}px`;
-  pop.style.left = `${left}px`;
-  pop.style.transform = 'translateX(-100%)';
-  requestAnimationFrame(() => {
-    const popRect = pop.getBoundingClientRect();
-    let nextLeft = left;
-    let nextTop = top;
-    let transform = 'translateX(-100%)';
-    if (popRect.right > window.innerWidth - 4) nextLeft = window.innerWidth - 4;
-    if (popRect.left < 4) {
-      nextLeft = 4;
-      transform = 'none';
-    }
-    if (popRect.bottom > window.innerHeight - 4) {
-      nextTop = rect.top - 8;
-      transform = transform === 'none' ? 'translateY(-100%)' : transform + ' translateY(-100%)';
-    }
-    pop.style.left = `${nextLeft}px`;
-    pop.style.top = `${nextTop}px`;
-    pop.style.transform = transform;
-  });
 }
 
 // Export updateDriftBadge so it can be called from settings when alert threshold changes
 (window as any).updateDriftBadge = updateDriftBadge;
-
-// Global: dismiss drift tooltip on outside click or Escape (matches infoTip behaviour)
-document.addEventListener('click', (e) => {
-  if (_driftTooltipEl?.isConnected && !_driftTooltipEl.contains(e.target as Node)) {
-    hideDriftTooltip();
-  }
-});
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') hideDriftTooltip();
-});
-
-function _isTouchLikeEvent(e: MouseEvent): boolean {
-  return e.sourceCapabilities?.firesTouchEvents ?? false;
-}
 
 /**
  * Shows a one-time dismissible warning banner when an IDB cache write fails.
