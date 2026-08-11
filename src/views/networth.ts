@@ -728,12 +728,11 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
         ${acctSummaryLines}
         <div class="forecast-inflation">
           <div class="forecast-inflation-row">
-            <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation</label>
+            <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation (% / yr)</label>
             <div class="forecast-inflation-input-wrap">
               <input id="nw-forecast-inflation" class="forecast-inflation-input" type="number" inputmode="decimal" min="0" max="20" step="0.1"
                      value="${_inflationRate}"
                      aria-label="Annual inflation rate for real-return forecast">
-              <span class="forecast-inflation-unit">% / yr</span>
             </div>
           </div>
           <div class="forecast-inflation-hint">
