@@ -602,7 +602,7 @@ function _renderPlanningCard(snaps: Snapshot[], accounts: Account[]): void {
 
   el.innerHTML = `
     <div class="card" id="nw-planning-card">
-      <div class="card-title">Planning</div>
+      <div class="card-title">Projections</div>
       <div class="forecast-inflation" style="margin-bottom:1rem">
         <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation (%/yr)</label>
         <div class="forecast-inflation-input-wrap">
@@ -610,11 +610,11 @@ function _renderPlanningCard(snaps: Snapshot[], accounts: Account[]): void {
                  value="${_inflationRate}"
                  aria-label="Annual inflation rate for real-return projection">
         </div>
-        <div class="forecast-inflation-hint">${inflHint}</div>
+        <div class="forecast-inflation-hint">${inflHint} Applies to both Forecast and Drawdown.</div>
       </div>
-      <div class="range-toggle" id="nw-planning-tabs" role="tablist" aria-label="Planning tools" style="margin-bottom:1rem">
+      <div class="range-toggle" id="nw-planning-tabs" role="tablist" aria-label="Projections" style="margin-bottom:1rem">
         <button class="btn btn-sm btn-ghost${_planningTab === 'forecast' ? ' active' : ''}" role="tab" aria-selected="${_planningTab === 'forecast'}" aria-controls="nw-fc-panel" data-planning-tab="forecast">Forecast</button>
-        <button class="btn btn-sm btn-ghost${_planningTab === 'drawdown' ? ' active' : ''}" role="tab" aria-selected="${_planningTab === 'drawdown'}" aria-controls="nw-dd-panel" data-planning-tab="drawdown">Retirement</button>
+        <button class="btn btn-sm btn-ghost${_planningTab === 'drawdown' ? ' active' : ''}" role="tab" aria-selected="${_planningTab === 'drawdown'}" aria-controls="nw-dd-panel" data-planning-tab="drawdown">Drawdown</button>
       </div>
       <div id="nw-fc-panel" role="tabpanel"${_planningTab !== 'forecast' ? ' hidden' : ''}></div>
       <div id="nw-dd-panel" role="tabpanel"${_planningTab !== 'drawdown' ? ' hidden' : ''}></div>
@@ -780,7 +780,6 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     .join('<br>');
 
   forecastEl.innerHTML = `
-      <div class="card-title">Forecast: ${FORECAST_RANGE_LABELS[_fcRange]} (per-account return assumptions)</div>
       <div class="chart-controls">
         <div id="nw-forecast-legend" class="legend"></div>
         <div class="range-toggle" id="nw-forecast-range-toggle" role="group" aria-label="Forecast range">
@@ -793,7 +792,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast"></canvas></div>
       <div class="chart-data-table-wrap" id="c-nw-forecast-table-wrap" hidden></div>
       <div class="note" style="line-height:1.6">
-        <div style="margin-bottom:4px">Assumptions per account (Settings \u2192 Accounts):</div>
+        <div style="margin-bottom:4px">Per-account return &amp; contribution assumptions (Settings \u2192 Accounts):</div>
         ${acctSummaryLines}
         <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX.${goalDeadlines.length > 0 ? ' Goal deadlines and target amounts are shown as markers on the chart.' : ''}</div>
       </div>
@@ -1154,7 +1153,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
         : '';
 
   const withdrawalLabel =
-    _ddStrategy === 'pct' ? 'Annual withdrawal (%/yr)' : 'Monthly withdrawal (€)';
+    _ddStrategy === 'pct' ? 'Annual withdrawal rate (%/yr)' : 'Monthly withdrawal (€)';
   const withdrawalStep = _ddStrategy === 'pct' ? '0.1' : '100';
   const withdrawalMin = _ddStrategy === 'pct' ? '0.1' : '0';
   const withdrawalMax = _ddStrategy === 'pct' ? '100' : '';
@@ -1167,7 +1166,6 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
     Math.abs(_ddWithdrawalParam - breakEvenMonthly) / breakEvenMonthly < 0.2;
 
   el.innerHTML = `
-      <div class="card-title">Retirement drawdown${infoTip('Simulates withdrawing from your portfolio after retirement. The starting balance is projected from your current accounts using your existing growth assumptions.')}</div>
       <div class="dd-inputs-grid">
         <div>
           <label class="planning-label" for="dd-retirement-date">Retirement date</label>
@@ -1181,8 +1179,8 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
           <label class="planning-label" for="dd-strategy">Withdrawal strategy</label>
           <div class="range-toggle" id="dd-strategy-toggle" style="margin-top:2px" role="group" aria-label="Withdrawal strategy">
             <button class="btn btn-sm btn-ghost${_ddStrategy === 'fixed' ? ' active' : ''}" data-dd-strategy="fixed" aria-pressed="${_ddStrategy === 'fixed'}">Fixed</button>
-            <button class="btn btn-sm btn-ghost${_ddStrategy === 'four-pct' ? ' active' : ''}" data-dd-strategy="four-pct" aria-pressed="${_ddStrategy === 'four-pct'}">4% SWR</button>
-            <button class="btn btn-sm btn-ghost${_ddStrategy === 'pct' ? ' active' : ''}" data-dd-strategy="pct" aria-pressed="${_ddStrategy === 'pct'}">% of balance</button>
+            <button class="btn btn-sm btn-ghost${_ddStrategy === 'four-pct' ? ' active' : ''}" data-dd-strategy="four-pct" aria-pressed="${_ddStrategy === 'four-pct'}">4% rule</button>
+            <button class="btn btn-sm btn-ghost${_ddStrategy === 'pct' ? ' active' : ''}" data-dd-strategy="pct" aria-pressed="${_ddStrategy === 'pct'}">% of portfolio</button>
           </div>
         </div>
         <div>
@@ -1194,11 +1192,11 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
           </div>
         </div>
         <div>
-          <label class="planning-label" for="dd-return">Return during retirement (%/yr)</label>
+          <label class="planning-label" for="dd-return">Expected annual return in retirement (%/yr)</label>
           <div class="planning-input-wrap">
             <input id="dd-return" class="planning-input" type="number" inputmode="decimal"
                    min="0" max="20" step="0.1" value="${_ddReturnPct}"
-                   style="width:5rem" aria-label="Annual return % during retirement">
+                   style="width:5rem" aria-label="Expected annual return in retirement">
           </div>
         </div>
       </div>
@@ -1206,12 +1204,12 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
         corpus && corpus.liquidCorpus > 0 && _ddWithdrawalParam > 0
           ? `<div class="kpi-row" style="margin-bottom:.75rem">
               ${kpiTile({
-                label: `Lasts${infoTip('When the liquid portfolio balance reaches zero. "Never" means it does not deplete within 40 years.')}`,
+                label: `Portfolio lasts until${infoTip('When the liquid portfolio balance reaches zero. "Never" means it does not deplete within 40 years.')}`,
                 value: endMonth ? fmtMon(endMonth) : '40+ years',
                 sub: lastsText,
               })}
               ${kpiTile({
-                label: `Monthly income${infoTip('Actual monthly withdrawal. For % strategy this is the first-year implied amount.')}`,
+                label: `Monthly withdrawal${infoTip('Actual monthly withdrawal amount. For % of portfolio strategy this is the first-year implied amount.')}`,
                 value: monthlyIncomeText,
                 sub:
                   _ddStrategy === 'pct'
@@ -1221,7 +1219,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
               ${
                 breakEvenMonthly > 0 && _ddStrategy !== 'pct'
                   ? kpiTile({
-                      label: `Sustainable withdrawal${infoTip('The monthly amount where portfolio growth exactly offsets withdrawals. Above this the balance declines; below it, the balance grows. Results are highly sensitive to changes near this threshold.')}`,
+                      label: `Estimated sustainable withdrawal${infoTip('The monthly amount where portfolio growth exactly offsets withdrawals. Above this the balance declines; below it, the balance grows. Results are highly sensitive to changes near this threshold.')}`,
                       value: `${fmtEur(breakEvenMonthly)}/mo`,
                       sub:
                         _ddWithdrawalParam > breakEvenMonthly

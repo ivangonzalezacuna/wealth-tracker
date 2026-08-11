@@ -353,13 +353,13 @@ describe('renderNW', () => {
     expect(leadKpis.length).toBe(1);
   });
 
-  it('planning card renders a grouped card with Forecast and Retirement tabs', () => {
+  it('planning card renders a grouped card with Forecast and Drawdown tabs', () => {
     const snaps = [makeSnap('2026-01', 5000, 2000)];
     renderNW(snaps);
     const planningEl = document.getElementById('nw-planning')!;
     expect(planningEl.querySelector('#nw-planning-tabs')).not.toBeNull();
     expect(planningEl.innerHTML).toContain('Forecast');
-    expect(planningEl.innerHTML).toContain('Retirement');
+    expect(planningEl.innerHTML).toContain('Drawdown');
     // Forecast panel should be visible by default
     const fcPanel = document.getElementById('nw-fc-panel')!;
     expect(fcPanel.hidden).toBe(false);
@@ -383,8 +383,8 @@ describe('renderNW', () => {
     renderNW(snaps);
     const ddEl = switchToDrawdownTab();
     expect(ddEl.innerHTML).not.toBe('');
-    // Card title should be present
-    expect(ddEl.textContent).toContain('Retirement drawdown');
+    // Card title should not be present in the panel (removed redundant title)
+    expect(ddEl.textContent).not.toContain('Retirement drawdown');
     // Should have a date input with default retirement date ~2046
     const dateInput = ddEl.querySelector('#dd-retirement-date') as HTMLInputElement | null;
     expect(dateInput).not.toBeNull();
@@ -395,10 +395,10 @@ describe('renderNW', () => {
     const snaps = [makeSnap('2026-01', 5000, 2000)];
     renderNW(snaps);
     const ddEl = switchToDrawdownTab();
-    // Should show the corpus KPIs (Lasts, Monthly income, Sustainable withdrawal)
-    expect(ddEl.textContent).toContain('Lasts');
-    expect(ddEl.textContent).toContain('Monthly income');
-    expect(ddEl.textContent).toContain('Sustainable withdrawal');
+    // Should show the corpus KPIs (Portfolio lasts until, Monthly withdrawal, Estimated sustainable withdrawal)
+    expect(ddEl.textContent).toContain('Portfolio lasts until');
+    expect(ddEl.textContent).toContain('Monthly withdrawal');
+    expect(ddEl.textContent).toContain('Estimated sustainable withdrawal');
   });
 
   it('decumulation card shows near-break-even warning when withdrawal is within ±20% of sustainable rate', () => {
