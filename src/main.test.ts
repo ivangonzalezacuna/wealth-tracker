@@ -27,64 +27,79 @@ describe('showSection idempotent guard', () => {
   });
 
   describe('updateDriftBadge accessibility copy', () => {
+    // Mirror of the real updateDriftBadge logic for isolated unit testing
     function applyDriftBadge(btn: HTMLButtonElement, max: number | null): void {
-      if (max !== null && max > 5) {
+      const threshold = 5;
+      const highThreshold = threshold * 2;
+      if (max !== null && max > threshold) {
+        const isHigh = max > highThreshold;
         btn.classList.add('drift-alert');
+        btn.classList.toggle('drift-alert-high', isHigh);
         btn.setAttribute('aria-label', `Portfolio (drift alert: ${Math.round(max)}pp)`);
-        btn.setAttribute(
-          'data-drift-alert',
-          `Allocation drift is ${Math.round(max)}pp above target. Open Portfolio to review it.`,
-        );
+
+        const severityLabel = isHigh ? 'High drift' : 'Moderate drift';
+        const thresholdLabel = isHigh
+          ? `over ${highThreshold}% (high threshold)`
+          : `over ${threshold}% (threshold)`;
+        const tipText = `${severityLabel}: max allocation drift is ${Math.round(max)}%, ${thresholdLabel}. Open Portfolio to review it.`;
+        const variant = isHigh ? 'alert' : 'warn';
+
+        let tipEl = btn.querySelector<HTMLElement>('.info-tip');
+        if (!tipEl) {
+          tipEl = document.createElement('span');
+          tipEl.className = `info-tip info-tip--${variant}`;
+          tipEl.dataset.tipVariant = variant;
+          tipEl.textContent = variant === 'alert' ? '\u203c' : '\u25cf';
+          btn.appendChild(tipEl);
+        } else {
+          tipEl.className = `info-tip info-tip--${variant}`;
+          tipEl.dataset.tipVariant = variant;
+          tipEl.textContent = variant === 'alert' ? '\u203c' : '\u25cf';
+        }
+        tipEl.dataset.tip = tipText;
+        tipEl.setAttribute('aria-label', tipText);
       } else {
-        btn.classList.remove('drift-alert');
+        btn.classList.remove('drift-alert', 'drift-alert-high');
         btn.removeAttribute('aria-label');
-        btn.removeAttribute('data-drift-alert');
+        btn.querySelector('.info-tip')?.remove();
       }
     }
 
-    function showDriftTooltip(trigger: HTMLButtonElement): HTMLSpanElement | null {
-      const text = trigger.dataset.driftAlert || '';
-      if (!trigger.classList.contains('drift-alert') || !text) return null;
-      const pop = document.createElement('span');
-      pop.className = 'drift-alert-pop';
-      pop.textContent = text;
-      document.body.appendChild(pop);
-      return pop;
-    }
-
-    it('adds explanatory drift alert copy when the badge is shown', () => {
+    it('adds drift-alert class and aria-label when badge is shown', () => {
       document.body.innerHTML = `<button id="tab-portfolio">Portfolio</button>`;
       const btn = document.getElementById('tab-portfolio') as HTMLButtonElement;
       applyDriftBadge(btn, 8.4);
       expect(btn.classList.contains('drift-alert')).toBe(true);
       expect(btn.getAttribute('aria-label')).toBe('Portfolio (drift alert: 8pp)');
-      expect(btn.getAttribute('data-drift-alert')).toBe(
-        'Allocation drift is 8pp above target. Open Portfolio to review it.',
-      );
     });
 
-    it('renders the drift tooltip as a detached overlay, not inside the nav scroller', () => {
-      document.body.innerHTML = `
-        <div class="nav">
-          <button id="tab-portfolio" class="drift-alert" data-drift-alert="Allocation drift is 8pp above target. Open Portfolio to review it.">Portfolio</button>
-        </div>
-      `;
+    it('embeds an info-tip span inside the nav button when drift exceeds threshold', () => {
+      document.body.innerHTML = `<div class="nav"><button id="tab-portfolio">Portfolio</button></div>`;
       const btn = document.getElementById('tab-portfolio') as HTMLButtonElement;
-      const pop = showDriftTooltip(btn);
-      expect(pop).not.toBeNull();
-      expect(pop?.parentElement).toBe(document.body);
-      expect(document.querySelector('.nav')?.contains(pop!)).toBe(false);
-      expect(pop?.textContent).toContain('Allocation drift is 8pp above target');
+      applyDriftBadge(btn, 8.4);
+      const tipEl = btn.querySelector('.info-tip');
+      expect(tipEl).not.toBeNull();
+      expect(tipEl?.getAttribute('data-tip')).toContain('Moderate drift');
+      expect(tipEl?.getAttribute('data-tip')).toContain('8%');
     });
 
-    it('clears explanatory drift alert copy when the badge is removed', () => {
+    it('uses alert variant for high drift, warn for moderate drift', () => {
+      document.body.innerHTML = `<button id="tab-portfolio">Portfolio</button>`;
+      const btn = document.getElementById('tab-portfolio') as HTMLButtonElement;
+      applyDriftBadge(btn, 8.4); // moderate (below 10 = 2*5)
+      expect(btn.querySelector('.info-tip')?.classList.contains('info-tip--warn')).toBe(true);
+      applyDriftBadge(btn, 12); // high (above 10)
+      expect(btn.querySelector('.info-tip')?.classList.contains('info-tip--alert')).toBe(true);
+    });
+
+    it('clears the info-tip span and accessibility attributes when badge is removed', () => {
       document.body.innerHTML = `<button id="tab-portfolio">Portfolio</button>`;
       const btn = document.getElementById('tab-portfolio') as HTMLButtonElement;
       applyDriftBadge(btn, 8.4);
       applyDriftBadge(btn, 3);
       expect(btn.classList.contains('drift-alert')).toBe(false);
       expect(btn.hasAttribute('aria-label')).toBe(false);
-      expect(btn.hasAttribute('data-drift-alert')).toBe(false);
+      expect(btn.querySelector('.info-tip')).toBeNull();
     });
   });
 

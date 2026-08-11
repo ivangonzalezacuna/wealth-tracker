@@ -6,23 +6,37 @@
  *
  * Usage in HTML template strings:
  *   `${infoTip('Explanation text here')}`
+ *   `${infoTip('Warning text', 'warn')}`
  *
  * Attach listeners after DOM update:
  *   `attachInfoTips(rootElement)`
  */
 
+/** Visual variants for the info-tip icon and popover. */
+export type InfoTipVariant = 'warn' | 'alert';
+
+/** Icon characters used per variant. */
+const _VARIANT_ICON: Record<InfoTipVariant, string> = {
+  warn: '\u25cf', // ● filled circle
+  alert: '\u203c', // ‼ double exclamation
+};
+
 /**
  * Return an info-tip HTML snippet. Must call `attachInfoTips()` on the
  * container after inserting into DOM.
+ * Pass an optional `variant` to render a warn (●) or alert (‼) style instead
+ * of the default neutral "?" icon.
  */
-export function infoTip(text: string): string {
+export function infoTip(text: string, variant?: InfoTipVariant): string {
   // Escape for safe HTML attribute embedding
   const escaped = text
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-  return `<span class="info-tip" data-tip="${escaped}" aria-label="${escaped}" tabindex="0">?</span>`;
+  const variantClass = variant ? ` info-tip--${variant}` : '';
+  const icon = variant ? _VARIANT_ICON[variant] : '?';
+  return `<span class="info-tip${variantClass}" data-tip="${escaped}" data-tip-variant="${variant ?? ''}" aria-label="${escaped}" tabindex="0">${icon}</span>`;
 }
 
 /**
@@ -60,6 +74,7 @@ export function attachInfoTips(root: HTMLElement | Document = document): void {
 /** Extended HTMLElement with a reference to its body-appended popover. */
 interface _TipEl extends HTMLElement {
   _tipPop?: HTMLElement;
+  _tipScrollCleanup?: () => void;
 }
 
 /** Track if the device has seen a touch event (sticky after first touch). */
@@ -84,7 +99,8 @@ function _showPopover(trigger: HTMLElement): void {
   if ((trigger as _TipEl)._tipPop) return;
   const text = trigger.dataset.tip || '';
   const pop = document.createElement('span');
-  pop.className = 'info-tip-pop';
+  const variant = trigger.dataset.tipVariant;
+  pop.className = variant ? `info-tip-pop info-tip-pop--${variant}` : 'info-tip-pop';
   pop.textContent = text;
   // Append to body so position:fixed is relative to the viewport,
   // not broken by CSS transforms on ancestor elements.
@@ -92,13 +108,34 @@ function _showPopover(trigger: HTMLElement): void {
   (trigger as _TipEl)._tipPop = pop;
   // Position using fixed coordinates (escapes overflow:hidden/transform ancestors)
   _positionPopover(trigger, pop);
+
+  // Dismiss when the page or any scroll ancestor scrolls / resizes
+  const scrollAncestor = _findScrollAncestor(trigger);
+  const dismiss = () => _hidePopover(trigger);
+  window.addEventListener('scroll', dismiss, { passive: true, capture: true });
+  window.addEventListener('resize', dismiss, { passive: true });
+  if (scrollAncestor) {
+    scrollAncestor.addEventListener('scroll', dismiss, { passive: true });
+  }
+  (trigger as _TipEl)._tipScrollCleanup = () => {
+    window.removeEventListener('scroll', dismiss, { capture: true } as EventListenerOptions);
+    window.removeEventListener('resize', dismiss);
+    if (scrollAncestor) {
+      scrollAncestor.removeEventListener('scroll', dismiss);
+    }
+  };
 }
 
 function _hidePopover(trigger: HTMLElement): void {
-  const pop = (trigger as _TipEl)._tipPop;
+  const tipEl = trigger as _TipEl;
+  const pop = tipEl._tipPop;
   if (pop) {
     pop.remove();
-    delete (trigger as _TipEl)._tipPop;
+    delete tipEl._tipPop;
+  }
+  if (tipEl._tipScrollCleanup) {
+    tipEl._tipScrollCleanup();
+    delete tipEl._tipScrollCleanup;
   }
 }
 
@@ -151,10 +188,26 @@ function _positionPopover(trigger: HTMLElement, pop: HTMLElement): void {
   });
 }
 
+/** Walk up the DOM to find the nearest scrollable ancestor, if any. */
+function _findScrollAncestor(el: HTMLElement): HTMLElement | null {
+  let node = el.parentElement;
+  while (node && node !== document.body) {
+    const { overflow, overflowY, overflowX } = getComputedStyle(node);
+    if (/(auto|scroll)/.test(overflow + overflowY + overflowX)) return node;
+    node = node.parentElement;
+  }
+  return null;
+}
+
 function _dismissAll(): void {
   document.querySelectorAll('.info-tip-pop').forEach((p) => p.remove());
   document.querySelectorAll<HTMLElement>('.info-tip[data-tip-bound]').forEach((el) => {
-    delete (el as _TipEl)._tipPop;
+    const tipEl = el as _TipEl;
+    delete tipEl._tipPop;
+    if (tipEl._tipScrollCleanup) {
+      tipEl._tipScrollCleanup();
+      delete tipEl._tipScrollCleanup;
+    }
   });
 }
 
