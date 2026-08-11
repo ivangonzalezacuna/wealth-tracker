@@ -315,6 +315,44 @@ describe('decumulationSeries', () => {
     expect(fixed).toEqual(fourPct);
   });
 
+  it('pct strategy: negative withdrawalParam is clamped to 0 (balance never grows from withdrawal)', () => {
+    // Negative param should behave identically to 0% withdrawal (no money added).
+    const withNegative = decumulationSeries(100_000, 'pct', -4, 5, 12, '2060-01');
+    const withZero = decumulationSeries(100_000, 'pct', 0, 5, 12, '2060-01');
+    // Both should produce the same series because negative is clamped to 0.
+    expect(withNegative).toEqual(withZero);
+    // And the balance should only ever grow (no withdrawals) due to positive return.
+    for (let i = 1; i < withNegative.length; i++) {
+      expect(withNegative[i].value).toBeGreaterThanOrEqual(withNegative[i - 1].value);
+    }
+  });
+
+  it('pct strategy: monthly withdrawal fraction approximation is p/12 per month', () => {
+    // Annual 12% → monthly rate = 12/100/12 = 1%
+    // After 1 month with 0% return: withdrawal = 100_000 * 0.01 = 1_000 → balance = 99_000
+    const series = decumulationSeries(100_000, 'pct', 12, 0, 1, '2060-01');
+    expect(series[0].withdrawal).toBe(1_000);
+    expect(series[0].value).toBe(99_000);
+  });
+
+  it('depletion check uses rounded balance (consistent with decumulationDuration)', () => {
+    // If balance rounds to 0, both the stored value and the fill trigger should fire on the same month.
+    // Use a scenario where the balance barely hits zero: 1001 balance, 1000/mo, 0% return.
+    // Month 1: balance = 1001 - 1000 = 1 → value = 1 → NOT depleted
+    // Month 2: balance = 1 - 1 = 0 → value = 0 → depleted on month 2
+    const series = decumulationSeries(1_001, 'fixed', 1_000, 0, 5, '2060-01');
+    expect(series[0].value).toBe(1);
+    expect(series[1].value).toBe(0);
+    // decumulationDuration should also report month 2
+    const endMonth = decumulationDuration(series);
+    expect(endMonth).toBe('2060-03'); // 2 months after 2060-01
+    // All subsequent months are zero
+    for (let i = 2; i < series.length; i++) {
+      expect(series[i].value).toBe(0);
+      expect(series[i].withdrawal).toBe(0);
+    }
+  });
+
   it('withdrawal is capped at remaining balance (no negative values)', () => {
     // 500 balance, withdraw 1000/month → first month withdrawal = 500, balance = 0
     const series = decumulationSeries(500, 'fixed', 1_000, 0, 3, '2060-01');

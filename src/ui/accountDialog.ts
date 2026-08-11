@@ -96,7 +96,7 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
           <div class="dialog-row">
             <div class="dialog-field">
               <label class="dialog-label" for="acctd-return">
-                Annual return (%)${infoTip("Used for this account's slice of the 5-year forecast. Cash/savings are typically 0% unless they earn interest.")}
+                Annual return (%/yr)${infoTip("Used for this account's slice of the 5-year forecast. Cash/savings are typically 0% unless they earn interest.")}
               </label>
               <input type="number" id="acctd-return" class="form-input dialog-input"
                 value="${esc(String(existing?.annualReturnPct ?? 0))}" min="-100" max="100" step="0.1" placeholder="0">

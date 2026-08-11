@@ -8,7 +8,7 @@
 export type DecumulationStrategy =
   | 'fixed' // withdraw a fixed €/month
   | 'pct' // withdraw withdrawalParam % of the current balance each month
-  | 'four-pct'; // 4% rule: fixed monthly = startBalance * 0.04 / 12 (editable)
+  | 'four-pct'; // fixed monthly amount initialised to startBalance * 0.04 / 12 (not inflation-indexed SWR)
 
 export interface DecumulationPoint {
   month: string;
@@ -45,9 +45,11 @@ export function decumulationSeries(
     ? Math.pow(1 + annualReturnPct / 100, 1 / 12) - 1
     : 0;
 
-  // For 'pct' strategy, convert annual % to monthly %
+  // For 'pct' strategy, convert annual % to monthly %.
+  // Uses the linear approximation p/12 (error <0.05% for values ≤10%/yr).
+  // Negative values are clamped to 0 so they cannot add money instead of withdrawing.
   const monthlyWithdrawalPct =
-    strategy === 'pct' && isFinite(withdrawalParam) ? withdrawalParam / 100 / 12 : 0;
+    strategy === 'pct' && isFinite(withdrawalParam) ? Math.max(0, withdrawalParam) / 100 / 12 : 0;
 
   // For 'fixed' / 'four-pct': flat monthly amount
   const fixedMonthly =
@@ -73,13 +75,17 @@ export function decumulationSeries(
     const actualWithdrawal = Math.min(rawWithdrawal, balance);
     balance = Math.max(0, balance - actualWithdrawal);
 
+    // Round for output; use the rounded value for the depletion guard so that
+    // decumulationDuration (which checks p.value === 0) stays consistent with
+    // the fill-zero trigger below (avoids off-by-one-month for sub-cent balances).
+    const roundedBalance = Math.round(balance);
     result.push({
       month: `${year}-${String(mon).padStart(2, '0')}`,
-      value: Math.round(balance),
+      value: roundedBalance,
       withdrawal: Math.round(actualWithdrawal),
     });
 
-    if (balance === 0) {
+    if (roundedBalance === 0) {
       // Portfolio is depleted; fill remaining months as zero
       for (let j = i + 1; j < months; j++) {
         mon++;

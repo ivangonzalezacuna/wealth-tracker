@@ -395,7 +395,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   }
 
   // Bind range toggle once
-  _attachNWRangeToggle(snaps, chartA);
+  _attachNWRangeToggle(chartA);
 
   const bkA = ACCTS.filter((a) => ((s[a.key] as number) || 0) > 0);
 
@@ -561,7 +561,6 @@ function _bindLegendToggle(chart: Chart): void {
 // ── Range toggle binding ──
 
 function _attachNWRangeToggle(
-  snaps: Snapshot[],
   chartA: Array<{ key: string; label: string; color: string }>,
 ): void {
   const toggle = document.getElementById('nw-range-toggle') as
@@ -576,6 +575,8 @@ function _attachNWRangeToggle(
     _nwRange = newRange;
     toggle.querySelectorAll('.btn').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
+    // Read current snaps from module state so re-renders after nav don't use a stale closure.
+    const snaps = _lastSnaps;
     const view = _nwRange === 'all' ? snaps : snaps.slice(-parseInt(_nwRange));
     _renderNWHistChart(view, chartA);
   });
@@ -583,7 +584,7 @@ function _attachNWRangeToggle(
 
 // ── Forecast range toggle binding ──
 
-function _attachForecastRangeToggle(snaps: Snapshot[], accounts: Account[]): void {
+function _attachForecastRangeToggle(): void {
   const toggle = document.getElementById('nw-forecast-range-toggle') as
     (HTMLElement & { _bound?: boolean }) | null;
   if (!toggle || toggle._bound) return;
@@ -594,7 +595,8 @@ function _attachForecastRangeToggle(snaps: Snapshot[], accounts: Account[]): voi
     const newRange = (btn.dataset.range as '60' | '120' | '240' | '360') || '60';
     if (newRange === _fcRange) return;
     _fcRange = newRange;
-    _renderForecastChart(snaps, accounts);
+    // Read current state from module variables so re-renders after nav use fresh data.
+    _renderForecastChart(_lastSnaps, _lastAccounts);
   });
 }
 
@@ -780,7 +782,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
                   ctx.arc(x, y, 5, 0, Math.PI * 2);
                   ctx.fillStyle = d.color;
                   ctx.fill();
-                  ctx.strokeStyle = 'var(--surface-1)';
+                  ctx.strokeStyle = 'var(--surface)';
                   ctx.lineWidth = 1.5;
                   ctx.stroke();
                 }
@@ -917,7 +919,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     });
   }
 
-  _attachForecastRangeToggle(snaps, accounts);
+  _attachForecastRangeToggle();
 }
 
 // ── Helpers ──
@@ -1052,14 +1054,14 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
   let lastsText = '';
 
   if (corpus && corpus.liquidCorpus > 0 && _ddWithdrawalParam > 0) {
-    // Use real return (nominal − inflation) so the drawdown simulation accounts for
-    // the erosion of purchasing power when inflation is set.
-    const ddRealReturnPct = Math.max(0, _ddReturnPct - _inflationRate);
+    // Simulate with the nominal return. The chart's real-value overlay (ddRealSeries below)
+    // is produced by _deflateByInflation — applying inflation twice (once here and once there)
+    // would incorrectly double-count it.
     ddSeries = decumulationSeries(
       corpus.liquidCorpus,
       _ddStrategy,
       _ddWithdrawalParam,
-      ddRealReturnPct,
+      _ddReturnPct,
       DD_MONTHS,
       _ddRetirementDate,
     );
@@ -1132,7 +1134,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
           <label class="forecast-inflation-label" for="dd-strategy">Withdrawal strategy</label>
           <div class="range-toggle" id="dd-strategy-toggle" style="margin-top:2px">
             <button class="btn btn-sm btn-ghost${_ddStrategy === 'fixed' ? ' active' : ''}" data-dd-strategy="fixed">Fixed €/mo</button>
-            <button class="btn btn-sm btn-ghost${_ddStrategy === 'four-pct' ? ' active' : ''}" data-dd-strategy="four-pct">4% rule</button>
+            <button class="btn btn-sm btn-ghost${_ddStrategy === 'four-pct' ? ' active' : ''}" data-dd-strategy="four-pct">4% initial</button>
             <button class="btn btn-sm btn-ghost${_ddStrategy === 'pct' ? ' active' : ''}" data-dd-strategy="pct">% of balance</button>
           </div>
         </div>

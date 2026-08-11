@@ -1408,11 +1408,6 @@ summary.section-label {
   outline: 2px solid var(--brand-border);
   outline-offset: 2px;
 }
-.forecast-inflation-unit {
-  color: var(--ink-3);
-  font-size: 11px;
-  white-space: nowrap;
-}
 .forecast-inflation-hint {
   margin-top: 8px;
   color: var(--ink-3);
@@ -1720,7 +1715,6 @@ summary.section-label {
     width: 88px;
   }
   .forecast-inflation-label,
-  .forecast-inflation-unit,
   .forecast-inflation-hint {
     font-size: 10px;
   }
