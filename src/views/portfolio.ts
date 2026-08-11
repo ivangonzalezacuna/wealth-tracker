@@ -884,7 +884,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
         </div>
       </details>`;
   } else if (plan.length >= 2 && monthlyBudget <= 0) {
-    rebalanceSection = `<p class="note" style="margin-top:.5rem">Set a monthly contribution budget in Settings to see the rebalance plan.</p>`;
+    rebalanceSection = `<p class="note" style="margin-top:.5rem">Set your contribution amount and cadence in Settings to see the rebalance plan.</p>`;
   }
 
   driftEl.innerHTML = `
