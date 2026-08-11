@@ -308,11 +308,44 @@ describe('decumulationSeries', () => {
     expect(series[359].value).toBeLessThan(series[0].value);
   });
 
-  it('four-pct strategy uses the provided monthly amount (same as fixed)', () => {
-    // 'four-pct' is just a label hint; the model treats it like 'fixed'
+  it('four-pct strategy with 0% inflation behaves identically to fixed', () => {
+    // Without inflation, 'four-pct' and 'fixed' produce the same series.
     const fixed = decumulationSeries(120_000, 'fixed', 400, 5, 12, '2060-01');
     const fourPct = decumulationSeries(120_000, 'four-pct', 400, 5, 12, '2060-01');
     expect(fixed).toEqual(fourPct);
+  });
+
+  it('four-pct SWR: withdrawal is inflation-indexed annually', () => {
+    // Start: 1200/mo withdrawal, 2% annual inflation, 0% return for simplicity.
+    // startDate '2060-01' → series runs 2060-02, 2060-03, ..., 2060-12, 2061-01, ...
+    // Year rollover at series[11] (2061-01) triggers the first inflation step.
+    const series = decumulationSeries(1_000_000, 'four-pct', 1_200, 0, 25, '2060-01', 2);
+    // First 11 months (2060-02 through 2060-12): withdrawal stays at 1200
+    for (let i = 0; i < 11; i++) {
+      expect(series[i].withdrawal).toBe(1_200);
+    }
+    // First month of next year (2061-01): withdrawal is inflation-indexed
+    expect(series[11].withdrawal).toBe(Math.round(1_200 * 1.02)); // 1224
+  });
+
+  it('four-pct SWR: fixed strategy is NOT inflation-indexed (withdrawals stay flat)', () => {
+    // 'fixed' should never inflate regardless of the inflationPct param.
+    const series = decumulationSeries(1_000_000, 'fixed', 1_200, 0, 25, '2060-01', 2);
+    for (const pt of series) {
+      expect(pt.withdrawal).toBe(1_200);
+    }
+  });
+
+  it('four-pct SWR with inflation depletes faster than without', () => {
+    // Inflation-indexed withdrawals grow over time, so portfolio depletes sooner.
+    const withInflation = decumulationSeries(300_000, 'four-pct', 2_000, 2, 480, '2060-01', 3);
+    const noInflation = decumulationSeries(300_000, 'four-pct', 2_000, 2, 480, '2060-01', 0);
+    const depleteWithInfl = withInflation.findIndex((p) => p.value === 0);
+    const depleteNoInfl = noInflation.findIndex((p) => p.value === 0);
+    // Both should deplete; inflation case depletes earlier
+    expect(depleteWithInfl).toBeGreaterThan(-1);
+    expect(depleteNoInfl).toBeGreaterThan(-1);
+    expect(depleteWithInfl).toBeLessThan(depleteNoInfl);
   });
 
   it('pct strategy: negative withdrawalParam is clamped to 0 (balance never grows from withdrawal)', () => {

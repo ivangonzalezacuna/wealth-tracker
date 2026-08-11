@@ -1096,6 +1096,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
     // Simulate with the nominal return. The chart's real-value overlay (ddRealSeries below)
     // is produced by _deflateByInflation — applying inflation twice (once here and once there)
     // would incorrectly double-count it.
+    // For 'four-pct' (SWR), pass inflation so withdrawals are indexed annually.
     ddSeries = decumulationSeries(
       corpus.liquidCorpus,
       _ddStrategy,
@@ -1103,6 +1104,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
       _ddReturnPct,
       DD_MONTHS,
       _ddRetirementDate,
+      _inflationRate,
     );
     endMonth = decumulationDuration(ddSeries);
     if (endMonth) {
@@ -1161,33 +1163,33 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
       <div class="card-title">Retirement drawdown${infoTip('Simulates withdrawing from your portfolio after retirement. The starting balance is projected from your current accounts using your existing growth assumptions.')}</div>
       <div class="dd-inputs-grid">
         <div>
-          <label class="forecast-inflation-label" for="dd-retirement-date">Retirement date</label>
-          <div class="forecast-inflation-input-wrap">
-            <input id="dd-retirement-date" class="forecast-inflation-input" type="month"
+          <label class="planning-label" for="dd-retirement-date">Retirement date</label>
+          <div class="planning-input-wrap">
+            <input id="dd-retirement-date" class="planning-input" type="month"
                    value="${_ddRetirementDate}" min="${latestSnap.date.substring(0, 7)}"
                    style="width:9rem;text-align:left" aria-label="Retirement start date">
           </div>
         </div>
         <div>
-          <label class="forecast-inflation-label" for="dd-strategy">Withdrawal strategy</label>
+          <label class="planning-label" for="dd-strategy">Withdrawal strategy</label>
           <div class="range-toggle" id="dd-strategy-toggle" style="margin-top:2px">
             <button class="btn btn-sm btn-ghost${_ddStrategy === 'fixed' ? ' active' : ''}" data-dd-strategy="fixed">Fixed €/mo</button>
-            <button class="btn btn-sm btn-ghost${_ddStrategy === 'four-pct' ? ' active' : ''}" data-dd-strategy="four-pct">4% initial</button>
+            <button class="btn btn-sm btn-ghost${_ddStrategy === 'four-pct' ? ' active' : ''}" data-dd-strategy="four-pct">4% SWR</button>
             <button class="btn btn-sm btn-ghost${_ddStrategy === 'pct' ? ' active' : ''}" data-dd-strategy="pct">% of balance</button>
           </div>
         </div>
         <div>
-          <label class="forecast-inflation-label" for="dd-withdrawal">${withdrawalLabel}</label>
-          <div class="forecast-inflation-input-wrap">
-            <input id="dd-withdrawal" class="forecast-inflation-input" type="number" inputmode="decimal"
+          <label class="planning-label" for="dd-withdrawal">${withdrawalLabel}</label>
+          <div class="planning-input-wrap">
+            <input id="dd-withdrawal" class="planning-input" type="number" inputmode="decimal"
                    min="${withdrawalMin}" step="${withdrawalStep}" value="${_ddWithdrawalParam}"
                    style="width:7rem" aria-label="${withdrawalLabel}">
           </div>
         </div>
         <div>
-          <label class="forecast-inflation-label" for="dd-return">Return during retirement (%/yr)</label>
-          <div class="forecast-inflation-input-wrap">
-            <input id="dd-return" class="forecast-inflation-input" type="number" inputmode="decimal"
+          <label class="planning-label" for="dd-return">Return during retirement (%/yr)</label>
+          <div class="planning-input-wrap">
+            <input id="dd-return" class="planning-input" type="number" inputmode="decimal"
                    min="0" max="20" step="0.1" value="${_ddReturnPct}"
                    style="width:5rem" aria-label="Annual return % during retirement">
           </div>

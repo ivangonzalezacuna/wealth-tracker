@@ -6,9 +6,9 @@
 
 /** Strategy for the decumulation simulation. */
 export type DecumulationStrategy =
-  | 'fixed' // withdraw a fixed €/month
+  | 'fixed' // withdraw a fixed €/month (nominal, never adjusted)
   | 'pct' // withdraw withdrawalParam % of the current balance each month
-  | 'four-pct'; // fixed monthly amount initialised to startBalance * 0.04 / 12 (not inflation-indexed SWR)
+  | 'four-pct'; // 4% SWR: initial monthly amount = startBalance * 0.04 / 12, inflation-indexed annually
 
 export interface DecumulationPoint {
   month: string;
@@ -24,12 +24,14 @@ export interface DecumulationPoint {
  *   2. Subtract the month's withdrawal (capped at remaining balance; balance floors at 0).
  *
  * @param startBalance  Starting portfolio value.
- * @param strategy      'fixed' | 'four-pct' — flat €/month; 'pct' — % of current balance.
- * @param withdrawalParam  For 'fixed'/'four-pct': monthly withdrawal in €.
+ * @param strategy      'fixed' — flat €/month; 'four-pct' — 4% SWR (inflation-indexed annually);
+ *                      'pct' — % of current balance.
+ * @param withdrawalParam  For 'fixed'/'four-pct': initial monthly withdrawal in €.
  *                          For 'pct': annual withdrawal % (e.g. 4 means 4 %/yr = 0.333 %/mo).
  * @param annualReturnPct  Annual portfolio return % during retirement (may be 0).
  * @param months           Number of months to simulate.
  * @param startDate        ISO month string of the retirement start, e.g. "2060-01".
+ * @param annualInflationPct  Annual inflation % used to index 'four-pct' withdrawals (default 0).
  */
 export function decumulationSeries(
   startBalance: number,
@@ -38,6 +40,7 @@ export function decumulationSeries(
   annualReturnPct: number,
   months: number,
   startDate: string,
+  annualInflationPct = 0,
 ): DecumulationPoint[] {
   if (startBalance <= 0 || months <= 0) return [];
 
@@ -51,12 +54,16 @@ export function decumulationSeries(
   const monthlyWithdrawalPct =
     strategy === 'pct' && isFinite(withdrawalParam) ? Math.max(0, withdrawalParam) / 100 / 12 : 0;
 
-  // For 'fixed' / 'four-pct': flat monthly amount
+  // For 'fixed': flat nominal monthly amount (never adjusted).
+  // For 'four-pct': starts at withdrawalParam, then inflated annually (proper SWR).
   const fixedMonthly =
     strategy !== 'pct' && isFinite(withdrawalParam) && withdrawalParam > 0 ? withdrawalParam : 0;
 
   let balance = startBalance;
   let [year, mon] = startDate.split('-').map(Number);
+  // 'four-pct' SWR: track the current annual withdrawal amount and index it each year.
+  let swrMonthly = fixedMonthly; // adjusted annually for 'four-pct'
+  let yearsElapsed = 0; // full years since retirement start
 
   const result: DecumulationPoint[] = [];
 
@@ -65,13 +72,19 @@ export function decumulationSeries(
     if (mon > 12) {
       mon = 1;
       year++;
+      // Inflate 'four-pct' withdrawal once per year
+      if (strategy === 'four-pct' && annualInflationPct > 0) {
+        yearsElapsed++;
+        swrMonthly = fixedMonthly * Math.pow(1 + annualInflationPct / 100, yearsElapsed);
+      }
     }
 
     // 1. Apply growth
     balance = balance * (1 + monthlyRate);
 
     // 2. Compute withdrawal and subtract
-    const rawWithdrawal = strategy === 'pct' ? balance * monthlyWithdrawalPct : fixedMonthly;
+    const monthlyAmount = strategy === 'four-pct' ? swrMonthly : fixedMonthly;
+    const rawWithdrawal = strategy === 'pct' ? balance * monthlyWithdrawalPct : monthlyAmount;
     const actualWithdrawal = Math.min(rawWithdrawal, balance);
     balance = Math.max(0, balance - actualWithdrawal);
 
