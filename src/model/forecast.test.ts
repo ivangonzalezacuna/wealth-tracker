@@ -3,6 +3,8 @@ import {
   formatMonthsEta,
   forecastMultiAccountSeries,
   forecastMonthsToTargetMulti,
+  decumulationSeries,
+  decumulationDuration,
 } from './forecast';
 
 describe('forecastMonthsToTargetMulti (single-account)', () => {
@@ -259,5 +261,98 @@ describe('forecastMonthsToTargetMulti', () => {
     // because the 10k cash never compounds - so it takes longer (or equal) to reach the goal.
     // With meaningful cash weight (10k/50k = 20%), it should be strictly greater.
     expect(multiMonths!).toBeGreaterThan(buggyMonths!);
+  });
+});
+
+// ── decumulationSeries ─────────────────────────────────────────────────────
+
+describe('decumulationSeries', () => {
+  it('returns empty array for zero or negative startBalance', () => {
+    expect(decumulationSeries(0, 'fixed', 1000, 5, 12, '2060-01')).toHaveLength(0);
+    expect(decumulationSeries(-100, 'fixed', 1000, 5, 12, '2060-01')).toHaveLength(0);
+  });
+
+  it('returns empty array for zero months', () => {
+    expect(decumulationSeries(100_000, 'fixed', 1000, 5, 0, '2060-01')).toHaveLength(0);
+  });
+
+  it('fixed strategy with 0% return depletes linearly', () => {
+    // 12 000 balance, withdraw 1 000/month → depletes in 12 months
+    const series = decumulationSeries(12_000, 'fixed', 1_000, 0, 24, '2060-01');
+    expect(series).toHaveLength(24);
+    // After 12 months balance should be 0
+    expect(series[11].value).toBe(0);
+    // All months after depletion are also 0
+    for (let i = 11; i < 24; i++) {
+      expect(series[i].value).toBe(0);
+    }
+  });
+
+  it('fixed strategy: balance decreases each month (with positive return but withdrawal > interest)', () => {
+    // Large withdrawal relative to growth → balance must shrink
+    const series = decumulationSeries(100_000, 'fixed', 2_000, 3, 12, '2060-01');
+    for (let i = 1; i < series.length; i++) {
+      expect(series[i].value).toBeLessThan(series[i - 1].value);
+    }
+  });
+
+  it('pct strategy never fully depletes (balance asymptotically approaches 0)', () => {
+    // 4% annual withdrawal rate (0.333%/month), 0% return
+    const series = decumulationSeries(100_000, 'pct', 4, 0, 360, '2060-01');
+    expect(series).toHaveLength(360);
+    // Balance should always be > 0 because withdrawal is a fraction of current balance
+    for (const pt of series) {
+      expect(pt.value).toBeGreaterThan(0);
+    }
+    // Balance shrinks over time
+    expect(series[359].value).toBeLessThan(series[0].value);
+  });
+
+  it('four-pct strategy uses the provided monthly amount (same as fixed)', () => {
+    // 'four-pct' is just a label hint; the model treats it like 'fixed'
+    const fixed = decumulationSeries(120_000, 'fixed', 400, 5, 12, '2060-01');
+    const fourPct = decumulationSeries(120_000, 'four-pct', 400, 5, 12, '2060-01');
+    expect(fixed).toEqual(fourPct);
+  });
+
+  it('withdrawal is capped at remaining balance (no negative values)', () => {
+    // 500 balance, withdraw 1000/month → first month withdrawal = 500, balance = 0
+    const series = decumulationSeries(500, 'fixed', 1_000, 0, 3, '2060-01');
+    expect(series[0].value).toBe(0);
+    expect(series[0].withdrawal).toBe(500); // capped
+    expect(series[1].value).toBe(0);
+    expect(series[1].withdrawal).toBe(0); // nothing left
+  });
+
+  it('generates correct month labels starting from the month after startDate', () => {
+    const series = decumulationSeries(100_000, 'fixed', 500, 0, 3, '2059-11');
+    expect(series[0].month).toBe('2059-12');
+    expect(series[1].month).toBe('2060-01');
+    expect(series[2].month).toBe('2060-02');
+  });
+
+  it('handles year rollover in month labels', () => {
+    const series = decumulationSeries(100_000, 'fixed', 500, 0, 2, '2060-12');
+    expect(series[0].month).toBe('2061-01');
+    expect(series[1].month).toBe('2061-02');
+  });
+});
+
+// ── decumulationDuration ───────────────────────────────────────────────────
+
+describe('decumulationDuration', () => {
+  it('returns the month when balance first hits 0', () => {
+    const series = decumulationSeries(12_000, 'fixed', 1_000, 0, 24, '2060-01');
+    const endMonth = decumulationDuration(series);
+    expect(endMonth).toBe('2061-01'); // 12 months from 2060-01
+  });
+
+  it('returns null when portfolio never depletes', () => {
+    const series = decumulationSeries(100_000, 'pct', 4, 0, 360, '2060-01');
+    expect(decumulationDuration(series)).toBeNull();
+  });
+
+  it('returns null for empty series', () => {
+    expect(decumulationDuration([])).toBeNull();
   });
 });

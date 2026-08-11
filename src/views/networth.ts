@@ -19,8 +19,10 @@ import {
   formatMonthsEta,
   forecastMultiAccountSeries,
   forecastMonthsToTargetMulti,
+  decumulationSeries,
+  decumulationDuration,
 } from '../model/forecast';
-import type { AccountForecastInput } from '../model/forecast';
+import type { AccountForecastInput, DecumulationStrategy } from '../model/forecast';
 import type { Snapshot, PortfolioData, Account } from '../types';
 import Chart from 'chart.js/auto';
 import { T, R, resolvedT } from '../theme';
@@ -35,6 +37,12 @@ let _inflationRate = 0; // annual inflation % for real-return forecast overlay
 let _lastSnaps: Snapshot[] = [];
 let _lastAccounts: Account[] = [];
 let _activeGoalIdx = 0; // which goal tab is selected in the consolidated goals card
+
+// ── Decumulation card state ──────────────────────────────
+let _ddRetirementDate = ''; // e.g. "2060-01"; empty = not set
+let _ddStrategy: DecumulationStrategy = 'fixed';
+let _ddWithdrawalParam = 0; // €/month for fixed/four-pct; annual % for pct
+let _ddReturnPct = 4; // annual return % during retirement (default conservative)
 
 /** Apply annual inflation to convert a nominal forecast series to real values. */
 function _deflateByInflation(
@@ -384,6 +392,9 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
 
   // Forecast chart
   _renderForecastChart(snaps, accounts);
+
+  // Retirement drawdown card
+  _renderDecumulationCard(snaps, accounts);
 
   attachInfoTips(document.getElementById('networth')!);
 }
@@ -887,4 +898,351 @@ function _destroyChart(id: string): void {
     CH[id].destroy();
     delete CH[id];
   }
+}
+
+// ── Decumulation chart ──
+
+/**
+ * Builds the projected balance at the given retirement month by running the
+ * accumulation forecast forward from the latest snapshot date to retirementDate.
+ * Splits accounts into liquid (accessible at retirement) and still-locked ones.
+ */
+function _buildCorpusAtRetirement(
+  snaps: Snapshot[],
+  accounts: Account[],
+  retirementDate: string,
+): {
+  liquidCorpus: number;
+  lockedCorpus: number;
+  lockedGroups: Array<{ unlockYear: string; corpus: number }>;
+} | null {
+  if (snaps.length === 0) return null;
+  const latestSnap = snaps[snaps.length - 1];
+  const latestDate = latestSnap.date;
+
+  // retirementDate must be strictly after latest snapshot
+  if (retirementDate <= latestDate) return null;
+
+  const retirementYear = parseInt(retirementDate.split('-')[0], 10);
+
+  // Partition accounts
+  const liquidAccounts = accounts.filter(
+    (a) => !a.locked || (a.lockedUntil ? parseInt(a.lockedUntil, 10) <= retirementYear : true),
+  );
+  const stillLockedAccounts = accounts.filter(
+    (a) => a.locked && a.lockedUntil && parseInt(a.lockedUntil, 10) > retirementYear,
+  );
+
+  // Count months from latestDate to retirementDate
+  const [ly, lm] = latestDate.split('-').map(Number);
+  const [ry, rm] = retirementDate.split('-').map(Number);
+  const monthsToRetirement = (ry - ly) * 12 + (rm - lm);
+  if (monthsToRetirement <= 0) return null;
+
+  // Project liquid accounts forward
+  const liquidInputs = _buildAccountForecastInputs(latestSnap, liquidAccounts);
+  const liquidSeries = forecastMultiAccountSeries(liquidInputs, monthsToRetirement, latestDate);
+  const liquidCorpus = liquidSeries.length > 0 ? liquidSeries[liquidSeries.length - 1].value : 0;
+
+  // Project still-locked accounts forward (so user can see the future total)
+  const lockedInputs = _buildAccountForecastInputs(latestSnap, stillLockedAccounts);
+  const lockedSeries =
+    lockedInputs.length > 0
+      ? forecastMultiAccountSeries(lockedInputs, monthsToRetirement, latestDate)
+      : [];
+  const lockedCorpus = lockedSeries.length > 0 ? lockedSeries[lockedSeries.length - 1].value : 0;
+
+  // Group still-locked by unlock year
+  const unlockYears = [
+    ...new Set(stillLockedAccounts.map((a) => a.lockedUntil!).filter(Boolean)),
+  ].sort();
+  const lockedGroups = unlockYears.map((yr) => {
+    const grpAccounts = stillLockedAccounts.filter((a) => a.lockedUntil === yr);
+    const grpInputs = _buildAccountForecastInputs(latestSnap, grpAccounts);
+    const grpSeries =
+      grpInputs.length > 0
+        ? forecastMultiAccountSeries(grpInputs, monthsToRetirement, latestDate)
+        : [];
+    const corpus = grpSeries.length > 0 ? grpSeries[grpSeries.length - 1].value : 0;
+    return { unlockYear: yr, corpus };
+  });
+
+  return { liquidCorpus, lockedCorpus, lockedGroups };
+}
+
+function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
+  const C = resolvedT();
+  const el = document.getElementById('nw-decumulation');
+  if (!el) return;
+
+  if (snaps.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+
+  const latestSnap = snaps[snaps.length - 1];
+  // Default withdrawal param: 4% rule → startBalance * 0.04 / 12 (shown once corpus is known)
+  // Default retirement date: 20 years from the latest snapshot
+  if (!_ddRetirementDate) {
+    const [ly, lm] = latestSnap.date.split('-').map(Number);
+    const defaultYear = ly + 20;
+    _ddRetirementDate = `${defaultYear}-${String(lm).padStart(2, '0')}`;
+  }
+
+  // Derive a sensible default return % from the accounts if still at 0
+  if (_ddReturnPct === 4 && accounts.some((a) => (a.annualReturnPct || 0) > 0)) {
+    // Use the weighted-average configured return (already at default 4 % which is reasonable)
+    // Keep the 4% default as a safe conservative assumption.
+  }
+
+  const corpus = _buildCorpusAtRetirement(snaps, accounts, _ddRetirementDate);
+
+  // Auto-init withdrawal param once we have a corpus
+  if (_ddWithdrawalParam === 0 && corpus && corpus.liquidCorpus > 0) {
+    if (_ddStrategy === 'four-pct') {
+      _ddWithdrawalParam = Math.round((corpus.liquidCorpus * 0.04) / 12);
+    } else if (_ddStrategy === 'pct') {
+      _ddWithdrawalParam = 4; // 4% annual
+    } else {
+      _ddWithdrawalParam = Math.round((corpus.liquidCorpus * 0.04) / 12);
+    }
+  }
+
+  // Horizon: simulate up to 40 years after retirement (480 months)
+  const DD_MONTHS = 480;
+
+  let ddSeries: ReturnType<typeof decumulationSeries> = [];
+  let endMonth: string | null = null;
+  let lastsText = '';
+
+  if (corpus && corpus.liquidCorpus > 0 && _ddWithdrawalParam > 0) {
+    ddSeries = decumulationSeries(
+      corpus.liquidCorpus,
+      _ddStrategy,
+      _ddWithdrawalParam,
+      _ddReturnPct,
+      DD_MONTHS,
+      _ddRetirementDate,
+    );
+    endMonth = decumulationDuration(ddSeries);
+    if (endMonth) {
+      const [ey, em] = endMonth.split('-').map(Number);
+      const [ry, rm] = _ddRetirementDate.split('-').map(Number);
+      const totalMonths = (ey - ry) * 12 + (em - rm);
+      lastsText = `Depletes ${fmtMon(endMonth)} (${Math.floor(totalMonths / 12)}y ${totalMonths % 12}m after retirement)`;
+    } else {
+      lastsText = 'Never runs out within 40-year horizon';
+    }
+  }
+
+  // Monthly income text for pct strategy
+  const firstMonthWithdrawal = ddSeries.length > 0 ? ddSeries[0].withdrawal : 0;
+  const monthlyIncomeText =
+    _ddStrategy === 'pct'
+      ? `${fmtEur(firstMonthWithdrawal)}/mo (first year)`
+      : `${fmtEur(_ddWithdrawalParam)}/mo`;
+
+  // Corpus summary note
+  const corpusNote =
+    corpus && corpus.lockedCorpus > 0
+      ? `Starting corpus: ${fmtEur(corpus.liquidCorpus)} liquid` +
+        corpus.lockedGroups
+          .map((g) => ` + ${fmtEur(g.corpus)} locked (unlocks ${g.unlockYear})`)
+          .join('') +
+        `. Chart uses liquid portion only.`
+      : corpus
+        ? `Starting corpus: ${fmtEur(corpus.liquidCorpus)} (projected at ${fmtMon(_ddRetirementDate)}).`
+        : '';
+
+  const withdrawalLabel = _ddStrategy === 'pct' ? 'Annual withdrawal %' : 'Monthly withdrawal (€)';
+  const withdrawalStep = _ddStrategy === 'pct' ? '0.1' : '100';
+  const withdrawalMin = _ddStrategy === 'pct' ? '0.1' : '0';
+
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:.75rem">
+      <div class="card-title">Retirement drawdown${infoTip('Simulates withdrawing from your portfolio after retirement. The starting balance is projected from your current accounts using your existing growth assumptions.')}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:.75rem 1.5rem;margin-bottom:.75rem;align-items:flex-end">
+        <div>
+          <label class="forecast-inflation-label" for="dd-retirement-date">Retirement date</label>
+          <div class="forecast-inflation-input-wrap">
+            <input id="dd-retirement-date" class="forecast-inflation-input" type="month"
+                   value="${_ddRetirementDate}" min="${latestSnap.date}"
+                   style="width:9rem" aria-label="Retirement start date">
+          </div>
+        </div>
+        <div>
+          <label class="forecast-inflation-label" for="dd-strategy">Withdrawal strategy</label>
+          <div class="range-toggle" id="dd-strategy-toggle" style="margin-top:2px">
+            <button class="btn btn-sm btn-ghost${_ddStrategy === 'fixed' ? ' active' : ''}" data-dd-strategy="fixed">Fixed €/mo</button>
+            <button class="btn btn-sm btn-ghost${_ddStrategy === 'four-pct' ? ' active' : ''}" data-dd-strategy="four-pct">4% rule</button>
+            <button class="btn btn-sm btn-ghost${_ddStrategy === 'pct' ? ' active' : ''}" data-dd-strategy="pct">% of balance</button>
+          </div>
+        </div>
+        <div>
+          <label class="forecast-inflation-label" for="dd-withdrawal">${withdrawalLabel}</label>
+          <div class="forecast-inflation-input-wrap">
+            <input id="dd-withdrawal" class="forecast-inflation-input" type="number" inputmode="decimal"
+                   min="${withdrawalMin}" step="${withdrawalStep}" value="${_ddWithdrawalParam}"
+                   style="width:7rem" aria-label="${withdrawalLabel}">
+            <span class="forecast-inflation-unit">${_ddStrategy === 'pct' ? '%/yr' : '€'}</span>
+          </div>
+        </div>
+        <div>
+          <label class="forecast-inflation-label" for="dd-return">Return during retirement</label>
+          <div class="forecast-inflation-input-wrap">
+            <input id="dd-return" class="forecast-inflation-input" type="number" inputmode="decimal"
+                   min="0" max="20" step="0.1" value="${_ddReturnPct}"
+                   style="width:5rem" aria-label="Annual return % during retirement">
+            <span class="forecast-inflation-unit">%/yr</span>
+          </div>
+        </div>
+      </div>
+      ${
+        corpus && corpus.liquidCorpus > 0 && _ddWithdrawalParam > 0
+          ? `<div class="kpi-row" style="margin-bottom:.75rem">
+              <div class="kpi">
+                <div class="kpi-label">Lasts${infoTip('When the liquid portfolio balance reaches zero. "Never" means it does not deplete within 40 years.')}</div>
+                <div class="kpi-val" style="font-size:1rem">${endMonth ? fmtMon(endMonth) : '40+ years'}</div>
+                <div class="kpi-sub" style="font-size:11px">${lastsText}</div>
+              </div>
+              <div class="kpi">
+                <div class="kpi-label">Monthly income${infoTip('Actual monthly withdrawal. For % strategy this is the first-year implied amount.')}</div>
+                <div class="kpi-val" style="font-size:1rem">${monthlyIncomeText}</div>
+                <div class="kpi-sub" style="font-size:11px">${_ddStrategy === 'pct' ? 'shrinks as balance falls' : 'constant amount'}</div>
+              </div>
+            </div>
+            <div class="chart-wrap chart-h-lg"><canvas id="c-nw-decumulation"></canvas></div>`
+          : `<p class="note" style="color:var(--ink-3)">
+              ${
+                !corpus || corpus.liquidCorpus <= 0
+                  ? 'Set a retirement date that is after your latest snapshot to project the starting corpus.'
+                  : 'Enter a withdrawal amount to see the drawdown projection.'
+              }
+             </p>`
+      }
+      <div class="note" style="margin-top:.5rem;line-height:1.5">
+        ${corpusNote ? `<div>${corpusNote}</div>` : ''}
+        <div style="color:var(--ink-4);margin-top:2px">Does not account for taxes, fees, inflation, or FX.</div>
+      </div>
+    </div>`;
+
+  // Render chart if we have data
+  _destroyChart('c-nw-decumulation');
+  if (ddSeries.length > 0 && corpus && corpus.liquidCorpus > 0) {
+    const canvas = document.getElementById('c-nw-decumulation') as HTMLCanvasElement | null;
+    if (canvas) {
+      const labels = ddSeries.map((p) => fmtMon(p.month));
+      const values = ddSeries.map((p) => p.value);
+
+      CH['c-nw-decumulation'] = new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Portfolio balance',
+              data: values,
+              borderColor: C.brand,
+              backgroundColor: 'rgba(42,120,214,0.08)',
+              borderWidth: 2,
+              pointRadius: 0,
+              fill: true,
+              tension: 0.3,
+              spanGaps: false,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+              backgroundColor: C.surface,
+              ...TOOLTIP_BOX,
+              borderColor: C.line,
+              borderWidth: 1,
+              titleColor: C.ink,
+              bodyColor: C.ink2,
+              padding: 10,
+              cornerRadius: 8,
+              callbacks: {
+                label: (ctx) =>
+                  ctx.raw != null ? ` ${ctx.dataset.label}: ${fmtEur(ctx.raw as number)}` : '',
+                labelColor: tooltipSwatch(C.surface),
+              },
+            },
+          },
+          scales: {
+            y: {
+              min: 0,
+              grid: { color: C.line },
+              ticks: {
+                color: C.ink4,
+                callback: (v) =>
+                  (v as number) >= 1000
+                    ? '\u20AC' + ((v as number) / 1000).toFixed(0) + 'k'
+                    : '\u20AC' + v,
+              },
+            },
+            x: {
+              grid: { display: false },
+              ticks: {
+                color: C.ink2,
+                font: { size: 10 },
+                maxRotation: 0,
+                autoSkip: true,
+                maxTicksLimit: 12,
+              },
+            },
+          },
+        },
+      });
+    }
+  }
+
+  // Bind controls (only once per render; old listeners are discarded with innerHTML replacement)
+  const dateInput = document.getElementById('dd-retirement-date') as HTMLInputElement | null;
+  const withdrawalInput = document.getElementById('dd-withdrawal') as HTMLInputElement | null;
+  const returnInput = document.getElementById('dd-return') as HTMLInputElement | null;
+  const strategyToggle = document.getElementById('dd-strategy-toggle') as HTMLElement | null;
+
+  const rerender = () => _renderDecumulationCard(snaps, accounts);
+
+  dateInput?.addEventListener('change', () => {
+    const v = dateInput.value.trim();
+    if (/^\d{4}-\d{2}$/.test(v) && v > latestSnap.date) {
+      _ddRetirementDate = v;
+      _ddWithdrawalParam = 0; // reset so it's re-derived from new corpus
+      rerender();
+    }
+  });
+
+  withdrawalInput?.addEventListener('change', () => {
+    const v = parseFloat(withdrawalInput.value);
+    if (isFinite(v) && v >= 0) {
+      _ddWithdrawalParam = v;
+      rerender();
+    }
+  });
+
+  returnInput?.addEventListener('change', () => {
+    const v = parseFloat(returnInput.value);
+    if (isFinite(v) && v >= 0) {
+      _ddReturnPct = Math.min(v, 20);
+      rerender();
+    }
+  });
+
+  strategyToggle?.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('[data-dd-strategy]') as HTMLElement | null;
+    if (!btn) return;
+    const newStrategy = btn.dataset.ddStrategy as DecumulationStrategy;
+    if (newStrategy === _ddStrategy) return;
+    _ddStrategy = newStrategy;
+    _ddWithdrawalParam = 0; // reset so it's re-derived for new strategy
+    rerender();
+  });
 }

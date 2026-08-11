@@ -80,6 +80,7 @@ export function appTemplate(): string {
     </div>
     <div id="nw-goal"></div>
     <div id="nw-forecast"></div>
+    <div id="nw-decumulation"></div>
   </div>
 </div>
 
