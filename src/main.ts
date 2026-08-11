@@ -1937,7 +1937,7 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
   try {
     switch (id) {
       case 'networth':
-        renderNW(state.pd, state.snaps);
+        renderNW(state.snaps);
         break;
       case 'portfolio':
         renderPortfolioSubview(_portfolioSubview);

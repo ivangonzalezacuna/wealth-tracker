@@ -12,8 +12,9 @@ import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow } from './tableColumns';
 import { renderPagination } from './pagination';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
+import { createChartRegistry } from './chartRegistry';
 
-const CH: Record<string, Chart> = {};
+const { CH, destroyChart: _destroyChart } = createChartRegistry();
 const DCA_PAGE_SIZE = 12;
 let _dcaPage = 1;
 let _dcaYear = '';
@@ -194,7 +195,7 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
     </div>`;
 
   const C2 = resolvedT();
-  if (CH['c-dca-proj']) CH['c-dca-proj'].destroy();
+  _destroyChart('c-dca-proj');
   CH['c-dca-proj'] = new Chart(document.getElementById('c-dca-proj') as HTMLCanvasElement, {
     type: 'line',
     data: {
@@ -354,7 +355,7 @@ function renderDCAChart(
   const maxLabels = 18;
   const step = Math.ceil(months.length / maxLabels);
 
-  if (CH['c-dca-bar']) CH['c-dca-bar'].destroy();
+  _destroyChart('c-dca-bar');
   CH['c-dca-bar'] = new Chart(document.getElementById('c-dca-bar') as HTMLCanvasElement, {
     type: 'bar',
     data: { labels: months.map(fmtMon), datasets },

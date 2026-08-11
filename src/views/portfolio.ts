@@ -36,8 +36,9 @@ import { renderTableHeader, renderTableRow } from './tableColumns';
 import { TOOLTIP_BOX, renderLegendHtml, tooltipSwatch } from './chartLegend';
 import { toggleSingleDetailRow } from './expandableRows';
 import { bindSortedTableHeader, sortAndPaginate } from './tableView';
+import { createChartRegistry } from './chartRegistry';
 
-const CH: Record<string, Chart> = {};
+const { CH, destroyChart: _destroyChart } = createChartRegistry();
 
 /**
  * Extract per-ETF market values from a snapshot.
@@ -544,9 +545,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   // Bar chart - only held positions with cost > 0
   const donutE = held.filter((e) => e.cost > 0).sort((a, b) => b.cost - a.cost);
   const C = resolvedT();
-  if (CH['c-port-donut']) {
-    CH['c-port-donut'].destroy();
-  }
+  _destroyChart('c-port-donut');
   CH['c-port-donut'] = new Chart(document.getElementById('c-port-donut') as HTMLCanvasElement, {
     type: 'bar',
     data: {

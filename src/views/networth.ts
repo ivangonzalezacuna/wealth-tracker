@@ -29,14 +29,15 @@ import {
   decumulationDuration,
 } from '../model/forecast';
 import type { AccountForecastInput, DecumulationStrategy } from '../model/forecast';
-import type { Snapshot, PortfolioData, Account } from '../types';
+import type { Snapshot, Account } from '../types';
 import Chart from 'chart.js/auto';
 import { T, R, resolvedT } from '../theme';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import { writeChartTable } from './chartTable';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
+import { createChartRegistry } from './chartRegistry';
 
-const CH: Record<string, Chart> = {};
+const { CH, destroyChart: _destroyChart } = createChartRegistry();
 let _nwRange: '12' | '36' | 'all' = 'all';
 let _fcRange: '60' | '120' | '240' | '360' = '60'; // 5y / 10y / 20y / 30y forecast horizon
 let _inflationRate = 0; // annual inflation % for real-return forecast overlay
@@ -236,7 +237,7 @@ export function _resetPlanningTabForTest(): void {
   _planningTab = 'forecast';
 }
 
-export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
+export function renderNW(snaps: Snapshot[]): void {
   _loadPersistedState();
   const ACCTS = getACCTSList();
   const has = snaps.length > 0;
@@ -604,13 +605,11 @@ function _renderPlanningCard(snaps: Snapshot[], accounts: Account[]): void {
     <div class="card" id="nw-planning-card">
       <div class="card-title">Planning</div>
       <div class="forecast-inflation" style="margin-bottom:1rem">
-        <div class="forecast-inflation-row">
-          <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation (%/yr)</label>
-          <div class="forecast-inflation-input-wrap">
-            <input id="nw-forecast-inflation" class="forecast-inflation-input" type="number" inputmode="decimal" min="0" max="20" step="0.1"
-                   value="${_inflationRate}"
-                   aria-label="Annual inflation rate for real-return projection">
-          </div>
+        <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation (%/yr)</label>
+        <div class="forecast-inflation-input-wrap">
+          <input id="nw-forecast-inflation" class="forecast-inflation-input" type="number" inputmode="decimal" min="0" max="20" step="0.1"
+                 value="${_inflationRate}"
+                 aria-label="Annual inflation rate for real-return projection">
         </div>
         <div class="forecast-inflation-hint">${inflHint}</div>
       </div>
@@ -959,15 +958,6 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   }
 
   _attachForecastRangeToggle();
-}
-
-// ── Helpers ──
-
-function _destroyChart(id: string): void {
-  if (CH[id]) {
-    CH[id].destroy();
-    delete CH[id];
-  }
 }
 
 // ── Decumulation chart ──

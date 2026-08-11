@@ -41,10 +41,11 @@ import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import { writeChartTable } from './chartTable';
 import { T, R, resolvedT } from '../theme';
+import { createChartRegistry } from './chartRegistry';
 import Chart from 'chart.js/auto';
 import type { Snapshot, PortfolioData, Transaction, Holding } from '../types';
 
-const CH: Record<string, Chart> = {};
+const { CH, destroyChart: _destroyChart } = createChartRegistry();
 let _anGrowthRange: '12' | '36' | 'all' = 'all';
 let _anContribRange: '12' | '36' | 'all' = 'all';
 let _anIncomeRange: '12' | '36' | 'all' = '12';
@@ -60,13 +61,6 @@ const _allocMode: Record<string, 'active' | 'all'> = {
   class: 'active',
   region: 'active',
 };
-
-function _destroyChart(id: string): void {
-  if (CH[id]) {
-    CH[id].destroy();
-    delete CH[id];
-  }
-}
 
 function _attachRangeToggle(
   id: string,

@@ -6,14 +6,10 @@ import {
 } from './model/securitySuggestions';
 import type { Transaction } from './types';
 
-function normalizeTransactions(transactions: Transaction[] | undefined): Transaction[] {
-  return Array.isArray(transactions) ? transactions : [];
-}
-
 export function buildAppSecuritySuggestions(
   transactions: Transaction[] | undefined,
 ): SecuritySuggestions {
-  return buildSecuritySuggestions(normalizeTransactions(transactions));
+  return buildSecuritySuggestions(transactions);
 }
 
 export function buildHoldingSecuritySuggestions(
@@ -27,7 +23,8 @@ export async function loadAppSecuritySuggestions(): Promise<{
   transactions: Transaction[];
   suggestions: SecuritySuggestions;
 }> {
-  const transactions = normalizeTransactions(await loadTransactions());
+  const loadedTransactions = await loadTransactions();
+  const transactions = Array.isArray(loadedTransactions) ? loadedTransactions : [];
   return {
     transactions,
     suggestions: buildAppSecuritySuggestions(transactions),
