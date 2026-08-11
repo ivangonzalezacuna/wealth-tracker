@@ -727,18 +727,17 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
         <div style="margin-bottom:4px">Assumptions per account (Settings \u2192 Accounts):</div>
         ${acctSummaryLines}
         <div class="forecast-inflation">
-          <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation</label>
+          <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation (%/yr)</label>
           <div class="forecast-inflation-input-wrap" style="margin-top:2px">
             <input id="nw-forecast-inflation" class="forecast-inflation-input" type="number" inputmode="decimal" min="0" max="20" step="0.1"
                    value="${_inflationRate}"
                    aria-label="Annual inflation rate for real-return forecast">
-            <span class="forecast-inflation-unit">% / yr</span>
           </div>
           <div class="forecast-inflation-hint">
             ${
               showReal
-                ? 'Dashed line shows the inflation-adjusted projection in today\u2019s purchasing power.'
-                : 'Set above 0 to overlay an inflation-adjusted projection.'
+                ? 'Chart shows the inflation-adjusted projection in today\u2019s purchasing power.'
+                : 'Set above 0 to show the inflation-adjusted projection.'
             }
           </div>
         </div>
@@ -811,8 +810,8 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           order: 1,
         },
         {
-          label: 'Forecast (nominal)',
-          data: fcDataFull,
+          label: showReal ? `Forecast (real, ${_inflationRate}% inflation)` : 'Forecast (nominal)',
+          data: showReal ? realDataFull! : fcDataFull,
           borderColor: C.brandChart,
           backgroundColor: 'rgba(42,120,214,0.07)',
           borderWidth: 2,
@@ -823,23 +822,6 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           spanGaps: false,
           order: 2,
         },
-        ...(realDataFull
-          ? [
-              {
-                label: `Real (${_inflationRate}% inflation)`,
-                data: realDataFull,
-                borderColor: C.ink4 || 'rgba(150,150,150,0.9)',
-                backgroundColor: 'transparent',
-                borderWidth: 1.5,
-                borderDash: [3, 3],
-                pointRadius: 0,
-                fill: false,
-                tension: 0.3,
-                spanGaps: false,
-                order: 3,
-              },
-            ]
-          : []),
       ],
     },
     options: {
@@ -1077,6 +1059,10 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
       ? `${fmtEur(firstMonthWithdrawal)}/mo`
       : `${fmtEur(_ddWithdrawalParam)}/mo`;
 
+  // Inflation-adjusted (real) drawdown series
+  const ddShowReal = _inflationRate > 0 && ddSeries.length > 0;
+  const ddRealSeries = ddShowReal ? _deflateByInflation(ddSeries, _inflationRate) : null;
+
   // Break-even (sustainable) monthly withdrawal: the amount where growth exactly offsets withdrawals.
   // Above this level the balance declines; near this level small changes have an outsized effect.
   const breakEvenMonthly =
@@ -1192,7 +1178,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
       }
       <div class="note" style="margin-top:.5rem;line-height:1.5">
         ${corpusNote ? `<div>${corpusNote}</div>` : ''}
-        <div style="color:var(--ink-4);margin-top:2px">Does not account for taxes, fees, inflation, or FX. Return during retirement defaults to the value-weighted average of your configured account returns.</div>
+        <div style="color:var(--ink-4);margin-top:2px">Does not account for taxes, fees, or FX.${_inflationRate > 0 ? ` Chart shows real (inflation-adjusted) values at ${_inflationRate}% annual inflation.` : ' Return during retirement defaults to the value-weighted average of your configured account returns.'}</div>
       </div>
     </div>`;
 
@@ -1202,7 +1188,8 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
     const canvas = document.getElementById('c-nw-decumulation') as HTMLCanvasElement | null;
     if (canvas) {
       const labels = ddSeries.map((p) => fmtMon(p.month));
-      const values = ddSeries.map((p) => p.value);
+      const nominalValues = ddSeries.map((p) => p.value);
+      const displayValues = ddRealSeries ? ddRealSeries.map((p) => p.value) : nominalValues;
       const startingCorpus = corpus.liquidCorpus;
 
       CH['c-nw-decumulation'] = new Chart(canvas, {
@@ -1211,8 +1198,8 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
           labels,
           datasets: [
             {
-              label: 'Portfolio balance',
-              data: values,
+              label: ddShowReal ? `Portfolio balance (real, ${_inflationRate}% inflation)` : 'Portfolio balance',
+              data: displayValues,
               borderColor: C.brand,
               backgroundColor: 'rgba(42,120,214,0.08)',
               borderWidth: 2,
@@ -1223,7 +1210,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
             },
             {
               label: 'Starting corpus',
-              data: new Array(values.length).fill(startingCorpus),
+              data: new Array(displayValues.length).fill(startingCorpus),
               borderColor: C.ink4,
               borderWidth: 1,
               borderDash: [4, 4],
