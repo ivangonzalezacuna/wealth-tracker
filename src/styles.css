@@ -1378,18 +1378,7 @@ summary.section-label {
 }
 .forecast-inflation {
   margin-top: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
   font-style: normal;
-}
-.forecast-inflation-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 12px;
-  flex-wrap: wrap;
 }
 .forecast-inflation-label {
   color: var(--ink-2);
@@ -1587,9 +1576,6 @@ summary.section-label {
   .chart-controls {
     gap: 8px;
   }
-  .forecast-inflation {
-    padding: 9px 10px;
-  }
   .range-toggle .btn {
     font-size: 10px;
     padding: 2px 7px;
@@ -1725,9 +1711,6 @@ summary.section-label {
   .legend {
     font-size: 11px;
     gap: 6px;
-  }
-  .forecast-inflation-row {
-    align-items: flex-start;
   }
   .forecast-inflation-input-wrap {
     width: 100%;

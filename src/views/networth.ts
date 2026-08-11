@@ -12,7 +12,13 @@ import {
   kpiTile,
 } from '../utils';
 import { getACCTSList, FORECAST_RANGE_LABELS } from '../constants';
-import { getAccounts, getMonthlyContribBudget, getGoals } from '../store/config';
+import {
+  getAccounts,
+  getMonthlyContribBudget,
+  getGoals,
+  getSettings,
+  setSetting,
+} from '../store/config';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import { cagrPerAccount } from '../model/insights';
 import {
@@ -44,6 +50,27 @@ let _ddStrategy: DecumulationStrategy = 'fixed';
 let _ddWithdrawalParam = 0; // €/month for fixed/four-pct; annual % for pct
 let _ddReturnPct = 0; // annual return % during retirement; 0 = derive from accounts on each render
 let _ddReturnPctManual = false; // true once user has edited the return-rate input
+let _stateLoaded = false; // tracks whether persisted settings have been loaded into module state
+
+/** Load persisted drawdown + inflation settings from the Settings store (runs once). */
+function _loadPersistedState(): void {
+  if (_stateLoaded) return;
+  _stateLoaded = true;
+  const s = getSettings();
+  const infl = parseFloat(s['nw_inflation_rate'] || '');
+  if (isFinite(infl) && infl >= 0) _inflationRate = Math.min(infl, 20);
+  const ddDate = (s['dd_retirement_date'] || '').trim();
+  if (/^\d{4}-\d{2}$/.test(ddDate)) _ddRetirementDate = ddDate;
+  const ddStrat = (s['dd_strategy'] || '').trim() as DecumulationStrategy;
+  if (ddStrat === 'fixed' || ddStrat === 'four-pct' || ddStrat === 'pct') _ddStrategy = ddStrat;
+  const ddWith = parseFloat(s['dd_withdrawal_param'] || '');
+  if (isFinite(ddWith) && ddWith >= 0) _ddWithdrawalParam = ddWith;
+  const ddRet = parseFloat(s['dd_return_pct'] || '');
+  if (isFinite(ddRet) && ddRet > 0) {
+    _ddReturnPct = Math.min(ddRet, 20);
+    _ddReturnPctManual = true;
+  }
+}
 
 /** Apply annual inflation to convert a nominal forecast series to real values. */
 function _deflateByInflation(
@@ -204,6 +231,7 @@ function _renderGoalCards(): void {
  * YoY/CAGR tiles, the history chart, growth-breakdown chart, and goal progress.
  */
 export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
+  _loadPersistedState();
   const ACCTS = getACCTSList();
   const has = snaps.length > 0;
   document.getElementById('nw-empty')!.style.display = has ? 'none' : 'block';
@@ -699,19 +727,17 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
         <div style="margin-bottom:4px">Assumptions per account (Settings \u2192 Accounts):</div>
         ${acctSummaryLines}
         <div class="forecast-inflation">
-          <div class="forecast-inflation-row">
-            <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation</label>
-            <div class="forecast-inflation-input-wrap">
-              <input id="nw-forecast-inflation" class="forecast-inflation-input" type="number" inputmode="decimal" min="0" max="20" step="0.1"
-                     value="${_inflationRate}"
-                     aria-label="Annual inflation rate for real-return forecast">
-              <span class="forecast-inflation-unit">% / yr</span>
-            </div>
+          <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation</label>
+          <div class="forecast-inflation-input-wrap" style="margin-top:2px">
+            <input id="nw-forecast-inflation" class="forecast-inflation-input" type="number" inputmode="decimal" min="0" max="20" step="0.1"
+                   value="${_inflationRate}"
+                   aria-label="Annual inflation rate for real-return forecast">
+            <span class="forecast-inflation-unit">% / yr</span>
           </div>
           <div class="forecast-inflation-hint">
             ${
               showReal
-                ? 'Dashed line shows the inflation-adjusted projection in today’s purchasing power.'
+                ? 'Dashed line shows the inflation-adjusted projection in today\u2019s purchasing power.'
                 : 'Set above 0 to overlay an inflation-adjusted projection.'
             }
           </div>
@@ -884,6 +910,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     inflInput.addEventListener('change', () => {
       const v = parseFloat(inflInput.value);
       _inflationRate = isFinite(v) && v >= 0 ? Math.min(v, 20) : 0;
+      void setSetting('nw_inflation_rate', String(_inflationRate));
       _renderGoalCards();
       _renderForecastChart(snaps, accounts);
     });
@@ -1270,6 +1297,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
     if (/^\d{4}-\d{2}$/.test(v) && v > latestSnap.date.substring(0, 7)) {
       _ddRetirementDate = v;
       _ddWithdrawalParam = 0; // reset so it's re-derived from new corpus
+      void setSetting('dd_retirement_date', _ddRetirementDate);
       rerender();
     }
   });
@@ -1278,6 +1306,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
     const v = parseFloat(withdrawalInput.value);
     if (isFinite(v) && v >= 0) {
       _ddWithdrawalParam = v;
+      void setSetting('dd_withdrawal_param', String(_ddWithdrawalParam));
       rerender();
     }
   });
@@ -1287,6 +1316,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
     if (isFinite(v) && v >= 0) {
       _ddReturnPct = Math.min(v, 20);
       _ddReturnPctManual = true;
+      void setSetting('dd_return_pct', String(_ddReturnPct));
       rerender();
     }
   });
@@ -1298,6 +1328,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
     if (newStrategy === _ddStrategy) return;
     _ddStrategy = newStrategy;
     _ddWithdrawalParam = 0; // reset so it's re-derived for new strategy
+    void setSetting('dd_strategy', _ddStrategy);
     rerender();
   });
 
