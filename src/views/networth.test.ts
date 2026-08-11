@@ -63,6 +63,8 @@ vi.mock('../store/config', () => ({
   getMonthlyContribBudget: () => 500,
   isConfigLoaded: () => true,
   getGoals: vi.fn(() => []),
+  getSettings: () => ({}),
+  setSetting: () => Promise.resolve(),
 }));
 
 vi.mock('../constants', () => ({
