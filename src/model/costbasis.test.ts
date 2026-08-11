@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
-import { computeCostBasis, _computeAvgCost, _computeFIFO, _computeHIFO, _computeLIFO } from './costbasis';
+import {
+  computeCostBasis,
+  _computeAvgCost,
+  _computeFIFO,
+  _computeHIFO,
+  _computeLIFO,
+} from './costbasis';
 import { TxType } from '../types';
 import type { Transaction } from '../types';
 
