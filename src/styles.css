@@ -2145,8 +2145,7 @@ input[type='color'] {
   background: var(--brand-weak);
   color: var(--brand);
   border-color: var(--brand-border);
-  outline: 2px solid var(--brand-border);
-  outline-offset: 2px;
+  outline: none;
 }
 .snap-row-compact[tabindex='0']:focus-visible,
 .annual-row[tabindex='0']:focus-visible,
