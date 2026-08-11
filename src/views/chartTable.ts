@@ -17,8 +17,13 @@ export function writeChartTable(
 ): void {
   const wrap = document.getElementById(wrapId);
   if (!wrap) return;
+  const existingContent = wrap.querySelector('.chart-data-table-content') as HTMLDivElement | null;
   const existingTable = wrap.querySelector('.chart-data-table') as HTMLTableElement | null;
-  const wasVisible = existingTable ? !existingTable.hidden : false;
+  const wasVisible = existingContent
+    ? !existingContent.hidden
+    : existingTable
+      ? !existingTable.hidden
+      : false;
 
   const totalPages = Math.max(1, Math.ceil(rows.length / CHART_TABLE_PAGE_SIZE));
   let currentPage = 0;
@@ -39,19 +44,23 @@ export function writeChartTable(
       </div>`
       : '';
 
-  const tableHtml = `<div class="chart-data-table-scroll"><table class="chart-data-table" role="table" aria-label="${esc(ariaLabel)}"${wasVisible ? '' : ' hidden'}>
+  const tableHtml = `<div class="chart-data-table-content"${wasVisible ? '' : ' hidden'}>
+    <div class="chart-data-table-scroll"><table class="chart-data-table" role="table" aria-label="${esc(ariaLabel)}">
     <thead><tr>${thCells}</tr></thead>
     <tbody>${renderBodyRows(0)}</tbody>
-  </table></div>${paginationHtml}`;
+  </table></div>
+    ${paginationHtml}
+  </div>`;
 
   const toggleLabel = wasVisible ? 'Hide data table' : 'Show data table';
   wrap.innerHTML = `<button class="chart-data-table-toggle" type="button" aria-expanded="${wasVisible}">${toggleLabel}</button>${tableHtml}`;
 
   const btn = wrap.querySelector('.chart-data-table-toggle') as HTMLButtonElement;
+  const content = wrap.querySelector('.chart-data-table-content') as HTMLDivElement;
   const table = wrap.querySelector('.chart-data-table') as HTMLTableElement;
   btn.addEventListener('click', () => {
-    const visible = !table.hidden;
-    table.hidden = visible;
+    const visible = !content.hidden;
+    content.hidden = visible;
     btn.textContent = visible ? 'Show data table' : 'Hide data table';
     btn.setAttribute('aria-expanded', String(!visible));
   });
