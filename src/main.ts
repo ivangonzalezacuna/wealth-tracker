@@ -129,6 +129,7 @@ const ALL_SECTIONS = ['networth', 'portfolio', 'analytics', 'settings', 'log'] a
 // ── Portfolio sub-view state ─────────────────────────────
 let _portfolioSubview: 'holdings' | 'contributions' | 'dividends' = 'holdings';
 let _driftTooltipEl: HTMLSpanElement | null = null;
+let _driftTooltipCleanup: (() => void) | null = null;
 
 // ── Unified sync/write lock (shared with settings.ts - see sync/lock.ts) ──
 let _lastSyncAt = 0;
@@ -2037,10 +2038,22 @@ function showDriftTooltip(trigger: HTMLElement): void {
   _driftTooltipEl.textContent = text;
   if (!_driftTooltipEl.isConnected) document.body.appendChild(_driftTooltipEl);
   positionDriftTooltip(trigger, _driftTooltipEl);
+
+  // Dismiss on scroll or resize (matches infoTip behaviour)
+  _driftTooltipCleanup?.();
+  const dismiss = () => hideDriftTooltip();
+  window.addEventListener('scroll', dismiss, { passive: true, capture: true });
+  window.addEventListener('resize', dismiss, { passive: true });
+  _driftTooltipCleanup = () => {
+    window.removeEventListener('scroll', dismiss, { capture: true } as EventListenerOptions);
+    window.removeEventListener('resize', dismiss);
+  };
 }
 
 function hideDriftTooltip(): void {
   _driftTooltipEl?.remove();
+  _driftTooltipCleanup?.();
+  _driftTooltipCleanup = null;
 }
 
 function positionDriftTooltip(trigger: HTMLElement, pop: HTMLElement): void {
@@ -2072,6 +2085,16 @@ function positionDriftTooltip(trigger: HTMLElement, pop: HTMLElement): void {
 
 // Export updateDriftBadge so it can be called from settings when alert threshold changes
 (window as any).updateDriftBadge = updateDriftBadge;
+
+// Global: dismiss drift tooltip on outside click or Escape (matches infoTip behaviour)
+document.addEventListener('click', (e) => {
+  if (_driftTooltipEl?.isConnected && !_driftTooltipEl.contains(e.target as Node)) {
+    hideDriftTooltip();
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') hideDriftTooltip();
+});
 
 function _isTouchLikeEvent(e: MouseEvent): boolean {
   return e.sourceCapabilities?.firesTouchEvents ?? false;
