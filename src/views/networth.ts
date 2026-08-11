@@ -42,7 +42,8 @@ let _activeGoalIdx = 0; // which goal tab is selected in the consolidated goals 
 let _ddRetirementDate = ''; // e.g. "2060-01"; empty = not set
 let _ddStrategy: DecumulationStrategy = 'fixed';
 let _ddWithdrawalParam = 0; // €/month for fixed/four-pct; annual % for pct
-let _ddReturnPct = 4; // annual return % during retirement (default conservative)
+let _ddReturnPct = 0; // annual return % during retirement; 0 = derive from accounts on each render
+let _ddReturnPctManual = false; // true once user has edited the return-rate input
 
 /** Apply annual inflation to convert a nominal forecast series to real values. */
 function _deflateByInflation(
@@ -920,8 +921,8 @@ function _buildCorpusAtRetirement(
   const latestSnap = snaps[snaps.length - 1];
   const latestDate = latestSnap.date;
 
-  // retirementDate must be strictly after latest snapshot
-  if (retirementDate <= latestDate) return null;
+  // retirementDate must be strictly after latest snapshot (compare month-only to handle YYYY-MM-DD dates)
+  if (retirementDate <= latestDate.substring(0, 7)) return null;
 
   const retirementYear = parseInt(retirementDate.split('-')[0], 10);
 
@@ -981,7 +982,6 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
   }
 
   const latestSnap = snaps[snaps.length - 1];
-  // Default withdrawal param: 4% rule → startBalance * 0.04 / 12 (shown once corpus is known)
   // Default retirement date: 20 years from the latest snapshot
   if (!_ddRetirementDate) {
     const [ly, lm] = latestSnap.date.split('-').map(Number);
@@ -989,10 +989,18 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
     _ddRetirementDate = `${defaultYear}-${String(lm).padStart(2, '0')}`;
   }
 
-  // Derive a sensible default return % from the accounts if still at 0
-  if (_ddReturnPct === 4 && accounts.some((a) => (a.annualReturnPct || 0) > 0)) {
-    // Use the weighted-average configured return (already at default 4 % which is reasonable)
-    // Keep the 4% default as a safe conservative assumption.
+  // Derive return % from the value-weighted average of configured account returns,
+  // unless the user has manually edited the field.
+  if (!_ddReturnPctManual) {
+    let totalValue = 0;
+    let weightedReturn = 0;
+    for (const a of accounts) {
+      const val = (latestSnap[a.id || ''] as number) || 0;
+      totalValue += val;
+      weightedReturn += val * (a.annualReturnPct || 0);
+    }
+    const derived = totalValue > 0 ? Math.round((weightedReturn / totalValue) * 10) / 10 : 0;
+    _ddReturnPct = derived > 0 ? derived : 4; // fall back to 4% if no return configured
   }
 
   const corpus = _buildCorpusAtRetirement(snaps, accounts, _ddRetirementDate);
@@ -1042,6 +1050,13 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
       ? `${fmtEur(firstMonthWithdrawal)}/mo (first year)`
       : `${fmtEur(_ddWithdrawalParam)}/mo`;
 
+  // Break-even (sustainable) monthly withdrawal: the amount where growth exactly offsets withdrawals.
+  // Above this level the balance declines; near this level small changes have an outsized effect.
+  const breakEvenMonthly =
+    corpus && corpus.liquidCorpus > 0 && _ddReturnPct > 0
+      ? Math.round(corpus.liquidCorpus * (Math.pow(1 + _ddReturnPct / 100, 1 / 12) - 1))
+      : 0;
+
   // Corpus summary note
   const corpusNote =
     corpus && corpus.lockedCorpus > 0
@@ -1058,6 +1073,13 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
   const withdrawalStep = _ddStrategy === 'pct' ? '0.1' : '100';
   const withdrawalMin = _ddStrategy === 'pct' ? '0.1' : '0';
 
+  // Warn when within ±20% of break-even — in this zone, €/month changes cause nonlinear outcomes.
+  const nearBreakEven =
+    _ddStrategy !== 'pct' &&
+    breakEvenMonthly > 0 &&
+    _ddWithdrawalParam > 0 &&
+    Math.abs(_ddWithdrawalParam - breakEvenMonthly) / breakEvenMonthly < 0.2;
+
   el.innerHTML = `
     <div class="card" style="margin-bottom:.75rem">
       <div class="card-title">Retirement drawdown${infoTip('Simulates withdrawing from your portfolio after retirement. The starting balance is projected from your current accounts using your existing growth assumptions.')}</div>
@@ -1066,8 +1088,8 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
           <label class="forecast-inflation-label" for="dd-retirement-date">Retirement date</label>
           <div class="forecast-inflation-input-wrap">
             <input id="dd-retirement-date" class="forecast-inflation-input" type="month"
-                   value="${_ddRetirementDate}" min="${latestSnap.date}"
-                   style="width:9rem" aria-label="Retirement start date">
+                   value="${_ddRetirementDate}" min="${latestSnap.date.substring(0, 7)}"
+                   style="width:9rem;text-align:left" aria-label="Retirement start date">
           </div>
         </div>
         <div>
@@ -1110,7 +1132,23 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
                 <div class="kpi-val" style="font-size:1rem">${monthlyIncomeText}</div>
                 <div class="kpi-sub" style="font-size:11px">${_ddStrategy === 'pct' ? 'shrinks as balance falls' : 'constant amount'}</div>
               </div>
+              ${
+                breakEvenMonthly > 0 && _ddStrategy !== 'pct'
+                  ? `<div class="kpi">
+                      <div class="kpi-label">Sustainable withdrawal${infoTip('The monthly amount where portfolio growth exactly offsets withdrawals. Above this the balance declines; below it, the balance grows. Results are highly sensitive to changes near this threshold.')}</div>
+                      <div class="kpi-val" style="font-size:1rem">${fmtEur(breakEvenMonthly)}/mo</div>
+                      <div class="kpi-sub" style="font-size:11px">${_ddWithdrawalParam > breakEvenMonthly ? 'withdrawing above sustainable rate' : 'withdrawing below sustainable rate'}</div>
+                    </div>`
+                  : ''
+              }
             </div>
+            ${
+              nearBreakEven
+                ? `<div class="note" style="margin-bottom:.75rem;color:var(--warn-fg);background:var(--warn-bg);border:1px solid var(--warn-fg);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px">
+                    ⚠️ Your withdrawal is near the sustainable rate (${fmtEur(breakEvenMonthly)}/mo). In this zone, small changes (e.g. €1 000/mo) cause large differences over 40 years due to compounding.
+                  </div>`
+                : ''
+            }
             <div class="chart-wrap chart-h-lg"><canvas id="c-nw-decumulation"></canvas></div>`
           : `<p class="note" style="color:var(--ink-3)">
               ${
@@ -1122,7 +1160,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
       }
       <div class="note" style="margin-top:.5rem;line-height:1.5">
         ${corpusNote ? `<div>${corpusNote}</div>` : ''}
-        <div style="color:var(--ink-4);margin-top:2px">Does not account for taxes, fees, inflation, or FX.</div>
+        <div style="color:var(--ink-4);margin-top:2px">Does not account for taxes, fees, inflation, or FX. Return during retirement defaults to the value-weighted average of your configured account returns.</div>
       </div>
     </div>`;
 
@@ -1133,6 +1171,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
     if (canvas) {
       const labels = ddSeries.map((p) => fmtMon(p.month));
       const values = ddSeries.map((p) => p.value);
+      const startingCorpus = corpus.liquidCorpus;
 
       CH['c-nw-decumulation'] = new Chart(canvas, {
         type: 'line',
@@ -1149,6 +1188,16 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
               fill: true,
               tension: 0.3,
               spanGaps: false,
+            },
+            {
+              label: 'Starting corpus',
+              data: new Array(values.length).fill(startingCorpus),
+              borderColor: C.ink4,
+              borderWidth: 1,
+              borderDash: [4, 4],
+              pointRadius: 0,
+              fill: false,
+              tension: 0,
             },
           ],
         },
@@ -1213,7 +1262,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
 
   dateInput?.addEventListener('change', () => {
     const v = dateInput.value.trim();
-    if (/^\d{4}-\d{2}$/.test(v) && v > latestSnap.date) {
+    if (/^\d{4}-\d{2}$/.test(v) && v > latestSnap.date.substring(0, 7)) {
       _ddRetirementDate = v;
       _ddWithdrawalParam = 0; // reset so it's re-derived from new corpus
       rerender();
@@ -1232,6 +1281,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
     const v = parseFloat(returnInput.value);
     if (isFinite(v) && v >= 0) {
       _ddReturnPct = Math.min(v, 20);
+      _ddReturnPctManual = true;
       rerender();
     }
   });
