@@ -901,6 +901,18 @@ details[open] > summary .card-chevron {
   }
 }
 
+.dd-inputs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 1.5rem;
+  margin-bottom: 0.75rem;
+}
+@media (max-width: 640px) {
+  .dd-inputs-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Badges */
 .badge {
   font-size: 10px;

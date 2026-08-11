@@ -1069,7 +1069,8 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
         ? `Starting corpus: ${fmtEur(corpus.liquidCorpus)} (projected at ${fmtMon(_ddRetirementDate)}).`
         : '';
 
-  const withdrawalLabel = _ddStrategy === 'pct' ? 'Annual withdrawal (%/yr)' : 'Monthly withdrawal (€)';
+  const withdrawalLabel =
+    _ddStrategy === 'pct' ? 'Annual withdrawal (%/yr)' : 'Monthly withdrawal (€)';
   const withdrawalStep = _ddStrategy === 'pct' ? '0.1' : '100';
   const withdrawalMin = _ddStrategy === 'pct' ? '0.1' : '0';
 
@@ -1083,7 +1084,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
   el.innerHTML = `
     <div class="card" style="margin-bottom:.75rem">
       <div class="card-title">Retirement drawdown${infoTip('Simulates withdrawing from your portfolio after retirement. The starting balance is projected from your current accounts using your existing growth assumptions.')}</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem 1.5rem;margin-bottom:.75rem">
+      <div class="dd-inputs-grid">
         <div>
           <label class="forecast-inflation-label" for="dd-retirement-date">Retirement date</label>
           <div class="forecast-inflation-input-wrap">
@@ -1128,14 +1129,20 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
               ${kpiTile({
                 label: `Monthly income${infoTip('Actual monthly withdrawal. For % strategy this is the first-year implied amount.')}`,
                 value: monthlyIncomeText,
-                sub: _ddStrategy === 'pct' ? 'first year; shrinks as balance falls' : 'constant amount',
+                sub:
+                  _ddStrategy === 'pct'
+                    ? 'first year; shrinks as balance falls'
+                    : 'constant amount',
               })}
               ${
                 breakEvenMonthly > 0 && _ddStrategy !== 'pct'
                   ? kpiTile({
                       label: `Sustainable withdrawal${infoTip('The monthly amount where portfolio growth exactly offsets withdrawals. Above this the balance declines; below it, the balance grows. Results are highly sensitive to changes near this threshold.')}`,
                       value: `${fmtEur(breakEvenMonthly)}/mo`,
-                      sub: _ddWithdrawalParam > breakEvenMonthly ? 'withdrawing above sustainable rate' : 'withdrawing below sustainable rate',
+                      sub:
+                        _ddWithdrawalParam > breakEvenMonthly
+                          ? 'withdrawing above sustainable rate'
+                          : 'withdrawing below sustainable rate',
                     })
                   : ''
               }
