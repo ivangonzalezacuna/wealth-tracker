@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
-import { computeCostBasis, _computeAvgCost, _computeFIFO } from './costbasis';
+import {
+  computeCostBasis,
+  _computeAvgCost,
+  _computeFIFO,
+  _computeHIFO,
+  _computeLIFO,
+} from './costbasis';
 import { TxType } from '../types';
 import type { Transaction } from '../types';
 
@@ -163,6 +169,33 @@ describe('costbasis: avgco vs fifo divergence', () => {
     // They must differ
     expect(avg.realizedPnL).not.toBeCloseTo(fifo.realizedPnL);
   });
+
+  describe('costbasis: LIFO and HIFO', () => {
+    it('LIFO sells newest lots first', () => {
+      const txs = [
+        buy('2024-01-01', 10, 1000), // lot 1: 10 @ 100
+        buy('2024-02-01', 10, 1500), // lot 2: 10 @ 150
+        sell('2024-03-01', 10, 1400), // LIFO: consume lot 2 => pnl -100
+      ];
+      const r = _computeLIFO(txs);
+      expect(r.realizedPnL).toBeCloseTo(-100);
+      expect(r.shares).toBeCloseTo(10);
+      expect(r.costBasis).toBeCloseTo(1000);
+    });
+
+    it('HIFO sells highest-cost lots first', () => {
+      const txs = [
+        buy('2024-01-01', 10, 900), // lot 1: unit 90
+        buy('2024-02-01', 10, 1500), // lot 2: unit 150
+        buy('2024-03-01', 10, 1100), // lot 3: unit 110
+        sell('2024-04-01', 10, 1300), // HIFO: consume lot 2 => pnl -200
+      ];
+      const r = _computeHIFO(txs);
+      expect(r.realizedPnL).toBeCloseTo(-200);
+      expect(r.shares).toBeCloseTo(20);
+      expect(r.costBasis).toBeCloseTo(2000); // lots 1 + 3
+    });
+  });
 });
 
 describe('computeCostBasis (multi-ISIN)', () => {
@@ -219,6 +252,16 @@ describe('computeCostBasis (multi-ISIN)', () => {
     expect(result['A'].realizedPnL).toBeCloseTo(100);
     expect(result['B'].shares).toBeCloseTo(5);
     expect(result['B'].exited).toBe(false);
+  });
+
+  it('supports hifo method selection', () => {
+    const txs = [
+      buy('2024-01-01', 10, 1000),
+      buy('2024-02-01', 10, 1500),
+      sell('2024-03-01', 10, 1400),
+    ];
+    const result = computeCostBasis(txs, 'hifo');
+    expect(result['IE00B4L5Y983'].realizedPnL).toBeCloseTo(-100);
   });
 });
 

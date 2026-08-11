@@ -977,8 +977,10 @@ function costBasisFieldsHtml(current: string): string {
         <select class="form-input" id="set-cost-basis-method">
           <option value="avgco" ${current === 'avgco' ? 'selected' : ''}>Average cost</option>
           <option value="fifo" ${current === 'fifo' ? 'selected' : ''}>FIFO (first in, first out)</option>
+          <option value="lifo" ${current === 'lifo' ? 'selected' : ''}>LIFO (last in, first out)</option>
+          <option value="hifo" ${current === 'hifo' ? 'selected' : ''}>HIFO (highest cost first)</option>
         </select>
-        <span class="note">FIFO matches the German Abgeltungsteuer ordering rule. Average cost is simpler but may diverge on partial sells.</span>
+        <span class="note"><b>Average cost</b> spreads cost evenly across all shares; simple but less precise on partial sells. <b>FIFO</b> uses the oldest lots first; the default under German Abgeltungsteuer. <b>LIFO</b> uses the most recent lots first, often reducing short-term gains. <b>HIFO</b> uses the highest-cost lots first to minimize realized gains where jurisdiction allows.</span>
       </div>
     </div>`;
 }

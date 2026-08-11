@@ -232,7 +232,7 @@ export function appTemplate(): string {
         <div id="an-heatmap-wrap" style="overflow-x:auto">
           <div id="an-heatmap"></div>
         </div>
-        <p class="note" id="an-heatmap-footer">Color intensity is weighted by portfolio value: months with more capital show more saturated colors.</p>
+        <p class="note" id="an-heatmap-footer">Heatmap colors are descriptive only and should not be used for short-term timing decisions.</p>
       </div>
 
       <div class="card" id="an-annual-table-card">

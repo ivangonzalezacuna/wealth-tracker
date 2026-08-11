@@ -599,10 +599,12 @@ function _attachContribRangeToggle(points: MonthlyGrowthPoint[]): void {
 // ── Monthly return heatmap ─────────────────────────────────
 
 const HEATMAP_PAGE_SIZE = 3;
+const HEATMAP_MIN_MONTHS = 24;
 
 function _renderHeatmap(snaps: Snapshot[]): void {
   const heatmapEl = document.getElementById('an-heatmap');
   const noteEl = document.getElementById('an-heatmap-note');
+  const footerEl = document.getElementById('an-heatmap-footer');
   if (!heatmapEl) return;
 
   const volResult = annualizedVolatility(snaps);
@@ -611,15 +613,30 @@ function _renderHeatmap(snaps: Snapshot[]): void {
 
   if (weighted.length === 0) {
     heatmapEl.innerHTML = '<p class="note">Add more snapshots to see the return heatmap.</p>';
+    if (footerEl)
+      footerEl.textContent =
+        'Heatmap colors are descriptive only and should not be used for short-term timing decisions.';
     return;
   }
 
   const monthsCount = weighted.length;
-  if (noteEl) {
-    noteEl.textContent =
-      monthsCount < 12 ? 'Seasonal patterns emerge after 12 months of data.' : '';
-    noteEl.style.display = monthsCount < 12 ? '' : 'none';
+  if (monthsCount < HEATMAP_MIN_MONTHS) {
+    heatmapEl.innerHTML =
+      '<p class="note">Heatmap unlocks after 24 months of data. Until then, focus on contribution consistency and annual return trends.</p>';
+    if (noteEl) noteEl.style.display = 'none';
+    if (footerEl)
+      footerEl.textContent =
+        'Heatmap colors are descriptive only and should not be used for short-term timing decisions.';
+    return;
   }
+
+  if (noteEl) {
+    noteEl.textContent = 'Use this as long-horizon context, not as a monthly trading signal.';
+    noteEl.style.display = '';
+  }
+  if (footerEl)
+    footerEl.textContent =
+      'Color intensity is weighted by portfolio value. Interpret as context over long periods, not a signal to chase recent winners.';
 
   // Find extremes for color scale (use weightedReturn for color intensity)
   const maxAbs = Math.max(...weighted.map((m) => Math.abs(m.weightedReturn)), 0.001);

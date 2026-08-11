@@ -6,7 +6,7 @@ import { toBase } from './fx';
 import type { Transaction, PortfolioData, EtfPosition, DivHistEntry, IntHistEntry } from './types';
 
 interface ComputeOptions {
-  method?: 'avgco' | 'fifo';
+  method?: 'avgco' | 'fifo' | 'lifo' | 'hifo';
 }
 
 /**
