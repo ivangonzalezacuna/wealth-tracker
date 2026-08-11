@@ -1198,7 +1198,9 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
           labels,
           datasets: [
             {
-              label: ddShowReal ? `Portfolio balance (real, ${_inflationRate}% inflation)` : 'Portfolio balance',
+              label: ddShowReal
+                ? `Portfolio balance (real, ${_inflationRate}% inflation)`
+                : 'Portfolio balance',
               data: displayValues,
               borderColor: C.brand,
               backgroundColor: 'rgba(42,120,214,0.08)',
