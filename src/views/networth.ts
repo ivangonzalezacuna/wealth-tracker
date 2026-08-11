@@ -727,17 +727,20 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
         <div style="margin-bottom:4px">Assumptions per account (Settings \u2192 Accounts):</div>
         ${acctSummaryLines}
         <div class="forecast-inflation">
-          <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation (%/yr)</label>
-          <div class="forecast-inflation-input-wrap" style="margin-top:2px">
-            <input id="nw-forecast-inflation" class="forecast-inflation-input" type="number" inputmode="decimal" min="0" max="20" step="0.1"
-                   value="${_inflationRate}"
-                   aria-label="Annual inflation rate for real-return forecast">
+          <div class="forecast-inflation-row">
+            <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation</label>
+            <div class="forecast-inflation-input-wrap">
+              <input id="nw-forecast-inflation" class="forecast-inflation-input" type="number" inputmode="decimal" min="0" max="20" step="0.1"
+                     value="${_inflationRate}"
+                     aria-label="Annual inflation rate for real-return forecast">
+              <span class="forecast-inflation-unit">% / yr</span>
+            </div>
           </div>
           <div class="forecast-inflation-hint">
             ${
               showReal
-                ? 'Chart shows the inflation-adjusted projection in today\u2019s purchasing power.'
-                : 'Set above 0 to show the inflation-adjusted projection.'
+                ? 'Dashed line shows the inflation-adjusted projection in today\u2019s purchasing power.'
+                : 'Set above 0 to overlay an inflation-adjusted projection.'
             }
           </div>
         </div>
@@ -810,8 +813,8 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           order: 1,
         },
         {
-          label: showReal ? `Forecast (real, ${_inflationRate}% inflation)` : 'Forecast (nominal)',
-          data: showReal ? realDataFull! : fcDataFull,
+          label: 'Forecast (nominal)',
+          data: fcDataFull,
           borderColor: C.brandChart,
           backgroundColor: 'rgba(42,120,214,0.07)',
           borderWidth: 2,
@@ -822,6 +825,23 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           spanGaps: false,
           order: 2,
         },
+        ...(realDataFull
+          ? [
+              {
+                label: `Real (${_inflationRate}% inflation)`,
+                data: realDataFull,
+                borderColor: C.ink4 || 'rgba(150,150,150,0.9)',
+                backgroundColor: 'transparent',
+                borderWidth: 1.5,
+                borderDash: [3, 3],
+                pointRadius: 0,
+                fill: false,
+                tension: 0.3,
+                spanGaps: false,
+                order: 3,
+              },
+            ]
+          : []),
       ],
     },
     options: {
@@ -1033,11 +1053,14 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
   let lastsText = '';
 
   if (corpus && corpus.liquidCorpus > 0 && _ddWithdrawalParam > 0) {
+    // Use real return (nominal − inflation) so the drawdown simulation accounts for
+    // the erosion of purchasing power when inflation is set.
+    const ddRealReturnPct = Math.max(0, _ddReturnPct - _inflationRate);
     ddSeries = decumulationSeries(
       corpus.liquidCorpus,
       _ddStrategy,
       _ddWithdrawalParam,
-      _ddReturnPct,
+      ddRealReturnPct,
       DD_MONTHS,
       _ddRetirementDate,
     );
