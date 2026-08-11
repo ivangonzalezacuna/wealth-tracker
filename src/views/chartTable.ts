@@ -19,7 +19,11 @@ export function writeChartTable(
   if (!wrap) return;
   const existingContent = wrap.querySelector('.chart-data-table-content') as HTMLDivElement | null;
   const existingTable = wrap.querySelector('.chart-data-table') as HTMLTableElement | null;
-  const wasVisible = existingContent ? !existingContent.hidden : existingTable ? !existingTable.hidden : false;
+  const wasVisible = existingContent
+    ? !existingContent.hidden
+    : existingTable
+      ? !existingTable.hidden
+      : false;
 
   const totalPages = Math.max(1, Math.ceil(rows.length / CHART_TABLE_PAGE_SIZE));
   let currentPage = 0;
