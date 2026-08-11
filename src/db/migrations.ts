@@ -134,7 +134,5 @@ export const MIGRATIONS: string[][] = [
     `INSERT OR IGNORE INTO settings (key, value) VALUES ('calibration_interval', 'monthly')`,
   ],
   // [7] version 6 → 7: add a global contribution_interval setting for budget cadence.
-  [
-    `INSERT OR IGNORE INTO settings (key, value) VALUES ('contribution_interval', 'monthly')`,
-  ],
+  [`INSERT OR IGNORE INTO settings (key, value) VALUES ('contribution_interval', 'monthly')`],
 ];
