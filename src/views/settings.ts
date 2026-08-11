@@ -980,7 +980,7 @@ function costBasisFieldsHtml(current: string): string {
           <option value="lifo" ${current === 'lifo' ? 'selected' : ''}>LIFO (last in, first out)</option>
           <option value="hifo" ${current === 'hifo' ? 'selected' : ''}>HIFO (highest cost first)</option>
         </select>
-        <span class="note">FIFO matches the German Abgeltungsteuer ordering rule. Average cost is simpler but may diverge on partial sells. HIFO is often used for tax optimization where jurisdiction rules allow it.</span>
+        <span class="note"><b>Average cost</b> divides total cost by total shares — simple and immune to lot ordering, but may diverge from realized-gain calculations on partial sells. <b>FIFO</b> (first in, first out) sells the oldest lots first; this matches the German Abgeltungsteuer default and tends to maximize long-term holding periods. <b>LIFO</b> (last in, first out) sells the most recent lots first, often reducing short-term gains in rising markets. <b>HIFO</b> (highest cost first) sells the most expensive lots first, minimizing realized gains per sale — useful for tax optimization where your jurisdiction permits lot-level selection.</span>
       </div>
     </div>`;
 }
