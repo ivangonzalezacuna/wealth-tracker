@@ -2009,14 +2009,14 @@ function updateDriftBadge(): void {
     let tipEl = btn.querySelector<HTMLElement>('.info-tip');
     if (!tipEl) {
       const wrapper = document.createElement('span');
-      wrapper.innerHTML = `<span class="info-tip info-tip--${variant}" data-tip="" data-tip-variant="${variant}" aria-label="" tabindex="0">${variant === 'alert' ? '\u203c' : '\u25cf'}</span>`;
+      wrapper.innerHTML = `<span class="info-tip info-tip--${variant}" data-tip="" data-tip-variant="${variant}" aria-label="" tabindex="0">${variant === 'alert' ? '\u203c' : '!'}</span>`;
       tipEl = wrapper.firstElementChild as HTMLElement;
       btn.appendChild(tipEl);
     } else {
       // Update variant class/icon in case severity changed
       tipEl.className = `info-tip info-tip--${variant}`;
       tipEl.dataset.tipVariant = variant;
-      tipEl.textContent = variant === 'alert' ? '\u203c' : '\u25cf';
+      tipEl.textContent = variant === 'alert' ? '\u203c' : '!';
       // Re-bind listeners after class change by clearing the bound flag
       delete (tipEl as HTMLElement & { dataset: DOMStringMap }).dataset.tipBound;
     }

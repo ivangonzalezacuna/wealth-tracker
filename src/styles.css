@@ -178,19 +178,21 @@ code,
 .nav button.drift-alert {
   position: relative;
 }
-.nav button.drift-alert::after {
-  content: '';
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--warn);
-  pointer-events: none;
+/* Info-tip badge inside nav buttons: no light background, just a coloured dot */
+.nav button .info-tip {
+  background: transparent;
+  border-color: transparent;
+  margin-left: 2px;
 }
-.nav button.drift-alert-high::after {
-  background: var(--neg);
+.nav button .info-tip--warn {
+  color: var(--warn);
+  background: transparent;
+  border-color: transparent;
+}
+.nav button .info-tip--alert {
+  color: var(--neg);
+  background: transparent;
+  border-color: transparent;
 }
 /* Sections */
 .section {
