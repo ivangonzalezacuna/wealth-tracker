@@ -69,6 +69,17 @@ function makeSnap(date: string, investment: number, cash = 0): Snapshot {
   return { date, acct_inv: investment, acct_cash: cash };
 }
 
+function monthlySnaps(startYear: number, startMonth: number, count: number): Snapshot[] {
+  const snaps: Snapshot[] = [];
+  for (let i = 0; i < count; i++) {
+    const m = startMonth - 1 + i;
+    const year = startYear + Math.floor(m / 12);
+    const month = (m % 12) + 1;
+    snaps.push(makeSnap(`${year}-${String(month).padStart(2, '0')}`, 1000 + i * 10, 0));
+  }
+  return snaps;
+}
+
 function makePd(): PortfolioData {
   return {
     etfs: {},
@@ -232,6 +243,17 @@ describe('renderAnalytics', () => {
     expect(card?.style.display).not.toBe('none');
     // Table should contain at least one year row
     expect(table?.querySelector('tbody tr')).not.toBeNull();
+  });
+
+  it('keeps heatmap locked before 24 months and shows long-horizon guidance', () => {
+    const snaps = monthlySnaps(2024, 1, 14);
+    renderAnalytics(makePd(), snaps, []);
+    expect(document.getElementById('an-heatmap')?.textContent).toContain(
+      'Heatmap unlocks after 24 months of data',
+    );
+    expect(document.getElementById('an-heatmap-footer')?.textContent).toContain(
+      'should not be used for short-term timing decisions',
+    );
   });
 
   it('hides the level-2 section (including annual table card) when fewer than 2 snapshots exist', () => {

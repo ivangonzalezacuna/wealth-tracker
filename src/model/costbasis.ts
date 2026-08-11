@@ -74,10 +74,13 @@ interface Lot {
 }
 
 /**
- * FIFO cost basis engine.
- * Maintains a lots queue per ISIN; BUY pushes lots, SELL consumes oldest first.
+ * Lot-based cost-basis engine.
+ * BUY pushes lots, SELL consumes lots according to selectLotIndex.
  */
-function computeFIFO(txs: Transaction[]): CostBasisResult {
+function computeLotBased(
+  txs: Transaction[],
+  selectLotIndex: (lots: Lot[]) => number,
+): CostBasisResult {
   const lots: Lot[] = [];
   let realizedPnL = 0;
   let buys = 0;
@@ -117,11 +120,12 @@ function computeFIFO(txs: Transaction[]): CostBasisResult {
       let consumedCost = 0;
 
       while (sharesSold > ZERO_THRESHOLD && lots.length > 0) {
-        const lot = lots[0];
+        const lotIdx = Math.max(0, Math.min(selectLotIndex(lots), lots.length - 1));
+        const lot = lots[lotIdx];
         if (lot.shares <= sharesSold + ZERO_THRESHOLD) {
           consumedCost += lot.shares * lot.unitCost;
           sharesSold -= lot.shares;
-          lots.shift();
+          lots.splice(lotIdx, 1);
         } else {
           consumedCost += sharesSold * lot.unitCost;
           lot.shares -= sharesSold;
@@ -146,11 +150,45 @@ function computeFIFO(txs: Transaction[]): CostBasisResult {
 }
 
 /**
+ * FIFO cost basis engine.
+ * Maintains a lots queue per ISIN; BUY pushes lots, SELL consumes oldest first.
+ */
+function computeFIFO(txs: Transaction[]): CostBasisResult {
+  return computeLotBased(txs, () => 0);
+}
+
+/**
+ * LIFO cost basis engine.
+ * BUY pushes lots, SELL consumes newest lots first.
+ */
+function computeLIFO(txs: Transaction[]): CostBasisResult {
+  return computeLotBased(txs, (lots) => lots.length - 1);
+}
+
+/**
+ * HIFO cost basis engine.
+ * BUY pushes lots, SELL consumes highest unit-cost lots first.
+ */
+function computeHIFO(txs: Transaction[]): CostBasisResult {
+  return computeLotBased(txs, (lots) => {
+    let bestIdx = 0;
+    let bestUnitCost = lots[0]?.unitCost ?? 0;
+    for (let i = 1; i < lots.length; i++) {
+      if (lots[i].unitCost > bestUnitCost) {
+        bestUnitCost = lots[i].unitCost;
+        bestIdx = i;
+      }
+    }
+    return bestIdx;
+  });
+}
+
+/**
  * Run the cost-basis engine on date-sorted canonical transactions grouped by ISIN.
  */
 export function computeCostBasis(
   txs: Transaction[],
-  method: 'avgco' | 'fifo' = 'avgco',
+  method: 'avgco' | 'fifo' | 'lifo' | 'hifo' = 'avgco',
 ): Record<string, CostBasisResult> {
   // Group transactions by ISIN
   const byIsin: Record<string, Transaction[]> = {};
@@ -162,7 +200,14 @@ export function computeCostBasis(
     byIsin[key].push(tx);
   }
 
-  const engine = method === 'fifo' ? computeFIFO : computeAvgCost;
+  const engine =
+    method === 'fifo'
+      ? computeFIFO
+      : method === 'lifo'
+        ? computeLIFO
+        : method === 'hifo'
+          ? computeHIFO
+          : computeAvgCost;
   const result: Record<string, CostBasisResult> = {};
   for (const [isin, isinTxs] of Object.entries(byIsin)) {
     result[isin] = engine(isinTxs);
@@ -171,4 +216,9 @@ export function computeCostBasis(
 }
 
 // Export for testing
-export { computeAvgCost as _computeAvgCost, computeFIFO as _computeFIFO };
+export {
+  computeAvgCost as _computeAvgCost,
+  computeFIFO as _computeFIFO,
+  computeLIFO as _computeLIFO,
+  computeHIFO as _computeHIFO,
+};

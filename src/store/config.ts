@@ -142,9 +142,9 @@ export function getTargetDate(): string | null {
 }
 
 /** Computed: cost basis method from settings. */
-export function getCostBasisMethod(): 'fifo' | 'avgco' {
+export function getCostBasisMethod(): 'fifo' | 'avgco' | 'lifo' | 'hifo' {
   const v = (_settings.costBasisMethod || '').toLowerCase();
-  return v === 'fifo' ? 'fifo' : 'avgco';
+  return v === 'fifo' || v === 'lifo' || v === 'hifo' ? v : 'avgco';
 }
 
 const GOALS_KEY = 'goals';
