@@ -1232,7 +1232,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
             ${
               nearBreakEven
                 ? `<div class="status-bar status-info" style="margin-bottom:.75rem">
-                    ℹ️ Your withdrawal is near the sustainable rate (${fmtEur(breakEvenMonthly)}/mo). In this zone, small changes (e.g. €1 000/mo) cause large differences over 40 years due to compounding.
+                    ℹ️ Your withdrawal is near the sustainable rate (${fmtEur(breakEvenMonthly)}/mo). In this zone, small changes (e.g. ${fmtEur(1000)}/mo) cause large differences over 40 years due to compounding.
                   </div>`
                 : ''
             }
