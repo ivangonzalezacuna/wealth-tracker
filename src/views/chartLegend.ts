@@ -101,6 +101,7 @@ export function bindLegendToggle(
       }
       const meta = chart.getDatasetMeta(i);
       item.style.opacity = meta.hidden ? '0.35' : '1';
+      item.setAttribute('aria-pressed', meta.hidden ? 'false' : 'true');
     });
   }
 
@@ -144,7 +145,15 @@ export function bindLegendToggle(
   items.forEach((item, i) => {
     if (skip.has(i)) return;
     item.style.cursor = 'pointer';
+    item.setAttribute('role', 'button');
+    item.setAttribute('tabindex', '0');
     item.addEventListener('click', () => handleClick(i));
+    item.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleClick(i);
+      }
+    });
   });
 
   applyVisualState();

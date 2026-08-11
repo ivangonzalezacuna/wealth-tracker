@@ -903,6 +903,18 @@ details[open] > summary .card-chevron {
   }
 }
 
+.dd-inputs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 1.5rem;
+  margin-bottom: 0.75rem;
+}
+@media (max-width: 640px) {
+  .dd-inputs-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Badges */
 .badge {
   font-size: 10px;
@@ -1368,18 +1380,7 @@ summary.section-label {
 }
 .forecast-inflation {
   margin-top: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
   font-style: normal;
-}
-.forecast-inflation-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 12px;
-  flex-wrap: wrap;
 }
 .forecast-inflation-label {
   color: var(--ink-2);
@@ -1409,10 +1410,35 @@ summary.section-label {
   outline: 2px solid var(--brand-border);
   outline-offset: 2px;
 }
-.forecast-inflation-unit {
-  color: var(--ink-3);
-  font-size: 11px;
-  white-space: nowrap;
+/* Neutral form-row helpers used for drawdown controls and other planning inputs.
+   Separate from .forecast-inflation-* so the semantics of each class are clear. */
+.planning-label {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+.planning-input-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+.planning-input {
+  width: 80px;
+  padding: 5px 7px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--ink);
+  text-align: right;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.planning-input:focus {
+  border-color: var(--brand-border);
+  background: var(--surface);
+  outline: 2px solid var(--brand-border);
+  outline-offset: 2px;
 }
 .forecast-inflation-hint {
   margin-top: 8px;
@@ -1577,9 +1603,6 @@ summary.section-label {
   .chart-controls {
     gap: 8px;
   }
-  .forecast-inflation {
-    padding: 9px 10px;
-  }
   .range-toggle .btn {
     font-size: 10px;
     padding: 2px 7px;
@@ -1716,9 +1739,6 @@ summary.section-label {
     font-size: 11px;
     gap: 6px;
   }
-  .forecast-inflation-row {
-    align-items: flex-start;
-  }
   .forecast-inflation-input-wrap {
     width: 100%;
     justify-content: space-between;
@@ -1727,8 +1747,17 @@ summary.section-label {
     width: 88px;
   }
   .forecast-inflation-label,
-  .forecast-inflation-unit,
   .forecast-inflation-hint {
+    font-size: 10px;
+  }
+  .planning-input-wrap {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .planning-input {
+    width: 88px;
+  }
+  .planning-label {
     font-size: 10px;
   }
   .leg-meta,

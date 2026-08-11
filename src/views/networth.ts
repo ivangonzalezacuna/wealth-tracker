@@ -12,29 +12,67 @@ import {
   kpiTile,
 } from '../utils';
 import { getACCTSList, FORECAST_RANGE_LABELS } from '../constants';
-import { getAccounts, getMonthlyContribBudget, getGoals } from '../store/config';
+import {
+  getAccounts,
+  getMonthlyContribBudget,
+  getGoals,
+  getSettings,
+  setSetting,
+} from '../store/config';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import { cagrPerAccount } from '../model/insights';
 import {
   formatMonthsEta,
   forecastMultiAccountSeries,
   forecastMonthsToTargetMulti,
+  decumulationSeries,
+  decumulationDuration,
 } from '../model/forecast';
-import type { AccountForecastInput } from '../model/forecast';
-import type { Snapshot, PortfolioData, Account } from '../types';
+import type { AccountForecastInput, DecumulationStrategy } from '../model/forecast';
+import type { Snapshot, Account } from '../types';
 import Chart from 'chart.js/auto';
 import { T, R, resolvedT } from '../theme';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import { writeChartTable } from './chartTable';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
+import { createChartRegistry } from './chartRegistry';
 
-const CH: Record<string, Chart> = {};
+const { CH, destroyChart: _destroyChart } = createChartRegistry();
 let _nwRange: '12' | '36' | 'all' = 'all';
 let _fcRange: '60' | '120' | '240' | '360' = '60'; // 5y / 10y / 20y / 30y forecast horizon
 let _inflationRate = 0; // annual inflation % for real-return forecast overlay
 let _lastSnaps: Snapshot[] = [];
 let _lastAccounts: Account[] = [];
 let _activeGoalIdx = 0; // which goal tab is selected in the consolidated goals card
+
+// ── Decumulation card state ──────────────────────────────
+let _ddRetirementDate = ''; // e.g. "2060-01"; empty = not set
+let _ddStrategy: DecumulationStrategy = 'fixed';
+let _ddWithdrawalParam = 0; // €/month for fixed/four-pct; annual % for pct
+let _ddReturnPct = 0; // annual return % during retirement; 0 = derive from accounts on each render
+let _ddReturnPctManual = false; // true once user has edited the return-rate input
+let _stateLoaded = false; // tracks whether persisted settings have been loaded into module state
+let _planningTab: 'forecast' | 'drawdown' = 'forecast'; // active tab in the combined planning card
+
+/** Load persisted drawdown + inflation settings from the Settings store (runs once). */
+function _loadPersistedState(): void {
+  if (_stateLoaded) return;
+  _stateLoaded = true;
+  const s = getSettings();
+  const infl = parseFloat(s['nw_inflation_rate'] || '');
+  if (isFinite(infl) && infl >= 0) _inflationRate = Math.min(infl, 20);
+  const ddDate = (s['dd_retirement_date'] || '').trim();
+  if (/^\d{4}-\d{2}$/.test(ddDate)) _ddRetirementDate = ddDate;
+  const ddStrat = (s['dd_strategy'] || '').trim() as DecumulationStrategy;
+  if (ddStrat === 'fixed' || ddStrat === 'four-pct' || ddStrat === 'pct') _ddStrategy = ddStrat;
+  const ddWith = parseFloat(s['dd_withdrawal_param'] || '');
+  if (isFinite(ddWith) && ddWith >= 0) _ddWithdrawalParam = ddWith;
+  const ddRet = parseFloat(s['dd_return_pct'] || '');
+  if (isFinite(ddRet) && ddRet > 0) {
+    _ddReturnPct = Math.min(ddRet, 20);
+    _ddReturnPctManual = true;
+  }
+}
 
 /** Apply annual inflation to convert a nominal forecast series to real values. */
 function _deflateByInflation(
@@ -194,7 +232,13 @@ function _renderGoalCards(): void {
  * Renders the Net Worth tab: lead KPI (with MoM delta), per-account KPI tiles,
  * YoY/CAGR tiles, the history chart, growth-breakdown chart, and goal progress.
  */
-export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
+/** Resets module-level tab state. Exposed only for unit test teardown. */
+export function _resetPlanningTabForTest(): void {
+  _planningTab = 'forecast';
+}
+
+export function renderNW(snaps: Snapshot[]): void {
+  _loadPersistedState();
   const ACCTS = getACCTSList();
   const has = snaps.length > 0;
   document.getElementById('nw-empty')!.style.display = has ? 'none' : 'block';
@@ -358,7 +402,7 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   }
 
   // Bind range toggle once
-  _attachNWRangeToggle(snaps, chartA);
+  _attachNWRangeToggle(chartA);
 
   const bkA = ACCTS.filter((a) => ((s[a.key] as number) || 0) > 0);
 
@@ -382,8 +426,8 @@ export function renderNW(pd: PortfolioData | null, snaps: Snapshot[]): void {
   // Goal progress cards (one per named goal)
   _renderGoalCards();
 
-  // Forecast chart
-  _renderForecastChart(snaps, accounts);
+  // Forecast + retirement planning card (tabbed)
+  _renderPlanningCard(snaps, accounts);
 
   attachInfoTips(document.getElementById('networth')!);
 }
@@ -520,10 +564,7 @@ function _bindLegendToggle(chart: Chart): void {
 
 // ── Range toggle binding ──
 
-function _attachNWRangeToggle(
-  snaps: Snapshot[],
-  chartA: Array<{ key: string; label: string; color: string }>,
-): void {
+function _attachNWRangeToggle(chartA: Array<{ key: string; label: string; color: string }>): void {
   const toggle = document.getElementById('nw-range-toggle') as
     (HTMLElement & { _bound?: boolean }) | null;
   if (!toggle || toggle._bound) return;
@@ -536,14 +577,80 @@ function _attachNWRangeToggle(
     _nwRange = newRange;
     toggle.querySelectorAll('.btn').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
+    // Read current snaps from module state so re-renders after nav don't use a stale closure.
+    const snaps = _lastSnaps;
     const view = _nwRange === 'all' ? snaps : snaps.slice(-parseInt(_nwRange));
     _renderNWHistChart(view, chartA);
   });
 }
 
+// ── Combined planning card (Forecast + Retirement drawdown) ──
+
+function _renderPlanningCard(snaps: Snapshot[], accounts: Account[]): void {
+  const el = document.getElementById('nw-planning');
+  if (!el) return;
+
+  if (snaps.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+
+  const inflHint =
+    _inflationRate > 0
+      ? 'Inflation-adjusted projection shown as dashed line on charts.'
+      : 'Set above 0 to overlay an inflation-adjusted projection on all charts.';
+
+  el.innerHTML = `
+    <div class="card" id="nw-planning-card">
+      <div class="card-title">Projections</div>
+      <div class="forecast-inflation" style="margin-bottom:1rem">
+        <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation (%/yr)</label>
+        <div class="forecast-inflation-input-wrap">
+          <input id="nw-forecast-inflation" class="forecast-inflation-input" type="number" inputmode="decimal" min="0" max="20" step="0.1"
+                 value="${_inflationRate}"
+                 aria-label="Annual inflation rate for real-return projection">
+        </div>
+        <div class="forecast-inflation-hint">${inflHint} Applies to both Forecast and Drawdown.</div>
+      </div>
+      <div class="range-toggle" id="nw-planning-tabs" role="tablist" aria-label="Projections" style="margin-bottom:1rem">
+        <button class="btn btn-sm btn-ghost${_planningTab === 'forecast' ? ' active' : ''}" role="tab" aria-selected="${_planningTab === 'forecast'}" aria-controls="nw-fc-panel" data-planning-tab="forecast">Forecast</button>
+        <button class="btn btn-sm btn-ghost${_planningTab === 'drawdown' ? ' active' : ''}" role="tab" aria-selected="${_planningTab === 'drawdown'}" aria-controls="nw-dd-panel" data-planning-tab="drawdown">Drawdown</button>
+      </div>
+      <div id="nw-fc-panel" role="tabpanel"${_planningTab !== 'forecast' ? ' hidden' : ''}></div>
+      <div id="nw-dd-panel" role="tabpanel"${_planningTab !== 'drawdown' ? ' hidden' : ''}></div>
+    </div>`;
+
+  if (_planningTab === 'forecast') {
+    _renderForecastChart(snaps, accounts);
+  } else {
+    _renderDecumulationCard(snaps, accounts);
+  }
+
+  // Bind shared inflation input: on change, update state and re-render the active tab
+  const inflInput = document.getElementById('nw-forecast-inflation') as HTMLInputElement | null;
+  if (inflInput) {
+    inflInput.addEventListener('change', () => {
+      const v = parseFloat(inflInput.value);
+      _inflationRate = isFinite(v) && v >= 0 ? Math.min(v, 20) : 0;
+      void setSetting('nw_inflation_rate', String(_inflationRate));
+      _renderGoalCards();
+      _renderPlanningCard(_lastSnaps, _lastAccounts);
+    });
+  }
+
+  document.getElementById('nw-planning-tabs')?.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('[data-planning-tab]') as HTMLElement | null;
+    if (!btn) return;
+    const tab = btn.dataset.planningTab as 'forecast' | 'drawdown';
+    if (tab === _planningTab) return;
+    _planningTab = tab;
+    _renderPlanningCard(_lastSnaps, _lastAccounts);
+  });
+}
+
 // ── Forecast range toggle binding ──
 
-function _attachForecastRangeToggle(snaps: Snapshot[], accounts: Account[]): void {
+function _attachForecastRangeToggle(): void {
   const toggle = document.getElementById('nw-forecast-range-toggle') as
     (HTMLElement & { _bound?: boolean }) | null;
   if (!toggle || toggle._bound) return;
@@ -554,7 +661,8 @@ function _attachForecastRangeToggle(snaps: Snapshot[], accounts: Account[]): voi
     const newRange = (btn.dataset.range as '60' | '120' | '240' | '360') || '60';
     if (newRange === _fcRange) return;
     _fcRange = newRange;
-    _renderForecastChart(snaps, accounts);
+    // Read current state from module variables so re-renders after nav use fresh data.
+    _renderForecastChart(_lastSnaps, _lastAccounts);
   });
 }
 
@@ -562,7 +670,7 @@ function _attachForecastRangeToggle(snaps: Snapshot[], accounts: Account[]): voi
 
 function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   const C = resolvedT();
-  const forecastEl = document.getElementById('nw-forecast');
+  const forecastEl = document.getElementById('nw-fc-panel');
   if (!forecastEl) return;
 
   if (snaps.length === 0) {
@@ -575,7 +683,8 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     (a) => a.annualContrib > 0 || a.annualReturnPct > 0,
   );
   if (!hasGrowthPotential) {
-    forecastEl.innerHTML = '';
+    forecastEl.innerHTML =
+      '<p class="note" style="color:var(--ink-3)">Configure return rates or contributions in Settings \u2192 Accounts to see a forecast.</p>';
     return;
   }
 
@@ -671,42 +780,23 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     .join('<br>');
 
   forecastEl.innerHTML = `
-    <div class="card">
-      <div class="card-title">Forecast: ${FORECAST_RANGE_LABELS[_fcRange]} (per-account return assumptions)</div>
       <div class="chart-controls">
         <div id="nw-forecast-legend" class="legend"></div>
-        <div class="range-toggle" id="nw-forecast-range-toggle">
-          <button class="btn btn-sm btn-ghost ${_fcRange === '60' ? 'active' : ''}" data-range="60">5Y</button>
-          <button class="btn btn-sm btn-ghost ${_fcRange === '120' ? 'active' : ''}" data-range="120">10Y</button>
-          <button class="btn btn-sm btn-ghost ${_fcRange === '240' ? 'active' : ''}" data-range="240">20Y</button>
-          <button class="btn btn-sm btn-ghost ${_fcRange === '360' ? 'active' : ''}" data-range="360">30Y</button>
+        <div class="range-toggle" id="nw-forecast-range-toggle" role="group" aria-label="Forecast range">
+          <button class="btn btn-sm btn-ghost ${_fcRange === '60' ? 'active' : ''}" data-range="60" aria-pressed="${_fcRange === '60'}">5Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '120' ? 'active' : ''}" data-range="120" aria-pressed="${_fcRange === '120'}">10Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '240' ? 'active' : ''}" data-range="240" aria-pressed="${_fcRange === '240'}">20Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '360' ? 'active' : ''}" data-range="360" aria-pressed="${_fcRange === '360'}">30Y</button>
         </div>
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast"></canvas></div>
+      <div class="chart-data-table-wrap" id="c-nw-forecast-table-wrap" hidden></div>
       <div class="note" style="line-height:1.6">
-        <div style="margin-bottom:4px">Assumptions per account (Settings \u2192 Accounts):</div>
+        <div style="margin-bottom:4px">Per-account return &amp; contribution assumptions (Settings \u2192 Accounts):</div>
         ${acctSummaryLines}
-        <div class="forecast-inflation">
-          <div class="forecast-inflation-row">
-            <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation</label>
-            <div class="forecast-inflation-input-wrap">
-              <input id="nw-forecast-inflation" class="forecast-inflation-input" type="number" inputmode="decimal" min="0" max="20" step="0.1"
-                     value="${_inflationRate}"
-                     aria-label="Annual inflation rate for real-return forecast">
-              <span class="forecast-inflation-unit">% / yr</span>
-            </div>
-          </div>
-          <div class="forecast-inflation-hint">
-            ${
-              showReal
-                ? 'Dashed line shows the inflation-adjusted projection in today’s purchasing power.'
-                : 'Set above 0 to overlay an inflation-adjusted projection.'
-            }
-          </div>
-        </div>
         <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX.${goalDeadlines.length > 0 ? ' Goal deadlines and target amounts are shown as markers on the chart.' : ''}</div>
       </div>
-    </div>`;
+    `;
 
   _destroyChart('c-nw-forecast');
 
@@ -741,7 +831,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
                   ctx.arc(x, y, 5, 0, Math.PI * 2);
                   ctx.fillStyle = d.color;
                   ctx.fill();
-                  ctx.strokeStyle = 'var(--surface-1)';
+                  ctx.strokeStyle = 'var(--surface)';
                   ctx.lineWidth = 1.5;
                   ctx.stroke();
                 }
@@ -866,25 +956,463 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     bindLegendToggle(fcLegendEl, CH['c-nw-forecast'], { rescaleX: true });
   }
 
-  // Bind inflation input: on change, update state and re-render the forecast card
-  const inflInput = document.getElementById('nw-forecast-inflation') as HTMLInputElement | null;
-  if (inflInput) {
-    inflInput.addEventListener('change', () => {
-      const v = parseFloat(inflInput.value);
-      _inflationRate = isFinite(v) && v >= 0 ? Math.min(v, 20) : 0;
-      _renderGoalCards();
-      _renderForecastChart(snaps, accounts);
-    });
-  }
+  // Write accessible data table for screen readers / keyboard users
+  const fcFmt = (v: number | null) => (v != null ? fmtEur2(v) : '—');
+  const fcTableHeaders = showReal
+    ? ['Month', 'Actual (€)', 'Forecast nominal (€)', `Forecast real (€)`]
+    : ['Month', 'Actual (€)', 'Forecast (€)'];
+  writeChartTable(
+    'c-nw-forecast-table-wrap',
+    'Forecast data',
+    fcTableHeaders,
+    labels.map((lbl, i) =>
+      showReal && realDataFull
+        ? [lbl, fcFmt(histDataFull[i]), fcFmt(fcDataFull[i]), fcFmt(realDataFull[i])]
+        : [lbl, fcFmt(histDataFull[i]), fcFmt(fcDataFull[i])],
+    ),
+  );
 
-  _attachForecastRangeToggle(snaps, accounts);
+  _attachForecastRangeToggle();
 }
 
-// ── Helpers ──
+// ── Decumulation chart ──
 
-function _destroyChart(id: string): void {
-  if (CH[id]) {
-    CH[id].destroy();
-    delete CH[id];
+/**
+ * Builds the projected balance at the given retirement month by running the
+ * accumulation forecast forward from the latest snapshot date to retirementDate.
+ * Splits accounts into liquid (accessible at retirement) and still-locked ones.
+ */
+function _buildCorpusAtRetirement(
+  snaps: Snapshot[],
+  accounts: Account[],
+  retirementDate: string,
+): {
+  liquidCorpus: number;
+  lockedCorpus: number;
+  lockedGroups: Array<{ unlockYear: string; corpus: number }>;
+} | null {
+  if (snaps.length === 0) return null;
+  const latestSnap = snaps[snaps.length - 1];
+  const latestDate = latestSnap.date;
+
+  // retirementDate must be strictly after latest snapshot (compare month-only to handle YYYY-MM-DD dates)
+  if (retirementDate <= latestDate.substring(0, 7)) return null;
+
+  const retirementYear = parseInt(retirementDate.split('-')[0], 10);
+
+  // Partition accounts
+  const liquidAccounts = accounts.filter(
+    (a) => !a.locked || (a.lockedUntil ? parseInt(a.lockedUntil, 10) <= retirementYear : true),
+  );
+  const stillLockedAccounts = accounts.filter(
+    (a) => a.locked && a.lockedUntil && parseInt(a.lockedUntil, 10) > retirementYear,
+  );
+
+  // Count months from latestDate to retirementDate
+  const [ly, lm] = latestDate.split('-').map(Number);
+  const [ry, rm] = retirementDate.split('-').map(Number);
+  const monthsToRetirement = (ry - ly) * 12 + (rm - lm);
+  if (monthsToRetirement <= 0) return null;
+
+  // Project liquid accounts forward
+  const liquidInputs = _buildAccountForecastInputs(latestSnap, liquidAccounts);
+  const liquidSeries = forecastMultiAccountSeries(liquidInputs, monthsToRetirement, latestDate);
+  const liquidCorpus = liquidSeries.length > 0 ? liquidSeries[liquidSeries.length - 1].value : 0;
+
+  // Project still-locked accounts forward (so user can see the future total)
+  const lockedInputs = _buildAccountForecastInputs(latestSnap, stillLockedAccounts);
+  const lockedSeries =
+    lockedInputs.length > 0
+      ? forecastMultiAccountSeries(lockedInputs, monthsToRetirement, latestDate)
+      : [];
+  const lockedCorpus = lockedSeries.length > 0 ? lockedSeries[lockedSeries.length - 1].value : 0;
+
+  // Group still-locked by unlock year
+  const unlockYears = [
+    ...new Set(stillLockedAccounts.map((a) => a.lockedUntil!).filter(Boolean)),
+  ].sort();
+  const lockedGroups = unlockYears.map((yr) => {
+    const grpAccounts = stillLockedAccounts.filter((a) => a.lockedUntil === yr);
+    const grpInputs = _buildAccountForecastInputs(latestSnap, grpAccounts);
+    const grpSeries =
+      grpInputs.length > 0
+        ? forecastMultiAccountSeries(grpInputs, monthsToRetirement, latestDate)
+        : [];
+    const corpus = grpSeries.length > 0 ? grpSeries[grpSeries.length - 1].value : 0;
+    return { unlockYear: yr, corpus };
+  });
+
+  return { liquidCorpus, lockedCorpus, lockedGroups };
+}
+
+function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
+  const C = resolvedT();
+  const el = document.getElementById('nw-dd-panel');
+  if (!el) return;
+
+  if (snaps.length === 0) {
+    el.innerHTML = '';
+    return;
   }
+
+  const latestSnap = snaps[snaps.length - 1];
+  // Default retirement date: 20 years from the latest snapshot
+  if (!_ddRetirementDate) {
+    const [ly, lm] = latestSnap.date.split('-').map(Number);
+    const defaultYear = ly + 20;
+    _ddRetirementDate = `${defaultYear}-${String(lm).padStart(2, '0')}`;
+  }
+
+  // Derive return % from the value-weighted average of configured account returns,
+  // unless the user has manually edited the field.
+  if (!_ddReturnPctManual) {
+    let totalValue = 0;
+    let weightedReturn = 0;
+    for (const a of accounts) {
+      const val = (latestSnap[a.id || ''] as number) || 0;
+      totalValue += val;
+      weightedReturn += val * (a.annualReturnPct || 0);
+    }
+    const derived = totalValue > 0 ? Math.round((weightedReturn / totalValue) * 10) / 10 : 0;
+    _ddReturnPct = derived > 0 ? derived : 4; // fall back to 4% if no return configured
+  }
+
+  const corpus = _buildCorpusAtRetirement(snaps, accounts, _ddRetirementDate);
+
+  // Auto-init withdrawal param once we have a corpus
+  if (_ddWithdrawalParam === 0 && corpus && corpus.liquidCorpus > 0) {
+    if (_ddStrategy === 'four-pct') {
+      _ddWithdrawalParam = Math.round((corpus.liquidCorpus * 0.04) / 12);
+    } else if (_ddStrategy === 'pct') {
+      _ddWithdrawalParam = 4; // 4% annual
+    } else {
+      _ddWithdrawalParam = Math.round((corpus.liquidCorpus * 0.04) / 12);
+    }
+  }
+
+  // Horizon: simulate up to 40 years after retirement (480 months)
+  const DD_MONTHS = 480;
+
+  let ddSeries: ReturnType<typeof decumulationSeries> = [];
+  let endMonth: string | null = null;
+  let lastsText = '';
+
+  if (corpus && corpus.liquidCorpus > 0 && _ddWithdrawalParam > 0) {
+    // Simulate with the nominal return. The chart's real-value overlay (ddRealSeries below)
+    // is produced by _deflateByInflation — applying inflation twice (once here and once there)
+    // would incorrectly double-count it.
+    // For 'four-pct' (SWR), pass inflation so withdrawals are indexed annually.
+    ddSeries = decumulationSeries(
+      corpus.liquidCorpus,
+      _ddStrategy,
+      _ddWithdrawalParam,
+      _ddReturnPct,
+      DD_MONTHS,
+      _ddRetirementDate,
+      _inflationRate,
+    );
+    endMonth = decumulationDuration(ddSeries);
+    if (endMonth) {
+      const [ey, em] = endMonth.split('-').map(Number);
+      const [ry, rm] = _ddRetirementDate.split('-').map(Number);
+      const totalMonths = (ey - ry) * 12 + (em - rm);
+      lastsText = `Depletes ${fmtMon(endMonth)} (${Math.floor(totalMonths / 12)}y ${totalMonths % 12}m after retirement)`;
+    } else {
+      lastsText = 'Never runs out within 40-year horizon';
+    }
+  }
+
+  // Monthly income text for pct strategy
+  const firstMonthWithdrawal = ddSeries.length > 0 ? ddSeries[0].withdrawal : 0;
+  const monthlyIncomeText =
+    _ddStrategy === 'pct'
+      ? `${fmtEur(firstMonthWithdrawal)}/mo`
+      : `${fmtEur(_ddWithdrawalParam)}/mo`;
+
+  // Inflation-adjusted (real) drawdown series
+  const ddShowReal = _inflationRate > 0 && ddSeries.length > 0;
+  const ddRealSeries = ddShowReal ? _deflateByInflation(ddSeries, _inflationRate) : null;
+
+  // Break-even (sustainable) monthly withdrawal: the amount where growth exactly offsets withdrawals.
+  // Above this level the balance declines; near this level small changes have an outsized effect.
+  const breakEvenMonthly =
+    corpus && corpus.liquidCorpus > 0 && _ddReturnPct > 0
+      ? Math.round(corpus.liquidCorpus * (Math.pow(1 + _ddReturnPct / 100, 1 / 12) - 1))
+      : 0;
+
+  // Corpus summary note
+  const corpusNote =
+    corpus && corpus.lockedCorpus > 0
+      ? `Starting corpus: ${fmtEur(corpus.liquidCorpus)} liquid` +
+        corpus.lockedGroups
+          .map((g) => ` + ${fmtEur(g.corpus)} locked (unlocks ${g.unlockYear})`)
+          .join('') +
+        `. Chart uses liquid portion only.`
+      : corpus
+        ? `Starting corpus: ${fmtEur(corpus.liquidCorpus)} (projected at ${fmtMon(_ddRetirementDate)}).`
+        : '';
+
+  const withdrawalLabel =
+    _ddStrategy === 'pct' ? 'Annual withdrawal rate (%/yr)' : 'Monthly withdrawal (€)';
+  const withdrawalStep = _ddStrategy === 'pct' ? '0.1' : '100';
+  const withdrawalMin = _ddStrategy === 'pct' ? '0.1' : '0';
+  const withdrawalMax = _ddStrategy === 'pct' ? '100' : '';
+
+  // Warn when within ±20% of break-even — in this zone, €/month changes cause nonlinear outcomes.
+  const nearBreakEven =
+    _ddStrategy !== 'pct' &&
+    breakEvenMonthly > 0 &&
+    _ddWithdrawalParam > 0 &&
+    Math.abs(_ddWithdrawalParam - breakEvenMonthly) / breakEvenMonthly < 0.2;
+
+  el.innerHTML = `
+      <div class="dd-inputs-grid">
+        <div>
+          <label class="planning-label" for="dd-retirement-date">Retirement date</label>
+          <div class="planning-input-wrap">
+            <input id="dd-retirement-date" class="planning-input" type="month"
+                   value="${_ddRetirementDate}" min="${latestSnap.date.substring(0, 7)}"
+                   style="width:9rem;text-align:left" aria-label="Retirement start date">
+          </div>
+        </div>
+        <div>
+          <label class="planning-label" for="dd-strategy">Withdrawal strategy</label>
+          <div class="range-toggle" id="dd-strategy-toggle" style="margin-top:2px" role="group" aria-label="Withdrawal strategy">
+            <button class="btn btn-sm btn-ghost${_ddStrategy === 'fixed' ? ' active' : ''}" data-dd-strategy="fixed" aria-pressed="${_ddStrategy === 'fixed'}">Fixed</button>
+            <button class="btn btn-sm btn-ghost${_ddStrategy === 'four-pct' ? ' active' : ''}" data-dd-strategy="four-pct" aria-pressed="${_ddStrategy === 'four-pct'}">4% rule</button>
+            <button class="btn btn-sm btn-ghost${_ddStrategy === 'pct' ? ' active' : ''}" data-dd-strategy="pct" aria-pressed="${_ddStrategy === 'pct'}">% of portfolio</button>
+          </div>
+        </div>
+        <div>
+          <label class="planning-label" for="dd-withdrawal">${withdrawalLabel}</label>
+          <div class="planning-input-wrap">
+            <input id="dd-withdrawal" class="planning-input" type="number" inputmode="decimal"
+                   min="${withdrawalMin}"${withdrawalMax ? ` max="${withdrawalMax}"` : ''} step="${withdrawalStep}" value="${_ddWithdrawalParam}"
+                   style="width:7rem" aria-label="${withdrawalLabel}">
+          </div>
+        </div>
+        <div>
+          <label class="planning-label" for="dd-return">Expected annual return in retirement (%/yr)</label>
+          <div class="planning-input-wrap">
+            <input id="dd-return" class="planning-input" type="number" inputmode="decimal"
+                   min="0" max="20" step="0.1" value="${_ddReturnPct}"
+                   style="width:5rem" aria-label="Expected annual return in retirement">
+          </div>
+        </div>
+      </div>
+      ${
+        corpus && corpus.liquidCorpus > 0 && _ddWithdrawalParam > 0
+          ? `<div class="kpi-row" style="margin-bottom:.75rem">
+              ${kpiTile({
+                label: `Portfolio lasts until${infoTip('When the liquid portfolio balance reaches zero. "Never" means it does not deplete within 40 years.')}`,
+                value: endMonth ? fmtMon(endMonth) : '40+ years',
+                sub: lastsText,
+              })}
+              ${kpiTile({
+                label: `Monthly withdrawal${infoTip('Actual monthly withdrawal amount. For % of portfolio strategy this is the first-year implied amount.')}`,
+                value: monthlyIncomeText,
+                sub:
+                  _ddStrategy === 'pct'
+                    ? 'first year; shrinks as balance falls'
+                    : 'constant amount',
+              })}
+              ${
+                breakEvenMonthly > 0 && _ddStrategy !== 'pct'
+                  ? kpiTile({
+                      label: `Estimated sustainable withdrawal${infoTip('The monthly amount where portfolio growth exactly offsets withdrawals. Above this the balance declines; below it, the balance grows. Results are highly sensitive to changes near this threshold.')}`,
+                      value: `${fmtEur(breakEvenMonthly)}/mo`,
+                      sub:
+                        _ddWithdrawalParam > breakEvenMonthly
+                          ? 'withdrawing above sustainable rate'
+                          : 'withdrawing below sustainable rate',
+                    })
+                  : ''
+              }
+            </div>
+            ${
+              nearBreakEven
+                ? `<div class="status-bar status-info" style="margin-bottom:.75rem">
+                    ℹ️ Your withdrawal is near the sustainable rate (${fmtEur(breakEvenMonthly)}/mo). In this zone, small changes (e.g. ${fmtEur(1000)}/mo) cause large differences over 40 years due to compounding.
+                  </div>`
+                : ''
+            }
+            <div class="chart-wrap chart-h-lg"><canvas id="c-nw-decumulation"></canvas></div>
+            <div class="chart-data-table-wrap" id="c-nw-decumulation-table-wrap" hidden></div>`
+          : `<p class="note" style="color:var(--ink-3)">
+              ${
+                !corpus || corpus.liquidCorpus <= 0
+                  ? 'Set a retirement date that is after your latest snapshot to project the starting corpus.'
+                  : 'Enter a withdrawal amount to see the drawdown projection.'
+              }
+             </p>`
+      }
+      <div class="note" style="margin-top:.5rem;line-height:1.5">
+        ${corpusNote ? `<div>${corpusNote}</div>` : ''}
+        <div style="color:var(--ink-4);margin-top:2px">Does not account for taxes, fees, or FX.${_inflationRate > 0 ? ` Chart shows real (inflation-adjusted) values at ${_inflationRate}% annual inflation.` : ' Return during retirement defaults to the value-weighted average of your configured account returns.'}</div>
+      </div>
+    `;
+
+  // Render chart if we have data
+  _destroyChart('c-nw-decumulation');
+  if (ddSeries.length > 0 && corpus && corpus.liquidCorpus > 0) {
+    const canvas = document.getElementById('c-nw-decumulation') as HTMLCanvasElement | null;
+    if (canvas) {
+      const labels = ddSeries.map((p) => fmtMon(p.month));
+      const nominalValues = ddSeries.map((p) => p.value);
+      const displayValues = ddRealSeries ? ddRealSeries.map((p) => p.value) : nominalValues;
+      const startingCorpus = corpus.liquidCorpus;
+
+      CH['c-nw-decumulation'] = new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: ddShowReal
+                ? `Portfolio balance (real, ${_inflationRate}% inflation)`
+                : 'Portfolio balance',
+              data: displayValues,
+              borderColor: C.brand,
+              backgroundColor: 'rgba(42,120,214,0.08)',
+              borderWidth: 2,
+              pointRadius: 0,
+              fill: true,
+              tension: 0.3,
+              spanGaps: false,
+            },
+            {
+              label: 'Starting corpus',
+              data: new Array(displayValues.length).fill(startingCorpus),
+              borderColor: C.ink4,
+              borderWidth: 1,
+              borderDash: [4, 4],
+              pointRadius: 0,
+              fill: false,
+              tension: 0,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+              backgroundColor: C.surface,
+              ...TOOLTIP_BOX,
+              borderColor: C.line,
+              borderWidth: 1,
+              titleColor: C.ink,
+              bodyColor: C.ink2,
+              padding: 10,
+              cornerRadius: 8,
+              callbacks: {
+                label: (ctx) =>
+                  ctx.raw != null ? ` ${ctx.dataset.label}: ${fmtEur(ctx.raw as number)}` : '',
+                labelColor: tooltipSwatch(C.surface),
+              },
+            },
+          },
+          scales: {
+            y: {
+              min: 0,
+              grid: { color: C.line },
+              ticks: {
+                color: C.ink4,
+                callback: (v) =>
+                  (v as number) >= 1000
+                    ? '\u20AC' + ((v as number) / 1000).toFixed(0) + 'k'
+                    : '\u20AC' + v,
+              },
+            },
+            x: {
+              grid: { display: false },
+              ticks: {
+                color: C.ink2,
+                font: { size: 10 },
+                maxRotation: 0,
+                autoSkip: true,
+                maxTicksLimit: 12,
+              },
+            },
+          },
+        },
+      });
+
+      // Write accessible data table for screen readers / keyboard users
+      const ddFmt = (v: number) => fmtEur2(v);
+      const ddTableHeaders = ddShowReal
+        ? ['Month', `Balance real (€)`, 'Balance nominal (€)', 'Withdrawal (€)']
+        : ['Month', 'Balance (€)', 'Withdrawal (€)'];
+      writeChartTable(
+        'c-nw-decumulation-table-wrap',
+        'Retirement drawdown data',
+        ddTableHeaders,
+        labels.map((lbl, i) =>
+          ddShowReal
+            ? [lbl, ddFmt(displayValues[i]), ddFmt(nominalValues[i]), ddFmt(ddSeries[i].withdrawal)]
+            : [lbl, ddFmt(nominalValues[i]), ddFmt(ddSeries[i].withdrawal)],
+        ),
+      );
+    }
+  }
+
+  // Bind controls (only once per render; old listeners are discarded with innerHTML replacement)
+  const dateInput = document.getElementById('dd-retirement-date') as HTMLInputElement | null;
+  const withdrawalInput = document.getElementById('dd-withdrawal') as HTMLInputElement | null;
+  const returnInput = document.getElementById('dd-return') as HTMLInputElement | null;
+  const strategyToggle = document.getElementById('dd-strategy-toggle') as HTMLElement | null;
+
+  const rerender = () => _renderDecumulationCard(snaps, accounts);
+
+  dateInput?.addEventListener('change', () => {
+    const v = dateInput.value.trim();
+    if (/^\d{4}-\d{2}$/.test(v) && v > latestSnap.date.substring(0, 7)) {
+      _ddRetirementDate = v;
+      _ddWithdrawalParam = 0; // reset so it's re-derived from new corpus
+      void setSetting('dd_retirement_date', _ddRetirementDate);
+      rerender();
+    }
+  });
+
+  withdrawalInput?.addEventListener('change', () => {
+    const v = parseFloat(withdrawalInput.value);
+    if (isFinite(v) && v >= 0 && (_ddStrategy !== 'pct' || v <= 100)) {
+      withdrawalInput.removeAttribute('aria-invalid');
+      _ddWithdrawalParam = v;
+      void setSetting('dd_withdrawal_param', String(_ddWithdrawalParam));
+      rerender();
+    } else {
+      withdrawalInput.setAttribute('aria-invalid', 'true');
+    }
+  });
+
+  returnInput?.addEventListener('change', () => {
+    const v = parseFloat(returnInput.value);
+    if (isFinite(v) && v >= 0) {
+      returnInput.removeAttribute('aria-invalid');
+      _ddReturnPct = Math.min(v, 20);
+      _ddReturnPctManual = true;
+      void setSetting('dd_return_pct', String(_ddReturnPct));
+      rerender();
+    } else {
+      returnInput.setAttribute('aria-invalid', 'true');
+    }
+  });
+
+  strategyToggle?.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('[data-dd-strategy]') as HTMLElement | null;
+    if (!btn) return;
+    const newStrategy = btn.dataset.ddStrategy as DecumulationStrategy;
+    if (newStrategy === _ddStrategy) return;
+    _ddStrategy = newStrategy;
+    _ddWithdrawalParam = 0; // reset so it's re-derived for new strategy
+    void setSetting('dd_strategy', _ddStrategy);
+    rerender();
+  });
+
+  // Re-bind any infoTips rendered in this card (needed on every re-render)
+  attachInfoTips(el);
 }
