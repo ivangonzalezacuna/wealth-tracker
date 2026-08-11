@@ -133,4 +133,8 @@ export const MIGRATIONS: string[][] = [
     // Step 4: seed the global calibration_interval setting (default monthly)
     `INSERT OR IGNORE INTO settings (key, value) VALUES ('calibration_interval', 'monthly')`,
   ],
+  // [7] version 6 → 7: add a global contribution_interval setting for budget cadence.
+  [
+    `INSERT OR IGNORE INTO settings (key, value) VALUES ('contribution_interval', 'monthly')`,
+  ],
 ];

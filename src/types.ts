@@ -89,8 +89,9 @@ export interface Snapshot {
 export interface Settings {
   costBasisMethod?: string;
   annualReturnPct?: string;
-  calibrationInterval?: string; // global contribution cadence: 'weekly'|'biweekly'|'monthly'|'quarterly'
-  monthlyContribBudget?: string; // total monthly contribution budget in EUR
+  contributionInterval?: string; // global contribution cadence: 'weekly'|'biweekly'|'monthly'|'quarterly'
+  calibrationInterval?: string; // rebalance-plan display cadence: 'weekly'|'biweekly'|'monthly'|'quarterly'
+  monthlyContribBudget?: string; // global contribution amount in EUR, interpreted using contributionInterval
   [key: string]: string | null | undefined;
 }
 

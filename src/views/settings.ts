@@ -12,7 +12,8 @@ import {
   getAlertSettings,
   getRetiredAccountIds,
   retireAccountIdsSafely,
-  getMonthlyContribBudget,
+  getContributionBudgetAmount,
+  getContributionInterval,
   getCalibrationInterval,
 } from '../store/config';
 import type { ConfigChangeKind } from '../store/config';
@@ -991,6 +992,12 @@ function renderContributionsCard(_settings: Settings): string {
         `<option value="${esc(val)}" ${getCalibrationInterval() === val ? 'selected' : ''}>${esc(label)}</option>`,
     )
     .join('');
+  const contributionIntervalOptions = Object.entries(INTERVAL_LABELS)
+    .map(
+      ([val, label]) =>
+        `<option value="${esc(val)}" ${getContributionInterval() === val ? 'selected' : ''}>${esc(label)}</option>`,
+    )
+    .join('');
 
   return `
     <div class="card card-collapsible" id="settings-card-contributions" data-card-key="contributions">
@@ -999,13 +1006,19 @@ function renderContributionsCard(_settings: Settings): string {
         <span class="card-chevron"></span>
       </div>
       <div class="card-body">
-        <p class="note" style="margin-bottom:.75rem">Configure the total monthly contribution budget and the cadence used for the rebalance plan in the Portfolio tab.</p>
+        <p class="note" style="margin-bottom:.75rem">Configure your recurring contribution amount and cadence, plus the cadence used to express the rebalance plan in the Portfolio tab.</p>
         <div class="form-group">
-          <label class="form-label" for="set-monthly-budget">
-            Monthly contribution budget (€)${infoTip('Total amount you invest per month across all ETFs. Used to size the suggested contribution amounts in the drift rebalance plan.')}
+          <label class="form-label" for="set-contrib-budget">
+            Contribution amount (€)${infoTip('Recurring amount you invest each contribution cycle across all ETFs. Used to size suggested contribution amounts in the drift rebalance plan and forecasts.')}
           </label>
-          <input type="number" id="set-monthly-budget" class="form-input"
-            value="${esc(String(getMonthlyContribBudget() || ''))}" min="0" step="1" placeholder="e.g. 500">
+          <input type="number" id="set-contrib-budget" class="form-input"
+            value="${esc(String(getContributionBudgetAmount() || ''))}" min="0" step="1" placeholder="e.g. 500">
+        </div>
+        <div class="form-group" style="margin-top:.75rem">
+          <label class="form-label" for="set-contribution-interval">
+            Contribution cadence${infoTip('How often your contribution amount is made. The app converts this to a normalized monthly budget for calculations.')}
+          </label>
+          <select id="set-contribution-interval" class="form-input">${contributionIntervalOptions}</select>
         </div>
         <div class="form-group" style="margin-top:.75rem">
           <label class="form-label" for="set-calibration-interval">
@@ -1025,7 +1038,10 @@ function attachContributionsListeners(root: HTMLElement): void {
   root.querySelector('#btn-save-contributions')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-contributions') as HTMLButtonElement;
     const budget =
-      (root.querySelector('#set-monthly-budget') as HTMLInputElement | null)?.value || '';
+      (root.querySelector('#set-contrib-budget') as HTMLInputElement | null)?.value || '';
+    const contributionInterval =
+      (root.querySelector('#set-contribution-interval') as HTMLSelectElement | null)?.value ||
+      'monthly';
     const interval =
       (root.querySelector('#set-calibration-interval') as HTMLSelectElement | null)?.value ||
       'monthly';
@@ -1035,6 +1051,7 @@ function attachContributionsListeners(root: HTMLElement): void {
         btn,
         async () => {
           await setSetting('monthly_contrib_budget', budget);
+          await setSetting('contribution_interval', contributionInterval);
           await setSetting('calibration_interval', interval);
         },
         { busyText: 'Saving...' },

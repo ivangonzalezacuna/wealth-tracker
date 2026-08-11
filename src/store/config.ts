@@ -97,10 +97,26 @@ export function getISIN_ORDER(): string[] {
 }
 
 /** Computed: global monthly contribution budget from settings (in EUR). */
-export function getMonthlyContribBudget(): number {
+export function getContributionBudgetAmount(): number {
   const raw = (_settings.monthly_contrib_budget || '').trim();
   const n = parseFloat(raw);
   return isNaN(n) || n <= 0 ? 0 : n;
+}
+
+/** Computed: global contribution cadence from settings (default 'monthly'). */
+export function getContributionInterval(): ContribInterval {
+  const raw = ((_settings.contribution_interval as string) || '').toLowerCase().trim();
+  if (raw === 'weekly' || raw === 'biweekly' || raw === 'monthly' || raw === 'quarterly') {
+    return raw as ContribInterval;
+  }
+  return 'monthly';
+}
+
+/** Computed: global contribution budget normalized to a monthly amount in EUR. */
+export function getMonthlyContribBudget(): number {
+  const amount = getContributionBudgetAmount();
+  const interval = getContributionInterval();
+  return (amount * INTERVAL_PER_YEAR[interval]) / 12;
 }
 
 /** Computed: global calibration interval from settings (default 'monthly'). */

@@ -34,6 +34,9 @@ const MOCK_HOLDINGS = [
   },
 ];
 const MOCK_SETTINGS = { annualReturnPct: '7', costBasisMethod: 'avgco' };
+let MOCK_CONTRIB_BUDGET = 500;
+let MOCK_CONTRIB_INTERVAL: 'weekly' | 'biweekly' | 'monthly' | 'quarterly' = 'monthly';
+let MOCK_CALIBRATION_INTERVAL: 'weekly' | 'biweekly' | 'monthly' | 'quarterly' = 'monthly';
 
 vi.mock('../store/config', () => ({
   getAccounts: () => MOCK_ACCOUNTS,
@@ -45,8 +48,10 @@ vi.mock('../store/config', () => ({
   getTargetDate: () => null,
   getGoals: () => [],
   getAlertSettings: () => ({ driftThresholdPct: 5 }),
-  getMonthlyContribBudget: () => 500,
-  getCalibrationInterval: () => 'monthly',
+  getMonthlyContribBudget: () => MOCK_CONTRIB_BUDGET,
+  getContributionBudgetAmount: () => MOCK_CONTRIB_BUDGET,
+  getContributionInterval: () => MOCK_CONTRIB_INTERVAL,
+  getCalibrationInterval: () => MOCK_CALIBRATION_INTERVAL,
   setAccounts: vi.fn(async () => {}),
   setHoldings: vi.fn(async () => {}),
   setSettings: vi.fn(async () => {}),
@@ -188,6 +193,9 @@ import { withButtonGuard } from '../utils';
 // ── Test setup ──────────────────────────────────────────────────
 
 function setupDOM(): void {
+  MOCK_CONTRIB_BUDGET = 500;
+  MOCK_CONTRIB_INTERVAL = 'monthly';
+  MOCK_CALIBRATION_INTERVAL = 'monthly';
   document.body.innerHTML = '<div id="settings-content"></div>';
   (window as any).__hasSyncConflict = () => false;
   (window as any).__openSyncConflictResolver = vi.fn(async () => {});
@@ -476,6 +484,50 @@ describe('Data region IDs exist after renderSettings', () => {
   it('has #settings-backup-nudge wrapping the backup staleness nudge', () => {
     const el = document.getElementById('settings-backup-nudge');
     expect(el).not.toBeNull();
+  });
+});
+
+describe('Portfolio contributions card', () => {
+  beforeEach(() => {
+    _collapseState = {};
+    setupDOM();
+  });
+
+  it('renders contribution amount, contribution cadence, and calibration cadence', () => {
+    MOCK_CONTRIB_BUDGET = 250;
+    MOCK_CONTRIB_INTERVAL = 'weekly';
+    MOCK_CALIBRATION_INTERVAL = 'quarterly';
+    renderSettings();
+
+    const amount = document.getElementById('set-contrib-budget') as HTMLInputElement;
+    const contributionCadence = document.getElementById(
+      'set-contribution-interval',
+    ) as HTMLSelectElement;
+    const calibrationCadence = document.getElementById(
+      'set-calibration-interval',
+    ) as HTMLSelectElement;
+
+    expect(amount.value).toBe('250');
+    expect(contributionCadence.value).toBe('weekly');
+    expect(calibrationCadence.value).toBe('quarterly');
+  });
+
+  it('saves amount, contribution cadence, and calibration cadence', async () => {
+    renderSettings();
+    const { setSetting } = await import('../store/config');
+    (setSetting as ReturnType<typeof vi.fn>).mockClear();
+
+    (document.getElementById('set-contrib-budget') as HTMLInputElement).value = '300';
+    (document.getElementById('set-contribution-interval') as HTMLSelectElement).value = 'biweekly';
+    (document.getElementById('set-calibration-interval') as HTMLSelectElement).value = 'weekly';
+    (document.getElementById('btn-save-contributions') as HTMLButtonElement).click();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect((setSetting as ReturnType<typeof vi.fn>).mock.calls).toEqual([
+      ['monthly_contrib_budget', '300'],
+      ['contribution_interval', 'biweekly'],
+      ['calibration_interval', 'weekly'],
+    ]);
   });
 });
 
