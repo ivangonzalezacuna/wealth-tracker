@@ -1047,7 +1047,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
   const firstMonthWithdrawal = ddSeries.length > 0 ? ddSeries[0].withdrawal : 0;
   const monthlyIncomeText =
     _ddStrategy === 'pct'
-      ? `${fmtEur(firstMonthWithdrawal)}/mo (first year)`
+      ? `${fmtEur(firstMonthWithdrawal)}/mo`
       : `${fmtEur(_ddWithdrawalParam)}/mo`;
 
   // Break-even (sustainable) monthly withdrawal: the amount where growth exactly offsets withdrawals.
@@ -1128,7 +1128,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
               ${kpiTile({
                 label: `Monthly income${infoTip('Actual monthly withdrawal. For % strategy this is the first-year implied amount.')}`,
                 value: monthlyIncomeText,
-                sub: _ddStrategy === 'pct' ? 'shrinks as balance falls' : 'constant amount',
+                sub: _ddStrategy === 'pct' ? 'first year; shrinks as balance falls' : 'constant amount',
               })}
               ${
                 breakEvenMonthly > 0 && _ddStrategy !== 'pct'
