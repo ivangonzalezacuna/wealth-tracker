@@ -21,9 +21,9 @@ import type { ImportProfile } from '../../types';
  * for portfolio tracking and are excluded via `skipUnmapped: true`.
  *
  * Note: For TAX-type rows, the tax value lives in the Amount column.
- * We rely on computePD to read `tx.amount` for TAX rows (no separate tax
- * column mapping needed — mapping tax globally would incorrectly set
- * tx.tax on INTEREST rows too).
+ * The parser canonicalizes TAX rows so `tx.tax` and `tx.amount` are aligned
+ * to that value, without mapping the CSV tax column globally (which would
+ * incorrectly set tx.tax on INTEREST rows too).
  */
 export const n26Profile: ImportProfile = {
   id: 'n26',

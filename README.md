@@ -184,7 +184,9 @@ For detailed cost-basis, realized P&L, and dividend tracking, import your broker
 
 After import, transactions appear in the **transaction ledger** at the bottom of the **+ Log** tab, where you can review, filter, and delete individual records.
 
-Transactions are merged with existing data using an append-only strategy: new rows are inserted, but rows that already exist (matched by date + type + amount) are not overwritten. This means re-importing an updated CSV is safe — it will add genuinely new transactions — but amended or corrected rows from your broker will not replace what is already stored. The import preview will warn you if the file contains rows that differ from existing records.
+Transactions are merged with existing data using an append-only strategy: new rows are inserted, but rows that already exist are not overwritten. Matching is done by transaction ID (provider ID when available, otherwise deterministic profile-based IDs for providers without native IDs, such as N26). This makes repeated imports deterministic across sessions while still preserving distinct same-key rows.
+
+`TAX` rows are canonicalized at import time so tax value handling is deterministic (`tx.tax` is the source of truth; legacy rows may still fall back to `tx.amount`). For standalone `FEE` rows, entries with an ISIN are attributed to that holding's costs, while non-ISIN fees remain portfolio-level fees.
 
 Income analytics on the Analytics tab are anchored to your latest imported transaction month, so
 trailing-12-month income and income growth do not drift just because calendar time passed. Dividend

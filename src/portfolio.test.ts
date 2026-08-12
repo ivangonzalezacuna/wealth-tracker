@@ -188,6 +188,47 @@ describe('computePD', () => {
     expect(pd.totalFees).toBeCloseTo(8.5);
   });
 
+  it('standalone FEE rows with ISIN are attributed to that holding cost basis', () => {
+    const txs: Transaction[] = [
+      buyTx('IE00B4L5Y983', '2024-01-01', 10, 1000),
+      {
+        id: '',
+        source: '',
+        type: TxType.FEE,
+        date: '2024-01-31',
+        isin: 'IE00B4L5Y983',
+        name: 'Custody fee',
+        shares: 0,
+        price: 0,
+        amount: -2,
+        fee: 0,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 0,
+      },
+      {
+        id: '',
+        source: '',
+        type: TxType.FEE,
+        date: '2024-02-28',
+        isin: '',
+        name: 'Account fee',
+        shares: 0,
+        price: 0,
+        amount: -1,
+        fee: 0,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 0,
+      },
+    ];
+    const pd = computePD(txs);
+
+    expect(pd.etfs['IE00B4L5Y983'].cost).toBeCloseTo(1002);
+    expect(pd.totalInv).toBeCloseTo(1002);
+    expect(pd.totalFees).toBeCloseTo(3);
+  });
+
   it('DCA monthly only counts BUYs (excludes sells)', () => {
     const txs = [
       buyTx('IE00B4L5Y983', '2024-01-15', 10, 1000),
@@ -329,6 +370,28 @@ describe('computePD', () => {
 
     // totalTax is only dividend tax (refunds go to taxBySource, not subtracted)
     expect(pd.totalTax).toBeCloseTo(3.44);
+  });
+
+  it('TAX rows prefer canonical tax field over amount when both are present', () => {
+    const txs: Transaction[] = [
+      {
+        id: '',
+        source: 'trade_republic',
+        type: TxType.TAX,
+        date: '2024-01-01',
+        isin: '',
+        name: 'Tax optimization',
+        shares: 0,
+        price: 0,
+        amount: 5,
+        fee: 0,
+        tax: 3.44,
+        currency: 'EUR',
+        fxRate: 0,
+      },
+    ];
+    const pd = computePD(txs);
+    expect(pd.taxBySource.trade_republic).toBeCloseTo(3.44);
   });
 
   it('same-day transactions preserve insertion order (stable sort)', () => {

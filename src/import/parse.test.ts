@@ -554,6 +554,8 @@ describe('TR real deposit/tax/withdrawal type mappings', () => {
     );
     expect(transactions).toHaveLength(1);
     expect(transactions[0].type).toBe(TxType.TAX);
+    expect(transactions[0].tax).toBeCloseTo(3.44);
+    expect(transactions[0].amount).toBeCloseTo(3.44);
     expect(unmapped).toHaveLength(0);
   });
 
@@ -644,8 +646,44 @@ describe('parseWithProfile – N26 deterministic IDs', () => {
     ].join('\n');
     const { transactions } = parseWithProfile(csv, n26Profile);
     expect(transactions).toHaveLength(1);
-    expect(transactions[0].id).toContain('n26|2024-01-01|Interest|0.75#1');
+    expect(transactions[0].id).toMatch(/^n26\|2024-01-01\|Interest\|0.75#[a-f0-9]{8}$/);
     expect(transactions[0].type).toBe(TxType.INTEREST);
+  });
+
+  it('idColumns IDs stay row-stable even if row order changes', () => {
+    const profile: ImportProfile = {
+      id: 'order_test',
+      label: 'Order Test',
+      delimiter: ',',
+      decimal: 'dot',
+      dateFormat: 'YYYY-MM-DD',
+      defaultCurrency: 'EUR',
+      columns: {
+        date: 'date',
+        type: 'type',
+        name: 'name',
+        amount: 'amount',
+      },
+      typeMap: { FEE: TxType.FEE },
+      idColumns: ['date', 'type', 'amount'],
+    };
+    const csvAB = [
+      'date,type,name,amount',
+      '2026-01-01,FEE,Custody A,-2.00',
+      '2026-01-01,FEE,Custody B,-2.00',
+    ].join('\n');
+    const csvBA = [
+      'date,type,name,amount',
+      '2026-01-01,FEE,Custody B,-2.00',
+      '2026-01-01,FEE,Custody A,-2.00',
+    ].join('\n');
+    const a = parseWithProfile(csvAB, profile).transactions;
+    const b = parseWithProfile(csvBA, profile).transactions;
+    const idsA = new Map(a.map((t) => [t.name, t.id]));
+    const idsB = new Map(b.map((t) => [t.name, t.id]));
+    expect(idsA.get('Custody A')).toBe(idsB.get('Custody A'));
+    expect(idsA.get('Custody B')).toBe(idsB.get('Custody B'));
+    expect(idsA.get('Custody A')).not.toBe(idsA.get('Custody B'));
   });
 
   it('skipUnmapped excludes non-mapped types', () => {

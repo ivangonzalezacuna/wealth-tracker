@@ -125,6 +125,22 @@ describe('transactionDialog', () => {
     expect(tx!.source).toBe('manual');
   });
 
+  it('canonicalizes TAX transactions so tax falls back to amount when tax is empty', async () => {
+    const p = transactionDialog();
+    setField('txd-date', '2024-06-01');
+    setField('txd-name', 'Tax refund');
+    setField('txd-type', 'TAX');
+    (document.querySelector('#txd-type') as HTMLSelectElement).dispatchEvent(new Event('change'));
+    setField('txd-amount', '3.44');
+    setField('txd-tax', '');
+    getSubmit()!.click();
+    const tx = await p;
+    expect(tx).not.toBeNull();
+    expect(tx!.type).toBe('TAX');
+    expect(tx!.tax).toBeCloseTo(3.44);
+    expect(tx!.amount).toBeCloseTo(3.44);
+  });
+
   it('title shows "Edit transaction" when editing an existing tx', () => {
     transactionDialog({
       existing: {
