@@ -149,7 +149,7 @@ export async function uploadDbFile(data: Uint8Array): Promise<string> {
     // Update existing file (PATCH with media)
     return withRetry(async () => {
       const token = await getToken();
-      const url = `${UPLOAD_API}/files/${existing.id}?uploadType=media`;
+      const url = `${UPLOAD_API}/files/${existing.id}?uploadType=media&fields=id%2CmodifiedTime`;
       const res = await checkedFetch(url, {
         method: 'PATCH',
         headers: {
@@ -189,7 +189,7 @@ export async function uploadDbFile(data: Uint8Array): Promise<string> {
       combined.set(data, prefix.length);
       combined.set(suffix, prefix.length + data.length);
 
-      const url = `${UPLOAD_API}/files?uploadType=multipart`;
+      const url = `${UPLOAD_API}/files?uploadType=multipart&fields=id%2CmodifiedTime`;
       const res = await checkedFetch(url, {
         method: 'POST',
         headers: {
