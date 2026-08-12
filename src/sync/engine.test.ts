@@ -54,6 +54,40 @@ describe('sync engine conflict handling', () => {
     expect(connection.importDb as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
   });
 
+  it('downloads and replaces local DB when cloud is newer and no unsynced local changes exist', async () => {
+    const meta = await import('../db/repositories/meta');
+    const drive = await import('./drive');
+    const connection = await import('../db/connection');
+    (meta.getLastSyncTimestamp as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      '2026-01-01T00:00:00.000Z',
+    );
+    (meta.getLastLocalChangeTimestamp as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      '2026-01-01T00:00:00.000Z',
+    );
+    (meta.getDriveVersion as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    (drive.getCloudModifiedTime as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      '2026-01-03T00:00:00.000Z',
+    );
+    (drive.downloadDbFile as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      data: new Uint8Array([7, 7, 7]),
+      modifiedTime: '2026-01-03T00:00:00.000Z',
+    });
+
+    const { pullFromCloud, getPendingSyncConflict } = await import('./engine');
+
+    await expect(pullFromCloud()).resolves.toBe(true);
+    expect(connection.importDb as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+      new Uint8Array([7, 7, 7]),
+    );
+    expect(meta.setLastSyncTimestamp as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+      '2026-01-03T00:00:00.000Z',
+    );
+    expect(meta.setDriveVersion as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+      '2026-01-03T00:00:00.000Z',
+    );
+    expect(getPendingSyncConflict()).toBeNull();
+  });
+
   it('throws when cloud changed since last sync and local has unsynced changes on push', async () => {
     const meta = await import('../db/repositories/meta');
     const drive = await import('./drive');

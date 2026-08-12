@@ -230,11 +230,11 @@ function refreshConflictAccess(): void {
   if (actionable) {
     el.setAttribute('role', 'button');
     el.setAttribute('tabindex', '0');
-    el.setAttribute('title', 'Resolve sync conflict');
+    el.setAttribute('title', 'Sync paused — activate to resolve sync conflict');
+    el.setAttribute('aria-label', 'Sync paused — activate to resolve sync conflict');
   } else {
     el.removeAttribute('role');
     el.removeAttribute('tabindex');
-    el.removeAttribute('title');
   }
   if (document.getElementById('settings-content')) renderSettings();
 }
@@ -1102,18 +1102,56 @@ window.__restoreFromBackup = restoreFromBackup;
 function setSyncStatus(status: string, msg = '') {
   const el = document.getElementById('sync-status');
   if (!el) return;
-  const map: Record<string, [string, string]> = {
-    loading: ['status-warn', '<span class="spinner"></span>Loading\u2026'],
-    syncing: ['status-warn', '<span class="spinner"></span>Syncing\u2026'],
-    cached: ['status-info', '\uD83D\uDCE6 Showing cached data'],
-    ok: ['status-ok', '\u2713 Synced'],
-    offline: ['status-warn', '\uD83D\uDCF4 Offline, showing cached data'],
-    conflict: ['status-warn', '\u26A0 Sync paused \u2014 action needed'],
-    error: ['status-err', '\u26A0 Sync error: ' + msg],
+  const map: Record<string, { cls: string; text: string; title: string }> = {
+    loading: {
+      cls: 'status-warn',
+      text: '<span class="spinner"></span>Loading\u2026',
+      title: 'Loading app data and checking sync status',
+    },
+    syncing: {
+      cls: 'status-warn',
+      text: '<span class="spinner"></span>Syncing\u2026',
+      title: 'Syncing local data with Google Drive',
+    },
+    cached: {
+      cls: 'status-info',
+      text: '\uD83D\uDCE6 Showing cached data',
+      title: 'Showing cached local data; sign in to sync with Google Drive',
+    },
+    ok: {
+      cls: 'status-ok',
+      text: '\u2713 Synced',
+      title: 'Local data is synced with Google Drive',
+    },
+    offline: {
+      cls: 'status-warn',
+      text: '\uD83D\uDCF4 Offline, showing cached data',
+      title: 'Offline mode; showing cached local data until connection returns',
+    },
+    conflict: {
+      cls: 'status-warn',
+      text: '\u26A0 Sync paused \u2014 action needed',
+      title: 'Sync paused because local and Drive copies both changed',
+    },
+    error: {
+      cls: 'status-err',
+      text: '\u26A0 Sync error: ' + msg,
+      title: 'Sync error: ' + msg,
+    },
   };
-  const [cls, text] = map[status] || ['status-empty', ''];
+  const state = map[status];
+  const cls = state?.cls || 'status-empty';
+  const text = state?.text || '';
+  const title = state?.title || '';
   el.className = 'status-pill ' + cls;
   el.innerHTML = text;
+  if (title) {
+    el.setAttribute('title', title);
+    el.setAttribute('aria-label', title);
+  } else {
+    el.removeAttribute('title');
+    el.removeAttribute('aria-label');
+  }
   el.style.display = status ? 'inline-flex' : 'none';
   refreshConflictAccess();
 }

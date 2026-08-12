@@ -256,6 +256,111 @@ describe('showPortfolioSubview idempotent guard', () => {
   });
 });
 
+describe('sync status accessibility copy and conflict affordance', () => {
+  function applySyncStatus(
+    el: HTMLElement,
+    status: string,
+    pendingConflict: boolean,
+    msg = '',
+  ): void {
+    const map: Record<string, { cls: string; text: string; title: string }> = {
+      loading: {
+        cls: 'status-warn',
+        text: '<span class="spinner"></span>Loading…',
+        title: 'Loading app data and checking sync status',
+      },
+      syncing: {
+        cls: 'status-warn',
+        text: '<span class="spinner"></span>Syncing…',
+        title: 'Syncing local data with Google Drive',
+      },
+      cached: {
+        cls: 'status-info',
+        text: '📦 Showing cached data',
+        title: 'Showing cached local data; sign in to sync with Google Drive',
+      },
+      ok: {
+        cls: 'status-ok',
+        text: '✓ Synced',
+        title: 'Local data is synced with Google Drive',
+      },
+      offline: {
+        cls: 'status-warn',
+        text: '📴 Offline, showing cached data',
+        title: 'Offline mode; showing cached local data until connection returns',
+      },
+      conflict: {
+        cls: 'status-warn',
+        text: '⚠ Sync paused — action needed',
+        title: 'Sync paused because local and Drive copies both changed',
+      },
+      error: {
+        cls: 'status-err',
+        text: '⚠ Sync error: ' + msg,
+        title: 'Sync error: ' + msg,
+      },
+    };
+    const state = map[status];
+    el.className = 'status-pill ' + (state?.cls || 'status-empty');
+    el.innerHTML = state?.text || '';
+    if (state?.title) {
+      el.setAttribute('title', state.title);
+      el.setAttribute('aria-label', state.title);
+    } else {
+      el.removeAttribute('title');
+      el.removeAttribute('aria-label');
+    }
+    if (pendingConflict) {
+      el.setAttribute('role', 'button');
+      el.setAttribute('tabindex', '0');
+      el.setAttribute('title', 'Sync paused — activate to resolve sync conflict');
+      el.setAttribute('aria-label', 'Sync paused — activate to resolve sync conflict');
+    } else {
+      el.removeAttribute('role');
+      el.removeAttribute('tabindex');
+    }
+  }
+
+  beforeEach(() => {
+    document.body.innerHTML = `<span id="sync-status" class="status-pill"></span>`;
+  });
+
+  it('sets explanatory tooltip and aria-label for non-conflict states', () => {
+    const el = document.getElementById('sync-status') as HTMLElement;
+    applySyncStatus(el, 'offline', false);
+
+    expect(el.getAttribute('title')).toBe(
+      'Offline mode; showing cached local data until connection returns',
+    );
+    expect(el.getAttribute('aria-label')).toBe(
+      'Offline mode; showing cached local data until connection returns',
+    );
+    expect(el.hasAttribute('role')).toBe(false);
+    expect(el.hasAttribute('tabindex')).toBe(false);
+  });
+
+  it('marks conflict status as keyboard-accessible and action-oriented', () => {
+    const el = document.getElementById('sync-status') as HTMLElement;
+    applySyncStatus(el, 'conflict', true);
+
+    expect(el.getAttribute('role')).toBe('button');
+    expect(el.getAttribute('tabindex')).toBe('0');
+    expect(el.getAttribute('title')).toBe('Sync paused — activate to resolve sync conflict');
+    expect(el.getAttribute('aria-label')).toBe('Sync paused — activate to resolve sync conflict');
+  });
+
+  it('removes button semantics after conflict is cleared while keeping status tooltip', () => {
+    const el = document.getElementById('sync-status') as HTMLElement;
+    applySyncStatus(el, 'conflict', true);
+    applySyncStatus(el, 'ok', false);
+
+    expect(el.hasAttribute('role')).toBe(false);
+    expect(el.hasAttribute('tabindex')).toBe(false);
+    expect(el.getAttribute('title')).toBe('Local data is synced with Google Drive');
+    expect(el.getAttribute('aria-label')).toBe('Local data is synced with Google Drive');
+  });
+});
+
 // ── restoreFromBackup guard logic ─────────────────────────
 // Same isolation approach: reproduce the exact guard conditions
 // from restoreFromBackup without importing main.ts directly.
