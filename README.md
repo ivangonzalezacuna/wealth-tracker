@@ -9,7 +9,7 @@ Personal ETF portfolio and net worth tracker. Runs entirely in the browser as a 
 ## Changelog note (2026-08)
 
 - Snapshot ETF breakdown now supports partial allocation: ETF subtotals may stay below the account total (tracked as unallocated cash), while over-allocation is still blocked.
-- Trade Republic `TRANSFER_INSTANT_INBOUND` is now treated as an internal transfer, so investment performance external-flow metrics (TWR/IRR) exclude it.
+- Trade Republic `TRANSFER_INSTANT_INBOUND` is now treated as an internal transfer, so it is excluded from TWR and IRR calculations, which measure only market-driven returns.
 
 ## What you need
 
@@ -122,7 +122,11 @@ Click **Sign in** to authorize the app. It requests only the `drive.appdata` sco
 
 Go to **Settings** and add your investment accounts (e.g. "Trade Republic", "Interactive Brokers"). For each account, add the holdings (ETFs/funds) you track. This defines the structure of your portfolio.
 
-Accounts can optionally be marked as **locked** (e.g. pension or AVD accounts) with an expected accessibility year. Locked accounts are included in total net worth but shown separately as "locked net worth" vs "liquid net worth". You can also configure extra contributions (employer match, state subsidies) that factor into DCA forecast projections.
+Accounts can optionally be marked as **locked** (e.g. pension or AVD accounts) with an expected accessibility year. Locked accounts are included in total net worth but shown separately as "Liquid" (accessible now) and "Locked" (retirement) net worth KPIs. Locked accounts are excluded from goal progress calculations and from the accumulation forecast — they only become available in the retirement projection from their unlock year onward.
+
+You can also configure extra contributions (employer match, state subsidies) that factor into DCA forecast projections. The **global monthly contribution budget** is routed to your primary investment account. To split contributions across multiple accounts, configure per-account contribution amounts in the account settings for each additional account.
+
+Each holding can be given a **target allocation percentage** (set in the holding dialog). Once at least one target is configured, the Portfolio tab's drift table compares your actual allocation against those targets and the rebalance plan suggests top-up amounts based on your **calibration interval** (weekly / monthly / quarterly).
 
 ### 3. Log your first monthly snapshot
 
@@ -131,7 +135,7 @@ Go to the **+ Log** tab. Enter the current value for each account, then hit **Sa
 Once these three steps are done, the setup banner transitions to a **"Recommended next steps"** prompt with two optional-but-important actions:
 
 - **Import transactions** — imports your broker CSV to unlock cost-basis tracking, realized P&L, and dividend analytics (Portfolio and Dividends tabs)
-- **Configure holdings** — adds ETF/fund definitions to your investment account in Settings, enabling the Portfolio drift view
+- **Configure holdings** — adds ETF/fund definitions to your investment account in Settings, enabling the Portfolio drift view. For each holding you can set the **TER** (total expense ratio in %) to see annual cost estimates, and a **target allocation %** to power the drift table and rebalance plan. The **cost-basis method** (average cost, FIFO, LIFO, or HIFO) is configured globally in Settings.
 
 The banner disappears automatically once both are completed, or you can dismiss it manually at any time.
 
@@ -175,8 +179,10 @@ ETFs that you have stopped contributing to but still hold are listed under "Held
 For detailed cost-basis, realized P&L, and dividend tracking, import your broker's CSV export:
 
 1. Go to **+ Log** > **Import CSV**
-2. Select or drag your broker CSV (Trade Republic and N26 savings are supported)
-3. Preview the detected transactions and confirm
+2. Select or drag your broker CSV (Trade Republic full transaction history, and N26 savings account CSV, are supported built-in — [adding more banks](#adding-support-for-a-new-bank) takes ~10 minutes)
+3. Review the detected transactions and confirm
+
+After import, transactions appear in the **transaction ledger** at the bottom of the **+ Log** tab, where you can review, filter, and delete individual records.
 
 Transactions are merged with existing data using an append-only strategy: new rows are inserted, but rows that already exist (matched by date + type + amount) are not overwritten. This means re-importing an updated CSV is safe — it will add genuinely new transactions — but amended or corrected rows from your broker will not replace what is already stored. The import preview will warn you if the file contains rows that differ from existing records.
 
@@ -190,10 +196,50 @@ They are **not** jurisdiction-aware tax reporting or tax filing guidance, and if
 changes over time those figures may become incomplete or no longer map cleanly to your local tax
 rules.
 
+### Portfolio tab
+
+The Portfolio tab has three subviews:
+
+- **Holdings** — your ETF positions with cost basis, unrealized gain, market value (when snapshot ETF values are recorded), and the drift table.
+- **Contributions** — month-by-month DCA history and contribution split across holdings.
+- **Dividends** — dividend and interest income history, yield, and growth metrics.
+
+### Analytics tab
+
+The Analytics tab surfaces two layers of metrics:
+
+**Level 1 — Balance KPIs** (net worth change, no cash-flow adjustment): Total Return, Net Worth Gain, Investment Gain, YTD Return, CAGR. These include the effect of deposits and withdrawals.
+
+**Level 2 — Investment performance KPIs** (cash-flow adjusted): TWR (Time-Weighted Return) and IRR (Internal Rate of Return). These isolate market performance by neutralizing deposits and withdrawals, so they reflect your investment skill rather than your savings rate. Both require at least a few months of history and improve in accuracy with longer data.
+
+**Risk metrics**: Volatility, Max Drawdown, Sharpe, Sortino, and Calmar ratios. All are computed from investment-account-only monthly returns. They are gated behind a 24-month minimum history requirement to avoid statistically meaningless early values.
+
+The risk-free rate used for Sharpe and Sortino is configurable in Settings (default 2%).
+
+### Goals
+
+Named savings goals can be configured in **Settings > Goals**. Each goal has a target net worth amount and an optional target date. Goal progress cards appear on the **Net Worth** tab and show how much of your _liquid_ net worth (excluding locked pension/retirement accounts) has been accumulated toward each goal.
+
+### Retirement planning
+
+The **Net Worth** tab includes a **Drawdown** forecast alongside the standard accumulation projection. Configure a retirement date and select a withdrawal strategy:
+
+- **Fixed amount** — withdraw a fixed €/month (nominal, not inflation-adjusted)
+- **4% rule (SWR)** — withdraw 4% of the starting retirement balance per year, indexed annually for inflation
+- **% of portfolio** — withdraw a fixed percentage of the current balance each month
+
+The chart shows your projected portfolio balance through the drawdown period. If the balance reaches zero, the depletion date is displayed. **Note:** All withdrawal amounts shown are pre-tax. Actual spendable income will be lower depending on your jurisdiction and account type. Projections use a fixed expected return and do not model sequence-of-returns risk.
+
+### Theme
+
+The **theme button** in the top navigation bar cycles between Light, Dark, and System (follows your OS preference). The choice is saved locally and applied on each page load.
+
 ### Currency and FX model
 
 The app currently uses a single **reporting currency** for calculations and display. Today that
 currency is hard-coded to `EUR`.
+
+> **⚠️ All display values are in EUR.** If your accounts hold assets in other currencies, ensure FX rates are populated at import time so that cost-basis and income figures are converted correctly.
 
 Transactions may still be stored in other currencies via the `currency` and `fxRate` fields. The
 expected contract is:
@@ -258,7 +304,7 @@ For architecture notes, upgrade steps, and troubleshooting, see
 
 ## Adding support for a new bank
 
-Trade Republic (full transaction history) and N26 (savings account only) are supported today. The import engine is bank-agnostic, so adding another bank does **not** require touching the parser.
+Trade Republic (full transaction history) and N26 savings account CSV are supported today. N26 does not export investment transactions; for investment data from N26 you would need a custom profile or manual entry. The import engine is bank-agnostic, so adding another bank does **not** require touching the parser.
 
 1. **Create a profile** at `src/import/profiles/<bank>.ts` exporting an `ImportProfile` object:
    ```ts
@@ -332,5 +378,5 @@ The app installs like a native app and works offline. All writes (snapshots, imp
 
 ## Known limitations
 
-- **Selling is not supported.** The app is designed for long-term buy-and-hold portfolios. SELL transactions are recognized by the cost-basis engine (FIFO and average-cost both dequeue lots correctly), but there is no UI to record a sale and the monthly investment KPIs do not subtract sell proceeds.
-- **Multi-leg SELL consolidation (ETF fund mergers) is unverified in production.** When a provider folds one ETF into another (for example iShares merging IEEM into CMEIU, or merging CECBE and EGB7Y into GABE), the cost-basis engine has a code path (`foldInto`) meant to carry the original position's cost basis forward instead of treating it as a full sell-then-rebuy. That path is implemented and unit-tested against synthetic data, but has not yet been exercised against a real consolidation event end to end. If one of your holdings undergoes this kind of provider-side merge, treat the resulting Realized P&L and cost-basis figures as unverified until you've manually cross-checked them against your broker statement.
+- **Selling is not supported.** The app is designed for long-term buy-and-hold portfolios. SELL transactions are recognized by the cost-basis engine (FIFO, LIFO, HIFO, and average-cost all dequeue lots correctly), but there is no UI to record a sale and the monthly investment KPIs do not subtract sell proceeds.
+- **Multi-leg SELL consolidation (ETF fund mergers) is unverified in production.** When a provider folds one ETF into another (for example iShares merging IEEM into CMEIU, or merging CECBE and EGB7Y into GABE), a `foldInto` field exists in the data model to carry the original position's cost basis forward instead of treating it as a full sell-then-rebuy. That computation path is **not yet implemented**. If one of your holdings undergoes this kind of provider-side merge, treat the resulting Realized P&L and cost-basis figures as incorrect until it is built — cross-check against your broker statement.
