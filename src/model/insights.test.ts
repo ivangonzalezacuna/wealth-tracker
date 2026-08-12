@@ -4,16 +4,23 @@ import {
   cagr,
   findYoYSnapshot,
   monthlyGrowthHistory,
+  normalizeExternalCashFlows,
+  buildInvestmentPerformanceData,
   twr,
   xirr,
   annualizedVolatility,
+  annualizedVolatilityFromMonthlyReturns,
   maxDrawdown,
+  drawdownFromMonthlyReturns,
   cagrPerAccount,
   dividendMetrics,
   monthsBetween,
   rollingCagr,
+  annualizedReturnFromMonthlyReturns,
+  annualReturnsFromMonthlyReturns,
+  rollingAnnualizedReturnFromMonthlyReturns,
 } from './insights';
-import type { Snapshot } from '../types';
+import type { Snapshot, Account, Transaction } from '../types';
 import * as utils from '../utils';
 
 afterEach(() => {
@@ -203,6 +210,178 @@ describe('monthlyGrowthHistory', () => {
     expect(points[1]).toEqual({ month: '2026-03', contributed: 500, market: 200, total: 700 });
   });
 
+  describe('investment performance foundation', () => {
+    it('normalizes deposit and withdrawal signs into canonical external flows', () => {
+      const txs: Transaction[] = [
+        {
+          id: 'dep',
+          date: '2024-02-05',
+          source: 'broker',
+          type: 'DEPOSIT',
+          name: 'Deposit',
+          isin: '',
+          shares: 0,
+          price: 0,
+          amount: -100,
+          fee: 0,
+          tax: 0,
+          currency: 'EUR',
+          fxRate: 1,
+        },
+        {
+          id: 'wd',
+          date: '2024-03-02',
+          source: 'broker',
+          type: 'WITHDRAWAL',
+          name: 'Withdrawal',
+          isin: '',
+          shares: 0,
+          price: 0,
+          amount: 50,
+          fee: 0,
+          tax: 0,
+          currency: 'EUR',
+          fxRate: 1,
+        },
+      ];
+
+      const result = normalizeExternalCashFlows(txs);
+
+      expect(result.monthlyExternalFlows).toEqual({
+        '2024-02': 100,
+        '2024-03': -50,
+      });
+      expect(result.externalCashFlows).toEqual([
+        {
+          date: '2024-02-29',
+          month: '2024-02',
+          amount: -100,
+          portfolioFlow: 100,
+          type: 'DEPOSIT',
+        },
+        {
+          date: '2024-03-31',
+          month: '2024-03',
+          amount: 50,
+          portfolioFlow: -50,
+          type: 'WITHDRAWAL',
+        },
+      ]);
+    });
+
+    it('ignores internal transfer rows (including instant transfers) in external cash-flow normalization', () => {
+      const txs: Transaction[] = [
+        {
+          id: 'dep',
+          date: '2024-02-05',
+          source: 'broker',
+          type: 'DEPOSIT',
+          name: 'Deposit',
+          isin: '',
+          shares: 0,
+          price: 0,
+          amount: 100,
+          fee: 0,
+          tax: 0,
+          currency: 'EUR',
+          fxRate: 1,
+        },
+        {
+          id: 'tr-instant',
+          date: '2024-02-10',
+          source: 'broker',
+          type: 'TRANSFER',
+          name: 'TRANSFER_INSTANT_INBOUND',
+          isin: '',
+          shares: 0,
+          price: 0,
+          amount: 5000,
+          fee: 0,
+          tax: 0,
+          currency: 'EUR',
+          fxRate: 1,
+        },
+      ];
+
+      const result = normalizeExternalCashFlows(txs);
+
+      expect(result.monthlyExternalFlows).toEqual({ '2024-02': 100 });
+      expect(result.externalCashFlows).toHaveLength(1);
+      expect(result.externalCashFlows[0].type).toBe('DEPOSIT');
+    });
+
+    it('builds monthly investment returns from snapshots and external flows', () => {
+      const accounts: Account[] = [{ id: 'broker', label: 'Broker', moneyType: 'investment' }];
+      const snaps: Snapshot[] = [
+        { date: '2024-01', broker: 1000 },
+        { date: '2024-02', broker: 1200 },
+        { date: '2024-03', broker: 1270 },
+      ];
+      const txs: Transaction[] = [
+        {
+          id: 'dep',
+          date: '2024-02-05',
+          source: 'broker',
+          type: 'DEPOSIT',
+          name: 'Deposit',
+          isin: '',
+          shares: 0,
+          price: 0,
+          amount: 100,
+          fee: 0,
+          tax: 0,
+          currency: 'EUR',
+          fxRate: 1,
+        },
+        {
+          id: 'wd',
+          date: '2024-03-05',
+          source: 'broker',
+          type: 'WITHDRAWAL',
+          name: 'Withdrawal',
+          isin: '',
+          shares: 0,
+          price: 0,
+          amount: -50,
+          fee: 0,
+          tax: 0,
+          currency: 'EUR',
+          fxRate: 1,
+        },
+      ];
+
+      const result = buildInvestmentPerformanceData(snaps, txs, accounts);
+
+      expect(result.skippedGapPeriods).toBe(0);
+      expect(result.skippedMissingValuePeriods).toBe(0);
+      expect(result.latestInvestmentValue).toBe(1270);
+      expect(result.monthlyReturns).toHaveLength(2);
+      expect(result.monthlyReturns[0]).toMatchObject({
+        date: '2024-02',
+        startValue: 1000,
+        endValue: 1200,
+        externalFlow: 100,
+      });
+      expect(result.monthlyReturns[0].return).toBeCloseTo(0.1, 6);
+      expect(result.monthlyReturns[1].return).toBeCloseTo(0.1, 6);
+    });
+
+    it('tracks missing values and month gaps for gating', () => {
+      const accounts: Account[] = [{ id: 'broker', label: 'Broker', moneyType: 'investment' }];
+      const snaps: Snapshot[] = [
+        { date: '2024-01', broker: 1000 },
+        { date: '2024-03', broker: 1100 },
+        { date: '2024-04', cash: 100 },
+      ];
+
+      const result = buildInvestmentPerformanceData(snaps, [], accounts);
+
+      expect(result.monthlyReturns).toEqual([]);
+      expect(result.skippedGapPeriods).toBe(1);
+      expect(result.skippedMissingValuePeriods).toBe(1);
+    });
+  });
+
   describe('xirr', () => {
     it('handles simple one-year buy and terminal value', () => {
       const result = xirr([
@@ -270,6 +449,35 @@ describe('annualizedVolatility', () => {
     expect(annualizedVolatility([]).annualized).toBeNull();
     expect(annualizedVolatility([{ date: '2026-01' }]).annualized).toBeNull();
     expect(annualizedVolatility([{ date: '2026-01' }, { date: '2026-02' }]).annualized).toBeNull();
+  });
+
+  describe('investment return risk helpers', () => {
+    const monthlyReturns = [
+      { date: '2024-01', startValue: 1000, return: 0.1 },
+      { date: '2024-02', startValue: 1100, return: -0.05 },
+      { date: '2024-03', startValue: 1045, return: 0.02 },
+    ];
+
+    it('computes volatility from monthly investment returns', () => {
+      const result = annualizedVolatilityFromMonthlyReturns(monthlyReturns);
+      expect(result.annualized).not.toBeNull();
+      expect(result.monthlyReturns).toEqual(monthlyReturns);
+    });
+
+    it('derives drawdown series from linked monthly returns', () => {
+      const result = drawdownFromMonthlyReturns(monthlyReturns);
+      expect(result.max).toBeLessThan(0);
+      expect(result.series).toHaveLength(3);
+      expect(result.series[1].drawdown).toBeLessThan(0);
+    });
+
+    it('builds annualized and annual return summaries from investment return series', () => {
+      expect(annualizedReturnFromMonthlyReturns(monthlyReturns)).not.toBeNull();
+      expect(annualReturnsFromMonthlyReturns(monthlyReturns)).toEqual([
+        { year: 2024, return: (1 + 0.1) * (1 - 0.05) * (1 + 0.02) - 1 },
+      ]);
+      expect(rollingAnnualizedReturnFromMonthlyReturns(monthlyReturns, 3)).toHaveLength(1);
+    });
   });
 
   it('returns annualized: null when a starting snapshot total is non-positive', () => {

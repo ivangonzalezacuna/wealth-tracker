@@ -189,7 +189,7 @@ export function appTemplate(): string {
   <div id="an-empty" style="display:none"><div class="card"><div class="empty-state">
     <div class="empty-icon">📈</div>
     <div class="empty-title">No snapshots yet</div>
-    <p style="font-size:13px;margin-bottom:1.25rem;max-width:340px;margin-left:auto;margin-right:auto">Add at least one monthly snapshot to see analytics. Income metrics update from imported data, and risk metrics unlock after 24 months of snapshot history.</p>
+    <p style="font-size:13px;margin-bottom:1.25rem;max-width:340px;margin-left:auto;margin-right:auto">Add at least one monthly snapshot to see analytics. Balance-growth cards unlock first; investment risk metrics need 24 consecutive monthly investment periods plus deposit/withdrawal history.</p>
     <button class="btn btn-primary" data-goto="log">Add first snapshot →</button>
   </div></div></div>
   <div id="an-content" style="display:none">
@@ -212,17 +212,17 @@ export function appTemplate(): string {
     <!-- Level 2: Heatmap + Allocation (2+ snapshots) -->
     <div id="an-level2">
       <div class="card">
-        <div class="card-title">Growth breakdown: contributed vs market</div>
+        <div class="card-title">Investment balance breakdown: external flows vs market</div>
         <div class="chart-controls">
           <div id="an-contrib-legend" class="legend"></div>
           ${rangeToggleHtml('an-contrib-range-toggle', 'Contributions vs market range')}
         </div>
         <div class="chart-wrap chart-h-md"><canvas id="c-an-contrib"></canvas></div>
-        <p class="note">Market movement is the residual after subtracting contributions from the total change. Use IRR for a money-weighted investment return metric.</p>
+        <p class="note">Market movement is the residual after subtracting external deposits and withdrawals from the change in investment-account value. This is an investment-performance view, not total household net-worth growth.</p>
       </div>
 
       <div class="card">
-        <div class="card-title">Monthly return heatmap</div>
+        <div class="card-title">Monthly investment return heatmap</div>
         <div id="an-heatmap-note" class="note" style="display:none"></div>
         <div id="an-heatmap-pager" style="display:none;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;color:var(--ink-2)">
           <button class="btn btn-sm btn-ghost" id="an-heatmap-prev">&#8249;</button>
@@ -236,7 +236,7 @@ export function appTemplate(): string {
       </div>
 
       <div class="card" id="an-annual-table-card">
-        <div class="card-title">Annual returns</div>
+        <div class="card-title">Annual investment returns</div>
         <div id="an-annual-table"></div>
       </div>
 
@@ -272,7 +272,7 @@ export function appTemplate(): string {
       </summary>
       <div id="an-advanced-content" style="padding-top:.75rem">
         <div class="card" id="an-risk-metrics-note-card" style="margin:0 0 1rem;display:none">
-          <div class="card-title">Risk analytics</div>
+          <div class="card-title">Investment risk analytics</div>
           <div id="an-risk-metrics-note" class="note"></div>
         </div>
         <div class="kpi-row" id="an-kpis-risk"></div>
@@ -346,13 +346,13 @@ export function appTemplate(): string {
         </details>
 
         <div class="card" id="an-drawdown-card" style="margin:0 0 1rem">
-          <div class="card-title">Drawdown history</div>
+          <div class="card-title">Investment drawdown history</div>
           <div class="chart-wrap chart-h-md"><canvas id="c-an-drawdown"></canvas></div>
           <div class="chart-data-table-wrap" id="c-an-drawdown-table-wrap" hidden></div>
         </div>
 
         <div class="card" id="an-rolling-cagr-card" style="margin:0 0 1rem">
-          <div class="card-title">Rolling 3-year CAGR</div>
+          <div class="card-title">Rolling 3-year investment CAGR</div>
           <div id="an-rolling-cagr-note" class="note" style="display:none"></div>
           <div class="chart-wrap chart-h-md"><canvas id="c-an-rolling-cagr"></canvas></div>
         </div>

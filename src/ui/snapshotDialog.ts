@@ -273,12 +273,12 @@ function _submit(): void {
       continue;
     }
     if (!anySet) continue;
-    if (!isNaN(totalVal) && Math.abs(allocated - totalVal) > 0.005) {
+    if (!isNaN(totalVal) && allocated - totalVal > 0.005) {
       _setSectionOpen(acct.key, true);
       _updateRecon(acct.key);
       setSectionErr(
         acct.key,
-        `${acct.label}: ETF values (${fmtEur2(allocated)}) must equal the account total (${fmtEur2(totalVal)}). Fix or clear the ETF breakdown.`,
+        `${acct.label}: ETF values (${fmtEur2(allocated)}) cannot exceed the account total (${fmtEur2(totalVal)}). Reduce ETF values or increase the account total.`,
       );
       valid = false;
     }
@@ -326,9 +326,7 @@ function _updateRecon(acctKey: string): void {
   if (remainEl) remainEl.textContent = fmtEur2(remain);
   if (remainWrap) {
     remainWrap.classList.remove('snap-etf-recon-warn', 'snap-etf-recon-ok');
-    remainWrap.classList.add(
-      Math.abs(remain) <= 0.005 ? 'snap-etf-recon-ok' : 'snap-etf-recon-warn',
-    );
+    remainWrap.classList.add(remain >= -0.005 ? 'snap-etf-recon-ok' : 'snap-etf-recon-warn');
   }
 }
 

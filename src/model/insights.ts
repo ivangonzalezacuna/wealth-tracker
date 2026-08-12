@@ -1,5 +1,8 @@
-import type { Snapshot, Account } from '../types';
+import type { Snapshot, Account, Transaction } from '../types';
+import { TxType } from '../types';
 import { snapTotal } from '../utils';
+import { allInvestmentAccountsValue } from './accounts';
+import { toBase } from '../fx';
 
 export interface XirrCashFlow {
   date: string;
@@ -51,6 +54,11 @@ export function twr(
     periods++;
   }
   return periods > 0 ? growth - 1 : null;
+}
+
+export function twrFromMonthlyReturns(monthlyReturns: MonthlyReturnPoint[]): number | null {
+  if (monthlyReturns.length === 0) return null;
+  return monthlyReturns.reduce((growth, point) => growth * (1 + point.return), 1) - 1;
 }
 
 /**
@@ -140,6 +148,126 @@ export interface MonthlyReturnPoint {
   return: number;
 }
 
+export interface InvestmentReturnPoint extends MonthlyReturnPoint {
+  endValue: number;
+  externalFlow: number;
+}
+
+export interface NormalizedExternalCashFlow extends XirrCashFlow {
+  month: string;
+  portfolioFlow: number;
+  type: 'DEPOSIT' | 'WITHDRAWAL';
+}
+
+export interface InvestmentPerformanceData {
+  monthlyExternalFlows: Record<string, number>;
+  externalCashFlows: NormalizedExternalCashFlow[];
+  monthlyReturns: InvestmentReturnPoint[];
+  skippedMissingValuePeriods: number;
+  skippedGapPeriods: number;
+  latestInvestmentValue: number | null;
+}
+
+function monthKey(date: string): string | null {
+  if (!date || date.length < 7) return null;
+  const month = date.slice(0, 7);
+  return parseYearMonth(month) ? month : null;
+}
+
+export function monthEndDate(date: string): string | null {
+  const month = monthKey(date);
+  if (!month) return null;
+  const parsed = parseYearMonth(month);
+  if (!parsed) return null;
+  const d = new Date(Date.UTC(parsed.year, parsed.month, 0));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
+export function normalizeExternalCashFlows(txs: Transaction[]): {
+  monthlyExternalFlows: Record<string, number>;
+  externalCashFlows: NormalizedExternalCashFlow[];
+} {
+  const monthlyExternalFlows: Record<string, number> = {};
+  const externalCashFlows: NormalizedExternalCashFlow[] = [];
+
+  for (const tx of txs) {
+    if (tx.type !== TxType.DEPOSIT && tx.type !== TxType.WITHDRAWAL) continue;
+    const date = monthEndDate(tx.date);
+    const month = monthKey(tx.date);
+    if (!date || !month) continue;
+    const baseAmount = Math.abs(toBase(tx.amount || 0, tx.currency, tx.fxRate));
+    if (!isFinite(baseAmount) || baseAmount === 0) continue;
+    const isDeposit = tx.type === TxType.DEPOSIT;
+    const portfolioFlow = isDeposit ? baseAmount : -baseAmount;
+    monthlyExternalFlows[month] = (monthlyExternalFlows[month] || 0) + portfolioFlow;
+    externalCashFlows.push({
+      date,
+      month,
+      amount: isDeposit ? -baseAmount : baseAmount,
+      portfolioFlow,
+      type: isDeposit ? 'DEPOSIT' : 'WITHDRAWAL',
+    });
+  }
+
+  externalCashFlows.sort((a, b) => a.date.localeCompare(b.date));
+  return { monthlyExternalFlows, externalCashFlows };
+}
+
+export function buildInvestmentPerformanceData(
+  snaps: Snapshot[],
+  txs: Transaction[],
+  accounts: Account[],
+): InvestmentPerformanceData {
+  const { monthlyExternalFlows, externalCashFlows } = normalizeExternalCashFlows(txs);
+  const monthlyReturns: InvestmentReturnPoint[] = [];
+  let skippedMissingValuePeriods = 0;
+  let skippedGapPeriods = 0;
+
+  for (let i = 1; i < snaps.length; i++) {
+    const prev = snaps[i - 1];
+    const cur = snaps[i];
+    const prevValue = allInvestmentAccountsValue(prev, accounts);
+    const curValue = allInvestmentAccountsValue(cur, accounts);
+    if (prevValue === null || curValue === null) {
+      skippedMissingValuePeriods++;
+      continue;
+    }
+    if (prevValue <= 0) {
+      skippedMissingValuePeriods++;
+      continue;
+    }
+    if (monthsBetween(prev.date, cur.date) !== 1) {
+      skippedGapPeriods++;
+      continue;
+    }
+    const flowMonth = monthKey(cur.date);
+    if (!flowMonth) {
+      skippedMissingValuePeriods++;
+      continue;
+    }
+    const externalFlow = monthlyExternalFlows[flowMonth] || 0;
+    monthlyReturns.push({
+      date: flowMonth,
+      startValue: prevValue,
+      endValue: curValue,
+      externalFlow,
+      return: (curValue - externalFlow) / prevValue - 1,
+    });
+  }
+
+  const latestInvestmentValue =
+    snaps.length > 0 ? allInvestmentAccountsValue(snaps[snaps.length - 1], accounts) : null;
+
+  return {
+    monthlyExternalFlows,
+    externalCashFlows,
+    monthlyReturns,
+    skippedMissingValuePeriods,
+    skippedGapPeriods,
+    latestInvestmentValue,
+  };
+}
+
 /** Result of annualizedVolatility - scalar plus the per-month return series. */
 export interface VolatilityResult {
   annualized: number | null;
@@ -167,6 +295,16 @@ export function annualizedVolatility(snaps: Snapshot[]): VolatilityResult {
       return: snapTotal(snaps[i]) / prev - 1,
     });
   }
+  if (monthlyReturns.length < 2) return { annualized: null, monthlyReturns };
+  const returns = monthlyReturns.map((m) => m.return);
+  const mean = returns.reduce((s, r) => s + r, 0) / returns.length;
+  const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / (returns.length - 1);
+  return { annualized: Math.sqrt(variance) * Math.sqrt(12), monthlyReturns };
+}
+
+export function annualizedVolatilityFromMonthlyReturns(
+  monthlyReturns: MonthlyReturnPoint[],
+): VolatilityResult {
   if (monthlyReturns.length < 2) return { annualized: null, monthlyReturns };
   const returns = monthlyReturns.map((m) => m.return);
   const mean = returns.reduce((s, r) => s + r, 0) / returns.length;
@@ -204,6 +342,66 @@ export function maxDrawdown(snaps: Snapshot[]): DrawdownResult {
     if (dd < maxDD) maxDD = dd;
   }
   return { max: maxDD, series };
+}
+
+export function drawdownFromMonthlyReturns(monthlyReturns: MonthlyReturnPoint[]): DrawdownResult {
+  if (monthlyReturns.length === 0) return { max: null, series: [] };
+  let wealth = 1;
+  let peak = 1;
+  let maxDD = 0;
+  const series: DrawdownPoint[] = [];
+  for (const point of monthlyReturns) {
+    wealth *= 1 + point.return;
+    if (wealth > peak) peak = wealth;
+    const drawdown = peak > 0 ? wealth / peak - 1 : 0;
+    series.push({ date: point.date, drawdown });
+    if (drawdown < maxDD) maxDD = drawdown;
+  }
+  return { max: maxDD, series };
+}
+
+export function annualizedReturnFromMonthlyReturns(
+  monthlyReturns: MonthlyReturnPoint[],
+): number | null {
+  if (monthlyReturns.length === 0) return null;
+  const growth = monthlyReturns.reduce((acc, point) => acc * (1 + point.return), 1);
+  if (!isFinite(growth) || growth < 0) return null;
+  return Math.pow(growth, 12 / monthlyReturns.length) - 1;
+}
+
+export function annualReturnsFromMonthlyReturns(
+  monthlyReturns: MonthlyReturnPoint[],
+): { year: number; return: number }[] {
+  if (monthlyReturns.length === 0) return [];
+  const byYear = new Map<number, MonthlyReturnPoint[]>();
+  for (const point of monthlyReturns) {
+    const parsed = parseYearMonth(point.date);
+    if (!parsed) continue;
+    if (!byYear.has(parsed.year)) byYear.set(parsed.year, []);
+    byYear.get(parsed.year)!.push(point);
+  }
+  return Array.from(byYear.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([year, points]) => ({
+      year,
+      return: points.reduce((acc, point) => acc * (1 + point.return), 1) - 1,
+    }));
+}
+
+export function rollingAnnualizedReturnFromMonthlyReturns(
+  monthlyReturns: MonthlyReturnPoint[],
+  windowMonths: number,
+): { month: string; cagr: number }[] {
+  if (monthlyReturns.length < windowMonths) return [];
+  const result: { month: string; cagr: number }[] = [];
+  for (let i = windowMonths - 1; i < monthlyReturns.length; i++) {
+    const window = monthlyReturns.slice(i - windowMonths + 1, i + 1);
+    const annualized = annualizedReturnFromMonthlyReturns(window);
+    if (annualized !== null) {
+      result.push({ month: monthlyReturns[i].date, cagr: annualized });
+    }
+  }
+  return result;
 }
 
 // ── New analytics metric functions ───────────────────────────────

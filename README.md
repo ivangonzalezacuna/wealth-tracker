@@ -6,6 +6,11 @@
 
 Personal ETF portfolio and net worth tracker. Runs entirely in the browser as a PWA, with offline support and Google Drive sync.
 
+## Changelog note (2026-08)
+
+- Snapshot ETF breakdown now supports partial allocation: ETF subtotals may stay below the account total (tracked as unallocated cash), while over-allocation is still blocked.
+- Trade Republic `TRANSFER_INSTANT_INBOUND` is now treated as an internal transfer, so investment performance external-flow metrics (TWR/IRR) exclude it.
+
 ## What you need
 
 This app is designed to be cloned and self-deployed. Each person runs their own instance. There is no shared backend or multi-tenant hosting.
@@ -155,7 +160,7 @@ This is optional, but enables two additional features:
 3. Enter the current market value for each ETF (visible in your broker app, e.g. Trade Republic's Vermogensübersicht).
 4. The reconciliation bar at the bottom shows **Allocated** (sum of ETF values entered) and **Remaining** (account total minus allocated), helping you catch typos before saving.
    - Remaining turns amber if you have over-allocated (sum exceeds total).
-   - Remaining turns green when the values balance exactly.
+   - Remaining stays green when ETF values are at or below the account total (the difference is unallocated cash).
 
 **Storage format**
 

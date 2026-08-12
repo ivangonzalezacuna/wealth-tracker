@@ -15,11 +15,10 @@ import {
 import {
   cagr,
   findYoYSnapshot,
-  monthlyGrowthHistory,
-  twr,
+  twrFromMonthlyReturns,
   xirr,
-  annualizedVolatility,
-  maxDrawdown,
+  annualizedVolatilityFromMonthlyReturns,
+  drawdownFromMonthlyReturns,
   totalReturn,
   ytdReturn,
   absoluteGain,
@@ -29,14 +28,17 @@ import {
   sharpeRatio,
   sortinoRatio,
   calmarRatio,
-  rollingCagr,
-  annualReturns,
+  rollingAnnualizedReturnFromMonthlyReturns,
+  annualReturnsFromMonthlyReturns,
   weightedMonthlyReturns,
   dividendMetrics,
   type MonthlyGrowthPoint,
+  buildInvestmentPerformanceData,
+  annualizedReturnFromMonthlyReturns,
+  monthEndDate,
 } from '../model/insights';
 import { getAccounts, getHoldings, getSettings } from '../store/config';
-import { allInvestmentAccountsValue, primaryInvestmentValue } from '../model/accounts';
+import { allInvestmentAccountsValue } from '../model/accounts';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import { writeChartTable } from './chartTable';
@@ -132,8 +134,16 @@ export function renderAnalytics(
   const latestDate = s.date || '';
   const monthsSpan = _monthsDiff(firstDate, latestDate);
 
+  const perfData = buildInvestmentPerformanceData(snaps, txs, accounts);
+  const investmentReturnCount = perfData.monthlyReturns.length;
+  const sufficientInvestmentHistory =
+    investmentReturnCount >= 24 &&
+    perfData.skippedGapPeriods === 0 &&
+    perfData.skippedMissingValuePeriods === 0;
+
   // Compute investment-side value once (used for both absolute gain and IRR)
-  const latestInvestmentValue = allInvestmentAccountsValue(s, accounts);
+  const latestInvestmentValue =
+    perfData.latestInvestmentValue ?? allInvestmentAccountsValue(s, accounts);
 
   // ── Level 1 KPIs ─────────────────────────────────────────
   const totalReturnVal = totalReturn(firstTotal, total);
@@ -147,17 +157,12 @@ export function renderAnalytics(
     yoyData && yoyData.total > 0 ? ((total - yoyData.total) / yoyData.total) * 100 : null;
 
   // Level 2 performance KPIs (TWR + IRR)
-  const twrVal = twr(snaps, pd?.monthly || {});
-  const terminalDate = s.date && s.date.length === 7 ? `${s.date}-01` : s.date;
-  const investmentFlows = txs
-    .map((tx) => {
-      const date = tx.date && tx.date.length === 7 ? `${tx.date}-01` : tx.date;
-      if (!date) return null;
-      if (tx.type === 'BUY')
-        return { date, amount: -(Math.abs(tx.amount) + Math.abs(tx.fee || 0)) };
-      return null;
-    })
-    .filter((cf): cf is { date: string; amount: number } => !!cf);
+  const twrVal = twrFromMonthlyReturns(perfData.monthlyReturns);
+  const terminalDate = monthEndDate(s.date) || s.date;
+  const investmentFlows = perfData.externalCashFlows.map((cf) => ({
+    date: cf.date,
+    amount: cf.amount,
+  }));
   if (latestInvestmentValue !== null) {
     investmentFlows.push({ date: terminalDate, amount: latestInvestmentValue });
   }
@@ -242,22 +247,22 @@ export function renderAnalytics(
 
   document.getElementById('an-kpis-l2')!.innerHTML = `
     ${kpiTile({
-      label: `TWR${infoTip('Time-weighted return, linked across snapshot periods and net of contributions. Measures investment performance per period, independently of how much money was contributed or when.')}`,
+      label: `TWR (investments)${infoTip('Time-weighted return across investment-account snapshots, neutralising external deposits and withdrawals. Measures investment performance independently of contribution timing.')}`,
       value: twrVal !== null ? fmtPctNeg(twrVal * 100) : '-',
       valueClass: twrVal === null ? '' : twrVal >= 0 ? 'pos' : 'neg',
       sub:
         twrVal !== null
-          ? `${monthsSpan} months, not annualized${monthsSpan < 24 ? ' (early data)' : ''}`
-          : 'needs 2 snapshots',
+          ? `${investmentReturnCount} monthly periods, not annualized${investmentReturnCount < 24 ? ' (early data)' : ''}`
+          : 'insufficient investment history',
     })}
     ${kpiTile({
-      label: `IRR (investments)${infoTip('Money-weighted annual return on invested capital (XIRR). Influenced by the size and timing of your contributions. Unstable with under 2 years of history. Uses BUY cash outflows plus current investment value.')}`,
+      label: `IRR (investments)${infoTip('Money-weighted annual return on invested capital (XIRR). Uses normalized external deposits/withdrawals plus current investment value, so internal buys and sells do not distort the result.')}`,
       value: irrVal !== null ? fmtPctNeg(irrVal * 100) : '-',
       valueClass: irrVal === null ? '' : irrVal >= 0 ? 'pos' : 'neg',
       sub:
         irrVal !== null
           ? `XIRR, annualized${monthsSpan < 24 ? ' (early data)' : ''}`
-          : 'needs complete cash-flow series',
+          : 'needs external cash flows and terminal value',
     })}
   `;
 
@@ -271,40 +276,50 @@ export function renderAnalytics(
 
   if (snaps.length >= 2) {
     // Contributions vs market chart
-    const growthPoints = pd
-      ? monthlyGrowthHistory(snaps, accounts, pd.monthly, primaryInvestmentValue)
-      : [];
+    const growthPoints = perfData.monthlyReturns.map((point) => ({
+      month: point.date,
+      contributed: point.externalFlow,
+      market: point.endValue - point.startValue - point.externalFlow,
+      total: point.endValue - point.startValue,
+    }));
     _renderContribChart(growthPoints);
     _attachContribRangeToggle(growthPoints);
 
     // Heatmap
     _heatmapPage = 0;
-    _renderHeatmap(snaps);
-    _attachHeatmapPager(snaps);
+    _renderHeatmap(perfData.monthlyReturns);
+    _attachHeatmapPager(perfData.monthlyReturns);
 
     // Annual returns table
-    _renderAnnualTable(snaps);
+    _renderAnnualTable(perfData.monthlyReturns);
 
     // Allocation donuts
     _renderAllocationDonuts(holdings, pd);
   }
 
   // ── Level 3: Advanced (collapsible) ──────────────────────
-  const volResult = annualizedVolatility(snaps);
-  const ddResult = maxDrawdown(snaps);
-  const cagrForRisk = cagrVal;
+  const volResult = annualizedVolatilityFromMonthlyReturns(perfData.monthlyReturns);
+  const ddResult = drawdownFromMonthlyReturns(perfData.monthlyReturns);
+  const cagrForRisk = annualizedReturnFromMonthlyReturns(perfData.monthlyReturns);
   const dd = ddResult.max;
   const advancedContent = document.getElementById('an-advanced-content');
   const riskMetricsNoteCardEl = document.getElementById('an-risk-metrics-note-card');
   const riskMetricsNoteEl = document.getElementById('an-risk-metrics-note');
 
-  const riskMetricsReady = monthsSpan >= 24;
+  const riskMetricsReady = sufficientInvestmentHistory;
 
   if (riskMetricsNoteEl) {
     if (riskMetricsReady) {
       if (riskMetricsNoteCardEl) riskMetricsNoteCardEl.style.display = 'none';
     } else {
-      riskMetricsNoteEl.textContent = `${Math.max(monthsSpan, 0)}/24 months recorded. Risk metrics require 24 months of history.`;
+      const reasons = [];
+      if (investmentReturnCount < 24)
+        reasons.push(`${investmentReturnCount}/24 monthly investment periods`);
+      if (perfData.skippedMissingValuePeriods > 0)
+        reasons.push(`${perfData.skippedMissingValuePeriods} period(s) missing investment values`);
+      if (perfData.skippedGapPeriods > 0)
+        reasons.push(`${perfData.skippedGapPeriods} gap period(s) in snapshot history`);
+      riskMetricsNoteEl.textContent = `Insufficient data for investment risk metrics: ${reasons.join(', ')}.`;
       if (riskMetricsNoteCardEl) riskMetricsNoteCardEl.style.display = '';
     }
   }
@@ -332,43 +347,43 @@ export function renderAnalytics(
       riskKpisEl.innerHTML = riskMetricsReady
         ? `
       ${kpiTile({
-        label: `Volatility${infoTip('Annualized standard deviation of monthly net-worth percentage changes. Higher volatility means a bumpier ride. Unlocked after 24 months of snapshot history.')}`,
+        label: `Volatility${infoTip('Annualized standard deviation of monthly investment returns after neutralising external cash flows. Higher volatility means a bumpier investment ride.')}`,
         value: volResult.annualized !== null ? fmtPctNeg(volResult.annualized * 100) : '-',
         valueClass: '',
         sub: volResult.annualized !== null ? 'annualized, all history' : 'needs more data',
       })}
       ${kpiTile({
-        label: `Max Drawdown${infoTip('Largest peak-to-trough decline as a percentage of the prior peak. Risk metrics unlock after 24 months of snapshot history.')}`,
+        label: `Max Drawdown${infoTip('Largest peak-to-trough decline in the linked investment return series. Uses investment performance only, not household net-worth changes.')}`,
         value: dd !== null ? (dd === 0 ? '0%' : fmtPctNeg(dd * 100)) : '-',
         valueClass: dd === null ? '' : dd < 0 ? 'neg' : '',
         sub: dd !== null ? 'all history' : 'needs more data',
       })}
       ${kpiTile({
-        label: `Calmar${infoTip('CAGR divided by absolute max drawdown. Higher is better. Unlocked after 24 months of snapshot history.')}`,
+        label: `Calmar${infoTip('Annualized investment return divided by absolute max drawdown. Higher is better.')}`,
         value: calmar !== null ? calmar.toFixed(2) : '-',
         valueClass: calmar === null ? '' : calmar >= 0 ? 'pos' : 'neg',
         sub: calmar !== null ? 'CAGR / |Max DD|' : 'needs more data',
       })}
       ${kpiTile({
-        label: `Sharpe${infoTip('(CAGR minus risk-free rate) divided by annualized volatility. Measures return per unit of total risk. Unlocked after 24 months of snapshot history.')}`,
+        label: `Sharpe${infoTip('(Annualized investment return minus risk-free rate) divided by annualized volatility. Measures return per unit of investment risk.')}`,
         value: sharpe !== null ? sharpe.toFixed(2) : '-',
         valueClass: '',
         sub: sharpe !== null ? `rf = ${(riskFreeRate * 100).toFixed(2)}%` : 'needs more data',
       })}
       ${kpiTile({
-        label: `Sortino${infoTip('Like Sharpe, but uses only downside volatility (negative months). Unlocked after 24 months of snapshot history.')}`,
+        label: `Sortino${infoTip('Like Sharpe, but uses only downside volatility from negative investment months.')}`,
         value: sortino !== null ? sortino.toFixed(2) : '-',
         valueClass: '',
         sub: sortino !== null ? 'downside risk only' : 'needs more data',
       })}
       ${kpiTile({
-        label: `Avg Drawdown${infoTip('Average of all per-month drawdown fractions. Risk metrics unlock after 24 months of snapshot history.')}`,
+        label: `Avg Drawdown${infoTip('Average of all monthly investment drawdowns in the linked performance series.')}`,
         value: avgDD !== null && avgDD < 0 ? fmtPctNeg(avgDD * 100) : avgDD === 0 ? '0%' : '-',
         valueClass: avgDD !== null && avgDD < 0 ? 'neg' : '',
         sub: avgDD !== null ? 'mean of all drawdown months' : 'needs more data',
       })}
       ${kpiTile({
-        label: `DD Duration${infoTip('Maximum number of consecutive months where the portfolio was below its prior peak. Risk metrics unlock after 24 months of snapshot history.')}`,
+        label: `DD Duration${infoTip('Maximum number of consecutive monthly investment periods spent below the prior peak.')}`,
         value: ddDur > 0 ? `${ddDur} mo` : ddResult.series.length > 0 ? '0 mo' : '-',
         valueClass: '',
         sub: ddDur > 0 ? 'longest underwater streak' : 'no drawdown in history',
@@ -385,7 +400,7 @@ export function renderAnalytics(
     else _destroyChart('c-an-drawdown');
 
     // Rolling CAGR
-    _renderRollingCagrChart(snaps);
+    _renderRollingCagrChart(perfData.monthlyReturns);
 
     // Income analytics
     _renderIncomeAnalytics(txs, latestInvestmentValue || 0, pd?.totalInv || 0);
@@ -601,18 +616,20 @@ function _attachContribRangeToggle(points: MonthlyGrowthPoint[]): void {
 const HEATMAP_PAGE_SIZE = 3;
 const HEATMAP_MIN_MONTHS = 24;
 
-function _renderHeatmap(snaps: Snapshot[]): void {
+function _renderHeatmap(
+  monthlyReturns: { date: string; startValue: number; return: number }[],
+): void {
   const heatmapEl = document.getElementById('an-heatmap');
   const noteEl = document.getElementById('an-heatmap-note');
   const footerEl = document.getElementById('an-heatmap-footer');
   if (!heatmapEl) return;
 
-  const volResult = annualizedVolatility(snaps);
-  const weighted = weightedMonthlyReturns(volResult.monthlyReturns);
-  const annualData = annualReturns(snaps);
+  const weighted = weightedMonthlyReturns(monthlyReturns);
+  const annualData = annualReturnsFromMonthlyReturns(monthlyReturns);
 
   if (weighted.length === 0) {
-    heatmapEl.innerHTML = '<p class="note">Add more snapshots to see the return heatmap.</p>';
+    heatmapEl.innerHTML =
+      '<p class="note">Add more consecutive monthly investment snapshots to see the return heatmap.</p>';
     if (footerEl)
       footerEl.textContent =
         'Heatmap colors are descriptive only and should not be used for short-term timing decisions.';
@@ -622,7 +639,7 @@ function _renderHeatmap(snaps: Snapshot[]): void {
   const monthsCount = weighted.length;
   if (monthsCount < HEATMAP_MIN_MONTHS) {
     heatmapEl.innerHTML =
-      '<p class="note">Heatmap unlocks after 24 months of data. Until then, focus on contribution consistency and annual return trends.</p>';
+      '<p class="note">Heatmap unlocks after 24 consecutive monthly investment-return periods. Until then, focus on balance growth and contribution consistency.</p>';
     if (noteEl) noteEl.style.display = 'none';
     if (footerEl)
       footerEl.textContent =
@@ -631,12 +648,13 @@ function _renderHeatmap(snaps: Snapshot[]): void {
   }
 
   if (noteEl) {
-    noteEl.textContent = 'Use this as long-horizon context, not as a monthly trading signal.';
+    noteEl.textContent =
+      'Use this as long-horizon investment context, not as a monthly trading signal.';
     noteEl.style.display = '';
   }
   if (footerEl)
     footerEl.textContent =
-      'Color intensity is weighted by portfolio value. Interpret as context over long periods, not a signal to chase recent winners.';
+      'Color intensity is weighted by investment value. Interpret as long-horizon context, not a signal to chase recent winners.';
 
   // Find extremes for color scale (use weightedReturn for color intensity)
   const maxAbs = Math.max(...weighted.map((m) => Math.abs(m.weightedReturn)), 0.001);
@@ -746,7 +764,9 @@ function _renderHeatmap(snaps: Snapshot[]): void {
   heatmapEl.innerHTML = html;
 }
 
-function _attachHeatmapPager(snaps: Snapshot[]): void {
+function _attachHeatmapPager(
+  monthlyReturns: { date: string; startValue: number; return: number }[],
+): void {
   const prevBtn = document.getElementById('an-heatmap-prev') as
     (HTMLElement & { _bound?: boolean }) | null;
   const nextBtn = document.getElementById('an-heatmap-next') as
@@ -755,14 +775,14 @@ function _attachHeatmapPager(snaps: Snapshot[]): void {
     prevBtn._bound = true;
     prevBtn.addEventListener('click', () => {
       _heatmapPage++;
-      _renderHeatmap(snaps);
+      _renderHeatmap(monthlyReturns);
     });
   }
   if (nextBtn && !nextBtn._bound) {
     nextBtn._bound = true;
     nextBtn.addEventListener('click', () => {
       _heatmapPage = Math.max(0, _heatmapPage - 1);
-      _renderHeatmap(snaps);
+      _renderHeatmap(monthlyReturns);
     });
   }
 }
@@ -796,12 +816,14 @@ function _heatmapTextColor(intensity: number, weightedReturn: number): string {
  * for each year. Requires at least 2 annual data points (so a prior-year delta can
  * be shown). If fewer years are available, shows the data without the delta column.
  */
-function _renderAnnualTable(snaps: Snapshot[]): void {
+function _renderAnnualTable(
+  monthlyReturns: { date: string; startValue: number; return: number }[],
+): void {
   const el = document.getElementById('an-annual-table');
   const card = document.getElementById('an-annual-table-card');
   if (!el || !card) return;
 
-  const data = annualReturns(snaps);
+  const data = annualReturnsFromMonthlyReturns(monthlyReturns);
   if (data.length === 0) {
     card.style.display = 'none';
     return;
@@ -1180,7 +1202,9 @@ function _renderDrawdownChart(series: { date: string; drawdown: number }[]): voi
 
 // ── Rolling CAGR chart ─────────────────────────────────────
 
-function _renderRollingCagrChart(snaps: Snapshot[]): void {
+function _renderRollingCagrChart(
+  monthlyReturns: { date: string; startValue: number; return: number }[],
+): void {
   const card = document.getElementById('an-rolling-cagr-card');
   const noteEl = document.getElementById('an-rolling-cagr-note');
   const canvas = document.getElementById('c-an-rolling-cagr') as HTMLCanvasElement | null;
@@ -1188,12 +1212,15 @@ function _renderRollingCagrChart(snaps: Snapshot[]): void {
   _destroyChart('c-an-rolling-cagr');
 
   const WINDOW = 36;
-  const points = rollingCagr(snaps, WINDOW);
+  const points: Array<{ month: string; cagr: number }> = rollingAnnualizedReturnFromMonthlyReturns(
+    monthlyReturns,
+    WINDOW,
+  );
 
   if (noteEl) {
-    if (snaps.length <= WINDOW) {
-      const cur = snaps.length - 1;
-      noteEl.textContent = `${cur}/${WINDOW} months recorded. Rolling 3-year CAGR requires 36 months of history.`;
+    if (monthlyReturns.length < WINDOW) {
+      const cur = monthlyReturns.length;
+      noteEl.textContent = `${cur}/${WINDOW} monthly investment periods recorded. Rolling 3-year investment CAGR requires 36 periods of consecutive return history.`;
       noteEl.style.display = '';
     } else {
       noteEl.style.display = 'none';
