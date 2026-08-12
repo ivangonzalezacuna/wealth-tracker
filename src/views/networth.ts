@@ -794,7 +794,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       <div class="note" style="line-height:1.6">
         <div style="margin-bottom:4px">Per-account return &amp; contribution assumptions (Settings \u2192 Accounts):</div>
         ${acctSummaryLines}
-        <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX. Assumes zero rebalancing costs — spreads, commissions, and capital-gains tax from rebalancing can reduce long-horizon returns.${goalDeadlines.length > 0 ? ' Goal deadlines and target amounts are shown as markers on the chart.' : ''}</div>
+        <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX. Assumes zero rebalancing costs; spreads, commissions, and capital-gains tax from rebalancing can reduce long-horizon returns.${goalDeadlines.length > 0 ? ' Goal deadlines and target amounts are shown as markers on the chart.' : ''}</div>
       </div>
     `;
 
@@ -1248,7 +1248,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
       }
       <div class="note" style="margin-top:.5rem;line-height:1.5">
         ${corpusNote ? `<div>${corpusNote}</div>` : ''}
-        <div style="color:var(--ink-4);margin-top:2px">Withdrawal amounts are pre-tax — actual spendable income will be lower depending on your tax situation. Projection uses a fixed annual return and does not model sequence-of-returns risk (an early-retirement market decline would deplete the portfolio faster than shown).${_inflationRate > 0 ? ` Chart shows real (inflation-adjusted) values at ${_inflationRate}% annual inflation.` : ' Return during retirement defaults to the value-weighted average of your configured account returns.'}</div>
+        <div style="color:var(--ink-4);margin-top:2px">Withdrawal amounts are pre-tax, so actual spendable income will be lower depending on your tax situation. Projection uses a fixed annual return and does not model sequence-of-returns risk (an early-retirement market decline would deplete the portfolio faster than shown).${_inflationRate > 0 ? ` Chart shows real (inflation-adjusted) values at ${_inflationRate}% annual inflation.` : ' Return during retirement defaults to the value-weighted average of your configured account returns.'}</div>
       </div>
     `;
 

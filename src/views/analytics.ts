@@ -365,7 +365,7 @@ export function renderAnalytics(
         sub: calmar !== null ? 'CAGR / |Max DD|' : 'needs more data',
       })}
       ${kpiTile({
-        label: `Sharpe${infoTip('(Annualized investment return minus risk-free rate) divided by annualized volatility. Measures return per unit of investment risk. A negative value means the portfolio return is below the risk-free rate — this is financially correct, not a data error.')}`,
+        label: `Sharpe${infoTip('(Annualized investment return minus risk-free rate) divided by annualized volatility. Measures return per unit of investment risk. A negative value means the portfolio return is below the risk-free rate; this is financially correct, not a data error.')}`,
         value: sharpe !== null ? sharpe.toFixed(2) : '-',
         valueClass: '',
         sub: sharpe !== null ? `rf = ${(riskFreeRate * 100).toFixed(2)}%` : 'needs more data',
@@ -1347,7 +1347,7 @@ function _renderIncomeAnalytics(
     ${
       metrics.dividendCagr !== null
         ? kpiTile({
-            label: `Income CAGR${infoTip('Compound annual growth rate of income from year to year. Shows how fast your income stream is growing. Partial first years (portfolio started mid-year) inflate this rate — treat it with caution until you have two full calendar years of dividend history.')}`,
+            label: `Income CAGR${infoTip('Compound annual growth rate of income from year to year. Shows how fast your income stream is growing. Partial first years (portfolio started mid-year) inflate this rate, so treat it with caution until you have two full calendar years of dividend history.')}`,
             value: fmtPctNeg(metrics.dividendCagr * 100),
             valueClass: metrics.dividendCagr >= 0 ? 'pos' : 'neg',
             sub: 'annual income growth rate',
