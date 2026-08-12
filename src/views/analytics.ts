@@ -58,13 +58,6 @@ let _lastTxs: Transaction[] = [];
 // Heatmap paging: page 0 = most recent 3 years
 let _heatmapPage = 0;
 
-// Temporary testing toggle: allow short-history advanced analytics rendering.
-// Revert to false after the temporary visual review is complete.
-const TEMP_UNLOCK_SHORT_HISTORY_ANALYTICS = true;
-const RISK_MIN_MONTHS = TEMP_UNLOCK_SHORT_HISTORY_ANALYTICS ? 1 : 24;
-const HEATMAP_MIN_MONTHS = TEMP_UNLOCK_SHORT_HISTORY_ANALYTICS ? 1 : 24;
-const ROLLING_CAGR_TARGET_WINDOW = 36;
-
 // Allocation toggle state: 'active' | 'all'
 const _allocMode: Record<string, 'active' | 'all'> = {
   class: 'active',
@@ -144,7 +137,7 @@ export function renderAnalytics(
   const perfData = buildInvestmentPerformanceData(snaps, txs, accounts);
   const investmentReturnCount = perfData.monthlyReturns.length;
   const sufficientInvestmentHistory =
-    investmentReturnCount >= RISK_MIN_MONTHS &&
+    investmentReturnCount >= 24 &&
     perfData.skippedGapPeriods === 0 &&
     perfData.skippedMissingValuePeriods === 0;
 
@@ -313,15 +306,15 @@ export function renderAnalytics(
   const riskMetricsNoteCardEl = document.getElementById('an-risk-metrics-note-card');
   const riskMetricsNoteEl = document.getElementById('an-risk-metrics-note');
 
-  const riskMetricsReady = TEMP_UNLOCK_SHORT_HISTORY_ANALYTICS || sufficientInvestmentHistory;
+  const riskMetricsReady = sufficientInvestmentHistory;
 
   if (riskMetricsNoteEl) {
     if (riskMetricsReady) {
       if (riskMetricsNoteCardEl) riskMetricsNoteCardEl.style.display = 'none';
     } else {
       const reasons = [];
-      if (investmentReturnCount < RISK_MIN_MONTHS)
-        reasons.push(`${investmentReturnCount}/${RISK_MIN_MONTHS} monthly investment periods`);
+      if (investmentReturnCount < 24)
+        reasons.push(`${investmentReturnCount}/24 monthly investment periods`);
       if (perfData.skippedMissingValuePeriods > 0)
         reasons.push(`${perfData.skippedMissingValuePeriods} period(s) missing investment values`);
       if (perfData.skippedGapPeriods > 0)
@@ -621,6 +614,7 @@ function _attachContribRangeToggle(points: MonthlyGrowthPoint[]): void {
 // ── Monthly return heatmap ─────────────────────────────────
 
 const HEATMAP_PAGE_SIZE = 3;
+const HEATMAP_MIN_MONTHS = 24;
 
 function _renderHeatmap(
   monthlyReturns: { date: string; startValue: number; return: number }[],
@@ -1217,9 +1211,7 @@ function _renderRollingCagrChart(
   if (!canvas || !card) return;
   _destroyChart('c-an-rolling-cagr');
 
-  const WINDOW = TEMP_UNLOCK_SHORT_HISTORY_ANALYTICS
-    ? Math.min(ROLLING_CAGR_TARGET_WINDOW, Math.max(2, monthlyReturns.length))
-    : ROLLING_CAGR_TARGET_WINDOW;
+  const WINDOW = 36;
   const points: Array<{ month: string; cagr: number }> = rollingAnnualizedReturnFromMonthlyReturns(
     monthlyReturns,
     WINDOW,
@@ -1228,7 +1220,7 @@ function _renderRollingCagrChart(
   if (noteEl) {
     if (monthlyReturns.length < WINDOW) {
       const cur = monthlyReturns.length;
-      noteEl.textContent = `${cur}/${WINDOW} monthly investment periods recorded. Rolling ${Math.round((WINDOW / 12) * 10) / 10}-year investment CAGR shown (temporary short-history unlock active).`;
+      noteEl.textContent = `${cur}/${WINDOW} monthly investment periods recorded. Rolling 3-year investment CAGR requires 36 periods of consecutive return history.`;
       noteEl.style.display = '';
     } else {
       noteEl.style.display = 'none';

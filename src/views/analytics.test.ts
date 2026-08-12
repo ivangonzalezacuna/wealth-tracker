@@ -182,7 +182,7 @@ describe('renderAnalytics', () => {
     );
   });
 
-  it('temporarily shows risk metric cards for short history while keeping income analytics visible', () => {
+  it('gates risk metrics until 24 months of history while keeping income analytics visible', () => {
     const snaps = [makeSnap('2025-01', 900, 9000), makeSnap('2026-03', 1000, 9000)];
     const txs: Transaction[] = [
       {
@@ -208,11 +208,16 @@ describe('renderAnalytics', () => {
       'Advanced analytics',
     );
     expect(document.querySelector('#an-advanced summary')?.textContent).not.toContain('/24 months');
+    expect(document.getElementById('an-risk-metrics-note')?.textContent).toContain(
+      'Insufficient data for investment risk metrics:',
+    );
+    expect(document.getElementById('an-risk-metrics-note')?.textContent).toContain(
+      'gap period(s) in snapshot history',
+    );
     expect(
       (document.getElementById('an-risk-metrics-note-card') as HTMLElement).style.display,
-    ).toBe('none');
-    expect(document.getElementById('an-kpis-risk')?.textContent).toContain('Volatility');
-    expect(document.getElementById('an-kpis-risk')?.textContent).toContain('Sharpe');
+    ).toBe('');
+    expect(document.getElementById('an-kpis-risk')?.textContent).toBe('');
     expect((document.getElementById('an-drawdown-card') as HTMLElement).style.display).toBe('none');
     expect((document.getElementById('an-income') as HTMLElement).style.display).toBe('');
   });
@@ -318,12 +323,14 @@ describe('renderAnalytics', () => {
     expect(irrTile?.querySelector('.kpi-sub')?.textContent).toContain('XIRR, annualized');
   });
 
-  it('temporarily renders heatmap before 24 months for visual review', () => {
+  it('keeps heatmap locked before 24 months and shows long-horizon guidance', () => {
     const snaps = monthlySnaps(2024, 1, 14);
     renderAnalytics(makePd(), snaps, []);
-    expect(document.getElementById('an-heatmap')?.querySelector('table')).not.toBeNull();
+    expect(document.getElementById('an-heatmap')?.textContent).toContain(
+      'Heatmap unlocks after 24 consecutive monthly investment-return periods',
+    );
     expect(document.getElementById('an-heatmap-footer')?.textContent).toContain(
-      'Interpret as long-horizon context',
+      'should not be used for short-term timing decisions',
     );
   });
 
