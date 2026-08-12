@@ -581,6 +581,9 @@ details[open] > summary .card-chevron {
 #port-table .hold-total {
   align-items: start;
 }
+#port-table .hold-row:not(.th):hover {
+  background: var(--surface-2);
+}
 /* Numeric cell top-padding to optically align with ticker text under start alignment */
 #port-table .hold-row > *:not(:first-child),
 #port-table .hold-total > *:not(:first-child),
@@ -693,6 +696,9 @@ details[open] > summary .card-chevron {
 }
 .snap-row-compact:last-child {
   border-bottom: none;
+}
+.snap-row-compact:not(.th):hover {
+  background: var(--surface-2);
 }
 .snap-row-compact.th {
   cursor: default;

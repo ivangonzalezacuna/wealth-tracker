@@ -265,7 +265,7 @@ function renderSnapList(
     ${pageItems
       .map(
         (s) =>
-          `<div class="snap-row-compact" role="row" tabindex="0" aria-expanded="${String(isCollapsed('snap:' + s.date))}" data-date="${s.date}">
+          `<div class="snap-row-compact" role="row" tabindex="0" aria-expanded="${String(!isCollapsed('snap:' + s.date))}" data-date="${s.date}">
         ${renderTableRow(columns, s)}
       </div>`,
       )
