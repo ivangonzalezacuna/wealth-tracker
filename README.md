@@ -184,6 +184,12 @@ Income analytics on the Analytics tab are anchored to your latest imported trans
 trailing-12-month income and income growth do not drift just because calendar time passed. Dividend
 yield is calculated against the current value of investment accounts, not total household net worth.
 
+Tax amounts in the app are **aggregated informational context** from imported transactions
+(withholding + refunds), meant to help you understand personal cashflow history across providers.
+They are **not** jurisdiction-aware tax reporting or tax filing guidance, and if your tax residence
+changes over time those figures may become incomplete or no longer map cleanly to your local tax
+rules.
+
 ### Currency and FX model
 
 The app currently uses a single **reporting currency** for calculations and display. Today that
