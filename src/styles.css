@@ -464,6 +464,9 @@ details[open] > summary .card-chevron {
   grid-column: 1 / -1;
   cursor: pointer;
 }
+.annual-row:not(.th):hover:not([aria-expanded='true']) {
+  background: var(--surface-2);
+}
 .annual-detail {
   background: var(--surface-2);
   border-radius: var(--radius-sm);
