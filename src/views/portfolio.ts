@@ -748,12 +748,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
   const hasSnapValues = valuation.hasAnySnapshotEtfValues;
   const totalValue = valuation.totalValue;
 
-  const drift = computeDrift(
-    holdings,
-    pd.etfs,
-    totalValue,
-    valuation.snapEtfValuesForDrift,
-  );
+  const drift = computeDrift(holdings, pd.etfs, totalValue, valuation.snapEtfValuesForDrift);
 
   if (drift.length === 0) {
     driftEl.innerHTML = '';
@@ -796,11 +791,12 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
     })
     .join('');
 
-  const noteSource = valuation.mode === 'market'
-    ? `Actual from market values (snapshot: ${fmtMon(latSnap!.date)}). Legacy = inactive positions still held.`
-    : hasSnapValues
-      ? `Actual from cost basis (partial ETF snapshot coverage). Legacy = inactive positions still held.`
-      : `Actual from cost basis (no ETF values in latest snapshot). Legacy = inactive positions still held.`;
+  const noteSource =
+    valuation.mode === 'market'
+      ? `Actual from market values (snapshot: ${fmtMon(latSnap!.date)}). Legacy = inactive positions still held.`
+      : hasSnapValues
+        ? `Actual from cost basis (partial ETF snapshot coverage). Legacy = inactive positions still held.`
+        : `Actual from cost basis (no ETF values in latest snapshot). Legacy = inactive positions still held.`;
   const hasCostMode = drift.some((d) => d.valuationMode === 'cost');
   const costModeBanner = hasCostMode
     ? `<div class="status-bar status-warn" style="margin-bottom:.6rem">Allocation is based on purchase cost, not current market value. Enter ETF values in your next snapshot for market-based drift.</div>`
