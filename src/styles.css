@@ -705,11 +705,10 @@ details[open] > summary .card-chevron {
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 10px;
-  padding: 10px 8px;
+  padding: 10px 0;
   border-bottom: 1px solid var(--surface-3);
   cursor: pointer;
   min-height: 40px;
-  border-radius: var(--radius-sm);
 }
 .snap-row-compact:last-child {
   border-bottom: none;
@@ -1737,11 +1736,6 @@ summary.section-label {
   .btn {
     padding: 10px 14px;
     font-size: 13px;
-  }
-  #tx-ledger-card .btn-sm {
-    font-size: 11px;
-    padding: 8px 12px;
-    min-height: 40px;
   }
   .drop-zone {
     padding: 1.25rem 0.75rem;
