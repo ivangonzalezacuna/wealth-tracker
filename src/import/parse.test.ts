@@ -247,6 +247,20 @@ describe('detectProfile', () => {
   });
 });
 
+describe('parseWithProfile column matching', () => {
+  it('resolves TR columns case-insensitively', () => {
+    const csv = [
+      'TRANSACTION_ID;DATE;TYPE;CATEGORY;NAME;SYMBOL;SHARES;PRICE;AMOUNT;FEE;TAX;CURRENCY;FX_RATE',
+      'tx-up-1;2024-01-15;BUY;TRADING;Test ETF;IE00TEST;1;100;-100;0;0;EUR;',
+    ].join('\n');
+    const { transactions } = parseWithProfile(csv, tradeRepublicProfile);
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0].id).toBe('tx-up-1');
+    expect(transactions[0].type).toBe(TxType.BUY);
+    expect(transactions[0].amount).toBeCloseTo(-100);
+  });
+});
+
 // ── Unmapped types ─────────────────────────────────────────
 
 describe('unmapped types handling', () => {
@@ -620,6 +634,18 @@ describe('parseWithProfile – N26 deterministic IDs', () => {
     const r1 = parseWithProfile(N26_CSV, n26Profile);
     const r2 = parseWithProfile(N26_CSV, n26Profile);
     expect(r1.transactions.map((t) => t.id)).toEqual(r2.transactions.map((t) => t.id));
+  });
+
+  it('idColumns are resolved case-insensitively', () => {
+    const csv = [
+      'booking date,value date,partner name,partner iban,type,payment reference,account name,amount (eur),original amount,original currency,exchange rate',
+      '2024-01-01,2024-01-01,,,Interest,,Instant Savings,0.75,,,',
+      '2024-01-01,2024-01-01,,,Tax,,Instant Savings,-0.20,,,',
+    ].join('\n');
+    const { transactions } = parseWithProfile(csv, n26Profile);
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0].id).toContain('n26|2024-01-01|Interest|0.75#1');
+    expect(transactions[0].type).toBe(TxType.INTEREST);
   });
 
   it('skipUnmapped excludes non-mapped types', () => {

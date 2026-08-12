@@ -216,14 +216,27 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
 
   // Parse header
   const hdrs = csvLine(lines[0], sep).map((h) => h.trim());
+  const headerIndexExact = new Map<string, number>();
+  const headerIndexLower = new Map<string, number>();
+  for (let i = 0; i < hdrs.length; i++) {
+    const header = hdrs[i];
+    if (!headerIndexExact.has(header)) headerIndexExact.set(header, i);
+    const lower = header.toLowerCase();
+    if (!headerIndexLower.has(lower)) headerIndexLower.set(lower, i);
+  }
+  const findHeaderIndex = (source: string): number => {
+    const exact = headerIndexExact.get(source);
+    if (exact !== undefined) return exact;
+    return headerIndexLower.get(source.toLowerCase()) ?? -1;
+  };
 
   // Build column index lookup: canonical field → column index
   const colIdx: Record<string, number> = {};
   for (const [canonical, source] of Object.entries(profile.columns)) {
     if (typeof source === 'number') {
       colIdx[canonical] = source;
-    } else {
-      const idx = hdrs.findIndex((h) => h === source);
+    } else if (typeof source === 'string') {
+      const idx = findHeaderIndex(source);
       if (idx >= 0) colIdx[canonical] = idx;
     }
   }
@@ -302,7 +315,7 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
     if (!id && profile.idColumns) {
       const baseKey = profile.idColumns
         .map((col) => {
-          const idx = hdrs.indexOf(col);
+          const idx = findHeaderIndex(col);
           return (idx >= 0 ? (vals[idx] || '').trim() : '').replace(/\|/g, '%7C');
         })
         .join('|');
