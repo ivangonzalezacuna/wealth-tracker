@@ -205,13 +205,13 @@ export function renderAnalytics(
     ${
       ytdVal !== null
         ? kpiTile({
-            label: `YTD Return${infoTip('Return from the start of this calendar year to today. Falls back to return from inception when the portfolio started in the current year.')}`,
+            label: `YTD Return (balance)${infoTip('Measures year-to-date balance growth, not investment performance. Includes deposits, withdrawals, and contributions. For a cash-flow adjusted return, see TWR or IRR.')}`,
             value: fmtPctNeg(ytdVal * 100),
             valueClass: ytdVal >= 0 ? 'pos' : 'neg',
             sub: `since Jan ${new Date().getFullYear()}`,
           })
         : kpiTile({
-            label: `YTD Return${infoTip('Return from the start of this calendar year to today.')}`,
+            label: `YTD Return (balance)${infoTip('Measures year-to-date balance growth, not investment performance. Includes deposits, withdrawals, and contributions.')}`,
             value: '-',
             sub: 'needs prior-year snapshot',
           })
@@ -365,7 +365,7 @@ export function renderAnalytics(
         sub: calmar !== null ? 'CAGR / |Max DD|' : 'needs more data',
       })}
       ${kpiTile({
-        label: `Sharpe${infoTip('(Annualized investment return minus risk-free rate) divided by annualized volatility. Measures return per unit of investment risk.')}`,
+        label: `Sharpe${infoTip('(Annualized investment return minus risk-free rate) divided by annualized volatility. Measures return per unit of investment risk. A negative value means the portfolio return is below the risk-free rate; this is financially correct, not a data error.')}`,
         value: sharpe !== null ? sharpe.toFixed(2) : '-',
         valueClass: '',
         sub: sharpe !== null ? `rf = ${(riskFreeRate * 100).toFixed(2)}%` : 'needs more data',
@@ -1347,7 +1347,7 @@ function _renderIncomeAnalytics(
     ${
       metrics.dividendCagr !== null
         ? kpiTile({
-            label: `Income CAGR${infoTip('Compound annual growth rate of income from year to year. Shows how fast your income stream is growing.')}`,
+            label: `Income CAGR${infoTip('Compound annual growth rate of income from year to year. Shows how fast your income stream is growing. Partial first years (portfolio started mid-year) inflate this rate, so treat it with caution until you have two full calendar years of dividend history.')}`,
             value: fmtPctNeg(metrics.dividendCagr * 100),
             valueClass: metrics.dividendCagr >= 0 ? 'pos' : 'neg',
             sub: 'annual income growth rate',

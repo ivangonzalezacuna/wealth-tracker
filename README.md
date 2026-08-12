@@ -124,9 +124,9 @@ Go to **Settings** and add your investment accounts (e.g. "Trade Republic", "Int
 
 Accounts can optionally be marked as **locked** (e.g. pension or AVD accounts) with an expected accessibility year. Locked accounts are included in total net worth but shown separately as "Liquid" (accessible now) and "Locked" (retirement) net worth KPIs. Locked accounts are excluded from goal progress calculations and from the accumulation forecast — they only become available in the retirement projection from their unlock year onward.
 
-You can also configure extra contributions (employer match, state subsidies) that factor into DCA forecast projections. The **global monthly contribution budget** is routed to your primary investment account. To split contributions across multiple accounts, configure per-account contribution amounts in the account settings for each additional account.
+You can also configure extra contributions (employer match, state subsidies) that factor into DCA forecast projections. The **global monthly contribution budget** is routed to your primary investment account. To split contributions across multiple accounts, configure per-account contribution amounts in the account settings for each additional account. The **contribution interval** (weekly / bi-weekly / monthly / quarterly) controls how often you invest and normalises the budget into a per-execution amount.
 
-Each holding can be given a **target allocation percentage** (set in the holding dialog). Once at least one target is configured, the Portfolio tab's drift table compares your actual allocation against those targets and the rebalance plan suggests top-up amounts based on your **calibration interval** (weekly / monthly / quarterly).
+Each holding can be given a **target allocation percentage** (set in the holding dialog). Once at least one target is configured, the Portfolio tab's drift table compares your actual allocation against those targets and the rebalance plan suggests top-up amounts based on your **calibration interval** (weekly / monthly / quarterly), which controls how often the rebalance plan recalculates the per-execution top-up amount.
 
 ### 3. Log your first monthly snapshot
 
