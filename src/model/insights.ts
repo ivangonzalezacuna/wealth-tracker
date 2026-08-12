@@ -56,6 +56,11 @@ export function twr(
   return periods > 0 ? growth - 1 : null;
 }
 
+export function twrFromMonthlyReturns(monthlyReturns: MonthlyReturnPoint[]): number | null {
+  if (monthlyReturns.length === 0) return null;
+  return monthlyReturns.reduce((growth, point) => growth * (1 + point.return), 1) - 1;
+}
+
 /**
  * Find the snapshot nearest to 12 months before the latest snapshot.
  * Returns null when fewer than 13 snapshots' months of history exist.
@@ -169,6 +174,15 @@ function monthKey(date: string): string | null {
   return parseYearMonth(month) ? month : null;
 }
 
+export function monthEndDate(date: string): string | null {
+  const month = monthKey(date);
+  if (!month) return null;
+  const parsed = parseYearMonth(month);
+  if (!parsed) return null;
+  const d = new Date(Date.UTC(parsed.year, parsed.month, 0));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
 export function normalizeExternalCashFlows(
   txs: Transaction[],
 ): { monthlyExternalFlows: Record<string, number>; externalCashFlows: NormalizedExternalCashFlow[] } {
@@ -177,7 +191,7 @@ export function normalizeExternalCashFlows(
 
   for (const tx of txs) {
     if (tx.type !== TxType.DEPOSIT && tx.type !== TxType.WITHDRAWAL) continue;
-    const date = tx.date && tx.date.length === 7 ? `${tx.date}-01` : tx.date;
+    const date = monthEndDate(tx.date);
     const month = monthKey(tx.date);
     if (!date || !month) continue;
     const baseAmount = Math.abs(toBase(tx.amount || 0, tx.currency, tx.fxRate));
@@ -280,16 +294,16 @@ export function annualizedVolatility(snaps: Snapshot[]): VolatilityResult {
       return: snapTotal(snaps[i]) / prev - 1,
     });
   }
+  if (monthlyReturns.length < 2) return { annualized: null, monthlyReturns };
+  const returns = monthlyReturns.map((m) => m.return);
+  const mean = returns.reduce((s, r) => s + r, 0) / returns.length;
+  const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / (returns.length - 1);
+  return { annualized: Math.sqrt(variance) * Math.sqrt(12), monthlyReturns };
+}
 
-  export function annualizedVolatilityFromMonthlyReturns(
-    monthlyReturns: MonthlyReturnPoint[],
-  ): VolatilityResult {
-    if (monthlyReturns.length < 2) return { annualized: null, monthlyReturns };
-    const returns = monthlyReturns.map((m) => m.return);
-    const mean = returns.reduce((s, r) => s + r, 0) / returns.length;
-    const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / (returns.length - 1);
-    return { annualized: Math.sqrt(variance) * Math.sqrt(12), monthlyReturns };
-  }
+export function annualizedVolatilityFromMonthlyReturns(
+  monthlyReturns: MonthlyReturnPoint[],
+): VolatilityResult {
   if (monthlyReturns.length < 2) return { annualized: null, monthlyReturns };
   const returns = monthlyReturns.map((m) => m.return);
   const mean = returns.reduce((s, r) => s + r, 0) / returns.length;
@@ -326,67 +340,67 @@ export function maxDrawdown(snaps: Snapshot[]): DrawdownResult {
     series.push({ date: snaps[i].date, drawdown: dd });
     if (dd < maxDD) maxDD = dd;
   }
+  return { max: maxDD, series };
+}
 
-  export function drawdownFromMonthlyReturns(monthlyReturns: MonthlyReturnPoint[]): DrawdownResult {
-    if (monthlyReturns.length === 0) return { max: null, series: [] };
-    let wealth = 1;
-    let peak = 1;
-    let maxDD = 0;
-    const series: DrawdownPoint[] = [];
-    for (const point of monthlyReturns) {
-      wealth *= 1 + point.return;
-      if (wealth > peak) peak = wealth;
-      const drawdown = peak > 0 ? wealth / peak - 1 : 0;
-      series.push({ date: point.date, drawdown });
-      if (drawdown < maxDD) maxDD = drawdown;
-    }
-    return { max: maxDD, series };
-  }
-
-  export function annualizedReturnFromMonthlyReturns(
-    monthlyReturns: MonthlyReturnPoint[],
-  ): number | null {
-    if (monthlyReturns.length === 0) return null;
-    const growth = monthlyReturns.reduce((acc, point) => acc * (1 + point.return), 1);
-    if (!isFinite(growth) || growth < 0) return null;
-    return Math.pow(growth, 12 / monthlyReturns.length) - 1;
-  }
-
-  export function annualReturnsFromMonthlyReturns(
-    monthlyReturns: MonthlyReturnPoint[],
-  ): { year: number; return: number }[] {
-    if (monthlyReturns.length === 0) return [];
-    const byYear = new Map<number, MonthlyReturnPoint[]>();
-    for (const point of monthlyReturns) {
-      const parsed = parseYearMonth(point.date);
-      if (!parsed) continue;
-      if (!byYear.has(parsed.year)) byYear.set(parsed.year, []);
-      byYear.get(parsed.year)!.push(point);
-    }
-    return Array.from(byYear.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([year, points]) => ({
-        year,
-        return: points.reduce((acc, point) => acc * (1 + point.return), 1) - 1,
-      }));
-  }
-
-  export function rollingAnnualizedReturnFromMonthlyReturns(
-    monthlyReturns: MonthlyReturnPoint[],
-    windowMonths: number,
-  ): { month: string; cagr: number }[] {
-    if (monthlyReturns.length < windowMonths) return [];
-    const result: { month: string; cagr: number }[] = [];
-    for (let i = windowMonths - 1; i < monthlyReturns.length; i++) {
-      const window = monthlyReturns.slice(i - windowMonths + 1, i + 1);
-      const annualized = annualizedReturnFromMonthlyReturns(window);
-      if (annualized !== null) {
-        result.push({ month: monthlyReturns[i].date, cagr: annualized });
-      }
-    }
-    return result;
+export function drawdownFromMonthlyReturns(monthlyReturns: MonthlyReturnPoint[]): DrawdownResult {
+  if (monthlyReturns.length === 0) return { max: null, series: [] };
+  let wealth = 1;
+  let peak = 1;
+  let maxDD = 0;
+  const series: DrawdownPoint[] = [];
+  for (const point of monthlyReturns) {
+    wealth *= 1 + point.return;
+    if (wealth > peak) peak = wealth;
+    const drawdown = peak > 0 ? wealth / peak - 1 : 0;
+    series.push({ date: point.date, drawdown });
+    if (drawdown < maxDD) maxDD = drawdown;
   }
   return { max: maxDD, series };
+}
+
+export function annualizedReturnFromMonthlyReturns(
+  monthlyReturns: MonthlyReturnPoint[],
+): number | null {
+  if (monthlyReturns.length === 0) return null;
+  const growth = monthlyReturns.reduce((acc, point) => acc * (1 + point.return), 1);
+  if (!isFinite(growth) || growth < 0) return null;
+  return Math.pow(growth, 12 / monthlyReturns.length) - 1;
+}
+
+export function annualReturnsFromMonthlyReturns(
+  monthlyReturns: MonthlyReturnPoint[],
+): { year: number; return: number }[] {
+  if (monthlyReturns.length === 0) return [];
+  const byYear = new Map<number, MonthlyReturnPoint[]>();
+  for (const point of monthlyReturns) {
+    const parsed = parseYearMonth(point.date);
+    if (!parsed) continue;
+    if (!byYear.has(parsed.year)) byYear.set(parsed.year, []);
+    byYear.get(parsed.year)!.push(point);
+  }
+  return Array.from(byYear.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([year, points]) => ({
+      year,
+      return: points.reduce((acc, point) => acc * (1 + point.return), 1) - 1,
+    }));
+}
+
+export function rollingAnnualizedReturnFromMonthlyReturns(
+  monthlyReturns: MonthlyReturnPoint[],
+  windowMonths: number,
+): { month: string; cagr: number }[] {
+  if (monthlyReturns.length < windowMonths) return [];
+  const result: { month: string; cagr: number }[] = [];
+  for (let i = windowMonths - 1; i < monthlyReturns.length; i++) {
+    const window = monthlyReturns.slice(i - windowMonths + 1, i + 1);
+    const annualized = annualizedReturnFromMonthlyReturns(window);
+    if (annualized !== null) {
+      result.push({ month: monthlyReturns[i].date, cagr: annualized });
+    }
+  }
+  return result;
 }
 
 // ── New analytics metric functions ───────────────────────────────

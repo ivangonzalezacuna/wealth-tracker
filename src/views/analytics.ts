@@ -15,7 +15,7 @@ import {
 import {
   cagr,
   findYoYSnapshot,
-  twr,
+  twrFromMonthlyReturns,
   xirr,
   annualizedVolatilityFromMonthlyReturns,
   drawdownFromMonthlyReturns,
@@ -35,6 +35,7 @@ import {
   type MonthlyGrowthPoint,
   buildInvestmentPerformanceData,
   annualizedReturnFromMonthlyReturns,
+  monthEndDate,
 } from '../model/insights';
 import { getAccounts, getHoldings, getSettings } from '../store/config';
 import { allInvestmentAccountsValue } from '../model/accounts';
@@ -156,16 +157,8 @@ export function renderAnalytics(
     yoyData && yoyData.total > 0 ? ((total - yoyData.total) / yoyData.total) * 100 : null;
 
   // Level 2 performance KPIs (TWR + IRR)
-  const twrVal = twr(
-    snaps.map((snap) => ({
-      date: snap.date,
-      investment:
-        (perfData.monthlyReturns.find((point) => point.date === snap.date)?.endValue ??
-          allInvestmentAccountsValue(snap, accounts)) || 0,
-    })),
-    perfData.monthlyExternalFlows,
-  );
-  const terminalDate = s.date && s.date.length === 7 ? `${s.date}-01` : s.date;
+  const twrVal = twrFromMonthlyReturns(perfData.monthlyReturns);
+  const terminalDate = monthEndDate(s.date) || s.date;
   const investmentFlows = perfData.externalCashFlows.map((cf) => ({ date: cf.date, amount: cf.amount }));
   if (latestInvestmentValue !== null) {
     investmentFlows.push({ date: terminalDate, amount: latestInvestmentValue });
@@ -629,7 +622,8 @@ function _renderHeatmap(monthlyReturns: { date: string; startValue: number; retu
   const annualData = annualReturnsFromMonthlyReturns(monthlyReturns);
 
   if (weighted.length === 0) {
-    heatmapEl.innerHTML = '<p class="note">Add more snapshots to see the return heatmap.</p>';
+    heatmapEl.innerHTML =
+      '<p class="note">Add more consecutive monthly investment snapshots to see the return heatmap.</p>';
     if (footerEl)
       footerEl.textContent =
         'Heatmap colors are descriptive only and should not be used for short-term timing decisions.';
@@ -639,7 +633,7 @@ function _renderHeatmap(monthlyReturns: { date: string; startValue: number; retu
   const monthsCount = weighted.length;
   if (monthsCount < HEATMAP_MIN_MONTHS) {
     heatmapEl.innerHTML =
-      '<p class="note">Heatmap unlocks after 24 months of data. Until then, focus on contribution consistency and annual return trends.</p>';
+      '<p class="note">Heatmap unlocks after 24 consecutive monthly investment-return periods. Until then, focus on balance growth and contribution consistency.</p>';
     if (noteEl) noteEl.style.display = 'none';
     if (footerEl)
       footerEl.textContent =
@@ -648,12 +642,12 @@ function _renderHeatmap(monthlyReturns: { date: string; startValue: number; retu
   }
 
   if (noteEl) {
-    noteEl.textContent = 'Use this as long-horizon context, not as a monthly trading signal.';
+    noteEl.textContent = 'Use this as long-horizon investment context, not as a monthly trading signal.';
     noteEl.style.display = '';
   }
   if (footerEl)
     footerEl.textContent =
-      'Color intensity is weighted by portfolio value. Interpret as context over long periods, not a signal to chase recent winners.';
+      'Color intensity is weighted by investment value. Interpret as long-horizon context, not a signal to chase recent winners.';
 
   // Find extremes for color scale (use weightedReturn for color intensity)
   const maxAbs = Math.max(...weighted.map((m) => Math.abs(m.weightedReturn)), 0.001);
@@ -1207,12 +1201,15 @@ function _renderRollingCagrChart(
   _destroyChart('c-an-rolling-cagr');
 
   const WINDOW = 36;
-  const points = rollingAnnualizedReturnFromMonthlyReturns(monthlyReturns, WINDOW);
+  const points: Array<{ month: string; cagr: number }> = rollingAnnualizedReturnFromMonthlyReturns(
+    monthlyReturns,
+    WINDOW,
+  );
 
   if (noteEl) {
     if (monthlyReturns.length < WINDOW) {
       const cur = monthlyReturns.length;
-      noteEl.textContent = `${cur}/${WINDOW} months recorded. Rolling 3-year CAGR requires 36 months of history.`;
+      noteEl.textContent = `${cur}/${WINDOW} monthly investment periods recorded. Rolling 3-year investment CAGR requires 36 periods of consecutive return history.`;
       noteEl.style.display = '';
     } else {
       noteEl.style.display = 'none';

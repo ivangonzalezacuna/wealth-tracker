@@ -209,7 +209,10 @@ describe('renderAnalytics', () => {
     );
     expect(document.querySelector('#an-advanced summary')?.textContent).not.toContain('/24 months');
     expect(document.getElementById('an-risk-metrics-note')?.textContent).toContain(
-      '/24 months recorded. Risk metrics require 24 months of history.',
+      'Insufficient data for investment risk metrics:',
+    );
+    expect(document.getElementById('an-risk-metrics-note')?.textContent).toContain(
+      'gap period(s) in snapshot history',
     );
     expect(
       (document.getElementById('an-risk-metrics-note-card') as HTMLElement).style.display,
@@ -234,9 +237,8 @@ describe('renderAnalytics', () => {
     expect(table?.getAttribute('aria-label')).toBe('Portfolio growth over time data');
   });
 
-  it('renders annual returns table when at least one full year of data is present', () => {
-    // Two snapshots spanning early 2024 to early 2025 gives one annual data point
-    const snaps = [makeSnap('2024-01', 800, 0), makeSnap('2024-12', 900, 0)];
+  it('renders annual returns table when at least one full year of monthly return data is present', () => {
+    const snaps = monthlySnaps(2024, 1, 13);
     renderAnalytics(makePd(), snaps, []);
     const card = document.getElementById('an-annual-table-card');
     const table = document.getElementById('an-annual-table');
@@ -245,11 +247,87 @@ describe('renderAnalytics', () => {
     expect(table?.querySelector('tbody tr')).not.toBeNull();
   });
 
+  it('uses external deposit and withdrawal flows for TWR', () => {
+    const snaps = [
+      makeSnap('2024-01', 1000, 0),
+      makeSnap('2024-02', 1200, 0),
+      makeSnap('2024-03', 1270, 0),
+    ];
+    const txs: Transaction[] = [
+      {
+        id: 'dep-1',
+        date: '2024-02-05',
+        source: 'broker',
+        type: 'DEPOSIT',
+        name: 'Funding',
+        isin: '',
+        shares: 0,
+        price: 0,
+        amount: -100,
+        fee: 0,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 1,
+      },
+      {
+        id: 'wd-1',
+        date: '2024-03-10',
+        source: 'broker',
+        type: 'WITHDRAWAL',
+        name: 'Withdrawal',
+        isin: '',
+        shares: 0,
+        price: 0,
+        amount: -50,
+        fee: 0,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 1,
+      },
+    ];
+
+    renderAnalytics(makePd(), snaps, txs);
+
+    const perfTiles = Array.from(document.querySelectorAll('#an-kpis-l2 .kpi'));
+    const twrTile = perfTiles.find((el) => el.textContent?.includes('TWR (investments)'));
+
+    expect(twrTile?.querySelector('.kpi-val')?.textContent).toBe('21%');
+  });
+
+  it('uses normalized external cash flows for IRR', () => {
+    const snaps = [makeSnap('2024-01', 1000, 0), makeSnap('2024-02', 1100, 0)];
+    const txs: Transaction[] = [
+      {
+        id: 'dep-1',
+        date: '2024-01-05',
+        source: 'broker',
+        type: 'DEPOSIT',
+        name: 'Funding',
+        isin: '',
+        shares: 0,
+        price: 0,
+        amount: -1000,
+        fee: 0,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 1,
+      },
+    ];
+
+    renderAnalytics(makePd(), snaps, txs);
+
+    const perfTiles = Array.from(document.querySelectorAll('#an-kpis-l2 .kpi'));
+    const irrTile = perfTiles.find((el) => el.textContent?.includes('IRR (investments)'));
+
+    expect(irrTile?.querySelector('.kpi-val')?.textContent).not.toBe('-');
+    expect(irrTile?.querySelector('.kpi-sub')?.textContent).toContain('XIRR, annualized');
+  });
+
   it('keeps heatmap locked before 24 months and shows long-horizon guidance', () => {
     const snaps = monthlySnaps(2024, 1, 14);
     renderAnalytics(makePd(), snaps, []);
     expect(document.getElementById('an-heatmap')?.textContent).toContain(
-      'Heatmap unlocks after 24 months of data',
+      'Heatmap unlocks after 24 consecutive monthly investment-return periods',
     );
     expect(document.getElementById('an-heatmap-footer')?.textContent).toContain(
       'should not be used for short-term timing decisions',
