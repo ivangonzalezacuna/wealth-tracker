@@ -67,7 +67,7 @@ vi.mock('../constants', () => ({
   getMETAMap: () => ({ IWDA: { color: '#222222', acc: true, active: true } }),
 }));
 
-import { renderPortfolio } from './portfolio';
+import { getMaxDrift, renderPortfolio } from './portfolio';
 import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 
 function makeEtf(overrides: Partial<EtfPosition> = {}): EtfPosition {
@@ -295,6 +295,53 @@ describe('renderPortfolio', () => {
     expect(summary).not.toContain('Unallocated cash');
   });
 
+  it('uses cost-basis fee-drag valuation when ETF snapshot coverage is partial', () => {
+    MOCK_HOLDINGS.splice(
+      0,
+      MOCK_HOLDINGS.length,
+      {
+        isin: 'IE00TEST1',
+        shortName: 'IWDA',
+        name: 'World',
+        color: '#222222',
+        acc: true,
+        active: true,
+        targetPct: 70,
+        assetClass: 'equity',
+        region: 'developed',
+        foldInto: '',
+        order: 1,
+        ter: 1,
+      } as any,
+      {
+        isin: 'IE00TEST2',
+        shortName: 'EM',
+        name: 'Emerging',
+        color: '#333333',
+        acc: true,
+        active: true,
+        targetPct: 30,
+        assetClass: 'equity',
+        region: 'emerging',
+        foldInto: '',
+        order: 2,
+        ter: 1,
+      } as any,
+    );
+    const pd = makePD({
+      etfs: {
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 8000 }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 2000 }),
+      },
+      totalInv: 10000,
+    });
+    const snap: Snapshot = { date: '2026-06-01', acct1: 20000, etf_IE00TEST1: 15000 };
+    renderPortfolio(pd, [snap]);
+    const kpis = document.getElementById('port-kpis')!.textContent || '';
+    expect(kpis).toContain('Annual fee drag');
+    expect(kpis).toContain('100,00');
+  });
+
   it('shows section headers and Total return after income and costs', () => {
     const snap: Snapshot = { date: '2026-06-01', acct1: 1200 };
     renderPortfolio(makePD(), [snap]);
@@ -488,7 +535,7 @@ describe('renderPortfolio', () => {
     expect(drift.innerHTML).toContain('market values');
   });
 
-  it('falls back to cost-basis allocation note when snapshot ETF values are partial', () => {
+  it('uses cost-basis allocation note when snapshot ETF values are partial', () => {
     MOCK_HOLDINGS.splice(
       0,
       MOCK_HOLDINGS.length,
@@ -530,7 +577,28 @@ describe('renderPortfolio', () => {
     renderPortfolio(pd, [snap]);
     const note = document.getElementById('port-drift')!.textContent || '';
     expect(note).toContain('Allocation is based on purchase cost');
-    expect(note).toContain('Actual from market values');
+    expect(note).toContain('Actual from cost basis (partial ETF snapshot coverage)');
+  });
+
+  it('keeps nav drift badge and drift card max aligned for partial ETF snapshots', () => {
+    setRebalanceHoldings();
+    const pd = makeRebalancePd({
+      etfs: {
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 7000 }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 3000 }),
+      },
+      totalInv: 10000,
+    });
+    const snap: Snapshot = { date: '2026-06-01', acct1: 20000, etf_IE00TEST1: 9000 };
+    renderPortfolio(pd, [snap]);
+    const max = getMaxDrift(pd, [snap]);
+    expect(max).not.toBeNull();
+
+    const driftText = document.getElementById('port-drift')!.textContent || '';
+    const displayedMatch = driftText.match(/max\s+([0-9]+(?:,[0-9])?)%/);
+    expect(displayedMatch).not.toBeNull();
+    const displayed = parseFloat((displayedMatch![1] || '').replace(',', '.'));
+    expect(displayed).toBeCloseTo(max!, 1);
   });
 
   it('does not render the allocation-weights note in the drift card', () => {

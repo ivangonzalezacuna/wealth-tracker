@@ -55,6 +55,46 @@ function extractSnapEtfValues(snap: Snapshot | null): Record<string, number> {
   return out;
 }
 
+type DriftValuationMode = 'cost' | 'market';
+
+interface DriftValuationPolicy {
+  mode: DriftValuationMode;
+  latestSnapshot: Snapshot | null;
+  snapEtfValues: Record<string, number>;
+  snapEtfValuesForDrift: Record<string, number> | undefined;
+  totalValue: number;
+  hasHeldPositions: boolean;
+  hasAnySnapshotEtfValues: boolean;
+  hasPartialSnapshotCoverage: boolean;
+}
+
+function getDriftValuationPolicy(pd: PortfolioData, snaps: Snapshot[]): DriftValuationPolicy {
+  const latestSnapshot = snaps.length > 0 ? snaps[snaps.length - 1] : null;
+  const snapEtfValues = extractSnapEtfValues(latestSnapshot);
+  const hasAnySnapshotEtfValues = Object.keys(snapEtfValues).length > 0;
+  const allEtfs = Object.values(pd.etfs);
+  const { held } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
+  const hasHeldPositions = held.length > 0;
+  const heldWithSnapshotValueCount = held.filter((e) => snapEtfValues[e.isin] !== undefined).length;
+  const hasFullCoverage = hasHeldPositions && heldWithSnapshotValueCount === held.length;
+  const hasPartialSnapshotCoverage = hasAnySnapshotEtfValues && !hasFullCoverage;
+  const mode: DriftValuationMode = hasFullCoverage ? 'market' : 'cost';
+  const primaryInvTotal = primaryInvestmentValue(latestSnapshot, getAccounts());
+  const totalValue =
+    !hasHeldPositions || mode === 'market' ? (primaryInvTotal ?? pd.totalInv) : pd.totalInv;
+
+  return {
+    mode,
+    latestSnapshot,
+    snapEtfValues,
+    snapEtfValuesForDrift: mode === 'market' ? snapEtfValues : undefined,
+    totalValue,
+    hasHeldPositions,
+    hasAnySnapshotEtfValues,
+    hasPartialSnapshotCoverage,
+  };
+}
+
 /** Render per-source sub-rows for a breakdown map (only when 2+ sources). */
 function renderSourceBreakdown(bySource: Record<string, number>, signed = false): string {
   const keys = Object.keys(bySource);
@@ -444,6 +484,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
   const snapEtfValues = extractSnapEtfValues(latSnap);
   const snapHasEtfValues = Object.keys(snapEtfValues).length > 0;
+  const driftValuation = getDriftValuationPolicy(pd, snaps);
   const allEtfs = ISIN_ORDER.map((s) => pd.etfs[s])
     .filter((e): e is EtfPosition => !!e)
     .concat(Object.values(pd.etfs).filter((e) => !ISIN_ORDER.includes(e.isin)));
@@ -488,7 +529,11 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
       ? `Position market value from latest snapshot ETF breakdown (${latSnap ? fmtMon(latSnap.date) : 'none yet'}).`
       : `Market value from latest account snapshot (${latSnap ? fmtMon(latSnap.date) : 'none yet'}).`;
 
-  const feeDrag = computeFeeDrag(Object.values(pd.etfs), getHoldings(), snapEtfValues);
+  const feeDragValues =
+    driftValuation.mode === 'market'
+      ? snapEtfValues
+      : Object.fromEntries(Object.values(pd.etfs).map((e) => [e.isin, e.cost]));
+  const feeDrag = computeFeeDrag(Object.values(pd.etfs), getHoldings(), feeDragValues);
 
   document.getElementById('port-kpis')!.innerHTML = `
     ${kpiTile({ label: 'Total invested', value: fmtEur(pd.totalInv), sub: 'net of sells' })}
@@ -698,25 +743,16 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
   const holdings = getHoldings();
 
   // Extract per-ETF market values from the latest snapshot when available.
-  const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
-  const snapEtfValues = extractSnapEtfValues(latSnap);
-  const hasSnapValues = Object.keys(snapEtfValues).length > 0;
-  const allEtfs = Object.values(pd.etfs);
-  const { held } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
-  const primaryInvTotal = primaryInvestmentValue(latSnap, getAccounts());
-  const hasHeldPositions = held.length > 0;
-
-  // Use the snapshot primary-investment account total as totalValue when market
-  // values are available. Also use it when there are no held positions (all cash)
-  // so rebalance guidance still works for re-entry portfolios.
-  const totalValue =
-    hasSnapValues || !hasHeldPositions ? (primaryInvTotal ?? pd.totalInv) : pd.totalInv;
+  const valuation = getDriftValuationPolicy(pd, snaps);
+  const latSnap = valuation.latestSnapshot;
+  const hasSnapValues = valuation.hasAnySnapshotEtfValues;
+  const totalValue = valuation.totalValue;
 
   const drift = computeDrift(
     holdings,
     pd.etfs,
     totalValue,
-    hasSnapValues ? snapEtfValues : undefined,
+    valuation.snapEtfValuesForDrift,
   );
 
   if (drift.length === 0) {
@@ -760,9 +796,11 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
     })
     .join('');
 
-  const noteSource = hasSnapValues
+  const noteSource = valuation.mode === 'market'
     ? `Actual from market values (snapshot: ${fmtMon(latSnap!.date)}). Legacy = inactive positions still held.`
-    : `Actual from cost basis (no ETF values in latest snapshot). Legacy = inactive positions still held.`;
+    : hasSnapValues
+      ? `Actual from cost basis (partial ETF snapshot coverage). Legacy = inactive positions still held.`
+      : `Actual from cost basis (no ETF values in latest snapshot). Legacy = inactive positions still held.`;
   const hasCostMode = drift.some((d) => d.valuationMode === 'cost');
   const costModeBanner = hasCostMode
     ? `<div class="status-bar status-warn" style="margin-bottom:.6rem">Allocation is based on purchase cost, not current market value. Enter ETF values in your next snapshot for market-based drift.</div>`
@@ -801,7 +839,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
   // Cost-basis drift figures are not reliable enough to base contribution decisions on.
   // When there are no held positions (all cash / re-entry), cost mode is irrelevant and
   // the plan is shown since it is purely contribution-target-based.
-  if (plan.length >= 2 && monthlyBudget > 0 && !(hasCostMode && hasHeldPositions)) {
+  if (plan.length >= 2 && monthlyBudget > 0 && !(hasCostMode && valuation.hasHeldPositions)) {
     const isRebalanceRecommended = max > 10;
     const shouldOpenRebalance = keepRebalanceOpen || isRebalanceRecommended;
     const pickerBtns = REBALANCE_MONTH_OPTIONS.map((m) => {
@@ -938,20 +976,12 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
 export function getMaxDrift(pd: PortfolioData | null, snaps: Snapshot[]): number | null {
   if (!pd || Object.keys(pd.etfs).length === 0) return null;
   const holdings = getHoldings();
-  const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
-  const snapEtfValues = extractSnapEtfValues(latSnap);
-  const hasSnapValues = Object.keys(snapEtfValues).length > 0;
-  const allEtfs = Object.values(pd.etfs);
-  const { held } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
-  const primaryInvTotal = primaryInvestmentValue(latSnap, getAccounts());
-  const hasHeldPositions = held.length > 0;
-  const totalValue =
-    hasSnapValues || !hasHeldPositions ? (primaryInvTotal ?? pd.totalInv) : pd.totalInv;
+  const valuation = getDriftValuationPolicy(pd, snaps);
   const drift = computeDrift(
     holdings,
     pd.etfs,
-    totalValue,
-    hasSnapValues ? snapEtfValues : undefined,
+    valuation.totalValue,
+    valuation.snapEtfValuesForDrift,
   );
   if (drift.length === 0) return null;
   return maxDrift(drift);

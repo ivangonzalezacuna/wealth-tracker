@@ -177,11 +177,24 @@ describe('snapshotDialog', () => {
     await p;
   });
 
-  it('validates ETF reconciliation inline', async () => {
+  it('accepts partial ETF allocation as unallocated cash', async () => {
     const p = snapshotDialog(baseOpts());
     (document.querySelector('.snap-etf-toggle') as HTMLButtonElement).click();
     setField('snapd-acc-broker', '1000');
     setField('snapd-etf-broker-IE00AAA', '700');
+    getSubmit()!.click();
+    const snap = await p;
+    expect(snap).not.toBeNull();
+    expect(snap!.broker).toBe(1000);
+    expect(snap!.etf_IE00AAA).toBe(700);
+  });
+
+  it('rejects ETF over-allocation inline', async () => {
+    const p = snapshotDialog(baseOpts());
+    (document.querySelector('.snap-etf-toggle') as HTMLButtonElement).click();
+    setField('snapd-acc-broker', '1000');
+    setField('snapd-etf-broker-IE00AAA', '700');
+    setField('snapd-etf-broker-IE00BBB', '400');
     let settled = false;
     void p.then(() => {
       settled = true;
@@ -190,7 +203,7 @@ describe('snapshotDialog', () => {
     await Promise.resolve();
     expect(settled).toBe(false);
     expect((document.querySelector('#snapd-etf-broker-err') as HTMLElement).textContent).toContain(
-      'must equal the account total',
+      'cannot exceed the account total',
     );
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     await p;

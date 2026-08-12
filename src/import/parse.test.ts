@@ -523,13 +523,13 @@ describe('TR real deposit/tax/withdrawal type mappings', () => {
     expect(unmapped).toHaveLength(0);
   });
 
-  it('TRANSFER_INSTANT_INBOUND maps to DEPOSIT (mapped, not unmapped)', () => {
+  it('TRANSFER_INSTANT_INBOUND maps to TRANSFER (mapped, not unmapped)', () => {
     const { transactions, unmapped } = parseWithProfile(
       mkCsv('TRANSFER_INSTANT_INBOUND'),
       tradeRepublicProfile,
     );
     expect(transactions).toHaveLength(1);
-    expect(transactions[0].type).toBe(TxType.DEPOSIT);
+    expect(transactions[0].type).toBe(TxType.TRANSFER);
     expect(unmapped).toHaveLength(0);
   });
 

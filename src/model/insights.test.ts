@@ -269,7 +269,7 @@ describe('monthlyGrowthHistory', () => {
       ]);
     });
 
-    it('ignores transfer rows in external cash-flow normalization', () => {
+    it('ignores internal transfer rows (including instant transfers) in external cash-flow normalization', () => {
       const txs: Transaction[] = [
         {
           id: 'dep',
@@ -287,11 +287,11 @@ describe('monthlyGrowthHistory', () => {
           fxRate: 1,
         },
         {
-          id: 'tr',
+          id: 'tr-instant',
           date: '2024-02-10',
           source: 'broker',
           type: 'TRANSFER',
-          name: 'Portfolio Transfer',
+          name: 'TRANSFER_INSTANT_INBOUND',
           isin: '',
           shares: 0,
           price: 0,
