@@ -292,7 +292,8 @@ function _submit(): void {
   const generatedId = `manual|${Date.now()}|${Math.random().toString(36).slice(2, 8)}`;
   const parsedAmount = amountVisible ? _parseNum(amountRaw) : 0;
   const parsedTax = taxVisible ? _parseNum(taxRaw) : 0;
-  const canonicalTax = typeVal === TxType.TAX ? (parsedTax !== 0 ? parsedTax : parsedAmount) : parsedTax;
+  const canonicalTax =
+    typeVal === TxType.TAX ? (parsedTax !== 0 ? parsedTax : parsedAmount) : parsedTax;
   const canonicalAmount = typeVal === TxType.TAX ? canonicalTax : parsedAmount;
   const draft: Transaction = {
     rowId: existing?.rowId,

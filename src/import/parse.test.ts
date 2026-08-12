@@ -548,10 +548,11 @@ describe('TR real deposit/tax/withdrawal type mappings', () => {
   });
 
   it('TAX_OPTIMIZATION maps to TAX (mapped, not unmapped)', () => {
-    const { transactions, unmapped } = parseWithProfile(
-      mkCsv('TAX_OPTIMIZATION'),
-      tradeRepublicProfile,
-    );
+    const csv = [
+      'transaction_id;date;type;category;name;symbol;shares;price;amount;fee;tax;currency;fx_rate',
+      'tx-tax;2024-07-01;TAX_OPTIMIZATION;;Tax Refund;;0;0;5.00;0;3.44;EUR;',
+    ].join('\n');
+    const { transactions, unmapped } = parseWithProfile(csv, tradeRepublicProfile);
     expect(transactions).toHaveLength(1);
     expect(transactions[0].type).toBe(TxType.TAX);
     expect(transactions[0].tax).toBeCloseTo(3.44);

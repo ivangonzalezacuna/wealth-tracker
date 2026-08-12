@@ -167,21 +167,6 @@ function joinQuotedLines(rawLines: string[]): string[] {
     for (let i = 0; i < line.length; i++) {
       if (line[i] === '"') openQuotes++;
     }
-
-    /** Escape a field so `|` can be safely used as an internal separator. */
-    function escapeKeyPart(v: string | number | null | undefined): string {
-      return String(v ?? '').replace(/\|/g, '%7C');
-    }
-
-    /** Lightweight stable hash (FNV-1a, 32-bit) for deterministic row IDs. */
-    function stableHash(input: string): string {
-      let h = 0x811c9dc5;
-      for (let i = 0; i < input.length; i++) {
-        h ^= input.charCodeAt(i);
-        h = Math.imul(h, 0x01000193);
-      }
-      return (h >>> 0).toString(16).padStart(8, '0');
-    }
     if (openQuotes % 2 === 0) {
       out.push(parts.join('\n'));
       parts.length = 0;
@@ -190,6 +175,21 @@ function joinQuotedLines(rawLines: string[]): string[] {
   }
   if (parts.length > 0) out.push(parts.join('\n')); // unbalanced trailing quote - best-effort passthrough
   return out;
+}
+
+/** Escape a field so `|` can be safely used as an internal separator. */
+function escapeKeyPart(v: string | number | null | undefined): string {
+  return String(v ?? '').replace(/\|/g, '%7C');
+}
+
+/** Lightweight stable hash (FNV-1a, 32-bit) for deterministic row IDs. */
+function stableHash(input: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, '0');
 }
 
 // ── Profile detection ──────────────────────────────────────────
