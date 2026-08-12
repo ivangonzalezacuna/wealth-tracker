@@ -199,7 +199,16 @@ export function computeRebalancePlan(
   const totalTargetPct = activeDrift.reduce((s, d) => s + d.targetPct, 0);
 
   // Convert global budget to per-execution amount in the calibration cadence.
-  const execsPerYear = INTERVAL_PER_YEAR[calibrationInterval];
+  const execsPerYearRaw = INTERVAL_PER_YEAR[calibrationInterval];
+  const execsPerYear =
+    Number.isFinite(execsPerYearRaw) && execsPerYearRaw > 0
+      ? execsPerYearRaw
+      : INTERVAL_PER_YEAR.monthly;
+  if (execsPerYearRaw !== execsPerYear) {
+    console.warn(
+      `[computeRebalancePlan] Invalid calibration interval "${String(calibrationInterval)}"; falling back to monthly.`,
+    );
+  }
   const monthlyFromAmt = (amt: number) => (amt * execsPerYear) / 12;
   const amtFromMonthly = (monthly: number) => (monthly * 12) / execsPerYear;
 

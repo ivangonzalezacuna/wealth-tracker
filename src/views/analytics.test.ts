@@ -247,6 +247,13 @@ describe('renderAnalytics', () => {
     expect(table?.querySelector('tbody tr')).not.toBeNull();
   });
 
+  it('marks partial-year annual returns with an asterisk', () => {
+    const snaps = monthlySnaps(2024, 1, 7);
+    renderAnalytics(makePd(), snaps, []);
+    const table = document.getElementById('an-annual-table');
+    expect(table?.textContent).toContain('*');
+  });
+
   it('uses external deposit and withdrawal flows for TWR', () => {
     const snaps = [
       makeSnap('2024-01', 1000, 0),

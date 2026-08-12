@@ -322,6 +322,18 @@ describe('renderNW', () => {
     expect(goalEl.innerHTML).toContain('100.000');
   });
 
+  it('shows explicit beyond-horizon message when goal is unreachable within 100 years', () => {
+    const snaps = [makeSnap('2026-01-01', 5000, 2000)];
+    vi.mocked(configStore.getGoals).mockReturnValueOnce([
+      { label: 'Huge goal', targetNetWorth: '999999999999999999999', targetDate: '' },
+    ]);
+    renderNW(snaps);
+    const goalEl = document.getElementById('nw-goal')!;
+    expect(goalEl.textContent).toContain(
+      'Target not reachable within the 100-year forecast horizon',
+    );
+  });
+
   it('multiple goals render a single card with a tab strip', () => {
     const snaps = [makeSnap('2026-01-01', 5000, 2000)];
     vi.mocked(configStore.getGoals).mockReturnValueOnce([
