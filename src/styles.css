@@ -730,19 +730,6 @@ details[open] > summary .card-chevron {
   font-weight: 500;
   font-size: 12px;
 }
-.snap-row-compact:not(.th) .snap-month-cell::before {
-  content: '';
-  border: solid var(--ink-3);
-  border-width: 0 1.5px 1.5px 0;
-  display: inline-block;
-  padding: 2.5px;
-  transform: rotate(-45deg);
-  flex-shrink: 0;
-  transition: transform 0.2s ease;
-}
-.snap-row-compact[aria-expanded='true'] .snap-month-cell::before {
-  transform: rotate(45deg);
-}
 .snap-note-dot {
   width: 5px;
   height: 5px;
@@ -1748,9 +1735,10 @@ summary.section-label {
     padding: 10px 14px;
     font-size: 13px;
   }
-  .btn-sm {
+  #tx-ledger-card .btn-sm {
     font-size: 11px;
-    padding: 5px 10px;
+    padding: 8px 12px;
+    min-height: 40px;
   }
   .drop-zone {
     padding: 1.25rem 0.75rem;
