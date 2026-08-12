@@ -166,6 +166,31 @@ describe('sync engine conflict handling', () => {
     expect(drive.uploadDbFile as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1);
   });
 
+  it('does not raise a false conflict when adding a second transaction after the first synced successfully', async () => {
+    // Reproduces the latent bug: uploadDbFile previously fell back to new Date().toISOString()
+    // when Drive omitted modifiedTime from the upload response (Drive v3 returns only basic
+    // fields by default). The stored driveVersion then differed from what getCloudModifiedTime()
+    // returned on the next push, causing storedVersion !== cloudTime and a spurious conflict.
+    const DRIVE_ACTUAL_TIME = '2026-01-01T00:00:05.000Z'; // server-assigned time
+    const meta = await import('../db/repositories/meta');
+    const drive = await import('./drive');
+
+    // State after first successful push: everything stamped with Drive's actual time
+    (meta.getLastSyncTimestamp as ReturnType<typeof vi.fn>).mockResolvedValue(DRIVE_ACTUAL_TIME);
+    (meta.getDriveVersion as ReturnType<typeof vi.fn>).mockResolvedValue(DRIVE_ACTUAL_TIME);
+    // scheduleUpload() set a newer local change for the second transaction
+    (meta.getLastLocalChangeTimestamp as ReturnType<typeof vi.fn>).mockResolvedValue(
+      '2026-01-01T00:00:10.000Z',
+    );
+    // Cloud still at the time of our last upload (no external changes)
+    (drive.getCloudModifiedTime as ReturnType<typeof vi.fn>).mockResolvedValue(DRIVE_ACTUAL_TIME);
+
+    const { pushToCloud, SyncConflictError } = await import('./engine');
+
+    await expect(pushToCloud()).resolves.not.toThrow();
+    await expect(pushToCloud()).resolves.toBe(true);
+  });
+
   it('uses true replacement when explicitly keeping the cloud copy', async () => {
     const meta = await import('../db/repositories/meta');
     const drive = await import('./drive');
