@@ -802,25 +802,25 @@ export function xirr(cashFlows: XirrCashFlow[]): number | null {
       if (!isFinite(disc)) return null;
       f += cf.amount / disc;
     }
-
-    function bracketRoot(minRate: number, maxRate: number): [number, number] | null {
-      const steps = 512;
-      let prevRate = minRate;
-      let prevNpv = npv(prevRate);
-      for (let i = 1; i <= steps; i++) {
-        const rate = minRate + ((maxRate - minRate) * i) / steps;
-        const currNpv = npv(rate);
-        if (prevNpv !== null && currNpv !== null) {
-          if (prevNpv === 0) return [prevRate, prevRate];
-          if (currNpv === 0) return [rate, rate];
-          if (prevNpv * currNpv < 0) return [prevRate, rate];
-        }
-        prevRate = rate;
-        prevNpv = currNpv;
-      }
-      return null;
-    }
     return isFinite(f) ? f : null;
+  }
+
+  function bracketRoot(minRate: number, maxRate: number): [number, number] | null {
+    const steps = 512;
+    let prevRate = minRate;
+    let prevNpv = npv(prevRate);
+    for (let i = 1; i <= steps; i++) {
+      const rate = minRate + ((maxRate - minRate) * i) / steps;
+      const currNpv = npv(rate);
+      if (prevNpv !== null && currNpv !== null) {
+        if (prevNpv === 0) return [prevRate, prevRate];
+        if (currNpv === 0) return [rate, rate];
+        if (prevNpv * currNpv < 0) return [prevRate, rate];
+      }
+      prevRate = rate;
+      prevNpv = currNpv;
+    }
+    return null;
   }
 
   // ── Newton-Raphson (fast path, good initial guess) ───────────────

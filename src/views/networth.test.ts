@@ -329,7 +329,9 @@ describe('renderNW', () => {
     ]);
     renderNW(snaps);
     const goalEl = document.getElementById('nw-goal')!;
-    expect(goalEl.textContent).toContain('Target not reachable within the 100-year forecast horizon');
+    expect(goalEl.textContent).toContain(
+      'Target not reachable within the 100-year forecast horizon',
+    );
   });
 
   it('multiple goals render a single card with a tab strip', () => {

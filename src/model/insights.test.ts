@@ -413,15 +413,16 @@ describe('monthlyGrowthHistory', () => {
       expect(result).not.toBeNull();
     });
 
-    it('finds a valid root when endpoint signs match but an interior bracket exists', () => {
+    it('finds a valid root when endpoint signs match and only interior bracketing succeeds', () => {
       const result = xirr([
-        { date: '2020-07-06', amount: -803.2658866368562 },
-        { date: '2020-09-02', amount: 2883.0999038836117 },
-        { date: '2022-03-12', amount: -2781.647774331085 },
-        { date: '2023-03-25', amount: 206.018898289618 },
+        { date: '2021-06-26', amount: -1538.8816069638292 },
+        { date: '2023-04-28', amount: -3467.266613584732 },
+        { date: '2023-06-20', amount: -3814.477869854906 },
+        { date: '2025-01-08', amount: 2508.1881211889868 },
+        { date: '2025-07-04', amount: -613.6047990907709 },
       ]);
       expect(result).not.toBeNull();
-      expect(result).toBeCloseTo(-0.9175, 3);
+      expect(result).toBeCloseTo(-0.9417, 3);
     });
   });
 
