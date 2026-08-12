@@ -95,6 +95,7 @@ describe('renderDividends', () => {
     expect(kpisText).toContain('Tax withheld');
     expect(kpisText).toContain('Net received');
     expect(kpisText).toContain('Gross interest');
+    expect(kpisText).toContain('not tax filing guidance');
     expect(kpisText).not.toContain('Investment income yield (12m)');
     expect(kpisText).not.toContain('Savings income yield (12m)');
   });
@@ -138,7 +139,7 @@ describe('renderDividends', () => {
     renderDividends(makePD());
     renderDividends(makePD());
     const kpisEl = document.getElementById('div-kpis')!;
-    expect(kpisEl.children.length).toBe(6);
+    expect(kpisEl.children.length).toBe(7);
   });
 
   it('renders annual summary table', () => {
@@ -176,7 +177,7 @@ describe('renderDividends', () => {
     ]);
     expect(document.getElementById('div-annual')!.textContent).toContain('Year');
     expect(document.getElementById('div-annual')!.textContent).toContain('Benefits (net)');
-    expect(document.getElementById('div-annual')!.textContent).toContain('Taxes paid');
+    expect(document.getElementById('div-annual')!.textContent).toContain('Withheld / refunded');
     const annualRow = document.querySelector('[data-annual-year="2026"]') as HTMLElement;
     annualRow.click();
     expect(document.getElementById('div-annual')!.textContent).toContain(

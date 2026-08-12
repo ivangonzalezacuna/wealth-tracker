@@ -47,11 +47,14 @@ export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = [
   const totalGross = pd.divHist.reduce((s, d) => s + d.gross, 0);
   document.getElementById('div-kpis')!.innerHTML = `
     ${kpiTile({ label: `Gross dividends${infoTip('Before tax: Total distribution payments received from ETFs and stocks, before withholding tax is deducted.')}`, value: fmtEur2(totalGross) })}
-    ${kpiTile({ label: 'Tax withheld', value: fmtEur2(Math.abs(pd.totalTax)), valueClass: pd.totalTax >= 0 ? 'neg' : 'pos', sub: 'on dividends' })}
+    ${kpiTile({ label: `Tax withheld${infoTip('Aggregated withholding imported on dividend transactions. Useful as a cashflow signal, not jurisdiction-aware tax reporting or filing guidance.')}`, value: fmtEur2(Math.abs(pd.totalTax)), valueClass: pd.totalTax >= 0 ? 'neg' : 'pos', sub: 'aggregated imported signal' })}
     ${kpiTile({ label: 'Net received', value: fmtEur2(pd.totalDivNet), valueClass: 'pos', sub: 'dividends' })}
     ${kpiTile({ label: 'Gross interest', value: fmtEur2(pd.totalIntGross), sub: 'on cash savings' })}
-    ${kpiTile({ label: 'Tax on savings', value: fmtEur2(pd.totalIntTax), valueClass: pd.totalIntTax > 0 ? 'neg' : 'ok', sub: 'withheld + refunds' })}
+    ${kpiTile({ label: `Tax on savings${infoTip('Aggregated savings-interest withholding and refunds imported from broker transactions. Useful as a cashflow signal, not jurisdiction-aware tax reporting or filing guidance.')}`, value: fmtEur2(pd.totalIntTax), valueClass: pd.totalIntTax > 0 ? 'neg' : 'ok', sub: 'aggregated withheld + refunds' })}
     ${kpiTile({ label: 'Net interest', value: fmtEur2(pd.totalInterest), valueClass: 'pos', sub: 'received' })}
+    <div class="note" style="grid-column:1 / -1;line-height:1.5">
+      Tax figures in this tab are aggregated from imported transactions (withholding + refunds) for personal tracking only. They are not tax filing guidance, are not residence-aware, and may become incomplete if your tax country changes over time.
+    </div>
   `;
 
   populateYearFilter('div-year-filter', pd.divHist);
@@ -186,7 +189,7 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
     <div id="div-annual-table">
       <div class="tbl-row th annual-row" role="row">
         <div>Year</div>
-        <div style="text-align:right">Taxes paid${infoTip('Dividend taxes + savings-interest taxes paid during the year. Expand row for full breakdown.')}</div>
+        <div style="text-align:right">Withheld / refunded${infoTip('Aggregated dividend and savings tax amounts imported during the year. Useful as a personal tracking signal, not tax filing guidance.')}</div>
         <div style="text-align:right">Benefits (net)${infoTip('Net dividends + net savings interest + realized profit/loss from sells for the year.')}</div>
       </div>
       ${rows}
