@@ -159,7 +159,10 @@ export function renderAnalytics(
   // Level 2 performance KPIs (TWR + IRR)
   const twrVal = twrFromMonthlyReturns(perfData.monthlyReturns);
   const terminalDate = monthEndDate(s.date) || s.date;
-  const investmentFlows = perfData.externalCashFlows.map((cf) => ({ date: cf.date, amount: cf.amount }));
+  const investmentFlows = perfData.externalCashFlows.map((cf) => ({
+    date: cf.date,
+    amount: cf.amount,
+  }));
   if (latestInvestmentValue !== null) {
     investmentFlows.push({ date: terminalDate, amount: latestInvestmentValue });
   }
@@ -310,7 +313,8 @@ export function renderAnalytics(
       if (riskMetricsNoteCardEl) riskMetricsNoteCardEl.style.display = 'none';
     } else {
       const reasons = [];
-      if (investmentReturnCount < 24) reasons.push(`${investmentReturnCount}/24 monthly investment periods`);
+      if (investmentReturnCount < 24)
+        reasons.push(`${investmentReturnCount}/24 monthly investment periods`);
       if (perfData.skippedMissingValuePeriods > 0)
         reasons.push(`${perfData.skippedMissingValuePeriods} period(s) missing investment values`);
       if (perfData.skippedGapPeriods > 0)
@@ -612,7 +616,9 @@ function _attachContribRangeToggle(points: MonthlyGrowthPoint[]): void {
 const HEATMAP_PAGE_SIZE = 3;
 const HEATMAP_MIN_MONTHS = 24;
 
-function _renderHeatmap(monthlyReturns: { date: string; startValue: number; return: number }[]): void {
+function _renderHeatmap(
+  monthlyReturns: { date: string; startValue: number; return: number }[],
+): void {
   const heatmapEl = document.getElementById('an-heatmap');
   const noteEl = document.getElementById('an-heatmap-note');
   const footerEl = document.getElementById('an-heatmap-footer');
@@ -642,7 +648,8 @@ function _renderHeatmap(monthlyReturns: { date: string; startValue: number; retu
   }
 
   if (noteEl) {
-    noteEl.textContent = 'Use this as long-horizon investment context, not as a monthly trading signal.';
+    noteEl.textContent =
+      'Use this as long-horizon investment context, not as a monthly trading signal.';
     noteEl.style.display = '';
   }
   if (footerEl)
@@ -757,7 +764,9 @@ function _renderHeatmap(monthlyReturns: { date: string; startValue: number; retu
   heatmapEl.innerHTML = html;
 }
 
-function _attachHeatmapPager(monthlyReturns: { date: string; startValue: number; return: number }[]): void {
+function _attachHeatmapPager(
+  monthlyReturns: { date: string; startValue: number; return: number }[],
+): void {
   const prevBtn = document.getElementById('an-heatmap-prev') as
     (HTMLElement & { _bound?: boolean }) | null;
   const nextBtn = document.getElementById('an-heatmap-next') as
@@ -807,7 +816,9 @@ function _heatmapTextColor(intensity: number, weightedReturn: number): string {
  * for each year. Requires at least 2 annual data points (so a prior-year delta can
  * be shown). If fewer years are available, shows the data without the delta column.
  */
-function _renderAnnualTable(monthlyReturns: { date: string; startValue: number; return: number }[]): void {
+function _renderAnnualTable(
+  monthlyReturns: { date: string; startValue: number; return: number }[],
+): void {
   const el = document.getElementById('an-annual-table');
   const card = document.getElementById('an-annual-table-card');
   if (!el || !card) return;

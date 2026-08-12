@@ -183,9 +183,10 @@ export function monthEndDate(date: string): string | null {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
 }
 
-export function normalizeExternalCashFlows(
-  txs: Transaction[],
-): { monthlyExternalFlows: Record<string, number>; externalCashFlows: NormalizedExternalCashFlow[] } {
+export function normalizeExternalCashFlows(txs: Transaction[]): {
+  monthlyExternalFlows: Record<string, number>;
+  externalCashFlows: NormalizedExternalCashFlow[];
+} {
   const monthlyExternalFlows: Record<string, number> = {};
   const externalCashFlows: NormalizedExternalCashFlow[] = [];
 
