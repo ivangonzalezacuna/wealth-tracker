@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { computeDrift, maxDrift, computeRebalancePlan } from './drift';
 import type { Holding, EtfPosition } from '../types';
 
@@ -376,6 +376,29 @@ describe('computeRebalancePlan', () => {
     // 520€/mo = 520*12/52 = 120€/week
     const plan = computeRebalancePlan(drift, 520, 10000, 3, 'weekly');
     expect(plan[0].suggestedAmt).toBeCloseTo(120, 1);
+  });
+
+  it('falls back to monthly cadence when calibration interval is invalid', () => {
+    const drift = [
+      {
+        isin: 'A',
+        name: 'A',
+        shortName: 'A',
+        color: '#f00',
+        targetPct: 100,
+        actualPct: 80,
+        driftPct: -20,
+        actualValue: 8000,
+        targetValue: 10000,
+        deltaValue: -2000,
+        valuationMode: 'market' as const,
+      },
+    ];
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const plan = computeRebalancePlan(drift, 520, 10000, 3, 'invalid' as any);
+    expect(plan[0].suggestedAmt).toBeCloseTo(520, 1);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('all budget is allocated (suggestedAmts × cadence ≈ totalMonthlyBudget)', () => {

@@ -807,8 +807,15 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
     1,
     parseInt(localStorage.getItem('drift-rebalance-months') || '3', 10) || 3,
   );
-  const calibrationInterval = (localStorage.getItem('drift-calibration-interval') ||
-    getCalibrationInterval()) as import('../types').ContribInterval;
+  const rawCalibrationInterval =
+    localStorage.getItem('drift-calibration-interval') || getCalibrationInterval();
+  const calibrationInterval: import('../types').ContribInterval =
+    rawCalibrationInterval === 'weekly' ||
+    rawCalibrationInterval === 'biweekly' ||
+    rawCalibrationInterval === 'monthly' ||
+    rawCalibrationInterval === 'quarterly'
+      ? rawCalibrationInterval
+      : 'monthly';
   const monthlyBudget = getMonthlyContribBudget();
 
   const plan = computeRebalancePlan(

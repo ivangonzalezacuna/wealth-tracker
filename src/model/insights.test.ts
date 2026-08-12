@@ -412,6 +412,17 @@ describe('monthlyGrowthHistory', () => {
       ]);
       expect(result).not.toBeNull();
     });
+
+    it('finds a valid root when endpoint signs match but an interior bracket exists', () => {
+      const result = xirr([
+        { date: '2020-07-06', amount: -803.2658866368562 },
+        { date: '2020-09-02', amount: 2883.0999038836117 },
+        { date: '2022-03-12', amount: -2781.647774331085 },
+        { date: '2023-03-25', amount: 206.018898289618 },
+      ]);
+      expect(result).not.toBeNull();
+      expect(result).toBeCloseTo(-0.9175, 3);
+    });
   });
 
   it('skips pairs where either snapshot has no resolvable primary value', () => {
@@ -474,7 +485,12 @@ describe('annualizedVolatility', () => {
     it('builds annualized and annual return summaries from investment return series', () => {
       expect(annualizedReturnFromMonthlyReturns(monthlyReturns)).not.toBeNull();
       expect(annualReturnsFromMonthlyReturns(monthlyReturns)).toEqual([
-        { year: 2024, return: (1 + 0.1) * (1 - 0.05) * (1 + 0.02) - 1 },
+        {
+          year: 2024,
+          return: (1 + 0.1) * (1 - 0.05) * (1 + 0.02) - 1,
+          isPartial: true,
+          monthsCount: 3,
+        },
       ]);
       expect(rollingAnnualizedReturnFromMonthlyReturns(monthlyReturns, 3)).toHaveLength(1);
     });

@@ -371,7 +371,7 @@ export function annualizedReturnFromMonthlyReturns(
 
 export function annualReturnsFromMonthlyReturns(
   monthlyReturns: MonthlyReturnPoint[],
-): { year: number; return: number }[] {
+): { year: number; return: number; isPartial: boolean; monthsCount: number }[] {
   if (monthlyReturns.length === 0) return [];
   const byYear = new Map<number, MonthlyReturnPoint[]>();
   for (const point of monthlyReturns) {
@@ -382,10 +382,20 @@ export function annualReturnsFromMonthlyReturns(
   }
   return Array.from(byYear.entries())
     .sort((a, b) => a[0] - b[0])
-    .map(([year, points]) => ({
-      year,
-      return: points.reduce((acc, point) => acc * (1 + point.return), 1) - 1,
-    }));
+    .map(([year, points]) => {
+      const months = new Set<number>();
+      for (const point of points) {
+        const parsed = parseYearMonth(point.date);
+        if (parsed) months.add(parsed.month);
+      }
+      const monthsCount = months.size;
+      return {
+        year,
+        return: points.reduce((acc, point) => acc * (1 + point.return), 1) - 1,
+        isPartial: monthsCount < 12,
+        monthsCount,
+      };
+    });
 }
 
 export function rollingAnnualizedReturnFromMonthlyReturns(
@@ -792,6 +802,24 @@ export function xirr(cashFlows: XirrCashFlow[]): number | null {
       if (!isFinite(disc)) return null;
       f += cf.amount / disc;
     }
+
+    function bracketRoot(minRate: number, maxRate: number): [number, number] | null {
+      const steps = 512;
+      let prevRate = minRate;
+      let prevNpv = npv(prevRate);
+      for (let i = 1; i <= steps; i++) {
+        const rate = minRate + ((maxRate - minRate) * i) / steps;
+        const currNpv = npv(rate);
+        if (prevNpv !== null && currNpv !== null) {
+          if (prevNpv === 0) return [prevRate, prevRate];
+          if (currNpv === 0) return [rate, rate];
+          if (prevNpv * currNpv < 0) return [prevRate, rate];
+        }
+        prevRate = rate;
+        prevNpv = currNpv;
+      }
+      return null;
+    }
     return isFinite(f) ? f : null;
   }
 
@@ -817,11 +845,12 @@ export function xirr(cashFlows: XirrCashFlow[]): number | null {
 
   // ── Bisection fallback (robust, slower) ──────────────────────────
   // Search in (-0.9999, 100) — covers from -99.99% to +10000% annual return.
-  let lo = -0.9999;
-  let hi = 100;
+  const bracket = bracketRoot(-0.9999, 100);
+  if (!bracket) return null;
+  let [lo, hi] = bracket;
+  if (lo === hi) return lo;
   let fLo = npv(lo);
-  const fHi = npv(hi);
-  if (fLo === null || fHi === null || fLo * fHi > 0) return null;
+  if (fLo === null) return null;
   for (let i = 0; i < 200; i++) {
     const mid = (lo + hi) / 2;
     if (hi - lo < tol) return mid;

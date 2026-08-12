@@ -713,9 +713,9 @@ function _renderHeatmap(
   for (const m of weighted) {
     lookup.set(`${m.year}-${m.month}`, m);
   }
-  const annualLookup = new Map<number, number>();
+  const annualLookup = new Map<number, { return: number; isPartial: boolean }>();
   for (const a of annualData) {
-    annualLookup.set(a.year, a.return);
+    annualLookup.set(a.year, { return: a.return, isPartial: a.isPartial });
   }
 
   const CELL_W = 42;
@@ -751,10 +751,10 @@ function _renderHeatmap(
     // Annual total column
     const annualRet = annualLookup.get(year);
     if (annualRet !== undefined) {
-      const annPct = annualRet * 100;
+      const annPct = annualRet.return * 100;
       const annSign = annPct > 0 ? '+' : '';
       const annCls = annPct >= 0 ? C.pos : C.neg;
-      html += `<td style="padding:2px 4px;text-align:right;font-weight:600;color:${annCls};white-space:nowrap">${annSign}${annPct.toFixed(1)}%</td>`;
+      html += `<td style="padding:2px 4px;text-align:right;font-weight:600;color:${annCls};white-space:nowrap" title="${annualRet.isPartial ? 'Partial year return (fewer than 12 months of data)' : 'Full-year return'}">${annSign}${annPct.toFixed(1)}%${annualRet.isPartial ? ' *' : ''}</td>`;
     } else {
       html += `<td style="padding:2px 4px;text-align:right;color:var(--ink-3)">-</td>`;
     }
@@ -863,7 +863,7 @@ function _renderAnnualTable(
 
       return `<tr>
         <td style="font-weight:500;color:var(--ink)">${row.year}</td>
-        <td style="color:${color};font-weight:600">${sign}${pct.toFixed(1)}%</td>
+        <td style="color:${color};font-weight:600">${sign}${pct.toFixed(1)}%${row.isPartial ? ' *' : ''}</td>
         <td style="text-align:center">${sparkline}</td>
         ${deltaCell}
       </tr>`;
@@ -874,7 +874,7 @@ function _renderAnnualTable(
     <thead>
       <tr style="border-bottom:1px solid var(--line);color:var(--ink-3);font-weight:500">
         <th style="text-align:left;padding:4px 6px">Year</th>
-        <th style="text-align:left;padding:4px 6px">Return</th>
+        <th style="text-align:left;padding:4px 6px">Return${infoTip('Rows marked with * are partial-year returns (fewer than 12 months of investment-return data).')}</th>
         <th style="text-align:center;padding:4px 6px">Bar${infoTip('Relative bar height scaled to the largest absolute annual return shown in this table.')}</th>
         <th style="text-align:left;padding:4px 6px">vs prior year</th>
       </tr>
