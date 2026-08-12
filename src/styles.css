@@ -600,6 +600,19 @@ details[open] > summary .card-chevron {
   min-width: 0;
   overflow: hidden;
 }
+.hold-etf-cell::before {
+  content: '';
+  border: solid var(--ink-3);
+  border-width: 0 1.5px 1.5px 0;
+  display: inline-block;
+  padding: 2.5px;
+  transform: rotate(-45deg);
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+.hold-row[aria-expanded='true'] .hold-etf-cell::before {
+  transform: rotate(45deg);
+}
 .hold-name {
   font-weight: 500;
   font-size: 12px;
@@ -715,6 +728,19 @@ details[open] > summary .card-chevron {
   gap: 5px;
   font-weight: 500;
   font-size: 12px;
+}
+.snap-row-compact:not(.th) .snap-month-cell::before {
+  content: '';
+  border: solid var(--ink-3);
+  border-width: 0 1.5px 1.5px 0;
+  display: inline-block;
+  padding: 2.5px;
+  transform: rotate(-45deg);
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+.snap-row-compact[aria-expanded='true'] .snap-month-cell::before {
+  transform: rotate(45deg);
 }
 .snap-note-dot {
   width: 5px;
