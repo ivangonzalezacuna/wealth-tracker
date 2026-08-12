@@ -154,6 +154,12 @@ export function appTemplate(): string {
       <button class="btn btn-primary" data-goto="log">Import CSV →</button>
     </div></div></div>
     <div id="div-content" style="display:none">
+      <div id="div-income-empty" class="card" style="display:none"><div class="empty-state">
+        <div class="empty-icon">💸</div>
+        <div class="empty-title">No dividend or interest income recorded</div>
+        <p style="font-size:13px;margin-bottom:1rem;max-width:340px;margin-left:auto;margin-right:auto">These appear after importing broker transactions that include dividend or interest rows.</p>
+      </div></div>
+      <div id="div-income-content">
       <div class="kpi-row" id="div-kpis"></div>
       <div class="card">
         <div class="card-title">Dividend payments received (most recent first)</div>
@@ -179,6 +185,7 @@ export function appTemplate(): string {
         <div class="card-title">By year</div>
         <div id="div-annual"></div>
         <div id="div-annual-pagination" class="pagination"></div>
+      </div>
       </div>
     </div>
   </div>

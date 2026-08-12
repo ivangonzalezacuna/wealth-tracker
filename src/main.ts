@@ -1111,10 +1111,20 @@ function setSyncStatus(status: string, msg = '') {
     conflict: ['status-warn', '\u26A0 Sync paused \u2014 action needed'],
     error: ['status-err', '\u26A0 Sync error: ' + msg],
   };
+  const titles: Record<string, string> = {
+    loading: 'Loading your database from Google Drive',
+    syncing: 'Syncing changes to Google Drive',
+    cached: 'Showing locally cached data while sync completes',
+    ok: 'Database is synced with Google Drive',
+    offline: 'No internet connection; changes are saved locally and will sync when online',
+    conflict: 'A newer version exists on Drive — click to resolve',
+    error: 'Sync failed: ' + msg,
+  };
   const [cls, text] = map[status] || ['status-empty', ''];
   el.className = 'status-pill ' + cls;
   el.innerHTML = text;
   el.style.display = status ? 'inline-flex' : 'none';
+  el.title = titles[status] || '';
   refreshConflictAccess();
 }
 

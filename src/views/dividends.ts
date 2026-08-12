@@ -35,6 +35,14 @@ export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = [
   document.getElementById('div-content')!.style.display = hasPD ? 'block' : 'none';
   if (!hasPD) return;
 
+  // Show a purposeful empty state when there is portfolio data but no income history
+  const noIncome = pd.divHist.length === 0 && pd.intHist.length === 0;
+  const incomeEmpty = document.getElementById('div-income-empty');
+  const incomeContent = document.getElementById('div-income-content');
+  if (incomeEmpty) incomeEmpty.style.display = noIncome ? 'block' : 'none';
+  if (incomeContent) incomeContent.style.display = noIncome ? 'none' : 'block';
+  if (noIncome) return;
+
   _lastPd = pd;
   _lastTxs = txs;
   _divPage = 1;
@@ -48,10 +56,10 @@ export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = [
   document.getElementById('div-kpis')!.innerHTML = `
     ${kpiTile({ label: `Gross dividends${infoTip('Before tax: Total distribution payments received from ETFs and stocks, before withholding tax is deducted.')}`, value: fmtEur2(totalGross) })}
     ${kpiTile({ label: `Tax withheld${infoTip('Aggregated withholding imported on dividend transactions. Useful as a cashflow signal, not jurisdiction-aware tax reporting or filing guidance.')}`, value: fmtEur2(Math.abs(pd.totalTax)), valueClass: pd.totalTax >= 0 ? 'neg' : 'pos', sub: 'aggregated imported signal' })}
-    ${kpiTile({ label: 'Net received', value: fmtEur2(pd.totalDivNet), valueClass: 'pos', sub: 'dividends' })}
-    ${kpiTile({ label: 'Gross interest', value: fmtEur2(pd.totalIntGross), sub: 'on cash savings' })}
+    ${kpiTile({ label: `Net received${infoTip('Gross dividends minus withholding tax. This is the actual cash deposited into your investment account from distributions.')}`, value: fmtEur2(pd.totalDivNet), valueClass: 'pos', sub: 'dividends' })}
+    ${kpiTile({ label: `Gross interest${infoTip('Total interest earned on cash savings accounts before any tax is deducted. Does not include investment dividends.')}`, value: fmtEur2(pd.totalIntGross), sub: 'on cash savings' })}
     ${kpiTile({ label: `Tax on savings${infoTip('Aggregated savings-interest withholding and refunds imported from broker transactions. Useful as a cashflow signal, not jurisdiction-aware tax reporting or filing guidance.')}`, value: fmtEur2(pd.totalIntTax), valueClass: pd.totalIntTax > 0 ? 'neg' : 'ok', sub: 'aggregated withheld + refunds' })}
-    ${kpiTile({ label: 'Net interest', value: fmtEur2(pd.totalInterest), valueClass: 'pos', sub: 'received' })}
+    ${kpiTile({ label: `Net interest${infoTip('Gross savings interest minus tax withheld. This is the actual cash received in your savings account after deductions.')}`, value: fmtEur2(pd.totalInterest), valueClass: 'pos', sub: 'received' })}
     <div class="note" style="grid-column:1 / -1;line-height:1.5">
       Tax figures in this tab are aggregated from imported transactions (withholding + refunds) for personal tracking only. They are not tax filing guidance, are not residence-aware, and may become incomplete if your tax country changes over time.
     </div>
