@@ -581,7 +581,7 @@ details[open] > summary .card-chevron {
 #port-table .hold-total {
   align-items: start;
 }
-#port-table .hold-row:not(.th):hover {
+#port-table .hold-row:not(.th):hover:not([aria-expanded='true']) {
   background: var(--surface-2);
 }
 /* Numeric cell top-padding to optically align with ticker text under start alignment */
@@ -702,15 +702,16 @@ details[open] > summary .card-chevron {
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 10px;
-  padding: 10px 0;
+  padding: 10px 8px;
   border-bottom: 1px solid var(--surface-3);
   cursor: pointer;
   min-height: 40px;
+  border-radius: var(--radius-sm);
 }
 .snap-row-compact:last-child {
   border-bottom: none;
 }
-.snap-row-compact:not(.th):hover {
+.snap-row-compact:not(.th):hover:not([aria-expanded='true']) {
   background: var(--surface-2);
 }
 .snap-row-compact.th {
@@ -1749,8 +1750,7 @@ summary.section-label {
   }
   .btn-sm {
     font-size: 11px;
-    padding: 8px 12px;
-    min-height: 40px;
+    padding: 5px 10px;
   }
   .drop-zone {
     padding: 1.25rem 0.75rem;
