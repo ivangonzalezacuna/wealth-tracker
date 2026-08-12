@@ -513,13 +513,13 @@ describe('TR real deposit/tax/withdrawal type mappings', () => {
     expect(unmapped).toHaveLength(0);
   });
 
-  it('TRANSFER_INBOUND maps to DEPOSIT (mapped, not unmapped)', () => {
+  it('TRANSFER_INBOUND maps to TRANSFER (mapped, not unmapped)', () => {
     const { transactions, unmapped } = parseWithProfile(
       mkCsv('TRANSFER_INBOUND'),
       tradeRepublicProfile,
     );
     expect(transactions).toHaveLength(1);
-    expect(transactions[0].type).toBe(TxType.DEPOSIT);
+    expect(transactions[0].type).toBe(TxType.TRANSFER);
     expect(unmapped).toHaveLength(0);
   });
 
@@ -553,13 +553,13 @@ describe('TR real deposit/tax/withdrawal type mappings', () => {
     expect(unmapped).toHaveLength(0);
   });
 
-  it('TRANSFER_OUTBOUND maps to WITHDRAWAL', () => {
+  it('TRANSFER_OUTBOUND maps to TRANSFER', () => {
     const { transactions, unmapped } = parseWithProfile(
       mkCsv('TRANSFER_OUTBOUND'),
       tradeRepublicProfile,
     );
     expect(transactions).toHaveLength(1);
-    expect(transactions[0].type).toBe(TxType.WITHDRAWAL);
+    expect(transactions[0].type).toBe(TxType.TRANSFER);
     expect(unmapped).toHaveLength(0);
   });
 });

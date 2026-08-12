@@ -269,6 +269,47 @@ describe('monthlyGrowthHistory', () => {
       ]);
     });
 
+    it('ignores transfer rows in external cash-flow normalization', () => {
+      const txs: Transaction[] = [
+        {
+          id: 'dep',
+          date: '2024-02-05',
+          source: 'broker',
+          type: 'DEPOSIT',
+          name: 'Deposit',
+          isin: '',
+          shares: 0,
+          price: 0,
+          amount: 100,
+          fee: 0,
+          tax: 0,
+          currency: 'EUR',
+          fxRate: 1,
+        },
+        {
+          id: 'tr',
+          date: '2024-02-10',
+          source: 'broker',
+          type: 'TRANSFER',
+          name: 'Portfolio Transfer',
+          isin: '',
+          shares: 0,
+          price: 0,
+          amount: 5000,
+          fee: 0,
+          tax: 0,
+          currency: 'EUR',
+          fxRate: 1,
+        },
+      ];
+
+      const result = normalizeExternalCashFlows(txs);
+
+      expect(result.monthlyExternalFlows).toEqual({ '2024-02': 100 });
+      expect(result.externalCashFlows).toHaveLength(1);
+      expect(result.externalCashFlows[0].type).toBe('DEPOSIT');
+    });
+
     it('builds monthly investment returns from snapshots and external flows', () => {
       const accounts: Account[] = [{ id: 'broker', label: 'Broker', moneyType: 'investment' }];
       const snaps: Snapshot[] = [
