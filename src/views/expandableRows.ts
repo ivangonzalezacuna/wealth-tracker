@@ -37,7 +37,15 @@ export function toggleSingleDetailRow<T>(opts: ToggleSingleDetailRowOptions<T>):
 }
 
 export function bindExpandableRows<T>(opts: BindExpandableRowsOptions<T>): void {
-  const { container, rowSelector, detailSelector, getItem, createDetail, ignoreClick, onExpandedChange } = opts;
+  const {
+    container,
+    rowSelector,
+    detailSelector,
+    getItem,
+    createDetail,
+    ignoreClick,
+    onExpandedChange,
+  } = opts;
   if (!container) return;
   const boundContainer = container as HTMLElement & { _rowDetail_bound?: boolean };
   if (!boundContainer._rowDetail_bound) {
@@ -78,8 +86,15 @@ export interface RestoreExpandableRowsOptions<T> {
 }
 
 export function restoreExpandableRows<T>(opts: RestoreExpandableRowsOptions<T>): void {
-  const { container, rowSelector, detailSelector, getItem, createDetail, isExpanded, onExpandedChange } =
-    opts;
+  const {
+    container,
+    rowSelector,
+    detailSelector,
+    getItem,
+    createDetail,
+    isExpanded,
+    onExpandedChange,
+  } = opts;
   if (!container) return;
   container.querySelectorAll(rowSelector).forEach((rowEl) => {
     const row = rowEl as HTMLElement;

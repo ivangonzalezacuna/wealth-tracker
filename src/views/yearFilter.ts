@@ -1,7 +1,4 @@
-export function populateYearFilterOptions(
-  elementId: string,
-  items: Array<{ date: string }>,
-): void {
+export function populateYearFilterOptions(elementId: string, items: Array<{ date: string }>): void {
   const select = document.getElementById(elementId) as HTMLSelectElement | null;
   if (!select) return;
   const years = [...new Set(items.map((item) => item.date.slice(0, 4)))].sort().reverse();
@@ -13,10 +10,7 @@ export function populateYearFilterOptions(
       .join('');
 }
 
-export function bindYearFilter(
-  elementId: string,
-  onChange: (year: string) => void,
-): void {
+export function bindYearFilter(elementId: string, onChange: (year: string) => void): void {
   const yearEl = document.getElementById(elementId) as
     (HTMLSelectElement & { _bound?: boolean }) | null;
   if (yearEl && !yearEl._bound) {
