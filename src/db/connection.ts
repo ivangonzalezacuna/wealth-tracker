@@ -202,18 +202,20 @@ export async function importDb(
   const previousDb = _db;
   const preserveLocalTransactions = opts.preserveLocalTransactions !== false;
 
-  // Snapshot local transaction IDs before replacing, so we can merge back
-  // any that are missing from the cloud copy.
-  const localTxRows =
-    preserveLocalTransactions && previousDb ? getLocalTransactionRows(previousDb) : [];
-  const localAccountRows =
-    preserveLocalTransactions && previousDb ? getLocalAccountRows(previousDb) : [];
-  const localHoldingRows =
-    preserveLocalTransactions && previousDb ? getLocalHoldingRows(previousDb) : [];
-  const localSnapshotRows =
-    preserveLocalTransactions && previousDb ? getLocalSnapshotRows(previousDb) : [];
-  const localSettingRows =
-    preserveLocalTransactions && previousDb ? getLocalSettingRows(previousDb) : [];
+  // Snapshot all local rows before replacing so we can merge them back into
+  // the newly imported cloud DB, preserving any offline edits.
+  let localTxRows: unknown[][] = [];
+  let localAccountRows: unknown[][] = [];
+  let localHoldingRows: unknown[][] = [];
+  let localSnapshotRows: unknown[][] = [];
+  let localSettingRows: unknown[][] = [];
+  if (preserveLocalTransactions && previousDb) {
+    localTxRows = getLocalTransactionRows(previousDb);
+    localAccountRows = getLocalAccountRows(previousDb);
+    localHoldingRows = getLocalHoldingRows(previousDb);
+    localSnapshotRows = getLocalSnapshotRows(previousDb);
+    localSettingRows = getLocalSettingRows(previousDb);
+  }
 
   let newDb: Database | null = null;
   try {
@@ -225,22 +227,12 @@ export async function importDb(
       applyMigrations(newDb, currentVersion);
     }
 
-    // Merge back local-only transactions that the cloud copy doesn't have.
-    if (preserveLocalTransactions && localTxRows.length > 0) {
-      mergeLocalTransactions(newDb, localTxRows);
-    }
-    if (preserveLocalTransactions && localAccountRows.length > 0) {
-      mergeLocalAccounts(newDb, localAccountRows);
-    }
-    if (preserveLocalTransactions && localHoldingRows.length > 0) {
-      mergeLocalHoldings(newDb, localHoldingRows);
-    }
-    if (preserveLocalTransactions && localSnapshotRows.length > 0) {
-      mergeLocalSnapshots(newDb, localSnapshotRows);
-    }
-    if (preserveLocalTransactions && localSettingRows.length > 0) {
-      mergeLocalSettings(newDb, localSettingRows);
-    }
+    // Merge back local rows that the cloud copy doesn't have or is outdated on.
+    if (localTxRows.length > 0) mergeLocalTransactions(newDb, localTxRows);
+    if (localAccountRows.length > 0) mergeLocalAccounts(newDb, localAccountRows);
+    if (localHoldingRows.length > 0) mergeLocalHoldings(newDb, localHoldingRows);
+    if (localSnapshotRows.length > 0) mergeLocalSnapshots(newDb, localSnapshotRows);
+    if (localSettingRows.length > 0) mergeLocalSettings(newDb, localSettingRows);
 
     // Persist the imported DB before swapping it into the live singleton.
     await persistDb(newDb);
