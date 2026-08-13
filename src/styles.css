@@ -464,11 +464,14 @@ details[open] > summary .card-chevron {
   grid-column: 1 / -1;
   cursor: pointer;
 }
+.annual-row.th {
+  cursor: default;
+}
 .annual-detail {
   background: var(--surface-2);
-  border-radius: var(--radius-sm);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
   padding: 10px;
-  margin: -2px 0 4px;
+  margin: 0 0 4px;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   grid-column: 1 / -1;
@@ -621,7 +624,6 @@ details[open] > summary .card-chevron {
   align-items: center;
   gap: 5px;
   min-width: 0;
-  overflow: hidden;
 }
 .hold-name {
   font-weight: 500;
@@ -665,9 +667,9 @@ details[open] > summary .card-chevron {
 /* Holdings detail panel */
 .hold-detail {
   background: var(--surface-2);
-  border-radius: var(--radius-sm);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
   padding: 8px 12px;
-  margin: -2px 0 4px;
+  margin: 0 0 4px;
   display: flex;
   flex-wrap: wrap;
   grid-column: 1 / -1;
