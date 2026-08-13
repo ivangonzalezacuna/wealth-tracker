@@ -253,4 +253,26 @@ describe('sync engine conflict handling', () => {
     await expect(pushToCloud()).resolves.toBe(true);
     expect(drive.uploadDbFile as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1);
   });
+
+  it('does not raise a conflict when scheduleUpload set localChangeTime after clearSyncMetadata', async () => {
+    // Reproduces the actual race: clearSyncMetadata() nulls all three keys, then
+    // scheduleUpload() immediately sets lastLocalChangeTimestamp = now before the
+    // debounced pushToCloud() fires. Without the no-baseline guard this would raise
+    // a spurious conflict because (localChangeTime > null) && storedVersion === null.
+    const meta = await import('../db/repositories/meta');
+    const drive = await import('./drive');
+    (meta.getLastSyncTimestamp as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    (meta.getLastLocalChangeTimestamp as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      '2026-01-03T00:00:00.000Z', // set by scheduleUpload after clearSyncMetadata
+    );
+    (meta.getDriveVersion as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    (drive.getCloudModifiedTime as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      '2025-12-01T00:00:00.000Z',
+    );
+
+    const { pushToCloud } = await import('./engine');
+
+    await expect(pushToCloud()).resolves.toBe(true);
+    expect(drive.uploadDbFile as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1);
+  });
 });
