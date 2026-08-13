@@ -6,6 +6,7 @@ import type { PortfolioData, Snapshot, Account } from '../types';
 import Chart from 'chart.js/auto';
 import { T, R, resolvedT } from '../theme';
 import { bindLegendToggle, renderLegendHtml, tooltipSwatch } from './chartLegend';
+import { writeChartTable } from './chartTable';
 import { bindSortedTableHeader, renderTableSection } from './tableView';
 import type { ColumnDef } from './tableColumns';
 import { renderPagination } from './pagination';
@@ -199,7 +200,8 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
           <button class="btn btn-sm btn-ghost ${_dcaFcRange === '360' ? 'active' : ''}" data-range="360">30Y</button>
         </div>
       </div>
-      <div class="chart-wrap chart-h-md"><canvas id="c-dca-proj"></canvas></div>
+      <div class="chart-wrap chart-h-md"><canvas id="c-dca-proj" role="img" aria-label="Cumulative contributions forecast chart" aria-describedby="c-dca-proj-table-wrap"></canvas></div>
+      <div class="chart-data-table-wrap" id="c-dca-proj-table-wrap" hidden></div>
       <div class="note" style="line-height:1.6">
         <div style="margin-bottom:4px">Projected monthly contributions (Settings \u2192 Accounts):</div>
         ${acctSummaryLines}
@@ -292,6 +294,17 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
     );
     bindLegendToggle(dcaFcLegendEl, CH['c-dca-proj'], { rescaleX: true });
   }
+
+  writeChartTable(
+    'c-dca-proj-table-wrap',
+    'Cumulative contributions forecast data',
+    ['Month', 'Actual (€)', 'Projected (€)'],
+    labels.map((label, i) => [
+      label,
+      histDataFull[i] != null ? fmtEur2(histDataFull[i] as number) : '—',
+      fcDataFull[i] != null ? fmtEur2(fcDataFull[i] as number) : '—',
+    ]),
+  );
 
   _attachDCAForecastRangeToggle(pd, accounts);
 }
@@ -414,6 +427,20 @@ function renderDCAChart(
       },
     },
   });
+
+  writeChartTable(
+    'c-dca-bar-table-wrap',
+    'Monthly contributions by ETF data',
+    ['Month', ...ordSyms.map((sym) => ISIN[sym] || sym), 'Total (€)'],
+    months.map((month) => {
+      const values = ordSyms.map((sym) => (pd.monthlyBy[month] || {})[sym] || 0);
+      return [
+        fmtMon(month),
+        ...values.map((value) => (value > 0 ? fmtEur2(value) : '—')),
+        fmtEur2(values.reduce((sum, value) => sum + value, 0)),
+      ];
+    }),
+  );
 }
 
 function _rebuildDCALegend(

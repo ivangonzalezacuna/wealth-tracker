@@ -41,7 +41,7 @@ import { getAccounts, getHoldings, getSettings } from '../store/config';
 import { allInvestmentAccountsValue } from '../model/accounts';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
-import { writeChartTable } from './chartTable';
+import { hideChartTable, writeChartTable } from './chartTable';
 import { T, R, resolvedT } from '../theme';
 import { createChartRegistry } from './chartRegistry';
 import Chart from 'chart.js/auto';
@@ -519,6 +519,7 @@ function _renderContribChart(points: MonthlyGrowthPoint[]): void {
   _destroyChart('c-an-contrib');
 
   if (points.length === 0) {
+    hideChartTable('c-an-contrib-table-wrap');
     const card = el.closest('.card') as HTMLElement | null;
     if (card) card.style.display = 'none';
     return;
@@ -599,6 +600,18 @@ function _renderContribChart(points: MonthlyGrowthPoint[]): void {
     ]);
     bindLegendToggle(legendEl, CH['c-an-contrib'], { skipIndex: [] });
   }
+
+  writeChartTable(
+    'c-an-contrib-table-wrap',
+    'Investment balance breakdown data',
+    ['Month', 'Contributed (€)', 'Market movement (€)', 'Total (€)'],
+    view.map((p) => [
+      fmtMon(p.month),
+      fmtEur2(p.contributed),
+      fmtEurSigned(p.market, 2),
+      fmtEurSigned(p.contributed + p.market, 2),
+    ]),
+  );
 }
 
 function _attachContribRangeToggle(points: MonthlyGrowthPoint[]): void {
@@ -959,14 +972,28 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
 
   const canvasId = `c-an-alloc-${dim}`;
   const legendId = `an-alloc-${dim}-legend`;
+  const tableWrapId = `${canvasId}-table-wrap`;
 
   // Hide card if no data; destroy any previous chart to avoid stale display
   if (slices.length === 0) {
     _destroyChart(canvasId);
+    hideChartTable(tableWrapId);
     return;
   }
 
   const total = slices.reduce((s, x) => s + x.value, 0);
+  const dimLabel =
+    dim === 'acct' ? 'account' : dim === 'class' ? 'asset class' : 'region';
+  writeChartTable(
+    tableWrapId,
+    `Allocation by ${dimLabel} data`,
+    ['Category', 'Value (€)', 'Share'],
+    slices.map((slice) => [
+      slice.label,
+      fmtEur2(slice.value),
+      total > 0 ? fmtPctVal((slice.value / total) * 100) : '0%',
+    ]),
+  );
 
   // When there is only one slice the donut chart conveys no additional
   // information beyond the label itself. Destroy any previous chart and
@@ -1230,6 +1257,7 @@ function _renderRollingCagrChart(
 
   if (points.length === 0) {
     const canvasWrap = canvas.closest('.chart-wrap') as HTMLElement | null;
+    hideChartTable('c-an-rolling-cagr-table-wrap');
     if (canvasWrap) canvasWrap.style.display = 'none';
     return;
   }
@@ -1285,6 +1313,13 @@ function _renderRollingCagrChart(
       },
     },
   });
+
+  writeChartTable(
+    'c-an-rolling-cagr-table-wrap',
+    'Rolling 3-year investment CAGR data',
+    ['Month', 'Rolling 3Y CAGR (%)'],
+    points.map((p) => [fmtMon(p.month), `${(p.cagr * 100).toFixed(1)}%`]),
+  );
 }
 
 // ── Income analytics ───────────────────────────────────────

@@ -787,7 +787,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           <button class="btn btn-sm btn-ghost ${_fcRange === '360' ? 'active' : ''}" data-range="360" aria-pressed="${_fcRange === '360'}">30Y</button>
         </div>
       </div>
-      <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast"></canvas></div>
+      <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast" role="img" aria-label="Net worth forecast chart" aria-describedby="c-nw-forecast-table-wrap"></canvas></div>
       <div class="chart-data-table-wrap" id="c-nw-forecast-table-wrap" hidden></div>
       <div class="note" style="line-height:1.6">
         <div style="margin-bottom:4px">Per-account return &amp; contribution assumptions (Settings \u2192 Accounts):</div>
@@ -1231,7 +1231,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
                   </div>`
                 : ''
             }
-            <div class="chart-wrap chart-h-lg"><canvas id="c-nw-decumulation"></canvas></div>
+            <div class="chart-wrap chart-h-lg"><canvas id="c-nw-decumulation" role="img" aria-label="Retirement drawdown chart" aria-describedby="c-nw-decumulation-table-wrap"></canvas></div>
             <div class="chart-data-table-wrap" id="c-nw-decumulation-table-wrap" hidden></div>`
           : `<p class="note" style="color:var(--ink-3)">
               ${

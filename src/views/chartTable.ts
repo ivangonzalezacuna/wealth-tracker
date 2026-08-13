@@ -82,3 +82,10 @@ export function writeChartTable(
 
   wrap.removeAttribute('hidden');
 }
+
+export function hideChartTable(wrapId: string): void {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  wrap.setAttribute('hidden', '');
+}

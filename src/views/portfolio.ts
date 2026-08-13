@@ -33,6 +33,7 @@ import { renderPagination } from './pagination';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow } from './tableColumns';
 import { renderLegendHtml, tooltipSwatch } from './chartLegend';
+import { hideChartTable, writeChartTable } from './chartTable';
 import { bindExpandableRows, restoreExpandableRows } from './expandableRows';
 import { bindSortedTableHeader, sortAndPaginate } from './tableView';
 import { isCollapsed, setCollapsed } from '../ui/collapseState';
@@ -616,6 +617,21 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   const C = resolvedT();
   const baseOptions = buildBaseChartOptions();
   _destroyChart('c-port-donut');
+  if (donutE.length === 0) {
+    hideChartTable('c-port-donut-table-wrap');
+  } else {
+    writeChartTable(
+      'c-port-donut-table-wrap',
+      'Cost basis allocation data',
+      ['ETF', 'Cost basis (€)', 'Share', 'ISIN'],
+      donutE.map((e) => [
+        e.shortName,
+        fmtEur2(e.cost),
+        pd.totalInv > 0 ? fmtPctVal((e.cost / pd.totalInv) * 100) : '0%',
+        e.isin,
+      ]),
+    );
+  }
   CH['c-port-donut'] = new Chart(document.getElementById('c-port-donut') as HTMLCanvasElement, {
     type: 'bar',
     data: {
