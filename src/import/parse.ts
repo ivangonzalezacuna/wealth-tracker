@@ -177,6 +177,21 @@ function joinQuotedLines(rawLines: string[]): string[] {
   return out;
 }
 
+/** Escape a field so `|` can be safely used as an internal separator. */
+function escapeKeyPart(v: string | number | null | undefined): string {
+  return String(v ?? '').replace(/\|/g, '%7C');
+}
+
+/** Lightweight stable hash (FNV-1a, 32-bit) for deterministic row IDs. */
+function stableHash(input: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, '0');
+}
+
 // ── Profile detection ──────────────────────────────────────────
 
 export function detectProfile(
@@ -245,7 +260,7 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
   const unmappedCounts: Record<string, number> = {};
   const dateErrorCounts: Record<string, number> = {};
   const numberErrorCounts: Record<string, { field: string; raw: string; count: number }> = {};
-  const idCounts: Record<string, number> = {}; // counter for deterministic ID generation
+  const idHashCounts: Record<string, number> = {}; // preserve duplicates with identical row hash
 
   for (let i = 1; i < lines.length; i++) {
     if (!lines[i].trim()) continue;
@@ -307,21 +322,48 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
     const tax = parseField('tax');
     const isin = get('isin') || get('symbol');
     const shares = parseField('shares');
+    const price = parseField('price');
+    const fee = parseField('fee');
+    const fxRate = parseField('fxRate');
 
     // Generate a deterministic ID when the CSV provides none.
-    // Profiles that lack an id column must declare `idColumns` to specify
-    // which CSV columns compose the unique key (prevents SQLite PK collisions).
+    // Profiles that lack an id column must declare `idColumns`.
+    // The suffix is derived from row content (not a session counter), so
+    // re-imports in separate sessions remain stable per logical row.
     let id = get('id');
     if (!id && profile.idColumns) {
       const baseKey = profile.idColumns
         .map((col) => {
           const idx = findHeaderIndex(col);
-          return (idx >= 0 ? (vals[idx] || '').trim() : '').replace(/\|/g, '%7C');
+          return escapeKeyPart(idx >= 0 ? (vals[idx] || '').trim() : '');
         })
         .join('|');
-      idCounts[baseKey] = (idCounts[baseKey] || 0) + 1;
-      id = `${profile.id}|${baseKey}#${idCounts[baseKey]}`;
+      const rowFingerprint = [
+        profile.id,
+        date,
+        txType,
+        rawCategory,
+        get('name'),
+        isin,
+        shares,
+        price,
+        amount,
+        fee,
+        tax,
+        get('currency') || profile.defaultCurrency,
+        fxRate,
+      ]
+        .map(escapeKeyPart)
+        .join('|');
+      const rowHash = stableHash(rowFingerprint);
+      const hashKey = `${baseKey}|${rowHash}`;
+      idHashCounts[hashKey] = (idHashCounts[hashKey] || 0) + 1;
+      const occurrenceSuffix = idHashCounts[hashKey] > 1 ? `:${idHashCounts[hashKey]}` : '';
+      id = `${profile.id}|${baseKey}#${rowHash}${occurrenceSuffix}`;
     }
+
+    const canonicalTax = txType === 'TAX' ? (tax !== 0 ? tax : amount) : tax;
+    const canonicalAmount = txType === 'TAX' ? canonicalTax : amount;
 
     transactions.push({
       id,
@@ -332,23 +374,18 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
       name: get('name'),
       isin,
       shares,
-      price: parseField('price'),
-      amount,
-      fee: parseField('fee'),
-      tax,
+      price,
+      amount: canonicalAmount,
+      fee,
+      tax: canonicalTax,
       currency: get('currency') || profile.defaultCurrency,
-      fxRate: parseField('fxRate'),
+      fxRate,
     });
   }
 
   // Filter rows that somehow still have no date or type (shouldn't happen after above guards)
   let filtered = transactions.filter((t) => t.date && t.type);
 
-  // When mergeTaxIntoInterest is enabled (e.g. N26), same-month TAX rows are folded
-  // into the INTEREST row: INTEREST keeps its gross amount, tax = sum of TAX amounts,
-  // and amount is reduced to net. This matches TR's convention (amount = net received).
-  // Grouping by month (not exact date) handles cases like N26 where tax refunds land
-  // on a different day (e.g. 14th) than the interest payment (e.g. 1st).
   if (profile.mergeTaxIntoInterest) {
     const interestByMonth: Record<string, Transaction> = {};
     const taxRowsByMonth: Record<string, Transaction[]> = {};
@@ -356,7 +393,7 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
 
     for (const tx of filtered) {
       if (tx.type === 'INTEREST') {
-        const month = tx.date.slice(0, 7); // YYYY-MM
+        const month = tx.date.slice(0, 7);
         if (interestByMonth[month]) {
           interestByMonth[month].amount += tx.amount;
         } else {
@@ -370,17 +407,14 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
       }
     }
 
-    // Merge TAX amounts into the same-month INTEREST row.
-    // After merge: amount = net (gross + negative taxes), tax = sum of taxes (negative).
     for (const [month, taxes] of Object.entries(taxRowsByMonth)) {
       const interest = interestByMonth[month];
       if (interest) {
         for (const tax of taxes) {
           interest.tax = (interest.tax || 0) + tax.amount;
-          interest.amount += tax.amount; // reduce to net
+          interest.amount += tax.amount;
         }
       } else {
-        // No matching INTEREST row in this month — keep as standalone TAX
         rest.push(...taxes);
       }
     }

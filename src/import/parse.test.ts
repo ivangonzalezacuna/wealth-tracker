@@ -548,12 +548,15 @@ describe('TR real deposit/tax/withdrawal type mappings', () => {
   });
 
   it('TAX_OPTIMIZATION maps to TAX (mapped, not unmapped)', () => {
-    const { transactions, unmapped } = parseWithProfile(
-      mkCsv('TAX_OPTIMIZATION'),
-      tradeRepublicProfile,
-    );
+    const csv = [
+      'transaction_id;date;type;category;name;symbol;shares;price;amount;fee;tax;currency;fx_rate',
+      'tx-tax;2024-07-01;TAX_OPTIMIZATION;;Tax Refund;;0;0;5.00;0;3.44;EUR;',
+    ].join('\n');
+    const { transactions, unmapped } = parseWithProfile(csv, tradeRepublicProfile);
     expect(transactions).toHaveLength(1);
     expect(transactions[0].type).toBe(TxType.TAX);
+    expect(transactions[0].tax).toBeCloseTo(3.44);
+    expect(transactions[0].amount).toBeCloseTo(3.44);
     expect(unmapped).toHaveLength(0);
   });
 
@@ -607,7 +610,43 @@ describe('csvLine RFC 4180 edge cases (via parseWithProfile)', () => {
   });
 });
 
-// ── N26 profile tests ───────────────────────────────────────────────
+describe('parseWithProfile – deterministic IDs', () => {
+  it('idColumns IDs stay row-stable even if row order changes', () => {
+    const profile: ImportProfile = {
+      id: 'order_test',
+      label: 'Order Test',
+      delimiter: ',',
+      decimal: 'dot',
+      dateFormat: 'YYYY-MM-DD',
+      defaultCurrency: 'EUR',
+      columns: {
+        date: 'date',
+        type: 'type',
+        name: 'name',
+        amount: 'amount',
+      },
+      typeMap: { FEE: TxType.FEE },
+      idColumns: ['date', 'type', 'amount'],
+    };
+    const csvAB = [
+      'date,type,name,amount',
+      '2026-01-01,FEE,Custody A,-2.00',
+      '2026-01-01,FEE,Custody B,-2.00',
+    ].join('\n');
+    const csvBA = [
+      'date,type,name,amount',
+      '2026-01-01,FEE,Custody B,-2.00',
+      '2026-01-01,FEE,Custody A,-2.00',
+    ].join('\n');
+    const a = parseWithProfile(csvAB, profile).transactions;
+    const b = parseWithProfile(csvBA, profile).transactions;
+    const idsA = new Map(a.map((t) => [t.name, t.id]));
+    const idsB = new Map(b.map((t) => [t.name, t.id]));
+    expect(idsA.get('Custody A')).toBe(idsB.get('Custody A'));
+    expect(idsA.get('Custody B')).toBe(idsB.get('Custody B'));
+    expect(idsA.get('Custody A')).not.toBe(idsA.get('Custody B'));
+  });
+});
 
 describe('parseWithProfile – N26 deterministic IDs', () => {
   const N26_CSV = [
@@ -622,12 +661,8 @@ describe('parseWithProfile – N26 deterministic IDs', () => {
 
   it('generates unique IDs for all N26 rows (no collisions)', () => {
     const { transactions } = parseWithProfile(N26_CSV, n26Profile);
-    // mergeTaxIntoInterest folds TAX rows into same-date INTEREST rows
     expect(transactions).toHaveLength(2);
-
-    const ids = transactions.map((t) => t.id);
-    const uniqueIds = new Set(ids);
-    expect(uniqueIds.size).toBe(2);
+    expect(new Set(transactions.map((t) => t.id)).size).toBe(2);
   });
 
   it('generates deterministic IDs (same CSV → same IDs)', () => {
@@ -636,7 +671,7 @@ describe('parseWithProfile – N26 deterministic IDs', () => {
     expect(r1.transactions.map((t) => t.id)).toEqual(r2.transactions.map((t) => t.id));
   });
 
-  it('idColumns are resolved case-insensitively', () => {
+  it('idColumns are resolved case-insensitively before merge', () => {
     const csv = [
       'booking date,value date,partner name,partner iban,type,payment reference,account name,amount (eur),original amount,original currency,exchange rate',
       '2024-01-01,2024-01-01,,,Interest,,Instant Savings,0.75,,,',
@@ -644,26 +679,24 @@ describe('parseWithProfile – N26 deterministic IDs', () => {
     ].join('\n');
     const { transactions } = parseWithProfile(csv, n26Profile);
     expect(transactions).toHaveLength(1);
-    expect(transactions[0].id).toContain('n26|2024-01-01|Interest|0.75#1');
+    expect(transactions[0].id).toMatch(/^n26\|2024-01-01\|Interest\|0.75#[a-f0-9]{8}$/);
     expect(transactions[0].type).toBe(TxType.INTEREST);
+    expect(transactions[0].amount).toBeCloseTo(0.55);
+    expect(transactions[0].tax).toBeCloseTo(-0.2);
   });
 
   it('skipUnmapped excludes non-mapped types', () => {
     const csvWithDeposit =
       N26_CSV + '\n2024-03-01,2024-03-01,,,Credit Transfer,,Instant Savings,100.00,,,';
     const { transactions } = parseWithProfile(csvWithDeposit, n26Profile);
-    // Credit Transfer is unmapped and skipUnmapped=true, so excluded
-    // 2 merged INTEREST rows remain (TAX folded in)
     expect(transactions).toHaveLength(2);
     expect(transactions.every((t) => t.type === 'INTEREST')).toBe(true);
   });
 
   it('mergeTaxIntoInterest folds tax into interest with correct amounts', () => {
     const { transactions } = parseWithProfile(N26_CSV, n26Profile);
-    // Each date had: interest=0.75, tax=-0.19, tax=-0.01
-    // After merge: amount = net = 0.75 - 0.19 - 0.01 = 0.55, tax = -0.20
     const jan = transactions.find((t) => t.date === '2024-01-01')!;
-    expect(jan.type).toBe('INTEREST');
+    expect(jan.type).toBe(TxType.INTEREST);
     expect(jan.amount).toBeCloseTo(0.55);
     expect(jan.tax).toBeCloseTo(-0.2);
   });
@@ -673,13 +706,12 @@ describe('parseWithProfile – N26 deterministic IDs', () => {
       'Booking Date,Value Date,Partner Name,Partner Iban,Type,Payment Reference,Account Name,Amount (EUR),Original Amount,Original Currency,Exchange Rate',
       '2026-01-01,2026-01-01,,,Interest,,Instant Savings,5.00,,,',
       '2026-01-14,2026-01-14,,,Tax,,Instant Savings,-1.00,,,',
-      '2026-01-14,2026-01-14,,,Tax,,Instant Savings,0.50,,,', // refund (positive)
+      '2026-01-14,2026-01-14,,,Tax,,Instant Savings,0.50,,,',
     ].join('\n');
     const { transactions } = parseWithProfile(csv, n26Profile);
     expect(transactions).toHaveLength(1);
-    const jan = transactions[0];
-    expect(jan.type).toBe('INTEREST');
-    expect(jan.amount).toBeCloseTo(4.5); // 5.00 - 1.00 + 0.50
-    expect(jan.tax).toBeCloseTo(-0.5); // -1.00 + 0.50
+    expect(transactions[0].type).toBe(TxType.INTEREST);
+    expect(transactions[0].amount).toBeCloseTo(4.5);
+    expect(transactions[0].tax).toBeCloseTo(-0.5);
   });
 });

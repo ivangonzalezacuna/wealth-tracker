@@ -125,6 +125,40 @@ describe('transactionDialog', () => {
     expect(tx!.source).toBe('manual');
   });
 
+  it('canonicalizes TAX transactions so tax falls back to amount when tax is empty', async () => {
+    const p = transactionDialog();
+    setField('txd-date', '2024-06-01');
+    setField('txd-name', 'Tax refund');
+    setField('txd-type', 'TAX');
+    (document.querySelector('#txd-type') as HTMLSelectElement).dispatchEvent(new Event('change'));
+    setField('txd-amount', '3.44');
+    setField('txd-tax', '');
+    getSubmit()!.click();
+    const tx = await p;
+    expect(tx).not.toBeNull();
+    expect(tx!.type).toBe('TAX');
+    expect(tx!.tax).toBeCloseTo(3.44);
+    expect(tx!.amount).toBeCloseTo(3.44);
+  });
+
+  it('shows the tax field for INTEREST transactions and preserves its value', async () => {
+    const p = transactionDialog();
+    const typeEl = document.querySelector('#txd-type') as HTMLSelectElement;
+    typeEl.value = 'INTEREST';
+    typeEl.dispatchEvent(new Event('change'));
+    fillRequired();
+    setField('txd-amount', '3.75');
+    setField('txd-tax', '-0.50');
+    const taxField = document.querySelector('#txd-field-tax') as HTMLElement;
+    expect(taxField.style.display).not.toBe('none');
+    getSubmit()!.click();
+    const tx = await p;
+    expect(tx).not.toBeNull();
+    expect(tx!.type).toBe('INTEREST');
+    expect(tx!.amount).toBeCloseTo(3.75);
+    expect(tx!.tax).toBeCloseTo(-0.5);
+  });
+
   it('title shows "Edit transaction" when editing an existing tx', () => {
     transactionDialog({
       existing: {

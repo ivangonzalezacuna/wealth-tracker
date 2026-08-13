@@ -39,18 +39,15 @@ describe('parseCSV auto-detection', () => {
   });
 
   it('auto-detects a non-TR profile when header matches a registered profile', () => {
-    // This test verifies that parseCSV now uses detectProfile instead of hardcoding TR.
-    // Since only the TR profile is built-in and registered, we test the fallback behavior:
-    // an unrecognized header falls back to TR profile (preserving backward compat).
-    const unknownCsv = [
-      'Ref;Datum;Typ;Bezeichnung;Betrag',
-      'FB-001;15.01.2024;KAUF;Test;-500,00',
+    const n26Csv = [
+      'Booking Date,Value Date,Partner Name,Partner Iban,Type,Payment Reference,Account Name,Amount (EUR),Original Amount,Original Currency,Exchange Rate',
+      '2024-01-01,2024-01-01,,,Interest,,Instant Savings,0.75,,,',
     ].join('\n');
 
-    // The header doesn't match any built-in profile, so fallback to TR is used.
-    // TR profile won't find its expected columns, so we get empty transactions.
-    const txs = parseCSV(unknownCsv);
-    // The important thing: it doesn't throw, and it returns an array.
-    expect(Array.isArray(txs)).toBe(true);
+    const txs = parseCSV(n26Csv);
+    expect(txs).toHaveLength(1);
+    expect(txs[0].type).toBe(TxType.INTEREST);
+    expect(txs[0].source).toBe('n26');
+    expect(txs[0].amount).toBeCloseTo(0.75);
   });
 });

@@ -45,6 +45,8 @@ const TAX_TYPES: ReadonlySet<Transaction['type']> = new Set([
   TxType.BUY,
   TxType.SELL,
   TxType.DIVIDEND,
+  TxType.INTEREST,
+  TxType.TAX,
 ]);
 const FX_TYPES: ReadonlySet<Transaction['type']> = new Set([
   TxType.BUY,
@@ -289,6 +291,11 @@ function _submit(): void {
 
   const existing = _activeExisting;
   const generatedId = `manual|${Date.now()}|${Math.random().toString(36).slice(2, 8)}`;
+  const parsedAmount = amountVisible ? _parseNum(amountRaw) : 0;
+  const parsedTax = taxVisible ? _parseNum(taxRaw) : 0;
+  const canonicalTax =
+    typeVal === TxType.TAX ? (parsedTax !== 0 ? parsedTax : parsedAmount) : parsedTax;
+  const canonicalAmount = typeVal === TxType.TAX ? canonicalTax : parsedAmount;
   const draft: Transaction = {
     rowId: existing?.rowId,
     id: existing?.id || generatedId,
@@ -300,9 +307,9 @@ function _submit(): void {
     isin: securityVisible ? isinVal : '',
     shares: sharesVisible ? _parseNum(sharesRaw) : 0,
     price: existing?.price || 0,
-    amount: amountVisible ? _parseNum(amountRaw) : 0,
+    amount: canonicalAmount,
     fee: feeVisible ? _parseNum(feeRaw) : 0,
-    tax: taxVisible ? _parseNum(taxRaw) : 0,
+    tax: canonicalTax,
     currency: fxVisible ? currencyVal : existing?.currency || 'EUR',
     fxRate: fxVisible ? _parseNum(fxRateRaw) || 1 : 1,
     note: noteVal,

@@ -34,7 +34,7 @@ function _fingerprint(value: unknown): string {
   }
   if (value && typeof value === 'object') {
     // Include stringified scalar values so changes in numeric totals
-    // (e.g. totalInterest after an N26 import) are detected. Without
+    // (e.g. totalInterest after an import) are detected. Without
     // this, two objects with identical keys but different values would
     // produce the same fingerprint and the IDB write would be skipped.
     const obj = value as Record<string, unknown>;

@@ -430,7 +430,11 @@ function txColumns(): ColumnDef<Transaction>[] {
       align: 'right',
       sortValue: (t) => t.amount || 0,
       cell: (t) =>
-        `<span class="tx-ledger-amount ${(t.amount || 0) < 0 ? 'neg' : 'pos'}">${fmtEur2(t.amount || 0)}</span>`,
+        `<span class="tx-ledger-amount ${(t.amount || 0) < 0 ? 'neg' : 'pos'}">${fmtEur2(t.amount || 0)}</span>${
+          t.type === 'INTEREST' && t.tax
+            ? `<span class="tx-ledger-meta">Tax ${fmtEur2(t.tax)}</span>`
+            : ''
+        }`,
     },
     {
       key: 'source',

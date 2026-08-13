@@ -131,17 +131,29 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
       }
     } else if (tx.type === TxType.TAX) {
       // TAX rows: refunds (e.g. TR TAX_OPTIMIZATION) or standalone tax charges.
-      // For N26 with mergeTaxIntoInterest, TAX rows are already folded into INTEREST.
-      const taxVal = toBase(tx.tax || tx.amount || 0, tx.currency, tx.fxRate);
+      // Canonical TAX value is stored in tx.tax. Keep fallback to tx.amount for
+      // backward compatibility with historical rows that predate canonicalization.
+      const canonicalTax = tx.tax !== 0 ? tx.tax : tx.amount || 0;
+      const taxVal = toBase(canonicalTax, tx.currency, tx.fxRate);
       const src = tx.source || 'unknown';
       taxBySource[src] = (taxBySource[src] || 0) + taxVal;
     } else if (tx.type === TxType.FEE) {
       // Standalone FEE rows (e.g. TR custody fees) that are not embedded in a
-      // BUY/SELL row. The cost-basis engine already captures fees inside trades;
-      // this branch covers broker/custody fees arriving as their own rows.
-      standaloneFees +=
+      // BUY/SELL row. The cost-basis engine already captures fees inside trades.
+      const feeValue =
         Math.abs(toBase(tx.amount || 0, tx.currency, tx.fxRate)) +
         Math.abs(toBase(tx.fee || 0, tx.currency, tx.fxRate));
+      const hasIsin = Boolean(isin);
+      const target = hasIsin ? etfs[isin] : undefined;
+
+      // Attribute ISIN-tagged standalone fees to the open position so per-holding
+      // cost basis and P&L include custody costs. Keep non-ISIN rows global.
+      if (target && target.shares > 0) {
+        target.cost += feeValue;
+        target.totalFees = (target.totalFees || 0) + feeValue;
+      } else {
+        standaloneFees += feeValue;
+      }
     } else if (tx.type === TxType.TRANSFER) {
       // TRANSFER moves cash between accounts and does not change total net worth.
       // Portfolio computations (cost basis, P&L, dividends) are unaffected.
