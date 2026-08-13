@@ -59,6 +59,27 @@ export function getHoldings(): Holding[] {
 export function getSettings(): Settings {
   return _settings;
 }
+
+/**
+ * Read a settings key as a finite number.
+ * Returns `defaultVal` when the key is absent, empty, or non-numeric.
+ */
+export function getNumberSetting(key: string, defaultVal: number): number {
+  const n = parseFloat((_settings[key] ?? '').toString().trim());
+  return Number.isFinite(n) ? n : defaultVal;
+}
+
+/**
+ * Read a settings key as a boolean.
+ * Accepts 'true'/'1'/'yes' → true; 'false'/'0'/'no' → false; absent → defaultVal.
+ */
+export function getBoolSetting(key: string, defaultVal: boolean): boolean {
+  const v = (_settings[key] ?? '').toString().toLowerCase().trim();
+  if (v === 'true' || v === '1' || v === 'yes') return true;
+  if (v === 'false' || v === '0' || v === 'no') return false;
+  return defaultVal;
+}
+
 export function isConfigLoaded(): boolean {
   return _loaded;
 }

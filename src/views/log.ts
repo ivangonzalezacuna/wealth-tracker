@@ -26,8 +26,8 @@ interface LogState {
   onEditSnap: (date: string) => void;
   onDelSnap: (date: string, btn?: HTMLButtonElement) => void;
   onAddTx?: () => void;
-  onEditTx?: (rowId: number) => void;
-  onDelTx?: (rowId: number, btn?: HTMLButtonElement) => void;
+  onEditTx?: (rowId: bigint) => void;
+  onDelTx?: (rowId: bigint, btn?: HTMLButtonElement) => void;
   readOnly?: boolean;
 }
 
@@ -39,8 +39,8 @@ const _snapTableState = createTableState({
 let _lastOnEdit: ((date: string) => void) | null = null;
 let _lastOnDel: ((date: string, btn?: HTMLButtonElement) => void) | null = null;
 let _lastOnAddTx: (() => void) | null = null;
-let _lastOnEditTx: ((rowId: number) => void) | null = null;
-let _lastOnDelTx: ((rowId: number, btn?: HTMLButtonElement) => void) | null = null;
+let _lastOnEditTx: ((rowId: bigint) => void) | null = null;
+let _lastOnDelTx: ((rowId: bigint, btn?: HTMLButtonElement) => void) | null = null;
 let _readOnly = false;
 let _snaps: Snapshot[] = [];
 let _txs: Transaction[] = [];
@@ -460,14 +460,16 @@ function attachTxListeners(): void {
       const target = e.target as HTMLElement;
       const editBtn = target.closest('.js-edit-tx') as HTMLButtonElement | null;
       if (editBtn) {
-        const rowId = Number(editBtn.dataset.rowid || 0);
-        if (rowId > 0) _lastOnEditTx?.(rowId);
+        const raw = editBtn.dataset.rowid;
+        const rowId = raw ? BigInt(raw) : null;
+        if (rowId != null) _lastOnEditTx?.(rowId);
         return;
       }
       const delBtn = target.closest('.js-del-tx') as HTMLButtonElement | null;
       if (delBtn) {
-        const rowId = Number(delBtn.dataset.rowid || 0);
-        if (rowId > 0) _lastOnDelTx?.(rowId, delBtn);
+        const raw = delBtn.dataset.rowid;
+        const rowId = raw ? BigInt(raw) : null;
+        if (rowId != null) _lastOnDelTx?.(rowId, delBtn);
       }
     });
   }

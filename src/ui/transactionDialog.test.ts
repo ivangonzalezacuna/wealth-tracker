@@ -180,7 +180,7 @@ describe('transactionDialog', () => {
     transactionDialog({
       existing: {
         id: 'x1',
-        rowId: 5,
+        rowId: 5n,
         date: '2024-01-15',
         source: 'manual',
         category: '',
@@ -205,7 +205,7 @@ describe('transactionDialog', () => {
     transactionDialog({
       existing: {
         id: 'x2',
-        rowId: 7,
+        rowId: 7n,
         date: '2024-03-10',
         source: 'manual',
         category: '',

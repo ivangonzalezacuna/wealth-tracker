@@ -37,7 +37,7 @@ import {
   annualizedReturnFromMonthlyReturns,
   monthEndDate,
 } from '../model/insights';
-import { getAccounts, getHoldings, getSettings } from '../store/config';
+import { getAccounts, getHoldings, getNumberSetting } from '../store/config';
 import { allInvestmentAccountsValue } from '../model/accounts';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
@@ -125,8 +125,7 @@ export function renderAnalytics(
 
   const accounts = getAccounts();
   const holdings = getHoldings();
-  const settings = getSettings();
-  const riskFreeRate = parseFloat(settings.riskFreeRate || '2') / 100;
+  const riskFreeRate = getNumberSetting('riskFreeRate', 2) / 100;
 
   const s = snaps[snaps.length - 1];
   const total = snapTotal(s);

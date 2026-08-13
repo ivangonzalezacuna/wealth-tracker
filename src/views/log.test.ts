@@ -242,7 +242,7 @@ describe('renderLog', () => {
     renderLog({
       txs: [
         {
-          rowId: 10,
+          rowId: 10n,
           id: 'tx-1',
           date: '2026-01-01',
           source: 'manual',
@@ -275,7 +275,7 @@ describe('renderLog', () => {
     renderLog({
       txs: [
         {
-          rowId: 11,
+          rowId: 11n,
           id: 'tx-int-1',
           date: '2026-01-15',
           source: 'manual',
@@ -309,7 +309,7 @@ describe('renderLog', () => {
     renderLog({
       txs: [
         {
-          rowId: 10,
+          rowId: 10n,
           id: 'tx-1',
           date: '2026-01-01',
           source: 'manual',
@@ -341,15 +341,15 @@ describe('renderLog', () => {
     const delBtn = document.querySelector('.js-del-tx') as HTMLButtonElement;
     editBtn.click();
     delBtn.click();
-    expect(onEditTx).toHaveBeenCalledWith(10);
-    expect(onDelTx).toHaveBeenCalledWith(10, delBtn);
+    expect(onEditTx).toHaveBeenCalledWith(10n);
+    expect(onDelTx).toHaveBeenCalledWith(10n, delBtn);
   });
 
   it('hides transaction actions in read-only mode', () => {
     renderLog({
       txs: [
         {
-          rowId: 10,
+          rowId: 10n,
           id: 'tx-1',
           date: '2026-01-01',
           source: 'manual',
