@@ -19,7 +19,7 @@ describe('showSection aria-selected sync', () => {
         <button class="active" data-section="networth" role="tab" aria-selected="true" aria-controls="networth">Net worth</button>
         <button data-section="portfolio" role="tab" aria-selected="false" aria-controls="portfolio">Portfolio</button>
         <button data-section="settings" role="tab" aria-selected="false" aria-controls="settings">Settings</button>
-        <button data-section="log" class="log-btn" role="tab" aria-selected="false" aria-controls="log">+ Update</button>
+        <button data-section="log" class="log-btn" role="tab" aria-selected="false" aria-controls="log">Add data</button>
       </nav>
       <div id="networth" class="section active" role="tabpanel"></div>
       <div id="portfolio" class="section" role="tabpanel"></div>

@@ -56,6 +56,10 @@ export interface RenderTableSectionResult<T> extends SortedPaginatedResult<T> {
   hasItems: boolean;
 }
 
+export function tableEmptyStateHtml(contentHtml: string): string {
+  return `<div class="tbl-empty-state" role="note">${contentHtml}</div>`;
+}
+
 export function renderTableSection<T>(
   opts: RenderTableSectionOptions<T>,
 ): RenderTableSectionResult<T> {
@@ -76,7 +80,7 @@ export function renderTableSection<T>(
     return { pageItems: [], page, totalPages: 1, hasItems: false };
   }
   if (!items.length) {
-    container.innerHTML = emptyHtml;
+    container.innerHTML = tableEmptyStateHtml(emptyHtml);
     return { pageItems: [], page: 1, totalPages: 1, hasItems: false };
   }
   const result = sortAndPaginate(items, columns, sortState, page, pageSize);

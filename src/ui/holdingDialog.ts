@@ -7,6 +7,7 @@ import { esc } from '../utils';
 import type { Holding } from '../types';
 import { ASSET_CLASSES, REGIONS } from '../model/accountTypes';
 import { filterSecuritySuggestions, type SecuritySuggestions } from '../model/securitySuggestions';
+import { ISIN_HINT, isValidISIN, normalizeISIN } from '../model/isin';
 import {
   bindColorInputs,
   createDialogController,
@@ -189,6 +190,7 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
     });
 
     bindColorInputs(overlay, 'holdd-color', 'holdd-color-hex');
+    _bindRealtimeIsinValidation(overlay);
   });
 }
 
@@ -200,7 +202,7 @@ function _submit(): void {
 
   ['holdd-isin', 'holdd-short-name'].forEach((f) => setErr(f, ''));
 
-  const isinVal = get('holdd-isin').toUpperCase();
+  const isinVal = normalizeISIN(get('holdd-isin'));
   const shortNameVal = get('holdd-short-name');
   const nameVal = get('holdd-name');
   const assetClassVal = get('holdd-class') || 'equity';
@@ -215,6 +217,9 @@ function _submit(): void {
 
   if (!isinVal) {
     setErr('holdd-isin', 'ISIN is required.');
+    valid = false;
+  } else if (!isValidISIN(isinVal)) {
+    setErr('holdd-isin', ISIN_HINT);
     valid = false;
   } else if (_activeExistingIsins.has(isinVal)) {
     setErr('holdd-isin', 'This ISIN is already defined in another holding.');
@@ -251,4 +256,29 @@ function _submit(): void {
 
 function _dismiss(result: Holding | null): void {
   _dialog.dismiss(result);
+}
+
+function _bindRealtimeIsinValidation(overlay: HTMLElement): void {
+  const isinInput = overlay.querySelector('#holdd-isin') as HTMLInputElement | null;
+  if (!isinInput) return;
+  const { setErr } = makeDialogHelpers(overlay);
+  const validate = (mode: 'input' | 'blur'): void => {
+    const isin = normalizeISIN(isinInput.value);
+    if (!isin) {
+      if (mode === 'blur') setErr('holdd-isin', 'ISIN is required.');
+      else setErr('holdd-isin', '');
+      return;
+    }
+    if (!isValidISIN(isin)) {
+      setErr('holdd-isin', ISIN_HINT);
+      return;
+    }
+    if (_activeExistingIsins.has(isin)) {
+      setErr('holdd-isin', 'This ISIN is already defined in another holding.');
+      return;
+    }
+    setErr('holdd-isin', '');
+  };
+  isinInput.addEventListener('input', () => validate('input'));
+  isinInput.addEventListener('blur', () => validate('blur'));
 }

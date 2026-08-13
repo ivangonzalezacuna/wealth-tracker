@@ -28,14 +28,31 @@ let _lastTxs: Transaction[] = [];
 /**
  * Renders the Dividends tab: gross/tax/net/interest KPI tiles plus the
  * dividend and interest history tables. Shows the empty state if no
- * dividend history exists yet.
+ * portfolio data or no income history exists yet.
  */
 export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = []): void {
   const hasPD = !!pd;
+  const hasIncomeData =
+    !!pd &&
+    (pd.divHist.length > 0 || pd.intHist.length > 0 || txs.some((tx) => tx.type === 'SELL'));
+  const showContent = hasPD && hasIncomeData;
 
-  document.getElementById('div-empty')!.style.display = hasPD ? 'none' : 'block';
-  document.getElementById('div-content')!.style.display = hasPD ? 'block' : 'none';
-  if (!hasPD) return;
+  document.getElementById('div-empty')!.style.display = showContent ? 'none' : 'block';
+  document.getElementById('div-content')!.style.display = showContent ? 'block' : 'none';
+
+  const emptyTitleEl = document.getElementById('div-empty-title');
+  const emptyBodyEl = document.getElementById('div-empty-body');
+  if (emptyTitleEl && emptyBodyEl) {
+    if (!hasPD) {
+      emptyTitleEl.textContent = 'No transaction data imported';
+      emptyBodyEl.textContent = 'Import your broker CSV to unlock dividend and interest tracking.';
+    } else {
+      emptyTitleEl.textContent = 'No dividend or interest income recorded yet';
+      emptyBodyEl.textContent =
+        'Income appears after importing transactions that include dividend or interest rows.';
+    }
+  }
+  if (!showContent) return;
 
   _lastPd = pd;
   _lastTxs = txs;
@@ -52,10 +69,10 @@ export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = [
   document.getElementById('div-kpis')!.innerHTML = `
     ${kpiTile({ label: `Gross dividends${infoTip('Before tax: Total distribution payments received from ETFs and stocks, before withholding tax is deducted.')}`, value: fmtEur2(totalGross) })}
     ${kpiTile({ label: `Tax withheld${infoTip('Aggregated withholding imported on dividend transactions. Useful as a cashflow signal, not jurisdiction-aware tax reporting or filing guidance.')}`, value: fmtEur2(Math.abs(pd.totalTax)), valueClass: pd.totalTax >= 0 ? 'neg' : 'pos', sub: 'aggregated imported signal' })}
-    ${kpiTile({ label: 'Net received', value: fmtEur2(pd.totalDivNet), valueClass: 'pos', sub: 'dividends' })}
-    ${kpiTile({ label: 'Gross interest', value: fmtEur2(pd.totalIntGross), sub: 'on cash savings' })}
+    ${kpiTile({ label: `Net received${infoTip('Gross dividends minus dividend withholding tax for imported dividend rows.')}`, value: fmtEur2(pd.totalDivNet), valueClass: 'pos', sub: 'dividends' })}
+    ${kpiTile({ label: `Gross interest${infoTip('Interest credited on cash/savings balances before any withholding or refunds.')}`, value: fmtEur2(pd.totalIntGross), sub: 'on cash savings' })}
     ${kpiTile({ label: `Tax on savings${infoTip('Aggregated savings-interest withholding and refunds imported from broker transactions. Useful as a cashflow signal, not jurisdiction-aware tax reporting or filing guidance.')}`, value: fmtEur2(pd.totalIntTax), valueClass: pd.totalIntTax > 0 ? 'neg' : 'ok', sub: 'aggregated withheld + refunds' })}
-    ${kpiTile({ label: 'Net interest', value: fmtEur2(pd.totalInterest), valueClass: 'pos', sub: 'received' })}
+    ${kpiTile({ label: `Net interest${infoTip('Gross interest minus savings-interest withholding tax, including imported refunds.')}`, value: fmtEur2(pd.totalInterest), valueClass: 'pos', sub: 'received' })}
     <div class="note" style="grid-column:1 / -1;line-height:1.5">
       Tax figures in this tab are aggregated from imported transactions (withholding + refunds) for personal tracking only. They are not tax filing guidance, are not residence-aware, and may become incomplete if your tax country changes over time.
     </div>
@@ -344,6 +361,7 @@ function dividendColumns(pd: PortfolioData): ColumnDef<DivHistEntry>[] {
 
 function renderDivTable(pd: PortfolioData): void {
   const selectedYear = getTableFilter(_divTableState, 'year');
+  const hasAnyDiv = pd.divHist.length > 0;
   const list = selectedYear
     ? pd.divHist.filter((d) => d.date.startsWith(selectedYear))
     : pd.divHist;
@@ -365,7 +383,7 @@ function renderDivTable(pd: PortfolioData): void {
     pageSize: DIV_PAGE_SIZE,
     rowClassName: 'tbl-row div-row',
     headerId: 'div-table-header',
-    emptyHtml: '<p class="note">No dividends found in imported transactions yet.</p>',
+    emptyHtml: `<p class="note">${hasAnyDiv ? 'No dividend payments found for the selected year.' : 'No dividend payments recorded yet. Import transactions with dividend rows to populate this table.'}</p>`,
     footerHtml: `<div class="tbl-row div-row" style="border-top:1px solid var(--line-2);margin-top:4px">
       <div></div><div style="font-weight:500">${selectedYear ? 'Year total' : 'Total'}</div>
       <div style="text-align:right;font-weight:500">${fmtEur2(totalGross)}</div>
@@ -374,6 +392,13 @@ function renderDivTable(pd: PortfolioData): void {
     </div>`,
   });
   setTablePage(_divTableState, page);
+  const divYearFilterBar = document.getElementById('div-year-filter-bar');
+  if (divYearFilterBar) divYearFilterBar.style.display = hasAnyDiv ? '' : 'none';
+  const divPagination = document.getElementById('div-pagination');
+  if (divPagination) {
+    divPagination.style.display = hasDiv ? '' : 'none';
+    if (!hasDiv) divPagination.innerHTML = '';
+  }
 
   // Bind sort handler on header row
   if (hasDiv) {
@@ -440,9 +465,11 @@ function intColumns(): ColumnDef<IntHistEntry>[] {
 
 function renderIntTable(pd: PortfolioData): void {
   const selectedYear = getTableFilter(_intTableState, 'year');
+  const hasAnyInt = pd.intHist.length > 0;
   const list = selectedYear
     ? pd.intHist.filter((i) => i.date.startsWith(selectedYear))
     : pd.intHist;
+  const hasInt = list.length > 0;
   const totalGross = list.reduce((s, i) => s + i.gross, 0);
   const totalTax = list.reduce((s, i) => s + i.tax, 0);
   const totalNet = list.reduce((s, i) => s + i.net, 0);
@@ -460,7 +487,7 @@ function renderIntTable(pd: PortfolioData): void {
     pageSize: DIV_PAGE_SIZE,
     rowClassName: 'tbl-row int-row',
     headerId: 'int-table-header',
-    emptyHtml: '<p class="note">No interest payments found in imported transactions.</p>',
+    emptyHtml: `<p class="note">${hasAnyInt ? 'No interest payments found for the selected year.' : 'No interest payments recorded yet. Import transactions with interest rows to populate this table.'}</p>`,
     headerAttrs: 'style="border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:2px"',
     footerHtml: `<div class="tbl-row int-row" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
         <div style="font-weight:500">${selectedYear ? 'Year total' : 'Total'}</div>
@@ -469,9 +496,16 @@ function renderIntTable(pd: PortfolioData): void {
         <div style="font-weight:500;text-align:right;color:var(--pos)">${fmtEur2(totalNet)}</div></div>`,
   });
   setTablePage(_intTableState, page);
+  const intYearFilterBar = document.getElementById('int-year-filter-bar');
+  if (intYearFilterBar) intYearFilterBar.style.display = hasAnyInt ? '' : 'none';
+  const intPagination = document.getElementById('int-pagination');
+  if (intPagination) {
+    intPagination.style.display = hasInt ? '' : 'none';
+    if (!hasInt) intPagination.innerHTML = '';
+  }
 
   // Bind sort handler on header row
-  if (list.length > 0) {
+  if (hasInt) {
     bindSortedTableHeader(
       document.getElementById('int-table-header'),
       _intTableState.sort,

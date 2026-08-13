@@ -48,7 +48,7 @@ export function appTemplate(): string {
   <button id="tab-portfolio" data-section="portfolio" role="tab" aria-selected="false" aria-controls="portfolio">Portfolio</button>
   <button id="tab-analytics" data-section="analytics" role="tab" aria-selected="false" aria-controls="analytics">Analytics</button>
   <button id="tab-settings" data-section="settings" role="tab" aria-selected="false" aria-controls="settings">Settings</button>
-  <button id="tab-log" class="log-btn" data-section="log" role="tab" aria-selected="false" aria-controls="log" aria-label="Update (add snapshot or import CSV)">＋ Update</button>
+  <button id="tab-log" class="log-btn" data-section="log" role="tab" aria-selected="false" aria-controls="log" aria-label="Add data (add snapshot or import CSV)">Add data</button>
 </nav>
 
 <div id="setup-banner" style="display:none"></div>
@@ -152,14 +152,15 @@ export function appTemplate(): string {
   <div class="subview" id="subview-dividends" role="tabpanel" aria-labelledby="tab-dividends" style="display:none">
     <div id="div-empty" style="display:none"><div class="card"><div class="empty-state">
       <div class="empty-icon">💰</div>
-      <div class="empty-title">No transaction data imported</div>
+      <div class="empty-title" id="div-empty-title">No transaction data imported</div>
+      <p id="div-empty-body" style="font-size:13px;margin-bottom:1rem;max-width:360px;margin-left:auto;margin-right:auto">Import your broker CSV to unlock dividend and interest tracking.</p>
       <button class="btn btn-primary" data-goto="log">Import CSV →</button>
     </div></div></div>
     <div id="div-content" style="display:none">
       <div class="kpi-row" id="div-kpis"></div>
       <div class="card">
         <div class="card-title">Dividend payments received (most recent first)</div>
-        <div class="filter-bar">
+        <div class="filter-bar" id="div-year-filter-bar">
           <select id="div-year-filter" class="form-input form-input-sm" aria-label="Filter by year" style="width:auto;display:inline-block">
             <option value="">All years</option>
           </select>
@@ -169,7 +170,7 @@ export function appTemplate(): string {
       </div>
       <div class="card">
         <div class="card-title">Cash / savings interest received</div>
-        <div class="filter-bar">
+        <div class="filter-bar" id="int-year-filter-bar">
           <select id="int-year-filter" class="form-input form-input-sm" aria-label="Filter by year" style="width:auto;display:inline-block">
             <option value="">All years</option>
           </select>

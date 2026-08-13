@@ -5,6 +5,7 @@
 
 import { esc } from '../utils';
 import type { SecuritySuggestionPair, SecuritySuggestions } from '../model/securitySuggestions';
+import { ISIN_HINT, isValidISIN, normalizeISIN } from '../model/isin';
 import { TxType } from '../types';
 import type { Transaction } from '../types';
 import {
@@ -199,11 +200,13 @@ export function transactionDialog(
       nameListId: 'txd-name-list',
     });
     _applyTypeVisibility(existing?.type || TxType.BUY);
+    _bindRealtimeIsinValidation(overlay);
 
     const typeEl = overlay.querySelector('#txd-type') as HTMLSelectElement | null;
-    typeEl?.addEventListener('change', () =>
-      _applyTypeVisibility(typeEl.value as Transaction['type']),
-    );
+    typeEl?.addEventListener('change', () => {
+      _applyTypeVisibility(typeEl.value as Transaction['type']);
+      _validateTransactionIsin(overlay, 'input');
+    });
   });
 }
 
@@ -230,7 +233,7 @@ function _submit(): void {
   const dateVal = get('txd-date');
   const typeVal = get('txd-type').toUpperCase();
   const nameVal = get('txd-name');
-  const isinVal = get('txd-isin').toUpperCase();
+  const isinVal = normalizeISIN(get('txd-isin'));
   const amountRaw = get('txd-amount');
   const sharesRaw = get('txd-shares');
   const feeRaw = get('txd-fee');
@@ -257,6 +260,10 @@ function _submit(): void {
   }
   if (securityVisible && !nameVal) {
     setErr('txd-name', 'Name is required.');
+    valid = false;
+  }
+  if (securityVisible && isinVal && !isValidISIN(isinVal)) {
+    setErr('txd-isin', ISIN_HINT);
     valid = false;
   }
   if (amountVisible && amountRaw !== '' && isNaN(_parseNum(amountRaw))) {
@@ -351,4 +358,33 @@ function _applyTypeVisibility(type: Transaction['type']): void {
   setDisplay('txd-field-fee', FEE_TYPES.has(type));
   setDisplay('txd-field-tax', TAX_TYPES.has(type));
   setDisplay('txd-row-fx', FX_TYPES.has(type));
+}
+
+function _bindRealtimeIsinValidation(overlay: HTMLElement): void {
+  const isinInput = overlay.querySelector('#txd-isin') as HTMLInputElement | null;
+  if (!isinInput) return;
+  isinInput.addEventListener('input', () => _validateTransactionIsin(overlay, 'input'));
+  isinInput.addEventListener('blur', () => _validateTransactionIsin(overlay, 'blur'));
+}
+
+function _validateTransactionIsin(overlay: HTMLElement, mode: 'input' | 'blur'): void {
+  const { setErr } = makeDialogHelpers(overlay);
+  if (!_isVisible('txd-row-security-fields')) {
+    setErr('txd-isin', '');
+    return;
+  }
+  const isinInput = overlay.querySelector('#txd-isin') as HTMLInputElement | null;
+  const isin = normalizeISIN(isinInput?.value || '');
+  if (!isin) {
+    setErr(
+      'txd-isin',
+      mode === 'blur' ? 'Optional. If provided, use 12-character ISIN format.' : '',
+    );
+    return;
+  }
+  if (!isValidISIN(isin)) {
+    setErr('txd-isin', ISIN_HINT);
+    return;
+  }
+  setErr('txd-isin', '');
 }

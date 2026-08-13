@@ -50,8 +50,8 @@ const DOM_FIXTURE = `
   <div id="div-empty"></div>
   <div id="div-content">
     <div id="div-kpis"></div>
-    <select id="div-year-filter"></select>
-    <select id="int-year-filter"></select>
+    <div id="div-year-filter-bar"><select id="div-year-filter"></select></div>
+    <div id="int-year-filter-bar"><select id="int-year-filter"></select></div>
     <div id="div-table-header"></div>
     <div id="div-history"></div>
     <div id="div-pagination"></div>
@@ -78,12 +78,8 @@ describe('renderDividends', () => {
 
   it('shows the empty state when pd has no dividend history', () => {
     renderDividends(makePD({ divHist: [], intHist: [] }));
-    // When pd is provided (non-null), div-content is shown and div-empty is hidden
-    // but the table renders a "No dividends found" message
-    expect((document.getElementById('div-empty') as HTMLElement).style.display).toBe('none');
-    expect(document.getElementById('div-history')!.textContent).toContain(
-      'No dividends found in imported transactions yet',
-    );
+    expect((document.getElementById('div-empty') as HTMLElement).style.display).toBe('block');
+    expect((document.getElementById('div-content') as HTMLElement).style.display).toBe('none');
   });
 
   it('renders gross/tax/net/interest KPI tiles with correct formatted values', () => {
@@ -115,6 +111,29 @@ describe('renderDividends', () => {
     renderDividends(makePD());
     const interestText = document.getElementById('div-interest')!.textContent!;
     expect(interestText).toContain('4,20');
+  });
+
+  it('hides dividend filter and pagination when there is no dividend source data', () => {
+    renderDividends(makePD({ divHist: [] }));
+    expect((document.getElementById('div-year-filter-bar') as HTMLElement).style.display).toBe(
+      'none',
+    );
+    expect((document.getElementById('div-pagination') as HTMLElement).style.display).toBe('none');
+    expect(document.getElementById('div-history')!.textContent).toContain(
+      'No dividend payments recorded yet.',
+    );
+  });
+
+  it('keeps dividend filter visible for empty selected-year results', () => {
+    renderDividends(makePD());
+    const select = document.getElementById('div-year-filter') as HTMLSelectElement;
+    select.innerHTML = '<option value="">All years</option><option value="2030">2030</option>';
+    select.value = '2030';
+    select.dispatchEvent(new Event('change'));
+    expect((document.getElementById('div-year-filter-bar') as HTMLElement).style.display).toBe('');
+    expect(document.getElementById('div-history')!.textContent).toContain(
+      'No dividend payments found for the selected year.',
+    );
   });
 
   it('populates year filter with distinct years plus All years default', () => {
