@@ -28,14 +28,29 @@ let _lastTxs: Transaction[] = [];
 /**
  * Renders the Dividends tab: gross/tax/net/interest KPI tiles plus the
  * dividend and interest history tables. Shows the empty state if no
- * dividend history exists yet.
+ * portfolio data or no income history exists yet.
  */
 export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = []): void {
   const hasPD = !!pd;
+  const hasIncomeData = !!pd && (pd.divHist.length > 0 || pd.intHist.length > 0);
+  const showContent = hasPD && hasIncomeData;
 
-  document.getElementById('div-empty')!.style.display = hasPD ? 'none' : 'block';
-  document.getElementById('div-content')!.style.display = hasPD ? 'block' : 'none';
-  if (!hasPD) return;
+  document.getElementById('div-empty')!.style.display = showContent ? 'none' : 'block';
+  document.getElementById('div-content')!.style.display = showContent ? 'block' : 'none';
+
+  const emptyTitleEl = document.getElementById('div-empty-title');
+  const emptyBodyEl = document.getElementById('div-empty-body');
+  if (emptyTitleEl && emptyBodyEl) {
+    if (!hasPD) {
+      emptyTitleEl.textContent = 'No transaction data imported';
+      emptyBodyEl.textContent = 'Import your broker CSV to unlock dividend and interest tracking.';
+    } else {
+      emptyTitleEl.textContent = 'No dividend or interest income recorded yet';
+      emptyBodyEl.textContent =
+        'Income appears after importing transactions that include dividend or interest rows.';
+    }
+  }
+  if (!showContent) return;
 
   _lastPd = pd;
   _lastTxs = txs;
@@ -52,10 +67,10 @@ export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = [
   document.getElementById('div-kpis')!.innerHTML = `
     ${kpiTile({ label: `Gross dividends${infoTip('Before tax: Total distribution payments received from ETFs and stocks, before withholding tax is deducted.')}`, value: fmtEur2(totalGross) })}
     ${kpiTile({ label: `Tax withheld${infoTip('Aggregated withholding imported on dividend transactions. Useful as a cashflow signal, not jurisdiction-aware tax reporting or filing guidance.')}`, value: fmtEur2(Math.abs(pd.totalTax)), valueClass: pd.totalTax >= 0 ? 'neg' : 'pos', sub: 'aggregated imported signal' })}
-    ${kpiTile({ label: 'Net received', value: fmtEur2(pd.totalDivNet), valueClass: 'pos', sub: 'dividends' })}
-    ${kpiTile({ label: 'Gross interest', value: fmtEur2(pd.totalIntGross), sub: 'on cash savings' })}
+    ${kpiTile({ label: `Net received${infoTip('Gross dividends minus dividend withholding tax for imported dividend rows.')}`, value: fmtEur2(pd.totalDivNet), valueClass: 'pos', sub: 'dividends' })}
+    ${kpiTile({ label: `Gross interest${infoTip('Interest credited on cash/savings balances before any withholding or refunds.')}`, value: fmtEur2(pd.totalIntGross), sub: 'on cash savings' })}
     ${kpiTile({ label: `Tax on savings${infoTip('Aggregated savings-interest withholding and refunds imported from broker transactions. Useful as a cashflow signal, not jurisdiction-aware tax reporting or filing guidance.')}`, value: fmtEur2(pd.totalIntTax), valueClass: pd.totalIntTax > 0 ? 'neg' : 'ok', sub: 'aggregated withheld + refunds' })}
-    ${kpiTile({ label: 'Net interest', value: fmtEur2(pd.totalInterest), valueClass: 'pos', sub: 'received' })}
+    ${kpiTile({ label: `Net interest${infoTip('Gross interest minus savings-interest withholding tax, including imported refunds.')}`, value: fmtEur2(pd.totalInterest), valueClass: 'pos', sub: 'received' })}
     <div class="note" style="grid-column:1 / -1;line-height:1.5">
       Tax figures in this tab are aggregated from imported transactions (withholding + refunds) for personal tracking only. They are not tax filing guidance, are not residence-aware, and may become incomplete if your tax country changes over time.
     </div>
