@@ -112,6 +112,23 @@ describe('transactionDialog', () => {
     await p;
   });
 
+  it('blocks submit and shows ISIN format error when ISIN is invalid', async () => {
+    const p = transactionDialog();
+    fillRequired();
+    setField('txd-isin', 'IE00B4L5Y98A');
+    let settled = false;
+    void p.then(() => {
+      settled = true;
+    });
+    getSubmit()!.click();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    const errEl = document.querySelector('#txd-isin-err') as HTMLElement;
+    expect(errEl.textContent).toContain('Use 12-character ISIN format');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await p;
+  });
+
   it('submits with valid fields and resolves a Transaction', async () => {
     const p = transactionDialog();
     fillRequired();

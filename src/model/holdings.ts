@@ -1,4 +1,5 @@
 import type { EtfPosition, Holding } from '../types';
+import { isValidISIN } from './isin';
 
 /** Floating-point tolerance for treating shares as zero (-> exited). */
 export const ZERO_THRESHOLD = 1e-6;
@@ -88,9 +89,6 @@ export function computeFeeDrag(
 
 // ── Holdings save-time validation ──────────────────────────────────
 
-/** ISO 6166: 2 uppercase letters (country code) + 9 alphanumeric chars + 1 numeric check digit. */
-const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/;
-
 /** A short name should be a brief label for charts/legends.
  *  Letters, digits, spaces, dots, and hyphens only; 1-10 characters. */
 const SHORT_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9 .\-]{0,9}$/;
@@ -116,7 +114,7 @@ export function validateHoldings(holdings: Holding[]): HoldingValidationError[] 
     const h = holdings[i];
 
     // ISIN format
-    if (!ISIN_RE.test(h.isin)) {
+    if (!isValidISIN(h.isin)) {
       errors.push({
         index: i,
         field: 'isin',

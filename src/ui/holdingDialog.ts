@@ -7,6 +7,7 @@ import { esc } from '../utils';
 import type { Holding } from '../types';
 import { ASSET_CLASSES, REGIONS } from '../model/accountTypes';
 import { filterSecuritySuggestions, type SecuritySuggestions } from '../model/securitySuggestions';
+import { ISIN_HINT, isValidISIN, normalizeISIN } from '../model/isin';
 import {
   bindColorInputs,
   createDialogController,
@@ -39,8 +40,6 @@ const _dialog = createDialogController<Holding | null>(null, {
     _activeSuggestionPairs = [];
   },
 });
-const ISIN_PATTERN = /^[A-Z]{2}[A-Z0-9]{10}$/;
-const ISIN_HINT = 'Use 12-character ISIN format (e.g. IE00B4L5Y983).';
 
 export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding | null> {
   return new Promise<Holding | null>((resolve) => {
@@ -203,7 +202,7 @@ function _submit(): void {
 
   ['holdd-isin', 'holdd-short-name'].forEach((f) => setErr(f, ''));
 
-  const isinVal = get('holdd-isin').toUpperCase();
+  const isinVal = normalizeISIN(get('holdd-isin'));
   const shortNameVal = get('holdd-short-name');
   const nameVal = get('holdd-name');
   const assetClassVal = get('holdd-class') || 'equity';
@@ -218,6 +217,9 @@ function _submit(): void {
 
   if (!isinVal) {
     setErr('holdd-isin', 'ISIN is required.');
+    valid = false;
+  } else if (!isValidISIN(isinVal)) {
+    setErr('holdd-isin', ISIN_HINT);
     valid = false;
   } else if (_activeExistingIsins.has(isinVal)) {
     setErr('holdd-isin', 'This ISIN is already defined in another holding.');
@@ -261,13 +263,13 @@ function _bindRealtimeIsinValidation(overlay: HTMLElement): void {
   if (!isinInput) return;
   const { setErr } = makeDialogHelpers(overlay);
   const validate = (mode: 'input' | 'blur'): void => {
-    const isin = isinInput.value.trim().toUpperCase();
+    const isin = normalizeISIN(isinInput.value);
     if (!isin) {
       if (mode === 'blur') setErr('holdd-isin', 'ISIN is required.');
       else setErr('holdd-isin', '');
       return;
     }
-    if (!ISIN_PATTERN.test(isin)) {
+    if (!isValidISIN(isin)) {
       setErr('holdd-isin', ISIN_HINT);
       return;
     }

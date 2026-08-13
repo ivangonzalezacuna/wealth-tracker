@@ -361,6 +361,7 @@ function dividendColumns(pd: PortfolioData): ColumnDef<DivHistEntry>[] {
 
 function renderDivTable(pd: PortfolioData): void {
   const selectedYear = getTableFilter(_divTableState, 'year');
+  const hasAnyDiv = pd.divHist.length > 0;
   const list = selectedYear
     ? pd.divHist.filter((d) => d.date.startsWith(selectedYear))
     : pd.divHist;
@@ -382,7 +383,7 @@ function renderDivTable(pd: PortfolioData): void {
     pageSize: DIV_PAGE_SIZE,
     rowClassName: 'tbl-row div-row',
     headerId: 'div-table-header',
-    emptyHtml: '<p class="note">No dividends found in imported transactions yet.</p>',
+    emptyHtml: `<p class="note">${hasAnyDiv ? 'No dividend payments found for the selected year.' : 'No dividend payments recorded yet. Import transactions with dividend rows to populate this table.'}</p>`,
     footerHtml: `<div class="tbl-row div-row" style="border-top:1px solid var(--line-2);margin-top:4px">
       <div></div><div style="font-weight:500">${selectedYear ? 'Year total' : 'Total'}</div>
       <div style="text-align:right;font-weight:500">${fmtEur2(totalGross)}</div>
@@ -391,6 +392,13 @@ function renderDivTable(pd: PortfolioData): void {
     </div>`,
   });
   setTablePage(_divTableState, page);
+  const divYearFilterBar = document.getElementById('div-year-filter-bar');
+  if (divYearFilterBar) divYearFilterBar.style.display = hasAnyDiv ? '' : 'none';
+  const divPagination = document.getElementById('div-pagination');
+  if (divPagination) {
+    divPagination.style.display = hasDiv ? '' : 'none';
+    if (!hasDiv) divPagination.innerHTML = '';
+  }
 
   // Bind sort handler on header row
   if (hasDiv) {
@@ -457,9 +465,11 @@ function intColumns(): ColumnDef<IntHistEntry>[] {
 
 function renderIntTable(pd: PortfolioData): void {
   const selectedYear = getTableFilter(_intTableState, 'year');
+  const hasAnyInt = pd.intHist.length > 0;
   const list = selectedYear
     ? pd.intHist.filter((i) => i.date.startsWith(selectedYear))
     : pd.intHist;
+  const hasInt = list.length > 0;
   const totalGross = list.reduce((s, i) => s + i.gross, 0);
   const totalTax = list.reduce((s, i) => s + i.tax, 0);
   const totalNet = list.reduce((s, i) => s + i.net, 0);
@@ -477,7 +487,7 @@ function renderIntTable(pd: PortfolioData): void {
     pageSize: DIV_PAGE_SIZE,
     rowClassName: 'tbl-row int-row',
     headerId: 'int-table-header',
-    emptyHtml: '<p class="note">No interest payments found in imported transactions.</p>',
+    emptyHtml: `<p class="note">${hasAnyInt ? 'No interest payments found for the selected year.' : 'No interest payments recorded yet. Import transactions with interest rows to populate this table.'}</p>`,
     headerAttrs: 'style="border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:2px"',
     footerHtml: `<div class="tbl-row int-row" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
         <div style="font-weight:500">${selectedYear ? 'Year total' : 'Total'}</div>
@@ -486,9 +496,16 @@ function renderIntTable(pd: PortfolioData): void {
         <div style="font-weight:500;text-align:right;color:var(--pos)">${fmtEur2(totalNet)}</div></div>`,
   });
   setTablePage(_intTableState, page);
+  const intYearFilterBar = document.getElementById('int-year-filter-bar');
+  if (intYearFilterBar) intYearFilterBar.style.display = hasAnyInt ? '' : 'none';
+  const intPagination = document.getElementById('int-pagination');
+  if (intPagination) {
+    intPagination.style.display = hasInt ? '' : 'none';
+    if (!hasInt) intPagination.innerHTML = '';
+  }
 
   // Bind sort handler on header row
-  if (list.length > 0) {
+  if (hasInt) {
     bindSortedTableHeader(
       document.getElementById('int-table-header'),
       _intTableState.sort,

@@ -431,6 +431,14 @@ details[open] > summary .card-chevron {
 .tbl-row:last-child {
   border-bottom: none;
 }
+.tbl-empty-state {
+  grid-column: 1 / -1;
+  padding: 10px 2px 6px;
+}
+.tbl-empty-state .note {
+  margin: 0;
+  font-style: normal;
+}
 .dca-row {
   grid-template-columns: subgrid;
   grid-column: 1 / -1;

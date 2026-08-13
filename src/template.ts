@@ -48,7 +48,7 @@ export function appTemplate(): string {
   <button id="tab-portfolio" data-section="portfolio" role="tab" aria-selected="false" aria-controls="portfolio">Portfolio</button>
   <button id="tab-analytics" data-section="analytics" role="tab" aria-selected="false" aria-controls="analytics">Analytics</button>
   <button id="tab-settings" data-section="settings" role="tab" aria-selected="false" aria-controls="settings">Settings</button>
-  <button id="tab-log" class="log-btn" data-section="log" role="tab" aria-selected="false" aria-controls="log" aria-label="Log data (add snapshot or import CSV)">＋ Log data</button>
+  <button id="tab-log" class="log-btn" data-section="log" role="tab" aria-selected="false" aria-controls="log" aria-label="Add data (add snapshot or import CSV)">Add data</button>
 </nav>
 
 <div id="setup-banner" style="display:none"></div>
@@ -160,7 +160,7 @@ export function appTemplate(): string {
       <div class="kpi-row" id="div-kpis"></div>
       <div class="card">
         <div class="card-title">Dividend payments received (most recent first)</div>
-        <div class="filter-bar">
+        <div class="filter-bar" id="div-year-filter-bar">
           <select id="div-year-filter" class="form-input form-input-sm" aria-label="Filter by year" style="width:auto;display:inline-block">
             <option value="">All years</option>
           </select>
@@ -170,7 +170,7 @@ export function appTemplate(): string {
       </div>
       <div class="card">
         <div class="card-title">Cash / savings interest received</div>
-        <div class="filter-bar">
+        <div class="filter-bar" id="int-year-filter-bar">
           <select id="int-year-filter" class="form-input form-input-sm" aria-label="Filter by year" style="width:auto;display:inline-block">
             <option value="">All years</option>
           </select>
