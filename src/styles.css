@@ -354,6 +354,16 @@ code,
   opacity: 0;
   margin-top: 0;
 }
+.card-section-head {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink-4);
+  text-transform: uppercase;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--line-2);
+  margin-bottom: 0.75rem;
+}
 .card-chevron {
   width: 18px;
   height: 18px;
@@ -1905,6 +1915,49 @@ input[type='color'] {
 }
 
 /* ── Settings card items ───────────────────────────────── */
+.settings-group-nav {
+  flex-wrap: wrap;
+  margin: 0 0 1rem;
+}
+.settings-group-nav .btn {
+  white-space: nowrap;
+}
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  scroll-margin-top: 0.75rem;
+}
+.settings-group + .settings-group {
+  margin-top: 1.5rem;
+}
+.settings-group-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0.75rem;
+}
+.settings-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.settings-group-note {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+@media (max-width: 640px) {
+  .settings-group-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 .settings-items {
   display: flex;
   flex-direction: column;
@@ -2171,7 +2224,7 @@ input[type='color'] {
   --brand-bg-hover: #1a2e42;
 }
 
-/* Explicit light preference — overrides dark OS setting */
+/* Explicit light preference; overrides dark OS setting */
 :root[data-theme='light'] {
   --bg: #f5f4f0;
   --surface: #fff;

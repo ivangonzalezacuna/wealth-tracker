@@ -1976,9 +1976,26 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
           renderSettings();
         }
         break;
-      case 'analytics':
-        renderAnalytics(state.pd, state.snaps, state.txs);
+      case 'analytics': {
+        const anContent = document.getElementById('an-content');
+        if (anContent && state.snaps.length > 0) {
+          if (!anContent.querySelector('.an-computing')) {
+            const placeholder = document.createElement('div');
+            placeholder.className = 'an-computing';
+            placeholder.innerHTML = '<span class="spinner"></span> Computing\u2026';
+            placeholder.style.cssText =
+              'display:flex;align-items:center;gap:0.5rem;padding:2rem 1rem;font-size:13px;color:var(--ink-2)';
+            anContent.prepend(placeholder);
+          }
+          setTimeout(() => {
+            anContent.querySelector('.an-computing')?.remove();
+            renderAnalytics(state.pd, state.snaps, state.txs);
+          }, 0);
+        } else {
+          renderAnalytics(state.pd, state.snaps, state.txs);
+        }
         break;
+      }
       case 'log':
         renderLog({
           txs: state.txs,

@@ -213,14 +213,49 @@ describe('Settings scoped re-render (repaintCard)', () => {
       'settings-card-accounts',
       'settings-card-holdings',
       'settings-card-contributions',
-      'settings-card-cost-basis',
+      'settings-card-calc-assumptions',
       'settings-card-goal',
-      'settings-card-rules',
+      'settings-card-portfolio-behavior',
       'settings-card-cache',
     ];
     for (const id of ids) {
       expect(document.getElementById(id), `missing #${id}`).not.toBeNull();
     }
+  });
+
+  it('renders the settings group nav with compact Holdings-style buttons', () => {
+    const nav = document.querySelector('.settings-group-nav');
+    expect(nav?.classList.contains('subnav')).toBe(true);
+    expect(nav?.classList.contains('range-toggle')).toBe(true);
+
+    const buttons = [...document.querySelectorAll<HTMLElement>('[data-settings-group-target]')];
+    expect(buttons).toHaveLength(3);
+    expect(buttons[0].className).toContain('btn btn-sm btn-ghost');
+    expect(buttons[0].classList.contains('active')).toBe(false);
+    expect(buttons[0].hasAttribute('aria-pressed')).toBe(false);
+  });
+
+  it('clicking a settings group nav button scrolls to its section without selected styling', () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    });
+
+    const trackingBtn = document.querySelector(
+      '[data-settings-group-target="settings-group-tracking"]',
+    ) as HTMLButtonElement;
+    const portfolioBtn = document.querySelector(
+      '[data-settings-group-target="settings-group-portfolio"]',
+    ) as HTMLButtonElement;
+
+    trackingBtn.click();
+
+    expect(trackingBtn.classList.contains('active')).toBe(false);
+    expect(portfolioBtn.classList.contains('active')).toBe(false);
+    expect(trackingBtn.hasAttribute('aria-pressed')).toBe(false);
+    expect(portfolioBtn.hasAttribute('aria-pressed')).toBe(false);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
   });
 
   it('repaintCard("accounts") replaces only the accounts card, siblings are untouched', () => {
@@ -277,9 +312,9 @@ describe('Settings scoped re-render (repaintCard)', () => {
     const keys = [...cards].map((c) => (c as HTMLElement).dataset.cardKey);
     expect(keys).toContain('accounts');
     expect(keys).toContain('holdings');
-    expect(keys).toContain('cost-basis');
+    expect(keys).toContain('calc-assumptions');
     expect(keys).toContain('goal');
-    expect(keys).toContain('rules');
+    expect(keys).toContain('portfolio-behavior');
     expect(keys).toContain('cache');
   });
 });
