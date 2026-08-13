@@ -146,9 +146,10 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
       const hasIsin = Boolean(isin);
       const target = hasIsin ? etfs[isin] : undefined;
 
-      // Attribute ISIN-tagged standalone fees to the open position so per-holding
-      // cost basis and P&L include custody costs. Keep non-ISIN rows global.
-      if (target && target.shares > 0) {
+      // Attribute ISIN-tagged standalone fees to the holding regardless of exit
+      // status so realized P&L includes post-exit custody/settlement fees.
+      // Keep non-ISIN rows global.
+      if (target) {
         target.cost += feeValue;
         target.totalFees = (target.totalFees || 0) + feeValue;
       } else {

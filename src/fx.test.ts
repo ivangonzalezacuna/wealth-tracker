@@ -31,33 +31,33 @@ describe('toBase', () => {
     expect(toBase(-200, 'CHF', 1.05)).toBeCloseTo(-210);
   });
 
-  it('warns and returns raw amount when fxRate is 0 for non-base currency', () => {
+  it('warns and returns NaN when fxRate is 0 for non-base currency', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const result = toBase(100, 'USD', 0);
-    expect(result).toBe(100);
+    expect(Number.isNaN(result)).toBe(true);
     expect(warnSpy).toHaveBeenCalledOnce();
     expect(warnSpy.mock.calls[0][0]).toContain('USD');
     expect(warnSpy.mock.calls[0][0]).toContain('fxRate=0');
   });
 
-  it('warns and returns raw amount when fxRate is negative', () => {
+  it('warns and returns NaN when fxRate is negative', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const result = toBase(100, 'USD', -1);
-    expect(result).toBe(100);
+    expect(Number.isNaN(result)).toBe(true);
     expect(warnSpy).toHaveBeenCalledOnce();
   });
 
-  it('warns and returns raw amount when fxRate is Infinity', () => {
+  it('warns and returns NaN when fxRate is Infinity', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const result = toBase(100, 'USD', Infinity);
-    expect(result).toBe(100);
+    expect(Number.isNaN(result)).toBe(true);
     expect(warnSpy).toHaveBeenCalledOnce();
   });
 
-  it('warns and returns raw amount when fxRate is NaN', () => {
+  it('warns and returns NaN when fxRate is NaN', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const result = toBase(100, 'USD', NaN);
-    expect(result).toBe(100);
+    expect(Number.isNaN(result)).toBe(true);
     expect(warnSpy).toHaveBeenCalledOnce();
   });
 

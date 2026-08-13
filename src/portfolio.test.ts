@@ -229,6 +229,32 @@ describe('computePD', () => {
     expect(pd.totalFees).toBeCloseTo(3);
   });
 
+  it('attributes ISIN-tagged standalone FEE rows even after a full exit', () => {
+    const txs: Transaction[] = [
+      buyTx('IE00B4L5Y983', '2024-01-01', 10, 1000),
+      sellTx('IE00B4L5Y983', '2024-02-01', 10, 1100),
+      {
+        id: '',
+        source: '',
+        type: TxType.FEE,
+        date: '2024-02-15',
+        isin: 'IE00B4L5Y983',
+        name: 'Post-exit custody fee',
+        shares: 0,
+        price: 0,
+        amount: -2,
+        fee: 0,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 0,
+      },
+    ];
+    const pd = computePD(txs);
+    expect(pd.etfs['IE00B4L5Y983'].totalFees).toBeCloseTo(2);
+    expect(pd.etfs['IE00B4L5Y983'].cost).toBeCloseTo(2);
+    expect(pd.totalFees).toBeCloseTo(2);
+  });
+
   it('DCA monthly only counts BUYs (excludes sells)', () => {
     const txs = [
       buyTx('IE00B4L5Y983', '2024-01-15', 10, 1000),
@@ -594,6 +620,12 @@ describe('computePD: mixed-currency FX normalization', () => {
     ];
     const pd = computePD(txs);
     expect(pd.totalFees).toBeCloseTo(9);
+  });
+
+  it('invalid non-base fxRate propagates NaN instead of silently using raw values', () => {
+    const txs = [buyFx(ISIN, '2024-01-15', 10, 1000, 'USD', 0)];
+    const pd = computePD(txs);
+    expect(Number.isNaN(pd.totalInv)).toBe(true);
   });
 
   it('DCA monthlyBy sums USD BUYs in EUR', () => {

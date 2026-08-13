@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   computeCostBasis,
   _computeAvgCost,
@@ -8,6 +8,10 @@ import {
 } from './costbasis';
 import { TxType } from '../types';
 import type { Transaction } from '../types';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 /** Helper to build a minimal BUY transaction. */
 function buy(date: string, shares: number, amount: number, fee = 0): Transaction {
@@ -349,6 +353,24 @@ describe('costbasis: SPLIT transaction type', () => {
     expect(r.realizedPnL).toBeCloseTo(100);
     expect(r.costBasis).toBeCloseTo(500);
   });
+
+  it('ignores invalid zero SPLIT ratio and logs an error', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const txs = [buy('2024-01-01', 10, 1000), split('2024-02-01', 0)];
+    const r = _computeAvgCost(txs);
+    expect(r.shares).toBeCloseTo(10);
+    expect(r.costBasis).toBeCloseTo(1000);
+    expect(errorSpy).toHaveBeenCalledOnce();
+  });
+
+  it('ignores non-finite SPLIT ratio in lot-based engines', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const txs = [buy('2024-01-01', 10, 1000), split('2024-02-01', Number.POSITIVE_INFINITY)];
+    const r = _computeFIFO(txs);
+    expect(r.shares).toBeCloseTo(10);
+    expect(r.costBasis).toBeCloseTo(1000);
+    expect(errorSpy).toHaveBeenCalledOnce();
+  });
 });
 
 describe('costbasis: mixed-currency FX normalization', () => {
@@ -454,12 +476,11 @@ describe('costbasis: mixed-currency FX normalization', () => {
     expect(r.exited).toBe(true);
   });
 
-  it('warns and falls back to raw amount when fxRate is missing for non-EUR tx', () => {
+  it('warns and propagates NaN when fxRate is missing for non-EUR tx', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const txs = [buyFx('2024-01-01', 10, 100, 'USD', 0)]; // fxRate = 0 → missing
     const r = _computeAvgCost(txs);
-    // Falls back to raw amount (100) with a warning
-    expect(r.costBasis).toBeCloseTo(100);
+    expect(Number.isNaN(r.costBasis)).toBe(true);
     expect(warnSpy).toHaveBeenCalled();
     vi.restoreAllMocks();
   });
