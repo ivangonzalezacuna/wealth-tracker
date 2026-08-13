@@ -4,6 +4,7 @@ import { sourceLabel } from '../import/profiles/index';
 import type { Snapshot, Transaction } from '../types';
 import { T } from '../theme';
 import { isCollapsed, setCollapsed } from '../ui/collapseState';
+import { EDIT_ICON, DELETE_ICON } from './icons';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow } from './tableColumns';
 import { renderPagination } from './pagination';
@@ -388,22 +389,10 @@ function txColumns(): ColumnDef<Transaction>[] {
       label: 'Name',
       sortValue: (t) => t.name || '',
       cellAttrs: () => 'data-ledger-label="Name"',
-      cell: (t) => `<span class="tx-ledger-name">${esc(t.name || '-')}</span>`,
-    },
-    {
-      key: 'isin',
-      label: 'ISIN',
-      sortValue: (t) => t.isin || '',
-      cellAttrs: () => 'data-ledger-label="ISIN"',
-      cell: (t) => `<span class="tx-ledger-isin">${esc(t.isin || '-')}</span>`,
-    },
-    {
-      key: 'shares',
-      label: 'Shares',
-      align: 'right',
-      sortValue: (t) => t.shares || 0,
-      cellAttrs: () => 'style="text-align:right" data-ledger-label="Shares"',
-      cell: (t) => (t.shares ? String(t.shares) : '-'),
+      cell: (t) =>
+        `<span class="tx-ledger-name" title="${esc(t.name || '')}">${esc(t.name || '-')}</span>${
+          t.isin ? `<span class="tx-ledger-meta tx-ledger-isin">${esc(t.isin)}</span>` : ''
+        }`,
     },
     {
       key: 'amount',
@@ -411,12 +400,15 @@ function txColumns(): ColumnDef<Transaction>[] {
       align: 'right',
       sortValue: (t) => t.amount || 0,
       cellAttrs: () => 'style="text-align:right" data-ledger-label="Amount"',
-      cell: (t) =>
-        `<span class="tx-ledger-amount ${(t.amount || 0) < 0 ? 'neg' : 'pos'}">${fmtEur2(t.amount || 0)}</span>${
+      cell: (t) => {
+        const amountHtml = `<span class="tx-ledger-amount ${(t.amount || 0) < 0 ? 'neg' : 'pos'}">${fmtEur2(t.amount || 0)}</span>`;
+        const sharesHtml = t.shares ? `<span class="tx-ledger-meta">${t.shares} shares</span>` : '';
+        const taxHtml =
           t.type === 'INTEREST' && t.tax
             ? `<span class="tx-ledger-meta">Tax ${fmtEur2(t.tax)}</span>`
-            : ''
-        }`,
+            : '';
+        return amountHtml + sharesHtml + taxHtml;
+      },
     },
     {
       key: 'source',
@@ -548,8 +540,8 @@ function renderTxList(txs: Transaction[]): void {
           !showActions || !tx.rowId
             ? ''
             : `<div role="cell" class="tx-actions" data-ledger-label="Actions">
-            <button class="btn btn-ghost btn-sm js-edit-tx" data-rowid="${tx.rowId}">Edit</button>
-            <button class="btn btn-danger btn-sm js-del-tx" data-rowid="${tx.rowId}">Delete</button>
+            <button class="btn btn-sm btn-outline btn-icon js-edit-tx" data-rowid="${tx.rowId}" aria-label="Edit transaction" title="Edit transaction">${EDIT_ICON}</button>
+            <button class="btn btn-sm btn-danger btn-icon js-del-tx" data-rowid="${tx.rowId}" aria-label="Delete transaction" title="Delete transaction">${DELETE_ICON}</button>
           </div>`;
         return `<div class="tbl-row tx-row" role="row">
           ${renderTableRow(columns, tx)}
