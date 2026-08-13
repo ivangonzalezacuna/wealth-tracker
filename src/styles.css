@@ -587,6 +587,21 @@ details[open] > summary .card-chevron {
 #port-table .th.hold-row > * {
   padding-top: 3px;
 }
+#port-table .hold-row:not(.th):hover {
+  background: var(--surface-2);
+}
+
+/* Row expand chevron (shared by hold-row and snap-row-compact) */
+.row-expand-chevron {
+  font-size: 9px;
+  color: var(--ink-3);
+  transition: transform 0.15s;
+  flex-shrink: 0;
+  user-select: none;
+}
+[aria-expanded='true'] .row-expand-chevron {
+  transform: rotate(90deg);
+}
 
 /* ETF cell elements */
 .hold-etf-cell {
@@ -703,6 +718,9 @@ details[open] > summary .card-chevron {
   min-height: auto;
   padding-bottom: 6px;
 }
+.snap-row-compact:not(.th):hover {
+  background: var(--surface-2);
+}
 .snap-month-cell {
   display: flex;
   align-items: center;
@@ -732,6 +750,9 @@ details[open] > summary .card-chevron {
 }
 
 /* Transaction ledger */
+#tx-ledger-wrap {
+  overflow-x: auto;
+}
 #tx-ledger-list {
   display: grid;
   grid-template-columns:
@@ -1648,6 +1669,9 @@ summary.section-label {
   #port-table .th.hold-row > * {
     padding-top: 2px;
   }
+  #tx-ledger-wrap {
+    box-shadow: inset -24px 0 16px -12px rgba(0, 0, 0, 0.08);
+  }
 }
 
 @media (max-width: 480px) {
@@ -1811,6 +1835,10 @@ summary.section-label {
   }
   #port-table .th.hold-row {
     font-size: 9px;
+  }
+  .tx-actions .btn-sm {
+    min-height: 40px;
+    padding: 8px 12px;
   }
 }
 

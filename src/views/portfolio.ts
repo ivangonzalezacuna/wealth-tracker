@@ -36,6 +36,7 @@ import { renderTableHeader, renderTableRow } from './tableColumns';
 import { TOOLTIP_BOX, renderLegendHtml, tooltipSwatch } from './chartLegend';
 import { toggleSingleDetailRow } from './expandableRows';
 import { bindSortedTableHeader, sortAndPaginate } from './tableView';
+import { isCollapsed, setCollapsed } from '../ui/collapseState';
 import { createChartRegistry } from './chartRegistry';
 
 const { CH, destroyChart: _destroyChart } = createChartRegistry();
@@ -136,7 +137,7 @@ function holdingsColumns(
       cellClass: () => 'hold-etf-cell',
       cell: (e) => {
         const isExited = e.exited || e.shares < 1e-6;
-        return `<span class="hold-name">${esc(e.shortName)}</span><span class="hold-dot" style="background:${safeColor(e.color)};opacity:${isExited ? '0.45' : '1'}"></span>`;
+        return `<span class="row-expand-chevron">&#x25B8;</span><span class="hold-name">${esc(e.shortName)}</span><span class="hold-dot" style="background:${safeColor(e.color)};opacity:${isExited ? '0.45' : '1'}"></span>`;
       },
     },
     {
@@ -335,7 +336,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   const rows = pageItems
     .map((e) => {
       const isExited = e.exited || e.shares < 1e-6;
-      return `<div class="tbl-row hold-row" role="row" tabindex="0" aria-expanded="false"${isExited ? ' style="opacity:0.6"' : ''} data-etf-key="${esc(e.isin)}">
+      return `<div class="tbl-row hold-row" role="row" tabindex="0" aria-expanded="${String(isCollapsed('hold:' + e.isin))}"${isExited ? ' style="opacity:0.6"' : ''} data-etf-key="${esc(e.isin)}">
     ${renderTableRow(columns, e)}
   </div>`;
     })
@@ -418,6 +419,10 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
         item: e,
         detailSelector: '.hold-detail',
         createDetail: () => _createHoldingDetail(e),
+        onExpandedChange: (detailRow, expanded) => {
+          const key = detailRow.dataset.etfKey;
+          if (key) setCollapsed('hold:' + key, expanded);
+        },
       });
     });
     tbl.addEventListener('keydown', (ev) => {
@@ -425,6 +430,25 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
       if (!row || (ev.key !== 'Enter' && ev.key !== ' ')) return;
       ev.preventDefault();
       row.click();
+    });
+  }
+
+  // Restore previously expanded hold row (if still on this page)
+  if (tbl) {
+    tbl.querySelectorAll('.hold-row:not(.th)').forEach((row) => {
+      const etfKey = (row as HTMLElement).dataset.etfKey;
+      if (etfKey && isCollapsed('hold:' + etfKey)) {
+        const e = _pageItemsByKey.get(etfKey);
+        if (e) {
+          toggleSingleDetailRow({
+            container: tbl,
+            row: row as HTMLElement,
+            item: e,
+            detailSelector: '.hold-detail',
+            createDetail: () => _createHoldingDetail(e),
+          });
+        }
+      }
     });
   }
 

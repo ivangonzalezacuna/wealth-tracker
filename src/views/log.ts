@@ -167,7 +167,7 @@ function snapColumns(): ColumnDef<Snapshot>[] {
       label: 'Month',
       sortValue: (s) => s.date,
       cell: (s) =>
-        `<span class="snap-month">${fmtMon(s.date)}</span>${s.notes ? '<span class="snap-note-dot" title="Has a note"></span>' : ''}`,
+        `<span class="row-expand-chevron">&#x25B8;</span><span class="snap-month">${fmtMon(s.date)}</span>${s.notes ? '<span class="snap-note-dot" title="Has a note"></span>' : ''}`,
       cellClass: () => 'snap-month-cell',
     },
     {
