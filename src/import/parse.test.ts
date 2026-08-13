@@ -713,7 +713,7 @@ describe('parseWithProfile – N26 deterministic IDs', () => {
     expect(taxes[0].tax + taxes[1].tax).toBeCloseTo(-0.2);
   });
 
-  it('does not fold same-month TAX rows into INTEREST when dates differ', () => {
+  it('keeps same-month TAX rows decoupled from INTEREST', () => {
     const csv = [
       'Booking Date,Value Date,Partner Name,Partner Iban,Type,Payment Reference,Account Name,Amount (EUR),Original Amount,Original Currency,Exchange Rate',
       '2026-01-01,2026-01-01,,,Interest,,Instant Savings,5.00,,,',
