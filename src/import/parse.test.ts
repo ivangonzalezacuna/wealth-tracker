@@ -245,6 +245,12 @@ describe('detectProfile', () => {
     expect(profile).not.toBeNull();
     expect(profile!.id).toBe('trade_republic');
   });
+
+  it('returns null when mandatory detected-profile columns are missing', () => {
+    const header = 'transaction_id;date;category;name;symbol;shares;price;fee;tax;currency;fx_rate';
+    const profile = detectProfile(header);
+    expect(profile).toBeNull();
+  });
 });
 
 describe('parseWithProfile column matching', () => {
@@ -713,5 +719,19 @@ describe('parseWithProfile – N26 deterministic IDs', () => {
     expect(transactions[0].type).toBe(TxType.INTEREST);
     expect(transactions[0].amount).toBeCloseTo(4.5);
     expect(transactions[0].tax).toBeCloseTo(-0.5);
+  });
+
+  it('keeps TAX standalone when no INTEREST exists in the same month', () => {
+    const csv = [
+      'Booking Date,Value Date,Partner Name,Partner Iban,Type,Payment Reference,Account Name,Amount (EUR),Original Amount,Original Currency,Exchange Rate',
+      '2026-01-01,2026-01-01,,,Interest,,Instant Savings,5.00,,,',
+      '2026-02-14,2026-02-14,,,Tax,,Instant Savings,-1.00,,,',
+    ].join('\n');
+    const { transactions } = parseWithProfile(csv, n26Profile);
+    expect(transactions).toHaveLength(2);
+    expect(transactions.some((t) => t.type === TxType.INTEREST && t.date === '2026-01-01')).toBe(
+      true,
+    );
+    expect(transactions.some((t) => t.type === TxType.TAX && t.date === '2026-02-14')).toBe(true);
   });
 });

@@ -200,6 +200,22 @@ export function detectProfile(
 ): ImportProfile | null {
   const pool = profiles || builtInProfiles;
   const lower = headerLine.toLowerCase();
+  const separator = detectSeparator(headerLine);
+  const headers = csvLine(headerLine, separator).map((h) => h.trim());
+  const headerIndexExact = new Map<string, number>();
+  const headerIndexLower = new Map<string, number>();
+  for (let i = 0; i < headers.length; i++) {
+    const header = headers[i];
+    if (!headerIndexExact.has(header)) headerIndexExact.set(header, i);
+    const normalized = header.toLowerCase();
+    if (!headerIndexLower.has(normalized)) headerIndexLower.set(normalized, i);
+  }
+  const hasHeader = (source: string | number | undefined): boolean => {
+    if (source === undefined) return false;
+    if (typeof source === 'number') return source >= 0 && source < headers.length;
+    return headerIndexExact.has(source) || headerIndexLower.has(source.toLowerCase());
+  };
+  const requiredColumns = ['date', 'type', 'amount'] as const;
 
   let bestProfile: ImportProfile | null = null;
   let bestScore = 0;
@@ -217,6 +233,12 @@ export function detectProfile(
       bestProfile = p;
     }
   }
+  if (!bestProfile) return null;
+
+  for (const column of requiredColumns) {
+    if (!hasHeader(bestProfile.columns[column])) return null;
+  }
+
   return bestProfile;
 }
 

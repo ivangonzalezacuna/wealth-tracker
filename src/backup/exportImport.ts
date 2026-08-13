@@ -89,7 +89,10 @@ export function buildBackup(input: BackupFile['data']): BackupFile {
     schemaVersion: BACKUP_SCHEMA_VERSION,
     app: 'wealth-tracker',
     exportedAt: new Date().toISOString(),
-    data: { ...input },
+    data: {
+      ...input,
+      transactions: input.transactions.map(({ rowId: _rowId, ...tx }) => tx),
+    },
   };
 }
 

@@ -183,9 +183,11 @@ export function exportDb(): Uint8Array | null {
  * Re-initializes the singleton and persists to IndexedDB.
  *
  * By default, to guard against stale cloud content (CDN caching, replication
- * lag), any transactions that exist locally but NOT in the cloud DB are
- * re-inserted after the import so data is never silently lost. Callers can
- * disable that preservation when they need a true full replacement.
+ * lag), locally edited rows are merged back after import:
+ * - transactions: local-only rows are reinserted
+ * - accounts/holdings/settings: local rows upsert over cloud rows by key
+ * - snapshots: local-only rows are inserted when date is absent in cloud
+ * Callers can disable this preservation when they need a true full replacement.
  *
  * The previous database is kept open until every step succeeds so that a
  * failure in mergeLocalTransactions or persistDb never leaves _db pointing
@@ -200,10 +202,20 @@ export async function importDb(
   const previousDb = _db;
   const preserveLocalTransactions = opts.preserveLocalTransactions !== false;
 
-  // Snapshot local transaction IDs before replacing, so we can merge back
-  // any that are missing from the cloud copy.
-  const localTxRows =
-    preserveLocalTransactions && previousDb ? getLocalTransactionRows(previousDb) : [];
+  // Snapshot all local rows before replacing so we can merge them back into
+  // the newly imported cloud DB, preserving any offline edits.
+  let localTxRows: unknown[][] = [];
+  let localAccountRows: unknown[][] = [];
+  let localHoldingRows: unknown[][] = [];
+  let localSnapshotRows: unknown[][] = [];
+  let localSettingRows: unknown[][] = [];
+  if (preserveLocalTransactions && previousDb) {
+    localTxRows = getLocalTransactionRows(previousDb);
+    localAccountRows = getLocalAccountRows(previousDb);
+    localHoldingRows = getLocalHoldingRows(previousDb);
+    localSnapshotRows = getLocalSnapshotRows(previousDb);
+    localSettingRows = getLocalSettingRows(previousDb);
+  }
 
   let newDb: Database | null = null;
   try {
@@ -215,10 +227,12 @@ export async function importDb(
       applyMigrations(newDb, currentVersion);
     }
 
-    // Merge back local-only transactions that the cloud copy doesn't have.
-    if (preserveLocalTransactions && localTxRows.length > 0) {
-      mergeLocalTransactions(newDb, localTxRows);
-    }
+    // Merge back local rows that the cloud copy doesn't have or is outdated on.
+    if (localTxRows.length > 0) mergeLocalTransactions(newDb, localTxRows);
+    if (localAccountRows.length > 0) mergeLocalAccounts(newDb, localAccountRows);
+    if (localHoldingRows.length > 0) mergeLocalHoldings(newDb, localHoldingRows);
+    if (localSnapshotRows.length > 0) mergeLocalSnapshots(newDb, localSnapshotRows);
+    if (localSettingRows.length > 0) mergeLocalSettings(newDb, localSettingRows);
 
     // Persist the imported DB before swapping it into the live singleton.
     await persistDb(newDb);
@@ -249,6 +263,36 @@ function getLocalTransactionRows(db: Database): unknown[][] {
   return result[0].values;
 }
 
+function getLocalAccountRows(db: Database): unknown[][] {
+  const result = db.exec(
+    'SELECT id, money_type, institution, label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib FROM accounts ORDER BY rowid ASC',
+  );
+  if (result.length === 0) return [];
+  return result[0].values;
+}
+
+function getLocalHoldingRows(db: Database): unknown[][] {
+  const result = db.exec(
+    'SELECT isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter FROM holdings ORDER BY rowid ASC',
+  );
+  if (result.length === 0) return [];
+  return result[0].values;
+}
+
+function getLocalSnapshotRows(db: Database): unknown[][] {
+  const result = db.exec(
+    'SELECT date, values_json, notes FROM snapshots ORDER BY date ASC, rowid ASC',
+  );
+  if (result.length === 0) return [];
+  return result[0].values;
+}
+
+function getLocalSettingRows(db: Database): unknown[][] {
+  const result = db.exec('SELECT key, value FROM settings ORDER BY rowid ASC');
+  if (result.length === 0) return [];
+  return result[0].values;
+}
+
 /**
  * INSERT OR IGNORE local-only transactions into the (newly imported) cloud DB.
  * Uses INSERT OR IGNORE so rows already present in the cloud DB are skipped,
@@ -257,6 +301,46 @@ function getLocalTransactionRows(db: Database): unknown[][] {
 function mergeLocalTransactions(db: Database, rows: unknown[][]): void {
   const stmt = db.prepare(
     'INSERT OR IGNORE INTO transactions (id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  );
+  for (const row of rows) {
+    stmt.run(row as (string | number | null)[]);
+  }
+  stmt.free();
+}
+
+function mergeLocalAccounts(db: Database, rows: unknown[][]): void {
+  const stmt = db.prepare(
+    'INSERT INTO accounts (id, money_type, institution, label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET money_type=excluded.money_type, institution=excluded.institution, label=excluded.label, color=excluded.color, is_primary_investment=excluded.is_primary_investment, "order"=excluded."order", annual_return_pct=excluded.annual_return_pct, contrib_amount=excluded.contrib_amount, contrib_interval=excluded.contrib_interval, locked=excluded.locked, locked_until=excluded.locked_until, extra_contrib=excluded.extra_contrib',
+  );
+  for (const row of rows) {
+    stmt.run(row as (string | number | null)[]);
+  }
+  stmt.free();
+}
+
+function mergeLocalHoldings(db: Database, rows: unknown[][]): void {
+  const stmt = db.prepare(
+    'INSERT INTO holdings (isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(isin) DO UPDATE SET name=excluded.name, short_name=excluded.short_name, color=excluded.color, acc=excluded.acc, active=excluded.active, target_pct=excluded.target_pct, asset_class=excluded.asset_class, region=excluded.region, fold_into=excluded.fold_into, "order"=excluded."order", ter=excluded.ter',
+  );
+  for (const row of rows) {
+    stmt.run(row as (string | number | null)[]);
+  }
+  stmt.free();
+}
+
+function mergeLocalSnapshots(db: Database, rows: unknown[][]): void {
+  const stmt = db.prepare(
+    'INSERT OR IGNORE INTO snapshots (date, values_json, notes) VALUES (?, ?, ?)',
+  );
+  for (const row of rows) {
+    stmt.run(row as (string | number | null)[]);
+  }
+  stmt.free();
+}
+
+function mergeLocalSettings(db: Database, rows: unknown[][]): void {
+  const stmt = db.prepare(
+    'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
   );
   for (const row of rows) {
     stmt.run(row as (string | number | null)[]);

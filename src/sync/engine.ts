@@ -187,6 +187,10 @@ export async function pushToCloud(opts: { skipConflictCheck?: boolean } = {}): P
     if (
       !opts.skipConflictCheck &&
       cloudTime &&
+      // If we have no prior sync baseline at all (both storedVersion and localTime are
+      // null, e.g. right after clearSyncMetadata() following a backup restore), there
+      // is no conflicting state to protect — treat it as a clean first-time push.
+      (storedVersion !== null || localTime !== null) &&
       hasUnsyncedLocalChanges(localChangeTime, localTime) &&
       (!storedVersion || storedVersion !== cloudTime)
     ) {
