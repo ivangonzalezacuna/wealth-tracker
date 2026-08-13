@@ -68,7 +68,7 @@ function intervalOptionsHtml(selected: ContribInterval): string {
 const EDIT_ICON = `<svg class="btn-icon-svg" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M11.65 1.85a1.8 1.8 0 0 1 2.5 0l.02.02a1.78 1.78 0 0 1 0 2.5L6.18 12.35 3 13l.65-3.18L11.65 1.85Zm1.45 1.02a.38.38 0 0 0-.52 0l-.9.9 1.54 1.54.9-.9a.38.38 0 0 0 0-.52l-1.02-1.02ZM12.2 6.3l-1.54-1.54-5.7 5.7-.3 1.46 1.46-.3 6.08-5.82Z"/></svg>`;
 const DELETE_ICON = `<svg class="btn-icon-svg" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6.5 1h3a1 1 0 0 1 1 1v1H13v1H3V3h2.5V2a1 1 0 0 1 1-1Zm1 2h1V2h-1v1ZM4.5 5h7l-.5 8.1a1 1 0 0 1-1 .9H6a1 1 0 0 1-1-.9L4.5 5Zm2 1v6h1V6h-1Zm2 0v6h1V6h-1Z"/></svg>`;
 
-/** Card key — identifies which settings card an action belongs to. */
+/** Card key: identifies which settings card an action belongs to. */
 type CardKey =
   | 'accounts'
   | 'holdings'
@@ -180,7 +180,7 @@ export function applySyncBusyState(): void {
 }
 
 /**
- * Render the Settings section — user-friendly forms for Accounts, Holdings, Settings.
+ * Render the Settings section with user-friendly forms for Accounts, Holdings, and Settings.
  * Only shown after config is loaded (sign-in required).
  */
 export function renderSettings(): void {
@@ -199,14 +199,14 @@ export function renderSettings(): void {
 
   el.innerHTML = `
     <nav class="subnav range-toggle settings-group-nav" aria-label="Settings sections">
-      <button type="button" class="btn btn-sm btn-ghost settings-group-nav-link active" data-settings-group-target="settings-group-portfolio" aria-pressed="true">Portfolio structure</button>
-      <button type="button" class="btn btn-sm btn-ghost settings-group-nav-link" data-settings-group-target="settings-group-tracking" aria-pressed="false">Tracking &amp; planning</button>
-      <button type="button" class="btn btn-sm btn-ghost settings-group-nav-link" data-settings-group-target="settings-group-advanced" aria-pressed="false">Advanced</button>
+      <button type="button" class="btn btn-sm btn-ghost" data-settings-group-target="settings-group-portfolio">Portfolio structure</button>
+      <button type="button" class="btn btn-sm btn-ghost" data-settings-group-target="settings-group-tracking">Tracking &amp; planning</button>
+      <button type="button" class="btn btn-sm btn-ghost" data-settings-group-target="settings-group-advanced">Advanced</button>
     </nav>
     <div class="settings-group" id="settings-group-portfolio">
       <div class="settings-group-header">
         <span class="settings-group-title">Portfolio structure</span>
-        <span class="settings-group-note">Start here — add an account first, then add your holdings.</span>
+        <span class="settings-group-note">Start here, add an account first, then add your holdings.</span>
       </div>
       ${renderAccountsCard(accounts)}
       ${renderHoldingsCard(holdings)}
@@ -264,14 +264,6 @@ export function renderSettings(): void {
   applySyncBusyState();
 }
 
-function setActiveSettingsGroupNav(root: HTMLElement, targetId: string): void {
-  root.querySelectorAll<HTMLElement>('[data-settings-group-target]').forEach((item) => {
-    const isActive = item.dataset.settingsGroupTarget === targetId;
-    item.classList.toggle('active', isActive);
-    item.setAttribute('aria-pressed', String(isActive));
-  });
-}
-
 function attachSettingsGroupNavListeners(root: HTMLElement): void {
   const nav = root.querySelector('.settings-group-nav');
   if (!nav) return;
@@ -283,7 +275,6 @@ function attachSettingsGroupNavListeners(root: HTMLElement): void {
     if (!targetId) return;
     const section = document.getElementById(targetId);
     if (!section) return;
-    setActiveSettingsGroupNav(root, targetId);
     if (typeof section.scrollIntoView === 'function') {
       section.scrollIntoView({ block: 'start' });
     }
@@ -347,7 +338,7 @@ export function refreshSettingsAfterChange(changed: ConfigChangeKind): void {
 
 // ── Accounts ──────────────────────────────────────────────
 
-/** In-memory list of accounts — kept in sync by add/edit/delete dialog operations. */
+/** In-memory list of accounts kept in sync by add/edit/delete dialog operations. */
 let _accounts: Account[] | null = null;
 
 function accountInstitutionList(accounts: Account[]): string[] {
@@ -590,7 +581,7 @@ function attachAccountListeners(root: HTMLElement): void {
     });
     if (!draft) return;
     draft.order = controller.items().length + 1;
-    controller.previewAdd(draft, 'Account added — click Save to persist.');
+    controller.previewAdd(draft, 'Account added. Click Save to persist.');
   });
 
   root.addEventListener('click', async (e) => {
@@ -608,7 +599,7 @@ function attachAccountListeners(root: HTMLElement): void {
     });
     if (!draft) return;
     draft.order = existing.order;
-    controller.previewUpdate(idx, draft, 'Account updated — click Save to persist.');
+    controller.previewUpdate(idx, draft, 'Account updated. Click Save to persist.');
   });
 
   root.querySelector('#btn-save-accts')?.addEventListener('click', async () => {
@@ -688,7 +679,7 @@ function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
 
 // ── Holdings ──────────────────────────────────────────────
 
-/** In-memory list of holdings — kept in sync by add/edit/delete dialog operations. */
+/** In-memory list of holdings kept in sync by add/edit/delete dialog operations. */
 let _holdings: Holding[] | null = null;
 let _holdingsSettingsFilter = 'all'; // 'all' | 'active' | 'closed'
 let _allHoldings: Holding[] | null = null; // cached full holdings list for filtered views
@@ -864,7 +855,7 @@ function attachHoldingListeners(root: HTMLElement): void {
       existingIsins: controller.items().map((h) => h.isin),
     });
     if (!draft) return;
-    controller.previewAdd(draft, 'Holding added — click Save to persist.');
+    controller.previewAdd(draft, 'Holding added. Click Save to persist.');
   });
 
   root.addEventListener('click', async (e) => {
@@ -887,7 +878,7 @@ function attachHoldingListeners(root: HTMLElement): void {
     controller.previewUpdate(
       idx,
       { ...draft, order: existing.order },
-      'Holding updated — click Save to persist.',
+      'Holding updated. Click Save to persist.',
     );
   });
 
@@ -1209,7 +1200,7 @@ function attachCalcAssumptionsListeners(root: HTMLElement): void {
 
 // ── Goal / target net worth ──────────────────────────────
 
-/** In-memory list of goals — kept in sync by add/edit/delete dialog operations. */
+/** In-memory list of goals kept in sync by add/edit/delete dialog operations. */
 let _goals: NamedGoal[] | null = null;
 
 function _fmtGoalNW(raw: string): string {
@@ -1307,7 +1298,7 @@ function attachGoalListeners(root: HTMLElement): void {
       existingLabels: controller.items().map((goal) => goal.label),
     });
     if (!draft) return;
-    controller.previewAdd(draft, 'Goal added — click Save to persist.');
+    controller.previewAdd(draft, 'Goal added. Click Save to persist.');
   });
 
   root.addEventListener('click', async (e) => {
@@ -1323,7 +1314,7 @@ function attachGoalListeners(root: HTMLElement): void {
           existingLabels: goals.filter((_, i) => i !== idx).map((goal) => goal.label),
         });
         if (!draft) return;
-        controller.previewUpdate(idx, draft, 'Goal updated — click Save to persist.');
+        controller.previewUpdate(idx, draft, 'Goal updated. Click Save to persist.');
       }
       return;
     }

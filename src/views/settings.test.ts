@@ -231,11 +231,11 @@ describe('Settings scoped re-render (repaintCard)', () => {
     const buttons = [...document.querySelectorAll<HTMLElement>('[data-settings-group-target]')];
     expect(buttons).toHaveLength(3);
     expect(buttons[0].className).toContain('btn btn-sm btn-ghost');
-    expect(buttons[0].classList.contains('active')).toBe(true);
-    expect(buttons[0].getAttribute('aria-pressed')).toBe('true');
+    expect(buttons[0].classList.contains('active')).toBe(false);
+    expect(buttons[0].hasAttribute('aria-pressed')).toBe(false);
   });
 
-  it('clicking a settings group nav button activates it and scrolls to its section', () => {
+  it('clicking a settings group nav button scrolls to its section without selected styling', () => {
     const scrollIntoView = vi.fn();
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
       configurable: true,
@@ -251,10 +251,10 @@ describe('Settings scoped re-render (repaintCard)', () => {
 
     trackingBtn.click();
 
-    expect(trackingBtn.classList.contains('active')).toBe(true);
-    expect(trackingBtn.getAttribute('aria-pressed')).toBe('true');
+    expect(trackingBtn.classList.contains('active')).toBe(false);
     expect(portfolioBtn.classList.contains('active')).toBe(false);
-    expect(portfolioBtn.getAttribute('aria-pressed')).toBe('false');
+    expect(trackingBtn.hasAttribute('aria-pressed')).toBe(false);
+    expect(portfolioBtn.hasAttribute('aria-pressed')).toBe(false);
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
   });
 

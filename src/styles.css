@@ -1919,8 +1919,7 @@ input[type='color'] {
   flex-wrap: wrap;
   margin: 0 0 1rem;
 }
-.settings-group-nav-link {
-  text-decoration: none;
+.settings-group-nav .btn {
   white-space: nowrap;
 }
 .settings-group {
@@ -2225,7 +2224,7 @@ input[type='color'] {
   --brand-bg-hover: #1a2e42;
 }
 
-/* Explicit light preference — overrides dark OS setting */
+/* Explicit light preference; overrides dark OS setting */
 :root[data-theme='light'] {
   --bg: #f5f4f0;
   --surface: #fff;
