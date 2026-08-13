@@ -190,7 +190,9 @@ describe('forecastMultiAccountSeries (single-account)', () => {
       '2024-01',
     );
     expect(series[11].value).toBe(2_600);
-    const monthlyDeltas = series.map((point, idx) => point.value - (idx > 0 ? series[idx - 1].value : 0));
+    const monthlyDeltas = series.map(
+      (point, idx) => point.value - (idx > 0 ? series[idx - 1].value : 0),
+    );
     expect(new Set(monthlyDeltas)).toEqual(new Set([200, 300]));
   });
 });

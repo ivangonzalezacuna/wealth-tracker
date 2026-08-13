@@ -341,7 +341,9 @@ describe('renderLog', () => {
 
     const editBtn = document.querySelector('.js-edit-tx') as HTMLButtonElement;
     const delBtn = document.querySelector('.js-del-tx') as HTMLButtonElement;
-    expect(document.querySelector('.tx-actions')?.getAttribute('data-ledger-label')).toBe('Actions');
+    expect(document.querySelector('.tx-actions')?.getAttribute('data-ledger-label')).toBe(
+      'Actions',
+    );
     editBtn.click();
     delBtn.click();
     expect(onEditTx).toHaveBeenCalledWith(10n);

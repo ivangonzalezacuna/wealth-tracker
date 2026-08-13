@@ -771,7 +771,9 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       if (a.isPrimaryInvestment && (a.moneyType || '').toLowerCase() === 'investment') {
         const globalAmount = getContributionBudgetAmount();
         const globalInterval = getContributionInterval();
-        const globalIntervalLabel = (INTERVAL_LABELS[globalInterval] || globalInterval).toLowerCase();
+        const globalIntervalLabel = (
+          INTERVAL_LABELS[globalInterval] || globalInterval
+        ).toLowerCase();
         contribStr =
           inp.annualContrib > 0
             ? `${fmtEur(globalAmount)} ${esc(globalIntervalLabel)} (from Holdings)`

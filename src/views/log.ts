@@ -547,7 +547,7 @@ function renderTxList(txs: Transaction[]): void {
         const actions =
           !showActions || !tx.rowId
             ? ''
-           : `<div role="cell" class="tx-actions" data-ledger-label="Actions">
+            : `<div role="cell" class="tx-actions" data-ledger-label="Actions">
             <button class="btn btn-ghost btn-sm js-edit-tx" data-rowid="${tx.rowId}">Edit</button>
             <button class="btn btn-danger btn-sm js-del-tx" data-rowid="${tx.rowId}">Delete</button>
           </div>`;

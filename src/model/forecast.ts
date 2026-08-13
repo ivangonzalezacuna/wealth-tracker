@@ -240,11 +240,7 @@ export function forecastMultiAccountSeries(
       mon = 1;
       year++;
     }
-    const next = advanceAccountValues(
-      values,
-      perAccountContributionPlans,
-      perAccountMonthlyRate,
-    );
+    const next = advanceAccountValues(values, perAccountContributionPlans, perAccountMonthlyRate);
     values = next.values;
     result.push({
       month: `${year}-${String(mon).padStart(2, '0')}`,
@@ -282,11 +278,7 @@ export function forecastMonthsToTargetMulti(
   let total = current;
 
   while (total < target && months < maxMonths) {
-    const next = advanceAccountValues(
-      values,
-      perAccountContributionPlans,
-      perAccountMonthlyRate,
-    );
+    const next = advanceAccountValues(values, perAccountContributionPlans, perAccountMonthlyRate);
     values = next.values;
     total = next.total;
     months++;
