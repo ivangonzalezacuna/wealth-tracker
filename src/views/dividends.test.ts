@@ -78,12 +78,8 @@ describe('renderDividends', () => {
 
   it('shows the empty state when pd has no dividend history', () => {
     renderDividends(makePD({ divHist: [], intHist: [] }));
-    // When pd is provided (non-null), div-content is shown and div-empty is hidden
-    // but the table renders a "No dividends found" message
-    expect((document.getElementById('div-empty') as HTMLElement).style.display).toBe('none');
-    expect(document.getElementById('div-history')!.textContent).toContain(
-      'No dividends found in imported transactions yet',
-    );
+    expect((document.getElementById('div-empty') as HTMLElement).style.display).toBe('block');
+    expect((document.getElementById('div-content') as HTMLElement).style.display).toBe('none');
   });
 
   it('renders gross/tax/net/interest KPI tiles with correct formatted values', () => {

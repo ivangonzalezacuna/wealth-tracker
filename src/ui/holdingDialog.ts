@@ -219,9 +219,6 @@ function _submit(): void {
   if (!isinVal) {
     setErr('holdd-isin', 'ISIN is required.');
     valid = false;
-  } else if (!ISIN_PATTERN.test(isinVal)) {
-    setErr('holdd-isin', ISIN_HINT);
-    valid = false;
   } else if (_activeExistingIsins.has(isinVal)) {
     setErr('holdd-isin', 'This ISIN is already defined in another holding.');
     valid = false;

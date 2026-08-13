@@ -263,10 +263,6 @@ function _submit(): void {
     setErr('txd-name', 'Name is required.');
     valid = false;
   }
-  if (securityVisible && isinVal && !ISIN_PATTERN.test(isinVal)) {
-    setErr('txd-isin', ISIN_HINT);
-    valid = false;
-  }
   if (amountVisible && amountRaw !== '' && isNaN(_parseNum(amountRaw))) {
     setErr('txd-amount', 'Must be a number.');
     valid = false;
@@ -368,10 +364,7 @@ function _bindRealtimeIsinValidation(overlay: HTMLElement): void {
   isinInput.addEventListener('blur', () => _validateTransactionIsin(overlay, 'blur'));
 }
 
-function _validateTransactionIsin(
-  overlay: HTMLElement,
-  mode: 'input' | 'blur',
-): void {
+function _validateTransactionIsin(overlay: HTMLElement, mode: 'input' | 'blur'): void {
   const { setErr } = makeDialogHelpers(overlay);
   if (!_isVisible('txd-row-security-fields')) {
     setErr('txd-isin', '');

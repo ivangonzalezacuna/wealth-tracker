@@ -32,7 +32,9 @@ let _lastTxs: Transaction[] = [];
  */
 export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = []): void {
   const hasPD = !!pd;
-  const hasIncomeData = !!pd && (pd.divHist.length > 0 || pd.intHist.length > 0);
+  const hasIncomeData =
+    !!pd &&
+    (pd.divHist.length > 0 || pd.intHist.length > 0 || txs.some((tx) => tx.type === 'SELL'));
   const showContent = hasPD && hasIncomeData;
 
   document.getElementById('div-empty')!.style.display = showContent ? 'none' : 'block';
