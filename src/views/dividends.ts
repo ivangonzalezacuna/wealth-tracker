@@ -178,7 +178,7 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
       const detailOpen = _expandedAnnualYear === y;
       const detail = renderAnnualDetail(r);
       return `<div class="tbl-row annual-row" role="row" tabindex="0" aria-expanded="${String(detailOpen)}" data-annual-year="${y}">
-        <div style="font-weight:500">${y}</div>
+        <div style="font-weight:500;display:flex;align-items:center;gap:5px"><span class="row-expand-chevron">&#x25B8;</span>${y}</div>
         <div style="text-align:right;color:${taxesPaidColor}">${fmtEur2(taxesPaid)}</div>
         <div style="text-align:right;color:${benefitsNet >= 0 ? 'var(--pos)' : 'var(--neg)'};font-weight:500">${fmtEur2(benefitsNet)}</div>
       </div>
