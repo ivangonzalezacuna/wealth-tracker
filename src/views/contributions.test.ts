@@ -184,9 +184,9 @@ describe('renderDCA', () => {
     const wrap = document.getElementById('c-dca-bar-table-wrap');
     expect(wrap?.hasAttribute('hidden')).toBe(false);
     expect(wrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
-    expect((document.getElementById('c-dca-bar') as HTMLCanvasElement).getAttribute('aria-describedby')).toBe(
-      'c-dca-bar-table-wrap',
-    );
+    expect(
+      (document.getElementById('c-dca-bar') as HTMLCanvasElement).getAttribute('aria-describedby'),
+    ).toBe('c-dca-bar-table-wrap');
   });
 
   it('destroys prior bar chart on re-render', () => {
@@ -237,9 +237,9 @@ describe('renderDCA', () => {
     const wrap = document.getElementById('c-dca-proj-table-wrap');
     expect(wrap?.hasAttribute('hidden')).toBe(false);
     expect(wrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
-    expect((document.getElementById('c-dca-proj') as HTMLCanvasElement).getAttribute('aria-describedby')).toBe(
-      'c-dca-proj-table-wrap',
-    );
+    expect(
+      (document.getElementById('c-dca-proj') as HTMLCanvasElement).getAttribute('aria-describedby'),
+    ).toBe('c-dca-proj-table-wrap');
   });
 
   it('forecast range toggle re-creates projection chart', () => {

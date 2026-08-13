@@ -1,4 +1,4 @@
-import { fmtEur, fmtMon, esc, safeColor, kpiTile } from '../utils';
+import { fmtEur, fmtEur2, fmtMon, esc, safeColor, kpiTile } from '../utils';
 import { getISIN_ORDERList, getISIN, getMETAMap, FORECAST_RANGE_LABELS } from '../constants';
 import { getMonthlyContribBudget, getAccounts, getHoldings } from '../store/config';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';

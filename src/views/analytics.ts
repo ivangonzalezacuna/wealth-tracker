@@ -982,8 +982,7 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
   }
 
   const total = slices.reduce((s, x) => s + x.value, 0);
-  const dimLabel =
-    dim === 'acct' ? 'account' : dim === 'class' ? 'asset class' : 'region';
+  const dimLabel = dim === 'acct' ? 'account' : dim === 'class' ? 'asset class' : 'region';
   writeChartTable(
     tableWrapId,
     `Allocation by ${dimLabel} data`,

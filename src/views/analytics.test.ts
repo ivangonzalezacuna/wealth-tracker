@@ -249,7 +249,9 @@ describe('renderAnalytics', () => {
     expect(contribWrap?.hasAttribute('hidden')).toBe(false);
     expect(contribWrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
     expect(
-      (document.getElementById('c-an-contrib') as HTMLCanvasElement).getAttribute('aria-describedby'),
+      (document.getElementById('c-an-contrib') as HTMLCanvasElement).getAttribute(
+        'aria-describedby',
+      ),
     ).toBe('c-an-contrib-table-wrap');
 
     const allocWrap = document.getElementById('c-an-alloc-acct-table-wrap');
