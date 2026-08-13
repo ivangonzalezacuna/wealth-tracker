@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TxType } from './types';
 import type { Transaction } from './types';
+import { parseWithProfile } from './import/parse';
+import { n26Profile } from './import/profiles/n26';
 
 // Stub constants module so computePD doesn't reach into Google Sheets
 vi.mock('./constants', () => ({
@@ -607,5 +609,80 @@ describe('computePD: mixed-currency FX normalization', () => {
     expect(pd.monthlyBy['2024-03'][ISIN]).toBeCloseTo(450);
     expect(pd.monthlyBy['2024-03']['IE00BKM4GZ66']).toBeCloseTo(720);
     expect(pd.monthly['2024-03']).toBeCloseTo(1170);
+  });
+});
+
+describe('computePD: interest tax attribution by source profile', () => {
+  it('N26 decoupled TAX rows are reflected in monthly interest gross/tax/net', () => {
+    const csv = [
+      'Booking Date,Value Date,Partner Name,Partner Iban,Type,Payment Reference,Account Name,Amount (EUR),Original Amount,Original Currency,Exchange Rate',
+      '2024-01-01,2024-01-01,,,Interest,,Instant Savings,0.75,,,',
+      '2024-01-01,2024-01-01,,,Tax,,Instant Savings,-0.19,,,',
+      '2024-01-01,2024-01-01,,,Tax,,Instant Savings,-0.01,,,',
+      '2024-02-01,2024-02-01,,,Interest,,Instant Savings,0.75,,,',
+      '2024-02-01,2024-02-01,,,Tax,,Instant Savings,-0.19,,,',
+      '2024-02-01,2024-02-01,,,Tax,,Instant Savings,-0.01,,,',
+    ].join('\n');
+
+    const { transactions } = parseWithProfile(csv, n26Profile);
+    const pd = computePD(transactions);
+
+    expect(pd.intHist).toHaveLength(2);
+    expect(pd.intHist[0]).toMatchObject({ date: '2024-02', gross: 0.95, tax: 0.2, net: 0.75 });
+    expect(pd.intHist[1]).toMatchObject({ date: '2024-01', gross: 0.95, tax: 0.2, net: 0.75 });
+    expect(pd.totalInterest).toBeCloseTo(1.5);
+    expect(pd.totalIntGross).toBeCloseTo(1.9);
+    expect(pd.totalIntTax).toBeCloseTo(0.4);
+    expect(pd.taxBySource.n26).toBeCloseTo(-0.4);
+  });
+
+  it('mixed N26 + Trade Republic keeps TR TAX rows out of interest tax metrics', () => {
+    const n26Csv = [
+      'Booking Date,Value Date,Partner Name,Partner Iban,Type,Payment Reference,Account Name,Amount (EUR),Original Amount,Original Currency,Exchange Rate',
+      '2024-01-01,2024-01-01,,,Interest,,Instant Savings,0.75,,,',
+      '2024-01-01,2024-01-01,,,Tax,,Instant Savings,-0.20,,,',
+    ].join('\n');
+
+    const n26 = parseWithProfile(n26Csv, n26Profile).transactions;
+    const tradeRepublicTaxRefund: Transaction = {
+      id: 'tx-tr-tax',
+      source: 'trade_republic',
+      type: TxType.TAX,
+      date: '2024-01-20',
+      isin: '',
+      name: 'Tax optimization',
+      shares: 0,
+      price: 0,
+      amount: 3.44,
+      fee: 0,
+      tax: 3.44,
+      currency: 'EUR',
+      fxRate: 0,
+    };
+
+    const pd = computePD([...n26, tradeRepublicTaxRefund]);
+
+    expect(pd.intHist).toHaveLength(1);
+    expect(pd.intHist[0]).toMatchObject({ date: '2024-01', gross: 0.95, tax: 0.2, net: 0.75 });
+    expect(pd.totalIntTax).toBeCloseTo(0.2);
+    expect(pd.taxBySource.n26).toBeCloseTo(-0.2);
+    expect(pd.taxBySource.trade_republic).toBeCloseTo(3.44);
+  });
+
+  it('standalone N26 TAX month without INTEREST remains in taxBySource and is not folded into intHist', () => {
+    const csv = [
+      'Booking Date,Value Date,Partner Name,Partner Iban,Type,Payment Reference,Account Name,Amount (EUR),Original Amount,Original Currency,Exchange Rate',
+      '2024-01-01,2024-01-01,,,Interest,,Instant Savings,0.75,,,',
+      '2024-01-01,2024-01-01,,,Tax,,Instant Savings,-0.20,,,',
+      '2024-03-01,2024-03-01,,,Tax,,Instant Savings,-0.10,,,',
+    ].join('\n');
+
+    const { transactions } = parseWithProfile(csv, n26Profile);
+    const pd = computePD(transactions);
+
+    expect(pd.intHist).toHaveLength(1);
+    expect(pd.intHist[0]).toMatchObject({ date: '2024-01', gross: 0.95, tax: 0.2, net: 0.75 });
+    expect(pd.taxBySource.n26).toBeCloseTo(-0.3);
+    expect(pd.totalIntTax).toBeCloseTo(0.2);
   });
 });

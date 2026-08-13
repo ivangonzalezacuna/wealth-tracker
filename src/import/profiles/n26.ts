@@ -47,6 +47,10 @@ export const n26Profile: ImportProfile = {
   },
 
   skipUnmapped: true,
+  // N26 exports savings-interest tax as separate TAX rows.
+  // Keep parser rows decoupled, but let portfolio aggregation attribute
+  // same-source TAX rows into monthly interest tax metrics.
+  interestTaxFromStandaloneTaxRows: true,
   // N26 CSVs have no unique transaction ID column.
   // Build a deterministic ID from date + type + amount to allow safe re-imports.
   idColumns: ['Booking Date', 'Type', 'Amount (EUR)'],

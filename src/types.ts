@@ -146,6 +146,7 @@ export interface ImportProfile {
   skipUnmapped?: boolean; // when true, rows whose type is not in typeMap are excluded
   idColumns?: string[]; // CSV column names used to build a deterministic ID when no id column exists
   mergeTaxIntoInterest?: boolean; // when true, same-month TAX rows are merged into INTEREST rows
+  interestTaxFromStandaloneTaxRows?: boolean; // when true, TAX rows contribute to interest tax metrics by source+month
 }
 
 // ─── Cost-basis result (per-ISIN) ────────────────────────────────

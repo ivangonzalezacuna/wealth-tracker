@@ -1,5 +1,6 @@
 import { getISIN, getMETAMap } from './constants';
 import { getHoldings } from './store/config';
+import { builtInProfiles } from './import/profiles';
 import { TxType } from './types';
 import { computeCostBasis } from './model/costbasis';
 import { toBase } from './fx';
@@ -8,6 +9,12 @@ import type { Transaction, PortfolioData, EtfPosition, DivHistEntry, IntHistEntr
 interface ComputeOptions {
   method?: 'avgco' | 'fifo' | 'lifo' | 'hifo';
 }
+
+const interestTaxFromStandaloneTaxSources = new Set(
+  builtInProfiles
+    .filter((p) => p.interestTaxFromStandaloneTaxRows)
+    .map((p) => p.id),
+);
 
 /**
  * Compute portfolio data from canonical transactions.
@@ -133,11 +140,14 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
       // TAX rows: refunds (e.g. TR TAX_OPTIMIZATION) or standalone tax charges.
       // Canonical TAX value is stored in tx.tax. Keep fallback to tx.amount for
       // backward compatibility with historical rows that predate canonicalization.
-      // For N26 with mergeTaxIntoInterest, TAX rows are already folded into INTEREST.
       const canonicalTax = tx.tax !== 0 ? tx.tax : tx.amount || 0;
       const taxVal = toBase(canonicalTax, tx.currency, tx.fxRate);
       const src = tx.source || 'unknown';
       taxBySource[src] = (taxBySource[src] || 0) + taxVal;
+      if (interestTaxFromStandaloneTaxSources.has(src)) {
+        const taxMonth = tx.date.slice(0, 7); // YYYY-MM
+        intTaxByMonth[taxMonth] = (intTaxByMonth[taxMonth] || 0) + taxVal;
+      }
     } else if (tx.type === TxType.FEE) {
       // Standalone FEE rows (e.g. TR custody fees) that are not embedded in a
       // BUY/SELL row. The cost-basis engine already captures fees inside trades.
