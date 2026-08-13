@@ -45,6 +45,11 @@ import { writeChartTable } from './chartTable';
 import { T, R, resolvedT } from '../theme';
 import { createChartRegistry } from './chartRegistry';
 import Chart from 'chart.js/auto';
+import {
+  formatEuroCompactSuffix,
+  formatEuroPrefix,
+  formatPercentRounded,
+} from './chartOptions';
 import type { Snapshot, PortfolioData, Transaction, Holding } from '../types';
 
 const { CH, destroyChart: _destroyChart } = createChartRegistry();
@@ -479,7 +484,7 @@ function _renderGrowthChart(snaps: Snapshot[]): void {
           grid: { color: C.line },
           ticks: {
             color: C.ink4,
-            callback: (v) => ((v as number) / 1000).toFixed(0) + 'k\u00A0\u20AC',
+            callback: (v) => formatEuroCompactSuffix(v),
           },
         },
         x: {
@@ -579,7 +584,7 @@ function _renderContribChart(points: MonthlyGrowthPoint[]): void {
         y: {
           stacked: true,
           grid: { color: C.line },
-          ticks: { color: C.ink4, callback: (v) => '\u20AC' + (v as number).toFixed(0) },
+          ticks: { color: C.ink4, callback: (v) => formatEuroPrefix(v) },
         },
         x: {
           stacked: true,
@@ -1181,7 +1186,7 @@ function _renderDrawdownChart(series: { date: string; drawdown: number }[]): voi
           grid: { color: C.line },
           ticks: {
             color: C.ink4,
-            callback: (v) => (v as number).toFixed(0) + '%',
+            callback: (v) => formatPercentRounded(v),
           },
         },
         x: {
@@ -1275,7 +1280,7 @@ function _renderRollingCagrChart(
       scales: {
         y: {
           grid: { color: C.line },
-          ticks: { color: C.ink4, callback: (v) => (v as number).toFixed(0) + '%' },
+          ticks: { color: C.ink4, callback: (v) => formatPercentRounded(v) },
         },
         x: {
           grid: { display: false },
@@ -1410,7 +1415,7 @@ function _renderIncomeChart(monthlyBreakdown: { month: string; amount: number }[
       scales: {
         y: {
           grid: { color: C.line },
-          ticks: { color: C.ink4, callback: (v) => '\u20AC' + (v as number).toFixed(0) },
+          ticks: { color: C.ink4, callback: (v) => formatEuroPrefix(v) },
         },
         x: {
           grid: { display: false },

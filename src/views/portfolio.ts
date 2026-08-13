@@ -29,15 +29,26 @@ import Chart from 'chart.js/auto';
 import { R, resolvedT } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { attachEtfPopovers } from '../ui/etfPopover';
-import type { SortState } from './tableSort';
 import { renderPagination } from './pagination';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow } from './tableColumns';
-import { TOOLTIP_BOX, renderLegendHtml, tooltipSwatch } from './chartLegend';
+import { renderLegendHtml, tooltipSwatch } from './chartLegend';
 import { bindExpandableRows, restoreExpandableRows } from './expandableRows';
 import { bindSortedTableHeader, sortAndPaginate } from './tableView';
 import { isCollapsed, setCollapsed } from '../ui/collapseState';
 import { createChartRegistry } from './chartRegistry';
+import {
+  createTableState,
+  getTableFilter,
+  setTableFilter,
+  setTablePage,
+  setTableSort,
+} from './tableState';
+import {
+  buildBaseChartOptions,
+  buildBaseTooltipOptions,
+  formatEuroCompactSuffix,
+} from './chartOptions';
 
 const { CH, destroyChart: _destroyChart } = createChartRegistry();
 
@@ -111,11 +122,11 @@ function renderSourceBreakdown(bySource: Record<string, number>, signed = false)
 }
 
 // Module-level filter state (survives re-renders)
-let _holdingsFilter = 'held'; // 'held' | 'closed' | 'all'
-let _holdingsSearch = '';
 const HOLD_PAGE_SIZE = 10;
-let _holdPage = 1;
-let _holdSort: SortState = { key: null, dir: null };
+const _holdTableState = createTableState({
+  sort: { key: null, dir: null },
+  filters: { status: 'held', search: '' },
+});
 
 // Module-level references updated on each render (avoids stale closure in click handler)
 let _pageItemsByKey = new Map<string, EtfPosition>();
@@ -287,18 +298,20 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   const exitedCount = exited.length;
 
   // Determine which ETFs to show based on filter
+  const holdingsFilter = getTableFilter(_holdTableState, 'status') || 'held';
   let displayList: EtfPosition[];
-  if (_holdingsFilter === 'closed') {
+  if (holdingsFilter === 'closed') {
     displayList = exited;
-  } else if (_holdingsFilter === 'all') {
+  } else if (holdingsFilter === 'all') {
     displayList = allEtfs;
   } else {
     displayList = held;
   }
 
   // Apply text search (ISIN or name, case-insensitive)
-  if (_holdingsSearch) {
-    const q = _holdingsSearch.toLowerCase();
+  const holdingsSearch = getTableFilter(_holdTableState, 'search');
+  if (holdingsSearch) {
+    const q = holdingsSearch.toLowerCase();
     displayList = displayList.filter(
       (e) => e.isin.toLowerCase().includes(q) || (e.name || '').toLowerCase().includes(q),
     );
@@ -310,11 +323,11 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   const { pageItems, page, totalPages } = sortAndPaginate(
     defaultOrdered,
     columns,
-    _holdSort,
-    _holdPage,
+    _holdTableState.sort,
+    _holdTableState.page,
     HOLD_PAGE_SIZE,
   );
-  _holdPage = page;
+  setTablePage(_holdTableState, page);
   const pageItemsByKey = new Map(pageItems.map((e) => [e.isin, e]));
 
   // Update module-level refs so the click handler (bound once) always sees fresh data
@@ -325,12 +338,12 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   const filterHtml = `
     <div class="filter-bar" style="margin-bottom:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <div class="range-toggle" id="port-filter-toggle">
-        <button class="btn btn-sm btn-ghost ${_holdingsFilter === 'held' ? 'active' : ''}" data-filter="held">Held</button>
-        <button class="btn btn-sm btn-ghost ${_holdingsFilter === 'closed' ? 'active' : ''}" data-filter="closed">Closed${exitedCount > 0 ? ' (' + exitedCount + ')' : ''}</button>
-        <button class="btn btn-sm btn-ghost ${_holdingsFilter === 'all' ? 'active' : ''}" data-filter="all">All</button>
+        <button class="btn btn-sm btn-ghost ${holdingsFilter === 'held' ? 'active' : ''}" data-filter="held">Held</button>
+        <button class="btn btn-sm btn-ghost ${holdingsFilter === 'closed' ? 'active' : ''}" data-filter="closed">Closed${exitedCount > 0 ? ' (' + exitedCount + ')' : ''}</button>
+        <button class="btn btn-sm btn-ghost ${holdingsFilter === 'all' ? 'active' : ''}" data-filter="all">All</button>
       </div>
       <input id="port-holdings-search" type="search" class="form-input form-input-sm holdings-search-input" placeholder="Search ISIN or name"
-        value="${esc(_holdingsSearch)}" style="flex:1" aria-label="Search holdings by ISIN or name">
+        value="${esc(holdingsSearch)}" style="flex:1" aria-label="Search holdings by ISIN or name">
     </div>`;
 
   const rows = pageItems
@@ -346,7 +359,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     ${filterHtml}
     <div class="hold-grid">
       <div class="tbl-row th hold-row" role="row" id="port-table-header">
-        ${renderTableHeader(columns, _holdSort)}
+        ${renderTableHeader(columns, _holdTableState.sort)}
       </div>${rows}
       <div class="tbl-row hold-total" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
         <div style="font-weight:500">Total</div>
@@ -364,9 +377,8 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   if (portTable) attachInfoTips(portTable);
 
   // Bind sort handler on header row
-  bindSortedTableHeader(document.getElementById('port-table-header'), _holdSort, (newState) => {
-    _holdSort = newState;
-    _holdPage = 1;
+  bindSortedTableHeader(document.getElementById('port-table-header'), _holdTableState.sort, (newState) => {
+    setTableSort(_holdTableState, newState);
     renderHoldingsTable(pd, snaps);
   });
 
@@ -378,10 +390,10 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     filterToggle.addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest('[data-filter]') as HTMLElement | null;
       if (!btn) return;
-      _holdingsFilter = btn.dataset.filter || 'held';
-      _holdPage = 1;
-      _holdSort = { key: null, dir: null };
-      renderHoldingsTable(pd, snaps);
+      setTableFilter(_holdTableState, 'status', btn.dataset.filter || 'held', {
+        resetSort: true,
+        rerender: () => renderHoldingsTable(pd, snaps),
+      });
     });
   }
 
@@ -390,13 +402,13 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   if (searchInput) {
     searchInput.addEventListener('input', (event) => {
       const input = event.currentTarget as HTMLInputElement;
-      _holdingsSearch = input.value;
-      _holdPage = 1;
-      renderHoldingsTable(pd, snaps);
+      setTableFilter(_holdTableState, 'search', input.value, {
+        rerender: () => renderHoldingsTable(pd, snaps),
+      });
       const nextInput = document.getElementById('port-holdings-search') as HTMLInputElement | null;
       if (nextInput) {
         nextInput.focus();
-        const pos = _holdingsSearch.length;
+        const pos = getTableFilter(_holdTableState, 'search').length;
         nextInput.setSelectionRange(pos, pos);
       }
     });
@@ -440,8 +452,8 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
 }
 
 function renderHoldPagination(totalPages: number, pd: PortfolioData, snaps: Snapshot[]): void {
-  renderPagination('port-pagination', _holdPage, totalPages, (p) => {
-    _holdPage = p;
+  renderPagination('port-pagination', _holdTableState.page, totalPages, (p) => {
+    setTablePage(_holdTableState, p);
     renderHoldingsTable(pd, snaps);
   });
 }
@@ -484,9 +496,10 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   document.getElementById('port-content')!.style.display = has ? 'block' : 'none';
   if (!has) return;
 
-  _holdPage = 1;
-  _holdingsFilter = 'held';
-  _holdingsSearch = '';
+  setTablePage(_holdTableState, 1);
+  _holdTableState.sort = { key: null, dir: null };
+  _holdTableState.filters.status = 'held';
+  _holdTableState.filters.search = '';
 
   const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
   const snapEtfValues = extractSnapEtfValues(latSnap);
@@ -597,6 +610,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   // Bar chart - only held positions with cost > 0
   const donutE = held.filter((e) => e.cost > 0).sort((a, b) => b.cost - a.cost);
   const C = resolvedT();
+  const baseOptions = buildBaseChartOptions();
   _destroyChart('c-port-donut');
   CH['c-port-donut'] = new Chart(document.getElementById('c-port-donut') as HTMLCanvasElement, {
     type: 'bar',
@@ -620,22 +634,11 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     },
     options: {
       indexAxis: 'y',
-      responsive: true,
-      maintainAspectRatio: false,
+      ...baseOptions,
       plugins: {
-        legend: { display: false },
+        ...baseOptions.plugins,
         tooltip: {
-          backgroundColor: C.surface,
-          ...TOOLTIP_BOX,
-          borderColor: C.line,
-          borderWidth: 1,
-          titleColor: C.ink,
-          bodyColor: C.ink2,
-          footerColor: C.ink4,
-          footerFont: { weight: 'normal' as const, size: 10 },
-          footerMarginTop: 6,
-          padding: 10,
-          cornerRadius: 8,
+          ...buildBaseTooltipOptions(C, true),
           callbacks: {
             label: (ctx) => ` ${fmtEur(ctx.raw as number)}`,
             labelColor: tooltipSwatch(C.surface),
@@ -659,7 +662,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
           grid: { color: C.line },
           ticks: {
             color: C.ink4,
-            callback: (v) => ((v as number) / 1000).toFixed(0) + 'k\u00A0\u20AC',
+            callback: (v) => formatEuroCompactSuffix(v),
           },
         },
         y: { grid: { display: false }, ticks: { color: C.ink2, font: { size: 12 } } },

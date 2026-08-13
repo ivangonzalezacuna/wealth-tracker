@@ -5,21 +5,31 @@ import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import type { PortfolioData, Snapshot, Account } from '../types';
 import Chart from 'chart.js/auto';
 import { T, R, resolvedT } from '../theme';
-import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
-import type { SortState } from './tableSort';
+import { bindLegendToggle, renderLegendHtml, tooltipSwatch } from './chartLegend';
 import { bindSortedTableHeader, renderTableSection } from './tableView';
 import type { ColumnDef } from './tableColumns';
 import { renderPagination } from './pagination';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { createChartRegistry } from './chartRegistry';
-import { bindYearFilter, populateYearFilterOptions } from './yearFilter';
+import { populateYearFilterOptions } from './yearFilter';
+import {
+  bindTableYearFilter,
+  createTableState,
+  getTableFilter,
+  setTablePage,
+  setTableSort,
+} from './tableState';
+import {
+  buildBaseChartOptions,
+  buildBaseTooltipOptions,
+  formatEuroCompactPrefix,
+  formatEuroCompactSuffix,
+} from './chartOptions';
 
 const { CH, destroyChart: _destroyChart } = createChartRegistry();
 const DCA_PAGE_SIZE = 12;
-let _dcaPage = 1;
-let _dcaYear = '';
 let _dcaRange = 'all'; // '12', '36', 'all'
-let _dcaTblSort: SortState = { key: null, dir: null };
+const _dcaTableState = createTableState({ sort: { key: null, dir: null }, filters: { year: '' } });
 let _lastPd: PortfolioData | null = null;
 let _dcaFcRange: '60' | '120' | '240' | '360' = '60'; // 5y / 10y / 20y / 30y forecast horizon
 
@@ -199,6 +209,7 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
 
   const C2 = resolvedT();
   _destroyChart('c-dca-proj');
+  const baseOptions = buildBaseChartOptions();
   CH['c-dca-proj'] = new Chart(document.getElementById('c-dca-proj') as HTMLCanvasElement, {
     type: 'line',
     data: {
@@ -232,21 +243,13 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
       ],
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      ...baseOptions,
       plugins: {
-        legend: { display: false },
+        ...baseOptions.plugins,
         tooltip: {
           mode: 'index',
           intersect: false,
-          backgroundColor: C2.surface,
-          ...TOOLTIP_BOX,
-          borderColor: C2.line,
-          borderWidth: 1,
-          titleColor: C2.ink,
-          bodyColor: C2.ink2,
-          padding: 10,
-          cornerRadius: 8,
+          ...buildBaseTooltipOptions(C2),
           callbacks: {
             label: (ctx) =>
               ctx.raw != null ? ` ${ctx.dataset.label}: ${fmtEur(ctx.raw as number)}` : '',
@@ -259,10 +262,7 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
           grid: { color: C2.line },
           ticks: {
             color: C2.ink4,
-            callback: (v) =>
-              (v as number) >= 1000
-                ? '\u20AC' + Math.round((v as number) / 1000) + 'k'
-                : '\u20AC' + v,
+            callback: (v) => formatEuroCompactPrefix(v),
           },
         },
         x: {
@@ -359,26 +359,16 @@ function renderDCAChart(
   const step = Math.ceil(months.length / maxLabels);
 
   _destroyChart('c-dca-bar');
+  const baseOptions = buildBaseChartOptions();
   CH['c-dca-bar'] = new Chart(document.getElementById('c-dca-bar') as HTMLCanvasElement, {
     type: 'bar',
-    data: { labels: months.map(fmtMon), datasets },
+    data: { labels: months.map(fmtMon), datasets     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      ...baseOptions,
       plugins: {
-        legend: { display: false },
+        ...baseOptions.plugins,
         tooltip: {
-          backgroundColor: C.surface,
-          ...TOOLTIP_BOX,
-          borderColor: C.line,
-          borderWidth: 1,
-          titleColor: C.ink,
-          bodyColor: C.ink2,
-          footerColor: C.ink4,
-          footerFont: { weight: 'normal' as const, size: 10 },
-          footerMarginTop: 6,
-          padding: 10,
-          cornerRadius: 8,
+          ...buildBaseTooltipOptions(C, true),
           callbacks: {
             label: (ctx: { dataset: { label?: string }; raw: unknown; datasetIndex: number }) => {
               return ` ${fmtEur(ctx.raw as number)}`;
@@ -418,10 +408,7 @@ function renderDCAChart(
           grid: { color: C.line },
           ticks: {
             color: C.ink4,
-            callback: (v) =>
-              (v as number) >= 1000
-                ? ((v as number) / 1000).toFixed(0) + 'k\u00A0\u20AC'
-                : v + '\u00A0\u20AC',
+            callback: (v) => formatEuroCompactSuffix(v),
           },
         },
       },
@@ -469,7 +456,7 @@ function attachRangeToggle(
     const newRange = btn.dataset.range || 'all';
     if (newRange === _dcaRange) return; // already on this range - no-op
     _dcaRange = newRange;
-    _dcaPage = 1;
+    setTablePage(_dcaTableState, 1);
     toggle.querySelectorAll('.btn').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
     // Recompute ordSyms/ISIN/META from current data to avoid stale closures
@@ -492,10 +479,11 @@ function attachRangeToggle(
 // ── DCA table with filtering + pagination ────────────────
 
 function attachDCAFilterListeners(pd: PortfolioData): void {
-  bindYearFilter('dca-year-filter', (year) => {
-    _dcaYear = year;
-    _dcaPage = 1;
-    renderDCATable(pd);
+  bindTableYearFilter({
+    elementId: 'dca-year-filter',
+    state: _dcaTableState,
+    filterKey: 'year',
+    rerender: () => renderDCATable(pd),
   });
 }
 
@@ -523,8 +511,9 @@ function renderDCATable(pd: PortfolioData): void {
 
   // Filter months
   let months = [...pd.months].reverse();
-  if (_dcaYear) {
-    months = months.filter((m) => m.startsWith(_dcaYear));
+  const selectedYear = getTableFilter(_dcaTableState, 'year');
+  if (selectedYear) {
+    months = months.filter((m) => m.startsWith(selectedYear));
   }
 
   // Column definitions
@@ -538,23 +527,22 @@ function renderDCATable(pd: PortfolioData): void {
     container: el,
     items: months,
     columns,
-    sortState: _dcaTblSort,
-    page: _dcaPage,
+    sortState: _dcaTableState.sort,
+    page: _dcaTableState.page,
     pageSize: DCA_PAGE_SIZE,
     rowClassName: 'tbl-row dca-row',
     headerId: 'dca-table-header',
     emptyHtml: '',
     footerHtml: `<div class="tbl-row dca-row" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
-      <div style="font-weight:500">${_dcaYear ? 'Year total' : 'Total'}</div>
+      <div style="font-weight:500">${selectedYear ? 'Year total' : 'Total'}</div>
       <div style="font-weight:500;text-align:right">${fmtEur(filteredTotal)}</div>
     </div>`,
   });
-  _dcaPage = page;
+  setTablePage(_dcaTableState, page);
 
   // Bind sort handler on header row
-  bindSortedTableHeader(document.getElementById('dca-table-header'), _dcaTblSort, (newState) => {
-    _dcaTblSort = newState;
-    _dcaPage = 1;
+  bindSortedTableHeader(document.getElementById('dca-table-header'), _dcaTableState.sort, (newState) => {
+    setTableSort(_dcaTableState, newState);
     renderDCATable(pd);
   });
 
@@ -563,8 +551,8 @@ function renderDCATable(pd: PortfolioData): void {
 }
 
 function renderDCAPagination(totalPages: number, pd: PortfolioData): void {
-  renderPagination('dca-pagination', _dcaPage, totalPages, (p) => {
-    _dcaPage = p;
+  renderPagination('dca-pagination', _dcaTableState.page, totalPages, (p) => {
+    setTablePage(_dcaTableState, p);
     renderDCATable(pd);
   });
 }

@@ -4,22 +4,24 @@ import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { attachEtfPopovers } from '../ui/etfPopover';
 import { getCostBasisMethod, getHoldings } from '../store/config';
 import { computeCostBasis } from '../model/costbasis';
-import type { SortState } from './tableSort';
 import { bindSortedTableHeader, renderTableSection, sortAndPaginate } from './tableView';
 import type { ColumnDef } from './tableColumns';
 import { renderPagination } from './pagination';
-import { bindYearFilter, populateYearFilterOptions } from './yearFilter';
+import { populateYearFilterOptions } from './yearFilter';
+import {
+  bindTableYearFilter,
+  createTableState,
+  getTableFilter,
+  setTablePage,
+  setTableSort,
+} from './tableState';
 
 const DIV_PAGE_SIZE = 12;
 const ANNUAL_PAGE_SIZE = 8;
-let _divPage = 1;
-let _intPage = 1;
 let _annualPage = 1;
-let _divYear = '';
-let _intYear = '';
 let _expandedAnnualYear = '';
-let _divTblSort: SortState = { key: null, dir: null };
-let _intTblSort: SortState = { key: null, dir: null };
+const _divTableState = createTableState({ sort: { key: null, dir: null }, filters: { year: '' } });
+const _intTableState = createTableState({ sort: { key: null, dir: null }, filters: { year: '' } });
 let _lastPd: PortfolioData | null = null;
 let _lastTxs: Transaction[] = [];
 
@@ -37,11 +39,13 @@ export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = [
 
   _lastPd = pd;
   _lastTxs = txs;
-  _divPage = 1;
-  _intPage = 1;
+  setTablePage(_divTableState, 1);
+  setTablePage(_intTableState, 1);
+  _divTableState.sort = { key: null, dir: null };
+  _intTableState.sort = { key: null, dir: null };
+  _divTableState.filters.year = '';
+  _intTableState.filters.year = '';
   _annualPage = 1;
-  _divYear = '';
-  _intYear = '';
   _expandedAnnualYear = '';
 
   const totalGross = pd.divHist.reduce((s, d) => s + d.gross, 0);
@@ -58,18 +62,20 @@ export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = [
   `;
 
   populateYearFilterOptions('div-year-filter', pd.divHist);
-  bindYearFilter('div-year-filter', (year) => {
-    _divYear = year;
-    _divPage = 1;
-    renderDivTable(_lastPd || pd);
+  bindTableYearFilter({
+    elementId: 'div-year-filter',
+    state: _divTableState,
+    filterKey: 'year',
+    rerender: () => renderDivTable(_lastPd || pd),
   });
   renderDivTable(pd);
 
   populateYearFilterOptions('int-year-filter', pd.intHist);
-  bindYearFilter('int-year-filter', (year) => {
-    _intYear = year;
-    _intPage = 1;
-    renderIntTable(_lastPd || pd);
+  bindTableYearFilter({
+    elementId: 'int-year-filter',
+    state: _intTableState,
+    filterKey: 'year',
+    rerender: () => renderIntTable(_lastPd || pd),
   });
   renderIntTable(pd);
   renderAnnualSummary(pd, txs);
@@ -337,7 +343,8 @@ function dividendColumns(pd: PortfolioData): ColumnDef<DivHistEntry>[] {
 }
 
 function renderDivTable(pd: PortfolioData): void {
-  const list = _divYear ? pd.divHist.filter((d) => d.date.startsWith(_divYear)) : pd.divHist;
+  const selectedYear = getTableFilter(_divTableState, 'year');
+  const list = selectedYear ? pd.divHist.filter((d) => d.date.startsWith(selectedYear)) : pd.divHist;
   const hasDiv = list.length > 0;
   const totalGross = list.reduce((s, d) => s + d.gross, 0);
   const totalTax = list.reduce((s, d) => s + d.tax, 0);
@@ -351,26 +358,25 @@ function renderDivTable(pd: PortfolioData): void {
     container: document.getElementById('div-history'),
     items: list,
     columns,
-    sortState: _divTblSort,
-    page: _divPage,
+    sortState: _divTableState.sort,
+    page: _divTableState.page,
     pageSize: DIV_PAGE_SIZE,
     rowClassName: 'tbl-row div-row',
     headerId: 'div-table-header',
     emptyHtml: '<p class="note">No dividends found in imported transactions yet.</p>',
     footerHtml: `<div class="tbl-row div-row" style="border-top:1px solid var(--line-2);margin-top:4px">
-      <div></div><div style="font-weight:500">${_divYear ? 'Year total' : 'Total'}</div>
+      <div></div><div style="font-weight:500">${selectedYear ? 'Year total' : 'Total'}</div>
       <div style="text-align:right;font-weight:500">${fmtEur2(totalGross)}</div>
       <div style="text-align:right;color:var(--neg)">${fmtEur2(totalTax)}</div>
       <div style="text-align:right;color:var(--pos);font-weight:500">${fmtEur2(totalNet)}</div>
     </div>`,
   });
-  _divPage = page;
+  setTablePage(_divTableState, page);
 
   // Bind sort handler on header row
   if (hasDiv) {
-    bindSortedTableHeader(document.getElementById('div-table-header'), _divTblSort, (newState) => {
-      _divTblSort = newState;
-      _divPage = 1;
+    bindSortedTableHeader(document.getElementById('div-table-header'), _divTableState.sort, (newState) => {
+      setTableSort(_divTableState, newState);
       renderDivTable(pd);
     });
   }
@@ -383,8 +389,8 @@ function renderDivTable(pd: PortfolioData): void {
 }
 
 function renderDivPagination(totalPages: number, pd: PortfolioData): void {
-  renderPagination('div-pagination', _divPage, totalPages, (p) => {
-    _divPage = p;
+  renderPagination('div-pagination', _divTableState.page, totalPages, (p) => {
+    setTablePage(_divTableState, p);
     renderDivTable(_lastPd || pd);
   });
 }
@@ -427,7 +433,8 @@ function intColumns(): ColumnDef<IntHistEntry>[] {
 }
 
 function renderIntTable(pd: PortfolioData): void {
-  const list = _intYear ? pd.intHist.filter((i) => i.date.startsWith(_intYear)) : pd.intHist;
+  const selectedYear = getTableFilter(_intTableState, 'year');
+  const list = selectedYear ? pd.intHist.filter((i) => i.date.startsWith(selectedYear)) : pd.intHist;
   const totalGross = list.reduce((s, i) => s + i.gross, 0);
   const totalTax = list.reduce((s, i) => s + i.tax, 0);
   const totalNet = list.reduce((s, i) => s + i.net, 0);
@@ -440,26 +447,25 @@ function renderIntTable(pd: PortfolioData): void {
     container: document.getElementById('div-interest'),
     items: list,
     columns,
-    sortState: _intTblSort,
-    page: _intPage,
+    sortState: _intTableState.sort,
+    page: _intTableState.page,
     pageSize: DIV_PAGE_SIZE,
     rowClassName: 'tbl-row int-row',
     headerId: 'int-table-header',
     emptyHtml: '<p class="note">No interest payments found in imported transactions.</p>',
     headerAttrs: 'style="border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:2px"',
     footerHtml: `<div class="tbl-row int-row" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
-        <div style="font-weight:500">${_intYear ? 'Year total' : 'Total'}</div>
+        <div style="font-weight:500">${selectedYear ? 'Year total' : 'Total'}</div>
         <div style="font-weight:500;text-align:right">${fmtEur2(totalGross)}</div>
         <div style="text-align:right;color:var(${totalTax > 0 ? '--neg' : '--pos'})">${fmtEur2(totalTax)}</div>
         <div style="font-weight:500;text-align:right;color:var(--pos)">${fmtEur2(totalNet)}</div></div>`,
   });
-  _intPage = page;
+  setTablePage(_intTableState, page);
 
   // Bind sort handler on header row
   if (list.length > 0) {
-    bindSortedTableHeader(document.getElementById('int-table-header'), _intTblSort, (newState) => {
-      _intTblSort = newState;
-      _intPage = 1;
+    bindSortedTableHeader(document.getElementById('int-table-header'), _intTableState.sort, (newState) => {
+      setTableSort(_intTableState, newState);
       renderIntTable(pd);
     });
   }
@@ -468,8 +474,8 @@ function renderIntTable(pd: PortfolioData): void {
 }
 
 function renderIntPagination(totalPages: number, pd: PortfolioData): void {
-  renderPagination('int-pagination', _intPage, totalPages, (p) => {
-    _intPage = p;
+  renderPagination('int-pagination', _intTableState.page, totalPages, (p) => {
+    setTablePage(_intTableState, p);
     renderIntTable(_lastPd || pd);
   });
 }

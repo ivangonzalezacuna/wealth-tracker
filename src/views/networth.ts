@@ -36,6 +36,10 @@ import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from '
 import { writeChartTable } from './chartTable';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { createChartRegistry } from './chartRegistry';
+import {
+  formatEuroCompactPrefix,
+  formatEuroCompactSuffix,
+} from './chartOptions';
 
 const { CH, destroyChart: _destroyChart } = createChartRegistry();
 let _nwRange: '12' | '36' | 'all' = 'all';
@@ -383,7 +387,7 @@ export function renderNW(snaps: Snapshot[]): void {
             grid: { color: C.line },
             ticks: {
               color: C.ink4,
-              callback: (v) => ((v as number) / 1000).toFixed(0) + 'k\u00A0\u20AC',
+              callback: (v) => formatEuroCompactSuffix(v),
             },
           },
           y: { grid: { display: false }, ticks: { color: C.ink2, font: { size: 12 } } },
@@ -522,10 +526,7 @@ function _renderNWHistChart(
           grid: { color: C.line },
           ticks: {
             color: C.ink4,
-            callback: (v) =>
-              (v as number) >= 1000
-                ? ((v as number) / 1000).toFixed(0) + 'k\u00A0€'
-                : v + '\u00A0€',
+            callback: (v) => formatEuroCompactSuffix(v),
           },
         },
         x: {
@@ -922,10 +923,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           grid: { color: C.line },
           ticks: {
             color: C.ink4,
-            callback: (v) =>
-              (v as number) >= 1000
-                ? '\u20AC' + ((v as number) / 1000).toFixed(0) + 'k'
-                : '\u20AC' + v,
+            callback: (v) => formatEuroCompactPrefix(v),
           },
         },
         x: {
@@ -1321,10 +1319,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
               grid: { color: C.line },
               ticks: {
                 color: C.ink4,
-                callback: (v) =>
-                  (v as number) >= 1000
-                    ? '\u20AC' + ((v as number) / 1000).toFixed(0) + 'k'
-                    : '\u20AC' + v,
+                callback: (v) => formatEuroCompactPrefix(v),
               },
             },
             x: {
