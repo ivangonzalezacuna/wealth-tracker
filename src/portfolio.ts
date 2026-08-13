@@ -11,9 +11,7 @@ interface ComputeOptions {
 }
 
 const interestTaxFromStandaloneTaxSources = new Set(
-  builtInProfiles
-    .filter((p) => p.interestTaxFromStandaloneTaxRows)
-    .map((p) => p.id),
+  builtInProfiles.filter((p) => p.interestTaxFromStandaloneTaxRows).map((p) => p.id),
 );
 
 /**
