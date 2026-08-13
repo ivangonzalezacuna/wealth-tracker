@@ -8,8 +8,9 @@ import type { SortState } from './tableSort';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow } from './tableColumns';
 import { renderPagination } from './pagination';
-import { toggleSingleDetailRow } from './expandableRows';
+import { bindExpandableRows, restoreExpandableRows } from './expandableRows';
 import { bindSortedTableHeader, sortAndPaginate } from './tableView';
+import { bindYearFilter, populateYearFilterOptions } from './yearFilter';
 
 interface LogState {
   txs: Transaction[];
@@ -70,7 +71,7 @@ export function renderLog(state: LogState): void {
   renderTxList(_txs);
 
   // Populate year filter options
-  populateYearFilter(_snaps);
+  populateYearFilterOptions('snap-year-filter', _snaps);
   attachFilterListeners();
   renderSnapList(_snaps, state.onEditSnap, state.onDelSnap);
 }
@@ -122,33 +123,16 @@ function renderTxSummary(txs: Transaction[]): string {
   return `\u2713 <strong>${total} transactions</strong> synced<br>${sourceLines}`;
 }
 
-function populateYearFilter(snaps: Snapshot[]): void {
-  const select = document.getElementById('snap-year-filter') as HTMLSelectElement | null;
-  if (!select) return;
-  const years = [...new Set(snaps.map((s) => s.date.slice(0, 4)))].sort().reverse();
-  const current = select.value;
-  select.innerHTML =
-    '<option value="">All years</option>' +
-    years
-      .map((y) => `<option value="${y}" ${y === current ? 'selected' : ''}>${y}</option>`)
-      .join('');
-}
-
 function attachFilterListeners(): void {
-  const yearEl = document.getElementById('snap-year-filter') as
-    (HTMLSelectElement & { _bound?: boolean }) | null;
   const searchEl = document.getElementById('snap-search') as
     (HTMLInputElement & { _bound?: boolean }) | null;
 
-  if (yearEl && !yearEl._bound) {
-    yearEl._bound = true;
-    yearEl.addEventListener('change', () => {
-      _snapYear = yearEl.value;
-      _snapPage = 1;
-      _snapTblSort = { key: null, dir: null };
-      if (_lastOnEdit && _lastOnDel) renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
-    });
-  }
+  bindYearFilter('snap-year-filter', (year) => {
+    _snapYear = year;
+    _snapPage = 1;
+    _snapTblSort = { key: null, dir: null };
+    if (_lastOnEdit && _lastOnDel) renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
+  });
   if (searchEl && !searchEl._bound) {
     searchEl._bound = true;
     searchEl.addEventListener('input', () => {
@@ -280,63 +264,43 @@ function renderSnapList(
   });
 
   // Row tap-to-expand detail panel (delegated on #snaps-list)
-  const listEl = document.getElementById('snaps-list') as
-    (HTMLElement & { _rowDetail_bound?: boolean }) | null;
-  if (listEl && !listEl._rowDetail_bound) {
-    listEl._rowDetail_bound = true;
-    listEl.addEventListener('click', (e) => {
-      const target = e.target as HTMLElement;
-      // Ignore clicks landing on action buttons inside an already-open panel
-      if (target.closest('.js-edit-snap') || target.closest('.js-del-snap')) return;
-      const row = target.closest('.snap-row-compact:not(.th)') as HTMLElement | null;
-      if (!row) return;
+  const listEl = document.getElementById('snaps-list');
+  bindExpandableRows({
+    container: listEl,
+    rowSelector: '.snap-row-compact:not(.th)',
+    detailSelector: '.snap-detail',
+    getItem: (row) => {
       const date = row.dataset.date;
-      const snap = _snaps.find((s) => s.date === date);
-      if (!snap) return;
-      toggleSingleDetailRow({
-        container: listEl,
-        row,
-        item: snap,
-        detailSelector: '.snap-detail',
-        createDetail: () => _createSnapDetail(snap, date!, _lastOnEdit!, _lastOnDel!),
-        onExpandedChange: (detailRow, expanded) => {
-          const detailDate = detailRow.dataset.date;
-          if (detailDate) setCollapsed('snap:' + detailDate, expanded);
-        },
-      });
-    });
-    listEl.addEventListener('keydown', (e) => {
-      const row = (e.target as HTMLElement).closest(
-        '.snap-row-compact:not(.th)',
-      ) as HTMLElement | null;
-      if (!row || (e.key !== 'Enter' && e.key !== ' ')) return;
-      e.preventDefault();
-      row.click();
-    });
-  }
+      return date ? _snaps.find((s) => s.date === date) : undefined;
+    },
+    createDetail: (row, snap) =>
+      _createSnapDetail(snap, row.dataset.date || '', _lastOnEdit!, _lastOnDel!),
+    ignoreClick: (target) => !!target.closest('.js-edit-snap') || !!target.closest('.js-del-snap'),
+    onExpandedChange: (detailRow, expanded) => {
+      const detailDate = detailRow.dataset.date;
+      if (detailDate) setCollapsed('snap:' + detailDate, expanded);
+    },
+  });
 
   // Restore previously expanded snap row (if still on this page)
-  if (listEl) {
-    listEl.querySelectorAll('.snap-row-compact:not(.th)').forEach((row) => {
-      const date = (row as HTMLElement).dataset.date;
-      if (date && isCollapsed('snap:' + date)) {
-        const snap = snaps.find((s) => s.date === date);
-        if (snap) {
-          toggleSingleDetailRow({
-            container: listEl,
-            row: row as HTMLElement,
-            item: snap,
-            detailSelector: '.snap-detail',
-            createDetail: () => _createSnapDetail(snap, date, onEdit, onDel),
-            onExpandedChange: (detailRow, expanded) => {
-              const detailDate = detailRow.dataset.date;
-              if (detailDate) setCollapsed('snap:' + detailDate, expanded);
-            },
-          });
-        }
-      }
-    });
-  }
+  restoreExpandableRows({
+    container: listEl,
+    rowSelector: '.snap-row-compact:not(.th)',
+    detailSelector: '.snap-detail',
+    getItem: (row) => {
+      const date = row.dataset.date;
+      return date ? snaps.find((s) => s.date === date) : undefined;
+    },
+    createDetail: (row, snap) => _createSnapDetail(snap, row.dataset.date || '', onEdit, onDel),
+    isExpanded: (row) => {
+      const date = row.dataset.date;
+      return !!date && isCollapsed('snap:' + date);
+    },
+    onExpandedChange: (detailRow, expanded) => {
+      const detailDate = detailRow.dataset.date;
+      if (detailDate) setCollapsed('snap:' + detailDate, expanded);
+    },
+  });
 
   // Pagination controls
   renderPagination('snap-pagination', _snapPage, totalPages, (page) => {

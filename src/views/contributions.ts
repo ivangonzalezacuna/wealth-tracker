@@ -7,12 +7,12 @@ import Chart from 'chart.js/auto';
 import { T, R, resolvedT } from '../theme';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import type { SortState } from './tableSort';
-import { bindSortedTableHeader, sortAndPaginate } from './tableView';
+import { bindSortedTableHeader, renderTableSection } from './tableView';
 import type { ColumnDef } from './tableColumns';
-import { renderTableHeader, renderTableRow } from './tableColumns';
 import { renderPagination } from './pagination';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { createChartRegistry } from './chartRegistry';
+import { bindYearFilter, populateYearFilterOptions } from './yearFilter';
 
 const { CH, destroyChart: _destroyChart } = createChartRegistry();
 const DCA_PAGE_SIZE = 12;
@@ -64,7 +64,10 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   _rebuildDCALegend(ordSyms, ISIN, META);
 
   // DCA table with filtering + pagination
-  populateDCAYearFilter(pd.months);
+  populateYearFilterOptions(
+    'dca-year-filter',
+    pd.months.map((date) => ({ date })),
+  );
   attachDCAFilterListeners(pd);
   renderDCATable(pd);
 
@@ -488,29 +491,12 @@ function attachRangeToggle(
 
 // ── DCA table with filtering + pagination ────────────────
 
-function populateDCAYearFilter(months: string[]): void {
-  const select = document.getElementById('dca-year-filter') as HTMLSelectElement | null;
-  if (!select) return;
-  const years = [...new Set(months.map((m) => m.slice(0, 4)))].sort().reverse();
-  const current = select.value;
-  select.innerHTML =
-    '<option value="">All years</option>' +
-    years
-      .map((y) => `<option value="${y}" ${y === current ? 'selected' : ''}>${y}</option>`)
-      .join('');
-}
-
 function attachDCAFilterListeners(pd: PortfolioData): void {
-  const yearEl = document.getElementById('dca-year-filter') as
-    (HTMLSelectElement & { _bound?: boolean }) | null;
-  if (yearEl && !yearEl._bound) {
-    yearEl._bound = true;
-    yearEl.addEventListener('change', () => {
-      _dcaYear = yearEl.value;
-      _dcaPage = 1;
-      renderDCATable(pd);
-    });
-  }
+  bindYearFilter('dca-year-filter', (year) => {
+    _dcaYear = year;
+    _dcaPage = 1;
+    renderDCATable(pd);
+  });
 }
 
 function dcaColumns(pd: PortfolioData): ColumnDef<string>[] {
@@ -548,29 +534,22 @@ function renderDCATable(pd: PortfolioData): void {
   // Calculate filtered total
   const filteredTotal = months.reduce((sum, m) => sum + (pd.monthly[m] || 0), 0);
 
-  const {
-    pageItems: pageMonths,
-    page,
-    totalPages,
-  } = sortAndPaginate(months, columns, _dcaTblSort, _dcaPage, DCA_PAGE_SIZE);
-  _dcaPage = page;
-
-  const tRows = pageMonths
-    .map(
-      (m) =>
-        `<div class="tbl-row dca-row" role="row">
-      ${renderTableRow(columns, m)}
-    </div>`,
-    )
-    .join('');
-
-  el.innerHTML = `
-    <div class="tbl-row th dca-row" role="row" id="dca-table-header">${renderTableHeader(columns, _dcaTblSort)}</div>
-    ${tRows}
-    <div class="tbl-row dca-row" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
+  const { page, totalPages } = renderTableSection({
+    container: el,
+    items: months,
+    columns,
+    sortState: _dcaTblSort,
+    page: _dcaPage,
+    pageSize: DCA_PAGE_SIZE,
+    rowClassName: 'tbl-row dca-row',
+    headerId: 'dca-table-header',
+    emptyHtml: '',
+    footerHtml: `<div class="tbl-row dca-row" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
       <div style="font-weight:500">${_dcaYear ? 'Year total' : 'Total'}</div>
       <div style="font-weight:500;text-align:right">${fmtEur(filteredTotal)}</div>
-    </div>`;
+    </div>`,
+  });
+  _dcaPage = page;
 
   // Bind sort handler on header row
   bindSortedTableHeader(document.getElementById('dca-table-header'), _dcaTblSort, (newState) => {

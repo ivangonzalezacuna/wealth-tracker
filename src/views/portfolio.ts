@@ -34,7 +34,7 @@ import { renderPagination } from './pagination';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow } from './tableColumns';
 import { TOOLTIP_BOX, renderLegendHtml, tooltipSwatch } from './chartLegend';
-import { toggleSingleDetailRow } from './expandableRows';
+import { bindExpandableRows, restoreExpandableRows } from './expandableRows';
 import { bindSortedTableHeader, sortAndPaginate } from './tableView';
 import { isCollapsed, setCollapsed } from '../ui/collapseState';
 import { createChartRegistry } from './chartRegistry';
@@ -403,54 +403,37 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   }
 
   // Row tap-to-expand detail panel (delegated on #port-table)
-  const tbl = document.getElementById('port-table') as
-    (HTMLElement & { _rowDetail_bound?: boolean }) | null;
-  if (tbl && !tbl._rowDetail_bound) {
-    tbl._rowDetail_bound = true;
-    tbl.addEventListener('click', (ev) => {
-      const row = (ev.target as HTMLElement).closest('.hold-row:not(.th)') as HTMLElement | null;
-      if (!row) return;
+  const tbl = document.getElementById('port-table');
+  bindExpandableRows({
+    container: tbl,
+    rowSelector: '.hold-row:not(.th)',
+    detailSelector: '.hold-detail',
+    getItem: (row) => {
       const etfKey = row.dataset.etfKey;
-      const e = etfKey ? _pageItemsByKey.get(etfKey) : undefined;
-      if (!e) return;
-      toggleSingleDetailRow({
-        container: tbl,
-        row,
-        item: e,
-        detailSelector: '.hold-detail',
-        createDetail: () => _createHoldingDetail(e),
-        onExpandedChange: (detailRow, expanded) => {
-          const key = detailRow.dataset.etfKey;
-          if (key) setCollapsed('hold:' + key, expanded);
-        },
-      });
-    });
-    tbl.addEventListener('keydown', (ev) => {
-      const row = (ev.target as HTMLElement).closest('.hold-row:not(.th)') as HTMLElement | null;
-      if (!row || (ev.key !== 'Enter' && ev.key !== ' ')) return;
-      ev.preventDefault();
-      row.click();
-    });
-  }
+      return etfKey ? _pageItemsByKey.get(etfKey) : undefined;
+    },
+    createDetail: (_row, item) => _createHoldingDetail(item),
+    onExpandedChange: (detailRow, expanded) => {
+      const key = detailRow.dataset.etfKey;
+      if (key) setCollapsed('hold:' + key, expanded);
+    },
+  });
 
   // Restore previously expanded hold row (if still on this page)
-  if (tbl) {
-    tbl.querySelectorAll('.hold-row:not(.th)').forEach((row) => {
-      const etfKey = (row as HTMLElement).dataset.etfKey;
-      if (etfKey && isCollapsed('hold:' + etfKey)) {
-        const e = _pageItemsByKey.get(etfKey);
-        if (e) {
-          toggleSingleDetailRow({
-            container: tbl,
-            row: row as HTMLElement,
-            item: e,
-            detailSelector: '.hold-detail',
-            createDetail: () => _createHoldingDetail(e),
-          });
-        }
-      }
-    });
-  }
+  restoreExpandableRows({
+    container: tbl,
+    rowSelector: '.hold-row:not(.th)',
+    detailSelector: '.hold-detail',
+    getItem: (row) => {
+      const etfKey = row.dataset.etfKey;
+      return etfKey ? _pageItemsByKey.get(etfKey) : undefined;
+    },
+    createDetail: (_row, item) => _createHoldingDetail(item),
+    isExpanded: (row) => {
+      const etfKey = row.dataset.etfKey;
+      return !!etfKey && isCollapsed('hold:' + etfKey);
+    },
+  });
 
   // Holdings pagination controls
   renderHoldPagination(totalPages, pd, snaps);

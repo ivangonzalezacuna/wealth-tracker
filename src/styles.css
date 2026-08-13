@@ -604,6 +604,13 @@ details[open] > summary .card-chevron {
 }
 
 /* Shared hover for expandable rows */
+#port-table .hold-row:not(.th),
+.snap-row-compact:not(.th),
+.annual-row:not(.th) {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
 #port-table .hold-row:not(.th):hover,
 .snap-row-compact:not(.th):hover,
 .annual-row:not(.th):hover {
