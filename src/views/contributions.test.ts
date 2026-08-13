@@ -110,7 +110,8 @@ const DOM_FIXTURE = `
   <div id="dca-content">
     <div id="dca-kpis"></div>
     <div id="dca-legend"></div>
-    <canvas id="c-dca-bar"></canvas>
+    <canvas id="c-dca-bar" role="img" aria-label="Monthly contributions bar chart" aria-describedby="c-dca-bar-table-wrap"></canvas>
+    <div id="c-dca-bar-table-wrap" hidden></div>
     <div class="range-toggle" id="dca-range-toggle">
       <button class="btn active" data-range="12">12M</button>
       <button class="btn" data-range="36">36M</button>
@@ -180,6 +181,12 @@ describe('renderDCA', () => {
     renderDCA(makePD(), []);
     // Should create at least the bar chart
     expect(chartInstances.length).toBeGreaterThanOrEqual(1);
+    const wrap = document.getElementById('c-dca-bar-table-wrap');
+    expect(wrap?.hasAttribute('hidden')).toBe(false);
+    expect(wrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
+    expect(
+      (document.getElementById('c-dca-bar') as HTMLCanvasElement).getAttribute('aria-describedby'),
+    ).toBe('c-dca-bar-table-wrap');
   });
 
   it('destroys prior bar chart on re-render', () => {
@@ -227,6 +234,12 @@ describe('renderDCA', () => {
     renderDCA(makePD(), []);
     // Proj chart (c-dca-proj) should be created in addition to bar chart
     expect(chartInstances.length).toBeGreaterThanOrEqual(2);
+    const wrap = document.getElementById('c-dca-proj-table-wrap');
+    expect(wrap?.hasAttribute('hidden')).toBe(false);
+    expect(wrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
+    expect(
+      (document.getElementById('c-dca-proj') as HTMLCanvasElement).getAttribute('aria-describedby'),
+    ).toBe('c-dca-proj-table-wrap');
   });
 
   it('forecast range toggle re-creates projection chart', () => {

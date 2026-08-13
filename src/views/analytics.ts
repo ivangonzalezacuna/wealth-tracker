@@ -41,10 +41,11 @@ import { getAccounts, getHoldings, getSettings } from '../store/config';
 import { allInvestmentAccountsValue } from '../model/accounts';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
-import { writeChartTable } from './chartTable';
+import { hideChartTable, writeChartTable } from './chartTable';
 import { T, R, resolvedT } from '../theme';
 import { createChartRegistry } from './chartRegistry';
 import Chart from 'chart.js/auto';
+import { formatEuroCompactSuffix, formatEuroPrefix, formatPercentRounded } from './chartOptions';
 import type { Snapshot, PortfolioData, Transaction, Holding } from '../types';
 
 const { CH, destroyChart: _destroyChart } = createChartRegistry();
@@ -479,7 +480,7 @@ function _renderGrowthChart(snaps: Snapshot[]): void {
           grid: { color: C.line },
           ticks: {
             color: C.ink4,
-            callback: (v) => ((v as number) / 1000).toFixed(0) + 'k\u00A0\u20AC',
+            callback: (v) => formatEuroCompactSuffix(v),
           },
         },
         x: {
@@ -518,6 +519,7 @@ function _renderContribChart(points: MonthlyGrowthPoint[]): void {
   _destroyChart('c-an-contrib');
 
   if (points.length === 0) {
+    hideChartTable('c-an-contrib-table-wrap');
     const card = el.closest('.card') as HTMLElement | null;
     if (card) card.style.display = 'none';
     return;
@@ -579,7 +581,7 @@ function _renderContribChart(points: MonthlyGrowthPoint[]): void {
         y: {
           stacked: true,
           grid: { color: C.line },
-          ticks: { color: C.ink4, callback: (v) => '\u20AC' + (v as number).toFixed(0) },
+          ticks: { color: C.ink4, callback: (v) => formatEuroPrefix(v) },
         },
         x: {
           stacked: true,
@@ -598,6 +600,18 @@ function _renderContribChart(points: MonthlyGrowthPoint[]): void {
     ]);
     bindLegendToggle(legendEl, CH['c-an-contrib'], { skipIndex: [] });
   }
+
+  writeChartTable(
+    'c-an-contrib-table-wrap',
+    'Investment balance breakdown data',
+    ['Month', 'Contributed (€)', 'Market movement (€)', 'Total (€)'],
+    view.map((p) => [
+      fmtMon(p.month),
+      fmtEur2(p.contributed),
+      fmtEurSigned(p.market, 2),
+      fmtEurSigned(p.contributed + p.market, 2),
+    ]),
+  );
 }
 
 function _attachContribRangeToggle(points: MonthlyGrowthPoint[]): void {
@@ -958,14 +972,27 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
 
   const canvasId = `c-an-alloc-${dim}`;
   const legendId = `an-alloc-${dim}-legend`;
+  const tableWrapId = `${canvasId}-table-wrap`;
 
   // Hide card if no data; destroy any previous chart to avoid stale display
   if (slices.length === 0) {
     _destroyChart(canvasId);
+    hideChartTable(tableWrapId);
     return;
   }
 
   const total = slices.reduce((s, x) => s + x.value, 0);
+  const dimLabel = dim === 'acct' ? 'account' : dim === 'class' ? 'asset class' : 'region';
+  writeChartTable(
+    tableWrapId,
+    `Allocation by ${dimLabel} data`,
+    ['Category', 'Value (€)', 'Share'],
+    slices.map((slice) => [
+      slice.label,
+      fmtEur2(slice.value),
+      total > 0 ? fmtPctVal((slice.value / total) * 100) : '0%',
+    ]),
+  );
 
   // When there is only one slice the donut chart conveys no additional
   // information beyond the label itself. Destroy any previous chart and
@@ -1181,7 +1208,7 @@ function _renderDrawdownChart(series: { date: string; drawdown: number }[]): voi
           grid: { color: C.line },
           ticks: {
             color: C.ink4,
-            callback: (v) => (v as number).toFixed(0) + '%',
+            callback: (v) => formatPercentRounded(v),
           },
         },
         x: {
@@ -1229,6 +1256,7 @@ function _renderRollingCagrChart(
 
   if (points.length === 0) {
     const canvasWrap = canvas.closest('.chart-wrap') as HTMLElement | null;
+    hideChartTable('c-an-rolling-cagr-table-wrap');
     if (canvasWrap) canvasWrap.style.display = 'none';
     return;
   }
@@ -1275,7 +1303,7 @@ function _renderRollingCagrChart(
       scales: {
         y: {
           grid: { color: C.line },
-          ticks: { color: C.ink4, callback: (v) => (v as number).toFixed(0) + '%' },
+          ticks: { color: C.ink4, callback: (v) => formatPercentRounded(v) },
         },
         x: {
           grid: { display: false },
@@ -1284,6 +1312,13 @@ function _renderRollingCagrChart(
       },
     },
   });
+
+  writeChartTable(
+    'c-an-rolling-cagr-table-wrap',
+    'Rolling 3-year investment CAGR data',
+    ['Month', 'Rolling 3Y CAGR (%)'],
+    points.map((p) => [fmtMon(p.month), `${(p.cagr * 100).toFixed(1)}%`]),
+  );
 }
 
 // ── Income analytics ───────────────────────────────────────
@@ -1410,7 +1445,7 @@ function _renderIncomeChart(monthlyBreakdown: { month: string; amount: number }[
       scales: {
         y: {
           grid: { color: C.line },
-          ticks: { color: C.ink4, callback: (v) => '\u20AC' + (v as number).toFixed(0) },
+          ticks: { color: C.ink4, callback: (v) => formatEuroPrefix(v) },
         },
         x: {
           grid: { display: false },

@@ -67,6 +67,17 @@ vi.mock('../constants', () => ({
   getMETAMap: () => ({ IWDA: { color: '#222222', acc: true, active: true } }),
 }));
 
+let _collapseState: Record<string, boolean> = {};
+vi.mock('../ui/collapseState', () => ({
+  isCollapsed: (key: string) => !!_collapseState[key],
+  setCollapsed: (key: string, v: boolean) => {
+    if (v) _collapseState[key] = true;
+    else delete _collapseState[key];
+  },
+  loadCollapseState: () => Promise.resolve(),
+  isCollapseStateLoaded: () => true,
+}));
+
 import { getMaxDrift, renderPortfolio } from './portfolio';
 import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 
@@ -174,6 +185,7 @@ const DOM_FIXTURE = `
     <div id="port-table-header"></div>
     <div id="port-table"></div>
     <canvas id="c-port-donut"></canvas>
+    <div id="c-port-donut-table-wrap" hidden></div>
     <div id="port-donut-legend"></div>
     <div id="port-summary"></div>
     <div id="port-drift"></div>
@@ -183,6 +195,7 @@ const DOM_FIXTURE = `
 
 describe('renderPortfolio', () => {
   beforeEach(() => {
+    _collapseState = {};
     document.body.innerHTML = DOM_FIXTURE;
     chartInstances.length = 0;
     localStorage.removeItem('drift-rebalance-months');
@@ -685,6 +698,9 @@ describe('renderPortfolio', () => {
     const config = chartInstances[0].config as { data: { labels: string[]; datasets: unknown[] } };
     expect(config.data.labels).toContain('IWDA');
     expect(config.data.datasets[0]).toHaveProperty('data');
+    const wrap = document.getElementById('c-port-donut-table-wrap');
+    expect(wrap?.hasAttribute('hidden')).toBe(false);
+    expect(wrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
   });
 
   it('uses a square leading edge and the existing trailing radius for allocation bars', () => {

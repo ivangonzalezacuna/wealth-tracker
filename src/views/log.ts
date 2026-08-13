@@ -4,12 +4,20 @@ import { sourceLabel } from '../import/profiles/index';
 import type { Snapshot, Transaction } from '../types';
 import { T } from '../theme';
 import { isCollapsed, setCollapsed } from '../ui/collapseState';
-import type { SortState } from './tableSort';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow } from './tableColumns';
 import { renderPagination } from './pagination';
-import { toggleSingleDetailRow } from './expandableRows';
+import { bindExpandableRows, restoreExpandableRows } from './expandableRows';
 import { bindSortedTableHeader, sortAndPaginate } from './tableView';
+import { populateYearFilterOptions } from './yearFilter';
+import {
+  bindTableSearchFilter,
+  bindTableYearFilter,
+  createTableState,
+  getTableFilter,
+  setTablePage,
+  setTableSort,
+} from './tableState';
 
 interface LogState {
   txs: Transaction[];
@@ -24,10 +32,10 @@ interface LogState {
 }
 
 const PAGE_SIZE = 12;
-let _snapPage = 1;
-let _snapYear = '';
-let _snapSearch = '';
-let _snapTblSort: SortState = { key: null, dir: null };
+const _snapTableState = createTableState({
+  sort: { key: null, dir: null },
+  filters: { year: '', search: '' },
+});
 let _lastOnEdit: ((date: string) => void) | null = null;
 let _lastOnDel: ((date: string, btn?: HTMLButtonElement) => void) | null = null;
 let _lastOnAddTx: (() => void) | null = null;
@@ -36,10 +44,10 @@ let _lastOnDelTx: ((rowId: number, btn?: HTMLButtonElement) => void) | null = nu
 let _readOnly = false;
 let _snaps: Snapshot[] = [];
 let _txs: Transaction[] = [];
-let _txPage = 1;
-let _txSearch = '';
-let _txType = '';
-let _txTblSort: SortState = { key: null, dir: null };
+const _txTableState = createTableState({
+  sort: { key: null, dir: null },
+  filters: { search: '', type: '' },
+});
 
 /** Renders the snapshot log tab: the add/edit form and the snapshot history list. */
 export function renderLog(state: LogState): void {
@@ -70,7 +78,7 @@ export function renderLog(state: LogState): void {
   renderTxList(_txs);
 
   // Populate year filter options
-  populateYearFilter(_snaps);
+  populateYearFilterOptions('snap-year-filter', _snaps);
   attachFilterListeners();
   renderSnapList(_snaps, state.onEditSnap, state.onDelSnap);
 }
@@ -122,42 +130,25 @@ function renderTxSummary(txs: Transaction[]): string {
   return `\u2713 <strong>${total} transactions</strong> synced<br>${sourceLines}`;
 }
 
-function populateYearFilter(snaps: Snapshot[]): void {
-  const select = document.getElementById('snap-year-filter') as HTMLSelectElement | null;
-  if (!select) return;
-  const years = [...new Set(snaps.map((s) => s.date.slice(0, 4)))].sort().reverse();
-  const current = select.value;
-  select.innerHTML =
-    '<option value="">All years</option>' +
-    years
-      .map((y) => `<option value="${y}" ${y === current ? 'selected' : ''}>${y}</option>`)
-      .join('');
-}
-
 function attachFilterListeners(): void {
-  const yearEl = document.getElementById('snap-year-filter') as
-    (HTMLSelectElement & { _bound?: boolean }) | null;
-  const searchEl = document.getElementById('snap-search') as
-    (HTMLInputElement & { _bound?: boolean }) | null;
-
-  if (yearEl && !yearEl._bound) {
-    yearEl._bound = true;
-    yearEl.addEventListener('change', () => {
-      _snapYear = yearEl.value;
-      _snapPage = 1;
-      _snapTblSort = { key: null, dir: null };
+  bindTableYearFilter({
+    elementId: 'snap-year-filter',
+    state: _snapTableState,
+    filterKey: 'year',
+    resetSort: true,
+    rerender: () => {
       if (_lastOnEdit && _lastOnDel) renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
-    });
-  }
-  if (searchEl && !searchEl._bound) {
-    searchEl._bound = true;
-    searchEl.addEventListener('input', () => {
-      _snapSearch = searchEl.value.toLowerCase();
-      _snapPage = 1;
-      _snapTblSort = { key: null, dir: null };
+    },
+  });
+  bindTableSearchFilter({
+    elementId: 'snap-search',
+    state: _snapTableState,
+    filterKey: 'search',
+    resetSort: true,
+    rerender: () => {
       if (_lastOnEdit && _lastOnDel) renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
-    });
-  }
+    },
+  });
 }
 
 function snapColumns(): ColumnDef<Snapshot>[] {
@@ -167,7 +158,7 @@ function snapColumns(): ColumnDef<Snapshot>[] {
       label: 'Month',
       sortValue: (s) => s.date,
       cell: (s) =>
-        `<span class="snap-month">${fmtMon(s.date)}</span>${s.notes ? '<span class="snap-note-dot" title="Has a note"></span>' : ''}`,
+        `<span class="row-expand-chevron">&#x25B8;</span><span class="snap-month">${fmtMon(s.date)}</span>${s.notes ? '<span class="snap-note-dot" title="Has a note"></span>' : ''}`,
       cellClass: () => 'snap-month-cell',
     },
     {
@@ -214,14 +205,16 @@ function renderSnapList(
 
   // Apply filters
   let filtered = [...snaps].reverse();
-  if (_snapYear) {
-    filtered = filtered.filter((s) => s.date.startsWith(_snapYear));
+  const selectedYear = getTableFilter(_snapTableState, 'year');
+  const searchTerm = getTableFilter(_snapTableState, 'search');
+  if (selectedYear) {
+    filtered = filtered.filter((s) => s.date.startsWith(selectedYear));
   }
-  if (_snapSearch) {
+  if (searchTerm) {
     filtered = filtered.filter(
       (s) =>
-        (s.notes || '').toLowerCase().includes(_snapSearch) ||
-        fmtMon(s.date).toLowerCase().includes(_snapSearch),
+        (s.notes || '').toLowerCase().includes(searchTerm) ||
+        fmtMon(s.date).toLowerCase().includes(searchTerm),
     );
   }
 
@@ -232,9 +225,9 @@ function renderSnapList(
     </div>`;
     hidePagination();
     el.querySelector('.js-clear-snap-filters')?.addEventListener('click', () => {
-      _snapSearch = '';
-      _snapYear = '';
-      _snapPage = 1;
+      _snapTableState.filters.search = '';
+      _snapTableState.filters.year = '';
+      setTablePage(_snapTableState, 1);
       const yearEl = document.getElementById('snap-year-filter') as HTMLSelectElement | null;
       const searchEl = document.getElementById('snap-search') as HTMLInputElement | null;
       if (yearEl) yearEl.value = '';
@@ -251,16 +244,16 @@ function renderSnapList(
   const { pageItems, page, totalPages } = sortAndPaginate(
     filtered,
     columns,
-    _snapTblSort,
-    _snapPage,
+    _snapTableState.sort,
+    _snapTableState.page,
     PAGE_SIZE,
   );
-  _snapPage = page;
+  setTablePage(_snapTableState, page);
 
   // Compact row layout - fixed 3-column (Month / Net worth / segment indicator)
   el.innerHTML = `
     <div class="snap-row-compact th" role="row" id="snap-table-header">
-      ${renderTableHeader(columns, _snapTblSort)}
+      ${renderTableHeader(columns, _snapTableState.sort)}
     </div>
     ${pageItems
       .map(
@@ -273,74 +266,57 @@ function renderSnapList(
   `;
 
   // Bind sort handler on header row
-  bindSortedTableHeader(document.getElementById('snap-table-header'), _snapTblSort, (newState) => {
-    _snapTblSort = newState;
-    _snapPage = 1;
-    renderSnapList(_snaps, onEdit, onDel);
-  });
+  bindSortedTableHeader(
+    document.getElementById('snap-table-header'),
+    _snapTableState.sort,
+    (newState) => {
+      setTableSort(_snapTableState, newState);
+      renderSnapList(_snaps, onEdit, onDel);
+    },
+  );
 
   // Row tap-to-expand detail panel (delegated on #snaps-list)
-  const listEl = document.getElementById('snaps-list') as
-    (HTMLElement & { _rowDetail_bound?: boolean }) | null;
-  if (listEl && !listEl._rowDetail_bound) {
-    listEl._rowDetail_bound = true;
-    listEl.addEventListener('click', (e) => {
-      const target = e.target as HTMLElement;
-      // Ignore clicks landing on action buttons inside an already-open panel
-      if (target.closest('.js-edit-snap') || target.closest('.js-del-snap')) return;
-      const row = target.closest('.snap-row-compact:not(.th)') as HTMLElement | null;
-      if (!row) return;
+  const listEl = document.getElementById('snaps-list');
+  bindExpandableRows({
+    container: listEl,
+    rowSelector: '.snap-row-compact:not(.th)',
+    detailSelector: '.snap-detail',
+    getItem: (row) => {
       const date = row.dataset.date;
-      const snap = _snaps.find((s) => s.date === date);
-      if (!snap) return;
-      toggleSingleDetailRow({
-        container: listEl,
-        row,
-        item: snap,
-        detailSelector: '.snap-detail',
-        createDetail: () => _createSnapDetail(snap, date!, _lastOnEdit!, _lastOnDel!),
-        onExpandedChange: (detailRow, expanded) => {
-          const detailDate = detailRow.dataset.date;
-          if (detailDate) setCollapsed('snap:' + detailDate, expanded);
-        },
-      });
-    });
-    listEl.addEventListener('keydown', (e) => {
-      const row = (e.target as HTMLElement).closest(
-        '.snap-row-compact:not(.th)',
-      ) as HTMLElement | null;
-      if (!row || (e.key !== 'Enter' && e.key !== ' ')) return;
-      e.preventDefault();
-      row.click();
-    });
-  }
+      return date ? _snaps.find((s) => s.date === date) : undefined;
+    },
+    createDetail: (row, snap) =>
+      _createSnapDetail(snap, row.dataset.date || '', _lastOnEdit!, _lastOnDel!),
+    ignoreClick: (target) => !!target.closest('.js-edit-snap') || !!target.closest('.js-del-snap'),
+    onExpandedChange: (detailRow, expanded) => {
+      const detailDate = detailRow.dataset.date;
+      if (detailDate) setCollapsed('snap:' + detailDate, expanded);
+    },
+  });
 
   // Restore previously expanded snap row (if still on this page)
-  if (listEl) {
-    listEl.querySelectorAll('.snap-row-compact:not(.th)').forEach((row) => {
-      const date = (row as HTMLElement).dataset.date;
-      if (date && isCollapsed('snap:' + date)) {
-        const snap = snaps.find((s) => s.date === date);
-        if (snap) {
-          toggleSingleDetailRow({
-            container: listEl,
-            row: row as HTMLElement,
-            item: snap,
-            detailSelector: '.snap-detail',
-            createDetail: () => _createSnapDetail(snap, date, onEdit, onDel),
-            onExpandedChange: (detailRow, expanded) => {
-              const detailDate = detailRow.dataset.date;
-              if (detailDate) setCollapsed('snap:' + detailDate, expanded);
-            },
-          });
-        }
-      }
-    });
-  }
+  restoreExpandableRows({
+    container: listEl,
+    rowSelector: '.snap-row-compact:not(.th)',
+    detailSelector: '.snap-detail',
+    getItem: (row) => {
+      const date = row.dataset.date;
+      return date ? snaps.find((s) => s.date === date) : undefined;
+    },
+    createDetail: (row, snap) => _createSnapDetail(snap, row.dataset.date || '', onEdit, onDel),
+    isExpanded: (row) => {
+      const date = row.dataset.date;
+      return !!date && isCollapsed('snap:' + date);
+    },
+    onExpandedChange: (detailRow, expanded) => {
+      const detailDate = detailRow.dataset.date;
+      if (detailDate) setCollapsed('snap:' + detailDate, expanded);
+    },
+  });
 
   // Pagination controls
-  renderPagination('snap-pagination', _snapPage, totalPages, (page) => {
-    _snapPage = page;
+  renderPagination('snap-pagination', _snapTableState.page, totalPages, (page) => {
+    setTablePage(_snapTableState, page);
     renderSnapList(snaps, onEdit, onDel);
   });
 }
@@ -458,16 +434,16 @@ function attachTxListeners(): void {
   if (searchEl && !searchEl._bound) {
     searchEl._bound = true;
     searchEl.addEventListener('input', () => {
-      _txSearch = searchEl.value.toLowerCase();
-      _txPage = 1;
+      _txTableState.filters.search = searchEl.value.toLowerCase();
+      setTablePage(_txTableState, 1);
       renderTxList(_txs);
     });
   }
   if (typeEl && !typeEl._bound) {
     typeEl._bound = true;
     typeEl.addEventListener('change', () => {
-      _txType = typeEl.value;
-      _txPage = 1;
+      _txTableState.filters.type = typeEl.value;
+      setTablePage(_txTableState, 1);
       renderTxList(_txs);
     });
   }
@@ -507,13 +483,14 @@ function renderTxList(txs: Transaction[]): void {
   listEl.className = `tx-ledger-grid${_readOnly ? ' tx-ledger-grid-readonly' : ''}`;
 
   const types = [...new Set(txs.map((t) => t.type).filter(Boolean))].sort() as string[];
+  const currentType = getTableFilter(_txTableState, 'type');
   if (typeEl) {
-    const prev = typeEl.value || _txType;
+    const prev = typeEl.value || currentType;
     typeEl.innerHTML =
       '<option value="">All types</option>' +
       types.map((type) => `<option value="${esc(type)}">${esc(type)}</option>`).join('');
     if (types.includes(prev)) typeEl.value = prev;
-    _txType = typeEl.value;
+    _txTableState.filters.type = typeEl.value;
   }
 
   if (!txs.length) {
@@ -524,10 +501,12 @@ function renderTxList(txs: Transaction[]): void {
   }
 
   let filtered = [...txs];
-  if (_txType) filtered = filtered.filter((t) => t.type === _txType);
-  if (_txSearch) {
+  const txType = getTableFilter(_txTableState, 'type');
+  const txSearch = getTableFilter(_txTableState, 'search');
+  if (txType) filtered = filtered.filter((t) => t.type === txType);
+  if (txSearch) {
     filtered = filtered.filter((t) =>
-      [t.date, t.name, t.isin, t.source, t.type].join(' ').toLowerCase().includes(_txSearch),
+      [t.date, t.name, t.isin, t.source, t.type].join(' ').toLowerCase().includes(txSearch),
     );
   }
 
@@ -542,16 +521,16 @@ function renderTxList(txs: Transaction[]): void {
   const { pageItems, page, totalPages } = sortAndPaginate(
     filtered,
     columns,
-    _txTblSort,
-    _txPage,
+    _txTableState.sort,
+    _txTableState.page,
     TX_PAGE_SIZE,
   );
-  _txPage = page;
+  setTablePage(_txTableState, page);
   const showActions = !_readOnly;
 
   listEl.innerHTML = `
     <div class="tbl-row th tx-row" role="row" id="tx-table-header">
-      ${renderTableHeader(columns, _txTblSort)}
+      ${renderTableHeader(columns, _txTableState.sort)}
       ${showActions ? '<div role="columnheader" style="text-align:right">Actions</div>' : ''}
     </div>
     ${pageItems
@@ -571,14 +550,17 @@ function renderTxList(txs: Transaction[]): void {
       .join('')}
   `;
 
-  bindSortedTableHeader(document.getElementById('tx-table-header'), _txTblSort, (newState) => {
-    _txTblSort = newState;
-    _txPage = 1;
-    renderTxList(txs);
-  });
+  bindSortedTableHeader(
+    document.getElementById('tx-table-header'),
+    _txTableState.sort,
+    (newState) => {
+      setTableSort(_txTableState, newState);
+      renderTxList(txs);
+    },
+  );
 
-  renderPagination('tx-pagination', _txPage, totalPages, (page) => {
-    _txPage = page;
+  renderPagination('tx-pagination', _txTableState.page, totalPages, (page) => {
+    setTablePage(_txTableState, page);
     renderTxList(txs);
   });
 }

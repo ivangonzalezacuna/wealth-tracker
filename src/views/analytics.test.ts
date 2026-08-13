@@ -237,6 +237,28 @@ describe('renderAnalytics', () => {
     expect(table?.getAttribute('aria-label')).toBe('Portfolio growth over time data');
   });
 
+  it('renders companion tables for contribution and allocation charts', () => {
+    const snaps = [
+      makeSnap('2025-01', 900, 100),
+      makeSnap('2025-02', 950, 110),
+      makeSnap('2025-03', 980, 120),
+    ];
+    renderAnalytics(makePd(), snaps, []);
+
+    const contribWrap = document.getElementById('c-an-contrib-table-wrap');
+    expect(contribWrap?.hasAttribute('hidden')).toBe(false);
+    expect(contribWrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
+    expect(
+      (document.getElementById('c-an-contrib') as HTMLCanvasElement).getAttribute(
+        'aria-describedby',
+      ),
+    ).toBe('c-an-contrib-table-wrap');
+
+    const allocWrap = document.getElementById('c-an-alloc-acct-table-wrap');
+    expect(allocWrap?.hasAttribute('hidden')).toBe(false);
+    expect(allocWrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
+  });
+
   it('renders annual returns table when at least one full year of monthly return data is present', () => {
     const snaps = monthlySnaps(2024, 1, 13);
     renderAnalytics(makePd(), snaps, []);

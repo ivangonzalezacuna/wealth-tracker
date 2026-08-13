@@ -421,7 +421,7 @@ details[open] > summary .card-chevron {
 }
 .tbl-row {
   display: grid;
-  padding: 7px 0;
+  padding: 7px 2px;
   border-bottom: 1px solid var(--surface-3);
   font-size: 12px;
   align-items: center;
@@ -464,11 +464,14 @@ details[open] > summary .card-chevron {
   grid-column: 1 / -1;
   cursor: pointer;
 }
+.annual-row.th {
+  cursor: default;
+}
 .annual-detail {
   background: var(--surface-2);
-  border-radius: var(--radius-sm);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
   padding: 10px;
-  margin: -2px 0 4px;
+  margin: 0 0 4px;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   grid-column: 1 / -1;
@@ -588,6 +591,39 @@ details[open] > summary .card-chevron {
   padding-top: 3px;
 }
 
+/* Row expand chevron (shared by hold-row, snap-row-compact, and annual-row) */
+.row-expand-chevron {
+  font-size: 9px;
+  color: var(--ink-3);
+  transition: transform 0.15s;
+  flex-shrink: 0;
+  user-select: none;
+}
+[aria-expanded='true'] .row-expand-chevron {
+  transform: rotate(90deg);
+}
+
+/* Shared hover for expandable rows */
+#port-table .hold-row:not(.th),
+.snap-row-compact:not(.th),
+.annual-row:not(.th) {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#port-table .hold-row:not(.th):hover,
+.snap-row-compact:not(.th):hover,
+.annual-row:not(.th):hover {
+  background: var(--surface-2);
+}
+
+/* Hide the row separator when its detail panel is open */
+[aria-expanded='true'].tbl-row,
+[aria-expanded='true'].snap-row-compact,
+[aria-expanded='true'].annual-row {
+  border-bottom: none;
+}
+
 /* ETF cell elements */
 .hold-etf-cell {
   cursor: pointer;
@@ -595,7 +631,6 @@ details[open] > summary .card-chevron {
   align-items: center;
   gap: 5px;
   min-width: 0;
-  overflow: hidden;
 }
 .hold-name {
   font-weight: 500;
@@ -639,9 +674,9 @@ details[open] > summary .card-chevron {
 /* Holdings detail panel */
 .hold-detail {
   background: var(--surface-2);
-  border-radius: var(--radius-sm);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
   padding: 8px 12px;
-  margin: -2px 0 4px;
+  margin: 0 0 4px;
   display: flex;
   flex-wrap: wrap;
   grid-column: 1 / -1;
@@ -686,7 +721,7 @@ details[open] > summary .card-chevron {
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 10px;
-  padding: 10px 0;
+  padding: 10px 2px;
   border-bottom: 1px solid var(--surface-3);
   cursor: pointer;
   min-height: 40px;
@@ -732,6 +767,9 @@ details[open] > summary .card-chevron {
 }
 
 /* Transaction ledger */
+#tx-ledger-wrap {
+  overflow-x: auto;
+}
 #tx-ledger-list {
   display: grid;
   grid-template-columns:
@@ -1638,7 +1676,7 @@ summary.section-label {
   #port-table .hold-total {
     gap: 5px;
     font-size: 11px;
-    padding: 6px 0;
+    padding: 6px 2px;
   }
   #port-table .th.hold-row {
     font-size: 10px;
@@ -1647,6 +1685,9 @@ summary.section-label {
   #port-table .hold-total > *:not(:first-child),
   #port-table .th.hold-row > * {
     padding-top: 2px;
+  }
+  #tx-ledger-wrap {
+    box-shadow: inset -24px 0 16px -12px rgba(0, 0, 0, 0.08);
   }
 }
 
@@ -1737,7 +1778,7 @@ summary.section-label {
   .tbl-row {
     font-size: 11px;
     gap: 4px;
-    padding: 6px 0;
+    padding: 6px 2px;
   }
   .th {
     font-size: 10px;
