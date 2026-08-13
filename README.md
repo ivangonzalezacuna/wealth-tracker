@@ -179,7 +179,7 @@ ETFs that you have stopped contributing to but still hold are listed under "Held
 For detailed cost-basis, realized P&L, and dividend tracking, import your broker's CSV export:
 
 1. Go to **+ Log** > **Import CSV**
-2. Select or drag your broker CSV (Trade Republic full transaction history is supported built-in — [adding more banks](#adding-support-for-a-new-bank) takes ~10 minutes)
+2. Select or drag your broker CSV (Trade Republic full transaction history and N26 savings account transactions are supported built-in; N26 does not export investment transactions — for those use Trade Republic or a custom profile. [Adding more banks](#adding-support-for-a-new-bank) takes ~10 minutes)
 3. Review the detected transactions and confirm
 
 After import, transactions appear in the **transaction ledger** at the bottom of the **+ Log** tab, where you can review, filter, and delete individual records.
