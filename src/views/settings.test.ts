@@ -213,9 +213,9 @@ describe('Settings scoped re-render (repaintCard)', () => {
       'settings-card-accounts',
       'settings-card-holdings',
       'settings-card-contributions',
-      'settings-card-cost-basis',
+      'settings-card-calc-assumptions',
       'settings-card-goal',
-      'settings-card-rules',
+      'settings-card-portfolio-behavior',
       'settings-card-cache',
     ];
     for (const id of ids) {
@@ -277,9 +277,9 @@ describe('Settings scoped re-render (repaintCard)', () => {
     const keys = [...cards].map((c) => (c as HTMLElement).dataset.cardKey);
     expect(keys).toContain('accounts');
     expect(keys).toContain('holdings');
-    expect(keys).toContain('cost-basis');
+    expect(keys).toContain('calc-assumptions');
     expect(keys).toContain('goal');
-    expect(keys).toContain('rules');
+    expect(keys).toContain('portfolio-behavior');
     expect(keys).toContain('cache');
   });
 });

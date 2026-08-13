@@ -97,7 +97,7 @@ describe('isCardBusy / withCardGuard', () => {
   it('isCardBusy is false initially for any key', () => {
     expect(isCardBusy('accounts')).toBe(false);
     expect(isCardBusy('holdings')).toBe(false);
-    expect(isCardBusy('rules')).toBe(false);
+    expect(isCardBusy('portfolio-behavior')).toBe(false);
   });
 
   it('withCardGuard sets isCardBusy to true during action, false after success', async () => {

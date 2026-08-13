@@ -73,11 +73,9 @@ type CardKey =
   | 'accounts'
   | 'holdings'
   | 'contributions'
-  | 'cost-basis'
+  | 'calc-assumptions'
   | 'goal'
-  | 'alerts'
-  | 'analytics'
-  | 'rules'
+  | 'portfolio-behavior'
   | 'cache'
   | 'backup'
   | 'config-history';
@@ -147,9 +145,7 @@ const SYNC_LOCK_EXEMPT_IDS = new Set([
 const SYNC_BUSY_TITLE = 'Sync in progress, try again in a moment';
 const SETTINGS_DEFAULT_COLLAPSE_MARKER = 'settings-defaults-v1';
 const SETTINGS_DEFAULT_COLLAPSED_CARDS: ReadonlySet<CardKey> = new Set([
-  'alerts',
-  'analytics',
-  'rules',
+  'portfolio-behavior',
   'cache',
   'backup',
   'config-history',
@@ -220,16 +216,14 @@ export function renderSettings(): void {
         <span class="settings-group-title">Tracking &amp; planning</span>
       </div>
       ${renderContributionsCard(settings)}
-      ${renderCostBasisCard(settings)}
+      ${renderCalcAssumptionsCard(settings)}
       ${renderGoalCard(settings)}
     </div>
     <div class="settings-group" id="settings-group-advanced">
       <div class="settings-group-header">
         <span class="settings-group-title">Advanced</span>
       </div>
-      ${renderAlertsCard(settings)}
-      ${renderAnalyticsCard(settings)}
-      ${renderRulesCard(settings)}
+      ${renderPortfolioBehaviorCard(settings)}
       ${renderCacheCard()}
       ${renderBackupCard()}
       ${renderConfigHistoryCard([])}
@@ -239,11 +233,9 @@ export function renderSettings(): void {
   attachAccountListeners(el);
   attachHoldingListeners(el);
   attachContributionsListeners(el);
-  attachCostBasisListeners(el);
+  attachCalcAssumptionsListeners(el);
   attachGoalListeners(el);
-  attachAlertsListeners(el);
-  attachAnalyticsListeners(el);
-  attachRulesListeners(el);
+  attachPortfolioBehaviorListeners(el);
   attachCacheListeners(el);
   attachBackupListeners(el);
   attachColorPickerSync(el);
@@ -286,7 +278,7 @@ function refreshHoldingsData(): void {
 }
 
 function refreshRulesData(): void {
-  const root = document.getElementById('settings-card-rules');
+  const root = document.getElementById('settings-card-portfolio-behavior');
   if (root) rerenderRulesTable(root, rulesFromSettings(getSettings()));
 }
 
@@ -1104,38 +1096,86 @@ function attachContributionsListeners(root: HTMLElement): void {
   });
 }
 
-function renderCostBasisCard(settings: Settings): string {
+function renderCalcAssumptionsCard(settings: Settings): string {
   const current = getCostBasisMethod();
+  const riskFreeRate = parseFloat(settings.riskFreeRate || '2');
 
   return `
-    <div class="card card-collapsible" id="settings-card-cost-basis" data-card-key="cost-basis">
+    <div class="card card-collapsible" id="settings-card-calc-assumptions" data-card-key="calc-assumptions">
       <div class="card-header js-card-toggle">
-        <div class="card-title">Cost-basis method</div>
+        <div class="card-title">Calculation assumptions</div>
         <span class="card-chevron"></span>
       </div>
       <div class="card-body">
+        <div class="card-section-head">COST-BASIS METHOD</div>
         <p class="note" style="margin-bottom:.75rem">Choose how realized gains are calculated when you sell shares.</p>
         <div id="settings-costbasis-fields">${costBasisFieldsHtml(current)}</div>
         <div class="form-actions">
           <button class="btn btn-primary btn-sm" id="btn-save-cost-basis">Save cost-basis method</button>
           <span id="costbasis-msg" class="form-msg"></span>
         </div>
+        <div class="card-section-head" style="margin-top:1.25rem">ANALYTICS</div>
+        <p class="note" style="margin-bottom:.75rem">Configure parameters used in performance and risk calculations.</p>
+        <div class="settings-field">
+          <label class="settings-field-label" for="analytics-risk-free-rate">
+            Risk-free rate (%)
+            ${infoTip('Annual risk-free rate used in Sharpe and Sortino ratio calculations on the Analytics tab. Typically the yield on short-term government bonds (e.g. 3-month T-bills).')}
+          </label>
+          <input
+            type="number"
+            id="analytics-risk-free-rate"
+            class="form-input form-input-sm"
+            value="${riskFreeRate}"
+            min="0"
+            max="20"
+            step="0.01"
+            style="width:100px"
+            placeholder="2"
+          />
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary btn-sm" id="btn-save-analytics">Save analytics</button>
+          <span id="analytics-msg" class="form-msg"></span>
+        </div>
       </div>
     </div>`;
 }
 
-function attachCostBasisListeners(root: HTMLElement): void {
+function attachCalcAssumptionsListeners(root: HTMLElement): void {
   root.querySelector('#btn-save-cost-basis')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-cost-basis') as HTMLButtonElement;
     const method =
       (root.querySelector('#set-cost-basis-method') as HTMLSelectElement | null)?.value || 'avgco';
     try {
-      await withCardGuard('cost-basis', btn, () => setSetting('costBasisMethod', method), {
+      await withCardGuard('calc-assumptions', btn, () => setSetting('costBasisMethod', method), {
         busyText: 'Saving...',
       });
       showMsg('costbasis-msg', 'Saved', true);
     } catch (err) {
       showMsg('costbasis-msg', 'Error: ' + (err as Error).message, false);
+    }
+  });
+
+  root.querySelector('#btn-save-analytics')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-save-analytics') as HTMLButtonElement;
+    const rfrInput = root.querySelector('#analytics-risk-free-rate') as HTMLInputElement;
+    const rfrValue = parseFloat(rfrInput.value);
+
+    if (isNaN(rfrValue) || rfrValue < 0 || rfrValue > 20) {
+      showMsg('analytics-msg', 'Risk-free rate must be between 0 and 20', false);
+      return;
+    }
+
+    try {
+      await withCardGuard(
+        'calc-assumptions',
+        btn,
+        () => setSettings({ riskFreeRate: String(rfrValue) }),
+        { busyText: 'Saving...' },
+      );
+      showMsg('analytics-msg', 'Saved', true);
+    } catch (err) {
+      showMsg('analytics-msg', 'Error: ' + (err as Error).message, false);
     }
   });
 }
@@ -1287,139 +1327,7 @@ function attachGoalListeners(root: HTMLElement): void {
   });
 }
 
-// ── Alerts & Notifications ───────────────────────────────
-
-function renderAlertsCard(_settings: Settings): string {
-  const alertSettings = getAlertSettings();
-  const threshold = alertSettings.driftThresholdPct || 5;
-  return `
-    <div class="card card-collapsible" id="settings-card-alerts" data-card-key="alerts">
-      <div class="card-header js-card-toggle">
-        <div class="card-title">Alerts & Notifications</div>
-        <span class="card-chevron"></span>
-      </div>
-      <div class="card-body">
-        <p class="note" style="margin-bottom:.75rem">Configure alert conditions for drift and other notifications.</p>
-        <div class="settings-field">
-          <label class="settings-field-label" for="alert-drift-threshold">
-            Drift alert threshold (percentage points)
-            ${infoTip('A badge appears on the Portfolio tab when max drift exceeds this threshold. Status colors in the drift table also use this threshold (2x for high drift).')}
-          </label>
-          <input
-            type="number"
-            id="alert-drift-threshold"
-            class="form-input form-input-sm"
-            value="${threshold}"
-            min="1"
-            max="20"
-            step="0.01"
-            style="width:100px"
-            placeholder="5"
-          />
-        </div>
-        <div class="form-actions">
-          <button class="btn btn-primary btn-sm" id="btn-save-alerts">Save</button>
-          <span id="alerts-msg" class="form-msg"></span>
-        </div>
-      </div>
-    </div>`;
-}
-
-function attachAlertsListeners(root: HTMLElement): void {
-  root.querySelector('#btn-save-alerts')?.addEventListener('click', async () => {
-    const btn = root.querySelector('#btn-save-alerts') as HTMLButtonElement;
-    const input = root.querySelector('#alert-drift-threshold') as HTMLInputElement;
-    const value = parseFloat(input.value);
-
-    if (isNaN(value) || value < 1 || value > 20) {
-      showMsg('alerts-msg', 'Threshold must be between 1 and 20', false);
-      return;
-    }
-
-    const alertSettings = { driftThresholdPct: value };
-    try {
-      await withCardGuard(
-        'alerts',
-        btn,
-        () =>
-          setSettings({
-            alerts: JSON.stringify(alertSettings),
-          }),
-        {
-          busyText: 'Saving...',
-        },
-      );
-      showMsg('alerts-msg', 'Saved', true);
-      // Trigger drift badge update in main.ts
-      if (typeof (window as any).updateDriftBadge === 'function') {
-        (window as any).updateDriftBadge();
-      }
-    } catch (err) {
-      showMsg('alerts-msg', 'Error: ' + (err as Error).message, false);
-    }
-  });
-}
-
-// ── Analytics settings ───────────────────────────────────
-
-function renderAnalyticsCard(settings: Settings): string {
-  const riskFreeRate = parseFloat(settings.riskFreeRate || '2');
-  return `
-    <div class="card card-collapsible" id="settings-card-analytics" data-card-key="analytics">
-      <div class="card-header js-card-toggle">
-        <div class="card-title">Analytics</div>
-        <span class="card-chevron"></span>
-      </div>
-      <div class="card-body">
-        <p class="note" style="margin-bottom:.75rem">Configure parameters used in performance and risk calculations.</p>
-        <div class="settings-field">
-          <label class="settings-field-label" for="analytics-risk-free-rate">
-            Risk-free rate (%)
-            ${infoTip('Annual risk-free rate used in Sharpe and Sortino ratio calculations on the Analytics tab. Typically the yield on short-term government bonds (e.g. 3-month T-bills).')}
-          </label>
-          <input
-            type="number"
-            id="analytics-risk-free-rate"
-            class="form-input form-input-sm"
-            value="${riskFreeRate}"
-            min="0"
-            max="20"
-            step="0.01"
-            style="width:100px"
-            placeholder="2"
-          />
-        </div>
-        <div class="form-actions">
-          <button class="btn btn-primary btn-sm" id="btn-save-analytics">Save</button>
-          <span id="analytics-msg" class="form-msg"></span>
-        </div>
-      </div>
-    </div>`;
-}
-
-function attachAnalyticsListeners(root: HTMLElement): void {
-  root.querySelector('#btn-save-analytics')?.addEventListener('click', async () => {
-    const btn = root.querySelector('#btn-save-analytics') as HTMLButtonElement;
-    const rfrInput = root.querySelector('#analytics-risk-free-rate') as HTMLInputElement;
-    const rfrValue = parseFloat(rfrInput.value);
-
-    if (isNaN(rfrValue) || rfrValue < 0 || rfrValue > 20) {
-      showMsg('analytics-msg', 'Risk-free rate must be between 0 and 20', false);
-      return;
-    }
-
-    try {
-      await withCardGuard('analytics', btn, () => setSettings({ riskFreeRate: String(rfrValue) }), {
-        busyText: 'Saving...',
-      });
-      showMsg('analytics-msg', 'Saved', true);
-    } catch (err) {
-      showMsg('analytics-msg', 'Error: ' + (err as Error).message, false);
-    }
-  });
-}
-
-// ── Reinvestment rules ───────────────────────────────────
+// ── Portfolio behavior ────────────────────────────────────
 
 /** Extract rules from settings: rule_1_label, rule_1_value, rule_2_label, ... */
 function rulesFromSettings(settings: Settings): { label: string; value: string }[] {
@@ -1434,7 +1342,9 @@ function rulesFromSettings(settings: Settings): { label: string; value: string }
   return rules;
 }
 
-function renderRulesCard(settings: Settings): string {
+function renderPortfolioBehaviorCard(settings: Settings): string {
+  const alertSettings = getAlertSettings();
+  const threshold = alertSettings.driftThresholdPct || 5;
   const rules = rulesFromSettings(settings);
 
   const rows = rules
@@ -1458,12 +1368,36 @@ function renderRulesCard(settings: Settings): string {
     .join('');
 
   return `
-    <div class="card card-collapsible" id="settings-card-rules" data-card-key="rules">
+    <div class="card card-collapsible" id="settings-card-portfolio-behavior" data-card-key="portfolio-behavior">
       <div class="card-header js-card-toggle">
-        <div class="card-title">Reinvestment rules</div>
+        <div class="card-title">Portfolio behavior</div>
         <span class="card-chevron"></span>
       </div>
       <div class="card-body">
+        <div class="card-section-head">ALERTS</div>
+        <p class="note" style="margin-bottom:.75rem">Configure alert conditions for drift and other notifications.</p>
+        <div class="settings-field">
+          <label class="settings-field-label" for="alert-drift-threshold">
+            Drift alert threshold (percentage points)
+            ${infoTip('A badge appears on the Portfolio tab when max drift exceeds this threshold. Status colors in the drift table also use this threshold (2x for high drift).')}
+          </label>
+          <input
+            type="number"
+            id="alert-drift-threshold"
+            class="form-input form-input-sm"
+            value="${threshold}"
+            min="1"
+            max="20"
+            step="0.01"
+            style="width:100px"
+            placeholder="5"
+          />
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary btn-sm" id="btn-save-alerts">Save alerts</button>
+          <span id="alerts-msg" class="form-msg"></span>
+        </div>
+        <div class="card-section-head" style="margin-top:1.25rem">REINVESTMENT RULES</div>
         <p class="note" style="margin-bottom:.75rem">Notes about how dividends and proceeds from sold positions are reinvested. These are displayed on the Overview tab as reminders.</p>
         <div id="settings-rules-tbl" class="settings-items">
           ${rows}
@@ -1496,7 +1430,7 @@ async function persistRules(rules: { label: string; value: string }[]): Promise<
 
 /** Shared rule-delete implementation. */
 async function deleteRule(root: HTMLElement, idx: number, btn: HTMLButtonElement): Promise<void> {
-  if (isCardBusy('rules') || isBusy()) return;
+  if (isCardBusy('portfolio-behavior') || isBusy()) return;
   const rules = collectRules(root);
   const ok = await confirmDialog({
     title: 'Remove this rule?',
@@ -1506,7 +1440,7 @@ async function deleteRule(root: HTMLElement, idx: number, btn: HTMLButtonElement
   if (!ok) return;
   rules.splice(idx, 1);
   try {
-    await withCardGuard('rules', btn, () => persistRules(rules), {
+    await withCardGuard('portfolio-behavior', btn, () => persistRules(rules), {
       busyText: 'Removing...',
       keepDisabledOnSuccess: true,
     });
@@ -1517,7 +1451,40 @@ async function deleteRule(root: HTMLElement, idx: number, btn: HTMLButtonElement
   }
 }
 
-function attachRulesListeners(root: HTMLElement): void {
+function attachPortfolioBehaviorListeners(root: HTMLElement): void {
+  root.querySelector('#btn-save-alerts')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-save-alerts') as HTMLButtonElement;
+    const input = root.querySelector('#alert-drift-threshold') as HTMLInputElement;
+    const value = parseFloat(input.value);
+
+    if (isNaN(value) || value < 1 || value > 20) {
+      showMsg('alerts-msg', 'Threshold must be between 1 and 20', false);
+      return;
+    }
+
+    const alertSettings = { driftThresholdPct: value };
+    try {
+      await withCardGuard(
+        'portfolio-behavior',
+        btn,
+        () =>
+          setSettings({
+            alerts: JSON.stringify(alertSettings),
+          }),
+        {
+          busyText: 'Saving...',
+        },
+      );
+      showMsg('alerts-msg', 'Saved', true);
+      // Trigger drift badge update in main.ts
+      if (typeof (window as any).updateDriftBadge === 'function') {
+        (window as any).updateDriftBadge();
+      }
+    } catch (err) {
+      showMsg('alerts-msg', 'Error: ' + (err as Error).message, false);
+    }
+  });
+
   root.querySelector('#btn-add-rule')?.addEventListener('click', () => {
     const rules = collectRules(root);
     rules.push({ label: '', value: '' });
@@ -1528,7 +1495,9 @@ function attachRulesListeners(root: HTMLElement): void {
     const btn = root.querySelector('#btn-save-rules') as HTMLButtonElement;
     const rules = collectRules(root);
     try {
-      await withCardGuard('rules', btn, () => persistRules(rules), { busyText: 'Saving...' });
+      await withCardGuard('portfolio-behavior', btn, () => persistRules(rules), {
+        busyText: 'Saving...',
+      });
       showMsg('rules-msg', 'Saved', true);
     } catch (err) {
       showMsg('rules-msg', 'Error: ' + (err as Error).message, false);
