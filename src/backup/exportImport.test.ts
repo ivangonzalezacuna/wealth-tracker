@@ -88,6 +88,17 @@ describe('buildBackup', () => {
 
     vi.useRealTimers();
   });
+
+  it('strips SQLite rowId values so backup JSON stays serializable', () => {
+    const result = buildBackup({
+      ...FIXTURE_DATA,
+      transactions: [{ ...FIXTURE_DATA.transactions[0], rowId: 42n }],
+    });
+
+    expect(result.data.transactions).toEqual([{ ...FIXTURE_DATA.transactions[0] }]);
+    expect('rowId' in result.data.transactions[0]).toBe(false);
+    expect(() => JSON.stringify(result)).not.toThrow();
+  });
 });
 
 describe('backupFilename', () => {
