@@ -12,6 +12,8 @@ vi.mock('../db/repositories/meta', () => ({
   getDriveVersion: vi.fn(async () => null),
   getLastLocalChangeTimestamp: vi.fn(async () => null),
   setLastLocalChangeTimestamp: vi.fn(async () => {}),
+  deleteMeta: vi.fn(async () => {}),
+  clearSyncMetadata: vi.fn(async () => {}),
 }));
 
 vi.mock('./drive', () => ({
@@ -211,5 +213,44 @@ describe('sync engine conflict handling', () => {
     expect(meta.setLastLocalChangeTimestamp as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
       '2026-01-03T00:00:00.000Z',
     );
+  });
+
+  it('does not raise a conflict when sync metadata is cleared (post-restore state)', async () => {
+    // Simulates the state immediately after restoreFromBackup() calls clearSyncMetadata():
+    // all three sync keys are null, meaning no prior sync baseline exists.
+    // pushToCloud() should upload cleanly without raising a SyncConflictError.
+    const meta = await import('../db/repositories/meta');
+    const drive = await import('./drive');
+    (meta.getLastSyncTimestamp as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    (meta.getLastLocalChangeTimestamp as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    (meta.getDriveVersion as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    (drive.getCloudModifiedTime as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      '2026-01-01T00:00:00.000Z',
+    );
+
+    const { pushToCloud, SyncConflictError } = await import('./engine');
+
+    await expect(pushToCloud()).resolves.toBe(true);
+    expect(drive.uploadDbFile as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not raise a conflict when restored data is pushed and Drive has a prior version', async () => {
+    // Reproduces the spurious-conflict scenario from a backup restore:
+    // Drive has an existing file (pre-restore version), but because clearSyncMetadata()
+    // nulled last_local_change_at, hasUnsyncedLocalChanges() returns false → no conflict.
+    const meta = await import('../db/repositories/meta');
+    const drive = await import('./drive');
+    (meta.getLastSyncTimestamp as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    (meta.getLastLocalChangeTimestamp as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    (meta.getDriveVersion as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    // Drive has a pre-restore version that differs from our (null) storedVersion
+    (drive.getCloudModifiedTime as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      '2025-12-01T00:00:00.000Z',
+    );
+
+    const { pushToCloud } = await import('./engine');
+
+    await expect(pushToCloud()).resolves.toBe(true);
+    expect(drive.uploadDbFile as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1);
   });
 });

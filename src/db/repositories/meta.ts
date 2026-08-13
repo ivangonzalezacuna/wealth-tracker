@@ -79,3 +79,14 @@ export async function getLastLocalChangeTimestamp(): Promise<string | null> {
 export async function setLastLocalChangeTimestamp(iso: string): Promise<void> {
   await setMeta('sync:last_local_change_at', iso);
 }
+
+/**
+ * Clear all Drive sync state metadata.
+ * Call after a backup restore so the engine treats the next upload as a
+ * clean first-time push rather than comparing against stale pre-restore values.
+ */
+export async function clearSyncMetadata(): Promise<void> {
+  await deleteMeta('sync:last_upload_at');
+  await deleteMeta('sync:drive_version');
+  await deleteMeta('sync:last_local_change_at');
+}

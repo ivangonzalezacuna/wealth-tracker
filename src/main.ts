@@ -19,11 +19,13 @@ import {
   loadImportMeta,
   restoreAllData,
   logConfigChange,
+  clearSyncMetadata,
 } from './db';
 import {
   pullFromCloud,
   pushToCloud,
   scheduleUpload,
+  cancelPendingUpload,
   SyncConflictError,
   getPendingSyncConflict,
   overwriteCloudWithLocal,
@@ -1033,6 +1035,8 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
   if (!ok) return 'cancelled';
 
   setSyncing(true);
+  // Cancel any in-flight pre-restore upload so stale data is never pushed.
+  cancelPendingUpload();
   try {
     const { accounts, holdings, settings, snapshots, transactions, importMeta } = backup.data;
 
@@ -1059,6 +1063,10 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
     }
 
     if (importMeta.last_import) await saveImportMeta(importMeta.last_import);
+    // Reset sync metadata before scheduling the upload so the engine treats
+    // the post-restore push as a clean first sync rather than a conflicting
+    // local change against stale pre-restore Drive version/timestamps.
+    await clearSyncMetadata();
     scheduleUpload();
 
     state.snaps = snapshots;

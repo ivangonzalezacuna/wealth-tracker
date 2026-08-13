@@ -43,6 +43,7 @@ export {
   setLastSyncTimestamp,
   getDriveVersion,
   setDriveVersion,
+  clearSyncMetadata,
 } from './repositories/meta';
 
 export { getDb, persistDb, exportDb, importDb, destroyDb } from './connection';
