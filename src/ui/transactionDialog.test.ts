@@ -141,6 +141,24 @@ describe('transactionDialog', () => {
     expect(tx!.amount).toBeCloseTo(3.44);
   });
 
+  it('shows the tax field for INTEREST transactions and preserves its value', async () => {
+    const p = transactionDialog();
+    const typeEl = document.querySelector('#txd-type') as HTMLSelectElement;
+    typeEl.value = 'INTEREST';
+    typeEl.dispatchEvent(new Event('change'));
+    fillRequired();
+    setField('txd-amount', '3.75');
+    setField('txd-tax', '-0.50');
+    const taxField = document.querySelector('#txd-field-tax') as HTMLElement;
+    expect(taxField.style.display).not.toBe('none');
+    getSubmit()!.click();
+    const tx = await p;
+    expect(tx).not.toBeNull();
+    expect(tx!.type).toBe('INTEREST');
+    expect(tx!.amount).toBeCloseTo(3.75);
+    expect(tx!.tax).toBeCloseTo(-0.5);
+  });
+
   it('title shows "Edit transaction" when editing an existing tx', () => {
     transactionDialog({
       existing: {

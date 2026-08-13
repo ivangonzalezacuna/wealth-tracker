@@ -45,6 +45,7 @@ const TAX_TYPES: ReadonlySet<Transaction['type']> = new Set([
   TxType.BUY,
   TxType.SELL,
   TxType.DIVIDEND,
+  TxType.INTEREST,
   TxType.TAX,
 ]);
 const FX_TYPES: ReadonlySet<Transaction['type']> = new Set([

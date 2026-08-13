@@ -271,6 +271,37 @@ describe('renderLog', () => {
     expect(ledger.querySelector('.tx-ledger-amount.neg')?.textContent).toContain('€');
   });
 
+  it('shows tax alongside ledger interest amounts when present', () => {
+    renderLog({
+      txs: [
+        {
+          rowId: 11,
+          id: 'tx-int-1',
+          date: '2026-01-15',
+          source: 'manual',
+          type: 'INTEREST',
+          name: 'Cash interest',
+          isin: '',
+          shares: 0,
+          price: 0,
+          amount: 3.75,
+          fee: 0,
+          tax: -0.5,
+          currency: 'EUR',
+          fxRate: 1,
+        },
+      ],
+      snaps: [],
+      importMeta: { last_import: '2026-01-01' },
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+    });
+    const ledger = document.getElementById('tx-ledger-list')!;
+    expect(ledger.textContent).toContain('Cash interest');
+    expect(ledger.textContent).toContain('Tax');
+    expect(ledger.textContent).toContain('0.50');
+  });
+
   it('wires transaction add/edit/delete callbacks', () => {
     const onAddTx = vi.fn();
     const onEditTx = vi.fn();

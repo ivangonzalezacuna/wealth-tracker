@@ -796,6 +796,7 @@ details[open] > summary .card-chevron {
   background: var(--brand-weak);
 }
 .tx-ledger-amount {
+  display: block;
   font-weight: 500;
 }
 .tx-ledger-amount.pos {
@@ -803,6 +804,12 @@ details[open] > summary .card-chevron {
 }
 .tx-ledger-amount.neg {
   color: var(--neg);
+}
+.tx-ledger-meta {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-3);
+  font-size: 11px;
 }
 .tx-actions {
   display: flex;
