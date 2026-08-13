@@ -362,7 +362,7 @@ function renderDCAChart(
   const baseOptions = buildBaseChartOptions();
   CH['c-dca-bar'] = new Chart(document.getElementById('c-dca-bar') as HTMLCanvasElement, {
     type: 'bar',
-    data: { labels: months.map(fmtMon), datasets     },
+    data: { labels: months.map(fmtMon), datasets },
     options: {
       ...baseOptions,
       plugins: {
@@ -541,10 +541,14 @@ function renderDCATable(pd: PortfolioData): void {
   setTablePage(_dcaTableState, page);
 
   // Bind sort handler on header row
-  bindSortedTableHeader(document.getElementById('dca-table-header'), _dcaTableState.sort, (newState) => {
-    setTableSort(_dcaTableState, newState);
-    renderDCATable(pd);
-  });
+  bindSortedTableHeader(
+    document.getElementById('dca-table-header'),
+    _dcaTableState.sort,
+    (newState) => {
+      setTableSort(_dcaTableState, newState);
+      renderDCATable(pd);
+    },
+  );
 
   // Pagination controls
   renderDCAPagination(totalPages, pd);

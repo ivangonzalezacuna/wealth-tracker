@@ -344,7 +344,9 @@ function dividendColumns(pd: PortfolioData): ColumnDef<DivHistEntry>[] {
 
 function renderDivTable(pd: PortfolioData): void {
   const selectedYear = getTableFilter(_divTableState, 'year');
-  const list = selectedYear ? pd.divHist.filter((d) => d.date.startsWith(selectedYear)) : pd.divHist;
+  const list = selectedYear
+    ? pd.divHist.filter((d) => d.date.startsWith(selectedYear))
+    : pd.divHist;
   const hasDiv = list.length > 0;
   const totalGross = list.reduce((s, d) => s + d.gross, 0);
   const totalTax = list.reduce((s, d) => s + d.tax, 0);
@@ -375,10 +377,14 @@ function renderDivTable(pd: PortfolioData): void {
 
   // Bind sort handler on header row
   if (hasDiv) {
-    bindSortedTableHeader(document.getElementById('div-table-header'), _divTableState.sort, (newState) => {
-      setTableSort(_divTableState, newState);
-      renderDivTable(pd);
-    });
+    bindSortedTableHeader(
+      document.getElementById('div-table-header'),
+      _divTableState.sort,
+      (newState) => {
+        setTableSort(_divTableState, newState);
+        renderDivTable(pd);
+      },
+    );
   }
 
   // Attach ETF info popovers on shortName spans
@@ -434,7 +440,9 @@ function intColumns(): ColumnDef<IntHistEntry>[] {
 
 function renderIntTable(pd: PortfolioData): void {
   const selectedYear = getTableFilter(_intTableState, 'year');
-  const list = selectedYear ? pd.intHist.filter((i) => i.date.startsWith(selectedYear)) : pd.intHist;
+  const list = selectedYear
+    ? pd.intHist.filter((i) => i.date.startsWith(selectedYear))
+    : pd.intHist;
   const totalGross = list.reduce((s, i) => s + i.gross, 0);
   const totalTax = list.reduce((s, i) => s + i.tax, 0);
   const totalNet = list.reduce((s, i) => s + i.net, 0);
@@ -464,10 +472,14 @@ function renderIntTable(pd: PortfolioData): void {
 
   // Bind sort handler on header row
   if (list.length > 0) {
-    bindSortedTableHeader(document.getElementById('int-table-header'), _intTableState.sort, (newState) => {
-      setTableSort(_intTableState, newState);
-      renderIntTable(pd);
-    });
+    bindSortedTableHeader(
+      document.getElementById('int-table-header'),
+      _intTableState.sort,
+      (newState) => {
+        setTableSort(_intTableState, newState);
+        renderIntTable(pd);
+      },
+    );
   }
 
   renderIntPagination(totalPages, pd);

@@ -377,10 +377,14 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   if (portTable) attachInfoTips(portTable);
 
   // Bind sort handler on header row
-  bindSortedTableHeader(document.getElementById('port-table-header'), _holdTableState.sort, (newState) => {
-    setTableSort(_holdTableState, newState);
-    renderHoldingsTable(pd, snaps);
-  });
+  bindSortedTableHeader(
+    document.getElementById('port-table-header'),
+    _holdTableState.sort,
+    (newState) => {
+      setTableSort(_holdTableState, newState);
+      renderHoldingsTable(pd, snaps);
+    },
+  );
 
   // Bind filter listeners once (_bound guard prevents stacking)
   const filterToggle = document.getElementById('port-filter-toggle') as

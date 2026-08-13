@@ -266,10 +266,14 @@ function renderSnapList(
   `;
 
   // Bind sort handler on header row
-  bindSortedTableHeader(document.getElementById('snap-table-header'), _snapTableState.sort, (newState) => {
-    setTableSort(_snapTableState, newState);
-    renderSnapList(_snaps, onEdit, onDel);
-  });
+  bindSortedTableHeader(
+    document.getElementById('snap-table-header'),
+    _snapTableState.sort,
+    (newState) => {
+      setTableSort(_snapTableState, newState);
+      renderSnapList(_snaps, onEdit, onDel);
+    },
+  );
 
   // Row tap-to-expand detail panel (delegated on #snaps-list)
   const listEl = document.getElementById('snaps-list');
@@ -546,10 +550,14 @@ function renderTxList(txs: Transaction[]): void {
       .join('')}
   `;
 
-  bindSortedTableHeader(document.getElementById('tx-table-header'), _txTableState.sort, (newState) => {
-    setTableSort(_txTableState, newState);
-    renderTxList(txs);
-  });
+  bindSortedTableHeader(
+    document.getElementById('tx-table-header'),
+    _txTableState.sort,
+    (newState) => {
+      setTableSort(_txTableState, newState);
+      renderTxList(txs);
+    },
+  );
 
   renderPagination('tx-pagination', _txTableState.page, totalPages, (page) => {
     setTablePage(_txTableState, page);

@@ -45,11 +45,7 @@ import { writeChartTable } from './chartTable';
 import { T, R, resolvedT } from '../theme';
 import { createChartRegistry } from './chartRegistry';
 import Chart from 'chart.js/auto';
-import {
-  formatEuroCompactSuffix,
-  formatEuroPrefix,
-  formatPercentRounded,
-} from './chartOptions';
+import { formatEuroCompactSuffix, formatEuroPrefix, formatPercentRounded } from './chartOptions';
 import type { Snapshot, PortfolioData, Transaction, Holding } from '../types';
 
 const { CH, destroyChart: _destroyChart } = createChartRegistry();

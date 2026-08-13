@@ -88,7 +88,8 @@ export function bindTableSearchFilter(opts: BindTableSearchFilterOptions): void 
     normalize = (value) => value.toLowerCase(),
     rerender,
   } = opts;
-  const input = document.getElementById(elementId) as (HTMLInputElement & { _bound?: boolean }) | null;
+  const input = document.getElementById(elementId) as
+    (HTMLInputElement & { _bound?: boolean }) | null;
   if (!input || input._bound) return;
   input._bound = true;
   input.addEventListener('input', () => {

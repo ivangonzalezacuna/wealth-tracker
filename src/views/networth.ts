@@ -36,10 +36,7 @@ import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from '
 import { writeChartTable } from './chartTable';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { createChartRegistry } from './chartRegistry';
-import {
-  formatEuroCompactPrefix,
-  formatEuroCompactSuffix,
-} from './chartOptions';
+import { formatEuroCompactPrefix, formatEuroCompactSuffix } from './chartOptions';
 
 const { CH, destroyChart: _destroyChart } = createChartRegistry();
 let _nwRange: '12' | '36' | 'all' = 'all';
