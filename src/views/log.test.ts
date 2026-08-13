@@ -299,7 +299,7 @@ describe('renderLog', () => {
     const ledger = document.getElementById('tx-ledger-list')!;
     expect(ledger.textContent).toContain('Cash interest');
     expect(ledger.textContent).toContain('Tax');
-    expect(ledger.textContent).toContain('0.50');
+    expect(ledger.textContent).toContain('-0,50');
   });
 
   it('wires transaction add/edit/delete callbacks', () => {
