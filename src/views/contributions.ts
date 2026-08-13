@@ -201,7 +201,7 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
         </div>
       </div>
       <div class="chart-wrap chart-h-md"><canvas id="c-dca-proj" role="img" aria-label="Cumulative contributions forecast chart" aria-describedby="c-dca-proj-table-wrap"></canvas></div>
-      <div class="chart-data-table-wrap" id="c-dca-proj-table-wrap" hidden></div>
+      <div class="chart-data-table-wrap sr-only" id="c-dca-proj-table-wrap"></div>
       <div class="note" style="line-height:1.6">
         <div style="margin-bottom:4px">Projected monthly contributions (Settings \u2192 Accounts):</div>
         ${acctSummaryLines}

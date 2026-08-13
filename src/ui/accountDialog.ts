@@ -117,7 +117,7 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
               </label>
             </div>
           </div>
-          <div id="acctd-contrib-block" style="${isPrimary ? 'display:none' : ''}">
+          <div id="acctd-contrib-block" aria-live="polite" style="${isPrimary ? 'display:none' : ''}">
             <div class="dialog-row">
               <div class="dialog-field">
                 <label class="dialog-label" for="acctd-contrib">
@@ -135,7 +135,7 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
               <p class="note" style="margin:0">Contribution amount for the primary investment account comes from the Holdings card.</p>
             </div>
           </div>
-          <div id="acctd-locked-block" style="${isLocked ? '' : 'display:none'}">
+          <div id="acctd-locked-block" aria-live="polite" style="${isLocked ? '' : 'display:none'}">
             <div class="dialog-row">
               <div class="dialog-field">
                 <label class="dialog-label" for="acctd-locked-until">

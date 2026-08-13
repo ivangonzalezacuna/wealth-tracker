@@ -1355,7 +1355,9 @@ function _renderIncomeAnalytics(
         ? kpiTile({
             label: `Dividend Yield${infoTip('Trailing 12-month income divided by the current value of your investment accounts. Excludes cash, savings, pension, and other non-investment balances.')}`,
             value: fmtPctNeg(metrics.yieldPct * 100),
-            sub: 'trailing 12M / investment value',
+            sub: metrics.asOfMonth
+              ? `trailing 12M as of ${fmtMon(metrics.asOfMonth)} / investment value`
+              : 'trailing 12M / investment value',
           })
         : ''
     }
