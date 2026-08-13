@@ -80,6 +80,7 @@ export function writeChartTable(
     nextBtn.addEventListener('click', () => goToPage(currentPage + 1));
   }
 
+  wrap.classList.remove('sr-only');
   wrap.removeAttribute('hidden');
 }
 
@@ -87,5 +88,5 @@ export function hideChartTable(wrapId: string): void {
   const wrap = document.getElementById(wrapId);
   if (!wrap) return;
   wrap.innerHTML = '';
-  wrap.setAttribute('hidden', '');
+  wrap.classList.add('sr-only');
 }

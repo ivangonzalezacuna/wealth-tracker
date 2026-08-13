@@ -175,7 +175,7 @@ describe('renderAnalytics', () => {
 
     expect(yieldTile?.querySelector('.kpi-val')?.textContent).toBe('10%');
     expect(yieldTile?.querySelector('.kpi-sub')?.textContent).toBe(
-      'trailing 12M / investment value',
+      'trailing 12M as of Mar 2026 / investment value',
     );
     expect(trailingTile?.querySelector('.kpi-sub')?.textContent).toBe('through Mar 2026');
     expect(yoyTile?.querySelector('.kpi-sub')?.textContent).toBe(

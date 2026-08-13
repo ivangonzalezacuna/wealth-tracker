@@ -19,6 +19,7 @@ import {
   getSettings,
   getNumberSetting,
   setSetting,
+  setSettings,
 } from '../store/config';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import { cagrPerAccount } from '../model/insights';
@@ -791,11 +792,12 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
         </div>
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast" role="img" aria-label="Net worth forecast chart" aria-describedby="c-nw-forecast-table-wrap"></canvas></div>
-      <div class="chart-data-table-wrap" id="c-nw-forecast-table-wrap" hidden></div>
+      <div class="chart-data-table-wrap sr-only" id="c-nw-forecast-table-wrap"></div>
       <div class="note" style="line-height:1.6">
         <div style="margin-bottom:4px">Per-account return &amp; contribution assumptions (Settings \u2192 Accounts):</div>
         ${acctSummaryLines}
         <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX. Assumes zero rebalancing costs; spreads, commissions, and capital-gains tax from rebalancing can reduce long-horizon returns.${goalDeadlines.length > 0 ? ' Goal deadlines and target amounts are shown as markers on the chart.' : ''}</div>
+        <div style="margin-top:4px;color:var(--ink-4)">Projection uses a single fixed return per account. A market downturn in the years approaching your target could reduce the actual balance by 30–40% compared with the deterministic figure. Consider re-running the forecast with a more conservative return to see the lower bound.</div>
       </div>
     `;
 
@@ -1191,10 +1193,11 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
         </div>
         <div>
           <label class="planning-label" for="dd-return">Expected annual return in retirement (%/yr)</label>
-          <div class="planning-input-wrap">
+          <div class="planning-input-wrap" style="display:flex;align-items:center;gap:.5rem">
             <input id="dd-return" class="planning-input" type="number" inputmode="decimal"
                    min="0" max="20" step="0.1" value="${_ddReturnPct}"
                    style="width:5rem" aria-label="Expected annual return in retirement">
+            ${_ddReturnPctManual ? '<span class="badge badge-info" style="font-size:.7rem;padding:2px 6px;white-space:nowrap">⚙ Manual</span><button id="dd-return-reset" class="btn btn-sm btn-ghost" type="button" style="font-size:.75rem;padding:2px 8px" title="Reset to auto-derived value from account configuration">Reset to auto</button>' : ''}
           </div>
         </div>
       </div>
@@ -1235,7 +1238,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
                 : ''
             }
             <div class="chart-wrap chart-h-lg"><canvas id="c-nw-decumulation" role="img" aria-label="Retirement drawdown chart" aria-describedby="c-nw-decumulation-table-wrap"></canvas></div>
-            <div class="chart-data-table-wrap" id="c-nw-decumulation-table-wrap" hidden></div>`
+            <div class="chart-data-table-wrap sr-only" id="c-nw-decumulation-table-wrap"></div>`
           : `<p class="note" style="color:var(--ink-3)">
               ${
                 !corpus || corpus.liquidCorpus <= 0
@@ -1395,6 +1398,14 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
     } else {
       returnInput.setAttribute('aria-invalid', 'true');
     }
+  });
+
+  const resetReturnBtn = document.getElementById('dd-return-reset') as HTMLButtonElement | null;
+  resetReturnBtn?.addEventListener('click', () => {
+    _ddReturnPctManual = false;
+    _ddReturnPct = 0; // will be re-derived on next render
+    void setSettings({ dd_return_pct: null });
+    rerender();
   });
 
   strategyToggle?.addEventListener('click', (e) => {

@@ -70,7 +70,7 @@ export function appTemplate(): string {
         ${rangeToggleHtml('nw-range-toggle', 'History range')}
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-hist" role="img" aria-label="Net worth over time chart" aria-describedby="c-nw-hist-table-wrap"></canvas></div>
-      <div class="chart-data-table-wrap" id="c-nw-hist-table-wrap" hidden></div>
+      <div class="chart-data-table-wrap sr-only" id="c-nw-hist-table-wrap"></div>
     </div>
     <div class="card">
       <div class="card-title">Latest snapshot</div>
@@ -107,7 +107,7 @@ export function appTemplate(): string {
           <div class="card-title">Cost basis allocation</div>
           <div id="port-donut-legend" class="legend"></div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-port-donut" role="img" aria-label="Cost basis allocation chart" aria-describedby="c-port-donut-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap" id="c-port-donut-table-wrap" hidden></div>
+          <div class="chart-data-table-wrap sr-only" id="c-port-donut-table-wrap"></div>
         </div>
         <div class="card">
           <div class="card-title">Summary</div>
@@ -132,7 +132,7 @@ export function appTemplate(): string {
           ${rangeToggleHtml('dca-range-toggle', 'Contributions range')}
         </div>
         <div class="chart-wrap chart-h-lg"><canvas id="c-dca-bar" role="img" aria-label="Monthly contributions bar chart" aria-describedby="c-dca-bar-table-wrap"></canvas></div>
-        <div class="chart-data-table-wrap" id="c-dca-bar-table-wrap" hidden></div>
+        <div class="chart-data-table-wrap sr-only" id="c-dca-bar-table-wrap"></div>
       </div>
       <div class="two-col">
         <div class="card">
@@ -209,7 +209,7 @@ export function appTemplate(): string {
         ${rangeToggleHtml('an-growth-range-toggle', 'Growth range')}
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-an-growth" role="img" aria-label="Portfolio growth chart" aria-describedby="c-an-growth-table-wrap"></canvas></div>
-      <div class="chart-data-table-wrap" id="c-an-growth-table-wrap" hidden></div>
+      <div class="chart-data-table-wrap sr-only" id="c-an-growth-table-wrap"></div>
     </div>
 
     <!-- Level 2: Heatmap + Allocation (2+ snapshots) -->
@@ -221,7 +221,7 @@ export function appTemplate(): string {
           ${rangeToggleHtml('an-contrib-range-toggle', 'Contributions vs market range')}
         </div>
         <div class="chart-wrap chart-h-md"><canvas id="c-an-contrib" role="img" aria-label="Investment balance breakdown chart" aria-describedby="c-an-contrib-table-wrap"></canvas></div>
-        <div class="chart-data-table-wrap" id="c-an-contrib-table-wrap" hidden></div>
+        <div class="chart-data-table-wrap sr-only" id="c-an-contrib-table-wrap"></div>
         <p class="note">Market movement is the residual after subtracting external deposits and withdrawals from the change in investment-account value. This is an investment-performance view, not total household net-worth growth.</p>
       </div>
 
@@ -249,14 +249,14 @@ export function appTemplate(): string {
           <div class="card-title">Allocation by account</div>
           <div id="an-alloc-acct-legend" class="legend"></div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-acct" role="img" aria-label="Allocation by account chart" aria-describedby="c-an-alloc-acct-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap" id="c-an-alloc-acct-table-wrap" hidden></div>
+          <div class="chart-data-table-wrap sr-only" id="c-an-alloc-acct-table-wrap"></div>
         </div>
         <div class="card">
           <div class="card-title">Allocation by asset class</div>
           <div id="an-alloc-class-toggle-wrap" class="chart-controls"></div>
           <div id="an-alloc-class-legend" class="legend"></div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-class" role="img" aria-label="Allocation by asset class chart" aria-describedby="c-an-alloc-class-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap" id="c-an-alloc-class-table-wrap" hidden></div>
+          <div class="chart-data-table-wrap sr-only" id="c-an-alloc-class-table-wrap"></div>
         </div>
       </div>
 
@@ -266,7 +266,7 @@ export function appTemplate(): string {
           <div id="an-alloc-region-toggle-wrap" class="chart-controls"></div>
           <div id="an-alloc-region-legend" class="legend"></div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-region" role="img" aria-label="Allocation by region chart" aria-describedby="c-an-alloc-region-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap" id="c-an-alloc-region-table-wrap" hidden></div>
+          <div class="chart-data-table-wrap sr-only" id="c-an-alloc-region-table-wrap"></div>
         </div>
       </div>
     </div>
@@ -355,14 +355,14 @@ export function appTemplate(): string {
         <div class="card" id="an-drawdown-card" style="margin:0 0 1rem">
           <div class="card-title">Investment drawdown history</div>
           <div class="chart-wrap chart-h-md"><canvas id="c-an-drawdown" role="img" aria-label="Portfolio drawdown chart" aria-describedby="c-an-drawdown-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap" id="c-an-drawdown-table-wrap" hidden></div>
+          <div class="chart-data-table-wrap sr-only" id="c-an-drawdown-table-wrap"></div>
         </div>
 
         <div class="card" id="an-rolling-cagr-card" style="margin:0 0 1rem">
           <div class="card-title">Rolling 3-year investment CAGR</div>
           <div id="an-rolling-cagr-note" class="note" style="display:none"></div>
           <div class="chart-wrap chart-h-md"><canvas id="c-an-rolling-cagr" role="img" aria-label="Rolling CAGR chart" aria-describedby="c-an-rolling-cagr-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap" id="c-an-rolling-cagr-table-wrap" hidden></div>
+          <div class="chart-data-table-wrap sr-only" id="c-an-rolling-cagr-table-wrap"></div>
         </div>
 
         <div id="an-income" style="display:none">
@@ -376,7 +376,7 @@ export function appTemplate(): string {
               ${rangeToggleHtml('an-income-range-toggle', 'Income range', '12')}
             </div>
             <div class="chart-wrap chart-h-md"><canvas id="c-an-income" role="img" aria-label="Income history chart" aria-describedby="c-an-income-table-wrap"></canvas></div>
-            <div class="chart-data-table-wrap" id="c-an-income-table-wrap" hidden></div>
+            <div class="chart-data-table-wrap sr-only" id="c-an-income-table-wrap"></div>
           </div>
         </div>
       </div>
