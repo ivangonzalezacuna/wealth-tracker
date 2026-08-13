@@ -25,7 +25,7 @@ function _fingerprint(value: unknown): string {
     // djb2-style: cheap, deterministic, good enough for cache dedup.
     let hash = 5381;
     for (const item of value) {
-      const s = JSON.stringify(item);
+      const s = JSON.stringify(item, (_k, v) => (typeof v === 'bigint' ? v.toString() : v));
       for (let i = 0; i < s.length; i++) {
         hash = ((hash << 5) + hash + s.charCodeAt(i)) >>> 0;
       }

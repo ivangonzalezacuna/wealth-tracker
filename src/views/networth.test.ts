@@ -64,6 +64,7 @@ vi.mock('../store/config', () => ({
   isConfigLoaded: () => true,
   getGoals: vi.fn(() => []),
   getSettings: () => ({}),
+  getNumberSetting: (_key: string, defaultVal: number) => defaultVal,
   setSetting: () => Promise.resolve(),
 }));
 
@@ -77,6 +78,8 @@ vi.mock('../constants', () => ({
     '120': '10 years',
     '240': '20 years',
     '360': '30 years',
+    '480': '40 years',
+    '600': '50 years',
   },
 }));
 

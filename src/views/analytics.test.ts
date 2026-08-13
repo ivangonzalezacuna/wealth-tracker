@@ -51,6 +51,7 @@ vi.mock('../store/config', () => ({
   getAccounts: () => MOCK_ACCOUNTS,
   getHoldings: () => [],
   getSettings: () => ({ riskFreeRate: '2' }),
+  getNumberSetting: (_key: string, defaultVal: number) => defaultVal,
   isConfigLoaded: () => true,
   getACCTS: () => [
     { key: 'acct_inv', label: 'Broker', color: '#111111' },

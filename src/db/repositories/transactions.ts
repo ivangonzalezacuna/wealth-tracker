@@ -49,7 +49,7 @@ export async function insertTransaction(tx: Transaction): Promise<void> {
 }
 
 /** Update one transaction row by SQLite rowid. */
-export async function updateTransaction(rowId: number, tx: Transaction): Promise<void> {
+export async function updateTransaction(rowId: bigint, tx: Transaction): Promise<void> {
   const db = await getDb();
   db.run(
     'UPDATE transactions SET id=?, date=?, source=?, type=?, name=?, isin=?, shares=?, price=?, amount=?, fee=?, tax=?, currency=?, fx_rate=?, note=?, category=? WHERE rowid=?',
@@ -69,16 +69,16 @@ export async function updateTransaction(rowId: number, tx: Transaction): Promise
       tx.fxRate || 0,
       tx.note || '',
       tx.category || '',
-      rowId,
+      Number(rowId), // sql.js binds number; personal-use IDs are well within MAX_SAFE_INTEGER
     ],
   );
   await persistDb();
 }
 
 /** Delete one transaction row by SQLite rowid. */
-export async function deleteTransaction(rowId: number): Promise<void> {
+export async function deleteTransaction(rowId: bigint): Promise<void> {
   const db = await getDb();
-  db.run('DELETE FROM transactions WHERE rowid = ?', [rowId]);
+  db.run('DELETE FROM transactions WHERE rowid = ?', [Number(rowId)]); // sql.js binds number
   await persistDb();
 }
 
@@ -202,7 +202,7 @@ export async function restoreTransactions(txs: Transaction[]): Promise<void> {
 
 function rowToTransaction(row: unknown[]): Transaction {
   return {
-    rowId: Number(row[0]) || undefined,
+    rowId: row[0] != null ? BigInt(row[0] as number | string) : undefined,
     id: String(row[1] ?? ''),
     date: String(row[2] ?? ''),
     source: String(row[3] ?? ''),

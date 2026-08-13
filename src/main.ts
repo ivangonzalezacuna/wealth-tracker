@@ -1454,7 +1454,7 @@ async function addManualTransaction(): Promise<void> {
   }
 }
 
-async function editManualTransaction(rowId: number): Promise<void> {
+async function editManualTransaction(rowId: bigint): Promise<void> {
   if (!ensureWriteAccess('tx-msg', 'signed-in-or-granted')) return;
   const existing = state.txs.find((t) => t.rowId === rowId);
   if (!existing) {
@@ -1485,7 +1485,7 @@ async function editManualTransaction(rowId: number): Promise<void> {
   }
 }
 
-async function delManualTransaction(rowId: number, btn?: HTMLButtonElement): Promise<void> {
+async function delManualTransaction(rowId: bigint, btn?: HTMLButtonElement): Promise<void> {
   if (!ensureWriteAccess('tx-msg', 'signed-in-or-granted')) return;
   const tx = state.txs.find((t) => t.rowId === rowId);
   if (!tx) {

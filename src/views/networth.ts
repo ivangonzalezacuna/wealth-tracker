@@ -17,6 +17,7 @@ import {
   getMonthlyContribBudget,
   getGoals,
   getSettings,
+  getNumberSetting,
   setSetting,
 } from '../store/config';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
@@ -40,7 +41,7 @@ import { formatEuroCompactPrefix, formatEuroCompactSuffix } from './chartOptions
 
 const { CH, destroyChart: _destroyChart } = createChartRegistry();
 let _nwRange: '12' | '36' | 'all' = 'all';
-let _fcRange: '60' | '120' | '240' | '360' = '60'; // 5y / 10y / 20y / 30y forecast horizon
+let _fcRange: '60' | '120' | '240' | '360' | '480' | '600' = '60'; // 5y / 10y / 20y / 30y / 40y / 50y forecast horizon
 let _inflationRate = 0; // annual inflation % for real-return forecast overlay
 let _lastSnaps: Snapshot[] = [];
 let _lastAccounts: Account[] = [];
@@ -60,15 +61,15 @@ function _loadPersistedState(): void {
   if (_stateLoaded) return;
   _stateLoaded = true;
   const s = getSettings();
-  const infl = parseFloat(s['nw_inflation_rate'] || '');
+  const infl = getNumberSetting('nw_inflation_rate', NaN);
   if (isFinite(infl) && infl >= 0) _inflationRate = Math.min(infl, 20);
   const ddDate = (s['dd_retirement_date'] || '').trim();
   if (/^\d{4}-\d{2}$/.test(ddDate)) _ddRetirementDate = ddDate;
   const ddStrat = (s['dd_strategy'] || '').trim() as DecumulationStrategy;
   if (ddStrat === 'fixed' || ddStrat === 'four-pct' || ddStrat === 'pct') _ddStrategy = ddStrat;
-  const ddWith = parseFloat(s['dd_withdrawal_param'] || '');
+  const ddWith = getNumberSetting('dd_withdrawal_param', NaN);
   if (isFinite(ddWith) && ddWith >= 0) _ddWithdrawalParam = ddWith;
-  const ddRet = parseFloat(s['dd_return_pct'] || '');
+  const ddRet = getNumberSetting('dd_return_pct', NaN);
   if (isFinite(ddRet) && ddRet > 0) {
     _ddReturnPct = Math.min(ddRet, 20);
     _ddReturnPctManual = true;
@@ -656,7 +657,7 @@ function _attachForecastRangeToggle(): void {
   toggle.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
     if (!btn) return;
-    const newRange = (btn.dataset.range as '60' | '120' | '240' | '360') || '60';
+    const newRange = (btn.dataset.range as '60' | '120' | '240' | '360' | '480' | '600') || '60';
     if (newRange === _fcRange) return;
     _fcRange = newRange;
     // Read current state from module variables so re-renders after nav use fresh data.
@@ -785,6 +786,8 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           <button class="btn btn-sm btn-ghost ${_fcRange === '120' ? 'active' : ''}" data-range="120" aria-pressed="${_fcRange === '120'}">10Y</button>
           <button class="btn btn-sm btn-ghost ${_fcRange === '240' ? 'active' : ''}" data-range="240" aria-pressed="${_fcRange === '240'}">20Y</button>
           <button class="btn btn-sm btn-ghost ${_fcRange === '360' ? 'active' : ''}" data-range="360" aria-pressed="${_fcRange === '360'}">30Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '480' ? 'active' : ''}" data-range="480" aria-pressed="${_fcRange === '480'}">40Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '600' ? 'active' : ''}" data-range="600" aria-pressed="${_fcRange === '600'}">50Y</button>
         </div>
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast" role="img" aria-label="Net worth forecast chart" aria-describedby="c-nw-forecast-table-wrap"></canvas></div>
