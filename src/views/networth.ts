@@ -14,7 +14,8 @@ import {
 import { getACCTSList, FORECAST_RANGE_LABELS } from '../constants';
 import {
   getAccounts,
-  getMonthlyContribBudget,
+  getContributionBudgetAmount,
+  getContributionInterval,
   getGoals,
   getSettings,
   getNumberSetting,
@@ -90,16 +91,23 @@ function _deflateByInflation(
 }
 
 function _buildAccountForecastInputs(snap: Snapshot, accounts: Account[]): AccountForecastInput[] {
+  const globalContribInterval = getContributionInterval();
+  const globalContribAmount = getContributionBudgetAmount();
   return accounts.map((a) => {
     const current = (snap[a.id || ''] as number) || 0;
     const annualReturnPct = a.annualReturnPct || 0;
-    const personalContrib =
+    const accountContribInterval = a.contribInterval || 'monthly';
+    const personalContribAnnual =
       a.isPrimaryInvestment && (a.moneyType || '').toLowerCase() === 'investment'
-        ? getMonthlyContribBudget() * 12
-        : annualizeContrib(a.contribAmount || 0, a.contribInterval || 'monthly');
-    const extraContrib = annualizeContrib(a.extraContrib || 0, a.contribInterval || 'monthly');
-    const annualContrib = personalContrib + extraContrib;
-    return { current, annualContrib, annualReturnPct };
+        ? annualizeContrib(globalContribAmount, globalContribInterval)
+        : annualizeContrib(a.contribAmount || 0, accountContribInterval);
+    const extraContribAnnual = annualizeContrib(a.extraContrib || 0, accountContribInterval);
+    const annualContrib = personalContribAnnual + extraContribAnnual;
+    const contribInterval =
+      a.isPrimaryInvestment && (a.moneyType || '').toLowerCase() === 'investment'
+        ? globalContribInterval
+        : accountContribInterval;
+    return { current, annualContrib, annualReturnPct, contribInterval };
   });
 }
 
@@ -761,9 +769,12 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       const retStr = `${a.annualReturnPct ?? 0}% return`;
       let contribStr: string;
       if (a.isPrimaryInvestment && (a.moneyType || '').toLowerCase() === 'investment') {
+        const globalAmount = getContributionBudgetAmount();
+        const globalInterval = getContributionInterval();
+        const globalIntervalLabel = (INTERVAL_LABELS[globalInterval] || globalInterval).toLowerCase();
         contribStr =
           inp.annualContrib > 0
-            ? `${fmtEur(Math.round(inp.annualContrib))}/yr (from Holdings)`
+            ? `${fmtEur(globalAmount)} ${esc(globalIntervalLabel)} (from Holdings)`
             : 'no contributions configured';
       } else {
         const amt = a.contribAmount ?? 0;
@@ -796,6 +807,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       <div class="note" style="line-height:1.6">
         <div style="margin-bottom:4px">Per-account return &amp; contribution assumptions (Settings \u2192 Accounts):</div>
         ${acctSummaryLines}
+        <div style="margin-top:4px;color:var(--ink-4)">Contribution timing follows each configured cadence (weekly, every 2 weeks, monthly, quarterly) and is bucketed month-by-month in the projection.</div>
         <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX. Assumes zero rebalancing costs; spreads, commissions, and capital-gains tax from rebalancing can reduce long-horizon returns.${goalDeadlines.length > 0 ? ' Goal deadlines and target amounts are shown as markers on the chart.' : ''}</div>
         <div style="margin-top:4px;color:var(--ink-4)">Projection uses a single fixed return per account. A market downturn in the years approaching your target could reduce the actual balance by 30–40% compared with the deterministic figure. Consider re-running the forecast with a more conservative return to see the lower bound.</div>
       </div>

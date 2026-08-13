@@ -412,6 +412,11 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
     const interestByMonth: Record<string, Transaction> = {};
     const taxRowsByMonth: Record<string, Transaction[]> = {};
     const rest: Transaction[] = [];
+    const shiftMonth = (month: string, offset: number): string => {
+      const [y, m] = month.split('-').map(Number);
+      const d = new Date(y, m - 1 + offset, 1);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    };
 
     for (const tx of filtered) {
       if (tx.type === 'INTEREST') {
@@ -429,6 +434,7 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
       }
     }
 
+    const unmatchedTaxRows: Transaction[] = [];
     for (const [month, taxes] of Object.entries(taxRowsByMonth)) {
       const interest = interestByMonth[month];
       if (interest) {
@@ -437,7 +443,20 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
           interest.amount += tax.amount;
         }
       } else {
-        rest.push(...taxes);
+        unmatchedTaxRows.push(...taxes);
+      }
+    }
+
+    for (const tax of unmatchedTaxRows) {
+      const taxMonth = tax.date.slice(0, 7);
+      const prevMonth = shiftMonth(taxMonth, -1);
+      const nextMonth = shiftMonth(taxMonth, 1);
+      const candidate = interestByMonth[prevMonth] || interestByMonth[nextMonth];
+      if (candidate) {
+        candidate.tax = (candidate.tax || 0) + tax.amount;
+        candidate.amount += tax.amount;
+      } else {
+        rest.push(tax);
       }
     }
 

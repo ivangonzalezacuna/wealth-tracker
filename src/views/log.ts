@@ -373,24 +373,28 @@ function txColumns(): ColumnDef<Transaction>[] {
       key: 'date',
       label: 'Date',
       sortValue: (t) => t.date,
+      cellAttrs: () => 'data-ledger-label="Date"',
       cell: (t) => `<span class="snap-month">${fmtDay(t.date)}</span>`,
     },
     {
       key: 'type',
       label: 'Type',
       sortValue: (t) => t.type,
+      cellAttrs: () => 'data-ledger-label="Type"',
       cell: (t) => `<span class="tx-ledger-chip">${esc(t.type || '-')}</span>`,
     },
     {
       key: 'name',
       label: 'Name',
       sortValue: (t) => t.name || '',
+      cellAttrs: () => 'data-ledger-label="Name"',
       cell: (t) => `<span class="tx-ledger-name">${esc(t.name || '-')}</span>`,
     },
     {
       key: 'isin',
       label: 'ISIN',
       sortValue: (t) => t.isin || '',
+      cellAttrs: () => 'data-ledger-label="ISIN"',
       cell: (t) => `<span class="tx-ledger-isin">${esc(t.isin || '-')}</span>`,
     },
     {
@@ -398,6 +402,7 @@ function txColumns(): ColumnDef<Transaction>[] {
       label: 'Shares',
       align: 'right',
       sortValue: (t) => t.shares || 0,
+      cellAttrs: () => 'style="text-align:right" data-ledger-label="Shares"',
       cell: (t) => (t.shares ? String(t.shares) : '-'),
     },
     {
@@ -405,6 +410,7 @@ function txColumns(): ColumnDef<Transaction>[] {
       label: 'Amount',
       align: 'right',
       sortValue: (t) => t.amount || 0,
+      cellAttrs: () => 'style="text-align:right" data-ledger-label="Amount"',
       cell: (t) =>
         `<span class="tx-ledger-amount ${(t.amount || 0) < 0 ? 'neg' : 'pos'}">${fmtEur2(t.amount || 0)}</span>${
           t.type === 'INTEREST' && t.tax
@@ -416,6 +422,7 @@ function txColumns(): ColumnDef<Transaction>[] {
       key: 'source',
       label: 'Source',
       sortValue: (t) => t.source || '',
+      cellAttrs: () => 'data-ledger-label="Source"',
       cell: (t) => `<span class="tx-ledger-source">${esc(t.source || '-')}</span>`,
     },
   ];
@@ -540,7 +547,7 @@ function renderTxList(txs: Transaction[]): void {
         const actions =
           !showActions || !tx.rowId
             ? ''
-            : `<div role="cell" class="tx-actions">
+           : `<div role="cell" class="tx-actions" data-ledger-label="Actions">
             <button class="btn btn-ghost btn-sm js-edit-tx" data-rowid="${tx.rowId}">Edit</button>
             <button class="btn btn-danger btn-sm js-del-tx" data-rowid="${tx.rowId}">Delete</button>
           </div>`;
