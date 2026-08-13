@@ -1905,6 +1905,30 @@ input[type='color'] {
 }
 
 /* ── Settings card items ───────────────────────────────── */
+.settings-group-nav {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0 0 1rem;
+  padding: 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.settings-group-nav-link {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+  text-decoration: none;
+  padding: 0.25rem 0.4rem;
+  border-radius: var(--radius-sm);
+}
+.settings-group-nav-link:hover {
+  color: var(--ink);
+  background: var(--surface-2);
+}
 .settings-group {
   display: flex;
   flex-direction: column;
@@ -1931,6 +1955,16 @@ input[type='color'] {
 .settings-group-note {
   font-size: 11px;
   color: var(--ink-3);
+}
+@media (max-width: 640px) {
+  .settings-group-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .settings-group-nav-link {
+    white-space: nowrap;
+  }
 }
 
 .settings-items {

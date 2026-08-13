@@ -40,7 +40,7 @@ import type {
 } from '../types';
 import { formatEnglishDateTime, formatEnglishMonth } from '../dateFormat';
 import { normalizeInstitution } from '../model/securitySuggestions';
-import { isCollapsed, toggleCollapsed } from '../ui/collapseState';
+import { isCollapsed, setCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { confirmDialog } from '../ui/confirmDialog';
 import { accountDialog } from '../ui/accountDialog';
@@ -145,6 +145,23 @@ const SYNC_LOCK_EXEMPT_IDS = new Set([
   'btn-add-goal',
 ]);
 const SYNC_BUSY_TITLE = 'Sync in progress, try again in a moment';
+const SETTINGS_DEFAULT_COLLAPSE_MARKER = 'settings-defaults-v1';
+const SETTINGS_DEFAULT_COLLAPSED_CARDS: ReadonlySet<CardKey> = new Set([
+  'alerts',
+  'analytics',
+  'rules',
+  'cache',
+  'backup',
+  'config-history',
+]);
+
+function applySettingsDefaultCollapseState(): void {
+  if (isCollapsed(SETTINGS_DEFAULT_COLLAPSE_MARKER)) return;
+  for (const key of SETTINGS_DEFAULT_COLLAPSED_CARDS) {
+    setCollapsed('card:' + key, true);
+  }
+  setCollapsed(SETTINGS_DEFAULT_COLLAPSE_MARKER, true);
+}
 
 /**
  * Disable every write-triggering Settings button while a sync/write is in
@@ -167,7 +184,7 @@ export function applySyncBusyState(): void {
 }
 
 /**
- * Render the Settings section - user-friendly forms for Accounts, Holdings, Settings.
+ * Render the Settings section — user-friendly forms for Accounts, Holdings, Settings.
  * Only shown after config is loaded (sign-in required).
  */
 export function renderSettings(): void {
@@ -182,9 +199,15 @@ export function renderSettings(): void {
   const accounts = getAccounts();
   const holdings = getHoldings();
   const settings = getSettings();
+  applySettingsDefaultCollapseState();
 
   el.innerHTML = `
-    <div class="settings-group">
+    <nav class="settings-group-nav" aria-label="Settings sections">
+      <a class="settings-group-nav-link" href="#settings-group-portfolio">Portfolio structure</a>
+      <a class="settings-group-nav-link" href="#settings-group-tracking">Tracking &amp; planning</a>
+      <a class="settings-group-nav-link" href="#settings-group-advanced">Advanced</a>
+    </nav>
+    <div class="settings-group" id="settings-group-portfolio">
       <div class="settings-group-header">
         <span class="settings-group-title">Portfolio structure</span>
         <span class="settings-group-note">Start here — add an account first, then add your holdings.</span>
@@ -192,7 +215,7 @@ export function renderSettings(): void {
       ${renderAccountsCard(accounts)}
       ${renderHoldingsCard(holdings)}
     </div>
-    <div class="settings-group">
+    <div class="settings-group" id="settings-group-tracking">
       <div class="settings-group-header">
         <span class="settings-group-title">Tracking &amp; planning</span>
       </div>
@@ -200,7 +223,7 @@ export function renderSettings(): void {
       ${renderCostBasisCard(settings)}
       ${renderGoalCard(settings)}
     </div>
-    <div class="settings-group">
+    <div class="settings-group" id="settings-group-advanced">
       <div class="settings-group-header">
         <span class="settings-group-title">Advanced</span>
       </div>
