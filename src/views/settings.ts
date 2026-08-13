@@ -184,17 +184,33 @@ export function renderSettings(): void {
   const settings = getSettings();
 
   el.innerHTML = `
-    ${renderAccountsCard(accounts)}
-    ${renderHoldingsCard(holdings)}
-    ${renderContributionsCard(settings)}
-    ${renderCostBasisCard(settings)}
-    ${renderGoalCard(settings)}
-    ${renderAlertsCard(settings)}
-    ${renderAnalyticsCard(settings)}
-    ${renderRulesCard(settings)}
-    ${renderCacheCard()}
-    ${renderBackupCard()}
-    ${renderConfigHistoryCard([])}
+    <div class="settings-group">
+      <div class="settings-group-header">
+        <span class="settings-group-title">Portfolio structure</span>
+        <span class="settings-group-note">Start here — add an account first, then add your holdings.</span>
+      </div>
+      ${renderAccountsCard(accounts)}
+      ${renderHoldingsCard(holdings)}
+    </div>
+    <div class="settings-group">
+      <div class="settings-group-header">
+        <span class="settings-group-title">Tracking &amp; planning</span>
+      </div>
+      ${renderContributionsCard(settings)}
+      ${renderCostBasisCard(settings)}
+      ${renderGoalCard(settings)}
+    </div>
+    <div class="settings-group">
+      <div class="settings-group-header">
+        <span class="settings-group-title">Advanced</span>
+      </div>
+      ${renderAlertsCard(settings)}
+      ${renderAnalyticsCard(settings)}
+      ${renderRulesCard(settings)}
+      ${renderCacheCard()}
+      ${renderBackupCard()}
+      ${renderConfigHistoryCard([])}
+    </div>
   `;
 
   attachAccountListeners(el);
