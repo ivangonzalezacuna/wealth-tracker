@@ -214,6 +214,7 @@ export function renderSettings(): void {
     <div class="settings-group" id="settings-group-tracking">
       <div class="settings-group-header">
         <span class="settings-group-title">Tracking &amp; planning</span>
+        <span class="settings-group-note">Configure recurring contributions, performance parameters, and wealth targets.</span>
       </div>
       ${renderContributionsCard(settings)}
       ${renderCalcAssumptionsCard(settings)}
@@ -222,6 +223,7 @@ export function renderSettings(): void {
     <div class="settings-group" id="settings-group-advanced">
       <div class="settings-group-header">
         <span class="settings-group-title">Advanced</span>
+        <span class="settings-group-note">Manage portfolio behaviour settings, data sync, and backup options.</span>
       </div>
       ${renderPortfolioBehaviorCard(settings)}
       ${renderCacheCard()}
