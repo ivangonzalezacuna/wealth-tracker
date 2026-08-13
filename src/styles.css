@@ -1916,26 +1916,18 @@ input[type='color'] {
 
 /* ── Settings card items ───────────────────────────────── */
 .settings-group-nav {
-  display: flex;
-  gap: 0.75rem;
   flex-wrap: wrap;
   margin: 0 0 1rem;
 }
 .settings-group-nav-link {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--ink-4);
   text-decoration: none;
-}
-.settings-group-nav-link:hover {
-  color: var(--ink-2);
+  white-space: nowrap;
 }
 .settings-group {
   display: flex;
   flex-direction: column;
   gap: 0;
+  scroll-margin-top: 0.75rem;
 }
 .settings-group + .settings-group {
   margin-top: 1.5rem;
@@ -1964,9 +1956,6 @@ input[type='color'] {
     flex-wrap: nowrap;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-  }
-  .settings-group-nav-link {
-    white-space: nowrap;
   }
 }
 

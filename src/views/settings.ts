@@ -198,10 +198,10 @@ export function renderSettings(): void {
   applySettingsDefaultCollapseState();
 
   el.innerHTML = `
-    <nav class="settings-group-nav" aria-label="Settings sections">
-      <a class="settings-group-nav-link" href="#settings-group-portfolio">Portfolio structure</a>
-      <a class="settings-group-nav-link" href="#settings-group-tracking">Tracking &amp; planning</a>
-      <a class="settings-group-nav-link" href="#settings-group-advanced">Advanced</a>
+    <nav class="subnav range-toggle settings-group-nav" aria-label="Settings sections">
+      <button type="button" class="btn btn-sm btn-ghost settings-group-nav-link active" data-settings-group-target="settings-group-portfolio" aria-pressed="true">Portfolio structure</button>
+      <button type="button" class="btn btn-sm btn-ghost settings-group-nav-link" data-settings-group-target="settings-group-tracking" aria-pressed="false">Tracking &amp; planning</button>
+      <button type="button" class="btn btn-sm btn-ghost settings-group-nav-link" data-settings-group-target="settings-group-advanced" aria-pressed="false">Advanced</button>
     </nav>
     <div class="settings-group" id="settings-group-portfolio">
       <div class="settings-group-header">
@@ -240,6 +240,7 @@ export function renderSettings(): void {
   attachBackupListeners(el);
   attachColorPickerSync(el);
   attachCardCollapseListeners(el);
+  attachSettingsGroupNavListeners(el);
 
   // Load and render config history asynchronously after initial paint
   void loadConfigHistory(50).then((entries) => {
@@ -261,6 +262,32 @@ export function renderSettings(): void {
   attachInfoTips(el);
   reinjectPendingMsg();
   applySyncBusyState();
+}
+
+function setActiveSettingsGroupNav(root: HTMLElement, targetId: string): void {
+  root.querySelectorAll<HTMLElement>('[data-settings-group-target]').forEach((item) => {
+    const isActive = item.dataset.settingsGroupTarget === targetId;
+    item.classList.toggle('active', isActive);
+    item.setAttribute('aria-pressed', String(isActive));
+  });
+}
+
+function attachSettingsGroupNavListeners(root: HTMLElement): void {
+  const nav = root.querySelector('.settings-group-nav');
+  if (!nav) return;
+  nav.addEventListener('click', (event) => {
+    const btn = (event.target as HTMLElement).closest<HTMLButtonElement>(
+      '[data-settings-group-target]',
+    );
+    const targetId = btn?.dataset.settingsGroupTarget;
+    if (!targetId) return;
+    const section = document.getElementById(targetId);
+    if (!section) return;
+    setActiveSettingsGroupNav(root, targetId);
+    if (typeof section.scrollIntoView === 'function') {
+      section.scrollIntoView({ block: 'start' });
+    }
+  });
 }
 
 // ── Data-only refresh functions ───────────────────────────

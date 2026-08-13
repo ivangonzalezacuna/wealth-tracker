@@ -223,6 +223,41 @@ describe('Settings scoped re-render (repaintCard)', () => {
     }
   });
 
+  it('renders the settings group nav with compact Holdings-style buttons', () => {
+    const nav = document.querySelector('.settings-group-nav');
+    expect(nav?.classList.contains('subnav')).toBe(true);
+    expect(nav?.classList.contains('range-toggle')).toBe(true);
+
+    const buttons = [...document.querySelectorAll<HTMLElement>('[data-settings-group-target]')];
+    expect(buttons).toHaveLength(3);
+    expect(buttons[0].className).toContain('btn btn-sm btn-ghost');
+    expect(buttons[0].classList.contains('active')).toBe(true);
+    expect(buttons[0].getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('clicking a settings group nav button activates it and scrolls to its section', () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    });
+
+    const trackingBtn = document.querySelector(
+      '[data-settings-group-target="settings-group-tracking"]',
+    ) as HTMLButtonElement;
+    const portfolioBtn = document.querySelector(
+      '[data-settings-group-target="settings-group-portfolio"]',
+    ) as HTMLButtonElement;
+
+    trackingBtn.click();
+
+    expect(trackingBtn.classList.contains('active')).toBe(true);
+    expect(trackingBtn.getAttribute('aria-pressed')).toBe('true');
+    expect(portfolioBtn.classList.contains('active')).toBe(false);
+    expect(portfolioBtn.getAttribute('aria-pressed')).toBe('false');
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
+  });
+
   it('repaintCard("accounts") replaces only the accounts card, siblings are untouched', () => {
     // Capture reference to the holdings card before repaint
     const holdingsBefore = document.getElementById('settings-card-holdings');
