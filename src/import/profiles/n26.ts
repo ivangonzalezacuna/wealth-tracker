@@ -25,7 +25,7 @@ export const n26Profile: ImportProfile = {
     TAX: TxType.TAX,
   },
   skipUnmapped: true,
-  interestTaxFromStandaloneTaxRows: true,
+  mergeTaxIntoInterest: true,
   idColumns: ['Booking Date', 'Type', 'Amount (EUR)'],
   match: {
     headerIncludes: ['Booking Date', 'Account Name', 'Amount (EUR)'],

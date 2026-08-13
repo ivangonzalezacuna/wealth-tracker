@@ -661,8 +661,8 @@ describe('parseWithProfile – N26 deterministic IDs', () => {
 
   it('generates unique IDs for all N26 rows (no collisions)', () => {
     const { transactions } = parseWithProfile(N26_CSV, n26Profile);
-    expect(transactions).toHaveLength(6);
-    expect(new Set(transactions.map((t) => t.id)).size).toBe(6);
+    expect(transactions).toHaveLength(2);
+    expect(new Set(transactions.map((t) => t.id)).size).toBe(2);
   });
 
   it('generates deterministic IDs (same CSV → same IDs)', () => {
@@ -671,44 +671,37 @@ describe('parseWithProfile – N26 deterministic IDs', () => {
     expect(r1.transactions.map((t) => t.id)).toEqual(r2.transactions.map((t) => t.id));
   });
 
-  it('idColumns are resolved case-insensitively', () => {
+  it('idColumns are resolved case-insensitively before merge', () => {
     const csv = [
       'booking date,value date,partner name,partner iban,type,payment reference,account name,amount (eur),original amount,original currency,exchange rate',
       '2024-01-01,2024-01-01,,,Interest,,Instant Savings,0.75,,,',
       '2024-01-01,2024-01-01,,,Tax,,Instant Savings,-0.20,,,',
     ].join('\n');
     const { transactions } = parseWithProfile(csv, n26Profile);
-    expect(transactions).toHaveLength(2);
+    expect(transactions).toHaveLength(1);
     expect(transactions[0].id).toMatch(/^n26\|2024-01-01\|Interest\|0.75#[a-f0-9]{8}$/);
     expect(transactions[0].type).toBe(TxType.INTEREST);
-    expect(transactions[1].id).toMatch(/^n26\|2024-01-01\|Tax\|-0.20#[a-f0-9]{8}$/);
-    expect(transactions[1].type).toBe(TxType.TAX);
+    expect(transactions[0].amount).toBeCloseTo(0.55);
+    expect(transactions[0].tax).toBeCloseTo(-0.2);
   });
 
   it('skipUnmapped excludes non-mapped types', () => {
     const csvWithDeposit =
       N26_CSV + '\n2024-03-01,2024-03-01,,,Credit Transfer,,Instant Savings,100.00,,,';
     const { transactions } = parseWithProfile(csvWithDeposit, n26Profile);
-    expect(transactions).toHaveLength(6);
-    expect(transactions.every((t) => t.type === 'INTEREST' || t.type === 'TAX')).toBe(true);
+    expect(transactions).toHaveLength(2);
+    expect(transactions.every((t) => t.type === 'INTEREST')).toBe(true);
   });
 
-  it('keeps INTEREST and TAX rows decoupled', () => {
+  it('mergeTaxIntoInterest folds tax into interest with correct amounts', () => {
     const { transactions } = parseWithProfile(N26_CSV, n26Profile);
-    const jan = transactions.filter((t) => t.date === '2024-01-01');
-    expect(jan).toHaveLength(3);
-
-    const interest = jan.find((t) => t.type === 'INTEREST');
-    const taxes = jan.filter((t) => t.type === 'TAX');
-
-    expect(interest?.amount).toBeCloseTo(0.75);
-    expect(interest?.tax ?? 0).toBe(0);
-    expect(taxes).toHaveLength(2);
-    expect(taxes[0].amount + taxes[1].amount).toBeCloseTo(-0.2);
-    expect(taxes[0].tax + taxes[1].tax).toBeCloseTo(-0.2);
+    const jan = transactions.find((t) => t.date === '2024-01-01')!;
+    expect(jan.type).toBe(TxType.INTEREST);
+    expect(jan.amount).toBeCloseTo(0.55);
+    expect(jan.tax).toBeCloseTo(-0.2);
   });
 
-  it('keeps same-month TAX rows decoupled from INTEREST', () => {
+  it('mergeTaxIntoInterest groups by month even when dates differ', () => {
     const csv = [
       'Booking Date,Value Date,Partner Name,Partner Iban,Type,Payment Reference,Account Name,Amount (EUR),Original Amount,Original Currency,Exchange Rate',
       '2026-01-01,2026-01-01,,,Interest,,Instant Savings,5.00,,,',
@@ -716,8 +709,9 @@ describe('parseWithProfile – N26 deterministic IDs', () => {
       '2026-01-14,2026-01-14,,,Tax,,Instant Savings,0.50,,,',
     ].join('\n');
     const { transactions } = parseWithProfile(csv, n26Profile);
-    expect(transactions).toHaveLength(3);
-    expect(transactions.filter((t) => t.type === 'INTEREST')).toHaveLength(1);
-    expect(transactions.filter((t) => t.type === 'TAX')).toHaveLength(2);
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0].type).toBe(TxType.INTEREST);
+    expect(transactions[0].amount).toBeCloseTo(4.5);
+    expect(transactions[0].tax).toBeCloseTo(-0.5);
   });
 });

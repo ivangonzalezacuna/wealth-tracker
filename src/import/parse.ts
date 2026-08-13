@@ -384,7 +384,43 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
   }
 
   // Filter rows that somehow still have no date or type (shouldn't happen after above guards)
-  const filtered = transactions.filter((t) => t.date && t.type);
+  let filtered = transactions.filter((t) => t.date && t.type);
+
+  if (profile.mergeTaxIntoInterest) {
+    const interestByMonth: Record<string, Transaction> = {};
+    const taxRowsByMonth: Record<string, Transaction[]> = {};
+    const rest: Transaction[] = [];
+
+    for (const tx of filtered) {
+      if (tx.type === 'INTEREST') {
+        const month = tx.date.slice(0, 7);
+        if (interestByMonth[month]) {
+          interestByMonth[month].amount += tx.amount;
+        } else {
+          interestByMonth[month] = tx;
+        }
+      } else if (tx.type === 'TAX') {
+        const month = tx.date.slice(0, 7);
+        (taxRowsByMonth[month] ??= []).push(tx);
+      } else {
+        rest.push(tx);
+      }
+    }
+
+    for (const [month, taxes] of Object.entries(taxRowsByMonth)) {
+      const interest = interestByMonth[month];
+      if (interest) {
+        for (const tax of taxes) {
+          interest.tax = (interest.tax || 0) + tax.amount;
+          interest.amount += tax.amount;
+        }
+      } else {
+        rest.push(...taxes);
+      }
+    }
+
+    filtered = [...Object.values(interestByMonth), ...rest];
+  }
 
   const unmapped: UnmappedType[] = Object.entries(unmappedCounts)
     .map(([type, count]) => ({ type, count }))
