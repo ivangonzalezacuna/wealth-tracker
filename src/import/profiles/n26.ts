@@ -47,8 +47,6 @@ export const n26Profile: ImportProfile = {
   },
 
   skipUnmapped: true,
-  mergeTaxIntoInterest: true,
-
   // N26 CSVs have no unique transaction ID column.
   // Build a deterministic ID from date + type + amount to allow safe re-imports.
   idColumns: ['Booking Date', 'Type', 'Amount (EUR)'],

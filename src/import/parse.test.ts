@@ -625,12 +625,11 @@ describe('parseWithProfile – N26 deterministic IDs', () => {
 
   it('generates unique IDs for all N26 rows (no collisions)', () => {
     const { transactions } = parseWithProfile(N26_CSV, n26Profile);
-    // mergeTaxIntoInterest folds TAX rows into same-date INTEREST rows
-    expect(transactions).toHaveLength(2);
+    expect(transactions).toHaveLength(6);
 
     const ids = transactions.map((t) => t.id);
     const uniqueIds = new Set(ids);
-    expect(uniqueIds.size).toBe(2);
+    expect(uniqueIds.size).toBe(6);
   });
 
   it('generates deterministic IDs (same CSV → same IDs)', () => {
@@ -646,9 +645,11 @@ describe('parseWithProfile – N26 deterministic IDs', () => {
       '2024-01-01,2024-01-01,,,Tax,,Instant Savings,-0.20,,,',
     ].join('\n');
     const { transactions } = parseWithProfile(csv, n26Profile);
-    expect(transactions).toHaveLength(1);
+    expect(transactions).toHaveLength(2);
     expect(transactions[0].id).toMatch(/^n26\|2024-01-01\|Interest\|0.75#[a-f0-9]{8}$/);
     expect(transactions[0].type).toBe(TxType.INTEREST);
+    expect(transactions[1].id).toMatch(/^n26\|2024-01-01\|Tax\|-0.20#[a-f0-9]{8}$/);
+    expect(transactions[1].type).toBe(TxType.TAX);
   });
 
   it('idColumns IDs stay row-stable even if row order changes', () => {
@@ -692,22 +693,27 @@ describe('parseWithProfile – N26 deterministic IDs', () => {
       N26_CSV + '\n2024-03-01,2024-03-01,,,Credit Transfer,,Instant Savings,100.00,,,';
     const { transactions } = parseWithProfile(csvWithDeposit, n26Profile);
     // Credit Transfer is unmapped and skipUnmapped=true, so excluded
-    // 2 merged INTEREST rows remain (TAX folded in)
-    expect(transactions).toHaveLength(2);
-    expect(transactions.every((t) => t.type === 'INTEREST')).toBe(true);
+    // All mapped INTEREST/TAX rows remain as separate entries
+    expect(transactions).toHaveLength(6);
+    expect(transactions.every((t) => t.type === 'INTEREST' || t.type === 'TAX')).toBe(true);
   });
 
-  it('mergeTaxIntoInterest folds tax into interest with correct amounts', () => {
+  it('keeps INTEREST and TAX rows decoupled', () => {
     const { transactions } = parseWithProfile(N26_CSV, n26Profile);
-    // Each date had: interest=0.75, tax=-0.19, tax=-0.01
-    // After merge: amount = net = 0.75 - 0.19 - 0.01 = 0.55, tax = -0.20
-    const jan = transactions.find((t) => t.date === '2024-01-01')!;
-    expect(jan.type).toBe('INTEREST');
-    expect(jan.amount).toBeCloseTo(0.55);
-    expect(jan.tax).toBeCloseTo(-0.2);
+    const jan = transactions.filter((t) => t.date === '2024-01-01');
+    expect(jan).toHaveLength(3);
+
+    const interest = jan.find((t) => t.type === 'INTEREST');
+    const taxes = jan.filter((t) => t.type === 'TAX');
+
+    expect(interest?.amount).toBeCloseTo(0.75);
+    expect(interest?.tax ?? 0).toBe(0);
+    expect(taxes).toHaveLength(2);
+    expect(taxes[0].amount + taxes[1].amount).toBeCloseTo(-0.2);
+    expect(taxes[0].tax + taxes[1].tax).toBeCloseTo(-0.2);
   });
 
-  it('mergeTaxIntoInterest groups by month even when dates differ', () => {
+  it('does not fold same-month TAX rows into INTEREST when dates differ', () => {
     const csv = [
       'Booking Date,Value Date,Partner Name,Partner Iban,Type,Payment Reference,Account Name,Amount (EUR),Original Amount,Original Currency,Exchange Rate',
       '2026-01-01,2026-01-01,,,Interest,,Instant Savings,5.00,,,',
@@ -715,10 +721,8 @@ describe('parseWithProfile – N26 deterministic IDs', () => {
       '2026-01-14,2026-01-14,,,Tax,,Instant Savings,0.50,,,', // refund (positive)
     ].join('\n');
     const { transactions } = parseWithProfile(csv, n26Profile);
-    expect(transactions).toHaveLength(1);
-    const jan = transactions[0];
-    expect(jan.type).toBe('INTEREST');
-    expect(jan.amount).toBeCloseTo(4.5); // 5.00 - 1.00 + 0.50
-    expect(jan.tax).toBeCloseTo(-0.5); // -1.00 + 0.50
+    expect(transactions).toHaveLength(3);
+    expect(transactions.filter((t) => t.type === 'INTEREST')).toHaveLength(1);
+    expect(transactions.filter((t) => t.type === 'TAX')).toHaveLength(2);
   });
 });
