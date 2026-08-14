@@ -2164,7 +2164,11 @@ function getHistoryKindLabel(entity: string, action: string | undefined, summary
   return `${entityLabel} · ${actionLabel}`;
 }
 
-function getCompactHistoryKindLabel(entity: string, action: string | undefined, summary: string): string {
+function getCompactHistoryKindLabel(
+  entity: string,
+  action: string | undefined,
+  summary: string,
+): string {
   const entityLabel = formatHistoryEntity(entity);
   const actionLabel = getHistoryActionLabel(action, summary);
   const normalized = entityLabel.trim().toLowerCase();
