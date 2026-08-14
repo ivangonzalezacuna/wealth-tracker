@@ -127,8 +127,12 @@ describe('renderConfigHistoryCard', () => {
       },
     ];
     const html = renderConfigHistoryCard(entries);
-    expect(html).toContain('<div class="config-history-row-main" title="last_backup_at = 2026-08-13T16:49:14.925Z">');
-    expect(html).toContain('<span class="config-history-summary-text">last_backup_at = 2026-08-13T16:49:14.925Z</span>');
+    expect(html).toContain(
+      '<div class="config-history-row-main" title="last_backup_at = 2026-08-13T16:49:14.925Z">',
+    );
+    expect(html).toContain(
+      '<span class="config-history-summary-text">last_backup_at = 2026-08-13T16:49:14.925Z</span>',
+    );
     expect(html).toContain('<span class="config-history-when">10:45</span>');
   });
 
