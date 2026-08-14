@@ -103,10 +103,30 @@ describe('renderConfigHistoryCard', () => {
     ];
     const html = renderConfigHistoryCard(entries);
     expect(html).toContain('config-history-row-expandable');
-    expect(html).toContain('<span class="config-history-summary-text">ui_collapse_state</span>');
+    expect(html).toContain(
+      '<span class="config-history-summary-text">ui_collapse_state (3 keys)</span>',
+    );
     expect(html).toContain('10:45');
     expect(html).toContain('&quot;card:accounts&quot;: true');
     expect(html).toContain('&quot;card:config-history&quot;: true');
+  });
+
+  it('shows item counts for JSON-array summaries', () => {
+    const entries: ConfigHistoryEntry[] = [
+      {
+        id: 1,
+        timestamp: '2026-01-15T10:45:00.000Z',
+        source: 'web',
+        entity: 'settings',
+        summary: 'rebalancing_flags = ["buy","sell"]',
+      },
+    ];
+    const html = renderConfigHistoryCard(entries);
+    expect(html).toContain(
+      '<span class="config-history-summary-text">rebalancing_flags (2 items)</span>',
+    );
+    expect(html).toContain('&quot;buy&quot;');
+    expect(html).toContain('&quot;sell&quot;');
   });
 
   it('wraps plain rows in the shared single-line row layout', () => {

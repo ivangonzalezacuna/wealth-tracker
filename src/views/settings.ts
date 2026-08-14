@@ -2148,8 +2148,11 @@ function parseJsonHistorySummary(summary: string): HistorySummaryDisplay | null 
   if (!label || !payload) return null;
   try {
     const parsed = JSON.parse(payload);
+    const countLabel = Array.isArray(parsed)
+      ? `${parsed.length} item${parsed.length === 1 ? '' : 's'}`
+      : `${Object.keys(parsed).length} key${Object.keys(parsed).length === 1 ? '' : 's'}`;
     return {
-      text: label,
+      text: `${label} (${countLabel})`,
       title: summary,
       detail: JSON.stringify(parsed, null, 2),
     };
