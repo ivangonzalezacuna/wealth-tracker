@@ -106,7 +106,8 @@ describe('renderConfigHistoryCard', () => {
         source: 'web',
         entity: 'settings',
         action: 'set',
-        summary: 'ui_collapse_state = {"card:accounts":true,"card:holdings":false,"card:config-history":true}',
+        summary:
+          'ui_collapse_state = {"card:accounts":true,"card:holdings":false,"card:config-history":true}',
       },
     ];
     const html = renderConfigHistoryCard(entries);
