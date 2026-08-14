@@ -100,9 +100,9 @@ describe('renderDividends', () => {
 
   it('renders the interest table with a monthly aggregation cue', () => {
     renderDividends(makePD());
-    const interestTable = document.getElementById('div-interest')!;
-    expect(interestTable.textContent).toContain('Month total');
-    expect(interestTable.innerHTML).toContain(
+    const header = document.getElementById('int-table-header')!;
+    expect(header.textContent).toContain('Month total');
+    expect(header.innerHTML).toContain(
       'Interest entries are grouped into monthly totals, including matching withholding and refund adjustments.',
     );
   });
