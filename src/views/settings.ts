@@ -38,7 +38,7 @@ import type {
   Transaction,
   Snapshot,
 } from '../types';
-import { formatEnglishDateTime, formatEnglishMonth } from '../dateFormat';
+import { formatEnglishDate, formatEnglishDateTime, formatEnglishMonth } from '../dateFormat';
 import { normalizeInstitution } from '../model/securitySuggestions';
 import { isCollapsed, setCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
@@ -2082,35 +2082,162 @@ function fmtHistoryTimestamp(iso: string): string {
   }
 }
 
+function parseHistoryDate(iso: string): Date | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  return isNaN(date.getTime()) ? null : date;
+}
+
+function fmtHistoryGroupLabel(iso: string): string {
+  const date = parseHistoryDate(iso);
+  if (!date) return fmtHistoryTimestamp(iso) || 'Unknown date';
+  return formatEnglishDate(date, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function fmtHistoryTime(iso: string): string {
+  const date = parseHistoryDate(iso);
+  if (!date) return fmtHistoryTimestamp(iso);
+  return new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+const HISTORY_ENTITY_LABELS: Record<string, string> = {
+  accounts: 'Accounts',
+  holdings: 'Holdings',
+  settings: 'Settings',
+  restore: 'Restore',
+  migration: 'Migration',
+};
+
+function formatHistoryEntity(entity: string): string {
+  const normalized = String(entity || '')
+    .trim()
+    .toLowerCase();
+  return HISTORY_ENTITY_LABELS[normalized] || entity || 'Other';
+}
+
+interface ConfigHistoryGroup {
+  key: string;
+  label: string;
+  entries: ConfigHistoryEntry[];
+}
+
+interface HistorySummaryDisplay {
+  text: string;
+  title: string;
+  detail?: string;
+}
+
+function parseJsonHistorySummary(summary: string): HistorySummaryDisplay | null {
+  const match = /^\s*([^=]+?)\s*=\s*(\{[\s\S]*\}|\[[\s\S]*\])\s*$/.exec(summary);
+  if (!match) return null;
+  const label = match[1].trim();
+  const payload = match[2].trim();
+  if (!label || !payload) return null;
+  try {
+    const parsed = JSON.parse(payload);
+    const countLabel = Array.isArray(parsed)
+      ? `${parsed.length} item${parsed.length === 1 ? '' : 's'}`
+      : `${Object.keys(parsed).length} key${Object.keys(parsed).length === 1 ? '' : 's'}`;
+    return {
+      text: `${label} (${countLabel})`,
+      title: summary,
+      detail: JSON.stringify(parsed, null, 2),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function groupConfigHistoryEntries(entries: ConfigHistoryEntry[]): ConfigHistoryGroup[] {
+  const groups: ConfigHistoryGroup[] = [];
+  entries.forEach((entry) => {
+    const date = parseHistoryDate(entry.timestamp);
+    const key = date
+      ? `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`
+      : `raw:${entry.timestamp}`;
+    const lastGroup = groups[groups.length - 1];
+    if (lastGroup && lastGroup.key === key) {
+      lastGroup.entries.push(entry);
+      return;
+    }
+    groups.push({
+      key,
+      label: fmtHistoryGroupLabel(entry.timestamp),
+      entries: [entry],
+    });
+  });
+  return groups;
+}
+
+function describeHistorySummary(summary: string): HistorySummaryDisplay {
+  const trimmed = String(summary || '').trim();
+  const maxInlineChars = 56;
+  if (!trimmed) {
+    return { text: '', title: '' };
+  }
+  const parsedJsonSummary = parseJsonHistorySummary(trimmed);
+  if (parsedJsonSummary) return parsedJsonSummary;
+  if (trimmed.length <= maxInlineChars) return { text: trimmed, title: trimmed };
+  return {
+    text: `${trimmed.slice(0, maxInlineChars - 1)}…`,
+    title: trimmed,
+    detail: trimmed,
+  };
+}
+
+function renderConfigHistoryRow(entry: ConfigHistoryEntry): string {
+  const kindLabel = formatHistoryEntity(entry.entity);
+  const summary = describeHistorySummary(entry.summary);
+  const rowMain = `
+    <span class="config-history-kind" title="${esc(kindLabel)}">${esc(kindLabel)}</span>
+    <span class="config-history-summary-text">${esc(summary.text)}</span>
+    <span class="config-history-when">${esc(fmtHistoryTime(entry.timestamp))}</span>`;
+  if (summary.detail) {
+    return `
+          <details class="config-history-row config-history-row-expandable">
+            <summary class="config-history-row-main" title="${esc(summary.title)}">
+              ${rowMain}
+            </summary>
+            <pre class="config-history-row-detail">${esc(summary.detail)}</pre>
+          </details>`;
+  }
+  return `
+          <div class="config-history-row">
+            <div class="config-history-row-main" title="${esc(summary.title)}">
+              ${rowMain}
+            </div>
+          </div>`;
+}
+
 export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
   let body: string;
   if (entries.length === 0) {
     body = '<p class="note" style="margin-top:.5rem">No changes recorded yet.</p>';
   } else {
-    const hdrStyle =
-      'text-align:left;font-size:11px;color:var(--ink-3);border-bottom:1px solid var(--line)';
-    const rows = entries
-      .map(
-        (e) => `
-      <tr>
-        <td style="white-space:nowrap;padding-right:1rem;color:var(--ink-3);font-size:11px">${esc(fmtHistoryTimestamp(e.timestamp))}</td>
-        <td style="padding-right:.75rem;font-size:12px;color:var(--ink-2)">${esc(e.entity)}</td>
-        <td style="font-size:12px">${esc(e.summary)}</td>
-      </tr>`,
-      )
+    const rows = groupConfigHistoryEntries(entries)
+      .map((e, idx) => {
+        const groupRows = e.entries.map((entry) => renderConfigHistoryRow(entry)).join('');
+        const count = e.entries.length;
+        return `
+        <details class="config-history-group"${idx === 0 ? ' open' : ''}>
+          <summary class="config-history-group-row">
+            <span class="config-history-group-date">${esc(e.label)}</span>
+            <span class="config-history-group-count">${count} change${count === 1 ? '' : 's'}</span>
+          </summary>
+          <div class="config-history-group-body">
+            ${groupRows}
+          </div>
+        </details>`;
+      })
       .join('');
     body = `
-      <div style="overflow-x:auto;margin-top:.5rem">
-        <table style="border-collapse:collapse;width:100%;min-width:400px">
-          <thead><tr style="${hdrStyle}">
-            <th style="padding-bottom:.4rem;padding-right:1rem">When</th>
-            <th style="padding-bottom:.4rem;padding-right:.75rem">What</th>
-            <th style="padding-bottom:.4rem">Summary</th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
+      <div class="config-history-wrap">
+        ${rows}
       </div>
-      <p class="note" style="margin-top:.6rem">Showing the last ${entries.length} change${entries.length === 1 ? '' : 's'}.</p>`;
+      <p class="note config-history-note">Showing the last ${entries.length} change${entries.length === 1 ? '' : 's'}.</p>`;
   }
 
   return `

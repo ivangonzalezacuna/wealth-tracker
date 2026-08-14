@@ -1010,6 +1010,123 @@ details[open] > summary .card-chevron {
   color: var(--ink-3);
 }
 
+/* Settings: config history */
+.config-history-wrap {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.config-history-group {
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.config-history-group-row,
+.config-history-row-main {
+  list-style: none;
+}
+.config-history-group-row {
+  cursor: pointer;
+  padding: 0.55rem 0.7rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  border-radius: var(--radius);
+}
+.config-history-group-row::marker,
+.config-history-row-main::marker {
+  content: '';
+}
+.config-history-group-row::-webkit-details-marker,
+.config-history-row-main::-webkit-details-marker {
+  display: none;
+}
+.config-history-group-date {
+  min-width: 0;
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.config-history-group-count {
+  white-space: nowrap;
+  color: var(--ink-3);
+  font-size: 11px;
+}
+.config-history-group[open] .config-history-group-row {
+  border-bottom: 1px solid var(--line-2);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.config-history-group-body {
+  padding: 0.1rem 0.7rem;
+}
+.config-history-row {
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--line-2);
+  max-width: 100%;
+  overflow: hidden;
+}
+.config-history-group-body .config-history-row:last-child {
+  border-bottom: none;
+}
+.config-history-row-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+.config-history-row-expandable > .config-history-row-main {
+  cursor: pointer;
+}
+.config-history-kind {
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 2px 6px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.config-history-when {
+  white-space: nowrap;
+  text-align: right;
+  color: var(--ink-3);
+  font-size: 11px;
+  min-width: 4.2ch;
+}
+.config-history-summary-text {
+  min-width: 0;
+  max-width: 100%;
+  display: block;
+  font-size: 12px;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.config-history-row-detail {
+  margin: 0;
+  padding: 0.35rem 0 0 2.7rem;
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.config-history-note {
+  margin-top: 0.6rem;
+}
+
 /* Forms */
 .form-group {
   margin-bottom: 0.9rem;
