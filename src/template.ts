@@ -169,7 +169,7 @@ export function appTemplate(): string {
         <div id="div-pagination" class="pagination"></div>
       </div>
       <div class="card">
-        <div class="card-title">Cash / savings interest received</div>
+        <div class="card-title">Cash / savings interest received <span class="muted">· monthly totals</span></div>
         <div class="filter-bar" id="int-year-filter-bar">
           <select id="int-year-filter" class="form-input form-input-sm" aria-label="Filter by year" style="width:auto;display:inline-block">
             <option value="">All years</option>
