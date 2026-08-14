@@ -2274,8 +2274,10 @@ function renderConfigHistoryRow(entry: ConfigHistoryEntry): string {
           </details>`;
   }
   return `
-          <div class="config-history-row" title="${esc(summary.title)}">
-            ${rowMain}
+          <div class="config-history-row">
+            <div class="config-history-row-main" title="${esc(summary.title)}">
+              ${rowMain}
+            </div>
           </div>`;
 }
 

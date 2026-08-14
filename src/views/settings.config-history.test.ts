@@ -115,6 +115,23 @@ describe('renderConfigHistoryCard', () => {
     expect(html).toContain('&quot;card:config-history&quot;: true');
   });
 
+  it('wraps plain rows in the shared single-line row layout', () => {
+    const entries: ConfigHistoryEntry[] = [
+      {
+        id: 1,
+        timestamp: '2026-01-15T10:45:00.000Z',
+        source: 'web',
+        entity: 'settings',
+        action: 'set',
+        summary: 'last_backup_at = 2026-08-13T16:49:14.925Z',
+      },
+    ];
+    const html = renderConfigHistoryCard(entries);
+    expect(html).toContain('<div class="config-history-row-main" title="last_backup_at = 2026-08-13T16:49:14.925Z">');
+    expect(html).toContain('<span class="config-history-summary-text">last_backup_at = 2026-08-13T16:49:14.925Z</span>');
+    expect(html).toContain('<span class="config-history-when">10:45</span>');
+  });
+
   it('escapes HTML-special characters in summary and entity', () => {
     const entries: ConfigHistoryEntry[] = [
       {
