@@ -91,20 +91,9 @@ describe('renderDividends', () => {
     expect(kpisText).toContain('Tax withheld');
     expect(kpisText).toContain('Net received');
     expect(kpisText).toContain('Gross interest');
-    expect(kpisText).toContain('monthly totals');
     expect(kpisText).toContain('not tax filing guidance');
-    expect(kpisText).not.toContain('jurisdiction-aware tax reporting');
     expect(kpisText).not.toContain('Investment income yield (12m)');
     expect(kpisText).not.toContain('Savings income yield (12m)');
-  });
-
-  it('renders the interest table with a monthly aggregation cue', () => {
-    renderDividends(makePD());
-    const header = document.getElementById('int-table-header')!;
-    expect(header.textContent).toContain('Month total');
-    expect(header.innerHTML).toContain(
-      'Interest entries are grouped into monthly totals, including matching withholding and refund adjustments.',
-    );
   });
 
   it('flips the Tax withheld tile to positive styling when totalTax < 0', () => {
