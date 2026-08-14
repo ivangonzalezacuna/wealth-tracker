@@ -339,6 +339,7 @@ code,
   padding: 0.25rem 0;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .card-collapsible .card-body {
   margin-top: 0.75rem;
@@ -1027,6 +1028,9 @@ details[open] > summary .card-chevron {
 }
 .config-history-group-row {
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
   padding: 0.55rem 0.7rem;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1084,6 +1088,9 @@ details[open] > summary .card-chevron {
 }
 .config-history-row-expandable > .config-history-row-main {
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .config-history-kind {
   color: var(--ink-2);
@@ -1301,6 +1308,9 @@ summary.section-label {
   display: flex;
   align-items: center;
   gap: 6px;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .form-actions {
   display: flex;
@@ -1664,6 +1674,9 @@ summary.section-label {
   list-style: none;
   font-size: 14px;
   font-weight: 600;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .rebalance-summary::-webkit-details-marker {
   display: none;
@@ -2328,6 +2341,7 @@ input[type='color'] {
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .item-collapsible .settings-item-fields {
   overflow: hidden;
@@ -2592,6 +2606,9 @@ input[type='color'] {
 }
 
 /* ── ETF info popover (click-to-reveal ISIN + name) ───── */
+[data-etf-isin] {
+  -webkit-tap-highlight-color: transparent;
+}
 .etf-pop {
   position: fixed;
   background: var(--surface);
