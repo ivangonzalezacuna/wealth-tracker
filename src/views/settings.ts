@@ -2220,6 +2220,28 @@ function groupConfigHistoryEntries(entries: ConfigHistoryEntry[]): ConfigHistory
   return groups;
 }
 
+function renderHistorySummary(summary: string): string {
+  const normalized = String(summary || '');
+  const splitIndex = normalized.indexOf(' = ');
+  if (splitIndex <= 0) {
+    return `<span class="config-history-summary-text">${esc(normalized)}</span>`;
+  }
+  const label = normalized.slice(0, splitIndex);
+  const value = normalized.slice(splitIndex + 3);
+  const trimmedValue = value.trim();
+  const isStructuredValue =
+    trimmedValue.startsWith('{') ||
+    trimmedValue.startsWith('[') ||
+    trimmedValue.includes('\n') ||
+    trimmedValue.length > 80;
+  if (!isStructuredValue) {
+    return `<span class="config-history-summary-text">${esc(normalized)}</span>`;
+  }
+  return `
+    <span class="config-history-summary-text">${esc(label)} =</span>
+    <pre class="config-history-summary-block">${esc(value)}</pre>`;
+}
+
 export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
   let body: string;
   if (entries.length === 0) {
@@ -2241,7 +2263,7 @@ export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
               <span class="config-history-when">${esc(fmtHistoryTime(entry.timestamp))}</span>
             </div>
             <div class="config-history-summary">
-              <span>${esc(entry.summary)}</span>
+              ${renderHistorySummary(entry.summary)}
               ${source ? `<span class="config-history-source">${esc(source)}</span>` : ''}
             </div>
           </div>`;

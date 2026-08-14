@@ -98,6 +98,24 @@ describe('renderConfigHistoryCard', () => {
     expect(html).toContain('1 change');
   });
 
+  it('renders long structured setting values in a scrollable block while keeping the time', () => {
+    const entries: ConfigHistoryEntry[] = [
+      {
+        id: 1,
+        timestamp: '2026-01-15T10:45:00.000Z',
+        source: 'web',
+        entity: 'settings',
+        action: 'set',
+        summary: 'ui_collapse_state = {"card:accounts":true,"card:holdings":false,"card:config-history":true}',
+      },
+    ];
+    const html = renderConfigHistoryCard(entries);
+    expect(html).toContain('config-history-summary-block');
+    expect(html).toContain('10:45');
+    expect(html).toContain('ui_collapse_state =');
+    expect(html).toContain('&quot;card:config-history&quot;:true');
+  });
+
   it('escapes HTML-special characters in summary and entity', () => {
     const entries: ConfigHistoryEntry[] = [
       {
