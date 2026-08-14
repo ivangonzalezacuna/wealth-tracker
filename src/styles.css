@@ -1054,25 +1054,36 @@ details[open] > summary .card-chevron {
   padding: 0.1rem 0.7rem;
 }
 .config-history-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
   padding: 0.35rem 0;
   border-bottom: 1px solid var(--line-2);
 }
 .config-history-group-body .config-history-row:last-child {
   border-bottom: none;
 }
+.config-history-row-main {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.config-history-row-main::-webkit-details-marker {
+  display: none;
+}
+.config-history-row-expandable > .config-history-row-main {
+  cursor: pointer;
+}
 .config-history-kind {
   color: var(--ink-2);
-  font-size: 11px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  font-size: 10px;
   font-weight: 600;
   line-height: 1.2;
-  max-width: min(100%, 200px);
-  overflow: hidden;
-  text-overflow: ellipsis;
+  padding: 2px 6px;
   white-space: nowrap;
+  flex: 0 0 auto;
 }
 .config-history-when {
   white-space: nowrap;
@@ -1082,13 +1093,22 @@ details[open] > summary .card-chevron {
   margin-left: auto;
 }
 .config-history-summary-text {
-  flex: 1;
+  flex: 1 1 180px;
   min-width: 0;
   font-size: 12px;
   color: var(--ink-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.config-history-row-detail {
+  margin: 0;
+  padding: 0.35rem 0 0 2.7rem;
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .config-history-note {
   margin-top: 0.6rem;

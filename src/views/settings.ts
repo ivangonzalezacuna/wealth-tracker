@@ -2164,10 +2164,27 @@ function getHistoryKindLabel(entity: string, action: string | undefined, summary
   return `${entityLabel} · ${actionLabel}`;
 }
 
+function getCompactHistoryKindLabel(entity: string, action: string | undefined, summary: string): string {
+  const entityLabel = formatHistoryEntity(entity);
+  const actionLabel = getHistoryActionLabel(action, summary);
+  const normalized = entityLabel.trim().toLowerCase();
+  if (normalized === 'accounts') return 'Acct';
+  if (normalized === 'holdings') return 'Hold';
+  if (normalized === 'settings') return actionLabel;
+  if (normalized === 'migration') return actionLabel === 'Seed' ? 'Seed' : 'Migr';
+  return entityLabel;
+}
+
 interface ConfigHistoryGroup {
   key: string;
   label: string;
   entries: ConfigHistoryEntry[];
+}
+
+interface HistorySummaryDisplay {
+  text: string;
+  title: string;
+  detail?: string;
 }
 
 function groupConfigHistoryEntries(entries: ConfigHistoryEntry[]): ConfigHistoryGroup[] {
@@ -2191,18 +2208,15 @@ function groupConfigHistoryEntries(entries: ConfigHistoryEntry[]): ConfigHistory
   return groups;
 }
 
-function renderHistorySummary(summary: string): string {
-  const renderSummaryText = (title: string, text: string): string =>
-    `<span class="config-history-summary-text" title="${esc(title)}">${esc(text)}</span>`;
-
+function describeHistorySummary(summary: string): HistorySummaryDisplay {
   const normalized = String(summary || '');
   const trimmed = normalized.trim();
   if (!trimmed) {
-    return '<span class="config-history-summary-text"></span>';
+    return { text: '', title: '' };
   }
   const splitIndex = normalized.indexOf(' = ');
   if (splitIndex <= 0) {
-    return renderSummaryText(trimmed, normalized);
+    return { text: normalized, title: trimmed };
   }
   const label = normalized.slice(0, splitIndex);
   const value = normalized.slice(splitIndex + 3).trim();
@@ -2212,18 +2226,53 @@ function renderHistorySummary(summary: string): string {
       if (Array.isArray(parsed)) {
         const n = parsed.length;
         const fullValue = `${label} = ${JSON.stringify(parsed, null, 2)}`;
-        return renderSummaryText(fullValue, `${label} (${n} ${n === 1 ? 'item' : 'items'})`);
+        return {
+          text: `${label} (${n} ${n === 1 ? 'item' : 'items'})`,
+          title: fullValue,
+          detail: fullValue,
+        };
       }
       if (typeof parsed === 'object' && parsed !== null) {
         const n = Object.keys(parsed).length;
         const fullValue = `${label} = ${JSON.stringify(parsed, null, 2)}`;
-        return renderSummaryText(fullValue, `${label} (${n} ${n === 1 ? 'key' : 'keys'})`);
+        return {
+          text: `${label} (${n} ${n === 1 ? 'key' : 'keys'})`,
+          title: fullValue,
+          detail: fullValue,
+        };
       }
     } catch {
       // fall through to inline display
     }
   }
-  return renderSummaryText(trimmed, normalized);
+  return { text: normalized, title: trimmed };
+}
+
+function renderHistorySummary(summary: HistorySummaryDisplay): string {
+  return `<span class="config-history-summary-text">${esc(summary.text)}</span>`;
+}
+
+function renderConfigHistoryRow(entry: ConfigHistoryEntry): string {
+  const kindLabel = getHistoryKindLabel(entry.entity, entry.action, entry.summary);
+  const compactKindLabel = getCompactHistoryKindLabel(entry.entity, entry.action, entry.summary);
+  const summary = describeHistorySummary(entry.summary);
+  const rowMain = `
+    <span class="config-history-kind" title="${esc(kindLabel)}">${esc(compactKindLabel)}</span>
+    ${renderHistorySummary(summary)}
+    <span class="config-history-when">${esc(fmtHistoryTime(entry.timestamp))}</span>`;
+  if (summary.detail) {
+    return `
+          <details class="config-history-row config-history-row-expandable">
+            <summary class="config-history-row-main" title="${esc(summary.title)}">
+              ${rowMain}
+            </summary>
+            <pre class="config-history-row-detail">${esc(summary.detail)}</pre>
+          </details>`;
+  }
+  return `
+          <div class="config-history-row" title="${esc(summary.title)}">
+            ${rowMain}
+          </div>`;
 }
 
 export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
@@ -2233,17 +2282,7 @@ export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
   } else {
     const rows = groupConfigHistoryEntries(entries)
       .map((e, idx) => {
-        const groupRows = e.entries
-          .map((entry) => {
-            const kindLabel = getHistoryKindLabel(entry.entity, entry.action, entry.summary);
-            return `
-          <div class="config-history-row">
-            <span class="config-history-kind" title="${esc(kindLabel)}">${esc(kindLabel)}</span>
-            ${renderHistorySummary(entry.summary)}
-            <span class="config-history-when">${esc(fmtHistoryTime(entry.timestamp))}</span>
-          </div>`;
-          })
-          .join('');
+        const groupRows = e.entries.map((entry) => renderConfigHistoryRow(entry)).join('');
         const count = e.entries.length;
         return `
         <details class="config-history-group"${idx === 0 ? ' open' : ''}>
