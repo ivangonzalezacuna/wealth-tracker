@@ -2606,6 +2606,9 @@ input[type='color'] {
 }
 
 /* ── ETF info popover (click-to-reveal ISIN + name) ───── */
+[data-etf-isin] {
+  -webkit-tap-highlight-color: transparent;
+}
 .etf-pop {
   position: fixed;
   background: var(--surface);
