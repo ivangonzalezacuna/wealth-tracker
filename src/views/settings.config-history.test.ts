@@ -117,7 +117,6 @@ describe('renderConfigHistoryCard', () => {
     expect(html).toContain('ui_collapse_state (3 keys)');
     expect(html).toContain('10:45');
     expect(html).not.toContain('config-history-summary-block');
-    expect(html).not.toContain('card:config-history');
     expect(html).toContain('data-config-history-popover-body="ui_collapse_state = {');
     expect(html).toContain('&quot;card:config-history&quot;: true');
   });

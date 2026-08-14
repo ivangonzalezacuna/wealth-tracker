@@ -25,14 +25,16 @@ function _findScrollAncestor(el: HTMLElement): HTMLElement | null {
 }
 
 export function attachConfigHistoryPopovers(root: HTMLElement | Document = document): void {
-  root.querySelectorAll<HTMLElement>(`[${ATTR}]:not([data-config-history-popover-bound])`).forEach((el) => {
-    el.dataset.configHistoryPopoverBound = '1';
-    el.style.cursor = 'pointer';
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      _toggle(el);
+  root
+    .querySelectorAll<HTMLElement>(`[${ATTR}]:not([data-config-history-popover-bound])`)
+    .forEach((el) => {
+      el.dataset.configHistoryPopoverBound = '1';
+      el.style.cursor = 'pointer';
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        _toggle(el);
+      });
     });
-  });
 }
 
 function _toggle(trigger: HTMLElement): void {
@@ -99,15 +101,13 @@ function _id(el: HTMLElement): string {
 }
 
 function _dismissAll(): void {
-  document
-    .querySelectorAll<HTMLElement>('[data-config-history-popover-bound]')
-    .forEach((el) => {
-      const popEl = el as _PopEl;
-      if (popEl._configHistoryScrollCleanup) {
-        popEl._configHistoryScrollCleanup();
-        delete popEl._configHistoryScrollCleanup;
-      }
-    });
+  document.querySelectorAll<HTMLElement>('[data-config-history-popover-bound]').forEach((el) => {
+    const popEl = el as _PopEl;
+    if (popEl._configHistoryScrollCleanup) {
+      popEl._configHistoryScrollCleanup();
+      delete popEl._configHistoryScrollCleanup;
+    }
+  });
   document.querySelectorAll(`.${POP_CLASS}`).forEach((p) => p.remove());
 }
 
