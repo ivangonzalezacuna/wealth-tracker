@@ -2103,29 +2103,19 @@ function fmtHistoryTime(iso: string): string {
   }).format(date);
 }
 
+const HISTORY_ENTITY_LABELS: Record<string, string> = {
+  accounts: 'Accounts',
+  holdings: 'Holdings',
+  settings: 'Settings',
+  restore: 'Restore',
+  migration: 'Migration',
+};
+
 function formatHistoryEntity(entity: string): string {
   const normalized = String(entity || '')
     .trim()
     .toLowerCase();
-  switch (normalized) {
-    case 'accounts':
-      return 'Accounts';
-    case 'holdings':
-      return 'Holdings';
-    case 'settings':
-      return 'Settings';
-    case 'restore':
-      return 'Restore';
-    case 'migration':
-      return 'Migration';
-    default:
-      return entity || 'Other';
-  }
-}
-
-function getHistoryKindLabel(entity: string): string {
-  const entityLabel = formatHistoryEntity(entity);
-  return entityLabel;
+  return HISTORY_ENTITY_LABELS[normalized] || entity || 'Other';
 }
 
 interface ConfigHistoryGroup {
@@ -2198,16 +2188,12 @@ function describeHistorySummary(summary: string): HistorySummaryDisplay {
   };
 }
 
-function renderHistorySummary(summary: HistorySummaryDisplay): string {
-  return `<span class="config-history-summary-text">${esc(summary.text)}</span>`;
-}
-
 function renderConfigHistoryRow(entry: ConfigHistoryEntry): string {
-  const kindLabel = getHistoryKindLabel(entry.entity);
+  const kindLabel = formatHistoryEntity(entry.entity);
   const summary = describeHistorySummary(entry.summary);
   const rowMain = `
     <span class="config-history-kind" title="${esc(kindLabel)}">${esc(kindLabel)}</span>
-    ${renderHistorySummary(summary)}
+    <span class="config-history-summary-text">${esc(summary.text)}</span>
     <span class="config-history-when">${esc(fmtHistoryTime(entry.timestamp))}</span>`;
   if (summary.detail) {
     return `

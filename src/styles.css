@@ -1021,8 +1021,11 @@ details[open] > summary .card-chevron {
   border-radius: var(--radius);
   background: var(--surface);
 }
-.config-history-group-row {
+.config-history-group-row,
+.config-history-row-main {
   list-style: none;
+}
+.config-history-group-row {
   cursor: pointer;
   padding: 0.55rem 0.7rem;
   display: grid;
@@ -1031,10 +1034,12 @@ details[open] > summary .card-chevron {
   gap: 0.6rem;
   border-radius: var(--radius);
 }
-.config-history-group-row::marker {
+.config-history-group-row::marker,
+.config-history-row-main::marker {
   content: '';
 }
-.config-history-group-row::-webkit-details-marker {
+.config-history-group-row::-webkit-details-marker,
+.config-history-row-main::-webkit-details-marker {
   display: none;
 }
 .config-history-group-date {
@@ -1068,7 +1073,6 @@ details[open] > summary .card-chevron {
   border-bottom: none;
 }
 .config-history-row-main {
-  list-style: none;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -1077,12 +1081,6 @@ details[open] > summary .card-chevron {
   width: 100%;
   max-width: 100%;
   overflow: hidden;
-}
-.config-history-row-main::marker {
-  content: '';
-}
-.config-history-row-main::-webkit-details-marker {
-  display: none;
 }
 .config-history-row-expandable > .config-history-row-main {
   cursor: pointer;

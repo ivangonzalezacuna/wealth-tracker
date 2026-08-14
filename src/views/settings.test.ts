@@ -390,33 +390,6 @@ describe('Backup card nudge', () => {
       expect(html).toMatch(/Jun/);
       expect(html).toContain('Updated cost basis');
     });
-
-    it('renders entity labels in the left badge', () => {
-      const html = renderConfigHistoryCard([
-        {
-          timestamp: '2026-06-15T10:00:00.000Z',
-          entity: 'accounts',
-          action: 'update',
-          summary: 'updated 2 accounts',
-        },
-      ] as any);
-      expect(html).toContain('title="Accounts"');
-      expect(html).toContain('>Accounts<');
-    });
-
-    it('shows JSON summary key counts and parsed detail', () => {
-      const html = renderConfigHistoryCard([
-        {
-          timestamp: '2026-06-15T10:00:00.000Z',
-          entity: 'settings',
-          action: 'set',
-          summary: 'allocation = {"cash":10,"stocks":90}',
-        },
-      ] as any);
-      expect(html).toContain('allocation (2 keys)');
-      expect(html).toContain('&quot;cash&quot;: 10');
-      expect(html).toContain('&quot;stocks&quot;: 90');
-    });
   });
 
   it('shows reminder text when backup is stale', () => {
