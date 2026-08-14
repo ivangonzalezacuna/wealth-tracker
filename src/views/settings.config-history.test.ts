@@ -90,7 +90,7 @@ describe('renderConfigHistoryCard', () => {
     expect(html).toContain('1 change');
   });
 
-  it('keeps structured JSON summaries in original form and makes them expandable', () => {
+  it('shows JSON summary titles inline and parsed JSON in expandable details', () => {
     const entries: ConfigHistoryEntry[] = [
       {
         id: 1,
@@ -103,9 +103,10 @@ describe('renderConfigHistoryCard', () => {
     ];
     const html = renderConfigHistoryCard(entries);
     expect(html).toContain('config-history-row-expandable');
-    expect(html).toContain('ui_collapse_state = {');
+    expect(html).toContain('<span class="config-history-summary-text">ui_collapse_state</span>');
     expect(html).toContain('10:45');
-    expect(html).toContain('&quot;card:config-history&quot;:true');
+    expect(html).toContain('&quot;card:accounts&quot;: true');
+    expect(html).toContain('&quot;card:config-history&quot;: true');
   });
 
   it('wraps plain rows in the shared single-line row layout', () => {

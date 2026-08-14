@@ -2140,6 +2140,24 @@ interface HistorySummaryDisplay {
   detail?: string;
 }
 
+function parseJsonHistorySummary(summary: string): HistorySummaryDisplay | null {
+  const match = /^\s*([^=]+?)\s*=\s*(\{[\s\S]*\}|\[[\s\S]*\])\s*$/.exec(summary);
+  if (!match) return null;
+  const label = match[1].trim();
+  const payload = match[2].trim();
+  if (!label || !payload) return null;
+  try {
+    const parsed = JSON.parse(payload);
+    return {
+      text: label,
+      title: summary,
+      detail: JSON.stringify(parsed, null, 2),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function groupConfigHistoryEntries(entries: ConfigHistoryEntry[]): ConfigHistoryGroup[] {
   const groups: ConfigHistoryGroup[] = [];
   entries.forEach((entry) => {
@@ -2167,6 +2185,8 @@ function describeHistorySummary(summary: string): HistorySummaryDisplay {
   if (!trimmed) {
     return { text: '', title: '' };
   }
+  const parsedJsonSummary = parseJsonHistorySummary(trimmed);
+  if (parsedJsonSummary) return parsedJsonSummary;
   if (trimmed.length <= maxInlineChars) return { text: trimmed, title: trimmed };
   return {
     text: `${trimmed.slice(0, maxInlineChars - 1)}…`,
