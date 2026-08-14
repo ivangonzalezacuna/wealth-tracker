@@ -269,6 +269,8 @@ describe('renderLog', () => {
     expect(ledger.querySelector('.tx-ledger-chip')?.textContent).toContain('BUY');
     expect(ledger.querySelector('.tx-ledger-isin')?.textContent).toContain('IE00B4L5Y983');
     expect(ledger.querySelector('.tx-ledger-amount.neg')?.textContent).toContain('€');
+    expect(ledger.querySelector('[data-ledger-label="Name"]')?.textContent).toContain('IWDA');
+    expect(ledger.querySelector('[data-ledger-label="Amount"]')?.textContent).toContain('€');
   });
 
   it('shows tax alongside ledger interest amounts when present', () => {
@@ -339,6 +341,9 @@ describe('renderLog', () => {
 
     const editBtn = document.querySelector('.js-edit-tx') as HTMLButtonElement;
     const delBtn = document.querySelector('.js-del-tx') as HTMLButtonElement;
+    expect(document.querySelector('.tx-actions')?.getAttribute('data-ledger-label')).toBe(
+      'Actions',
+    );
     editBtn.click();
     delBtn.click();
     expect(onEditTx).toHaveBeenCalledWith(10n);

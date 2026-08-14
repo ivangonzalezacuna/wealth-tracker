@@ -721,17 +721,31 @@ describe('parseWithProfile – N26 deterministic IDs', () => {
     expect(transactions[0].tax).toBeCloseTo(-0.5);
   });
 
-  it('keeps TAX standalone when no INTEREST exists in the same month', () => {
+  it('merges TAX into previous-month INTEREST when posted one month later', () => {
     const csv = [
       'Booking Date,Value Date,Partner Name,Partner Iban,Type,Payment Reference,Account Name,Amount (EUR),Original Amount,Original Currency,Exchange Rate',
       '2026-01-01,2026-01-01,,,Interest,,Instant Savings,5.00,,,',
       '2026-02-14,2026-02-14,,,Tax,,Instant Savings,-1.00,,,',
     ].join('\n');
     const { transactions } = parseWithProfile(csv, n26Profile);
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0].type).toBe(TxType.INTEREST);
+    expect(transactions[0].date).toBe('2026-01-01');
+    expect(transactions[0].amount).toBeCloseTo(4);
+    expect(transactions[0].tax).toBeCloseTo(-1);
+  });
+
+  it('keeps TAX standalone when no INTEREST exists within ±1 month', () => {
+    const csv = [
+      'Booking Date,Value Date,Partner Name,Partner Iban,Type,Payment Reference,Account Name,Amount (EUR),Original Amount,Original Currency,Exchange Rate',
+      '2026-01-01,2026-01-01,,,Interest,,Instant Savings,5.00,,,',
+      '2026-03-14,2026-03-14,,,Tax,,Instant Savings,-1.00,,,',
+    ].join('\n');
+    const { transactions } = parseWithProfile(csv, n26Profile);
     expect(transactions).toHaveLength(2);
     expect(transactions.some((t) => t.type === TxType.INTEREST && t.date === '2026-01-01')).toBe(
       true,
     );
-    expect(transactions.some((t) => t.type === TxType.TAX && t.date === '2026-02-14')).toBe(true);
+    expect(transactions.some((t) => t.type === TxType.TAX && t.date === '2026-03-14')).toBe(true);
   });
 });

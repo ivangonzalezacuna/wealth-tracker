@@ -1,6 +1,8 @@
 /**
  * Forecast helpers - pure functions for projecting net worth growth and decumulation.
  */
+import { INTERVAL_PER_YEAR } from './contributions';
+import type { ContribInterval } from '../types';
 
 // ── Decumulation (retirement withdrawal) ──────────────────
 
@@ -145,11 +147,18 @@ export interface AccountForecastInput {
   current: number;
   annualContrib: number;
   annualReturnPct: number;
+  contribInterval?: ContribInterval;
+}
+
+interface ContributionPlanState {
+  amountPerExecution: number;
+  executionsPerMonth: number;
+  carry: number;
 }
 
 function prepareAccountInputs(accounts: AccountForecastInput[]): {
   perAccountMonthlyRate: number[];
-  perAccountMonthlyContrib: number[];
+  perAccountContributionPlans: Array<ContributionPlanState | null>;
   values: number[];
 } {
   const perAccountMonthlyRate = accounts.map(
@@ -162,19 +171,39 @@ function prepareAccountInputs(accounts: AccountForecastInput[]): {
 
   return {
     perAccountMonthlyRate,
-    perAccountMonthlyContrib: accounts.map((a) => a.annualContrib / 12),
+    perAccountContributionPlans: accounts.map((a) => {
+      if (!isFinite(a.annualContrib) || a.annualContrib <= 0) return null;
+      const interval = a.contribInterval || 'monthly';
+      const executionsPerYear = INTERVAL_PER_YEAR[interval] || INTERVAL_PER_YEAR.monthly;
+      const amountPerExecution = a.annualContrib / executionsPerYear;
+      return {
+        amountPerExecution,
+        executionsPerMonth: executionsPerYear / 12,
+        carry: 0,
+      };
+    }),
     values: accounts.map((a) => a.current),
   };
 }
 
 function advanceAccountValues(
   values: number[],
-  perAccountMonthlyContrib: number[],
+  perAccountContributionPlans: Array<ContributionPlanState | null>,
   perAccountMonthlyRate: number[],
 ): { values: number[]; total: number } {
-  const nextValues = values.map(
-    (v, idx) => (v + perAccountMonthlyContrib[idx]) * (1 + perAccountMonthlyRate[idx]),
-  );
+  const nextValues = values.map((v, idx) => {
+    let monthContrib = 0;
+    const plan = perAccountContributionPlans[idx];
+    if (plan) {
+      plan.carry += plan.executionsPerMonth;
+      const executions = Math.floor(plan.carry + 1e-9);
+      if (executions > 0) {
+        monthContrib += plan.amountPerExecution * executions;
+        plan.carry -= executions;
+      }
+    }
+    return (v + monthContrib) * (1 + perAccountMonthlyRate[idx]);
+  });
   return {
     values: nextValues,
     total: nextValues.reduce((sum, value) => sum + value, 0),
@@ -195,7 +224,7 @@ export function forecastMultiAccountSeries(
 ): Array<{ month: string; value: number }> {
   const {
     perAccountMonthlyRate,
-    perAccountMonthlyContrib,
+    perAccountContributionPlans,
     values: initialValues,
   } = prepareAccountInputs(accounts);
   let values = initialValues;
@@ -209,7 +238,7 @@ export function forecastMultiAccountSeries(
       mon = 1;
       year++;
     }
-    const next = advanceAccountValues(values, perAccountMonthlyContrib, perAccountMonthlyRate);
+    const next = advanceAccountValues(values, perAccountContributionPlans, perAccountMonthlyRate);
     values = next.values;
     result.push({
       month: `${year}-${String(mon).padStart(2, '0')}`,
@@ -237,7 +266,7 @@ export function forecastMonthsToTargetMulti(
 
   const {
     perAccountMonthlyRate,
-    perAccountMonthlyContrib,
+    perAccountContributionPlans,
     values: initialValues,
   } = prepareAccountInputs(accounts);
   let values = initialValues;
@@ -247,7 +276,7 @@ export function forecastMonthsToTargetMulti(
   let total = current;
 
   while (total < target && months < maxMonths) {
-    const next = advanceAccountValues(values, perAccountMonthlyContrib, perAccountMonthlyRate);
+    const next = advanceAccountValues(values, perAccountContributionPlans, perAccountMonthlyRate);
     values = next.values;
     total = next.total;
     months++;

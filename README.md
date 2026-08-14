@@ -198,6 +198,21 @@ They are **not** jurisdiction-aware tax reporting or tax filing guidance, and if
 changes over time those figures may become incomplete or no longer map cleanly to your local tax
 rules.
 
+#### Transaction ledger interface
+
+The transaction ledger at the bottom of the **+ Log** tab uses a compact stacked layout:
+
+- **Header row:** Date, transaction type chip, and source chip
+- **Body rows:** Name, ISIN, amount, and extra metadata (for example shares or interest tax)
+- **Actions:** Edit/delete buttons per transaction
+
+On narrow screens, each transaction is shown as a stacked card and actions stay pinned in the
+top-right corner to keep them accessible while scrolling.
+
+Long ETF names are truncated with ellipsis in the row, and you can click the name to open a
+popover with the full ETF name/ISIN. Rows with no name value are automatically hidden in stacked
+mobile view to reduce visual noise.
+
 ### Portfolio tab
 
 The Portfolio tab has three subviews:

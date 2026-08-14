@@ -15,6 +15,22 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+/** Extended HTMLElement with a reference to its scroll cleanup function. */
+interface _PopEl extends HTMLElement {
+  _etfScrollCleanup?: () => void;
+}
+
+/** Walk up the DOM to find the nearest scrollable ancestor, if any. */
+function _findScrollAncestor(el: HTMLElement): HTMLElement | null {
+  let node = el.parentElement;
+  while (node && node !== document.body) {
+    const { overflow, overflowY, overflowX } = getComputedStyle(node);
+    if (/(auto|scroll)/.test(overflow + overflowY + overflowX)) return node;
+    node = node.parentElement;
+  }
+  return null;
+}
+
 /**
  * Attach click-to-show popover on elements within `root` that have `data-etf-isin`.
  * Safe to call repeatedly — already-bound elements are skipped.
@@ -54,6 +70,22 @@ function _show(trigger: HTMLElement): void {
   pop.innerHTML = html;
   document.body.appendChild(pop);
 
+  // Dismiss when the page or any scroll ancestor scrolls / resizes
+  const scrollAncestor = _findScrollAncestor(trigger);
+  const dismiss = () => _dismissAll();
+  window.addEventListener('scroll', dismiss, { passive: true, capture: true });
+  window.addEventListener('resize', dismiss, { passive: true });
+  if (scrollAncestor) {
+    scrollAncestor.addEventListener('scroll', dismiss, { passive: true });
+  }
+  (trigger as _PopEl)._etfScrollCleanup = () => {
+    window.removeEventListener('scroll', dismiss, { capture: true } as EventListenerOptions);
+    window.removeEventListener('resize', dismiss);
+    if (scrollAncestor) {
+      scrollAncestor.removeEventListener('scroll', dismiss);
+    }
+  };
+
   // Position below the trigger
   const rect = trigger.getBoundingClientRect();
   const top = rect.bottom + 6;
@@ -85,6 +117,13 @@ function _id(el: HTMLElement): string {
 }
 
 function _dismissAll(): void {
+  document.querySelectorAll<HTMLElement>(`[data-etf-bound]`).forEach((el) => {
+    const popEl = el as _PopEl;
+    if (popEl._etfScrollCleanup) {
+      popEl._etfScrollCleanup();
+      delete popEl._etfScrollCleanup;
+    }
+  });
   document.querySelectorAll(`.${POP_CLASS}`).forEach((p) => p.remove());
 }
 

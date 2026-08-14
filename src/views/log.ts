@@ -4,6 +4,8 @@ import { sourceLabel } from '../import/profiles/index';
 import type { Snapshot, Transaction } from '../types';
 import { T } from '../theme';
 import { isCollapsed, setCollapsed } from '../ui/collapseState';
+import { EDIT_ICON, DELETE_ICON } from './icons';
+import { attachEtfPopovers } from '../ui/etfPopover';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow } from './tableColumns';
 import { renderPagination } from './pagination';
@@ -373,50 +375,43 @@ function txColumns(): ColumnDef<Transaction>[] {
       key: 'date',
       label: 'Date',
       sortValue: (t) => t.date,
+      cellAttrs: () => 'data-ledger-label="Date"',
       cell: (t) => `<span class="snap-month">${fmtDay(t.date)}</span>`,
     },
     {
       key: 'type',
       label: 'Type',
       sortValue: (t) => t.type,
+      cellAttrs: () => 'data-ledger-label="Type"',
       cell: (t) => `<span class="tx-ledger-chip">${esc(t.type || '-')}</span>`,
     },
     {
       key: 'name',
       label: 'Name',
       sortValue: (t) => t.name || '',
-      cell: (t) => `<span class="tx-ledger-name">${esc(t.name || '-')}</span>`,
-    },
-    {
-      key: 'isin',
-      label: 'ISIN',
-      sortValue: (t) => t.isin || '',
-      cell: (t) => `<span class="tx-ledger-isin">${esc(t.isin || '-')}</span>`,
-    },
-    {
-      key: 'shares',
-      label: 'Shares',
-      align: 'right',
-      sortValue: (t) => t.shares || 0,
-      cell: (t) => (t.shares ? String(t.shares) : '-'),
+      cellAttrs: (t) => `data-ledger-label="Name"${!t.name ? ' data-ledger-empty="1"' : ''}`,
+      cell: (t) =>
+        t.name
+          ? `<span class="tx-ledger-name" data-etf-isin="${esc(t.isin || '')}" data-etf-name="${esc(t.name)}">${esc(t.name)}</span>${
+              t.isin ? `<span class="tx-ledger-meta tx-ledger-isin">${esc(t.isin)}</span>` : ''
+            }`
+          : '',
     },
     {
       key: 'amount',
       label: 'Amount',
       align: 'right',
       sortValue: (t) => t.amount || 0,
-      cell: (t) =>
-        `<span class="tx-ledger-amount ${(t.amount || 0) < 0 ? 'neg' : 'pos'}">${fmtEur2(t.amount || 0)}</span>${
+      cellAttrs: () => 'style="text-align:right" data-ledger-label="Amount"',
+      cell: (t) => {
+        const amountHtml = `<span class="tx-ledger-amount ${(t.amount || 0) < 0 ? 'neg' : 'pos'}">${fmtEur2(t.amount || 0)}</span>`;
+        const sharesHtml = t.shares ? `<span class="tx-ledger-meta">${t.shares} shares</span>` : '';
+        const taxHtml =
           t.type === 'INTEREST' && t.tax
             ? `<span class="tx-ledger-meta">Tax ${fmtEur2(t.tax)}</span>`
-            : ''
-        }`,
-    },
-    {
-      key: 'source',
-      label: 'Source',
-      sortValue: (t) => t.source || '',
-      cell: (t) => `<span class="tx-ledger-source">${esc(t.source || '-')}</span>`,
+            : '';
+        return amountHtml + sharesHtml + taxHtml;
+      },
     },
   ];
 }
@@ -537,16 +532,27 @@ function renderTxList(txs: Transaction[]): void {
     </div>
     ${pageItems
       .map((tx) => {
-        const actions =
+        const actionBtns =
           !showActions || !tx.rowId
             ? ''
-            : `<div role="cell" class="tx-actions">
-            <button class="btn btn-ghost btn-sm js-edit-tx" data-rowid="${tx.rowId}">Edit</button>
-            <button class="btn btn-danger btn-sm js-del-tx" data-rowid="${tx.rowId}">Delete</button>
+            : `<button class="btn btn-sm btn-outline btn-icon js-edit-tx" data-rowid="${tx.rowId}" aria-label="Edit transaction" title="Edit transaction">${EDIT_ICON}</button>
+            <button class="btn btn-sm btn-danger btn-icon js-del-tx" data-rowid="${tx.rowId}" aria-label="Delete transaction" title="Delete transaction">${DELETE_ICON}</button>`;
+        const actionsCell =
+          !showActions || !tx.rowId
+            ? ''
+            : `<div role="cell" class="tx-actions" data-ledger-label="Actions">
+            ${actionBtns}
           </div>`;
+        const [dateCol, typeCol, ...restCols] = columns;
+        const headerCells = renderTableRow([dateCol, typeCol], tx);
+        const sourceChip = tx.source
+          ? `<span class="tx-ledger-source tx-ledger-chip-trim" title="${esc(tx.source)}">${esc(tx.source)}</span>`
+          : '';
+        const bodyCells = renderTableRow(restCols, tx);
         return `<div class="tbl-row tx-row" role="row">
-          ${renderTableRow(columns, tx)}
-          ${actions}
+          <div class="tx-card-header">${headerCells}${sourceChip}</div>
+          ${bodyCells}
+          ${actionsCell}
         </div>`;
       })
       .join('')}
@@ -560,6 +566,8 @@ function renderTxList(txs: Transaction[]): void {
       renderTxList(txs);
     },
   );
+
+  attachEtfPopovers(listEl);
 
   renderPagination('tx-pagination', _txTableState.page, totalPages, (page) => {
     setTablePage(_txTableState, page);

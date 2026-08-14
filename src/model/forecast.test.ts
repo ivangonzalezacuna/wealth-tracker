@@ -59,6 +59,14 @@ describe('forecastMonthsToTargetMulti (single-account)', () => {
     expect(months).toBe(50);
   });
 
+  it('respects quarterly cadence when computing months to target', () => {
+    const months = forecastMonthsToTargetMulti(
+      [{ current: 0, annualContrib: 1_200, annualReturnPct: 0, contribInterval: 'quarterly' }],
+      100,
+    );
+    expect(months).toBe(3);
+  });
+
   it('calculates months with both contributions and growth', () => {
     // 50k → 100k with 10k/year contrib and 7% annual return
     const months = forecastMonthsToTargetMulti(
@@ -164,6 +172,28 @@ describe('forecastMultiAccountSeries (single-account)', () => {
     expect(series[0].value).toBe(51_000);
     expect(series[1].value).toBe(52_000);
     expect(series[2].value).toBe(53_000);
+  });
+
+  it('applies quarterly contributions as lump sums instead of monthly drip', () => {
+    const series = forecastMultiAccountSeries(
+      [{ current: 0, annualContrib: 1_200, annualReturnPct: 0, contribInterval: 'quarterly' }],
+      4,
+      '2024-01',
+    );
+    expect(series.map((p) => p.value)).toEqual([0, 0, 300, 300]);
+  });
+
+  it('distributes biweekly cadence into deterministic monthly buckets with yearly total preserved', () => {
+    const series = forecastMultiAccountSeries(
+      [{ current: 0, annualContrib: 2_600, annualReturnPct: 0, contribInterval: 'biweekly' }],
+      12,
+      '2024-01',
+    );
+    expect(series[11].value).toBe(2_600);
+    const monthlyDeltas = series.map(
+      (point, idx) => point.value - (idx > 0 ? series[idx - 1].value : 0),
+    );
+    expect(new Set(monthlyDeltas)).toEqual(new Set([200, 300]));
   });
 });
 

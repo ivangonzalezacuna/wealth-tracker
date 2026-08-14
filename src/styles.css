@@ -793,24 +793,20 @@ details[open] > summary .card-chevron {
   grid-template-columns:
     minmax(11ch, 0.9fr)
     minmax(10ch, 0.85fr)
-    minmax(18ch, 1.5fr)
-    minmax(14ch, 1.1fr)
-    minmax(9ch, 0.8fr)
-    minmax(11ch, 0.95fr)
+    minmax(18ch, 1.8fr)
+    minmax(12ch, 1.1fr)
     minmax(11ch, 0.9fr)
-    minmax(15ch, 1fr);
-  min-width: 960px;
+    76px;
+  min-width: 580px;
 }
 #tx-ledger-list.tx-ledger-grid-readonly {
   grid-template-columns:
     minmax(11ch, 1fr)
     minmax(10ch, 0.9fr)
-    minmax(18ch, 1.6fr)
-    minmax(14ch, 1.2fr)
-    minmax(9ch, 0.85fr)
-    minmax(11ch, 1fr)
-    minmax(11ch, 0.95fr);
-  min-width: 860px;
+    minmax(18ch, 2fr)
+    minmax(12ch, 1.2fr)
+    minmax(11ch, 1fr);
+  min-width: 500px;
 }
 #tx-ledger-list .tx-row {
   grid-template-columns: subgrid;
@@ -838,14 +834,22 @@ details[open] > summary .card-chevron {
 .tx-ledger-source {
   display: inline-flex;
   align-items: center;
-  min-height: 24px;
-  padding: 2px 8px;
+  min-height: 20px;
+  padding: 1px 7px;
   border-radius: var(--radius-lg);
   background: var(--surface-2);
   color: var(--ink-2);
   font-size: 10px;
   font-weight: 500;
   white-space: nowrap;
+}
+/* Allow chips in the header to trim when space is tight */
+.tx-ledger-chip-trim {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  max-width: 120px;
 }
 .tx-ledger-chip {
   color: var(--brand);
@@ -872,6 +876,10 @@ details[open] > summary .card-chevron {
   justify-content: flex-end;
   gap: 6px;
   white-space: nowrap;
+}
+/* On desktop the header wrapper is invisible to the subgrid — children participate directly */
+.tx-card-header {
+  display: contents;
 }
 
 /* Snapshot detail note: qualified with `.hold-detail >` so specificity
@@ -1870,6 +1878,112 @@ summary.section-label {
   }
   #port-table .th.hold-row {
     font-size: 9px;
+  }
+}
+
+@media (max-width: 360px) {
+  #tx-ledger-wrap {
+    overflow-x: visible;
+    box-shadow: none;
+  }
+  #tx-ledger-list,
+  #tx-ledger-list.tx-ledger-grid-readonly {
+    display: block;
+    min-width: 0;
+  }
+  #tx-ledger-list .tx-row.th {
+    display: none;
+  }
+  #tx-ledger-list .tx-row {
+    position: relative;
+    display: block;
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--surface-3);
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+  }
+  /* Date + Type header row */
+  #tx-ledger-list .tx-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    padding-right: 64px;
+    border-bottom: 1px dashed var(--surface-3);
+  }
+  #tx-ledger-list .tx-card-header > [role='cell'] {
+    display: flex;
+    align-items: center;
+  }
+  #tx-ledger-list .tx-card-header > [role='cell']::before {
+    display: none;
+  }
+  /* Action icons pinned top-right */
+  #tx-ledger-list .tx-actions {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    border-bottom: none;
+    padding: 0;
+  }
+  #tx-ledger-list .tx-actions .btn-sm {
+    min-height: 28px;
+    padding: 3px 6px;
+  }
+  #tx-ledger-list .tx-actions::before {
+    display: none;
+  }
+  /* Body cells */
+  #tx-ledger-list .tx-row > [role='cell'] {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    border-bottom: 1px dashed var(--surface-3);
+    padding: 4px 0;
+  }
+  #tx-ledger-list .tx-row > [role='cell']::before {
+    content: attr(data-ledger-label);
+    color: var(--ink-3);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+  }
+  #tx-ledger-list .tx-row > [role='cell']:last-child {
+    border-bottom: none;
+  }
+  /* Allow source chip in header to shrink gracefully */
+  #tx-ledger-list .tx-card-header {
+    min-width: 0;
+  }
+  #tx-ledger-list .tx-card-header > [role='cell']:first-child {
+    flex-shrink: 0;
+  }
+  #tx-ledger-list .tx-card-header > [role='cell']:nth-child(2) {
+    flex-shrink: 1;
+    min-width: 0;
+  }
+  #tx-ledger-list .tx-card-header > [role='cell']:nth-child(2) .tx-ledger-chip {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 90px;
+  }
+  #tx-ledger-list .tx-card-header .tx-ledger-source {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100px;
+  }
+  /* Hide body rows with no data in stacked view */
+  #tx-ledger-list .tx-row > [role='cell'][data-ledger-empty='1'] {
+    display: none;
   }
 }
 
