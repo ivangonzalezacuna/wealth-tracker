@@ -1102,6 +1102,7 @@ details[open] > summary .card-chevron {
   flex: 1 1 0;
   min-width: 0;
   max-width: 100%;
+  display: block;
   font-size: 12px;
   color: var(--ink-2);
   overflow: hidden;
