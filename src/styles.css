@@ -869,6 +869,14 @@ details[open] > summary .card-chevron {
   gap: 6px;
   white-space: nowrap;
 }
+/* On desktop the header wrapper is invisible to the subgrid — children participate directly */
+.tx-card-header {
+  display: contents;
+}
+/* Corner icons hidden on desktop (actions are in the regular Actions column) */
+.tx-actions-corner {
+  display: none;
+}
 
 /* Snapshot detail note: qualified with `.hold-detail >` so specificity
    (0,2,0) beats `.hold-detail > div`'s (0,1,1) flex shorthand. */
@@ -1883,6 +1891,7 @@ summary.section-label {
     display: none;
   }
   #tx-ledger-list .tx-row {
+    position: relative;
     display: block;
     margin-bottom: 10px;
     padding: 8px 10px;
@@ -1890,6 +1899,40 @@ summary.section-label {
     border-radius: var(--radius-md);
     background: var(--surface-2);
   }
+  /* Date + Type header row */
+  #tx-ledger-list .tx-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    padding-right: 64px;
+    border-bottom: 1px dashed var(--surface-3);
+  }
+  #tx-ledger-list .tx-card-header > [role='cell'] {
+    display: flex;
+    align-items: center;
+  }
+  #tx-ledger-list .tx-card-header > [role='cell']::before {
+    display: none;
+  }
+  /* Action icons pinned top-right */
+  #tx-ledger-list .tx-actions-corner {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  #tx-ledger-list .tx-actions-corner .btn-sm {
+    min-height: 28px;
+    padding: 3px 6px;
+  }
+  /* Hide the old labelled Actions row in stacked mode */
+  #tx-ledger-list .tx-actions {
+    display: none !important;
+  }
+  /* Body cells */
   #tx-ledger-list .tx-row > [role='cell'] {
     display: flex;
     align-items: baseline;
@@ -1908,14 +1951,6 @@ summary.section-label {
   }
   #tx-ledger-list .tx-row > [role='cell']:last-child {
     border-bottom: none;
-  }
-  #tx-ledger-list .tx-actions {
-    align-items: center;
-    justify-content: flex-end;
-    gap: 6px;
-  }
-  #tx-ledger-list .tx-actions .btn-sm {
-    min-height: 32px;
   }
 }
 

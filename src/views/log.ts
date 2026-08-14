@@ -536,16 +536,24 @@ function renderTxList(txs: Transaction[]): void {
     </div>
     ${pageItems
       .map((tx) => {
-        const actions =
+        const actionBtns =
+          !showActions || !tx.rowId
+            ? ''
+            : `<button class="btn btn-sm btn-outline btn-icon js-edit-tx" data-rowid="${tx.rowId}" aria-label="Edit transaction" title="Edit transaction">${EDIT_ICON}</button>
+            <button class="btn btn-sm btn-danger btn-icon js-del-tx" data-rowid="${tx.rowId}" aria-label="Delete transaction" title="Delete transaction">${DELETE_ICON}</button>`;
+        const actionsCell =
           !showActions || !tx.rowId
             ? ''
             : `<div role="cell" class="tx-actions" data-ledger-label="Actions">
-            <button class="btn btn-sm btn-outline btn-icon js-edit-tx" data-rowid="${tx.rowId}" aria-label="Edit transaction" title="Edit transaction">${EDIT_ICON}</button>
-            <button class="btn btn-sm btn-danger btn-icon js-del-tx" data-rowid="${tx.rowId}" aria-label="Delete transaction" title="Delete transaction">${DELETE_ICON}</button>
+            ${actionBtns}
           </div>`;
+        const [dateCol, typeCol, ...restCols] = columns;
+        const headerCells = renderTableRow([dateCol, typeCol], tx);
+        const bodyCells = renderTableRow(restCols, tx);
         return `<div class="tbl-row tx-row" role="row">
-          ${renderTableRow(columns, tx)}
-          ${actions}
+          <div class="tx-card-header">${headerCells}${actionBtns ? `<div class="tx-actions-corner">${actionBtns}</div>` : ''}</div>
+          ${bodyCells}
+          ${actionsCell}
         </div>`;
       })
       .join('')}
