@@ -1,14 +1,7 @@
+import { esc } from '../utils';
+
 const ATTR = 'data-config-history-popover-body';
 const POP_CLASS = 'config-history-pop';
-
-function esc(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 interface _PopEl extends HTMLElement {
   _configHistoryScrollCleanup?: () => void;
@@ -29,7 +22,6 @@ export function attachConfigHistoryPopovers(root: HTMLElement | Document = docum
     .querySelectorAll<HTMLElement>(`[${ATTR}]:not([data-config-history-popover-bound])`)
     .forEach((el) => {
       el.dataset.configHistoryPopoverBound = '1';
-      el.style.cursor = 'pointer';
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         _toggle(el);
@@ -41,7 +33,7 @@ function _toggle(trigger: HTMLElement): void {
   const existing = document.querySelector(`.${POP_CLASS}`) as HTMLElement | null;
   if (existing) {
     const wasThis = existing.dataset.forEl === _id(trigger);
-    existing.remove();
+    _dismissAll();
     if (wasThis) return;
   }
   _show(trigger);

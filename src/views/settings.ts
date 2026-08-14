@@ -2112,12 +2112,6 @@ interface HistoryEntityMeta {
   toneClass: string;
 }
 
-interface HistoryActionMeta {
-  label: string;
-  icon: string;
-  toneClass: string;
-}
-
 function getHistoryEntityMeta(entity: string): HistoryEntityMeta {
   const normalized = String(entity || '')
     .trim()
@@ -2147,36 +2141,36 @@ function formatHistorySource(source: string): string {
   return normalized[0].toUpperCase() + normalized.slice(1);
 }
 
-function inferHistoryActionMeta(summary: string): HistoryActionMeta {
+function inferHistoryActionLabel(summary: string): string {
   const normalized = String(summary || '')
     .trim()
     .toLowerCase();
-  if (!normalized) return { label: 'Change', icon: '📝', toneClass: 'is-change' };
+  if (!normalized) return 'Change';
   if (normalized.includes('restored')) {
-    return { label: 'Restore', icon: '♻️', toneClass: 'is-restore' };
+    return 'Restore';
   }
   if (normalized.startsWith('seeded')) {
-    return { label: 'Seed', icon: '🌱', toneClass: 'is-seed' };
+    return 'Seed';
   }
   if (normalized.startsWith('updated ')) {
-    return { label: 'Update', icon: '✏️', toneClass: 'is-update' };
+    return 'Update';
   }
   if (normalized.includes(' = ')) {
-    return { label: 'Set', icon: '🔧', toneClass: 'is-set' };
+    return 'Set';
   }
-  return { label: 'Change', icon: '📝', toneClass: 'is-change' };
+  return 'Change';
 }
 
-function getHistoryActionMeta(action: string | undefined, summary: string): HistoryActionMeta {
+function getHistoryActionLabel(action: string | undefined, summary: string): string {
   const normalized = String(action || '')
     .trim()
     .toLowerCase();
-  if (normalized === 'update') return { label: 'Update', icon: '✏️', toneClass: 'is-update' };
-  if (normalized === 'set') return { label: 'Set', icon: '🔧', toneClass: 'is-set' };
-  if (normalized === 'restore') return { label: 'Restore', icon: '♻️', toneClass: 'is-restore' };
-  if (normalized === 'seed') return { label: 'Seed', icon: '🌱', toneClass: 'is-seed' };
-  if (normalized === 'change') return { label: 'Change', icon: '📝', toneClass: 'is-change' };
-  return inferHistoryActionMeta(summary);
+  if (normalized === 'update') return 'Update';
+  if (normalized === 'set') return 'Set';
+  if (normalized === 'restore') return 'Restore';
+  if (normalized === 'seed') return 'Seed';
+  if (normalized === 'change') return 'Change';
+  return inferHistoryActionLabel(summary);
 }
 
 function getHistoryKindMeta(
@@ -2185,12 +2179,12 @@ function getHistoryKindMeta(
   summary: string,
 ): HistoryEntityMeta {
   const entityMeta = getHistoryEntityMeta(entity);
-  const actionMeta = getHistoryActionMeta(action, summary);
-  if (entityMeta.label.trim().toLowerCase() === actionMeta.label.trim().toLowerCase()) {
+  const actionLabel = getHistoryActionLabel(action, summary);
+  if (entityMeta.label.trim().toLowerCase() === actionLabel.trim().toLowerCase()) {
     return entityMeta;
   }
   return {
-    label: `${entityMeta.label} · ${actionMeta.label}`,
+    label: `${entityMeta.label} · ${actionLabel}`,
     icon: entityMeta.icon,
     toneClass: entityMeta.toneClass,
   };
@@ -2224,6 +2218,9 @@ function groupConfigHistoryEntries(entries: ConfigHistoryEntry[]): ConfigHistory
 }
 
 function renderHistorySummary(summary: string): string {
+  const renderSummaryPopover = (body: string, text: string): string =>
+    `<span class="config-history-summary-text config-history-popover-trigger" data-config-history-popover-title="Change details" data-config-history-popover-body="${esc(body)}">${esc(text)}</span>`;
+
   const normalized = String(summary || '');
   const trimmed = normalized.trim();
   if (!trimmed) {
@@ -2231,7 +2228,7 @@ function renderHistorySummary(summary: string): string {
   }
   const splitIndex = normalized.indexOf(' = ');
   if (splitIndex <= 0) {
-    return `<span class="config-history-summary-text config-history-popover-trigger" data-config-history-popover-title="Change details" data-config-history-popover-body="${esc(trimmed)}">${esc(normalized)}</span>`;
+    return renderSummaryPopover(trimmed, normalized);
   }
   const label = normalized.slice(0, splitIndex);
   const value = normalized.slice(splitIndex + 3).trim();
@@ -2241,18 +2238,18 @@ function renderHistorySummary(summary: string): string {
       if (Array.isArray(parsed)) {
         const n = parsed.length;
         const fullValue = `${label} = ${JSON.stringify(parsed, null, 2)}`;
-        return `<span class="config-history-summary-text config-history-popover-trigger" data-config-history-popover-title="Change details" data-config-history-popover-body="${esc(fullValue)}">${esc(label)} (${n} ${n === 1 ? 'item' : 'items'})</span>`;
+        return renderSummaryPopover(fullValue, `${label} (${n} ${n === 1 ? 'item' : 'items'})`);
       }
       if (typeof parsed === 'object' && parsed !== null) {
         const n = Object.keys(parsed).length;
         const fullValue = `${label} = ${JSON.stringify(parsed, null, 2)}`;
-        return `<span class="config-history-summary-text config-history-popover-trigger" data-config-history-popover-title="Change details" data-config-history-popover-body="${esc(fullValue)}">${esc(label)} (${n} ${n === 1 ? 'key' : 'keys'})</span>`;
+        return renderSummaryPopover(fullValue, `${label} (${n} ${n === 1 ? 'key' : 'keys'})`);
       }
     } catch {
       // fall through to inline display
     }
   }
-  return `<span class="config-history-summary-text config-history-popover-trigger" data-config-history-popover-title="Change details" data-config-history-popover-body="${esc(trimmed)}">${esc(normalized)}</span>`;
+  return renderSummaryPopover(trimmed, normalized);
 }
 
 export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
