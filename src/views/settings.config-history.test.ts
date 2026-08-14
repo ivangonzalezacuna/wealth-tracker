@@ -37,8 +37,40 @@ describe('renderConfigHistoryCard', () => {
     expect(html).toContain('settings');
     expect(html).toContain('config-history-entity is-accounts');
     expect(html).toContain('config-history-entity is-settings');
+    expect(html).toContain('config-history-action is-change');
+    expect(html).toContain('Change');
     expect(html).toContain('config-history-source');
     expect(html).toContain('Web');
+  });
+
+  it('infers additional action chips for common summary types', () => {
+    const entries: ConfigHistoryEntry[] = [
+      {
+        id: 1,
+        timestamp: '2026-01-15T10:30:00.000Z',
+        source: 'web',
+        entity: 'settings',
+        summary: 'costBasisMethod = fifo',
+      },
+      {
+        id: 2,
+        timestamp: '2026-01-16T10:30:00.000Z',
+        source: 'web',
+        entity: 'restore',
+        summary: 'restored from backup',
+      },
+      {
+        id: 3,
+        timestamp: '2026-01-17T10:30:00.000Z',
+        source: 'web',
+        entity: 'migration',
+        summary: 'Seeded config from config.js defaults (accounts=true, holdings=true)',
+      },
+    ];
+    const html = renderConfigHistoryCard(entries);
+    expect(html).toContain('config-history-action is-set');
+    expect(html).toContain('config-history-action is-restore');
+    expect(html).toContain('config-history-action is-seed');
   });
 
   it('shows the correct entry count in the footer', () => {

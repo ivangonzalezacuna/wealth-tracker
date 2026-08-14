@@ -2088,6 +2088,12 @@ interface HistoryEntityMeta {
   toneClass: string;
 }
 
+interface HistoryActionMeta {
+  label: string;
+  icon: string;
+  toneClass: string;
+}
+
 function getHistoryEntityMeta(entity: string): HistoryEntityMeta {
   const normalized = String(entity || '')
     .trim()
@@ -2117,6 +2123,26 @@ function formatHistorySource(source: string): string {
   return normalized[0].toUpperCase() + normalized.slice(1);
 }
 
+function inferHistoryActionMeta(summary: string): HistoryActionMeta {
+  const normalized = String(summary || '')
+    .trim()
+    .toLowerCase();
+  if (!normalized) return { label: 'Change', icon: '📝', toneClass: 'is-change' };
+  if (normalized.includes('restored')) {
+    return { label: 'Restore', icon: '♻️', toneClass: 'is-restore' };
+  }
+  if (normalized.startsWith('seeded')) {
+    return { label: 'Seed', icon: '🌱', toneClass: 'is-seed' };
+  }
+  if (normalized.startsWith('updated ')) {
+    return { label: 'Update', icon: '✏️', toneClass: 'is-update' };
+  }
+  if (normalized.includes(' = ')) {
+    return { label: 'Set', icon: '🔧', toneClass: 'is-set' };
+  }
+  return { label: 'Change', icon: '📝', toneClass: 'is-change' };
+}
+
 export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
   let body: string;
   if (entries.length === 0) {
@@ -2125,14 +2151,21 @@ export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
     const rows = entries
       .map((e) => {
         const entityMeta = getHistoryEntityMeta(e.entity);
+        const actionMeta = inferHistoryActionMeta(e.summary);
         const source = formatHistorySource(e.source);
         return `
       <tr class="config-history-row">
         <td class="config-history-when">${esc(fmtHistoryTimestamp(e.timestamp))}</td>
         <td class="config-history-what">
-          <span class="config-history-entity ${entityMeta.toneClass}">
-            <span aria-hidden="true">${entityMeta.icon}</span>
-            <span>${esc(entityMeta.label)}</span>
+          <span class="config-history-what-stack">
+            <span class="config-history-entity ${entityMeta.toneClass}">
+              <span aria-hidden="true">${entityMeta.icon}</span>
+              <span>${esc(entityMeta.label)}</span>
+            </span>
+            <span class="config-history-action ${actionMeta.toneClass}">
+              <span aria-hidden="true">${actionMeta.icon}</span>
+              <span>${esc(actionMeta.label)}</span>
+            </span>
           </span>
         </td>
         <td class="config-history-summary">
