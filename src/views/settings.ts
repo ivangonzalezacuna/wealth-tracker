@@ -2082,35 +2082,74 @@ function fmtHistoryTimestamp(iso: string): string {
   }
 }
 
+interface HistoryEntityMeta {
+  label: string;
+  icon: string;
+  toneClass: string;
+}
+
+function getHistoryEntityMeta(entity: string): HistoryEntityMeta {
+  const normalized = String(entity || '').trim().toLowerCase();
+  switch (normalized) {
+    case 'accounts':
+      return { label: 'Accounts', icon: '🏦', toneClass: 'is-accounts' };
+    case 'holdings':
+      return { label: 'Holdings', icon: '📊', toneClass: 'is-holdings' };
+    case 'settings':
+      return { label: 'Settings', icon: '⚙️', toneClass: 'is-settings' };
+    case 'restore':
+      return { label: 'Restore', icon: '♻️', toneClass: 'is-restore' };
+    case 'migration':
+      return { label: 'Migration', icon: '🔁', toneClass: 'is-migration' };
+    default:
+      return { label: entity || 'Other', icon: '📝', toneClass: 'is-other' };
+  }
+}
+
+function formatHistorySource(source: string): string {
+  const normalized = String(source || '').trim().toLowerCase();
+  if (!normalized) return '';
+  if (normalized === 'web') return 'Web';
+  return normalized[0].toUpperCase() + normalized.slice(1);
+}
+
 export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
   let body: string;
   if (entries.length === 0) {
     body = '<p class="note" style="margin-top:.5rem">No changes recorded yet.</p>';
   } else {
-    const hdrStyle =
-      'text-align:left;font-size:11px;color:var(--ink-3);border-bottom:1px solid var(--line)';
     const rows = entries
-      .map(
-        (e) => `
-      <tr>
-        <td style="white-space:nowrap;padding-right:1rem;color:var(--ink-3);font-size:11px">${esc(fmtHistoryTimestamp(e.timestamp))}</td>
-        <td style="padding-right:.75rem;font-size:12px;color:var(--ink-2)">${esc(e.entity)}</td>
-        <td style="font-size:12px">${esc(e.summary)}</td>
-      </tr>`,
-      )
+      .map((e) => {
+        const entityMeta = getHistoryEntityMeta(e.entity);
+        const source = formatHistorySource(e.source);
+        return `
+      <tr class="config-history-row">
+        <td class="config-history-when">${esc(fmtHistoryTimestamp(e.timestamp))}</td>
+        <td class="config-history-what">
+          <span class="config-history-entity ${entityMeta.toneClass}">
+            <span aria-hidden="true">${entityMeta.icon}</span>
+            <span>${esc(entityMeta.label)}</span>
+          </span>
+        </td>
+        <td class="config-history-summary">
+          <span>${esc(e.summary)}</span>
+          ${source ? `<span class="config-history-source">${esc(source)}</span>` : ''}
+        </td>
+      </tr>`;
+      })
       .join('');
     body = `
-      <div style="overflow-x:auto;margin-top:.5rem">
-        <table style="border-collapse:collapse;width:100%;min-width:400px">
-          <thead><tr style="${hdrStyle}">
-            <th style="padding-bottom:.4rem;padding-right:1rem">When</th>
-            <th style="padding-bottom:.4rem;padding-right:.75rem">What</th>
-            <th style="padding-bottom:.4rem">Summary</th>
+      <div class="config-history-wrap">
+        <table class="config-history-table">
+          <thead><tr>
+            <th>When</th>
+            <th>What</th>
+            <th>Summary</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
-      <p class="note" style="margin-top:.6rem">Showing the last ${entries.length} change${entries.length === 1 ? '' : 's'}.</p>`;
+      <p class="note config-history-note">Showing the last ${entries.length} change${entries.length === 1 ? '' : 's'}.</p>`;
   }
 
   return `

@@ -35,6 +35,10 @@ describe('renderConfigHistoryCard', () => {
     expect(html).toContain('Cost basis changed to fifo');
     expect(html).toContain('accounts');
     expect(html).toContain('settings');
+    expect(html).toContain('config-history-entity is-accounts');
+    expect(html).toContain('config-history-entity is-settings');
+    expect(html).toContain('config-history-source');
+    expect(html).toContain('Web');
   });
 
   it('shows the correct entry count in the footer', () => {

@@ -1010,6 +1010,96 @@ details[open] > summary .card-chevron {
   color: var(--ink-3);
 }
 
+/* Settings: config history */
+.config-history-wrap {
+  overflow-x: auto;
+  margin-top: 0.5rem;
+}
+.config-history-table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 430px;
+}
+.config-history-table th {
+  text-align: left;
+  font-size: 11px;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--line);
+  padding: 0 0 0.45rem;
+}
+.config-history-table th + th {
+  padding-left: 0.75rem;
+}
+.config-history-row td {
+  padding: 0.48rem 0;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line-2);
+}
+.config-history-row:last-child td {
+  border-bottom: none;
+}
+.config-history-when {
+  white-space: nowrap;
+  padding-right: 1rem;
+  color: var(--ink-3);
+  font-size: 11px;
+}
+.config-history-what {
+  padding-right: 0.8rem;
+}
+.config-history-entity {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  border-radius: var(--radius-lg);
+  padding: 2px 8px;
+}
+.config-history-entity.is-accounts {
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.12);
+}
+.config-history-entity.is-holdings {
+  color: #0f766e;
+  background: rgba(15, 118, 110, 0.12);
+}
+.config-history-entity.is-settings {
+  color: var(--ink-2);
+  background: var(--surface-3);
+}
+.config-history-entity.is-restore {
+  color: #92400e;
+  background: rgba(245, 158, 11, 0.16);
+}
+.config-history-entity.is-migration {
+  color: #7c3aed;
+  background: rgba(124, 58, 237, 0.12);
+}
+.config-history-entity.is-other {
+  color: var(--ink-2);
+  background: var(--surface-3);
+}
+.config-history-summary {
+  font-size: 12px;
+  line-height: 1.45;
+}
+.config-history-source {
+  display: inline-block;
+  margin-left: 0.55rem;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ink-3);
+  background: var(--surface-3);
+  border-radius: var(--radius-lg);
+  padding: 1px 6px;
+}
+.config-history-note {
+  margin-top: 0.6rem;
+}
+
 /* Forms */
 .form-group {
   margin-bottom: 0.9rem;
