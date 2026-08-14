@@ -822,10 +822,6 @@ details[open] > summary .card-chevron {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  cursor: default;
-}
-.tx-ledger-name[title] {
-  cursor: pointer;
 }
 .tx-ledger-isin {
   display: inline-block;
@@ -1987,25 +1983,10 @@ summary.section-label {
     text-overflow: ellipsis;
     max-width: 100px;
   }
-}
-
-/* Name full-text tooltip (tap on mobile) */
-.tx-name-tooltip {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: calc(100vw - 32px);
-  background: var(--surface-4, #333);
-  color: var(--ink-0, #fff);
-  font-size: 13px;
-  padding: 8px 14px;
-  border-radius: var(--radius-md);
-  z-index: 9999;
-  pointer-events: auto;
-  text-align: center;
-  word-break: break-word;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  /* Hide body rows with no data in stacked view */
+  #tx-ledger-list .tx-row > [role='cell'][data-ledger-empty='1'] {
+    display: none;
+  }
 }
 
 /* Ensure color inputs don't overflow on mobile */

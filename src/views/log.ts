@@ -5,6 +5,7 @@ import type { Snapshot, Transaction } from '../types';
 import { T } from '../theme';
 import { isCollapsed, setCollapsed } from '../ui/collapseState';
 import { EDIT_ICON, DELETE_ICON } from './icons';
+import { attachEtfPopovers } from '../ui/etfPopover';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow } from './tableColumns';
 import { renderPagination } from './pagination';
@@ -388,11 +389,13 @@ function txColumns(): ColumnDef<Transaction>[] {
       key: 'name',
       label: 'Name',
       sortValue: (t) => t.name || '',
-      cellAttrs: () => 'data-ledger-label="Name"',
+      cellAttrs: (t) => `data-ledger-label="Name"${!t.name ? ' data-ledger-empty="1"' : ''}`,
       cell: (t) =>
-        `<span class="tx-ledger-name" title="${esc(t.name || '')}">${esc(t.name || '-')}</span>${
-          t.isin ? `<span class="tx-ledger-meta tx-ledger-isin">${esc(t.isin)}</span>` : ''
-        }`,
+        t.name
+          ? `<span class="tx-ledger-name" data-etf-isin="${esc(t.isin || '')}" data-etf-name="${esc(t.name)}">${esc(t.name)}</span>${
+              t.isin ? `<span class="tx-ledger-meta tx-ledger-isin">${esc(t.isin)}</span>` : ''
+            }`
+          : '',
     },
     {
       key: 'amount',
@@ -462,20 +465,6 @@ function attachTxListeners(): void {
         const raw = delBtn.dataset.rowid;
         const rowId = raw ? BigInt(raw) : null;
         if (rowId != null) _lastOnDelTx?.(rowId, delBtn);
-        return;
-      }
-      const nameEl = target.closest('.tx-ledger-name') as HTMLElement | null;
-      if (nameEl) {
-        const full = nameEl.title;
-        if (full && nameEl.scrollWidth > nameEl.offsetWidth) {
-          const tip = document.createElement('div');
-          tip.className = 'tx-name-tooltip';
-          tip.textContent = full;
-          document.body.appendChild(tip);
-          const dismiss = () => tip.remove();
-          tip.addEventListener('click', dismiss);
-          document.addEventListener('click', dismiss, { once: true, capture: true });
-        }
       }
     });
   }
@@ -577,6 +566,8 @@ function renderTxList(txs: Transaction[]): void {
       renderTxList(txs);
     },
   );
+
+  attachEtfPopovers(listEl);
 
   renderPagination('tx-pagination', _txTableState.page, totalPages, (page) => {
     setTablePage(_txTableState, page);
