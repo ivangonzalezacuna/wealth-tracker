@@ -98,7 +98,7 @@ describe('renderConfigHistoryCard', () => {
     expect(html).toContain('1 change');
   });
 
-  it('renders long structured setting values in a scrollable block while keeping the time', () => {
+  it('renders structured JSON setting values as a compact key-count summary', () => {
     const entries: ConfigHistoryEntry[] = [
       {
         id: 1,
@@ -111,10 +111,10 @@ describe('renderConfigHistoryCard', () => {
       },
     ];
     const html = renderConfigHistoryCard(entries);
-    expect(html).toContain('config-history-summary-block');
+    expect(html).toContain('ui_collapse_state (3 keys)');
     expect(html).toContain('10:45');
-    expect(html).toContain('ui_collapse_state =');
-    expect(html).toContain('&quot;card:config-history&quot;:true');
+    expect(html).not.toContain('config-history-summary-block');
+    expect(html).not.toContain('card:config-history');
   });
 
   it('escapes HTML-special characters in summary and entity', () => {

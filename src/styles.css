@@ -1054,25 +1054,22 @@ details[open] > summary .card-chevron {
   padding: 0.1rem 0.7rem;
 }
 .config-history-row {
-  padding: 0.48rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.35rem 0;
   border-bottom: 1px solid var(--line-2);
 }
 .config-history-group-body .config-history-row:last-child {
   border-bottom: none;
 }
-.config-history-row-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-}
 .config-history-when {
   white-space: nowrap;
   color: var(--ink-3);
   font-size: 11px;
-  margin-left: auto;
   flex: 0 0 auto;
+  margin-left: auto;
 }
 .config-history-entity {
   display: inline-flex;
@@ -1109,31 +1106,17 @@ details[open] > summary .card-chevron {
   color: var(--ink-2);
   background: var(--surface-3);
 }
-.config-history-summary {
-  font-size: 12px;
-  line-height: 1.45;
-  margin-top: 0.32rem;
-  overflow-wrap: anywhere;
-}
 .config-history-summary-text {
-  display: block;
-}
-.config-history-summary-block {
-  margin-top: 0.3rem;
-  padding: 0.45rem 0.55rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  font-size: 11px;
-  line-height: 1.45;
-  white-space: pre-wrap;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  max-width: 100%;
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .config-history-source {
   display: inline-block;
-  margin-left: 0.55rem;
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -1141,6 +1124,7 @@ details[open] > summary .card-chevron {
   background: var(--surface-3);
   border-radius: var(--radius-lg);
   padding: 1px 6px;
+  flex: 0 0 auto;
 }
 .config-history-note {
   margin-top: 0.6rem;

@@ -2227,19 +2227,23 @@ function renderHistorySummary(summary: string): string {
     return `<span class="config-history-summary-text">${esc(normalized)}</span>`;
   }
   const label = normalized.slice(0, splitIndex);
-  const value = normalized.slice(splitIndex + 3);
-  const trimmedValue = value.trim();
-  const isStructuredValue =
-    trimmedValue.startsWith('{') ||
-    trimmedValue.startsWith('[') ||
-    trimmedValue.includes('\n') ||
-    trimmedValue.length > 80;
-  if (!isStructuredValue) {
-    return `<span class="config-history-summary-text">${esc(normalized)}</span>`;
+  const value = normalized.slice(splitIndex + 3).trim();
+  if (value.startsWith('{') || value.startsWith('[')) {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        const n = parsed.length;
+        return `<span class="config-history-summary-text">${esc(label)} (${n} ${n === 1 ? 'item' : 'items'})</span>`;
+      }
+      if (typeof parsed === 'object' && parsed !== null) {
+        const n = Object.keys(parsed).length;
+        return `<span class="config-history-summary-text">${esc(label)} (${n} ${n === 1 ? 'key' : 'keys'})</span>`;
+      }
+    } catch {
+      // fall through to inline display
+    }
   }
-  return `
-    <span class="config-history-summary-text">${esc(label)} =</span>
-    <pre class="config-history-summary-block">${esc(value)}</pre>`;
+  return `<span class="config-history-summary-text">${esc(normalized)}</span>`;
 }
 
 export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
@@ -2255,17 +2259,13 @@ export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
             const source = formatHistorySource(entry.source);
             return `
           <div class="config-history-row">
-            <div class="config-history-row-top">
-              <span class="config-history-entity ${kindMeta.toneClass}">
-                <span aria-hidden="true">${kindMeta.icon}</span>
-                <span>${esc(kindMeta.label)}</span>
-              </span>
-              <span class="config-history-when">${esc(fmtHistoryTime(entry.timestamp))}</span>
-            </div>
-            <div class="config-history-summary">
-              ${renderHistorySummary(entry.summary)}
-              ${source ? `<span class="config-history-source">${esc(source)}</span>` : ''}
-            </div>
+            <span class="config-history-entity ${kindMeta.toneClass}">
+              <span aria-hidden="true">${kindMeta.icon}</span>
+              <span>${esc(kindMeta.label)}</span>
+            </span>
+            ${renderHistorySummary(entry.summary)}
+            <span class="config-history-when">${esc(fmtHistoryTime(entry.timestamp))}</span>
+            ${source ? `<span class="config-history-source">${esc(source)}</span>` : ''}
           </div>`;
           })
           .join('');
