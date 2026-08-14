@@ -1109,7 +1109,6 @@ details[open] > summary .card-chevron {
 .config-history-summary-text {
   min-width: 0;
   max-width: 100%;
-  min-width: 0;
   display: block;
   font-size: 12px;
   color: var(--ink-2);

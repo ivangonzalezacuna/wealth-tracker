@@ -150,7 +150,9 @@ describe('renderConfigHistoryCard', () => {
     ];
     const html = renderConfigHistoryCard(entries);
     expect(html).toContain('config-history-row-expandable');
-    expect(html).toContain('last_backup_at = 2026-08-14T07:26:05.911Z and this is inten…');
+    expect(html).toContain(
+      'config-history-summary-text">last_backup_at = 2026-08-14T07:26:05.911Z and this is i…',
+    );
     expect(html).toContain(
       'last_backup_at = 2026-08-14T07:26:05.911Z and this is intentionally long to test truncation',
     );

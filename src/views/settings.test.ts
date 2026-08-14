@@ -391,7 +391,7 @@ describe('Backup card nudge', () => {
       expect(html).toContain('Updated cost basis');
     });
 
-    it('renders compact kind labels while preserving full kind tooltip text', () => {
+    it('renders entity labels in the left badge', () => {
       const html = renderConfigHistoryCard([
         {
           timestamp: '2026-06-15T10:00:00.000Z',
@@ -400,12 +400,11 @@ describe('Backup card nudge', () => {
           summary: 'updated 2 accounts',
         },
       ] as any);
-      expect(html).toContain('title="Accounts · Update"');
-      expect(html).toContain('>Acct<');
-      expect(html).not.toContain('>Accounts · Update<');
+      expect(html).toContain('title="Accounts"');
+      expect(html).toContain('>Accounts<');
     });
 
-    it('renders JSON summaries as expandable rows with the full change preserved', () => {
+    it('keeps JSON summaries in original text form', () => {
       const html = renderConfigHistoryCard([
         {
           timestamp: '2026-06-15T10:00:00.000Z',
@@ -414,11 +413,8 @@ describe('Backup card nudge', () => {
           summary: 'allocation = {"cash":10,"stocks":90}',
         },
       ] as any);
-      expect(html).toContain('config-history-row-expandable');
-      expect(html).toContain('allocation (2 keys)');
-      expect(html).toContain('config-history-row-detail');
-      expect(html).toContain('&quot;cash&quot;: 10');
-      expect(html).toContain('&quot;stocks&quot;: 90');
+      expect(html).toContain('allocation = {&quot;cash&quot;:10,&quot;stocks&quot;:90}');
+      expect(html).not.toContain('allocation (2 keys)');
     });
   });
 
