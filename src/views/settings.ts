@@ -2089,7 +2089,9 @@ interface HistoryEntityMeta {
 }
 
 function getHistoryEntityMeta(entity: string): HistoryEntityMeta {
-  const normalized = String(entity || '').trim().toLowerCase();
+  const normalized = String(entity || '')
+    .trim()
+    .toLowerCase();
   switch (normalized) {
     case 'accounts':
       return { label: 'Accounts', icon: '🏦', toneClass: 'is-accounts' };
@@ -2107,7 +2109,9 @@ function getHistoryEntityMeta(entity: string): HistoryEntityMeta {
 }
 
 function formatHistorySource(source: string): string {
-  const normalized = String(source || '').trim().toLowerCase();
+  const normalized = String(source || '')
+    .trim()
+    .toLowerCase();
   if (!normalized) return '';
   if (normalized === 'web') return 'Web';
   return normalized[0].toUpperCase() + normalized.slice(1);
