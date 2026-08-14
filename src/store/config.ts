@@ -126,7 +126,7 @@ export function getContributionBudgetAmount(): number {
 
 /** Computed: global contribution cadence from settings (default 'monthly'). */
 export function getContributionInterval(): ContribInterval {
-  const raw = ((_settings.contribution_interval as string) || '').toLowerCase().trim();
+  const raw = (_settings.contribution_interval || '').toLowerCase().trim();
   if (raw === 'weekly' || raw === 'biweekly' || raw === 'monthly' || raw === 'quarterly') {
     return raw as ContribInterval;
   }
@@ -142,7 +142,7 @@ export function getMonthlyContribBudget(): number {
 
 /** Computed: global calibration interval from settings (default 'monthly'). */
 export function getCalibrationInterval(): ContribInterval {
-  const raw = ((_settings.calibration_interval as string) || '').toLowerCase().trim();
+  const raw = (_settings.calibration_interval || '').toLowerCase().trim();
   if (raw === 'weekly' || raw === 'biweekly' || raw === 'monthly' || raw === 'quarterly') {
     return raw as ContribInterval;
   }
