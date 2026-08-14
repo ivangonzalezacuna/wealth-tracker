@@ -1909,12 +1909,10 @@ summary.section-label {
   }
   /* Date + Type header row — relative so action icons anchor to it */
   #tx-ledger-list .tx-card-header {
-    position: relative;
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 4px 0;
-    padding-right: 72px;
     min-width: 0;
     border-bottom: 1px dashed var(--surface-3);
   }
@@ -1925,16 +1923,14 @@ summary.section-label {
   #tx-ledger-list .tx-card-header > [role='cell']::before {
     display: none;
   }
-  /* Action icons centered vertically within the header row */
+  /* Action icons are part of the header row in stacked view */
   #tx-ledger-list .tx-actions {
-    position: absolute;
-    top: 50%;
-    right: 0;
-    transform: translateY(-50%);
     display: flex;
     align-items: center;
     justify-content: flex-end;
     gap: 4px;
+    margin-left: auto;
+    flex-shrink: 0;
     border-bottom: none;
     padding: 0;
   }

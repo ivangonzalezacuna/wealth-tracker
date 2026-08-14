@@ -344,6 +344,7 @@ describe('renderLog', () => {
     expect(document.querySelector('.tx-actions')?.getAttribute('data-ledger-label')).toBe(
       'Actions',
     );
+    expect(document.querySelector('.tx-card-header .tx-actions')).not.toBeNull();
     editBtn.click();
     delBtn.click();
     expect(onEditTx).toHaveBeenCalledWith(10n);

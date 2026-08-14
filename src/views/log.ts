@@ -547,22 +547,21 @@ function renderTxList(txs: Transaction[]): void {
             ? ''
             : `<button class="btn btn-sm btn-outline btn-icon js-edit-tx" data-rowid="${tx.rowId}" aria-label="Edit transaction" title="Edit transaction">${EDIT_ICON}</button>
             <button class="btn btn-sm btn-danger btn-icon js-del-tx" data-rowid="${tx.rowId}" aria-label="Delete transaction" title="Delete transaction">${DELETE_ICON}</button>`;
+        const [dateCol, typeCol, ...restCols] = columns;
+        const headerCells = renderTableRow([dateCol, typeCol], tx);
+        const sourceChip = tx.source
+          ? `<span class="tx-ledger-source tx-ledger-chip-trim tx-header-source" title="${esc(tx.source)}">${esc(tx.source)}</span>`
+          : '';
         const actionsCell =
           !showActions || !tx.rowId
             ? ''
             : `<div role="cell" class="tx-actions" data-ledger-label="Actions">
             ${actionBtns}
           </div>`;
-        const [dateCol, typeCol, ...restCols] = columns;
-        const headerCells = renderTableRow([dateCol, typeCol], tx);
-        const sourceChip = tx.source
-          ? `<span class="tx-ledger-source tx-ledger-chip-trim tx-header-source" title="${esc(tx.source)}">${esc(tx.source)}</span>`
-          : '';
         const bodyCells = renderTableRow(restCols, tx);
         return `<div class="tbl-row tx-row" role="row">
-          <div class="tx-card-header">${headerCells}${sourceChip}</div>
+          <div class="tx-card-header">${headerCells}${sourceChip}${actionsCell}</div>
           ${bodyCells}
-          ${actionsCell}
         </div>`;
       })
       .join('')}
