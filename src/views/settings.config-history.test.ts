@@ -40,14 +40,10 @@ describe('renderConfigHistoryCard', () => {
     expect(html).toContain('config-history-group-row');
     expect(html).toContain('2 changes');
     expect(html).toContain('<details class="config-history-group" open>');
-    expect(html).toContain('config-history-entity is-accounts');
-    expect(html).toContain('config-history-entity is-settings');
+    expect(html).toContain('config-history-kind');
     expect(html).toContain('Accounts · Update');
     expect(html).toContain('Settings · Update');
-    expect(html).toContain('config-history-source');
-    expect(html).toContain('Web');
-    expect(html).toContain('data-config-history-popover-title="Change type"');
-    expect(html).toContain('data-config-history-popover-title="Change details"');
+    expect(html).toContain('title="Accounts · Update"');
   });
 
   it('consolidates duplicate and inferred action labels into a single badge', () => {
@@ -81,8 +77,7 @@ describe('renderConfigHistoryCard', () => {
     expect(html).toContain('Settings · Set');
     expect(html).toContain('>Restore<');
     expect(html).toContain('Migration · Seed');
-    expect(html).toContain('data-config-history-popover-body="Settings · Set"');
-    expect(html).not.toContain('config-history-action');
+    expect(html).toContain('title="Settings · Set"');
   });
 
   it('shows the correct entry count in the footer', () => {
@@ -116,8 +111,7 @@ describe('renderConfigHistoryCard', () => {
     const html = renderConfigHistoryCard(entries);
     expect(html).toContain('ui_collapse_state (3 keys)');
     expect(html).toContain('10:45');
-    expect(html).not.toContain('config-history-summary-block');
-    expect(html).toContain('data-config-history-popover-body="ui_collapse_state = {');
+    expect(html).toContain('title="ui_collapse_state = {');
     expect(html).toContain('&quot;card:config-history&quot;: true');
   });
 

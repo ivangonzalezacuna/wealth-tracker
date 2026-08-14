@@ -46,7 +46,6 @@ import { confirmDialog } from '../ui/confirmDialog';
 import { accountDialog } from '../ui/accountDialog';
 import { holdingDialog } from '../ui/holdingDialog';
 import { goalDialog } from '../ui/goalDialog';
-import { attachConfigHistoryPopovers } from '../ui/configHistoryPopover';
 import { ACCOUNT_TYPES } from '../model/accountTypes';
 import { isSignedIn } from '../auth/google';
 import { isBackupStale } from '../backup/exportImport';
@@ -243,7 +242,6 @@ export function renderSettings(): void {
   attachColorPickerSync(el);
   attachCardCollapseListeners(el);
   attachSettingsGroupNavListeners(el);
-  attachConfigHistoryPopovers(el);
 
   // Load and render config history asynchronously after initial paint
   void loadConfigHistory(50).then((entries) => {
@@ -252,7 +250,6 @@ export function renderSettings(): void {
     const fresh = document.getElementById('settings-card-config-history');
     if (fresh) {
       attachCardCollapseListeners(fresh);
-      attachConfigHistoryPopovers(fresh);
       if (isCollapsed('card:config-history')) fresh.classList.add('collapsed');
     }
   });
@@ -2106,39 +2103,24 @@ function fmtHistoryTime(iso: string): string {
   }).format(date);
 }
 
-interface HistoryEntityMeta {
-  label: string;
-  icon: string;
-  toneClass: string;
-}
-
-function getHistoryEntityMeta(entity: string): HistoryEntityMeta {
+function formatHistoryEntity(entity: string): string {
   const normalized = String(entity || '')
     .trim()
     .toLowerCase();
   switch (normalized) {
     case 'accounts':
-      return { label: 'Accounts', icon: '🏦', toneClass: 'is-accounts' };
+      return 'Accounts';
     case 'holdings':
-      return { label: 'Holdings', icon: '📊', toneClass: 'is-holdings' };
+      return 'Holdings';
     case 'settings':
-      return { label: 'Settings', icon: '⚙️', toneClass: 'is-settings' };
+      return 'Settings';
     case 'restore':
-      return { label: 'Restore', icon: '♻️', toneClass: 'is-restore' };
+      return 'Restore';
     case 'migration':
-      return { label: 'Migration', icon: '🔁', toneClass: 'is-migration' };
+      return 'Migration';
     default:
-      return { label: entity || 'Other', icon: '📝', toneClass: 'is-other' };
+      return entity || 'Other';
   }
-}
-
-function formatHistorySource(source: string): string {
-  const normalized = String(source || '')
-    .trim()
-    .toLowerCase();
-  if (!normalized) return '';
-  if (normalized === 'web') return 'Web';
-  return normalized[0].toUpperCase() + normalized.slice(1);
 }
 
 function inferHistoryActionLabel(summary: string): string {
@@ -2173,21 +2155,13 @@ function getHistoryActionLabel(action: string | undefined, summary: string): str
   return inferHistoryActionLabel(summary);
 }
 
-function getHistoryKindMeta(
-  entity: string,
-  action: string | undefined,
-  summary: string,
-): HistoryEntityMeta {
-  const entityMeta = getHistoryEntityMeta(entity);
+function getHistoryKindLabel(entity: string, action: string | undefined, summary: string): string {
+  const entityLabel = formatHistoryEntity(entity);
   const actionLabel = getHistoryActionLabel(action, summary);
-  if (entityMeta.label.trim().toLowerCase() === actionLabel.trim().toLowerCase()) {
-    return entityMeta;
+  if (entityLabel.trim().toLowerCase() === actionLabel.trim().toLowerCase()) {
+    return entityLabel;
   }
-  return {
-    label: `${entityMeta.label} · ${actionLabel}`,
-    icon: entityMeta.icon,
-    toneClass: entityMeta.toneClass,
-  };
+  return `${entityLabel} · ${actionLabel}`;
 }
 
 interface ConfigHistoryGroup {
@@ -2218,8 +2192,8 @@ function groupConfigHistoryEntries(entries: ConfigHistoryEntry[]): ConfigHistory
 }
 
 function renderHistorySummary(summary: string): string {
-  const renderSummaryPopover = (body: string, text: string): string =>
-    `<span class="config-history-summary-text config-history-popover-trigger" data-config-history-popover-title="Change details" data-config-history-popover-body="${esc(body)}">${esc(text)}</span>`;
+  const renderSummaryText = (title: string, text: string): string =>
+    `<span class="config-history-summary-text" title="${esc(title)}">${esc(text)}</span>`;
 
   const normalized = String(summary || '');
   const trimmed = normalized.trim();
@@ -2228,7 +2202,7 @@ function renderHistorySummary(summary: string): string {
   }
   const splitIndex = normalized.indexOf(' = ');
   if (splitIndex <= 0) {
-    return renderSummaryPopover(trimmed, normalized);
+    return renderSummaryText(trimmed, normalized);
   }
   const label = normalized.slice(0, splitIndex);
   const value = normalized.slice(splitIndex + 3).trim();
@@ -2238,18 +2212,18 @@ function renderHistorySummary(summary: string): string {
       if (Array.isArray(parsed)) {
         const n = parsed.length;
         const fullValue = `${label} = ${JSON.stringify(parsed, null, 2)}`;
-        return renderSummaryPopover(fullValue, `${label} (${n} ${n === 1 ? 'item' : 'items'})`);
+        return renderSummaryText(fullValue, `${label} (${n} ${n === 1 ? 'item' : 'items'})`);
       }
       if (typeof parsed === 'object' && parsed !== null) {
         const n = Object.keys(parsed).length;
         const fullValue = `${label} = ${JSON.stringify(parsed, null, 2)}`;
-        return renderSummaryPopover(fullValue, `${label} (${n} ${n === 1 ? 'key' : 'keys'})`);
+        return renderSummaryText(fullValue, `${label} (${n} ${n === 1 ? 'key' : 'keys'})`);
       }
     } catch {
       // fall through to inline display
     }
   }
-  return renderSummaryPopover(trimmed, normalized);
+  return renderSummaryText(trimmed, normalized);
 }
 
 export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
@@ -2261,17 +2235,12 @@ export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
       .map((e, idx) => {
         const groupRows = e.entries
           .map((entry) => {
-            const kindMeta = getHistoryKindMeta(entry.entity, entry.action, entry.summary);
-            const source = formatHistorySource(entry.source);
+            const kindLabel = getHistoryKindLabel(entry.entity, entry.action, entry.summary);
             return `
           <div class="config-history-row">
-            <span class="config-history-entity ${kindMeta.toneClass} config-history-popover-trigger" data-config-history-popover-title="Change type" data-config-history-popover-body="${esc(kindMeta.label)}">
-              <span aria-hidden="true">${kindMeta.icon}</span>
-              <span class="config-history-entity-label">${esc(kindMeta.label)}</span>
-            </span>
+            <span class="config-history-kind" title="${esc(kindLabel)}">${esc(kindLabel)}</span>
             ${renderHistorySummary(entry.summary)}
             <span class="config-history-when">${esc(fmtHistoryTime(entry.timestamp))}</span>
-            ${source ? `<span class="config-history-source">${esc(source)}</span>` : ''}
           </div>`;
           })
           .join('');

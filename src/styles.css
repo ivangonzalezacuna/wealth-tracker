@@ -1056,7 +1056,7 @@ details[open] > summary .card-chevron {
 .config-history-row {
   display: flex;
   align-items: center;
-  gap: 0.35rem 0.5rem;
+  gap: 0.5rem;
   flex-wrap: wrap;
   padding: 0.35rem 0;
   border-bottom: 1px solid var(--line-2);
@@ -1064,53 +1064,22 @@ details[open] > summary .card-chevron {
 .config-history-group-body .config-history-row:last-child {
   border-bottom: none;
 }
+.config-history-kind {
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  max-width: min(100%, 200px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .config-history-when {
   white-space: nowrap;
   color: var(--ink-3);
   font-size: 11px;
   flex: 0 0 auto;
   margin-left: auto;
-}
-.config-history-entity {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.2;
-  border-radius: var(--radius-lg);
-  padding: 2px 8px;
-  max-width: min(100%, 180px);
-}
-.config-history-entity-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.config-history-entity.is-accounts {
-  color: #2563eb;
-  background: rgba(37, 99, 235, 0.12);
-}
-.config-history-entity.is-holdings {
-  color: #0f766e;
-  background: rgba(15, 118, 110, 0.12);
-}
-.config-history-entity.is-settings {
-  color: var(--ink-2);
-  background: var(--surface-3);
-}
-.config-history-entity.is-restore {
-  color: #92400e;
-  background: rgba(245, 158, 11, 0.16);
-}
-.config-history-entity.is-migration {
-  color: #7c3aed;
-  background: rgba(124, 58, 237, 0.12);
-}
-.config-history-entity.is-other {
-  color: var(--ink-2);
-  background: var(--surface-3);
 }
 .config-history-summary-text {
   flex: 1;
@@ -1120,20 +1089,6 @@ details[open] > summary .card-chevron {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.config-history-popover-trigger {
-  cursor: pointer;
-}
-.config-history-source {
-  display: inline-block;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--ink-3);
-  background: var(--surface-3);
-  border-radius: var(--radius-lg);
-  padding: 1px 6px;
-  flex: 0 0 auto;
 }
 .config-history-note {
   margin-top: 0.6rem;
@@ -2629,54 +2584,6 @@ input[type='color'] {
   font-family: var(--font-mono, monospace);
   font-size: 10px;
   letter-spacing: 0.3px;
-}
-
-/* ── Config history popover (click-to-reveal full trimmed details) ───── */
-.config-history-pop {
-  position: fixed;
-  background: var(--surface);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 7px 10px;
-  width: max-content;
-  max-width: min(92vw, 720px);
-  max-height: 72vh;
-  z-index: 9999;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-  pointer-events: auto;
-  overflow: auto;
-}
-.config-history-pop-title {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--ink-3);
-  margin-bottom: 4px;
-}
-.config-history-pop-body {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  font-size: 11px;
-  line-height: 1.35;
-  color: var(--ink-2);
-  font-family: var(--font-mono, monospace);
-}
-@media (max-width: 520px) {
-  .config-history-entity {
-    padding: 2px 6px;
-    min-width: 24px;
-    justify-content: center;
-  }
-  .config-history-entity-label {
-    display: none;
-  }
-  .config-history-pop {
-    max-width: 94vw;
-    max-height: 76vh;
-  }
 }
 
 /* ── Confirm dialog overlay ──────────────────────────── */
