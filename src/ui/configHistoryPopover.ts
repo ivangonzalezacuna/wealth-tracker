@@ -56,6 +56,7 @@ function _show(trigger: HTMLElement): void {
   pop.className = POP_CLASS;
   pop.dataset.forEl = _id(trigger);
   pop.innerHTML = `${title ? `<div class="config-history-pop-title">${esc(title)}</div>` : ''}<pre class="config-history-pop-body">${esc(body)}</pre>`;
+  pop.addEventListener('click', (e) => e.stopPropagation());
   document.body.appendChild(pop);
 
   const scrollAncestor = _findScrollAncestor(trigger);

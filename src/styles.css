@@ -2640,10 +2640,12 @@ input[type='color'] {
   border-radius: var(--radius-sm);
   padding: 7px 10px;
   width: max-content;
-  max-width: min(88vw, 360px);
+  max-width: min(92vw, 720px);
+  max-height: 72vh;
   z-index: 9999;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-  pointer-events: none;
+  pointer-events: auto;
+  overflow: auto;
 }
 .config-history-pop-title {
   font-size: 10px;
@@ -2661,6 +2663,20 @@ input[type='color'] {
   line-height: 1.35;
   color: var(--ink-2);
   font-family: var(--font-mono, monospace);
+}
+@media (max-width: 520px) {
+  .config-history-entity {
+    padding: 2px 6px;
+    min-width: 24px;
+    justify-content: center;
+  }
+  .config-history-entity-label {
+    display: none;
+  }
+  .config-history-pop {
+    max-width: 94vw;
+    max-height: 76vh;
+  }
 }
 
 /* ── Confirm dialog overlay ──────────────────────────── */
