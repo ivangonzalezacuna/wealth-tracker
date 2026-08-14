@@ -1080,7 +1080,13 @@ details[open] > summary .card-chevron {
   line-height: 1.2;
   border-radius: var(--radius-lg);
   padding: 2px 8px;
-  max-width: 100%;
+  max-width: min(100%, 180px);
+}
+.config-history-entity-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .config-history-entity.is-accounts {
   color: #2563eb;
@@ -1114,6 +1120,9 @@ details[open] > summary .card-chevron {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.config-history-popover-trigger {
+  cursor: pointer;
 }
 .config-history-source {
   display: inline-block;
@@ -2620,6 +2629,38 @@ input[type='color'] {
   font-family: var(--font-mono, monospace);
   font-size: 10px;
   letter-spacing: 0.3px;
+}
+
+/* ── Config history popover (click-to-reveal full trimmed details) ───── */
+.config-history-pop {
+  position: fixed;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  width: max-content;
+  max-width: min(88vw, 360px);
+  z-index: 9999;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+}
+.config-history-pop-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ink-3);
+  margin-bottom: 4px;
+}
+.config-history-pop-body {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink-2);
+  font-family: var(--font-mono, monospace);
 }
 
 /* ── Confirm dialog overlay ──────────────────────────── */

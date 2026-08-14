@@ -46,6 +46,8 @@ describe('renderConfigHistoryCard', () => {
     expect(html).toContain('Settings · Update');
     expect(html).toContain('config-history-source');
     expect(html).toContain('Web');
+    expect(html).toContain('data-config-history-popover-title="Change type"');
+    expect(html).toContain('data-config-history-popover-title="Change details"');
   });
 
   it('consolidates duplicate and inferred action labels into a single badge', () => {
@@ -79,6 +81,7 @@ describe('renderConfigHistoryCard', () => {
     expect(html).toContain('Settings · Set');
     expect(html).toContain('>Restore<');
     expect(html).toContain('Migration · Seed');
+    expect(html).toContain('data-config-history-popover-body="Settings · Set"');
     expect(html).not.toContain('config-history-action');
   });
 
@@ -115,6 +118,8 @@ describe('renderConfigHistoryCard', () => {
     expect(html).toContain('10:45');
     expect(html).not.toContain('config-history-summary-block');
     expect(html).not.toContain('card:config-history');
+    expect(html).toContain('data-config-history-popover-body="ui_collapse_state = {');
+    expect(html).toContain('&quot;card:config-history&quot;: true');
   });
 
   it('escapes HTML-special characters in summary and entity', () => {

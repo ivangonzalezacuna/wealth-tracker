@@ -46,6 +46,7 @@ import { confirmDialog } from '../ui/confirmDialog';
 import { accountDialog } from '../ui/accountDialog';
 import { holdingDialog } from '../ui/holdingDialog';
 import { goalDialog } from '../ui/goalDialog';
+import { attachConfigHistoryPopovers } from '../ui/configHistoryPopover';
 import { ACCOUNT_TYPES } from '../model/accountTypes';
 import { isSignedIn } from '../auth/google';
 import { isBackupStale } from '../backup/exportImport';
@@ -242,6 +243,7 @@ export function renderSettings(): void {
   attachColorPickerSync(el);
   attachCardCollapseListeners(el);
   attachSettingsGroupNavListeners(el);
+  attachConfigHistoryPopovers(el);
 
   // Load and render config history asynchronously after initial paint
   void loadConfigHistory(50).then((entries) => {
@@ -250,6 +252,7 @@ export function renderSettings(): void {
     const fresh = document.getElementById('settings-card-config-history');
     if (fresh) {
       attachCardCollapseListeners(fresh);
+      attachConfigHistoryPopovers(fresh);
       if (isCollapsed('card:config-history')) fresh.classList.add('collapsed');
     }
   });
@@ -2222,9 +2225,13 @@ function groupConfigHistoryEntries(entries: ConfigHistoryEntry[]): ConfigHistory
 
 function renderHistorySummary(summary: string): string {
   const normalized = String(summary || '');
+  const trimmed = normalized.trim();
+  if (!trimmed) {
+    return '<span class="config-history-summary-text"></span>';
+  }
   const splitIndex = normalized.indexOf(' = ');
   if (splitIndex <= 0) {
-    return `<span class="config-history-summary-text">${esc(normalized)}</span>`;
+    return `<span class="config-history-summary-text config-history-popover-trigger" data-config-history-popover-title="Change details" data-config-history-popover-body="${esc(trimmed)}">${esc(normalized)}</span>`;
   }
   const label = normalized.slice(0, splitIndex);
   const value = normalized.slice(splitIndex + 3).trim();
@@ -2233,17 +2240,19 @@ function renderHistorySummary(summary: string): string {
       const parsed: unknown = JSON.parse(value);
       if (Array.isArray(parsed)) {
         const n = parsed.length;
-        return `<span class="config-history-summary-text">${esc(label)} (${n} ${n === 1 ? 'item' : 'items'})</span>`;
+        const fullValue = `${label} = ${JSON.stringify(parsed, null, 2)}`;
+        return `<span class="config-history-summary-text config-history-popover-trigger" data-config-history-popover-title="Change details" data-config-history-popover-body="${esc(fullValue)}">${esc(label)} (${n} ${n === 1 ? 'item' : 'items'})</span>`;
       }
       if (typeof parsed === 'object' && parsed !== null) {
         const n = Object.keys(parsed).length;
-        return `<span class="config-history-summary-text">${esc(label)} (${n} ${n === 1 ? 'key' : 'keys'})</span>`;
+        const fullValue = `${label} = ${JSON.stringify(parsed, null, 2)}`;
+        return `<span class="config-history-summary-text config-history-popover-trigger" data-config-history-popover-title="Change details" data-config-history-popover-body="${esc(fullValue)}">${esc(label)} (${n} ${n === 1 ? 'key' : 'keys'})</span>`;
       }
     } catch {
       // fall through to inline display
     }
   }
-  return `<span class="config-history-summary-text">${esc(normalized)}</span>`;
+  return `<span class="config-history-summary-text config-history-popover-trigger" data-config-history-popover-title="Change details" data-config-history-popover-body="${esc(trimmed)}">${esc(normalized)}</span>`;
 }
 
 export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
@@ -2259,9 +2268,9 @@ export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
             const source = formatHistorySource(entry.source);
             return `
           <div class="config-history-row">
-            <span class="config-history-entity ${kindMeta.toneClass}">
+            <span class="config-history-entity ${kindMeta.toneClass} config-history-popover-trigger" data-config-history-popover-title="Change type" data-config-history-popover-body="${esc(kindMeta.label)}">
               <span aria-hidden="true">${kindMeta.icon}</span>
-              <span>${esc(kindMeta.label)}</span>
+              <span class="config-history-entity-label">${esc(kindMeta.label)}</span>
             </span>
             ${renderHistorySummary(entry.summary)}
             <span class="config-history-when">${esc(fmtHistoryTime(entry.timestamp))}</span>
