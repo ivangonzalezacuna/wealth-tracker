@@ -1025,16 +1025,20 @@ details[open] > summary .card-chevron {
   list-style: none;
   cursor: pointer;
   padding: 0.55rem 0.7rem;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 0.6rem;
   border-radius: var(--radius);
+}
+.config-history-group-row::marker {
+  content: '';
 }
 .config-history-group-row::-webkit-details-marker {
   display: none;
 }
 .config-history-group-date {
+  min-width: 0;
   color: var(--ink-2);
   font-size: 11px;
   font-weight: 600;
@@ -1042,6 +1046,7 @@ details[open] > summary .card-chevron {
   letter-spacing: 0.04em;
 }
 .config-history-group-count {
+  white-space: nowrap;
   color: var(--ink-3);
   font-size: 11px;
 }
@@ -1064,14 +1069,17 @@ details[open] > summary .card-chevron {
 }
 .config-history-row-main {
   list-style: none;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.5rem;
   min-width: 0;
   width: 100%;
   max-width: 100%;
-  flex-wrap: nowrap;
   overflow: hidden;
+}
+.config-history-row-main::marker {
+  content: '';
 }
 .config-history-row-main::-webkit-details-marker {
   display: none;
@@ -1093,15 +1101,15 @@ details[open] > summary .card-chevron {
 }
 .config-history-when {
   white-space: nowrap;
+  text-align: right;
   color: var(--ink-3);
   font-size: 11px;
-  flex: 0 0 auto;
-  margin-left: auto;
+  min-width: 4.2ch;
 }
 .config-history-summary-text {
-  flex: 1 1 0;
   min-width: 0;
   max-width: 100%;
+  min-width: 0;
   display: block;
   font-size: 12px;
   color: var(--ink-2);

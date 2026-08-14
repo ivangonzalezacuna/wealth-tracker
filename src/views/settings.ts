@@ -2123,59 +2123,8 @@ function formatHistoryEntity(entity: string): string {
   }
 }
 
-function inferHistoryActionLabel(summary: string): string {
-  const normalized = String(summary || '')
-    .trim()
-    .toLowerCase();
-  if (!normalized) return 'Change';
-  if (normalized.includes('restored')) {
-    return 'Restore';
-  }
-  if (normalized.startsWith('seeded')) {
-    return 'Seed';
-  }
-  if (normalized.startsWith('updated ')) {
-    return 'Update';
-  }
-  if (normalized.includes(' = ')) {
-    return 'Set';
-  }
-  return 'Change';
-}
-
-function getHistoryActionLabel(action: string | undefined, summary: string): string {
-  const normalized = String(action || '')
-    .trim()
-    .toLowerCase();
-  if (normalized === 'update') return 'Update';
-  if (normalized === 'set') return 'Set';
-  if (normalized === 'restore') return 'Restore';
-  if (normalized === 'seed') return 'Seed';
-  if (normalized === 'change') return 'Change';
-  return inferHistoryActionLabel(summary);
-}
-
-function getHistoryKindLabel(entity: string, action: string | undefined, summary: string): string {
+function getHistoryKindLabel(entity: string): string {
   const entityLabel = formatHistoryEntity(entity);
-  const actionLabel = getHistoryActionLabel(action, summary);
-  if (entityLabel.trim().toLowerCase() === actionLabel.trim().toLowerCase()) {
-    return entityLabel;
-  }
-  return `${entityLabel} · ${actionLabel}`;
-}
-
-function getCompactHistoryKindLabel(
-  entity: string,
-  action: string | undefined,
-  summary: string,
-): string {
-  const entityLabel = formatHistoryEntity(entity);
-  const actionLabel = getHistoryActionLabel(action, summary);
-  const normalized = entityLabel.trim().toLowerCase();
-  if (normalized === 'accounts') return 'Acct';
-  if (normalized === 'holdings') return 'Hold';
-  if (normalized === 'settings') return actionLabel;
-  if (normalized === 'migration') return actionLabel === 'Seed' ? 'Seed' : 'Migr';
   return entityLabel;
 }
 
@@ -2213,43 +2162,17 @@ function groupConfigHistoryEntries(entries: ConfigHistoryEntry[]): ConfigHistory
 }
 
 function describeHistorySummary(summary: string): HistorySummaryDisplay {
-  const normalized = String(summary || '');
-  const trimmed = normalized.trim();
+  const trimmed = String(summary || '').trim();
+  const maxInlineChars = 56;
   if (!trimmed) {
     return { text: '', title: '' };
   }
-  const splitIndex = normalized.indexOf(' = ');
-  if (splitIndex <= 0) {
-    return { text: normalized, title: trimmed };
-  }
-  const label = normalized.slice(0, splitIndex);
-  const value = normalized.slice(splitIndex + 3).trim();
-  if (value.startsWith('{') || value.startsWith('[')) {
-    try {
-      const parsed: unknown = JSON.parse(value);
-      if (Array.isArray(parsed)) {
-        const n = parsed.length;
-        const fullValue = `${label} = ${JSON.stringify(parsed, null, 2)}`;
-        return {
-          text: `${label} (${n} ${n === 1 ? 'item' : 'items'})`,
-          title: fullValue,
-          detail: fullValue,
-        };
-      }
-      if (typeof parsed === 'object' && parsed !== null) {
-        const n = Object.keys(parsed).length;
-        const fullValue = `${label} = ${JSON.stringify(parsed, null, 2)}`;
-        return {
-          text: `${label} (${n} ${n === 1 ? 'key' : 'keys'})`,
-          title: fullValue,
-          detail: fullValue,
-        };
-      }
-    } catch {
-      // fall through to inline display
-    }
-  }
-  return { text: normalized, title: trimmed };
+  if (trimmed.length <= maxInlineChars) return { text: trimmed, title: trimmed };
+  return {
+    text: `${trimmed.slice(0, maxInlineChars - 1)}…`,
+    title: trimmed,
+    detail: trimmed,
+  };
 }
 
 function renderHistorySummary(summary: HistorySummaryDisplay): string {
@@ -2257,11 +2180,10 @@ function renderHistorySummary(summary: HistorySummaryDisplay): string {
 }
 
 function renderConfigHistoryRow(entry: ConfigHistoryEntry): string {
-  const kindLabel = getHistoryKindLabel(entry.entity, entry.action, entry.summary);
-  const compactKindLabel = getCompactHistoryKindLabel(entry.entity, entry.action, entry.summary);
+  const kindLabel = getHistoryKindLabel(entry.entity);
   const summary = describeHistorySummary(entry.summary);
   const rowMain = `
-    <span class="config-history-kind" title="${esc(kindLabel)}">${esc(compactKindLabel)}</span>
+    <span class="config-history-kind" title="${esc(kindLabel)}">${esc(kindLabel)}</span>
     ${renderHistorySummary(summary)}
     <span class="config-history-when">${esc(fmtHistoryTime(entry.timestamp))}</span>`;
   if (summary.detail) {

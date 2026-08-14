@@ -41,12 +41,12 @@ describe('renderConfigHistoryCard', () => {
     expect(html).toContain('2 changes');
     expect(html).toContain('<details class="config-history-group" open>');
     expect(html).toContain('config-history-kind');
-    expect(html).toContain('Accounts · Update');
-    expect(html).toContain('Settings · Update');
-    expect(html).toContain('title="Accounts · Update"');
+    expect(html).toContain('>Accounts<');
+    expect(html).toContain('>Settings<');
+    expect(html).toContain('title="Accounts"');
   });
 
-  it('consolidates duplicate and inferred action labels into a single badge', () => {
+  it('uses entity labels for badges', () => {
     const entries: ConfigHistoryEntry[] = [
       {
         id: 1,
@@ -74,10 +74,10 @@ describe('renderConfigHistoryCard', () => {
       },
     ];
     const html = renderConfigHistoryCard(entries);
-    expect(html).toContain('Settings · Set');
+    expect(html).toContain('>Settings<');
     expect(html).toContain('>Restore<');
-    expect(html).toContain('Migration · Seed');
-    expect(html).toContain('title="Settings · Set"');
+    expect(html).toContain('>Migration<');
+    expect(html).toContain('title="Settings"');
   });
 
   it('shows the correct entry count in the footer', () => {
@@ -96,7 +96,7 @@ describe('renderConfigHistoryCard', () => {
     expect(html).toContain('1 change');
   });
 
-  it('renders structured JSON setting values as a compact key-count summary', () => {
+  it('keeps structured JSON summaries in original form and makes them expandable', () => {
     const entries: ConfigHistoryEntry[] = [
       {
         id: 1,
@@ -109,10 +109,10 @@ describe('renderConfigHistoryCard', () => {
       },
     ];
     const html = renderConfigHistoryCard(entries);
-    expect(html).toContain('ui_collapse_state (3 keys)');
+    expect(html).toContain('config-history-row-expandable');
+    expect(html).toContain('ui_collapse_state = {');
     expect(html).toContain('10:45');
-    expect(html).toContain('title="ui_collapse_state = {');
-    expect(html).toContain('&quot;card:config-history&quot;: true');
+    expect(html).toContain('&quot;card:config-history&quot;:true');
   });
 
   it('wraps plain rows in the shared single-line row layout', () => {
@@ -134,6 +134,26 @@ describe('renderConfigHistoryCard', () => {
       '<span class="config-history-summary-text">last_backup_at = 2026-08-13T16:49:14.925Z</span>',
     );
     expect(html).toContain('<span class="config-history-when">10:45</span>');
+  });
+
+  it('trims long plain summaries inline and keeps full text in expandable details', () => {
+    const entries: ConfigHistoryEntry[] = [
+      {
+        id: 1,
+        timestamp: '2026-01-15T10:45:00.000Z',
+        source: 'web',
+        entity: 'settings',
+        action: 'set',
+        summary:
+          'last_backup_at = 2026-08-14T07:26:05.911Z and this is intentionally long to test truncation',
+      },
+    ];
+    const html = renderConfigHistoryCard(entries);
+    expect(html).toContain('config-history-row-expandable');
+    expect(html).toContain('last_backup_at = 2026-08-14T07:26:05.911Z and this is inten…');
+    expect(html).toContain(
+      'last_backup_at = 2026-08-14T07:26:05.911Z and this is intentionally long to test truncation',
+    );
   });
 
   it('escapes HTML-special characters in summary and entity', () => {
