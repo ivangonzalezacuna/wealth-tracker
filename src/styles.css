@@ -793,8 +793,8 @@ details[open] > summary .card-chevron {
   grid-template-columns:
     minmax(11ch, 0.9fr)
     minmax(10ch, 0.85fr)
+    minmax(12ch, 1fr)
     minmax(18ch, 1.8fr)
-    minmax(12ch, 1.1fr)
     minmax(11ch, 0.9fr)
     76px;
   min-width: 580px;
@@ -803,9 +803,9 @@ details[open] > summary .card-chevron {
   grid-template-columns:
     minmax(11ch, 1fr)
     minmax(10ch, 0.9fr)
+    minmax(12ch, 1fr)
     minmax(18ch, 2fr)
-    minmax(12ch, 1.2fr)
-    minmax(11ch, 1fr);
+    minmax(12ch, 1.2fr);
   min-width: 500px;
 }
 #tx-ledger-list .tx-row {
@@ -851,6 +851,10 @@ details[open] > summary .card-chevron {
   min-width: 0;
   max-width: 120px;
 }
+/* The in-header source chip is only shown in stacked (mobile) view */
+.tx-header-source {
+  display: none;
+}
 .tx-ledger-chip {
   color: var(--brand);
   background: var(--brand-weak);
@@ -876,6 +880,9 @@ details[open] > summary .card-chevron {
   justify-content: flex-end;
   gap: 6px;
   white-space: nowrap;
+}
+.tx-actions-mobile {
+  display: none;
 }
 /* On desktop the header wrapper is invisible to the subgrid — children participate directly */
 .tx-card-header {
@@ -1903,13 +1910,13 @@ summary.section-label {
     border-radius: var(--radius-md);
     background: var(--surface-2);
   }
-  /* Date + Type header row */
+  /* Date + Type header row — relative so action icons anchor to it */
   #tx-ledger-list .tx-card-header {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 4px 0;
-    padding-right: 64px;
+    min-width: 0;
     border-bottom: 1px dashed var(--surface-3);
   }
   #tx-ledger-list .tx-card-header > [role='cell'] {
@@ -1919,17 +1926,22 @@ summary.section-label {
   #tx-ledger-list .tx-card-header > [role='cell']::before {
     display: none;
   }
-  /* Action icons pinned top-right */
+  /* Action icons are part of the header row in stacked view */
   #tx-ledger-list .tx-actions {
-    position: absolute;
-    top: 6px;
-    right: 8px;
     display: flex;
     align-items: center;
     justify-content: flex-end;
     gap: 4px;
     border-bottom: none;
     padding: 0;
+  }
+  #tx-ledger-list .tx-actions-mobile {
+    display: flex;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  #tx-ledger-list .tx-actions-desktop {
+    display: none;
   }
   #tx-ledger-list .tx-actions .btn-sm {
     min-height: 28px;
@@ -1938,13 +1950,12 @@ summary.section-label {
   #tx-ledger-list .tx-actions::before {
     display: none;
   }
-  /* Body cells */
+  /* Body cells — no dotted separator between rows */
   #tx-ledger-list .tx-row > [role='cell'] {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 8px;
-    border-bottom: 1px dashed var(--surface-3);
     padding: 4px 0;
   }
   #tx-ledger-list .tx-row > [role='cell']::before {
@@ -1955,34 +1966,33 @@ summary.section-label {
     letter-spacing: 0.04em;
     flex-shrink: 0;
   }
-  #tx-ledger-list .tx-row > [role='cell']:last-child {
-    border-bottom: none;
-  }
-  /* Allow source chip in header to shrink gracefully */
-  #tx-ledger-list .tx-card-header {
-    min-width: 0;
-  }
   #tx-ledger-list .tx-card-header > [role='cell']:first-child {
     flex-shrink: 0;
   }
   #tx-ledger-list .tx-card-header > [role='cell']:nth-child(2) {
-    flex-shrink: 1;
-    min-width: 0;
+    flex-shrink: 0;
   }
-  #tx-ledger-list .tx-card-header > [role='cell']:nth-child(2) .tx-ledger-chip {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 90px;
-  }
+  /* Source chip fills remaining header space and truncates with ellipsis */
   #tx-ledger-list .tx-card-header .tx-ledger-source {
-    flex-shrink: 1;
+    flex: 1 1 0;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 100px;
+    white-space: nowrap;
+  }
+  /* Show the in-header source chip in stacked view */
+  #tx-ledger-list .tx-card-header .tx-header-source {
+    display: inline-flex;
+  }
+  /* Hide the source body cell in stacked view (shown in header instead) */
+  #tx-ledger-list .tx-row > [role='cell'][data-ledger-label='Source'] {
+    display: none;
   }
   /* Hide body rows with no data in stacked view */
   #tx-ledger-list .tx-row > [role='cell'][data-ledger-empty='1'] {
+    display: none;
+  }
+  #tx-ledger-list .tx-row > [role='cell'].tx-actions-desktop {
     display: none;
   }
 }
