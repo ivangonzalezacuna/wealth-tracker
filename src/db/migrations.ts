@@ -135,4 +135,6 @@ export const MIGRATIONS: string[][] = [
   ],
   // [7] version 6 → 7: add a global contribution_interval setting for budget cadence.
   [`INSERT OR IGNORE INTO settings (key, value) VALUES ('contribution_interval', 'monthly')`],
+  // [8] version 7 → 8: add explicit action column to config history entries.
+  [`ALTER TABLE config_history ADD COLUMN action TEXT NOT NULL DEFAULT ''`],
 ];

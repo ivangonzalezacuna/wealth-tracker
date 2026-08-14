@@ -283,15 +283,17 @@ export async function restoreAllData(data: {
 
 // ── Config history (audit log) ────────────────────────────────────
 /** Append an audit log entry. */
-export async function logConfigChange(entity: string, summary: string): Promise<void> {
+export async function logConfigChange(
+  entity: string,
+  action: string,
+  summary: string,
+): Promise<void> {
   const db = await getDb();
   const timestamp = new Date().toISOString();
-  db.run('INSERT INTO config_history (timestamp, source, entity, summary) VALUES (?, ?, ?, ?)', [
-    timestamp,
-    'web',
-    entity,
-    summary,
-  ]);
+  db.run(
+    'INSERT INTO config_history (timestamp, source, entity, action, summary) VALUES (?, ?, ?, ?, ?)',
+    [timestamp, 'web', entity, action, summary],
+  );
   await persistDb();
 }
 
@@ -300,6 +302,7 @@ export interface ConfigHistoryEntry {
   timestamp: string;
   source: string;
   entity: string;
+  action?: string;
   summary: string;
 }
 
@@ -307,7 +310,7 @@ export interface ConfigHistoryEntry {
 export async function loadConfigHistory(limit = 50): Promise<ConfigHistoryEntry[]> {
   const db = await getDb();
   const result = db.exec(
-    'SELECT id, timestamp, source, entity, summary FROM config_history ORDER BY id DESC LIMIT ?',
+    'SELECT id, timestamp, source, entity, action, summary FROM config_history ORDER BY id DESC LIMIT ?',
     [limit],
   );
   if (result.length === 0) return [];
@@ -316,7 +319,8 @@ export async function loadConfigHistory(limit = 50): Promise<ConfigHistoryEntry[
     timestamp: String(row[1] ?? ''),
     source: String(row[2] ?? ''),
     entity: String(row[3] ?? ''),
-    summary: String(row[4] ?? ''),
+    action: String(row[4] ?? ''),
+    summary: String(row[5] ?? ''),
   }));
 }
 

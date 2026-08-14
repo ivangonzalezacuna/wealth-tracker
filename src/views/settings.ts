@@ -2143,6 +2143,18 @@ function inferHistoryActionMeta(summary: string): HistoryActionMeta {
   return { label: 'Change', icon: '📝', toneClass: 'is-change' };
 }
 
+function getHistoryActionMeta(action: string | undefined, summary: string): HistoryActionMeta {
+  const normalized = String(action || '')
+    .trim()
+    .toLowerCase();
+  if (normalized === 'update') return { label: 'Update', icon: '✏️', toneClass: 'is-update' };
+  if (normalized === 'set') return { label: 'Set', icon: '🔧', toneClass: 'is-set' };
+  if (normalized === 'restore') return { label: 'Restore', icon: '♻️', toneClass: 'is-restore' };
+  if (normalized === 'seed') return { label: 'Seed', icon: '🌱', toneClass: 'is-seed' };
+  if (normalized === 'change') return { label: 'Change', icon: '📝', toneClass: 'is-change' };
+  return inferHistoryActionMeta(summary);
+}
+
 export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
   let body: string;
   if (entries.length === 0) {
@@ -2151,7 +2163,7 @@ export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
     const rows = entries
       .map((e) => {
         const entityMeta = getHistoryEntityMeta(e.entity);
-        const actionMeta = inferHistoryActionMeta(e.summary);
+        const actionMeta = getHistoryActionMeta(e.action, e.summary);
         const source = formatHistorySource(e.source);
         return `
       <tr class="config-history-row">
