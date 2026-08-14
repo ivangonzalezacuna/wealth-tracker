@@ -250,7 +250,7 @@ export function renderSettings(): void {
     const fresh = document.getElementById('settings-card-config-history');
     if (fresh) {
       attachCardCollapseListeners(fresh);
-      if (isCollapsed('card:config-history')) fresh.classList.add('collapsed');
+      fresh.classList.toggle('collapsed', isCollapsed('card:config-history'));
     }
   });
 
