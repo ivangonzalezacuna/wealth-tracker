@@ -552,16 +552,23 @@ function renderTxList(txs: Transaction[]): void {
         const sourceChip = tx.source
           ? `<span class="tx-ledger-source tx-ledger-chip-trim tx-header-source" title="${esc(tx.source)}">${esc(tx.source)}</span>`
           : '';
-        const actionsCell =
+        const mobileActionsCell =
           !showActions || !tx.rowId
             ? ''
-            : `<div role="cell" class="tx-actions" data-ledger-label="Actions">
+            : `<div role="cell" class="tx-actions tx-actions-mobile" data-ledger-label="Actions">
+            ${actionBtns}
+          </div>`;
+        const desktopActionsCell =
+          !showActions || !tx.rowId
+            ? ''
+            : `<div role="cell" class="tx-actions tx-actions-desktop" data-ledger-label="Actions">
             ${actionBtns}
           </div>`;
         const bodyCells = renderTableRow(restCols, tx);
         return `<div class="tbl-row tx-row" role="row">
-          <div class="tx-card-header">${headerCells}${sourceChip}${actionsCell}</div>
+          <div class="tx-card-header">${headerCells}${sourceChip}${mobileActionsCell}</div>
           ${bodyCells}
+          ${desktopActionsCell}
         </div>`;
       })
       .join('')}

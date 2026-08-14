@@ -881,6 +881,9 @@ details[open] > summary .card-chevron {
   gap: 6px;
   white-space: nowrap;
 }
+.tx-actions-mobile {
+  display: none;
+}
 /* On desktop the header wrapper is invisible to the subgrid — children participate directly */
 .tx-card-header {
   display: contents;
@@ -1929,10 +1932,16 @@ summary.section-label {
     align-items: center;
     justify-content: flex-end;
     gap: 4px;
-    margin-left: auto;
-    flex-shrink: 0;
     border-bottom: none;
     padding: 0;
+  }
+  #tx-ledger-list .tx-actions-mobile {
+    display: flex;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  #tx-ledger-list .tx-actions-desktop {
+    display: none;
   }
   #tx-ledger-list .tx-actions .btn-sm {
     min-height: 28px;

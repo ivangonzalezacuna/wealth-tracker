@@ -341,10 +341,11 @@ describe('renderLog', () => {
 
     const editBtn = document.querySelector('.js-edit-tx') as HTMLButtonElement;
     const delBtn = document.querySelector('.js-del-tx') as HTMLButtonElement;
-    expect(document.querySelector('.tx-actions')?.getAttribute('data-ledger-label')).toBe(
+    expect(document.querySelector('.tx-actions-desktop')?.getAttribute('data-ledger-label')).toBe(
       'Actions',
     );
-    expect(document.querySelector('.tx-card-header .tx-actions')).not.toBeNull();
+    expect(document.querySelector('.tx-card-header .tx-actions-mobile')).not.toBeNull();
+    expect(document.querySelector('.tx-row > .tx-actions-desktop')).not.toBeNull();
     editBtn.click();
     delBtn.click();
     expect(onEditTx).toHaveBeenCalledWith(10n);
