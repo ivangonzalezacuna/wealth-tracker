@@ -404,7 +404,7 @@ describe('Backup card nudge', () => {
       expect(html).toContain('>Accounts<');
     });
 
-    it('keeps JSON summaries in original text form', () => {
+    it('shows JSON summary key counts and parsed detail', () => {
       const html = renderConfigHistoryCard([
         {
           timestamp: '2026-06-15T10:00:00.000Z',
@@ -413,8 +413,9 @@ describe('Backup card nudge', () => {
           summary: 'allocation = {"cash":10,"stocks":90}',
         },
       ] as any);
-      expect(html).toContain('allocation = {&quot;cash&quot;:10,&quot;stocks&quot;:90}');
-      expect(html).not.toContain('allocation (2 keys)');
+      expect(html).toContain('allocation (2 keys)');
+      expect(html).toContain('&quot;cash&quot;: 10');
+      expect(html).toContain('&quot;stocks&quot;: 90');
     });
   });
 
