@@ -793,8 +793,8 @@ details[open] > summary .card-chevron {
   grid-template-columns:
     minmax(11ch, 0.9fr)
     minmax(10ch, 0.85fr)
+    minmax(12ch, 1fr)
     minmax(18ch, 1.8fr)
-    minmax(12ch, 1.1fr)
     minmax(11ch, 0.9fr)
     76px;
   min-width: 580px;
@@ -803,9 +803,9 @@ details[open] > summary .card-chevron {
   grid-template-columns:
     minmax(11ch, 1fr)
     minmax(10ch, 0.9fr)
+    minmax(12ch, 1fr)
     minmax(18ch, 2fr)
-    minmax(12ch, 1.2fr)
-    minmax(11ch, 1fr);
+    minmax(12ch, 1.2fr);
   min-width: 500px;
 }
 #tx-ledger-list .tx-row {
@@ -850,6 +850,10 @@ details[open] > summary .card-chevron {
   white-space: nowrap;
   min-width: 0;
   max-width: 120px;
+}
+/* The in-header source chip is only shown in stacked (mobile) view */
+.tx-header-source {
+  display: none;
 }
 .tx-ledger-chip {
   color: var(--brand);
@@ -1895,6 +1899,7 @@ summary.section-label {
     display: none;
   }
   #tx-ledger-list .tx-row {
+    position: relative;
     display: block;
     margin-bottom: 10px;
     padding: 8px 10px;
@@ -1969,6 +1974,14 @@ summary.section-label {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  /* Show the in-header source chip in stacked view */
+  #tx-ledger-list .tx-card-header .tx-header-source {
+    display: inline-flex;
+  }
+  /* Hide the source body cell in stacked view (shown in header instead) */
+  #tx-ledger-list .tx-row > [role='cell'][data-ledger-label='Source'] {
+    display: none;
   }
   /* Hide body rows with no data in stacked view */
   #tx-ledger-list .tx-row > [role='cell'][data-ledger-empty='1'] {
