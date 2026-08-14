@@ -250,7 +250,7 @@ export function renderSettings(): void {
     const fresh = document.getElementById('settings-card-config-history');
     if (fresh) {
       attachCardCollapseListeners(fresh);
-      fresh.classList.toggle('collapsed', isCollapsed('card:config-history'));
+      fresh.classList.add('collapsed');
     }
   });
 
@@ -1593,7 +1593,7 @@ function attachCardCollapseListeners(root: HTMLElement): void {
       const card = header.closest('.card-collapsible') as HTMLElement | null;
       if (!card) return;
       const key = card.dataset.cardKey;
-      if (key) {
+      if (key && key !== 'config-history') {
         const collapsed = toggleCollapsed('card:' + key);
         card.classList.toggle('collapsed', collapsed);
       } else {
