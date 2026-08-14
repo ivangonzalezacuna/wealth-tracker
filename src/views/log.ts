@@ -410,13 +410,6 @@ function txColumns(): ColumnDef<Transaction>[] {
         return amountHtml + sharesHtml + taxHtml;
       },
     },
-    {
-      key: 'source',
-      label: 'Source',
-      sortValue: (t) => t.source || '',
-      cellAttrs: () => 'data-ledger-label="Source"',
-      cell: (t) => `<span class="tx-ledger-source">${esc(t.source || '-')}</span>`,
-    },
   ];
 }
 
@@ -469,6 +462,20 @@ function attachTxListeners(): void {
         const raw = delBtn.dataset.rowid;
         const rowId = raw ? BigInt(raw) : null;
         if (rowId != null) _lastOnDelTx?.(rowId, delBtn);
+        return;
+      }
+      const nameEl = target.closest('.tx-ledger-name') as HTMLElement | null;
+      if (nameEl) {
+        const full = nameEl.title;
+        if (full && nameEl.scrollWidth > nameEl.offsetWidth) {
+          const tip = document.createElement('div');
+          tip.className = 'tx-name-tooltip';
+          tip.textContent = full;
+          document.body.appendChild(tip);
+          const dismiss = () => tip.remove();
+          tip.addEventListener('click', dismiss);
+          document.addEventListener('click', dismiss, { once: true, capture: true });
+        }
       }
     });
   }
@@ -549,9 +556,12 @@ function renderTxList(txs: Transaction[]): void {
           </div>`;
         const [dateCol, typeCol, ...restCols] = columns;
         const headerCells = renderTableRow([dateCol, typeCol], tx);
+        const sourceChip = tx.source
+          ? `<span class="tx-ledger-source tx-ledger-chip-trim" title="${esc(tx.source)}">${esc(tx.source)}</span>`
+          : '';
         const bodyCells = renderTableRow(restCols, tx);
         return `<div class="tbl-row tx-row" role="row">
-          <div class="tx-card-header">${headerCells}${actionBtns ? `<div class="tx-actions-corner">${actionBtns}</div>` : ''}</div>
+          <div class="tx-card-header">${headerCells}${sourceChip}${actionBtns ? `<div class="tx-actions-corner">${actionBtns}</div>` : ''}</div>
           ${bodyCells}
           ${actionsCell}
         </div>`;

@@ -822,6 +822,10 @@ details[open] > summary .card-chevron {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: default;
+}
+.tx-ledger-name[title] {
+  cursor: pointer;
 }
 .tx-ledger-isin {
   display: inline-block;
@@ -842,6 +846,14 @@ details[open] > summary .card-chevron {
   font-size: 10px;
   font-weight: 500;
   white-space: nowrap;
+}
+/* Allow chips in the header to trim when space is tight */
+.tx-ledger-chip-trim {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  max-width: 120px;
 }
 .tx-ledger-chip {
   color: var(--brand);
@@ -1952,6 +1964,48 @@ summary.section-label {
   #tx-ledger-list .tx-row > [role='cell']:last-child {
     border-bottom: none;
   }
+  /* Allow source chip in header to shrink gracefully */
+  #tx-ledger-list .tx-card-header {
+    min-width: 0;
+  }
+  #tx-ledger-list .tx-card-header > [role='cell']:first-child {
+    flex-shrink: 0;
+  }
+  #tx-ledger-list .tx-card-header > [role='cell']:nth-child(2) {
+    flex-shrink: 1;
+    min-width: 0;
+  }
+  #tx-ledger-list .tx-card-header > [role='cell']:nth-child(2) .tx-ledger-chip {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 90px;
+  }
+  #tx-ledger-list .tx-card-header .tx-ledger-source {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100px;
+  }
+}
+
+/* Name full-text tooltip (tap on mobile) */
+.tx-name-tooltip {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  background: var(--surface-4, #333);
+  color: var(--ink-0, #fff);
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  z-index: 9999;
+  pointer-events: auto;
+  text-align: center;
+  word-break: break-word;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 
 /* Ensure color inputs don't overflow on mobile */
