@@ -1992,6 +1992,9 @@ summary.section-label {
   #tx-ledger-list .tx-row > [role='cell'][data-ledger-empty='1'] {
     display: none;
   }
+  #tx-ledger-list .tx-row > [role='cell'].tx-actions-desktop {
+    display: none;
+  }
 }
 
 /* Ensure color inputs don't overflow on mobile */
