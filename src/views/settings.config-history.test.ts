@@ -20,7 +20,6 @@ describe('renderConfigHistoryCard', () => {
         timestamp: '2026-01-16T10:30:00.000Z',
         source: 'web',
         entity: 'accounts',
-        action: 'update',
         summary: 'Added Main ETF',
       },
       {
@@ -28,7 +27,6 @@ describe('renderConfigHistoryCard', () => {
         timestamp: '2026-01-16T11:00:00.000Z',
         source: 'web',
         entity: 'settings',
-        action: 'update',
         summary: 'Cost basis changed to fifo',
       },
     ];
@@ -53,7 +51,6 @@ describe('renderConfigHistoryCard', () => {
         timestamp: '2026-01-15T10:30:00.000Z',
         source: 'web',
         entity: 'settings',
-        action: '',
         summary: 'costBasisMethod = fifo',
       },
       {
@@ -61,7 +58,6 @@ describe('renderConfigHistoryCard', () => {
         timestamp: '2026-01-16T10:30:00.000Z',
         source: 'web',
         entity: 'restore',
-        action: '',
         summary: 'restored from backup',
       },
       {
@@ -69,7 +65,6 @@ describe('renderConfigHistoryCard', () => {
         timestamp: '2026-01-17T10:30:00.000Z',
         source: 'web',
         entity: 'migration',
-        action: '',
         summary: 'Seeded config from config.js defaults (accounts=true, holdings=true)',
       },
     ];
@@ -87,7 +82,6 @@ describe('renderConfigHistoryCard', () => {
         timestamp: '2026-01-15T10:00:00.000Z',
         source: 'web',
         entity: 'holdings',
-        action: 'update',
         summary: 'Added IWDA',
       },
     ];
@@ -103,7 +97,6 @@ describe('renderConfigHistoryCard', () => {
         timestamp: '2026-01-15T10:45:00.000Z',
         source: 'web',
         entity: 'settings',
-        action: 'set',
         summary:
           'ui_collapse_state = {"card:accounts":true,"card:holdings":false,"card:config-history":true}',
       },
@@ -122,7 +115,6 @@ describe('renderConfigHistoryCard', () => {
         timestamp: '2026-01-15T10:45:00.000Z',
         source: 'web',
         entity: 'settings',
-        action: 'set',
         summary: 'last_backup_at = 2026-08-13T16:49:14.925Z',
       },
     ];
@@ -143,7 +135,6 @@ describe('renderConfigHistoryCard', () => {
         timestamp: '2026-01-15T10:45:00.000Z',
         source: 'web',
         entity: 'settings',
-        action: 'set',
         summary:
           'last_backup_at = 2026-08-14T07:26:05.911Z and this is intentionally long to test truncation',
       },
@@ -165,7 +156,6 @@ describe('renderConfigHistoryCard', () => {
         timestamp: '2026-01-15T10:00:00.000Z',
         source: 'web',
         entity: '<script>',
-        action: '',
         summary: '"><img/>',
       },
     ];

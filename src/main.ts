@@ -1046,7 +1046,7 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
 
     // Reload in-memory config store from the freshly written SQLite tables.
     await loadConfig();
-    await logConfigChange('Restore', 'restore', 'restored from backup');
+    await logConfigChange('Restore', 'restored from backup');
 
     // Reapply collapse/expand UI state from the backup
     const rawCollapse = settings['ui_collapse_state'];

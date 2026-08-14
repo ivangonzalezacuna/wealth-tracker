@@ -6,7 +6,7 @@
  */
 
 /** Schema version - bump when DDL changes require a migration. */
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 7;
 
 /**
  * SQL statements executed on first database creation (version 0 → 1).
@@ -87,7 +87,6 @@ export const SCHEMA_DDL: string[] = [
     timestamp TEXT NOT NULL,
     source TEXT NOT NULL DEFAULT 'web',
     entity TEXT NOT NULL,
-    action TEXT NOT NULL DEFAULT '',
     summary TEXT NOT NULL DEFAULT ''
   )`,
 

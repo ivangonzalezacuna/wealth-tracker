@@ -272,7 +272,7 @@ export async function setAccounts(accounts: Account[]): Promise<void> {
   _accounts = accounts;
   try {
     await dbSaveAccounts(accounts);
-    await logConfigChange('Accounts', 'update', `updated ${accounts.length} accounts`);
+    await logConfigChange('Accounts', `updated ${accounts.length} accounts`);
     scheduleUpload();
     if (_onChange) _onChange('accounts');
   } catch (err) {
@@ -286,7 +286,7 @@ export async function setHoldings(holdings: Holding[]): Promise<void> {
   _holdings = holdings;
   try {
     await dbSaveHoldings(holdings);
-    await logConfigChange('Holdings', 'update', `updated ${holdings.length} holdings`);
+    await logConfigChange('Holdings', `updated ${holdings.length} holdings`);
     scheduleUpload();
     if (_onChange) _onChange('holdings');
   } catch (err) {
@@ -300,7 +300,7 @@ export async function setSetting(key: string, value: string): Promise<void> {
   _settings[key] = value;
   try {
     await dbSetSetting(key, value);
-    await logConfigChange('Settings', 'set', `${key} = ${value}`);
+    await logConfigChange('Settings', `${key} = ${value}`);
     scheduleUpload();
     if (_onChange) _onChange('settings');
   } catch (err) {
@@ -322,7 +322,7 @@ export async function setSettings(
   }
   try {
     await persistSettings();
-    await logConfigChange('Settings', 'update', `updated ${Object.keys(settings).join(', ')}`);
+    await logConfigChange('Settings', `updated ${Object.keys(settings).join(', ')}`);
     scheduleUpload();
     if (_onChange) _onChange('settings');
   } catch (err) {
@@ -337,7 +337,7 @@ export async function replaceSettings(settings: Settings): Promise<void> {
   _settings = { ...settings };
   try {
     await persistSettings();
-    await logConfigChange('Settings', 'restore', 'restored from backup');
+    await logConfigChange('Settings', 'restored from backup');
     scheduleUpload();
     if (_onChange) _onChange('settings');
   } catch (err) {
@@ -544,7 +544,6 @@ async function seedFromConfig(seedAccounts: boolean, seedHoldings: boolean): Pro
 
   await logConfigChange(
     'Migration',
-    'seed',
     `Seeded config from config.js defaults (accounts=${seedAccounts}, holdings=${seedHoldings})`,
   );
 }
