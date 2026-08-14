@@ -87,11 +87,27 @@ export interface Snapshot {
 // ─── Settings ────────────────────────────────────────────────────
 
 export interface Settings {
-  costBasisMethod?: string;
+  /** Cost-basis calculation method. */
+  costBasisMethod?: 'avgco' | 'fifo' | 'lifo' | 'hifo';
+  /** Legacy global annual return % (numeric string); migrated to per-account annualReturnPct on load. */
   annualReturnPct?: string;
-  contributionInterval?: string; // global contribution cadence: 'weekly'|'biweekly'|'monthly'|'quarterly'
-  calibrationInterval?: string; // rebalance-plan display cadence: 'weekly'|'biweekly'|'monthly'|'quarterly'
-  monthlyContribBudget?: string; // global contribution amount in EUR, interpreted using contributionInterval
+  /** Global contribution cadence (snake_case key used in the DB). */
+  contribution_interval?: ContribInterval;
+  /** Rebalance-plan display cadence (snake_case key used in the DB). */
+  calibration_interval?: ContribInterval;
+  /** Global contribution budget in EUR per interval (snake_case key used in the DB). */
+  monthly_contrib_budget?: string;
+  /** Legacy single-goal target net worth (numeric string). */
+  targetNetWorth?: string;
+  /** Legacy single-goal target date (YYYY-MM string). */
+  targetDate?: string;
+  /** JSON-serialised NamedGoal[]. */
+  goals?: string;
+  /** JSON-serialised AlertSettings. */
+  alerts?: string;
+  /** JSON-serialised string[] of retired account IDs. */
+  retired_account_ids?: string;
+  /** Forward-compatible escape hatch for unknown / future keys. */
   [key: string]: string | null | undefined;
 }
 

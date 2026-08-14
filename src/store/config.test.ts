@@ -173,7 +173,7 @@ describe('hydrateConfigFromCache', () => {
         order: 1,
       },
     ];
-    const settings = { costBasisMethod: 'fifo' };
+    const settings = { costBasisMethod: 'fifo' as const };
 
     hydrateConfigFromCache({ accounts, holdings, settings });
 
@@ -202,7 +202,7 @@ describe('replaceSettings', () => {
     hydrateConfigFromCache({
       accounts: [],
       holdings: [],
-      settings: { oldKey: 'oldValue', costBasisMethod: 'fifo' },
+      settings: { oldKey: 'oldValue', costBasisMethod: 'fifo' as const },
     });
     expect(getSettings().oldKey).toBe('oldValue');
 
@@ -215,7 +215,7 @@ describe('replaceSettings', () => {
   });
 
   it('getSettings() returns exactly the new object after replace', async () => {
-    const newSettings = { costBasisMethod: 'fifo', targetNetWorth: '100000' };
+    const newSettings = { costBasisMethod: 'fifo' as const, targetNetWorth: '100000' };
     await replaceSettings(newSettings);
 
     expect(getSettings()).toEqual(newSettings);
@@ -355,7 +355,7 @@ describe('rollback on failure', () => {
       order: 1,
     },
   ];
-  const ORIGINAL_SETTINGS = { costBasisMethod: 'fifo', annualReturnPct: '7' };
+  const ORIGINAL_SETTINGS = { costBasisMethod: 'fifo' as const, annualReturnPct: '7' };
 
   beforeEach(() => {
     vi.mocked(dbSaveAccounts).mockReset().mockResolvedValue(undefined);
