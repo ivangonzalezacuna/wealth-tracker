@@ -881,10 +881,6 @@ details[open] > summary .card-chevron {
 .tx-card-header {
   display: contents;
 }
-/* Corner icons hidden on desktop (actions are in the regular Actions column) */
-.tx-actions-corner {
-  display: none;
-}
 
 /* Snapshot detail note: qualified with `.hold-detail >` so specificity
    (0,2,0) beats `.hold-detail > div`'s (0,1,1) flex shorthand. */
@@ -1924,21 +1920,23 @@ summary.section-label {
     display: none;
   }
   /* Action icons pinned top-right */
-  #tx-ledger-list .tx-actions-corner {
+  #tx-ledger-list .tx-actions {
     position: absolute;
     top: 6px;
     right: 8px;
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 4px;
+    border-bottom: none;
+    padding: 0;
   }
-  #tx-ledger-list .tx-actions-corner .btn-sm {
+  #tx-ledger-list .tx-actions .btn-sm {
     min-height: 28px;
     padding: 3px 6px;
   }
-  /* Hide the old labelled Actions row in stacked mode */
-  #tx-ledger-list .tx-actions {
-    display: none !important;
+  #tx-ledger-list .tx-actions::before {
+    display: none;
   }
   /* Body cells */
   #tx-ledger-list .tx-row > [role='cell'] {

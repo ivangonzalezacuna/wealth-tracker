@@ -158,7 +158,7 @@ interface ContributionPlanState {
 
 function prepareAccountInputs(accounts: AccountForecastInput[]): {
   perAccountMonthlyRate: number[];
-  perAccountContributionPlans: ContributionPlanState[][];
+  perAccountContributionPlans: Array<ContributionPlanState | null>;
   values: number[];
 } {
   const perAccountMonthlyRate = accounts.map(
@@ -172,17 +172,15 @@ function prepareAccountInputs(accounts: AccountForecastInput[]): {
   return {
     perAccountMonthlyRate,
     perAccountContributionPlans: accounts.map((a) => {
-      if (!isFinite(a.annualContrib) || a.annualContrib <= 0) return [];
+      if (!isFinite(a.annualContrib) || a.annualContrib <= 0) return null;
       const interval = a.contribInterval || 'monthly';
       const executionsPerYear = INTERVAL_PER_YEAR[interval] || INTERVAL_PER_YEAR.monthly;
       const amountPerExecution = a.annualContrib / executionsPerYear;
-      return [
-        {
-          amountPerExecution,
-          executionsPerMonth: executionsPerYear / 12,
-          carry: 0,
-        },
-      ];
+      return {
+        amountPerExecution,
+        executionsPerMonth: executionsPerYear / 12,
+        carry: 0,
+      };
     }),
     values: accounts.map((a) => a.current),
   };
@@ -190,13 +188,13 @@ function prepareAccountInputs(accounts: AccountForecastInput[]): {
 
 function advanceAccountValues(
   values: number[],
-  perAccountContributionPlans: ContributionPlanState[][],
+  perAccountContributionPlans: Array<ContributionPlanState | null>,
   perAccountMonthlyRate: number[],
 ): { values: number[]; total: number } {
   const nextValues = values.map((v, idx) => {
     let monthContrib = 0;
-    const plans = perAccountContributionPlans[idx] || [];
-    for (const plan of plans) {
+    const plan = perAccountContributionPlans[idx];
+    if (plan) {
       plan.carry += plan.executionsPerMonth;
       const executions = Math.floor(plan.carry + 1e-9);
       if (executions > 0) {

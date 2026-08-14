@@ -90,6 +90,10 @@ function _deflateByInflation(
   }));
 }
 
+function _isPrimaryInvestmentAccount(a: Account): boolean {
+  return !!a.isPrimaryInvestment && (a.moneyType || '').toLowerCase() === 'investment';
+}
+
 function _buildAccountForecastInputs(snap: Snapshot, accounts: Account[]): AccountForecastInput[] {
   const globalContribInterval = getContributionInterval();
   const globalContribAmount = getContributionBudgetAmount();
@@ -97,16 +101,13 @@ function _buildAccountForecastInputs(snap: Snapshot, accounts: Account[]): Accou
     const current = (snap[a.id || ''] as number) || 0;
     const annualReturnPct = a.annualReturnPct || 0;
     const accountContribInterval = a.contribInterval || 'monthly';
-    const personalContribAnnual =
-      a.isPrimaryInvestment && (a.moneyType || '').toLowerCase() === 'investment'
-        ? annualizeContrib(globalContribAmount, globalContribInterval)
-        : annualizeContrib(a.contribAmount || 0, accountContribInterval);
+    const isPrimaryInvestment = _isPrimaryInvestmentAccount(a);
+    const personalContribAnnual = isPrimaryInvestment
+      ? annualizeContrib(globalContribAmount, globalContribInterval)
+      : annualizeContrib(a.contribAmount || 0, accountContribInterval);
     const extraContribAnnual = annualizeContrib(a.extraContrib || 0, accountContribInterval);
     const annualContrib = personalContribAnnual + extraContribAnnual;
-    const contribInterval =
-      a.isPrimaryInvestment && (a.moneyType || '').toLowerCase() === 'investment'
-        ? globalContribInterval
-        : accountContribInterval;
+    const contribInterval = isPrimaryInvestment ? globalContribInterval : accountContribInterval;
     return { current, annualContrib, annualReturnPct, contribInterval };
   });
 }
@@ -687,6 +688,11 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   }
   const latestSnap = snaps[snaps.length - 1];
   const accountInputs = _buildAccountForecastInputs(latestSnap, accounts);
+  const globalContribAmount = getContributionBudgetAmount();
+  const globalContribInterval = getContributionInterval();
+  const globalContribIntervalLabel = (
+    INTERVAL_LABELS[globalContribInterval] || globalContribInterval
+  ).toLowerCase();
   const hasGrowthPotential = accountInputs.some(
     (a) => a.annualContrib > 0 || a.annualReturnPct > 0,
   );
@@ -768,15 +774,10 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       const inp = accountInputs[idx];
       const retStr = `${a.annualReturnPct ?? 0}% return`;
       let contribStr: string;
-      if (a.isPrimaryInvestment && (a.moneyType || '').toLowerCase() === 'investment') {
-        const globalAmount = getContributionBudgetAmount();
-        const globalInterval = getContributionInterval();
-        const globalIntervalLabel = (
-          INTERVAL_LABELS[globalInterval] || globalInterval
-        ).toLowerCase();
+      if (_isPrimaryInvestmentAccount(a)) {
         contribStr =
           inp.annualContrib > 0
-            ? `${fmtEur(globalAmount)} ${esc(globalIntervalLabel)} (from Holdings)`
+            ? `${fmtEur(globalContribAmount)} ${esc(globalContribIntervalLabel)} (from Holdings)`
             : 'no contributions configured';
       } else {
         const amt = a.contribAmount ?? 0;

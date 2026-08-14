@@ -550,7 +550,7 @@ function renderTxList(txs: Transaction[]): void {
           : '';
         const bodyCells = renderTableRow(restCols, tx);
         return `<div class="tbl-row tx-row" role="row">
-          <div class="tx-card-header">${headerCells}${sourceChip}${actionBtns ? `<div class="tx-actions-corner">${actionBtns}</div>` : ''}</div>
+          <div class="tx-card-header">${headerCells}${sourceChip}</div>
           ${bodyCells}
           ${actionsCell}
         </div>`;
