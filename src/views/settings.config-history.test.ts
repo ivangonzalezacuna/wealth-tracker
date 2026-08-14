@@ -13,7 +13,7 @@ describe('renderConfigHistoryCard', () => {
     expect(html).toContain('Config history');
   });
 
-  it('renders a row for each entry', () => {
+  it('renders grouped collapsible entries with newest date expanded by default', () => {
     const entries: ConfigHistoryEntry[] = [
       {
         id: 1,
@@ -36,6 +36,10 @@ describe('renderConfigHistoryCard', () => {
     expect(html).toContain('Added Main ETF');
     expect(html).toContain('Cost basis changed to fifo');
     expect(html).toContain('16 Jan 2026');
+    expect(html).toContain('config-history-group');
+    expect(html).toContain('config-history-group-row');
+    expect(html).toContain('2 changes');
+    expect(html).toContain('<details class="config-history-group" open>');
     expect(html).toContain('config-history-entity is-accounts');
     expect(html).toContain('config-history-entity is-settings');
     expect(html).toContain('Accounts · Update');
@@ -91,6 +95,7 @@ describe('renderConfigHistoryCard', () => {
     ];
     const html = renderConfigHistoryCard(entries);
     expect(html).toContain('Showing the last 1 change.');
+    expect(html).toContain('1 change');
   });
 
   it('escapes HTML-special characters in summary and entity', () => {

@@ -2226,46 +2226,43 @@ export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
     body = '<p class="note" style="margin-top:.5rem">No changes recorded yet.</p>';
   } else {
     const rows = groupConfigHistoryEntries(entries)
-      .map((e) => {
+      .map((e, idx) => {
         const groupRows = e.entries
           .map((entry) => {
             const kindMeta = getHistoryKindMeta(entry.entity, entry.action, entry.summary);
             const source = formatHistorySource(entry.source);
             return `
-          <tr class="config-history-row">
-            <td class="config-history-when">${esc(fmtHistoryTime(entry.timestamp))}</td>
-            <td class="config-history-what">
+          <div class="config-history-row">
+            <div class="config-history-row-top">
               <span class="config-history-entity ${kindMeta.toneClass}">
                 <span aria-hidden="true">${kindMeta.icon}</span>
                 <span>${esc(kindMeta.label)}</span>
               </span>
-            </td>
-            <td class="config-history-summary">
+              <span class="config-history-when">${esc(fmtHistoryTime(entry.timestamp))}</span>
+            </div>
+            <div class="config-history-summary">
               <span>${esc(entry.summary)}</span>
               ${source ? `<span class="config-history-source">${esc(source)}</span>` : ''}
-            </td>
-          </tr>`;
+            </div>
+          </div>`;
           })
           .join('');
+        const count = e.entries.length;
         return `
-        <tbody class="config-history-group">
-          <tr class="config-history-group-row">
-            <th colspan="3">${esc(e.label)}</th>
-          </tr>
-          ${groupRows}
-        </tbody>`;
+        <details class="config-history-group"${idx === 0 ? ' open' : ''}>
+          <summary class="config-history-group-row">
+            <span class="config-history-group-date">${esc(e.label)}</span>
+            <span class="config-history-group-count">${count} change${count === 1 ? '' : 's'}</span>
+          </summary>
+          <div class="config-history-group-body">
+            ${groupRows}
+          </div>
+        </details>`;
       })
       .join('');
     body = `
       <div class="config-history-wrap">
-        <table class="config-history-table">
-          <thead><tr>
-            <th>Time</th>
-            <th>Change</th>
-            <th>Summary</th>
-          </tr></thead>
-          ${rows}
-        </table>
+        ${rows}
       </div>
       <p class="note config-history-note">Showing the last ${entries.length} change${entries.length === 1 ? '' : 's'}.</p>`;
   }
