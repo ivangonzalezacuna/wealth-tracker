@@ -32,7 +32,6 @@ Focus: deeper analytics, richer planning, and cross-device experience.
 
 ### Analytics
 - **Tax report view** — a dedicated tab or export (CSV/PDF) summarising realised capital gains, dividends, interest, and withheld tax per calendar year, grouped by account and ISIN, to simplify annual tax filing. Data is derived entirely from imported transactions.
-- **Benchmark comparison** — overlay a reference return series on the growth and annual-returns charts. The series would be user-supplied (e.g. a CSV with monthly index returns) so no external API is required.
 - **Correlation / diversification score** — compute pairwise return correlation between holdings from existing snapshot and transaction data, and surface a simple diversification score to highlight concentration risk.
 - **Cash-flow calendar** — a monthly view showing projected dividends, interest payments, and scheduled contribution transfers, bridging the existing `divHist`/`intHist` data and the forecast model.
 
@@ -56,7 +55,7 @@ Focus: deeper analytics, richer planning, and cross-device experience.
 Focus: extensibility, collaboration, and broader platform support.
 
 ### Data & Storage
-- **Multi-currency base currency** — allow choosing a base currency other than EUR; all KPIs and charts recalculate using user-supplied FX rates (importable as a CSV), making the app fully usable for non-EUR investors.
+- **Multi-currency base currency** — allow choosing a base currency other than EUR. Transactions already carry a per-row `fxRate`; the missing piece is FX rates for snapshot entries: when logging a monthly snapshot the user would enter the spot rate for each non-base account (e.g. 1 USD = 0.92 EUR), which is stored alongside the balance and used for all KPI and chart calculations. This covers the most common personal-finance case (holding a few foreign-currency accounts) without requiring any external data source.
 - **Alternative sync backends** — offer Dropbox or a self-hosted WebDAV endpoint alongside Google Drive so users not in the Google ecosystem can still sync across devices.
 
 ### Collaboration & Multi-user
