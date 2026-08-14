@@ -18,6 +18,10 @@ import {
 
 const DIV_PAGE_SIZE = 12;
 const ANNUAL_PAGE_SIZE = 8;
+const DIVIDEND_TAX_TIP =
+  'Imported dividend withholding and refunds summed from dividend rows. Personal tracking only.';
+const SAVINGS_TAX_TIP =
+  'Imported savings-interest withholding and refunds grouped into monthly totals. Personal tracking only.';
 let _annualPage = 1;
 let _expandedAnnualYear = '';
 const _divTableState = createTableState({ sort: { key: null, dir: null }, filters: { year: '' } });
@@ -68,13 +72,13 @@ export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = [
   const totalGross = pd.divHist.reduce((s, d) => s + d.gross, 0);
   document.getElementById('div-kpis')!.innerHTML = `
     ${kpiTile({ label: `Gross dividends${infoTip('Before tax: Total distribution payments received from ETFs and stocks, before withholding tax is deducted.')}`, value: fmtEur2(totalGross) })}
-    ${kpiTile({ label: `Tax withheld${infoTip('Aggregated withholding imported on dividend transactions. Useful as a cashflow signal, not jurisdiction-aware tax reporting or filing guidance.')}`, value: fmtEur2(Math.abs(pd.totalTax)), valueClass: pd.totalTax >= 0 ? 'neg' : 'pos', sub: 'aggregated imported signal' })}
+    ${kpiTile({ label: `Tax withheld${infoTip(DIVIDEND_TAX_TIP)}`, value: fmtEur2(Math.abs(pd.totalTax)), valueClass: pd.totalTax >= 0 ? 'neg' : 'pos', sub: 'imported totals' })}
     ${kpiTile({ label: `Net received${infoTip('Gross dividends minus dividend withholding tax for imported dividend rows.')}`, value: fmtEur2(pd.totalDivNet), valueClass: 'pos', sub: 'dividends' })}
-    ${kpiTile({ label: `Gross interest${infoTip('Interest credited on cash/savings balances before any withholding or refunds.')}`, value: fmtEur2(pd.totalIntGross), sub: 'on cash savings' })}
-    ${kpiTile({ label: `Tax on savings${infoTip('Aggregated savings-interest withholding and refunds imported from broker transactions. Useful as a cashflow signal, not jurisdiction-aware tax reporting or filing guidance.')}`, value: fmtEur2(pd.totalIntTax), valueClass: pd.totalIntTax > 0 ? 'neg' : 'ok', sub: 'aggregated withheld + refunds' })}
-    ${kpiTile({ label: `Net interest${infoTip('Gross interest minus savings-interest withholding tax, including imported refunds.')}`, value: fmtEur2(pd.totalInterest), valueClass: 'pos', sub: 'received' })}
+    ${kpiTile({ label: `Gross interest${infoTip('Interest credited on cash/savings balances before any withholding or refunds.')}`, value: fmtEur2(pd.totalIntGross), sub: 'monthly totals' })}
+    ${kpiTile({ label: `Tax on savings${infoTip(SAVINGS_TAX_TIP)}`, value: fmtEur2(pd.totalIntTax), valueClass: pd.totalIntTax > 0 ? 'neg' : 'ok', sub: 'monthly totals' })}
+    ${kpiTile({ label: `Net interest${infoTip('Gross interest minus savings-interest withholding tax, including imported refunds.')}`, value: fmtEur2(pd.totalInterest), valueClass: 'pos', sub: 'monthly net' })}
     <div class="note" style="grid-column:1 / -1;line-height:1.5">
-      Tax figures in this tab are aggregated from imported transactions (withholding + refunds) for personal tracking only. They are not tax filing guidance, are not residence-aware, and may become incomplete if your tax country changes over time.
+      Imported tax figures here are for personal tracking only and are not tax filing guidance.
     </div>
   `;
 
@@ -202,8 +206,8 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
     <div id="div-annual-table">
       <div class="tbl-row th annual-row" role="row">
         <div>Year</div>
-        <div style="text-align:right">Withheld / refunded${infoTip('Aggregated dividend and savings tax amounts imported during the year. Useful as a personal tracking signal, not tax filing guidance.')}</div>
-        <div style="text-align:right">Benefits (net)${infoTip('Net dividends + net savings interest + realized profit/loss from sells for the year.')}</div>
+        <div style="text-align:right">Withheld / refunded${infoTip('Imported dividend and savings tax movements summed for the year. Personal tracking only.')}</div>
+        <div style="text-align:right">Benefits (net)${infoTip('Net dividends + net savings interest + realized sell profit/loss for the year.')}</div>
       </div>
       ${rows}
     </div>
@@ -430,7 +434,8 @@ function intColumns(): ColumnDef<IntHistEntry>[] {
   return [
     {
       key: 'date',
-      label: 'Month',
+      label: 'Month total',
+      tip: 'Interest entries are grouped into monthly totals, including matching withholding and refund adjustments.',
       cell: (i) => fmtMon(i.date),
       sortValue: (i) => i.date,
     },
