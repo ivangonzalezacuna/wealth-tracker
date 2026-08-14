@@ -17,7 +17,7 @@ describe('renderConfigHistoryCard', () => {
     const entries: ConfigHistoryEntry[] = [
       {
         id: 1,
-        timestamp: '2026-01-15T10:30:00.000Z',
+        timestamp: '2026-01-16T10:30:00.000Z',
         source: 'web',
         entity: 'accounts',
         action: 'update',
@@ -35,17 +35,16 @@ describe('renderConfigHistoryCard', () => {
     const html = renderConfigHistoryCard(entries);
     expect(html).toContain('Added Main ETF');
     expect(html).toContain('Cost basis changed to fifo');
-    expect(html).toContain('accounts');
-    expect(html).toContain('settings');
+    expect(html).toContain('16 Jan 2026');
     expect(html).toContain('config-history-entity is-accounts');
     expect(html).toContain('config-history-entity is-settings');
-    expect(html).toContain('config-history-action is-update');
-    expect(html).toContain('Update');
+    expect(html).toContain('Accounts · Update');
+    expect(html).toContain('Settings · Update');
     expect(html).toContain('config-history-source');
     expect(html).toContain('Web');
   });
 
-  it('infers additional action chips for common summary types', () => {
+  it('consolidates duplicate and inferred action labels into a single badge', () => {
     const entries: ConfigHistoryEntry[] = [
       {
         id: 1,
@@ -73,9 +72,10 @@ describe('renderConfigHistoryCard', () => {
       },
     ];
     const html = renderConfigHistoryCard(entries);
-    expect(html).toContain('config-history-action is-set');
-    expect(html).toContain('config-history-action is-restore');
-    expect(html).toContain('config-history-action is-seed');
+    expect(html).toContain('Settings · Set');
+    expect(html).toContain('>Restore<');
+    expect(html).toContain('Migration · Seed');
+    expect(html).not.toContain('config-history-action');
   });
 
   it('shows the correct entry count in the footer', () => {

@@ -38,7 +38,7 @@ import type {
   Transaction,
   Snapshot,
 } from '../types';
-import { formatEnglishDateTime, formatEnglishMonth } from '../dateFormat';
+import { formatEnglishDate, formatEnglishDateTime, formatEnglishMonth } from '../dateFormat';
 import { normalizeInstitution } from '../model/securitySuggestions';
 import { isCollapsed, setCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
@@ -2082,6 +2082,27 @@ function fmtHistoryTimestamp(iso: string): string {
   }
 }
 
+function parseHistoryDate(iso: string): Date | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  return isNaN(date.getTime()) ? null : date;
+}
+
+function fmtHistoryGroupLabel(iso: string): string {
+  const date = parseHistoryDate(iso);
+  if (!date) return fmtHistoryTimestamp(iso) || 'Unknown date';
+  return formatEnglishDate(date, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function fmtHistoryTime(iso: string): string {
+  const date = parseHistoryDate(iso);
+  if (!date) return fmtHistoryTimestamp(iso);
+  return new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
 interface HistoryEntityMeta {
   label: string;
   icon: string;
@@ -2155,47 +2176,95 @@ function getHistoryActionMeta(action: string | undefined, summary: string): Hist
   return inferHistoryActionMeta(summary);
 }
 
+function getHistoryKindMeta(
+  entity: string,
+  action: string | undefined,
+  summary: string,
+): HistoryEntityMeta {
+  const entityMeta = getHistoryEntityMeta(entity);
+  const actionMeta = getHistoryActionMeta(action, summary);
+  if (entityMeta.label.trim().toLowerCase() === actionMeta.label.trim().toLowerCase()) {
+    return entityMeta;
+  }
+  return {
+    label: `${entityMeta.label} · ${actionMeta.label}`,
+    icon: entityMeta.icon,
+    toneClass: entityMeta.toneClass,
+  };
+}
+
+interface ConfigHistoryGroup {
+  key: string;
+  label: string;
+  entries: ConfigHistoryEntry[];
+}
+
+function groupConfigHistoryEntries(entries: ConfigHistoryEntry[]): ConfigHistoryGroup[] {
+  const groups: ConfigHistoryGroup[] = [];
+  entries.forEach((entry) => {
+    const date = parseHistoryDate(entry.timestamp);
+    const key = date
+      ? `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`
+      : `raw:${entry.timestamp}`;
+    const lastGroup = groups[groups.length - 1];
+    if (lastGroup && lastGroup.key === key) {
+      lastGroup.entries.push(entry);
+      return;
+    }
+    groups.push({
+      key,
+      label: fmtHistoryGroupLabel(entry.timestamp),
+      entries: [entry],
+    });
+  });
+  return groups;
+}
+
 export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
   let body: string;
   if (entries.length === 0) {
     body = '<p class="note" style="margin-top:.5rem">No changes recorded yet.</p>';
   } else {
-    const rows = entries
+    const rows = groupConfigHistoryEntries(entries)
       .map((e) => {
-        const entityMeta = getHistoryEntityMeta(e.entity);
-        const actionMeta = getHistoryActionMeta(e.action, e.summary);
-        const source = formatHistorySource(e.source);
+        const groupRows = e.entries
+          .map((entry) => {
+            const kindMeta = getHistoryKindMeta(entry.entity, entry.action, entry.summary);
+            const source = formatHistorySource(entry.source);
+            return `
+          <tr class="config-history-row">
+            <td class="config-history-when">${esc(fmtHistoryTime(entry.timestamp))}</td>
+            <td class="config-history-what">
+              <span class="config-history-entity ${kindMeta.toneClass}">
+                <span aria-hidden="true">${kindMeta.icon}</span>
+                <span>${esc(kindMeta.label)}</span>
+              </span>
+            </td>
+            <td class="config-history-summary">
+              <span>${esc(entry.summary)}</span>
+              ${source ? `<span class="config-history-source">${esc(source)}</span>` : ''}
+            </td>
+          </tr>`;
+          })
+          .join('');
         return `
-      <tr class="config-history-row">
-        <td class="config-history-when">${esc(fmtHistoryTimestamp(e.timestamp))}</td>
-        <td class="config-history-what">
-          <span class="config-history-what-stack">
-            <span class="config-history-entity ${entityMeta.toneClass}">
-              <span aria-hidden="true">${entityMeta.icon}</span>
-              <span>${esc(entityMeta.label)}</span>
-            </span>
-            <span class="config-history-action ${actionMeta.toneClass}">
-              <span aria-hidden="true">${actionMeta.icon}</span>
-              <span>${esc(actionMeta.label)}</span>
-            </span>
-          </span>
-        </td>
-        <td class="config-history-summary">
-          <span>${esc(e.summary)}</span>
-          ${source ? `<span class="config-history-source">${esc(source)}</span>` : ''}
-        </td>
-      </tr>`;
+        <tbody class="config-history-group">
+          <tr class="config-history-group-row">
+            <th colspan="3">${esc(e.label)}</th>
+          </tr>
+          ${groupRows}
+        </tbody>`;
       })
       .join('');
     body = `
       <div class="config-history-wrap">
         <table class="config-history-table">
           <thead><tr>
-            <th>When</th>
-            <th>What</th>
+            <th>Time</th>
+            <th>Change</th>
             <th>Summary</th>
           </tr></thead>
-          <tbody>${rows}</tbody>
+          ${rows}
         </table>
       </div>
       <p class="note config-history-note">Showing the last ${entries.length} change${entries.length === 1 ? '' : 's'}.</p>`;

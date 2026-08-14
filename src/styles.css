@@ -1030,12 +1030,25 @@ details[open] > summary .card-chevron {
 .config-history-table th + th {
   padding-left: 0.75rem;
 }
+.config-history-group-row th {
+  padding: 0.9rem 0 0.4rem;
+  border-bottom: 1px solid var(--line-2);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--surface);
+}
+.config-history-group:first-of-type .config-history-group-row th {
+  padding-top: 0.2rem;
+}
 .config-history-row td {
   padding: 0.48rem 0;
   vertical-align: top;
   border-bottom: 1px solid var(--line-2);
 }
-.config-history-row:last-child td {
+.config-history-group:last-of-type .config-history-row:last-child td {
   border-bottom: none;
 }
 .config-history-when {
@@ -1046,12 +1059,6 @@ details[open] > summary .card-chevron {
 }
 .config-history-what {
   padding-right: 0.8rem;
-}
-.config-history-what-stack {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex-wrap: wrap;
 }
 .config-history-entity {
   display: inline-flex;
@@ -1084,36 +1091,6 @@ details[open] > summary .card-chevron {
   background: rgba(124, 58, 237, 0.12);
 }
 .config-history-entity.is-other {
-  color: var(--ink-2);
-  background: var(--surface-3);
-}
-.config-history-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.28rem;
-  font-size: 10px;
-  font-weight: 500;
-  line-height: 1.2;
-  border-radius: var(--radius-lg);
-  padding: 2px 7px;
-}
-.config-history-action.is-update {
-  color: #0369a1;
-  background: rgba(14, 165, 233, 0.14);
-}
-.config-history-action.is-set {
-  color: #6d28d9;
-  background: rgba(139, 92, 246, 0.15);
-}
-.config-history-action.is-seed {
-  color: #166534;
-  background: rgba(34, 197, 94, 0.16);
-}
-.config-history-action.is-restore {
-  color: #92400e;
-  background: rgba(245, 158, 11, 0.16);
-}
-.config-history-action.is-change {
   color: var(--ink-2);
   background: var(--surface-3);
 }
