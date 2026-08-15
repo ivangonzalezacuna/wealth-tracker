@@ -180,7 +180,9 @@ describe('renderLog', () => {
     });
     const bulkBtn = document.getElementById('btn-del-snaps') as HTMLButtonElement;
     expect(bulkBtn.disabled).toBe(true);
-    const firstCheckbox = document.querySelector('.js-snap-select') as HTMLInputElement;
+    const firstCheckbox = document.querySelector(
+      '.js-snap-select[data-date="2026-03-01"]',
+    ) as HTMLInputElement;
     firstCheckbox.click();
     firstCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
     expect(bulkBtn.disabled).toBe(false);
@@ -205,9 +207,11 @@ describe('renderLog', () => {
       onBulkDelSnaps: vi.fn(),
     });
     const bulkBtn = document.getElementById('btn-del-snaps') as HTMLButtonElement;
-    const firstCheckbox = document.querySelector('.js-snap-select') as HTMLInputElement;
-    firstCheckbox.click();
-    firstCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+    const alphaCheckbox = document.querySelector(
+      '.js-snap-select[data-date="2026-01-01"]',
+    ) as HTMLInputElement;
+    alphaCheckbox.click();
+    alphaCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
     expect(bulkBtn.disabled).toBe(false);
     const searchEl = document.getElementById('snap-search') as HTMLInputElement;
     searchEl.value = 'beta';

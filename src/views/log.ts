@@ -280,7 +280,8 @@ function renderSnapList(
   _updateBulkDeleteButton();
 
   // Compact row layout - fixed 3-column (Month / Net worth / segment indicator)
-  const rowClass = !_readOnly && !!_lastOnBulkDel ? 'snap-row-compact snap-row-selectable' : 'snap-row-compact';
+  const rowClass =
+    !_readOnly && !!_lastOnBulkDel ? 'snap-row-compact snap-row-selectable' : 'snap-row-compact';
   el.innerHTML = `
     <div class="${rowClass} th" role="row" id="snap-table-header">
       ${renderTableHeader(columns, _snapTableState.sort)}
@@ -410,8 +411,7 @@ function hidePagination(): void {
 
 function _updateBulkDeleteButton(): void {
   const btn = document.getElementById('btn-del-snaps') as
-    | (HTMLButtonElement & { _boundBulkDelete?: boolean })
-    | null;
+    (HTMLButtonElement & { _boundBulkDelete?: boolean }) | null;
   if (!btn) return;
   if (!btn._boundBulkDelete) {
     btn._boundBulkDelete = true;
