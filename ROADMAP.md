@@ -1,6 +1,6 @@
 # Roadmap
 
-This document outlines planned improvements to Wealth Tracker across three horizons. Items within each horizon are roughly ordered by impact and effort. The app is a self-hosted, client-only PWA; every feature must remain offline-capable and store only data that the user provides — no external price APIs or third-party data feeds.
+This document outlines planned improvements to Wealth Tracker. Items are roughly ordered by impact and effort. The app is a self-hosted, client-only PWA; every feature must remain offline-capable and store only data that the user provides — no external price APIs or third-party data feeds.
 
 ---
 
@@ -9,10 +9,6 @@ This document outlines planned improvements to Wealth Tracker across three horiz
 Focus: polish, usability gaps, and the most-requested missing pieces.
 
 ### Import & CSV
-
-- **Broker profile manager in UI** — Currently, adding or tweaking a custom import profile requires editing TypeScript source files and redeploying. Most users running self-hosted instances cannot or do not want to do that. A Settings screen for profile management (add, rename, edit column mappings, delete) would make the import system fully accessible without touching code, which is the right abstraction for a personal-finance tool meant to outlive any single broker's CSV format.
-
-- **Additional broker profiles** — Trade Republic and N26 are already covered, but Degiro, Interactive Brokers, and Scalable Capital are among the most common European brokers that prospective users are likely switching from. Shipping their profiles out of the box eliminates the most common first-use friction: getting data in on day one.
 
 - **Import error recovery** — When a CSV batch fails to parse (wrong date format, unrecognised type, garbled number), the current flow shows aggregate error counts but does not let the user isolate and fix individual bad rows. A row-level error diff that can be exported as a pre-filtered CSV lets the user fix only the problem rows and re-import them, rather than fixing the entire source file and re-importing everything.
 
@@ -36,13 +32,13 @@ Focus: polish, usability gaps, and the most-requested missing pieces.
 
 ## Medium-term (3–9 months)
 
-Focus: deeper analytics, richer planning, and cross-device experience.
+Focus: deeper analytics, richer planning, and data quality.
 
 ### Analytics
 
-- **Tax report view** — The app already imports and stores dividends, interest, realised gains, and withheld taxes as transactions. What it does not yet do is aggregate them into the per-calendar-year summary that most European tax systems require. A dedicated view (and ideally a CSV export) showing gross income, withheld tax, realised capital gains, and net amounts per year and per ISIN would make the app materially useful at filing time. All the data is already in the database; this is a presentation and aggregation feature, not a data-collection one.
+- **Tax report** — The app already imports and stores dividends, interest, realised gains, and withheld taxes as transactions. A dedicated view that aggregates these into a per-calendar-year summary — gross income, withheld tax, realised capital gains, and net amounts per year and per ISIN — would make the app materially useful at filing time. The output should be a cleanly formatted, human-readable document (printable to PDF via the browser) rather than a raw data export. The report is deliberately country-agnostic: it presents the numbers; the user applies their jurisdiction's rules. All the data is already in the database; this is a presentation and aggregation feature, not a data-collection one.
 
-- **Correlation / diversification score** — Knowing the allocation percentages of your holdings is not the same as knowing how correlated they are. Two holdings with identical target allocations can either hedge each other or move in lockstep. Using the monthly return series already computed from snapshots and transactions, the app can estimate pairwise correlations between holdings and produce a simple portfolio-level diversification score. The goal is not to replicate a quant tool but to surface an early-warning signal when the portfolio is effectively concentrated in one factor.
+- **Correlation / diversification score** — Knowing the allocation percentages of your holdings is not the same as knowing how correlated they are. Two holdings with identical target allocations can either hedge each other or move in lockstep. Using the monthly return series already computed from snapshots and transactions, the app can estimate pairwise correlations between holdings and produce a simple portfolio-level diversification score. The goal is not to replicate a quant tool but to surface an early-warning signal when the portfolio is effectively concentrated in one factor. This is worth designing and testing to validate whether the signal is genuinely useful.
 
 - **Cash-flow calendar** — The app already separates dividends, interest, and contributions in the data model and in individual views. What is missing is a forward-looking, time-indexed view that shows projected income and scheduled outflows month by month: expected next dividend from each holding (extrapolated from historical frequency), contribution execution dates, and interest payment estimates. This bridges the portfolio's past (transaction history) with its future (forecast model) in a practical, action-oriented format.
 
@@ -54,11 +50,9 @@ Focus: deeper analytics, richer planning, and cross-device experience.
 
 ### Multi-account & Reporting
 
-- **Account groups** — As portfolios grow, accounts multiply: a primary investment account, a pension, an emergency fund, a partner's savings account. The existing account list is flat, and KPIs roll up everything together or show individual accounts. Grouping accounts by purpose ("Retirement", "Liquid savings", "Joint") would allow a richer set of views: net worth by group, contribution budget per group, forecast by group. The data model change is a metadata tag on each account; the rendering impact is much larger.
+- **Account groups with country** — As portfolios grow, accounts multiply: a primary investment account, a pension, an emergency fund, a savings account in a different jurisdiction. Each account should carry an optional country field (useful when a person holds accounts across different countries with different tax rules). Accounts can then be grouped by purpose ("Retirement", "Liquid savings") or by country, enabling richer views: net worth by group, contribution budget per group, forecast by group.
 
-- **PDF/HTML snapshot report** — Sharing the current state of a portfolio with a financial adviser, a bank, or a family member today requires copying numbers manually or screenshotting. A one-click export of the current net-worth and portfolio state as a cleanly formatted HTML page (printable to PDF via the browser) would make this a two-step operation. The data is already available in-memory on every page render; this is primarily a templating and layout task.
-
-- **Recurring transaction templates** — Some income streams are predictable and regular: a monthly dividend from a fixed-income ETF, a quarterly interest credit, an annual employer share grant. Defining a template for these (amount, type, ISIN, interval) would let the app pre-populate an import preview on demand, reducing the monthly data-entry chore for users whose brokers do not export a useful CSV.
+- **Year-end snapshot report** — A one-click export of the portfolio state at year-end as a cleanly formatted HTML page (printable to PDF via the browser). Combined with the tax aggregation data, this gives a simple annual summary that is easy to file, share with a financial adviser, or store for future reference. The data is already available in-memory; this is primarily a templating and layout task. The report is country-agnostic.
 
 ### Developer Experience
 
@@ -70,30 +64,8 @@ Focus: deeper analytics, richer planning, and cross-device experience.
 
 ## Long-term (9+ months)
 
-Focus: extensibility, collaboration, and broader platform support.
+Focus: broader data support.
 
 ### Data & Storage
 
-- **Multi-currency base currency** — The app is currently EUR-only. Transactions already carry a per-row `fxRate` imported from broker CSVs, so foreign-currency trades are handled correctly. The missing piece is snapshots: each monthly balance is entered as a single number with no currency context, so a USD savings account must be mentally converted to EUR before entry, and that conversion is lost forever. The fix is to add a per-account currency setting and a per-snapshot FX rate field: when logging a monthly snapshot, the user enters the spot rate for each non-EUR account (e.g. 1 USD = 0.92 EUR), and all KPI calculations use that stored rate. No external API is needed — the user supplies the rate at entry time, exactly as they already do for transaction imports.
-
-- **Alternative sync backends** — Google Drive is the only sync backend today, which limits the app to users with a Google account. Dropbox has a similar AppData-scoped API and would cover a large part of the non-Google userbase. A self-hosted WebDAV endpoint would cover privacy-sensitive users running their own Nextcloud or similar. The sync layer is already abstracted behind `uploadDbFile` / `downloadDbFile` interfaces in `src/sync/drive.ts`; swapping in a different backend would be largely confined to that module.
-
-### Collaboration & Multi-user
-
-- **Household / partner view** — Two people managing a joint portfolio today must either share a single Google account (bad for privacy) or maintain two separate databases and reconcile manually. A lightweight shared-DB mode — where both users authenticate with their own Google account but point at a shared Drive file — would make the app suitable for couples or housemates tracking combined finances. The main technical challenge is conflict resolution when both parties write simultaneously; a last-write-wins strategy with a merge log would handle the common case.
-
-- **Read-only share link** — Users occasionally need to share their financial picture with a third party (an IFA, a mortgage broker, a family member) without giving them write access or exposing their Google credentials. A time-limited, signed static export — essentially a frozen HTML snapshot of the current state — would satisfy that use case. It requires no server-side infrastructure: the export can be generated entirely in-browser and uploaded to Drive as a separate file, with a shareable link.
-
-### Extensibility
-
-- **Plugin / custom view API** — Power users routinely request custom charts or metrics that are specific to their portfolio structure (e.g. a custom asset-class breakdown, a net-worth-per-square-metre property tracker, a side-by-side comparison with a partner's portfolio). Rather than merging niche features into the main codebase, a stable JS interface for user-defined panels — loaded from a pasted script or a URL — would let advanced users extend the app without forking it. The risk is security (arbitrary script execution), which would need to be sandboxed in an iframe or handled via a content-security-policy exception controlled by the user.
-
-- **Mobile app (PWA-first)** — The app is a PWA and installs on mobile today, but the layout is not optimised for small screens: the snapshot log modal, the settings forms, and the chart cards are all designed primarily for desktop widths. A mobile-first pass would make the monthly data-entry workflow (the most time-sensitive interaction) completable in under a minute on a phone, and would add a simplified quick-log shortcut directly on the home screen. The app already registers a service worker and supports offline use, so the infrastructure is in place.
-
-- **Voice / conversational entry** — Logging a transaction or a snapshot requires navigating a modal form with multiple fields. A natural-language entry shortcut ("Add €500 IWDA buy at €95.20 on 12 Aug") that parses the input and pre-fills the relevant modal would reduce the per-transaction entry time significantly, especially on mobile. This is a UX convenience feature that builds on the existing import and transaction-dialog infrastructure rather than replacing it.
-
-### Observability & Operations
-
-- **Self-hosted telemetry** — The app has no analytics today, so feature prioritisation is based on intuition rather than data. An opt-in counter (which sections are visited, which features are used, how often the import flow fails) posted to a self-owned endpoint (e.g. a simple Cloudflare Worker writing to KV) would provide signal without depending on third-party trackers or storing any personal data. The opt-in must be explicit and auditable, and the payload must contain no portfolio data.
-
-- **Automated backup verification** — The Google Drive sync gives users a cloud backup, but there is currently no check that the backup is intact and up to date. A scheduled Cloud Run job that authenticates with the app's Drive scope, downloads the DB, runs a schema validation, checks the `modified_at` timestamp, and sends a notification (email, webhook) if the backup is stale or corrupt would close the loop on data durability. This is particularly important for users who go weeks or months without opening the app — by the time they notice the backup is broken, the local copy may also be gone.
+- **Multi-currency support** — The app is currently EUR-only. Transactions already carry a per-row `fxRate` imported from broker CSVs, so foreign-currency trades are handled correctly. The missing piece is snapshots: each monthly balance is entered as a single number with no currency context, so a non-EUR savings account must be mentally converted before entry, and that conversion is lost forever. The fix is to add a per-account currency setting and a per-snapshot FX rate field: when logging a monthly snapshot, the user enters the spot rate for each non-base-currency account, and all KPI calculations use that stored rate. No external API is needed — the user supplies the rate at entry time, exactly as they already do for transaction imports. The implementation should be simple and not attempt to auto-fetch rates.
