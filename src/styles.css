@@ -2073,9 +2073,6 @@ summary.section-label {
     justify-content: stretch;
     flex-wrap: wrap;
   }
-  #btn-add-tx {
-    display: none;
-  }
   #tx-filter-bar .filter-bar-actions > .btn,
   #snap-filter-bar .filter-bar-actions > .btn {
     flex: 1 1 calc(50% - 4px);
