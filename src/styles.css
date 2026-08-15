@@ -2073,6 +2073,9 @@ summary.section-label {
     justify-content: stretch;
     flex-wrap: wrap;
   }
+  #btn-add-tx {
+    display: none;
+  }
   #tx-filter-bar .filter-bar-actions > .btn,
   #snap-filter-bar .filter-bar-actions > .btn {
     flex: 1 1 calc(50% - 4px);
@@ -2082,21 +2085,21 @@ summary.section-label {
   }
   #tx-bulk-actions,
   #snap-bulk-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 6px;
     width: 100%;
   }
   #tx-bulk-actions .btn,
   #snap-bulk-actions .btn {
-    width: 100%;
+    flex: 1 1 0;
+    min-width: 0;
     justify-content: center;
     text-align: center;
-    white-space: normal;
-  }
-  #tx-bulk-actions .btn:last-child,
-  #snap-bulk-actions .btn:last-child {
-    grid-column: 1 / -1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   /* Auth bar */
   #auth-bar {
