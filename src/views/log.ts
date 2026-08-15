@@ -279,9 +279,10 @@ function renderSnapList(
   _updateSnapBulkControls();
 
   // Compact row layout - fixed 3-column (Month / Net worth / segment indicator)
-  const rowClass = !_readOnly && !!_lastOnBulkDel && _snapBulkMode
-    ? 'snap-row-compact snap-row-selectable'
-    : 'snap-row-compact';
+  const rowClass =
+    !_readOnly && !!_lastOnBulkDel && _snapBulkMode
+      ? 'snap-row-compact snap-row-selectable'
+      : 'snap-row-compact';
   el.innerHTML = `
     <div class="${rowClass} th" role="row" id="snap-table-header">
       ${renderTableHeader(columns, _snapTableState.sort)}
@@ -438,14 +439,7 @@ function _updateSnapBulkControls(): void {
   const actionsWrap = document.getElementById('snap-bulk-actions');
   const btn = document.getElementById('btn-del-snaps') as
     (HTMLButtonElement & { _boundBulkDelete?: boolean }) | null;
-  if (
-    !startBtn ||
-    !cancelBtn ||
-    !selectAllBtn ||
-    !clearAllBtn ||
-    !actionsWrap ||
-    !btn
-  ) {
+  if (!startBtn || !cancelBtn || !selectAllBtn || !clearAllBtn || !actionsWrap || !btn) {
     return;
   }
   if (!startBtn._boundStart) {

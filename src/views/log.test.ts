@@ -236,7 +236,10 @@ describe('renderLog', () => {
   });
 
   it('supports snapshot select all and deselect all in bulk mode', () => {
-    const snaps = [makeSnap('2026-03-01'), makeSnap('2026-02-01')];
+    const snaps = [
+      { ...makeSnap('2026-03-01'), notes: 'beta one' },
+      { ...makeSnap('2026-02-01'), notes: 'beta two' },
+    ];
     renderLog({
       txs: [],
       snaps,
@@ -426,64 +429,6 @@ describe('renderLog', () => {
       onDelTx,
     });
 
-    it('supports transaction bulk delete mode and callbacks', () => {
-      const onBulkDelTxs = vi.fn();
-      renderLog({
-        txs: [
-          {
-            rowId: 10n,
-            id: 'tx-1',
-            date: '2026-01-01',
-            source: 'manual',
-            type: 'BUY',
-            name: 'IWDA',
-            isin: 'IE00B4L5Y983',
-            shares: 2,
-            price: 100,
-            amount: -200,
-            fee: 0,
-            tax: 0,
-            currency: 'EUR',
-            fxRate: 1,
-          },
-          {
-            rowId: 11n,
-            id: 'tx-2',
-            date: '2026-01-02',
-            source: 'manual',
-            type: 'BUY',
-            name: 'VWCE',
-            isin: 'IE00BK5BQT80',
-            shares: 1,
-            price: 110,
-            amount: -110,
-            fee: 0,
-            tax: 0,
-            currency: 'EUR',
-            fxRate: 1,
-          },
-        ],
-        snaps: [],
-        importMeta: { last_import: '2026-01-01' },
-        onEditSnap: vi.fn(),
-        onDelSnap: vi.fn(),
-        onBulkDelTxs,
-      });
-      (document.getElementById('btn-start-del-txs') as HTMLButtonElement).click();
-      const selectAll = document.getElementById('btn-tx-select-all') as HTMLButtonElement;
-      const clearAll = document.getElementById('btn-tx-clear-all') as HTMLButtonElement;
-      const bulkBtn = document.getElementById('btn-del-txs') as HTMLButtonElement;
-      selectAll.click();
-      expect(bulkBtn.disabled).toBe(false);
-      expect(bulkBtn.textContent).toContain('(2)');
-      clearAll.click();
-      expect(bulkBtn.disabled).toBe(true);
-      selectAll.click();
-      bulkBtn.click();
-      expect(onBulkDelTxs).toHaveBeenCalledTimes(1);
-      expect(onBulkDelTxs).toHaveBeenCalledWith([10n, 11n], bulkBtn);
-    });
-
     (document.getElementById('btn-add-tx') as HTMLButtonElement).click();
     expect(onAddTx).toHaveBeenCalled();
 
@@ -498,6 +443,64 @@ describe('renderLog', () => {
     delBtn.click();
     expect(onEditTx).toHaveBeenCalledWith(10n);
     expect(onDelTx).toHaveBeenCalledWith(10n, delBtn);
+  });
+
+  it('supports transaction bulk delete mode and callbacks', () => {
+    const onBulkDelTxs = vi.fn();
+    renderLog({
+      txs: [
+        {
+          rowId: 10n,
+          id: 'tx-1',
+          date: '2026-01-01',
+          source: 'manual',
+          type: 'BUY',
+          name: 'IWDA',
+          isin: 'IE00B4L5Y983',
+          shares: 2,
+          price: 100,
+          amount: -200,
+          fee: 0,
+          tax: 0,
+          currency: 'EUR',
+          fxRate: 1,
+        },
+        {
+          rowId: 11n,
+          id: 'tx-2',
+          date: '2026-01-02',
+          source: 'manual',
+          type: 'BUY',
+          name: 'VWCE',
+          isin: 'IE00BK5BQT80',
+          shares: 1,
+          price: 110,
+          amount: -110,
+          fee: 0,
+          tax: 0,
+          currency: 'EUR',
+          fxRate: 1,
+        },
+      ],
+      snaps: [],
+      importMeta: { last_import: '2026-01-01' },
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+      onBulkDelTxs,
+    });
+    (document.getElementById('btn-start-del-txs') as HTMLButtonElement).click();
+    const selectAll = document.getElementById('btn-tx-select-all') as HTMLButtonElement;
+    const clearAll = document.getElementById('btn-tx-clear-all') as HTMLButtonElement;
+    const bulkBtn = document.getElementById('btn-del-txs') as HTMLButtonElement;
+    selectAll.click();
+    expect(bulkBtn.disabled).toBe(false);
+    expect(bulkBtn.textContent).toContain('(2)');
+    clearAll.click();
+    expect(bulkBtn.disabled).toBe(true);
+    selectAll.click();
+    bulkBtn.click();
+    expect(onBulkDelTxs).toHaveBeenCalledTimes(1);
+    expect(onBulkDelTxs).toHaveBeenCalledWith([10n, 11n], bulkBtn);
   });
 
   it('hides transaction actions in read-only mode', () => {
