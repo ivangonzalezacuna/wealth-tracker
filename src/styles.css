@@ -2128,6 +2128,14 @@ summary.section-label {
     align-items: center;
     justify-content: center;
   }
+  #tx-ledger-list .tx-row > .tx-select-cell {
+    display: none;
+  }
+  #tx-ledger-list .tx-card-header .tx-select-cell-mobile {
+    display: flex;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
   .tx-select-input {
     width: 14px;
     height: 14px;

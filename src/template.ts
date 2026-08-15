@@ -430,7 +430,6 @@ export function appTemplate(): string {
             <div class="bulk-actions" id="tx-bulk-actions" hidden>
               <button class="btn btn-ghost btn-sm" id="btn-tx-select-all">Select all</button>
               <button class="btn btn-ghost btn-sm" id="btn-tx-clear-all">Deselect all</button>
-              <button class="btn btn-outline btn-sm" id="btn-cancel-del-txs">Cancel</button>
               <button class="btn btn-danger btn-sm" id="btn-del-txs" disabled>Delete selected</button>
             </div>
             <button class="btn btn-outline btn-sm" id="btn-add-tx">Add transaction</button>
@@ -466,7 +465,6 @@ export function appTemplate(): string {
             <div class="bulk-actions" id="snap-bulk-actions" hidden>
               <button class="btn btn-ghost btn-sm" id="btn-snap-select-all">Select all</button>
               <button class="btn btn-ghost btn-sm" id="btn-snap-clear-all">Deselect all</button>
-              <button class="btn btn-outline btn-sm" id="btn-cancel-del-snaps">Cancel</button>
               <button class="btn btn-danger btn-sm" id="btn-del-snaps" disabled>Delete selected</button>
             </div>
           </div>

@@ -430,8 +430,6 @@ function getFilteredSnaps(snaps: Snapshot[]): Snapshot[] {
 function _updateSnapBulkControls(): void {
   const startBtn = document.getElementById('btn-start-del-snaps') as
     (HTMLButtonElement & { _boundStart?: boolean }) | null;
-  const cancelBtn = document.getElementById('btn-cancel-del-snaps') as
-    (HTMLButtonElement & { _boundCancel?: boolean }) | null;
   const selectAllBtn = document.getElementById('btn-snap-select-all') as
     (HTMLButtonElement & { _boundSelectAll?: boolean }) | null;
   const clearAllBtn = document.getElementById('btn-snap-clear-all') as
@@ -439,23 +437,16 @@ function _updateSnapBulkControls(): void {
   const actionsWrap = document.getElementById('snap-bulk-actions');
   const btn = document.getElementById('btn-del-snaps') as
     (HTMLButtonElement & { _boundBulkDelete?: boolean }) | null;
-  if (!startBtn || !cancelBtn || !selectAllBtn || !clearAllBtn || !actionsWrap || !btn) {
+  if (!startBtn || !selectAllBtn || !clearAllBtn || !actionsWrap || !btn) {
     return;
   }
   if (!startBtn._boundStart) {
     startBtn._boundStart = true;
     startBtn.addEventListener('click', () => {
       if (_readOnly || !_lastOnBulkDel) return;
-      _snapBulkMode = true;
+      _snapBulkMode = !_snapBulkMode;
+      if (!_snapBulkMode) _selectedSnapDates.clear();
       setTablePage(_snapTableState, 1);
-      if (_lastOnEdit && _lastOnDel) renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
-    });
-  }
-  if (!cancelBtn._boundCancel) {
-    cancelBtn._boundCancel = true;
-    cancelBtn.addEventListener('click', () => {
-      _snapBulkMode = false;
-      _selectedSnapDates.clear();
       if (_lastOnEdit && _lastOnDel) renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
     });
   }
@@ -482,7 +473,8 @@ function _updateSnapBulkControls(): void {
       _lastOnBulkDel(Array.from(_selectedSnapDates), btn);
     });
   }
-  startBtn.hidden = _snapBulkMode || _readOnly || !_lastOnBulkDel;
+  startBtn.hidden = _readOnly || !_lastOnBulkDel;
+  startBtn.textContent = _snapBulkMode ? 'Cancel' : 'Bulk delete';
   actionsWrap.hidden = !_snapBulkMode || _readOnly || !_lastOnBulkDel;
   const count = _selectedSnapDates.size;
   btn.textContent = count > 0 ? `Delete selected (${count})` : 'Delete selected';
@@ -559,8 +551,6 @@ function attachTxListeners(): void {
     (HTMLButtonElement & { _bound?: boolean }) | null;
   const startBulkBtn = document.getElementById('btn-start-del-txs') as
     (HTMLButtonElement & { _bound?: boolean }) | null;
-  const cancelBulkBtn = document.getElementById('btn-cancel-del-txs') as
-    (HTMLButtonElement & { _bound?: boolean }) | null;
   const selectAllBtn = document.getElementById('btn-tx-select-all') as
     (HTMLButtonElement & { _bound?: boolean }) | null;
   const clearAllBtn = document.getElementById('btn-tx-clear-all') as
@@ -597,16 +587,9 @@ function attachTxListeners(): void {
     startBulkBtn._bound = true;
     startBulkBtn.addEventListener('click', () => {
       if (_readOnly || !_lastOnBulkDelTxs) return;
-      _txBulkMode = true;
+      _txBulkMode = !_txBulkMode;
+      if (!_txBulkMode) _selectedTxRowIds.clear();
       setTablePage(_txTableState, 1);
-      renderTxList(_txs);
-    });
-  }
-  if (cancelBulkBtn && !cancelBulkBtn._bound) {
-    cancelBulkBtn._bound = true;
-    cancelBulkBtn.addEventListener('click', () => {
-      _txBulkMode = false;
-      _selectedTxRowIds.clear();
       renderTxList(_txs);
     });
   }
@@ -673,7 +656,10 @@ function renderTxList(txs: Transaction[]): void {
   const typeEl = document.getElementById('tx-type-filter') as HTMLSelectElement | null;
   const addBtn = document.getElementById('btn-add-tx') as HTMLButtonElement | null;
   if (!listEl) return;
-  if (addBtn) addBtn.disabled = _readOnly;
+  if (addBtn) {
+    addBtn.disabled = _readOnly;
+    addBtn.hidden = _txBulkMode;
+  }
 
   const types = [...new Set(txs.map((t) => t.type).filter(Boolean))].sort() as string[];
   const currentType = getTableFilter(_txTableState, 'type');
@@ -750,6 +736,12 @@ function renderTxList(txs: Transaction[]): void {
             : `<div role="cell" class="tx-select-cell" data-ledger-label="Select">
             <input type="checkbox" class="tx-select-input js-tx-select" aria-label="Select transaction ${esc(tx.date)} ${esc(tx.type || '')}" data-rowid="${tx.rowId}" ${_selectedTxRowIds.has(tx.rowId.toString()) ? 'checked' : ''}>
           </div>`;
+        const mobileSelectCell =
+          !showSelection || !tx.rowId
+            ? ''
+            : `<div role="cell" class="tx-select-cell tx-select-cell-mobile" data-ledger-label="Select">
+            <input type="checkbox" class="tx-select-input js-tx-select" aria-label="Select transaction ${esc(tx.date)} ${esc(tx.type || '')}" data-rowid="${tx.rowId}" ${_selectedTxRowIds.has(tx.rowId.toString()) ? 'checked' : ''}>
+          </div>`;
         const sourceChip = tx.source
           ? `<span class="tx-ledger-source tx-ledger-chip-trim tx-header-source" title="${esc(tx.source)}">${esc(tx.source)}</span>`
           : '';
@@ -768,7 +760,7 @@ function renderTxList(txs: Transaction[]): void {
         const bodyCells = renderTableRow(restCols, tx);
         return `<div class="tbl-row tx-row" role="row">
           ${selectCell}
-          <div class="tx-card-header">${headerCells}${sourceChip}${mobileActionsCell}</div>
+          <div class="tx-card-header">${headerCells}${sourceChip}${showSelection ? mobileSelectCell : mobileActionsCell}</div>
           ${bodyCells}
           ${desktopActionsCell}
         </div>`;
@@ -815,7 +807,8 @@ function _updateTxBulkControls(): void {
   const addBtn = document.getElementById('btn-add-tx') as HTMLButtonElement | null;
   if (!startBtn || !actionsWrap || !selectAllBtn || !clearAllBtn || !deleteBtn) return;
   const count = _selectedTxRowIds.size;
-  startBtn.hidden = _txBulkMode || _readOnly || !_lastOnBulkDelTxs;
+  startBtn.hidden = _readOnly || !_lastOnBulkDelTxs;
+  startBtn.textContent = _txBulkMode ? 'Cancel' : 'Bulk delete';
   actionsWrap.hidden = !_txBulkMode || _readOnly || !_lastOnBulkDelTxs;
   if (addBtn) addBtn.hidden = _txBulkMode;
   const selectableCount = getFilteredTxs(_txs).filter((tx) => tx.rowId != null).length;
