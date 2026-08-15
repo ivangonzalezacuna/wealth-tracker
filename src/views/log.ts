@@ -62,7 +62,8 @@ let _bulkCancelViewportBound = false;
 
 function _useBulkCancelIcon(): boolean {
   if (typeof window === 'undefined') return false;
-  if (typeof window.matchMedia === 'function') return window.matchMedia('(max-width: 720px)').matches;
+  if (typeof window.matchMedia === 'function')
+    return window.matchMedia('(max-width: 720px)').matches;
   return window.innerWidth <= 720;
 }
 
