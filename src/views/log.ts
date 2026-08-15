@@ -27,6 +27,7 @@ interface LogState {
   importMeta: Record<string, string> | null;
   onEditSnap: (date: string) => void;
   onDelSnap: (date: string, btn?: HTMLButtonElement) => void;
+  onBulkDelSnaps?: (dates: string[], btn?: HTMLButtonElement) => void;
   onAddTx?: () => void;
   onEditTx?: (rowId: bigint) => void;
   onDelTx?: (rowId: bigint, btn?: HTMLButtonElement) => void;
@@ -40,12 +41,14 @@ const _snapTableState = createTableState({
 });
 let _lastOnEdit: ((date: string) => void) | null = null;
 let _lastOnDel: ((date: string, btn?: HTMLButtonElement) => void) | null = null;
+let _lastOnBulkDel: ((dates: string[], btn?: HTMLButtonElement) => void) | null = null;
 let _lastOnAddTx: (() => void) | null = null;
 let _lastOnEditTx: ((rowId: bigint) => void) | null = null;
 let _lastOnDelTx: ((rowId: bigint, btn?: HTMLButtonElement) => void) | null = null;
 let _readOnly = false;
 let _snaps: Snapshot[] = [];
 let _txs: Transaction[] = [];
+const _selectedSnapDates = new Set<string>();
 const _txTableState = createTableState({
   sort: { key: null, dir: null },
   filters: { search: '', type: '' },
@@ -69,12 +72,14 @@ export function renderLog(state: LogState): void {
 
   _lastOnEdit = state.onEditSnap;
   _lastOnDel = state.onDelSnap;
+  _lastOnBulkDel = state.onBulkDelSnaps || null;
   _lastOnAddTx = state.onAddTx || null;
   _lastOnEditTx = state.onEditTx || null;
   _lastOnDelTx = state.onDelTx || null;
   _readOnly = !!state.readOnly;
   _snaps = snaps;
   _txs = txs;
+  _selectedSnapDates.clear();
 
   attachTxListeners();
   renderTxList(_txs);
@@ -154,7 +159,19 @@ function attachFilterListeners(): void {
 }
 
 function snapColumns(): ColumnDef<Snapshot>[] {
-  return [
+  const selectable = !_readOnly && !!_lastOnBulkDel;
+  const cols: ColumnDef<Snapshot>[] = [
+    ...(selectable
+      ? [
+          {
+            key: 'select',
+            label: '',
+            cellClass: () => 'snap-select-cell',
+            cell: (s: Snapshot) =>
+              `<input type="checkbox" class="snap-select-input js-snap-select" aria-label="Select snapshot ${fmtMon(s.date)}" data-date="${s.date}" ${_selectedSnapDates.has(s.date) ? 'checked' : ''}>`,
+          } satisfies ColumnDef<Snapshot>,
+        ]
+      : []),
     {
       key: 'month',
       label: 'Month',
@@ -190,6 +207,7 @@ function snapColumns(): ColumnDef<Snapshot>[] {
       },
     },
   ];
+  return cols;
 }
 
 function renderSnapList(
@@ -199,6 +217,8 @@ function renderSnapList(
 ): void {
   const el = document.getElementById('snaps-list')!;
   if (!snaps.length) {
+    _selectedSnapDates.clear();
+    _updateBulkDeleteButton();
     el.innerHTML =
       '<div class="empty-state" style="padding:1.5rem;font-size:13px">No snapshots yet. Add your first one above.</div>';
     hidePagination();
@@ -221,6 +241,8 @@ function renderSnapList(
   }
 
   if (filtered.length === 0) {
+    _selectedSnapDates.clear();
+    _updateBulkDeleteButton();
     el.innerHTML = `<div class="empty-state" style="padding:1rem;font-size:12px;color:var(--ink-3)">
       No matching snapshots.
       <button class="btn btn-ghost btn-sm js-clear-snap-filters" style="margin-left:6px;font-size:12px">Clear filters</button>
@@ -251,16 +273,22 @@ function renderSnapList(
     PAGE_SIZE,
   );
   setTablePage(_snapTableState, page);
+  const visibleDates = new Set(pageItems.map((s) => s.date));
+  for (const date of Array.from(_selectedSnapDates)) {
+    if (!visibleDates.has(date)) _selectedSnapDates.delete(date);
+  }
+  _updateBulkDeleteButton();
 
   // Compact row layout - fixed 3-column (Month / Net worth / segment indicator)
+  const rowClass = !_readOnly && !!_lastOnBulkDel ? 'snap-row-compact snap-row-selectable' : 'snap-row-compact';
   el.innerHTML = `
-    <div class="snap-row-compact th" role="row" id="snap-table-header">
+    <div class="${rowClass} th" role="row" id="snap-table-header">
       ${renderTableHeader(columns, _snapTableState.sort)}
     </div>
     ${pageItems
       .map(
         (s) =>
-          `<div class="snap-row-compact" role="row" tabindex="0" aria-expanded="${String(isCollapsed('snap:' + s.date))}" data-date="${s.date}">
+          `<div class="${rowClass}" role="row" tabindex="0" aria-expanded="${String(isCollapsed('snap:' + s.date))}" data-date="${s.date}">
         ${renderTableRow(columns, s)}
       </div>`,
       )
@@ -289,7 +317,10 @@ function renderSnapList(
     },
     createDetail: (row, snap) =>
       _createSnapDetail(snap, row.dataset.date || '', _lastOnEdit!, _lastOnDel!),
-    ignoreClick: (target) => !!target.closest('.js-edit-snap') || !!target.closest('.js-del-snap'),
+    ignoreClick: (target) =>
+      !!target.closest('.js-edit-snap') ||
+      !!target.closest('.js-del-snap') ||
+      !!target.closest('.js-snap-select'),
     onExpandedChange: (detailRow, expanded) => {
       const detailDate = detailRow.dataset.date;
       if (detailDate) setCollapsed('snap:' + detailDate, expanded);
@@ -314,6 +345,16 @@ function renderSnapList(
       const detailDate = detailRow.dataset.date;
       if (detailDate) setCollapsed('snap:' + detailDate, expanded);
     },
+  });
+  el.querySelectorAll<HTMLInputElement>('.js-snap-select').forEach((input) => {
+    input.addEventListener('click', (ev) => ev.stopPropagation());
+    input.addEventListener('change', () => {
+      const date = input.dataset.date || '';
+      if (!date) return;
+      if (input.checked) _selectedSnapDates.add(date);
+      else _selectedSnapDates.delete(date);
+      _updateBulkDeleteButton();
+    });
   });
 
   // Pagination controls
@@ -365,6 +406,23 @@ function _createSnapDetail(
 function hidePagination(): void {
   const el = document.getElementById('snap-pagination');
   if (el) el.innerHTML = '';
+}
+
+function _updateBulkDeleteButton(): void {
+  const btn = document.getElementById('btn-del-snaps') as
+    | (HTMLButtonElement & { _boundBulkDelete?: boolean })
+    | null;
+  if (!btn) return;
+  if (!btn._boundBulkDelete) {
+    btn._boundBulkDelete = true;
+    btn.addEventListener('click', () => {
+      if (_readOnly || !_lastOnBulkDel || _selectedSnapDates.size === 0) return;
+      _lastOnBulkDel(Array.from(_selectedSnapDates), btn);
+    });
+  }
+  const count = _selectedSnapDates.size;
+  btn.textContent = count > 0 ? `Delete selected (${count})` : 'Delete selected';
+  btn.disabled = _readOnly || !_lastOnBulkDel || count === 0;
 }
 
 const TX_PAGE_SIZE = 15;

@@ -32,6 +32,7 @@ function makeSnap(date: string, total = 1000): Snapshot {
 const DOM_FIXTURE = `
   <select id="snap-year-filter"></select>
   <input id="snap-search" />
+  <button id="btn-del-snaps">Delete selected</button>
   <div id="snap-table-header"></div>
   <div id="snaps-list"></div>
   <div id="snap-pagination"></div>
@@ -164,6 +165,55 @@ describe('renderLog', () => {
     expect(delBtn).not.toBeNull();
     delBtn.click();
     expect(onDel).toHaveBeenCalledWith('2026-03-01', delBtn);
+  });
+
+  it('enables bulk delete button after selecting rows and forwards selected dates', () => {
+    const onBulkDelSnaps = vi.fn();
+    const snaps = [makeSnap('2026-03-01'), makeSnap('2026-02-01')];
+    renderLog({
+      txs: [],
+      snaps,
+      importMeta: null,
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+      onBulkDelSnaps,
+    });
+    const bulkBtn = document.getElementById('btn-del-snaps') as HTMLButtonElement;
+    expect(bulkBtn.disabled).toBe(true);
+    const firstCheckbox = document.querySelector('.js-snap-select') as HTMLInputElement;
+    firstCheckbox.click();
+    firstCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(bulkBtn.disabled).toBe(false);
+    expect(bulkBtn.textContent).toContain('(1)');
+    bulkBtn.click();
+    expect(onBulkDelSnaps).toHaveBeenCalledTimes(1);
+    const calledDates = onBulkDelSnaps.mock.calls[0][0] as string[];
+    expect(calledDates).toHaveLength(1);
+  });
+
+  it('clears selected snapshots when filters hide the selected row', () => {
+    const snaps = [
+      { ...makeSnap('2026-01-01'), notes: 'alpha' },
+      { ...makeSnap('2026-02-01'), notes: 'beta' },
+    ];
+    renderLog({
+      txs: [],
+      snaps,
+      importMeta: null,
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+      onBulkDelSnaps: vi.fn(),
+    });
+    const bulkBtn = document.getElementById('btn-del-snaps') as HTMLButtonElement;
+    const firstCheckbox = document.querySelector('.js-snap-select') as HTMLInputElement;
+    firstCheckbox.click();
+    firstCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(bulkBtn.disabled).toBe(false);
+    const searchEl = document.getElementById('snap-search') as HTMLInputElement;
+    searchEl.value = 'beta';
+    searchEl.dispatchEvent(new Event('input'));
+    expect(bulkBtn.disabled).toBe(true);
+    expect(bulkBtn.textContent).toBe('Delete selected');
   });
 
   it('populates year filter with distinct years from snaps', () => {

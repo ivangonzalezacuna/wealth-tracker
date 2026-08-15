@@ -468,6 +468,7 @@ function _renderNWHistChart(
   const C = resolvedT();
   const labels = view.map((sn) => fmtMon(sn.date));
   const totalSeries = view.map((sn) => snapTotal(sn));
+  const noteMarkerRadius = view.map((sn) => (String(sn.notes || '').trim() ? 3 : 0));
 
   const accountDatasets = chartA.map((a) => ({
     label: a.label,
@@ -491,9 +492,11 @@ function _renderNWHistChart(
     borderWidth: 2.5,
     fill: false,
     tension: 0,
-    pointRadius: 0,
+    pointRadius: noteMarkerRadius,
     pointHoverRadius: 5,
-    pointBackgroundColor: C.brand,
+    pointBackgroundColor: noteMarkerRadius.map((r) => (r > 0 ? C.brand : 'transparent')),
+    pointBorderColor: noteMarkerRadius.map((r) => (r > 0 ? C.surface : 'transparent')),
+    pointBorderWidth: noteMarkerRadius.map((r) => (r > 0 ? 1 : 0)),
     order: 0, // drawn on top
   };
 
@@ -525,6 +528,12 @@ function _renderNWHistChart(
           cornerRadius: 8,
           callbacks: {
             label: (ctx) => ` ${ctx.dataset.label}: ${fmtEur2(ctx.raw as number)}`,
+            afterBody: (items) => {
+              const idx = items[0]?.dataIndex;
+              if (idx == null) return '';
+              const note = String(view[idx]?.notes || '').trim();
+              return note ? `Note: ${note}` : '';
+            },
             labelColor: tooltipSwatch(C.surface),
           },
         },

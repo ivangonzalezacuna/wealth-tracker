@@ -1414,6 +1414,52 @@ async function delSnap(date: string, btn?: HTMLButtonElement) {
   });
 }
 
+async function delSnapsBulk(dates: string[], btn?: HTMLButtonElement) {
+  if (!ensureWriteAccess('snap-msg', 'signed-in-or-granted')) return;
+  const uniqueDates = Array.from(new Set(dates))
+    .filter((date) => state.snaps.some((s) => s.date === date))
+    .sort((a, b) => a.localeCompare(b));
+  if (uniqueDates.length === 0) return;
+  const preview = uniqueDates
+    .slice(0, 3)
+    .map((date) => fmtMon(date))
+    .join(', ');
+  const extraCount = Math.max(0, uniqueDates.length - 3);
+  const summary = extraCount > 0 ? `${preview}, and ${extraCount} more` : preview;
+  const ok = await confirmDialog({
+    title: `Delete ${uniqueDates.length} snapshots?`,
+    body: `This cannot be undone. Selected months: ${summary}.`,
+    confirmLabel: 'Delete selected',
+    danger: true,
+  });
+  if (!ok) return;
+  await performWriteAction({
+    msgId: 'snap-msg',
+    access: 'signed-in-or-granted',
+    button: btn,
+    busyText: 'Removing...',
+    keepDisabledOnSuccess: true,
+    errorPrefix: 'Bulk delete failed: ',
+    action: async () => {
+      const previous = state.snaps;
+      const toDelete = new Set(uniqueDates);
+      state.snaps = state.snaps.filter((s) => !toDelete.has(s.date));
+      try {
+        await saveSnapshots(state.snaps);
+        if (isSignedIn()) scheduleUpload();
+        const snapCachedDel = await setCachedSnapshots(state.snaps);
+        if (!snapCachedDel) showCacheWriteWarning();
+        renderAll();
+      } catch (err) {
+        state.snaps = previous;
+        throw err;
+      }
+    },
+    onlineMessage: `${uniqueDates.length} snapshots deleted.`,
+    offlineMessage: 'Deleted locally. Will sync to Drive when back online.',
+  });
+}
+
 function computePdOrThrow(txs: Transaction[]): PortfolioData | null {
   if (!txs.length) return null;
   return computePD(txs, { method: getCostBasisMethod() });
@@ -2011,6 +2057,7 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
           importMeta: state.importMeta,
           onEditSnap: editSnap,
           onDelSnap: delSnap,
+          onBulkDelSnaps: delSnapsBulk,
           onAddTx: addManualTransaction,
           onEditTx: editManualTransaction,
           onDelTx: delManualTransaction,

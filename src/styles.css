@@ -745,6 +745,10 @@ details[open] > summary .card-chevron {
   cursor: pointer;
   min-height: 40px;
 }
+.snap-row-compact.snap-row-selectable {
+  grid-template-columns: 24px auto 1fr auto;
+  gap: 8px;
+}
 .snap-row-compact:last-child {
   border-bottom: none;
 }
@@ -770,6 +774,17 @@ details[open] > summary .card-chevron {
   border-radius: var(--radius-round);
   background: var(--brand);
   flex-shrink: 0;
+}
+.snap-select-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.snap-select-input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
 }
 .snap-segbar {
   display: flex;

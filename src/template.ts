@@ -452,6 +452,7 @@ export function appTemplate(): string {
             <option value="">All years</option>
           </select>
           <input type="text" id="snap-search" class="form-input form-input-sm" aria-label="Search snapshots by notes" placeholder="Search notes…" style="width:140px;display:inline-block;margin-left:6px">
+          <button class="btn btn-outline btn-sm" id="btn-del-snaps" style="margin-left:auto" disabled>Delete selected</button>
         </div>
         <div id="snaps-list" role="table" aria-label="Snapshot history"></div>
         <div id="snap-pagination" class="pagination"></div>

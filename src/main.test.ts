@@ -682,6 +682,61 @@ describe('delSnap button guard via withButtonGuard', () => {
   });
 });
 
+describe('bulk snapshot delete state transition', () => {
+  type Snap = { date: string; [key: string]: unknown };
+
+  async function applyBulkSnapshotDelete(params: {
+    stateSnaps: Snap[];
+    dates: string[];
+    saveSnapshots: (snaps: Snap[]) => Promise<void>;
+  }): Promise<Snap[]> {
+    const uniqueDates = Array.from(new Set(params.dates)).sort((a, b) => a.localeCompare(b));
+    if (uniqueDates.length === 0) return params.stateSnaps;
+    const previous = params.stateSnaps;
+    const toDelete = new Set(uniqueDates);
+    const next = params.stateSnaps.filter((s) => !toDelete.has(s.date));
+    try {
+      await params.saveSnapshots(next);
+      return next;
+    } catch (err) {
+      void err;
+      return previous;
+    }
+  }
+
+  it('persists once and removes all selected dates from state', async () => {
+    const saveSnapshotsMock = vi.fn(async () => {});
+    const result = await applyBulkSnapshotDelete({
+      stateSnaps: [
+        { date: '2026-01-01', acct1: 100 },
+        { date: '2026-02-01', acct1: 200 },
+        { date: '2026-03-01', acct1: 300 },
+      ],
+      dates: ['2026-01-01', '2026-03-01'],
+      saveSnapshots: saveSnapshotsMock,
+    });
+    expect(saveSnapshotsMock).toHaveBeenCalledTimes(1);
+    expect(result.map((s) => s.date)).toEqual(['2026-02-01']);
+  });
+
+  it('rolls back to previous state when persistence fails', async () => {
+    const previous = [
+      { date: '2026-01-01', acct1: 100 },
+      { date: '2026-02-01', acct1: 200 },
+    ];
+    const saveSnapshotsMock = vi.fn(async () => {
+      throw new Error('disk error');
+    });
+    const result = await applyBulkSnapshotDelete({
+      stateSnaps: previous,
+      dates: ['2026-01-01'],
+      saveSnapshots: saveSnapshotsMock,
+    });
+    expect(saveSnapshotsMock).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(previous);
+  });
+});
+
 // ── onConfigChange cache-sync tests ─────────────────
 describe('onConfigChange callback syncs IndexedDB cache', () => {
   it('calls setCachedConfig with current accounts/holdings/settings', async () => {
