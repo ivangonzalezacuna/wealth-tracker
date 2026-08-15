@@ -826,8 +826,9 @@ function getFilteredTxs(txs: Transaction[]): Transaction[] {
 function _updateTxBulkControls(): void {
   const startBtn = document.getElementById('btn-start-del-txs') as HTMLButtonElement | null;
   const actionsWrap = document.getElementById('tx-bulk-actions');
-  const mobileCancelBtn = document.getElementById('btn-cancel-del-txs-mobile') as
-    HTMLButtonElement | null;
+  const mobileCancelBtn = document.getElementById(
+    'btn-cancel-del-txs-mobile',
+  ) as HTMLButtonElement | null;
   const selectAllBtn = document.getElementById('btn-tx-select-all') as HTMLButtonElement | null;
   const clearAllBtn = document.getElementById('btn-tx-clear-all') as HTMLButtonElement | null;
   const deleteBtn = document.getElementById('btn-del-txs') as HTMLButtonElement | null;
