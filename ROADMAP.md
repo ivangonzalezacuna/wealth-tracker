@@ -14,19 +14,19 @@ Focus: polish, usability gaps, and the most-requested missing pieces.
 
 ### Snapshots & Net Worth
 
-- **Snapshot notes in the timeline chart** — The `notes` field exists on every snapshot and is already indexed for search in the log view. However, it only appears in the detail card below the history chart, which means the user has to scroll away from the chart to see the annotation for a given month. Surfacing notes as small markers or chart-tooltip additions keeps the visual narrative intact — a spike in net worth in March 2024 should be immediately explainable without leaving the chart.
+- ~~**Snapshot notes in the timeline chart**~~ ✅ — Notes are surfaced as dot markers on the Net Worth chart, with the full note text visible in the tooltip on hover.
 
-- **Bulk snapshot delete** — The only way to remove a snapshot today is to open it individually from the log and delete it one at a time. After a mistaken double-import or a data-cleanup exercise, users can end up with dozens of duplicate or erroneous entries. A management table with multi-select and bulk-delete reduces what is currently a tedious manual task to a few clicks.
+- ~~**Bulk snapshot delete**~~ ✅ — The log view supports multi-select and bulk delete for both snapshots and transactions, accessible via the "Bulk delete" toggle in the filter bar.
 
 ### Portfolio & Holdings
 
-- **Holding TER summary** — The total expense ratio is already stored per holding (`ter` column), but there is no aggregated view. A weighted-average TER for the active portfolio, shown on the Holdings card header, gives an immediate cost-of-ownership signal. It is particularly useful when deciding between two similar ETFs or when the portfolio drifts toward higher-cost holdings over time.
+- ~~**Holding TER summary**~~ ✅ — An "Annual fee drag" KPI is shown on the Portfolio card, computed as the value-weighted sum of TER across all held positions.
 
 - **Per-holding notes field** — Holdings evolve: an ETF might announce an index change, a merger, or a redenomination. Right now there is no place inside the app to record that context, so it lives in a separate spreadsheet or gets forgotten. A simple optional notes field on each holding configuration row provides the right home for forward-looking reminders and post-hoc explanations without adding schema complexity.
 
 ### UX / Accessibility
 
-- **Keyboard navigation for modals** — The app is increasingly used by keyboard-heavy users and is also subject to WCAG compliance expectations as a financial tool. Currently, opening a modal (snapshot dialog, account editor, import flow) does not trap focus within it, which means Tab can move focus to behind-the-modal elements that are visually inaccessible. Implementing a focus trap and restoring focus to the trigger element on close are the two most impactful accessibility fixes and are prerequisites for screen-reader usability.
+- ~~**Keyboard navigation for modals**~~ ✅ — All dialogs (snapshot, account, holding, transaction, confirm) implement a focus trap and restore focus to the trigger element on close.
 
 ---
 

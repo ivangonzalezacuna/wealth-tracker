@@ -191,6 +191,31 @@ describe('renderNW', () => {
     expect(chartInstances.length).toBeGreaterThanOrEqual(1);
   });
 
+  it('adds note markers and tooltip note text in net-worth history chart', () => {
+    const snaps = [
+      makeSnap('2026-01-01', 1000, 500),
+      { ...makeSnap('2026-02-01', 1100, 550), notes: 'bonus payment' },
+    ];
+    renderNW(snaps);
+    const config = chartInstances[0].config as {
+      data: { datasets: Array<{ label?: string; pointRadius?: number[] }> };
+      options?: {
+        plugins?: {
+          tooltip?: {
+            callbacks?: {
+              afterBody?: (items: Array<{ dataIndex: number }>) => string;
+            };
+          };
+        };
+      };
+    };
+    const totalDs = config.data.datasets.find((ds) => ds.label === 'Total net worth');
+    expect(totalDs?.pointRadius).toEqual([0, 3]);
+    const afterBody = config.options?.plugins?.tooltip?.callbacks?.afterBody;
+    expect(afterBody?.([{ dataIndex: 1 }])).toContain('Note: bonus payment');
+    expect(afterBody?.([{ dataIndex: 0 }]) || '').toBe('');
+  });
+
   it('destroys prior charts on re-render', () => {
     const snaps = [makeSnap('2026-01-01'), makeSnap('2026-02-01', 1100, 550)];
     renderNW(snaps);

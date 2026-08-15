@@ -4,6 +4,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { validateBackup } from './backup/exportImport';
 import { withButtonGuard } from './utils';
+import type { Snapshot } from './types';
 
 /**
  * main.ts has heavy module-level side effects (DOM manipulation, auth init,
@@ -679,6 +680,49 @@ describe('delSnap button guard via withButtonGuard', () => {
 
     expect(btn.disabled).toBe(false);
     expect(btn.textContent).toBe('Delete');
+  });
+});
+
+describe('delSnapsBulk state transition logic', () => {
+  async function applyBulkDelete(
+    appState: { snaps: Snapshot[] },
+    dates: string[],
+    persist: (snaps: Snapshot[]) => Promise<void>,
+  ): Promise<void> {
+    const existingDates = new Set(appState.snaps.map((s) => s.date));
+    const selectedDates = [...new Set(dates)].sort().filter((date) => existingDates.has(date));
+    if (!selectedDates.length) return;
+    const previous = appState.snaps;
+    const selected = new Set(selectedDates);
+    appState.snaps = appState.snaps.filter((s) => !selected.has(s.date));
+    try {
+      await persist(appState.snaps);
+    } catch (err) {
+      appState.snaps = previous;
+      throw err;
+    }
+  }
+
+  it('persists once and removes all selected dates from state', async () => {
+    const appState = {
+      snaps: [{ date: '2024-01' }, { date: '2024-02' }, { date: '2024-03' }] as Snapshot[],
+    };
+    const persist = vi.fn().mockResolvedValue(undefined);
+
+    await applyBulkDelete(appState, ['2024-03', '2024-01', '2024-03', '2024-99'], persist);
+
+    expect(appState.snaps.map((s) => s.date)).toEqual(['2024-02']);
+    expect(persist).toHaveBeenCalledTimes(1);
+    expect(persist).toHaveBeenCalledWith([{ date: '2024-02' }]);
+  });
+
+  it('rolls back to previous state when persistence fails', async () => {
+    const snaps = [{ date: '2024-01' }, { date: '2024-02' }] as Snapshot[];
+    const appState = { snaps: [...snaps] };
+    const persist = vi.fn().mockRejectedValue(new Error('disk full'));
+
+    await expect(applyBulkDelete(appState, ['2024-02'], persist)).rejects.toThrow('disk full');
+    expect(appState.snaps).toEqual(snaps);
   });
 });
 

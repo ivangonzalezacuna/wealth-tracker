@@ -27,9 +27,11 @@ interface LogState {
   importMeta: Record<string, string> | null;
   onEditSnap: (date: string) => void;
   onDelSnap: (date: string, btn?: HTMLButtonElement) => void;
+  onBulkDelSnaps?: (dates: string[], btn?: HTMLButtonElement) => void;
   onAddTx?: () => void;
   onEditTx?: (rowId: bigint) => void;
   onDelTx?: (rowId: bigint, btn?: HTMLButtonElement) => void;
+  onBulkDelTxs?: (rowIds: bigint[], btn?: HTMLButtonElement) => void;
   readOnly?: boolean;
 }
 
@@ -40,12 +42,18 @@ const _snapTableState = createTableState({
 });
 let _lastOnEdit: ((date: string) => void) | null = null;
 let _lastOnDel: ((date: string, btn?: HTMLButtonElement) => void) | null = null;
+let _lastOnBulkDel: ((dates: string[], btn?: HTMLButtonElement) => void) | null = null;
 let _lastOnAddTx: (() => void) | null = null;
 let _lastOnEditTx: ((rowId: bigint) => void) | null = null;
 let _lastOnDelTx: ((rowId: bigint, btn?: HTMLButtonElement) => void) | null = null;
+let _lastOnBulkDelTxs: ((rowIds: bigint[], btn?: HTMLButtonElement) => void) | null = null;
 let _readOnly = false;
 let _snaps: Snapshot[] = [];
 let _txs: Transaction[] = [];
+let _snapBulkMode = false;
+let _txBulkMode = false;
+const _selectedSnapDates = new Set<string>();
+const _selectedTxRowIds = new Set<string>();
 const _txTableState = createTableState({
   sort: { key: null, dir: null },
   filters: { search: '', type: '' },
@@ -69,19 +77,27 @@ export function renderLog(state: LogState): void {
 
   _lastOnEdit = state.onEditSnap;
   _lastOnDel = state.onDelSnap;
+  _lastOnBulkDel = state.onBulkDelSnaps || null;
   _lastOnAddTx = state.onAddTx || null;
   _lastOnEditTx = state.onEditTx || null;
   _lastOnDelTx = state.onDelTx || null;
+  _lastOnBulkDelTxs = state.onBulkDelTxs || null;
+  _snapBulkMode = false;
+  _txBulkMode = false;
+  _selectedSnapDates.clear();
+  _selectedTxRowIds.clear();
   _readOnly = !!state.readOnly;
   _snaps = snaps;
   _txs = txs;
 
   attachTxListeners();
+  _updateBulkControls('tx');
   renderTxList(_txs);
 
   // Populate year filter options
   populateYearFilterOptions('snap-year-filter', _snaps);
   attachFilterListeners();
+  _updateBulkControls('snap');
   renderSnapList(_snaps, state.onEditSnap, state.onDelSnap);
 }
 
@@ -153,8 +169,151 @@ function attachFilterListeners(): void {
   });
 }
 
+function getFilteredSnaps(snaps: Snapshot[]): Snapshot[] {
+  let filtered = [...snaps].reverse();
+  const selectedYear = getTableFilter(_snapTableState, 'year');
+  const searchTerm = getTableFilter(_snapTableState, 'search');
+  if (selectedYear) {
+    filtered = filtered.filter((s) => s.date.startsWith(selectedYear));
+  }
+  if (searchTerm) {
+    filtered = filtered.filter(
+      (s) =>
+        (s.notes || '').toLowerCase().includes(searchTerm) ||
+        fmtMon(s.date).toLowerCase().includes(searchTerm),
+    );
+  }
+  return filtered;
+}
+
+function getFilteredTxs(txs: Transaction[]): Transaction[] {
+  let filtered = [...txs];
+  const txType = getTableFilter(_txTableState, 'type');
+  const txSearch = getTableFilter(_txTableState, 'search');
+  if (txType) filtered = filtered.filter((t) => t.type === txType);
+  if (txSearch) {
+    filtered = filtered.filter((t) =>
+      [t.date, t.name, t.isin, t.source, t.type].join(' ').toLowerCase().includes(txSearch),
+    );
+  }
+  return filtered;
+}
+
+function _updateBulkControls(kind: 'tx' | 'snap'): void {
+  const isTx = kind === 'tx';
+  const hasBulkHandler = () => (isTx ? !!_lastOnBulkDelTxs : !!_lastOnBulkDel);
+  const startBtn = document.getElementById(
+    isTx ? 'btn-start-del-txs' : 'btn-start-del-snaps',
+  ) as HTMLButtonElement | null;
+  const actionsEl = document.getElementById(isTx ? 'tx-bulk-actions' : 'snap-bulk-actions');
+  const selectAllBtn = document.getElementById(
+    isTx ? 'btn-tx-select-all' : 'btn-snap-select-all',
+  ) as HTMLButtonElement | null;
+  const clearAllBtn = document.getElementById(
+    isTx ? 'btn-tx-clear-all' : 'btn-snap-clear-all',
+  ) as HTMLButtonElement | null;
+  const deleteBtn = document.getElementById(
+    isTx ? 'btn-del-txs' : 'btn-del-snaps',
+  ) as HTMLButtonElement | null;
+  const addBtn = isTx
+    ? ((document.getElementById('btn-add-tx') as HTMLButtonElement | null) ?? null)
+    : null;
+  const addSnapBtn = !isTx
+    ? ((document.getElementById('btn-add-snap') as HTMLButtonElement | null) ?? null)
+    : null;
+  if (!startBtn || !actionsEl || !selectAllBtn || !clearAllBtn || !deleteBtn) return;
+
+  const isActive = isTx ? _txBulkMode : _snapBulkMode;
+  const count = isTx ? _selectedTxRowIds.size : _selectedSnapDates.size;
+  const filteredCount = isTx
+    ? getFilteredTxs(_txs).filter((t) => t.rowId != null).length
+    : getFilteredSnaps(_snaps).length;
+
+  startBtn.hidden = _readOnly || !hasBulkHandler();
+  startBtn.textContent = isActive ? 'Cancel' : 'Bulk delete';
+  actionsEl.hidden = !isActive || _readOnly || !hasBulkHandler();
+  if (addBtn) addBtn.hidden = isActive;
+  if (addSnapBtn) addSnapBtn.disabled = _readOnly || isActive;
+  selectAllBtn.disabled = _readOnly || !isActive || filteredCount === 0;
+  clearAllBtn.disabled = _readOnly || !isActive || count === 0;
+  deleteBtn.textContent = count > 0 ? `Delete (${count})` : 'Delete';
+  deleteBtn.disabled = _readOnly || !isActive || !hasBulkHandler() || count === 0;
+
+  type BoundEl = HTMLButtonElement & { _bulkBound?: boolean };
+  if (!(startBtn as BoundEl)._bulkBound) {
+    (startBtn as BoundEl)._bulkBound = true;
+    startBtn.addEventListener('click', () => {
+      if (_readOnly || (isTx ? !_lastOnBulkDelTxs : !_lastOnBulkDel)) return;
+      if (isTx) {
+        _txBulkMode = !_txBulkMode;
+        if (!_txBulkMode) _selectedTxRowIds.clear();
+        setTablePage(_txTableState, 1);
+        renderTxList(_txs);
+        return;
+      }
+      _snapBulkMode = !_snapBulkMode;
+      if (!_snapBulkMode) _selectedSnapDates.clear();
+      setTablePage(_snapTableState, 1);
+      if (_lastOnEdit && _lastOnDel) renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
+    });
+  }
+  if (!(selectAllBtn as BoundEl)._bulkBound) {
+    (selectAllBtn as BoundEl)._bulkBound = true;
+    selectAllBtn.addEventListener('click', () => {
+      if (isTx) {
+        for (const tx of getFilteredTxs(_txs)) {
+          if (tx.rowId != null) _selectedTxRowIds.add(tx.rowId.toString());
+        }
+        renderTxList(_txs);
+        return;
+      }
+      for (const snap of getFilteredSnaps(_snaps)) _selectedSnapDates.add(snap.date);
+      if (_lastOnEdit && _lastOnDel) renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
+    });
+  }
+  if (!(clearAllBtn as BoundEl)._bulkBound) {
+    (clearAllBtn as BoundEl)._bulkBound = true;
+    clearAllBtn.addEventListener('click', () => {
+      if (isTx) {
+        _selectedTxRowIds.clear();
+        renderTxList(_txs);
+        return;
+      }
+      _selectedSnapDates.clear();
+      if (_lastOnEdit && _lastOnDel) renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
+    });
+  }
+  if (!(deleteBtn as BoundEl)._bulkBound) {
+    (deleteBtn as BoundEl)._bulkBound = true;
+    deleteBtn.addEventListener('click', () => {
+      if (isTx) {
+        if (_readOnly || !_lastOnBulkDelTxs || _selectedTxRowIds.size === 0) return;
+        _lastOnBulkDelTxs(
+          Array.from(_selectedTxRowIds).map((id) => BigInt(id)),
+          deleteBtn,
+        );
+        return;
+      }
+      if (_readOnly || !_lastOnBulkDel || _selectedSnapDates.size === 0) return;
+      _lastOnBulkDel(Array.from(_selectedSnapDates), deleteBtn);
+    });
+  }
+}
+
 function snapColumns(): ColumnDef<Snapshot>[] {
-  return [
+  const columns: ColumnDef<Snapshot>[] = [];
+  if (_snapBulkMode && !_readOnly && !!_lastOnBulkDel) {
+    columns.push({
+      key: 'select',
+      label: '',
+      cellClass: () => 'snap-select-cell',
+      cell: (s) =>
+        `<input type="checkbox" class="snap-select-input js-snap-select" aria-label="Select ${fmtMon(s.date)}" data-date="${s.date}" ${
+          _selectedSnapDates.has(s.date) ? 'checked' : ''
+        }>`,
+    });
+  }
+  columns.push(
     {
       key: 'month',
       label: 'Month',
@@ -189,7 +348,8 @@ function snapColumns(): ColumnDef<Snapshot>[] {
           .join('');
       },
     },
-  ];
+  );
+  return columns;
 }
 
 function renderSnapList(
@@ -199,26 +359,15 @@ function renderSnapList(
 ): void {
   const el = document.getElementById('snaps-list')!;
   if (!snaps.length) {
+    _selectedSnapDates.clear();
     el.innerHTML =
       '<div class="empty-state" style="padding:1.5rem;font-size:13px">No snapshots yet. Add your first one above.</div>';
     hidePagination();
+    _updateBulkControls('snap');
     return;
   }
 
-  // Apply filters
-  let filtered = [...snaps].reverse();
-  const selectedYear = getTableFilter(_snapTableState, 'year');
-  const searchTerm = getTableFilter(_snapTableState, 'search');
-  if (selectedYear) {
-    filtered = filtered.filter((s) => s.date.startsWith(selectedYear));
-  }
-  if (searchTerm) {
-    filtered = filtered.filter(
-      (s) =>
-        (s.notes || '').toLowerCase().includes(searchTerm) ||
-        fmtMon(s.date).toLowerCase().includes(searchTerm),
-    );
-  }
+  const filtered = getFilteredSnaps(snaps);
 
   if (filtered.length === 0) {
     el.innerHTML = `<div class="empty-state" style="padding:1rem;font-size:12px;color:var(--ink-3)">
@@ -236,6 +385,7 @@ function renderSnapList(
       if (searchEl) searchEl.value = '';
       renderSnapList(snaps, onEdit, onDel);
     });
+    _updateBulkControls('snap');
     return;
   }
 
@@ -251,16 +401,20 @@ function renderSnapList(
     PAGE_SIZE,
   );
   setTablePage(_snapTableState, page);
+  const rowClass =
+    _snapBulkMode && !_readOnly && !!_lastOnBulkDel
+      ? 'snap-row-compact snap-row-selectable'
+      : 'snap-row-compact';
 
   // Compact row layout - fixed 3-column (Month / Net worth / segment indicator)
   el.innerHTML = `
-    <div class="snap-row-compact th" role="row" id="snap-table-header">
+    <div class="${rowClass} th" role="row" id="snap-table-header">
       ${renderTableHeader(columns, _snapTableState.sort)}
     </div>
     ${pageItems
       .map(
         (s) =>
-          `<div class="snap-row-compact" role="row" tabindex="0" aria-expanded="${String(isCollapsed('snap:' + s.date))}" data-date="${s.date}">
+          `<div class="${rowClass}" role="row" tabindex="0" aria-expanded="${String(isCollapsed('snap:' + s.date))}" data-date="${s.date}">
         ${renderTableRow(columns, s)}
       </div>`,
       )
@@ -289,7 +443,10 @@ function renderSnapList(
     },
     createDetail: (row, snap) =>
       _createSnapDetail(snap, row.dataset.date || '', _lastOnEdit!, _lastOnDel!),
-    ignoreClick: (target) => !!target.closest('.js-edit-snap') || !!target.closest('.js-del-snap'),
+    ignoreClick: (target) =>
+      !!target.closest('.js-edit-snap') ||
+      !!target.closest('.js-del-snap') ||
+      !!target.closest('.js-snap-select'),
     onExpandedChange: (detailRow, expanded) => {
       const detailDate = detailRow.dataset.date;
       if (detailDate) setCollapsed('snap:' + detailDate, expanded);
@@ -316,11 +473,26 @@ function renderSnapList(
     },
   });
 
+  el.querySelectorAll('.js-snap-select').forEach((input) => {
+    input.addEventListener('click', (ev) => ev.stopPropagation());
+    input.addEventListener('change', (ev) => {
+      ev.stopPropagation();
+      const checkbox = ev.currentTarget as HTMLInputElement;
+      const date = checkbox.dataset.date;
+      if (!date) return;
+      if (checkbox.checked) _selectedSnapDates.add(date);
+      else _selectedSnapDates.delete(date);
+      _updateBulkControls('snap');
+    });
+  });
+
   // Pagination controls
   renderPagination('snap-pagination', _snapTableState.page, totalPages, (page) => {
     setTablePage(_snapTableState, page);
     renderSnapList(snaps, onEdit, onDel);
+    _updateBulkControls('snap');
   });
+  _updateBulkControls('snap');
 }
 
 /** Build the detail panel shown beneath an expanded snapshot row. */
@@ -477,6 +649,15 @@ function attachTxListeners(): void {
         if (rowId != null) _lastOnDelTx?.(rowId, delBtn);
       }
     });
+    listEl.addEventListener('change', (e) => {
+      const inp = (e.target as HTMLElement).closest('.js-tx-select') as HTMLInputElement | null;
+      if (!inp) return;
+      const rowId = inp.dataset.rowid;
+      if (!rowId) return;
+      if (inp.checked) _selectedTxRowIds.add(rowId);
+      else _selectedTxRowIds.delete(rowId);
+      _updateBulkControls('tx');
+    });
   }
 }
 
@@ -487,6 +668,7 @@ function renderTxList(txs: Transaction[]): void {
   const addBtn = document.getElementById('btn-add-tx') as HTMLButtonElement | null;
   if (!listEl) return;
   if (addBtn) addBtn.disabled = _readOnly;
+  if (addBtn) addBtn.hidden = _txBulkMode;
   listEl.className = `tx-ledger-grid${_readOnly ? ' tx-ledger-grid-readonly' : ''}`;
 
   const types = [...new Set(txs.map((t) => t.type).filter(Boolean))].sort() as string[];
@@ -501,26 +683,21 @@ function renderTxList(txs: Transaction[]): void {
   }
 
   if (!txs.length) {
+    _selectedTxRowIds.clear();
     listEl.innerHTML =
       '<div class="empty-state" style="padding:1rem;font-size:13px">No transactions yet.</div>';
     if (paginationEl) paginationEl.innerHTML = '';
+    _updateBulkControls('tx');
     return;
   }
 
-  let filtered = [...txs];
-  const txType = getTableFilter(_txTableState, 'type');
-  const txSearch = getTableFilter(_txTableState, 'search');
-  if (txType) filtered = filtered.filter((t) => t.type === txType);
-  if (txSearch) {
-    filtered = filtered.filter((t) =>
-      [t.date, t.name, t.isin, t.source, t.type].join(' ').toLowerCase().includes(txSearch),
-    );
-  }
+  const filtered = getFilteredTxs(txs);
 
   if (!filtered.length) {
     listEl.innerHTML =
       '<div class="empty-state" style="padding:1rem;font-size:13px">No matching transactions.</div>';
     if (paginationEl) paginationEl.innerHTML = '';
+    _updateBulkControls('tx');
     return;
   }
 
@@ -534,16 +711,26 @@ function renderTxList(txs: Transaction[]): void {
   );
   setTablePage(_txTableState, page);
   const showActions = !_readOnly;
+  const showSelection = !_readOnly && !!_lastOnBulkDelTxs && _txBulkMode;
 
   listEl.innerHTML = `
     <div class="tbl-row th tx-row" role="row" id="tx-table-header">
       ${renderTableHeader(columns, _txTableState.sort)}
-      ${showActions ? '<div role="columnheader" style="text-align:right">Actions</div>' : ''}
+      ${
+        showActions
+          ? `<div role="columnheader" style="text-align:right">${showSelection ? 'Select' : 'Actions'}</div>`
+          : ''
+      }
     </div>
     ${pageItems
       .map((tx) => {
-        const actionBtns =
-          !showActions || !tx.rowId
+        const actionBtns = showSelection
+          ? tx.rowId
+            ? `<input type="checkbox" class="js-tx-select" data-rowid="${tx.rowId}" aria-label="Select transaction on ${fmtDay(tx.date)}" ${
+                _selectedTxRowIds.has(tx.rowId.toString()) ? 'checked' : ''
+              }>`
+            : ''
+          : !showActions || !tx.rowId
             ? ''
             : `<button class="btn btn-sm btn-outline btn-icon js-edit-tx" data-rowid="${tx.rowId}" aria-label="Edit transaction" title="Edit transaction">${EDIT_ICON}</button>
             <button class="btn btn-sm btn-danger btn-icon js-del-tx" data-rowid="${tx.rowId}" aria-label="Delete transaction" title="Delete transaction">${DELETE_ICON}</button>`;
@@ -555,13 +742,17 @@ function renderTxList(txs: Transaction[]): void {
         const mobileActionsCell =
           !showActions || !tx.rowId
             ? ''
-            : `<div role="cell" class="tx-actions tx-actions-mobile" data-ledger-label="Actions">
+            : `<div role="cell" class="tx-actions tx-actions-mobile" data-ledger-label="${
+                showSelection ? 'Select' : 'Actions'
+              }">
             ${actionBtns}
           </div>`;
         const desktopActionsCell =
           !showActions || !tx.rowId
             ? ''
-            : `<div role="cell" class="tx-actions tx-actions-desktop" data-ledger-label="Actions">
+            : `<div role="cell" class="tx-actions tx-actions-desktop" data-ledger-label="${
+                showSelection ? 'Select' : 'Actions'
+              }">
             ${actionBtns}
           </div>`;
         const bodyCells = renderTableRow(restCols, tx);
@@ -589,4 +780,5 @@ function renderTxList(txs: Transaction[]): void {
     setTablePage(_txTableState, page);
     renderTxList(txs);
   });
+  _updateBulkControls('tx');
 }
