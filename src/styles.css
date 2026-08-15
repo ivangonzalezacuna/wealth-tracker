@@ -2156,7 +2156,7 @@ summary.section-label {
   #tx-ledger-list .tx-card-header {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 8px;
     padding: 4px 0;
     min-width: 0;
@@ -2248,9 +2248,9 @@ summary.section-label {
   /* Show the in-header source chip in stacked view */
   #tx-ledger-list .tx-card-header .tx-header-source {
     display: inline-flex;
-    order: 3;
-    flex: 1 1 100%;
-    max-width: none;
+    order: 0;
+    flex: 1 1 auto;
+    max-width: 100%;
   }
   /* Hide the source body cell in stacked view (shown in header instead) */
   #tx-ledger-list .tx-row > [role='cell'][data-ledger-label='Source'] {
