@@ -436,6 +436,8 @@ function _updateSnapBulkControls(): void {
   const clearAllBtn = document.getElementById('btn-snap-clear-all') as
     (HTMLButtonElement & { _boundClearAll?: boolean }) | null;
   const actionsWrap = document.getElementById('snap-bulk-actions');
+  const mobileCancelBtn = document.getElementById('btn-cancel-del-snaps-mobile') as
+    (HTMLButtonElement & { _boundCancel?: boolean }) | null;
   const btn = document.getElementById('btn-del-snaps') as
     (HTMLButtonElement & { _boundBulkDelete?: boolean }) | null;
   if (!startBtn || !selectAllBtn || !clearAllBtn || !actionsWrap || !btn) {
@@ -447,6 +449,16 @@ function _updateSnapBulkControls(): void {
       if (_readOnly || !_lastOnBulkDel) return;
       _snapBulkMode = !_snapBulkMode;
       if (!_snapBulkMode) _selectedSnapDates.clear();
+      setTablePage(_snapTableState, 1);
+      if (_lastOnEdit && _lastOnDel) renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
+    });
+  }
+  if (mobileCancelBtn && !mobileCancelBtn._boundCancel) {
+    mobileCancelBtn._boundCancel = true;
+    mobileCancelBtn.addEventListener('click', () => {
+      if (_readOnly || !_lastOnBulkDel || !_snapBulkMode) return;
+      _snapBulkMode = false;
+      _selectedSnapDates.clear();
       setTablePage(_snapTableState, 1);
       if (_lastOnEdit && _lastOnDel) renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
     });
@@ -475,16 +487,13 @@ function _updateSnapBulkControls(): void {
     });
   }
   startBtn.hidden = _readOnly || !_lastOnBulkDel;
-  if (_snapBulkMode) {
-    startBtn.classList.add('btn-icon');
-    startBtn.textContent = '✕';
-    startBtn.setAttribute('aria-label', 'Cancel bulk delete');
-    startBtn.title = 'Cancel bulk delete';
-  } else {
-    startBtn.classList.remove('btn-icon');
-    startBtn.textContent = 'Bulk delete';
-    startBtn.removeAttribute('aria-label');
-    startBtn.removeAttribute('title');
+  startBtn.textContent = _snapBulkMode ? 'Cancel' : 'Bulk delete';
+  startBtn.classList.toggle('bulk-toggle-active', _snapBulkMode);
+  startBtn.removeAttribute('aria-label');
+  startBtn.removeAttribute('title');
+  if (mobileCancelBtn) {
+    mobileCancelBtn.hidden = !_snapBulkMode || _readOnly || !_lastOnBulkDel;
+    mobileCancelBtn.disabled = _readOnly || !_snapBulkMode || !_lastOnBulkDel;
   }
   if (addSnapBtn) addSnapBtn.disabled = _readOnly || _snapBulkMode;
   actionsWrap.hidden = !_snapBulkMode || _readOnly || !_lastOnBulkDel;
@@ -569,6 +578,8 @@ function attachTxListeners(): void {
     (HTMLButtonElement & { _bound?: boolean }) | null;
   const bulkDeleteBtn = document.getElementById('btn-del-txs') as
     (HTMLButtonElement & { _bound?: boolean }) | null;
+  const mobileCancelBtn = document.getElementById('btn-cancel-del-txs-mobile') as
+    (HTMLButtonElement & { _bound?: boolean }) | null;
   const listEl = document.getElementById('tx-ledger-list') as
     (HTMLElement & { _bound?: boolean }) | null;
 
@@ -601,6 +612,16 @@ function attachTxListeners(): void {
       if (_readOnly || !_lastOnBulkDelTxs) return;
       _txBulkMode = !_txBulkMode;
       if (!_txBulkMode) _selectedTxRowIds.clear();
+      setTablePage(_txTableState, 1);
+      renderTxList(_txs);
+    });
+  }
+  if (mobileCancelBtn && !mobileCancelBtn._bound) {
+    mobileCancelBtn._bound = true;
+    mobileCancelBtn.addEventListener('click', () => {
+      if (_readOnly || !_lastOnBulkDelTxs || !_txBulkMode) return;
+      _txBulkMode = false;
+      _selectedTxRowIds.clear();
       setTablePage(_txTableState, 1);
       renderTxList(_txs);
     });
@@ -805,6 +826,8 @@ function getFilteredTxs(txs: Transaction[]): Transaction[] {
 function _updateTxBulkControls(): void {
   const startBtn = document.getElementById('btn-start-del-txs') as HTMLButtonElement | null;
   const actionsWrap = document.getElementById('tx-bulk-actions');
+  const mobileCancelBtn = document.getElementById('btn-cancel-del-txs-mobile') as
+    HTMLButtonElement | null;
   const selectAllBtn = document.getElementById('btn-tx-select-all') as HTMLButtonElement | null;
   const clearAllBtn = document.getElementById('btn-tx-clear-all') as HTMLButtonElement | null;
   const deleteBtn = document.getElementById('btn-del-txs') as HTMLButtonElement | null;
@@ -812,16 +835,13 @@ function _updateTxBulkControls(): void {
   if (!startBtn || !actionsWrap || !selectAllBtn || !clearAllBtn || !deleteBtn) return;
   const count = _selectedTxRowIds.size;
   startBtn.hidden = _readOnly || !_lastOnBulkDelTxs;
-  if (_txBulkMode) {
-    startBtn.classList.add('btn-icon');
-    startBtn.textContent = '✕';
-    startBtn.setAttribute('aria-label', 'Cancel bulk delete');
-    startBtn.title = 'Cancel bulk delete';
-  } else {
-    startBtn.classList.remove('btn-icon');
-    startBtn.textContent = 'Bulk delete';
-    startBtn.removeAttribute('aria-label');
-    startBtn.removeAttribute('title');
+  startBtn.textContent = _txBulkMode ? 'Cancel' : 'Bulk delete';
+  startBtn.classList.toggle('bulk-toggle-active', _txBulkMode);
+  startBtn.removeAttribute('aria-label');
+  startBtn.removeAttribute('title');
+  if (mobileCancelBtn) {
+    mobileCancelBtn.hidden = !_txBulkMode || _readOnly || !_lastOnBulkDelTxs;
+    mobileCancelBtn.disabled = _readOnly || !_txBulkMode || !_lastOnBulkDelTxs;
   }
   actionsWrap.hidden = !_txBulkMode || _readOnly || !_lastOnBulkDelTxs;
   if (addBtn) addBtn.hidden = _txBulkMode;

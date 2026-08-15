@@ -1605,7 +1605,17 @@ summary.section-label {
 .bulk-actions .btn {
   white-space: nowrap;
 }
+.bulk-cancel-mobile {
+  display: none;
+}
 @media (max-width: 720px) {
+  #btn-start-del-txs.bulk-toggle-active,
+  #btn-start-del-snaps.bulk-toggle-active {
+    display: none;
+  }
+  .bulk-cancel-mobile:not([hidden]) {
+    display: inline-flex;
+  }
   .filter-bar-actions-end {
     flex-basis: 100%;
     margin-left: 0;

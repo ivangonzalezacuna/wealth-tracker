@@ -35,6 +35,7 @@ const DOM_FIXTURE = `
   <button id="btn-start-del-snaps">Bulk delete</button>
   <button id="btn-add-snap">Add monthly snapshot</button>
   <div id="snap-bulk-actions" hidden>
+    <button id="btn-cancel-del-snaps-mobile" hidden>✕</button>
     <button id="btn-snap-select-all"></button>
     <button id="btn-snap-clear-all"></button>
     <button id="btn-del-snaps">Delete selected</button>
@@ -46,6 +47,7 @@ const DOM_FIXTURE = `
   <input id="tx-search" />
   <button id="btn-start-del-txs">Bulk delete</button>
   <div id="tx-bulk-actions" hidden>
+    <button id="btn-cancel-del-txs-mobile" hidden>✕</button>
     <button id="btn-tx-select-all"></button>
     <button id="btn-tx-clear-all"></button>
     <button id="btn-del-txs">Delete selected</button>
@@ -509,13 +511,16 @@ describe('renderLog', () => {
     const startBtn = document.getElementById('btn-start-del-txs') as HTMLButtonElement;
     const addBtn = document.getElementById('btn-add-tx') as HTMLButtonElement;
     const actionsWrap = document.getElementById('tx-bulk-actions') as HTMLDivElement;
+    const mobileCancelBtn = document.getElementById(
+      'btn-cancel-del-txs-mobile',
+    ) as HTMLButtonElement;
     expect(addBtn.hidden).toBe(false);
     startBtn.click();
     expect(startBtn.hidden).toBe(false);
-    expect(startBtn.textContent).toBe('✕');
-    expect(startBtn.classList.contains('btn-icon')).toBe(true);
-    expect(startBtn.getAttribute('aria-label')).toBe('Cancel bulk delete');
+    expect(startBtn.textContent).toBe('Cancel');
+    expect(startBtn.classList.contains('bulk-toggle-active')).toBe(true);
     expect(actionsWrap.hidden).toBe(false);
+    expect(mobileCancelBtn.hidden).toBe(false);
     expect(addBtn.hidden).toBe(true);
     expect(
       document.querySelector('.tx-card-header .tx-actions-mobile .js-tx-select'),
@@ -563,14 +568,55 @@ describe('renderLog', () => {
     const startBtn = document.getElementById('btn-start-del-txs') as HTMLButtonElement;
     const addBtn = document.getElementById('btn-add-tx') as HTMLButtonElement;
     const actionsWrap = document.getElementById('tx-bulk-actions') as HTMLDivElement;
+    const mobileCancelBtn = document.getElementById(
+      'btn-cancel-del-txs-mobile',
+    ) as HTMLButtonElement;
     startBtn.click();
     startBtn.click();
     expect(startBtn.hidden).toBe(false);
     expect(startBtn.textContent).toBe('Bulk delete');
-    expect(startBtn.classList.contains('btn-icon')).toBe(false);
-    expect(startBtn.hasAttribute('aria-label')).toBe(false);
+    expect(startBtn.classList.contains('bulk-toggle-active')).toBe(false);
     expect(actionsWrap.hidden).toBe(true);
+    expect(mobileCancelBtn.hidden).toBe(true);
     expect(addBtn.hidden).toBe(false);
+  });
+
+  it('allows cancelling transaction bulk mode from the mobile inline cancel button', () => {
+    renderLog({
+      txs: [
+        {
+          rowId: 10n,
+          id: 'tx-1',
+          date: '2026-01-01',
+          source: 'manual',
+          type: 'BUY',
+          name: 'IWDA',
+          isin: 'IE00B4L5Y983',
+          shares: 2,
+          price: 100,
+          amount: -200,
+          fee: 0,
+          tax: 0,
+          currency: 'EUR',
+          fxRate: 1,
+        },
+      ],
+      snaps: [],
+      importMeta: { last_import: '2026-01-01' },
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+      onBulkDelTxs: vi.fn(),
+    });
+    const startBtn = document.getElementById('btn-start-del-txs') as HTMLButtonElement;
+    const actionsWrap = document.getElementById('tx-bulk-actions') as HTMLDivElement;
+    const mobileCancelBtn = document.getElementById(
+      'btn-cancel-del-txs-mobile',
+    ) as HTMLButtonElement;
+    startBtn.click();
+    expect(actionsWrap.hidden).toBe(false);
+    mobileCancelBtn.click();
+    expect(startBtn.textContent).toBe('Bulk delete');
+    expect(actionsWrap.hidden).toBe(true);
   });
 
   it('hides transaction actions in read-only mode', () => {

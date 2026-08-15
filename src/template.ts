@@ -428,6 +428,15 @@ export function appTemplate(): string {
           <div class="filter-bar-actions filter-bar-actions-end">
             <button class="btn btn-outline btn-sm" id="btn-start-del-txs">Bulk delete</button>
             <div class="bulk-actions" id="tx-bulk-actions" hidden>
+              <button
+                class="btn btn-ghost btn-sm btn-icon bulk-cancel-mobile"
+                id="btn-cancel-del-txs-mobile"
+                aria-label="Cancel bulk delete"
+                title="Cancel bulk delete"
+                hidden
+              >
+                ✕
+              </button>
               <button class="btn btn-ghost btn-sm" id="btn-tx-select-all">Select all</button>
               <button class="btn btn-ghost btn-sm" id="btn-tx-clear-all">Deselect all</button>
               <button class="btn btn-danger btn-sm" id="btn-del-txs" disabled>Delete selected</button>
@@ -463,6 +472,15 @@ export function appTemplate(): string {
           <div class="filter-bar-actions filter-bar-actions-end">
             <button class="btn btn-outline btn-sm" id="btn-start-del-snaps">Bulk delete</button>
             <div class="bulk-actions" id="snap-bulk-actions" hidden>
+              <button
+                class="btn btn-ghost btn-sm btn-icon bulk-cancel-mobile"
+                id="btn-cancel-del-snaps-mobile"
+                aria-label="Cancel bulk delete"
+                title="Cancel bulk delete"
+                hidden
+              >
+                ✕
+              </button>
               <button class="btn btn-ghost btn-sm" id="btn-snap-select-all">Select all</button>
               <button class="btn btn-ghost btn-sm" id="btn-snap-clear-all">Deselect all</button>
               <button class="btn btn-danger btn-sm" id="btn-del-snaps" disabled>Delete selected</button>
