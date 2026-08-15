@@ -36,7 +36,6 @@ const DOM_FIXTURE = `
   <div id="snap-bulk-actions" hidden>
     <button id="btn-snap-select-all"></button>
     <button id="btn-snap-clear-all"></button>
-    <button id="btn-cancel-del-snaps"></button>
     <button id="btn-del-snaps">Delete selected</button>
   </div>
   <div id="snap-table-header"></div>
@@ -48,7 +47,6 @@ const DOM_FIXTURE = `
   <div id="tx-bulk-actions" hidden>
     <button id="btn-tx-select-all"></button>
     <button id="btn-tx-clear-all"></button>
-    <button id="btn-cancel-del-txs"></button>
     <button id="btn-del-txs">Delete selected</button>
   </div>
   <button id="btn-add-tx"></button>
@@ -493,9 +491,11 @@ describe('renderLog', () => {
     const actionsWrap = document.getElementById('tx-bulk-actions') as HTMLDivElement;
     expect(addBtn.hidden).toBe(false);
     startBtn.click();
-    expect(startBtn.hidden).toBe(true);
+    expect(startBtn.hidden).toBe(false);
+    expect(startBtn.textContent).toBe('Cancel');
     expect(actionsWrap.hidden).toBe(false);
     expect(addBtn.hidden).toBe(true);
+    expect(document.querySelector('.tx-card-header .tx-select-cell-mobile')).not.toBeNull();
     const selectAll = document.getElementById('btn-tx-select-all') as HTMLButtonElement;
     const clearAll = document.getElementById('btn-tx-clear-all') as HTMLButtonElement;
     const bulkBtn = document.getElementById('btn-del-txs') as HTMLButtonElement;
@@ -540,8 +540,9 @@ describe('renderLog', () => {
     const addBtn = document.getElementById('btn-add-tx') as HTMLButtonElement;
     const actionsWrap = document.getElementById('tx-bulk-actions') as HTMLDivElement;
     startBtn.click();
-    (document.getElementById('btn-cancel-del-txs') as HTMLButtonElement).click();
+    startBtn.click();
     expect(startBtn.hidden).toBe(false);
+    expect(startBtn.textContent).toBe('Bulk delete');
     expect(actionsWrap.hidden).toBe(true);
     expect(addBtn.hidden).toBe(false);
   });
