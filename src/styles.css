@@ -1576,11 +1576,47 @@ summary.section-label {
   margin-bottom: 0.75rem;
   flex-wrap: wrap;
 }
+.filter-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.filter-bar-actions-end {
+  margin-left: auto;
+  justify-content: flex-end;
+  flex: 1 1 auto;
+}
 .bulk-actions {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.bulk-actions[hidden] {
+  display: none !important;
+}
+.bulk-actions .btn {
+  white-space: nowrap;
+}
+@media (max-width: 720px) {
+  .filter-bar-actions-end {
+    flex-basis: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+  .bulk-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+  .bulk-actions .btn {
+    width: 100%;
+    text-align: center;
+  }
 }
 .pagination {
   display: flex;

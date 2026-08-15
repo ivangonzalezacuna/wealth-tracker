@@ -488,7 +488,14 @@ describe('renderLog', () => {
       onDelSnap: vi.fn(),
       onBulkDelTxs,
     });
-    (document.getElementById('btn-start-del-txs') as HTMLButtonElement).click();
+    const startBtn = document.getElementById('btn-start-del-txs') as HTMLButtonElement;
+    const addBtn = document.getElementById('btn-add-tx') as HTMLButtonElement;
+    const actionsWrap = document.getElementById('tx-bulk-actions') as HTMLDivElement;
+    expect(addBtn.hidden).toBe(false);
+    startBtn.click();
+    expect(startBtn.hidden).toBe(true);
+    expect(actionsWrap.hidden).toBe(false);
+    expect(addBtn.hidden).toBe(true);
     const selectAll = document.getElementById('btn-tx-select-all') as HTMLButtonElement;
     const clearAll = document.getElementById('btn-tx-clear-all') as HTMLButtonElement;
     const bulkBtn = document.getElementById('btn-del-txs') as HTMLButtonElement;
@@ -501,6 +508,42 @@ describe('renderLog', () => {
     bulkBtn.click();
     expect(onBulkDelTxs).toHaveBeenCalledTimes(1);
     expect(onBulkDelTxs).toHaveBeenCalledWith([10n, 11n], bulkBtn);
+  });
+
+  it('restores the transaction add button after cancelling bulk mode', () => {
+    renderLog({
+      txs: [
+        {
+          rowId: 10n,
+          id: 'tx-1',
+          date: '2026-01-01',
+          source: 'manual',
+          type: 'BUY',
+          name: 'IWDA',
+          isin: 'IE00B4L5Y983',
+          shares: 2,
+          price: 100,
+          amount: -200,
+          fee: 0,
+          tax: 0,
+          currency: 'EUR',
+          fxRate: 1,
+        },
+      ],
+      snaps: [],
+      importMeta: { last_import: '2026-01-01' },
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+      onBulkDelTxs: vi.fn(),
+    });
+    const startBtn = document.getElementById('btn-start-del-txs') as HTMLButtonElement;
+    const addBtn = document.getElementById('btn-add-tx') as HTMLButtonElement;
+    const actionsWrap = document.getElementById('tx-bulk-actions') as HTMLDivElement;
+    startBtn.click();
+    (document.getElementById('btn-cancel-del-txs') as HTMLButtonElement).click();
+    expect(startBtn.hidden).toBe(false);
+    expect(actionsWrap.hidden).toBe(true);
+    expect(addBtn.hidden).toBe(false);
   });
 
   it('hides transaction actions in read-only mode', () => {

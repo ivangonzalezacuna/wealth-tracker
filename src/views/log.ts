@@ -812,10 +812,12 @@ function _updateTxBulkControls(): void {
   const selectAllBtn = document.getElementById('btn-tx-select-all') as HTMLButtonElement | null;
   const clearAllBtn = document.getElementById('btn-tx-clear-all') as HTMLButtonElement | null;
   const deleteBtn = document.getElementById('btn-del-txs') as HTMLButtonElement | null;
+  const addBtn = document.getElementById('btn-add-tx') as HTMLButtonElement | null;
   if (!startBtn || !actionsWrap || !selectAllBtn || !clearAllBtn || !deleteBtn) return;
   const count = _selectedTxRowIds.size;
   startBtn.hidden = _txBulkMode || _readOnly || !_lastOnBulkDelTxs;
   actionsWrap.hidden = !_txBulkMode || _readOnly || !_lastOnBulkDelTxs;
+  if (addBtn) addBtn.hidden = _txBulkMode;
   const selectableCount = getFilteredTxs(_txs).filter((tx) => tx.rowId != null).length;
   selectAllBtn.disabled = _readOnly || !_txBulkMode || selectableCount === 0;
   clearAllBtn.disabled = _readOnly || !_txBulkMode || count === 0;
