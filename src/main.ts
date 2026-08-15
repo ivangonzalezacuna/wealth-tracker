@@ -1576,13 +1576,16 @@ async function delTransactionsBulk(rowIds: bigint[], btn?: HTMLButtonElement): P
   if (!ensureWriteAccess('tx-msg', 'signed-in-or-granted')) return;
   const selectedKeys = new Set(rowIds.map((id) => id.toString()));
   const selectedTxs = state.txs.filter((tx) => tx.rowId && selectedKeys.has(tx.rowId.toString()));
-  const uniqueIds = [...new Map(selectedTxs.map((tx) => [tx.rowId!.toString(), tx.rowId!])).values()];
+  const uniqueIds = [
+    ...new Map(selectedTxs.map((tx) => [tx.rowId!.toString(), tx.rowId!])).values(),
+  ];
   if (!uniqueIds.length) return;
   const summaryItems = selectedTxs
     .slice(0, 3)
     .map((tx) => `${tx.date} ${tx.type}`)
     .join(', ');
-  const summary = summaryItems + (selectedTxs.length > 3 ? ` and ${selectedTxs.length - 3} more` : '');
+  const summary =
+    summaryItems + (selectedTxs.length > 3 ? ` and ${selectedTxs.length - 3} more` : '');
   const deleteKeys = new Set(uniqueIds.map((id) => id.toString()));
   const candidate = state.txs.filter((tx) => !tx.rowId || !deleteKeys.has(tx.rowId.toString()));
   const nextPd = computePdOrThrow(candidate);
