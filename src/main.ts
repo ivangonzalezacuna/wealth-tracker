@@ -15,6 +15,7 @@ import {
   insertTransaction,
   updateTransaction,
   deleteTransaction,
+  deleteTransactions,
   saveImportMeta,
   loadImportMeta,
   restoreAllData,
@@ -1414,6 +1415,49 @@ async function delSnap(date: string, btn?: HTMLButtonElement) {
   });
 }
 
+async function delSnapsBulk(dates: string[], btn?: HTMLButtonElement) {
+  if (!ensureWriteAccess('snap-msg', 'signed-in-or-granted')) return;
+  const existingDates = new Set(state.snaps.map((s) => s.date));
+  const selectedDates = [...new Set(dates)].sort().filter((date) => existingDates.has(date));
+  if (!selectedDates.length) return;
+  const summaryItems = selectedDates.slice(0, 3).map((date) => fmtMon(date));
+  const summary =
+    summaryItems.join(', ') +
+    (selectedDates.length > 3 ? ` and ${selectedDates.length - 3} more` : '');
+  const ok = await confirmDialog({
+    title: `Delete ${selectedDates.length} snapshots?`,
+    body: `This cannot be undone. Selected months: ${summary}.`,
+    confirmLabel: 'Delete',
+    danger: true,
+  });
+  if (!ok) return;
+  await performWriteAction({
+    msgId: 'snap-msg',
+    access: 'signed-in-or-granted',
+    button: btn,
+    busyText: 'Removing...',
+    keepDisabledOnSuccess: true,
+    errorPrefix: 'Delete failed: ',
+    action: async () => {
+      const previous = state.snaps;
+      const selected = new Set(selectedDates);
+      state.snaps = state.snaps.filter((s) => !selected.has(s.date));
+      try {
+        await saveSnapshots(state.snaps);
+        const snapCachedDel = await setCachedSnapshots(state.snaps);
+        if (isSignedIn()) scheduleUpload();
+        if (!snapCachedDel) showCacheWriteWarning();
+        renderAll();
+      } catch (err) {
+        state.snaps = previous;
+        throw err;
+      }
+    },
+    onlineMessage: `${selectedDates.length} snapshots deleted.`,
+    offlineMessage: 'Deleted locally. Will sync to Drive when back online.',
+  });
+}
+
 function computePdOrThrow(txs: Transaction[]): PortfolioData | null {
   if (!txs.length) return null;
   return computePD(txs, { method: getCostBasisMethod() });
@@ -1525,6 +1569,45 @@ async function delManualTransaction(rowId: bigint, btn?: HTMLButtonElement): Pro
     },
     onlineMessage: 'Transaction deleted.',
     offlineMessage: 'Transaction deleted locally. Will sync to Drive when back online.',
+  });
+}
+
+async function delTransactionsBulk(rowIds: bigint[], btn?: HTMLButtonElement): Promise<void> {
+  if (!ensureWriteAccess('tx-msg', 'signed-in-or-granted')) return;
+  const selectedKeys = new Set(rowIds.map((id) => id.toString()));
+  const selectedTxs = state.txs.filter((tx) => tx.rowId && selectedKeys.has(tx.rowId.toString()));
+  const uniqueIds = [...new Map(selectedTxs.map((tx) => [tx.rowId!.toString(), tx.rowId!])).values()];
+  if (!uniqueIds.length) return;
+  const summaryItems = selectedTxs
+    .slice(0, 3)
+    .map((tx) => `${tx.date} ${tx.type}`)
+    .join(', ');
+  const summary = summaryItems + (selectedTxs.length > 3 ? ` and ${selectedTxs.length - 3} more` : '');
+  const deleteKeys = new Set(uniqueIds.map((id) => id.toString()));
+  const candidate = state.txs.filter((tx) => !tx.rowId || !deleteKeys.has(tx.rowId.toString()));
+  const nextPd = computePdOrThrow(candidate);
+  const ok = await confirmDialog({
+    title: `Delete ${uniqueIds.length} transactions?`,
+    body: `This cannot be undone. Selected transactions: ${summary}.`,
+    confirmLabel: 'Delete',
+    danger: true,
+  });
+  if (!ok) return;
+  await performWriteAction({
+    msgId: 'tx-msg',
+    access: 'signed-in-or-granted',
+    button: btn,
+    busyText: 'Deleting...',
+    keepDisabledOnSuccess: true,
+    errorPrefix: 'Delete failed: ',
+    action: async () => {
+      await deleteTransactions(uniqueIds);
+      await persistTransactionsState(nextPd);
+      if (isSignedIn()) scheduleUpload();
+      renderAll();
+    },
+    onlineMessage: `${uniqueIds.length} transactions deleted.`,
+    offlineMessage: 'Transactions deleted locally. Will sync to Drive when back online.',
   });
 }
 
@@ -2011,10 +2094,15 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
           importMeta: state.importMeta,
           onEditSnap: editSnap,
           onDelSnap: delSnap,
+          onBulkDelSnaps: delSnapsBulk,
           onAddTx: addManualTransaction,
           onEditTx: editManualTransaction,
           onDelTx: delManualTransaction,
+          onBulkDelTxs: delTransactionsBulk,
           readOnly: isReadOnly(),
+        } as Parameters<typeof renderLog>[0] & {
+          onBulkDelSnaps: typeof delSnapsBulk;
+          onBulkDelTxs: typeof delTransactionsBulk;
         });
         break;
     }

@@ -12,6 +12,7 @@ export {
   insertTransaction,
   updateTransaction,
   deleteTransaction,
+  deleteTransactions,
   txKey,
   countAmendedRows,
 } from './repositories/transactions';
