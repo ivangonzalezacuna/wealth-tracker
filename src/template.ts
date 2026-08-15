@@ -1,5 +1,4 @@
 import { CONFIG } from './config';
-import { CLOSE_ICON } from './views/icons';
 
 function rangeToggleHtml(
   id: string,
@@ -426,24 +425,7 @@ export function appTemplate(): string {
             <option value="">All types</option>
           </select>
           <input type="text" id="tx-search" class="form-input form-input-sm" aria-label="Search transactions" placeholder="Search name, ISIN, source…" style="flex:1;min-width:80px">
-          <div class="filter-bar-actions filter-bar-actions-end">
-            <button class="btn btn-outline btn-sm" id="btn-start-del-txs">Bulk delete</button>
-            <div class="bulk-actions" id="tx-bulk-actions" hidden>
-              <button
-                class="btn btn-ghost btn-sm btn-icon bulk-cancel-mobile"
-                id="btn-cancel-del-txs-mobile"
-                aria-label="Cancel bulk delete"
-                title="Cancel bulk delete"
-                hidden
-              >
-                ${CLOSE_ICON}
-              </button>
-              <button class="btn btn-ghost btn-sm" id="btn-tx-select-all">Select all</button>
-              <button class="btn btn-ghost btn-sm" id="btn-tx-clear-all">Deselect all</button>
-              <button class="btn btn-danger btn-sm" id="btn-del-txs" disabled>Delete</button>
-            </div>
-            <button class="btn btn-outline btn-sm" id="btn-add-tx">Add transaction</button>
-          </div>
+          <button class="btn btn-outline btn-sm" id="btn-add-tx" style="margin-left:auto">Add transaction</button>
         </div>
         <div class="tbl">
           <div id="tx-ledger-wrap"><div id="tx-ledger-list" class="tx-ledger-grid" role="table" aria-label="Transaction ledger"></div></div>
@@ -470,23 +452,6 @@ export function appTemplate(): string {
             <option value="">All years</option>
           </select>
           <input type="text" id="snap-search" class="form-input form-input-sm" aria-label="Search snapshots by notes" placeholder="Search notes…" style="width:140px;display:inline-block;margin-left:6px">
-          <div class="filter-bar-actions filter-bar-actions-end">
-            <button class="btn btn-outline btn-sm" id="btn-start-del-snaps">Bulk delete</button>
-            <div class="bulk-actions" id="snap-bulk-actions" hidden>
-              <button
-                class="btn btn-ghost btn-sm btn-icon bulk-cancel-mobile"
-                id="btn-cancel-del-snaps-mobile"
-                aria-label="Cancel bulk delete"
-                title="Cancel bulk delete"
-                hidden
-              >
-                ${CLOSE_ICON}
-              </button>
-              <button class="btn btn-ghost btn-sm" id="btn-snap-select-all">Select all</button>
-              <button class="btn btn-ghost btn-sm" id="btn-snap-clear-all">Deselect all</button>
-              <button class="btn btn-danger btn-sm" id="btn-del-snaps" disabled>Delete</button>
-            </div>
-          </div>
         </div>
         <div id="snaps-list" role="table" aria-label="Snapshot history"></div>
         <div id="snap-pagination" class="pagination"></div>
