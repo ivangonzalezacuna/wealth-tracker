@@ -1211,6 +1211,42 @@ details[open] > summary .card-chevron {
   }
 }
 
+/* ── Checkbox ──────────────────────────────────────── */
+input[type='checkbox'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid var(--line-2);
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+  cursor: pointer;
+  flex-shrink: 0;
+  vertical-align: middle;
+  transition:
+    background 0.1s,
+    border-color 0.1s;
+}
+input[type='checkbox']:hover {
+  border-color: var(--brand);
+}
+input[type='checkbox']:checked {
+  background: var(--brand);
+  border-color: var(--brand);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 8'%3E%3Cpath d='M1 4l3 3 5-6' stroke='%23fff' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 9px 7px;
+}
+input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--brand-border);
+  outline-offset: 2px;
+}
+input[type='checkbox']:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Buttons */
 .btn {
   padding: 8px 16px;
@@ -2359,7 +2395,6 @@ input[type='color'] {
 }
 .settings-field-inline .settings-field-label input[type='checkbox'] {
   margin: 0;
-  flex-shrink: 0;
 }
 .settings-field-inline,
 .settings-field-compact {
