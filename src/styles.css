@@ -2054,6 +2054,50 @@ summary.section-label {
     margin: 0 -0.75rem;
     padding: 0 0.75rem;
   }
+  #tx-filter-bar,
+  #snap-filter-bar {
+    gap: 10px;
+  }
+  #tx-filter-bar > .form-input,
+  #tx-filter-bar > select,
+  #snap-filter-bar > .form-input,
+  #snap-filter-bar > select {
+    flex: 1 1 100%;
+    width: 100% !important;
+    min-width: 0;
+    margin-left: 0 !important;
+  }
+  #tx-filter-bar .filter-bar-actions,
+  #snap-filter-bar .filter-bar-actions {
+    width: 100%;
+    justify-content: stretch;
+    flex-wrap: wrap;
+  }
+  #tx-filter-bar .filter-bar-actions > .btn,
+  #snap-filter-bar .filter-bar-actions > .btn {
+    flex: 1 1 calc(50% - 4px);
+    justify-content: center;
+    white-space: normal;
+    text-align: center;
+  }
+  #tx-bulk-actions,
+  #snap-bulk-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+  #tx-bulk-actions .btn,
+  #snap-bulk-actions .btn {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+  }
+  #tx-bulk-actions .btn:last-child,
+  #snap-bulk-actions .btn:last-child {
+    grid-column: 1 / -1;
+  }
   /* Auth bar */
   #auth-bar {
     flex-wrap: wrap;
@@ -2076,7 +2120,7 @@ summary.section-label {
   }
 }
 
-@media (max-width: 360px) {
+@media (max-width: 480px) {
   #tx-ledger-wrap {
     overflow-x: visible;
     box-shadow: none;
@@ -2112,6 +2156,7 @@ summary.section-label {
   #tx-ledger-list .tx-card-header {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
     padding: 4px 0;
     min-width: 0;
@@ -2153,6 +2198,7 @@ summary.section-label {
     flex-shrink: 0;
     width: 64px;
     min-width: 64px;
+    order: 2;
   }
   #tx-ledger-list .tx-actions-mobile.tx-actions-select {
     justify-content: center;
@@ -2200,6 +2246,9 @@ summary.section-label {
   /* Show the in-header source chip in stacked view */
   #tx-ledger-list .tx-card-header .tx-header-source {
     display: inline-flex;
+    order: 3;
+    flex: 1 1 100%;
+    max-width: none;
   }
   /* Hide the source body cell in stacked view (shown in header instead) */
   #tx-ledger-list .tx-row > [role='cell'][data-ledger-label='Source'] {
