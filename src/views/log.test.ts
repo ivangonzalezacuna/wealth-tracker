@@ -76,27 +76,40 @@ function resetRenderedFilters(): void {
 const DOM_FIXTURE = `
   <select id="snap-year-filter"></select>
   <input id="snap-search" />
-  <button id="btn-add-snap"></button>
-  <button id="btn-start-del-snaps"></button>
-  <div id="snap-bulk-actions" hidden>
-    <button id="btn-snap-select-all"></button>
-    <button id="btn-snap-clear-all"></button>
-    <button id="btn-del-snaps"></button>
-  </div>
   <div id="snap-table-header"></div>
   <div id="snaps-list"></div>
   <div id="snap-pagination"></div>
   <select id="tx-type-filter"></select>
   <input id="tx-search" />
   <button id="btn-add-tx"></button>
+  <div id="tx-ledger-list"></div>
+  <div id="tx-pagination"></div>
+  <div id="import-status"></div>
+`;
+
+const BULK_DOM_FIXTURE = `
+  <select id="snap-year-filter"></select>
+  <input id="snap-search" />
+  <div id="snaps-list"></div>
+  <div id="snap-pagination"></div>
+  <button id="btn-add-snap"></button>
+  <button id="btn-start-del-snaps"></button>
+  <div id="snap-bulk-actions" hidden>
+    <button id="btn-snap-select-all"></button>
+    <button id="btn-snap-clear-all"></button>
+    <button id="btn-del-snaps" disabled></button>
+  </div>
+  <select id="tx-type-filter"></select>
+  <input id="tx-search" />
+  <button id="btn-add-tx"></button>
+  <div id="tx-ledger-list"></div>
+  <div id="tx-pagination"></div>
   <button id="btn-start-del-txs"></button>
   <div id="tx-bulk-actions" hidden>
     <button id="btn-tx-select-all"></button>
     <button id="btn-tx-clear-all"></button>
-    <button id="btn-del-txs"></button>
+    <button id="btn-del-txs" disabled></button>
   </div>
-  <div id="tx-ledger-list"></div>
-  <div id="tx-pagination"></div>
   <div id="import-status"></div>
 `;
 
@@ -443,6 +456,13 @@ describe('renderLog', () => {
     );
     expect((document.getElementById('btn-add-tx') as HTMLButtonElement).disabled).toBe(true);
   });
+});
+
+describe('bulk delete mode', () => {
+  beforeEach(() => {
+    document.body.innerHTML = BULK_DOM_FIXTURE;
+    _collapseState = {};
+  });
 
   it('toggles bulk mode on and off for transactions and snapshots', () => {
     renderLog({
@@ -576,6 +596,7 @@ describe('renderLog', () => {
       onBulkDelSnaps: vi.fn(),
       onBulkDelTxs: vi.fn(),
     });
+    resetRenderedFilters();
 
     expect((document.getElementById('btn-start-del-txs') as HTMLButtonElement).textContent).toBe(
       'Bulk delete',

@@ -201,6 +201,7 @@ function getFilteredTxs(txs: Transaction[]): Transaction[] {
 
 function _updateBulkControls(kind: 'tx' | 'snap'): void {
   const isTx = kind === 'tx';
+  const hasBulkHandler = () => (isTx ? !!_lastOnBulkDelTxs : !!_lastOnBulkDel);
   const startBtn = document.getElementById(
     isTx ? 'btn-start-del-txs' : 'btn-start-del-snaps',
   ) as HTMLButtonElement | null;
@@ -223,21 +224,20 @@ function _updateBulkControls(kind: 'tx' | 'snap'): void {
   if (!startBtn || !actionsEl || !selectAllBtn || !clearAllBtn || !deleteBtn) return;
 
   const isActive = isTx ? _txBulkMode : _snapBulkMode;
-  const hasBulkHandler = isTx ? !!_lastOnBulkDelTxs : !!_lastOnBulkDel;
   const count = isTx ? _selectedTxRowIds.size : _selectedSnapDates.size;
   const filteredCount = isTx
     ? getFilteredTxs(_txs).filter((t) => t.rowId != null).length
     : getFilteredSnaps(_snaps).length;
 
-  startBtn.hidden = _readOnly || !hasBulkHandler;
+  startBtn.hidden = _readOnly || !hasBulkHandler();
   startBtn.textContent = isActive ? 'Cancel' : 'Bulk delete';
-  actionsEl.hidden = !isActive || _readOnly || !hasBulkHandler;
+  actionsEl.hidden = !isActive || _readOnly || !hasBulkHandler();
   if (addBtn) addBtn.hidden = isActive;
   if (addSnapBtn) addSnapBtn.disabled = _readOnly || isActive;
   selectAllBtn.disabled = _readOnly || !isActive || filteredCount === 0;
   clearAllBtn.disabled = _readOnly || !isActive || count === 0;
   deleteBtn.textContent = count > 0 ? `Delete (${count})` : 'Delete';
-  deleteBtn.disabled = _readOnly || !isActive || !hasBulkHandler || count === 0;
+  deleteBtn.disabled = _readOnly || !isActive || !hasBulkHandler() || count === 0;
 
   type BoundEl = HTMLButtonElement & { _bulkBound?: boolean };
   if (!(startBtn as BoundEl)._bulkBound) {
