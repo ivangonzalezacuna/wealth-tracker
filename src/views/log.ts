@@ -370,7 +370,6 @@ function renderSnapList(
   const filtered = getFilteredSnaps(snaps);
 
   if (filtered.length === 0) {
-    _selectedSnapDates.clear();
     el.innerHTML = `<div class="empty-state" style="padding:1rem;font-size:12px;color:var(--ink-3)">
       No matching snapshots.
       <button class="btn btn-ghost btn-sm js-clear-snap-filters" style="margin-left:6px;font-size:12px">Clear filters</button>
@@ -695,7 +694,6 @@ function renderTxList(txs: Transaction[]): void {
   const filtered = getFilteredTxs(txs);
 
   if (!filtered.length) {
-    _selectedTxRowIds.clear();
     listEl.innerHTML =
       '<div class="empty-state" style="padding:1rem;font-size:13px">No matching transactions.</div>';
     if (paginationEl) paginationEl.innerHTML = '';
