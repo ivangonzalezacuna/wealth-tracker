@@ -1,4 +1,5 @@
 import { CONFIG } from './config';
+import { CLOSE_ICON } from './views/icons';
 
 function rangeToggleHtml(
   id: string,
@@ -435,7 +436,7 @@ export function appTemplate(): string {
                 title="Cancel bulk delete"
                 hidden
               >
-                ✕
+                ${CLOSE_ICON}
               </button>
               <button class="btn btn-ghost btn-sm" id="btn-tx-select-all">Select all</button>
               <button class="btn btn-ghost btn-sm" id="btn-tx-clear-all">Deselect all</button>
@@ -479,7 +480,7 @@ export function appTemplate(): string {
                 title="Cancel bulk delete"
                 hidden
               >
-                ✕
+                ${CLOSE_ICON}
               </button>
               <button class="btn btn-ghost btn-sm" id="btn-snap-select-all">Select all</button>
               <button class="btn btn-ghost btn-sm" id="btn-snap-clear-all">Deselect all</button>

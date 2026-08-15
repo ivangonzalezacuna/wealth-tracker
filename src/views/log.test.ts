@@ -58,10 +58,19 @@ const DOM_FIXTURE = `
   <div id="import-status"></div>
 `;
 
+function setViewportWidth(width: number): void {
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    writable: true,
+    value: width,
+  });
+}
+
 describe('renderLog', () => {
   beforeEach(() => {
     document.body.innerHTML = DOM_FIXTURE;
     _collapseState = {};
+    setViewportWidth(1024);
   });
 
   it('renders one row per snapshot', () => {
@@ -206,6 +215,26 @@ describe('renderLog', () => {
     expect(onBulkDelSnaps).toHaveBeenCalledTimes(1);
     const calledDates = onBulkDelSnaps.mock.calls[0][0] as string[];
     expect(calledDates).toHaveLength(1);
+  });
+
+  it('shows only the inline snapshot cancel icon on narrow screens', () => {
+    setViewportWidth(720);
+    renderLog({
+      txs: [],
+      snaps: [makeSnap('2026-03-01')],
+      importMeta: null,
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+      onBulkDelSnaps: vi.fn(),
+    });
+    const startBtn = document.getElementById('btn-start-del-snaps') as HTMLButtonElement;
+    const mobileCancelBtn = document.getElementById(
+      'btn-cancel-del-snaps-mobile',
+    ) as HTMLButtonElement;
+    startBtn.click();
+    expect(startBtn.hidden).toBe(true);
+    expect(startBtn.textContent).toBe('Bulk delete');
+    expect(mobileCancelBtn.hidden).toBe(false);
   });
 
   it('clears selected snapshots when filters hide the selected row', () => {
@@ -520,7 +549,7 @@ describe('renderLog', () => {
     expect(startBtn.textContent).toBe('Cancel');
     expect(startBtn.classList.contains('bulk-toggle-active')).toBe(true);
     expect(actionsWrap.hidden).toBe(false);
-    expect(mobileCancelBtn.hidden).toBe(false);
+    expect(mobileCancelBtn.hidden).toBe(true);
     expect(addBtn.hidden).toBe(true);
     expect(
       document.querySelector('.tx-card-header .tx-actions-mobile .js-tx-select'),
@@ -537,6 +566,43 @@ describe('renderLog', () => {
     bulkBtn.click();
     expect(onBulkDelTxs).toHaveBeenCalledTimes(1);
     expect(onBulkDelTxs).toHaveBeenCalledWith([10n, 11n], bulkBtn);
+  });
+
+  it('shows only the inline transaction cancel icon on narrow screens', () => {
+    setViewportWidth(720);
+    renderLog({
+      txs: [
+        {
+          rowId: 10n,
+          id: 'tx-1',
+          date: '2026-01-01',
+          source: 'manual',
+          type: 'BUY',
+          name: 'IWDA',
+          isin: 'IE00B4L5Y983',
+          shares: 2,
+          price: 100,
+          amount: -200,
+          fee: 0,
+          tax: 0,
+          currency: 'EUR',
+          fxRate: 1,
+        },
+      ],
+      snaps: [],
+      importMeta: { last_import: '2026-01-01' },
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+      onBulkDelTxs: vi.fn(),
+    });
+    const startBtn = document.getElementById('btn-start-del-txs') as HTMLButtonElement;
+    const mobileCancelBtn = document.getElementById(
+      'btn-cancel-del-txs-mobile',
+    ) as HTMLButtonElement;
+    startBtn.click();
+    expect(startBtn.hidden).toBe(true);
+    expect(startBtn.textContent).toBe('Bulk delete');
+    expect(mobileCancelBtn.hidden).toBe(false);
   });
 
   it('restores the transaction add button after cancelling bulk mode', () => {

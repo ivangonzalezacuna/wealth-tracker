@@ -58,6 +58,26 @@ const _txTableState = createTableState({
   sort: { key: null, dir: null },
   filters: { search: '', type: '' },
 });
+let _bulkCancelViewportBound = false;
+
+function _useBulkCancelIcon(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (typeof window.matchMedia === 'function') return window.matchMedia('(max-width: 720px)').matches;
+  return window.innerWidth <= 720;
+}
+
+function _bindBulkCancelViewportListener(): void {
+  if (typeof window === 'undefined' || _bulkCancelViewportBound) return;
+  _bulkCancelViewportBound = true;
+  window.addEventListener(
+    'resize',
+    () => {
+      _updateTxBulkControls();
+      _updateSnapBulkControls();
+    },
+    { passive: true },
+  );
+}
 
 /** Renders the snapshot log tab: the add/edit form and the snapshot history list. */
 export function renderLog(state: LogState): void {
@@ -90,6 +110,7 @@ export function renderLog(state: LogState): void {
   _selectedSnapDates.clear();
   _selectedTxRowIds.clear();
 
+  _bindBulkCancelViewportListener();
   attachTxListeners();
   _updateTxBulkControls();
   renderTxList(_txs);
@@ -486,13 +507,14 @@ function _updateSnapBulkControls(): void {
       _lastOnBulkDel(Array.from(_selectedSnapDates), btn);
     });
   }
-  startBtn.hidden = _readOnly || !_lastOnBulkDel;
-  startBtn.textContent = _snapBulkMode ? 'Cancel' : 'Bulk delete';
+  const showMobileCancel = _snapBulkMode && _useBulkCancelIcon();
+  startBtn.hidden = _readOnly || !_lastOnBulkDel || showMobileCancel;
+  startBtn.textContent = _snapBulkMode && !showMobileCancel ? 'Cancel' : 'Bulk delete';
   startBtn.classList.toggle('bulk-toggle-active', _snapBulkMode);
   startBtn.removeAttribute('aria-label');
   startBtn.removeAttribute('title');
   if (mobileCancelBtn) {
-    mobileCancelBtn.hidden = !_snapBulkMode || _readOnly || !_lastOnBulkDel;
+    mobileCancelBtn.hidden = !showMobileCancel || _readOnly || !_lastOnBulkDel;
     mobileCancelBtn.disabled = _readOnly || !_snapBulkMode || !_lastOnBulkDel;
   }
   if (addSnapBtn) addSnapBtn.disabled = _readOnly || _snapBulkMode;
@@ -835,13 +857,14 @@ function _updateTxBulkControls(): void {
   const addBtn = document.getElementById('btn-add-tx') as HTMLButtonElement | null;
   if (!startBtn || !actionsWrap || !selectAllBtn || !clearAllBtn || !deleteBtn) return;
   const count = _selectedTxRowIds.size;
-  startBtn.hidden = _readOnly || !_lastOnBulkDelTxs;
-  startBtn.textContent = _txBulkMode ? 'Cancel' : 'Bulk delete';
+  const showMobileCancel = _txBulkMode && _useBulkCancelIcon();
+  startBtn.hidden = _readOnly || !_lastOnBulkDelTxs || showMobileCancel;
+  startBtn.textContent = _txBulkMode && !showMobileCancel ? 'Cancel' : 'Bulk delete';
   startBtn.classList.toggle('bulk-toggle-active', _txBulkMode);
   startBtn.removeAttribute('aria-label');
   startBtn.removeAttribute('title');
   if (mobileCancelBtn) {
-    mobileCancelBtn.hidden = !_txBulkMode || _readOnly || !_lastOnBulkDelTxs;
+    mobileCancelBtn.hidden = !showMobileCancel || _readOnly || !_lastOnBulkDelTxs;
     mobileCancelBtn.disabled = _readOnly || !_txBulkMode || !_lastOnBulkDelTxs;
   }
   actionsWrap.hidden = !_txBulkMode || _readOnly || !_lastOnBulkDelTxs;

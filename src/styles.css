@@ -1615,11 +1615,11 @@ summary.section-label {
   }
   .bulk-cancel-mobile:not([hidden]) {
     display: inline-flex;
-    width: 36px;
-    min-width: 36px;
-    height: 36px;
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
     padding: 0;
-    flex: 0 0 36px;
+    flex: 0 0 28px;
     align-items: center;
     justify-content: center;
   }
