@@ -2090,11 +2090,15 @@ summary.section-label {
   }
   #tx-bulk-actions .btn,
   #snap-bulk-actions .btn {
-    flex: 1 1 0;
+    flex: 0 0 auto;
     min-width: 0;
     justify-content: center;
     text-align: center;
     white-space: nowrap;
+  }
+  #tx-bulk-actions .btn:last-child,
+  #snap-bulk-actions .btn:last-child {
+    flex: 1 1 0;
     overflow: hidden;
     text-overflow: ellipsis;
   }
