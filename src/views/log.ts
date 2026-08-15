@@ -714,14 +714,14 @@ function renderTxList(txs: Transaction[]): void {
   setTablePage(_txTableState, page);
   const showSelection = !_readOnly && !!_lastOnBulkDelTxs && _txBulkMode;
   const showActions = !_readOnly && !_txBulkMode;
-  listEl.className = `tx-ledger-grid${_readOnly ? ' tx-ledger-grid-readonly' : ''}${showSelection ? ' tx-ledger-grid-select' : ''}`;
+  const showActionBlock = showActions || showSelection;
+  listEl.className = `tx-ledger-grid${_readOnly ? ' tx-ledger-grid-readonly' : ''}`;
   _updateTxBulkControls();
 
   listEl.innerHTML = `
     <div class="tbl-row th tx-row" role="row" id="tx-table-header">
-      ${showSelection ? '<div role="columnheader" class="tx-select-header"></div>' : ''}
       ${renderTableHeader(columns, _txTableState.sort)}
-      ${showActions ? '<div role="columnheader" style="text-align:right">Actions</div>' : ''}
+      ${showActionBlock ? `<div role="columnheader" style="text-align:right">${showSelection ? 'Select' : 'Actions'}</div>` : ''}
     </div>
     ${pageItems
       .map((tx) => {
@@ -730,36 +730,30 @@ function renderTxList(txs: Transaction[]): void {
             ? ''
             : `<button class="btn btn-sm btn-outline btn-icon js-edit-tx" data-rowid="${tx.rowId}" aria-label="Edit transaction" title="Edit transaction">${EDIT_ICON}</button>
             <button class="btn btn-sm btn-danger btn-icon js-del-tx" data-rowid="${tx.rowId}" aria-label="Delete transaction" title="Delete transaction">${DELETE_ICON}</button>`;
-        const [dateCol, typeCol, ...restCols] = columns;
-        const headerCells = renderTableRow([dateCol, typeCol], tx);
-        const selectCell =
+        const selectInput =
           !showSelection || !tx.rowId
             ? ''
-            : `<div role="cell" class="tx-select-cell" data-ledger-label="Select">
-            <input type="checkbox" class="tx-select-input js-tx-select" aria-label="Select transaction ${esc(tx.date)} ${esc(tx.type || '')}" data-rowid="${tx.rowId}" ${_selectedTxRowIds.has(tx.rowId.toString()) ? 'checked' : ''}>
-          </div>`;
+            : `<input type="checkbox" class="tx-select-input js-tx-select" aria-label="Select transaction ${esc(tx.date)} ${esc(tx.type || '')}" data-rowid="${tx.rowId}" ${_selectedTxRowIds.has(tx.rowId.toString()) ? 'checked' : ''}>`;
+        const actionContent = showSelection ? selectInput : actionBtns;
+        const [dateCol, typeCol, ...restCols] = columns;
+        const headerCells = renderTableRow([dateCol, typeCol], tx);
         const sourceChip = tx.source
           ? `<span class="tx-ledger-source tx-ledger-chip-trim tx-header-source" title="${esc(tx.source)}">${esc(tx.source)}</span>`
           : '';
         const mobileHeaderCell =
-          !tx.rowId || (!showActions && !showSelection)
+          !tx.rowId || !showActionBlock
             ? ''
             : `<div role="cell" class="tx-actions tx-actions-mobile${showSelection ? ' tx-actions-select' : ''}" data-ledger-label="${showSelection ? 'Select' : 'Actions'}">
-            ${
-              showSelection
-                ? `<input type="checkbox" class="tx-select-input js-tx-select" aria-label="Select transaction ${esc(tx.date)} ${esc(tx.type || '')}" data-rowid="${tx.rowId}" ${_selectedTxRowIds.has(tx.rowId.toString()) ? 'checked' : ''}>`
-                : actionBtns
-            }
+            ${actionContent}
           </div>`;
         const desktopActionsCell =
-          !showActions || !tx.rowId
+          !tx.rowId || !showActionBlock
             ? ''
-            : `<div role="cell" class="tx-actions tx-actions-desktop" data-ledger-label="Actions">
-            ${actionBtns}
+            : `<div role="cell" class="tx-actions tx-actions-desktop${showSelection ? ' tx-actions-select' : ''}" data-ledger-label="${showSelection ? 'Select' : 'Actions'}">
+            ${actionContent}
           </div>`;
         const bodyCells = renderTableRow(restCols, tx);
         return `<div class="tbl-row tx-row" role="row">
-          ${selectCell}
           <div class="tx-card-header">${headerCells}${sourceChip}${mobileHeaderCell}</div>
           ${bodyCells}
           ${desktopActionsCell}

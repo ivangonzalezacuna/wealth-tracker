@@ -2202,6 +2202,8 @@ summary.section-label {
   }
   #tx-ledger-list .tx-actions-mobile.tx-actions-select {
     justify-content: center;
+    width: auto;
+    min-width: 0;
   }
   #tx-ledger-list .tx-actions-desktop {
     display: none;
