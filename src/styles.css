@@ -1580,7 +1580,7 @@ summary.section-label {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   min-width: 0;
 }
 .filter-bar-actions-end {
@@ -1592,7 +1592,7 @@ summary.section-label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   min-width: 0;
 }
@@ -1609,13 +1609,14 @@ summary.section-label {
     justify-content: flex-start;
   }
   .bulk-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    width: 100%;
+    width: auto;
+    max-width: 100%;
+    overflow-x: auto;
   }
   .bulk-actions .btn {
-    width: 100%;
-    text-align: center;
+    width: auto;
+    flex: 0 0 auto;
+    text-align: left;
   }
 }
 .pagination {
@@ -2131,11 +2132,6 @@ summary.section-label {
   #tx-ledger-list .tx-row > .tx-select-cell {
     display: none;
   }
-  #tx-ledger-list .tx-card-header .tx-select-cell-mobile {
-    display: flex;
-    margin-left: auto;
-    flex-shrink: 0;
-  }
   .tx-select-input {
     width: 14px;
     height: 14px;
@@ -2155,6 +2151,11 @@ summary.section-label {
     display: flex;
     margin-left: auto;
     flex-shrink: 0;
+    width: 64px;
+    min-width: 64px;
+  }
+  #tx-ledger-list .tx-actions-mobile.tx-actions-select {
+    justify-content: center;
   }
   #tx-ledger-list .tx-actions-desktop {
     display: none;

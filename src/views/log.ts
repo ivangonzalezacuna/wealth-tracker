@@ -430,6 +430,7 @@ function getFilteredSnaps(snaps: Snapshot[]): Snapshot[] {
 function _updateSnapBulkControls(): void {
   const startBtn = document.getElementById('btn-start-del-snaps') as
     (HTMLButtonElement & { _boundStart?: boolean }) | null;
+  const addSnapBtn = document.getElementById('btn-add-snap') as HTMLButtonElement | null;
   const selectAllBtn = document.getElementById('btn-snap-select-all') as
     (HTMLButtonElement & { _boundSelectAll?: boolean }) | null;
   const clearAllBtn = document.getElementById('btn-snap-clear-all') as
@@ -475,6 +476,7 @@ function _updateSnapBulkControls(): void {
   }
   startBtn.hidden = _readOnly || !_lastOnBulkDel;
   startBtn.textContent = _snapBulkMode ? 'Cancel' : 'Bulk delete';
+  if (addSnapBtn) addSnapBtn.disabled = _readOnly || _snapBulkMode;
   actionsWrap.hidden = !_snapBulkMode || _readOnly || !_lastOnBulkDel;
   const count = _selectedSnapDates.size;
   btn.textContent = count > 0 ? `Delete selected (${count})` : 'Delete selected';
@@ -736,20 +738,18 @@ function renderTxList(txs: Transaction[]): void {
             : `<div role="cell" class="tx-select-cell" data-ledger-label="Select">
             <input type="checkbox" class="tx-select-input js-tx-select" aria-label="Select transaction ${esc(tx.date)} ${esc(tx.type || '')}" data-rowid="${tx.rowId}" ${_selectedTxRowIds.has(tx.rowId.toString()) ? 'checked' : ''}>
           </div>`;
-        const mobileSelectCell =
-          !showSelection || !tx.rowId
-            ? ''
-            : `<div role="cell" class="tx-select-cell tx-select-cell-mobile" data-ledger-label="Select">
-            <input type="checkbox" class="tx-select-input js-tx-select" aria-label="Select transaction ${esc(tx.date)} ${esc(tx.type || '')}" data-rowid="${tx.rowId}" ${_selectedTxRowIds.has(tx.rowId.toString()) ? 'checked' : ''}>
-          </div>`;
         const sourceChip = tx.source
           ? `<span class="tx-ledger-source tx-ledger-chip-trim tx-header-source" title="${esc(tx.source)}">${esc(tx.source)}</span>`
           : '';
-        const mobileActionsCell =
-          !showActions || !tx.rowId
+        const mobileHeaderCell =
+          !tx.rowId || (!showActions && !showSelection)
             ? ''
-            : `<div role="cell" class="tx-actions tx-actions-mobile" data-ledger-label="Actions">
-            ${actionBtns}
+            : `<div role="cell" class="tx-actions tx-actions-mobile${showSelection ? ' tx-actions-select' : ''}" data-ledger-label="${showSelection ? 'Select' : 'Actions'}">
+            ${
+              showSelection
+                ? `<input type="checkbox" class="tx-select-input js-tx-select" aria-label="Select transaction ${esc(tx.date)} ${esc(tx.type || '')}" data-rowid="${tx.rowId}" ${_selectedTxRowIds.has(tx.rowId.toString()) ? 'checked' : ''}>`
+                : actionBtns
+            }
           </div>`;
         const desktopActionsCell =
           !showActions || !tx.rowId
@@ -760,7 +760,7 @@ function renderTxList(txs: Transaction[]): void {
         const bodyCells = renderTableRow(restCols, tx);
         return `<div class="tbl-row tx-row" role="row">
           ${selectCell}
-          <div class="tx-card-header">${headerCells}${sourceChip}${showSelection ? mobileSelectCell : mobileActionsCell}</div>
+          <div class="tx-card-header">${headerCells}${sourceChip}${mobileHeaderCell}</div>
           ${bodyCells}
           ${desktopActionsCell}
         </div>`;

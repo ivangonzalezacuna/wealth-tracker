@@ -33,6 +33,7 @@ const DOM_FIXTURE = `
   <select id="snap-year-filter"></select>
   <input id="snap-search" />
   <button id="btn-start-del-snaps">Bulk delete</button>
+  <button id="btn-add-snap">Add monthly snapshot</button>
   <div id="snap-bulk-actions" hidden>
     <button id="btn-snap-select-all"></button>
     <button id="btn-snap-clear-all"></button>
@@ -255,6 +256,25 @@ describe('renderLog', () => {
     clearAll.click();
     expect(bulkBtn.textContent).toBe('Delete selected');
     expect(bulkBtn.disabled).toBe(true);
+  });
+
+  it('disables add monthly snapshot while snapshot bulk mode is active', () => {
+    const snaps = [makeSnap('2026-03-01')];
+    renderLog({
+      txs: [],
+      snaps,
+      importMeta: null,
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+      onBulkDelSnaps: vi.fn(),
+    });
+    const startBtn = document.getElementById('btn-start-del-snaps') as HTMLButtonElement;
+    const addSnapBtn = document.getElementById('btn-add-snap') as HTMLButtonElement;
+    expect(addSnapBtn.disabled).toBe(false);
+    startBtn.click();
+    expect(addSnapBtn.disabled).toBe(true);
+    startBtn.click();
+    expect(addSnapBtn.disabled).toBe(false);
   });
 
   it('populates year filter with distinct years from snaps', () => {
@@ -495,7 +515,9 @@ describe('renderLog', () => {
     expect(startBtn.textContent).toBe('Cancel');
     expect(actionsWrap.hidden).toBe(false);
     expect(addBtn.hidden).toBe(true);
-    expect(document.querySelector('.tx-card-header .tx-select-cell-mobile')).not.toBeNull();
+    expect(
+      document.querySelector('.tx-card-header .tx-actions-mobile .js-tx-select'),
+    ).not.toBeNull();
     const selectAll = document.getElementById('btn-tx-select-all') as HTMLButtonElement;
     const clearAll = document.getElementById('btn-tx-clear-all') as HTMLButtonElement;
     const bulkBtn = document.getElementById('btn-del-txs') as HTMLButtonElement;
