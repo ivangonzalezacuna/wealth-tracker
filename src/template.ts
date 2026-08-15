@@ -440,7 +440,7 @@ export function appTemplate(): string {
               </button>
               <button class="btn btn-ghost btn-sm" id="btn-tx-select-all">Select all</button>
               <button class="btn btn-ghost btn-sm" id="btn-tx-clear-all">Deselect all</button>
-              <button class="btn btn-danger btn-sm" id="btn-del-txs" disabled>Delete selected</button>
+              <button class="btn btn-danger btn-sm" id="btn-del-txs" disabled>Delete</button>
             </div>
             <button class="btn btn-outline btn-sm" id="btn-add-tx">Add transaction</button>
           </div>
@@ -484,7 +484,7 @@ export function appTemplate(): string {
               </button>
               <button class="btn btn-ghost btn-sm" id="btn-snap-select-all">Select all</button>
               <button class="btn btn-ghost btn-sm" id="btn-snap-clear-all">Deselect all</button>
-              <button class="btn btn-danger btn-sm" id="btn-del-snaps" disabled>Delete selected</button>
+              <button class="btn btn-danger btn-sm" id="btn-del-snaps" disabled>Delete</button>
             </div>
           </div>
         </div>

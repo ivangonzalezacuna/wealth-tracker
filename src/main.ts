@@ -1430,7 +1430,7 @@ async function delSnapsBulk(dates: string[], btn?: HTMLButtonElement) {
   const ok = await confirmDialog({
     title: `Delete ${uniqueDates.length} snapshots?`,
     body: `This cannot be undone. Selected months: ${summary}.`,
-    confirmLabel: 'Delete selected',
+    confirmLabel: 'Delete',
     danger: true,
   });
   if (!ok) return;
@@ -1591,7 +1591,7 @@ async function delTransactionsBulk(rowIds: bigint[], btn?: HTMLButtonElement): P
   const ok = await confirmDialog({
     title: `Delete ${uniqueIds.length} transactions?`,
     body: `This cannot be undone. Selected rows: ${summary}.`,
-    confirmLabel: 'Delete selected',
+    confirmLabel: 'Delete',
     danger: true,
   });
   if (!ok) return;

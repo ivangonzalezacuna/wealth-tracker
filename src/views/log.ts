@@ -521,7 +521,7 @@ function _updateSnapBulkControls(): void {
   if (addSnapBtn) addSnapBtn.disabled = _readOnly || _snapBulkMode;
   actionsWrap.hidden = !_snapBulkMode || _readOnly || !_lastOnBulkDel;
   const count = _selectedSnapDates.size;
-  btn.textContent = count > 0 ? `Delete selected (${count})` : 'Delete selected';
+  btn.textContent = count > 0 ? `Delete (${count})` : 'Delete';
   btn.disabled = _readOnly || !_lastOnBulkDel || !_snapBulkMode || count === 0;
   selectAllBtn.disabled = _readOnly || !_snapBulkMode || getFilteredSnaps(_snaps).length === 0;
   clearAllBtn.disabled = _readOnly || !_snapBulkMode || count === 0;
@@ -873,6 +873,6 @@ function _updateTxBulkControls(): void {
   const selectableCount = getFilteredTxs(_txs).filter((tx) => tx.rowId != null).length;
   selectAllBtn.disabled = _readOnly || !_txBulkMode || selectableCount === 0;
   clearAllBtn.disabled = _readOnly || !_txBulkMode || count === 0;
-  deleteBtn.textContent = count > 0 ? `Delete selected (${count})` : 'Delete selected';
+  deleteBtn.textContent = count > 0 ? `Delete (${count})` : 'Delete';
   deleteBtn.disabled = _readOnly || !_txBulkMode || !_lastOnBulkDelTxs || count === 0;
 }

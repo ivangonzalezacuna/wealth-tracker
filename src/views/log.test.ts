@@ -38,7 +38,7 @@ const DOM_FIXTURE = `
     <button id="btn-cancel-del-snaps-mobile" hidden>✕</button>
     <button id="btn-snap-select-all"></button>
     <button id="btn-snap-clear-all"></button>
-    <button id="btn-del-snaps">Delete selected</button>
+    <button id="btn-del-snaps">Delete</button>
   </div>
   <div id="snap-table-header"></div>
   <div id="snaps-list"></div>
@@ -50,7 +50,7 @@ const DOM_FIXTURE = `
     <button id="btn-cancel-del-txs-mobile" hidden>✕</button>
     <button id="btn-tx-select-all"></button>
     <button id="btn-tx-clear-all"></button>
-    <button id="btn-del-txs">Delete selected</button>
+    <button id="btn-del-txs">Delete</button>
   </div>
   <button id="btn-add-tx"></button>
   <div id="tx-ledger-list"></div>
@@ -262,7 +262,7 @@ describe('renderLog', () => {
     searchEl.value = 'beta';
     searchEl.dispatchEvent(new Event('input'));
     expect(bulkBtn.disabled).toBe(true);
-    expect(bulkBtn.textContent).toBe('Delete selected');
+    expect(bulkBtn.textContent).toBe('Delete');
   });
 
   it('supports snapshot select all and deselect all in bulk mode', () => {
@@ -285,7 +285,7 @@ describe('renderLog', () => {
     selectAll.click();
     expect(bulkBtn.textContent).toContain('(2)');
     clearAll.click();
-    expect(bulkBtn.textContent).toBe('Delete selected');
+    expect(bulkBtn.textContent).toBe('Delete');
     expect(bulkBtn.disabled).toBe(true);
   });
 
