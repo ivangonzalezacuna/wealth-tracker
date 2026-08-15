@@ -63,6 +63,9 @@
   margin: 0;
   padding: 0;
 }
+[hidden] {
+  display: none !important;
+}
 body {
   font-family: 'Inter', system-ui, sans-serif;
   background: var(--bg);
@@ -747,6 +750,21 @@ details[open] > summary .card-chevron {
 }
 .snap-row-compact:last-child {
   border-bottom: none;
+}
+.snap-row-compact.snap-row-selectable {
+  grid-template-columns: 24px auto 1fr auto;
+  gap: 8px;
+}
+.snap-select-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.snap-select-input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
 }
 .snap-row-compact.th {
   cursor: default;
@@ -1583,6 +1601,20 @@ summary.section-label {
   margin-bottom: 8px;
   flex-wrap: wrap;
 }
+.filter-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.bulk-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.bulk-actions .btn {
+  white-space: nowrap;
+}
 .forecast-inflation {
   margin-top: 10px;
   font-style: normal;
@@ -1817,6 +1849,27 @@ summary.section-label {
   }
 }
 
+@media (max-width: 720px) {
+  #tx-filter-bar .filter-bar-actions,
+  #snap-filter-bar .filter-bar-actions {
+    flex-wrap: wrap;
+    width: 100%;
+    margin-left: 0;
+  }
+  #tx-filter-bar > .form-input,
+  #tx-filter-bar > select,
+  #snap-filter-bar > .form-input,
+  #snap-filter-bar > select {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  #tx-bulk-actions,
+  #snap-bulk-actions {
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+}
+
 @media (max-width: 599px) {
   .hold-grid {
     grid-template-columns:
@@ -2018,7 +2071,7 @@ summary.section-label {
   }
 }
 
-@media (max-width: 360px) {
+@media (max-width: 480px) {
   #tx-ledger-wrap {
     overflow-x: visible;
     box-shadow: none;

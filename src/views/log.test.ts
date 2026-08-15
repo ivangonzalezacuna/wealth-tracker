@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderLog } from './log';
-import type { Snapshot } from '../types';
+import type { Snapshot, Transaction } from '../types';
 
 vi.mock('../constants', () => ({
   getACCTSList: () => [
@@ -29,15 +29,72 @@ function makeSnap(date: string, total = 1000): Snapshot {
   return { date, acct_1: total };
 }
 
+function makeTx(rowId: bigint, overrides: Partial<Transaction> = {}): Transaction {
+  return {
+    rowId,
+    id: `tx-${rowId}`,
+    date: '2026-01-01',
+    source: 'manual',
+    type: 'BUY',
+    name: 'IWDA',
+    isin: 'IE00B4L5Y983',
+    shares: 2,
+    price: 100,
+    amount: -200,
+    fee: 0,
+    tax: 0,
+    currency: 'EUR',
+    fxRate: 1,
+    ...overrides,
+  };
+}
+
+function resetRenderedFilters(): void {
+  const txSearch = document.getElementById('tx-search') as HTMLInputElement | null;
+  const txType = document.getElementById('tx-type-filter') as HTMLSelectElement | null;
+  const snapSearch = document.getElementById('snap-search') as HTMLInputElement | null;
+  const snapYear = document.getElementById('snap-year-filter') as HTMLSelectElement | null;
+
+  if (txSearch) {
+    txSearch.value = '';
+    txSearch.dispatchEvent(new Event('input'));
+  }
+  if (txType) {
+    txType.value = '';
+    txType.dispatchEvent(new Event('change'));
+  }
+  if (snapSearch) {
+    snapSearch.value = '';
+    snapSearch.dispatchEvent(new Event('input'));
+  }
+  if (snapYear) {
+    snapYear.value = '';
+    snapYear.dispatchEvent(new Event('change'));
+  }
+}
+
 const DOM_FIXTURE = `
   <select id="snap-year-filter"></select>
   <input id="snap-search" />
+  <button id="btn-add-snap"></button>
+  <button id="btn-start-del-snaps"></button>
+  <div id="snap-bulk-actions" hidden>
+    <button id="btn-snap-select-all"></button>
+    <button id="btn-snap-clear-all"></button>
+    <button id="btn-del-snaps"></button>
+  </div>
   <div id="snap-table-header"></div>
   <div id="snaps-list"></div>
   <div id="snap-pagination"></div>
   <select id="tx-type-filter"></select>
   <input id="tx-search" />
   <button id="btn-add-tx"></button>
+  <button id="btn-start-del-txs"></button>
+  <div id="tx-bulk-actions" hidden>
+    <button id="btn-tx-select-all"></button>
+    <button id="btn-tx-clear-all"></button>
+    <button id="btn-del-txs"></button>
+  </div>
   <div id="tx-ledger-list"></div>
   <div id="tx-pagination"></div>
   <div id="import-status"></div>
@@ -385,5 +442,156 @@ describe('renderLog', () => {
       'tx-ledger-grid-readonly',
     );
     expect((document.getElementById('btn-add-tx') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('toggles bulk mode on and off for transactions and snapshots', () => {
+    renderLog({
+      txs: [makeTx(10n)],
+      snaps: [makeSnap('2026-01-01')],
+      importMeta: null,
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+      onBulkDelSnaps: vi.fn(),
+      onBulkDelTxs: vi.fn(),
+    });
+    resetRenderedFilters();
+
+    const txToggle = document.getElementById('btn-start-del-txs') as HTMLButtonElement;
+    const snapToggle = document.getElementById('btn-start-del-snaps') as HTMLButtonElement;
+    txToggle.click();
+    snapToggle.click();
+
+    expect(txToggle.textContent).toBe('Cancel');
+    expect(snapToggle.textContent).toBe('Cancel');
+    expect(document.getElementById('tx-bulk-actions')?.hidden).toBe(false);
+    expect(document.getElementById('snap-bulk-actions')?.hidden).toBe(false);
+    expect(document.querySelector('.js-tx-select')).not.toBeNull();
+    expect(document.querySelector('.js-snap-select')).not.toBeNull();
+
+    txToggle.click();
+    snapToggle.click();
+    expect(txToggle.textContent).toBe('Bulk delete');
+    expect(snapToggle.textContent).toBe('Bulk delete');
+    expect(document.getElementById('tx-bulk-actions')?.hidden).toBe(true);
+    expect(document.getElementById('snap-bulk-actions')?.hidden).toBe(true);
+  });
+
+  it('select all and deselect all update bulk selections', () => {
+    const onBulkDelTxs = vi.fn();
+    const onBulkDelSnaps = vi.fn();
+    renderLog({
+      txs: [makeTx(10n), makeTx(11n, { date: '2026-02-01' })],
+      snaps: [makeSnap('2026-01-01'), makeSnap('2026-02-01')],
+      importMeta: null,
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+      onBulkDelSnaps,
+      onBulkDelTxs,
+    });
+    resetRenderedFilters();
+
+    (document.getElementById('btn-start-del-txs') as HTMLButtonElement).click();
+    (document.getElementById('btn-start-del-snaps') as HTMLButtonElement).click();
+    (document.getElementById('btn-tx-select-all') as HTMLButtonElement).click();
+    (document.getElementById('btn-snap-select-all') as HTMLButtonElement).click();
+    (document.getElementById('btn-del-txs') as HTMLButtonElement).click();
+    (document.getElementById('btn-del-snaps') as HTMLButtonElement).click();
+
+    expect(onBulkDelTxs).toHaveBeenCalledWith([10n, 11n], expect.any(HTMLButtonElement));
+    expect(onBulkDelSnaps).toHaveBeenCalledWith(
+      expect.arrayContaining(['2026-01-01', '2026-02-01']),
+      expect.any(HTMLButtonElement),
+    );
+    expect((document.getElementById('btn-del-txs') as HTMLButtonElement).textContent).toBe(
+      'Delete (2)',
+    );
+    expect((document.getElementById('btn-del-snaps') as HTMLButtonElement).textContent).toBe(
+      'Delete (2)',
+    );
+
+    (document.getElementById('btn-tx-clear-all') as HTMLButtonElement).click();
+    (document.getElementById('btn-snap-clear-all') as HTMLButtonElement).click();
+    expect((document.getElementById('btn-del-txs') as HTMLButtonElement).textContent).toBe(
+      'Delete',
+    );
+    expect((document.getElementById('btn-del-snaps') as HTMLButtonElement).textContent).toBe(
+      'Delete',
+    );
+  });
+
+  it('enables delete buttons only when bulk items are selected', () => {
+    renderLog({
+      txs: [makeTx(10n)],
+      snaps: [makeSnap('2026-01-01')],
+      importMeta: null,
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+      onBulkDelSnaps: vi.fn(),
+      onBulkDelTxs: vi.fn(),
+    });
+    resetRenderedFilters();
+
+    (document.getElementById('btn-start-del-txs') as HTMLButtonElement).click();
+    (document.getElementById('btn-start-del-snaps') as HTMLButtonElement).click();
+    const txDelete = document.getElementById('btn-del-txs') as HTMLButtonElement;
+    const snapDelete = document.getElementById('btn-del-snaps') as HTMLButtonElement;
+
+    expect(txDelete.disabled).toBe(true);
+    expect(snapDelete.disabled).toBe(true);
+
+    const txSelect = document.querySelector('.js-tx-select') as HTMLInputElement;
+    const snapSelect = document.querySelector('.js-snap-select') as HTMLInputElement;
+    txSelect.checked = true;
+    snapSelect.checked = true;
+    txSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    snapSelect.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(txDelete.disabled).toBe(false);
+    expect(snapDelete.disabled).toBe(false);
+  });
+
+  it('resets bulk delete mode on rerender', () => {
+    renderLog({
+      txs: [makeTx(10n)],
+      snaps: [makeSnap('2026-01-01')],
+      importMeta: null,
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+      onBulkDelSnaps: vi.fn(),
+      onBulkDelTxs: vi.fn(),
+    });
+    resetRenderedFilters();
+
+    (document.getElementById('btn-start-del-txs') as HTMLButtonElement).click();
+    (document.getElementById('btn-start-del-snaps') as HTMLButtonElement).click();
+    (document.getElementById('btn-tx-select-all') as HTMLButtonElement).click();
+    (document.getElementById('btn-snap-select-all') as HTMLButtonElement).click();
+
+    renderLog({
+      txs: [makeTx(10n)],
+      snaps: [makeSnap('2026-01-01')],
+      importMeta: null,
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+      onBulkDelSnaps: vi.fn(),
+      onBulkDelTxs: vi.fn(),
+    });
+
+    expect((document.getElementById('btn-start-del-txs') as HTMLButtonElement).textContent).toBe(
+      'Bulk delete',
+    );
+    expect((document.getElementById('btn-start-del-snaps') as HTMLButtonElement).textContent).toBe(
+      'Bulk delete',
+    );
+    expect(document.getElementById('tx-bulk-actions')?.hidden).toBe(true);
+    expect(document.getElementById('snap-bulk-actions')?.hidden).toBe(true);
+    expect(document.querySelector('.js-tx-select')).toBeNull();
+    expect(document.querySelector('.js-snap-select')).toBeNull();
+    expect((document.getElementById('btn-del-txs') as HTMLButtonElement).textContent).toBe(
+      'Delete',
+    );
+    expect((document.getElementById('btn-del-snaps') as HTMLButtonElement).textContent).toBe(
+      'Delete',
+    );
   });
 });
