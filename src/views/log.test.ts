@@ -512,7 +512,9 @@ describe('renderLog', () => {
     expect(addBtn.hidden).toBe(false);
     startBtn.click();
     expect(startBtn.hidden).toBe(false);
-    expect(startBtn.textContent).toBe('Cancel');
+    expect(startBtn.textContent).toBe('✕');
+    expect(startBtn.classList.contains('btn-icon')).toBe(true);
+    expect(startBtn.getAttribute('aria-label')).toBe('Cancel bulk delete');
     expect(actionsWrap.hidden).toBe(false);
     expect(addBtn.hidden).toBe(true);
     expect(
@@ -565,6 +567,8 @@ describe('renderLog', () => {
     startBtn.click();
     expect(startBtn.hidden).toBe(false);
     expect(startBtn.textContent).toBe('Bulk delete');
+    expect(startBtn.classList.contains('btn-icon')).toBe(false);
+    expect(startBtn.hasAttribute('aria-label')).toBe(false);
     expect(actionsWrap.hidden).toBe(true);
     expect(addBtn.hidden).toBe(false);
   });

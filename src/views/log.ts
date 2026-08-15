@@ -475,7 +475,17 @@ function _updateSnapBulkControls(): void {
     });
   }
   startBtn.hidden = _readOnly || !_lastOnBulkDel;
-  startBtn.textContent = _snapBulkMode ? 'Cancel' : 'Bulk delete';
+  if (_snapBulkMode) {
+    startBtn.classList.add('btn-icon');
+    startBtn.textContent = '✕';
+    startBtn.setAttribute('aria-label', 'Cancel bulk delete');
+    startBtn.title = 'Cancel bulk delete';
+  } else {
+    startBtn.classList.remove('btn-icon');
+    startBtn.textContent = 'Bulk delete';
+    startBtn.removeAttribute('aria-label');
+    startBtn.removeAttribute('title');
+  }
   if (addSnapBtn) addSnapBtn.disabled = _readOnly || _snapBulkMode;
   actionsWrap.hidden = !_snapBulkMode || _readOnly || !_lastOnBulkDel;
   const count = _selectedSnapDates.size;
@@ -802,7 +812,17 @@ function _updateTxBulkControls(): void {
   if (!startBtn || !actionsWrap || !selectAllBtn || !clearAllBtn || !deleteBtn) return;
   const count = _selectedTxRowIds.size;
   startBtn.hidden = _readOnly || !_lastOnBulkDelTxs;
-  startBtn.textContent = _txBulkMode ? 'Cancel' : 'Bulk delete';
+  if (_txBulkMode) {
+    startBtn.classList.add('btn-icon');
+    startBtn.textContent = '✕';
+    startBtn.setAttribute('aria-label', 'Cancel bulk delete');
+    startBtn.title = 'Cancel bulk delete';
+  } else {
+    startBtn.classList.remove('btn-icon');
+    startBtn.textContent = 'Bulk delete';
+    startBtn.removeAttribute('aria-label');
+    startBtn.removeAttribute('title');
+  }
   actionsWrap.hidden = !_txBulkMode || _readOnly || !_lastOnBulkDelTxs;
   if (addBtn) addBtn.hidden = _txBulkMode;
   const selectableCount = getFilteredTxs(_txs).filter((tx) => tx.rowId != null).length;
