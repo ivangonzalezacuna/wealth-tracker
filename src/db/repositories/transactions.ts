@@ -82,6 +82,24 @@ export async function deleteTransaction(rowId: bigint): Promise<void> {
   await persistDb();
 }
 
+/** Delete multiple transaction rows by SQLite rowid. */
+export async function deleteTransactions(rowIds: bigint[]): Promise<void> {
+  if (rowIds.length === 0) return;
+  const db = await getDb();
+  const stmt = db.prepare('DELETE FROM transactions WHERE rowid = ?');
+  try {
+    db.run('BEGIN');
+    for (const rowId of rowIds) stmt.run([Number(rowId)]);
+    db.run('COMMIT');
+  } catch (err) {
+    db.run('ROLLBACK');
+    throw err;
+  } finally {
+    stmt.free();
+  }
+  await persistDb();
+}
+
 /**
  * Merge incoming transactions with existing ones (append-only dedup).
  * Only genuinely new transactions (by txKey) are inserted.

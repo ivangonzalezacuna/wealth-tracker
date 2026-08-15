@@ -1576,6 +1576,12 @@ summary.section-label {
   margin-bottom: 0.75rem;
   flex-wrap: wrap;
 }
+.bulk-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
 .pagination {
   display: flex;
   align-items: center;
@@ -2046,6 +2052,16 @@ summary.section-label {
   #tx-ledger-list .tx-row.th {
     display: none;
   }
+  #tx-ledger-list.tx-ledger-grid-select {
+    grid-template-columns:
+      28px
+      minmax(11ch, 0.9fr)
+      minmax(10ch, 0.85fr)
+      minmax(12ch, 1fr)
+      minmax(18ch, 1.8fr)
+      minmax(11ch, 0.9fr);
+    min-width: 540px;
+  }
   #tx-ledger-list .tx-row {
     position: relative;
     display: block;
@@ -2070,6 +2086,17 @@ summary.section-label {
   }
   #tx-ledger-list .tx-card-header > [role='cell']::before {
     display: none;
+  }
+  .tx-select-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .tx-select-input {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    cursor: pointer;
   }
   /* Action icons are part of the header row in stacked view */
   #tx-ledger-list .tx-actions {

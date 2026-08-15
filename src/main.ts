@@ -15,6 +15,7 @@ import {
   insertTransaction,
   updateTransaction,
   deleteTransaction,
+  deleteTransactions,
   saveImportMeta,
   loadImportMeta,
   restoreAllData,
@@ -1547,6 +1548,47 @@ async function delManualTransaction(rowId: bigint, btn?: HTMLButtonElement): Pro
     return;
   }
 
+  async function delTransactionsBulk(rowIds: bigint[], btn?: HTMLButtonElement): Promise<void> {
+    if (!ensureWriteAccess('tx-msg', 'signed-in-or-granted')) return;
+    const uniqueIds = Array.from(new Set(rowIds.map((rowId) => rowId.toString())))
+      .map((rowId) => BigInt(rowId))
+      .filter((rowId) => state.txs.some((tx) => tx.rowId === rowId));
+    if (uniqueIds.length === 0) return;
+    const preview = state.txs
+      .filter((tx) => tx.rowId != null && uniqueIds.some((id) => id === tx.rowId))
+      .slice(0, 3)
+      .map((tx) => `${tx.date} ${tx.type}`)
+      .join(', ');
+    const extraCount = Math.max(0, uniqueIds.length - 3);
+    const summary = extraCount > 0 ? `${preview}, and ${extraCount} more` : preview;
+    const ok = await confirmDialog({
+      title: `Delete ${uniqueIds.length} transactions?`,
+      body: `This cannot be undone. Selected rows: ${summary}.`,
+      confirmLabel: 'Delete selected',
+      danger: true,
+    });
+    if (!ok) return;
+    const toDelete = new Set(uniqueIds.map((id) => id.toString()));
+    const candidate = state.txs.filter((tx) => tx.rowId == null || !toDelete.has(tx.rowId.toString()));
+    const nextPd = computePdOrThrow(candidate);
+    await performWriteAction({
+      msgId: 'tx-msg',
+      access: 'signed-in-or-granted',
+      button: btn,
+      busyText: 'Deleting...',
+      keepDisabledOnSuccess: true,
+      errorPrefix: 'Bulk delete failed: ',
+      action: async () => {
+        await deleteTransactions(uniqueIds);
+        if (isSignedIn()) scheduleUpload();
+        await persistTransactionsState(nextPd);
+        renderAll();
+      },
+      onlineMessage: `${uniqueIds.length} transactions deleted.`,
+      offlineMessage: 'Transactions deleted locally. Will sync to Drive when back online.',
+    });
+  }
+
   const ok = await confirmDialog({
     title: `Delete transaction on ${tx.date}?`,
     body: `${tx.type} ${tx.isin || tx.name || ''}`.trim() || 'This cannot be undone.',
@@ -2061,6 +2103,7 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
           onAddTx: addManualTransaction,
           onEditTx: editManualTransaction,
           onDelTx: delManualTransaction,
+          onBulkDelTxs: delTransactionsBulk,
           readOnly: isReadOnly(),
         });
         break;

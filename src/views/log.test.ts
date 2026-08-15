@@ -32,12 +32,25 @@ function makeSnap(date: string, total = 1000): Snapshot {
 const DOM_FIXTURE = `
   <select id="snap-year-filter"></select>
   <input id="snap-search" />
-  <button id="btn-del-snaps">Delete selected</button>
+  <button id="btn-start-del-snaps">Bulk delete</button>
+  <div id="snap-bulk-actions" hidden>
+    <button id="btn-snap-select-all"></button>
+    <button id="btn-snap-clear-all"></button>
+    <button id="btn-cancel-del-snaps"></button>
+    <button id="btn-del-snaps">Delete selected</button>
+  </div>
   <div id="snap-table-header"></div>
   <div id="snaps-list"></div>
   <div id="snap-pagination"></div>
   <select id="tx-type-filter"></select>
   <input id="tx-search" />
+  <button id="btn-start-del-txs">Bulk delete</button>
+  <div id="tx-bulk-actions" hidden>
+    <button id="btn-tx-select-all"></button>
+    <button id="btn-tx-clear-all"></button>
+    <button id="btn-cancel-del-txs"></button>
+    <button id="btn-del-txs">Delete selected</button>
+  </div>
   <button id="btn-add-tx"></button>
   <div id="tx-ledger-list"></div>
   <div id="tx-pagination"></div>
@@ -167,7 +180,7 @@ describe('renderLog', () => {
     expect(onDel).toHaveBeenCalledWith('2026-03-01', delBtn);
   });
 
-  it('enables bulk delete button after selecting rows and forwards selected dates', () => {
+  it('enters snapshot bulk mode, selects rows, and forwards selected dates', () => {
     const onBulkDelSnaps = vi.fn();
     const snaps = [makeSnap('2026-03-01'), makeSnap('2026-02-01')];
     renderLog({
@@ -178,6 +191,7 @@ describe('renderLog', () => {
       onDelSnap: vi.fn(),
       onBulkDelSnaps,
     });
+    (document.getElementById('btn-start-del-snaps') as HTMLButtonElement).click();
     const bulkBtn = document.getElementById('btn-del-snaps') as HTMLButtonElement;
     expect(bulkBtn.disabled).toBe(true);
     const firstCheckbox = document.querySelector(
@@ -206,6 +220,7 @@ describe('renderLog', () => {
       onDelSnap: vi.fn(),
       onBulkDelSnaps: vi.fn(),
     });
+    (document.getElementById('btn-start-del-snaps') as HTMLButtonElement).click();
     const bulkBtn = document.getElementById('btn-del-snaps') as HTMLButtonElement;
     const alphaCheckbox = document.querySelector(
       '.js-snap-select[data-date="2026-01-01"]',
@@ -218,6 +233,27 @@ describe('renderLog', () => {
     searchEl.dispatchEvent(new Event('input'));
     expect(bulkBtn.disabled).toBe(true);
     expect(bulkBtn.textContent).toBe('Delete selected');
+  });
+
+  it('supports snapshot select all and deselect all in bulk mode', () => {
+    const snaps = [makeSnap('2026-03-01'), makeSnap('2026-02-01')];
+    renderLog({
+      txs: [],
+      snaps,
+      importMeta: null,
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+      onBulkDelSnaps: vi.fn(),
+    });
+    (document.getElementById('btn-start-del-snaps') as HTMLButtonElement).click();
+    const selectAll = document.getElementById('btn-snap-select-all') as HTMLButtonElement;
+    const clearAll = document.getElementById('btn-snap-clear-all') as HTMLButtonElement;
+    const bulkBtn = document.getElementById('btn-del-snaps') as HTMLButtonElement;
+    selectAll.click();
+    expect(bulkBtn.textContent).toContain('(2)');
+    clearAll.click();
+    expect(bulkBtn.textContent).toBe('Delete selected');
+    expect(bulkBtn.disabled).toBe(true);
   });
 
   it('populates year filter with distinct years from snaps', () => {
@@ -388,6 +424,64 @@ describe('renderLog', () => {
       onAddTx,
       onEditTx,
       onDelTx,
+    });
+
+    it('supports transaction bulk delete mode and callbacks', () => {
+      const onBulkDelTxs = vi.fn();
+      renderLog({
+        txs: [
+          {
+            rowId: 10n,
+            id: 'tx-1',
+            date: '2026-01-01',
+            source: 'manual',
+            type: 'BUY',
+            name: 'IWDA',
+            isin: 'IE00B4L5Y983',
+            shares: 2,
+            price: 100,
+            amount: -200,
+            fee: 0,
+            tax: 0,
+            currency: 'EUR',
+            fxRate: 1,
+          },
+          {
+            rowId: 11n,
+            id: 'tx-2',
+            date: '2026-01-02',
+            source: 'manual',
+            type: 'BUY',
+            name: 'VWCE',
+            isin: 'IE00BK5BQT80',
+            shares: 1,
+            price: 110,
+            amount: -110,
+            fee: 0,
+            tax: 0,
+            currency: 'EUR',
+            fxRate: 1,
+          },
+        ],
+        snaps: [],
+        importMeta: { last_import: '2026-01-01' },
+        onEditSnap: vi.fn(),
+        onDelSnap: vi.fn(),
+        onBulkDelTxs,
+      });
+      (document.getElementById('btn-start-del-txs') as HTMLButtonElement).click();
+      const selectAll = document.getElementById('btn-tx-select-all') as HTMLButtonElement;
+      const clearAll = document.getElementById('btn-tx-clear-all') as HTMLButtonElement;
+      const bulkBtn = document.getElementById('btn-del-txs') as HTMLButtonElement;
+      selectAll.click();
+      expect(bulkBtn.disabled).toBe(false);
+      expect(bulkBtn.textContent).toContain('(2)');
+      clearAll.click();
+      expect(bulkBtn.disabled).toBe(true);
+      selectAll.click();
+      bulkBtn.click();
+      expect(onBulkDelTxs).toHaveBeenCalledTimes(1);
+      expect(onBulkDelTxs).toHaveBeenCalledWith([10n, 11n], bulkBtn);
     });
 
     (document.getElementById('btn-add-tx') as HTMLButtonElement).click();

@@ -425,6 +425,13 @@ export function appTemplate(): string {
             <option value="">All types</option>
           </select>
           <input type="text" id="tx-search" class="form-input form-input-sm" aria-label="Search transactions" placeholder="Search name, ISIN, source…" style="flex:1;min-width:80px">
+          <button class="btn btn-outline btn-sm" id="btn-start-del-txs">Bulk delete</button>
+          <div class="bulk-actions" id="tx-bulk-actions" hidden>
+            <button class="btn btn-ghost btn-sm" id="btn-tx-select-all">Select all</button>
+            <button class="btn btn-ghost btn-sm" id="btn-tx-clear-all">Deselect all</button>
+            <button class="btn btn-outline btn-sm" id="btn-cancel-del-txs">Cancel</button>
+            <button class="btn btn-danger btn-sm" id="btn-del-txs" disabled>Delete selected</button>
+          </div>
           <button class="btn btn-outline btn-sm" id="btn-add-tx" style="margin-left:auto">Add transaction</button>
         </div>
         <div class="tbl">
@@ -452,7 +459,13 @@ export function appTemplate(): string {
             <option value="">All years</option>
           </select>
           <input type="text" id="snap-search" class="form-input form-input-sm" aria-label="Search snapshots by notes" placeholder="Search notes…" style="width:140px;display:inline-block;margin-left:6px">
-          <button class="btn btn-outline btn-sm" id="btn-del-snaps" style="margin-left:auto" disabled>Delete selected</button>
+          <button class="btn btn-outline btn-sm" id="btn-start-del-snaps" style="margin-left:auto">Bulk delete</button>
+          <div class="bulk-actions" id="snap-bulk-actions" hidden>
+            <button class="btn btn-ghost btn-sm" id="btn-snap-select-all">Select all</button>
+            <button class="btn btn-ghost btn-sm" id="btn-snap-clear-all">Deselect all</button>
+            <button class="btn btn-outline btn-sm" id="btn-cancel-del-snaps">Cancel</button>
+            <button class="btn btn-danger btn-sm" id="btn-del-snaps" disabled>Delete selected</button>
+          </div>
         </div>
         <div id="snaps-list" role="table" aria-label="Snapshot history"></div>
         <div id="snap-pagination" class="pagination"></div>
