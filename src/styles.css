@@ -1615,6 +1615,13 @@ summary.section-label {
   }
   .bulk-cancel-mobile:not([hidden]) {
     display: inline-flex;
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    padding: 0;
+    flex: 0 0 36px;
+    align-items: center;
+    justify-content: center;
   }
   .filter-bar-actions-end {
     flex-basis: 100%;
