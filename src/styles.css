@@ -1615,9 +1615,9 @@ summary.section-label {
   }
   .btn.bulk-cancel-mobile:not([hidden]) {
     display: inline-flex;
-    width: auto;
-    min-width: 0;
-    height: auto;
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
     flex: 0 0 auto;
     align-items: center;
     justify-content: center;
