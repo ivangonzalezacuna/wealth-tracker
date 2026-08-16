@@ -486,7 +486,9 @@ describe('renderAnnualReportHtml', () => {
       accounts,
     );
     const html = renderAnnualReportHtml(report, 'EUR');
-    expect(html).toContain('Tax sign convention: positive values = tax paid, negative values = tax refund received back.');
+    expect(html).toContain(
+      'Tax sign convention: positive values = tax paid, negative values = tax refund received back.',
+    );
     expect(html).toContain('Total taxes (signed)');
   });
 });

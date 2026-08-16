@@ -406,7 +406,10 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
       ? _tableRow(['Realised gains / losses', _fmt(report.totalYearRealisedGains, currency)])
       : '',
     report.standaloneTaxTotal !== 0
-      ? _tableRow(['Standalone tax transactions (signed)', _fmt(report.standaloneTaxTotal, currency)])
+      ? _tableRow([
+          'Standalone tax transactions (signed)',
+          _fmt(report.standaloneTaxTotal, currency),
+        ])
       : '',
     report.totalTax !== 0
       ? _tableRow(['Total taxes (signed)', _fmt(report.totalTax, currency)])
