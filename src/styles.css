@@ -430,12 +430,13 @@ details[open] > summary .card-chevron {
 
 /* Milestone rows inside goal cards */
 .ms-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
   font-size: 12px;
   align-items: baseline;
-  gap: 4px;
 }
 .ms-label {
-  font-size: 12px;
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
@@ -448,32 +449,6 @@ details[open] > summary .card-chevron {
 }
 .ms-status {
   font-weight: 400;
-}
-.ms-info-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 15px;
-  height: 15px;
-  border-radius: var(--radius-round);
-  background: var(--surface-3);
-  color: var(--ink-3);
-  font-size: 9px;
-  font-weight: 600;
-  border: 1px solid var(--line);
-  padding: 0;
-  margin-left: 4px;
-  cursor: pointer;
-  vertical-align: middle;
-  flex-shrink: 0;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-tap-highlight-color: transparent;
-}
-.ms-info-btn:hover {
-  background: var(--brand-weak);
-  color: var(--brand);
-  border-color: var(--brand-border);
 }
 
 /* Tables */
@@ -3027,12 +3002,6 @@ input[type='color'] {
 .dialog-fields-relaxed {
   gap: 8px;
 }
-.goal-dialog-row-compact .dialog-field {
-  flex: 1 1 180px;
-}
-.goal-date-field {
-  justify-content: flex-end;
-}
 
 /* ── Snapshot dialog overrides ──────────────────────────── */
 .snap-dialog-card {
@@ -3045,7 +3014,13 @@ input[type='color'] {
   padding-top: 5px;
 }
 
-/* ── Goal milestone rows ─────────────────────────────────── */
+/* ── Goal dialog & milestone rows ────────────────────────── */
+.goal-dialog-row-compact .dialog-field {
+  flex: 1 1 180px;
+}
+.goal-date-field {
+  justify-content: flex-end;
+}
 .goal-milestone-row {
   border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
@@ -3069,11 +3044,6 @@ input[type='color'] {
   display: flex;
   flex-direction: column;
   gap: 7px;
-}
-.ms-row {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
 }
 .ms-row .ms-field {
   flex: 1 1 80px;

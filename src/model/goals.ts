@@ -19,14 +19,6 @@ export function normalizeGoalLabel(label: string): string {
 
 /**
  * Validates milestones for a single goal.
- *
- * Rules:
- * - Each milestone amount must be a positive finite number.
- * - Each milestone amount must be strictly less than the goal's target net worth.
- * - Milestone amounts must be unique (no two milestones at the same amount).
- * - If the goal has no target date, milestones may not have a date.
- * - If the goal has a target date, milestone dates must not exceed it.
- *
  * Returns a human-readable error string, or null if valid.
  */
 export function validateMilestones(

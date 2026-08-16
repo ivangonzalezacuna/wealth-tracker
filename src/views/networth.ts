@@ -112,61 +112,53 @@ function _buildAccountForecastInputs(snap: Snapshot, accounts: Account[]): Accou
   });
 }
 
-/**
- * Renders a milestones section for a goal progress card.
- * Shows each milestone as a row with its label, target amount, and reached/pending status.
- */
+/** Renders milestones section for a goal progress card using infoTip for note icons. */
 function _renderMilestonesSection(
   milestones: GoalMilestone[],
   liquidTotal: number,
   target: number,
   accountInputs: AccountForecastInput[],
 ): string {
-  const valid = milestones.filter((ms) => {
-    const amt = parseFloat((ms.targetAmount || '').replace(/\./g, '').replace(',', '.'));
-    return isFinite(amt) && amt > 0 && amt < target;
-  });
+  const valid = [...milestones]
+    .filter((ms) => {
+      const amt = parseFloat((ms.targetAmount || '').replace(/\./g, '').replace(',', '.'));
+      return isFinite(amt) && amt > 0 && amt < target;
+    })
+    .sort((a, b) => {
+      const na = parseFloat(a.targetAmount.replace(/\./g, '').replace(',', '.'));
+      const nb = parseFloat(b.targetAmount.replace(/\./g, '').replace(',', '.'));
+      return na - nb;
+    });
   if (valid.length === 0) return '';
 
-  const sorted = [...valid].sort((a, b) => {
-    const na = parseFloat(a.targetAmount.replace(/\./g, '').replace(',', '.'));
-    const nb = parseFloat(b.targetAmount.replace(/\./g, '').replace(',', '.'));
-    return na - nb;
-  });
-
-  const rows = sorted
+  const rows = valid
     .map((ms) => {
       const msAmt = parseFloat((ms.targetAmount || '').replace(/\./g, '').replace(',', '.'));
       const reached = liquidTotal >= msAmt;
-      const validTargetDate =
-        ms.targetDate && /^\d{4}-\d{2}$/.test(ms.targetDate) ? ms.targetDate : null;
+      const validDate = ms.targetDate && /^\d{4}-\d{2}$/.test(ms.targetDate) ? ms.targetDate : null;
       let etaOrStatus: string;
       if (reached) {
         etaOrStatus = `<span class="pos">Reached</span>`;
       } else {
         const etaMonths = forecastMonthsToTargetMulti(accountInputs, msAmt);
         if (etaMonths !== null) {
-          const etaDate = new Date();
-          etaDate.setMonth(etaDate.getMonth() + etaMonths, 1);
-          const etaDateStr = `${etaDate.getFullYear()}-${String(etaDate.getMonth() + 1).padStart(2, '0')}`;
-          if (validTargetDate) {
-            const onTrack = etaDateStr <= validTargetDate;
-            etaOrStatus = onTrack
-              ? `<span class="pos">On track</span> (ETA ${fmtMon(etaDateStr)})`
-              : `<span class="neg">Behind</span> (ETA ${fmtMon(etaDateStr)})`;
+          const d = new Date();
+          d.setMonth(d.getMonth() + etaMonths, 1);
+          const etaStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          if (validDate) {
+            etaOrStatus =
+              etaStr <= validDate
+                ? `<span class="pos">On track</span> (ETA ${fmtMon(etaStr)})`
+                : `<span class="neg">Behind</span> (ETA ${fmtMon(etaStr)})`;
           } else {
-            etaOrStatus = `ETA ${fmtMon(etaDateStr)}`;
+            etaOrStatus = `ETA ${fmtMon(etaStr)}`;
           }
         } else {
           etaOrStatus = `<span class="note">No ETA</span>`;
         }
       }
-      const dateLabel = validTargetDate ? ` · ${fmtMon(validTargetDate)}` : '';
-      const noteIcon = ms.label
-        ? ` <button class="ms-info-btn" data-ms-note="${esc(ms.label)}" aria-label="Milestone note" tabindex="0">i</button>`
-        : '';
       return `<div class="row ms-row">
-        <div class="row-label ms-label">${fmtEur(msAmt)}${dateLabel}${noteIcon}</div>
+        <div class="row-label ms-label">${fmtEur(msAmt)}${validDate ? ` · ${fmtMon(validDate)}` : ''}${ms.label ? infoTip(ms.label) : ''}</div>
         <div class="row-val ms-val"><span class="ms-status">${etaOrStatus}</span></div>
       </div>`;
     })
@@ -178,44 +170,7 @@ function _renderMilestonesSection(
   </div>`;
 }
 
-/**
- * Wires up click-to-show popovers for milestone note (ℹ) icons.
- * Safe to call after every render — skips already-bound buttons.
- */
-function _attachMilestoneNotePopovers(root: HTMLElement): void {
-  root.querySelectorAll<HTMLElement>('[data-ms-note]:not([data-ms-bound])').forEach((btn) => {
-    btn.dataset.msBound = '1';
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const note = btn.dataset.msNote || '';
-      if (!note) return;
-      const existing = document.querySelector('.ms-note-pop') as HTMLElement | null;
-      if (existing) {
-        const wasThis = existing.dataset.forEl === btn.dataset.msPopId;
-        existing.remove();
-        if (wasThis) return;
-      }
-      if (!btn.dataset.msPopId) btn.dataset.msPopId = String(Math.random());
-      const pop = document.createElement('div');
-      pop.className = 'ms-note-pop etf-pop';
-      pop.dataset.forEl = btn.dataset.msPopId;
-      pop.textContent = note;
-      document.body.appendChild(pop);
-      const rect = btn.getBoundingClientRect();
-      pop.style.top = `${rect.bottom + 6}px`;
-      pop.style.left = `${rect.left + rect.width / 2}px`;
-      pop.style.transform = 'translateX(-50%)';
-      requestAnimationFrame(() => {
-        const pr = pop.getBoundingClientRect();
-        if (pr.right > window.innerWidth - 8)
-          pop.style.left = `${window.innerWidth - 8 - pr.width / 2}px`;
-        if (pr.left < 8) pop.style.left = `${8 + pr.width / 2}px`;
-        if (pr.bottom > window.innerHeight - 8) pop.style.top = `${rect.top - 6 - pr.height}px`;
-      });
-    });
-  });
-}
-
+/** Re-renders only the goal progress cards using latest cached state. */
 function _renderGoalCards(): void {
   const snaps = _lastSnaps;
   const accounts = _lastAccounts;
@@ -352,7 +307,7 @@ function _renderGoalCards(): void {
       _renderGoalCards();
     });
   }
-  _attachMilestoneNotePopovers(goalEl);
+  attachInfoTips(goalEl);
 }
 
 /**
