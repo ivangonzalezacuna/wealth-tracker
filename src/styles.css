@@ -1792,9 +1792,9 @@ summary.section-label {
   min-width: 0;
 }
 .forecast-scenarios-toggle .btn-icon-svg {
-  width: 12px;
-  height: 12px;
-  vertical-align: middle;
+  width: 1em;
+  height: 1em;
+  display: block;
 }
 .forecast-scenarios-empty {
   margin-bottom: 8px;
@@ -1811,6 +1811,11 @@ summary.section-label {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+.range-toggle .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .range-toggle .btn.active {
   background: var(--brand-weak);

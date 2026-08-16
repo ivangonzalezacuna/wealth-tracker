@@ -936,12 +936,12 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
             <button class="btn btn-sm btn-ghost ${_fcRange === '360' ? 'active' : ''}" data-range="360" aria-pressed="${_fcRange === '360'}">30Y</button>
             <button class="btn btn-sm btn-ghost ${_fcRange === '480' ? 'active' : ''}" data-range="480" aria-pressed="${_fcRange === '480'}">40Y</button>
             <button class="btn btn-sm btn-ghost ${_fcRange === '600' ? 'active' : ''}" data-range="600" aria-pressed="${_fcRange === '600'}">50Y</button>
+            <button class="btn btn-sm btn-ghost forecast-scenarios-toggle${_scenariosPanelOpen ? ' active' : ''}" id="nw-fc-scenarios-toggle"
+                    aria-expanded="${_scenariosPanelOpen}"
+                    aria-controls="nw-fc-scenarios-body"
+                    title="${_scenariosPanelOpen ? 'Hide extra scenarios' : 'Show extra scenarios'}"
+                    aria-label="${_scenariosPanelOpen ? 'Hide extra scenarios' : 'Show extra scenarios'}">${_scenariosPanelOpen ? EYE_OFF_ICON : EYE_ICON}</button>
           </div>
-          <button class="btn btn-sm btn-ghost forecast-scenarios-toggle${_scenariosPanelOpen ? ' active' : ''}" id="nw-fc-scenarios-toggle"
-                  aria-expanded="${_scenariosPanelOpen}"
-                  aria-controls="nw-fc-scenarios-body"
-                  title="${_scenariosPanelOpen ? 'Hide extra scenarios' : 'Show extra scenarios'}"
-                  aria-label="${_scenariosPanelOpen ? 'Hide extra scenarios' : 'Show extra scenarios'}">${_scenariosPanelOpen ? EYE_OFF_ICON : EYE_ICON}</button>
         </div>
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast" role="img" aria-label="Net worth forecast chart" aria-describedby="c-nw-forecast-table-wrap"></canvas></div>
