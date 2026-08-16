@@ -163,9 +163,10 @@ function _renderMilestonesSection(
         }
       }
       const dateLabel = validTargetDate ? ` · ${fmtMon(validTargetDate)}` : '';
+      const amtPrefix = ms.label ? `<span class="ms-amt">${fmtEur(msAmt)}</span> ` : '';
       return `<div class="row ms-row">
         <div class="row-label ms-label">${label}${dateLabel}</div>
-        <div class="row-val ms-val"><span class="ms-amt">${fmtEur(msAmt)}</span> <span class="ms-status">${etaOrStatus}</span></div>
+        <div class="row-val ms-val">${amtPrefix}<span class="ms-status">${etaOrStatus}</span></div>
       </div>`;
     })
     .join('');
