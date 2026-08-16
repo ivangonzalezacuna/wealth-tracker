@@ -135,24 +135,6 @@ export const MIGRATIONS: string[][] = [
   ],
   // [7] version 6 → 7: add a global contribution_interval setting for budget cadence.
   [`INSERT OR IGNORE INTO settings (key, value) VALUES ('contribution_interval', 'monthly')`],
-  // [8] version 7 → 8: add notes column to holdings and snapshots.
-  [
-    `ALTER TABLE holdings ADD COLUMN notes TEXT NOT NULL DEFAULT ''`,
-    `ALTER TABLE snapshots ADD COLUMN notes TEXT NOT NULL DEFAULT ''`,
-  ],
-  // [9] version 8 → 9: rebuild snapshots to guarantee notes column exists.
-  //     A prior broken deploy of migration [8] only added notes to holdings,
-  //     leaving some users at schema version 8 with snapshots still missing
-  //     the notes column. Rebuilding via CREATE/INSERT/DROP/RENAME ensures the
-  //     column is present regardless of which version 8 the user has.
-  [
-    `CREATE TABLE IF NOT EXISTS snapshots_v9 (
-      date TEXT PRIMARY KEY,
-      values_json TEXT NOT NULL DEFAULT '{}',
-      notes TEXT NOT NULL DEFAULT ''
-    )`,
-    `INSERT INTO snapshots_v9 (date, values_json) SELECT date, values_json FROM snapshots`,
-    `DROP TABLE snapshots`,
-    `ALTER TABLE snapshots_v9 RENAME TO snapshots`,
-  ],
+  // [8] version 7 → 8: add notes column to holdings.
+  [`ALTER TABLE holdings ADD COLUMN notes TEXT NOT NULL DEFAULT ''`],
 ];

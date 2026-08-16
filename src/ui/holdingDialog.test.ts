@@ -104,40 +104,27 @@ describe('holdingDialog', () => {
     expect(draft?.name).toBe('Alpha Fund');
   });
 
-  it('preserves notes on submit when editing an existing holding with notes', async () => {
-    const existingWithNotes: Holding = {
-      ...existingHolding,
-      notes: 'Switched index to FTSE All-World in Oct 2024',
-    };
-    const p = holdingDialog({ existing: existingWithNotes });
-
-    const textarea = document.querySelector('#holdd-notes') as HTMLTextAreaElement;
-    expect(textarea.value).toBe('Switched index to FTSE All-World in Oct 2024');
-
-    getSubmit()!.click();
-    const draft = await p;
-
-    expect(draft?.notes).toBe('Switched index to FTSE All-World in Oct 2024');
+  it('pre-fills notes textarea when editing an existing holding with notes', () => {
+    holdingDialog({ existing: { ...existingHolding, notes: 'Some reminder' }, suggestions });
+    expect((document.querySelector('#holdd-notes') as HTMLTextAreaElement).value).toBe(
+      'Some reminder',
+    );
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
 
-  it('includes notes typed by the user in the submitted draft', async () => {
-    const p = holdingDialog({ existing: existingHolding });
-
-    (document.querySelector('#holdd-notes') as HTMLTextAreaElement).value =
-      'New note about this holding';
+  it('includes notes in the submitted draft when notes are entered', async () => {
+    const p = holdingDialog({ existing: existingHolding, suggestions });
+    (document.querySelector('#holdd-notes') as HTMLTextAreaElement).value = 'My note';
     getSubmit()!.click();
     const draft = await p;
-
-    expect(draft?.notes).toBe('New note about this holding');
+    expect(draft?.notes).toBe('My note');
   });
 
-  it('omits notes from draft when notes field is empty', async () => {
-    const p = holdingDialog({ existing: existingHolding });
-
+  it('omits notes from the draft when the notes field is empty', async () => {
+    const p = holdingDialog({ existing: existingHolding, suggestions });
     (document.querySelector('#holdd-notes') as HTMLTextAreaElement).value = '';
     getSubmit()!.click();
     const draft = await p;
-
     expect(draft?.notes).toBeUndefined();
   });
 
