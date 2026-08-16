@@ -75,13 +75,15 @@ function _renderMilestoneRows(container: HTMLElement, goalDate?: string): void {
       const dateLabel = dateVal ? _fmtMonthLabel(dateVal) : 'Set deadline';
       return `
     <div class="goal-milestone-row" data-ms-idx="${i}" data-ms-stored-date="${esc(m.targetDate || '')}">
+      <div class="ms-header">
+        <span class="ms-title">Milestone ${i + 1}</span>
+        <button type="button" class="btn btn-sm btn-ghost btn-icon js-ms-del" data-ms-idx="${i}"
+          aria-label="Remove milestone ${i + 1}" title="Remove milestone">&#x2715;</button>
+      </div>
       <div class="ms-body">
         <div class="ms-row">
           <div class="ms-field">
-            <span class="ms-field-label">
-              <span class="ms-index">Milestone ${i + 1}</span>
-              <span>Amount (€)</span>
-            </span>
+            <span class="ms-field-label">Amount (€)</span>
             <input class="form-input dialog-input ms-amount" type="text" inputmode="decimal"
               value="${esc(m.targetAmount)}" placeholder="e.g. 250 000"
               aria-label="Milestone ${i + 1} amount">
@@ -116,11 +118,6 @@ function _renderMilestoneRows(container: HTMLElement, goalDate?: string): void {
             <input class="form-input dialog-input ms-label" type="text"
               value="${esc(m.label || '')}" placeholder="e.g. Halfway"
               aria-label="Milestone ${i + 1} label">
-          </div>
-          <div class="ms-field ms-action-field">
-            <span class="ms-field-label ms-action-label">Actions</span>
-            <button type="button" class="btn btn-sm btn-ghost js-ms-del" data-ms-idx="${i}"
-              aria-label="Remove milestone ${i + 1}" title="Remove milestone">Remove</button>
           </div>
         </div>
       </div>

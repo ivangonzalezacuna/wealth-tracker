@@ -3004,7 +3004,13 @@ input[type='color'] {
   padding: 7px 9px;
   margin-bottom: 7px;
 }
-.ms-index {
+.ms-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+.ms-title {
   font-size: 11px;
   font-weight: 600;
   color: var(--ink-2);
@@ -3034,15 +3040,6 @@ input[type='color'] {
 .ms-date-field {
   flex: 1 1 150px;
 }
-.ms-action-field {
-  flex: 0 0 auto;
-  align-items: flex-end;
-  justify-content: flex-end;
-}
-.ms-action-label {
-  align-self: stretch;
-  text-align: right;
-}
 .ms-field-label {
   font-size: 11px;
   font-weight: 500;
@@ -3070,16 +3067,6 @@ input[type='color'] {
 .ms-date-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-}
-@media (max-width: 640px) {
-  .goal-dialog-row-compact .goal-date-field {
-    justify-content: flex-start;
-  }
-  .ms-action-field,
-  .ms-action-label {
-    align-items: flex-start;
-    text-align: left;
-  }
 }
 /* Hidden input used only for value sync + showPicker() */
 .ms-date {

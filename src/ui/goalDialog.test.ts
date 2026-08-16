@@ -107,9 +107,11 @@ describe('goalDialog', () => {
 
     const row = getMilestoneRows()[0];
     expect(row).toBeTruthy();
+    expect(row.querySelector('.ms-header')).not.toBeNull();
+    expect(row.querySelector('.ms-title')).not.toBeNull();
     expect(row.querySelectorAll('.ms-row')).toHaveLength(2);
     expect(row.querySelector('.ms-date-field')).not.toBeNull();
-    expect(row.querySelector('.ms-action-field')).not.toBeNull();
+    expect(row.querySelector('.ms-action-field')).toBeNull();
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
