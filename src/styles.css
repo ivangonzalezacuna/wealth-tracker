@@ -1795,9 +1795,6 @@ summary.section-label {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 30px;
-  min-height: 21px;
-  padding: 3px 7px;
 }
 .forecast-scenarios-toggle .btn-icon-svg {
   width: 12px;
