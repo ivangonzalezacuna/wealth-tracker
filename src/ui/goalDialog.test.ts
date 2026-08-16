@@ -18,6 +18,14 @@ function getSubmit() {
   return document.querySelector('.js-goald-submit') as HTMLButtonElement | null;
 }
 
+function addMilestone() {
+  (document.querySelector('.js-ms-add') as HTMLButtonElement | null)?.click();
+}
+
+function getMilestoneRows() {
+  return Array.from(document.querySelectorAll('.goal-milestone-row')) as HTMLElement[];
+}
+
 const EXISTING_GOAL: NamedGoal = {
   label: 'Financial independence',
   targetNetWorth: '500000',
@@ -47,6 +55,7 @@ describe('goalDialog', () => {
 
     expect(getOverlay()?.querySelector('.dialog-card')).not.toBeNull();
     expect(getOverlay()?.querySelector('.goal-dialog-card')).toBeNull();
+    expect(getOverlay()?.querySelector('.goal-dialog-row-compact')).not.toBeNull();
     expect(
       document.getElementById('goald-label-err')?.classList.contains('dialog-error-compact'),
     ).toBe(true);
@@ -89,5 +98,70 @@ describe('goalDialog', () => {
     const draft = await p;
 
     expect(draft?.label).toBe('Financial independence');
+  });
+
+  it('renders milestone fields in two compact rows', () => {
+    goalDialog({ existing: { ...EXISTING_GOAL, milestones: [{ targetAmount: '250000', label: 'Halfway' }] } });
+
+    const row = getMilestoneRows()[0];
+    expect(row).toBeTruthy();
+    expect(row.querySelectorAll('.ms-row')).toHaveLength(2);
+    expect(row.querySelector('.ms-date-field')).not.toBeNull();
+    expect(row.querySelector('.ms-action-field')).not.toBeNull();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('disables milestone deadlines until the goal has a target date', () => {
+    goalDialog();
+    addMilestone();
+
+    const deadlineBtn = document.querySelector('.js-ms-date-btn') as HTMLButtonElement;
+    const deadlineInput = document.querySelector('.ms-date') as HTMLInputElement;
+
+    expect(deadlineBtn.disabled).toBe(true);
+    expect(deadlineInput.disabled).toBe(true);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('keeps milestone values when the goal date is changed and restored', () => {
+    goalDialog({
+      existing: {
+        ...EXISTING_GOAL,
+        milestones: [{ targetAmount: '250000', label: 'Halfway', targetDate: '2034-06' }],
+      },
+    });
+
+    const goalDate = document.getElementById('goald-date') as HTMLInputElement;
+    goalDate.value = '';
+    goalDate.dispatchEvent(new Event('change'));
+
+    expect((document.querySelector('.ms-amount') as HTMLInputElement).value).toBe('250000');
+    expect((document.querySelector('.ms-label') as HTMLInputElement).value).toBe('Halfway');
+    expect((document.querySelector('.ms-date') as HTMLInputElement).value).toBe('');
+    expect((document.querySelector('.js-ms-date-btn') as HTMLButtonElement).disabled).toBe(true);
+
+    goalDate.value = '2035-01';
+    goalDate.dispatchEvent(new Event('change'));
+
+    expect((document.querySelector('.ms-amount') as HTMLInputElement).value).toBe('250000');
+    expect((document.querySelector('.ms-label') as HTMLInputElement).value).toBe('Halfway');
+    expect((document.querySelector('.ms-date') as HTMLInputElement).value).toBe('2034-06');
+    expect((document.querySelector('.js-ms-date-btn') as HTMLButtonElement).disabled).toBe(false);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('ignores empty milestone rows on submit', async () => {
+    const p = goalDialog();
+    setField('goald-label', 'Emergency fund');
+    setField('goald-target', '100000');
+    addMilestone();
+
+    getSubmit()!.click();
+    const draft = await p;
+
+    expect(draft?.milestones).toBeUndefined();
   });
 });

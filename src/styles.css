@@ -2979,6 +2979,12 @@ input[type='color'] {
 .dialog-fields-relaxed {
   gap: 8px;
 }
+.goal-dialog-row-compact .dialog-field {
+  flex: 1 1 180px;
+}
+.goal-date-field {
+  justify-content: flex-end;
+}
 
 /* ── Snapshot dialog overrides ──────────────────────────── */
 .snap-dialog-card {
@@ -2995,14 +3001,8 @@ input[type='color'] {
 .goal-milestone-row {
   border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
-  padding: 8px 10px;
-  margin-bottom: 8px;
-}
-.ms-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
+  padding: 7px 9px;
+  margin-bottom: 7px;
 }
 .ms-index {
   font-size: 11px;
@@ -3014,32 +3014,43 @@ input[type='color'] {
 .ms-body {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
 }
-.ms-fields-row {
+.ms-row {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
 }
-.ms-fields-row .ms-field {
+.ms-row .ms-field {
   flex: 1 1 80px;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
-.ms-fields-row .ms-label-field {
-  flex: 2 1 120px;
+.ms-row .ms-label-field {
+  flex: 1 1 180px;
 }
 .ms-date-field {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  flex: 1 1 150px;
+}
+.ms-action-field {
+  flex: 0 0 auto;
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+.ms-action-label {
+  align-self: stretch;
+  text-align: right;
 }
 .ms-field-label {
   font-size: 11px;
   font-weight: 500;
   color: var(--ink-2);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
 }
 .ms-opt {
   font-weight: 400;
@@ -3059,6 +3070,16 @@ input[type='color'] {
 .ms-date-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+@media (max-width: 640px) {
+  .goal-dialog-row-compact .goal-date-field {
+    justify-content: flex-start;
+  }
+  .ms-action-field,
+  .ms-action-label {
+    align-items: flex-start;
+    text-align: left;
+  }
 }
 /* Hidden input used only for value sync + showPicker() */
 .ms-date {
