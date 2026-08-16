@@ -101,7 +101,9 @@ describe('goalDialog', () => {
   });
 
   it('renders milestone fields in two compact rows', () => {
-    goalDialog({ existing: { ...EXISTING_GOAL, milestones: [{ targetAmount: '250000', label: 'Halfway' }] } });
+    goalDialog({
+      existing: { ...EXISTING_GOAL, milestones: [{ targetAmount: '250000', label: 'Halfway' }] },
+    });
 
     const row = getMilestoneRows()[0];
     expect(row).toBeTruthy();
@@ -116,8 +118,9 @@ describe('goalDialog', () => {
     goalDialog();
     addMilestone();
 
-    const deadlineBtn = document.querySelector('.js-ms-date-btn') as HTMLButtonElement;
-    const deadlineInput = document.querySelector('.ms-date') as HTMLInputElement;
+    const row = getMilestoneRows()[0];
+    const deadlineBtn = row.querySelector('.js-ms-date-btn') as HTMLButtonElement;
+    const deadlineInput = row.querySelector('.ms-date') as HTMLInputElement;
 
     expect(deadlineBtn.disabled).toBe(true);
     expect(deadlineInput.disabled).toBe(true);
@@ -137,18 +140,20 @@ describe('goalDialog', () => {
     goalDate.value = '';
     goalDate.dispatchEvent(new Event('change'));
 
-    expect((document.querySelector('.ms-amount') as HTMLInputElement).value).toBe('250000');
-    expect((document.querySelector('.ms-label') as HTMLInputElement).value).toBe('Halfway');
-    expect((document.querySelector('.ms-date') as HTMLInputElement).value).toBe('');
-    expect((document.querySelector('.js-ms-date-btn') as HTMLButtonElement).disabled).toBe(true);
+    let row = getMilestoneRows()[0];
+    expect((row.querySelector('.ms-amount') as HTMLInputElement).value).toBe('250000');
+    expect((row.querySelector('.ms-label') as HTMLInputElement).value).toBe('Halfway');
+    expect((row.querySelector('.ms-date') as HTMLInputElement).value).toBe('');
+    expect((row.querySelector('.js-ms-date-btn') as HTMLButtonElement).disabled).toBe(true);
 
     goalDate.value = '2035-01';
     goalDate.dispatchEvent(new Event('change'));
 
-    expect((document.querySelector('.ms-amount') as HTMLInputElement).value).toBe('250000');
-    expect((document.querySelector('.ms-label') as HTMLInputElement).value).toBe('Halfway');
-    expect((document.querySelector('.ms-date') as HTMLInputElement).value).toBe('2034-06');
-    expect((document.querySelector('.js-ms-date-btn') as HTMLButtonElement).disabled).toBe(false);
+    row = getMilestoneRows()[0];
+    expect((row.querySelector('.ms-amount') as HTMLInputElement).value).toBe('250000');
+    expect((row.querySelector('.ms-label') as HTMLInputElement).value).toBe('Halfway');
+    expect((row.querySelector('.ms-date') as HTMLInputElement).value).toBe('2034-06');
+    expect((row.querySelector('.js-ms-date-btn') as HTMLButtonElement).disabled).toBe(false);
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });

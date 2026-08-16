@@ -74,7 +74,7 @@ function _renderMilestoneRows(container: HTMLElement, goalDate?: string): void {
       const dateVal = hasGoalDate ? m.targetDate || '' : '';
       const dateLabel = dateVal ? _fmtMonthLabel(dateVal) : 'Set deadline';
       return `
-    <div class="goal-milestone-row" data-ms-idx="${i}">
+    <div class="goal-milestone-row" data-ms-idx="${i}" data-ms-stored-date="${esc(m.targetDate || '')}">
       <div class="ms-body">
         <div class="ms-row">
           <div class="ms-field">
@@ -134,7 +134,10 @@ function _syncMilestonesFromDom(container: HTMLElement): void {
   _milestones = Array.from(rows).map((row) => ({
     targetAmount: (row.querySelector<HTMLInputElement>('.ms-amount')?.value || '').trim(),
     label: (row.querySelector<HTMLInputElement>('.ms-label')?.value || '').trim(),
-    targetDate: (row.querySelector<HTMLInputElement>('.ms-date')?.value || '').trim(),
+    targetDate: (row.querySelector<HTMLInputElement>('.ms-date')?.disabled
+      ? row.dataset.msStoredDate
+      : row.querySelector<HTMLInputElement>('.ms-date')?.value
+    )?.trim(),
   }));
 }
 
@@ -207,10 +210,7 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
       const val = dateInput.value;
       const label = val ? _fmtMonthLabel(val) : 'Set date';
       dateValSpan.textContent = label;
-      goalDateBtn.setAttribute(
-        'aria-label',
-        val ? `Target date: ${label}` : 'Set target date',
-      );
+      goalDateBtn.setAttribute('aria-label', val ? `Target date: ${label}` : 'Set target date');
       goalDateClearBtn.hidden = !val;
     };
 
