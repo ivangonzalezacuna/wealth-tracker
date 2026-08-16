@@ -84,4 +84,37 @@ describe('validateMilestones', () => {
     // Empty target means no upper-bound check is possible
     expect(validateMilestones(milestones, '')).toBeNull();
   });
+
+  it('rejects a milestone with a date when the goal has no target date', () => {
+    const milestones: GoalMilestone[] = [{ targetAmount: '100000', targetDate: '2040-01' }];
+    const err = validateMilestones(milestones, '500000', '');
+    expect(err).toContain('cannot have a date');
+  });
+
+  it('rejects a milestone with a date later than the goal target date', () => {
+    const milestones: GoalMilestone[] = [{ targetAmount: '100000', targetDate: '2060-01' }];
+    const err = validateMilestones(milestones, '500000', '2050-01');
+    expect(err).toContain('not be later than the goal target date');
+  });
+
+  it('accepts a milestone with a date equal to the goal target date', () => {
+    const milestones: GoalMilestone[] = [{ targetAmount: '100000', targetDate: '2050-01' }];
+    expect(validateMilestones(milestones, '500000', '2050-01')).toBeNull();
+  });
+
+  it('accepts a milestone with a date before the goal target date', () => {
+    const milestones: GoalMilestone[] = [{ targetAmount: '100000', targetDate: '2040-06' }];
+    expect(validateMilestones(milestones, '500000', '2050-01')).toBeNull();
+  });
+
+  it('allows milestones without dates even when goal has a target date', () => {
+    const milestones: GoalMilestone[] = [{ targetAmount: '100000' }];
+    expect(validateMilestones(milestones, '500000', '2050-01')).toBeNull();
+  });
+
+  it('does not apply date checks when goalTargetDate is undefined', () => {
+    const milestones: GoalMilestone[] = [{ targetAmount: '100000', targetDate: '2060-01' }];
+    // No goalTargetDate passed at all → date rules are not enforced
+    expect(validateMilestones(milestones, '500000')).toBeNull();
+  });
 });

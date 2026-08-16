@@ -2986,6 +2986,30 @@ input[type='color'] {
   padding-top: 5px;
 }
 
+/* ── Goal milestone rows ─────────────────────────────────── */
+.goal-milestone-row {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  margin-bottom: 6px;
+}
+.goal-milestone-row .ms-amount {
+  flex: 1 1 90px;
+  min-width: 60px;
+}
+.goal-milestone-row .ms-label {
+  flex: 2 1 120px;
+  min-width: 80px;
+}
+.goal-milestone-row .ms-date {
+  flex: 1 1 110px;
+  min-width: 90px;
+}
+.goal-milestone-row .js-ms-del {
+  flex-shrink: 0;
+  align-self: center;
+}
+
 /* ── Theme toggle button ────────────────────────────────── */
 .btn-theme-toggle {
   display: inline-flex;

@@ -26,23 +26,23 @@ const _dialog = createDialogController<NamedGoal | null>(null, {
   },
 });
 
-function _renderMilestoneRows(container: HTMLElement): void {
+function _renderMilestoneRows(container: HTMLElement, goalDate?: string): void {
+  const hasGoalDate = Boolean(goalDate?.trim());
   container.innerHTML = _milestones
     .map(
       (m, i) => `
-    <div class="goal-milestone-row" data-ms-idx="${i}" style="display:flex;gap:6px;align-items:flex-start;margin-bottom:6px">
+    <div class="goal-milestone-row" data-ms-idx="${i}">
       <input class="form-input dialog-input ms-amount" type="text" inputmode="decimal"
-        value="${esc(m.targetAmount)}" placeholder="Amount (€)" aria-label="Milestone ${i + 1} amount"
-        style="flex:1 1 90px;min-width:60px">
+        value="${esc(m.targetAmount)}" placeholder="Amount (€)" aria-label="Milestone ${i + 1} amount">
       <input class="form-input dialog-input ms-label" type="text"
-        value="${esc(m.label || '')}" placeholder="Label (optional)" aria-label="Milestone ${i + 1} label"
-        style="flex:2 1 120px;min-width:80px">
+        value="${esc(m.label || '')}" placeholder="Label (optional)" aria-label="Milestone ${i + 1} label">
       <input class="form-input dialog-input ms-date" type="month"
-        value="${esc(m.targetDate || '')}" aria-label="Milestone ${i + 1} date"
-        style="flex:1 1 110px;min-width:90px">
+        value="${esc(hasGoalDate ? m.targetDate || '' : '')}"
+        max="${esc(hasGoalDate ? (goalDate ?? '') : '')}"
+        aria-label="Milestone ${i + 1} date"
+        ${hasGoalDate ? '' : 'disabled title="Set a target date on the goal first"'}>
       <button type="button" class="btn btn-sm btn-danger btn-icon js-ms-del" data-ms-idx="${i}"
-        aria-label="Remove milestone ${i + 1}" title="Remove milestone"
-        style="flex-shrink:0;align-self:center">&#x2715;</button>
+        aria-label="Remove milestone ${i + 1}" title="Remove milestone">&#x2715;</button>
     </div>`,
     )
     .join('');
@@ -119,7 +119,16 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
       </div>`;
 
     const msList = overlay.querySelector<HTMLElement>('#goald-ms-list')!;
-    _renderMilestoneRows(msList);
+    const dateInput = overlay.querySelector<HTMLInputElement>('#goald-date')!;
+
+    const getGoalDate = () => dateInput?.value.trim() ?? '';
+
+    _renderMilestoneRows(msList, getGoalDate());
+
+    dateInput?.addEventListener('input', () => {
+      _syncMilestonesFromDom(msList);
+      _renderMilestoneRows(msList, getGoalDate());
+    });
 
     msList.addEventListener('click', (e) => {
       const delBtn = (e.target as Element).closest('.js-ms-del') as HTMLElement | null;
@@ -127,13 +136,13 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
       _syncMilestonesFromDom(msList);
       const idx = parseInt(delBtn.dataset.msIdx!);
       _milestones.splice(idx, 1);
-      _renderMilestoneRows(msList);
+      _renderMilestoneRows(msList, getGoalDate());
     });
 
     overlay.querySelector('.js-ms-add')?.addEventListener('click', () => {
       _syncMilestonesFromDom(msList);
       _milestones.push({ targetAmount: '', label: '', targetDate: '' });
-      _renderMilestoneRows(msList);
+      _renderMilestoneRows(msList, getGoalDate());
       const rows = msList.querySelectorAll<HTMLInputElement>('.ms-amount');
       rows[rows.length - 1]?.focus();
     });
@@ -180,7 +189,8 @@ function _submit(msList: HTMLElement): void {
   // Sync and validate milestones (skip empty rows)
   _syncMilestonesFromDom(msList);
   const filledMilestones = _milestones.filter((m) => m.targetAmount.trim() !== '');
-  const msErrMsg = validateMilestones(filledMilestones, targetNetWorth);
+  const targetDate = get('goald-date');
+  const msErrMsg = validateMilestones(filledMilestones, targetNetWorth, targetDate);
   if (msErrMsg && msErr) {
     msErr.textContent = msErrMsg;
     // Mark as invalid so focusFirstInvalid picks it up
@@ -195,7 +205,7 @@ function _submit(msList: HTMLElement): void {
   const draft: NamedGoal = {
     label,
     targetNetWorth,
-    targetDate: get('goald-date'),
+    targetDate,
     milestones: filledMilestones.length > 0 ? filledMilestones : undefined,
   };
   _dismiss(draft);
