@@ -1791,14 +1791,10 @@ summary.section-label {
   gap: 4px;
   min-width: 0;
 }
-.forecast-scenarios-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
 .forecast-scenarios-toggle .btn-icon-svg {
   width: 12px;
   height: 12px;
+  vertical-align: middle;
 }
 .forecast-scenarios-empty {
   margin-bottom: 8px;
@@ -1813,6 +1809,7 @@ summary.section-label {
 }
 .range-toggle {
   display: flex;
+  align-items: center;
   gap: 4px;
 }
 .range-toggle .btn.active {
