@@ -163,9 +163,9 @@ function _renderMilestonesSection(
         }
       }
       const dateLabel = validTargetDate ? ` · ${fmtMon(validTargetDate)}` : '';
-      return `<div class="row" style="font-size:12px">
-        <div class="row-label" style="font-size:12px">${label}${dateLabel}</div>
-        <div class="row-val" style="font-size:12px">${fmtEur(msAmt)} — ${etaOrStatus}</div>
+      return `<div class="row ms-row">
+        <div class="row-label ms-label">${label}${dateLabel}</div>
+        <div class="row-val ms-val"><span class="ms-amt">${fmtEur(msAmt)}</span> <span class="ms-status">${etaOrStatus}</span></div>
       </div>`;
     })
     .join('');

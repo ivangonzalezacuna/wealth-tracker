@@ -428,6 +428,32 @@ details[open] > summary .card-chevron {
   color: var(--neg);
 }
 
+/* Milestone rows inside goal cards */
+.ms-row {
+  font-size: 12px;
+  align-items: baseline;
+  gap: 4px;
+}
+.ms-label {
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ms-val {
+  font-size: 12px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.ms-amt {
+  color: var(--ink);
+  font-weight: 500;
+}
+.ms-status {
+  font-weight: 400;
+}
+
 /* Tables */
 .tbl {
   overflow-x: auto;
