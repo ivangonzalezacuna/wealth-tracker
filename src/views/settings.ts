@@ -2013,11 +2013,15 @@ function attachCacheListeners(root: HTMLElement): void {
 
 // ── Annual portfolio report ────────────────────────────────
 
-function _buildYearOptions(): string {
-  const currentYear = new Date().getFullYear();
-  return Array.from({ length: 10 }, (_, i) => currentYear - i)
-    .map((y) => `<option value="${y}">${y}</option>`)
-    .join('');
+/**
+ * Return the set of calendar years that have at least one snapshot or
+ * transaction entry, sorted descending. Used to populate the year selector.
+ */
+export function _getEligibleYears(txs: Transaction[], snaps: Snapshot[]): number[] {
+  const years = new Set<number>();
+  for (const s of snaps) years.add(parseInt(s.date.substring(0, 4), 10));
+  for (const t of txs) years.add(parseInt(t.date.substring(0, 4), 10));
+  return Array.from(years).sort((a, b) => b - a);
 }
 
 function renderReportCard(): string {
@@ -2031,8 +2035,8 @@ function renderReportCard(): string {
         <p class="note" style="margin-bottom:.85rem">Download a self-contained HTML summary of your portfolio for any calendar year — net worth, holdings, dividends, interest, and realised gains. Open it in any browser to print to PDF.</p>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <label for="report-year-select" style="font-size:13px;color:var(--ink-2)">Year</label>
-          <select id="report-year-select" class="planning-input" style="width:90px;text-align:left">${_buildYearOptions()}</select>
-          <button class="btn btn-outline btn-sm" id="btn-download-report">Download HTML report</button>
+          <select id="report-year-select" class="planning-input" style="width:90px;text-align:left" disabled><option value="">Loading…</option></select>
+          <button class="btn btn-outline btn-sm" id="btn-download-report" disabled>Download HTML report</button>
         </div>
         <div id="report-msg" style="font-size:12px;margin-top:.6rem;min-height:18px"></div>
       </div>
@@ -2040,17 +2044,60 @@ function renderReportCard(): string {
 }
 
 function attachReportListeners(root: HTMLElement): void {
+  let yearsLoaded = false;
+
+  /** Load year options lazily — called on first user interaction or before report generation. */
+  const ensureYearsLoaded = async () => {
+    if (yearsLoaded) return;
+    yearsLoaded = true;
+    const [txs, snaps] = await Promise.all([loadTransactions(), loadSnapshots()]);
+    const years = _getEligibleYears(txs, snaps);
+    const yearEl = root.querySelector('#report-year-select') as HTMLSelectElement | null;
+    const btn = root.querySelector('#btn-download-report') as HTMLButtonElement | null;
+    const msgEl = root.querySelector('#report-msg') as HTMLElement | null;
+    if (!yearEl) return;
+    if (years.length === 0) {
+      yearEl.innerHTML = '<option value="">—</option>';
+      if (msgEl) {
+        msgEl.textContent =
+          'No data found. Add snapshots or transactions to generate a report.';
+        msgEl.style.color = 'var(--ink-3)';
+      }
+      return;
+    }
+    yearEl.innerHTML = years.map((y) => `<option value="${y}">${y}</option>`).join('');
+    yearEl.disabled = false;
+    if (btn) btn.disabled = false;
+  };
+
+  // Pre-load years on first interaction with the select or button for snappy UX.
+  root.querySelector('#report-year-select')?.addEventListener('focus', ensureYearsLoaded, { once: true });
+  root.querySelector('#report-year-select')?.addEventListener('pointerdown', ensureYearsLoaded, { once: true });
+  root.querySelector('#btn-download-report')?.addEventListener('pointerdown', ensureYearsLoaded, { once: true });
+
   root.querySelector('#btn-download-report')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-download-report') as HTMLButtonElement;
     const yearEl = root.querySelector('#report-year-select') as HTMLSelectElement | null;
-    const year = yearEl ? parseInt(yearEl.value, 10) : new Date().getFullYear();
     try {
       btn.disabled = true;
       btn.textContent = 'Generating…';
+
+      // Ensure year options are loaded (covers keyboard-only or programmatic clicks).
+      await ensureYearsLoaded();
+
+      const year = yearEl && yearEl.value ? parseInt(yearEl.value, 10) : NaN;
       const [txs, snaps] = await Promise.all([loadTransactions(), loadSnapshots()]);
+
+      // Revalidate: ensure the selected year still has real data.
+      if (isNaN(year) || !_getEligibleYears(txs, snaps).includes(year)) {
+        showMsg('report-msg', `No data found for ${isNaN(year) ? 'the selected year' : year}. Please select a valid year.`, false);
+        return;
+      }
+
       const accounts = getAccounts();
       const holdings = getHoldings();
-      const report = buildAnnualReport(year, txs, snaps, holdings, accounts);
+      const method = getCostBasisMethod();
+      const report = buildAnnualReport(year, txs, snaps, holdings, accounts, method);
       const html = renderAnnualReportHtml(report, 'EUR');
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
       const url = URL.createObjectURL(blob);

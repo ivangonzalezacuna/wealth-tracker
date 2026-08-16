@@ -43,6 +43,8 @@ export interface AnnualReport {
   year: number;
   generatedAt: string;
   accounts: AnnualReportAccount[];
+  /** Net worth at the last snapshot on or before the year start (31 Dec of prior year). */
+  openingNetWorth: number;
   totalNetWorth: number;
   holdings: AnnualReportHolding[];
   dividends: AnnualReportDividend[];
@@ -54,6 +56,9 @@ export interface AnnualReport {
   totalInterestTax: number;
   totalInterestNet: number;
   totalYearRealisedGains: number;
+  /** Standalone TAX transactions only (excludes dividend/interest withholding). */
+  standaloneTaxTotal: number;
+  /** Sum of all taxes: dividend WHT + interest WHT + standalone TAX rows. */
   totalTax: number;
 }
 
@@ -64,6 +69,8 @@ export interface AnnualReport {
  *
  * Expects all transactions (not pre-filtered) and all snapshots so that the
  * cost-basis engine can work from the full trade history.
+ *
+ * @param method - Cost-basis method to use (defaults to 'avgco').
  */
 export function buildAnnualReport(
   year: number,
@@ -71,12 +78,23 @@ export function buildAnnualReport(
   snapshots: Snapshot[],
   holdings: Holding[],
   accounts: Account[],
+  method: 'avgco' | 'fifo' | 'lifo' | 'hifo' = 'avgco',
 ): AnnualReport {
   const yearStr = String(year);
+  const prevYearEnd = `${year - 1}-12-31`;
   const yearStart = `${yearStr}-01-01`;
   const yearEnd = `${yearStr}-12-31`;
 
-  // ── Portfolio snapshot: last snapshot on or before year end ──
+  // ── Opening net worth: last snapshot on or before the previous year end ──
+  const snapsBeforeYear = snapshots.filter((s) => s.date <= prevYearEnd);
+  const openingSnap =
+    snapsBeforeYear.length > 0 ? snapsBeforeYear[snapsBeforeYear.length - 1] : null;
+  const openingNetWorth = accounts.reduce(
+    (s, a) => s + (openingSnap ? ((openingSnap[a.id || ''] as number) || 0) : 0),
+    0,
+  );
+
+  // ── Closing net worth: last snapshot on or before year end ──
   const snapsUntilYearEnd = snapshots.filter((s) => s.date <= yearEnd);
   const snap =
     snapsUntilYearEnd.length > 0 ? snapsUntilYearEnd[snapsUntilYearEnd.length - 1] : null;
@@ -90,8 +108,8 @@ export function buildAnnualReport(
   // ── Cost basis: two-pass to extract year-specific realised gains ──
   const txsBeforeYear = transactions.filter((t) => t.date < yearStart);
   const txsThroughYear = transactions.filter((t) => t.date <= yearEnd);
-  const prevBasis = computeCostBasis(txsBeforeYear);
-  const yearBasis = computeCostBasis(txsThroughYear);
+  const prevBasis = computeCostBasis(txsBeforeYear, method);
+  const yearBasis = computeCostBasis(txsThroughYear, method);
 
   const holdingMap = Object.fromEntries(holdings.map((h) => [h.isin, h]));
   const holdingRows: AnnualReportHolding[] = Object.entries(yearBasis)
@@ -151,18 +169,19 @@ export function buildAnnualReport(
   const totalInterestNet = interest.reduce((s, i) => s + i.net, 0);
 
   // ── Total tax for the year ──
-  const standaloneTax = yearTxs
+  const standaloneTaxTotal = yearTxs
     .filter((t) => t.type === TxType.TAX)
     .reduce((s, tx) => {
       const canonicalTax = tx.tax !== 0 ? tx.tax : tx.amount || 0;
       return s + Math.abs(toBase(canonicalTax, tx.currency, tx.fxRate));
     }, 0);
-  const totalTax = totalDividendTax + totalInterestTax + standaloneTax;
+  const totalTax = totalDividendTax + totalInterestTax + standaloneTaxTotal;
 
   return {
     year,
     generatedAt: new Date().toISOString(),
     accounts: accountRows,
+    openingNetWorth,
     totalNetWorth,
     holdings: holdingRows,
     dividends,
@@ -174,6 +193,7 @@ export function buildAnnualReport(
     totalInterestTax,
     totalInterestNet,
     totalYearRealisedGains,
+    standaloneTaxTotal,
     totalTax,
   };
 }
@@ -208,6 +228,8 @@ function _th(labels: string[]): string {
  * Render a self-contained, print-ready HTML page for the given annual report.
  * No external CSS or JS dependencies — designed to be saved as a file and
  * opened in any browser for printing to PDF.
+ *
+ * The document is frozen to the app's light-theme palette and targets A4 portrait.
  */
 export function renderAnnualReportHtml(report: AnnualReport, currency: string): string {
   const { year } = report;
@@ -250,12 +272,14 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
 
   const dividendsSection =
     report.dividends.length > 0
-      ? `<h2>Dividends</h2>
+      ? `<section class="doc-section">
+<h2>Dividends</h2>
 <table>
-  <thead>${_th(['ISIN', 'Name', `Gross (${currency})`, `Tax (${currency})`, `Net (${currency})`])}</thead>
+  <thead>${_th(['ISIN', 'Name', `Gross (${currency})`, `WHT (${currency})`, `Net (${currency})`])}</thead>
   <tbody>${dividendsRows}</tbody>
   <tfoot>${_tableRow(['', 'Total', _fmt(report.totalDividendGross, currency), _fmt(report.totalDividendTax, currency), _fmt(report.totalDividendNet, currency)], 'total')}</tfoot>
-</table>`
+</table>
+</section>`
       : '';
 
   // ── Interest table ──
@@ -272,12 +296,14 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
 
   const interestSection =
     report.interest.length > 0
-      ? `<h2>Interest</h2>
+      ? `<section class="doc-section">
+<h2>Interest</h2>
 <table>
-  <thead>${_th(['Source / Account', `Gross (${currency})`, `Tax (${currency})`, `Net (${currency})`])}</thead>
+  <thead>${_th(['Source / Account', `Gross (${currency})`, `WHT (${currency})`, `Net (${currency})`])}</thead>
   <tbody>${interestRows}</tbody>
   <tfoot>${_tableRow(['Total', _fmt(report.totalInterestGross, currency), _fmt(report.totalInterestTax, currency), _fmt(report.totalInterestNet, currency)], 'total')}</tfoot>
-</table>`
+</table>
+</section>`
       : '';
 
   // ── Realised gains table ──
@@ -287,93 +313,244 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
     .join('');
 
   const gainsSection = gainsRows
-    ? `<h2>Realised Gains &amp; Losses</h2>
+    ? `<section class="doc-section">
+<h2>Realised Gains &amp; Losses</h2>
 <table>
   <thead>${_th(['ISIN', 'Name', `Gain / Loss (${currency})`])}</thead>
   <tbody>${gainsRows}</tbody>
   <tfoot>${_tableRow(['', 'Total', _fmt(report.totalYearRealisedGains, currency)], 'total')}</tfoot>
-</table>`
+</table>
+</section>`
     : '';
 
   // ── Tax summary ──
   const taxSummaryRows = [
     report.totalDividendTax > 0
-      ? _tableRow(['Dividend withholding tax', _fmt(report.totalDividendTax, currency)])
+      ? _tableRow(['Dividend withholding tax (WHT)', _fmt(report.totalDividendTax, currency)])
       : '',
     report.totalInterestTax > 0
-      ? _tableRow(['Interest withholding tax', _fmt(report.totalInterestTax, currency)])
+      ? _tableRow(['Interest withholding tax (WHT)', _fmt(report.totalInterestTax, currency)])
       : '',
-    report.totalTax - report.totalDividendTax - report.totalInterestTax > 0
-      ? _tableRow([
-          'Other taxes',
-          _fmt(report.totalTax - report.totalDividendTax - report.totalInterestTax, currency),
-        ])
+    report.standaloneTaxTotal > 0
+      ? _tableRow(['Other tax transactions', _fmt(report.standaloneTaxTotal, currency)])
       : '',
   ].join('');
 
   const taxSection =
     report.totalTax > 0
-      ? `<h2>Tax Summary</h2>
+      ? `<section class="doc-section">
+<h2>Tax Summary</h2>
 <table>
   <thead>${_th(['Category', `Amount (${currency})`])}</thead>
   <tbody>${taxSummaryRows}</tbody>
-  <tfoot>${_tableRow(['Total tax paid', _fmt(report.totalTax, currency)], 'total')}</tfoot>
-</table>`
+  <tfoot>${_tableRow(['Total taxes recorded', _fmt(report.totalTax, currency)], 'total')}</tfoot>
+</table>
+</section>`
       : '';
+
+  // ── Compact yearly summary ──
+  const networthChange = report.totalNetWorth - report.openingNetWorth;
+  const networthChangeSign = networthChange >= 0 ? '+' : '';
+  const summaryRows = [
+    _tableRow(['Opening net worth (prior year-end)', _fmt(report.openingNetWorth, currency)]),
+    _tableRow(['Closing net worth (year-end)', _fmt(report.totalNetWorth, currency)]),
+    _tableRow([
+      'Net worth change',
+      `${networthChangeSign}${_fmt(networthChange, currency)}`,
+    ]),
+    report.totalDividendGross > 0
+      ? _tableRow(['Dividend income — gross', _fmt(report.totalDividendGross, currency)])
+      : '',
+    report.totalDividendTax > 0
+      ? _tableRow(['Dividend income — WHT', _fmt(report.totalDividendTax, currency)])
+      : '',
+    report.totalDividendNet > 0
+      ? _tableRow(['Dividend income — net', _fmt(report.totalDividendNet, currency)])
+      : '',
+    report.totalInterestGross > 0
+      ? _tableRow(['Interest income — gross', _fmt(report.totalInterestGross, currency)])
+      : '',
+    report.totalInterestTax > 0
+      ? _tableRow(['Interest income — WHT', _fmt(report.totalInterestTax, currency)])
+      : '',
+    report.totalInterestNet > 0
+      ? _tableRow(['Interest income — net', _fmt(report.totalInterestNet, currency)])
+      : '',
+    report.totalYearRealisedGains !== 0
+      ? _tableRow(['Realised gains / losses', _fmt(report.totalYearRealisedGains, currency)])
+      : '',
+    report.totalTax > 0
+      ? _tableRow(['Total taxes recorded', _fmt(report.totalTax, currency)])
+      : '',
+    _tableRow([`Year-end holdings (ISINs)`, String(report.holdings.filter((h) => h.shares > 0).length)]),
+    _tableRow([`Year-end accounts`, String(report.accounts.length)]),
+  ]
+    .filter(Boolean)
+    .join('');
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Annual Portfolio Report ${year}</title>
   <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1a1a;background:#fff;padding:2rem;max-width:960px;margin:0 auto;line-height:1.5}
-    h1{font-size:2rem;font-weight:700;margin-bottom:.25rem}
-    h2{font-size:1.05rem;font-weight:600;border-bottom:2px solid #1a1a1a;padding-bottom:.35rem;margin:2rem 0 .75rem}
-    .meta{color:#666;font-size:.875rem;margin-bottom:2rem}
-    .kpi-row{display:flex;gap:1.5rem;flex-wrap:wrap;margin:.5rem 0 1.25rem}
-    .kpi{background:#f5f5f5;border-radius:6px;padding:.65rem 1rem;min-width:160px}
-    .kpi-label{font-size:.75rem;color:#666;margin-bottom:.15rem}
-    .kpi-value{font-size:1.2rem;font-weight:700;font-variant-numeric:tabular-nums}
-    table{width:100%;border-collapse:collapse;font-size:.875rem;margin-bottom:1rem}
-    th{text-align:left;font-weight:600;padding:6px 10px;border-bottom:1px solid #1a1a1a;color:#333;white-space:nowrap}
-    th.num{text-align:right}
-    td{padding:5px 10px;border-bottom:1px solid #e8e8e8;vertical-align:top}
-    td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-    tr.total td{font-weight:600;border-top:1px solid #999;border-bottom:none}
-    .disclaimer{margin-top:3rem;font-size:.75rem;color:#888;border-top:1px solid #e5e5e5;padding-top:1rem}
-    @media print{body{padding:0}h2{page-break-inside:avoid}}
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Light-theme palette (frozen — standalone document) ── */
+    :root {
+      --bg:       #f5f4f0;
+      --surface:  #ffffff;
+      --surface-2:#faf9f6;
+      --ink:      #0b0b0b;
+      --ink-2:    #52514e;
+      --ink-3:    #6b6a65;
+      --line:     #e0ddd6;
+      --line-2:   #ccc9c0;
+      --brand:    #185fa5;
+      --pos:      #0f6e56;
+      --neg:      #a32d2d;
+    }
+
+    /* ── A4 page model ── */
+    @page {
+      size: A4 portrait;
+      margin: 18mm 15mm 20mm 15mm;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      font-size: 10pt;
+      line-height: 1.45;
+      color: var(--ink);
+      background: var(--surface);
+      /* screen preview margins; @page takes over for print */
+      max-width: 210mm;
+      margin: 0 auto;
+      padding: 18mm 15mm 20mm;
+    }
+
+    /* ── Document header ── */
+    .doc-header { margin-bottom: 1.6rem; border-bottom: 2px solid var(--ink); padding-bottom: .7rem; }
+    .doc-title  { font-size: 18pt; font-weight: 700; letter-spacing: -.3px; }
+    .doc-meta   { font-size: 8.5pt; color: var(--ink-3); margin-top: .3rem; }
+
+    /* ── Sections ── */
+    .doc-section { margin-top: 1.4rem; page-break-inside: avoid; }
+    /* Allow sections with large tables to break across pages */
+    .doc-section.allow-break { page-break-inside: auto; }
+
+    h2 {
+      font-size: 9.5pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--brand);
+      border-bottom: 1px solid var(--line-2);
+      padding-bottom: .3rem;
+      margin-bottom: .6rem;
+      page-break-after: avoid;
+    }
+
+    /* ── Summary grid ── */
+    .summary-table { width: 100%; border-collapse: collapse; margin-bottom: .5rem; }
+    .summary-table td { padding: 3.5px 6px; border-bottom: 1px solid var(--line); font-size: 9pt; vertical-align: top; }
+    .summary-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+
+    /* ── Data tables ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.5pt;
+      margin-bottom: .5rem;
+    }
+    thead { display: table-header-group; } /* repeat header on page breaks */
+    th {
+      text-align: left;
+      font-weight: 700;
+      padding: 5px 7px;
+      background: var(--surface-2);
+      border-top: 1px solid var(--line-2);
+      border-bottom: 1px solid var(--line-2);
+      color: var(--ink-2);
+      white-space: nowrap;
+    }
+    th.num { text-align: right; }
+    td {
+      padding: 4px 7px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+    td.num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    tr.total td {
+      font-weight: 700;
+      background: var(--surface-2);
+      border-top: 1px solid var(--line-2);
+      border-bottom: none;
+    }
+    /* Keep table rows together where possible */
+    tbody tr { page-break-inside: avoid; }
+
+    /* ── ISIN column: fixed narrow width so names get more space ── */
+    .col-isin { width: 9em; white-space: nowrap; }
+    .col-shares { width: 7em; }
+    .col-num { width: 8em; }
+
+    /* ── Disclaimer ── */
+    .disclaimer {
+      margin-top: 2rem;
+      font-size: 7.5pt;
+      color: var(--ink-3);
+      border-top: 1px solid var(--line);
+      padding-top: .7rem;
+      page-break-inside: avoid;
+    }
+
+    /* ── Screen-only helpers ── */
+    @media screen {
+      body { padding: 24px 32px; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+    }
   </style>
 </head>
 <body>
-  <h1>Annual Portfolio Report</h1>
-  <p class="meta">Year: <strong>${year}</strong> &nbsp;|&nbsp; Generated: ${generatedDate}</p>
-
-  <h2>Net Worth — Year End</h2>
-  <div class="kpi-row">
-    <div class="kpi">
-      <div class="kpi-label">Total net worth</div>
-      <div class="kpi-value">${_fmt(report.totalNetWorth, currency)}</div>
-    </div>
-    ${report.totalDividendNet > 0 ? `<div class="kpi"><div class="kpi-label">Dividend income (net)</div><div class="kpi-value">${_fmt(report.totalDividendNet, currency)}</div></div>` : ''}
-    ${report.totalInterestNet > 0 ? `<div class="kpi"><div class="kpi-label">Interest income (net)</div><div class="kpi-value">${_fmt(report.totalInterestNet, currency)}</div></div>` : ''}
-    ${report.totalTax > 0 ? `<div class="kpi"><div class="kpi-label">Total tax paid</div><div class="kpi-value">${_fmt(report.totalTax, currency)}</div></div>` : ''}
+  <div class="doc-header">
+    <div class="doc-title">Annual Portfolio Report — ${year}</div>
+    <div class="doc-meta">Generated: ${generatedDate}</div>
   </div>
-  <table>
-    <thead>${_th(['Account', `Value (${currency})`])}</thead>
-    <tbody>${accountsRows}</tbody>
-    <tfoot>${_tableRow(['Total', _fmt(report.totalNetWorth, currency)], 'total')}</tfoot>
-  </table>
+
+  <section class="doc-section">
+    <h2>Yearly Summary</h2>
+    <table class="summary-table">
+      <tbody>${summaryRows}</tbody>
+    </table>
+  </section>
+
+  <section class="doc-section">
+    <h2>Year-End Net Worth by Account</h2>
+    <table>
+      <thead>${_th(['Account', `Value (${currency})`])}</thead>
+      <tbody>${accountsRows}</tbody>
+      <tfoot>${_tableRow(['Total', _fmt(report.totalNetWorth, currency)], 'total')}</tfoot>
+    </table>
+  </section>
 
   ${
     report.holdings.length > 0
-      ? `<h2>Holdings</h2>
+      ? `<section class="doc-section allow-break">
+  <h2>Holdings at Year-End</h2>
   <table>
+    <colgroup>
+      <col class="col-isin"><col><col class="col-shares"><col class="col-num"><col class="col-num">
+    </colgroup>
     <thead>${_th(['ISIN', 'Name', 'Shares held', `Cost basis (${currency})`, `Realised gain/loss ${year} (${currency})`])}</thead>
     <tbody>${holdingsRows}</tbody>
-  </table>`
+  </table>
+</section>`
       : ''
   }
 
@@ -382,7 +559,7 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
   ${gainsSection}
   ${taxSection}
 
-  <p class="disclaimer">This report presents raw figures from your Wealth Tracker database for the calendar year ${year}. It makes no tax-law assumptions and applies no jurisdiction-specific rules. Verify all amounts with your broker statements before submitting any tax filing.</p>
+  <p class="disclaimer">This report presents raw figures from your Wealth Tracker database for the calendar year ${year}. It makes no tax-law assumptions and applies no jurisdiction-specific rules. Amounts are expressed in ${currency} at the exchange rates recorded at transaction time. Verify all amounts with your broker statements before submitting any tax filing.</p>
 </body>
 </html>`;
 }

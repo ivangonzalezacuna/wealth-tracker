@@ -185,6 +185,7 @@ import {
   generateId,
   refreshSettingsAfterChange,
   renderConfigHistoryCard,
+  _getEligibleYears,
 } from './settings';
 import { isCollapsed } from '../ui/collapseState';
 import { isBackupStale } from '../backup/exportImport';
@@ -1380,5 +1381,58 @@ describe('Button-disable verification: synchronous disable and double-click prev
       const rowsAfter = document.querySelectorAll('.settings-hold-row').length;
       expect(rowsAfter).toBe(rowsBefore + 1);
     });
+  });
+});
+
+// ── _getEligibleYears ──────────────────────────────────────────────────────────
+
+describe('_getEligibleYears', () => {
+  const snap = (date: string) => ({ date });
+  const tx = (date: string) =>
+    ({
+      id: date,
+      date,
+      source: 'broker',
+      type: 'BUY',
+      name: '',
+      isin: '',
+      shares: 0,
+      price: 0,
+      amount: 0,
+      fee: 0,
+      tax: 0,
+      currency: 'EUR',
+      fxRate: 1,
+    }) as any;
+
+  it('returns years from snapshots only', () => {
+    const years = _getEligibleYears([], [snap('2022-06-01'), snap('2024-12-31')]);
+    expect(years).toEqual([2024, 2022]);
+  });
+
+  it('returns years from transactions only', () => {
+    const years = _getEligibleYears([tx('2021-03-15'), tx('2023-11-01')], []);
+    expect(years).toEqual([2023, 2021]);
+  });
+
+  it('merges years from both sources and deduplicates', () => {
+    const years = _getEligibleYears(
+      [tx('2022-05-01'), tx('2024-01-01')],
+      [snap('2022-12-31'), snap('2023-06-01')],
+    );
+    expect(years).toEqual([2024, 2023, 2022]);
+  });
+
+  it('returns years sorted descending', () => {
+    const years = _getEligibleYears(
+      [tx('2019-01-01'), tx('2021-06-01')],
+      [snap('2020-12-31')],
+    );
+    expect(years).toEqual([2021, 2020, 2019]);
+  });
+
+  it('returns empty array when no data exists', () => {
+    const years = _getEligibleYears([], []);
+    expect(years).toEqual([]);
   });
 });

@@ -277,8 +277,8 @@ describe('renderAnnualReportHtml', () => {
   it('includes the year in the title and heading', () => {
     const report = buildAnnualReport(2024, baseTxs, snapshots, holdings, accounts);
     const html = renderAnnualReportHtml(report, 'EUR');
-    expect(html).toContain('Annual Portfolio Report 2024');
-    expect(html).toContain('>2024<');
+    expect(html).toContain('Annual Portfolio Report');
+    expect(html).toContain('2024');
   });
 
   it('contains each account label', () => {
@@ -306,5 +306,181 @@ describe('renderAnnualReportHtml', () => {
     const html = renderAnnualReportHtml(report, 'EUR');
     expect(html.trimStart()).toMatch(/^<!DOCTYPE html>/i);
     expect(html.trimEnd()).toMatch(/<\/html>$/i);
+  });
+
+  it('includes A4 page model via @page rule', () => {
+    const report = buildAnnualReport(2024, baseTxs, snapshots, holdings, accounts);
+    const html = renderAnnualReportHtml(report, 'EUR');
+    expect(html).toContain('@page');
+    expect(html).toContain('A4');
+  });
+
+  it('includes light-theme colour tokens', () => {
+    const report = buildAnnualReport(2024, baseTxs, snapshots, holdings, accounts);
+    const html = renderAnnualReportHtml(report, 'EUR');
+    // Frozen light palette must be embedded
+    expect(html).toContain('--surface:');
+    expect(html).toContain('--brand:');
+    expect(html).toContain('--ink:');
+  });
+
+  it('includes thead with display:table-header-group for repeated print headers', () => {
+    const report = buildAnnualReport(2024, baseTxs, snapshots, holdings, accounts);
+    const html = renderAnnualReportHtml(report, 'EUR');
+    expect(html).toContain('display: table-header-group');
+  });
+
+  it('includes a Yearly Summary section', () => {
+    const report = buildAnnualReport(2024, baseTxs, snapshots, holdings, accounts);
+    const html = renderAnnualReportHtml(report, 'EUR');
+    expect(html).toContain('Yearly Summary');
+    expect(html).toContain('Opening net worth');
+    expect(html).toContain('Closing net worth');
+  });
+
+  it('shows opening vs closing net worth difference in summary', () => {
+    const report = buildAnnualReport(2024, baseTxs, snapshots, holdings, accounts);
+    expect(report.openingNetWorth).toBe(95_000); // 80k + 15k from 2023-12-01
+    expect(report.totalNetWorth).toBe(117_000);
+    const html = renderAnnualReportHtml(report, 'EUR');
+    expect(html).toContain('Net worth change');
+  });
+});
+
+// ── buildAnnualReport — openingNetWorth ──────────────────────────────────────
+
+describe('buildAnnualReport — openingNetWorth', () => {
+  it('uses the last snapshot on or before the previous year end', () => {
+    // 2023-12-01 snapshot: acct-1=80k, acct-2=15k → openingNetWorth for 2024 = 95k
+    const report = buildAnnualReport(2024, baseTxs, snapshots, holdings, accounts);
+    expect(report.openingNetWorth).toBe(95_000);
+  });
+
+  it('is zero when no snapshot exists before the year', () => {
+    // No snapshot before 2022
+    const report = buildAnnualReport(2022, baseTxs, snapshots, holdings, accounts);
+    expect(report.openingNetWorth).toBe(0);
+  });
+
+  it('does not include snapshots from the current year in opening net worth', () => {
+    // 2024-06-01 is inside 2024 and must NOT count as opening for 2024
+    const report = buildAnnualReport(2024, baseTxs, snapshots, holdings, accounts);
+    // opening should be 2023-12-01 (95k), not 2024-06-01 (106k)
+    expect(report.openingNetWorth).toBe(95_000);
+  });
+});
+
+// ── buildAnnualReport — standaloneTaxTotal ───────────────────────────────────
+
+describe('buildAnnualReport — standaloneTaxTotal', () => {
+  it('counts standalone TAX transactions separately from WHT', () => {
+    const taxTx: Transaction = {
+      id: 'tax-standalone',
+      date: '2024-06-01',
+      source: 'broker',
+      type: 'TAX',
+      name: 'Capital gains tax',
+      isin: '',
+      shares: 0,
+      price: 0,
+      amount: 75,
+      fee: 0,
+      tax: 75,
+      currency: 'EUR',
+      fxRate: 1,
+    };
+    const divTx: Transaction = {
+      id: 'div-wht',
+      date: '2024-03-01',
+      source: 'broker',
+      type: 'DIVIDEND',
+      name: 'Div',
+      isin: 'IE00BKX55T58',
+      shares: 0,
+      price: 0,
+      amount: 90,
+      fee: 0,
+      tax: -10,
+      currency: 'EUR',
+      fxRate: 1,
+    };
+    const report = buildAnnualReport(
+      2024,
+      [...baseTxs, taxTx, divTx],
+      snapshots,
+      holdings,
+      accounts,
+    );
+    expect(report.standaloneTaxTotal).toBeCloseTo(75, 1);
+    expect(report.totalDividendTax).toBeCloseTo(10, 1);
+    expect(report.totalTax).toBeCloseTo(85, 1);
+  });
+
+  it('is zero when no standalone TAX transactions exist', () => {
+    const report = buildAnnualReport(2024, baseTxs, snapshots, holdings, accounts);
+    expect(report.standaloneTaxTotal).toBe(0);
+  });
+});
+
+// ── buildAnnualReport — cost-basis method ────────────────────────────────────
+
+describe('buildAnnualReport — cost-basis method', () => {
+  const buyTxs: Transaction[] = [
+    {
+      id: 'buy-a',
+      date: '2023-01-01',
+      source: 'broker',
+      type: 'BUY',
+      isin: 'TEST001',
+      name: 'Test Fund',
+      shares: 5,
+      price: 100,
+      amount: 500,
+      fee: 0,
+      tax: 0,
+      currency: 'EUR',
+      fxRate: 1,
+    },
+    {
+      id: 'buy-b',
+      date: '2023-06-01',
+      source: 'broker',
+      type: 'BUY',
+      isin: 'TEST001',
+      name: 'Test Fund',
+      shares: 5,
+      price: 200,
+      amount: 1000,
+      fee: 0,
+      tax: 0,
+      currency: 'EUR',
+      fxRate: 1,
+    },
+    {
+      id: 'sell',
+      date: '2024-03-01',
+      source: 'broker',
+      type: 'SELL',
+      isin: 'TEST001',
+      name: 'Test Fund',
+      shares: 5,
+      price: 150,
+      amount: 750,
+      fee: 0,
+      tax: 0,
+      currency: 'EUR',
+      fxRate: 1,
+    },
+  ];
+
+  it('uses the provided cost-basis method (avgco vs fifo give different gains)', () => {
+    const reportAvg = buildAnnualReport(2024, buyTxs, snapshots, holdings, accounts, 'avgco');
+    const reportFifo = buildAnnualReport(2024, buyTxs, snapshots, holdings, accounts, 'fifo');
+    // avgco: avg cost = 150, sell 5 at 150 → gain = 0
+    // fifo: first lot at 100, sell 5 at 150 → gain = 250
+    const avgGain = reportAvg.holdings.find((h) => h.isin === 'TEST001')?.yearRealisedGain ?? 0;
+    const fifoGain = reportFifo.holdings.find((h) => h.isin === 'TEST001')?.yearRealisedGain ?? 0;
+    expect(avgGain).toBeCloseTo(0, 1);
+    expect(fifoGain).toBeCloseTo(250, 1);
   });
 });
