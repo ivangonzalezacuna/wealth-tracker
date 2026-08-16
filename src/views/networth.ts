@@ -38,7 +38,6 @@ import Chart from 'chart.js/auto';
 import { T, R, resolvedT } from '../theme';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import { writeChartTable } from './chartTable';
-import { SLIDERS_ICON } from './icons';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { createChartRegistry } from './chartRegistry';
 import { formatEuroCompactPrefix, formatEuroCompactSuffix } from './chartOptions';
@@ -928,26 +927,24 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   forecastEl.innerHTML = `
       <div class="chart-controls">
         <div id="nw-forecast-legend" class="legend"></div>
-        <div style="display:flex;align-items:center;gap:4px">
-          <div class="range-toggle" id="nw-forecast-range-toggle" role="group" aria-label="Forecast range">
-            <button class="btn btn-sm btn-ghost ${_fcRange === '60' ? 'active' : ''}" data-range="60" aria-pressed="${_fcRange === '60'}">5Y</button>
-            <button class="btn btn-sm btn-ghost ${_fcRange === '120' ? 'active' : ''}" data-range="120" aria-pressed="${_fcRange === '120'}">10Y</button>
-            <button class="btn btn-sm btn-ghost ${_fcRange === '240' ? 'active' : ''}" data-range="240" aria-pressed="${_fcRange === '240'}">20Y</button>
-            <button class="btn btn-sm btn-ghost ${_fcRange === '360' ? 'active' : ''}" data-range="360" aria-pressed="${_fcRange === '360'}">30Y</button>
-            <button class="btn btn-sm btn-ghost ${_fcRange === '480' ? 'active' : ''}" data-range="480" aria-pressed="${_fcRange === '480'}">40Y</button>
-            <button class="btn btn-sm btn-ghost ${_fcRange === '600' ? 'active' : ''}" data-range="600" aria-pressed="${_fcRange === '600'}">50Y</button>
-          </div>
-          <button class="btn btn-sm btn-ghost btn-icon${_scenariosPanelOpen ? ' active' : ''}" id="nw-fc-scenarios-toggle"
-                  aria-expanded="${_scenariosPanelOpen}"
-                  aria-controls="nw-fc-scenarios-body"
-                  title="Scenarios"
-                  aria-label="Compare forecast scenarios">${SLIDERS_ICON}</button>
+        <div class="range-toggle" id="nw-forecast-range-toggle" role="group" aria-label="Forecast range">
+          <button class="btn btn-sm btn-ghost ${_fcRange === '60' ? 'active' : ''}" data-range="60" aria-pressed="${_fcRange === '60'}">5Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '120' ? 'active' : ''}" data-range="120" aria-pressed="${_fcRange === '120'}">10Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '240' ? 'active' : ''}" data-range="240" aria-pressed="${_fcRange === '240'}">20Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '360' ? 'active' : ''}" data-range="360" aria-pressed="${_fcRange === '360'}">30Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '480' ? 'active' : ''}" data-range="480" aria-pressed="${_fcRange === '480'}">40Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '600' ? 'active' : ''}" data-range="600" aria-pressed="${_fcRange === '600'}">50Y</button>
         </div>
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast" role="img" aria-label="Net worth forecast chart" aria-describedby="c-nw-forecast-table-wrap"></canvas></div>
       <div class="chart-data-table-wrap sr-only" id="c-nw-forecast-table-wrap"></div>
-      <div id="nw-fc-scenarios-body" class="forecast-scenarios"${_scenariosPanelOpen ? '' : ' hidden'}>
-        ${scenarioRowsHtml}
+      <div class="forecast-scenarios" id="nw-fc-scenarios">
+        <button class="btn btn-sm btn-ghost" id="nw-fc-scenarios-toggle"
+                aria-expanded="${_scenariosPanelOpen}"
+                aria-controls="nw-fc-scenarios-body">Scenarios ${_scenariosPanelOpen ? '&#9652;' : '&#9662;'}</button>
+        <div id="nw-fc-scenarios-body"${_scenariosPanelOpen ? '' : ' hidden'}>
+          ${scenarioRowsHtml}
+        </div>
       </div>
       <div class="note" style="line-height:1.6">
         <div style="margin-bottom:4px">Per-account return &amp; contribution assumptions (Settings \u2192 Accounts):</div>

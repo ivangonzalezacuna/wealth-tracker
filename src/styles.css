@@ -1658,9 +1658,7 @@ summary.section-label {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 8px;
-}
-.chart-controls .legend {
-  margin-bottom: 0;
+  flex-wrap: wrap;
 }
 .filter-bar-actions {
   display: flex;
@@ -1749,7 +1747,8 @@ summary.section-label {
   margin-top: 0.75rem;
   padding-top: 0.5rem;
   border-top: 1px solid var(--line-2);
-}.forecast-scenario-row {
+}
+.forecast-scenario-row {
   display: grid;
   gap: 8px;
   margin-bottom: 8px;
