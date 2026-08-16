@@ -6,7 +6,7 @@
  */
 
 /** Schema version - bump when DDL changes require a migration. */
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 /**
  * SQL statements executed on first database creation (version 0 → 1).
