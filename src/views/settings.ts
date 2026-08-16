@@ -1215,6 +1215,8 @@ function renderGoalRow(goal: NamedGoal, idx: number): string {
   const metaParts: string[] = [];
   if (fmtNW) metaParts.push(esc(fmtNW));
   if (goal.targetDate) metaParts.push(esc(formatEnglishMonth(goal.targetDate)));
+  const msCount = goal.milestones?.length ?? 0;
+  if (msCount > 0) metaParts.push(`${msCount} milestone${msCount === 1 ? '' : 's'}`);
   const metaStr = metaParts.join(' \u00B7 ');
   return `
     <div class="settings-item settings-goal-row" data-idx="${idx}">

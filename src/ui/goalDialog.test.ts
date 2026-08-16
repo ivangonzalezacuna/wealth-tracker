@@ -36,7 +36,7 @@ describe('goalDialog', () => {
   it('uses info tips instead of inline notes', () => {
     goalDialog();
     const infoTips = Array.from(document.querySelectorAll('.info-tip')) as HTMLElement[];
-    expect(infoTips).toHaveLength(2);
+    expect(infoTips).toHaveLength(3);
     expect(infoTips.every((tip) => tip.dataset.tipBound === '1')).toBe(true);
     expect(document.querySelectorAll('.goal-dialog-overlay .note')).toHaveLength(0);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));

@@ -112,10 +112,17 @@ export interface Settings {
   [key: string]: string | null | undefined;
 }
 
+export interface GoalMilestone {
+  label?: string;
+  targetAmount: string;
+  targetDate?: string;
+}
+
 export interface NamedGoal {
   label: string;
   targetNetWorth: string;
   targetDate: string;
+  milestones?: GoalMilestone[];
 }
 
 // ─── Alert Settings ──────────────────────────────────────
