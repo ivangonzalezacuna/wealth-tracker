@@ -1742,70 +1742,12 @@ summary.section-label {
   font-size: 11px;
   line-height: 1.45;
 }
-/* ── Scenario comparison section ─────────── */
-.forecast-scenarios {
-  margin-top: 0.75rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--line-2);
-}
 .forecast-controls-main {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   flex-wrap: wrap;
   justify-content: flex-end;
-}
-.forecast-scenarios-box {
-  display: grid;
-  gap: 0;
-  padding: 6px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-}
-.forecast-scenario-row {
-  display: grid;
-  grid-template-columns: minmax(140px, auto) minmax(0, 1fr);
-  gap: 6px;
-  align-items: end;
-  padding: 4px 0;
-}
-.forecast-scenario-row + .forecast-scenario-row {
-  border-top: 1px solid var(--line-2);
-  margin-top: 4px;
-  padding-top: 6px;
-}
-.forecast-scenario-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-.forecast-scenario-fields {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(130px, 1fr));
-  gap: 6px;
-}
-.forecast-scenario-field {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-.forecast-scenarios-toggle .btn-icon-svg {
-  width: 1em;
-  height: 1em;
-  display: block;
-}
-.forecast-scenarios-empty {
-  margin-bottom: 8px;
-}
-@media (max-width: 900px) {
-  .forecast-scenario-row {
-    grid-template-columns: 1fr;
-  }
-  .forecast-scenario-fields {
-    grid-template-columns: 1fr;
-  }
 }
 .range-toggle {
   display: flex;

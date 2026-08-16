@@ -5,7 +5,6 @@ import {
   forecastMonthsToTargetMulti,
   decumulationSeries,
   decumulationDuration,
-  applyScenarioToInputs,
 } from './forecast';
 
 describe('forecastMonthsToTargetMulti (single-account)', () => {
@@ -456,89 +455,5 @@ describe('decumulationDuration', () => {
 
   it('returns null for empty series', () => {
     expect(decumulationDuration([])).toBeNull();
-  });
-});
-
-// ── applyScenarioToInputs ──────────────────────────────────────────────────
-
-describe('applyScenarioToInputs', () => {
-  const base = [
-    { current: 50_000, annualContrib: 6_000, annualReturnPct: 5 },
-    { current: 20_000, annualContrib: 2_400, annualReturnPct: 2 },
-  ];
-
-  it('adds returnDeltaPct to each account annualReturnPct', () => {
-    const result = applyScenarioToInputs(base, {
-      label: 'Optimistic',
-      returnDeltaPct: 2,
-      contribDeltaAmt: 0,
-    });
-    expect(result[0].annualReturnPct).toBe(7);
-    expect(result[1].annualReturnPct).toBe(4);
-  });
-
-  it('adds contribDeltaAmt × 12 to each account annualContrib', () => {
-    const result = applyScenarioToInputs(base, {
-      label: 'More contrib',
-      returnDeltaPct: 0,
-      contribDeltaAmt: 100,
-    });
-    expect(result[0].annualContrib).toBe(6_000 + 1_200);
-    expect(result[1].annualContrib).toBe(2_400 + 1_200);
-  });
-
-  it('clamps annualContrib to 0 when contribDeltaAmt is a large negative', () => {
-    const result = applyScenarioToInputs(base, {
-      label: 'No contrib',
-      returnDeltaPct: 0,
-      contribDeltaAmt: -1_000,
-    });
-    expect(result[0].annualContrib).toBe(0);
-    expect(result[1].annualContrib).toBe(0);
-  });
-
-  it('does not mutate the original inputs', () => {
-    const original = [{ current: 30_000, annualContrib: 3_000, annualReturnPct: 6 }];
-    applyScenarioToInputs(original, { label: 'X', returnDeltaPct: 1, contribDeltaAmt: 50 });
-    expect(original[0].annualReturnPct).toBe(6);
-    expect(original[0].annualContrib).toBe(3_000);
-  });
-
-  it('preserves current and contribInterval', () => {
-    const withInterval = [
-      {
-        current: 10_000,
-        annualContrib: 1_200,
-        annualReturnPct: 4,
-        contribInterval: 'monthly' as const,
-      },
-    ];
-    const result = applyScenarioToInputs(withInterval, {
-      label: 'X',
-      returnDeltaPct: 0,
-      contribDeltaAmt: 0,
-    });
-    expect(result[0].current).toBe(10_000);
-    expect(result[0].contribInterval).toBe('monthly');
-  });
-
-  it('optimistic scenario produces higher final value than baseline', () => {
-    const baseline = forecastMultiAccountSeries(base, 60, '2024-01');
-    const optimistic = forecastMultiAccountSeries(
-      applyScenarioToInputs(base, { label: 'Optimistic', returnDeltaPct: 2, contribDeltaAmt: 0 }),
-      60,
-      '2024-01',
-    );
-    expect(optimistic[59].value).toBeGreaterThan(baseline[59].value);
-  });
-
-  it('pessimistic scenario produces lower final value than baseline', () => {
-    const baseline = forecastMultiAccountSeries(base, 60, '2024-01');
-    const pessimistic = forecastMultiAccountSeries(
-      applyScenarioToInputs(base, { label: 'Pessimistic', returnDeltaPct: -2, contribDeltaAmt: 0 }),
-      60,
-      '2024-01',
-    );
-    expect(pessimistic[59].value).toBeLessThan(baseline[59].value);
   });
 });
