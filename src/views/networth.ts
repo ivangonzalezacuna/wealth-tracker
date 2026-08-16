@@ -733,13 +733,6 @@ function _renderPlanningCard(snaps: Snapshot[], accounts: Account[]): void {
     if (tab === _planningTab) return;
     _planningTab = tab;
     _renderPlanningCard(_lastSnaps, _lastAccounts);
-    if (tab === 'drawdown') {
-      const rerenderDrawdown = () => {
-        if (_planningTab === 'drawdown') _renderDecumulationCard(_lastSnaps, _lastAccounts);
-      };
-      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(rerenderDrawdown);
-      else rerenderDrawdown();
-    }
   });
 }
 
@@ -882,15 +875,13 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   forecastEl.innerHTML = `
       <div class="chart-controls">
         <div id="nw-forecast-legend" class="legend"></div>
-        <div class="forecast-controls-main">
-          <div class="range-toggle" id="nw-forecast-range-toggle" role="group" aria-label="Forecast range">
-            <button class="btn btn-sm btn-ghost ${_fcRange === '60' ? 'active' : ''}" data-range="60" aria-pressed="${_fcRange === '60'}">5Y</button>
-            <button class="btn btn-sm btn-ghost ${_fcRange === '120' ? 'active' : ''}" data-range="120" aria-pressed="${_fcRange === '120'}">10Y</button>
-            <button class="btn btn-sm btn-ghost ${_fcRange === '240' ? 'active' : ''}" data-range="240" aria-pressed="${_fcRange === '240'}">20Y</button>
-            <button class="btn btn-sm btn-ghost ${_fcRange === '360' ? 'active' : ''}" data-range="360" aria-pressed="${_fcRange === '360'}">30Y</button>
-            <button class="btn btn-sm btn-ghost ${_fcRange === '480' ? 'active' : ''}" data-range="480" aria-pressed="${_fcRange === '480'}">40Y</button>
-            <button class="btn btn-sm btn-ghost ${_fcRange === '600' ? 'active' : ''}" data-range="600" aria-pressed="${_fcRange === '600'}">50Y</button>
-          </div>
+        <div class="range-toggle" id="nw-forecast-range-toggle" role="group" aria-label="Forecast range">
+          <button class="btn btn-sm btn-ghost ${_fcRange === '60' ? 'active' : ''}" data-range="60" aria-pressed="${_fcRange === '60'}">5Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '120' ? 'active' : ''}" data-range="120" aria-pressed="${_fcRange === '120'}">10Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '240' ? 'active' : ''}" data-range="240" aria-pressed="${_fcRange === '240'}">20Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '360' ? 'active' : ''}" data-range="360" aria-pressed="${_fcRange === '360'}">30Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '480' ? 'active' : ''}" data-range="480" aria-pressed="${_fcRange === '480'}">40Y</button>
+          <button class="btn btn-sm btn-ghost ${_fcRange === '600' ? 'active' : ''}" data-range="600" aria-pressed="${_fcRange === '600'}">50Y</button>
         </div>
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast" role="img" aria-label="Net worth forecast chart" aria-describedby="c-nw-forecast-table-wrap"></canvas></div>
@@ -900,6 +891,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
         ${acctSummaryLines}
         <div style="margin-top:4px;color:var(--ink-4)">Contribution timing follows each configured cadence (weekly, every 2 weeks, monthly, quarterly) and is bucketed month-by-month in the projection.</div>
         <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX. Assumes zero rebalancing costs; spreads, commissions, and capital-gains tax from rebalancing can reduce long-horizon returns.${goalDeadlines.length > 0 ? ' Goal deadlines and target amounts are shown as markers on the chart.' : ''}</div>
+        <div style="margin-top:4px;color:var(--ink-4)">Projection uses a single fixed return per account. A market downturn in the years approaching your target could reduce the actual balance by 30–40% compared with the deterministic figure. Consider re-running the forecast with a more conservative return to see the lower bound.</div>
       </div>
     `;
 
@@ -946,6 +938,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           },
         }
       : null;
+
   CH['c-nw-forecast'] = new Chart(document.getElementById('c-nw-forecast') as HTMLCanvasElement, {
     type: 'line',
     plugins: deadlinePlugin ? [deadlinePlugin] : [],
@@ -1059,20 +1052,18 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
 
   // Write accessible data table for screen readers / keyboard users
   const fcFmt = (v: number | null) => (v != null ? fmtEur2(v) : '—');
-  const fcTableHeaders = [
-    ...(showReal
-      ? ['Month', 'Actual (€)', 'Forecast nominal (€)', `Forecast real (€)`]
-      : ['Month', 'Actual (€)', 'Forecast (€)']),
-  ];
+  const fcTableHeaders = showReal
+    ? ['Month', 'Actual (€)', 'Forecast nominal (€)', `Forecast real (€)`]
+    : ['Month', 'Actual (€)', 'Forecast (€)'];
   writeChartTable(
     'c-nw-forecast-table-wrap',
     'Forecast data',
     fcTableHeaders,
-    labels.map((lbl, i) => {
-      return showReal && realDataFull
+    labels.map((lbl, i) =>
+      showReal && realDataFull
         ? [lbl, fcFmt(histDataFull[i]), fcFmt(fcDataFull[i]), fcFmt(realDataFull[i])]
-        : [lbl, fcFmt(histDataFull[i]), fcFmt(fcDataFull[i])];
-    }),
+        : [lbl, fcFmt(histDataFull[i]), fcFmt(fcDataFull[i])],
+    ),
   );
 
   _attachForecastRangeToggle();

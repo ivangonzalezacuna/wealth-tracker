@@ -1742,22 +1742,9 @@ summary.section-label {
   font-size: 11px;
   line-height: 1.45;
 }
-.forecast-controls-main {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
 .range-toggle {
   display: flex;
-  align-items: center;
   gap: 4px;
-}
-.range-toggle .btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 .range-toggle .btn.active {
   background: var(--brand-weak);

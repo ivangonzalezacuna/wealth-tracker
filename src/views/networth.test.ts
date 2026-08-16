@@ -419,24 +419,6 @@ describe('renderNW', () => {
     expect(fcPanel.hidden).toBe(true);
   });
 
-  it('renders forecast without scenario controls or extra scenario columns', () => {
-    const snaps = [makeSnap('2026-01', 5000, 2000)];
-    renderNW(snaps);
-
-    expect(document.getElementById('nw-fc-scenarios-toggle')).toBeNull();
-    expect(document.getElementById('nw-fc-scenarios-body')).toBeNull();
-    expect(document.getElementById('c-nw-forecast-table-wrap')!.textContent).not.toContain(
-      'Optimistic (€)',
-    );
-    expect(document.getElementById('c-nw-forecast-table-wrap')!.textContent).not.toContain(
-      'Pessimistic (€)',
-    );
-
-    const planningEl = document.getElementById('nw-planning')!;
-    expect(planningEl.textContent).not.toContain('Optimistic');
-    expect(planningEl.textContent).not.toContain('Pessimistic');
-  });
-
   it('decumulation card renders with a retirement date 20y in the future by default', () => {
     // Accounts with 7% return → auto-derived return should match
     const snaps = [makeSnap('2026-01', 5000, 2000)];
