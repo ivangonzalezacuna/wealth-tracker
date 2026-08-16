@@ -171,15 +171,6 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
             </div>
           </div>
         </div>
-          <div class="dialog-row">
-            <div class="dialog-field">
-              <label class="dialog-label" for="holdd-notes">
-                Notes${infoTip('Optional free-text notes: index changes, mergers, reminders, or any context about this holding.')}
-              </label>
-              <textarea id="holdd-notes" class="form-input dialog-input" rows="3"
-                placeholder="e.g. Switched index from MSCI World to FTSE All-World in Oct 2024">${esc(existing?.notes || '')}</textarea>
-            </div>
-          </div>
         <div class="dialog-actions">
           <button class="btn btn-sm btn-ghost js-holdd-cancel">Cancel</button>
           <button class="btn btn-sm btn-primary js-holdd-submit">${existing ? 'Save changes' : 'Add holding'}</button>
