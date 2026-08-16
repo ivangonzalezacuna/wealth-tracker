@@ -271,6 +271,10 @@ export interface ParseResult {
   unmapped: UnmappedType[];
   dateErrors: DateErrorRow[];
   numberErrors: NumberErrorRow[];
+  /** Raw CSV lines (no header) that were skipped or had number parse errors. */
+  errorLines: string[];
+  /** The raw header line from the source CSV, for reconstructing a downloadable error file. */
+  headerLine: string;
 }
 
 export interface PreviewSummary {
@@ -280,4 +284,8 @@ export interface PreviewSummary {
   unmapped: UnmappedType[];
   dateErrors: DateErrorRow[];
   numberErrors: NumberErrorRow[];
+  /** Raw CSV lines (no header) that were skipped or had number parse errors. */
+  errorLines: string[];
+  /** The raw header line from the source CSV. */
+  headerLine: string;
 }

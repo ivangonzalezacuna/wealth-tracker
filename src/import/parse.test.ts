@@ -186,6 +186,36 @@ describe('parseDate', () => {
         expect.arrayContaining(['2024-13-01', '2024/01/16', '(empty)']),
       );
     });
+
+    it('collects raw error lines for date-error rows', () => {
+      const header =
+        'transaction_id;date;type;category;name;symbol;shares;price;amount;fee;tax;currency;fx_rate';
+      const badRow1 = 'tx-1;2024-13-01;BUY;TRADING;ETF;IE00TEST;1;100;-100;0;0;EUR;';
+      const goodRow = 'tx-2;2024-01-15;BUY;TRADING;ETF;IE00TEST;1;100;-100;0;0;EUR;';
+      const badRow2 = 'tx-3;2024/01/16;BUY;TRADING;ETF;IE00TEST;1;100;-100;0;0;EUR;';
+      const csv = [header, badRow1, goodRow, badRow2].join('\n');
+      const { errorLines, headerLine } = parseWithProfile(csv, tradeRepublicProfile);
+      expect(headerLine).toBe(header);
+      expect(errorLines).toHaveLength(2);
+      expect(errorLines).toContain(badRow1);
+      expect(errorLines).toContain(badRow2);
+      expect(errorLines).not.toContain(goodRow);
+    });
+  });
+
+  describe('number errors handling', () => {
+    it('collects raw error lines for rows with unparseable number cells', () => {
+      const header =
+        'transaction_id;date;type;category;name;symbol;shares;price;amount;fee;tax;currency;fx_rate';
+      const badRow = 'tx-1;2024-01-15;BUY;TRADING;ETF;IE00TEST;1;100;N/A;0;0;EUR;';
+      const goodRow = 'tx-2;2024-02-01;BUY;TRADING;ETF;IE00TEST;1;100;-211;0;0;EUR;';
+      const csv = [header, badRow, goodRow].join('\n');
+      const { errorLines, numberErrors } = parseWithProfile(csv, tradeRepublicProfile);
+      expect(numberErrors.length).toBeGreaterThan(0);
+      expect(errorLines).toHaveLength(1);
+      expect(errorLines).toContain(badRow);
+      expect(errorLines).not.toContain(goodRow);
+    });
   });
 
   it('DD.MM.YYYY German format', () => {
