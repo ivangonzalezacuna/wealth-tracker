@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, beforeEach, afterEach, beforeAll, vi } from 'vitest';
+import initSqlJs from 'sql.js';
 import { TxType } from '../types';
 
 vi.mock('sql.js/dist/sql-wasm-browser.wasm?url', () => ({
@@ -244,5 +245,103 @@ describe.sequential('db importDb local-preservation merge', () => {
 
     expect(txs.some((t) => t.id === 'tx-cloud')).toBe(true);
     expect(txs.some((t) => t.id === 'tx-local')).toBe(true);
+  });
+
+  it('repairs imported holdings schema when cloud DB is missing notes column', async () => {
+    await saveHoldings([
+      {
+        isin: 'IE00B4L5Y983',
+        name: 'Local World Edited',
+        shortName: 'LWLD',
+        color: '#6aa3e8',
+        acc: true,
+        active: true,
+        assetClass: 'equity',
+        region: 'global',
+        foldInto: '',
+        order: 1,
+        notes: 'local holding note',
+      },
+    ]);
+
+    const SQL = await initSqlJs({
+      locateFile: () =>
+        '/home/runner/work/wealth-tracker/wealth-tracker/node_modules/sql.js/dist/sql-wasm-browser.wasm',
+    });
+    const legacyCloudDb = new SQL.Database();
+    legacyCloudDb.run(`CREATE TABLE transactions (
+      id TEXT PRIMARY KEY,
+      date TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT '',
+      type TEXT NOT NULL,
+      name TEXT NOT NULL DEFAULT '',
+      isin TEXT NOT NULL DEFAULT '',
+      shares REAL NOT NULL DEFAULT 0,
+      price REAL NOT NULL DEFAULT 0,
+      amount REAL NOT NULL DEFAULT 0,
+      fee REAL NOT NULL DEFAULT 0,
+      tax REAL NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT 'EUR',
+      fx_rate REAL NOT NULL DEFAULT 0,
+      note TEXT NOT NULL DEFAULT '',
+      category TEXT NOT NULL DEFAULT ''
+    )`);
+    legacyCloudDb.run(`CREATE TABLE accounts (
+      id TEXT PRIMARY KEY,
+      money_type TEXT NOT NULL DEFAULT '',
+      institution TEXT NOT NULL DEFAULT '',
+      label TEXT NOT NULL DEFAULT '',
+      color TEXT NOT NULL DEFAULT '',
+      is_primary_investment INTEGER NOT NULL DEFAULT 0,
+      "order" INTEGER NOT NULL DEFAULT 0,
+      annual_return_pct REAL NOT NULL DEFAULT 0,
+      contrib_amount REAL NOT NULL DEFAULT 0,
+      contrib_interval TEXT NOT NULL DEFAULT 'monthly',
+      locked INTEGER NOT NULL DEFAULT 0,
+      locked_until TEXT NOT NULL DEFAULT '',
+      extra_contrib REAL NOT NULL DEFAULT 0
+    )`);
+    legacyCloudDb.run(`CREATE TABLE holdings (
+      isin TEXT PRIMARY KEY,
+      name TEXT NOT NULL DEFAULT '',
+      short_name TEXT NOT NULL DEFAULT '',
+      color TEXT NOT NULL DEFAULT '',
+      acc INTEGER NOT NULL DEFAULT 0,
+      active INTEGER NOT NULL DEFAULT 1,
+      target_pct REAL NOT NULL DEFAULT 0,
+      asset_class TEXT NOT NULL DEFAULT '',
+      region TEXT NOT NULL DEFAULT '',
+      fold_into TEXT NOT NULL DEFAULT '',
+      "order" INTEGER NOT NULL DEFAULT 0,
+      ter REAL NOT NULL DEFAULT 0
+    )`);
+    legacyCloudDb.run(`CREATE TABLE snapshots (
+      date TEXT PRIMARY KEY,
+      values_json TEXT NOT NULL DEFAULT '{}',
+      notes TEXT NOT NULL DEFAULT ''
+    )`);
+    legacyCloudDb.run(`CREATE TABLE settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL DEFAULT ''
+    )`);
+    legacyCloudDb.run(`CREATE TABLE config_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'web',
+      entity TEXT NOT NULL,
+      summary TEXT NOT NULL DEFAULT ''
+    )`);
+    legacyCloudDb.run(`CREATE TABLE meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL DEFAULT ''
+    )`);
+    legacyCloudDb.run(`INSERT INTO meta (key, value) VALUES ('schema_version', '8')`);
+    const legacyCloudData = legacyCloudDb.export();
+    legacyCloudDb.close();
+
+    await expect(importDb(legacyCloudData)).resolves.toBeUndefined();
+
+    const holdings = await loadHoldings();
+    expect(holdings.find((h) => h.isin === 'IE00B4L5Y983')?.notes).toBe('local holding note');
   });
 });

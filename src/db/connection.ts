@@ -111,6 +111,9 @@ export async function getDb(): Promise<Database> {
     if (currentVersion < SCHEMA_VERSION) {
       applyMigrations(_db, currentVersion);
     }
+    if (ensureHoldingNotesColumn(_db)) {
+      await persistDb(_db);
+    }
   } else {
     // Fresh database
     _db = new SQL.Database();
@@ -226,6 +229,7 @@ export async function importDb(
     if (currentVersion < SCHEMA_VERSION) {
       applyMigrations(newDb, currentVersion);
     }
+    ensureHoldingNotesColumn(newDb);
 
     // Merge back local rows that the cloud copy doesn't have or is outdated on.
     if (localTxRows.length > 0) mergeLocalTransactions(newDb, localTxRows);
@@ -272,11 +276,14 @@ function getLocalAccountRows(db: Database): unknown[][] {
 }
 
 function getLocalHoldingRows(db: Database): unknown[][] {
+  const hasNotes = tableHasColumn(db, 'holdings', 'notes');
   const result = db.exec(
-    'SELECT isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter, notes FROM holdings ORDER BY rowid ASC',
+    hasNotes
+      ? 'SELECT isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter, notes FROM holdings ORDER BY rowid ASC'
+      : 'SELECT isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter FROM holdings ORDER BY rowid ASC',
   );
   if (result.length === 0) return [];
-  return result[0].values;
+  return hasNotes ? result[0].values : result[0].values.map((row) => [...row, '']);
 }
 
 function getLocalSnapshotRows(db: Database): unknown[][] {
@@ -319,13 +326,29 @@ function mergeLocalAccounts(db: Database, rows: unknown[][]): void {
 }
 
 function mergeLocalHoldings(db: Database, rows: unknown[][]): void {
+  const hasNotes = tableHasColumn(db, 'holdings', 'notes');
   const stmt = db.prepare(
-    'INSERT INTO holdings (isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(isin) DO UPDATE SET name=excluded.name, short_name=excluded.short_name, color=excluded.color, acc=excluded.acc, active=excluded.active, target_pct=excluded.target_pct, asset_class=excluded.asset_class, region=excluded.region, fold_into=excluded.fold_into, "order"=excluded."order", ter=excluded.ter, notes=excluded.notes',
+    hasNotes
+      ? 'INSERT INTO holdings (isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(isin) DO UPDATE SET name=excluded.name, short_name=excluded.short_name, color=excluded.color, acc=excluded.acc, active=excluded.active, target_pct=excluded.target_pct, asset_class=excluded.asset_class, region=excluded.region, fold_into=excluded.fold_into, "order"=excluded."order", ter=excluded.ter, notes=excluded.notes'
+      : 'INSERT INTO holdings (isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(isin) DO UPDATE SET name=excluded.name, short_name=excluded.short_name, color=excluded.color, acc=excluded.acc, active=excluded.active, target_pct=excluded.target_pct, asset_class=excluded.asset_class, region=excluded.region, fold_into=excluded.fold_into, "order"=excluded."order", ter=excluded.ter',
   );
   for (const row of rows) {
-    stmt.run(row as (string | number | null)[]);
+    const values = row as (string | number | null)[];
+    stmt.run((hasNotes ? values : values.slice(0, 12)) as (string | number | null)[]);
   }
   stmt.free();
+}
+
+function tableHasColumn(db: Database, table: string, column: string): boolean {
+  const result = db.exec(`PRAGMA table_info(${table})`);
+  if (result.length === 0) return false;
+  return result[0].values.some((row) => String(row[1]) === column);
+}
+
+function ensureHoldingNotesColumn(db: Database): boolean {
+  if (tableHasColumn(db, 'holdings', 'notes')) return false;
+  db.run(`ALTER TABLE holdings ADD COLUMN notes TEXT NOT NULL DEFAULT ''`);
+  return true;
 }
 
 function mergeLocalSnapshots(db: Database, rows: unknown[][]): void {
