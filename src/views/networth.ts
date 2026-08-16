@@ -32,7 +32,7 @@ import {
   decumulationDuration,
 } from '../model/forecast';
 import type { AccountForecastInput, DecumulationStrategy } from '../model/forecast';
-import type { Snapshot, Account } from '../types';
+import type { Snapshot, Account, GoalMilestone } from '../types';
 import Chart from 'chart.js/auto';
 import { T, R, resolvedT } from '../theme';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
@@ -110,6 +110,64 @@ function _buildAccountForecastInputs(snap: Snapshot, accounts: Account[]): Accou
     const contribInterval = isPrimaryInvestment ? globalContribInterval : accountContribInterval;
     return { current, annualContrib, annualReturnPct, contribInterval };
   });
+}
+
+/** Renders milestones section for a goal progress card using infoTip for note icons. */
+function _renderMilestonesSection(
+  milestones: GoalMilestone[],
+  liquidTotal: number,
+  target: number,
+  accountInputs: AccountForecastInput[],
+): string {
+  const valid = [...milestones]
+    .filter((ms) => {
+      const amt = parseFloat((ms.targetAmount || '').replace(/\./g, '').replace(',', '.'));
+      return isFinite(amt) && amt > 0 && amt < target;
+    })
+    .sort((a, b) => {
+      const na = parseFloat(a.targetAmount.replace(/\./g, '').replace(',', '.'));
+      const nb = parseFloat(b.targetAmount.replace(/\./g, '').replace(',', '.'));
+      return na - nb;
+    });
+  if (valid.length === 0) return '';
+
+  const rows = valid
+    .map((ms) => {
+      const msAmt = parseFloat((ms.targetAmount || '').replace(/\./g, '').replace(',', '.'));
+      const reached = liquidTotal >= msAmt;
+      const validDate = ms.targetDate && /^\d{4}-\d{2}$/.test(ms.targetDate) ? ms.targetDate : null;
+      let etaOrStatus: string;
+      if (reached) {
+        etaOrStatus = `<span class="pos">Reached</span>`;
+      } else {
+        const etaMonths = forecastMonthsToTargetMulti(accountInputs, msAmt);
+        if (etaMonths !== null) {
+          const d = new Date();
+          d.setMonth(d.getMonth() + etaMonths, 1);
+          const etaStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          if (validDate) {
+            etaOrStatus =
+              etaStr <= validDate
+                ? `<span class="pos">On track</span> (ETA ${fmtMon(etaStr)})`
+                : `<span class="neg">Behind</span> (ETA ${fmtMon(etaStr)})`;
+          } else {
+            etaOrStatus = `ETA ${fmtMon(etaStr)}`;
+          }
+        } else {
+          etaOrStatus = `<span class="note">No ETA</span>`;
+        }
+      }
+      return `<div class="row ms-row">
+        <div class="row-label ms-label">${fmtEur(msAmt)}${validDate ? ` · ${fmtMon(validDate)}` : ''}${ms.label ? infoTip(ms.label) : ''}</div>
+        <div class="row-val ms-val"><span class="ms-status">${etaOrStatus}</span></div>
+      </div>`;
+    })
+    .join('');
+
+  return `<div style="margin-bottom:.5rem">
+    <div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Milestones</div>
+    ${rows}
+  </div>`;
 }
 
 /** Re-renders only the goal progress cards using latest cached state. */
@@ -192,10 +250,21 @@ function _renderGoalCards(): void {
           <span>${fmtPctVal(Math.min(100, (liquidTotal / target) * 100))} complete</span>
           <span>${fmtEur(liquidTotal)} / ${fmtEur(target)}</span>
         </div>
-        <div style="height:8px;background:var(--surface-3);border-radius:var(--radius-xs);overflow:hidden">
+        <div style="position:relative;height:8px;background:var(--surface-3);border-radius:var(--radius-xs);overflow:hidden">
           <div style="width:${pctComplete}%;height:100%;background:${pctComplete >= 100 ? 'var(--pos)' : isOnTrack === false ? 'var(--warn)' : 'var(--brand)'};border-radius:var(--radius-xs);transition:width .3s"></div>
+          ${(goal.milestones ?? [])
+            .map((ms) => {
+              const msAmt = parseFloat(
+                (ms.targetAmount || '').replace(/\./g, '').replace(',', '.'),
+              );
+              if (!isFinite(msAmt) || msAmt <= 0 || msAmt >= target) return '';
+              const msPos = Math.min(100, Math.round((msAmt / target) * 100));
+              return `<div style="position:absolute;top:0;left:${msPos}%;width:2px;height:100%;background:var(--ink-3);transform:translateX(-50%)" title="${esc(ms.label || fmtEur(msAmt))}"></div>`;
+            })
+            .join('')}
         </div>
       </div>
+      ${_renderMilestonesSection(goal.milestones ?? [], liquidTotal, target, accountInputs)}
       <div class="row" style="align-items:flex-start"><div class="row-label">ETA</div><div class="row-val" style="font-size:12px;text-align:left;flex-shrink:1;overflow-wrap:break-word;word-break:break-word;min-width:0">${etaText}${_inflationRate > 0 ? '<br><span class="note" style="font-size:11px">ETA is in nominal terms; inflation is not factored in.</span>' : ''}</div></div>
       ${lockedNote}`;
     panels.push({ title, html: panelHtml });
@@ -238,6 +307,7 @@ function _renderGoalCards(): void {
       _renderGoalCards();
     });
   }
+  attachInfoTips(goalEl);
 }
 
 /**

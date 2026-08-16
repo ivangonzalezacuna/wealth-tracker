@@ -428,6 +428,29 @@ details[open] > summary .card-chevron {
   color: var(--neg);
 }
 
+/* Milestone rows inside goal cards */
+.ms-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  align-items: baseline;
+}
+.ms-label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ms-val {
+  font-size: 12px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.ms-status {
+  font-weight: 400;
+}
+
 /* Tables */
 .tbl {
   overflow-x: auto;
@@ -2358,6 +2381,11 @@ input[type='color'] {
   align-items: center;
   justify-content: center;
 }
+.btn-icon-svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
 .btn-icon .btn-icon-svg {
   width: 14px;
   height: 14px;
@@ -2984,6 +3012,108 @@ input[type='color'] {
   flex-direction: column;
   gap: 4px;
   padding-top: 5px;
+}
+
+/* ── Goal dialog & milestone rows ────────────────────────── */
+.goal-dialog-row-compact .dialog-field {
+  flex: 1 1 180px;
+}
+.goal-date-field {
+  justify-content: flex-end;
+}
+.goal-milestone-row {
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  padding: 7px 9px;
+  margin-bottom: 7px;
+}
+.ms-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+.ms-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ms-body {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.ms-row .ms-field {
+  flex: 1 1 80px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ms-row .ms-label-field {
+  flex: 1 1 180px;
+}
+.ms-date-field {
+  flex: 1 1 150px;
+}
+.ms-field-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-2);
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.ms-opt {
+  font-weight: 400;
+  color: var(--ink-3);
+}
+.ms-date-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  flex: 1;
+  position: relative;
+}
+.ms-date-btn {
+  font-size: 13px;
+  flex: 1;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ms-date-wrap.has-clear .ms-date-btn {
+  padding-right: 34px;
+}
+.ms-date-clear-btn {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  border: none;
+  z-index: 1;
+}
+.ms-date-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* Hidden input used only for value sync + showPicker() */
+.ms-date {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+  border: none;
 }
 
 /* ── Theme toggle button ────────────────────────────────── */
