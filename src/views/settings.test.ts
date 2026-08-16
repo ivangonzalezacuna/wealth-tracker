@@ -1424,10 +1424,7 @@ describe('_getEligibleYears', () => {
   });
 
   it('returns years sorted descending', () => {
-    const years = _getEligibleYears(
-      [tx('2019-01-01'), tx('2021-06-01')],
-      [snap('2020-12-31')],
-    );
+    const years = _getEligibleYears([tx('2019-01-01'), tx('2021-06-01')], [snap('2020-12-31')]);
     expect(years).toEqual([2021, 2020, 2019]);
   });
 

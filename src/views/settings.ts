@@ -2059,8 +2059,7 @@ function attachReportListeners(root: HTMLElement): void {
     if (years.length === 0) {
       yearEl.innerHTML = '<option value="">—</option>';
       if (msgEl) {
-        msgEl.textContent =
-          'No data found. Add snapshots or transactions to generate a report.';
+        msgEl.textContent = 'No data found. Add snapshots or transactions to generate a report.';
         msgEl.style.color = 'var(--ink-3)';
       }
       return;
@@ -2071,9 +2070,15 @@ function attachReportListeners(root: HTMLElement): void {
   };
 
   // Pre-load years on first interaction with the select or button for snappy UX.
-  root.querySelector('#report-year-select')?.addEventListener('focus', ensureYearsLoaded, { once: true });
-  root.querySelector('#report-year-select')?.addEventListener('pointerdown', ensureYearsLoaded, { once: true });
-  root.querySelector('#btn-download-report')?.addEventListener('pointerdown', ensureYearsLoaded, { once: true });
+  root
+    .querySelector('#report-year-select')
+    ?.addEventListener('focus', ensureYearsLoaded, { once: true });
+  root
+    .querySelector('#report-year-select')
+    ?.addEventListener('pointerdown', ensureYearsLoaded, { once: true });
+  root
+    .querySelector('#btn-download-report')
+    ?.addEventListener('pointerdown', ensureYearsLoaded, { once: true });
 
   root.querySelector('#btn-download-report')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-download-report') as HTMLButtonElement;
@@ -2090,7 +2095,11 @@ function attachReportListeners(root: HTMLElement): void {
 
       // Revalidate: ensure the selected year still has real data.
       if (isNaN(year) || !_getEligibleYears(txs, snaps).includes(year)) {
-        showMsg('report-msg', `No data found for ${isNaN(year) ? 'the selected year' : year}. Please select a valid year.`, false);
+        showMsg(
+          'report-msg',
+          `No data found for ${isNaN(year) ? 'the selected year' : year}. Please select a valid year.`,
+          false,
+        );
         return;
       }
 

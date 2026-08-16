@@ -244,10 +244,10 @@ function _th(labels: string[]): string {
   return `<tr>${labels.map((l, i) => `<th${i > 0 ? ' class="num"' : ''}>${l}</th>`).join('')}</tr>`;
 }
 
-function _rowsWhen(items: Array<{ when: boolean; cells: string[] }>): string {
+function _rowsWhen(items: Array<[boolean, string[]]>): string {
   return items
-    .filter((item) => item.when)
-    .map((item) => _tableRow(item.cells))
+    .filter(([when]) => when)
+    .map(([, cells]) => _tableRow(cells))
     .join('');
 }
 
@@ -397,18 +397,18 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
 
   // ── Tax summary ──
   const taxSummaryRows = _rowsWhen([
-    {
-      when: report.totalDividendTax !== 0,
-      cells: ['Dividend withholding tax', _fmt(report.totalDividendTax, currency)],
-    },
-    {
-      when: report.totalInterestTax !== 0,
-      cells: ['Interest withholding tax', _fmt(report.totalInterestTax, currency)],
-    },
-    {
-      when: report.standaloneTaxTotal !== 0,
-      cells: ['Other tax transactions', _fmt(report.standaloneTaxTotal, currency)],
-    },
+    [
+      report.totalDividendTax !== 0,
+      ['Dividend withholding tax', _fmt(report.totalDividendTax, currency)],
+    ],
+    [
+      report.totalInterestTax !== 0,
+      ['Interest withholding tax', _fmt(report.totalInterestTax, currency)],
+    ],
+    [
+      report.standaloneTaxTotal !== 0,
+      ['Other tax transactions', _fmt(report.standaloneTaxTotal, currency)],
+    ],
   ]);
 
   const taxSection = report.totalTax
@@ -427,42 +427,39 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
   const networthChange = report.totalNetWorth - report.openingNetWorth;
   const networthChangeSign = networthChange >= 0 ? '+' : '';
   const summaryBreakdownRows = _rowsWhen([
-    {
-      when: report.totalDividendGross > 0,
-      cells: ['Dividend income - gross', _fmt(report.totalDividendGross, currency)],
-    },
-    {
-      when: report.totalDividendTax !== 0,
-      cells: ['Dividend withholding tax (signed)', _fmt(report.totalDividendTax, currency)],
-    },
-    {
-      when: report.totalDividendNet > 0,
-      cells: ['Dividend income - net', _fmt(report.totalDividendNet, currency)],
-    },
-    {
-      when: report.totalInterestGross > 0,
-      cells: ['Interest income - gross', _fmt(report.totalInterestGross, currency)],
-    },
-    {
-      when: report.totalInterestTax !== 0,
-      cells: ['Interest withholding tax (signed)', _fmt(report.totalInterestTax, currency)],
-    },
-    {
-      when: report.totalInterestNet > 0,
-      cells: ['Interest income - net', _fmt(report.totalInterestNet, currency)],
-    },
-    {
-      when: report.totalYearRealisedGains !== 0,
-      cells: ['Realised gains / losses', _fmt(report.totalYearRealisedGains, currency)],
-    },
-    {
-      when: report.standaloneTaxTotal !== 0,
-      cells: ['Standalone tax transactions (signed)', _fmt(report.standaloneTaxTotal, currency)],
-    },
-    {
-      when: report.totalTax !== 0,
-      cells: ['Total taxes (signed)', _fmt(report.totalTax, currency)],
-    },
+    [
+      report.totalDividendGross > 0,
+      ['Dividend income - gross', _fmt(report.totalDividendGross, currency)],
+    ],
+    [
+      report.totalDividendTax !== 0,
+      ['Dividend withholding tax (signed)', _fmt(report.totalDividendTax, currency)],
+    ],
+    [
+      report.totalDividendNet > 0,
+      ['Dividend income - net', _fmt(report.totalDividendNet, currency)],
+    ],
+    [
+      report.totalInterestGross > 0,
+      ['Interest income - gross', _fmt(report.totalInterestGross, currency)],
+    ],
+    [
+      report.totalInterestTax !== 0,
+      ['Interest withholding tax (signed)', _fmt(report.totalInterestTax, currency)],
+    ],
+    [
+      report.totalInterestNet > 0,
+      ['Interest income - net', _fmt(report.totalInterestNet, currency)],
+    ],
+    [
+      report.totalYearRealisedGains !== 0,
+      ['Realised gains / losses', _fmt(report.totalYearRealisedGains, currency)],
+    ],
+    [
+      report.standaloneTaxTotal !== 0,
+      ['Standalone tax transactions (signed)', _fmt(report.standaloneTaxTotal, currency)],
+    ],
+    [report.totalTax !== 0, ['Total taxes (signed)', _fmt(report.totalTax, currency)]],
   ]);
   const summaryTotalsRows = [
     _tableRow(['Report period', `${periodStartDate} → ${periodEndDate}`]),
