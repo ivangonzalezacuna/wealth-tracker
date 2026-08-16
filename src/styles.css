@@ -1658,7 +1658,9 @@ summary.section-label {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 8px;
-  flex-wrap: wrap;
+}
+.chart-controls .legend {
+  margin-bottom: 0;
 }
 .filter-bar-actions {
   display: flex;

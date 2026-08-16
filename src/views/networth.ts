@@ -1052,23 +1052,25 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
               },
             ]
           : []),
-        ...scenarioSeriesArr.map((ss, i) => ({
-          label: _scenarios[i].label,
-          data: [
-            ...new Array(histValues.length - 1).fill(null),
-            histValues[histValues.length - 1],
-            ...ss.map((p) => p.value),
-          ],
-          borderColor: SCENARIO_COLORS[i % SCENARIO_COLORS.length],
-          backgroundColor: 'transparent',
-          borderWidth: 1.5,
-          borderDash: [6, 4],
-          pointRadius: 0,
-          fill: false,
-          tension: 0.3,
-          spanGaps: false,
-          order: 4 + i,
-        })),
+        ...(_scenariosPanelOpen
+          ? scenarioSeriesArr.map((ss, i) => ({
+              label: _scenarios[i].label,
+              data: [
+                ...new Array(histValues.length - 1).fill(null),
+                histValues[histValues.length - 1],
+                ...ss.map((p) => p.value),
+              ],
+              borderColor: SCENARIO_COLORS[i % SCENARIO_COLORS.length],
+              backgroundColor: 'transparent',
+              borderWidth: 1.5,
+              borderDash: [6, 4],
+              pointRadius: 0,
+              fill: false,
+              tension: 0.3,
+              spanGaps: false,
+              order: 4 + i,
+            }))
+          : []),
       ],
     },
     options: {
