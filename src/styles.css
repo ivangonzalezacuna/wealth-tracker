@@ -2988,26 +2988,81 @@ input[type='color'] {
 
 /* ── Goal milestone rows ─────────────────────────────────── */
 .goal-milestone-row {
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+.ms-header {
   display: flex;
-  gap: 6px;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 6px;
 }
-.goal-milestone-row .ms-amount {
-  flex: 1 1 90px;
-  min-width: 60px;
+.ms-index {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
-.goal-milestone-row .ms-label {
+.ms-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ms-fields-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ms-fields-row .ms-field {
+  flex: 1 1 80px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ms-fields-row .ms-label-field {
   flex: 2 1 120px;
-  min-width: 80px;
 }
-.goal-milestone-row .ms-date {
-  flex: 1 1 110px;
-  min-width: 90px;
+.ms-date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
-.goal-milestone-row .js-ms-del {
-  flex-shrink: 0;
-  align-self: center;
+.ms-field-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.ms-opt {
+  font-weight: 400;
+  color: var(--ink-3);
+}
+.ms-date-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.ms-date-btn {
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.ms-date-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* Hidden input used only for value sync + showPicker() */
+.ms-date {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+  border: none;
 }
 
 /* ── Theme toggle button ────────────────────────────────── */
