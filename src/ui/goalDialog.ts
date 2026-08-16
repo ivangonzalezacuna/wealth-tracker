@@ -58,7 +58,7 @@ function _renderGoalDateField(dateLabel: string, existingDate: string): string {
           aria-label="${existingDate ? `Target date: ${esc(dateLabel)}` : 'Set target date'}">
           ${CALENDAR_ICON}<span id="goald-date-val" class="ms-date-val">${esc(dateLabel)}</span>
         </button>
-        <button type="button" class="btn btn-sm btn-ghost btn-icon js-goal-date-clear"
+        <button type="button" class="btn btn-sm btn-ghost btn-icon ms-date-clear-btn js-goal-date-clear"
           ${existingDate ? '' : 'hidden'}
           aria-label="Clear target date" title="Clear target date">&#x2715;</button>
         <input id="goald-date" class="ms-date" type="month" value="${esc(existingDate)}"
@@ -99,7 +99,7 @@ function _renderMilestoneRows(container: HTMLElement, goalDate?: string): void {
               </button>
               ${
                 dateVal
-                  ? `<button type="button" class="btn btn-sm btn-ghost btn-icon js-ms-date-clear"
+                  ? `<button type="button" class="btn btn-sm btn-ghost btn-icon ms-date-clear-btn js-ms-date-clear"
                   data-ms-idx="${i}" aria-label="Clear deadline for milestone ${i + 1}" title="Clear deadline">&#x2715;</button>`
                   : ''
               }
