@@ -226,6 +226,86 @@ describe('buildAnnualReport — realised gains', () => {
   });
 });
 
+describe('buildAnnualReport — dividends with refunds', () => {
+  it('treats a positive tx.tax on a dividend as a refund (reduces total)', () => {
+    const txs: Transaction[] = [
+      {
+        id: 'div-normal',
+        date: '2024-03-01',
+        source: 'broker',
+        type: 'DIVIDEND',
+        name: 'Vanguard FTSE All-World',
+        isin: 'IE00BKX55T58',
+        shares: 0,
+        price: 0,
+        amount: 85,
+        fee: 0,
+        tax: -15, // 15 EUR withheld
+        currency: 'EUR',
+        fxRate: 1,
+      },
+      {
+        id: 'div-refund',
+        date: '2024-09-01',
+        source: 'broker',
+        type: 'DIVIDEND',
+        name: 'Vanguard FTSE All-World',
+        isin: 'IE00BKX55T58',
+        shares: 0,
+        price: 0,
+        amount: 10,
+        fee: 0,
+        tax: 8, // 8 EUR refunded
+        currency: 'EUR',
+        fxRate: 1,
+      },
+    ];
+    const report = buildAnnualReport(2024, [...baseTxs, ...txs], snapshots, holdings, accounts);
+    // net tax paid = 15 - 8 = 7
+    expect(report.totalDividendTax).toBeCloseTo(7, 1);
+  });
+});
+
+describe('buildAnnualReport — standalone TAX refunds', () => {
+  it('treats a negative standalone TAX transaction as a refund', () => {
+    const txs: Transaction[] = [
+      {
+        id: 'tax-paid',
+        date: '2024-01-31',
+        source: 'broker',
+        type: 'TAX',
+        name: 'Capital gains tax',
+        isin: '',
+        shares: 0,
+        price: 0,
+        amount: 100,
+        fee: 0,
+        tax: 100,
+        currency: 'EUR',
+        fxRate: 1,
+      },
+      {
+        id: 'tax-refund',
+        date: '2024-06-30',
+        source: 'broker',
+        type: 'TAX',
+        name: 'Tax refund',
+        isin: '',
+        shares: 0,
+        price: 0,
+        amount: -30,
+        fee: 0,
+        tax: -30, // refund
+        currency: 'EUR',
+        fxRate: 1,
+      },
+    ];
+    const report = buildAnnualReport(2024, [...baseTxs, ...txs], snapshots, holdings, accounts);
+    expect(report.standaloneTaxTotal).toBeCloseTo(70, 1); // 100 - 30
+    expect(report.totalTax).toBeCloseTo(70, 1);
+  });
+});
+
 describe('buildAnnualReport — total tax', () => {
   it('sums dividend tax, interest tax, and standalone TAX transactions', () => {
     const taxTxs: Transaction[] = [

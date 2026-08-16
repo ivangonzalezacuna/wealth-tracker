@@ -1,5 +1,5 @@
 /**
- * Annual portfolio report — pure functions for building and rendering a
+ * Annual portfolio report: pure functions for building and rendering a
  * year-end summary of net worth, holdings, income, and taxable events.
  *
  * All functions are side-effect free and depend only on their parameters.
@@ -58,7 +58,7 @@ export interface AnnualReport {
   totalYearRealisedGains: number;
   /** Standalone TAX transactions only (excludes dividend/interest withholding). */
   standaloneTaxTotal: number;
-  /** Sum of all taxes: dividend WHT + interest WHT + standalone TAX rows. */
+  /** Sum of all taxes: dividend withholding tax + interest withholding tax + standalone TAX rows. Negative when refunds exceed taxes paid. */
   totalTax: number;
 }
 
@@ -90,7 +90,7 @@ export function buildAnnualReport(
   const openingSnap =
     snapsBeforeYear.length > 0 ? snapsBeforeYear[snapsBeforeYear.length - 1] : null;
   const openingNetWorth = accounts.reduce(
-    (s, a) => s + (openingSnap ? ((openingSnap[a.id || ''] as number) || 0) : 0),
+    (s, a) => s + (openingSnap ? (openingSnap[a.id || ''] as number) || 0 : 0),
     0,
   );
 
@@ -129,12 +129,13 @@ export function buildAnnualReport(
   const divByIsin: Record<string, { gross: number; tax: number; net: number }> = {};
   for (const tx of yearTxs.filter((t) => t.type === TxType.DIVIDEND)) {
     const isin = tx.isin || '';
-    const taxAbs = Math.abs(toBase(tx.tax || 0, tx.currency, tx.fxRate));
+    // tx.tax is negative when withheld (paid), positive when refunded — keep the signed value
+    const taxSigned = -toBase(tx.tax || 0, tx.currency, tx.fxRate); // negate: negative tx.tax → positive tax paid
     const net = Math.abs(toBase(tx.amount, tx.currency, tx.fxRate));
-    const gross = net + taxAbs;
+    const gross = net + taxSigned;
     if (!divByIsin[isin]) divByIsin[isin] = { gross: 0, tax: 0, net: 0 };
     divByIsin[isin].gross += gross;
-    divByIsin[isin].tax += taxAbs;
+    divByIsin[isin].tax += taxSigned;
     divByIsin[isin].net += net;
   }
   const dividends: AnnualReportDividend[] = Object.entries(divByIsin).map(([isin, d]) => ({
@@ -154,10 +155,10 @@ export function buildAnnualReport(
     const taxRaw = toBase(tx.tax || 0, tx.currency, tx.fxRate);
     const net = toBase(tx.amount, tx.currency, tx.fxRate);
     const gross = net - taxRaw; // gross = net before deduction (taxRaw < 0 when tax was paid)
-    const taxPaid = Math.abs(taxRaw);
+    const taxSigned = -taxRaw; // negate: negative taxRaw → positive tax paid; positive taxRaw → refund (negative)
     if (!intBySource[src]) intBySource[src] = { gross: 0, tax: 0, net: 0 };
     intBySource[src].gross += gross;
-    intBySource[src].tax += taxPaid;
+    intBySource[src].tax += taxSigned;
     intBySource[src].net += net;
   }
   const interest: AnnualReportInterest[] = Object.entries(intBySource).map(([source, i]) => ({
@@ -173,7 +174,8 @@ export function buildAnnualReport(
     .filter((t) => t.type === TxType.TAX)
     .reduce((s, tx) => {
       const canonicalTax = tx.tax !== 0 ? tx.tax : tx.amount || 0;
-      return s + Math.abs(toBase(canonicalTax, tx.currency, tx.fxRate));
+      // Keep sign: positive = tax paid, negative = refund received
+      return s + toBase(canonicalTax, tx.currency, tx.fxRate);
     }, 0);
   const totalTax = totalDividendTax + totalInterestTax + standaloneTaxTotal;
 
@@ -275,7 +277,7 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
       ? `<section class="doc-section">
 <h2>Dividends</h2>
 <table>
-  <thead>${_th(['ISIN', 'Name', `Gross (${currency})`, `WHT (${currency})`, `Net (${currency})`])}</thead>
+  <thead>${_th(['ISIN', 'Name', `Gross (${currency})`, `Withholding tax (${currency})`, `Net (${currency})`])}</thead>
   <tbody>${dividendsRows}</tbody>
   <tfoot>${_tableRow(['', 'Total', _fmt(report.totalDividendGross, currency), _fmt(report.totalDividendTax, currency), _fmt(report.totalDividendNet, currency)], 'total')}</tfoot>
 </table>
@@ -299,7 +301,7 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
       ? `<section class="doc-section">
 <h2>Interest</h2>
 <table>
-  <thead>${_th(['Source / Account', `Gross (${currency})`, `WHT (${currency})`, `Net (${currency})`])}</thead>
+  <thead>${_th(['Source / Account', `Gross (${currency})`, `Withholding tax (${currency})`, `Net (${currency})`])}</thead>
   <tbody>${interestRows}</tbody>
   <tfoot>${_tableRow(['Total', _fmt(report.totalInterestGross, currency), _fmt(report.totalInterestTax, currency), _fmt(report.totalInterestNet, currency)], 'total')}</tfoot>
 </table>
@@ -325,19 +327,19 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
 
   // ── Tax summary ──
   const taxSummaryRows = [
-    report.totalDividendTax > 0
-      ? _tableRow(['Dividend withholding tax (WHT)', _fmt(report.totalDividendTax, currency)])
+    report.totalDividendTax !== 0
+      ? _tableRow(['Dividend withholding tax', _fmt(report.totalDividendTax, currency)])
       : '',
-    report.totalInterestTax > 0
-      ? _tableRow(['Interest withholding tax (WHT)', _fmt(report.totalInterestTax, currency)])
+    report.totalInterestTax !== 0
+      ? _tableRow(['Interest withholding tax', _fmt(report.totalInterestTax, currency)])
       : '',
-    report.standaloneTaxTotal > 0
+    report.standaloneTaxTotal !== 0
       ? _tableRow(['Other tax transactions', _fmt(report.standaloneTaxTotal, currency)])
       : '',
   ].join('');
 
   const taxSection =
-    report.totalTax > 0
+    report.totalTax !== 0
       ? `<section class="doc-section">
 <h2>Tax Summary</h2>
 <table>
@@ -354,35 +356,35 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
   const summaryRows = [
     _tableRow(['Opening net worth (prior year-end)', _fmt(report.openingNetWorth, currency)]),
     _tableRow(['Closing net worth (year-end)', _fmt(report.totalNetWorth, currency)]),
-    _tableRow([
-      'Net worth change',
-      `${networthChangeSign}${_fmt(networthChange, currency)}`,
-    ]),
+    _tableRow(['Net worth change', `${networthChangeSign}${_fmt(networthChange, currency)}`]),
     report.totalDividendGross > 0
-      ? _tableRow(['Dividend income — gross', _fmt(report.totalDividendGross, currency)])
+      ? _tableRow(['Dividend income - gross', _fmt(report.totalDividendGross, currency)])
       : '',
-    report.totalDividendTax > 0
-      ? _tableRow(['Dividend income — WHT', _fmt(report.totalDividendTax, currency)])
+    report.totalDividendTax !== 0
+      ? _tableRow(['Dividend income - withholding tax', _fmt(report.totalDividendTax, currency)])
       : '',
     report.totalDividendNet > 0
-      ? _tableRow(['Dividend income — net', _fmt(report.totalDividendNet, currency)])
+      ? _tableRow(['Dividend income - net', _fmt(report.totalDividendNet, currency)])
       : '',
     report.totalInterestGross > 0
-      ? _tableRow(['Interest income — gross', _fmt(report.totalInterestGross, currency)])
+      ? _tableRow(['Interest income - gross', _fmt(report.totalInterestGross, currency)])
       : '',
-    report.totalInterestTax > 0
-      ? _tableRow(['Interest income — WHT', _fmt(report.totalInterestTax, currency)])
+    report.totalInterestTax !== 0
+      ? _tableRow(['Interest income - withholding tax', _fmt(report.totalInterestTax, currency)])
       : '',
     report.totalInterestNet > 0
-      ? _tableRow(['Interest income — net', _fmt(report.totalInterestNet, currency)])
+      ? _tableRow(['Interest income - net', _fmt(report.totalInterestNet, currency)])
       : '',
     report.totalYearRealisedGains !== 0
       ? _tableRow(['Realised gains / losses', _fmt(report.totalYearRealisedGains, currency)])
       : '',
-    report.totalTax > 0
+    report.totalTax !== 0
       ? _tableRow(['Total taxes recorded', _fmt(report.totalTax, currency)])
       : '',
-    _tableRow([`Year-end holdings (ISINs)`, String(report.holdings.filter((h) => h.shares > 0).length)]),
+    _tableRow([
+      `Year-end holdings (ISINs)`,
+      String(report.holdings.filter((h) => h.shares > 0).length),
+    ]),
     _tableRow([`Year-end accounts`, String(report.accounts.length)]),
   ]
     .filter(Boolean)
@@ -519,7 +521,7 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
 </head>
 <body>
   <div class="doc-header">
-    <div class="doc-title">Annual Portfolio Report — ${year}</div>
+    <div class="doc-title">Annual Portfolio Report ${year}</div>
     <div class="doc-meta">Generated: ${generatedDate}</div>
   </div>
 
