@@ -9,6 +9,7 @@ import {
   openDialogShell,
 } from './modalShell';
 import { infoTip, attachInfoTips } from './infoTip';
+import { CALENDAR_ICON } from '../views/icons';
 
 export interface GoalDialogOptions {
   existing?: NamedGoal;
@@ -80,7 +81,7 @@ function _renderMilestoneRows(container: HTMLElement, goalDate?: string): void {
             <button type="button" class="btn btn-sm btn-ghost ms-date-btn js-ms-date-btn"
               aria-label="${dateVal ? `Deadline: ${esc(dateLabel)}` : `Set deadline for milestone ${i + 1}`}"
               ${!hasGoalDate ? `disabled title="Set a target date on the goal first"` : ''}>
-              <span aria-hidden="true">&#x1F4C5;</span>
+            ${CALENDAR_ICON}
               <span class="ms-date-val">${esc(dateLabel)}</span>
             </button>
             ${
@@ -126,6 +127,9 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
     overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-labelledby', 'goal-dialog-title');
 
+    const _existingDate = existing?.targetDate || '';
+    const _existingDateLabel = _existingDate ? _fmtMonthLabel(_existingDate) : 'Set date';
+
     overlay.innerHTML = `
       <div class="dialog-card">
         <div class="dialog-header">
@@ -150,10 +154,20 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
           </div>
           <div class="dialog-row">
             <div class="dialog-field">
-              <label class="dialog-label" for="goald-date">
+              <label class="dialog-label">
                 Target date${infoTip('Optional. Leave empty to track progress and ETA without a deadline.')}
               </label>
-              <input id="goald-date" class="form-input dialog-input" type="month" value="${esc(existing?.targetDate || '')}">
+              <div class="ms-date-wrap">
+                <button type="button" class="btn btn-sm btn-ghost ms-date-btn js-goal-date-btn"
+                  aria-label="${_existingDate ? `Target date: ${esc(_existingDateLabel)}` : 'Set target date'}">
+                  ${CALENDAR_ICON}<span id="goald-date-val">${esc(_existingDateLabel)}</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-ghost btn-icon js-goal-date-clear"
+                  ${_existingDate ? '' : 'hidden'}
+                  aria-label="Clear target date" title="Clear target date">&#x2715;</button>
+                <input id="goald-date" class="ms-date" type="month" value="${esc(_existingDate)}"
+                  aria-hidden="true" tabindex="-1" aria-label="Goal target date">
+              </div>
             </div>
           </div>
           <div class="dialog-row">
@@ -175,12 +189,45 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
 
     const msList = overlay.querySelector<HTMLElement>('#goald-ms-list')!;
     const dateInput = overlay.querySelector<HTMLInputElement>('#goald-date')!;
+    const dateValSpan = overlay.querySelector<HTMLElement>('#goald-date-val')!;
+    const goalDateClearBtn = overlay.querySelector<HTMLButtonElement>('.js-goal-date-clear')!;
+    const goalDateBtn = overlay.querySelector<HTMLButtonElement>('.js-goal-date-btn')!;
 
     const getGoalDate = () => dateInput?.value.trim() ?? '';
 
+    const _updateGoalDateBtn = () => {
+      const val = dateInput.value;
+      const label = val ? _fmtMonthLabel(val) : 'Set date';
+      dateValSpan.textContent = label;
+      goalDateBtn.setAttribute(
+        'aria-label',
+        val ? `Target date: ${label}` : 'Set target date',
+      );
+      goalDateClearBtn.hidden = !val;
+    };
+
     _renderMilestoneRows(msList, getGoalDate());
 
-    dateInput?.addEventListener('input', () => {
+    overlay.addEventListener('click', (e) => {
+      if ((e.target as Element).closest('.js-goal-date-btn')) {
+        try {
+          (dateInput as HTMLInputElement & { showPicker(): void }).showPicker();
+        } catch {
+          /* not supported in this browser */
+        }
+        return;
+      }
+      if ((e.target as Element).closest('.js-goal-date-clear')) {
+        dateInput.value = '';
+        _updateGoalDateBtn();
+        _syncMilestonesFromDom(msList);
+        _renderMilestoneRows(msList, getGoalDate());
+        return;
+      }
+    });
+
+    dateInput?.addEventListener('change', () => {
+      _updateGoalDateBtn();
       _syncMilestonesFromDom(msList);
       _renderMilestoneRows(msList, getGoalDate());
     });
