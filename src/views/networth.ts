@@ -163,7 +163,7 @@ function _renderMilestonesSection(
       }
       const dateLabel = validTargetDate ? ` · ${fmtMon(validTargetDate)}` : '';
       const noteIcon = ms.label
-        ? ` <button class="ms-info-btn" data-ms-note="${esc(ms.label)}" aria-label="Milestone note" tabindex="0">ℹ</button>`
+        ? ` <button class="ms-info-btn" data-ms-note="${esc(ms.label)}" aria-label="Milestone note" tabindex="0">i</button>`
         : '';
       return `<div class="row ms-row">
         <div class="row-label ms-label">${fmtEur(msAmt)}${dateLabel}${noteIcon}</div>
