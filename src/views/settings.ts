@@ -29,6 +29,7 @@ import { validateGoalLabels } from '../model/goals';
 import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { showMsg, reinjectPendingMsg, withButtonGuard, esc, fmtEur } from '../utils';
+import { buildAnnualReport, renderAnnualReportHtml } from '../model/annualReport';
 import type {
   Account,
   Holding,
@@ -77,6 +78,7 @@ type CardKey =
   | 'portfolio-behavior'
   | 'cache'
   | 'backup'
+  | 'reports'
   | 'config-history';
 
 /** One busy flag per card. Every Save/Delete/action handler in a card must
@@ -147,6 +149,7 @@ const SETTINGS_DEFAULT_COLLAPSED_CARDS: ReadonlySet<CardKey> = new Set([
   'portfolio-behavior',
   'cache',
   'backup',
+  'reports',
   'config-history',
 ]);
 
@@ -227,6 +230,7 @@ export function renderSettings(): void {
       ${renderPortfolioBehaviorCard(settings)}
       ${renderCacheCard()}
       ${renderBackupCard()}
+      ${renderReportCard()}
       ${renderConfigHistoryCard([])}
     </div>
   `;
@@ -239,6 +243,7 @@ export function renderSettings(): void {
   attachPortfolioBehaviorListeners(el);
   attachCacheListeners(el);
   attachBackupListeners(el);
+  attachReportListeners(el);
   attachColorPickerSync(el);
   attachCardCollapseListeners(el);
   attachSettingsGroupNavListeners(el);
@@ -2002,6 +2007,66 @@ function attachCacheListeners(root: HTMLElement): void {
       showMsg('resync-msg', 'Done', true);
     } catch (err: any) {
       showMsg('resync-msg', 'Error: ' + (err?.message || 'unknown'), false);
+    }
+  });
+}
+
+// ── Annual portfolio report ────────────────────────────────
+
+function _buildYearOptions(): string {
+  const currentYear = new Date().getFullYear();
+  return Array.from({ length: 10 }, (_, i) => currentYear - i)
+    .map((y) => `<option value="${y}">${y}</option>`)
+    .join('');
+}
+
+function renderReportCard(): string {
+  return `
+    <div class="card card-collapsible" id="settings-card-reports" data-card-key="reports">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Annual portfolio report</div>
+        <span class="card-chevron"></span>
+      </div>
+      <div class="card-body">
+        <p class="note" style="margin-bottom:.85rem">Download a self-contained HTML summary of your portfolio for any calendar year — net worth, holdings, dividends, interest, and realised gains. Open it in any browser to print to PDF.</p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <label for="report-year-select" style="font-size:13px;color:var(--ink-2)">Year</label>
+          <select id="report-year-select" class="planning-input" style="width:90px;text-align:left">${_buildYearOptions()}</select>
+          <button class="btn btn-outline btn-sm" id="btn-download-report">Download HTML report</button>
+        </div>
+        <div id="report-msg" style="font-size:12px;margin-top:.6rem;min-height:18px"></div>
+      </div>
+    </div>`;
+}
+
+function attachReportListeners(root: HTMLElement): void {
+  root.querySelector('#btn-download-report')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-download-report') as HTMLButtonElement;
+    const yearEl = root.querySelector('#report-year-select') as HTMLSelectElement | null;
+    const year = yearEl ? parseInt(yearEl.value, 10) : new Date().getFullYear();
+    try {
+      btn.disabled = true;
+      btn.textContent = 'Generating…';
+      const [txs, snaps] = await Promise.all([loadTransactions(), loadSnapshots()]);
+      const accounts = getAccounts();
+      const holdings = getHoldings();
+      const report = buildAnnualReport(year, txs, snaps, holdings, accounts);
+      const html = renderAnnualReportHtml(report, 'EUR');
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `wealth-tracker-report-${year}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showMsg('report-msg', `Report for ${year} downloaded.`, true);
+    } catch (err: any) {
+      showMsg('report-msg', 'Report generation failed: ' + err.message, false);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Download HTML report';
     }
   });
 }

@@ -42,7 +42,7 @@ Focus: deeper analytics, richer planning, and data quality.
 
 ### Planning & Forecasting
 
-- **Scenario comparison** — The current forecast chart shows a single projection based on the configured return assumptions. In practice, users think in terms of "what happens if returns are lower than expected" or "what if I increase contributions by €200/month". Defining two or three named scenarios side by side on the same chart gives a much more honest and actionable picture of the uncertainty range, without requiring a separate spreadsheet.
+- ~~**Scenario comparison**~~ ✅ — The forecast chart supports up to three named scenarios (e.g. Optimistic +2 %/yr, Pessimistic −2 %/yr) rendered as dashed overlay lines. Each scenario is defined by a return delta and a contribution delta; the controls are exposed in a collapsible "Scenarios" panel below the forecast chart.
 
 - ~~**Goal milestones**~~ ✅ — The existing `NamedGoal` type supports a target amount and target date, and the Net Worth tab renders a progress bar toward the final target. For long-horizon goals (e.g. a 20-year retirement target), the distance to the end is often too abstract to be motivating. Adding optional intermediate milestones — say, €100k by 2027, €300k by 2030 — keeps the progress indicator meaningful at every stage of the journey and makes it easier to spot if the pace is slipping before it becomes a hard-to-recover problem.
 
@@ -50,7 +50,7 @@ Focus: deeper analytics, richer planning, and data quality.
 
 - **Account groups with country** — As portfolios grow, accounts multiply: a primary investment account, a pension, an emergency fund, a savings account in a different jurisdiction. Each account should carry an optional country field (useful when a person holds accounts across different countries with different tax rules). Accounts can then be grouped by purpose ("Retirement", "Liquid savings") or by country, enabling richer views: net worth by group, contribution budget per group, forecast by group.
 
-- **Annual portfolio report** — A one-click export of the full portfolio state as a cleanly formatted HTML page (printable to PDF via the browser). The report combines two things that belong together: the net-worth and holdings snapshot for the year, and a summary of taxable events — dividends, interest, realised gains, and withheld taxes — aggregated per calendar year and per ISIN. If accounts carry a country field (see Account groups below), the document can be sectioned by country, making it straightforward for a user who holds accounts in multiple jurisdictions to find the numbers relevant to each. The report applies no tax logic and makes no jurisdiction-specific assumptions; it simply presents the raw figures clearly, so the user can transfer them into whichever form their local tax authority requires. All the data is already in the database; this is a presentation, aggregation, and templating task.
+- ~~**Annual portfolio report**~~ ✅ — A "Annual portfolio report" card in Settings → Advanced lets the user select a calendar year and download a self-contained HTML file containing net worth, holdings, dividends, interest, realised gains, and a tax summary. The file has no external dependencies and can be printed to PDF from any browser.
 
 ### Developer Experience
 

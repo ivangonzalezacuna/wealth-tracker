@@ -1742,6 +1742,24 @@ summary.section-label {
   font-size: 11px;
   line-height: 1.45;
 }
+/* ── Scenario comparison section ─────────── */
+.forecast-scenarios {
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line-2);
+}
+.forecast-scenario-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.forecast-scenario-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 .range-toggle {
   display: flex;
   gap: 4px;

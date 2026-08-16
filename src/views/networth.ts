@@ -30,8 +30,9 @@ import {
   forecastMonthsToTargetMulti,
   decumulationSeries,
   decumulationDuration,
+  applyScenarioToInputs,
 } from '../model/forecast';
-import type { AccountForecastInput, DecumulationStrategy } from '../model/forecast';
+import type { AccountForecastInput, DecumulationStrategy, ScenarioDef } from '../model/forecast';
 import type { Snapshot, Account, GoalMilestone } from '../types';
 import Chart from 'chart.js/auto';
 import { T, R, resolvedT } from '../theme';
@@ -57,6 +58,14 @@ let _ddReturnPct = 0; // annual return % during retirement; 0 = derive from acco
 let _ddReturnPctManual = false; // true once user has edited the return-rate input
 let _stateLoaded = false; // tracks whether persisted settings have been loaded into module state
 let _planningTab: 'forecast' | 'drawdown' = 'forecast'; // active tab in the combined planning card
+
+// ── Scenario comparison state ────────────────────────────
+const SCENARIO_COLORS = ['rgba(230,120,20,0.9)', 'rgba(160,40,200,0.9)', 'rgba(20,160,80,0.9)'];
+let _scenarios: ScenarioDef[] = [
+  { label: 'Optimistic', returnDeltaPct: 2, contribDeltaAmt: 0 },
+  { label: 'Pessimistic', returnDeltaPct: -2, contribDeltaAmt: 0 },
+];
+let _scenariosPanelOpen = false;
 
 /** Load persisted drawdown + inflation settings from the Settings store (runs once). */
 function _loadPersistedState(): void {
@@ -872,6 +881,43 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     })
     .join('<br>');
 
+  // Compute per-scenario forecast series (before building innerHTML so they're available for chart data)
+  const scenarioSeriesArr = _scenarios.map((scenario) =>
+    forecastMultiAccountSeries(
+      applyScenarioToInputs(accountInputs, scenario),
+      forecastMonths,
+      latestDate,
+    ),
+  );
+
+  // Build scenario rows HTML for the collapsible panel
+  const scenarioRowsHtml = _scenarios
+    .map(
+      (s, i) => `
+      <div class="forecast-scenario-row" data-scenario-idx="${i}">
+        <input type="text" class="forecast-scenario-label planning-input" value="${esc(s.label)}"
+               placeholder="Scenario name" aria-label="Scenario ${i + 1} name"
+               style="width:110px;text-align:left">
+        <span class="forecast-scenario-field">
+          <span class="planning-label">Return</span>
+          <input type="number" class="forecast-scenario-return planning-input"
+                 value="${s.returnDeltaPct}" step="0.5" min="-20" max="20"
+                 aria-label="Scenario ${i + 1} return delta %/yr">
+          <span class="planning-label">%/yr</span>
+        </span>
+        <span class="forecast-scenario-field">
+          <span class="planning-label">Contrib</span>
+          <input type="number" class="forecast-scenario-contrib planning-input"
+                 value="${s.contribDeltaAmt}" step="50"
+                 aria-label="Scenario ${i + 1} contribution delta €/mo">
+          <span class="planning-label">€/mo</span>
+        </span>
+        <button class="btn btn-sm btn-ghost forecast-scenario-remove" data-scenario-remove="${i}"
+                aria-label="Remove scenario ${i + 1}">✕</button>
+      </div>`,
+    )
+    .join('');
+
   forecastEl.innerHTML = `
       <div class="chart-controls">
         <div id="nw-forecast-legend" class="legend"></div>
@@ -886,12 +932,21 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast" role="img" aria-label="Net worth forecast chart" aria-describedby="c-nw-forecast-table-wrap"></canvas></div>
       <div class="chart-data-table-wrap sr-only" id="c-nw-forecast-table-wrap"></div>
+      <div class="forecast-scenarios" id="nw-fc-scenarios">
+        <button class="btn btn-sm btn-ghost" id="nw-fc-scenarios-toggle"
+                aria-expanded="${_scenariosPanelOpen}"
+                aria-controls="nw-fc-scenarios-body">Scenarios ${_scenariosPanelOpen ? '&#9652;' : '&#9662;'}</button>
+        <div id="nw-fc-scenarios-body"${_scenariosPanelOpen ? '' : ' hidden'}>
+          ${scenarioRowsHtml}
+          ${_scenarios.length < 3 ? `<button class="btn btn-sm btn-ghost" id="nw-fc-add-scenario">+ Add scenario</button>` : ''}
+        </div>
+      </div>
       <div class="note" style="line-height:1.6">
         <div style="margin-bottom:4px">Per-account return &amp; contribution assumptions (Settings \u2192 Accounts):</div>
         ${acctSummaryLines}
         <div style="margin-top:4px;color:var(--ink-4)">Contribution timing follows each configured cadence (weekly, every 2 weeks, monthly, quarterly) and is bucketed month-by-month in the projection.</div>
         <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX. Assumes zero rebalancing costs; spreads, commissions, and capital-gains tax from rebalancing can reduce long-horizon returns.${goalDeadlines.length > 0 ? ' Goal deadlines and target amounts are shown as markers on the chart.' : ''}</div>
-        <div style="margin-top:4px;color:var(--ink-4)">Projection uses a single fixed return per account. A market downturn in the years approaching your target could reduce the actual balance by 30–40% compared with the deterministic figure. Consider re-running the forecast with a more conservative return to see the lower bound.</div>
+        <div style="margin-top:4px;color:var(--ink-4)">Use the Scenarios section above to project alternative outcomes (e.g. higher or lower returns, changed contributions).</div>
       </div>
     `;
 
@@ -989,6 +1044,23 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
               },
             ]
           : []),
+        ...scenarioSeriesArr.map((ss, i) => ({
+          label: _scenarios[i].label,
+          data: [
+            ...new Array(histValues.length - 1).fill(null),
+            histValues[histValues.length - 1],
+            ...ss.map((p) => p.value),
+          ],
+          borderColor: SCENARIO_COLORS[i % SCENARIO_COLORS.length],
+          backgroundColor: 'transparent',
+          borderWidth: 1.5,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          fill: false,
+          tension: 0.3,
+          spanGaps: false,
+          order: 4 + i,
+        })),
       ],
     },
     options: {
@@ -1067,6 +1139,70 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   );
 
   _attachForecastRangeToggle();
+  _attachScenarioListeners();
+}
+
+// ── Scenario listeners ──
+
+function _attachScenarioListeners(): void {
+  const body = document.getElementById('nw-fc-scenarios-body');
+  const toggle = document.getElementById('nw-fc-scenarios-toggle');
+
+  toggle?.addEventListener('click', () => {
+    _scenariosPanelOpen = !_scenariosPanelOpen;
+    _renderForecastChart(_lastSnaps, _lastAccounts);
+  });
+
+  document.getElementById('nw-fc-add-scenario')?.addEventListener('click', () => {
+    if (_scenarios.length < 3) {
+      _scenarios.push({
+        label: `Scenario ${_scenarios.length + 1}`,
+        returnDeltaPct: 0,
+        contribDeltaAmt: 0,
+      });
+      _renderForecastChart(_lastSnaps, _lastAccounts);
+    }
+  });
+
+  body?.querySelectorAll<HTMLElement>('[data-scenario-remove]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.scenarioRemove || '0', 10);
+      if (_scenarios.length > 1) {
+        _scenarios.splice(idx, 1);
+      } else {
+        _scenarios = [{ label: 'Scenario 1', returnDeltaPct: 0, contribDeltaAmt: 0 }];
+      }
+      _renderForecastChart(_lastSnaps, _lastAccounts);
+    });
+  });
+
+  body?.querySelectorAll<HTMLElement>('.forecast-scenario-row').forEach((row) => {
+    const idx = parseInt(row.dataset.scenarioIdx || '0', 10);
+    if (!_scenarios[idx]) return;
+
+    row
+      .querySelector<HTMLInputElement>('.forecast-scenario-label')
+      ?.addEventListener('change', (e) => {
+        _scenarios[idx].label = (e.target as HTMLInputElement).value;
+        _renderForecastChart(_lastSnaps, _lastAccounts);
+      });
+
+    row
+      .querySelector<HTMLInputElement>('.forecast-scenario-return')
+      ?.addEventListener('change', (e) => {
+        const v = parseFloat((e.target as HTMLInputElement).value);
+        if (isFinite(v)) _scenarios[idx].returnDeltaPct = Math.max(-20, Math.min(20, v));
+        _renderForecastChart(_lastSnaps, _lastAccounts);
+      });
+
+    row
+      .querySelector<HTMLInputElement>('.forecast-scenario-contrib')
+      ?.addEventListener('change', (e) => {
+        const v = parseFloat((e.target as HTMLInputElement).value);
+        if (isFinite(v)) _scenarios[idx].contribDeltaAmt = v;
+        _renderForecastChart(_lastSnaps, _lastAccounts);
+      });
+  });
 }
 
 // ── Decumulation chart ──

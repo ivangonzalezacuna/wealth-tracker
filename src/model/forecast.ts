@@ -150,6 +150,34 @@ export interface AccountForecastInput {
   contribInterval?: ContribInterval;
 }
 
+/**
+ * A named forecast scenario that applies return and contribution adjustments
+ * on top of the baseline per-account inputs.
+ */
+export interface ScenarioDef {
+  label: string;
+  /** Percentage points added to each account's annualReturnPct, e.g. 2 for +2 %/yr. */
+  returnDeltaPct: number;
+  /** Monthly contribution delta in €, applied annually (×12) per account; negative values are clamped so annualContrib ≥ 0. */
+  contribDeltaAmt: number;
+}
+
+/**
+ * Apply a ScenarioDef to a set of AccountForecastInputs, returning a new array
+ * with the scenario adjustments applied. The original inputs are not mutated.
+ */
+export function applyScenarioToInputs(
+  inputs: AccountForecastInput[],
+  scenario: ScenarioDef,
+): AccountForecastInput[] {
+  const annualDelta = scenario.contribDeltaAmt * 12;
+  return inputs.map((a) => ({
+    ...a,
+    annualReturnPct: a.annualReturnPct + scenario.returnDeltaPct,
+    annualContrib: Math.max(0, a.annualContrib + annualDelta),
+  }));
+}
+
 interface ContributionPlanState {
   amountPerExecution: number;
   executionsPerMonth: number;
