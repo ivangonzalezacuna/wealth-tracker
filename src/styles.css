@@ -1749,16 +1749,37 @@ summary.section-label {
   border-top: 1px solid var(--line-2);
 }
 .forecast-scenario-row {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.forecast-scenario-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 6px;
+}
+.forecast-scenario-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 .forecast-scenario-field {
-  display: inline-flex;
-  align-items: center;
+  display: grid;
   gap: 4px;
+  min-width: 0;
+}
+.forecast-scenarios-empty {
+  margin-bottom: 8px;
+}
+@media (max-width: 900px) {
+  .forecast-scenario-fields {
+    grid-template-columns: 1fr;
+  }
 }
 .range-toggle {
   display: flex;

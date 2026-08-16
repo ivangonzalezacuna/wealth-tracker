@@ -61,10 +61,7 @@ let _planningTab: 'forecast' | 'drawdown' = 'forecast'; // active tab in the com
 
 // ── Scenario comparison state ────────────────────────────
 const SCENARIO_COLORS = ['rgba(230,120,20,0.9)', 'rgba(160,40,200,0.9)', 'rgba(20,160,80,0.9)'];
-let _scenarios: ScenarioDef[] = [
-  { label: 'Optimistic', returnDeltaPct: 2, contribDeltaAmt: 0 },
-  { label: 'Pessimistic', returnDeltaPct: -2, contribDeltaAmt: 0 },
-];
+let _scenarios: ScenarioDef[] = [];
 let _scenariosPanelOpen = false;
 
 /** Load persisted drawdown + inflation settings from the Settings store (runs once). */
@@ -742,6 +739,13 @@ function _renderPlanningCard(snaps: Snapshot[], accounts: Account[]): void {
     if (tab === _planningTab) return;
     _planningTab = tab;
     _renderPlanningCard(_lastSnaps, _lastAccounts);
+    if (tab === 'drawdown') {
+      const rerenderDrawdown = () => {
+        if (_planningTab === 'drawdown') _renderDecumulationCard(_lastSnaps, _lastAccounts);
+      };
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(rerenderDrawdown);
+      else rerenderDrawdown();
+    }
   });
 }
 
@@ -895,25 +899,30 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     .map(
       (s, i) => `
       <div class="forecast-scenario-row" data-scenario-idx="${i}">
-        <input type="text" class="forecast-scenario-label planning-input" value="${esc(s.label)}"
-               placeholder="Scenario name" aria-label="Scenario ${i + 1} name"
-               style="width:110px;text-align:left">
-        <span class="forecast-scenario-field">
-          <span class="planning-label">Return</span>
-          <input type="number" class="forecast-scenario-return planning-input"
-                 value="${s.returnDeltaPct}" step="0.5" min="-20" max="20"
-                 aria-label="Scenario ${i + 1} return delta %/yr">
-          <span class="planning-label">%/yr</span>
-        </span>
-        <span class="forecast-scenario-field">
-          <span class="planning-label">Contrib</span>
-          <input type="number" class="forecast-scenario-contrib planning-input"
-                 value="${s.contribDeltaAmt}" step="50"
-                 aria-label="Scenario ${i + 1} contribution delta €/mo">
-          <span class="planning-label">€/mo</span>
-        </span>
-        <button class="btn btn-sm btn-ghost forecast-scenario-remove" data-scenario-remove="${i}"
-                aria-label="Remove scenario ${i + 1}">✕</button>
+        <div class="forecast-scenario-head">
+          <label class="planning-label" for="nw-fc-scenario-label-${i}">Scenario name</label>
+          <button class="btn btn-sm btn-ghost forecast-scenario-remove" data-scenario-remove="${i}"
+                  aria-label="Remove scenario ${i + 1}">✕</button>
+        </div>
+        <div class="forecast-scenario-fields">
+          <span class="forecast-scenario-field">
+            <input id="nw-fc-scenario-label-${i}" type="text" class="forecast-scenario-label planning-input" value="${esc(s.label)}"
+                   placeholder="Scenario ${i + 1}" aria-label="Scenario ${i + 1} name"
+                   style="width:100%;text-align:left">
+          </span>
+          <span class="forecast-scenario-field">
+            <span class="planning-label">Return (%/yr)</span>
+            <input type="number" class="forecast-scenario-return planning-input"
+                   value="${s.returnDeltaPct}" step="0.5" min="-20" max="20"
+                   aria-label="Scenario ${i + 1} return delta %/yr">
+          </span>
+          <span class="forecast-scenario-field">
+            <span class="planning-label">Contrib (€/mo)</span>
+            <input type="number" class="forecast-scenario-contrib planning-input"
+                   value="${s.contribDeltaAmt}" step="50"
+                   aria-label="Scenario ${i + 1} contribution delta €/mo">
+          </span>
+        </div>
       </div>`,
     )
     .join('');
@@ -937,6 +946,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
                 aria-expanded="${_scenariosPanelOpen}"
                 aria-controls="nw-fc-scenarios-body">Scenarios ${_scenariosPanelOpen ? '&#9652;' : '&#9662;'}</button>
         <div id="nw-fc-scenarios-body"${_scenariosPanelOpen ? '' : ' hidden'}>
+          ${_scenarios.length === 0 ? '<div class="forecast-scenarios-empty note">No scenarios yet. Add one to compare custom outcomes.</div>' : ''}
           ${scenarioRowsHtml}
           ${_scenarios.length < 3 ? `<button class="btn btn-sm btn-ghost" id="nw-fc-add-scenario">+ Add scenario</button>` : ''}
         </div>
@@ -1167,11 +1177,7 @@ function _attachScenarioListeners(): void {
   body?.querySelectorAll<HTMLElement>('[data-scenario-remove]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const idx = parseInt(btn.dataset.scenarioRemove || '0', 10);
-      if (_scenarios.length > 1) {
-        _scenarios.splice(idx, 1);
-      } else {
-        _scenarios = [{ label: 'Scenario 1', returnDeltaPct: 0, contribDeltaAmt: 0 }];
-      }
+      _scenarios.splice(idx, 1);
       _renderForecastChart(_lastSnaps, _lastAccounts);
     });
   });
