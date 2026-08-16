@@ -138,7 +138,6 @@ function _renderMilestonesSection(
     .map((ms) => {
       const msAmt = parseFloat((ms.targetAmount || '').replace(/\./g, '').replace(',', '.'));
       const reached = liquidTotal >= msAmt;
-      const label = ms.label ? esc(ms.label) : fmtEur(msAmt);
       const validTargetDate =
         ms.targetDate && /^\d{4}-\d{2}$/.test(ms.targetDate) ? ms.targetDate : null;
       let etaOrStatus: string;
@@ -163,10 +162,12 @@ function _renderMilestonesSection(
         }
       }
       const dateLabel = validTargetDate ? ` · ${fmtMon(validTargetDate)}` : '';
-      const amtPrefix = ms.label ? `<span class="ms-amt">${fmtEur(msAmt)}</span> ` : '';
+      const noteIcon = ms.label
+        ? ` <button class="ms-info-btn" data-ms-note="${esc(ms.label)}" aria-label="Milestone note" tabindex="0">ℹ</button>`
+        : '';
       return `<div class="row ms-row">
-        <div class="row-label ms-label">${label}${dateLabel}</div>
-        <div class="row-val ms-val">${amtPrefix}<span class="ms-status">${etaOrStatus}</span></div>
+        <div class="row-label ms-label">${fmtEur(msAmt)}${dateLabel}${noteIcon}</div>
+        <div class="row-val ms-val"><span class="ms-status">${etaOrStatus}</span></div>
       </div>`;
     })
     .join('');
@@ -175,6 +176,44 @@ function _renderMilestonesSection(
     <div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Milestones</div>
     ${rows}
   </div>`;
+}
+
+/**
+ * Wires up click-to-show popovers for milestone note (ℹ) icons.
+ * Safe to call after every render — skips already-bound buttons.
+ */
+function _attachMilestoneNotePopovers(root: HTMLElement): void {
+  root.querySelectorAll<HTMLElement>('[data-ms-note]:not([data-ms-bound])').forEach((btn) => {
+    btn.dataset.msBound = '1';
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const note = btn.dataset.msNote || '';
+      if (!note) return;
+      const existing = document.querySelector('.ms-note-pop') as HTMLElement | null;
+      if (existing) {
+        const wasThis = existing.dataset.forEl === btn.dataset.msPopId;
+        existing.remove();
+        if (wasThis) return;
+      }
+      if (!btn.dataset.msPopId) btn.dataset.msPopId = String(Math.random());
+      const pop = document.createElement('div');
+      pop.className = 'ms-note-pop etf-pop';
+      pop.dataset.forEl = btn.dataset.msPopId;
+      pop.textContent = note;
+      document.body.appendChild(pop);
+      const rect = btn.getBoundingClientRect();
+      pop.style.top = `${rect.bottom + 6}px`;
+      pop.style.left = `${rect.left + rect.width / 2}px`;
+      pop.style.transform = 'translateX(-50%)';
+      requestAnimationFrame(() => {
+        const pr = pop.getBoundingClientRect();
+        if (pr.right > window.innerWidth - 8)
+          pop.style.left = `${window.innerWidth - 8 - pr.width / 2}px`;
+        if (pr.left < 8) pop.style.left = `${8 + pr.width / 2}px`;
+        if (pr.bottom > window.innerHeight - 8) pop.style.top = `${rect.top - 6 - pr.height}px`;
+      });
+    });
+  });
 }
 
 function _renderGoalCards(): void {
@@ -313,6 +352,7 @@ function _renderGoalCards(): void {
       _renderGoalCards();
     });
   }
+  _attachMilestoneNotePopovers(goalEl);
 }
 
 /**
