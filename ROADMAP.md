@@ -22,7 +22,7 @@ Focus: polish, usability gaps, and the most-requested missing pieces.
 
 - ~~**Holding TER summary**~~ ✅ — An "Annual fee drag" KPI is shown on the Portfolio card, computed as the value-weighted sum of TER across all held positions.
 
-- **Per-holding notes field** — Holdings evolve: an ETF might announce an index change, a merger, or a redenomination. Right now there is no place inside the app to record that context, so it lives in a separate spreadsheet or gets forgotten. A simple optional notes field on each holding configuration row provides the right home for forward-looking reminders and post-hoc explanations without adding schema complexity.
+- ~~**Per-holding notes field**~~ ✅ — Holdings evolve: an ETF might announce an index change, a merger, or a redenomination. Right now there is no place inside the app to record that context, so it lives in a separate spreadsheet or gets forgotten. A simple optional notes field on each holding configuration row provides the right home for forward-looking reminders and post-hoc explanations without adding schema complexity.
 
 ### UX / Accessibility
 
