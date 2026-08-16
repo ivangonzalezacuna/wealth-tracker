@@ -1154,9 +1154,10 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     'Forecast data',
     fcTableHeaders,
     labels.map((lbl, i) => {
-      const row = showReal && realDataFull
-        ? [lbl, fcFmt(histDataFull[i]), fcFmt(fcDataFull[i]), fcFmt(realDataFull[i])]
-        : [lbl, fcFmt(histDataFull[i]), fcFmt(fcDataFull[i])];
+      const row =
+        showReal && realDataFull
+          ? [lbl, fcFmt(histDataFull[i]), fcFmt(fcDataFull[i]), fcFmt(realDataFull[i])]
+          : [lbl, fcFmt(histDataFull[i]), fcFmt(fcDataFull[i])];
       scenarioTableCols.forEach((col) => row.push(fcFmt((col.values[i] as number | null) ?? null)));
       return row;
     }),
