@@ -44,7 +44,7 @@ Focus: deeper analytics, richer planning, and data quality.
 
 - **Scenario comparison** — The current forecast chart shows a single projection based on the configured return assumptions. In practice, users think in terms of "what happens if returns are lower than expected" or "what if I increase contributions by €200/month". Defining two or three named scenarios side by side on the same chart gives a much more honest and actionable picture of the uncertainty range, without requiring a separate spreadsheet.
 
-- **Goal milestones** — The existing `NamedGoal` type supports a target amount and target date, and the Net Worth tab renders a progress bar toward the final target. For long-horizon goals (e.g. a 20-year retirement target), the distance to the end is often too abstract to be motivating. Adding optional intermediate milestones — say, €100k by 2027, €300k by 2030 — keeps the progress indicator meaningful at every stage of the journey and makes it easier to spot if the pace is slipping before it becomes a hard-to-recover problem.
+- ~~**Goal milestones**~~ ✅ — The existing `NamedGoal` type supports a target amount and target date, and the Net Worth tab renders a progress bar toward the final target. For long-horizon goals (e.g. a 20-year retirement target), the distance to the end is often too abstract to be motivating. Adding optional intermediate milestones — say, €100k by 2027, €300k by 2030 — keeps the progress indicator meaningful at every stage of the journey and makes it easier to spot if the pace is slipping before it becomes a hard-to-recover problem.
 
 ### Multi-account & Reporting
 
