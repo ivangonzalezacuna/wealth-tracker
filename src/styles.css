@@ -3046,8 +3046,7 @@ input[type='color'] {
   color: var(--ink-2);
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 6px;
+  gap: 4px;
 }
 .ms-opt {
   font-weight: 400;
@@ -3060,6 +3059,7 @@ input[type='color'] {
 }
 .ms-date-btn {
   font-size: 12px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
   gap: 5px;
