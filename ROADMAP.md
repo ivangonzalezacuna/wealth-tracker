@@ -56,7 +56,7 @@ Focus: deeper analytics, richer planning, and data quality.
 
 - **End-to-end tests (Playwright)** — The existing test suite covers unit logic and view rendering thoroughly, but there are no tests that exercise the full browser flow: open the app, import a CSV, add a snapshot, navigate to analytics. Regressions in the interaction between components (e.g. an import that updates the portfolio but does not trigger a re-render of the analytics chart) are invisible to the current suite. A minimal Playwright E2E suite covering the critical paths would catch those integration failures in CI before they reach production.
 
-- **Schema migration dry-run** — Schema migrations run automatically on DB load and are irreversible once applied. The only way to test a new migration today is to apply it against real data or a manually prepared test fixture. A `yarn db:migrate-dry` CLI script that clones the database in memory, runs the pending migrations, and reports success or failure before any real write would make it safe to iterate on migrations during development without risking data loss.
+- ~~**Schema migration dry-run**~~ ✅ — Schema migrations run automatically on DB load and are irreversible once applied. The only way to test a new migration today is to apply it against real data or a manually prepared test fixture. A `yarn db:migrate-dry` CLI script that clones the database in memory, runs the pending migrations, and reports success or failure before any real write would make it safe to iterate on migrations during development without risking data loss.
 
 ---
 
