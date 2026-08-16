@@ -38,7 +38,7 @@ import Chart from 'chart.js/auto';
 import { T, R, resolvedT } from '../theme';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import { writeChartTable } from './chartTable';
-import { EYE_ICON } from './icons';
+import { EYE_ICON, EYE_OFF_ICON } from './icons';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { createChartRegistry } from './chartRegistry';
 import { formatEuroCompactPrefix, formatEuroCompactSuffix } from './chartOptions';
@@ -937,17 +937,17 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
             <button class="btn btn-sm btn-ghost ${_fcRange === '480' ? 'active' : ''}" data-range="480" aria-pressed="${_fcRange === '480'}">40Y</button>
             <button class="btn btn-sm btn-ghost ${_fcRange === '600' ? 'active' : ''}" data-range="600" aria-pressed="${_fcRange === '600'}">50Y</button>
           </div>
-          <button class="btn btn-sm btn-ghost btn-icon${_scenariosPanelOpen ? ' active' : ''}" id="nw-fc-scenarios-toggle"
+          <button class="btn btn-sm btn-ghost forecast-scenarios-toggle${_scenariosPanelOpen ? ' active' : ''}" id="nw-fc-scenarios-toggle"
                   aria-expanded="${_scenariosPanelOpen}"
                   aria-controls="nw-fc-scenarios-body"
                   title="${_scenariosPanelOpen ? 'Hide extra scenarios' : 'Show extra scenarios'}"
-                  aria-label="${_scenariosPanelOpen ? 'Hide extra scenarios' : 'Show extra scenarios'}">${EYE_ICON}</button>
+                  aria-label="${_scenariosPanelOpen ? 'Hide extra scenarios' : 'Show extra scenarios'}">${_scenariosPanelOpen ? EYE_OFF_ICON : EYE_ICON}</button>
         </div>
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast" role="img" aria-label="Net worth forecast chart" aria-describedby="c-nw-forecast-table-wrap"></canvas></div>
       <div class="chart-data-table-wrap sr-only" id="c-nw-forecast-table-wrap"></div>
       <div id="nw-fc-scenarios-body" class="forecast-scenarios"${_scenariosPanelOpen ? '' : ' hidden'}>
-        <div class="forecast-scenarios-grid">
+        <div class="forecast-scenarios-box">
           ${scenarioRowsHtml}
         </div>
       </div>

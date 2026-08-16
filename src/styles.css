@@ -1755,28 +1755,35 @@ summary.section-label {
   flex-wrap: wrap;
   justify-content: flex-end;
 }
-.forecast-scenarios-grid {
+.forecast-scenarios-box {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-.forecast-scenario-row {
-  display: grid;
-  gap: 8px;
+  gap: 0;
   padding: 10px;
   border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
+.forecast-scenario-row {
+  display: grid;
+  grid-template-columns: minmax(170px, auto) minmax(0, 1fr);
+  gap: 10px;
+  align-items: end;
+  padding: 6px 0;
+}
+.forecast-scenario-row + .forecast-scenario-row {
+  border-top: 1px solid var(--line-2);
+  margin-top: 6px;
+  padding-top: 10px;
+}
 .forecast-scenario-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
 }
 .forecast-scenario-fields {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(130px, 1fr));
   gap: 8px;
 }
 .forecast-scenario-field {
@@ -1784,11 +1791,18 @@ summary.section-label {
   gap: 4px;
   min-width: 0;
 }
+.forecast-scenarios-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  padding: 3px 8px;
+}
 .forecast-scenarios-empty {
   margin-bottom: 8px;
 }
 @media (max-width: 900px) {
-  .forecast-scenarios-grid {
+  .forecast-scenario-row {
     grid-template-columns: 1fr;
   }
   .forecast-scenario-fields {
