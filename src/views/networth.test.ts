@@ -372,7 +372,7 @@ describe('renderNW', () => {
     let labels = (latestConfig.data?.datasets || []).map((d) => d.label || '');
     expect(labels.some((l) => l.includes('Optimistic'))).toBe(false);
 
-    const scenarioToggle = document.getElementById('nw-scenario-toggle') as HTMLButtonElement;
+    let scenarioToggle = document.getElementById('nw-scenario-toggle') as HTMLButtonElement;
     scenarioToggle = document.getElementById('nw-scenario-toggle') as HTMLButtonElement;
     scenarioToggle.click();
     latestConfig = chartInstances[chartInstances.length - 1].config as {
@@ -404,9 +404,9 @@ describe('renderNW', () => {
     const scenarioToggle = document.getElementById('nw-scenario-toggle') as HTMLButtonElement;
     scenarioToggle.click();
 
-    headers = Array.from(document.querySelectorAll('#c-nw-forecast-table-wrap .chart-data-table th')).map(
-      (el) => el.textContent || '',
-    );
+    headers = Array.from(
+      document.querySelectorAll('#c-nw-forecast-table-wrap .chart-data-table th'),
+    ).map((el) => el.textContent || '');
     expect(headers.some((h) => h.includes('Optimistic'))).toBe(true);
     expect(headers.some((h) => h.includes('Pessimistic'))).toBe(true);
   });

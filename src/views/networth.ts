@@ -1199,12 +1199,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     if (showReal && realDataFull) row.push(fcFmt(realDataFull[i]));
     return row;
   });
-  writeChartTable(
-    'c-nw-forecast-table-wrap',
-    'Forecast data',
-    fcTableHeaders,
-    fcTableRows,
-  );
+  writeChartTable('c-nw-forecast-table-wrap', 'Forecast data', fcTableHeaders, fcTableRows);
 
   _attachForecastRangeToggle();
   const scenarioToggle = document.getElementById('nw-scenario-toggle') as HTMLButtonElement | null;
