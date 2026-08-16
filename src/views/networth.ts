@@ -60,8 +60,12 @@ let _stateLoaded = false; // tracks whether persisted settings have been loaded 
 let _planningTab: 'forecast' | 'drawdown' = 'forecast'; // active tab in the combined planning card
 
 // ── Scenario comparison state ────────────────────────────
-const SCENARIO_COLORS = ['rgba(230,120,20,0.9)', 'rgba(160,40,200,0.9)', 'rgba(20,160,80,0.9)'];
-let _scenarios: ScenarioDef[] = [];
+// Two fixed scenarios: optimistic and pessimistic. Users can adjust deltas; labels are fixed.
+const SCENARIO_COLORS = ['rgba(20,160,80,0.9)', 'rgba(230,120,20,0.9)'];
+const _scenarios: ScenarioDef[] = [
+  { label: 'Optimistic', returnDeltaPct: 2, contribDeltaAmt: 200 },
+  { label: 'Pessimistic', returnDeltaPct: -2, contribDeltaAmt: -200 },
+];
 let _scenariosPanelOpen = false;
 
 /** Load persisted drawdown + inflation settings from the Settings store (runs once). */
@@ -894,33 +898,26 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     ),
   );
 
-  // Build scenario rows HTML for the collapsible panel
+  // Build scenario rows HTML for the collapsible panel (fixed optimistic / pessimistic)
   const scenarioRowsHtml = _scenarios
     .map(
       (s, i) => `
       <div class="forecast-scenario-row" data-scenario-idx="${i}">
         <div class="forecast-scenario-head">
-          <label class="planning-label" for="nw-fc-scenario-label-${i}">Scenario name</label>
-          <button class="btn btn-sm btn-ghost forecast-scenario-remove" data-scenario-remove="${i}"
-                  aria-label="Remove scenario ${i + 1}">✕</button>
+          <span class="planning-label">${esc(s.label)}</span>
         </div>
         <div class="forecast-scenario-fields">
-          <span class="forecast-scenario-field">
-            <input id="nw-fc-scenario-label-${i}" type="text" class="forecast-scenario-label planning-input" value="${esc(s.label)}"
-                   placeholder="Scenario ${i + 1}" aria-label="Scenario ${i + 1} name"
-                   style="width:100%;text-align:left">
-          </span>
           <span class="forecast-scenario-field">
             <span class="planning-label">Return (%/yr)</span>
             <input type="number" class="forecast-scenario-return planning-input"
                    value="${s.returnDeltaPct}" step="0.5" min="-20" max="20"
-                   aria-label="Scenario ${i + 1} return delta %/yr">
+                   aria-label="${esc(s.label)} return delta %/yr">
           </span>
           <span class="forecast-scenario-field">
             <span class="planning-label">Contrib (€/mo)</span>
             <input type="number" class="forecast-scenario-contrib planning-input"
                    value="${s.contribDeltaAmt}" step="50"
-                   aria-label="Scenario ${i + 1} contribution delta €/mo">
+                   aria-label="${esc(s.label)} contribution delta €/mo">
           </span>
         </div>
       </div>`,
@@ -946,9 +943,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
                 aria-expanded="${_scenariosPanelOpen}"
                 aria-controls="nw-fc-scenarios-body">Scenarios ${_scenariosPanelOpen ? '&#9652;' : '&#9662;'}</button>
         <div id="nw-fc-scenarios-body"${_scenariosPanelOpen ? '' : ' hidden'}>
-          ${_scenarios.length === 0 ? '<div class="forecast-scenarios-empty note">No scenarios yet. Add one to compare custom outcomes.</div>' : ''}
           ${scenarioRowsHtml}
-          ${_scenarios.length < 3 ? `<button class="btn btn-sm btn-ghost" id="nw-fc-add-scenario">+ Add scenario</button>` : ''}
         </div>
       </div>
       <div class="note" style="line-height:1.6">
@@ -956,7 +951,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
         ${acctSummaryLines}
         <div style="margin-top:4px;color:var(--ink-4)">Contribution timing follows each configured cadence (weekly, every 2 weeks, monthly, quarterly) and is bucketed month-by-month in the projection.</div>
         <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX. Assumes zero rebalancing costs; spreads, commissions, and capital-gains tax from rebalancing can reduce long-horizon returns.${goalDeadlines.length > 0 ? ' Goal deadlines and target amounts are shown as markers on the chart.' : ''}</div>
-        <div style="margin-top:4px;color:var(--ink-4)">Use the Scenarios section above to project alternative outcomes (e.g. higher or lower returns, changed contributions).</div>
+        <div style="margin-top:4px;color:var(--ink-4)">Use the Scenarios section above to compare optimistic and pessimistic outcomes by adjusting return and contribution deltas.</div>
       </div>
     `;
 
@@ -1163,35 +1158,9 @@ function _attachScenarioListeners(): void {
     _renderForecastChart(_lastSnaps, _lastAccounts);
   });
 
-  document.getElementById('nw-fc-add-scenario')?.addEventListener('click', () => {
-    if (_scenarios.length < 3) {
-      _scenarios.push({
-        label: `Scenario ${_scenarios.length + 1}`,
-        returnDeltaPct: 0,
-        contribDeltaAmt: 0,
-      });
-      _renderForecastChart(_lastSnaps, _lastAccounts);
-    }
-  });
-
-  body?.querySelectorAll<HTMLElement>('[data-scenario-remove]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const idx = parseInt(btn.dataset.scenarioRemove || '0', 10);
-      _scenarios.splice(idx, 1);
-      _renderForecastChart(_lastSnaps, _lastAccounts);
-    });
-  });
-
   body?.querySelectorAll<HTMLElement>('.forecast-scenario-row').forEach((row) => {
     const idx = parseInt(row.dataset.scenarioIdx || '0', 10);
     if (!_scenarios[idx]) return;
-
-    row
-      .querySelector<HTMLInputElement>('.forecast-scenario-label')
-      ?.addEventListener('change', (e) => {
-        _scenarios[idx].label = (e.target as HTMLInputElement).value;
-        _renderForecastChart(_lastSnaps, _lastAccounts);
-      });
 
     row
       .querySelector<HTMLInputElement>('.forecast-scenario-return')

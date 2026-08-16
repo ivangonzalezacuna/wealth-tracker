@@ -419,19 +419,21 @@ describe('renderNW', () => {
     expect(fcPanel.hidden).toBe(true);
   });
 
-  it('keeps scenarios hidden and empty by default until user adds one', () => {
+  it('keeps scenarios panel hidden by default; shows fixed optimistic/pessimistic on toggle', () => {
     const snaps = [makeSnap('2026-01', 5000, 2000)];
     renderNW(snaps);
-    const planningEl = document.getElementById('nw-planning')!;
-    expect(planningEl.textContent).not.toContain('Optimistic');
-    expect(planningEl.textContent).not.toContain('Pessimistic');
 
+    // Body is hidden by default
+    expect(document.getElementById('nw-fc-scenarios-body')!.hasAttribute('hidden')).toBe(true);
+
+    // Toggle opens the panel and shows the two fixed rows
     (document.getElementById('nw-fc-scenarios-toggle') as HTMLElement).click();
-    expect(planningEl.textContent).toContain('No scenarios yet');
-    expect(document.querySelectorAll('.forecast-scenario-row').length).toBe(0);
+    expect(document.getElementById('nw-fc-scenarios-body')!.hasAttribute('hidden')).toBe(false);
+    expect(document.querySelectorAll('.forecast-scenario-row').length).toBe(2);
 
-    (document.getElementById('nw-fc-add-scenario') as HTMLElement).click();
-    expect(document.querySelectorAll('.forecast-scenario-row').length).toBe(1);
+    const planningEl = document.getElementById('nw-planning')!;
+    expect(planningEl.textContent).toContain('Optimistic');
+    expect(planningEl.textContent).toContain('Pessimistic');
   });
 
   it('decumulation card renders with a retirement date 20y in the future by default', () => {
