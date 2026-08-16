@@ -328,7 +328,7 @@ describe('renderNW', () => {
     expect(chartInstances[1].destroyed).toBe(true);
   });
 
-  it('forecast chart includes baseline and scenario datasets by default', () => {
+  it('forecast chart includes only baseline dataset by default when comparison is closed', () => {
     const snaps = [makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)];
     renderNW(snaps);
     const forecastConfig = chartInstances[1].config as {
@@ -336,13 +336,15 @@ describe('renderNW', () => {
     };
     const labels = (forecastConfig.data?.datasets || []).map((d) => d.label || '');
     expect(labels.some((l) => l.includes('Baseline (nominal)'))).toBe(true);
-    expect(labels.some((l) => l.includes('Optimistic'))).toBe(true);
-    expect(labels.some((l) => l.includes('Pessimistic'))).toBe(true);
+    expect(labels.some((l) => l.includes('Optimistic'))).toBe(false);
+    expect(labels.some((l) => l.includes('Pessimistic'))).toBe(false);
   });
 
   it('scenario controls update forecast dataset labels after editing deltas', () => {
     const snaps = [makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)];
     renderNW(snaps);
+    let scenarioToggle = document.getElementById('nw-scenario-toggle') as HTMLButtonElement;
+    scenarioToggle.click();
     const retInput = document.getElementById('nw-scn-optimistic-ret') as HTMLInputElement;
     const contribInput = document.getElementById('nw-scn-optimistic-contrib') as HTMLInputElement;
     retInput.value = '3.5';
@@ -358,6 +360,55 @@ describe('renderNW', () => {
     expect(optimisticLabel).toBeTruthy();
     expect(optimisticLabel).toContain('+3.5%');
     expect(optimisticLabel).toContain('+350');
+  });
+
+  it('scenario comparison toggle adds and removes scenario datasets', () => {
+    const snaps = [makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)];
+    renderNW(snaps);
+
+    let latestConfig = chartInstances[chartInstances.length - 1].config as {
+      data?: { datasets?: Array<{ label?: string }> };
+    };
+    let labels = (latestConfig.data?.datasets || []).map((d) => d.label || '');
+    expect(labels.some((l) => l.includes('Optimistic'))).toBe(false);
+
+    const scenarioToggle = document.getElementById('nw-scenario-toggle') as HTMLButtonElement;
+    scenarioToggle = document.getElementById('nw-scenario-toggle') as HTMLButtonElement;
+    scenarioToggle.click();
+    latestConfig = chartInstances[chartInstances.length - 1].config as {
+      data?: { datasets?: Array<{ label?: string }> };
+    };
+    labels = (latestConfig.data?.datasets || []).map((d) => d.label || '');
+    expect(labels.some((l) => l.includes('Optimistic'))).toBe(true);
+    expect(labels.some((l) => l.includes('Pessimistic'))).toBe(true);
+
+    scenarioToggle.click();
+    latestConfig = chartInstances[chartInstances.length - 1].config as {
+      data?: { datasets?: Array<{ label?: string }> };
+    };
+    labels = (latestConfig.data?.datasets || []).map((d) => d.label || '');
+    expect(labels.some((l) => l.includes('Optimistic'))).toBe(false);
+    expect(labels.some((l) => l.includes('Pessimistic'))).toBe(false);
+  });
+
+  it('forecast data table includes scenario columns only when comparison is shown', () => {
+    const snaps = [makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)];
+    renderNW(snaps);
+
+    let headers = Array.from(
+      document.querySelectorAll('#c-nw-forecast-table-wrap .chart-data-table th'),
+    ).map((el) => el.textContent || '');
+    expect(headers).toContain('Baseline nominal (€)');
+    expect(headers.some((h) => h.includes('Optimistic'))).toBe(false);
+
+    const scenarioToggle = document.getElementById('nw-scenario-toggle') as HTMLButtonElement;
+    scenarioToggle.click();
+
+    headers = Array.from(document.querySelectorAll('#c-nw-forecast-table-wrap .chart-data-table th')).map(
+      (el) => el.textContent || '',
+    );
+    expect(headers.some((h) => h.includes('Optimistic'))).toBe(true);
+    expect(headers.some((h) => h.includes('Pessimistic'))).toBe(true);
   });
 
   it('NW history range toggle re-creates the history chart on click', () => {
@@ -440,7 +491,9 @@ describe('renderNW', () => {
     // Drawdown panel should be hidden by default
     const ddPanel = document.getElementById('nw-dd-panel')!;
     expect(ddPanel.hidden).toBe(true);
-    expect(planningEl.textContent).toContain('Scenario comparison');
+    const scenarioCard = planningEl.querySelector('.forecast-scenario-card') as HTMLElement;
+    expect(scenarioCard.hidden).toBe(true);
+    expect(planningEl.querySelector('#nw-scenario-toggle')).not.toBeNull();
   });
 
   it('planning card tab switch shows drawdown panel and hides forecast panel', () => {

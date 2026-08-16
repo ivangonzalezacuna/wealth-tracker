@@ -1660,6 +1660,58 @@ summary.section-label {
   margin-bottom: 8px;
   flex-wrap: wrap;
 }
+.forecast-controls-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.forecast-controls-right .btn.active {
+  background: var(--brand-weak);
+  color: var(--brand);
+  border-color: var(--brand-border);
+}
+.forecast-scenario-card {
+  margin-bottom: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.forecast-scenario-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.forecast-scenario-note {
+  margin: 0.35rem 0 0.45rem;
+  font-size: 11px;
+}
+.forecast-scenario-row {
+  display: grid;
+  grid-template-columns: minmax(88px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr);
+  gap: 8px;
+  align-items: end;
+  margin-bottom: 0.45rem;
+}
+.forecast-scenario-row:last-child {
+  margin-bottom: 0;
+}
+.forecast-scenario-label {
+  font-size: 12px;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+.forecast-scenario-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.forecast-scenario-field .form-input {
+  min-width: 0;
+}
 .filter-bar-actions {
   display: flex;
   align-items: center;
@@ -1925,6 +1977,15 @@ summary.section-label {
   #tx-bulk-actions,
   #snap-bulk-actions {
     flex-wrap: nowrap;
+    gap: 6px;
+  }
+  .forecast-controls-right {
+    width: 100%;
+    justify-content: space-between;
+    margin-left: 0;
+  }
+  .forecast-scenario-row {
+    grid-template-columns: 1fr;
     gap: 6px;
   }
 }

@@ -83,6 +83,7 @@ let _ddReturnPct = 0; // annual return % during retirement; 0 = derive from acco
 let _ddReturnPctManual = false; // true once user has edited the return-rate input
 let _stateLoaded = false; // tracks whether persisted settings have been loaded into module state
 let _planningTab: 'forecast' | 'drawdown' = 'forecast'; // active tab in the combined planning card
+let _showScenarioComparison = false; // forecast comparison panel + scenario lines visibility
 
 /** Load persisted drawdown + inflation settings from the Settings store (runs once). */
 function _loadPersistedState(): void {
@@ -376,6 +377,7 @@ function _renderGoalCards(): void {
 export function _resetPlanningTabForTest(): void {
   _planningTab = 'forecast';
   _scenarios = _defaultForecastScenarios();
+  _showScenarioComparison = false;
 }
 
 export function renderNW(snaps: Snapshot[]): void {
@@ -843,14 +845,16 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   const latestDate = latestSnap.date;
   const forecastMonths = parseInt(_fcRange);
   const baselineSeries = forecastMultiAccountSeries(accountInputs, forecastMonths, latestDate);
-  const scenarioSeries = _scenarios.map((scenario) => ({
-    scenario,
-    series: forecastMultiAccountSeries(
-      _applyScenarioToAccountInputs(accountInputs, accounts, scenario),
-      forecastMonths,
-      latestDate,
-    ),
-  }));
+  const scenarioSeries = _showScenarioComparison
+    ? _scenarios.map((scenario) => ({
+        scenario,
+        series: forecastMultiAccountSeries(
+          _applyScenarioToAccountInputs(accountInputs, accounts, scenario),
+          forecastMonths,
+          latestDate,
+        ),
+      }))
+    : [];
 
   // Inflation-adjusted (real) series
   const realSeries = _deflateByInflation(baselineSeries, _inflationRate);
@@ -952,36 +956,48 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     .join('<br>');
 
   forecastEl.innerHTML = `
-      <div class="card" style="margin-bottom:.75rem;padding:.75rem">
-        <div style="font-size:12px;font-weight:600;margin-bottom:.5rem">Scenario comparison</div>
-        <div class="note" style="margin-bottom:.5rem">Baseline uses account return/contribution settings. Deltas below apply to the whole projection.</div>
+      <div class="chart-controls">
+        <div id="nw-forecast-legend" class="legend"></div>
+        <div class="forecast-controls-right">
+          <button
+            id="nw-scenario-toggle"
+            class="btn btn-sm btn-ghost btn-icon ${_showScenarioComparison ? 'active' : ''}"
+            type="button"
+            aria-label="${_showScenarioComparison ? 'Hide scenario comparison' : 'Show scenario comparison'}"
+            aria-expanded="${_showScenarioComparison}"
+            title="${_showScenarioComparison ? 'Hide scenario comparison' : 'Show scenario comparison'}"
+          >
+            ≈
+          </button>
+          <div class="range-toggle" id="nw-forecast-range-toggle" role="group" aria-label="Forecast range">
+            <button class="btn btn-sm btn-ghost ${_fcRange === '60' ? 'active' : ''}" data-range="60" aria-pressed="${_fcRange === '60'}">5Y</button>
+            <button class="btn btn-sm btn-ghost ${_fcRange === '120' ? 'active' : ''}" data-range="120" aria-pressed="${_fcRange === '120'}">10Y</button>
+            <button class="btn btn-sm btn-ghost ${_fcRange === '240' ? 'active' : ''}" data-range="240" aria-pressed="${_fcRange === '240'}">20Y</button>
+            <button class="btn btn-sm btn-ghost ${_fcRange === '360' ? 'active' : ''}" data-range="360" aria-pressed="${_fcRange === '360'}">30Y</button>
+            <button class="btn btn-sm btn-ghost ${_fcRange === '480' ? 'active' : ''}" data-range="480" aria-pressed="${_fcRange === '480'}">40Y</button>
+            <button class="btn btn-sm btn-ghost ${_fcRange === '600' ? 'active' : ''}" data-range="600" aria-pressed="${_fcRange === '600'}">50Y</button>
+          </div>
+        </div>
+      </div>
+      <div class="forecast-scenario-card"${_showScenarioComparison ? '' : ' hidden'}>
+        <div class="forecast-scenario-title">Scenario comparison</div>
+        <div class="note forecast-scenario-note">Baseline uses account return/contribution settings. Deltas below apply to the whole projection.</div>
         ${_scenarios
           .map(
             (scenario) => `
-              <div style="display:grid;grid-template-columns:120px minmax(120px,1fr) minmax(140px,1fr);gap:8px;align-items:end;margin-bottom:6px">
-                <div style="font-size:12px;color:var(--ink-2);font-weight:600">${esc(scenario.label)}</div>
-                <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-3)">
+              <div class="forecast-scenario-row">
+                <div class="forecast-scenario-label">${esc(scenario.label)}</div>
+                <label class="forecast-scenario-field">
                   <span>Return Δ (%/yr)</span>
                   <input id="nw-scn-${scenario.id}-ret" class="form-input form-input-sm" type="number" inputmode="decimal" min="-30" max="30" step="0.1" value="${scenario.returnDeltaPct}">
                 </label>
-                <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-3)">
+                <label class="forecast-scenario-field">
                   <span>Contribution Δ (€/month)</span>
                   <input id="nw-scn-${scenario.id}-contrib" class="form-input form-input-sm" type="number" inputmode="decimal" min="-5000" max="5000" step="10" value="${scenario.contribDeltaAmt}">
                 </label>
               </div>`,
           )
           .join('')}
-      </div>
-      <div class="chart-controls">
-        <div id="nw-forecast-legend" class="legend"></div>
-        <div class="range-toggle" id="nw-forecast-range-toggle" role="group" aria-label="Forecast range">
-          <button class="btn btn-sm btn-ghost ${_fcRange === '60' ? 'active' : ''}" data-range="60" aria-pressed="${_fcRange === '60'}">5Y</button>
-          <button class="btn btn-sm btn-ghost ${_fcRange === '120' ? 'active' : ''}" data-range="120" aria-pressed="${_fcRange === '120'}">10Y</button>
-          <button class="btn btn-sm btn-ghost ${_fcRange === '240' ? 'active' : ''}" data-range="240" aria-pressed="${_fcRange === '240'}">20Y</button>
-          <button class="btn btn-sm btn-ghost ${_fcRange === '360' ? 'active' : ''}" data-range="360" aria-pressed="${_fcRange === '360'}">30Y</button>
-          <button class="btn btn-sm btn-ghost ${_fcRange === '480' ? 'active' : ''}" data-range="480" aria-pressed="${_fcRange === '480'}">40Y</button>
-          <button class="btn btn-sm btn-ghost ${_fcRange === '600' ? 'active' : ''}" data-range="600" aria-pressed="${_fcRange === '600'}">50Y</button>
-        </div>
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast" role="img" aria-label="Net worth forecast chart" aria-describedby="c-nw-forecast-table-wrap"></canvas></div>
       <div class="chart-data-table-wrap sr-only" id="c-nw-forecast-table-wrap"></div>
@@ -1164,39 +1180,58 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
 
   // Write accessible data table for screen readers / keyboard users
   const fcFmt = (v: number | null) => (v != null ? fmtEur2(v) : '—');
-  const fcTableHeaders = showReal
-    ? ['Month', 'Actual (€)', 'Forecast nominal (€)', `Forecast real (€)`]
-    : ['Month', 'Actual (€)', 'Forecast (€)'];
+  const fcTableHeaders = ['Month', 'Actual (€)', 'Baseline nominal (€)'];
+  if (_showScenarioComparison) {
+    _scenarios.forEach((scenario) => {
+      fcTableHeaders.push(
+        `${scenario.label} (${scenario.returnDeltaPct >= 0 ? '+' : ''}${scenario.returnDeltaPct.toFixed(1)}% / ${fmtEurSigned(scenario.contribDeltaAmt, 0)}/mo)`,
+      );
+    });
+  }
+  if (showReal) fcTableHeaders.push('Baseline real (€)');
+  const fcTableRows = labels.map((lbl, i) => {
+    const row: string[] = [lbl, fcFmt(histDataFull[i]), fcFmt(fcDataFull[i])];
+    if (_showScenarioComparison) {
+      scenarioDataFull.forEach((scenario) => {
+        row.push(fcFmt(scenario.data[i] as number | null));
+      });
+    }
+    if (showReal && realDataFull) row.push(fcFmt(realDataFull[i]));
+    return row;
+  });
   writeChartTable(
     'c-nw-forecast-table-wrap',
     'Forecast data',
     fcTableHeaders,
-    labels.map((lbl, i) =>
-      showReal && realDataFull
-        ? [lbl, fcFmt(histDataFull[i]), fcFmt(fcDataFull[i]), fcFmt(realDataFull[i])]
-        : [lbl, fcFmt(histDataFull[i]), fcFmt(fcDataFull[i])],
-    ),
+    fcTableRows,
   );
 
   _attachForecastRangeToggle();
-  _scenarios.forEach((scenario) => {
-    const retInput = document.getElementById(
-      `nw-scn-${scenario.id}-ret`,
-    ) as HTMLInputElement | null;
-    const contribInput = document.getElementById(
-      `nw-scn-${scenario.id}-contrib`,
-    ) as HTMLInputElement | null;
-    retInput?.addEventListener('change', () => {
-      const parsed = parseFloat(retInput.value);
-      scenario.returnDeltaPct = _clampScenarioReturnDelta(parsed);
-      _renderForecastChart(_lastSnaps, _lastAccounts);
-    });
-    contribInput?.addEventListener('change', () => {
-      const parsed = parseFloat(contribInput.value);
-      scenario.contribDeltaAmt = _clampScenarioContributionDelta(parsed);
-      _renderForecastChart(_lastSnaps, _lastAccounts);
-    });
+  const scenarioToggle = document.getElementById('nw-scenario-toggle') as HTMLButtonElement | null;
+  scenarioToggle?.addEventListener('click', () => {
+    _showScenarioComparison = !_showScenarioComparison;
+    _renderForecastChart(_lastSnaps, _lastAccounts);
   });
+  if (_showScenarioComparison) {
+    _scenarios.forEach((scenario) => {
+      const retInput = document.getElementById(
+        `nw-scn-${scenario.id}-ret`,
+      ) as HTMLInputElement | null;
+      const contribInput = document.getElementById(
+        `nw-scn-${scenario.id}-contrib`,
+      ) as HTMLInputElement | null;
+      retInput?.addEventListener('change', () => {
+        const parsed = parseFloat(retInput.value);
+        scenario.returnDeltaPct = _clampScenarioReturnDelta(parsed);
+        _renderForecastChart(_lastSnaps, _lastAccounts);
+      });
+      contribInput?.addEventListener('change', () => {
+        const parsed = parseFloat(contribInput.value);
+        scenario.contribDeltaAmt = _clampScenarioContributionDelta(parsed);
+        _renderForecastChart(_lastSnaps, _lastAccounts);
+      });
+    });
+  }
 }
 
 // ── Decumulation chart ──
