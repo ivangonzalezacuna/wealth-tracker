@@ -202,6 +202,16 @@ export async function importDb(
   const previousDb = _db;
   const preserveLocalTransactions = opts.preserveLocalTransactions !== false;
 
+  // Ensure the local DB is up to date before reading its rows so that queries
+  // referencing columns added by recent migrations (e.g. notes) don't fail.
+  if (previousDb) {
+    const localVersion = getDbVersion(previousDb);
+    if (localVersion < SCHEMA_VERSION) {
+      applyMigrations(previousDb, localVersion);
+      await persistDb(previousDb);
+    }
+  }
+
   // Snapshot all local rows before replacing so we can merge them back into
   // the newly imported cloud DB, preserving any offline edits.
   let localTxRows: unknown[][] = [];
