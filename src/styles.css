@@ -1748,10 +1748,21 @@ summary.section-label {
   padding-top: 0.5rem;
   border-top: 1px solid var(--line-2);
 }
+.forecast-controls-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.forecast-scenarios-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
 .forecast-scenario-row {
   display: grid;
   gap: 8px;
-  margin-bottom: 8px;
   padding: 10px;
   border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
@@ -1765,7 +1776,7 @@ summary.section-label {
 }
 .forecast-scenario-fields {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 .forecast-scenario-field {
@@ -1777,6 +1788,9 @@ summary.section-label {
   margin-bottom: 8px;
 }
 @media (max-width: 900px) {
+  .forecast-scenarios-grid {
+    grid-template-columns: 1fr;
+  }
   .forecast-scenario-fields {
     grid-template-columns: 1fr;
   }

@@ -425,11 +425,23 @@ describe('renderNW', () => {
 
     // Body is hidden by default
     expect(document.getElementById('nw-fc-scenarios-body')!.hasAttribute('hidden')).toBe(true);
+    expect(document.getElementById('c-nw-forecast-table-wrap')!.textContent).not.toContain(
+      'Optimistic (€)',
+    );
+    expect(document.getElementById('c-nw-forecast-table-wrap')!.textContent).not.toContain(
+      'Pessimistic (€)',
+    );
 
     // Toggle opens the panel and shows the two fixed rows
     (document.getElementById('nw-fc-scenarios-toggle') as HTMLElement).click();
     expect(document.getElementById('nw-fc-scenarios-body')!.hasAttribute('hidden')).toBe(false);
     expect(document.querySelectorAll('.forecast-scenario-row').length).toBe(2);
+    expect(document.getElementById('c-nw-forecast-table-wrap')!.textContent).toContain(
+      'Optimistic (€)',
+    );
+    expect(document.getElementById('c-nw-forecast-table-wrap')!.textContent).toContain(
+      'Pessimistic (€)',
+    );
 
     const planningEl = document.getElementById('nw-planning')!;
     expect(planningEl.textContent).toContain('Optimistic');

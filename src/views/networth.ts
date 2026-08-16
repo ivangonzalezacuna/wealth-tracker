@@ -38,6 +38,7 @@ import Chart from 'chart.js/auto';
 import { T, R, resolvedT } from '../theme';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import { writeChartTable } from './chartTable';
+import { EYE_ICON } from './icons';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { createChartRegistry } from './chartRegistry';
 import { formatEuroCompactPrefix, formatEuroCompactSuffix } from './chartOptions';
@@ -904,7 +905,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       (s, i) => `
       <div class="forecast-scenario-row" data-scenario-idx="${i}">
         <div class="forecast-scenario-head">
-          <span class="planning-label">${esc(s.label)}</span>
+          <span class="planning-label">${esc(i === 0 ? 'Best case (Optimistic)' : 'Worst case (Pessimistic)')}</span>
         </div>
         <div class="forecast-scenario-fields">
           <span class="forecast-scenario-field">
@@ -927,22 +928,26 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   forecastEl.innerHTML = `
       <div class="chart-controls">
         <div id="nw-forecast-legend" class="legend"></div>
-        <div class="range-toggle" id="nw-forecast-range-toggle" role="group" aria-label="Forecast range">
-          <button class="btn btn-sm btn-ghost ${_fcRange === '60' ? 'active' : ''}" data-range="60" aria-pressed="${_fcRange === '60'}">5Y</button>
-          <button class="btn btn-sm btn-ghost ${_fcRange === '120' ? 'active' : ''}" data-range="120" aria-pressed="${_fcRange === '120'}">10Y</button>
-          <button class="btn btn-sm btn-ghost ${_fcRange === '240' ? 'active' : ''}" data-range="240" aria-pressed="${_fcRange === '240'}">20Y</button>
-          <button class="btn btn-sm btn-ghost ${_fcRange === '360' ? 'active' : ''}" data-range="360" aria-pressed="${_fcRange === '360'}">30Y</button>
-          <button class="btn btn-sm btn-ghost ${_fcRange === '480' ? 'active' : ''}" data-range="480" aria-pressed="${_fcRange === '480'}">40Y</button>
-          <button class="btn btn-sm btn-ghost ${_fcRange === '600' ? 'active' : ''}" data-range="600" aria-pressed="${_fcRange === '600'}">50Y</button>
+        <div class="forecast-controls-main">
+          <div class="range-toggle" id="nw-forecast-range-toggle" role="group" aria-label="Forecast range">
+            <button class="btn btn-sm btn-ghost ${_fcRange === '60' ? 'active' : ''}" data-range="60" aria-pressed="${_fcRange === '60'}">5Y</button>
+            <button class="btn btn-sm btn-ghost ${_fcRange === '120' ? 'active' : ''}" data-range="120" aria-pressed="${_fcRange === '120'}">10Y</button>
+            <button class="btn btn-sm btn-ghost ${_fcRange === '240' ? 'active' : ''}" data-range="240" aria-pressed="${_fcRange === '240'}">20Y</button>
+            <button class="btn btn-sm btn-ghost ${_fcRange === '360' ? 'active' : ''}" data-range="360" aria-pressed="${_fcRange === '360'}">30Y</button>
+            <button class="btn btn-sm btn-ghost ${_fcRange === '480' ? 'active' : ''}" data-range="480" aria-pressed="${_fcRange === '480'}">40Y</button>
+            <button class="btn btn-sm btn-ghost ${_fcRange === '600' ? 'active' : ''}" data-range="600" aria-pressed="${_fcRange === '600'}">50Y</button>
+          </div>
+          <button class="btn btn-sm btn-ghost btn-icon${_scenariosPanelOpen ? ' active' : ''}" id="nw-fc-scenarios-toggle"
+                  aria-expanded="${_scenariosPanelOpen}"
+                  aria-controls="nw-fc-scenarios-body"
+                  title="${_scenariosPanelOpen ? 'Hide extra scenarios' : 'Show extra scenarios'}"
+                  aria-label="${_scenariosPanelOpen ? 'Hide extra scenarios' : 'Show extra scenarios'}">${EYE_ICON}</button>
         </div>
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast" role="img" aria-label="Net worth forecast chart" aria-describedby="c-nw-forecast-table-wrap"></canvas></div>
       <div class="chart-data-table-wrap sr-only" id="c-nw-forecast-table-wrap"></div>
-      <div class="forecast-scenarios" id="nw-fc-scenarios">
-        <button class="btn btn-sm btn-ghost" id="nw-fc-scenarios-toggle"
-                aria-expanded="${_scenariosPanelOpen}"
-                aria-controls="nw-fc-scenarios-body">Scenarios ${_scenariosPanelOpen ? '&#9652;' : '&#9662;'}</button>
-        <div id="nw-fc-scenarios-body"${_scenariosPanelOpen ? '' : ' hidden'}>
+      <div id="nw-fc-scenarios-body" class="forecast-scenarios"${_scenariosPanelOpen ? '' : ' hidden'}>
+        <div class="forecast-scenarios-grid">
           ${scenarioRowsHtml}
         </div>
       </div>
@@ -998,6 +1003,11 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           },
         }
       : null;
+  const scenarioDataFull = scenarioSeriesArr.map((ss) => [
+    ...new Array(histValues.length - 1).fill(null),
+    histValues[histValues.length - 1],
+    ...ss.map((p) => p.value),
+  ]);
 
   CH['c-nw-forecast'] = new Chart(document.getElementById('c-nw-forecast') as HTMLCanvasElement, {
     type: 'line',
@@ -1052,11 +1062,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
         ...(_scenariosPanelOpen
           ? scenarioSeriesArr.map((ss, i) => ({
               label: _scenarios[i].label,
-              data: [
-                ...new Array(histValues.length - 1).fill(null),
-                histValues[histValues.length - 1],
-                ...ss.map((p) => p.value),
-              ],
+              data: scenarioDataFull[i],
               borderColor: SCENARIO_COLORS[i % SCENARIO_COLORS.length],
               backgroundColor: 'transparent',
               borderWidth: 1.5,
@@ -1131,18 +1137,29 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
 
   // Write accessible data table for screen readers / keyboard users
   const fcFmt = (v: number | null) => (v != null ? fmtEur2(v) : '—');
-  const fcTableHeaders = showReal
-    ? ['Month', 'Actual (€)', 'Forecast nominal (€)', `Forecast real (€)`]
-    : ['Month', 'Actual (€)', 'Forecast (€)'];
+  const scenarioTableCols = _scenariosPanelOpen
+    ? _scenarios.map((scenario, i) => ({
+        label: `${scenario.label} (€)`,
+        values: scenarioDataFull[i],
+      }))
+    : [];
+  const fcTableHeaders = [
+    ...(showReal
+      ? ['Month', 'Actual (€)', 'Forecast nominal (€)', `Forecast real (€)`]
+      : ['Month', 'Actual (€)', 'Forecast (€)']),
+    ...scenarioTableCols.map((col) => col.label),
+  ];
   writeChartTable(
     'c-nw-forecast-table-wrap',
     'Forecast data',
     fcTableHeaders,
-    labels.map((lbl, i) =>
-      showReal && realDataFull
+    labels.map((lbl, i) => {
+      const row = showReal && realDataFull
         ? [lbl, fcFmt(histDataFull[i]), fcFmt(fcDataFull[i]), fcFmt(realDataFull[i])]
-        : [lbl, fcFmt(histDataFull[i]), fcFmt(fcDataFull[i])],
-    ),
+        : [lbl, fcFmt(histDataFull[i]), fcFmt(fcDataFull[i])];
+      scenarioTableCols.forEach((col) => row.push(fcFmt((col.values[i] as number | null) ?? null)));
+      return row;
+    }),
   );
 
   _attachForecastRangeToggle();
