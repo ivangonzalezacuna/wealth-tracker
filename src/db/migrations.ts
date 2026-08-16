@@ -135,6 +135,9 @@ export const MIGRATIONS: string[][] = [
   ],
   // [7] version 6 → 7: add a global contribution_interval setting for budget cadence.
   [`INSERT OR IGNORE INTO settings (key, value) VALUES ('contribution_interval', 'monthly')`],
-  // [8] version 7 → 8: add notes column to holdings.
-  [`ALTER TABLE holdings ADD COLUMN notes TEXT NOT NULL DEFAULT ''`],
+  // [8] version 7 → 8: add notes column to holdings and snapshots.
+  [
+    `ALTER TABLE holdings ADD COLUMN notes TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE snapshots ADD COLUMN notes TEXT NOT NULL DEFAULT ''`,
+  ],
 ];
