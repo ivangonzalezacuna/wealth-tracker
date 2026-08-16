@@ -259,7 +259,8 @@ function isValidHolding(value: unknown): value is Holding {
     typeof value.region === 'string' &&
     typeof value.foldInto === 'string' &&
     isFiniteNumber(value.order) &&
-    isOptionalFiniteNumber(value.ter)
+    isOptionalFiniteNumber(value.ter) &&
+    isOptionalString(value.notes)
   );
 }
 

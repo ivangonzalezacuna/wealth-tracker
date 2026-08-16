@@ -74,6 +74,7 @@ export interface Holding {
   foldInto: string;
   order: number;
   ter?: number; // total expense ratio in %, e.g. 0.2 for 0.20%
+  notes?: string; // optional free-text notes about this holding
 }
 
 // ─── Snapshot ────────────────────────────────────────────────────

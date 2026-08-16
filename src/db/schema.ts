@@ -6,7 +6,7 @@
  */
 
 /** Schema version - bump when DDL changes require a migration. */
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 /**
  * SQL statements executed on first database creation (version 0 → 1).
@@ -64,7 +64,8 @@ export const SCHEMA_DDL: string[] = [
     region TEXT NOT NULL DEFAULT '',
     fold_into TEXT NOT NULL DEFAULT '',
     "order" INTEGER NOT NULL DEFAULT 0,
-    ter REAL NOT NULL DEFAULT 0
+    ter REAL NOT NULL DEFAULT 0,
+    notes TEXT NOT NULL DEFAULT ''
   )`,
 
   // ── Snapshots ─────────────────────────────────────────────────

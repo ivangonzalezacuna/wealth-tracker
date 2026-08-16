@@ -188,6 +188,7 @@ describe.sequential('db importDb local-preservation merge', () => {
         region: 'global',
         foldInto: '',
         order: 1,
+        notes: 'local holding note',
       },
       {
         isin: 'IE00BKM4GZ66',
@@ -232,7 +233,9 @@ describe.sequential('db importDb local-preservation merge', () => {
     expect(accounts.some((a) => a.id === 'acct-local')).toBe(true);
 
     expect(holdings.find((h) => h.isin === 'IE00B4L5Y983')?.name).toBe('Local World Edited');
+    expect(holdings.find((h) => h.isin === 'IE00B4L5Y983')?.notes).toBe('local holding note');
     expect(holdings.some((h) => h.isin === 'IE00BKM4GZ66')).toBe(true);
+    expect(holdings.find((h) => h.isin === 'IE00B4L5Y983')?.notes).toBe('local holding note');
 
     expect(settings.costBasisMethod).toBe('hifo');
 

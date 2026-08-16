@@ -104,6 +104,30 @@ describe('holdingDialog', () => {
     expect(draft?.name).toBe('Alpha Fund');
   });
 
+  it('pre-fills notes textarea when editing an existing holding with notes', () => {
+    holdingDialog({ existing: { ...existingHolding, notes: 'Some reminder' }, suggestions });
+    expect((document.querySelector('#holdd-notes') as HTMLTextAreaElement).value).toBe(
+      'Some reminder',
+    );
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('includes notes in the submitted draft when notes are entered', async () => {
+    const p = holdingDialog({ existing: existingHolding, suggestions });
+    (document.querySelector('#holdd-notes') as HTMLTextAreaElement).value = 'My note';
+    getSubmit()!.click();
+    const draft = await p;
+    expect(draft?.notes).toBe('My note');
+  });
+
+  it('omits notes from the draft when the notes field is empty', async () => {
+    const p = holdingDialog({ existing: existingHolding, suggestions });
+    (document.querySelector('#holdd-notes') as HTMLTextAreaElement).value = '';
+    getSubmit()!.click();
+    const draft = await p;
+    expect(draft?.notes).toBeUndefined();
+  });
+
   it('blocks submit and shows ISIN format error when ISIN is invalid', async () => {
     const p = holdingDialog();
     (document.querySelector('#holdd-isin') as HTMLInputElement).value = 'IE00B4L5Y98A';
@@ -120,5 +144,29 @@ describe('holdingDialog', () => {
     );
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     await p;
+  });
+
+  it('pre-fills notes textarea when editing an existing holding with notes', () => {
+    holdingDialog({ existing: { ...existingHolding, notes: 'Some reminder' }, suggestions });
+    expect((document.querySelector('#holdd-notes') as HTMLTextAreaElement).value).toBe(
+      'Some reminder',
+    );
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('includes notes in the submitted draft when notes are entered', async () => {
+    const p = holdingDialog({ existing: existingHolding, suggestions });
+    (document.querySelector('#holdd-notes') as HTMLTextAreaElement).value = 'My note';
+    getSubmit()!.click();
+    const draft = await p;
+    expect(draft?.notes).toBe('My note');
+  });
+
+  it('omits notes from the draft when the notes field is empty', async () => {
+    const p = holdingDialog({ existing: existingHolding, suggestions });
+    (document.querySelector('#holdd-notes') as HTMLTextAreaElement).value = '';
+    getSubmit()!.click();
+    const draft = await p;
+    expect(draft?.notes).toBeUndefined();
   });
 });
