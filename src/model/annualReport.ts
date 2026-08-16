@@ -244,6 +244,32 @@ function _th(labels: string[]): string {
   return `<tr>${labels.map((l, i) => `<th${i > 0 ? ' class="num"' : ''}>${l}</th>`).join('')}</tr>`;
 }
 
+function _rowsWhen(items: Array<{ when: boolean; cells: string[] }>): string {
+  return items
+    .filter((item) => item.when)
+    .map((item) => _tableRow(item.cells))
+    .join('');
+}
+
+function _tableSection(
+  title: string,
+  headers: string[],
+  bodyRows: string,
+  footerCells: string[],
+  options?: { note?: string; sectionClass?: string },
+): string {
+  const noteHtml = options?.note ? `<p class="note">${options.note}</p>` : '';
+  const sectionClass = options?.sectionClass ? ` ${options.sectionClass}` : '';
+  return `<section class="doc-section${sectionClass}">
+<h2>${title}</h2>
+${noteHtml}<table>
+  <thead>${_th(headers)}</thead>
+  <tbody>${bodyRows}</tbody>
+  <tfoot>${_tableRow(footerCells, 'total')}</tfoot>
+</table>
+</section>`;
+}
+
 /**
  * Render a self-contained, print-ready HTML page for the given annual report.
  * No external CSS or JS dependencies — designed to be saved as a file and
@@ -269,6 +295,7 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
     year: 'numeric',
   });
   const reportScopeLabel = report.isPartialYearReport ? 'Partial report' : 'Full-year report';
+  const reportTitle = `Annual Portfolio Report ${year}${report.isPartialYearReport ? ' (Partial)' : ''}`;
 
   // ── Accounts table ──
   const accountsRows = report.accounts
@@ -301,17 +328,26 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
     )
     .join('');
 
-  const dividendsSection =
-    report.dividends.length > 0
-      ? `<section class="doc-section">
-<h2>Dividends</h2>
-<table>
-  <thead>${_th(['ISIN', 'Name', `Gross (${currency})`, `Withholding tax (${currency})`, `Net (${currency})`])}</thead>
-  <tbody>${dividendsRows}</tbody>
-  <tfoot>${_tableRow(['', 'Total', _fmt(report.totalDividendGross, currency), _fmt(report.totalDividendTax, currency), _fmt(report.totalDividendNet, currency)], 'total')}</tfoot>
-</table>
-</section>`
-      : '';
+  const dividendsSection = report.dividends.length
+    ? _tableSection(
+        'Dividends',
+        [
+          'ISIN',
+          'Name',
+          `Gross (${currency})`,
+          `Withholding tax (${currency})`,
+          `Net (${currency})`,
+        ],
+        dividendsRows,
+        [
+          '',
+          'Total',
+          _fmt(report.totalDividendGross, currency),
+          _fmt(report.totalDividendTax, currency),
+          _fmt(report.totalDividendNet, currency),
+        ],
+      )
+    : '';
 
   // ── Interest table ──
   const interestRows = report.interest
@@ -325,17 +361,24 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
     )
     .join('');
 
-  const interestSection =
-    report.interest.length > 0
-      ? `<section class="doc-section">
-<h2>Interest</h2>
-<table>
-  <thead>${_th(['Source / Account', `Gross (${currency})`, `Withholding tax (${currency})`, `Net (${currency})`])}</thead>
-  <tbody>${interestRows}</tbody>
-  <tfoot>${_tableRow(['Total', _fmt(report.totalInterestGross, currency), _fmt(report.totalInterestTax, currency), _fmt(report.totalInterestNet, currency)], 'total')}</tfoot>
-</table>
-</section>`
-      : '';
+  const interestSection = report.interest.length
+    ? _tableSection(
+        'Interest',
+        [
+          'Source / Account',
+          `Gross (${currency})`,
+          `Withholding tax (${currency})`,
+          `Net (${currency})`,
+        ],
+        interestRows,
+        [
+          'Total',
+          _fmt(report.totalInterestGross, currency),
+          _fmt(report.totalInterestTax, currency),
+          _fmt(report.totalInterestNet, currency),
+        ],
+      )
+    : '';
 
   // ── Realised gains table ──
   const gainsRows = report.holdings
@@ -344,79 +387,83 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
     .join('');
 
   const gainsSection = gainsRows
-    ? `<section class="doc-section">
-<h2>Realised Gains &amp; Losses</h2>
-<table>
-  <thead>${_th(['ISIN', 'Name', `Gain / Loss (${currency})`])}</thead>
-  <tbody>${gainsRows}</tbody>
-  <tfoot>${_tableRow(['', 'Total', _fmt(report.totalYearRealisedGains, currency)], 'total')}</tfoot>
-</table>
-</section>`
+    ? _tableSection(
+        'Realised Gains &amp; Losses',
+        ['ISIN', 'Name', `Gain / Loss (${currency})`],
+        gainsRows,
+        ['', 'Total', _fmt(report.totalYearRealisedGains, currency)],
+      )
     : '';
 
   // ── Tax summary ──
-  const taxSummaryRows = [
-    report.totalDividendTax !== 0
-      ? _tableRow(['Dividend withholding tax', _fmt(report.totalDividendTax, currency)])
-      : '',
-    report.totalInterestTax !== 0
-      ? _tableRow(['Interest withholding tax', _fmt(report.totalInterestTax, currency)])
-      : '',
-    report.standaloneTaxTotal !== 0
-      ? _tableRow(['Other tax transactions', _fmt(report.standaloneTaxTotal, currency)])
-      : '',
-  ].join('');
+  const taxSummaryRows = _rowsWhen([
+    {
+      when: report.totalDividendTax !== 0,
+      cells: ['Dividend withholding tax', _fmt(report.totalDividendTax, currency)],
+    },
+    {
+      when: report.totalInterestTax !== 0,
+      cells: ['Interest withholding tax', _fmt(report.totalInterestTax, currency)],
+    },
+    {
+      when: report.standaloneTaxTotal !== 0,
+      cells: ['Other tax transactions', _fmt(report.standaloneTaxTotal, currency)],
+    },
+  ]);
 
-  const taxSection =
-    report.totalTax !== 0
-      ? `<section class="doc-section">
-<h2>Tax Summary</h2>
-<p class="note">Tax sign convention: positive values = tax paid, negative values = tax refund received back.</p>
-<table>
-  <thead>${_th(['Category', `Amount (${currency})`])}</thead>
-  <tbody>${taxSummaryRows}</tbody>
-  <tfoot>${_tableRow(['Total taxes (signed)', _fmt(report.totalTax, currency)], 'total')}</tfoot>
-</table>
-</section>`
-      : '';
+  const taxSection = report.totalTax
+    ? _tableSection(
+        'Tax Summary',
+        ['Category', `Amount (${currency})`],
+        taxSummaryRows,
+        ['Total taxes (signed)', _fmt(report.totalTax, currency)],
+        {
+          note: 'Tax sign convention: positive values = tax paid, negative values = tax refund received back.',
+        },
+      )
+    : '';
 
   // ── Compact yearly summary ──
   const networthChange = report.totalNetWorth - report.openingNetWorth;
   const networthChangeSign = networthChange >= 0 ? '+' : '';
-  const summaryBreakdownRows = [
-    report.totalDividendGross > 0
-      ? _tableRow(['Dividend income - gross', _fmt(report.totalDividendGross, currency)])
-      : '',
-    report.totalDividendTax !== 0
-      ? _tableRow(['Dividend withholding tax (signed)', _fmt(report.totalDividendTax, currency)])
-      : '',
-    report.totalDividendNet > 0
-      ? _tableRow(['Dividend income - net', _fmt(report.totalDividendNet, currency)])
-      : '',
-    report.totalInterestGross > 0
-      ? _tableRow(['Interest income - gross', _fmt(report.totalInterestGross, currency)])
-      : '',
-    report.totalInterestTax !== 0
-      ? _tableRow(['Interest withholding tax (signed)', _fmt(report.totalInterestTax, currency)])
-      : '',
-    report.totalInterestNet > 0
-      ? _tableRow(['Interest income - net', _fmt(report.totalInterestNet, currency)])
-      : '',
-    report.totalYearRealisedGains !== 0
-      ? _tableRow(['Realised gains / losses', _fmt(report.totalYearRealisedGains, currency)])
-      : '',
-    report.standaloneTaxTotal !== 0
-      ? _tableRow([
-          'Standalone tax transactions (signed)',
-          _fmt(report.standaloneTaxTotal, currency),
-        ])
-      : '',
-    report.totalTax !== 0
-      ? _tableRow(['Total taxes (signed)', _fmt(report.totalTax, currency)])
-      : '',
-  ]
-    .filter(Boolean)
-    .join('');
+  const summaryBreakdownRows = _rowsWhen([
+    {
+      when: report.totalDividendGross > 0,
+      cells: ['Dividend income - gross', _fmt(report.totalDividendGross, currency)],
+    },
+    {
+      when: report.totalDividendTax !== 0,
+      cells: ['Dividend withholding tax (signed)', _fmt(report.totalDividendTax, currency)],
+    },
+    {
+      when: report.totalDividendNet > 0,
+      cells: ['Dividend income - net', _fmt(report.totalDividendNet, currency)],
+    },
+    {
+      when: report.totalInterestGross > 0,
+      cells: ['Interest income - gross', _fmt(report.totalInterestGross, currency)],
+    },
+    {
+      when: report.totalInterestTax !== 0,
+      cells: ['Interest withholding tax (signed)', _fmt(report.totalInterestTax, currency)],
+    },
+    {
+      when: report.totalInterestNet > 0,
+      cells: ['Interest income - net', _fmt(report.totalInterestNet, currency)],
+    },
+    {
+      when: report.totalYearRealisedGains !== 0,
+      cells: ['Realised gains / losses', _fmt(report.totalYearRealisedGains, currency)],
+    },
+    {
+      when: report.standaloneTaxTotal !== 0,
+      cells: ['Standalone tax transactions (signed)', _fmt(report.standaloneTaxTotal, currency)],
+    },
+    {
+      when: report.totalTax !== 0,
+      cells: ['Total taxes (signed)', _fmt(report.totalTax, currency)],
+    },
+  ]);
   const summaryTotalsRows = [
     _tableRow(['Report period', `${periodStartDate} → ${periodEndDate}`]),
     _tableRow(['Report scope', reportScopeLabel]),
@@ -433,15 +480,13 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
       String(report.holdings.filter((h) => h.shares > 0).length),
     ]),
     _tableRow([`Accounts reported`, String(report.accounts.length)]),
-  ]
-    .filter(Boolean)
-    .join('');
+  ].join('');
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Annual Portfolio Report ${year}${report.isPartialYearReport ? ' (Partial)' : ''}</title>
+  <title>${reportTitle}</title>
   <style>
     /* ── Reset ── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -577,7 +622,7 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
 </head>
 <body>
   <div class="doc-header">
-    <div class="doc-title">Annual Portfolio Report ${year}${report.isPartialYearReport ? ' (Partial)' : ''}</div>
+    <div class="doc-title">${reportTitle}</div>
     <div class="doc-meta">Generated: ${generatedDate} • ${reportScopeLabel} • Period: ${periodStartDate} – ${periodEndDate}</div>
   </div>
 
