@@ -188,6 +188,7 @@ describe.sequential('db importDb local-preservation merge', () => {
         region: 'global',
         foldInto: '',
         order: 1,
+        notes: 'Switched index in 2024',
       },
       {
         isin: 'IE00BKM4GZ66',
@@ -232,6 +233,7 @@ describe.sequential('db importDb local-preservation merge', () => {
     expect(accounts.some((a) => a.id === 'acct-local')).toBe(true);
 
     expect(holdings.find((h) => h.isin === 'IE00B4L5Y983')?.name).toBe('Local World Edited');
+    expect(holdings.find((h) => h.isin === 'IE00B4L5Y983')?.notes).toBe('Switched index in 2024');
     expect(holdings.some((h) => h.isin === 'IE00BKM4GZ66')).toBe(true);
 
     expect(settings.costBasisMethod).toBe('hifo');

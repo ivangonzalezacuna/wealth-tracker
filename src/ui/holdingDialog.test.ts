@@ -104,6 +104,43 @@ describe('holdingDialog', () => {
     expect(draft?.name).toBe('Alpha Fund');
   });
 
+  it('preserves notes on submit when editing an existing holding with notes', async () => {
+    const existingWithNotes: Holding = {
+      ...existingHolding,
+      notes: 'Switched index to FTSE All-World in Oct 2024',
+    };
+    const p = holdingDialog({ existing: existingWithNotes });
+
+    const textarea = document.querySelector('#holdd-notes') as HTMLTextAreaElement;
+    expect(textarea.value).toBe('Switched index to FTSE All-World in Oct 2024');
+
+    getSubmit()!.click();
+    const draft = await p;
+
+    expect(draft?.notes).toBe('Switched index to FTSE All-World in Oct 2024');
+  });
+
+  it('includes notes typed by the user in the submitted draft', async () => {
+    const p = holdingDialog({ existing: existingHolding });
+
+    (document.querySelector('#holdd-notes') as HTMLTextAreaElement).value =
+      'New note about this holding';
+    getSubmit()!.click();
+    const draft = await p;
+
+    expect(draft?.notes).toBe('New note about this holding');
+  });
+
+  it('omits notes from draft when notes field is empty', async () => {
+    const p = holdingDialog({ existing: existingHolding });
+
+    (document.querySelector('#holdd-notes') as HTMLTextAreaElement).value = '';
+    getSubmit()!.click();
+    const draft = await p;
+
+    expect(draft?.notes).toBeUndefined();
+  });
+
   it('blocks submit and shows ISIN format error when ISIN is invalid', async () => {
     const p = holdingDialog();
     (document.querySelector('#holdd-isin') as HTMLInputElement).value = 'IE00B4L5Y98A';

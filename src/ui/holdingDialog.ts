@@ -161,6 +161,15 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
               </div>
             </div>
           </div>
+          <div class="dialog-row">
+            <div class="dialog-field dialog-field-wide">
+              <label class="dialog-label" for="holdd-notes">
+                Notes${infoTip('Optional free-text notes: index changes, mergers, reminders, or any context about this holding.')}
+              </label>
+              <textarea id="holdd-notes" class="form-input dialog-input" rows="3"
+                placeholder="e.g. Switched index from MSCI World to FTSE All-World in Oct 2024">${esc(existing?.notes || '')}</textarea>
+            </div>
+          </div>
         </div>
         <div class="dialog-actions">
           <button class="btn btn-sm btn-ghost js-holdd-cancel">Cancel</button>
@@ -212,6 +221,7 @@ function _submit(): void {
   const colorVal = get('holdd-color-hex') || get('holdd-color') || '#888888';
   const isAcc = getChecked('holdd-acc');
   const isActive = getChecked('holdd-active');
+  const notesVal = get('holdd-notes');
 
   let valid = true;
 
@@ -249,6 +259,7 @@ function _submit(): void {
     foldInto: existing?.foldInto || '',
     order: existing?.order ?? _activeOrder,
     ter: terRaw !== '' ? parseFloat(terRaw) || 0 : undefined,
+    ...(notesVal.trim() ? { notes: notesVal.trim() } : {}),
   };
 
   _dismiss(draft);
