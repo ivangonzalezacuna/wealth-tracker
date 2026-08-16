@@ -246,7 +246,15 @@ export function detectProfile(
 
 export function parseWithProfile(text: string, profile: ImportProfile): ParseResult {
   const lines = joinQuotedLines(text.trim().split('\n'));
-  if (lines.length < 2) return { transactions: [], unmapped: [], dateErrors: [], numberErrors: [] };
+  if (lines.length < 2)
+    return {
+      transactions: [],
+      unmapped: [],
+      dateErrors: [],
+      numberErrors: [],
+      errorLines: [],
+      headerLine: lines[0] ?? '',
+    };
 
   // Resolve delimiter
   const sep = profile.delimiter === 'auto' ? detectSeparator(lines[0]) : profile.delimiter || ',';
@@ -283,6 +291,8 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
   const dateErrorCounts: Record<string, number> = {};
   const numberErrorCounts: Record<string, { field: string; raw: string; count: number }> = {};
   const idHashCounts: Record<string, number> = {}; // preserve duplicates with identical row hash
+  const errorLines: string[] = [];
+  const headerLine = lines[0];
 
   for (let i = 1; i < lines.length; i++) {
     if (!lines[i].trim()) continue;
@@ -298,11 +308,13 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
     const date = parseDate(rawDate, profile.dateFormat);
     if (!date) {
       dateErrorCounts['(empty)'] = (dateErrorCounts['(empty)'] || 0) + 1;
+      errorLines.push(lines[i]);
       continue;
     }
     if (!isValidIsoDate(date)) {
       const key = rawDate || '(empty)';
       dateErrorCounts[key] = (dateErrorCounts[key] || 0) + 1;
+      errorLines.push(lines[i]);
       continue;
     }
 
@@ -325,6 +337,7 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
     const txType = (canonicalType || (rawType || '').toUpperCase() || 'UNKNOWN') as TxTypeValue;
 
     /** Parse a number field, tracking non-empty cells that fail to parse. */
+    let hadNumberError = false;
     const parseField = (field: string): number => {
       const raw = get(field);
       const n = parseNumber(raw, profile.decimal);
@@ -335,6 +348,7 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
         } else {
           numberErrorCounts[key] = { field, raw: raw.trim(), count: 1 };
         }
+        hadNumberError = true;
         return 0;
       }
       return n;
@@ -347,6 +361,8 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
     const price = parseField('price');
     const fee = parseField('fee');
     const fxRate = parseField('fxRate');
+
+    if (hadNumberError) errorLines.push(lines[i]);
 
     // Generate a deterministic ID when the CSV provides none.
     // Profiles that lack an id column must declare `idColumns`.
@@ -471,14 +487,14 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
     .sort((a, b) => b.count - a.count);
   const numberErrors = Object.values(numberErrorCounts).sort((a, b) => b.count - a.count);
 
-  return { transactions: filtered, unmapped, dateErrors, numberErrors };
+  return { transactions: filtered, unmapped, dateErrors, numberErrors, errorLines, headerLine };
 }
 
 /**
  * Generate a preview summary for parsed results.
  */
 export function previewSummary(parsed: ParseResult): PreviewSummary {
-  const { transactions, unmapped, dateErrors, numberErrors } = parsed;
+  const { transactions, unmapped, dateErrors, numberErrors, errorLines, headerLine } = parsed;
   const byCounts: Record<string, number> = {};
   for (const tx of transactions) {
     byCounts[tx.type] = (byCounts[tx.type] || 0) + 1;
@@ -489,6 +505,8 @@ export function previewSummary(parsed: ParseResult): PreviewSummary {
     unmapped,
     dateErrors,
     numberErrors,
+    errorLines,
+    headerLine,
     sample: transactions.slice(0, 10),
   };
 }

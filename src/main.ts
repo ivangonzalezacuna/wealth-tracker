@@ -1855,6 +1855,15 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
   `
       : '';
 
+  const hasErrors = totalDateErrors > 0 || totalNumberErrors > 0;
+  const downloadErrorRowsHtml = hasErrors
+    ? `
+    <div style="margin:.4rem 0 .6rem">
+      <button class="btn btn-ghost btn-sm" id="btn-dl-error-rows">Download error rows as CSV</button>
+    </div>
+  `
+    : '';
+
   // Amended-rows warning: rows that already exist but differ in at least one data field.
   // Computed once against the current stored set; the merge will silently keep the stored values.
   const amendedCount = countAmendedRows(state.txs, allRows);
@@ -1947,6 +1956,7 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
         ${unmappedHtml}
         ${hideDateWarning ? '' : dateErrorsHtml}
         ${numberErrorsHtml}
+        ${downloadErrorRowsHtml}
         ${amendedHtml}
         ${previewTableHtml}
         ${pageInfoHtml}
@@ -1966,6 +1976,16 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
     });
     document.getElementById('btn-dismiss-date-warn')?.addEventListener('click', () => {
       document.getElementById('import-date-warn')?.remove();
+    });
+    document.getElementById('btn-dl-error-rows')?.addEventListener('click', () => {
+      const csvContent = [summary.headerLine, ...summary.errorLines].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'import-errors.csv';
+      a.click();
+      URL.revokeObjectURL(url);
     });
     document.getElementById('btn-prev-import-page')?.addEventListener('click', () => {
       if (currentPage > 0) {

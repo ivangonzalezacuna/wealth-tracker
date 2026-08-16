@@ -10,7 +10,7 @@ Focus: polish, usability gaps, and the most-requested missing pieces.
 
 ### Import & CSV
 
-- **Import error recovery** — When a CSV batch fails to parse (wrong date format, unrecognised type, garbled number), the current flow shows aggregate error counts but does not let the user isolate and fix individual bad rows. A row-level error diff that can be exported as a pre-filtered CSV lets the user fix only the problem rows and re-import them, rather than fixing the entire source file and re-importing everything.
+- ~~**Import error recovery**~~ ✅ — When a CSV batch fails to parse (wrong date format, unrecognised type, garbled number), the current flow shows aggregate error counts but does not let the user isolate and fix individual bad rows. A row-level error diff that can be exported as a pre-filtered CSV lets the user fix only the problem rows and re-import them, rather than fixing the entire source file and re-importing everything.
 
 ### Snapshots & Net Worth
 
