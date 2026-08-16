@@ -48,6 +48,32 @@ let _inflationRate = 0; // annual inflation % for real-return forecast overlay
 let _lastSnaps: Snapshot[] = [];
 let _lastAccounts: Account[] = [];
 let _activeGoalIdx = 0; // which goal tab is selected in the consolidated goals card
+type ForecastScenario = {
+  id: 'optimistic' | 'pessimistic';
+  label: string;
+  returnDeltaPct: number;
+  contribDeltaAmt: number; // €/month at portfolio level
+  color: string;
+};
+function _defaultForecastScenarios(): ForecastScenario[] {
+  return [
+    {
+      id: 'optimistic',
+      label: 'Optimistic',
+      returnDeltaPct: 2,
+      contribDeltaAmt: 200,
+      color: 'rgba(45,170,90,0.95)',
+    },
+    {
+      id: 'pessimistic',
+      label: 'Pessimistic',
+      returnDeltaPct: -2,
+      contribDeltaAmt: -200,
+      color: 'rgba(220,95,95,0.95)',
+    },
+  ];
+}
+let _scenarios: ForecastScenario[] = _defaultForecastScenarios();
 
 // ── Decumulation card state ──────────────────────────────
 let _ddRetirementDate = ''; // e.g. "2060-01"; empty = not set
@@ -110,6 +136,38 @@ function _buildAccountForecastInputs(snap: Snapshot, accounts: Account[]): Accou
     const contribInterval = isPrimaryInvestment ? globalContribInterval : accountContribInterval;
     return { current, annualContrib, annualReturnPct, contribInterval };
   });
+}
+
+function _clampScenarioReturnDelta(v: number): number {
+  if (!isFinite(v)) return 0;
+  return Math.max(-30, Math.min(30, v));
+}
+
+function _clampScenarioContributionDelta(v: number): number {
+  if (!isFinite(v)) return 0;
+  return Math.max(-5000, Math.min(5000, v));
+}
+
+function _applyScenarioToAccountInputs(
+  accountInputs: AccountForecastInput[],
+  accounts: Account[],
+  scenario: ForecastScenario,
+): AccountForecastInput[] {
+  const adjusted = accountInputs.map((a) => ({
+    ...a,
+    annualReturnPct: Math.max(-100, Math.min(100, a.annualReturnPct + scenario.returnDeltaPct)),
+  }));
+
+  if (adjusted.length === 0 || scenario.contribDeltaAmt === 0) return adjusted;
+
+  const annualDelta = scenario.contribDeltaAmt * 12;
+  const targetIdx = accounts.findIndex((a) => _isPrimaryInvestmentAccount(a));
+  const idx = targetIdx >= 0 ? targetIdx : 0;
+  adjusted[idx] = {
+    ...adjusted[idx],
+    annualContrib: Math.max(0, adjusted[idx].annualContrib + annualDelta),
+  };
+  return adjusted;
 }
 
 /** Renders milestones section for a goal progress card using infoTip for note icons. */
@@ -317,6 +375,7 @@ function _renderGoalCards(): void {
 /** Resets module-level tab state. Exposed only for unit test teardown. */
 export function _resetPlanningTabForTest(): void {
   _planningTab = 'forecast';
+  _scenarios = _defaultForecastScenarios();
 }
 
 export function renderNW(snaps: Snapshot[]): void {
@@ -783,10 +842,18 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
 
   const latestDate = latestSnap.date;
   const forecastMonths = parseInt(_fcRange);
-  const series = forecastMultiAccountSeries(accountInputs, forecastMonths, latestDate);
+  const baselineSeries = forecastMultiAccountSeries(accountInputs, forecastMonths, latestDate);
+  const scenarioSeries = _scenarios.map((scenario) => ({
+    scenario,
+    series: forecastMultiAccountSeries(
+      _applyScenarioToAccountInputs(accountInputs, accounts, scenario),
+      forecastMonths,
+      latestDate,
+    ),
+  }));
 
   // Inflation-adjusted (real) series
-  const realSeries = _deflateByInflation(series, _inflationRate);
+  const realSeries = _deflateByInflation(baselineSeries, _inflationRate);
   const showReal = _inflationRate > 0;
 
   // Build combined history + forecast for a seamless line chart
@@ -794,8 +861,12 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   const histLabels = historySlice.map((sn) => fmtMon(sn.date));
   const histValues = historySlice.map((sn) => snapTotal(sn));
 
-  const fcLabels = series.map((p) => fmtMon(p.month));
-  const fcValues = series.map((p) => p.value);
+  const fcLabels = baselineSeries.map((p) => fmtMon(p.month));
+  const fcValues = baselineSeries.map((p) => p.value);
+  const scenarioValues = scenarioSeries.map((s) => ({
+    scenario: s.scenario,
+    values: s.series.map((p) => p.value),
+  }));
   const realValues = realSeries.map((p) => p.value);
 
   // Combined labels: history + forecast
@@ -806,6 +877,14 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     histValues[histValues.length - 1],
     ...fcValues,
   ];
+  const scenarioDataFull = scenarioValues.map(({ scenario, values }) => ({
+    scenario,
+    data: [
+      ...new Array(histValues.length - 1).fill(null),
+      histValues[histValues.length - 1],
+      ...values,
+    ],
+  }));
   const realDataFull = showReal
     ? [
         ...new Array(histValues.length - 1).fill(null),
@@ -873,6 +952,26 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     .join('<br>');
 
   forecastEl.innerHTML = `
+      <div class="card" style="margin-bottom:.75rem;padding:.75rem">
+        <div style="font-size:12px;font-weight:600;margin-bottom:.5rem">Scenario comparison</div>
+        <div class="note" style="margin-bottom:.5rem">Baseline uses account return/contribution settings. Deltas below apply to the whole projection.</div>
+        ${_scenarios
+          .map(
+            (scenario) => `
+              <div style="display:grid;grid-template-columns:120px minmax(120px,1fr) minmax(140px,1fr);gap:8px;align-items:end;margin-bottom:6px">
+                <div style="font-size:12px;color:var(--ink-2);font-weight:600">${esc(scenario.label)}</div>
+                <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-3)">
+                  <span>Return Δ (%/yr)</span>
+                  <input id="nw-scn-${scenario.id}-ret" class="form-input form-input-sm" type="number" inputmode="decimal" min="-30" max="30" step="0.1" value="${scenario.returnDeltaPct}">
+                </label>
+                <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-3)">
+                  <span>Contribution Δ (€/month)</span>
+                  <input id="nw-scn-${scenario.id}-contrib" class="form-input form-input-sm" type="number" inputmode="decimal" min="-5000" max="5000" step="10" value="${scenario.contribDeltaAmt}">
+                </label>
+              </div>`,
+          )
+          .join('')}
+      </div>
       <div class="chart-controls">
         <div id="nw-forecast-legend" class="legend"></div>
         <div class="range-toggle" id="nw-forecast-range-toggle" role="group" aria-label="Forecast range">
@@ -960,7 +1059,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           order: 1,
         },
         {
-          label: 'Forecast (nominal)',
+          label: 'Baseline (nominal)',
           data: fcDataFull,
           borderColor: C.brandChart,
           backgroundColor: 'rgba(42,120,214,0.07)',
@@ -972,6 +1071,19 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           spanGaps: false,
           order: 2,
         },
+        ...scenarioDataFull.map((s, idx) => ({
+          label: `${s.scenario.label} (${s.scenario.returnDeltaPct >= 0 ? '+' : ''}${s.scenario.returnDeltaPct.toFixed(1)}% / ${fmtEurSigned(s.scenario.contribDeltaAmt, 0)}/mo)`,
+          data: s.data,
+          borderColor: s.scenario.color,
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          borderDash: idx === 0 ? [2, 3] : [8, 3],
+          pointRadius: 0,
+          fill: false,
+          tension: 0.3,
+          spanGaps: false,
+          order: 3 + idx,
+        })),
         ...(realDataFull
           ? [
               {
@@ -985,7 +1097,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
                 fill: false,
                 tension: 0.3,
                 spanGaps: false,
-                order: 3,
+                order: 6,
               },
             ]
           : []),
@@ -1067,6 +1179,24 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   );
 
   _attachForecastRangeToggle();
+  _scenarios.forEach((scenario) => {
+    const retInput = document.getElementById(
+      `nw-scn-${scenario.id}-ret`,
+    ) as HTMLInputElement | null;
+    const contribInput = document.getElementById(
+      `nw-scn-${scenario.id}-contrib`,
+    ) as HTMLInputElement | null;
+    retInput?.addEventListener('change', () => {
+      const parsed = parseFloat(retInput.value);
+      scenario.returnDeltaPct = _clampScenarioReturnDelta(parsed);
+      _renderForecastChart(_lastSnaps, _lastAccounts);
+    });
+    contribInput?.addEventListener('change', () => {
+      const parsed = parseFloat(contribInput.value);
+      scenario.contribDeltaAmt = _clampScenarioContributionDelta(parsed);
+      _renderForecastChart(_lastSnaps, _lastAccounts);
+    });
+  });
 }
 
 // ── Decumulation chart ──

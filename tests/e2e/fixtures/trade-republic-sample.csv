@@ -1,0 +1,2 @@
+transaction_id,date,type,category,name,symbol,shares,price,amount,fee,tax,currency,fx_rate
+tx-e2e-1,2026-01-10,BUY,TRADING,MSCI World ETF,IE00B4L5Y983,1,100,100,0,0,EUR,1

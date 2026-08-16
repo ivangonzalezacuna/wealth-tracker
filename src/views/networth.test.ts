@@ -328,6 +328,38 @@ describe('renderNW', () => {
     expect(chartInstances[1].destroyed).toBe(true);
   });
 
+  it('forecast chart includes baseline and scenario datasets by default', () => {
+    const snaps = [makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)];
+    renderNW(snaps);
+    const forecastConfig = chartInstances[1].config as {
+      data?: { datasets?: Array<{ label?: string }> };
+    };
+    const labels = (forecastConfig.data?.datasets || []).map((d) => d.label || '');
+    expect(labels.some((l) => l.includes('Baseline (nominal)'))).toBe(true);
+    expect(labels.some((l) => l.includes('Optimistic'))).toBe(true);
+    expect(labels.some((l) => l.includes('Pessimistic'))).toBe(true);
+  });
+
+  it('scenario controls update forecast dataset labels after editing deltas', () => {
+    const snaps = [makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)];
+    renderNW(snaps);
+    const retInput = document.getElementById('nw-scn-optimistic-ret') as HTMLInputElement;
+    const contribInput = document.getElementById('nw-scn-optimistic-contrib') as HTMLInputElement;
+    retInput.value = '3.5';
+    retInput.dispatchEvent(new Event('change'));
+    contribInput.value = '350';
+    contribInput.dispatchEvent(new Event('change'));
+
+    const latestConfig = chartInstances[chartInstances.length - 1].config as {
+      data?: { datasets?: Array<{ label?: string }> };
+    };
+    const labels = (latestConfig.data?.datasets || []).map((d) => d.label || '');
+    const optimisticLabel = labels.find((l) => l.includes('Optimistic'));
+    expect(optimisticLabel).toBeTruthy();
+    expect(optimisticLabel).toContain('+3.5%');
+    expect(optimisticLabel).toContain('+350');
+  });
+
   it('NW history range toggle re-creates the history chart on click', () => {
     const snaps = makeMonthlySnaps(20);
     renderNW(snaps);
@@ -408,6 +440,7 @@ describe('renderNW', () => {
     // Drawdown panel should be hidden by default
     const ddPanel = document.getElementById('nw-dd-panel')!;
     expect(ddPanel.hidden).toBe(true);
+    expect(planningEl.textContent).toContain('Scenario comparison');
   });
 
   it('planning card tab switch shows drawdown panel and hides forecast panel', () => {

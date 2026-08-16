@@ -35,4 +35,8 @@ export default defineConfig({
       devOptions: { enabled: false },
     }),
   ],
+  test: {
+    include: ['src/**/*.test.ts'],
+    exclude: ['tests/e2e/**'],
+  },
 });
