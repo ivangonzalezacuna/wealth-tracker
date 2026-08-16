@@ -160,7 +160,7 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
               <div class="ms-date-wrap">
                 <button type="button" class="btn btn-sm btn-ghost ms-date-btn js-goal-date-btn"
                   aria-label="${_existingDate ? `Target date: ${esc(_existingDateLabel)}` : 'Set target date'}">
-                  ${CALENDAR_ICON}<span id="goald-date-val">${esc(_existingDateLabel)}</span>
+                  ${CALENDAR_ICON}<span id="goald-date-val" class="ms-date-val">${esc(_existingDateLabel)}</span>
                 </button>
                 <button type="button" class="btn btn-sm btn-ghost btn-icon js-goal-date-clear"
                   ${_existingDate ? '' : 'hidden'}

@@ -2358,6 +2358,11 @@ input[type='color'] {
   align-items: center;
   justify-content: center;
 }
+.btn-icon-svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
 .btn-icon .btn-icon-svg {
   width: 14px;
   height: 14px;
