@@ -98,6 +98,30 @@ describe('buildAnnualReport — snapshot & net worth', () => {
   });
 });
 
+describe('buildAnnualReport — report completeness', () => {
+  it('marks report as partial when year has ended but no 31 Dec snapshot exists', () => {
+    const report = buildAnnualReport(2024, baseTxs, snapshots, holdings, accounts);
+    expect(report.hasReachedYearEnd).toBe(true);
+    expect(report.hasClosingSnapshotAtYearEnd).toBe(false);
+    expect(report.isPartialYearReport).toBe(true);
+    expect(report.isFullYearReport).toBe(false);
+    expect(report.reportEndDate).toBe('2024-12-01');
+  });
+
+  it('marks report as full-year when year ended and 31 Dec snapshot exists', () => {
+    const fullSnapshots: Snapshot[] = [
+      { date: '2019-12-31', 'acct-1': 40_000, 'acct-2': 10_000 },
+      { date: '2020-12-31', 'acct-1': 50_000, 'acct-2': 11_000 },
+    ];
+    const report = buildAnnualReport(2020, baseTxs, fullSnapshots, holdings, accounts);
+    expect(report.hasReachedYearEnd).toBe(true);
+    expect(report.hasClosingSnapshotAtYearEnd).toBe(true);
+    expect(report.isPartialYearReport).toBe(false);
+    expect(report.isFullYearReport).toBe(true);
+    expect(report.reportEndDate).toBe('2020-12-31');
+  });
+});
+
 describe('buildAnnualReport — dividends', () => {
   const divTxs: Transaction[] = [
     {
@@ -414,8 +438,9 @@ describe('renderAnnualReportHtml', () => {
     const report = buildAnnualReport(2024, baseTxs, snapshots, holdings, accounts);
     const html = renderAnnualReportHtml(report, 'EUR');
     expect(html).toContain('Yearly Summary');
+    expect(html).toContain('Period breakdown');
+    expect(html).toContain('Final report totals');
     expect(html).toContain('Opening net worth');
-    expect(html).toContain('Closing net worth');
   });
 
   it('shows opening vs closing net worth difference in summary', () => {
@@ -424,6 +449,45 @@ describe('renderAnnualReportHtml', () => {
     expect(report.totalNetWorth).toBe(117_000);
     const html = renderAnnualReportHtml(report, 'EUR');
     expect(html).toContain('Net worth change');
+  });
+
+  it('labels incomplete years as partial reports', () => {
+    const report = buildAnnualReport(2024, baseTxs, snapshots, holdings, accounts);
+    const html = renderAnnualReportHtml(report, 'EUR');
+    expect(report.isPartialYearReport).toBe(true);
+    expect(html).toContain('Annual Portfolio Report 2024 (Partial)');
+    expect(html).toContain('Partial report');
+    expect(html).toContain('Net worth at report end');
+  });
+
+  it('includes tax sign explanation in tax summary', () => {
+    const report = buildAnnualReport(
+      2024,
+      [
+        ...baseTxs,
+        {
+          id: 'tax-legend',
+          date: '2024-05-01',
+          source: 'broker',
+          type: 'TAX',
+          name: 'Tax row',
+          isin: '',
+          shares: 0,
+          price: 0,
+          amount: 20,
+          fee: 0,
+          tax: 20,
+          currency: 'EUR',
+          fxRate: 1,
+        },
+      ],
+      snapshots,
+      holdings,
+      accounts,
+    );
+    const html = renderAnnualReportHtml(report, 'EUR');
+    expect(html).toContain('Tax sign convention: positive values = tax paid, negative values = tax refund received back.');
+    expect(html).toContain('Total taxes (signed)');
   });
 });
 

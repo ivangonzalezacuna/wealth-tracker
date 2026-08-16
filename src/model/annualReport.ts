@@ -42,6 +42,12 @@ export interface AnnualReportInterest {
 export interface AnnualReport {
   year: number;
   generatedAt: string;
+  reportStartDate: string;
+  reportEndDate: string;
+  hasReachedYearEnd: boolean;
+  hasClosingSnapshotAtYearEnd: boolean;
+  isFullYearReport: boolean;
+  isPartialYearReport: boolean;
   accounts: AnnualReportAccount[];
   /** Net worth at the last snapshot on or before the year start (31 Dec of prior year). */
   openingNetWorth: number;
@@ -84,6 +90,7 @@ export function buildAnnualReport(
   const prevYearEnd = `${year - 1}-12-31`;
   const yearStart = `${yearStr}-01-01`;
   const yearEnd = `${yearStr}-12-31`;
+  const today = new Date().toISOString().slice(0, 10);
 
   // ── Opening net worth: last snapshot on or before the previous year end ──
   const snapsBeforeYear = snapshots.filter((s) => s.date <= prevYearEnd);
@@ -98,6 +105,11 @@ export function buildAnnualReport(
   const snapsUntilYearEnd = snapshots.filter((s) => s.date <= yearEnd);
   const snap =
     snapsUntilYearEnd.length > 0 ? snapsUntilYearEnd[snapsUntilYearEnd.length - 1] : null;
+  const hasReachedYearEnd = today >= yearEnd;
+  const hasClosingSnapshotAtYearEnd = !!snap && snap.date === yearEnd;
+  const isFullYearReport = hasReachedYearEnd && hasClosingSnapshotAtYearEnd;
+  const isPartialYearReport = !isFullYearReport;
+  const reportEndDate = snap?.date || (hasReachedYearEnd ? yearEnd : today);
 
   const accountRows: AnnualReportAccount[] = accounts.map((a) => ({
     label: a.label,
@@ -182,6 +194,12 @@ export function buildAnnualReport(
   return {
     year,
     generatedAt: new Date().toISOString(),
+    reportStartDate: yearStart,
+    reportEndDate,
+    hasReachedYearEnd,
+    hasClosingSnapshotAtYearEnd,
+    isFullYearReport,
+    isPartialYearReport,
     accounts: accountRows,
     openingNetWorth,
     totalNetWorth,
@@ -240,6 +258,17 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
     month: 'long',
     year: 'numeric',
   });
+  const periodStartDate = new Date(report.reportStartDate).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+  const periodEndDate = new Date(report.reportEndDate).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+  const reportScopeLabel = report.isPartialYearReport ? 'Partial report' : 'Full-year report';
 
   // ── Accounts table ──
   const accountsRows = report.accounts
@@ -342,10 +371,11 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
     report.totalTax !== 0
       ? `<section class="doc-section">
 <h2>Tax Summary</h2>
+<p class="note">Tax sign convention: positive values = tax paid, negative values = tax refund received back.</p>
 <table>
   <thead>${_th(['Category', `Amount (${currency})`])}</thead>
   <tbody>${taxSummaryRows}</tbody>
-  <tfoot>${_tableRow(['Total taxes recorded', _fmt(report.totalTax, currency)], 'total')}</tfoot>
+  <tfoot>${_tableRow(['Total taxes (signed)', _fmt(report.totalTax, currency)], 'total')}</tfoot>
 </table>
 </section>`
       : '';
@@ -353,15 +383,12 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
   // ── Compact yearly summary ──
   const networthChange = report.totalNetWorth - report.openingNetWorth;
   const networthChangeSign = networthChange >= 0 ? '+' : '';
-  const summaryRows = [
-    _tableRow(['Opening net worth (prior year-end)', _fmt(report.openingNetWorth, currency)]),
-    _tableRow(['Closing net worth (year-end)', _fmt(report.totalNetWorth, currency)]),
-    _tableRow(['Net worth change', `${networthChangeSign}${_fmt(networthChange, currency)}`]),
+  const summaryBreakdownRows = [
     report.totalDividendGross > 0
       ? _tableRow(['Dividend income - gross', _fmt(report.totalDividendGross, currency)])
       : '',
     report.totalDividendTax !== 0
-      ? _tableRow(['Dividend income - withholding tax', _fmt(report.totalDividendTax, currency)])
+      ? _tableRow(['Dividend withholding tax (signed)', _fmt(report.totalDividendTax, currency)])
       : '',
     report.totalDividendNet > 0
       ? _tableRow(['Dividend income - net', _fmt(report.totalDividendNet, currency)])
@@ -370,7 +397,7 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
       ? _tableRow(['Interest income - gross', _fmt(report.totalInterestGross, currency)])
       : '',
     report.totalInterestTax !== 0
-      ? _tableRow(['Interest income - withholding tax', _fmt(report.totalInterestTax, currency)])
+      ? _tableRow(['Interest withholding tax (signed)', _fmt(report.totalInterestTax, currency)])
       : '',
     report.totalInterestNet > 0
       ? _tableRow(['Interest income - net', _fmt(report.totalInterestNet, currency)])
@@ -378,14 +405,31 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
     report.totalYearRealisedGains !== 0
       ? _tableRow(['Realised gains / losses', _fmt(report.totalYearRealisedGains, currency)])
       : '',
-    report.totalTax !== 0
-      ? _tableRow(['Total taxes recorded', _fmt(report.totalTax, currency)])
+    report.standaloneTaxTotal !== 0
+      ? _tableRow(['Standalone tax transactions (signed)', _fmt(report.standaloneTaxTotal, currency)])
       : '',
+    report.totalTax !== 0
+      ? _tableRow(['Total taxes (signed)', _fmt(report.totalTax, currency)])
+      : '',
+  ]
+    .filter(Boolean)
+    .join('');
+  const summaryTotalsRows = [
+    _tableRow(['Report period', `${periodStartDate} → ${periodEndDate}`]),
+    _tableRow(['Report scope', reportScopeLabel]),
+    _tableRow(['Opening net worth (prior year-end)', _fmt(report.openingNetWorth, currency)]),
     _tableRow([
-      `Year-end holdings (ISINs)`,
+      report.isPartialYearReport
+        ? `Net worth at report end (${report.reportEndDate})`
+        : 'Closing net worth (year-end)',
+      _fmt(report.totalNetWorth, currency),
+    ]),
+    _tableRow(['Net worth change', `${networthChangeSign}${_fmt(networthChange, currency)}`]),
+    _tableRow([
+      `Holdings at report end (ISINs)`,
       String(report.holdings.filter((h) => h.shares > 0).length),
     ]),
-    _tableRow([`Year-end accounts`, String(report.accounts.length)]),
+    _tableRow([`Accounts reported`, String(report.accounts.length)]),
   ]
     .filter(Boolean)
     .join('');
@@ -394,7 +438,7 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Annual Portfolio Report ${year}</title>
+  <title>Annual Portfolio Report ${year}${report.isPartialYearReport ? ' (Partial)' : ''}</title>
   <style>
     /* ── Reset ── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -458,6 +502,15 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
     .summary-table { width: 100%; border-collapse: collapse; margin-bottom: .5rem; }
     .summary-table td { padding: 3.5px 6px; border-bottom: 1px solid var(--line); font-size: 9pt; vertical-align: top; }
     .summary-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+    .summary-block-label {
+      margin: .2rem 0 .35rem;
+      font-size: 8.5pt;
+      color: var(--ink-3);
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      font-weight: 700;
+    }
+    .note { margin: .35rem 0 .6rem; color: var(--ink-3); font-size: 8pt; }
 
     /* ── Data tables ── */
     table {
@@ -521,19 +574,24 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
 </head>
 <body>
   <div class="doc-header">
-    <div class="doc-title">Annual Portfolio Report ${year}</div>
-    <div class="doc-meta">Generated: ${generatedDate}</div>
+    <div class="doc-title">Annual Portfolio Report ${year}${report.isPartialYearReport ? ' (Partial)' : ''}</div>
+    <div class="doc-meta">Generated: ${generatedDate} • ${reportScopeLabel} • Period: ${periodStartDate} – ${periodEndDate}</div>
   </div>
 
   <section class="doc-section">
     <h2>Yearly Summary</h2>
+    <div class="summary-block-label">Period breakdown</div>
     <table class="summary-table">
-      <tbody>${summaryRows}</tbody>
+      <tbody>${summaryBreakdownRows || _tableRow(['No period breakdown metrics recorded', '—'])}</tbody>
+    </table>
+    <div class="summary-block-label">Final report totals</div>
+    <table class="summary-table">
+      <tbody>${summaryTotalsRows}</tbody>
     </table>
   </section>
 
   <section class="doc-section">
-    <h2>Year-End Net Worth by Account</h2>
+    <h2>${report.isPartialYearReport ? `Net Worth by Account at Report End (${report.reportEndDate})` : 'Year-End Net Worth by Account'}</h2>
     <table>
       <thead>${_th(['Account', `Value (${currency})`])}</thead>
       <tbody>${accountsRows}</tbody>
@@ -544,7 +602,7 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
   ${
     report.holdings.length > 0
       ? `<section class="doc-section allow-break">
-  <h2>Holdings at Year-End</h2>
+  <h2>${report.isPartialYearReport ? `Holdings at Report End (${report.reportEndDate})` : 'Holdings at Year-End'}</h2>
   <table>
     <colgroup>
       <col class="col-isin"><col><col class="col-shares"><col class="col-num"><col class="col-num">
