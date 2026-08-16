@@ -3063,12 +3063,15 @@ input[type='color'] {
   font-size: 13px;
   flex: 1;
   width: 100%;
-  padding: 8px 34px 8px 10px;
+  padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+.ms-date-wrap.has-clear .ms-date-btn {
+  padding-right: 34px;
 }
 .ms-date-clear-btn {
   position: absolute;

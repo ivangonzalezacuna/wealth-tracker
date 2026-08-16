@@ -130,6 +130,40 @@ describe('goalDialog', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
 
+  it('only reserves clear-button space when a date exists', () => {
+    goalDialog({
+      existing: {
+        ...EXISTING_GOAL,
+        milestones: [
+          { targetAmount: '100000', label: 'No date' },
+          { targetAmount: '200000', label: 'With date', targetDate: '2034-06' },
+        ],
+      },
+    });
+
+    const goalDateWrap = document.querySelector('.js-goal-date-btn')?.closest('.ms-date-wrap');
+    expect(goalDateWrap?.classList.contains('has-clear')).toBe(true);
+
+    let rows = getMilestoneRows();
+    expect(rows[0]?.querySelector('.ms-date-wrap')?.classList.contains('has-clear')).toBe(false);
+    expect(rows[1]?.querySelector('.ms-date-wrap')?.classList.contains('has-clear')).toBe(true);
+
+    const goalDate = document.getElementById('goald-date') as HTMLInputElement;
+    goalDate.value = '';
+    goalDate.dispatchEvent(new Event('change'));
+    expect(goalDateWrap?.classList.contains('has-clear')).toBe(false);
+
+    goalDate.value = '2035-01';
+    goalDate.dispatchEvent(new Event('change'));
+    expect(goalDateWrap?.classList.contains('has-clear')).toBe(true);
+
+    rows = getMilestoneRows();
+    expect(rows[0]?.querySelector('.ms-date-wrap')?.classList.contains('has-clear')).toBe(false);
+    expect(rows[1]?.querySelector('.ms-date-wrap')?.classList.contains('has-clear')).toBe(true);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
   it('keeps milestone values when the goal date is changed and restored', () => {
     goalDialog({
       existing: {

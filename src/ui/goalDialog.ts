@@ -53,7 +53,7 @@ function _renderGoalDateField(dateLabel: string, existingDate: string): string {
       <label class="dialog-label">
         Target date${infoTip('Optional. Leave empty to track progress and ETA without a deadline.')}
       </label>
-      <div class="ms-date-wrap">
+      <div class="ms-date-wrap ${existingDate ? 'has-clear' : ''}">
         <button type="button" class="btn btn-sm btn-ghost ms-date-btn js-goal-date-btn"
           aria-label="${existingDate ? `Target date: ${esc(dateLabel)}` : 'Set target date'}">
           ${CALENDAR_ICON}<span id="goald-date-val" class="ms-date-val">${esc(dateLabel)}</span>
@@ -90,7 +90,7 @@ function _renderMilestoneRows(container: HTMLElement, goalDate?: string): void {
           </div>
           <div class="ms-field ms-date-field">
             <span class="ms-field-label">Deadline <span class="ms-opt">(optional)</span></span>
-            <div class="ms-date-wrap">
+            <div class="ms-date-wrap ${dateVal ? 'has-clear' : ''}">
               <button type="button" class="btn btn-sm btn-ghost ms-date-btn js-ms-date-btn"
                 aria-label="${dateVal ? `Deadline: ${esc(dateLabel)}` : `Set deadline for milestone ${i + 1}`}"
                 ${!hasGoalDate ? `disabled title="Set a target date on the goal first"` : ''}>
@@ -200,6 +200,7 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
     const dateValSpan = overlay.querySelector<HTMLElement>('#goald-date-val')!;
     const goalDateClearBtn = overlay.querySelector<HTMLButtonElement>('.js-goal-date-clear')!;
     const goalDateBtn = overlay.querySelector<HTMLButtonElement>('.js-goal-date-btn')!;
+    const goalDateWrap = goalDateBtn.closest('.ms-date-wrap') as HTMLElement;
 
     const getGoalDate = () => dateInput?.value.trim() ?? '';
 
@@ -209,6 +210,7 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
       dateValSpan.textContent = label;
       goalDateBtn.setAttribute('aria-label', val ? `Target date: ${label}` : 'Set target date');
       goalDateClearBtn.hidden = !val;
+      goalDateWrap.classList.toggle('has-clear', Boolean(val));
     };
 
     _renderMilestoneRows(msList, getGoalDate());
