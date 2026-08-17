@@ -92,3 +92,57 @@ test('locked account shows locked-until field', async ({ page }) => {
   await page.click('#btn-save-accts');
   await expect(page.locator('#accts-msg')).toContainText('Saved');
 });
+
+test('account country field saves and persists after reload', async ({ page }) => {
+  await gotoApp(page);
+  await addAccount(page, {
+    label: 'German Broker',
+    institution: 'DKB',
+    annualReturnPct: 5,
+    primary: true,
+    country: 'Germany',
+  });
+
+  // Edit and verify country is pre-filled
+  await openTab(page, 'tab-settings');
+  await ensureCardExpanded(page, 'settings-card-accounts');
+  await page.locator('.js-edit-acct').first().click();
+  await expect(page.locator('#acctd-country')).toHaveValue('Germany');
+  await page.click('.js-acctd-cancel');
+
+  // Verify persistence after reload
+  await page.reload();
+  await gotoApp(page);
+  await openTab(page, 'tab-settings');
+  await ensureCardExpanded(page, 'settings-card-accounts');
+  await page.locator('.js-edit-acct').first().click();
+  await expect(page.locator('#acctd-country')).toHaveValue('Germany');
+  await page.click('.js-acctd-cancel');
+});
+
+test('account group field saves and persists after reload', async ({ page }) => {
+  await gotoApp(page);
+  await addAccount(page, {
+    label: 'Retirement Fund',
+    institution: 'Vanguard',
+    annualReturnPct: 7,
+    primary: true,
+    group: 'Retirement',
+  });
+
+  // Edit and verify group is pre-filled
+  await openTab(page, 'tab-settings');
+  await ensureCardExpanded(page, 'settings-card-accounts');
+  await page.locator('.js-edit-acct').first().click();
+  await expect(page.locator('#acctd-group')).toHaveValue('Retirement');
+  await page.click('.js-acctd-cancel');
+
+  // Verify persistence after reload
+  await page.reload();
+  await gotoApp(page);
+  await openTab(page, 'tab-settings');
+  await ensureCardExpanded(page, 'settings-card-accounts');
+  await page.locator('.js-edit-acct').first().click();
+  await expect(page.locator('#acctd-group')).toHaveValue('Retirement');
+  await page.click('.js-acctd-cancel');
+});
