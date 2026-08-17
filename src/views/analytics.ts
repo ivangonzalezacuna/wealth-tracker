@@ -61,9 +61,14 @@ let _heatmapPage = 0;
 
 // Allocation toggle state: 'active' | 'all'
 const _allocMode: Record<string, 'active' | 'all'> = {
+  acct: 'active',
   class: 'active',
   region: 'active',
+  country: 'active',
 };
+
+// Account donut group dimension: 'acct' | 'country' | 'type'
+let _acctGroupDim: 'acct' | 'country' | 'type' = 'acct';
 
 function _attachRangeToggle(
   id: string,
@@ -84,6 +89,30 @@ function _attachRangeToggle(
     btn.classList.add('active');
     rerender();
   });
+}
+
+function _getCountrySlices(
+  snaps: Snapshot[],
+  mode: 'active' | 'all',
+): { label: string; value: number; color: string }[] {
+  if (snaps.length === 0) return [];
+  const s = snaps[snaps.length - 1];
+  const accounts = getAccounts();
+  const buckets = new Map<string, { value: number; color: string }>();
+  for (const a of accounts) {
+    const value = (s[a.id || ''] as number) || 0;
+    if (value <= 0 && mode === 'active') continue;
+    const label = (a.country || '').trim() || 'Unspecified';
+    const existing = buckets.get(label);
+    if (existing) {
+      existing.value += value;
+    } else {
+      buckets.set(label, { value, color: a.color || '#888' });
+    }
+  }
+  return Array.from(buckets.entries())
+    .map(([label, { value, color }]) => ({ label, value, color }))
+    .sort((a, b) => b.value - a.value);
 }
 
 // ── Month diff helper ──────────────────────────────────────
@@ -898,7 +927,7 @@ function _renderAnnualTable(
 
 // ── Allocation donuts ──────────────────────────────────────
 
-type AllocDim = 'class' | 'acct' | 'region';
+type AllocDim = 'class' | 'acct' | 'region' | 'country';
 
 function _renderAllocationDonuts(holdings: Holding[], pd: PortfolioData | null): void {
   const dims: AllocDim[] = ['acct', 'class', 'region'];
@@ -911,7 +940,7 @@ function _renderAllocationDonuts(holdings: Holding[], pd: PortfolioData | null):
 function _getHoldingSlices(
   holdings: Holding[],
   pd: PortfolioData | null,
-  dim: Exclude<AllocDim, 'acct'>,
+  dim: Exclude<AllocDim, 'acct' | 'country'>,
   mode: 'active' | 'all',
 ): { label: string; value: number; color: string }[] {
   if (!pd) return [];
@@ -959,14 +988,43 @@ function _getAccountSlices(
     .sort((a, b) => b.value - a.value);
 }
 
+function _getTypeSlices(snaps: Snapshot[]): { label: string; value: number; color: string }[] {
+  if (snaps.length === 0) return [];
+  const s = snaps[snaps.length - 1];
+  const accounts = getAccounts();
+  const buckets = new Map<string, { value: number; color: string }>();
+  for (const a of accounts) {
+    const value = (s[a.id || ''] as number) || 0;
+    const raw = (a.moneyType || '').trim();
+    const label = raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : 'Unspecified';
+    const existing = buckets.get(label);
+    if (existing) {
+      existing.value += value;
+    } else {
+      buckets.set(label, { value, color: a.color || '#888' });
+    }
+  }
+  return Array.from(buckets.entries())
+    .map(([label, { value, color }]) => ({ label, value, color }))
+    .sort((a, b) => b.value - a.value);
+}
+
 function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData | null): void {
-  const mode = _allocMode[dim];
+  const mode = _allocMode[dim] ?? 'active';
   let slices: { label: string; value: number; color: string }[] = [];
 
   if (dim === 'acct') {
-    slices = _getAccountSlices(_lastSnaps, mode);
+    if (_acctGroupDim === 'country') {
+      slices = _getCountrySlices(_lastSnaps, 'all');
+    } else if (_acctGroupDim === 'type') {
+      slices = _getTypeSlices(_lastSnaps);
+    } else {
+      slices = _getAccountSlices(_lastSnaps, 'all');
+    }
+  } else if (dim === 'country') {
+    slices = _getCountrySlices(_lastSnaps, mode);
   } else {
-    slices = _getHoldingSlices(holdings, pd, dim as Exclude<AllocDim, 'acct'>, mode);
+    slices = _getHoldingSlices(holdings, pd, dim as Exclude<AllocDim, 'acct' | 'country'>, mode);
   }
 
   const canvasId = `c-an-alloc-${dim}`;
@@ -981,7 +1039,19 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
   }
 
   const total = slices.reduce((s, x) => s + x.value, 0);
-  const dimLabel = dim === 'acct' ? 'account' : dim === 'class' ? 'asset class' : 'region';
+  const dimLabel =
+    dim === 'acct'
+      ? _acctGroupDim === 'country'
+        ? 'country'
+        : _acctGroupDim === 'type'
+          ? 'type'
+          : 'account'
+      : dim === 'class'
+        ? 'asset class'
+        : dim === 'region'
+          ? 'region'
+          : 'country';
+
   writeChartTable(
     tableWrapId,
     `Allocation by ${dimLabel} data`,
@@ -1012,12 +1082,16 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
       // Check whether the other mode (all vs active) would yield more slices so
       // we can show a helpful hint nudging the user to switch.
       let otherModeHasMore = false;
-      if (dim !== 'acct') {
+      if (dim === 'country') {
+        const otherMode = mode === 'active' ? 'all' : 'active';
+        const otherSlices = _getCountrySlices(_lastSnaps, otherMode);
+        otherModeHasMore = otherSlices.length > 1;
+      } else {
         const otherMode = mode === 'active' ? 'all' : 'active';
         const otherSlices = _getHoldingSlices(
           holdings,
           pd,
-          dim as Exclude<AllocDim, 'acct'>,
+          dim as Exclude<AllocDim, 'acct' | 'country'>,
           otherMode,
         );
         otherModeHasMore = otherSlices.length > 1;
@@ -1049,9 +1123,7 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
     }
 
     // Render toggle button so the user can switch to the other mode.
-    if (dim !== 'acct') {
-      _renderAllocToggleBtn(dim);
-    }
+    _renderAllocToggleBtn(dim);
     return;
   }
 
@@ -1112,17 +1184,41 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
     );
   }
 
-  // Render toggle button (not applicable for account dimension)
-  if (dim !== 'acct') {
-    _renderAllocToggleBtn(dim);
-  }
+  // Render toggle button
+  _renderAllocToggleBtn(dim);
 }
 
 function _renderAllocToggleBtn(dim: AllocDim): void {
-  if (dim === 'acct') return;
   const wrapId = `an-alloc-${dim}-toggle-wrap`;
   const wrapEl = document.getElementById(wrapId);
   if (!wrapEl) return;
+
+  if (dim === 'acct') {
+    const groupDim = _acctGroupDim;
+    wrapEl.innerHTML = `
+      <div class="range-toggle" style="font-size:11px">
+        <button class="btn btn-sm btn-ghost${groupDim === 'acct' ? ' active' : ''}" data-acct-group="acct">By account</button>
+        <button class="btn btn-sm btn-ghost${groupDim === 'country' ? ' active' : ''}" data-acct-group="country">By country</button>
+        <button class="btn btn-sm btn-ghost${groupDim === 'type' ? ' active' : ''}" data-acct-group="type">By type</button>
+      </div>`;
+    if (!(wrapEl as HTMLElement & { _acctBound?: boolean })._acctBound) {
+      (wrapEl as HTMLElement & { _acctBound?: boolean })._acctBound = true;
+      wrapEl.addEventListener('click', (e) => {
+        const btn = e.target as HTMLElement;
+        const groupBtn = btn.closest('[data-acct-group]') as HTMLElement | null;
+        const holdings = getHoldings();
+        const pd = _lastPd;
+        if (groupBtn) {
+          const newGroup = groupBtn.dataset.acctGroup as 'acct' | 'country' | 'type';
+          if (_acctGroupDim === newGroup) return;
+          _acctGroupDim = newGroup;
+          _renderAllocDonut('acct', holdings, pd);
+        }
+      });
+    }
+    return;
+  }
+
   const mode = _allocMode[dim] ?? 'active';
   wrapEl.innerHTML = `<div class="range-toggle" style="font-size:11px">
     <button class="btn btn-sm btn-ghost${mode === 'all' ? ' active' : ''}" data-alloc-mode="all" data-alloc-dim="${dim}">All assets</button>
@@ -1145,9 +1241,7 @@ function _renderAllocToggleBtn(dim: AllocDim): void {
 }
 
 function _attachAllocToggle(dim: AllocDim): void {
-  if (dim !== 'acct') {
-    _renderAllocToggleBtn(dim);
-  }
+  _renderAllocToggleBtn(dim);
 }
 
 // ── Drawdown chart ─────────────────────────────────────────

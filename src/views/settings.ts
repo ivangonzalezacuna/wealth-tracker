@@ -353,6 +353,12 @@ function accountInstitutionList(accounts: Account[]): string[] {
   ].sort((a, b) => a.localeCompare(b));
 }
 
+function accountCountryList(accounts: Account[]): string[] {
+  return [...new Set(accounts.map((a) => (a.country || '').trim()).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+}
+
 interface EditableListController<T> {
   items(): T[];
   previewAdd(next: T, message: string): T[];
@@ -460,6 +466,7 @@ function renderAccountRow(a: Account, i: number): string {
   const meta = [
     typeLabel,
     a.institution ? esc(a.institution) : '',
+    a.country ? esc(a.country) : '',
     a.isPrimaryInvestment ? 'Primary' : '',
   ]
     .filter(Boolean)
@@ -584,6 +591,7 @@ function attachAccountListeners(root: HTMLElement): void {
     const draft = await accountDialog({
       existingLabels: controller.items().map((a) => a.label),
       institutionSuggestions: accountInstitutionList(controller.items()),
+      countrySuggestions: accountCountryList(controller.items()),
     });
     if (!draft) return;
     draft.order = controller.items().length + 1;
@@ -602,6 +610,7 @@ function attachAccountListeners(root: HTMLElement): void {
       existing,
       existingLabels: accounts.filter((_, i) => i !== idx).map((a) => a.label),
       institutionSuggestions: accountInstitutionList(accounts),
+      countrySuggestions: accountCountryList(accounts),
     });
     if (!draft) return;
     draft.order = existing.order;

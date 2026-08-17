@@ -31,6 +31,7 @@ const MOCK_ACCOUNTS = [
     id: 'acct_inv',
     moneyType: 'investment',
     institution: 'Broker',
+    country: 'Germany',
     label: 'Broker',
     color: '#111111',
     isPrimaryInvestment: true,
@@ -40,6 +41,7 @@ const MOCK_ACCOUNTS = [
     id: 'acct_cash',
     moneyType: 'savings',
     institution: 'Bank',
+    country: 'Spain',
     label: 'Cash',
     color: '#222222',
     isPrimaryInvestment: false,
@@ -258,6 +260,25 @@ describe('renderAnalytics', () => {
     const allocWrap = document.getElementById('c-an-alloc-acct-table-wrap');
     expect(allocWrap?.hasAttribute('hidden')).toBe(false);
     expect(allocWrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
+  });
+
+  it('renders allocation by country accessible via account donut group toggle', () => {
+    const snaps = [makeSnap('2025-01', 1000, 500), makeSnap('2025-02', 1200, 550)];
+    renderAnalytics(makePd(), snaps, []);
+
+    // The account donut toggle wrap should contain the "By country" button
+    const toggleWrap = document.getElementById('an-alloc-acct-toggle-wrap');
+    expect(toggleWrap).not.toBeNull();
+    const countryBtn = toggleWrap?.querySelector(
+      '[data-acct-group="country"]',
+    ) as HTMLElement | null;
+    expect(countryBtn).not.toBeNull();
+
+    // Clicking it should switch the legend to show country names
+    countryBtn?.click();
+    const legend = document.getElementById('an-alloc-acct-legend');
+    expect(legend?.textContent).toContain('Germany');
+    expect(legend?.textContent).toContain('Spain');
   });
 
   it('renders annual returns table when at least one full year of monthly return data is present', () => {

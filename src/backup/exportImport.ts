@@ -233,6 +233,7 @@ function isValidAccount(value: unknown): value is Account {
     isOptionalString(value.key) &&
     isOptionalString(value.moneyType) &&
     isOptionalString(value.institution) &&
+    isOptionalString(value.country) &&
     isOptionalString(value.color) &&
     isOptionalBoolean(value.isPrimaryInvestment) &&
     isOptionalFiniteNumber(value.order) &&

@@ -44,6 +44,7 @@ export interface Account {
   label: string;
   moneyType?: string;
   institution?: string;
+  country?: string;
   color?: string;
   isPrimaryInvestment?: boolean;
   order?: number;

@@ -23,6 +23,8 @@ export interface AccountDialogOptions {
   existing?: Account;
   /** Suggestions for the institution autocomplete. */
   institutionSuggestions?: string[];
+  /** Suggestions for the country autocomplete. */
+  countrySuggestions?: string[];
   /** Existing account labels excluding the record being edited. */
   existingLabels?: string[];
 }
@@ -91,6 +93,13 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
                 value="${esc(existing?.institution || '')}" placeholder="e.g. Trade Republic"
                 list="acctd-institution-list" autocomplete="off">
               <datalist id="acctd-institution-list"></datalist>
+            </div>
+            <div class="dialog-field">
+              <label class="dialog-label" for="acctd-country">Country (optional)</label>
+              <input type="text" id="acctd-country" class="form-input dialog-input"
+                value="${esc(existing?.country || '')}" placeholder="e.g. Germany"
+                list="acctd-country-list" autocomplete="off">
+              <datalist id="acctd-country-list"></datalist>
             </div>
           </div>
           <div class="dialog-row">
@@ -188,6 +197,7 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
       overlay.querySelector('#acctd-institution-list'),
       opts.institutionSuggestions ?? [],
     );
+    populateDatalist(overlay.querySelector('#acctd-country-list'), opts.countrySuggestions ?? []);
     bindColorInputs(overlay, 'acctd-color', 'acctd-color-hex');
 
     // Primary investment toggle — show/hide contrib block
@@ -217,6 +227,7 @@ function _submit(): void {
   const labelVal = get('acctd-label');
   const typeVal = get('acctd-type') || 'cash';
   const institutionVal = get('acctd-institution');
+  const countryVal = get('acctd-country');
   const colorVal = get('acctd-color-hex') || get('acctd-color') || '#888888';
   const returnRaw = get('acctd-return');
   const isPrimary = getChecked('acctd-primary');
@@ -263,6 +274,7 @@ function _submit(): void {
     label: labelVal,
     moneyType: typeVal,
     institution: institutionVal,
+    country: countryVal,
     color: /^#[0-9a-fA-F]{6}$/.test(colorVal) ? colorVal : existing?.color || '#888888',
     isPrimaryInvestment: isPrimary,
     order: existing?.order,
