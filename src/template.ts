@@ -448,9 +448,9 @@ export function appTemplate(): string {
 
       <div class="card-section-title" style="margin-top:.75rem">Monthly update</div>
       <p class="note" style="margin-bottom:.85rem">Log your latest month-end balances in a modal dialog. Same month overwrites the previous entry.</p>
-      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-        <button class="btn btn-primary" id="btn-add-snap">Add monthly snapshot</button>
-        <span id="snap-msg" style="font-size:12px;min-height:18px"></span>
+      <div class="snapshot-action-row">
+        <button class="btn btn-primary btn-sm" id="btn-add-snap">Add monthly snapshot</button>
+        <span id="snap-msg" class="snapshot-action-msg"></span>
       </div>
 
       <div class="card-section">
