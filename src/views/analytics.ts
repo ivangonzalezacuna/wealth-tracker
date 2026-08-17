@@ -1003,8 +1003,8 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
   if (dim === 'acct') {
     slices =
       _acctGroupDim === 'country'
-        ? _getCountrySlices(_lastSnaps, mode)
-        : _getAccountSlices(_lastSnaps, mode);
+        ? _getCountrySlices(_lastSnaps, 'all')
+        : _getAccountSlices(_lastSnaps, 'all');
   } else if (dim === 'country') {
     slices = _getCountrySlices(_lastSnaps, mode);
   } else {
@@ -1014,15 +1014,6 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
   const canvasId = `c-an-alloc-${dim}`;
   const legendId = `an-alloc-${dim}-legend`;
   const tableWrapId = `${canvasId}-table-wrap`;
-
-  // For the account dim, update the card title to reflect the active sub-grouping
-  if (dim === 'acct') {
-    const titleEl = document.getElementById('an-alloc-acct-title');
-    if (titleEl) {
-      titleEl.textContent =
-        _acctGroupDim === 'country' ? 'Allocation by country' : 'Allocation by account';
-    }
-  }
 
   // Hide card if no data; destroy any previous chart to avoid stale display
   if (slices.length === 0) {
@@ -1072,14 +1063,7 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
       // Check whether the other mode (all vs active) would yield more slices so
       // we can show a helpful hint nudging the user to switch.
       let otherModeHasMore = false;
-      if (dim === 'acct') {
-        const otherMode = mode === 'active' ? 'all' : 'active';
-        const otherSlices =
-          _acctGroupDim === 'country'
-            ? _getCountrySlices(_lastSnaps, otherMode)
-            : _getAccountSlices(_lastSnaps, otherMode);
-        otherModeHasMore = otherSlices.length > 1;
-      } else if (dim === 'country') {
+      if (dim === 'country') {
         const otherMode = mode === 'active' ? 'all' : 'active';
         const otherSlices = _getCountrySlices(_lastSnaps, otherMode);
         otherModeHasMore = otherSlices.length > 1;
@@ -1191,36 +1175,23 @@ function _renderAllocToggleBtn(dim: AllocDim): void {
   if (!wrapEl) return;
 
   if (dim === 'acct') {
-    const mode = _allocMode['acct'] ?? 'active';
     const groupDim = _acctGroupDim;
     wrapEl.innerHTML = `
-      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
-        <div class="range-toggle" style="font-size:11px">
-          <button class="btn btn-sm btn-ghost${groupDim === 'acct' ? ' active' : ''}" data-acct-group="acct">By account</button>
-          <button class="btn btn-sm btn-ghost${groupDim === 'country' ? ' active' : ''}" data-acct-group="country">By country</button>
-        </div>
-        <div class="range-toggle" style="font-size:11px">
-          <button class="btn btn-sm btn-ghost${mode === 'all' ? ' active' : ''}" data-alloc-mode="all" data-alloc-dim="acct">All</button>
-          <button class="btn btn-sm btn-ghost${mode === 'active' ? ' active' : ''}" data-alloc-mode="active" data-alloc-dim="acct">Active only</button>
-        </div>
+      <div class="range-toggle" style="font-size:11px">
+        <button class="btn btn-sm btn-ghost${groupDim === 'acct' ? ' active' : ''}" data-acct-group="acct">By account</button>
+        <button class="btn btn-sm btn-ghost${groupDim === 'country' ? ' active' : ''}" data-acct-group="country">By country</button>
       </div>`;
     if (!(wrapEl as HTMLElement & { _acctBound?: boolean })._acctBound) {
       (wrapEl as HTMLElement & { _acctBound?: boolean })._acctBound = true;
       wrapEl.addEventListener('click', (e) => {
         const btn = e.target as HTMLElement;
         const groupBtn = btn.closest('[data-acct-group]') as HTMLElement | null;
-        const modeBtn = btn.closest('[data-alloc-mode]') as HTMLElement | null;
         const holdings = getHoldings();
         const pd = _lastPd;
         if (groupBtn) {
           const newGroup = groupBtn.dataset.acctGroup as 'acct' | 'country';
           if (_acctGroupDim === newGroup) return;
           _acctGroupDim = newGroup;
-          _renderAllocDonut('acct', holdings, pd);
-        } else if (modeBtn) {
-          const newMode = modeBtn.dataset.allocMode as 'active' | 'all';
-          if (_allocMode['acct'] === newMode) return;
-          _allocMode['acct'] = newMode;
           _renderAllocDonut('acct', holdings, pd);
         }
       });

@@ -271,7 +271,9 @@ describe('renderAnalytics', () => {
     // The account donut toggle wrap should contain the "By country" button
     const toggleWrap = document.getElementById('an-alloc-acct-toggle-wrap');
     expect(toggleWrap).not.toBeNull();
-    const countryBtn = toggleWrap?.querySelector('[data-acct-group="country"]') as HTMLElement | null;
+    const countryBtn = toggleWrap?.querySelector(
+      '[data-acct-group="country"]',
+    ) as HTMLElement | null;
     expect(countryBtn).not.toBeNull();
 
     // Clicking it should switch the legend to show country names
