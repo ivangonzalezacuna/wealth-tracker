@@ -961,7 +961,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
         <div class="forecast-controls-right">
           <button
             id="nw-scenario-toggle"
-            class="btn btn-sm btn-ghost btn-icon ${_showScenarioComparison ? 'active' : ''}"
+            class="btn btn-sm btn-ghost ${_showScenarioComparison ? 'active' : ''}"
             type="button"
             aria-label="${_showScenarioComparison ? 'Hide scenario comparison' : 'Show scenario comparison'}"
             aria-expanded="${_showScenarioComparison}"
@@ -987,14 +987,16 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
             (scenario) => `
               <div class="forecast-scenario-row">
                 <div class="forecast-scenario-label">${esc(scenario.label)}</div>
-                <label class="forecast-scenario-field">
-                  <span>Return Δ (%/yr)</span>
-                  <input id="nw-scn-${scenario.id}-ret" class="form-input form-input-sm" type="number" inputmode="decimal" min="-30" max="30" step="0.1" value="${scenario.returnDeltaPct}">
-                </label>
-                <label class="forecast-scenario-field">
-                  <span>Contribution Δ (€/month)</span>
-                  <input id="nw-scn-${scenario.id}-contrib" class="form-input form-input-sm" type="number" inputmode="decimal" min="-5000" max="5000" step="10" value="${scenario.contribDeltaAmt}">
-                </label>
+                <div class="forecast-scenario-fields">
+                  <label class="forecast-scenario-field">
+                    <span>Ret Δ%</span>
+                    <input id="nw-scn-${scenario.id}-ret" class="form-input form-input-sm" type="number" inputmode="decimal" min="-30" max="30" step="0.1" value="${scenario.returnDeltaPct}">
+                  </label>
+                  <label class="forecast-scenario-field">
+                    <span>Contrib Δ€</span>
+                    <input id="nw-scn-${scenario.id}-contrib" class="form-input form-input-sm" type="number" inputmode="decimal" min="-5000" max="5000" step="10" value="${scenario.contribDeltaAmt}">
+                  </label>
+                </div>
               </div>`,
           )
           .join('')}

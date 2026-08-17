@@ -1688,10 +1688,9 @@ summary.section-label {
   font-size: 11px;
 }
 .forecast-scenario-row {
-  display: grid;
-  grid-template-columns: minmax(88px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr);
+  display: flex;
+  align-items: center;
   gap: 8px;
-  align-items: end;
   margin-bottom: 0.45rem;
 }
 .forecast-scenario-row:last-child {
@@ -1701,6 +1700,13 @@ summary.section-label {
   font-size: 12px;
   color: var(--ink-2);
   font-weight: 600;
+  min-width: 80px;
+  flex-shrink: 0;
+}
+.forecast-scenario-fields {
+  display: flex;
+  gap: 8px;
+  flex: 1;
 }
 .forecast-scenario-field {
   display: flex;
@@ -1708,8 +1714,7 @@ summary.section-label {
   gap: 3px;
   font-size: 11px;
   color: var(--ink-3);
-}
-.forecast-scenario-field .form-input {
+  flex: 1;
   min-width: 0;
 }
 .filter-bar-actions {
@@ -1985,8 +1990,10 @@ summary.section-label {
     margin-left: 0;
   }
   .forecast-scenario-row {
-    grid-template-columns: 1fr;
-    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .forecast-scenario-label {
+    min-width: 100%;
   }
 }
 
