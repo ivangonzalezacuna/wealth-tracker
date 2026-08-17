@@ -104,8 +104,7 @@ test.describe('Auth state', () => {
 
     // signOut() in google.ts clears localStorage tokens then calls
     // window.location.reload(), which Playwright detects as navigation.
-    await page.click('#btn-signout');
-    await page.waitForURL('**/');
+    await Promise.all([page.waitForEvent('load'), page.click('#btn-signout')]);
 
     // preparePage's addInitScript re-injects gtoken on reload, so the app
     // ends up back in signed-in state. What we want to assert here is
