@@ -50,7 +50,7 @@ Focus: deeper analytics, richer planning, and data quality.
 
 - ~~**Account country field & analytics donut**~~ ✅ — Accounts carry an optional country field (surfaced in the account dialog with autocomplete). The Analytics allocation section shows a "By country" donut that groups the latest snapshot balances by account country, and the Accounts donut supports a group-by toggle: by account, by country, or by account type.
 
-- **Account groups** — Accounts can be grouped by purpose ("Retirement", "Liquid savings") to enable richer views: net worth by group, contribution budget per group, and forecast by group.
+- ~~**Account groups**~~ ✅ — Accounts can be grouped by purpose ("Retirement", "Liquid savings") to enable richer views: net worth by group, contribution budget per group, and forecast by group.
 
 - ~~**Annual portfolio report**~~ ✅ — A "Annual portfolio report" card in Settings → Advanced lets the user select a calendar year and download a self-contained HTML file containing net worth, holdings, dividends, interest, realised gains, and a tax summary. The file has no external dependencies and can be printed to PDF from any browser.
 

@@ -107,6 +107,25 @@ describe('parseAccounts', () => {
     expect(accounts[0].country).toBe('Germany');
   });
 
+  it('parses optional group when present', () => {
+    const rows: (string | number | boolean)[][] = [
+      [
+        'id',
+        'moneyType',
+        'institution',
+        'country',
+        'group',
+        'label',
+        'color',
+        'isPrimaryInvestment',
+        'order',
+      ],
+      ['acct1', 'investment', 'TR', 'Germany', 'Retirement', 'Main', '#111', true, 1],
+    ];
+    const accounts = parseAccounts(rows);
+    expect(accounts[0].group).toBe('Retirement');
+  });
+
   it('coerces an invalid contribInterval string to monthly', () => {
     const rows: (string | number | boolean)[][] = [
       [

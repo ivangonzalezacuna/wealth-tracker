@@ -185,6 +185,45 @@ function _buildAccountForecastInputs(snap: Snapshot, accounts: Account[]): Accou
   });
 }
 
+function _accountGroupLabel(a: Account): string {
+  return (a.group || '').trim() || 'Unspecified';
+}
+
+function _buildForecastGroupSummary(
+  latestSnap: Snapshot,
+  latestDate: string,
+  forecastMonths: number,
+  accounts: Account[],
+  accountInputs: AccountForecastInput[],
+): string {
+  if (accounts.length === 0) return '';
+  const grouped = new Map<string, { current: number; projected: number }>();
+  const groups = [...new Set(accounts.map(_accountGroupLabel))];
+  for (const group of groups) {
+    const idxs = accounts
+      .map((a, idx) => ({ a, idx }))
+      .filter(({ a }) => _accountGroupLabel(a) === group)
+      .map(({ idx }) => idx);
+    const current = idxs.reduce((sum, idx) => {
+      const key = accounts[idx]?.id || '';
+      return sum + (((latestSnap[key] as number) || 0) ?? 0);
+    }, 0);
+    const grpInputs = idxs.map((idx) => accountInputs[idx]).filter(Boolean);
+    const grpSeries =
+      grpInputs.length > 0 ? forecastMultiAccountSeries(grpInputs, forecastMonths, latestDate) : [];
+    const projected =
+      grpSeries.length > 0 ? grpSeries[grpSeries.length - 1].value : Math.round(current);
+    grouped.set(group, { current, projected });
+  }
+  return [...grouped.entries()]
+    .sort((a, b) => b[1].projected - a[1].projected)
+    .map(
+      ([group, values]) =>
+        `<span style="color:var(--ink-2)">${esc(group)}: ${fmtEur2(values.current)} now → ${fmtEur2(values.projected)} projected</span>`,
+    )
+    .join('<br>');
+}
+
 function _clampScenarioReturnDelta(v: number): number {
   if (!isFinite(v)) return 0;
   return Math.max(-30, Math.min(30, v));
@@ -1015,6 +1054,13 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       return `<span style="color:var(--ink-2)">${esc(a.label || 'Account')}: ${retStr}, ${contribStr}</span>`;
     })
     .join('<br>');
+  const groupSummaryLines = _buildForecastGroupSummary(
+    latestSnap,
+    latestDate,
+    forecastMonths,
+    accounts,
+    accountInputs,
+  );
 
   forecastEl.innerHTML = `
       <div class="chart-controls">
@@ -1067,6 +1113,11 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       <div class="note" style="line-height:1.6">
         <div style="margin-bottom:4px">Per-account return &amp; contribution assumptions (Settings \u2192 Accounts):</div>
         ${acctSummaryLines}
+        ${
+          groupSummaryLines
+            ? `<div style="margin:8px 0 4px">Grouped forecast summary (current → horizon):</div>${groupSummaryLines}`
+            : ''
+        }
         <div style="margin-top:4px;color:var(--ink-4)">Contribution timing follows each configured cadence (weekly, every 2 weeks, monthly, quarterly) and is bucketed month-by-month in the projection.</div>
         <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX. Assumes zero rebalancing costs; spreads, commissions, and capital-gains tax from rebalancing can reduce long-horizon returns.${goalDeadlines.length > 0 ? ' Goal deadlines and target amounts are shown as markers on the chart.' : ''}</div>
         <div style="margin-top:4px;color:var(--ink-4)">Projection uses a single fixed return per account. A market downturn in the years approaching your target could reduce the actual balance by 30–40% compared with the deterministic figure. Consider re-running the forecast with a more conservative return to see the lower bound.</div>
