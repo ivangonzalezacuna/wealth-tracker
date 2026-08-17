@@ -31,10 +31,7 @@ test.describe('Theme toggle', () => {
     // light → dark
     await page.click('#btn-theme-toggle');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await expect(page.locator('#btn-theme-toggle')).toHaveAttribute(
-      'aria-label',
-      /currently Dark/,
-    );
+    await expect(page.locator('#btn-theme-toggle')).toHaveAttribute('aria-label', /currently Dark/);
 
     // dark → system
     await page.click('#btn-theme-toggle');
@@ -59,10 +56,7 @@ test.describe('Theme toggle', () => {
     await expect(page.locator('#tab-networth')).toBeVisible();
 
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await expect(page.locator('#btn-theme-toggle')).toHaveAttribute(
-      'aria-label',
-      /currently Dark/,
-    );
+    await expect(page.locator('#btn-theme-toggle')).toHaveAttribute('aria-label', /currently Dark/);
   });
 });
 
@@ -110,10 +104,7 @@ test.describe('Auth state', () => {
 
     // signOut() in google.ts clears localStorage tokens then calls
     // window.location.reload(), which Playwright detects as navigation.
-    const [response] = await Promise.all([
-      page.waitForNavigation(),
-      page.click('#btn-signout'),
-    ]);
+    const [response] = await Promise.all([page.waitForNavigation(), page.click('#btn-signout')]);
 
     // The page reloaded successfully (navigation completed)
     expect(response?.status()).toBeLessThan(400);
