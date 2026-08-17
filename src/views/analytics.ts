@@ -995,7 +995,8 @@ function _getTypeSlices(snaps: Snapshot[]): { label: string; value: number; colo
   const buckets = new Map<string, { value: number; color: string }>();
   for (const a of accounts) {
     const value = (s[a.id || ''] as number) || 0;
-    const label = (a.moneyType || '').trim() || 'Unspecified';
+    const raw = (a.moneyType || '').trim();
+    const label = raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : 'Unspecified';
     const existing = buckets.get(label);
     if (existing) {
       existing.value += value;
@@ -1051,18 +1052,6 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
           ? 'region'
           : 'country';
 
-  // Update the card title to reflect the active grouping
-  if (dim === 'acct') {
-    const titleEl = document.getElementById('an-alloc-acct-title');
-    if (titleEl) {
-      titleEl.textContent =
-        _acctGroupDim === 'country'
-          ? 'Allocation by country'
-          : _acctGroupDim === 'type'
-            ? 'Allocation by type'
-            : 'Account allocation';
-    }
-  }
   writeChartTable(
     tableWrapId,
     `Allocation by ${dimLabel} data`,
