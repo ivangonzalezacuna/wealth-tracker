@@ -54,12 +54,13 @@ Focus: deeper analytics, richer planning, and data quality.
 
 ### Developer Experience
 
-- **End-to-end tests (Playwright) — expand coverage beyond initial setup** — Initial Playwright setup is in place, with a smoke suite that covers app load, CSV import confirmation, snapshot creation, and analytics rendering. Remaining work:
-  - Add assertions for data correctness (not only success banners/visibility) after each critical flow.
-  - Cover edit/delete paths for snapshots and transactions, including bulk actions.
-  - Add key Settings and Portfolio flows (account/holding changes and their downstream forecast/analytics impact).
-  - Add negative-path scenarios (invalid import rows, validation errors, cancellation flows) and verify user-facing recovery states.
-  - Expand CI execution strategy (cross-browser matrix and/or retries/artifacts policy) once suite stability and runtime are validated.
+- **End-to-end tests (Playwright) — expand coverage beyond current flows** — Playwright coverage now goes beyond the initial smoke setup. The suite already covers app load, snapshot creation, CSV import preview/confirm, invalid-date import recovery, snapshot and transaction edit/delete flows (including bulk delete), and a basic Settings → Net Worth planning propagation flow. Remaining work:
+  - Expand data-correctness assertions across more critical journeys, especially Portfolio and Analytics, using the existing accessible chart data tables where possible.
+  - Add key Portfolio and Settings flows that are still missing from E2E coverage, especially holdings CRUD, contribution/calculation settings, annual report download, and backup/restore.
+  - Add more negative and recovery scenarios, including dialog validation/cancellation paths, duplicate/re-import behavior, and sync/conflict-related states.
+  - Add coverage for global shell behavior such as theme persistence, auth state transitions, and Sync Now / conflict entry points.
+  - Validate PWA/offline behavior and consider running E2E against the production build in addition to the dev server.
+  - Expand CI execution strategy beyond the current Chromium-only run (for example cross-browser coverage and refined retries/artifacts policy) once suite stability and runtime are validated.
 
 - ~~**Schema migration dry-run**~~ ✅ — Schema migrations run automatically on DB load and are irreversible once applied. The only way to test a new migration today is to apply it against real data or a manually prepared test fixture. A `yarn db:migrate-dry` CLI script that clones the database in memory, runs the pending migrations, and reports success or failure before any real write would make it safe to iterate on migrations during development without risking data loss.
 
