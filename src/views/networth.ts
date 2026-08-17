@@ -55,20 +55,65 @@ type ForecastScenario = {
   contribDeltaAmt: number; // €/month at portfolio level
   color: string;
 };
+const _SCN_STORAGE_KEY: Record<'optimistic' | 'pessimistic', string> = {
+  optimistic: 'wt_scn_optimistic',
+  pessimistic: 'wt_scn_pessimistic',
+};
+
+function _loadScenarioFromStorage(
+  id: 'optimistic' | 'pessimistic',
+  defaults: { returnDeltaPct: number; contribDeltaAmt: number },
+): { returnDeltaPct: number; contribDeltaAmt: number } {
+  try {
+    const raw = localStorage.getItem(_SCN_STORAGE_KEY[id]);
+    if (!raw) return defaults;
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === 'object') {
+      const p = parsed as Record<string, unknown>;
+      const ret =
+        typeof p['returnDeltaPct'] === 'number' ? p['returnDeltaPct'] : defaults.returnDeltaPct;
+      const contrib =
+        typeof p['contribDeltaAmt'] === 'number' ? p['contribDeltaAmt'] : defaults.contribDeltaAmt;
+      return { returnDeltaPct: ret, contribDeltaAmt: contrib };
+    }
+  } catch {
+    // ignore
+  }
+  return defaults;
+}
+
+function _saveScenarioToStorage(scenario: ForecastScenario): void {
+  try {
+    localStorage.setItem(
+      _SCN_STORAGE_KEY[scenario.id],
+      JSON.stringify({
+        returnDeltaPct: scenario.returnDeltaPct,
+        contribDeltaAmt: scenario.contribDeltaAmt,
+      }),
+    );
+  } catch {
+    // ignore
+  }
+}
+
 function _defaultForecastScenarios(): ForecastScenario[] {
+  const optDefaults = { returnDeltaPct: 2, contribDeltaAmt: 200 };
+  const pesDefaults = { returnDeltaPct: -2, contribDeltaAmt: -200 };
+  const opt = _loadScenarioFromStorage('optimistic', optDefaults);
+  const pes = _loadScenarioFromStorage('pessimistic', pesDefaults);
   return [
     {
       id: 'optimistic',
       label: 'Optimistic',
-      returnDeltaPct: 2,
-      contribDeltaAmt: 200,
+      returnDeltaPct: opt.returnDeltaPct,
+      contribDeltaAmt: opt.contribDeltaAmt,
       color: 'rgba(45,170,90,0.95)',
     },
     {
       id: 'pessimistic',
       label: 'Pessimistic',
-      returnDeltaPct: -2,
-      contribDeltaAmt: -200,
+      returnDeltaPct: pes.returnDeltaPct,
+      contribDeltaAmt: pes.contribDeltaAmt,
       color: 'rgba(220,95,95,0.95)',
     },
   ];
@@ -376,7 +421,22 @@ function _renderGoalCards(): void {
 /** Resets module-level tab state. Exposed only for unit test teardown. */
 export function _resetPlanningTabForTest(): void {
   _planningTab = 'forecast';
-  _scenarios = _defaultForecastScenarios();
+  _scenarios = [
+    {
+      id: 'optimistic',
+      label: 'Optimistic',
+      returnDeltaPct: 2,
+      contribDeltaAmt: 200,
+      color: 'rgba(45,170,90,0.95)',
+    },
+    {
+      id: 'pessimistic',
+      label: 'Pessimistic',
+      returnDeltaPct: -2,
+      contribDeltaAmt: -200,
+      color: 'rgba(220,95,95,0.95)',
+    },
+  ];
   _showScenarioComparison = false;
 }
 
@@ -961,13 +1021,24 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
         <div class="forecast-controls-right">
           <button
             id="nw-scenario-toggle"
-            class="btn btn-sm btn-ghost ${_showScenarioComparison ? 'active' : ''}"
+            class="btn btn-sm btn-ghost scenario-toggle-btn ${_showScenarioComparison ? 'active' : ''}"
             type="button"
             aria-label="${_showScenarioComparison ? 'Hide scenario comparison' : 'Show scenario comparison'}"
             aria-expanded="${_showScenarioComparison}"
             title="${_showScenarioComparison ? 'Hide scenario comparison' : 'Show scenario comparison'}"
           >
-            ≈
+            ${
+              _showScenarioComparison
+                ? `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+                  <path d="M2 4.5 Q3.5 3 5 4.5 Q6.5 6 8 4.5 Q9.5 3 11 4.5"/>
+                  <path d="M2 9.5 Q3.5 8 5 9.5 Q6.5 11 8 9.5 Q9.5 8 11 9.5"/>
+                  <line x1="11.5" y1="2" x2="2.5" y2="12"/>
+                </svg>`
+                : `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+                  <path d="M2 4.5 Q3.5 3 5 4.5 Q6.5 6 8 4.5 Q9.5 3 11 4.5"/>
+                  <path d="M2 9.5 Q3.5 8 5 9.5 Q6.5 11 8 9.5 Q9.5 8 11 9.5"/>
+                </svg>`
+            }
           </button>
           <div class="range-toggle" id="nw-forecast-range-toggle" role="group" aria-label="Forecast range">
             <button class="btn btn-sm btn-ghost ${_fcRange === '60' ? 'active' : ''}" data-range="60" aria-pressed="${_fcRange === '60'}">5Y</button>
@@ -1220,11 +1291,13 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       retInput?.addEventListener('change', () => {
         const parsed = parseFloat(retInput.value);
         scenario.returnDeltaPct = _clampScenarioReturnDelta(parsed);
+        _saveScenarioToStorage(scenario);
         _renderForecastChart(_lastSnaps, _lastAccounts);
       });
       contribInput?.addEventListener('change', () => {
         const parsed = parseFloat(contribInput.value);
         scenario.contribDeltaAmt = _clampScenarioContributionDelta(parsed);
+        _saveScenarioToStorage(scenario);
         _renderForecastChart(_lastSnaps, _lastAccounts);
       });
     });
