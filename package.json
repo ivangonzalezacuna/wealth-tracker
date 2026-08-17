@@ -8,12 +8,15 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:ci": "playwright test --project=chromium",
     "typecheck": "tsc --noEmit",
     "lint": "prettier --check .",
     "lint:fix": "prettier --write .",
     "db:migrate-dry": "node --experimental-strip-types scripts/db-migrate-dry.ts"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "^26.1.2",
     "@types/sql.js": "^1.4.11",
     "jsdom": "^30.0.1",

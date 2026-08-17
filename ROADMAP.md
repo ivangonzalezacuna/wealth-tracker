@@ -42,7 +42,7 @@ Focus: deeper analytics, richer planning, and data quality.
 
 ### Planning & Forecasting
 
-- **Scenario comparison** — The current forecast chart shows a single projection based on the configured return assumptions. In practice, users think in terms of "what happens if returns are lower than expected" or "what if I increase contributions by €200/month". Defining two or three named scenarios side by side on the same chart gives a much more honest and actionable picture of the uncertainty range, without requiring a separate spreadsheet.
+- ~~**Scenario comparison**~~ ✅ — Forecast now includes an expandable scenario comparison with baseline + named optimistic/pessimistic overlays and side-by-side table values so users can inspect uncertainty without leaving the app.
 
 - ~~**Goal milestones**~~ ✅ — The existing `NamedGoal` type supports a target amount and target date, and the Net Worth tab renders a progress bar toward the final target. For long-horizon goals (e.g. a 20-year retirement target), the distance to the end is often too abstract to be motivating. Adding optional intermediate milestones — say, €100k by 2027, €300k by 2030 — keeps the progress indicator meaningful at every stage of the journey and makes it easier to spot if the pace is slipping before it becomes a hard-to-recover problem.
 
@@ -54,7 +54,12 @@ Focus: deeper analytics, richer planning, and data quality.
 
 ### Developer Experience
 
-- **End-to-end tests (Playwright)** — The existing test suite covers unit logic and view rendering thoroughly, but there are no tests that exercise the full browser flow: open the app, import a CSV, add a snapshot, navigate to analytics. Regressions in the interaction between components (e.g. an import that updates the portfolio but does not trigger a re-render of the analytics chart) are invisible to the current suite. A minimal Playwright E2E suite covering the critical paths would catch those integration failures in CI before they reach production.
+- **End-to-end tests (Playwright) — expand coverage beyond initial setup** — Initial Playwright setup is in place, with a smoke suite that covers app load, CSV import confirmation, snapshot creation, and analytics rendering. Remaining work:
+  - Add assertions for data correctness (not only success banners/visibility) after each critical flow.
+  - Cover edit/delete paths for snapshots and transactions, including bulk actions.
+  - Add key Settings and Portfolio flows (account/holding changes and their downstream forecast/analytics impact).
+  - Add negative-path scenarios (invalid import rows, validation errors, cancellation flows) and verify user-facing recovery states.
+  - Expand CI execution strategy (cross-browser matrix and/or retries/artifacts policy) once suite stability and runtime are validated.
 
 - ~~**Schema migration dry-run**~~ ✅ — Schema migrations run automatically on DB load and are irreversible once applied. The only way to test a new migration today is to apply it against real data or a manually prepared test fixture. A `yarn db:migrate-dry` CLI script that clones the database in memory, runs the pending migrations, and reports success or failure before any real write would make it safe to iterate on migrations during development without risking data loss.
 
