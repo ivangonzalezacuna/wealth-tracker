@@ -38,7 +38,8 @@ test('settings-driven account and goal changes propagate into net worth planning
 
   await openTab(page, 'tab-networth');
   await expect(page.locator('#nw-goal')).toContainText('FIRE');
-  await expect(page.locator('#nw-goal')).toContainText('10,000.00');
+  await expect(page.locator('#nw-goal')).toContainText('Current (liquid)10.000');
+  await expect(page.locator('#nw-goal')).toContainText('50% complete');
   await expect(page.locator('#c-nw-forecast-table-wrap')).toBeVisible();
   await expect(page.locator('.forecast-scenario-card')).toBeHidden();
 

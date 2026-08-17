@@ -42,6 +42,8 @@ test('csv import flow supports preview exclusion before confirm', async ({ page 
   await expect(page.locator('#btn-confirm-import')).toBeVisible();
   await expect(page.locator('text=rows parsed')).toBeVisible();
   await page.locator('[data-toggle-exclude="1"]').first().click();
+  await expect(page.locator('#btn-confirm-import')).toContainText('Confirm import (0)');
+  await page.locator('[data-toggle-exclude="1"]').first().click();
   await expect(page.locator('#btn-confirm-import')).toContainText('Confirm import (1)');
   await page.click('#btn-confirm-import');
   await expect(page.locator('#import-msg')).toContainText('Imported');

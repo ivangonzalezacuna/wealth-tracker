@@ -22,6 +22,42 @@ export function dayOffsetValue(offsetDays: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+export function formatUiMoney(value: number): string {
+  return new Intl.NumberFormat('de-DE', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+export function formatUiMonth(month: string): string {
+  const [year, mm] = month.split('-');
+  const monthNames = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return `${monthNames[Number(mm) - 1]} ${year}`;
+}
+
+export function formatUiDay(day: string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(`${day}T12:00:00`));
+}
+
 export async function preparePage(page: Page): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem(
@@ -119,7 +155,13 @@ export async function addGoal(
   await page.click('#btn-add-goal');
   await page.fill('#goald-label', opts.label);
   await page.fill('#goald-target', opts.targetNetWorth);
-  if (opts.targetDate) await page.fill('#goald-date', opts.targetDate);
+  if (opts.targetDate) {
+    await page.locator('#goald-date').evaluate((el, value) => {
+      const input = el as HTMLInputElement;
+      input.value = String(value);
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }, opts.targetDate);
+  }
   await page.click('.js-goald-submit');
   await expect(page.locator('#settings-goals-tbl')).toContainText(opts.label);
   await page.click('#btn-save-goal');
