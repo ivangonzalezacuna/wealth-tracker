@@ -262,17 +262,23 @@ describe('renderAnalytics', () => {
     const allocWrap = document.getElementById('c-an-alloc-acct-table-wrap');
     expect(allocWrap?.hasAttribute('hidden')).toBe(false);
     expect(allocWrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
-
-    const countryWrap = document.getElementById('c-an-alloc-country-table-wrap');
-    expect(countryWrap?.hasAttribute('hidden')).toBe(false);
-    expect(countryWrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
   });
 
-  it('renders allocation by country from account country metadata', () => {
+  it('renders allocation by country accessible via account donut group toggle', () => {
     const snaps = [makeSnap('2025-01', 1000, 500), makeSnap('2025-02', 1200, 550)];
     renderAnalytics(makePd(), snaps, []);
-    expect(document.getElementById('an-alloc-country-legend')?.textContent).toContain('Germany');
-    expect(document.getElementById('an-alloc-country-legend')?.textContent).toContain('Spain');
+
+    // The account donut toggle wrap should contain the "By country" button
+    const toggleWrap = document.getElementById('an-alloc-acct-toggle-wrap');
+    expect(toggleWrap).not.toBeNull();
+    const countryBtn = toggleWrap?.querySelector('[data-acct-group="country"]') as HTMLElement | null;
+    expect(countryBtn).not.toBeNull();
+
+    // Clicking it should switch the legend to show country names
+    countryBtn?.click();
+    const legend = document.getElementById('an-alloc-acct-legend');
+    expect(legend?.textContent).toContain('Germany');
+    expect(legend?.textContent).toContain('Spain');
   });
 
   it('renders 12-month cash-flow calendar in income analytics', () => {

@@ -23,6 +23,8 @@ export interface AccountDialogOptions {
   existing?: Account;
   /** Suggestions for the institution autocomplete. */
   institutionSuggestions?: string[];
+  /** Suggestions for the country autocomplete. */
+  countrySuggestions?: string[];
   /** Existing account labels excluding the record being edited. */
   existingLabels?: string[];
 }
@@ -95,7 +97,9 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
             <div class="dialog-field">
               <label class="dialog-label" for="acctd-country">Country (optional)</label>
               <input type="text" id="acctd-country" class="form-input dialog-input"
-                value="${esc(existing?.country || '')}" placeholder="e.g. Germany">
+                value="${esc(existing?.country || '')}" placeholder="e.g. Germany"
+                list="acctd-country-list" autocomplete="off">
+              <datalist id="acctd-country-list"></datalist>
             </div>
           </div>
           <div class="dialog-row">
@@ -193,6 +197,7 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
       overlay.querySelector('#acctd-institution-list'),
       opts.institutionSuggestions ?? [],
     );
+    populateDatalist(overlay.querySelector('#acctd-country-list'), opts.countrySuggestions ?? []);
     bindColorInputs(overlay, 'acctd-color', 'acctd-color-hex');
 
     // Primary investment toggle — show/hide contrib block

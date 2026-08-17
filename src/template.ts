@@ -246,7 +246,8 @@ export function appTemplate(): string {
 
       <div class="two-col">
         <div class="card">
-          <div class="card-title">Allocation by account</div>
+          <div class="card-title" id="an-alloc-acct-title">Allocation by account</div>
+          <div id="an-alloc-acct-toggle-wrap" class="chart-controls"></div>
           <div id="an-alloc-acct-legend" class="legend"></div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-acct" role="img" aria-label="Allocation by account chart" aria-describedby="c-an-alloc-acct-table-wrap"></canvas></div>
           <div class="chart-data-table-wrap sr-only" id="c-an-alloc-acct-table-wrap"></div>
@@ -267,13 +268,6 @@ export function appTemplate(): string {
           <div id="an-alloc-region-legend" class="legend"></div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-region" role="img" aria-label="Allocation by region chart" aria-describedby="c-an-alloc-region-table-wrap"></canvas></div>
           <div class="chart-data-table-wrap sr-only" id="c-an-alloc-region-table-wrap"></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Allocation by country</div>
-          <div id="an-alloc-country-toggle-wrap" class="chart-controls"></div>
-          <div id="an-alloc-country-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-country" role="img" aria-label="Allocation by country chart" aria-describedby="c-an-alloc-country-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap sr-only" id="c-an-alloc-country-table-wrap"></div>
         </div>
       </div>
     </div>

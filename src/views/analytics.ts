@@ -68,10 +68,14 @@ let _heatmapPage = 0;
 
 // Allocation toggle state: 'active' | 'all'
 const _allocMode: Record<string, 'active' | 'all'> = {
+  acct: 'active',
   class: 'active',
   region: 'active',
   country: 'active',
 };
+
+// Account donut group dimension: 'acct' | 'country'
+let _acctGroupDim: 'acct' | 'country' = 'acct';
 
 function _attachRangeToggle(
   id: string,
@@ -934,7 +938,7 @@ function _renderAnnualTable(
 type AllocDim = 'class' | 'acct' | 'region' | 'country';
 
 function _renderAllocationDonuts(holdings: Holding[], pd: PortfolioData | null): void {
-  const dims: AllocDim[] = ['acct', 'class', 'region', 'country'];
+  const dims: AllocDim[] = ['acct', 'class', 'region'];
   for (const dim of dims) {
     _renderAllocDonut(dim, holdings, pd);
     _attachAllocToggle(dim);
@@ -993,11 +997,14 @@ function _getAccountSlices(
 }
 
 function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData | null): void {
-  const mode = _allocMode[dim];
+  const mode = _allocMode[dim] ?? 'active';
   let slices: { label: string; value: number; color: string }[] = [];
 
   if (dim === 'acct') {
-    slices = _getAccountSlices(_lastSnaps, mode);
+    slices =
+      _acctGroupDim === 'country'
+        ? _getCountrySlices(_lastSnaps, mode)
+        : _getAccountSlices(_lastSnaps, mode);
   } else if (dim === 'country') {
     slices = _getCountrySlices(_lastSnaps, mode);
   } else {
@@ -1007,6 +1014,15 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
   const canvasId = `c-an-alloc-${dim}`;
   const legendId = `an-alloc-${dim}-legend`;
   const tableWrapId = `${canvasId}-table-wrap`;
+
+  // For the account dim, update the card title to reflect the active sub-grouping
+  if (dim === 'acct') {
+    const titleEl = document.getElementById('an-alloc-acct-title');
+    if (titleEl) {
+      titleEl.textContent =
+        _acctGroupDim === 'country' ? 'Allocation by country' : 'Allocation by account';
+    }
+  }
 
   // Hide card if no data; destroy any previous chart to avoid stale display
   if (slices.length === 0) {
@@ -1018,7 +1034,9 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
   const total = slices.reduce((s, x) => s + x.value, 0);
   const dimLabel =
     dim === 'acct'
-      ? 'account'
+      ? _acctGroupDim === 'country'
+        ? 'country'
+        : 'account'
       : dim === 'class'
         ? 'asset class'
         : dim === 'region'
@@ -1054,11 +1072,18 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
       // Check whether the other mode (all vs active) would yield more slices so
       // we can show a helpful hint nudging the user to switch.
       let otherModeHasMore = false;
-      if (dim === 'country') {
+      if (dim === 'acct') {
+        const otherMode = mode === 'active' ? 'all' : 'active';
+        const otherSlices =
+          _acctGroupDim === 'country'
+            ? _getCountrySlices(_lastSnaps, otherMode)
+            : _getAccountSlices(_lastSnaps, otherMode);
+        otherModeHasMore = otherSlices.length > 1;
+      } else if (dim === 'country') {
         const otherMode = mode === 'active' ? 'all' : 'active';
         const otherSlices = _getCountrySlices(_lastSnaps, otherMode);
         otherModeHasMore = otherSlices.length > 1;
-      } else if (dim !== 'acct') {
+      } else {
         const otherMode = mode === 'active' ? 'all' : 'active';
         const otherSlices = _getHoldingSlices(
           holdings,
@@ -1095,9 +1120,7 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
     }
 
     // Render toggle button so the user can switch to the other mode.
-    if (dim !== 'acct') {
-      _renderAllocToggleBtn(dim);
-    }
+    _renderAllocToggleBtn(dim);
     return;
   }
 
@@ -1158,17 +1181,53 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
     );
   }
 
-  // Render toggle button (not applicable for account dimension)
-  if (dim !== 'acct') {
-    _renderAllocToggleBtn(dim);
-  }
+  // Render toggle button
+  _renderAllocToggleBtn(dim);
 }
 
 function _renderAllocToggleBtn(dim: AllocDim): void {
-  if (dim === 'acct') return;
   const wrapId = `an-alloc-${dim}-toggle-wrap`;
   const wrapEl = document.getElementById(wrapId);
   if (!wrapEl) return;
+
+  if (dim === 'acct') {
+    const mode = _allocMode['acct'] ?? 'active';
+    const groupDim = _acctGroupDim;
+    wrapEl.innerHTML = `
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+        <div class="range-toggle" style="font-size:11px">
+          <button class="btn btn-sm btn-ghost${groupDim === 'acct' ? ' active' : ''}" data-acct-group="acct">By account</button>
+          <button class="btn btn-sm btn-ghost${groupDim === 'country' ? ' active' : ''}" data-acct-group="country">By country</button>
+        </div>
+        <div class="range-toggle" style="font-size:11px">
+          <button class="btn btn-sm btn-ghost${mode === 'all' ? ' active' : ''}" data-alloc-mode="all" data-alloc-dim="acct">All</button>
+          <button class="btn btn-sm btn-ghost${mode === 'active' ? ' active' : ''}" data-alloc-mode="active" data-alloc-dim="acct">Active only</button>
+        </div>
+      </div>`;
+    if (!(wrapEl as HTMLElement & { _acctBound?: boolean })._acctBound) {
+      (wrapEl as HTMLElement & { _acctBound?: boolean })._acctBound = true;
+      wrapEl.addEventListener('click', (e) => {
+        const btn = e.target as HTMLElement;
+        const groupBtn = btn.closest('[data-acct-group]') as HTMLElement | null;
+        const modeBtn = btn.closest('[data-alloc-mode]') as HTMLElement | null;
+        const holdings = getHoldings();
+        const pd = _lastPd;
+        if (groupBtn) {
+          const newGroup = groupBtn.dataset.acctGroup as 'acct' | 'country';
+          if (_acctGroupDim === newGroup) return;
+          _acctGroupDim = newGroup;
+          _renderAllocDonut('acct', holdings, pd);
+        } else if (modeBtn) {
+          const newMode = modeBtn.dataset.allocMode as 'active' | 'all';
+          if (_allocMode['acct'] === newMode) return;
+          _allocMode['acct'] = newMode;
+          _renderAllocDonut('acct', holdings, pd);
+        }
+      });
+    }
+    return;
+  }
+
   const mode = _allocMode[dim] ?? 'active';
   wrapEl.innerHTML = `<div class="range-toggle" style="font-size:11px">
     <button class="btn btn-sm btn-ghost${mode === 'all' ? ' active' : ''}" data-alloc-mode="all" data-alloc-dim="${dim}">All assets</button>
@@ -1191,9 +1250,7 @@ function _renderAllocToggleBtn(dim: AllocDim): void {
 }
 
 function _attachAllocToggle(dim: AllocDim): void {
-  if (dim !== 'acct') {
-    _renderAllocToggleBtn(dim);
-  }
+  _renderAllocToggleBtn(dim);
 }
 
 // ── Drawdown chart ─────────────────────────────────────────
