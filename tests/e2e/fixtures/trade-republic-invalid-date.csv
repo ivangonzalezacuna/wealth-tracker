@@ -1,0 +1,3 @@
+transaction_id;date;type;category;name;symbol;shares;price;amount;fee;tax;currency;fx_rate
+tx-valid;2026-01-10;DIVIDEND;Dividende;Sample ETF;IE00B4L5Y983;;;12.34;;0;EUR;1
+tx-bad-date;32.13.2026;DIVIDEND;Dividende;Broken ETF;IE00B4L5Y983;;;3.21;;0;EUR;1

@@ -1,66 +1,20 @@
 import { expect, test } from '@playwright/test';
-import path from 'node:path';
-
-const CSV_FIXTURE = path.resolve(
-  '/home/runner/work/wealth-tracker/wealth-tracker/tests/e2e/fixtures/trade-republic-sample.csv',
-);
-
-function previousMonthValue(): string {
-  const d = new Date();
-  d.setUTCDate(1);
-  d.setUTCMonth(d.getUTCMonth() - 1);
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-}
-
-async function installLocalAuthBootstrap(page: import('@playwright/test').Page): Promise<void> {
-  await page.addInitScript(() => {
-    localStorage.setItem(
-      'gtoken',
-      JSON.stringify({
-        access_token: 'e2e-token',
-        expires_at: Date.now() + 1000 * 60 * 60,
-      }),
-    );
-    localStorage.setItem('ggranted', '1');
-  });
-}
-
-async function mockGoogleApis(page: import('@playwright/test').Page): Promise<void> {
-  await page.route('https://accounts.google.com/**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      body: '',
-      contentType: 'application/javascript',
-    });
-  });
-  await page.route('https://www.googleapis.com/**', async (route) => {
-    const url = route.request().url();
-    if (url.includes('/drive/v3/files?')) {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ files: [] }),
-      });
-      return;
-    }
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        id: 'file-e2e',
-        modifiedTime: '2026-01-01T00:00:00.000Z',
-      }),
-    });
-  });
-}
+import {
+  CSV_FIXTURE,
+  INVALID_DATE_CSV_FIXTURE,
+  addSnapshot,
+  gotoApp,
+  monthOffsetValue,
+  openTab,
+  preparePage,
+} from './helpers';
 
 test.beforeEach(async ({ page }) => {
-  await installLocalAuthBootstrap(page);
-  await mockGoogleApis(page);
+  await preparePage(page);
 });
 
 test('app loads and core tabs are visible', async ({ page }) => {
-  await page.goto('/');
+  await gotoApp(page);
   await expect(page.locator('#tab-networth')).toBeVisible();
   await expect(page.locator('#tab-portfolio')).toBeVisible();
   await expect(page.locator('#tab-analytics')).toBeVisible();
@@ -69,30 +23,36 @@ test('app loads and core tabs are visible', async ({ page }) => {
 });
 
 test('monthly snapshot flow saves and surfaces success state', async ({ page }) => {
-  await page.goto('/');
-  await page.click('#tab-log');
-  await page.click('#btn-add-snap');
-  await page.fill('#snapd-date', previousMonthValue());
-  await page.click('.js-snapd-submit');
+  await gotoApp(page);
+  await addSnapshot(page, { month: monthOffsetValue(-1), note: 'Smoke snapshot' });
   await expect(page.locator('#snap-msg')).toContainText('Saved');
 });
 
 test('analytics tab renders after adding a snapshot', async ({ page }) => {
-  await page.goto('/');
-  await page.click('#tab-log');
-  await page.click('#btn-add-snap');
-  await page.fill('#snapd-date', previousMonthValue());
-  await page.click('.js-snapd-submit');
-  await expect(page.locator('#snap-msg')).toContainText('Saved');
-  await page.click('#tab-analytics');
+  await gotoApp(page);
+  await addSnapshot(page, { month: monthOffsetValue(-1), note: 'Analytics smoke snapshot' });
+  await openTab(page, 'tab-analytics');
   await expect(page.locator('#an-content')).toBeVisible();
 });
 
-test('csv import flow parses and confirms import', async ({ page }) => {
-  await page.goto('/');
-  await page.click('#tab-log');
+test('csv import flow supports preview exclusion before confirm', async ({ page }) => {
+  await gotoApp(page);
+  await openTab(page, 'tab-log');
   await page.setInputFiles('#csv-file-input', CSV_FIXTURE);
   await expect(page.locator('#btn-confirm-import')).toBeVisible();
+  await expect(page.locator('text=rows parsed')).toBeVisible();
+  await page.locator('[data-toggle-exclude="1"]').first().click();
+  await expect(page.locator('#btn-confirm-import')).toContainText('Confirm import (1)');
   await page.click('#btn-confirm-import');
   await expect(page.locator('#import-msg')).toContainText('Imported');
+});
+
+test('csv import surfaces invalid-date recovery state', async ({ page }) => {
+  await gotoApp(page);
+  await openTab(page, 'tab-log');
+  await page.setInputFiles('#csv-file-input', INVALID_DATE_CSV_FIXTURE);
+  await expect(page.locator('#import-date-warn')).toContainText('skipped due to invalid date');
+  await expect(page.locator('#btn-confirm-import')).toContainText('Confirm import (1)');
+  await page.click('#btn-dismiss-date-warn');
+  await expect(page.locator('#import-date-warn')).toHaveCount(0);
 });
