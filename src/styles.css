@@ -2459,11 +2459,15 @@ input[type='color'] {
   justify-content: center;
 }
 .btn-icon-svg {
+  display: block;
+  flex-shrink: 0;
   width: 14px;
   height: 14px;
   fill: currentColor;
 }
 .btn-icon .btn-icon-svg {
+  display: block;
+  flex-shrink: 0;
   width: 14px;
   height: 14px;
   fill: currentColor;
