@@ -32,12 +32,19 @@ import {
   annualReturnsFromMonthlyReturns,
   weightedMonthlyReturns,
   dividendMetrics,
+  buildCashflowCalendar,
   type MonthlyGrowthPoint,
   buildInvestmentPerformanceData,
   annualizedReturnFromMonthlyReturns,
   monthEndDate,
 } from '../model/insights';
-import { getAccounts, getHoldings, getNumberSetting } from '../store/config';
+import {
+  getAccounts,
+  getContributionBudgetAmount,
+  getContributionInterval,
+  getHoldings,
+  getNumberSetting,
+} from '../store/config';
 import { allInvestmentAccountsValue } from '../model/accounts';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
@@ -46,7 +53,7 @@ import { T, R, resolvedT } from '../theme';
 import { createChartRegistry } from './chartRegistry';
 import Chart from 'chart.js/auto';
 import { formatEuroCompactSuffix, formatEuroPrefix, formatPercentRounded } from './chartOptions';
-import type { Snapshot, PortfolioData, Transaction, Holding } from '../types';
+import type { Account, Snapshot, PortfolioData, Transaction, Holding } from '../types';
 
 const { CH, destroyChart: _destroyChart } = createChartRegistry();
 let _anGrowthRange: '12' | '36' | 'all' = 'all';
@@ -63,6 +70,7 @@ let _heatmapPage = 0;
 const _allocMode: Record<string, 'active' | 'all'> = {
   class: 'active',
   region: 'active',
+  country: 'active',
 };
 
 function _attachRangeToggle(
@@ -84,6 +92,30 @@ function _attachRangeToggle(
     btn.classList.add('active');
     rerender();
   });
+}
+
+function _getCountrySlices(
+  snaps: Snapshot[],
+  mode: 'active' | 'all',
+): { label: string; value: number; color: string }[] {
+  if (snaps.length === 0) return [];
+  const s = snaps[snaps.length - 1];
+  const accounts = getAccounts();
+  const buckets = new Map<string, { value: number; color: string }>();
+  for (const a of accounts) {
+    const value = (s[a.id || ''] as number) || 0;
+    if (value <= 0 && mode === 'active') continue;
+    const label = (a.country || '').trim() || 'Unspecified';
+    const existing = buckets.get(label);
+    if (existing) {
+      existing.value += value;
+    } else {
+      buckets.set(label, { value, color: a.color || '#888' });
+    }
+  }
+  return Array.from(buckets.entries())
+    .map(([label, { value, color }]) => ({ label, value, color }))
+    .sort((a, b) => b.value - a.value);
 }
 
 // ── Month diff helper ──────────────────────────────────────
@@ -404,6 +436,7 @@ export function renderAnalytics(
 
     // Income analytics
     _renderIncomeAnalytics(txs, latestInvestmentValue || 0, pd?.totalInv || 0);
+    _renderCashflowCalendar(txs, accounts, latestDate);
   }
 
   // Bind advanced section open/close arrow via CSS class
@@ -898,10 +931,10 @@ function _renderAnnualTable(
 
 // ── Allocation donuts ──────────────────────────────────────
 
-type AllocDim = 'class' | 'acct' | 'region';
+type AllocDim = 'class' | 'acct' | 'region' | 'country';
 
 function _renderAllocationDonuts(holdings: Holding[], pd: PortfolioData | null): void {
-  const dims: AllocDim[] = ['acct', 'class', 'region'];
+  const dims: AllocDim[] = ['acct', 'class', 'region', 'country'];
   for (const dim of dims) {
     _renderAllocDonut(dim, holdings, pd);
     _attachAllocToggle(dim);
@@ -911,7 +944,7 @@ function _renderAllocationDonuts(holdings: Holding[], pd: PortfolioData | null):
 function _getHoldingSlices(
   holdings: Holding[],
   pd: PortfolioData | null,
-  dim: Exclude<AllocDim, 'acct'>,
+  dim: Exclude<AllocDim, 'acct' | 'country'>,
   mode: 'active' | 'all',
 ): { label: string; value: number; color: string }[] {
   if (!pd) return [];
@@ -965,8 +998,10 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
 
   if (dim === 'acct') {
     slices = _getAccountSlices(_lastSnaps, mode);
+  } else if (dim === 'country') {
+    slices = _getCountrySlices(_lastSnaps, mode);
   } else {
-    slices = _getHoldingSlices(holdings, pd, dim as Exclude<AllocDim, 'acct'>, mode);
+    slices = _getHoldingSlices(holdings, pd, dim as Exclude<AllocDim, 'acct' | 'country'>, mode);
   }
 
   const canvasId = `c-an-alloc-${dim}`;
@@ -981,7 +1016,8 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
   }
 
   const total = slices.reduce((s, x) => s + x.value, 0);
-  const dimLabel = dim === 'acct' ? 'account' : dim === 'class' ? 'asset class' : 'region';
+  const dimLabel =
+    dim === 'acct' ? 'account' : dim === 'class' ? 'asset class' : dim === 'region' ? 'region' : 'country';
   writeChartTable(
     tableWrapId,
     `Allocation by ${dimLabel} data`,
@@ -1012,12 +1048,16 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
       // Check whether the other mode (all vs active) would yield more slices so
       // we can show a helpful hint nudging the user to switch.
       let otherModeHasMore = false;
-      if (dim !== 'acct') {
+      if (dim === 'country') {
+        const otherMode = mode === 'active' ? 'all' : 'active';
+        const otherSlices = _getCountrySlices(_lastSnaps, otherMode);
+        otherModeHasMore = otherSlices.length > 1;
+      } else if (dim !== 'acct') {
         const otherMode = mode === 'active' ? 'all' : 'active';
         const otherSlices = _getHoldingSlices(
           holdings,
           pd,
-          dim as Exclude<AllocDim, 'acct'>,
+          dim as Exclude<AllocDim, 'acct' | 'country'>,
           otherMode,
         );
         otherModeHasMore = otherSlices.length > 1;
@@ -1394,6 +1434,57 @@ function _renderIncomeAnalytics(
 
   _renderIncomeChart(metrics.monthlyBreakdown);
   _attachIncomeRangeToggle(metrics.monthlyBreakdown);
+}
+
+function _renderCashflowCalendar(
+  txs: Transaction[],
+  accounts: Account[],
+  latestSnapshotMonth: string,
+): void {
+  const root = document.getElementById('an-cashflow-calendar');
+  const note = document.getElementById('an-cashflow-note');
+  if (!root || !note) return;
+
+  const startMonth = _shiftMonth(latestSnapshotMonth, 1) || latestSnapshotMonth;
+  const calendar = buildCashflowCalendar({
+    transactions: txs,
+    accounts,
+    startMonth,
+    globalContributionAmount: getContributionBudgetAmount(),
+    globalContributionInterval: getContributionInterval(),
+    months: 12,
+  });
+
+  if (calendar.months.length === 0) {
+    root.innerHTML = '<p class="note">No projection data available yet.</p>';
+    note.textContent = '';
+    return;
+  }
+
+  note.textContent =
+    'Income uses historical dividend/interest cadence by calendar month (fallback: trailing 12-month average). Contribution outflows follow configured contribution intervals and are bucketed by month.';
+
+  const rows = calendar.months
+    .map(
+      (row) => `<tr>
+    <td style="padding:6px 0">${fmtMon(row.month)}</td>
+    <td style="padding:6px 0;text-align:right">${fmtEur2(row.projectedIncome)}</td>
+    <td style="padding:6px 0;text-align:right">${fmtEur2(row.projectedOutflow)}</td>
+    <td style="padding:6px 0;text-align:right;color:${row.projectedNet >= 0 ? 'var(--pos)' : 'var(--neg)'}">${fmtEurSigned(row.projectedNet, 2)}</td>
+  </tr>`,
+    )
+    .join('');
+  root.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+  <thead>
+    <tr style="border-bottom:1px solid var(--line);color:var(--ink-3)">
+      <th style="text-align:left;padding:6px 0">Month</th>
+      <th style="text-align:right;padding:6px 0">Projected income</th>
+      <th style="text-align:right;padding:6px 0">Projected contributions</th>
+      <th style="text-align:right;padding:6px 0">Net</th>
+    </tr>
+  </thead>
+  <tbody>${rows}</tbody>
+</table>`;
 }
 
 let _lastIncomeBreakdown: { month: string; amount: number }[] = [];

@@ -69,6 +69,15 @@ describe('accountDialog', () => {
     expect(draft?.label).toBe('Main Account');
   });
 
+  it('returns the optional country field when provided', async () => {
+    const p = accountDialog();
+    setField('acctd-label', 'Country account');
+    setField('acctd-country', 'Spain');
+    getSubmit()!.click();
+    const draft = await p;
+    expect(draft?.country).toBe('Spain');
+  });
+
   it('renders color picker in the final dialog row', () => {
     accountDialog();
     const rows = Array.from(

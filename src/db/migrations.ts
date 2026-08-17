@@ -137,4 +137,6 @@ export const MIGRATIONS: string[][] = [
   [`INSERT OR IGNORE INTO settings (key, value) VALUES ('contribution_interval', 'monthly')`],
   // [8] version 7 → 8: add notes column to holdings.
   [`ALTER TABLE holdings ADD COLUMN notes TEXT NOT NULL DEFAULT ''`],
+  // [9] version 8 → 9: add country column to accounts.
+  [`ALTER TABLE accounts ADD COLUMN country TEXT NOT NULL DEFAULT ''`],
 ];

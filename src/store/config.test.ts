@@ -89,6 +89,24 @@ describe('parseAccounts', () => {
     expect(accounts[0].contribInterval).toBe('quarterly');
   });
 
+  it('parses optional country when present', () => {
+    const rows: (string | number | boolean)[][] = [
+      [
+        'id',
+        'moneyType',
+        'institution',
+        'country',
+        'label',
+        'color',
+        'isPrimaryInvestment',
+        'order',
+      ],
+      ['acct1', 'investment', 'TR', 'Germany', 'Main', '#111', true, 1],
+    ];
+    const accounts = parseAccounts(rows);
+    expect(accounts[0].country).toBe('Germany');
+  });
+
   it('coerces an invalid contribInterval string to monthly', () => {
     const rows: (string | number | boolean)[][] = [
       [

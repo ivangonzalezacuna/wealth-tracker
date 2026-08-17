@@ -460,6 +460,7 @@ function renderAccountRow(a: Account, i: number): string {
   const meta = [
     typeLabel,
     a.institution ? esc(a.institution) : '',
+    a.country ? esc(a.country) : '',
     a.isPrimaryInvestment ? 'Primary' : '',
   ]
     .filter(Boolean)

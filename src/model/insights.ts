@@ -1,4 +1,4 @@
-import type { Snapshot, Account, Transaction } from '../types';
+import type { Snapshot, Account, ContribInterval, Transaction } from '../types';
 import { TxType } from '../types';
 import { snapTotal } from '../utils';
 import { allInvestmentAccountsValue } from './accounts';
@@ -653,6 +653,13 @@ export interface DividendMetrics {
   asOfMonth: string | null;
 }
 
+export interface CashflowCalendarMonth {
+  month: string;
+  projectedIncome: number;
+  projectedOutflow: number;
+  projectedNet: number;
+}
+
 /**
  * Compute dividend and income analytics from a transaction list.
  * Includes DIVIDEND and INTEREST transaction types only.
@@ -734,6 +741,131 @@ export function dividendMetrics(
   };
 }
 
+export function buildCashflowCalendar(input: {
+  transactions: Array<{ type: string; date: string; amount: number }>;
+  accounts: Account[];
+  startMonth: string;
+  globalContributionAmount: number;
+  globalContributionInterval: ContribInterval;
+  months?: number;
+}): {
+  months: CashflowCalendarMonth[];
+  assumedMonthlyIncome: number;
+} {
+  const horizon = Math.max(1, input.months ?? 12);
+  const startIdx = _yearMonthToIndex(input.startMonth);
+  if (startIdx === null) return { months: [], assumedMonthlyIncome: 0 };
+
+  const incomeTxs = input.transactions.filter(
+    (t) => (t.type === TxType.DIVIDEND || t.type === TxType.INTEREST) && _yearMonthToIndex(t.date) !== null,
+  );
+
+  const incomeByMonth = new Map<string, number>();
+  for (const tx of incomeTxs) {
+    const ym = tx.date.slice(0, 7);
+    incomeByMonth.set(ym, (incomeByMonth.get(ym) || 0) + Math.abs(tx.amount));
+  }
+
+  const historicalIncomeMonths = Array.from(incomeByMonth.entries()).filter(([ym]) => {
+    const idx = _yearMonthToIndex(ym);
+    return idx !== null && idx < startIdx;
+  });
+  const trailing12Total = historicalIncomeMonths
+    .filter(([ym]) => {
+      const idx = _yearMonthToIndex(ym);
+      return idx !== null && idx >= startIdx - 12;
+    })
+    .reduce((sum, [, amt]) => sum + amt, 0);
+  const assumedMonthlyIncome = trailing12Total / 12;
+
+  const incomeByMonthOfYear = new Map<number, number[]>();
+  for (const [ym, amt] of historicalIncomeMonths) {
+    const parsed = parseYearMonth(ym);
+    if (!parsed) continue;
+    const bucket = incomeByMonthOfYear.get(parsed.month) || [];
+    bucket.push(amt);
+    incomeByMonthOfYear.set(parsed.month, bucket);
+  }
+
+  const outflowByMonth = _projectContributionOutflows({
+    accounts: input.accounts,
+    startMonth: input.startMonth,
+    months: horizon,
+    globalContributionAmount: input.globalContributionAmount,
+    globalContributionInterval: input.globalContributionInterval,
+  });
+
+  const rows: CashflowCalendarMonth[] = [];
+  for (let offset = 0; offset < horizon; offset++) {
+    const ym = _indexToYearMonth(startIdx + offset);
+    const parsed = parseYearMonth(ym);
+    const monthSample = parsed ? incomeByMonthOfYear.get(parsed.month) || [] : [];
+    const projectedIncome =
+      monthSample.length > 0
+        ? monthSample.reduce((sum, n) => sum + n, 0) / monthSample.length
+        : assumedMonthlyIncome;
+    const projectedOutflow = outflowByMonth.get(ym) || 0;
+    rows.push({
+      month: ym,
+      projectedIncome,
+      projectedOutflow,
+      projectedNet: projectedIncome - projectedOutflow,
+    });
+  }
+
+  return { months: rows, assumedMonthlyIncome };
+}
+
+function _projectContributionOutflows(input: {
+  accounts: Account[];
+  startMonth: string;
+  months: number;
+  globalContributionAmount: number;
+  globalContributionInterval: ContribInterval;
+}): Map<string, number> {
+  const buckets = new Map<string, number>();
+  const start = parseYearMonth(input.startMonth);
+  if (!start) return buckets;
+
+  const firstMonthDate = new Date(Date.UTC(start.year, start.month - 1, 1));
+  const endDate = new Date(Date.UTC(start.year, start.month - 1 + input.months, 1));
+  const contributionAccounts = input.accounts.filter((a) => {
+    const type = (a.moneyType || '').toLowerCase();
+    return type === 'investment' || type === 'pension' || type === 'avd';
+  });
+
+  for (const account of contributionAccounts) {
+    const isPrimaryInvestment =
+      !!account.isPrimaryInvestment && (account.moneyType || '').toLowerCase() === 'investment';
+    const perExecution = isPrimaryInvestment
+      ? input.globalContributionAmount
+      : (account.contribAmount || 0) + (account.extraContrib || 0);
+    const interval = isPrimaryInvestment
+      ? input.globalContributionInterval
+      : account.contribInterval || 'monthly';
+    if (!Number.isFinite(perExecution) || perExecution <= 0) continue;
+
+    if (interval === 'monthly' || interval === 'quarterly') {
+      const step = interval === 'monthly' ? 1 : 3;
+      for (let i = 0; i < input.months; i += step) {
+        const ym = _indexToYearMonth(_yearMonthToIndex(input.startMonth)! + i);
+        buckets.set(ym, (buckets.get(ym) || 0) + perExecution);
+      }
+      continue;
+    }
+
+    const dayStep = interval === 'weekly' ? 7 : 14;
+    let cursor = new Date(firstMonthDate.getTime());
+    while (cursor < endDate) {
+      const ym = `${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, '0')}`;
+      buckets.set(ym, (buckets.get(ym) || 0) + perExecution);
+      cursor.setUTCDate(cursor.getUTCDate() + dayStep);
+    }
+  }
+
+  return buckets;
+}
+
 function parseYearMonth(d: string): { year: number; month: number } | null {
   if (!d) return null;
   const parts = d.split('-');
@@ -759,6 +891,12 @@ function _yearMonthToIndex(d: string): number | null {
   const parsed = parseYearMonth(d);
   if (!parsed) return null;
   return parsed.year * 12 + (parsed.month - 1);
+}
+
+function _indexToYearMonth(index: number): string {
+  const year = Math.floor(index / 12);
+  const month = (index % 12) + 1;
+  return `${year}-${String(month).padStart(2, '0')}`;
 }
 
 function toUtcDay(date: string): number | null {

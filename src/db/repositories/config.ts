@@ -19,7 +19,7 @@ import type {
 export async function loadAccounts(): Promise<Account[]> {
   const db = await getDb();
   const result = db.exec(
-    'SELECT id, money_type, institution, label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib FROM accounts ORDER BY "order" ASC',
+    'SELECT id, money_type, institution, country, label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib FROM accounts ORDER BY "order" ASC',
   );
   if (result.length === 0) return [];
   return result[0].values.map(rowToAccount);
@@ -29,7 +29,7 @@ export async function loadAccounts(): Promise<Account[]> {
 export async function saveAccounts(accounts: Account[]): Promise<void> {
   const db = await getDb();
   const stmt = db.prepare(
-    'INSERT INTO accounts (id, money_type, institution, label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO accounts (id, money_type, institution, country, label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   try {
     db.run('BEGIN');
@@ -39,6 +39,7 @@ export async function saveAccounts(accounts: Account[]): Promise<void> {
         a.id || a.key || '',
         a.moneyType || '',
         a.institution || '',
+        a.country || '',
         a.label || '',
         a.color || '',
         a.isPrimaryInvestment ? 1 : 0,
@@ -180,7 +181,7 @@ export async function restoreAllData(data: {
   const db = await getDb();
 
   const accountStmt = db.prepare(
-    'INSERT INTO accounts (id, money_type, institution, label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO accounts (id, money_type, institution, country, label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   const holdingStmt = db.prepare(
     'INSERT INTO holdings (isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -202,6 +203,7 @@ export async function restoreAllData(data: {
         a.id || a.key || '',
         a.moneyType || '',
         a.institution || '',
+        a.country || '',
         a.label || '',
         a.color || '',
         a.isPrimaryInvestment ? 1 : 0,
@@ -329,16 +331,17 @@ function rowToAccount(row: unknown[]): Account {
     id: String(row[0] ?? ''),
     moneyType: String(row[1] ?? ''),
     institution: String(row[2] ?? ''),
-    label: String(row[3] ?? ''),
-    color: String(row[4] ?? ''),
-    isPrimaryInvestment: row[5] === 1 || row[5] === '1',
-    order: Number(row[6]) || 0,
-    annualReturnPct: Number(row[7]) || 0,
-    contribAmount: Number(row[8]) || 0,
-    contribInterval: (String(row[9] ?? 'monthly') as ContribInterval) || 'monthly',
-    locked: row[10] === 1 || row[10] === '1',
-    lockedUntil: String(row[11] ?? ''),
-    extraContrib: Number(row[12]) || 0,
+    country: String(row[3] ?? ''),
+    label: String(row[4] ?? ''),
+    color: String(row[5] ?? ''),
+    isPrimaryInvestment: row[6] === 1 || row[6] === '1',
+    order: Number(row[7]) || 0,
+    annualReturnPct: Number(row[8]) || 0,
+    contribAmount: Number(row[9]) || 0,
+    contribInterval: (String(row[10] ?? 'monthly') as ContribInterval) || 'monthly',
+    locked: row[11] === 1 || row[11] === '1',
+    lockedUntil: String(row[12] ?? ''),
+    extraContrib: Number(row[13]) || 0,
   };
 }
 

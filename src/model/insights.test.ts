@@ -19,6 +19,7 @@ import {
   annualizedReturnFromMonthlyReturns,
   annualReturnsFromMonthlyReturns,
   rollingAnnualizedReturnFromMonthlyReturns,
+  buildCashflowCalendar,
 } from './insights';
 import type { Snapshot, Account, Transaction } from '../types';
 import * as utils from '../utils';
@@ -208,6 +209,56 @@ describe('monthlyGrowthHistory', () => {
     expect(points).toHaveLength(2);
     expect(points[0]).toEqual({ month: '2026-02', contributed: 400, market: 100, total: 500 });
     expect(points[1]).toEqual({ month: '2026-03', contributed: 500, market: 200, total: 700 });
+  });
+
+  describe('buildCashflowCalendar', () => {
+    it('projects contribution outflows by configured intervals', () => {
+      const result = buildCashflowCalendar({
+        transactions: [],
+        accounts: [
+          {
+            id: 'acct1',
+            label: 'Primary',
+            moneyType: 'investment',
+            isPrimaryInvestment: true,
+          },
+          {
+            id: 'acct2',
+            label: 'Pension',
+            moneyType: 'pension',
+            contribAmount: 50,
+            contribInterval: 'monthly',
+          },
+        ],
+        startMonth: '2026-01',
+        globalContributionAmount: 100,
+        globalContributionInterval: 'monthly',
+        months: 3,
+      });
+
+      expect(result.months).toHaveLength(3);
+      expect(result.months[0].projectedOutflow).toBe(150);
+      expect(result.months[1].projectedOutflow).toBe(150);
+      expect(result.months[2].projectedOutflow).toBe(150);
+    });
+
+    it('uses historical month-of-year income averages with trailing fallback', () => {
+      const result = buildCashflowCalendar({
+        transactions: [
+          { type: 'DIVIDEND', date: '2025-01-15', amount: 40 },
+          { type: 'DIVIDEND', date: '2026-01-15', amount: 60 },
+        ],
+        accounts: [],
+        startMonth: '2026-02',
+        globalContributionAmount: 0,
+        globalContributionInterval: 'monthly',
+        months: 12,
+      });
+
+      const janNextYear = result.months.find((m) => m.month === '2027-01');
+      expect(janNextYear?.projectedIncome).toBe(50);
+      expect(result.assumedMonthlyIncome).toBeCloseTo(5, 6);
+    });
   });
 
   describe('investment performance foundation', () => {

@@ -31,6 +31,7 @@ const MOCK_ACCOUNTS = [
     id: 'acct_inv',
     moneyType: 'investment',
     institution: 'Broker',
+    country: 'Germany',
     label: 'Broker',
     color: '#111111',
     isPrimaryInvestment: true,
@@ -40,6 +41,7 @@ const MOCK_ACCOUNTS = [
     id: 'acct_cash',
     moneyType: 'savings',
     institution: 'Bank',
+    country: 'Spain',
     label: 'Cash',
     color: '#222222',
     isPrimaryInvestment: false,
@@ -52,6 +54,8 @@ vi.mock('../store/config', () => ({
   getHoldings: () => [],
   getSettings: () => ({ riskFreeRate: '2' }),
   getNumberSetting: (_key: string, defaultVal: number) => defaultVal,
+  getContributionBudgetAmount: () => 100,
+  getContributionInterval: () => 'monthly',
   isConfigLoaded: () => true,
   getACCTS: () => [
     { key: 'acct_inv', label: 'Broker', color: '#111111' },
@@ -258,6 +262,46 @@ describe('renderAnalytics', () => {
     const allocWrap = document.getElementById('c-an-alloc-acct-table-wrap');
     expect(allocWrap?.hasAttribute('hidden')).toBe(false);
     expect(allocWrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
+
+    const countryWrap = document.getElementById('c-an-alloc-country-table-wrap');
+    expect(countryWrap?.hasAttribute('hidden')).toBe(false);
+    expect(countryWrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
+  });
+
+  it('renders allocation by country from account country metadata', () => {
+    const snaps = [
+      makeSnap('2025-01', 1000, 500),
+      makeSnap('2025-02', 1200, 550),
+    ];
+    renderAnalytics(makePd(), snaps, []);
+    expect(document.getElementById('an-alloc-country-legend')?.textContent).toContain('Germany');
+    expect(document.getElementById('an-alloc-country-legend')?.textContent).toContain('Spain');
+  });
+
+  it('renders 12-month cash-flow calendar in income analytics', () => {
+    const snaps = [makeSnap('2025-12', 1000, 9000), makeSnap('2026-01', 1100, 9200)];
+    const txs: Transaction[] = [
+      {
+        id: 'div-jan',
+        date: '2026-01-15',
+        source: 'broker',
+        type: 'DIVIDEND',
+        name: 'ETF',
+        isin: 'X',
+        shares: 0,
+        price: 0,
+        amount: 50,
+        fee: 0,
+        tax: 0,
+        currency: 'EUR',
+        fxRate: 1,
+      },
+    ];
+    renderAnalytics(makePd(), snaps, txs);
+    const tableText = document.getElementById('an-cashflow-calendar')?.textContent || '';
+    expect(tableText).toContain('Projected income');
+    expect(tableText).toContain('Projected contributions');
+    expect(tableText).toContain('Feb 2026');
   });
 
   it('renders annual returns table when at least one full year of monthly return data is present', () => {

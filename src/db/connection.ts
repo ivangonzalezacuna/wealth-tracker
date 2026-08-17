@@ -265,7 +265,7 @@ function getLocalTransactionRows(db: Database): unknown[][] {
 
 function getLocalAccountRows(db: Database): unknown[][] {
   const result = db.exec(
-    'SELECT id, money_type, institution, label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib FROM accounts ORDER BY rowid ASC',
+    'SELECT id, money_type, institution, country, label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib FROM accounts ORDER BY rowid ASC',
   );
   if (result.length === 0) return [];
   return result[0].values;
@@ -310,7 +310,7 @@ function mergeLocalTransactions(db: Database, rows: unknown[][]): void {
 
 function mergeLocalAccounts(db: Database, rows: unknown[][]): void {
   const stmt = db.prepare(
-    'INSERT INTO accounts (id, money_type, institution, label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET money_type=excluded.money_type, institution=excluded.institution, label=excluded.label, color=excluded.color, is_primary_investment=excluded.is_primary_investment, "order"=excluded."order", annual_return_pct=excluded.annual_return_pct, contrib_amount=excluded.contrib_amount, contrib_interval=excluded.contrib_interval, locked=excluded.locked, locked_until=excluded.locked_until, extra_contrib=excluded.extra_contrib',
+    'INSERT INTO accounts (id, money_type, institution, country, label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET money_type=excluded.money_type, institution=excluded.institution, country=excluded.country, label=excluded.label, color=excluded.color, is_primary_investment=excluded.is_primary_investment, "order"=excluded."order", annual_return_pct=excluded.annual_return_pct, contrib_amount=excluded.contrib_amount, contrib_interval=excluded.contrib_interval, locked=excluded.locked, locked_until=excluded.locked_until, extra_contrib=excluded.extra_contrib',
   );
   for (const row of rows) {
     stmt.run(row as (string | number | null)[]);
