@@ -32,19 +32,12 @@ import {
   annualReturnsFromMonthlyReturns,
   weightedMonthlyReturns,
   dividendMetrics,
-  buildCashflowCalendar,
   type MonthlyGrowthPoint,
   buildInvestmentPerformanceData,
   annualizedReturnFromMonthlyReturns,
   monthEndDate,
 } from '../model/insights';
-import {
-  getAccounts,
-  getContributionBudgetAmount,
-  getContributionInterval,
-  getHoldings,
-  getNumberSetting,
-} from '../store/config';
+import { getAccounts, getHoldings, getNumberSetting } from '../store/config';
 import { allInvestmentAccountsValue } from '../model/accounts';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
@@ -53,7 +46,7 @@ import { T, R, resolvedT } from '../theme';
 import { createChartRegistry } from './chartRegistry';
 import Chart from 'chart.js/auto';
 import { formatEuroCompactSuffix, formatEuroPrefix, formatPercentRounded } from './chartOptions';
-import type { Account, Snapshot, PortfolioData, Transaction, Holding } from '../types';
+import type { Snapshot, PortfolioData, Transaction, Holding } from '../types';
 
 const { CH, destroyChart: _destroyChart } = createChartRegistry();
 let _anGrowthRange: '12' | '36' | 'all' = 'all';
@@ -440,7 +433,6 @@ export function renderAnalytics(
 
     // Income analytics
     _renderIncomeAnalytics(txs, latestInvestmentValue || 0, pd?.totalInv || 0);
-    _renderCashflowCalendar(txs, accounts, latestDate);
   }
 
   // Bind advanced section open/close arrow via CSS class
@@ -1468,57 +1460,6 @@ function _renderIncomeAnalytics(
 
   _renderIncomeChart(metrics.monthlyBreakdown);
   _attachIncomeRangeToggle(metrics.monthlyBreakdown);
-}
-
-function _renderCashflowCalendar(
-  txs: Transaction[],
-  accounts: Account[],
-  latestSnapshotMonth: string,
-): void {
-  const root = document.getElementById('an-cashflow-calendar');
-  const note = document.getElementById('an-cashflow-note');
-  if (!root || !note) return;
-
-  const startMonth = _shiftMonth(latestSnapshotMonth, 1) || latestSnapshotMonth;
-  const calendar = buildCashflowCalendar({
-    transactions: txs,
-    accounts,
-    startMonth,
-    globalContributionAmount: getContributionBudgetAmount(),
-    globalContributionInterval: getContributionInterval(),
-    months: 12,
-  });
-
-  if (calendar.months.length === 0) {
-    root.innerHTML = '<p class="note">No projection data available yet.</p>';
-    note.textContent = '';
-    return;
-  }
-
-  note.textContent =
-    'Income uses historical dividend/interest cadence by calendar month (fallback: trailing 12-month average). Contribution outflows follow configured contribution intervals and are bucketed by month.';
-
-  const rows = calendar.months
-    .map(
-      (row) => `<tr>
-    <td style="padding:6px 0">${fmtMon(row.month)}</td>
-    <td style="padding:6px 0;text-align:right">${fmtEur2(row.projectedIncome)}</td>
-    <td style="padding:6px 0;text-align:right">${fmtEur2(row.projectedOutflow)}</td>
-    <td style="padding:6px 0;text-align:right;color:${row.projectedNet >= 0 ? 'var(--pos)' : 'var(--neg)'}">${fmtEurSigned(row.projectedNet, 2)}</td>
-  </tr>`,
-    )
-    .join('');
-  root.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
-  <thead>
-    <tr style="border-bottom:1px solid var(--line);color:var(--ink-3)">
-      <th style="text-align:left;padding:6px 0">Month</th>
-      <th style="text-align:right;padding:6px 0">Projected income</th>
-      <th style="text-align:right;padding:6px 0">Projected contributions</th>
-      <th style="text-align:right;padding:6px 0">Net</th>
-    </tr>
-  </thead>
-  <tbody>${rows}</tbody>
-</table>`;
 }
 
 let _lastIncomeBreakdown: { month: string; amount: number }[] = [];

@@ -379,11 +379,6 @@ export function appTemplate(): string {
             <div class="chart-wrap chart-h-md"><canvas id="c-an-income" role="img" aria-label="Income history chart" aria-describedby="c-an-income-table-wrap"></canvas></div>
             <div class="chart-data-table-wrap sr-only" id="c-an-income-table-wrap"></div>
           </div>
-          <div class="card" style="margin:0 0 1rem">
-            <div class="card-title">Cash-flow calendar (next 12 months)</div>
-            <p class="note" id="an-cashflow-note" style="margin-bottom:.75rem"></p>
-            <div id="an-cashflow-calendar"></div>
-          </div>
         </div>
       </div>
     </details>

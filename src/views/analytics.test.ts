@@ -54,8 +54,6 @@ vi.mock('../store/config', () => ({
   getHoldings: () => [],
   getSettings: () => ({ riskFreeRate: '2' }),
   getNumberSetting: (_key: string, defaultVal: number) => defaultVal,
-  getContributionBudgetAmount: () => 100,
-  getContributionInterval: () => 'monthly',
   isConfigLoaded: () => true,
   getACCTS: () => [
     { key: 'acct_inv', label: 'Broker', color: '#111111' },
@@ -281,32 +279,6 @@ describe('renderAnalytics', () => {
     const legend = document.getElementById('an-alloc-acct-legend');
     expect(legend?.textContent).toContain('Germany');
     expect(legend?.textContent).toContain('Spain');
-  });
-
-  it('renders 12-month cash-flow calendar in income analytics', () => {
-    const snaps = [makeSnap('2025-12', 1000, 9000), makeSnap('2026-01', 1100, 9200)];
-    const txs: Transaction[] = [
-      {
-        id: 'div-jan',
-        date: '2026-01-15',
-        source: 'broker',
-        type: 'DIVIDEND',
-        name: 'ETF',
-        isin: 'X',
-        shares: 0,
-        price: 0,
-        amount: 50,
-        fee: 0,
-        tax: 0,
-        currency: 'EUR',
-        fxRate: 1,
-      },
-    ];
-    renderAnalytics(makePd(), snaps, txs);
-    const tableText = document.getElementById('an-cashflow-calendar')?.textContent || '';
-    expect(tableText).toContain('Projected income');
-    expect(tableText).toContain('Projected contributions');
-    expect(tableText).toContain('Feb 2026');
   });
 
   it('renders annual returns table when at least one full year of monthly return data is present', () => {
