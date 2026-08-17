@@ -36,6 +36,7 @@ import type { Snapshot, Account, GoalMilestone } from '../types';
 import Chart from 'chart.js/auto';
 import { T, R, resolvedT } from '../theme';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
+import { SCENARIOS_ICON, SCENARIOS_OFF_ICON } from './icons';
 import { writeChartTable } from './chartTable';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { createChartRegistry } from './chartRegistry';
@@ -1027,18 +1028,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
             aria-expanded="${_showScenarioComparison}"
             title="${_showScenarioComparison ? 'Hide scenario comparison' : 'Show scenario comparison'}"
           >
-            ${
-              _showScenarioComparison
-                ? `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
-                  <path d="M2 4.5 Q3.5 3 5 4.5 Q6.5 6 8 4.5 Q9.5 3 11 4.5"/>
-                  <path d="M2 9.5 Q3.5 8 5 9.5 Q6.5 11 8 9.5 Q9.5 8 11 9.5"/>
-                  <line x1="11.5" y1="2" x2="2.5" y2="12"/>
-                </svg>`
-                : `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
-                  <path d="M2 4.5 Q3.5 3 5 4.5 Q6.5 6 8 4.5 Q9.5 3 11 4.5"/>
-                  <path d="M2 9.5 Q3.5 8 5 9.5 Q6.5 11 8 9.5 Q9.5 8 11 9.5"/>
-                </svg>`
-            }
+            ${_showScenarioComparison ? SCENARIOS_OFF_ICON : SCENARIOS_ICON}
           </button>
           <div class="range-toggle" id="nw-forecast-range-toggle" role="group" aria-label="Forecast range">
             <button class="btn btn-sm btn-ghost ${_fcRange === '60' ? 'active' : ''}" data-range="60" aria-pressed="${_fcRange === '60'}">5Y</button>
