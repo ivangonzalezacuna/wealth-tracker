@@ -757,7 +757,9 @@ export function buildCashflowCalendar(input: {
   if (startIdx === null) return { months: [], assumedMonthlyIncome: 0 };
 
   const incomeTxs = input.transactions.filter(
-    (t) => (t.type === TxType.DIVIDEND || t.type === TxType.INTEREST) && _yearMonthToIndex(t.date) !== null,
+    (t) =>
+      (t.type === TxType.DIVIDEND || t.type === TxType.INTEREST) &&
+      _yearMonthToIndex(t.date) !== null,
   );
 
   const incomeByMonth = new Map<string, number>();

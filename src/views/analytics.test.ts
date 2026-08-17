@@ -269,10 +269,7 @@ describe('renderAnalytics', () => {
   });
 
   it('renders allocation by country from account country metadata', () => {
-    const snaps = [
-      makeSnap('2025-01', 1000, 500),
-      makeSnap('2025-02', 1200, 550),
-    ];
+    const snaps = [makeSnap('2025-01', 1000, 500), makeSnap('2025-02', 1200, 550)];
     renderAnalytics(makePd(), snaps, []);
     expect(document.getElementById('an-alloc-country-legend')?.textContent).toContain('Germany');
     expect(document.getElementById('an-alloc-country-legend')?.textContent).toContain('Spain');
