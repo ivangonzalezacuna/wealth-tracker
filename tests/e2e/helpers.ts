@@ -183,6 +183,64 @@ export async function addSnapshot(
   await expect(page.locator('#snap-msg')).toContainText('Saved');
 }
 
+export async function addHolding(
+  page: Page,
+  opts: {
+    isin: string;
+    shortName: string;
+    name: string;
+    targetPct?: number;
+    ter?: number;
+    notes?: string;
+    acc?: boolean;
+    active?: boolean;
+  },
+): Promise<void> {
+  await openTab(page, 'tab-settings');
+  await ensureCardExpanded(page, 'settings-card-holdings');
+  await page.click('#btn-add-hold');
+  await page.fill('#holdd-isin', opts.isin);
+  await page.fill('#holdd-short-name', opts.shortName);
+  await page.fill('#holdd-name', opts.name);
+  if (opts.targetPct != null) await page.fill('#holdd-target-pct', String(opts.targetPct));
+  if (opts.ter != null) await page.fill('#holdd-ter', String(opts.ter));
+  if (opts.notes) await page.fill('#holdd-notes', opts.notes);
+  if (opts.acc === false) await page.uncheck('#holdd-acc');
+  if (opts.active === false) await page.uncheck('#holdd-active');
+  await page.click('.js-holdd-submit');
+  await expect(page.locator('#settings-holdings-tbl')).toContainText(opts.shortName);
+}
+
+export async function saveHoldings(page: Page): Promise<void> {
+  await ensureCardExpanded(page, 'settings-card-holdings');
+  await page.click('#btn-save-holds');
+  await expect(page.locator('#holds-msg')).toContainText('Saved');
+}
+
+export async function setContributionsSettings(
+  page: Page,
+  opts: { amount: string; contributionInterval: string; calibrationInterval: string },
+): Promise<void> {
+  await openTab(page, 'tab-settings');
+  await ensureCardExpanded(page, 'settings-card-contributions');
+  await page.fill('#set-contrib-budget', opts.amount);
+  await page.selectOption('#set-contribution-interval', opts.contributionInterval);
+  await page.selectOption('#set-calibration-interval', opts.calibrationInterval);
+  await page.click('#btn-save-contributions');
+  await expect(page.locator('#contributions-msg')).toContainText('Saved');
+}
+
+export async function importCsvFixture(
+  page: Page,
+  fixturePath: string = CSV_FIXTURE,
+): Promise<void> {
+  await openTab(page, 'tab-log');
+  await page.setInputFiles('#csv-file-input', fixturePath);
+  await expect(page.locator('#btn-confirm-import')).toBeVisible();
+  await page.click('#btn-confirm-import');
+  await expect(page.locator('#import-msg')).toContainText('Imported');
+}
+
 export function snapshotRow(page: Page, month: string) {
   return page.locator(`.snap-row-compact[data-date="${month}"]`);
 }

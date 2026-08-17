@@ -55,9 +55,6 @@ Focus: deeper analytics, richer planning, and data quality.
 ### Developer Experience
 
 - **End-to-end tests (Playwright) — expand coverage beyond current flows** — Playwright coverage now goes beyond the initial smoke setup. The suite already covers app load, snapshot creation, CSV import preview/confirm, invalid-date import recovery, snapshot and transaction edit/delete flows (including bulk delete), and a basic Settings → Net Worth planning propagation flow. Remaining work:
-  - Expand data-correctness assertions across more critical journeys, especially Portfolio and Analytics, using the existing accessible chart data tables where possible.
-  - Add key Portfolio and Settings flows that are still missing from E2E coverage, especially holdings CRUD, contribution/calculation settings, annual report download, and backup/restore.
-  - Add more negative and recovery scenarios, including dialog validation/cancellation paths, duplicate/re-import behavior, and sync/conflict-related states.
   - Add coverage for global shell behavior such as theme persistence, auth state transitions, and Sync Now / conflict entry points.
   - Validate PWA/offline behavior and consider running E2E against the production build in addition to the dev server.
   - Expand CI execution strategy beyond the current Chromium-only run (for example cross-browser coverage and refined retries/artifacts policy) once suite stability and runtime are validated.
