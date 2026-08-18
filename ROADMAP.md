@@ -68,7 +68,7 @@ Focus: broader data support.
 
 ### Data & Storage
 
-- **Multi-currency support** — The app is currently EUR-only. Transactions already carry a per-row `fxRate` imported from broker CSVs, so foreign-currency trades are handled correctly. The missing piece is snapshots: each monthly balance is entered as a single number with no currency context, so a non-EUR savings account must be mentally converted before entry, and that conversion is lost forever. The fix is to add a per-account currency setting and a per-snapshot FX rate field: when logging a monthly snapshot, the user enters the spot rate for each non-base-currency account, and all KPI calculations use that stored rate. No external API is needed — the user supplies the rate at entry time, exactly as they already do for transaction imports. The implementation should be simple and not attempt to auto-fetch rates.
+- **Multi-currency support** — The app is currently EUR-only. Transactions already carry a per-row `fxRate` imported from broker CSVs, so foreign-currency trades are handled correctly. The missing piece is snapshots: each monthly balance is entered as a single number with no currency context, so a non-EUR savings account must be mentally converted before entry, and that conversion is lost forever. The fix is to add a per-account currency setting and make snapshot normalization use the FX rate for the last day of the applicable month. That month-end lookup should stay completely hidden from users: they enter balances in the account's own currency, and the app resolves and stores the needed FX context behind the scenes as the long-term canonical behavior.
 
 ### External Data Integration (POC)
 
@@ -119,7 +119,7 @@ The app is intentionally slim and offline-capable. External data fetching remain
 
 - Verify the exact Frankfurter endpoints, response fields, business-day fallback behavior, and supported query patterns before encoding them into code or migrations.
 - Verify the exact FMP endpoints and payloads needed to map `ISIN -> symbol -> profile/info/holdings`, then trim the metadata field list to the subset that adds real user value.
-- Decide the canonical snapshot valuation rule for FX lookup. The current app stores snapshots by month (`YYYY-MM`), so month-end lookup may be derived without changing the persisted snapshot key unless a broader migration proves worthwhile.
+- Keep the canonical snapshot valuation rule for FX lookup fixed to month-end. Because snapshots are stored by month (`YYYY-MM`), the app should derive the FX lookup date as the last day of that month without changing the persisted snapshot key unless a broader migration proves worthwhile, and that detail should remain completely hidden from users.
 - Decide how API credentials are stored, redacted from backups, and surfaced in settings without leaking secrets.
 - Confirm which analytics or read-only UI surfaces will consume holding metadata in the first release, so schema stays minimal.
 
