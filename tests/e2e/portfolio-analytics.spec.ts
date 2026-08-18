@@ -66,7 +66,8 @@ test('portfolio and analytics surfaces core data points from imported and snapsh
 test('account allocation donut shows correct labels when switching to By country', async ({
   page,
 }) => {
-  const month = monthOffsetValue(-1);
+  const firstMonth = monthOffsetValue(-2);
+  const secondMonth = monthOffsetValue(-1);
 
   await gotoApp(page);
   await addAccount(page, {
@@ -82,8 +83,13 @@ test('account allocation donut shows correct labels when switching to By country
     annualReturnPct: 6,
     country: 'Ireland',
   });
+  // Two snapshots are required for the analytics allocation section to render
   await addSnapshot(page, {
-    month,
+    month: firstMonth,
+    accountValues: { 'German Account': 7500, 'Irish Account': 1800 },
+  });
+  await addSnapshot(page, {
+    month: secondMonth,
     accountValues: { 'German Account': 8000, 'Irish Account': 2000 },
   });
 
@@ -103,7 +109,8 @@ test('account allocation donut shows correct labels when switching to By country
 test('account allocation donut shows correct labels when switching to By group', async ({
   page,
 }) => {
-  const month = monthOffsetValue(-1);
+  const firstMonth = monthOffsetValue(-2);
+  const secondMonth = monthOffsetValue(-1);
 
   await gotoApp(page);
   await addAccount(page, {
@@ -119,8 +126,13 @@ test('account allocation donut shows correct labels when switching to By group',
     annualReturnPct: 8,
     group: 'Active',
   });
+  // Two snapshots are required for the analytics allocation section to render
   await addSnapshot(page, {
-    month,
+    month: firstMonth,
+    accountValues: { 'Pension Fund': 14000, 'Trading Account': 4500 },
+  });
+  await addSnapshot(page, {
+    month: secondMonth,
     accountValues: { 'Pension Fund': 15000, 'Trading Account': 5000 },
   });
 
