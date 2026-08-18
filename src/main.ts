@@ -922,7 +922,7 @@ export async function exportBackup(): Promise<void> {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 window.__exportBackup = exportBackup;
 

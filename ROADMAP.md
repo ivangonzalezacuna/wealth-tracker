@@ -115,6 +115,23 @@ The app is intentionally slim and offline-capable. External data fetching remain
 
 #### Phased implementation roadmap
 
+##### Current execution status (stacked PR plan)
+
+- **Phase 1 (contract validation and scope freeze)** — ✅ completed.
+- **Phase 2 (storage and provider infrastructure)** — 🟡 in progress (FX cache + backup wiring landed; holdings metadata + integration settings/telemetry still pending).
+- **Phase 3 (domain and service wiring)** — 🟡 in progress (Frankfurter fetch + cache-first FX service are in; broader snapshot/metadata integration still pending).
+- **Phase 4 (application integration and regression-safe rollout)** — ⏳ next.
+- **Phase 5 (UI rollout)** — ⏳ next.
+- **Phase 6 (tests and hardening)** — ⏳ next.
+
+**Stacked PR sequence**
+
+1. **PR A — Phase 2 completion:** finish remaining storage/config/backup pieces (including holding metadata scaffolding).
+2. **PR B — Phase 3 completion (based on PR A):** complete model/service wiring for snapshot normalization + metadata enrichment.
+3. **PR C — Phase 4 integration (based on PR B):** thread new data paths through analytics/reporting/backup consumers.
+4. **PR D — Phase 5 UI rollout (based on PR C):** ship account/snapshot/holding/settings UX for integrations.
+5. **PR E — Phase 6 hardening (based on PR D):** finalize unit/integration/Playwright coverage and resilience checks.
+
 ##### Phase 1 — contract validation and scope freeze
 
 - Verify the exact Frankfurter endpoints, response fields, business-day fallback behavior, and supported query patterns before encoding them into code or migrations.
