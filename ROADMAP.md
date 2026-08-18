@@ -85,10 +85,11 @@ The app is intentionally slim and offline-capable. External data fetching is lim
 **Design:**
 
 - A `fxRates` key in the `settings` table stores `{ rates: Record<string, number>, fetchedAt: string }` as JSON.
-- A "Refresh FX rates" button in Settings → Data triggers a single `GET /latest?base=EUR` call and writes the result to the DB. The last-fetched timestamp is shown next to the button.
-- In the transaction dialog, when the transaction currency differs from EUR, the stored rate for that currency is pre-filled into the `fxRate` input as a suggestion. The field remains fully editable.
-- Optional: on app load, if the stored rates are from a prior calendar month, auto-refresh once silently in the background. This keeps the hint reasonably current without requiring manual action.
-- **Volume:** at most ~12 calls/year if auto-refresh fires monthly. The button is an additional on-demand call. Both are negligible under any threshold.
+- The integration is **entirely latent when the app operates in a single currency** — if all accounts and transactions share the same base currency (EUR), no FX UI appears and no call is ever made.
+- When multiple currencies are in use, a "Refresh FX rates" button appears in Settings → Data. Clicking it triggers a single `GET /latest?base=EUR` call and writes the result to the DB. The last-fetched timestamp is shown next to the button.
+- All refreshes are strictly on-demand. There is no periodic auto-refresh, no background polling, and no call on app load.
+- In the transaction dialog, when the transaction currency differs from EUR, the stored rate for that currency is pre-filled into the `fxRate` input as a suggestion. The field remains fully editable and the user always supplies the final value.
+- **Volume:** one call per manual refresh, triggered only by the user. Entirely negligible.
 
 #### ETF metadata — Financial Modeling Prep (FMP, free API key)
 
