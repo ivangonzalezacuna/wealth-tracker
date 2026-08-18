@@ -115,22 +115,35 @@ The app is intentionally slim and offline-capable. External data fetching remain
 
 #### Phased implementation roadmap
 
-##### Current execution status (stacked PR plan)
+##### Current execution status (stacked PR plan — Frankfurter-only track)
 
-- **Phase 1 (contract validation and scope freeze)** — ✅ completed.
-- **Phase 2 (storage and provider infrastructure)** — 🟡 in progress (FX cache + backup wiring landed; holdings metadata + integration settings/telemetry still pending).
-- **Phase 3 (domain and service wiring)** — 🟡 in progress (Frankfurter fetch + cache-first FX service are in; broader snapshot/metadata integration still pending).
-- **Phase 4 (application integration and regression-safe rollout)** — ⏳ next.
-- **Phase 5 (UI rollout)** — ⏳ next.
-- **Phase 6 (tests and hardening)** — ⏳ next.
+> **Scope lock (now):** active implementation is **Frankfurter FX only**. ETF/FMP work is intentionally deferred to a later stacked PR sequence after FX is complete and stable.
 
-**Stacked PR sequence**
+- **Phase 1 (contract validation and scope freeze)** — ✅ completed for Frankfurter.
+- **Phase 2 (storage and provider infrastructure)** — 🟡 in progress for Frankfurter.
+- **Phase 3 (domain and service wiring)** — 🟡 in progress for Frankfurter.
+- **Phase 4 (application integration and regression-safe rollout)** — ⏳ next for Frankfurter.
+- **Phase 5 (UI rollout)** — ⏳ next for Frankfurter.
+- **Phase 6 (tests and hardening)** — ⏳ next for Frankfurter.
 
-1. **PR A — Phase 2 completion:** finish remaining storage/config/backup pieces (including holding metadata scaffolding).
-2. **PR B — Phase 3 completion (based on PR A):** complete model/service wiring for snapshot normalization + metadata enrichment.
-3. **PR C — Phase 4 integration (based on PR B):** thread new data paths through analytics/reporting/backup consumers.
-4. **PR D — Phase 5 UI rollout (based on PR C):** ship account/snapshot/holding/settings UX for integrations.
-5. **PR E — Phase 6 hardening (based on PR D):** finalize unit/integration/Playwright coverage and resilience checks.
+**Current stack anchor for follow-up agents**
+
+- **Branch:** `copilot/fxrate-external-integrations`
+- **PR:** [#207](https://github.com/ivangonzalezacuna/wealth-tracker/pull/207)
+- **Rule:** every next PR in this phase stack must be opened from the previous phase branch/PR head so the chain stays linear and reviewable.
+
+**Stacked PR sequence (Frankfurter track)**
+
+1. **PR A — Phase 2 completion:** finish remaining FX storage/config/backup/telemetry pieces.
+2. **PR B — Phase 3 completion (based on PR A):** complete FX model/service wiring for snapshot normalization and shared lookup paths.
+3. **PR C — Phase 4 integration (based on PR B):** thread FX-normalized values through analytics/reporting/backup consumers.
+4. **PR D — Phase 5 UI rollout (based on PR C):** ship account/snapshot/settings UX for FX flows.
+5. **PR E — Phase 6 hardening (based on PR D):** finalize unit/integration/Playwright coverage and resilience checks for FX behavior.
+
+**Later (separate stack): ETF/FMP track**
+
+- ETF metadata work follows the same phase structure, but starts only after the Frankfurter stack lands.
+- Use a fresh stack anchor (new branch + new base PR) dedicated to ETF/FMP so reviews stay isolated from FX changes.
 
 ##### Phase 1 — contract validation and scope freeze
 

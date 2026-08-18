@@ -98,11 +98,16 @@ export async function restoreAllFxRates(records: FxRateRecord[]): Promise<void> 
 /** Load all cached FX rate records (for backup export). */
 export async function loadAllFxRates(): Promise<FxRateRecord[]> {
   const db = await getDb();
-  const result = db.exec(
-    'SELECT base, target, date, rate, effective_date, fetched_at FROM fx_rates',
-  );
-  if (result.length === 0) return [];
-  return result[0].values.map(rowToFxRateRecord);
+  try {
+    const result = db.exec(
+      'SELECT base, target, date, rate, effective_date, fetched_at FROM fx_rates',
+    );
+    if (result.length === 0) return [];
+    return result[0].values.map(rowToFxRateRecord);
+  } catch (err) {
+    if (String(err).includes('no such table: fx_rates')) return [];
+    throw err;
+  }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────

@@ -903,7 +903,6 @@ window.__forceFullResync = forceFullResync;
 
 // ── Backup export ─────────────────────────────────────────
 export async function exportBackup(): Promise<void> {
-  await setSetting('last_backup_at', new Date().toISOString());
   const fxRates = await loadAllFxRates();
   const backup = buildBackup({
     accounts: getAccounts(),
@@ -923,6 +922,7 @@ export async function exportBackup(): Promise<void> {
   a.click();
   a.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  await setSetting('last_backup_at', new Date().toISOString());
 }
 window.__exportBackup = exportBackup;
 
