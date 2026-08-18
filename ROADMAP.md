@@ -83,6 +83,7 @@ The app is intentionally slim and offline-capable. External data fetching is lim
 **Why:** Transaction imports from brokers include a `fxRate` field that the user must currently supply or verify manually. Showing the ECB spot rate as a prefill hint at the time of entry eliminates a lookup step and improves data quality without replacing the manual field — the user always retains the final value.
 
 **Design:**
+
 - A `fxRates` key in the `settings` table stores `{ rates: Record<string, number>, fetchedAt: string }` as JSON.
 - A "Refresh FX rates" button in Settings → Data triggers a single `GET /latest?base=EUR` call and writes the result to the DB. The last-fetched timestamp is shown next to the button.
 - In the transaction dialog, when the transaction currency differs from EUR, the stored rate for that currency is pre-filled into the `fxRate` input as a suggestion. The field remains fully editable.
@@ -96,6 +97,7 @@ The app is intentionally slim and offline-capable. External data fetching is lim
 **Why:** Holdings already store name, TER, asset class, region, and notes. For deeper analytics (underlying company exposure, domicile, AUM, inception date, number of holdings, sector weights, country weights), the data must come from an external source. This cannot be derived from the user's own transaction history.
 
 **Data fetched per ISIN (stored permanently in a new `holding_metadata` table):**
+
 - From `GET /v3/search?query=<ISIN>`: ticker symbol, exchange code, currency
 - From `GET /v3/profile/<ticker>`: full name, description, exchange, country of domicile, currency, sector, industry
 - From `GET /v3/etf-info/<ticker>`: AUM, number of holdings, average market cap, inception date, domicile, asset class (confirms or supplements the manually set value)
@@ -103,6 +105,7 @@ The app is intentionally slim and offline-capable. External data fetching is lim
 - From `GET /v3/quote-short/<ticker>`: latest price and currency (informational only; not used to override manual snapshot values)
 
 **Design:**
+
 - The user sets their FMP API key once in Settings → Data (stored in the `settings` table, never committed to source).
 - In the Holding dialog, once a valid ISIN is entered and the holding is new, a "Fetch metadata" button appears. Clicking it calls FMP and pre-fills available fields (name, exchange, asset class); the user can override any value before saving.
 - In Settings → Advanced, a "Enrich all holdings" one-time action batch-fetches metadata for every active holding that does not yet have a `holding_metadata` record. A small sequential delay (e.g. 500 ms between requests) is used to respect the free-tier rate limit.
