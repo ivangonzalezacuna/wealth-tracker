@@ -6,6 +6,10 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 
 vi.mock('./frankfurter', () => ({
   fetchRate: vi.fn(),
+  buildRateUrl: vi.fn((base: string, target: string, date: string) => {
+    const suffix = date === 'latest' ? '' : `?date=${date}`;
+    return `https://api.frankfurter.dev/v2/rate/${base}/${target}${suffix}`;
+  }),
   FrankfurterOfflineError: class FrankfurterOfflineError extends Error {
     constructor(msg?: string) {
       super(msg ?? 'Network unavailable');
