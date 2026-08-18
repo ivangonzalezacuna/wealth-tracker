@@ -141,7 +141,7 @@ export const MIGRATIONS: string[][] = [
   [`ALTER TABLE accounts ADD COLUMN country TEXT NOT NULL DEFAULT ''`],
   // [10] version 9 → 10: add group column to accounts.
   [`ALTER TABLE accounts ADD COLUMN "group" TEXT NOT NULL DEFAULT ''`],
-  // [11] version 10 → 11: add fx_rates cache table for Frankfurter integration.
+  // [11] version 10 → 11: add FX integration support (rates cache, account currency, telemetry).
   [
     `CREATE TABLE IF NOT EXISTS fx_rates (
       base TEXT NOT NULL,
@@ -152,11 +152,7 @@ export const MIGRATIONS: string[][] = [
       fetched_at TEXT NOT NULL DEFAULT '',
       PRIMARY KEY (base, target, date)
     )`,
-  ],
-  // [12] version 11 → 12: add currency column to accounts for multi-currency support.
-  [`ALTER TABLE accounts ADD COLUMN currency TEXT NOT NULL DEFAULT 'EUR'`],
-  // [13] version 12 → 13: add fx_telemetry table for Frankfurter operational status.
-  [
+    `ALTER TABLE accounts ADD COLUMN currency TEXT NOT NULL DEFAULT 'EUR'`,
     `CREATE TABLE IF NOT EXISTS fx_telemetry (
       id INTEGER PRIMARY KEY,
       last_fetch_at TEXT NOT NULL DEFAULT '',

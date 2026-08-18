@@ -183,7 +183,7 @@ export async function restoreAllData(data: {
   const db = await getDb();
 
   const accountStmt = db.prepare(
-    'INSERT INTO accounts (id, money_type, institution, country, "group", label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO accounts (id, money_type, institution, country, "group", label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   const holdingStmt = db.prepare(
     'INSERT INTO holdings (isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -217,6 +217,7 @@ export async function restoreAllData(data: {
         a.locked ? 1 : 0,
         a.lockedUntil || '',
         a.extraContrib ?? 0,
+        a.currency || 'EUR',
       ]);
     }
 

@@ -1052,9 +1052,7 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
     await restoreAllData({ accounts, holdings, settings, snapshots, transactions });
 
     // Restore FX rate cache (non-critical; failures are tolerated).
-    if (fxRates && fxRates.length > 0) {
-      await restoreAllFxRates(fxRates);
-    }
+    await restoreAllFxRates(fxRates ?? []);
 
     // Reload in-memory config store from the freshly written SQLite tables.
     await loadConfig();
