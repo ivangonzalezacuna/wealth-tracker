@@ -6,7 +6,7 @@
  */
 
 /** Schema version - bump when DDL changes require a migration. */
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 
 /**
  * SQL statements executed on first database creation (version 0 → 1).
@@ -116,6 +116,7 @@ export const SCHEMA_DDL: string[] = [
   `CREATE TABLE IF NOT EXISTS fx_telemetry (
     id INTEGER PRIMARY KEY,
     last_fetch_at TEXT NOT NULL DEFAULT '',
+    last_request_url TEXT NOT NULL DEFAULT '',
     last_error_at TEXT NOT NULL DEFAULT '',
     last_error TEXT NOT NULL DEFAULT '',
     fetch_count INTEGER NOT NULL DEFAULT 0,

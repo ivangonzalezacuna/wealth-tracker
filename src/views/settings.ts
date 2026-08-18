@@ -2023,6 +2023,7 @@ function renderFxIntegrationsCard(settings: Settings): string {
           <div class="settings-item"><div class="settings-item-header"><span class="settings-item-title">Status</span><span id="fx-status-enabled" class="settings-item-meta">-</span></div></div>
           <div class="settings-item"><div class="settings-item-header"><span class="settings-item-title">Cache entries</span><span id="fx-status-cache-entries" class="settings-item-meta">-</span></div></div>
           <div class="settings-item"><div class="settings-item-header"><span class="settings-item-title">Last successful fetch</span><span id="fx-status-last-fetch" class="settings-item-meta">-</span></div></div>
+          <div class="settings-item"><div class="settings-item-header"><span class="settings-item-title">Last request URL</span><span id="fx-status-last-request-url" class="settings-item-meta">-</span></div></div>
           <div class="settings-item"><div class="settings-item-header"><span class="settings-item-title">Last error</span><span id="fx-status-last-error" class="settings-item-meta">-</span></div></div>
           <div class="settings-item"><div class="settings-item-header"><span class="settings-item-title">Provider fetches / cache hits / prefetch (a/s/f)</span><span id="fx-status-counters" class="settings-item-meta">-</span></div></div>
         </div>
@@ -2042,6 +2043,7 @@ async function refreshFxIntegrationStatus(root: HTMLElement): Promise<void> {
   const statusEnabled = root.querySelector('#fx-status-enabled') as HTMLElement | null;
   const cacheEntries = root.querySelector('#fx-status-cache-entries') as HTMLElement | null;
   const lastFetch = root.querySelector('#fx-status-last-fetch') as HTMLElement | null;
+  const lastRequestUrl = root.querySelector('#fx-status-last-request-url') as HTMLElement | null;
   const lastError = root.querySelector('#fx-status-last-error') as HTMLElement | null;
   const counters = root.querySelector('#fx-status-counters') as HTMLElement | null;
 
@@ -2058,6 +2060,9 @@ async function refreshFxIntegrationStatus(root: HTMLElement): Promise<void> {
     lastFetch.textContent = telemetry.lastFetchAt
       ? formatEnglishDateTime(new Date(telemetry.lastFetchAt))
       : '—';
+  }
+  if (lastRequestUrl) {
+    lastRequestUrl.textContent = telemetry.lastRequestUrl || '—';
   }
   if (lastError) {
     lastError.textContent =
@@ -2077,6 +2082,7 @@ async function loadFxTelemetrySafe(): Promise<FxTelemetry> {
     if (String(err).includes('no such table: fx_telemetry')) {
       return {
         lastFetchAt: '',
+        lastRequestUrl: '',
         lastErrorAt: '',
         lastError: '',
         fetchCount: 0,

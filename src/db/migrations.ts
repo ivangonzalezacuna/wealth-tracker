@@ -169,4 +169,6 @@ export const MIGRATIONS: string[][] = [
     `ALTER TABLE fx_telemetry ADD COLUMN prefetch_success_count INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE fx_telemetry ADD COLUMN prefetch_failure_count INTEGER NOT NULL DEFAULT 0`,
   ],
+  // [13] version 12 → 13: track last attempted Frankfurter request URL.
+  [`ALTER TABLE fx_telemetry ADD COLUMN last_request_url TEXT NOT NULL DEFAULT ''`],
 ];

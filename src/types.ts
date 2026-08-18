@@ -158,6 +158,8 @@ export interface FxRateRecord {
 export interface FxTelemetry {
   /** ISO timestamp of the last successful live fetch from Frankfurter, or '' if none yet. */
   lastFetchAt: string;
+  /** URL of the last attempted live request to Frankfurter, or '' if none yet. */
+  lastRequestUrl: string;
   /** ISO timestamp of the last provider/network error, or '' if none yet. */
   lastErrorAt: string;
   /** Message of the last error, or '' if none yet. */

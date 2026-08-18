@@ -58,6 +58,7 @@ export {
 export {
   getFxTelemetry,
   recordFxFetch,
+  recordFxRequest,
   recordFxError,
   recordFxCacheHit,
   recordFxPrefetch,

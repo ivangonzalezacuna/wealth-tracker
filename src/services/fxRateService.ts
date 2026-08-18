@@ -15,13 +15,14 @@
  */
 
 import type { FxRateRecord } from '../types';
-import { fetchRate, FrankfurterOfflineError, FrankfurterError } from './frankfurter';
+import { buildRateUrl, fetchRate, FrankfurterOfflineError, FrankfurterError } from './frankfurter';
 import { getRate, upsertRate } from '../db/repositories/fxRates';
 import {
   recordFxFetch,
   recordFxError,
   recordFxCacheHit,
   recordFxPrefetch,
+  recordFxRequest,
 } from '../db/repositories/fxTelemetry';
 
 // ── Integration enablement ─────────────────────────────────────────
@@ -86,6 +87,8 @@ export async function lookupRate(
 
   // 2. Live fetch.
   try {
+    const requestUrl = buildRateUrl(base, target, date);
+    recordFxRequest(requestUrl).catch(() => {});
     const record = await fetchRate(base, target, date);
     const now = new Date().toISOString();
     // Persist to cache and record telemetry in the background.

@@ -2,8 +2,9 @@
  * FX integration telemetry repository.
  *
  * Tracks lightweight operational status for the Frankfurter integration:
- * last successful fetch timestamp, last error, cumulative request counts, and
- * cache hit counts. The data lives in a single-row `fx_telemetry` table
+ * last successful fetch timestamp, last attempted request URL, last error,
+ * cumulative request counts, and cache hit counts. The data lives in a
+ * single-row `fx_telemetry` table
  * (id = 1) and is intentionally excluded from backup/restore — it records
  * operational history for the current device, not user data.
  */
@@ -17,13 +18,14 @@ import type { FxTelemetry } from '../../types';
 export async function getFxTelemetry(): Promise<FxTelemetry> {
   const db = await getDb();
   const result = db.exec(
-    `SELECT last_fetch_at, last_error_at, last_error, fetch_count, cache_hit_count,
+    `SELECT last_fetch_at, last_request_url, last_error_at, last_error, fetch_count, cache_hit_count,
             prefetch_attempt_count, prefetch_success_count, prefetch_failure_count
        FROM fx_telemetry WHERE id = 1`,
   );
   if (result.length === 0 || result[0].values.length === 0) {
     return {
       lastFetchAt: '',
+      lastRequestUrl: '',
       lastErrorAt: '',
       lastError: '',
       fetchCount: 0,
@@ -36,13 +38,14 @@ export async function getFxTelemetry(): Promise<FxTelemetry> {
   const row = result[0].values[0];
   return {
     lastFetchAt: String(row[0] ?? ''),
-    lastErrorAt: String(row[1] ?? ''),
-    lastError: String(row[2] ?? ''),
-    fetchCount: Number(row[3]) || 0,
-    cacheHitCount: Number(row[4]) || 0,
-    prefetchAttemptCount: Number(row[5]) || 0,
-    prefetchSuccessCount: Number(row[6]) || 0,
-    prefetchFailureCount: Number(row[7]) || 0,
+    lastRequestUrl: String(row[1] ?? ''),
+    lastErrorAt: String(row[2] ?? ''),
+    lastError: String(row[3] ?? ''),
+    fetchCount: Number(row[4]) || 0,
+    cacheHitCount: Number(row[5]) || 0,
+    prefetchAttemptCount: Number(row[6]) || 0,
+    prefetchSuccessCount: Number(row[7]) || 0,
+    prefetchFailureCount: Number(row[8]) || 0,
   };
 }
 
@@ -61,6 +64,21 @@ export async function recordFxFetch(at: string): Promise<void> {
        last_fetch_at = excluded.last_fetch_at,
        fetch_count = fetch_count + 1`,
     [at],
+  );
+  await persistDb();
+}
+
+/**
+ * Record the last attempted provider request URL.
+ */
+export async function recordFxRequest(url: string): Promise<void> {
+  const db = await getDb();
+  db.run(
+    `INSERT INTO fx_telemetry (id, last_request_url)
+     VALUES (1, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       last_request_url = excluded.last_request_url`,
+    [url],
   );
   await persistDb();
 }

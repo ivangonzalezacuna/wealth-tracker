@@ -76,8 +76,7 @@ export async function fetchRate(
   date: string,
   baseUrl: string = FRANKFURTER_BASE_URL,
 ): Promise<FxRateRecord> {
-  let url = `${baseUrl}/rate/${encodeURIComponent(base)}/${encodeURIComponent(target)}`;
-  if (date !== 'latest') url += `?date=${encodeURIComponent(date)}`;
+  const url = buildRateUrl(base, target, date, baseUrl);
 
   let response: Response;
   try {
@@ -104,6 +103,18 @@ export async function fetchRate(
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
+
+/** Build the Frankfurter v2 single-pair URL for a given request. */
+export function buildRateUrl(
+  base: string,
+  target: string,
+  date: string,
+  baseUrl: string = FRANKFURTER_BASE_URL,
+): string {
+  let url = `${baseUrl}/rate/${encodeURIComponent(base)}/${encodeURIComponent(target)}`;
+  if (date !== 'latest') url += `?date=${encodeURIComponent(date)}`;
+  return url;
+}
 
 function parseFrankfurterResponse(
   base: string,

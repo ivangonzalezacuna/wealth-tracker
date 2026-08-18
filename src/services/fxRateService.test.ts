@@ -27,6 +27,7 @@ vi.mock('../db/repositories/fxRates', () => ({
 
 vi.mock('../db/repositories/fxTelemetry', () => ({
   recordFxFetch: vi.fn().mockResolvedValue(undefined),
+  recordFxRequest: vi.fn().mockResolvedValue(undefined),
   recordFxError: vi.fn().mockResolvedValue(undefined),
   recordFxCacheHit: vi.fn().mockResolvedValue(undefined),
   recordFxPrefetch: vi.fn().mockResolvedValue(undefined),
@@ -43,6 +44,7 @@ import { fetchRate, FrankfurterOfflineError, FrankfurterError } from './frankfur
 import { getRate, upsertRate } from '../db/repositories/fxRates';
 import {
   recordFxFetch,
+  recordFxRequest,
   recordFxError,
   recordFxCacheHit,
   recordFxPrefetch,
@@ -53,6 +55,7 @@ const mockFetchRate = vi.mocked(fetchRate);
 const mockGetRate = vi.mocked(getRate);
 const mockUpsertRate = vi.mocked(upsertRate);
 const mockRecordFxFetch = vi.mocked(recordFxFetch);
+const mockRecordFxRequest = vi.mocked(recordFxRequest);
 const mockRecordFxError = vi.mocked(recordFxError);
 const mockRecordFxCacheHit = vi.mocked(recordFxCacheHit);
 const mockRecordFxPrefetch = vi.mocked(recordFxPrefetch);
@@ -262,6 +265,7 @@ describe('telemetry recording', () => {
 
     await Promise.resolve(); // flush microtasks
     expect(mockRecordFxFetch).toHaveBeenCalledOnce();
+    expect(mockRecordFxRequest).toHaveBeenCalledOnce();
     expect(mockRecordFxCacheHit).not.toHaveBeenCalled();
     expect(mockRecordFxError).not.toHaveBeenCalled();
   });
