@@ -68,6 +68,28 @@ describe('applySnapshotFxNormalization', () => {
     expect(result.usd_acc).toBe(1000); // unchanged
   });
 
+  it('reports unavailable FX currencies through onRateUnavailable callback', async () => {
+    mockResolveMonthEndRate.mockResolvedValue(null);
+    const onRateUnavailable = vi.fn();
+    const snap: Snapshot = { date: '2024-01', usd_acc: 1000, etf_IE00AAA: 500 };
+    const accounts: Account[] = [
+      {
+        id: 'usd_acc',
+        label: 'USD Broker',
+        currency: 'USD',
+        isPrimaryInvestment: true,
+        moneyType: 'investment',
+      },
+    ];
+
+    const result = await applySnapshotFxNormalization(snap, accounts, undefined, {
+      onRateUnavailable,
+    });
+    expect(result.usd_acc).toBe(1000);
+    expect(result.etf_IE00AAA).toBe(500);
+    expect(onRateUnavailable).toHaveBeenCalledWith('USD');
+  });
+
   it('converts only non-EUR accounts and leaves EUR accounts untouched', async () => {
     mockResolveMonthEndRate.mockResolvedValue(makeRate(0.85));
 

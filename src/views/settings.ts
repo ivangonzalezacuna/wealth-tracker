@@ -2024,7 +2024,7 @@ function renderFxIntegrationsCard(settings: Settings): string {
           <div class="settings-item"><div class="settings-item-header"><span class="settings-item-title">Cache entries</span><span id="fx-status-cache-entries" class="settings-item-meta">-</span></div></div>
           <div class="settings-item"><div class="settings-item-header"><span class="settings-item-title">Last successful fetch</span><span id="fx-status-last-fetch" class="settings-item-meta">-</span></div></div>
           <div class="settings-item"><div class="settings-item-header"><span class="settings-item-title">Last error</span><span id="fx-status-last-error" class="settings-item-meta">-</span></div></div>
-          <div class="settings-item"><div class="settings-item-header"><span class="settings-item-title">Provider fetches / cache hits</span><span id="fx-status-counters" class="settings-item-meta">-</span></div></div>
+          <div class="settings-item"><div class="settings-item-header"><span class="settings-item-title">Provider fetches / cache hits / prefetch (a/s/f)</span><span id="fx-status-counters" class="settings-item-meta">-</span></div></div>
         </div>
         <div class="form-actions">
           <button class="btn btn-outline btn-sm" id="btn-fx-refresh-status">Refresh status</button>
@@ -2065,7 +2065,9 @@ async function refreshFxIntegrationStatus(root: HTMLElement): Promise<void> {
         ? `${formatEnglishDateTime(new Date(telemetry.lastErrorAt))} — ${telemetry.lastError}`
         : '—';
   }
-  if (counters) counters.textContent = `${telemetry.fetchCount} / ${telemetry.cacheHitCount}`;
+  if (counters) {
+    counters.textContent = `${telemetry.fetchCount} / ${telemetry.cacheHitCount} / ${telemetry.prefetchAttemptCount}/${telemetry.prefetchSuccessCount}/${telemetry.prefetchFailureCount}`;
+  }
 }
 
 async function loadFxTelemetrySafe(): Promise<FxTelemetry> {
@@ -2073,7 +2075,16 @@ async function loadFxTelemetrySafe(): Promise<FxTelemetry> {
     return await getFxTelemetry();
   } catch (err) {
     if (String(err).includes('no such table: fx_telemetry')) {
-      return { lastFetchAt: '', lastErrorAt: '', lastError: '', fetchCount: 0, cacheHitCount: 0 };
+      return {
+        lastFetchAt: '',
+        lastErrorAt: '',
+        lastError: '',
+        fetchCount: 0,
+        cacheHitCount: 0,
+        prefetchAttemptCount: 0,
+        prefetchSuccessCount: 0,
+        prefetchFailureCount: 0,
+      };
     }
     throw err;
   }

@@ -10,6 +10,10 @@
 import type { Snapshot, Account } from '../types';
 import { resolveMonthEndRate, APP_CURRENCY } from '../fx';
 
+export interface SnapshotFxNormalizationOptions {
+  onRateUnavailable?: (currency: string) => void;
+}
+
 /**
  * Apply Frankfurter FX normalization to all snapshot balances.
  *
@@ -29,6 +33,7 @@ export async function applySnapshotFxNormalization(
   snap: Snapshot,
   accounts: Account[],
   previousCanonical?: Snapshot,
+  opts?: SnapshotFxNormalizationOptions,
 ): Promise<Snapshot> {
   const nonEurPairs = new Map<string, string>();
   for (const acct of accounts) {
@@ -58,7 +63,10 @@ export async function applySnapshotFxNormalization(
     if (previousCanonical && rawBalance === previousCanonical[key]) continue;
 
     const rate = await getRate(currency);
-    if (rate === null) continue; // provider unavailable or disabled — keep raw value
+    if (rate === null) {
+      opts?.onRateUnavailable?.(currency);
+      continue; // provider unavailable or disabled — keep raw value
+    }
     normalized[key] = rawBalance * rate;
   }
 
@@ -66,7 +74,10 @@ export async function applySnapshotFxNormalization(
   if (!etfCurrency) return normalized;
 
   const etfRate = await getRate(etfCurrency);
-  if (etfRate === null) return normalized;
+  if (etfRate === null) {
+    opts?.onRateUnavailable?.(etfCurrency);
+    return normalized;
+  }
 
   for (const [key, value] of Object.entries(snap)) {
     if (!key.startsWith('etf_') || typeof value !== 'number' || !isFinite(value)) continue;

@@ -110,6 +110,8 @@ import { registerSW } from 'virtual:pwa-register';
 import type { Snapshot, Transaction, PortfolioData, ImportProfile } from './types';
 import { buildAppSecuritySuggestions } from './securitySuggestions';
 import { applySnapshotFxNormalization, prepareSnapshotFxEditDraft } from './model/snapshotFx';
+import { APP_CURRENCY } from './fx';
+import { prefetchMonthEndRates } from './services/fxRateService';
 
 // ── App state ────────────────────────────────────────────
 const state: {
@@ -1372,6 +1374,7 @@ async function saveMonthlyUpdate(editDate?: string) {
   if (!ensureWriteAccess('snap-msg')) return;
 
   const accounts = getAccounts();
+  const fxUnavailableCurrencies = new Set<string>();
   const existing = editDate ? state.snaps.find((s) => s.date === editDate) : undefined;
   const existingDraft = existing ? await prepareSnapshotFxEditDraft(existing, accounts) : undefined;
 
@@ -1382,10 +1385,44 @@ async function saveMonthlyUpdate(editDate?: string) {
     accounts,
     holdings: state.pd?.etfs || {},
     configHoldings: getHoldings(),
+    onFxPrefetchMonth: (yearMonth) => prefetchSnapshotFxMonth(accounts, yearMonth),
   });
   if (!snap) return;
-  const normalizedSnap = await applySnapshotFxNormalization(snap, accounts, existing);
+  const normalizedSnap = await applySnapshotFxNormalization(snap, accounts, existing, {
+    onRateUnavailable: (currency) => fxUnavailableCurrencies.add(currency),
+  });
   await saveSnapshot(normalizedSnap);
+  if (fxUnavailableCurrencies.size > 0) {
+    showMsg(
+      'snap-msg',
+      `Saved without FX conversion for ${Array.from(fxUnavailableCurrencies).join(', ')}.`,
+      false,
+    );
+  }
+}
+
+async function prefetchSnapshotFxMonth(
+  accounts: ReturnType<typeof getAccounts>,
+  yearMonth: string,
+) {
+  const enabled = (getSettings().fx_integration_enabled ?? '1') !== '0';
+  const nonBaseCurrencies = [
+    ...new Set(
+      accounts
+        .map((acct) => (acct.currency || APP_CURRENCY).trim().toUpperCase())
+        .filter((cur) => !!cur && cur !== APP_CURRENCY),
+    ),
+  ];
+  if (!enabled || nonBaseCurrencies.length === 0) {
+    return {
+      needed: nonBaseCurrencies.length > 0,
+      disabled: !enabled,
+      attempted: 0,
+      resolved: 0,
+      failed: 0,
+    };
+  }
+  return prefetchMonthEndRates(nonBaseCurrencies, APP_CURRENCY, yearMonth);
 }
 
 function editSnap(date: string) {

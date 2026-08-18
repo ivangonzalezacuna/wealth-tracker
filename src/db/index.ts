@@ -60,6 +60,7 @@ export {
   recordFxFetch,
   recordFxError,
   recordFxCacheHit,
+  recordFxPrefetch,
 } from './repositories/fxTelemetry';
 
 export { getDb, persistDb, exportDb, importDb, destroyDb } from './connection';

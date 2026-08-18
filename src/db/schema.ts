@@ -6,7 +6,7 @@
  */
 
 /** Schema version - bump when DDL changes require a migration. */
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 /**
  * SQL statements executed on first database creation (version 0 → 1).
@@ -119,7 +119,10 @@ export const SCHEMA_DDL: string[] = [
     last_error_at TEXT NOT NULL DEFAULT '',
     last_error TEXT NOT NULL DEFAULT '',
     fetch_count INTEGER NOT NULL DEFAULT 0,
-    cache_hit_count INTEGER NOT NULL DEFAULT 0
+    cache_hit_count INTEGER NOT NULL DEFAULT 0,
+    prefetch_attempt_count INTEGER NOT NULL DEFAULT 0,
+    prefetch_success_count INTEGER NOT NULL DEFAULT 0,
+    prefetch_failure_count INTEGER NOT NULL DEFAULT 0
   )`,
   `INSERT OR IGNORE INTO fx_telemetry (id) VALUES (1)`,
 ];

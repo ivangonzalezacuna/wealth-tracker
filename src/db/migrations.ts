@@ -163,4 +163,10 @@ export const MIGRATIONS: string[][] = [
     )`,
     `INSERT OR IGNORE INTO fx_telemetry (id) VALUES (1)`,
   ],
+  // [12] version 11 → 12: add FX prefetch telemetry counters.
+  [
+    `ALTER TABLE fx_telemetry ADD COLUMN prefetch_attempt_count INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE fx_telemetry ADD COLUMN prefetch_success_count INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE fx_telemetry ADD COLUMN prefetch_failure_count INTEGER NOT NULL DEFAULT 0`,
+  ],
 ];

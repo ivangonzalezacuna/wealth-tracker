@@ -17,7 +17,12 @@
 import type { FxRateRecord } from '../types';
 import { fetchRate, FrankfurterOfflineError, FrankfurterError } from './frankfurter';
 import { getRate, upsertRate } from '../db/repositories/fxRates';
-import { recordFxFetch, recordFxError, recordFxCacheHit } from '../db/repositories/fxTelemetry';
+import {
+  recordFxFetch,
+  recordFxError,
+  recordFxCacheHit,
+  recordFxPrefetch,
+} from '../db/repositories/fxTelemetry';
 
 // ── Integration enablement ─────────────────────────────────────────
 
@@ -121,6 +126,60 @@ export async function lookupMonthEndRate(
     return null;
   }
   return lookupRate(base, target, lastDay);
+}
+
+export interface FxPrefetchResult {
+  needed: boolean;
+  disabled: boolean;
+  attempted: number;
+  resolved: number;
+  failed: number;
+}
+
+/**
+ * Warm month-end cache entries for the provided base currencies.
+ * Uses the same cache-first lookup path and records prefetch telemetry counters.
+ */
+export async function prefetchMonthEndRates(
+  baseCurrencies: string[],
+  target: string,
+  yearMonth: string,
+): Promise<FxPrefetchResult> {
+  const normalizedTarget = (target || '').trim().toUpperCase();
+  const normalizedBases = [
+    ...new Set(
+      baseCurrencies
+        .map((cur) => (cur || '').trim().toUpperCase())
+        .filter((cur) => !!cur && cur !== normalizedTarget),
+    ),
+  ];
+  if (normalizedBases.length === 0) {
+    return { needed: false, disabled: false, attempted: 0, resolved: 0, failed: 0 };
+  }
+  if (!_integrationEnabled) {
+    return { needed: true, disabled: true, attempted: 0, resolved: 0, failed: 0 };
+  }
+  if (!lastDayOfMonth(yearMonth)) {
+    console.warn(`[fxRateService] Invalid yearMonth format: "${yearMonth}" (expected YYYY-MM)`);
+    return { needed: true, disabled: false, attempted: 0, resolved: 0, failed: 0 };
+  }
+
+  let resolved = 0;
+  let failed = 0;
+  for (const base of normalizedBases) {
+    const rate = await lookupMonthEndRate(base, normalizedTarget, yearMonth);
+    if (rate) resolved += 1;
+    else failed += 1;
+  }
+  recordFxPrefetch(normalizedBases.length, resolved, failed).catch(() => {});
+
+  return {
+    needed: true,
+    disabled: false,
+    attempted: normalizedBases.length,
+    resolved,
+    failed,
+  };
 }
 
 // ── Helpers ────────────────────────────────────────────────────────

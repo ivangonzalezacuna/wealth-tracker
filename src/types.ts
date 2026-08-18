@@ -166,6 +166,12 @@ export interface FxTelemetry {
   fetchCount: number;
   /** Total number of cache hits served without a live fetch. */
   cacheHitCount: number;
+  /** Total number of month-end prefetch requests attempted for non-base currencies. */
+  prefetchAttemptCount: number;
+  /** Total number of month-end prefetch lookups that resolved a rate. */
+  prefetchSuccessCount: number;
+  /** Total number of month-end prefetch lookups that returned no rate. */
+  prefetchFailureCount: number;
 }
 
 // ─── Alert Settings ──────────────────────────────────────

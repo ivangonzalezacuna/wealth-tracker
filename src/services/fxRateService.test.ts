@@ -29,6 +29,7 @@ vi.mock('../db/repositories/fxTelemetry', () => ({
   recordFxFetch: vi.fn().mockResolvedValue(undefined),
   recordFxError: vi.fn().mockResolvedValue(undefined),
   recordFxCacheHit: vi.fn().mockResolvedValue(undefined),
+  recordFxPrefetch: vi.fn().mockResolvedValue(undefined),
 }));
 
 import {
@@ -36,10 +37,16 @@ import {
   lookupMonthEndRate,
   lastDayOfMonth,
   configureFxService,
+  prefetchMonthEndRates,
 } from './fxRateService';
 import { fetchRate, FrankfurterOfflineError, FrankfurterError } from './frankfurter';
 import { getRate, upsertRate } from '../db/repositories/fxRates';
-import { recordFxFetch, recordFxError, recordFxCacheHit } from '../db/repositories/fxTelemetry';
+import {
+  recordFxFetch,
+  recordFxError,
+  recordFxCacheHit,
+  recordFxPrefetch,
+} from '../db/repositories/fxTelemetry';
 import type { FxRateRecord } from '../types';
 
 const mockFetchRate = vi.mocked(fetchRate);
@@ -48,6 +55,7 @@ const mockUpsertRate = vi.mocked(upsertRate);
 const mockRecordFxFetch = vi.mocked(recordFxFetch);
 const mockRecordFxError = vi.mocked(recordFxError);
 const mockRecordFxCacheHit = vi.mocked(recordFxCacheHit);
+const mockRecordFxPrefetch = vi.mocked(recordFxPrefetch);
 
 const CACHED_RECORD: FxRateRecord = {
   base: 'USD',
@@ -276,5 +284,50 @@ describe('telemetry recording', () => {
     expect(mockRecordFxCacheHit).not.toHaveBeenCalled();
     expect(mockRecordFxFetch).not.toHaveBeenCalled();
     expect(mockRecordFxError).not.toHaveBeenCalled();
+  });
+});
+
+describe('prefetchMonthEndRates', () => {
+  it('skips when no non-target currencies are provided', async () => {
+    const result = await prefetchMonthEndRates(['EUR', 'eur'], 'EUR', '2024-01');
+    expect(result).toEqual({
+      needed: false,
+      disabled: false,
+      attempted: 0,
+      resolved: 0,
+      failed: 0,
+    });
+    expect(mockRecordFxPrefetch).not.toHaveBeenCalled();
+  });
+
+  it('returns disabled when integration is off', async () => {
+    configureFxService({ enabled: false });
+    const result = await prefetchMonthEndRates(['USD'], 'EUR', '2024-01');
+    expect(result).toEqual({
+      needed: true,
+      disabled: true,
+      attempted: 0,
+      resolved: 0,
+      failed: 0,
+    });
+    expect(mockFetchRate).not.toHaveBeenCalled();
+    expect(mockRecordFxPrefetch).not.toHaveBeenCalled();
+  });
+
+  it('records attempt/success/failure counters', async () => {
+    mockGetRate.mockResolvedValue(null);
+    mockFetchRate
+      .mockResolvedValueOnce({ ...CACHED_RECORD, date: '2024-01-31', effectiveDate: '2024-01-31' })
+      .mockRejectedValueOnce(new FrankfurterOfflineError('offline'));
+    const result = await prefetchMonthEndRates(['USD', 'DKK'], 'EUR', '2024-01');
+    expect(result).toEqual({
+      needed: true,
+      disabled: false,
+      attempted: 2,
+      resolved: 1,
+      failed: 1,
+    });
+    await Promise.resolve();
+    expect(mockRecordFxPrefetch).toHaveBeenCalledWith(2, 1, 1);
   });
 });

@@ -24,6 +24,15 @@ export interface SnapshotDialogOptions {
   configHoldings?: Holding[];
   prefill?: Snapshot;
   mode?: 'add' | 'edit';
+  onFxPrefetchMonth?: (yearMonth: string) => Promise<SnapshotDialogFxPrefetchResult>;
+}
+
+export interface SnapshotDialogFxPrefetchResult {
+  needed: boolean;
+  disabled: boolean;
+  attempted: number;
+  resolved: number;
+  failed: number;
 }
 
 export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | null> {
@@ -52,6 +61,11 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
               <input type="month" id="snapd-date" class="form-input dialog-input"
                 value="${_esc(draft?.date || today)}" max="${today}">
               <span class="dialog-error" id="snapd-date-err"></span>
+              ${
+                opts.onFxPrefetchMonth
+                  ? '<div class="note" id="snapd-fx-status" aria-live="polite" style="margin-top:.35rem"></div>'
+                  : ''
+              }
             </div>
             <div class="dialog-field dialog-field-wide">
               <label class="dialog-label" for="snapd-notes">Notes (optional)</label>
@@ -89,6 +103,39 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
       const acctKey = target.dataset.acctKey || target.dataset.accountKey || '';
       if (acctKey) _updateRecon(acctKey);
     });
+    const fxStatusEl = overlay.querySelector('#snapd-fx-status') as HTMLElement | null;
+    const prefetchCache = new Map<string, SnapshotDialogFxPrefetchResult>();
+    let prefetchRequestSeq = 0;
+    const triggerFxPrefetch = (yearMonth: string): void => {
+      if (!opts.onFxPrefetchMonth || !fxStatusEl || !yearMonth) return;
+      const cached = prefetchCache.get(yearMonth);
+      if (cached) {
+        renderFxPrefetchStatus(fxStatusEl, cached);
+        return;
+      }
+      fxStatusEl.textContent = 'FX: fetching month-end rates…';
+      const requestSeq = ++prefetchRequestSeq;
+      void opts
+        .onFxPrefetchMonth(yearMonth)
+        .then((result) => {
+          prefetchCache.set(yearMonth, result);
+          if (requestSeq !== prefetchRequestSeq) return;
+          renderFxPrefetchStatus(fxStatusEl, result);
+        })
+        .catch(() => {
+          if (requestSeq !== prefetchRequestSeq) return;
+          renderFxPrefetchStatus(fxStatusEl, {
+            needed: true,
+            disabled: false,
+            attempted: 0,
+            resolved: 0,
+            failed: 1,
+          });
+        });
+    };
+    const monthInput = overlay.querySelector('#snapd-date') as HTMLInputElement | null;
+    monthInput?.addEventListener('change', () => triggerFxPrefetch(monthInput.value.trim()));
+    if (monthInput) triggerFxPrefetch(monthInput.value.trim());
 
     for (const acct of _getDialogAccounts(opts.accounts)) {
       _updateRecon(acct.key);
@@ -376,4 +423,21 @@ function _getDialogAccounts(accounts: Account[]): Array<{
 
 function _esc(s: string | null | undefined): string {
   return esc(s);
+}
+
+function renderFxPrefetchStatus(el: HTMLElement, result: SnapshotDialogFxPrefetchResult): void {
+  if (!result.needed) {
+    el.textContent = '';
+    return;
+  }
+  if (result.disabled) {
+    el.textContent = 'FX: integration disabled.';
+    return;
+  }
+  if (result.failed > 0) {
+    el.textContent =
+      'FX: unavailable now — save will keep entered values when conversion is missing.';
+    return;
+  }
+  el.textContent = 'FX: month-end rates ready.';
 }

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { snapshotDialog } from './snapshotDialog';
 import type { Account, Holding, PortfolioData, Snapshot } from '../types';
 
@@ -293,6 +293,34 @@ describe('snapshotDialog', () => {
     ) as HTMLElement | null;
     expect(cashLabel?.textContent).toContain('Cash account (EUR)');
     expect(brokerLabel?.textContent).toContain('Broker (USD)');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('prefetches FX rates on open and when month changes', async () => {
+    const onFxPrefetchMonth = vi
+      .fn()
+      .mockResolvedValue({ needed: true, disabled: false, attempted: 1, resolved: 1, failed: 0 });
+    snapshotDialog(baseOpts({ onFxPrefetchMonth }));
+    await Promise.resolve();
+    const initialMonth = (document.querySelector('#snapd-date') as HTMLInputElement).value;
+    expect(onFxPrefetchMonth).toHaveBeenCalledWith(initialMonth);
+    setField('snapd-date', '2024-06');
+    (document.querySelector('#snapd-date') as HTMLInputElement).dispatchEvent(
+      new Event('change', { bubbles: true }),
+    );
+    await Promise.resolve();
+    expect(onFxPrefetchMonth).toHaveBeenCalledWith('2024-06');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('renders unavailable FX prefetch status message', async () => {
+    const onFxPrefetchMonth = vi
+      .fn()
+      .mockResolvedValue({ needed: true, disabled: false, attempted: 1, resolved: 0, failed: 1 });
+    snapshotDialog(baseOpts({ onFxPrefetchMonth }));
+    await Promise.resolve();
+    const status = document.querySelector('#snapd-fx-status') as HTMLElement | null;
+    expect(status?.textContent).toContain('unavailable');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
 });
