@@ -2101,11 +2101,17 @@ function attachFxIntegrationListeners(root: HTMLElement): void {
 
   root.querySelector('#btn-save-fx-integration')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-fx-integration') as HTMLButtonElement;
-    const enabled = !!(root.querySelector('#fx-integration-enabled') as HTMLInputElement | null)?.checked;
+    const enabled = !!(root.querySelector('#fx-integration-enabled') as HTMLInputElement | null)
+      ?.checked;
     try {
-      await withCardGuard('integrations', btn, () => setSetting('fx_integration_enabled', enabled ? '1' : '0'), {
-        busyText: 'Saving...',
-      });
+      await withCardGuard(
+        'integrations',
+        btn,
+        () => setSetting('fx_integration_enabled', enabled ? '1' : '0'),
+        {
+          busyText: 'Saving...',
+        },
+      );
       await refreshFxIntegrationStatus(root);
       showMsg('fx-int-msg', 'Saved', true);
     } catch (err) {

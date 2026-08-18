@@ -133,7 +133,13 @@ describe('applySnapshotFxNormalization', () => {
     mockResolveMonthEndRate.mockResolvedValue(makeRate(0.8));
     const snap: Snapshot = { date: '2024-01', usd_acc: 1000, etf_IE00AAA: 400 };
     const accounts: Account[] = [
-      { id: 'usd_acc', label: 'USD Broker', currency: 'USD', isPrimaryInvestment: true, moneyType: 'investment' },
+      {
+        id: 'usd_acc',
+        label: 'USD Broker',
+        currency: 'USD',
+        isPrimaryInvestment: true,
+        moneyType: 'investment',
+      },
     ];
 
     const result = await applySnapshotFxNormalization(snap, accounts);
@@ -175,7 +181,13 @@ describe('prepareSnapshotFxEditDraft', () => {
     mockResolveMonthEndRate.mockResolvedValue(makeRate(0.8));
     const snap: Snapshot = { date: '2024-01', usd_acc: 800, etf_IE00AAA: 320 };
     const accounts: Account[] = [
-      { id: 'usd_acc', label: 'USD Broker', currency: 'USD', isPrimaryInvestment: true, moneyType: 'investment' },
+      {
+        id: 'usd_acc',
+        label: 'USD Broker',
+        currency: 'USD',
+        isPrimaryInvestment: true,
+        moneyType: 'investment',
+      },
     ];
 
     const result = await prepareSnapshotFxEditDraft(snap, accounts);

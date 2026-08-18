@@ -15,7 +15,9 @@ test.beforeEach(async ({ page }) => {
   await preparePage(page);
 });
 
-test('mixed-currency snapshot flow stays stable when FX integration is disabled', async ({ page }) => {
+test('mixed-currency snapshot flow stays stable when FX integration is disabled', async ({
+  page,
+}) => {
   const month = monthOffsetValue(-1);
 
   await gotoApp(page);

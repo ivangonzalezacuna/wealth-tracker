@@ -130,7 +130,9 @@ export async function prepareSnapshotFxEditDraft(
 function inferEtfSnapshotCurrency(accounts: Account[]): string | null {
   const currencies = new Set(
     accounts
-      .filter((acct) => acct.isPrimaryInvestment && (acct.moneyType || '').toLowerCase() === 'investment')
+      .filter(
+        (acct) => acct.isPrimaryInvestment && (acct.moneyType || '').toLowerCase() === 'investment',
+      )
       .map((acct) => (acct.currency || APP_CURRENCY).toUpperCase())
       .filter((cur) => cur !== APP_CURRENCY),
   );
