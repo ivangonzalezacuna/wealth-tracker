@@ -127,6 +127,25 @@ export interface NamedGoal {
   milestones?: GoalMilestone[];
 }
 
+// ─── FX Rate Cache ────────────────────────────────────────────────
+
+/**
+ * A cached FX rate record returned by the Frankfurter service.
+ *
+ * `date` is the requested lookup date (YYYY-MM-DD).
+ * `effectiveDate` is the provider's actual date, which may differ from
+ * `date` when the requested date falls on a weekend or public holiday
+ * (Frankfurter returns the prior business day's rate in that case).
+ */
+export interface FxRateRecord {
+  base: string;
+  target: string;
+  date: string;
+  rate: number;
+  effectiveDate: string;
+  fetchedAt: string;
+}
+
 // ─── Alert Settings ──────────────────────────────────────
 
 export interface AlertSettings {

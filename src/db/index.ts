@@ -47,4 +47,12 @@ export {
   clearSyncMetadata,
 } from './repositories/meta';
 
+export {
+  getRate,
+  upsertRate,
+  getRatesForPairs,
+  loadAllFxRates,
+  restoreAllFxRates,
+} from './repositories/fxRates';
+
 export { getDb, persistDb, exportDb, importDb, destroyDb } from './connection';
