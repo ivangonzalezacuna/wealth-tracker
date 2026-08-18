@@ -115,16 +115,27 @@ The app is intentionally slim and offline-capable. External data fetching remain
 
 #### Phased implementation roadmap
 
-##### Current execution status (stacked PR plan — Frankfurter-only track)
+##### Current execution status (split by integration track)
 
-> **Scope lock (now):** active implementation is **Frankfurter FX only**. ETF/FMP work is intentionally deferred to a later stacked PR sequence after FX is complete and stable.
+This status is intentionally split so progress is not conflated across providers.
 
-- **Phase 1 (contract validation and scope freeze)** — ✅ completed for Frankfurter.
-- **Phase 2 (storage and provider infrastructure)** — 🟡 in progress for Frankfurter.
-- **Phase 3 (domain and service wiring)** — 🟡 in progress for Frankfurter.
-- **Phase 4 (application integration and regression-safe rollout)** — ⏳ next for Frankfurter.
-- **Phase 5 (UI rollout)** — ⏳ next for Frankfurter.
-- **Phase 6 (tests and hardening)** — ⏳ next for Frankfurter.
+**Track 1 — Frankfurter (FX)**
+
+- **Phase 1 (contract validation and scope freeze)** — ✅ done.
+- **Phase 2 (storage and provider infrastructure)** — ✅ mostly done (storage/cache + backup path).
+- **Phase 3 (domain and service wiring)** — ✅ mostly done (provider + service + shared FX resolution).
+- **Phase 4 (application integration and regression-safe rollout)** — ⏳ not done.
+- **Phase 5 (UI rollout)** — ⏳ not done.
+- **Phase 6 (tests and hardening)** — 🟡 partially done (unit tests present; broader integration/E2E hardening pending).
+
+**Track 2 — FMP (ETF metadata)**
+
+- **Phase 1 (contract validation and scope freeze)** — 🟡 scope discussed, implementation path not started in code.
+- **Phase 2 (storage and provider infrastructure)** — ⏳ not started.
+- **Phase 3 (domain and service wiring)** — ⏳ not started.
+- **Phase 4 (application integration and regression-safe rollout)** — ⏳ not started.
+- **Phase 5 (UI rollout)** — ⏳ not started.
+- **Phase 6 (tests and hardening)** — ⏳ not started.
 
 **Current stack anchor for follow-up agents**
 
