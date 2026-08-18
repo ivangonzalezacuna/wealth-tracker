@@ -25,13 +25,13 @@ describe('fetchRate', () => {
   it('builds the correct URL for a historical date', async () => {
     const spy = mockFetch({ base: 'USD', date: '2024-01-15', rates: { EUR: 0.92 } });
     await fetchRate('USD', 'EUR', '2024-01-15');
-    expect(spy).toHaveBeenCalledWith(`${BASE_URL}/v1/2024-01-15?from=USD&to=EUR`);
+    expect(spy).toHaveBeenCalledWith(`${BASE_URL}/2024-01-15?from=USD&to=EUR`);
   });
 
   it('builds the correct URL for "latest"', async () => {
     const spy = mockFetch({ base: 'USD', date: '2024-01-15', rates: { EUR: 0.92 } });
     await fetchRate('USD', 'EUR', 'latest');
-    expect(spy).toHaveBeenCalledWith(`${BASE_URL}/v1/latest?from=USD&to=EUR`);
+    expect(spy).toHaveBeenCalledWith(`${BASE_URL}/latest?from=USD&to=EUR`);
   });
 
   it('returns a correctly shaped FxRateRecord', async () => {
@@ -110,6 +110,6 @@ describe('fetchRate', () => {
   it('accepts a custom baseUrl', async () => {
     const spy = mockFetch({ base: 'USD', date: '2024-01-15', rates: { EUR: 0.92 } });
     await fetchRate('USD', 'EUR', '2024-01-15', 'https://custom.host');
-    expect(spy).toHaveBeenCalledWith('https://custom.host/v1/2024-01-15?from=USD&to=EUR');
+    expect(spy).toHaveBeenCalledWith('https://custom.host/2024-01-15?from=USD&to=EUR');
   });
 });

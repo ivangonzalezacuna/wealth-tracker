@@ -15,7 +15,7 @@
 
 import type { FxRateRecord } from '../types';
 
-/** Base URL for the Frankfurter v1 API. Overridable for testing. */
+/** Base URL for the Frankfurter API. Overridable for testing. */
 export const FRANKFURTER_BASE_URL = 'https://api.frankfurter.dev';
 
 // ── Error types ────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ export async function fetchRate(
   baseUrl: string = FRANKFURTER_BASE_URL,
 ): Promise<FxRateRecord> {
   const path = date === 'latest' ? 'latest' : date;
-  const url = `${baseUrl}/v1/${path}?from=${encodeURIComponent(base)}&to=${encodeURIComponent(target)}`;
+  const url = `${baseUrl}/${path}?from=${encodeURIComponent(base)}&to=${encodeURIComponent(target)}`;
 
   let response: Response;
   try {
