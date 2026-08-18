@@ -1,6 +1,6 @@
 # Roadmap
 
-This document outlines planned improvements to Wealth Tracker. Items are roughly ordered by impact and effort. The app is a self-hosted, client-only PWA; every feature must remain offline-capable and store only data that the user provides — no external price APIs or third-party data feeds.
+This document outlines planned improvements to Wealth Tracker. Items are roughly ordered by impact and effort. The app is a self-hosted, client-only PWA; every feature must remain offline-capable. External data integrations are limited to strictly on-demand fetches where the benefit is clear and the data is cached locally — no background polling, no live price feeds, no dependency on external uptime for core functionality.
 
 ---
 
@@ -69,3 +69,50 @@ Focus: broader data support.
 ### Data & Storage
 
 - **Multi-currency support** — The app is currently EUR-only. Transactions already carry a per-row `fxRate` imported from broker CSVs, so foreign-currency trades are handled correctly. The missing piece is snapshots: each monthly balance is entered as a single number with no currency context, so a non-EUR savings account must be mentally converted before entry, and that conversion is lost forever. The fix is to add a per-account currency setting and a per-snapshot FX rate field: when logging a monthly snapshot, the user enters the spot rate for each non-base-currency account, and all KPI calculations use that stored rate. No external API is needed — the user supplies the rate at entry time, exactly as they already do for transaction imports. The implementation should be simple and not attempt to auto-fetch rates.
+
+### External Data Integration (POC)
+
+The app is intentionally slim and offline-capable. External data fetching is limited to two strictly on-demand integrations that cover the only two cases where accuracy meaningfully improves the app's usefulness: FX rate hints and ETF metadata enrichment. No background polling, no scheduled jobs, no live price feeds. All fetched data is stored locally in the DB so subsequent views use the cached copy rather than re-fetching, and FX requests are limited to the exact dates actually needed by snapshots or transactions.
+
+> **POC scope** — these two integrations will be evaluated together. If either proves unreliable, too complex, or of limited practical value, it will be dropped. The rest of the app must remain fully functional without them.
+
+#### FX rates — Frankfurter (ECB-sourced, no API key)
+
+**Service:** [Frankfurter](https://frankfurter.dev) — open-source, ECB-backed, no authentication, public API at `https://api.frankfurter.dev` (the older `api.frankfurter.app` host still serves legacy unversioned paths).
+
+**Why:** Transaction imports from brokers include a `fxRate` field that the user must currently supply or verify manually. Showing the ECB spot rate as a prefill hint at the time of entry eliminates a lookup step and improves data quality without replacing the manual field — the user always retains the final value.
+
+**Design:**
+
+- A dedicated `fx_rates` table stores cached rows keyed by `(from_currency, to_currency, date)`, plus the provider response date and fetch timestamp.
+- The integration is **entirely latent when the app operates in a single currency** — if all accounts and transactions share the same base currency (EUR), no FX UI appears and no call is ever made.
+- When multiple currencies are in use, FX lookup remains strictly on-demand: first check the local cache, then fetch only the exact dates needed by stored snapshots or transaction rows.
+- For a single day, use Frankfurter's dated endpoint shape `GET /YYYY-MM-DD?from=<SRC>&to=<DST>`. For a contiguous backfill window for the same pair, use `GET /YYYY-MM-DD..YYYY-MM-DD?from=<SRC>&to=<DST>` and persist each returned day separately.
+- If the provider returns the nearest available business day for a weekend/holiday query, store the effective response date alongside the requested date so historical normalization stays auditable.
+- In the transaction dialog, when the transaction currency differs from EUR, the cached rate for that transaction date is pre-filled into the `fxRate` input as a suggestion. The field remains fully editable and the user always supplies the final value.
+- For snapshots, when an account currency differs from EUR, the app resolves the snapshot-date FX rate from the same cache before aggregating balances into net worth.
+- All refreshes are still user-driven. There is no periodic auto-refresh, no background polling, and no call on app load.
+- **Volume:** only cache misses generate requests, and only for the specific dates/pairs in use. Entirely negligible.
+
+#### ETF metadata — Financial Modeling Prep (FMP, free API key)
+
+**Service:** [Financial Modeling Prep](https://financialmodelingprep.com) — free tier, 250 requests/day, direct ISIN search, dedicated ETF endpoints.
+
+**Why:** Holdings already store name, TER, asset class, region, and notes. For deeper analytics (underlying company exposure, domicile, AUM, inception date, number of holdings, sector weights, country weights), the data must come from an external source. This cannot be derived from the user's own transaction history.
+
+**Data fetched per ISIN (stored permanently in a new `holding_metadata` table):**
+
+- From `GET /stable/search-isin?isin=<ISIN>`: ticker symbol and security name
+- From `GET /stable/profile?symbol=<ticker>`: full name, description, exchange, country of domicile, currency, sector, industry, ISIN
+- From `GET /stable/etf/info?symbol=<ticker>`: AUM, number of holdings, inception date, domicile, asset class (confirms or supplements the manually set value)
+- From `GET /stable/etf/holdings?symbol=<ticker>`: top-N underlying company positions with name, weight (%), and company ISIN — the primary new analytic dimension
+- From `GET /stable/quote-short?symbol=<ticker>`: latest price (informational only; not used to override manual snapshot values)
+
+**Design:**
+
+- The user sets their FMP API key once in Settings → Data (stored in the `settings` table, never committed to source).
+- In the Holding dialog, once a valid ISIN is entered and the holding is new, a "Fetch metadata" button appears. Clicking it calls FMP and pre-fills available fields (name, exchange, asset class); the user can override any value before saving.
+- In Settings → Advanced, a "Enrich all holdings" one-time action batch-fetches metadata for every active holding that does not yet have a `holding_metadata` record. A small sequential delay (e.g. 500 ms between requests) is used to respect the free-tier rate limit.
+- Fetched metadata is displayed in a read-only expandable section in the Holding dialog and is used to power additional Analytics views (e.g. portfolio underlying company exposure, domicile breakdown).
+- A per-holding "Refresh metadata" button allows re-fetching for a single holding when the user wants an update.
+- **Volume:** one batch of N calls on first setup (N = number of active holdings, typically 5–20), then one call per new holding added, plus occasional manual refreshes. Nowhere near 250/day.
