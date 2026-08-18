@@ -134,6 +134,8 @@ export interface FxPrefetchResult {
   attempted: number;
   resolved: number;
   failed: number;
+  /** Resolved rates keyed by base currency (base → rate to target). */
+  rates: Record<string, number>;
 }
 
 /**
@@ -154,22 +156,27 @@ export async function prefetchMonthEndRates(
     ),
   ];
   if (normalizedBases.length === 0) {
-    return { needed: false, disabled: false, attempted: 0, resolved: 0, failed: 0 };
+    return { needed: false, disabled: false, attempted: 0, resolved: 0, failed: 0, rates: {} };
   }
   if (!_integrationEnabled) {
-    return { needed: true, disabled: true, attempted: 0, resolved: 0, failed: 0 };
+    return { needed: true, disabled: true, attempted: 0, resolved: 0, failed: 0, rates: {} };
   }
   if (!lastDayOfMonth(yearMonth)) {
     console.warn(`[fxRateService] Invalid yearMonth format: "${yearMonth}" (expected YYYY-MM)`);
-    return { needed: true, disabled: false, attempted: 0, resolved: 0, failed: 0 };
+    return { needed: true, disabled: false, attempted: 0, resolved: 0, failed: 0, rates: {} };
   }
 
   let resolved = 0;
   let failed = 0;
+  const rates: Record<string, number> = {};
   for (const base of normalizedBases) {
     const rate = await lookupMonthEndRate(base, normalizedTarget, yearMonth);
-    if (rate) resolved += 1;
-    else failed += 1;
+    if (rate) {
+      resolved += 1;
+      rates[base] = rate.rate;
+    } else {
+      failed += 1;
+    }
   }
   recordFxPrefetch(normalizedBases.length, resolved, failed).catch(() => {});
 
@@ -179,6 +186,7 @@ export async function prefetchMonthEndRates(
     attempted: normalizedBases.length,
     resolved,
     failed,
+    rates,
   };
 }
 

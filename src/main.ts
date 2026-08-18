@@ -1420,6 +1420,7 @@ async function prefetchSnapshotFxMonth(
       attempted: 0,
       resolved: 0,
       failed: 0,
+      rates: {},
     };
   }
   return prefetchMonthEndRates(nonBaseCurrencies, APP_CURRENCY, yearMonth);

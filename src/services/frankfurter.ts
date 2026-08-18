@@ -5,9 +5,13 @@
  * and returns typed records. Caching and persistence are handled by
  * fxRateService.ts, not here.
  *
- * Frankfurter (https://frankfurter.dev) is ECB-backed and requires no API key.
- * On non-trading days (weekends, ECB holidays) the API silently returns the
- * most recent available rate and reflects the actual date in `effectiveDate`.
+ * Frankfurter v2 (https://frankfurter.dev) is a multi-provider blended API and
+ * requires no API key. On non-trading days the API returns the most recent
+ * available rate; `effectiveDate` in the returned record reflects the actual date.
+ *
+ * Single-pair endpoint: GET /v2/rate/{base}/{quote}[?date=YYYY-MM-DD]
+ * Response: a single Rate object — { date, base, quote, rate }.
+ * Without a date param the latest rate is returned.
  *
  * Rate limits: no documented hard limit; the project treats this as an
  * on-demand helper (never background-polled) so usage is inherently bounded.
@@ -15,8 +19,8 @@
 
 import type { FxRateRecord } from '../types';
 
-/** Base URL for the Frankfurter API. Overridable for testing. */
-export const FRANKFURTER_BASE_URL = 'https://api.frankfurter.dev';
+/** Base URL for the Frankfurter v2 API. Overridable for testing. */
+export const FRANKFURTER_BASE_URL = 'https://api.frankfurter.dev/v2';
 
 // ── Error types ────────────────────────────────────────────────────
 
@@ -40,27 +44,28 @@ export class FrankfurterOfflineError extends FrankfurterError {
   }
 }
 
-// ── Expected API response shapes ───────────────────────────────────
+// ── Expected API response shape ────────────────────────────────────
 
-interface FrankfurterResponse {
-  /** The base currency used for the conversion (e.g. "USD"). */
-  base: string;
-  /** The date of the rates, which may differ from the requested date. */
+/** Single-pair Rate object returned by GET /v2/rate/{base}/{quote}. */
+interface FrankfurterRateResponse {
   date: string;
-  /** Map from target currency code to rate value. */
-  rates: Record<string, number>;
+  base: string;
+  quote: string;
+  rate: number;
 }
 
 // ── Public API ─────────────────────────────────────────────────────
 
 /**
- * Fetch the FX rate for a currency pair on a specific date.
+ * Fetch the FX rate for a currency pair on a specific date using the
+ * Frankfurter v2 single-pair endpoint (`GET /v2/rate/{base}/{quote}`).
  *
- * - Pass `"latest"` as `date` to retrieve the most recent available rate.
+ * - Pass `"latest"` as `date` to retrieve the most recent available rate
+ *   (no `date=` parameter is sent).
  * - For historical dates, pass a `YYYY-MM-DD` string. Frankfurter will return
  *   the rate for the nearest prior trading day when the requested date is a
- *   weekend or ECB holiday; `effectiveDate` in the returned record will
- *   reflect that actual date.
+ *   weekend or holiday; `effectiveDate` in the returned record will reflect
+ *   that actual date.
  *
  * Throws `FrankfurterOfflineError` on network failure and `FrankfurterError`
  * on HTTP errors or unexpected response shapes.
@@ -71,8 +76,8 @@ export async function fetchRate(
   date: string,
   baseUrl: string = FRANKFURTER_BASE_URL,
 ): Promise<FxRateRecord> {
-  const path = date === 'latest' ? 'latest' : date;
-  const url = `${baseUrl}/${path}?from=${encodeURIComponent(base)}&to=${encodeURIComponent(target)}`;
+  let url = `${baseUrl}/rate/${encodeURIComponent(base)}/${encodeURIComponent(target)}`;
+  if (date !== 'latest') url += `?date=${encodeURIComponent(date)}`;
 
   let response: Response;
   try {
@@ -109,26 +114,26 @@ function parseFrankfurterResponse(
   if (
     !body ||
     typeof body !== 'object' ||
-    !('rates' in body) ||
-    typeof (body as Record<string, unknown>).date !== 'string'
+    typeof (body as Record<string, unknown>).date !== 'string' ||
+    typeof (body as Record<string, unknown>).rate !== 'number'
   ) {
     throw new FrankfurterError('Unexpected Frankfurter response shape');
   }
 
-  const resp = body as FrankfurterResponse;
-  const rate = resp.rates[target];
-  if (typeof rate !== 'number' || !isFinite(rate) || rate <= 0) {
+  const { date: effectiveDate, rate } = body as FrankfurterRateResponse;
+
+  if (!isFinite(rate) || rate <= 0) {
     throw new FrankfurterError(
-      `Frankfurter response missing or invalid rate for target currency "${target}"`,
+      `Frankfurter response has invalid rate for target currency "${target}"`,
     );
   }
 
   return {
     base,
     target,
-    date: requestedDate === 'latest' ? resp.date : requestedDate,
+    date: requestedDate === 'latest' ? effectiveDate : requestedDate,
     rate,
-    effectiveDate: resp.date,
+    effectiveDate,
     fetchedAt: new Date().toISOString(),
   };
 }

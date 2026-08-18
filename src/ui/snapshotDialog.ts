@@ -33,6 +33,8 @@ export interface SnapshotDialogFxPrefetchResult {
   attempted: number;
   resolved: number;
   failed: number;
+  /** Resolved rates keyed by base currency (base → rate to the reporting currency). */
+  rates: Record<string, number>;
 }
 
 export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | null> {
@@ -102,15 +104,20 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
       const target = e.target as HTMLInputElement;
       const acctKey = target.dataset.acctKey || target.dataset.accountKey || '';
       if (acctKey) _updateRecon(acctKey);
+      const acctKeyForHint = target.dataset.accountKey || '';
+      if (acctKeyForHint) _updateFxHint(overlay, acctKeyForHint, target.value, fxRates);
     });
     const fxStatusEl = overlay.querySelector('#snapd-fx-status') as HTMLElement | null;
     const prefetchCache = new Map<string, SnapshotDialogFxPrefetchResult>();
     let prefetchRequestSeq = 0;
+    let fxRates: Record<string, number> = {};
     const triggerFxPrefetch = (yearMonth: string): void => {
       if (!opts.onFxPrefetchMonth || !fxStatusEl || !yearMonth) return;
       const cached = prefetchCache.get(yearMonth);
       if (cached) {
+        fxRates = cached.rates;
         renderFxPrefetchStatus(fxStatusEl, cached);
+        _updateAllFxHints(overlay, fxRates);
         return;
       }
       fxStatusEl.textContent = 'FX: fetching month-end rates…';
@@ -120,7 +127,9 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
         .then((result) => {
           prefetchCache.set(yearMonth, result);
           if (requestSeq !== prefetchRequestSeq) return;
+          fxRates = result.rates;
           renderFxPrefetchStatus(fxStatusEl, result);
+          _updateAllFxHints(overlay, fxRates);
         })
         .catch(() => {
           if (requestSeq !== prefetchRequestSeq) return;
@@ -130,6 +139,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
             attempted: 0,
             resolved: 0,
             failed: 1,
+            rates: {},
           });
         });
     };
@@ -162,9 +172,11 @@ function _renderAccountFields(
             <label class="dialog-label" for="snapd-acc-${_esc(acct.key)}">${_esc(acct.label)} (${_esc(acct.currency)})</label>
             <input type="text" inputmode="decimal" id="snapd-acc-${_esc(acct.key)}"
               data-account-key="${_esc(acct.key)}"
+              data-currency="${_esc(acct.currency)}"
               class="form-input dialog-input"
               value="${typeof value === 'number' || typeof value === 'string' ? _esc(String(value)) : ''}"
               placeholder="total value">
+            ${acct.currency !== 'EUR' ? `<span id="snapd-acc-${_esc(acct.key)}-fx" class="note snapd-fx-hint" style="display:none" aria-live="polite"></span>` : ''}
             <span class="dialog-error dialog-error-compact" id="snapd-acc-${_esc(acct.key)}-err"></span>
           </div>
           ${acct.showEtfBreakdown ? _renderEtfBreakdown(acct.key, holdings, configHoldings, draft) : ''}
@@ -423,6 +435,38 @@ function _getDialogAccounts(accounts: Account[]): Array<{
 
 function _esc(s: string | null | undefined): string {
   return esc(s);
+}
+
+function _updateFxHint(
+  overlay: HTMLElement,
+  acctKey: string,
+  rawValue: string,
+  rates: Record<string, number>,
+): void {
+  const hintEl = overlay.querySelector(`#snapd-acc-${acctKey}-fx`) as HTMLElement | null;
+  if (!hintEl) return; // EUR accounts have no hint span
+  const input = overlay.querySelector(`#snapd-acc-${acctKey}`) as HTMLInputElement | null;
+  const currency = (input?.dataset.currency || '').toUpperCase();
+  const rate = rates[currency];
+  if (!rate) {
+    hintEl.style.display = 'none';
+    return;
+  }
+  const val = parseNum(rawValue.trim());
+  if (!rawValue.trim() || isNaN(val)) {
+    hintEl.style.display = 'none';
+    return;
+  }
+  hintEl.textContent = `≈ ${fmtEur2(val * rate)} EUR`;
+  hintEl.style.display = '';
+}
+
+function _updateAllFxHints(overlay: HTMLElement, rates: Record<string, number>): void {
+  const inputs = overlay.querySelectorAll<HTMLInputElement>('[data-account-key]');
+  for (const input of Array.from(inputs)) {
+    const acctKey = input.dataset.accountKey || '';
+    if (acctKey) _updateFxHint(overlay, acctKey, input.value, rates);
+  }
 }
 
 function renderFxPrefetchStatus(el: HTMLElement, result: SnapshotDialogFxPrefetchResult): void {

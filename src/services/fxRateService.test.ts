@@ -296,6 +296,7 @@ describe('prefetchMonthEndRates', () => {
       attempted: 0,
       resolved: 0,
       failed: 0,
+      rates: {},
     });
     expect(mockRecordFxPrefetch).not.toHaveBeenCalled();
   });
@@ -309,6 +310,7 @@ describe('prefetchMonthEndRates', () => {
       attempted: 0,
       resolved: 0,
       failed: 0,
+      rates: {},
     });
     expect(mockFetchRate).not.toHaveBeenCalled();
     expect(mockRecordFxPrefetch).not.toHaveBeenCalled();
@@ -326,6 +328,7 @@ describe('prefetchMonthEndRates', () => {
       attempted: 2,
       resolved: 1,
       failed: 1,
+      rates: { USD: 0.92 },
     });
     await Promise.resolve();
     expect(mockRecordFxPrefetch).toHaveBeenCalledWith(2, 1, 1);
