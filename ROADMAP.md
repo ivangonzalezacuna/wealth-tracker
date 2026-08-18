@@ -72,47 +72,89 @@ Focus: broader data support.
 
 ### External Data Integration (POC)
 
-The app is intentionally slim and offline-capable. External data fetching is limited to two strictly on-demand integrations that cover the only two cases where accuracy meaningfully improves the app's usefulness: FX rate hints and ETF metadata enrichment. No background polling, no scheduled jobs, no live price feeds. All fetched data is stored locally in the DB so subsequent views use the cached copy rather than re-fetching, and FX requests are limited to the exact dates actually needed by snapshots or transactions.
+The app is intentionally slim and offline-capable. External data fetching remains limited to two strictly on-demand integrations: FX rate help and ETF metadata enrichment. No background polling, no scheduled jobs, no live price feeds, and no dependency on external uptime for core portfolio tracking. All fetched data must be cached locally so the app continues to work offline after the first successful lookup.
 
 > **POC scope** — these two integrations will be evaluated together. If either proves unreliable, too complex, or of limited practical value, it will be dropped. The rest of the app must remain fully functional without them.
 
+#### Delivery principles
+
+- Validate each provider contract before schema or UI work is finalized. Assumptions about endpoints, payload shapes, rate limits, and fallback semantics must be verified against provider docs first.
+- Keep manual user data authoritative. External data may prefill, enrich, or normalize, but must not silently overwrite user-entered values.
+- Treat fetched data as optional enhancements. Missing API data must degrade gracefully to existing local behavior.
+- Persist cache provenance, including the requested identifier/date, the provider's effective date/value where relevant, and the local fetch timestamp.
+- Keep secrets out of backups and source control. Any API credential storage needs explicit redaction/export rules.
+- Deliver in small phases so each step can ship independently without blocking core usage.
+
 #### FX rates — Frankfurter (ECB-sourced, no API key)
 
-**Service:** [Frankfurter](https://frankfurter.dev) — open-source, ECB-backed, no authentication, public API at `https://api.frankfurter.dev` (the older `api.frankfurter.app` host still serves legacy unversioned paths).
+**Service candidate:** [Frankfurter](https://frankfurter.dev) — open-source, ECB-backed, no authentication, with a public API at `https://api.frankfurter.dev`.
 
-**Why:** Transaction imports from brokers include a `fxRate` field that the user must currently supply or verify manually. Showing the ECB spot rate as a prefill hint at the time of entry eliminates a lookup step and improves data quality without replacing the manual field — the user always retains the final value.
+**Why:** Transaction imports from brokers already carry `fxRate`, but users may need help validating or filling missing FX context. Snapshot normalization also needs a consistent historical rate when account balances are entered in a non-reporting currency.
 
-**Design:**
+**Planned direction:**
 
-- A dedicated `fx_rates` table stores cached rows keyed by `(from_currency, to_currency, date)`, plus the provider response date and fetch timestamp.
-- The integration is **entirely latent when the app operates in a single currency** — if all accounts and transactions share the same base currency (EUR), no FX UI appears and no call is ever made.
-- When multiple currencies are in use, FX lookup remains strictly on-demand: first check the local cache, then fetch only the exact dates needed by stored snapshots or transaction rows.
-- For a single day, use Frankfurter's dated endpoint shape `GET /YYYY-MM-DD?from=<SRC>&to=<DST>`. For a contiguous backfill window for the same pair, use `GET /YYYY-MM-DD..YYYY-MM-DD?from=<SRC>&to=<DST>` and persist each returned day separately.
-- If the provider returns the nearest available business day for a weekend/holiday query, store the effective response date alongside the requested date so historical normalization stays auditable.
-- In the transaction dialog, when the transaction currency differs from EUR, the cached rate for that transaction date is pre-filled into the `fxRate` input as a suggestion. The field remains fully editable and the user always supplies the final value.
-- For snapshots, when an account currency differs from EUR, the app resolves the snapshot-date FX rate from the same cache before aggregating balances into net worth.
-- All refreshes are still user-driven. There is no periodic auto-refresh, no background polling, and no call on app load.
-- **Volume:** only cache misses generate requests, and only for the specific dates/pairs in use. Entirely negligible.
+- Add a dedicated `fx_rates` cache keyed by requested currency pair and date, with provider response metadata.
+- Keep the integration latent in single-currency setups: if all accounts and transactions are already in the reporting currency, no FX UI appears and no call is made.
+- Resolve cache first, then fetch only the exact dates and pairs needed by transaction entry, imports, or snapshot storage.
+- Keep `fxRate` editable by the user. Provider values are suggestions or normalization inputs, not locked values.
+- Use the same FX cache for both transaction assistance and snapshot normalization, so the app has one auditable source of historical conversion context.
 
 #### ETF metadata — Financial Modeling Prep (FMP, free API key)
 
-**Service:** [Financial Modeling Prep](https://financialmodelingprep.com) — free tier, 250 requests/day, direct ISIN search, dedicated ETF endpoints.
+**Service candidate:** [Financial Modeling Prep](https://financialmodelingprep.com) — free tier, ISIN search support, and ETF-oriented endpoints.
 
-**Why:** Holdings already store name, TER, asset class, region, and notes. For deeper analytics (underlying company exposure, domicile, AUM, inception date, number of holdings, sector weights, country weights), the data must come from an external source. This cannot be derived from the user's own transaction history.
+**Why:** Holdings already store manual portfolio configuration (`name`, `shortName`, `TER`, `asset class`, `region`, `notes`). External metadata is only justified where it adds clear analytical value that cannot be inferred from the user's own ledger.
 
-**Data fetched per ISIN (stored permanently in a new `holding_metadata` table):**
+**Metadata direction:**
 
-- From `GET /stable/search-isin?isin=<ISIN>`: ticker symbol and security name
-- From `GET /stable/profile?symbol=<ticker>`: full name, description, exchange, country of domicile, currency, sector, industry, ISIN
-- From `GET /stable/etf/info?symbol=<ticker>`: AUM, number of holdings, inception date, domicile, asset class (confirms or supplements the manually set value)
-- From `GET /stable/etf/holdings?symbol=<ticker>`: top-N underlying company positions with name, weight (%), and company ISIN — the primary new analytic dimension
-- From `GET /stable/quote-short?symbol=<ticker>`: latest price (informational only; not used to override manual snapshot values)
+- Keep externally fetched metadata in a separate `holding_metadata` store rather than merging it into the manual holding contract.
+- Prioritize fields that enable analysis or validation: ticker/symbol, exchange, domicile/country, fund currency, AUM, inception date, holdings count, sector or industry classification where useful, and top underlying positions.
+- Deprioritize low-value fields such as long descriptions or latest prices unless a later view proves they are useful.
+- Display fetched metadata as read-only supporting context, ideally in a collapsed section, so the core holding dialog stays focused.
+- Support one-off per-holding refresh plus a bulk enrichment action for holdings that do not yet have metadata.
 
-**Design:**
+#### Phased implementation roadmap
 
-- The user sets their FMP API key once in Settings → Data (stored in the `settings` table, never committed to source).
-- In the Holding dialog, once a valid ISIN is entered and the holding is new, a "Fetch metadata" button appears. Clicking it calls FMP and pre-fills available fields (name, exchange, asset class); the user can override any value before saving.
-- In Settings → Advanced, a "Enrich all holdings" one-time action batch-fetches metadata for every active holding that does not yet have a `holding_metadata` record. A small sequential delay (e.g. 500 ms between requests) is used to respect the free-tier rate limit.
-- Fetched metadata is displayed in a read-only expandable section in the Holding dialog and is used to power additional Analytics views (e.g. portfolio underlying company exposure, domicile breakdown).
-- A per-holding "Refresh metadata" button allows re-fetching for a single holding when the user wants an update.
-- **Volume:** one batch of N calls on first setup (N = number of active holdings, typically 5–20), then one call per new holding added, plus occasional manual refreshes. Nowhere near 250/day.
+##### Phase 1 — contract validation and scope freeze
+
+- Verify the exact Frankfurter endpoints, response fields, business-day fallback behavior, and supported query patterns before encoding them into code or migrations.
+- Verify the exact FMP endpoints and payloads needed to map `ISIN -> symbol -> profile/info/holdings`, then trim the metadata field list to the subset that adds real user value.
+- Decide the canonical snapshot valuation rule for FX lookup. The current app stores snapshots by month (`YYYY-MM`), so month-end lookup may be derived without changing the persisted snapshot key unless a broader migration proves worthwhile.
+- Decide how API credentials are stored, redacted from backups, and surfaced in settings without leaking secrets.
+- Confirm which analytics or read-only UI surfaces will consume holding metadata in the first release, so schema stays minimal.
+
+##### Phase 2 — storage and provider infrastructure
+
+- Add the new persistence layer for `fx_rates` and `holding_metadata`, including provenance fields, refresh timestamps, and enough status data to tell whether a record is complete or stale.
+- Add the minimal settings/config surface for integration enablement and credential presence without coupling it to the existing config history audit log.
+- Add backup/restore rules so integration caches and metadata can be restored locally, while secrets remain excluded or redacted.
+- Add lightweight integration telemetry storage for operational status (for example last successful fetch, last error, request counts, cache coverage), kept separate from config history.
+
+##### Phase 3 — domain and service wiring
+
+- Centralize FX lookup, caching, and normalization behind one service layer reused by imports, manual transaction entry, and snapshots.
+- Extend snapshot handling so balances can be entered in the account's own currency and normalized using stored FX context at save time.
+- Add a metadata enrichment service for holdings that fetches, validates, and stores additive metadata without changing the manual holding source of truth.
+- Ensure every integration pathway remains optional and failures fall back to the current offline-first behavior.
+
+##### Phase 4 — application integration and regression-safe rollout
+
+- Thread the new snapshot and metadata model through net worth, analytics, reporting, backup/restore, and any summary cards that depend on canonical account values.
+- Avoid view-specific workarounds; push normalization and metadata resolution into shared model/storage layers so behavior stays consistent across the app.
+- Preserve existing behavior for EUR-only users and portfolios that never opt into external integrations.
+- Keep migrations additive and reversible in spirit: existing databases should continue to open cleanly and continue to produce the same results until users opt into the new data paths.
+
+##### Phase 5 — UI rollout
+
+- Extend the existing dialog autocomplete/datalist pattern in the account dialog where it improves currency or institution entry, rather than introducing a new input model just for this feature.
+- Update the snapshot dialog so the user enters balances in the correct account currency while the app resolves and stores the needed FX context during save.
+- Add read-only, collapsible metadata display to the holding dialog so enriched fields are visible without polluting the default editing experience.
+- Add an integrations area in Settings for API configuration, enrichment actions, cache state, and lightweight operational analytics such as request counts, last success, and last refresh.
+- Keep every integration control explicitly user-driven: fetch, refresh, enrich, and retry actions should happen only on demand.
+
+##### Phase 6 — tests and hardening
+
+- Add unit coverage for provider response parsing, cache hit/miss logic, month-end FX resolution rules, secret redaction, and migration behavior.
+- Add integration-level tests for snapshot normalization, manual override behavior, holding metadata enrichment, and backup/restore of the new non-secret data.
+- Extend Playwright coverage for account currency flows, snapshot entry with FX assistance, holding metadata display/refresh, and settings integration controls.
+- Validate that the app still behaves correctly with no API key, offline mode, empty caches, stale metadata, and provider errors.
