@@ -455,6 +455,7 @@ export function parseAccounts(rows: (string | number | boolean)[][]): Account[] 
       moneyType: String(r[hdr.indexOf('moneytype')] ?? ''),
       institution: String(r[hdr.indexOf('institution')] ?? ''),
       country: String(r[hdr.indexOf('country')] ?? ''),
+      group: String(r[hdr.indexOf('group')] ?? ''),
       label: String(r[hdr.indexOf('label')] ?? ''),
       color: String(r[hdr.indexOf('color')] ?? ''),
       isPrimaryInvestment: toBool(r[hdr.indexOf('isprimaryinvestment')]),

@@ -51,3 +51,33 @@ test('settings-driven account and goal changes propagate into net worth planning
   await page.locator('#nw-scn-optimistic-ret').blur();
   await expect(page.locator('#nw-scn-optimistic-ret')).toHaveValue('3');
 });
+
+test('forecast shows grouped summary when accounts belong to different groups', async ({
+  page,
+}) => {
+  const snapshotMonth = monthOffsetValue(-1);
+
+  await gotoApp(page);
+  await addAccount(page, {
+    label: 'ISA Account',
+    institution: 'Hargreaves',
+    annualReturnPct: 6,
+    primary: true,
+    group: 'Tax-Sheltered',
+  });
+  await addAccount(page, {
+    label: 'GIA Account',
+    institution: 'Hargreaves',
+    annualReturnPct: 5,
+    group: 'Taxable',
+  });
+  await addSnapshot(page, {
+    month: snapshotMonth,
+    accountValues: { 'ISA Account': 20000, 'GIA Account': 5000 },
+  });
+
+  await openTab(page, 'tab-networth');
+  await expect(page.locator('#nw-fc-panel')).toContainText('Grouped forecast summary');
+  await expect(page.locator('#nw-fc-panel')).toContainText('Tax-Sheltered');
+  await expect(page.locator('#nw-fc-panel')).toContainText('Taxable');
+});

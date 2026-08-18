@@ -25,6 +25,7 @@ const EXISTING_ACCOUNT: Account = {
   institution: 'Broker',
   color: '#123456',
   annualReturnPct: 7,
+  group: 'Retirement',
 };
 
 describe('accountDialog', () => {
@@ -76,6 +77,15 @@ describe('accountDialog', () => {
     getSubmit()!.click();
     const draft = await p;
     expect(draft?.country).toBe('Spain');
+  });
+
+  it('returns the optional group field when provided', async () => {
+    const p = accountDialog();
+    setField('acctd-label', 'Grouped account');
+    setField('acctd-group', 'Retirement');
+    getSubmit()!.click();
+    const draft = await p;
+    expect(draft?.group).toBe('Retirement');
   });
 
   it('renders color picker in the final dialog row', () => {

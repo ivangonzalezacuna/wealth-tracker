@@ -124,6 +124,8 @@ export async function addAccount(
     primary?: boolean;
     locked?: boolean;
     lockedUntil?: string;
+    country?: string;
+    group?: string;
   },
 ): Promise<void> {
   await openTab(page, 'tab-settings');
@@ -140,6 +142,8 @@ export async function addAccount(
     await page.check('#acctd-locked');
     if (opts.lockedUntil) await page.fill('#acctd-locked-until', opts.lockedUntil);
   }
+  if (opts.country) await page.fill('#acctd-country', opts.country);
+  if (opts.group) await page.fill('#acctd-group', opts.group);
   await page.click('.js-acctd-submit');
   await expect(page.locator('#settings-accounts-tbl')).toContainText(opts.label);
   await page.click('#btn-save-accts');

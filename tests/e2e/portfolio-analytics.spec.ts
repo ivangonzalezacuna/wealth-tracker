@@ -62,3 +62,86 @@ test('portfolio and analytics surfaces core data points from imported and snapsh
   await expect(page.locator('#an-kpis-l1')).toContainText(formatUiMoney(20));
   await expect(page.locator('#c-an-growth-table-wrap')).not.toBeEmpty();
 });
+
+test('account allocation donut shows correct labels when switching to By country', async ({
+  page,
+}) => {
+  const firstMonth = monthOffsetValue(-2);
+  const secondMonth = monthOffsetValue(-1);
+
+  await gotoApp(page);
+  await addAccount(page, {
+    label: 'German Account',
+    institution: 'DKB',
+    annualReturnPct: 5,
+    primary: true,
+    country: 'Germany',
+  });
+  await addAccount(page, {
+    label: 'Irish Account',
+    institution: 'DEGIRO',
+    annualReturnPct: 6,
+    country: 'Ireland',
+  });
+  // Two snapshots are required for the analytics allocation section to render
+  await addSnapshot(page, {
+    month: firstMonth,
+    accountValues: { 'German Account': 7500, 'Irish Account': 1800 },
+  });
+  await addSnapshot(page, {
+    month: secondMonth,
+    accountValues: { 'German Account': 8000, 'Irish Account': 2000 },
+  });
+
+  await openTab(page, 'tab-analytics');
+  await expect(page.locator('#an-content')).toBeVisible();
+
+  // Default "By account" shows account names
+  await expect(page.locator('#c-an-alloc-acct-table-wrap')).toContainText('German Account');
+
+  // Switch to "By country" — table should show country names instead
+  await page.locator('#an-alloc-acct-toggle-wrap [data-acct-group="country"]').click();
+  await expect(page.locator('#c-an-alloc-acct-table-wrap')).toContainText('Germany');
+  await expect(page.locator('#c-an-alloc-acct-table-wrap')).toContainText('Ireland');
+  await expect(page.locator('#c-an-alloc-acct-table-wrap')).not.toContainText('German Account');
+});
+
+test('account allocation donut shows correct labels when switching to By group', async ({
+  page,
+}) => {
+  const firstMonth = monthOffsetValue(-2);
+  const secondMonth = monthOffsetValue(-1);
+
+  await gotoApp(page);
+  await addAccount(page, {
+    label: 'Pension Fund',
+    institution: 'Vanguard',
+    annualReturnPct: 6,
+    primary: true,
+    group: 'Retirement',
+  });
+  await addAccount(page, {
+    label: 'Trading Account',
+    institution: 'IBKR',
+    annualReturnPct: 8,
+    group: 'Active',
+  });
+  // Two snapshots are required for the analytics allocation section to render
+  await addSnapshot(page, {
+    month: firstMonth,
+    accountValues: { 'Pension Fund': 14000, 'Trading Account': 4500 },
+  });
+  await addSnapshot(page, {
+    month: secondMonth,
+    accountValues: { 'Pension Fund': 15000, 'Trading Account': 5000 },
+  });
+
+  await openTab(page, 'tab-analytics');
+  await expect(page.locator('#an-content')).toBeVisible();
+
+  // Switch to "By group" — table should show group names
+  await page.locator('#an-alloc-acct-toggle-wrap [data-acct-group="group"]').click();
+  await expect(page.locator('#c-an-alloc-acct-table-wrap')).toContainText('Retirement');
+  await expect(page.locator('#c-an-alloc-acct-table-wrap')).toContainText('Active');
+  await expect(page.locator('#c-an-alloc-acct-table-wrap')).not.toContainText('Pension Fund');
+});

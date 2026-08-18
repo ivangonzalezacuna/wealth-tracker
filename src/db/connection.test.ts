@@ -118,6 +118,7 @@ describe.sequential('db importDb local-preservation merge', () => {
         moneyType: 'investment',
         institution: 'Cloud Broker',
         country: 'Germany',
+        group: 'Retirement',
         color: '#111',
         isPrimaryInvestment: true,
         order: 1,
@@ -164,6 +165,7 @@ describe.sequential('db importDb local-preservation merge', () => {
         moneyType: 'investment',
         institution: 'Local Broker',
         country: 'Spain',
+        group: 'Retirement',
         color: '#222',
         isPrimaryInvestment: true,
         order: 1,
@@ -174,6 +176,7 @@ describe.sequential('db importDb local-preservation merge', () => {
         moneyType: 'cash',
         institution: 'Local Bank',
         country: 'Spain',
+        group: 'Emergency',
         color: '#333',
         isPrimaryInvestment: false,
         order: 2,
@@ -234,6 +237,8 @@ describe.sequential('db importDb local-preservation merge', () => {
 
     expect(accounts.find((a) => a.id === 'acct-main')?.label).toBe('Local Main Edited');
     expect(accounts.find((a) => a.id === 'acct-main')?.country).toBe('Spain');
+    expect(accounts.find((a) => a.id === 'acct-main')?.group).toBe('Retirement');
+    expect(accounts.find((a) => a.id === 'acct-local')?.group).toBe('Emergency');
     expect(accounts.some((a) => a.id === 'acct-local')).toBe(true);
 
     expect(holdings.find((h) => h.isin === 'IE00B4L5Y983')?.name).toBe('Local World Edited');

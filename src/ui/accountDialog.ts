@@ -25,6 +25,8 @@ export interface AccountDialogOptions {
   institutionSuggestions?: string[];
   /** Suggestions for the country autocomplete. */
   countrySuggestions?: string[];
+  /** Suggestions for the group autocomplete. */
+  groupSuggestions?: string[];
   /** Existing account labels excluding the record being edited. */
   existingLabels?: string[];
 }
@@ -100,6 +102,15 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
                 value="${esc(existing?.country || '')}" placeholder="e.g. Germany"
                 list="acctd-country-list" autocomplete="off">
               <datalist id="acctd-country-list"></datalist>
+            </div>
+          </div>
+          <div class="dialog-row">
+            <div class="dialog-field dialog-field-wide">
+              <label class="dialog-label" for="acctd-group">Group (optional)</label>
+              <input type="text" id="acctd-group" class="form-input dialog-input"
+                value="${esc(existing?.group || '')}" placeholder="e.g. Retirement"
+                list="acctd-group-list" autocomplete="off">
+              <datalist id="acctd-group-list"></datalist>
             </div>
           </div>
           <div class="dialog-row">
@@ -198,6 +209,7 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
       opts.institutionSuggestions ?? [],
     );
     populateDatalist(overlay.querySelector('#acctd-country-list'), opts.countrySuggestions ?? []);
+    populateDatalist(overlay.querySelector('#acctd-group-list'), opts.groupSuggestions ?? []);
     bindColorInputs(overlay, 'acctd-color', 'acctd-color-hex');
 
     // Primary investment toggle — show/hide contrib block
@@ -228,6 +240,7 @@ function _submit(): void {
   const typeVal = get('acctd-type') || 'cash';
   const institutionVal = get('acctd-institution');
   const countryVal = get('acctd-country');
+  const groupVal = get('acctd-group');
   const colorVal = get('acctd-color-hex') || get('acctd-color') || '#888888';
   const returnRaw = get('acctd-return');
   const isPrimary = getChecked('acctd-primary');
@@ -275,6 +288,7 @@ function _submit(): void {
     moneyType: typeVal,
     institution: institutionVal,
     country: countryVal,
+    group: groupVal,
     color: /^#[0-9a-fA-F]{6}$/.test(colorVal) ? colorVal : existing?.color || '#888888',
     isPrimaryInvestment: isPrimary,
     order: existing?.order,

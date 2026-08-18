@@ -139,4 +139,6 @@ export const MIGRATIONS: string[][] = [
   [`ALTER TABLE holdings ADD COLUMN notes TEXT NOT NULL DEFAULT ''`],
   // [9] version 8 → 9: add country column to accounts.
   [`ALTER TABLE accounts ADD COLUMN country TEXT NOT NULL DEFAULT ''`],
+  // [10] version 9 → 10: add group column to accounts.
+  [`ALTER TABLE accounts ADD COLUMN "group" TEXT NOT NULL DEFAULT ''`],
 ];

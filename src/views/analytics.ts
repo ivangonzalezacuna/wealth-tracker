@@ -67,8 +67,8 @@ const _allocMode: Record<string, 'active' | 'all'> = {
   country: 'active',
 };
 
-// Account donut group dimension: 'acct' | 'country' | 'type'
-let _acctGroupDim: 'acct' | 'country' | 'type' = 'acct';
+// Account donut group dimension: 'acct' | 'country' | 'type' | 'group'
+let _acctGroupDim: 'acct' | 'country' | 'type' | 'group' = 'acct';
 
 function _attachRangeToggle(
   id: string,
@@ -103,6 +103,30 @@ function _getCountrySlices(
     const value = (s[a.id || ''] as number) || 0;
     if (value <= 0 && mode === 'active') continue;
     const label = (a.country || '').trim() || 'Unspecified';
+    const existing = buckets.get(label);
+    if (existing) {
+      existing.value += value;
+    } else {
+      buckets.set(label, { value, color: a.color || '#888' });
+    }
+  }
+  return Array.from(buckets.entries())
+    .map(([label, { value, color }]) => ({ label, value, color }))
+    .sort((a, b) => b.value - a.value);
+}
+
+function _getAccountGroupSlices(
+  snaps: Snapshot[],
+  mode: 'active' | 'all',
+): { label: string; value: number; color: string }[] {
+  if (snaps.length === 0) return [];
+  const s = snaps[snaps.length - 1];
+  const accounts = getAccounts();
+  const buckets = new Map<string, { value: number; color: string }>();
+  for (const a of accounts) {
+    const value = (s[a.id || ''] as number) || 0;
+    if (value <= 0 && mode === 'active') continue;
+    const label = (a.group || '').trim() || 'Unspecified';
     const existing = buckets.get(label);
     if (existing) {
       existing.value += value;
@@ -1016,6 +1040,8 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
   if (dim === 'acct') {
     if (_acctGroupDim === 'country') {
       slices = _getCountrySlices(_lastSnaps, 'all');
+    } else if (_acctGroupDim === 'group') {
+      slices = _getAccountGroupSlices(_lastSnaps, 'all');
     } else if (_acctGroupDim === 'type') {
       slices = _getTypeSlices(_lastSnaps);
     } else {
@@ -1043,9 +1069,11 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
     dim === 'acct'
       ? _acctGroupDim === 'country'
         ? 'country'
-        : _acctGroupDim === 'type'
-          ? 'type'
-          : 'account'
+        : _acctGroupDim === 'group'
+          ? 'group'
+          : _acctGroupDim === 'type'
+            ? 'type'
+            : 'account'
       : dim === 'class'
         ? 'asset class'
         : dim === 'region'
@@ -1199,6 +1227,7 @@ function _renderAllocToggleBtn(dim: AllocDim): void {
       <div class="range-toggle" style="font-size:11px">
         <button class="btn btn-sm btn-ghost${groupDim === 'acct' ? ' active' : ''}" data-acct-group="acct">By account</button>
         <button class="btn btn-sm btn-ghost${groupDim === 'country' ? ' active' : ''}" data-acct-group="country">By country</button>
+        <button class="btn btn-sm btn-ghost${groupDim === 'group' ? ' active' : ''}" data-acct-group="group">By group</button>
         <button class="btn btn-sm btn-ghost${groupDim === 'type' ? ' active' : ''}" data-acct-group="type">By type</button>
       </div>`;
     if (!(wrapEl as HTMLElement & { _acctBound?: boolean })._acctBound) {
@@ -1209,7 +1238,7 @@ function _renderAllocToggleBtn(dim: AllocDim): void {
         const holdings = getHoldings();
         const pd = _lastPd;
         if (groupBtn) {
-          const newGroup = groupBtn.dataset.acctGroup as 'acct' | 'country' | 'type';
+          const newGroup = groupBtn.dataset.acctGroup as 'acct' | 'country' | 'type' | 'group';
           if (_acctGroupDim === newGroup) return;
           _acctGroupDim = newGroup;
           _renderAllocDonut('acct', holdings, pd);

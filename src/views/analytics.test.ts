@@ -32,6 +32,7 @@ const MOCK_ACCOUNTS = [
     moneyType: 'investment',
     institution: 'Broker',
     country: 'Germany',
+    group: 'Retirement',
     label: 'Broker',
     color: '#111111',
     isPrimaryInvestment: true,
@@ -42,6 +43,7 @@ const MOCK_ACCOUNTS = [
     moneyType: 'savings',
     institution: 'Bank',
     country: 'Spain',
+    group: 'Liquid',
     label: 'Cash',
     color: '#222222',
     isPrimaryInvestment: false,
@@ -279,6 +281,21 @@ describe('renderAnalytics', () => {
     const legend = document.getElementById('an-alloc-acct-legend');
     expect(legend?.textContent).toContain('Germany');
     expect(legend?.textContent).toContain('Spain');
+  });
+
+  it('renders allocation by group accessible via account donut group toggle', () => {
+    const snaps = [makeSnap('2025-01', 1000, 500), makeSnap('2025-02', 1200, 550)];
+    renderAnalytics(makePd(), snaps, []);
+
+    const toggleWrap = document.getElementById('an-alloc-acct-toggle-wrap');
+    expect(toggleWrap).not.toBeNull();
+    const groupBtn = toggleWrap?.querySelector('[data-acct-group="group"]') as HTMLElement | null;
+    expect(groupBtn).not.toBeNull();
+
+    groupBtn?.click();
+    const legend = document.getElementById('an-alloc-acct-legend');
+    expect(legend?.textContent).toContain('Retirement');
+    expect(legend?.textContent).toContain('Liquid');
   });
 
   it('renders annual returns table when at least one full year of monthly return data is present', () => {

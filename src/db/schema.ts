@@ -6,7 +6,7 @@
  */
 
 /** Schema version - bump when DDL changes require a migration. */
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 /**
  * SQL statements executed on first database creation (version 0 → 1).
@@ -40,6 +40,7 @@ export const SCHEMA_DDL: string[] = [
     money_type TEXT NOT NULL DEFAULT '',
     institution TEXT NOT NULL DEFAULT '',
     country TEXT NOT NULL DEFAULT '',
+    "group" TEXT NOT NULL DEFAULT '',
     label TEXT NOT NULL DEFAULT '',
     color TEXT NOT NULL DEFAULT '',
     is_primary_investment INTEGER NOT NULL DEFAULT 0,

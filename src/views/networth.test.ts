@@ -33,6 +33,7 @@ const MOCK_ACCOUNTS: any[] = [
     id: 'acct1',
     moneyType: 'investment',
     institution: 'TR',
+    group: 'Retirement',
     label: 'Trade Republic',
     color: '#111111',
     isPrimaryInvestment: true,
@@ -45,6 +46,7 @@ const MOCK_ACCOUNTS: any[] = [
     id: 'acct2',
     moneyType: 'savings',
     institution: 'ING',
+    group: 'Liquid savings',
     label: 'Savings',
     color: '#222222',
     isPrimaryInvestment: false,
@@ -182,6 +184,16 @@ describe('renderNW', () => {
     renderNW(snaps);
     expect((document.getElementById('nw-empty') as HTMLElement).style.display).toBe('none');
     expect((document.getElementById('nw-content') as HTMLElement).style.display).toBe('block');
+  });
+
+  it('renders grouped forecast summary with current and projected values', () => {
+    const snaps = [makeSnap('2026-01-01', 1000, 500), makeSnap('2026-02-01', 1100, 550)];
+    renderNW(snaps);
+    const planning = document.getElementById('nw-planning')?.textContent || '';
+    expect(planning).toContain('Grouped forecast summary');
+    expect(planning).toContain('Retirement');
+    expect(planning).toContain('Liquid savings');
+    expect(planning).toContain('projected');
   });
 
   it('creates the history chart on first render with 2+ snapshots', () => {
