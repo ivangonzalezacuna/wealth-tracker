@@ -122,8 +122,8 @@ This status is intentionally split so progress is not conflated across providers
 **Track 1 — Frankfurter (FX)**
 
 - **Phase 1 (contract validation and scope freeze)** — ✅ done.
-- **Phase 2 (storage and provider infrastructure)** — ✅ mostly done (storage/cache + backup path).
-- **Phase 3 (domain and service wiring)** — ✅ mostly done (provider + service + shared FX resolution).
+- **Phase 2 (storage and provider infrastructure)** — ✅ done (storage/cache + backup path + integration enablement setting + telemetry storage).
+- **Phase 3 (domain and service wiring)** — ✅ done (provider + service + shared FX resolution + snapshot normalization at save time).
 - **Phase 4 (application integration and regression-safe rollout)** — ⏳ not done.
 - **Phase 5 (UI rollout)** — ⏳ not done.
 - **Phase 6 (tests and hardening)** — 🟡 partially done (unit tests present; broader integration/E2E hardening pending).
@@ -145,8 +145,8 @@ This status is intentionally split so progress is not conflated across providers
 
 **Stacked PR sequence (Frankfurter track)**
 
-1. **PR A — Phase 2 completion:** finish remaining FX storage/config/backup/telemetry pieces.
-2. **PR B — Phase 3 completion (based on PR A):** complete FX model/service wiring for snapshot normalization and shared lookup paths.
+1. **PR A — Phase 2 completion:** finish remaining FX storage/config/backup/telemetry pieces. ✅ Done.
+2. **PR B — Phase 3 completion (based on PR A):** complete FX model/service wiring for snapshot normalization and shared lookup paths. ✅ Done.
 3. **PR C — Phase 4 integration (based on PR B):** thread FX-normalized values through analytics/reporting/backup consumers.
 4. **PR D — Phase 5 UI rollout (based on PR C):** ship account/snapshot/settings UX for FX flows.
 5. **PR E — Phase 6 hardening (based on PR D):** finalize unit/integration/Playwright coverage and resilience checks for FX behavior.

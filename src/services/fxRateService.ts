@@ -17,6 +17,24 @@
 import type { FxRateRecord } from '../types';
 import { fetchRate, FrankfurterOfflineError, FrankfurterError } from './frankfurter';
 import { getRate, upsertRate } from '../db/repositories/fxRates';
+import { recordFxFetch, recordFxError, recordFxCacheHit } from '../db/repositories/fxTelemetry';
+
+// ── Integration enablement ─────────────────────────────────────────
+
+/** Module-level flag; set via configureFxService. Defaults to enabled. */
+let _integrationEnabled = true;
+
+/**
+ * Configure the FX service at runtime. Call this from the settings store
+ * whenever the `fx_integration_enabled` setting changes.
+ *
+ * When `enabled` is `false`, every `lookupRate` call returns `null`
+ * immediately without touching the cache or the network. This keeps
+ * single-currency users and explicitly opted-out setups completely offline.
+ */
+export function configureFxService(opts: { enabled: boolean }): void {
+  _integrationEnabled = opts.enabled;
+}
 
 // ── Public API ─────────────────────────────────────────────────────
 
@@ -35,6 +53,8 @@ export async function lookupRate(
   target: string,
   date: string,
 ): Promise<FxRateRecord | null> {
+  if (!_integrationEnabled) return null;
+
   if (base === target) {
     // Identity rate — no fetch needed.
     const identity: FxRateRecord = {
@@ -51,7 +71,10 @@ export async function lookupRate(
   // 1. Cache hit.
   try {
     const cached = await getRate(base, target, date);
-    if (cached !== null) return cached;
+    if (cached !== null) {
+      recordFxCacheHit().catch(() => {});
+      return cached;
+    }
   } catch {
     // Cache read failure should not block a live fetch attempt.
   }
@@ -59,13 +82,16 @@ export async function lookupRate(
   // 2. Live fetch.
   try {
     const record = await fetchRate(base, target, date);
-    // Persist to cache in the background; don't await so the caller gets the
-    // result immediately even if the DB write is slow.
+    const now = new Date().toISOString();
+    // Persist to cache and record telemetry in the background.
     upsertRate(record).catch(() => {});
+    recordFxFetch(now).catch(() => {});
     return record;
   } catch (err) {
     if (err instanceof FrankfurterOfflineError || err instanceof FrankfurterError) {
       // Non-fatal: the app continues to work without external data.
+      const now = new Date().toISOString();
+      recordFxError(now, err.message).catch(() => {});
       console.warn(
         `[fxRateService] Could not fetch rate ${base}→${target} on ${date}: ${err.message}`,
       );

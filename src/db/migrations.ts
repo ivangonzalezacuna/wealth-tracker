@@ -153,4 +153,18 @@ export const MIGRATIONS: string[][] = [
       PRIMARY KEY (base, target, date)
     )`,
   ],
+  // [12] version 11 → 12: add currency column to accounts for multi-currency support.
+  [`ALTER TABLE accounts ADD COLUMN currency TEXT NOT NULL DEFAULT 'EUR'`],
+  // [13] version 12 → 13: add fx_telemetry table for Frankfurter operational status.
+  [
+    `CREATE TABLE IF NOT EXISTS fx_telemetry (
+      id INTEGER PRIMARY KEY,
+      last_fetch_at TEXT NOT NULL DEFAULT '',
+      last_error_at TEXT NOT NULL DEFAULT '',
+      last_error TEXT NOT NULL DEFAULT '',
+      fetch_count INTEGER NOT NULL DEFAULT 0,
+      cache_hit_count INTEGER NOT NULL DEFAULT 0
+    )`,
+    `INSERT OR IGNORE INTO fx_telemetry (id) VALUES (1)`,
+  ],
 ];

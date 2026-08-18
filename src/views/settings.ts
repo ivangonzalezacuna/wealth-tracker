@@ -365,6 +365,14 @@ function accountGroupList(accounts: Account[]): string[] {
   );
 }
 
+/** Common currency suggestions merged with any already used in accounts. */
+const COMMON_CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD', 'SEK', 'NOK', 'DKK'];
+
+function accountCurrencyList(accounts: Account[]): string[] {
+  const fromAccounts = accounts.map((a) => (a.currency || 'EUR').trim().toUpperCase());
+  return [...new Set([...COMMON_CURRENCIES, ...fromAccounts])].sort((a, b) => a.localeCompare(b));
+}
+
 interface EditableListController<T> {
   items(): T[];
   previewAdd(next: T, message: string): T[];
@@ -600,6 +608,7 @@ function attachAccountListeners(root: HTMLElement): void {
       institutionSuggestions: accountInstitutionList(controller.items()),
       countrySuggestions: accountCountryList(controller.items()),
       groupSuggestions: accountGroupList(controller.items()),
+      currencySuggestions: accountCurrencyList(controller.items()),
     });
     if (!draft) return;
     draft.order = controller.items().length + 1;
@@ -620,6 +629,7 @@ function attachAccountListeners(root: HTMLElement): void {
       institutionSuggestions: accountInstitutionList(accounts),
       countrySuggestions: accountCountryList(accounts),
       groupSuggestions: accountGroupList(accounts),
+      currencySuggestions: accountCurrencyList(accounts),
     });
     if (!draft) return;
     draft.order = existing.order;

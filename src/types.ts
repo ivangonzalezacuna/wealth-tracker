@@ -55,6 +55,7 @@ export interface Account {
   locked?: boolean; // true = funds not accessible until retirement (pension, AVD)
   lockedUntil?: string; // year when funds become accessible, e.g. "2055"
   extraContrib?: number; // additional contribution per execution (employer match, state subsidy, etc.)
+  currency?: string; // account denomination currency, e.g. "USD"; defaults to "EUR"
 }
 
 // ─── Contribution cadence ────────────────────────────────────────
@@ -110,6 +111,8 @@ export interface Settings {
   alerts?: string;
   /** JSON-serialised string[] of retired account IDs. */
   retired_account_ids?: string;
+  /** When '0', the Frankfurter FX integration is disabled app-wide; all other values (including absent) mean enabled. */
+  fx_integration_enabled?: string;
   /** Forward-compatible escape hatch for unknown / future keys. */
   [key: string]: string | null | undefined;
 }
@@ -144,6 +147,25 @@ export interface FxRateRecord {
   rate: number;
   effectiveDate: string;
   fetchedAt: string;
+}
+
+// ─── FX Integration Telemetry ─────────────────────────────────────
+
+/**
+ * Lightweight operational status for the Frankfurter FX integration.
+ * Stored as a single row in the `fx_telemetry` table (id=1).
+ */
+export interface FxTelemetry {
+  /** ISO timestamp of the last successful live fetch from Frankfurter, or '' if none yet. */
+  lastFetchAt: string;
+  /** ISO timestamp of the last provider/network error, or '' if none yet. */
+  lastErrorAt: string;
+  /** Message of the last error, or '' if none yet. */
+  lastError: string;
+  /** Total number of live fetches performed (cache misses that reached the provider). */
+  fetchCount: number;
+  /** Total number of cache hits served without a live fetch. */
+  cacheHitCount: number;
 }
 
 // ─── Alert Settings ──────────────────────────────────────

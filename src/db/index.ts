@@ -55,4 +55,11 @@ export {
   restoreAllFxRates,
 } from './repositories/fxRates';
 
+export {
+  getFxTelemetry,
+  recordFxFetch,
+  recordFxError,
+  recordFxCacheHit,
+} from './repositories/fxTelemetry';
+
 export { getDb, persistDb, exportDb, importDb, destroyDb } from './connection';

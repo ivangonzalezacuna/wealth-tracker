@@ -18,10 +18,9 @@
  * Both return `null` when offline or when the provider is unavailable, so
  * callers must handle the null case and fall back to their own logic.
  *
- * FUTURE INTEGRATION POINT: snapshot save — when snapshot normalization is
- * wired up (Phase 4), call `resolveMonthEndRate(accountCurrency, APP_CURRENCY,
- * snapshotYearMonth)` during snapshot storage to obtain the FX context that
- * converts the account-currency balance to the reporting currency.
+ * Snapshot normalization: `applySnapshotFxNormalization` in main.ts calls
+ * `resolveMonthEndRate(accountCurrency, snapshotYearMonth)` at save time to
+ * convert non-EUR account balances to the reporting currency before storage.
  */
 
 import { lookupRate, lookupMonthEndRate } from './services/fxRateService';

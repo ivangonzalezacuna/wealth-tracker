@@ -25,14 +25,29 @@ vi.mock('../db/repositories/fxRates', () => ({
   upsertRate: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { lookupRate, lookupMonthEndRate, lastDayOfMonth } from './fxRateService';
+vi.mock('../db/repositories/fxTelemetry', () => ({
+  recordFxFetch: vi.fn().mockResolvedValue(undefined),
+  recordFxError: vi.fn().mockResolvedValue(undefined),
+  recordFxCacheHit: vi.fn().mockResolvedValue(undefined),
+}));
+
+import {
+  lookupRate,
+  lookupMonthEndRate,
+  lastDayOfMonth,
+  configureFxService,
+} from './fxRateService';
 import { fetchRate, FrankfurterOfflineError, FrankfurterError } from './frankfurter';
 import { getRate, upsertRate } from '../db/repositories/fxRates';
+import { recordFxFetch, recordFxError, recordFxCacheHit } from '../db/repositories/fxTelemetry';
 import type { FxRateRecord } from '../types';
 
 const mockFetchRate = vi.mocked(fetchRate);
 const mockGetRate = vi.mocked(getRate);
 const mockUpsertRate = vi.mocked(upsertRate);
+const mockRecordFxFetch = vi.mocked(recordFxFetch);
+const mockRecordFxError = vi.mocked(recordFxError);
+const mockRecordFxCacheHit = vi.mocked(recordFxCacheHit);
 
 const CACHED_RECORD: FxRateRecord = {
   base: 'USD',
@@ -45,6 +60,9 @@ const CACHED_RECORD: FxRateRecord = {
 
 afterEach(() => {
   vi.clearAllMocks();
+  // Always re-enable the integration after each test so disabled-state tests
+  // don't leak into subsequent ones.
+  configureFxService({ enabled: true });
 });
 
 // ── lastDayOfMonth ─────────────────────────────────────────────────
@@ -181,5 +199,82 @@ describe('lookupMonthEndRate', () => {
 
     await lookupMonthEndRate('USD', 'EUR', '2024-02');
     expect(mockFetchRate).toHaveBeenCalledWith('USD', 'EUR', '2024-02-29');
+  });
+});
+
+// ── configureFxService ─────────────────────────────────────────────
+
+describe('configureFxService', () => {
+  it('returns null for all pairs when disabled', async () => {
+    configureFxService({ enabled: false });
+
+    const result = await lookupRate('USD', 'EUR', '2024-01-15');
+    expect(result).toBeNull();
+    expect(mockGetRate).not.toHaveBeenCalled();
+    expect(mockFetchRate).not.toHaveBeenCalled();
+  });
+
+  it('returns null for identity pair (base === target) when disabled', async () => {
+    configureFxService({ enabled: false });
+
+    const result = await lookupRate('EUR', 'EUR', '2024-01-15');
+    expect(result).toBeNull();
+  });
+
+  it('resumes normal operation when re-enabled', async () => {
+    configureFxService({ enabled: false });
+    configureFxService({ enabled: true });
+
+    mockGetRate.mockResolvedValue(CACHED_RECORD);
+    const result = await lookupRate('USD', 'EUR', '2024-01-15');
+    expect(result).toEqual(CACHED_RECORD);
+  });
+});
+
+// ── telemetry recording ────────────────────────────────────────────
+
+describe('telemetry recording', () => {
+  it('records a cache hit when the rate is served from cache', async () => {
+    mockGetRate.mockResolvedValue(CACHED_RECORD);
+
+    await lookupRate('USD', 'EUR', '2024-01-15');
+
+    await Promise.resolve(); // flush microtasks
+    expect(mockRecordFxCacheHit).toHaveBeenCalledOnce();
+    expect(mockRecordFxFetch).not.toHaveBeenCalled();
+    expect(mockRecordFxError).not.toHaveBeenCalled();
+  });
+
+  it('records a fetch when the rate is fetched live', async () => {
+    mockGetRate.mockResolvedValue(null);
+    const fetched: FxRateRecord = { ...CACHED_RECORD, fetchedAt: new Date().toISOString() };
+    mockFetchRate.mockResolvedValue(fetched);
+
+    await lookupRate('USD', 'EUR', '2024-01-15');
+
+    await Promise.resolve(); // flush microtasks
+    expect(mockRecordFxFetch).toHaveBeenCalledOnce();
+    expect(mockRecordFxCacheHit).not.toHaveBeenCalled();
+    expect(mockRecordFxError).not.toHaveBeenCalled();
+  });
+
+  it('records an error on provider failure', async () => {
+    mockGetRate.mockResolvedValue(null);
+    mockFetchRate.mockRejectedValue(new FrankfurterOfflineError('Network down'));
+
+    await lookupRate('USD', 'EUR', '2024-01-15');
+
+    expect(mockRecordFxError).toHaveBeenCalledOnce();
+    expect(mockRecordFxFetch).not.toHaveBeenCalled();
+    expect(mockRecordFxCacheHit).not.toHaveBeenCalled();
+  });
+
+  it('does not record telemetry for identity (base === target) lookups', async () => {
+    await lookupRate('EUR', 'EUR', '2024-01-15');
+
+    await Promise.resolve();
+    expect(mockRecordFxCacheHit).not.toHaveBeenCalled();
+    expect(mockRecordFxFetch).not.toHaveBeenCalled();
+    expect(mockRecordFxError).not.toHaveBeenCalled();
   });
 });

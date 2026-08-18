@@ -107,8 +107,9 @@ import { attachInfoTips } from './ui/infoTip';
 import { withTimeout } from './sync/timeout';
 import { isBusy, setBusy } from './sync/lock';
 import { registerSW } from 'virtual:pwa-register';
-import type { Snapshot, Transaction, PortfolioData, ImportProfile, Account } from './types';
+import type { Snapshot, Transaction, PortfolioData, ImportProfile } from './types';
 import { buildAppSecuritySuggestions } from './securitySuggestions';
+import { applySnapshotFxNormalization } from './model/snapshotFx';
 
 // ── App state ────────────────────────────────────────────
 const state: {
@@ -1379,7 +1380,8 @@ async function saveMonthlyUpdate(editDate?: string) {
     configHoldings: getHoldings(),
   });
   if (!snap) return;
-  await saveSnapshot(snap);
+  const normalizedSnap = await applySnapshotFxNormalization(snap, getAccounts());
+  await saveSnapshot(normalizedSnap);
 }
 
 function editSnap(date: string) {
