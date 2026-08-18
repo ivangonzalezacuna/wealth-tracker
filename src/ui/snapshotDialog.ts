@@ -112,7 +112,7 @@ function _renderAccountFields(
       return `
         <div class="snap-dialog-account">
           <div class="dialog-field">
-            <label class="dialog-label" for="snapd-acc-${_esc(acct.key)}">${_esc(acct.label)} (€)</label>
+            <label class="dialog-label" for="snapd-acc-${_esc(acct.key)}">${_esc(acct.label)} (${_esc(acct.currency)})</label>
             <input type="text" inputmode="decimal" id="snapd-acc-${_esc(acct.key)}"
               data-account-key="${_esc(acct.key)}"
               class="form-input dialog-input"
@@ -352,6 +352,7 @@ function _dismiss(result: Snapshot | null): void {
 function _getDialogAccounts(accounts: Account[]): Array<{
   key: string;
   label: string;
+  currency: string;
   showEtfBreakdown: boolean;
 }> {
   return accounts
@@ -362,6 +363,7 @@ function _getDialogAccounts(accounts: Account[]): Array<{
         label:
           acct.label ||
           `${acct.moneyType || 'Account'}${acct.institution ? ` · ${acct.institution}` : ''}`,
+        currency: (acct.currency || 'EUR').trim().toUpperCase() || 'EUR',
         showEtfBreakdown: !!(
           key &&
           acct.isPrimaryInvestment &&

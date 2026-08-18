@@ -72,8 +72,8 @@ test('multiple accounts appear in snapshot dialog with separate value inputs', a
   await openTab(page, 'tab-log');
   await page.click('#btn-add-snap');
   // Both account input fields should be present
-  await expect(page.getByLabel('Account A (€)')).toBeVisible();
-  await expect(page.getByLabel('Account B (€)')).toBeVisible();
+  await expect(page.getByLabel(/^Account A \([A-Z]{3}\)$/)).toBeVisible();
+  await expect(page.getByLabel(/^Account B \([A-Z]{3}\)$/)).toBeVisible();
   await page.click('.js-snapd-cancel');
 });
 

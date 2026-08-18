@@ -126,6 +126,7 @@ export async function addAccount(
     lockedUntil?: string;
     country?: string;
     group?: string;
+    currency?: string;
   },
 ): Promise<void> {
   await openTab(page, 'tab-settings');
@@ -144,6 +145,7 @@ export async function addAccount(
   }
   if (opts.country) await page.fill('#acctd-country', opts.country);
   if (opts.group) await page.fill('#acctd-group', opts.group);
+  if (opts.currency) await page.fill('#acctd-currency', opts.currency);
   await page.click('.js-acctd-submit');
   await expect(page.locator('#settings-accounts-tbl')).toContainText(opts.label);
   await page.click('#btn-save-accts');
@@ -181,7 +183,8 @@ export async function addSnapshot(
   await page.fill('#snapd-date', opts.month);
   if (opts.note) await page.fill('#snapd-notes', opts.note);
   for (const [label, value] of Object.entries(opts.accountValues ?? {})) {
-    await page.getByLabel(`${label} (€)`).fill(String(value));
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    await page.getByLabel(new RegExp(`^${escaped} \\([A-Z]{3}\\)$`)).fill(String(value));
   }
   await page.click('.js-snapd-submit');
   await expect(page.locator('#snap-msg')).toContainText('Saved');

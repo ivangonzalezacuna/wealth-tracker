@@ -28,6 +28,7 @@ import { resolveMonthEndRate, APP_CURRENCY } from '../fx';
 export async function applySnapshotFxNormalization(
   snap: Snapshot,
   accounts: Account[],
+  previousCanonical?: Snapshot,
 ): Promise<Snapshot> {
   const nonEurPairs = new Map<string, string>();
   for (const acct of accounts) {
@@ -41,15 +42,98 @@ export async function applySnapshotFxNormalization(
   if (nonEurPairs.size === 0) return snap;
 
   const normalized: Snapshot = { ...snap };
+  const rateCache = new Map<string, number | null>();
+
+  const getRate = async (currency: string): Promise<number | null> => {
+    if (rateCache.has(currency)) return rateCache.get(currency) ?? null;
+    const fxRecord = await resolveMonthEndRate(currency, snap.date);
+    const rate = fxRecord && fxRecord.rate > 0 ? fxRecord.rate : null;
+    rateCache.set(currency, rate);
+    return rate;
+  };
 
   for (const [key, currency] of nonEurPairs) {
     const rawBalance = snap[key];
     if (typeof rawBalance !== 'number' || !isFinite(rawBalance)) continue;
+    if (previousCanonical && rawBalance === previousCanonical[key]) continue;
 
-    const fxRecord = await resolveMonthEndRate(currency, snap.date);
-    if (fxRecord === null) continue; // provider unavailable or disabled — keep raw value
-    normalized[key] = rawBalance * fxRecord.rate;
+    const rate = await getRate(currency);
+    if (rate === null) continue; // provider unavailable or disabled — keep raw value
+    normalized[key] = rawBalance * rate;
+  }
+
+  const etfCurrency = inferEtfSnapshotCurrency(accounts);
+  if (!etfCurrency) return normalized;
+
+  const etfRate = await getRate(etfCurrency);
+  if (etfRate === null) return normalized;
+
+  for (const [key, value] of Object.entries(snap)) {
+    if (!key.startsWith('etf_') || typeof value !== 'number' || !isFinite(value)) continue;
+    if (previousCanonical && value === previousCanonical[key]) continue;
+    normalized[key] = value * etfRate;
   }
 
   return normalized;
+}
+
+/**
+ * Prepare a stored (canonical EUR) snapshot for editing by converting account
+ * and ETF values back to the user-entered account currency when possible.
+ *
+ * Graceful degradation: if a rate is unavailable, the canonical value is kept
+ * unchanged so users can still edit and save.
+ */
+export async function prepareSnapshotFxEditDraft(
+  snap: Snapshot,
+  accounts: Account[],
+): Promise<Snapshot> {
+  const nonEurPairs = new Map<string, string>();
+  for (const acct of accounts) {
+    const key = acct.id || acct.key || '';
+    const currency = (acct.currency || APP_CURRENCY).toUpperCase();
+    if (key && currency !== APP_CURRENCY) nonEurPairs.set(key, currency);
+  }
+  if (nonEurPairs.size === 0) return snap;
+
+  const draft: Snapshot = { ...snap };
+  const rateCache = new Map<string, number | null>();
+
+  const getRate = async (currency: string): Promise<number | null> => {
+    if (rateCache.has(currency)) return rateCache.get(currency) ?? null;
+    const fxRecord = await resolveMonthEndRate(currency, snap.date);
+    const rate = fxRecord && fxRecord.rate > 0 ? fxRecord.rate : null;
+    rateCache.set(currency, rate);
+    return rate;
+  };
+
+  for (const [key, currency] of nonEurPairs) {
+    const canonical = snap[key];
+    if (typeof canonical !== 'number' || !isFinite(canonical)) continue;
+    const rate = await getRate(currency);
+    if (rate === null) continue;
+    draft[key] = canonical / rate;
+  }
+
+  const etfCurrency = inferEtfSnapshotCurrency(accounts);
+  if (!etfCurrency) return draft;
+
+  const etfRate = await getRate(etfCurrency);
+  if (etfRate === null) return draft;
+  for (const [key, value] of Object.entries(snap)) {
+    if (!key.startsWith('etf_') || typeof value !== 'number' || !isFinite(value)) continue;
+    draft[key] = value / etfRate;
+  }
+  return draft;
+}
+
+function inferEtfSnapshotCurrency(accounts: Account[]): string | null {
+  const currencies = new Set(
+    accounts
+      .filter((acct) => acct.isPrimaryInvestment && (acct.moneyType || '').toLowerCase() === 'investment')
+      .map((acct) => (acct.currency || APP_CURRENCY).toUpperCase())
+      .filter((cur) => cur !== APP_CURRENCY),
+  );
+  if (currencies.size !== 1) return null;
+  return currencies.values().next().value ?? null;
 }

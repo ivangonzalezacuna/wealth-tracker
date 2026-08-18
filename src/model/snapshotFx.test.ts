@@ -5,7 +5,7 @@ vi.mock('../fx', () => ({
   resolveMonthEndRate: vi.fn(),
 }));
 
-import { applySnapshotFxNormalization } from './snapshotFx';
+import { applySnapshotFxNormalization, prepareSnapshotFxEditDraft } from './snapshotFx';
 import { resolveMonthEndRate } from '../fx';
 import type { Snapshot, Account, FxRateRecord } from '../types';
 
@@ -127,5 +127,59 @@ describe('applySnapshotFxNormalization', () => {
     const result = await applySnapshotFxNormalization(snap, []);
     expect(result).toBe(snap);
     expect(mockResolveMonthEndRate).not.toHaveBeenCalled();
+  });
+
+  it('converts etf_ values when there is one non-EUR primary investment currency', async () => {
+    mockResolveMonthEndRate.mockResolvedValue(makeRate(0.8));
+    const snap: Snapshot = { date: '2024-01', usd_acc: 1000, etf_IE00AAA: 400 };
+    const accounts: Account[] = [
+      { id: 'usd_acc', label: 'USD Broker', currency: 'USD', isPrimaryInvestment: true, moneyType: 'investment' },
+    ];
+
+    const result = await applySnapshotFxNormalization(snap, accounts);
+    expect(result.usd_acc).toBeCloseTo(800);
+    expect(result.etf_IE00AAA).toBeCloseTo(320);
+  });
+
+  it('skips re-normalizing unchanged edit values when previous canonical snapshot is provided', async () => {
+    mockResolveMonthEndRate.mockResolvedValue(makeRate(0.92));
+    const previous: Snapshot = { date: '2024-01', usd_acc: 920 };
+    const edited: Snapshot = { date: '2024-01', usd_acc: 920 };
+    const accounts = [makeAccount('usd_acc', 'USD')];
+
+    const result = await applySnapshotFxNormalization(edited, accounts, previous);
+    expect(result.usd_acc).toBe(920);
+  });
+});
+
+describe('prepareSnapshotFxEditDraft', () => {
+  it('converts canonical non-EUR account balances back to account currency for editing', async () => {
+    mockResolveMonthEndRate.mockResolvedValue(makeRate(0.92));
+    const snap: Snapshot = { date: '2024-01', usd_acc: 920 };
+    const accounts = [makeAccount('usd_acc', 'USD')];
+
+    const result = await prepareSnapshotFxEditDraft(snap, accounts);
+    expect(result.usd_acc).toBeCloseTo(1000);
+  });
+
+  it('leaves canonical values unchanged when rate lookup is unavailable', async () => {
+    mockResolveMonthEndRate.mockResolvedValue(null);
+    const snap: Snapshot = { date: '2024-01', usd_acc: 920 };
+    const accounts = [makeAccount('usd_acc', 'USD')];
+
+    const result = await prepareSnapshotFxEditDraft(snap, accounts);
+    expect(result.usd_acc).toBe(920);
+  });
+
+  it('converts etf_ values when there is a single non-EUR primary investment account', async () => {
+    mockResolveMonthEndRate.mockResolvedValue(makeRate(0.8));
+    const snap: Snapshot = { date: '2024-01', usd_acc: 800, etf_IE00AAA: 320 };
+    const accounts: Account[] = [
+      { id: 'usd_acc', label: 'USD Broker', currency: 'USD', isPrimaryInvestment: true, moneyType: 'investment' },
+    ];
+
+    const result = await prepareSnapshotFxEditDraft(snap, accounts);
+    expect(result.usd_acc).toBeCloseTo(1000);
+    expect(result.etf_IE00AAA).toBeCloseTo(400);
   });
 });

@@ -45,7 +45,7 @@ test('snapshot create, edit, delete, and bulk delete flows keep log data consist
   await expect(page.locator('.snap-detail')).toContainText('Initial funding round');
   await page.click('.snap-detail .js-edit-snap');
   await page.fill('#snapd-notes', 'Initial funding round updated');
-  await page.getByLabel('Core Broker (€)').fill('1500');
+  await page.getByLabel(/^Core Broker \([A-Z]{3}\)$/).fill('1500');
   await page.click('.js-snapd-submit');
   await expect(page.locator('#snap-msg')).toContainText('Saved');
   await expect(snapshotRow(page, firstMonth)).toContainText(formatUiMoney(1500));

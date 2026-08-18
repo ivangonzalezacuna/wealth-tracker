@@ -109,7 +109,7 @@ import { isBusy, setBusy } from './sync/lock';
 import { registerSW } from 'virtual:pwa-register';
 import type { Snapshot, Transaction, PortfolioData, ImportProfile } from './types';
 import { buildAppSecuritySuggestions } from './securitySuggestions';
-import { applySnapshotFxNormalization } from './model/snapshotFx';
+import { applySnapshotFxNormalization, prepareSnapshotFxEditDraft } from './model/snapshotFx';
 
 // ── App state ────────────────────────────────────────────
 const state: {
@@ -1371,18 +1371,20 @@ async function saveSnapshot(snap: Snapshot) {
 async function saveMonthlyUpdate(editDate?: string) {
   if (!ensureWriteAccess('snap-msg')) return;
 
-  let existing = editDate ? state.snaps.find((s) => s.date === editDate) : undefined;
+  const accounts = getAccounts();
+  const existing = editDate ? state.snaps.find((s) => s.date === editDate) : undefined;
+  const existingDraft = existing ? await prepareSnapshotFxEditDraft(existing, accounts) : undefined;
 
   const snap = await snapshotDialog({
     mode: existing ? 'edit' : 'add',
-    existing,
+    existing: existingDraft,
     prefill: existing ? undefined : prefillSnapFormFromLatest(),
-    accounts: getAccounts(),
+    accounts,
     holdings: state.pd?.etfs || {},
     configHoldings: getHoldings(),
   });
   if (!snap) return;
-  const normalizedSnap = await applySnapshotFxNormalization(snap, getAccounts());
+  const normalizedSnap = await applySnapshotFxNormalization(snap, accounts, existing);
   await saveSnapshot(normalizedSnap);
 }
 

@@ -10,6 +10,7 @@ const accounts: Account[] = [
   {
     id: 'broker',
     label: 'Broker',
+    currency: 'USD',
     moneyType: 'investment',
     isPrimaryInvestment: true,
   },
@@ -281,6 +282,17 @@ describe('snapshotDialog', () => {
     expect(
       document.querySelectorAll('.snap-dialog-account .dialog-error.dialog-error-compact').length,
     ).toBeGreaterThan(0);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('shows account labels with per-account currency', () => {
+    snapshotDialog(baseOpts());
+    const cashLabel = document.querySelector('label[for="snapd-acc-cash"]') as HTMLElement | null;
+    const brokerLabel = document.querySelector(
+      'label[for="snapd-acc-broker"]',
+    ) as HTMLElement | null;
+    expect(cashLabel?.textContent).toContain('Cash account (EUR)');
+    expect(brokerLabel?.textContent).toContain('Broker (USD)');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
 });
