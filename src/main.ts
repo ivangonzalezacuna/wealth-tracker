@@ -21,6 +21,8 @@ import {
   restoreAllData,
   logConfigChange,
   clearSyncMetadata,
+  loadFxRates,
+  restoreFxRates,
 } from './db';
 import {
   pullFromCloud,
@@ -909,6 +911,7 @@ export async function exportBackup(): Promise<void> {
     snapshots: state.snaps,
     transactions: state.txs,
     importMeta: state.importMeta,
+    fxRates: await loadFxRates(),
   });
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -1039,11 +1042,17 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
   // Cancel any in-flight pre-restore upload so stale data is never pushed.
   cancelPendingUpload();
   try {
-    const { accounts, holdings, settings, snapshots, transactions, importMeta } = backup.data;
+    const { accounts, holdings, settings, snapshots, transactions, importMeta, fxRates } =
+      backup.data;
 
     // Write all five tables atomically in one SQLite transaction.
     // Either everything is replaced or nothing is (full rollback on error).
     await restoreAllData({ accounts, holdings, settings, snapshots, transactions });
+
+    // Restore FX rate cache if present in the backup (schema v4+).
+    if (Array.isArray(fxRates) && fxRates.length > 0) {
+      await restoreFxRates(fxRates);
+    }
 
     // Reload in-memory config store from the freshly written SQLite tables.
     await loadConfig();

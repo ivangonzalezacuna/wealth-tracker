@@ -125,9 +125,9 @@ The app is intentionally slim and offline-capable. External data fetching remain
 
 ##### Phase 2 — storage and provider infrastructure
 
-- Add the new persistence layer for `fx_rates` and `holding_metadata`, including provenance fields, refresh timestamps, and enough status data to tell whether a record is complete or stale.
+- ~~**`fx_rates` persistence layer (Frankfurter)**~~ ✅ — `fx_rates` table (migration [11]) with provenance fields (`effective_date`, `provider`, `fetched_at`), a typed `FxRateRecord` in `src/types.ts`, and a repository (`src/db/repositories/fxRates.ts`) exposing get/upsert/list/clear. Backup schema bumped to v4 with optional `fxRates` field; export includes the cache and restore re-populates it when present.
+- Add the `holding_metadata` persistence layer for FMP (provenance fields, refresh timestamps, stale-status data). _(FMP — not started)_
 - Add the minimal settings/config surface for integration enablement and credential presence without coupling it to the existing config history audit log.
-- Add backup/restore rules so integration caches and metadata can be restored locally, while secrets remain excluded or redacted.
 - Add lightweight integration telemetry storage for operational status (for example last successful fetch, last error, request counts, cache coverage), kept separate from config history.
 
 ##### Phase 3 — domain and service wiring

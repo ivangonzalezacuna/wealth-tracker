@@ -79,6 +79,27 @@ export interface Holding {
   notes?: string; // optional free-text notes about this holding
 }
 
+// ─── FX rate cache ───────────────────────────────────────────────
+
+/**
+ * One cached FX rate record from an external provider (e.g. Frankfurter).
+ *
+ * - `date` is the *requested* date (YYYY-MM-DD); may differ from
+ *   `effectiveDate` when the provider rolls back to the nearest business day.
+ * - `rate` converts 1 unit of `baseCurrency` into `quoteCurrency`.
+ * - `provider` is the logical service name (e.g. `'frankfurter'`).
+ * - `fetchedAt` is the ISO timestamp of the local cache write.
+ */
+export interface FxRateRecord {
+  baseCurrency: string;
+  quoteCurrency: string;
+  date: string; // requested date 'YYYY-MM-DD'
+  rate: number;
+  effectiveDate: string; // provider's actual effective date (business-day fallback)
+  provider: string;
+  fetchedAt: string; // ISO timestamp
+}
+
 // ─── Snapshot ────────────────────────────────────────────────────
 
 export interface Snapshot {

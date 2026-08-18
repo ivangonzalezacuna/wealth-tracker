@@ -1,7 +1,7 @@
-import type { Account, Holding, Settings, Snapshot, Transaction } from '../types';
+import type { Account, FxRateRecord, Holding, Settings, Snapshot, Transaction } from '../types';
 import { formatEnglishDate } from '../dateFormat';
 
-export const BACKUP_SCHEMA_VERSION = 3;
+export const BACKUP_SCHEMA_VERSION = 4;
 
 export interface BackupFile {
   schemaVersion: number;
@@ -14,6 +14,8 @@ export interface BackupFile {
     snapshots: Snapshot[];
     transactions: Transaction[];
     importMeta: Record<string, string>;
+    /** Optional — omitted from older backups (schema < 4). Restored when present. */
+    fxRates?: FxRateRecord[];
   };
 }
 

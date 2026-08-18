@@ -48,3 +48,12 @@ export {
 } from './repositories/meta';
 
 export { getDb, persistDb, exportDb, importDb, destroyDb } from './connection';
+
+export {
+  getFxRate,
+  upsertFxRate,
+  loadFxRates,
+  restoreFxRates,
+  clearFxRates,
+} from './repositories/fxRates';
+export type { FxRateRecord } from '../types';

@@ -141,4 +141,18 @@ export const MIGRATIONS: string[][] = [
   [`ALTER TABLE accounts ADD COLUMN country TEXT NOT NULL DEFAULT ''`],
   // [10] version 9 → 10: add group column to accounts.
   [`ALTER TABLE accounts ADD COLUMN "group" TEXT NOT NULL DEFAULT ''`],
+  // [11] version 10 → 11: add fx_rates cache table for Frankfurter integration.
+  [
+    `CREATE TABLE IF NOT EXISTS fx_rates (
+      base_currency TEXT NOT NULL,
+      quote_currency TEXT NOT NULL,
+      date TEXT NOT NULL,
+      rate REAL NOT NULL,
+      effective_date TEXT NOT NULL,
+      provider TEXT NOT NULL DEFAULT 'frankfurter',
+      fetched_at TEXT NOT NULL,
+      PRIMARY KEY (base_currency, quote_currency, date)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_fx_rates_lookup ON fx_rates(base_currency, quote_currency, date)`,
+  ],
 ];
