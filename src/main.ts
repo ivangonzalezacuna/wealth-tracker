@@ -21,8 +21,8 @@ import {
   restoreAllData,
   logConfigChange,
   clearSyncMetadata,
-  loadFxRates,
-  restoreFxRates,
+  loadAllFxRates,
+  restoreAllFxRates,
 } from './db';
 import {
   pullFromCloud,
@@ -903,7 +903,7 @@ window.__forceFullResync = forceFullResync;
 
 // ── Backup export ─────────────────────────────────────────
 export async function exportBackup(): Promise<void> {
-  await setSetting('last_backup_at', new Date().toISOString());
+  const fxRates = await loadAllFxRates();
   const backup = buildBackup({
     accounts: getAccounts(),
     holdings: getHoldings(),
@@ -911,7 +911,7 @@ export async function exportBackup(): Promise<void> {
     snapshots: state.snaps,
     transactions: state.txs,
     importMeta: state.importMeta,
-    fxRates: await loadFxRates(),
+    fxRates,
   });
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -921,7 +921,8 @@ export async function exportBackup(): Promise<void> {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  await setSetting('last_backup_at', new Date().toISOString());
 }
 window.__exportBackup = exportBackup;
 
@@ -1049,9 +1050,9 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
     // Either everything is replaced or nothing is (full rollback on error).
     await restoreAllData({ accounts, holdings, settings, snapshots, transactions });
 
-    // Restore FX rate cache if present in the backup (schema v4+).
-    if (Array.isArray(fxRates) && fxRates.length > 0) {
-      await restoreFxRates(fxRates);
+    // Restore FX rate cache (non-critical; failures are tolerated).
+    if (fxRates && fxRates.length > 0) {
+      await restoreAllFxRates(fxRates);
     }
 
     // Reload in-memory config store from the freshly written SQLite tables.

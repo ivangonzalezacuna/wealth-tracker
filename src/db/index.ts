@@ -47,13 +47,12 @@ export {
   clearSyncMetadata,
 } from './repositories/meta';
 
-export { getDb, persistDb, exportDb, importDb, destroyDb } from './connection';
-
 export {
-  getFxRate,
-  upsertFxRate,
-  loadFxRates,
-  restoreFxRates,
-  clearFxRates,
+  getRate,
+  upsertRate,
+  getRatesForPairs,
+  loadAllFxRates,
+  restoreAllFxRates,
 } from './repositories/fxRates';
-export type { FxRateRecord } from '../types';
+
+export { getDb, persistDb, exportDb, importDb, destroyDb } from './connection';

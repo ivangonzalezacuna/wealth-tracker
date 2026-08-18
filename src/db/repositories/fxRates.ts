@@ -1,110 +1,89 @@
 /**
- * FX rate cache repository — CRUD operations for the fx_rates table.
+ * FX rates repository — CRUD for the `fx_rates` cache table.
  *
- * Records are keyed by (base_currency, quote_currency, date) where `date` is
- * the *requested* date. The provider's effective date (business-day fallback)
- * is stored separately in `effective_date`.
+ * The table stores historical FX rates fetched from Frankfurter. Records are
+ * keyed by (base, target, date) so the same pair/date is never fetched twice.
+ * `effectiveDate` captures the provider's actual date (may differ from the
+ * requested date when it falls on a non-trading day).
  */
 
 import { getDb, persistDb } from '../connection';
 import type { FxRateRecord } from '../../types';
 
-// ── Row mapping ────────────────────────────────────────────────────
-
-function rowToRecord(row: unknown[]): FxRateRecord {
-  return {
-    baseCurrency: String(row[0] ?? ''),
-    quoteCurrency: String(row[1] ?? ''),
-    date: String(row[2] ?? ''),
-    rate: Number(row[3] ?? 0),
-    effectiveDate: String(row[4] ?? ''),
-    provider: String(row[5] ?? 'frankfurter'),
-    fetchedAt: String(row[6] ?? ''),
-  };
-}
-
-// ── Queries ────────────────────────────────────────────────────────
-
-const SELECT_COLS = `base_currency, quote_currency, date, rate, effective_date, provider, fetched_at`;
+// ── Reads ──────────────────────────────────────────────────────────
 
 /**
- * Retrieve a cached rate for the given currency pair and requested date.
- * Returns `undefined` when the cache has no entry for this key.
+ * Look up a cached FX rate for the given base/target currency pair and date.
+ * Returns `null` when no cache entry exists for the requested combination.
  */
-export async function getFxRate(
-  baseCurrency: string,
-  quoteCurrency: string,
+export async function getRate(
+  base: string,
+  target: string,
   date: string,
-): Promise<FxRateRecord | undefined> {
+): Promise<FxRateRecord | null> {
   const db = await getDb();
   const result = db.exec(
-    `SELECT ${SELECT_COLS} FROM fx_rates
-     WHERE base_currency = ? AND quote_currency = ? AND date = ?`,
-    [baseCurrency, quoteCurrency, date],
+    'SELECT base, target, date, rate, effective_date, fetched_at FROM fx_rates WHERE base = ? AND target = ? AND date = ?',
+    [base, target, date],
   );
-  if (!result.length || !result[0].values.length) return undefined;
-  return rowToRecord(result[0].values[0]);
+  if (result.length === 0 || result[0].values.length === 0) return null;
+  return rowToFxRateRecord(result[0].values[0]);
 }
 
 /**
- * Insert or replace a single FX rate record.
+ * Bulk cache lookup for multiple (base, target, date) triples. Only returns
+ * rows that are actually present in the cache — missing pairs are simply
+ * absent from the result array, so callers can diff against their request list.
  */
-export async function upsertFxRate(record: FxRateRecord): Promise<void> {
+export async function getRatesForPairs(
+  pairs: Array<{ base: string; target: string; date: string }>,
+): Promise<FxRateRecord[]> {
+  if (pairs.length === 0) return [];
+  const db = await getDb();
+
+  const placeholders = pairs.map(() => '(?, ?, ?)').join(', ');
+  const params = pairs.flatMap((p) => [p.base, p.target, p.date]);
+  const result = db.exec(
+    `SELECT base, target, date, rate, effective_date, fetched_at FROM fx_rates WHERE (base, target, date) IN (${placeholders})`,
+    params,
+  );
+  if (result.length === 0) return [];
+  return result[0].values.map(rowToFxRateRecord);
+}
+
+// ── Writes ─────────────────────────────────────────────────────────
+
+/**
+ * Insert or replace a single FX rate record in the cache.
+ * If a record for the same (base, target, date) already exists it is
+ * overwritten — this allows refreshing stale entries.
+ */
+export async function upsertRate(record: FxRateRecord): Promise<void> {
   const db = await getDb();
   db.run(
-    `INSERT OR REPLACE INTO fx_rates
-       (base_currency, quote_currency, date, rate, effective_date, provider, fetched_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [
-      record.baseCurrency,
-      record.quoteCurrency,
-      record.date,
-      record.rate,
-      record.effectiveDate,
-      record.provider,
-      record.fetchedAt,
-    ],
+    'INSERT OR REPLACE INTO fx_rates (base, target, date, rate, effective_date, fetched_at) VALUES (?, ?, ?, ?, ?, ?)',
+    [record.base, record.target, record.date, record.rate, record.effectiveDate, record.fetchedAt],
   );
   await persistDb();
 }
 
-/**
- * Load all cached FX rate records, ordered by date ascending then currency pair.
- * Primarily used for backup export.
- */
-export async function loadFxRates(): Promise<FxRateRecord[]> {
-  const db = await getDb();
-  const result = db.exec(
-    `SELECT ${SELECT_COLS} FROM fx_rates
-     ORDER BY date ASC, base_currency ASC, quote_currency ASC`,
-  );
-  if (!result.length) return [];
-  return result[0].values.map(rowToRecord);
-}
+// ── Bulk restore (backup import) ───────────────────────────────────
 
 /**
- * Bulk-replace the entire fx_rates table from a backup restore.
+ * Replace the entire `fx_rates` table from a backup payload.
+ * Called from the backup restore path — runs inside the caller's transaction
+ * if the caller manages one, otherwise opens its own.
  */
-export async function restoreFxRates(records: FxRateRecord[]): Promise<void> {
+export async function restoreAllFxRates(records: FxRateRecord[]): Promise<void> {
   const db = await getDb();
   const stmt = db.prepare(
-    `INSERT INTO fx_rates
-       (base_currency, quote_currency, date, rate, effective_date, provider, fetched_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    'INSERT INTO fx_rates (base, target, date, rate, effective_date, fetched_at) VALUES (?, ?, ?, ?, ?, ?)',
   );
   try {
     db.run('BEGIN');
     db.run('DELETE FROM fx_rates');
     for (const r of records) {
-      stmt.run([
-        r.baseCurrency,
-        r.quoteCurrency,
-        r.date,
-        r.rate,
-        r.effectiveDate,
-        r.provider,
-        r.fetchedAt,
-      ]);
+      stmt.run([r.base, r.target, r.date, r.rate, r.effectiveDate, r.fetchedAt]);
     }
     db.run('COMMIT');
   } catch (err) {
@@ -116,11 +95,30 @@ export async function restoreFxRates(records: FxRateRecord[]): Promise<void> {
   await persistDb();
 }
 
-/**
- * Delete all cached FX rates (e.g. when the user wants to force a full refresh).
- */
-export async function clearFxRates(): Promise<void> {
+/** Load all cached FX rate records (for backup export). */
+export async function loadAllFxRates(): Promise<FxRateRecord[]> {
   const db = await getDb();
-  db.run('DELETE FROM fx_rates');
-  await persistDb();
+  try {
+    const result = db.exec(
+      'SELECT base, target, date, rate, effective_date, fetched_at FROM fx_rates',
+    );
+    if (result.length === 0) return [];
+    return result[0].values.map(rowToFxRateRecord);
+  } catch (err) {
+    if (String(err).includes('no such table: fx_rates')) return [];
+    throw err;
+  }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────
+
+function rowToFxRateRecord(row: unknown[]): FxRateRecord {
+  return {
+    base: String(row[0] ?? ''),
+    target: String(row[1] ?? ''),
+    date: String(row[2] ?? ''),
+    rate: Number(row[3]) || 0,
+    effectiveDate: String(row[4] ?? ''),
+    fetchedAt: String(row[5] ?? ''),
+  };
 }

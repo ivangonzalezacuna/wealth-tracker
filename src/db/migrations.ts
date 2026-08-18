@@ -144,15 +144,13 @@ export const MIGRATIONS: string[][] = [
   // [11] version 10 → 11: add fx_rates cache table for Frankfurter integration.
   [
     `CREATE TABLE IF NOT EXISTS fx_rates (
-      base_currency TEXT NOT NULL,
-      quote_currency TEXT NOT NULL,
+      base TEXT NOT NULL,
+      target TEXT NOT NULL,
       date TEXT NOT NULL,
       rate REAL NOT NULL,
-      effective_date TEXT NOT NULL,
-      provider TEXT NOT NULL DEFAULT 'frankfurter',
-      fetched_at TEXT NOT NULL,
-      PRIMARY KEY (base_currency, quote_currency, date)
+      effective_date TEXT NOT NULL DEFAULT '',
+      fetched_at TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (base, target, date)
     )`,
-    `CREATE INDEX IF NOT EXISTS idx_fx_rates_lookup ON fx_rates(base_currency, quote_currency, date)`,
   ],
 ];

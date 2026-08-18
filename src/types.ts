@@ -79,27 +79,6 @@ export interface Holding {
   notes?: string; // optional free-text notes about this holding
 }
 
-// ─── FX rate cache ───────────────────────────────────────────────
-
-/**
- * One cached FX rate record from an external provider (e.g. Frankfurter).
- *
- * - `date` is the *requested* date (YYYY-MM-DD); may differ from
- *   `effectiveDate` when the provider rolls back to the nearest business day.
- * - `rate` converts 1 unit of `baseCurrency` into `quoteCurrency`.
- * - `provider` is the logical service name (e.g. `'frankfurter'`).
- * - `fetchedAt` is the ISO timestamp of the local cache write.
- */
-export interface FxRateRecord {
-  baseCurrency: string;
-  quoteCurrency: string;
-  date: string; // requested date 'YYYY-MM-DD'
-  rate: number;
-  effectiveDate: string; // provider's actual effective date (business-day fallback)
-  provider: string;
-  fetchedAt: string; // ISO timestamp
-}
-
 // ─── Snapshot ────────────────────────────────────────────────────
 
 export interface Snapshot {
@@ -146,6 +125,25 @@ export interface NamedGoal {
   targetNetWorth: string;
   targetDate: string;
   milestones?: GoalMilestone[];
+}
+
+// ─── FX Rate Cache ────────────────────────────────────────────────
+
+/**
+ * A cached FX rate record returned by the Frankfurter service.
+ *
+ * `date` is the requested lookup date (YYYY-MM-DD).
+ * `effectiveDate` is the provider's actual date, which may differ from
+ * `date` when the requested date falls on a weekend or public holiday
+ * (Frankfurter returns the prior business day's rate in that case).
+ */
+export interface FxRateRecord {
+  base: string;
+  target: string;
+  date: string;
+  rate: number;
+  effectiveDate: string;
+  fetchedAt: string;
 }
 
 // ─── Alert Settings ──────────────────────────────────────

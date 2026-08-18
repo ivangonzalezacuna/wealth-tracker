@@ -14,7 +14,8 @@ export interface BackupFile {
     snapshots: Snapshot[];
     transactions: Transaction[];
     importMeta: Record<string, string>;
-    /** Optional — omitted from older backups (schema < 4). Restored when present. */
+    /** FX rate cache. Optional for backwards-compatibility with pre-v4 backups;
+     *  migrateBackup (v3→v4) always fills in an empty array when absent. */
     fxRates?: FxRateRecord[];
   };
 }
@@ -76,6 +77,13 @@ export const MIGRATIONS: Record<number, Migration> = {
     const settings = { calibration_interval: 'monthly', ...data.settings };
     return { ...data, holdings, settings } as unknown as typeof data;
   },
+  3: (data) => {
+    // v3->v4: fxRates array added to backup; old backups simply get an empty array.
+    if (!Array.isArray((data as unknown as Record<string, unknown>).fxRates)) {
+      return { ...data, fxRates: [] } as unknown as typeof data;
+    }
+    return data;
+  },
 };
 
 export function migrateBackup(b: BackupFile): BackupFile {
@@ -93,6 +101,7 @@ export function buildBackup(input: BackupFile['data']): BackupFile {
     exportedAt: new Date().toISOString(),
     data: {
       ...input,
+      fxRates: input.fxRates ?? [],
       transactions: input.transactions.map(({ rowId: _rowId, ...tx }) => tx),
     },
   };
@@ -127,7 +136,11 @@ export function validateBackup(raw: unknown): BackupFile | null {
     !d.snapshots.every(isValidSnapshot) ||
     !Array.isArray(d.transactions) ||
     !d.transactions.every(isValidTransaction) ||
-    !isStringMap(d.importMeta)
+    !isStringMap(d.importMeta) ||
+    // fxRates is optional for backwards compatibility: old backups omit it and
+    // migrateBackup (v3→v4) fills in an empty array.
+    (d.fxRates !== undefined &&
+      (!Array.isArray(d.fxRates) || !d.fxRates.every(isValidFxRateRecord)))
   )
     return null;
   return b as BackupFile;
@@ -299,5 +312,17 @@ function isValidTransaction(value: unknown): value is Transaction {
     typeof value.currency === 'string' &&
     isFiniteNumber(value.fxRate) &&
     isOptionalString(value.note)
+  );
+}
+
+function isValidFxRateRecord(value: unknown): value is FxRateRecord {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.base === 'string' &&
+    typeof value.target === 'string' &&
+    typeof value.date === 'string' &&
+    isFiniteNumber(value.rate) &&
+    typeof value.effectiveDate === 'string' &&
+    typeof value.fetchedAt === 'string'
   );
 }
