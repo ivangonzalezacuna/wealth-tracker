@@ -5,13 +5,11 @@
  * the app. Callers should never import frankfurter.ts or the fxRates
  * repository directly; they should go through this module.
  *
- * Design:
- *   1. Check the local `fx_rates` SQLite cache.
- *   2. On cache miss, fetch from Frankfurter and persist to cache.
- *   3. On any network or provider error return `null` so the caller can
- *      degrade gracefully to existing offline behavior.
- *
- * All methods are async; the DB and fetch are async boundaries.
+ * Lookup order:
+ *   1. Local `fx_rates` SQLite cache.
+ *   2. On cache miss, live fetch from Frankfurter; result persisted to cache.
+ *   3. On any network or provider error, `null` is returned so the caller
+ *      degrades gracefully to existing offline behavior.
  */
 
 import type { FxRateRecord } from '../types';

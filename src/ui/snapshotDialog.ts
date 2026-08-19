@@ -133,14 +133,9 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
         })
         .catch(() => {
           if (requestSeq !== prefetchRequestSeq) return;
-          renderFxPrefetchStatus(fxStatusEl, {
-            needed: true,
-            disabled: false,
-            attempted: 0,
-            resolved: 0,
-            failed: 1,
-            rates: {},
-          });
+          fxStatusEl.classList.add('snapd-fx-status--warn');
+          fxStatusEl.innerHTML =
+            '<strong>⚠ FX rate fetch failed.</strong> Please convert non-EUR values to EUR manually before saving to ensure accuracy.';
         });
     };
     const monthInput = overlay.querySelector('#snapd-date') as HTMLInputElement | null;

@@ -109,9 +109,13 @@ import { isBusy, setBusy } from './sync/lock';
 import { registerSW } from 'virtual:pwa-register';
 import type { Snapshot, Transaction, PortfolioData, ImportProfile } from './types';
 import { buildAppSecuritySuggestions } from './securitySuggestions';
-import { applySnapshotFxNormalization, prepareSnapshotFxEditDraft } from './model/snapshotFx';
+import {
+  applySnapshotFxNormalization,
+  prepareSnapshotFxEditDraft,
+  getNonBaseCurrencies,
+} from './model/snapshotFx';
 import { APP_CURRENCY } from './fx';
-import { prefetchMonthEndRates } from './services/fxRateService';
+import { prefetchMonthEndRates, type FxPrefetchResult } from './services/fxRateService';
 
 // ── App state ────────────────────────────────────────────
 const state: {
@@ -1404,26 +1408,8 @@ async function saveMonthlyUpdate(editDate?: string) {
 async function prefetchSnapshotFxMonth(
   accounts: ReturnType<typeof getAccounts>,
   yearMonth: string,
-) {
-  const enabled = (getSettings().fx_integration_enabled ?? '1') !== '0';
-  const nonBaseCurrencies = [
-    ...new Set(
-      accounts
-        .map((acct) => (acct.currency || APP_CURRENCY).trim().toUpperCase())
-        .filter((cur) => !!cur && cur !== APP_CURRENCY),
-    ),
-  ];
-  if (!enabled || nonBaseCurrencies.length === 0) {
-    return {
-      needed: nonBaseCurrencies.length > 0,
-      disabled: !enabled,
-      attempted: 0,
-      resolved: 0,
-      failed: 0,
-      rates: {},
-    };
-  }
-  return prefetchMonthEndRates(nonBaseCurrencies, APP_CURRENCY, yearMonth);
+): Promise<FxPrefetchResult> {
+  return prefetchMonthEndRates(getNonBaseCurrencies(accounts), APP_CURRENCY, yearMonth);
 }
 
 function editSnap(date: string) {
