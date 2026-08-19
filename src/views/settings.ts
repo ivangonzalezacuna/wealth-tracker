@@ -2266,7 +2266,11 @@ async function refreshFmpIntegrationStatus(root: HTMLElement): Promise<void> {
   const daily = root.querySelector('#fmp-status-daily') as HTMLElement | null;
 
   if (statusEnabled) {
-    statusEnabled.textContent = enabled ? (hasKey ? 'Enabled' : 'Enabled (no API key)') : 'Disabled';
+    statusEnabled.textContent = enabled
+      ? hasKey
+        ? 'Enabled'
+        : 'Enabled (no API key)'
+      : 'Disabled';
   }
   if (cacheEntries) {
     const refreshed = cached
@@ -2332,7 +2336,9 @@ function attachFmpIntegrationListeners(root: HTMLElement): void {
 
   root.querySelector('#btn-fmp-bulk-enrich')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-fmp-bulk-enrich') as HTMLButtonElement;
-    const isins = getHoldings().map((h) => h.isin).filter(Boolean);
+    const isins = getHoldings()
+      .map((h) => h.isin)
+      .filter(Boolean);
     const msg = root.querySelector('#fmp-bulk-msg') as HTMLElement | null;
     try {
       const dailyCount = await getDailyFetchCount().catch(() => 0);

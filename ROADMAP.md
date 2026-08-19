@@ -130,12 +130,12 @@ This status is intentionally split so progress is not conflated across providers
 
 **Track 2 — FMP (ETF metadata)**
 
-- **Phase 1 (contract validation and scope freeze)** — 🟡 scope discussed, implementation path not started in code.
-- **Phase 2 (storage and provider infrastructure)** — ⏳ not started.
-- **Phase 3 (domain and service wiring)** — ⏳ not started.
-- **Phase 4 (application integration and regression-safe rollout)** — ⏳ not started.
-- **Phase 5 (UI rollout)** — ⏳ not started.
-- **Phase 6 (tests and hardening)** — ⏳ not started.
+- **Phase 1 (contract validation and scope freeze)** — ✅ done.
+- **Phase 2 (storage and provider infrastructure)** — ✅ done.
+- **Phase 3 (domain and service wiring)** — ✅ done.
+- **Phase 4 (application integration and regression-safe rollout)** — ✅ done.
+- **Phase 5 (UI rollout)** — ✅ done.
+- **Phase 6 (tests and hardening)** — ✅ done.
 
 **Current stack anchor for follow-up agents**
 

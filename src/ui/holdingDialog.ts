@@ -280,7 +280,9 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
       if (actions) actions.innerHTML = renderMetadataActions();
       const nextMsg = overlay.querySelector('#hold-metadata-msg') as HTMLElement | null;
       if (nextMsg) nextMsg.textContent = metadata ? 'Metadata refreshed.' : 'No metadata found.';
-      const nextBtn = overlay.querySelector('#btn-hold-refresh-metadata') as HTMLButtonElement | null;
+      const nextBtn = overlay.querySelector(
+        '#btn-hold-refresh-metadata',
+      ) as HTMLButtonElement | null;
       if (nextBtn && metadata) nextBtn.disabled = true;
     });
   });
@@ -383,7 +385,8 @@ function metadataRow(label: string, value: string): string {
 
 function formatAum(aum: number): string {
   const abs = Math.abs(aum);
-  if (abs >= 1_000_000_000) return `$${(aum / 1_000_000_000).toFixed(abs >= 10_000_000_000 ? 0 : 1)}B`;
+  if (abs >= 1_000_000_000)
+    return `$${(aum / 1_000_000_000).toFixed(abs >= 10_000_000_000 ? 0 : 1)}B`;
   if (abs >= 1_000_000) return `$${(aum / 1_000_000).toFixed(abs >= 100_000_000 ? 0 : 1)}M`;
   if (abs >= 1_000) return `$${(aum / 1_000).toFixed(abs >= 100_000 ? 0 : 1)}K`;
   return `$${aum.toFixed(0)}`;

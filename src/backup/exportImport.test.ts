@@ -59,6 +59,7 @@ const FIXTURE_DATA: BackupFile['data'] = {
   ],
   importMeta: { last_import: '2026-01-15' },
   fxRates: [],
+  holdingMetadata: [],
 };
 
 function validBackupObj(): BackupFile {
@@ -66,7 +67,7 @@ function validBackupObj(): BackupFile {
     schemaVersion: BACKUP_SCHEMA_VERSION,
     app: 'wealth-tracker',
     exportedAt: '2026-06-15T10:00:00.000Z',
-    data: FIXTURE_DATA,
+    data: JSON.parse(JSON.stringify(FIXTURE_DATA)),
   };
 }
 
@@ -99,6 +100,32 @@ describe('buildBackup', () => {
     expect(result.data.transactions).toEqual([{ ...FIXTURE_DATA.transactions[0] }]);
     expect('rowId' in result.data.transactions[0]).toBe(false);
     expect(() => JSON.stringify(result)).not.toThrow();
+  });
+
+  it('strips fmp_api_key from settings', () => {
+    const result = buildBackup({
+      ...FIXTURE_DATA,
+      settings: { ...FIXTURE_DATA.settings, fmp_api_key: 'secret', fmp_integration_enabled: '1' },
+    });
+
+    expect(result.data.settings.fmp_api_key).toBeUndefined();
+    expect(result.data.settings.fmp_integration_enabled).toBe('1');
+  });
+
+  it('preserves holdingMetadata in the backup payload', () => {
+    const holdingMetadata = [
+      {
+        isin: 'IE00B4L5Y983',
+        symbol: 'IWDA',
+        exchange: 'XETRA',
+        fetchedAt: '2026-08-19T12:00:00.000Z',
+        lastRefreshedAt: '2026-08-19T12:00:00.000Z',
+        provider: 'fmp',
+      },
+    ];
+
+    const result = buildBackup({ ...FIXTURE_DATA, holdingMetadata });
+    expect(result.data.holdingMetadata).toEqual(holdingMetadata);
   });
 });
 
@@ -185,6 +212,28 @@ describe('validateBackup', () => {
 
   it('JSON array returns null', () => {
     expect(validateBackup([1, 2, 3])).toBeNull();
+  });
+
+  it('accepts optional holdingMetadata arrays', () => {
+    const obj = validBackupObj();
+    obj.data.holdingMetadata = [
+      {
+        isin: 'IE00B4L5Y983',
+        symbol: 'IWDA',
+        exchange: 'XETRA',
+        domicileCountry: 'IE',
+        fundCurrency: 'USD',
+        aum: null,
+        inceptionDate: null,
+        holdingsCount: null,
+        sectors: null,
+        topHoldings: null,
+        fetchedAt: '2026-08-19T12:00:00.000Z',
+        lastRefreshedAt: '2026-08-19T12:00:00.000Z',
+        provider: 'fmp',
+      },
+    ];
+    expect(validateBackup(obj)).not.toBeNull();
   });
 });
 
@@ -276,6 +325,20 @@ describe('migrateBackup', () => {
     // With no MIGRATIONS entries, it should just return the same data
     const result = migrateBackup(b);
     expect(result.data).toEqual(b.data);
+  });
+
+  it('migrates v4 backups by adding an empty holdingMetadata array', () => {
+    const v4Backup: BackupFile = {
+      ...validBackupObj(),
+      schemaVersion: 4,
+      data: {
+        ...FIXTURE_DATA,
+        holdingMetadata: undefined,
+      },
+    };
+
+    const result = migrateBackup(v4Backup);
+    expect(result.data.holdingMetadata).toEqual([]);
   });
 });
 

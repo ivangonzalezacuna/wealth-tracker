@@ -160,11 +160,11 @@ export function validateBackup(raw: unknown): BackupFile | null {
     // fxRates is optional for backwards compatibility: old backups omit it and
     // migrateBackup (v3→v4) fills in an empty array.
     (d.fxRates !== undefined &&
-     (!Array.isArray(d.fxRates) || !d.fxRates.every(isValidFxRateRecord))) ||
-     (d.holdingMetadata !== undefined &&
-       (!Array.isArray(d.holdingMetadata) || !d.holdingMetadata.every(isValidHoldingMetadata)))
+      (!Array.isArray(d.fxRates) || !d.fxRates.every(isValidFxRateRecord))) ||
+    (d.holdingMetadata !== undefined &&
+      (!Array.isArray(d.holdingMetadata) || !d.holdingMetadata.every(isValidHoldingMetadata)))
   )
-   return null;
+    return null;
   return b as BackupFile;
 }
 

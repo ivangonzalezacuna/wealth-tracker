@@ -103,7 +103,10 @@ export async function searchByIsin(
     if (response.status === 401 || response.status === 403) {
       throw new FmpAuthError(response.status);
     }
-    throw new FmpError(`FMP search failed with HTTP ${response.status} for ${redactApiKey(url)}`, response.status);
+    throw new FmpError(
+      `FMP search failed with HTTP ${response.status} for ${redactApiKey(url)}`,
+      response.status,
+    );
   }
 
   let body: unknown;
@@ -129,8 +132,7 @@ export async function searchByIsin(
           : typeof entry.exchange === 'string'
             ? entry.exchange
             : '',
-      exchangeShortName:
-        typeof entry.exchangeShortName === 'string' ? entry.exchangeShortName : '',
+      exchangeShortName: typeof entry.exchangeShortName === 'string' ? entry.exchangeShortName : '',
     }))
     .filter((entry) => !!entry.symbol);
 }
@@ -221,8 +223,7 @@ export function validateFmpEtfInfo(raw: unknown): FmpEtfInfo {
         : typeof value.stockExchange === 'string'
           ? value.stockExchange
           : undefined,
-    domicileCountry:
-      typeof value.domicileCountry === 'string' ? value.domicileCountry : undefined,
+    domicileCountry: typeof value.domicileCountry === 'string' ? value.domicileCountry : undefined,
     fundCurrency: typeof value.fundCurrency === 'string' ? value.fundCurrency : undefined,
     aum,
     inceptionDate:
