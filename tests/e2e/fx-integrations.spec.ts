@@ -51,7 +51,7 @@ test('mixed-currency snapshot flow stays stable when FX integration is disabled'
   await expect(snapshotRow(page, month)).toContainText(formatUiMoney(1200));
 });
 
-test('FX integrations card exposes status and user-triggered actions', async ({ page }) => {
+test('FX integrations card exposes status and save/clear actions', async ({ page }) => {
   await gotoApp(page);
   await addAccount(page, {
     label: 'USD Cash',
@@ -63,12 +63,18 @@ test('FX integrations card exposes status and user-triggered actions', async ({ 
   await openTab(page, 'tab-settings');
   await ensureCardExpanded(page, 'settings-card-integrations');
 
-  await page.click('#btn-fx-refresh-status');
-  await expect(page.locator('#fx-int-msg')).toContainText('Status refreshed.');
+  await expect(page.locator('#fx-status-enabled')).not.toHaveText('-');
   await expect(page.locator('#fx-status-cache-entries')).not.toHaveText('-');
 
-  await page.click('#btn-fx-warm-cache');
-  await expect(page.locator('#fx-int-msg')).toContainText('month-end FX rates');
+  await page.uncheck('#fx-integration-enabled');
+  await page.click('#btn-save-fx-integration');
+  await expect(page.locator('#fx-int-msg')).toContainText('Saved');
+  await expect(page.locator('#fx-status-enabled')).toHaveText('Disabled');
+
+  await page.check('#fx-integration-enabled');
+  await page.click('#btn-save-fx-integration');
+  await expect(page.locator('#fx-int-msg')).toContainText('Saved');
+  await expect(page.locator('#fx-status-enabled')).toHaveText('Enabled');
 
   await page.click('#btn-fx-clear-cache');
   await page.click('.js-confirm-ok');

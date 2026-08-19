@@ -5,7 +5,7 @@ import {
   addSnapshot,
   gotoApp,
   monthOffsetValue,
-  openTab,
+  openCsvImportPreview,
   preparePage,
 } from './helpers';
 
@@ -37,9 +37,7 @@ test('analytics tab renders after adding a snapshot', async ({ page }) => {
 
 test('csv import flow supports preview exclusion before confirm', async ({ page }) => {
   await gotoApp(page);
-  await openTab(page, 'tab-log');
-  await page.setInputFiles('#csv-file-input', CSV_FIXTURE);
-  await expect(page.locator('#btn-confirm-import')).toBeVisible();
+  await openCsvImportPreview(page, CSV_FIXTURE);
   await expect(page.locator('text=rows parsed')).toBeVisible();
   await page.locator('[data-toggle-exclude="1"]').first().click();
   await expect(page.locator('#btn-confirm-import')).toContainText('Confirm import (0)');
@@ -51,8 +49,7 @@ test('csv import flow supports preview exclusion before confirm', async ({ page 
 
 test('csv import surfaces invalid-date recovery state', async ({ page }) => {
   await gotoApp(page);
-  await openTab(page, 'tab-log');
-  await page.setInputFiles('#csv-file-input', INVALID_DATE_CSV_FIXTURE);
+  await openCsvImportPreview(page, INVALID_DATE_CSV_FIXTURE);
   await expect(page.locator('#import-date-warn')).toContainText('skipped due to invalid date');
   await expect(page.locator('#btn-confirm-import')).toContainText('Confirm import (1)');
   await page.click('#btn-dismiss-date-warn');

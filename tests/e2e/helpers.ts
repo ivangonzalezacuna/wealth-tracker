@@ -102,6 +102,10 @@ export async function gotoApp(page: Page): Promise<void> {
   await expect(page.locator('#tab-networth')).toBeVisible();
 }
 
+export async function waitForSyncIdle(page: Page): Promise<void> {
+  await expect(page.locator('#btn-sync-now')).toHaveText('Sync now', { timeout: 15_000 });
+}
+
 export async function openTab(page: Page, tabId: string): Promise<void> {
   await page.click(`#${tabId}`);
 }
@@ -241,11 +245,42 @@ export async function importCsvFixture(
   page: Page,
   fixturePath: string = CSV_FIXTURE,
 ): Promise<void> {
-  await openTab(page, 'tab-log');
-  await page.setInputFiles('#csv-file-input', fixturePath);
-  await expect(page.locator('#btn-confirm-import')).toBeVisible();
+  await openCsvImportPreview(page, fixturePath);
   await page.click('#btn-confirm-import');
   await expect(page.locator('#import-msg')).toContainText('Imported');
+}
+
+export async function openCsvImportPreview(
+  page: Page,
+  fixturePath: string = CSV_FIXTURE,
+): Promise<void> {
+  await openTab(page, 'tab-log');
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await waitForSyncIdle(page);
+    await page.setInputFiles('#csv-file-input', fixturePath);
+    const result = await page
+      .waitForFunction(
+        () => {
+          if (document.getElementById('btn-confirm-import')) return 'ready';
+          const msg = document.getElementById('import-msg')?.textContent ?? '';
+          if (
+            msg.includes('A sync is already in progress.') ||
+            msg.includes('A sync or save is in progress. Try again in a moment.')
+          ) {
+            return 'busy';
+          }
+          return null;
+        },
+        undefined,
+        { timeout: 15_000 },
+      )
+      .then((handle) => handle.jsonValue() as Promise<'ready' | 'busy'>);
+    if (result === 'ready') {
+      await expect(page.locator('#btn-confirm-import')).toBeVisible();
+      return;
+    }
+  }
+  throw new Error('CSV import preview did not become ready before sync settled.');
 }
 
 export function snapshotRow(page: Page, month: string) {
