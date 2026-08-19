@@ -502,6 +502,11 @@ export function renderNW(snaps: Snapshot[]): void {
   // Per-account CAGR map (keyed by accountId)
   const acctCagrMap = new Map(cagrPerAccount(snaps, accounts).map((r) => [r.accountId, r]));
 
+  // Currency map for non-EUR indicator in per-account KPIs
+  const acctCurrencyMap = new Map(
+    accounts.map((a) => [a.id || a.key || '', (a.currency || 'EUR').trim().toUpperCase()]),
+  );
+
   document.getElementById('nw-kpis')!.innerHTML = `
     <div class="kpi kpi-lead">
       <div class="kpi-label">Net worth</div>
@@ -522,11 +527,13 @@ export function renderNW(snaps: Snapshot[]): void {
           acctCagr && acctCagr.cagrValue !== null
             ? `<div class="kpi-sub ${acctCagr.cagrValue >= 0 ? 'pos' : 'neg'}">CAGR ${fmtPctNeg(acctCagr.cagrValue * 100)} (${acctCagr.monthsSpan}m)</div>`
             : '';
+        const currency = acctCurrencyMap.get(a.key) || 'EUR';
+        const currencyNote = currency !== 'EUR' ? ` · in ${esc(currency)}` : '';
         return `
       <div class="kpi">
         <div class="kpi-label">${esc(a.label)}</div>
         <div class="kpi-val">${fmtEur2((s[a.key] as number) || 0)}</div>
-        <div class="kpi-sub">${fmtPctVal(total > 0 ? (((s[a.key] as number) || 0) / total) * 100 : 0)} of total</div>
+        <div class="kpi-sub">${fmtPctVal(total > 0 ? (((s[a.key] as number) || 0) / total) * 100 : 0)} of total${currencyNote}</div>
         ${cagrSub}
       </div>`;
       })

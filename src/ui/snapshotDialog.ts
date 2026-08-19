@@ -170,7 +170,7 @@ function _renderAccountFields(
               data-currency="${_esc(acct.currency)}"
               class="form-input dialog-input"
               value="${typeof value === 'number' || typeof value === 'string' ? _esc(String(value)) : ''}"
-              placeholder="total value">
+              placeholder="${acct.currency !== 'EUR' ? `total value in ${_esc(acct.currency)}` : 'total value'}">
             ${acct.currency !== 'EUR' ? `<span id="snapd-acc-${_esc(acct.key)}-fx" class="note snapd-fx-hint" style="display:none" aria-live="polite"></span>` : ''}
             <span class="dialog-error dialog-error-compact" id="snapd-acc-${_esc(acct.key)}-err"></span>
           </div>
@@ -452,7 +452,7 @@ function _updateFxHint(
     hintEl.style.display = 'none';
     return;
   }
-  hintEl.textContent = `≈ ${fmtEur2(val * rate)} EUR`;
+  hintEl.textContent = `≈ ${fmtEur2(val * rate)} EUR · rate: ${rate.toFixed(4)}`;
   hintEl.style.display = '';
 }
 

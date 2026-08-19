@@ -124,9 +124,9 @@ This status is intentionally split so progress is not conflated across providers
 - **Phase 1 (contract validation and scope freeze)** — ✅ done.
 - **Phase 2 (storage and provider infrastructure)** — ✅ done (storage/cache + backup path + integration enablement setting + telemetry storage).
 - **Phase 3 (domain and service wiring)** — ✅ done (provider + service + shared FX resolution + snapshot normalization at save time).
-- **Phase 4 (application integration and regression-safe rollout)** — 🟡 partially done (backup/restore of `fx_rates` cache wired; FX-normalized values not yet threaded through net worth, analytics, or reporting consumers).
-- **Phase 5 (UI rollout)** — 🟡 partially done (account currency field + datalist in account dialog; snapshot dialog shows per-account currency labels, live FX hint, and month-end prefetch status; Settings integrations card with toggle and telemetry; remaining: holding-dialog metadata display for FMP, and deeper snapshot-entry UX polish).
-- **Phase 6 (tests and hardening)** — 🟡 partially done (unit tests present; broader integration/E2E hardening pending).
+- **Phase 4 (application integration and regression-safe rollout)** — ✅ done (FX-normalized values threaded through net worth KPIs, analytics account donut, and annual report; backup/restore of `fx_rates` cache wired).
+- **Phase 5 (UI rollout)** — ✅ done (account currency field + datalist in account dialog; snapshot dialog shows per-account currency labels, live FX hint with rate, currency-specific placeholder, and month-end prefetch status; Settings integrations card with toggle and telemetry).
+- **Phase 6 (tests and hardening)** — ✅ done (unit tests for snapshotFx normalization and annual report currency threading; E2E tests for FX integrations card, mixed-currency snapshot flow, net worth KPI currency indicator, and snapshot dialog placeholder).
 
 **Track 2 — FMP (ETF metadata)**
 

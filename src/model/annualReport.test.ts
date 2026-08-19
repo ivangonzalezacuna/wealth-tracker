@@ -92,6 +92,28 @@ describe('buildAnnualReport — snapshot & net worth', () => {
     expect(report.accounts[1].value).toBe(17_000);
   });
 
+  it('leaves currency undefined for EUR accounts', () => {
+    const report = buildAnnualReport(2024, baseTxs, snapshots, holdings, accounts);
+    expect(report.accounts[0].currency).toBeUndefined();
+    expect(report.accounts[1].currency).toBeUndefined();
+  });
+
+  it('sets currency to the ISO code for non-EUR accounts', () => {
+    const mixedAccounts: Account[] = [
+      {
+        id: 'acct-1',
+        label: 'USD Broker',
+        isPrimaryInvestment: true,
+        moneyType: 'investment',
+        currency: 'USD',
+      },
+      { id: 'acct-2', label: 'Savings', moneyType: 'savings', currency: 'EUR' },
+    ];
+    const report = buildAnnualReport(2024, baseTxs, snapshots, holdings, mixedAccounts);
+    expect(report.accounts[0].currency).toBe('USD');
+    expect(report.accounts[1].currency).toBeUndefined();
+  });
+
   it('reports zero net worth when no snapshot exists for the year', () => {
     const report = buildAnnualReport(2020, baseTxs, snapshots, holdings, accounts);
     expect(report.totalNetWorth).toBe(0);
@@ -628,5 +650,34 @@ describe('buildAnnualReport — cost-basis method', () => {
     const fifoGain = reportFifo.holdings.find((h) => h.isin === 'TEST001')?.yearRealisedGain ?? 0;
     expect(avgGain).toBeCloseTo(0, 1);
     expect(fifoGain).toBeCloseTo(250, 1);
+  });
+});
+
+// ── currency threading in renderAnnualReportHtml ───────────────────────────────
+
+describe('renderAnnualReportHtml — non-EUR account currency display', () => {
+  it('shows a currency badge next to non-EUR account labels', () => {
+    const usdAccounts: Account[] = [
+      {
+        id: 'acct-1',
+        label: 'USD Broker',
+        isPrimaryInvestment: true,
+        moneyType: 'investment',
+        currency: 'USD',
+      },
+      { id: 'acct-2', label: 'Savings', moneyType: 'savings' },
+    ];
+    const report = buildAnnualReport(2024, baseTxs, snapshots, holdings, usdAccounts);
+    const html = renderAnnualReportHtml(report, 'EUR');
+    expect(html).toContain('USD Broker');
+    expect(html).toContain('<span');
+    expect(html).toContain('USD');
+  });
+
+  it('does not render a currency badge for EUR accounts', () => {
+    const report = buildAnnualReport(2024, baseTxs, snapshots, holdings, accounts);
+    const html = renderAnnualReportHtml(report, 'EUR');
+    // EUR accounts should have no extra span for currency code in the accounts table
+    expect(html).not.toMatch(/<span[^>]*>EUR<\/span>/);
   });
 });

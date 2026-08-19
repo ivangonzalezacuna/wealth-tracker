@@ -74,3 +74,48 @@ test('FX integrations card exposes status and user-triggered actions', async ({ 
   await page.click('.js-confirm-ok');
   await expect(page.locator('#fx-int-msg')).toContainText('FX cache cleared.');
 });
+
+test('net worth KPI shows "in USD" indicator for a non-EUR account', async ({ page }) => {
+  const month = monthOffsetValue(-1);
+
+  await gotoApp(page);
+  await addAccount(page, {
+    label: 'USD Broker',
+    institution: 'IBKR',
+    annualReturnPct: 6,
+    primary: true,
+    currency: 'USD',
+  });
+
+  // Disable FX so save is deterministic (value stored as-is)
+  await openTab(page, 'tab-settings');
+  await ensureCardExpanded(page, 'settings-card-integrations');
+  await page.uncheck('#fx-integration-enabled');
+  await page.click('#btn-save-fx-integration');
+  await expect(page.locator('#fx-int-msg')).toContainText('Saved');
+
+  await addSnapshot(page, { month, accountValues: { 'USD Broker': 5000 } });
+
+  await openTab(page, 'tab-networth');
+  // The per-account KPI sub-text should contain "in USD"
+  await expect(page.locator('#nw-kpis')).toContainText('in USD');
+});
+
+test('snapshot dialog shows currency-specific placeholder for non-EUR accounts', async ({
+  page,
+}) => {
+  await gotoApp(page);
+  await addAccount(page, {
+    label: 'GBP Savings',
+    institution: 'Monzo',
+    annualReturnPct: 2,
+    currency: 'GBP',
+  });
+
+  await openTab(page, 'tab-log');
+  await page.click('#btn-add-snap');
+  // Placeholder for the non-EUR account input should mention GBP
+  const input = page.locator('[data-currency="GBP"]');
+  await expect(input).toHaveAttribute('placeholder', 'total value in GBP');
+  await page.click('.js-snapd-cancel');
+});
