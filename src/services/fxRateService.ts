@@ -23,6 +23,7 @@ import {
   recordFxCacheHit,
   recordFxPrefetch,
   recordFxRequest,
+  recordFxNormalize,
 } from '../db/repositories/fxTelemetry';
 
 // ── Integration enablement ─────────────────────────────────────────
@@ -209,3 +210,6 @@ export function lastDayOfMonth(yearMonth: string): string | null {
   const dd = String(last.getDate()).padStart(2, '0');
   return `${year}-${mm}-${dd}`;
 }
+
+// Re-export so callers don't need to import directly from the DB layer.
+export { recordFxNormalize } from '../db/repositories/fxTelemetry';

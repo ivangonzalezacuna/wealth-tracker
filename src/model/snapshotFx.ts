@@ -9,6 +9,7 @@
 
 import type { Snapshot, Account } from '../types';
 import { resolveMonthEndRate, APP_CURRENCY } from '../fx';
+import { recordFxNormalize } from '../services/fxRateService';
 
 export interface SnapshotFxNormalizationOptions {
   onRateUnavailable?: (currency: string) => void;
@@ -49,11 +50,21 @@ export async function applySnapshotFxNormalization(
   const normalized: Snapshot = { ...snap };
   const rateCache = new Map<string, number | null>();
 
+  let normalizeAttempted = 0;
+  let normalizeResolved = 0;
+  let normalizeFailed = 0;
+
   const getRate = async (currency: string): Promise<number | null> => {
     if (rateCache.has(currency)) return rateCache.get(currency) ?? null;
+    normalizeAttempted += 1;
     const fxRecord = await resolveMonthEndRate(currency, snap.date);
     const rate = fxRecord && fxRecord.rate > 0 ? fxRecord.rate : null;
     rateCache.set(currency, rate);
+    if (rate !== null) {
+      normalizeResolved += 1;
+    } else {
+      normalizeFailed += 1;
+    }
     return rate;
   };
 
@@ -71,11 +82,15 @@ export async function applySnapshotFxNormalization(
   }
 
   const etfCurrency = inferEtfSnapshotCurrency(accounts);
-  if (!etfCurrency) return normalized;
+  if (!etfCurrency) {
+    recordFxNormalize(normalizeAttempted, normalizeResolved, normalizeFailed).catch(() => {});
+    return normalized;
+  }
 
   const etfRate = await getRate(etfCurrency);
   if (etfRate === null) {
     opts?.onRateUnavailable?.(etfCurrency);
+    recordFxNormalize(normalizeAttempted, normalizeResolved, normalizeFailed).catch(() => {});
     return normalized;
   }
 
@@ -85,6 +100,7 @@ export async function applySnapshotFxNormalization(
     normalized[key] = value * etfRate;
   }
 
+  recordFxNormalize(normalizeAttempted, normalizeResolved, normalizeFailed).catch(() => {});
   return normalized;
 }
 

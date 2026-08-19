@@ -6,7 +6,7 @@
  */
 
 /** Schema version - bump when DDL changes require a migration. */
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 15;
 
 /**
  * SQL statements executed on first database creation (version 0 → 1).
@@ -123,7 +123,19 @@ export const SCHEMA_DDL: string[] = [
     cache_hit_count INTEGER NOT NULL DEFAULT 0,
     prefetch_attempt_count INTEGER NOT NULL DEFAULT 0,
     prefetch_success_count INTEGER NOT NULL DEFAULT 0,
-    prefetch_failure_count INTEGER NOT NULL DEFAULT 0
+    prefetch_failure_count INTEGER NOT NULL DEFAULT 0,
+    normalize_attempt_count INTEGER NOT NULL DEFAULT 0,
+    normalize_success_count INTEGER NOT NULL DEFAULT 0,
+    normalize_failure_count INTEGER NOT NULL DEFAULT 0
   )`,
   `INSERT OR IGNORE INTO fx_telemetry (id) VALUES (1)`,
+
+  // ── FX monthly telemetry ──────────────────────────────────────
+  // One row per YYYY-MM; automatically reset each calendar month.
+  `CREATE TABLE IF NOT EXISTS fx_telemetry_monthly (
+    month TEXT PRIMARY KEY,
+    fetch_count INTEGER NOT NULL DEFAULT 0,
+    cache_hit_count INTEGER NOT NULL DEFAULT 0,
+    error_count INTEGER NOT NULL DEFAULT 0
+  )`,
 ];

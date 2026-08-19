@@ -174,6 +174,27 @@ export interface FxTelemetry {
   prefetchSuccessCount: number;
   /** Total number of month-end prefetch lookups that returned no rate. */
   prefetchFailureCount: number;
+  /** Total number of snapshot normalization rate lookups attempted. */
+  normalizeAttemptCount: number;
+  /** Total number of snapshot normalization rate lookups that resolved a rate. */
+  normalizeSuccessCount: number;
+  /** Total number of snapshot normalization rate lookups that returned no rate. */
+  normalizeFailureCount: number;
+}
+
+/**
+ * Per-month operational counters for the Frankfurter FX integration.
+ * Stored in `fx_telemetry_monthly`, one row per YYYY-MM.
+ */
+export interface FxTelemetryMonthly {
+  /** Calendar month in YYYY-MM format. */
+  month: string;
+  /** Live network fetches performed this month. */
+  fetchCount: number;
+  /** Cache hits served without a live fetch this month. */
+  cacheHitCount: number;
+  /** Network/provider errors this month. */
+  errorCount: number;
 }
 
 // ─── Alert Settings ──────────────────────────────────────

@@ -5,6 +5,10 @@ vi.mock('../fx', () => ({
   resolveMonthEndRate: vi.fn(),
 }));
 
+vi.mock('../services/fxRateService', () => ({
+  recordFxNormalize: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { applySnapshotFxNormalization, prepareSnapshotFxEditDraft } from './snapshotFx';
 import { resolveMonthEndRate } from '../fx';
 import type { Snapshot, Account, FxRateRecord } from '../types';

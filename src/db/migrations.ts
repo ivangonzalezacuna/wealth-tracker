@@ -171,4 +171,19 @@ export const MIGRATIONS: string[][] = [
   ],
   // [13] version 12 → 13: track last attempted Frankfurter request URL.
   [`ALTER TABLE fx_telemetry ADD COLUMN last_request_url TEXT NOT NULL DEFAULT ''`],
+  // [14] version 13 → 14: add normalization telemetry counters.
+  [
+    `ALTER TABLE fx_telemetry ADD COLUMN normalize_attempt_count INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE fx_telemetry ADD COLUMN normalize_success_count INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE fx_telemetry ADD COLUMN normalize_failure_count INTEGER NOT NULL DEFAULT 0`,
+  ],
+  // [15] version 14 → 15: add monthly FX telemetry table.
+  [
+    `CREATE TABLE IF NOT EXISTS fx_telemetry_monthly (
+      month TEXT PRIMARY KEY,
+      fetch_count INTEGER NOT NULL DEFAULT 0,
+      cache_hit_count INTEGER NOT NULL DEFAULT 0,
+      error_count INTEGER NOT NULL DEFAULT 0
+    )`,
+  ],
 ];

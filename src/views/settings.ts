@@ -23,6 +23,7 @@ import {
   loadSnapshots,
   saveSnapshots,
   getFxTelemetry,
+  getFxTelemetryMonthly,
   loadAllFxRates,
   restoreAllFxRates,
 } from '../db';
@@ -41,6 +42,7 @@ import { buildAnnualReport, renderAnnualReportHtml } from '../model/annualReport
 import type {
   Account,
   FxTelemetry,
+  FxTelemetryMonthly,
   Holding,
   Settings,
   ContribInterval,
@@ -2021,10 +2023,16 @@ function renderFxIntegrationsCard(settings: Settings): string {
         <div class="card-section-head" style="margin-top:1rem">CACHE &amp; TELEMETRY</div>
         <div class="settings-items settings-items-compact" id="fx-status-items">
           <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Status</span><span id="fx-status-enabled" class="settings-item-value">-</span></div></div>
-          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Cache entries</span><span id="fx-status-cache-entries" class="settings-item-value">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Cached rates</span><span id="fx-status-cache-entries" class="settings-item-value">-</span></div></div>
           <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Last successful fetch</span><span id="fx-status-last-fetch" class="settings-item-value">-</span></div></div>
           <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Last error</span><span id="fx-status-last-error" class="settings-item-value settings-item-value-error">-</span></div></div>
-          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Live fetches / cache hits / prefetch (a/s/f)</span><span id="fx-status-counters" class="settings-item-value">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Requests this month</span><span id="fx-status-month-fetches" class="settings-item-value">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Cache hits this month</span><span id="fx-status-month-cache-hits" class="settings-item-value">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Failures this month</span><span id="fx-status-month-errors" class="settings-item-value">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Prefetch: resolved</span><span id="fx-status-prefetch-ok" class="settings-item-value">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Prefetch: failed</span><span id="fx-status-prefetch-fail" class="settings-item-value">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Normalize: resolved</span><span id="fx-status-normalize-ok" class="settings-item-value">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Normalize: failed</span><span id="fx-status-normalize-fail" class="settings-item-value">-</span></div></div>
         </div>
         <div class="form-actions">
           <button class="btn btn-danger btn-sm" id="btn-fx-clear-cache">Clear FX cache</button>
@@ -2035,13 +2043,25 @@ function renderFxIntegrationsCard(settings: Settings): string {
 
 async function refreshFxIntegrationStatus(root: HTMLElement): Promise<void> {
   const telemetry = await loadFxTelemetrySafe();
+  const currentMonth = (() => {
+    const now = new Date();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    return `${now.getFullYear()}-${mm}`;
+  })();
+  const monthly = await loadFxTelemetryMonthlySafe(currentMonth);
   const rates = await loadAllFxRates();
   const enabled = (getSettings().fx_integration_enabled ?? '1') !== '0';
   const statusEnabled = root.querySelector('#fx-status-enabled') as HTMLElement | null;
   const cacheEntries = root.querySelector('#fx-status-cache-entries') as HTMLElement | null;
   const lastFetch = root.querySelector('#fx-status-last-fetch') as HTMLElement | null;
   const lastError = root.querySelector('#fx-status-last-error') as HTMLElement | null;
-  const counters = root.querySelector('#fx-status-counters') as HTMLElement | null;
+  const monthFetches = root.querySelector('#fx-status-month-fetches') as HTMLElement | null;
+  const monthCacheHits = root.querySelector('#fx-status-month-cache-hits') as HTMLElement | null;
+  const monthErrors = root.querySelector('#fx-status-month-errors') as HTMLElement | null;
+  const prefetchOk = root.querySelector('#fx-status-prefetch-ok') as HTMLElement | null;
+  const prefetchFail = root.querySelector('#fx-status-prefetch-fail') as HTMLElement | null;
+  const normalizeOk = root.querySelector('#fx-status-normalize-ok') as HTMLElement | null;
+  const normalizeFail = root.querySelector('#fx-status-normalize-fail') as HTMLElement | null;
 
   const cachedTimes = rates
     .map((r) => r.fetchedAt)
@@ -2050,7 +2070,7 @@ async function refreshFxIntegrationStatus(root: HTMLElement): Promise<void> {
   const lastCacheAt = cachedTimes.length > 0 ? cachedTimes[cachedTimes.length - 1] : '';
   if (statusEnabled) statusEnabled.textContent = enabled ? 'Enabled' : 'Disabled';
   if (cacheEntries) {
-    cacheEntries.textContent = `${rates.length}${lastCacheAt ? ` (last update ${formatEnglishDateTime(new Date(lastCacheAt))})` : ''}`;
+    cacheEntries.textContent = `${rates.length} entr${rates.length === 1 ? 'y' : 'ies'}${lastCacheAt ? ` (last updated ${formatEnglishDateTime(new Date(lastCacheAt))})` : ''}`;
   }
   if (lastFetch) {
     lastFetch.textContent = telemetry.lastFetchAt
@@ -2064,9 +2084,13 @@ async function refreshFxIntegrationStatus(root: HTMLElement): Promise<void> {
       : '—';
     lastError.classList.toggle('settings-item-value-error--active', hasError);
   }
-  if (counters) {
-    counters.textContent = `${telemetry.fetchCount} / ${telemetry.cacheHitCount} / ${telemetry.prefetchAttemptCount}/${telemetry.prefetchSuccessCount}/${telemetry.prefetchFailureCount}`;
-  }
+  if (monthFetches) monthFetches.textContent = String(monthly.fetchCount);
+  if (monthCacheHits) monthCacheHits.textContent = String(monthly.cacheHitCount);
+  if (monthErrors) monthErrors.textContent = String(monthly.errorCount);
+  if (prefetchOk) prefetchOk.textContent = String(telemetry.prefetchSuccessCount);
+  if (prefetchFail) prefetchFail.textContent = String(telemetry.prefetchFailureCount);
+  if (normalizeOk) normalizeOk.textContent = String(telemetry.normalizeSuccessCount);
+  if (normalizeFail) normalizeFail.textContent = String(telemetry.normalizeFailureCount);
 }
 
 async function loadFxTelemetrySafe(): Promise<FxTelemetry> {
@@ -2084,9 +2108,20 @@ async function loadFxTelemetrySafe(): Promise<FxTelemetry> {
         prefetchAttemptCount: 0,
         prefetchSuccessCount: 0,
         prefetchFailureCount: 0,
+        normalizeAttemptCount: 0,
+        normalizeSuccessCount: 0,
+        normalizeFailureCount: 0,
       };
     }
     throw err;
+  }
+}
+
+async function loadFxTelemetryMonthlySafe(month: string): Promise<FxTelemetryMonthly> {
+  try {
+    return await getFxTelemetryMonthly(month);
+  } catch {
+    return { month, fetchCount: 0, cacheHitCount: 0, errorCount: 0 };
   }
 }
 

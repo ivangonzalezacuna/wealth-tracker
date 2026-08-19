@@ -35,6 +35,7 @@ vi.mock('../db/repositories/fxTelemetry', () => ({
   recordFxError: vi.fn().mockResolvedValue(undefined),
   recordFxCacheHit: vi.fn().mockResolvedValue(undefined),
   recordFxPrefetch: vi.fn().mockResolvedValue(undefined),
+  recordFxNormalize: vi.fn().mockResolvedValue(undefined),
 }));
 
 import {

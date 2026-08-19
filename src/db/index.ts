@@ -57,11 +57,13 @@ export {
 
 export {
   getFxTelemetry,
+  getFxTelemetryMonthly,
   recordFxFetch,
   recordFxRequest,
   recordFxError,
   recordFxCacheHit,
   recordFxPrefetch,
+  recordFxNormalize,
 } from './repositories/fxTelemetry';
 
 export { getDb, persistDb, exportDb, importDb, destroyDb } from './connection';
