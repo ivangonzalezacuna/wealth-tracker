@@ -484,6 +484,16 @@ function _createHoldingDetail(e: EtfPosition): HTMLElement {
   panel.innerHTML = `
     <div><span class="hold-detail-label">Name</span><span class="hold-detail-value" style="font-size:11px">${esc(displayName)}</span></div>
     <div><span class="hold-detail-label">ISIN</span><span class="hold-detail-value hold-detail-isin">${esc(e.isin)}</span></div>
+    ${
+      e.metadata?.symbol
+        ? `<div><span class="hold-detail-label">Symbol</span><span class="hold-detail-value">${esc(e.metadata.symbol)}</span></div>`
+        : ''
+    }
+    ${
+      e.metadata?.exchange
+        ? `<div><span class="hold-detail-label">Exchange</span><span class="hold-detail-value">${esc(e.metadata.exchange)}</span></div>`
+        : ''
+    }
     <div><span class="hold-detail-label">Status</span><span class="hold-detail-value">${active}</span></div>
     <div><span class="hold-detail-label">Type</span><span class="hold-detail-value">${acc}</span></div>
     ${detailColRows}`;

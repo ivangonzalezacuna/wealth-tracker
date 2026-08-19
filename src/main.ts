@@ -57,7 +57,7 @@ import {
 } from './backup/exportImport';
 import { getSetupState } from './model/setup';
 import type { SetupStep } from './model/setup';
-import { computePD } from './portfolio';
+import { attachCachedHoldingMetadata, computePD } from './portfolio';
 import { parseWithProfile, detectProfile, previewSummary } from './import/parse';
 import { builtInProfiles } from './import/profiles/index';
 import { renderNW } from './views/networth';
@@ -853,7 +853,7 @@ async function computeAggregatesWithCache(txs: Transaction[]): Promise<Portfolio
   }
 
   // Recompute
-  const pd = computePD(txs, { method });
+  const pd = await attachCachedHoldingMetadata(computePD(txs, { method }));
 
   // Cache the result
   await Promise.all([setCachedAggregates(pd), setInputsHash(currentHash)]);
@@ -955,7 +955,9 @@ async function refreshStateFromLocalDb(opts: { clearCaches?: boolean } = {}): Pr
   state.snaps = snaps;
   state.txs = txs;
   state.importMeta = meta;
-  state.pd = txs.length ? computePD(txs, { method: getCostBasisMethod() }) : null;
+  state.pd = txs.length
+    ? await attachCachedHoldingMetadata(computePD(txs, { method: getCostBasisMethod() }))
+    : null;
   state.cacheLoaded = true;
 
   const [configCached, snapsCached, txsCached] = await Promise.all([
@@ -1120,7 +1122,7 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
     state.txs = transactions;
     state.importMeta = importMeta;
     state.pd = transactions.length
-      ? computePD(transactions, { method: getCostBasisMethod() })
+      ? await attachCachedHoldingMetadata(computePD(transactions, { method: getCostBasisMethod() }))
       : null;
 
     await Promise.all([
@@ -1525,9 +1527,9 @@ async function delSnapsBulk(dates: string[], btn?: HTMLButtonElement) {
   });
 }
 
-function computePdOrThrow(txs: Transaction[]): PortfolioData | null {
+async function computePdOrThrow(txs: Transaction[]): Promise<PortfolioData | null> {
   if (!txs.length) return null;
-  return computePD(txs, { method: getCostBasisMethod() });
+  return attachCachedHoldingMetadata(computePD(txs, { method: getCostBasisMethod() }));
 }
 
 async function persistTransactionsState(nextPd: PortfolioData | null): Promise<void> {
@@ -1558,7 +1560,7 @@ async function addManualTransaction(): Promise<void> {
     });
     if (!draft) return;
     const candidate = [...state.txs, draft].sort((a, b) => a.date.localeCompare(b.date));
-    const nextPd = computePdOrThrow(candidate);
+    const nextPd = await computePdOrThrow(candidate);
     await performWriteAction({
       msgId: 'tx-msg',
       access: 'signed-in-or-granted',
@@ -1593,7 +1595,7 @@ async function editManualTransaction(rowId: bigint): Promise<void> {
     });
     if (!draft) return;
     const candidate = state.txs.map((t) => (t.rowId === rowId ? { ...draft, rowId } : t));
-    const nextPd = computePdOrThrow(candidate);
+    const nextPd = await computePdOrThrow(candidate);
     await performWriteAction({
       msgId: 'tx-msg',
       access: 'signed-in-or-granted',
@@ -1627,7 +1629,7 @@ async function delManualTransaction(rowId: bigint, btn?: HTMLButtonElement): Pro
   });
   if (!ok) return;
   const candidate = state.txs.filter((t) => t.rowId !== rowId);
-  const nextPd = computePdOrThrow(candidate);
+  const nextPd = await computePdOrThrow(candidate);
   await performWriteAction({
     msgId: 'tx-msg',
     access: 'signed-in-or-granted',
@@ -1662,7 +1664,7 @@ async function delTransactionsBulk(rowIds: bigint[], btn?: HTMLButtonElement): P
     summaryItems + (selectedTxs.length > 3 ? ` and ${selectedTxs.length - 3} more` : '');
   const deleteKeys = new Set(uniqueIds.map((id) => id.toString()));
   const candidate = state.txs.filter((tx) => !tx.rowId || !deleteKeys.has(tx.rowId.toString()));
-  const nextPd = computePdOrThrow(candidate);
+  const nextPd = await computePdOrThrow(candidate);
   const ok = await confirmDialog({
     title: `Delete ${uniqueIds.length} transactions?`,
     body: `This cannot be undone. Selected transactions: ${summary}.`,
@@ -1837,7 +1839,9 @@ function showImportPreview(csvText: string, profile: ImportProfile) {
       await saveImportMeta(today);
       state.txs = merged;
       state.importMeta = { last_import: today };
-      state.pd = computePD(merged, { method: getCostBasisMethod() });
+      state.pd = await attachCachedHoldingMetadata(
+        computePD(merged, { method: getCostBasisMethod() }),
+      );
 
       // Update cache
       const [txCached] = await Promise.all([

@@ -26,6 +26,7 @@ import {
   getFxTelemetryMonthly,
   loadAllFxRates,
   restoreAllFxRates,
+  getAllHoldingMetadata,
 } from '../db';
 import type { ConfigHistoryEntry } from '../db';
 import {
@@ -2323,8 +2324,20 @@ function attachReportListeners(root: HTMLElement): void {
 
       const accounts = getAccounts();
       const holdings = getHoldings();
+      const holdingMetadata = await getAllHoldingMetadata().catch(() => []);
+      const holdingMetadataByIsin = Object.fromEntries(
+        holdingMetadata.map((record) => [record.isin, record]),
+      );
       const method = getCostBasisMethod();
-      const report = buildAnnualReport(year, txs, snaps, holdings, accounts, method);
+      const report = buildAnnualReport(
+        year,
+        txs,
+        snaps,
+        holdings,
+        accounts,
+        method,
+        holdingMetadataByIsin,
+      );
       const html = renderAnnualReportHtml(report, 'EUR');
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
       const url = URL.createObjectURL(blob);

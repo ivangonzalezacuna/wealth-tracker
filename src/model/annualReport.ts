@@ -5,7 +5,7 @@
  * All functions are side-effect free and depend only on their parameters.
  */
 import { TxType } from '../types';
-import type { Transaction, Snapshot, Holding, Account } from '../types';
+import type { Transaction, Snapshot, Holding, Account, HoldingMetadata } from '../types';
 import { computeCostBasis } from './costbasis';
 import { toBase } from '../fx';
 
@@ -21,6 +21,8 @@ export interface AnnualReportAccount {
 export interface AnnualReportHolding {
   isin: string;
   name: string;
+  symbol?: string;
+  exchange?: string;
   shares: number;
   costBasis: number;
   yearRealisedGain: number;
@@ -87,6 +89,7 @@ export function buildAnnualReport(
   holdings: Holding[],
   accounts: Account[],
   method: 'avgco' | 'fifo' | 'lifo' | 'hifo' = 'avgco',
+  holdingMetadataByIsin: Record<string, Pick<HoldingMetadata, 'symbol' | 'exchange'>> = {},
 ): AnnualReport {
   const yearStr = String(year);
   const prevYearEnd = `${year - 1}-12-31`;
@@ -134,6 +137,8 @@ export function buildAnnualReport(
     .map(([isin, cb]) => ({
       isin,
       name: holdingMap[isin]?.name || isin,
+      symbol: holdingMetadataByIsin[isin]?.symbol,
+      exchange: holdingMetadataByIsin[isin]?.exchange,
       shares: cb.shares,
       costBasis: cb.costBasis,
       yearRealisedGain: cb.realizedPnL - (prevBasis[isin]?.realizedPnL ?? 0),
@@ -302,6 +307,7 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
   });
   const reportScopeLabel = report.isPartialYearReport ? 'Partial report' : 'Full-year report';
   const reportTitle = `Annual Portfolio Report ${year}${report.isPartialYearReport ? ' (Partial)' : ''}`;
+  const hasHoldingMetadata = report.holdings.some((h) => h.symbol || h.exchange);
 
   // ── Accounts table ──
   const accountsRows = report.accounts
@@ -319,6 +325,7 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
       _tableRow([
         _esc(h.isin),
         _esc(h.name),
+        ...(hasHoldingMetadata ? [_esc(h.symbol || '—'), _esc(h.exchange || '—')] : []),
         h.shares.toLocaleString('de-DE', { minimumFractionDigits: 4, maximumFractionDigits: 8 }),
         _fmt(h.costBasis, currency),
         _fmt(h.yearRealisedGain, currency),
@@ -394,15 +401,32 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
   // ── Realised gains table ──
   const gainsRows = report.holdings
     .filter((h) => h.yearRealisedGain !== 0)
-    .map((h) => _tableRow([_esc(h.isin), _esc(h.name), _fmt(h.yearRealisedGain, currency)]))
+    .map((h) =>
+      _tableRow([
+        _esc(h.isin),
+        _esc(h.name),
+        ...(hasHoldingMetadata ? [_esc(h.symbol || '—'), _esc(h.exchange || '—')] : []),
+        _fmt(h.yearRealisedGain, currency),
+      ]),
+    )
     .join('');
 
   const gainsSection = gainsRows
     ? _tableSection(
         'Realised Gains &amp; Losses',
-        ['ISIN', 'Name', `Gain / Loss (${currency})`],
+        [
+          'ISIN',
+          'Name',
+          ...(hasHoldingMetadata ? ['Symbol', 'Exchange'] : []),
+          `Gain / Loss (${currency})`,
+        ],
         gainsRows,
-        ['', 'Total', _fmt(report.totalYearRealisedGains, currency)],
+        [
+          '',
+          'Total',
+          ...(hasHoldingMetadata ? ['', ''] : []),
+          _fmt(report.totalYearRealisedGains, currency),
+        ],
       )
     : '';
 
@@ -661,9 +685,16 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
   <h2>${report.isPartialYearReport ? `Holdings at Report End (${report.reportEndDate})` : 'Holdings at Year-End'}</h2>
   <table>
     <colgroup>
-      <col class="col-isin"><col><col class="col-shares"><col class="col-num"><col class="col-num">
+      <col class="col-isin"><col>${hasHoldingMetadata ? '<col><col>' : ''}<col class="col-shares"><col class="col-num"><col class="col-num">
     </colgroup>
-    <thead>${_th(['ISIN', 'Name', 'Shares held', `Cost basis (${currency})`, `Realised gain/loss ${year} (${currency})`])}</thead>
+    <thead>${_th([
+      'ISIN',
+      'Name',
+      ...(hasHoldingMetadata ? ['Symbol', 'Exchange'] : []),
+      'Shares held',
+      `Cost basis (${currency})`,
+      `Realised gain/loss ${year} (${currency})`,
+    ])}</thead>
     <tbody>${holdingsRows}</tbody>
   </table>
 </section>`

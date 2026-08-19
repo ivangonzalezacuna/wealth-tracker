@@ -1,4 +1,5 @@
 import { getISIN, getMETAMap } from './constants';
+import { getHoldingMetadata } from './db';
 import { getHoldings } from './store/config';
 import { TxType } from './types';
 import { computeCostBasis } from './model/costbasis';
@@ -212,4 +213,12 @@ export function computePD(rows: Transaction[], opts: ComputeOptions = {}): Portf
     interestBySource,
     taxBySource,
   };
+}
+
+export async function attachCachedHoldingMetadata(pd: PortfolioData): Promise<PortfolioData> {
+  for (const isin of Object.keys(pd.etfs)) {
+    const metadata = await getHoldingMetadata(isin).catch(() => null);
+    if (metadata) pd.etfs[isin].metadata = metadata;
+  }
+  return pd;
 }

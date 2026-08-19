@@ -308,6 +308,7 @@ export interface EtfPosition {
   exited: boolean;
   marketValue?: number | null;
   unrealizedPnL?: number | null;
+  metadata?: HoldingMetadata;
 }
 
 // ─── Dividend history entry ──────────────────────────────────────
