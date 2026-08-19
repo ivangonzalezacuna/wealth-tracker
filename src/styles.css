@@ -2591,52 +2591,10 @@ input[type='color'] {
   color: var(--warn-fg);
   font-weight: 500;
 }
-.fx-stat-group {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 2px;
-  flex-wrap: wrap;
+.fx-stat-inline {
   font-variant-numeric: tabular-nums;
-}
-.fx-stat-sep {
-  color: var(--ink-4);
-  font-size: 10px;
-  padding: 0 1px;
-}
-.fx-stat-sublabels {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0;
-  padding-bottom: 3px;
-}
-.fx-stat-sublabels > span {
-  font-size: 9px;
-  color: var(--ink-4);
-  text-align: right;
-  min-width: 48px;
-  padding: 0 2px;
-}
-.fx-stat-sublabels > span:first-child {
-  flex: 1 1 auto;
-  text-align: right;
-}
-@media (max-width: 360px) {
-  .fx-stat-group {
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 1px;
-  }
-  .fx-stat-sep {
-    display: none;
-  }
-  .fx-stat-sublabels {
-    flex-direction: column;
-    align-items: flex-end;
-  }
-  .fx-stat-sublabels > span {
-    min-width: unset;
-  }
+  white-space: normal;
+  word-break: break-word;
 }
 .item-chevron {
   width: 14px;
