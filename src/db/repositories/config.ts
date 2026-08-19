@@ -70,7 +70,7 @@ export async function saveAccounts(accounts: Account[]): Promise<void> {
 export async function loadHoldings(): Promise<Holding[]> {
   const db = await getDb();
   const result = db.exec(
-    'SELECT isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter, notes FROM holdings ORDER BY "order" ASC',
+    'SELECT isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter, notes, ticker FROM holdings ORDER BY "order" ASC',
   );
   if (result.length === 0) return [];
   return result[0].values.map(rowToHolding);
@@ -80,7 +80,7 @@ export async function loadHoldings(): Promise<Holding[]> {
 export async function saveHoldings(holdings: Holding[]): Promise<void> {
   const db = await getDb();
   const stmt = db.prepare(
-    'INSERT INTO holdings (isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO holdings (isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter, notes, ticker) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   try {
     db.run('BEGIN');
@@ -100,6 +100,7 @@ export async function saveHoldings(holdings: Holding[]): Promise<void> {
         h.order ?? 0,
         h.ter ?? 0,
         h.notes || '',
+        h.ticker || '',
       ]);
     }
     db.run('COMMIT');
@@ -186,7 +187,7 @@ export async function restoreAllData(data: {
     'INSERT INTO accounts (id, money_type, institution, country, "group", label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   const holdingStmt = db.prepare(
-    'INSERT INTO holdings (isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO holdings (isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter, notes, ticker) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   const settingsStmt = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
   const snapshotStmt = db.prepare(
@@ -237,6 +238,7 @@ export async function restoreAllData(data: {
         h.order ?? 0,
         h.ter ?? 0,
         h.notes || '',
+        h.ticker || '',
       ]);
     }
 
@@ -354,6 +356,7 @@ function rowToAccount(row: unknown[]): Account {
 function rowToHolding(row: unknown[]): Holding {
   const targetPct = Number(row[6]) || 0;
   const notes = String(row[12] ?? '');
+  const ticker = String(row[13] ?? '');
   return {
     isin: String(row[0] ?? ''),
     name: String(row[1] ?? ''),
@@ -368,5 +371,6 @@ function rowToHolding(row: unknown[]): Holding {
     order: Number(row[10]) || 0,
     ter: Number(row[11]) || 0,
     ...(notes ? { notes } : {}),
+    ...(ticker ? { ticker } : {}),
   };
 }

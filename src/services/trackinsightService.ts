@@ -1,10 +1,10 @@
 /**
- * ETF metadata service — cache-first enrichment backed by Alpha Vantage.
+ * ETF metadata service — cache-first enrichment backed by Yahoo Finance.
  * Single entry-point for all ETF metadata resolution. Never throws to callers.
  *
  * The service is gated by:
  * - ti_integration_enabled
- * - ti_api_key presence
+ * No API key is required; Yahoo Finance is accessed without credentials.
  */
 
 import type { HoldingMetadata } from '../types';
@@ -28,15 +28,13 @@ import {
 const TI_REFRESH_COOLDOWN_MS = 60 * 60 * 1000;
 
 let _enabled = false;
-let _apiKey = '';
 
 export function configureTiService(opts: { enabled: boolean; apiKey?: string }): void {
   _enabled = opts.enabled;
-  _apiKey = (opts.apiKey ?? '').trim();
 }
 
 function isReady(): boolean {
-  return _enabled && !!_apiKey;
+  return _enabled;
 }
 
 function sanitizeTickerSymbol(raw?: string): string {
@@ -53,8 +51,8 @@ async function fetchAndPersist(isin: string, symbol?: string): Promise<HoldingMe
   if (!isReady()) return null;
 
   try {
-    const url = buildFundUrl(ticker, _apiKey);
-    const rawInfo = await fetchEtfInfo(ticker, _apiKey);
+    const url = buildFundUrl(ticker);
+    const rawInfo = await fetchEtfInfo(ticker);
     const now = new Date().toISOString();
     recordTiFetch(now, url).catch(() => {});
     recordTiRequest(now, url, serializeDebugPayload(rawInfo)).catch(() => {});
@@ -73,15 +71,15 @@ async function fetchAndPersist(isin: string, symbol?: string): Promise<HoldingMe
       topHoldings: info.topHoldings,
       fetchedAt: now,
       lastRefreshedAt: now,
-      provider: 'alphavantage',
+      provider: 'yahoofinance',
     };
     await upsertHoldingMetadata(record).catch(() => {});
     return record;
   } catch (err) {
     const now = new Date().toISOString();
     const message =
-      err instanceof Error ? err.message : 'Unexpected Alpha Vantage metadata enrichment failure';
-    const url = buildFundUrl(ticker, _apiKey);
+      err instanceof Error ? err.message : 'Unexpected Yahoo Finance metadata enrichment failure';
+    const url = buildFundUrl(ticker);
     recordTiRequest(now, url, `ERROR: ${message}`).catch(() => {});
     if (
       err instanceof TiError ||
@@ -153,7 +151,6 @@ export async function bulkEnrichHoldings(
   onProgress?: (done: number, total: number) => void,
 ): Promise<{ enriched: number; failed: number; skipped: number }> {
   if (!_enabled) return { enriched: 0, failed: 0, skipped: holdings.length };
-  if (!_apiKey) return { enriched: 0, failed: 0, skipped: holdings.length };
 
   let enriched = 0;
   let failed = 0;

@@ -298,7 +298,8 @@ function isValidHolding(value: unknown): value is Holding {
     typeof value.foldInto === 'string' &&
     isFiniteNumber(value.order) &&
     isOptionalFiniteNumber(value.ter) &&
-    isOptionalString(value.notes)
+    isOptionalString(value.notes) &&
+    isOptionalString(value.ticker)
   );
 }
 

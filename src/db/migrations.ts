@@ -238,4 +238,6 @@ export const MIGRATIONS: string[][] = [
     )`,
     `INSERT OR IGNORE INTO ti_telemetry (id) VALUES (1)`,
   ],
+  // [19] version 18 → 19: add ticker column to holdings for dedicated exchange ticker symbol.
+  [`ALTER TABLE holdings ADD COLUMN ticker TEXT NOT NULL DEFAULT ''`],
 ];

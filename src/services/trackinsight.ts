@@ -1,11 +1,11 @@
 /**
- * Alpha Vantage provider — pure HTTP fetcher for ETF metadata lookup.
+ * Yahoo Finance provider — pure HTTP fetcher for ETF/stock metadata lookup.
  *
- * This module calls the ETF_PROFILE endpoint using a ticker symbol and API key.
- * Caching and persistence are handled by trackinsightService.ts.
+ * This module calls the Yahoo Finance quoteSummary endpoint using a ticker symbol.
+ * No API key is required. Caching and persistence are handled by trackinsightService.ts.
  */
 
-export const TI_BASE_URL = 'https://www.alphavantage.co/query';
+export const TI_BASE_URL = 'https://query1.finance.yahoo.com/v10/finance/quoteSummary';
 
 export interface TiEtfInfo {
   symbol?: string;
@@ -38,32 +38,23 @@ export class TiOfflineError extends TiError {
 
 export class TiNotFoundError extends TiError {
   constructor(symbol: string) {
-    super(`Alpha Vantage returned no data for symbol "${symbol}"`, 404);
+    super(`Yahoo Finance returned no data for symbol "${symbol}"`, 404);
     this.name = 'TiNotFoundError';
   }
 }
 
-export function buildFundUrl(
-  symbol: string,
-  apiKey: string,
-  baseUrl: string = TI_BASE_URL,
-): string {
-  const url = new URL(baseUrl);
-  url.searchParams.set('function', 'ETF_PROFILE');
-  url.searchParams.set('symbol', symbol.trim().toUpperCase());
-  url.searchParams.set('apikey', apiKey.trim());
-  return url.toString();
+export function buildFundUrl(symbol: string, baseUrl: string = TI_BASE_URL): string {
+  const encoded = encodeURIComponent(symbol.trim().toUpperCase());
+  return `${baseUrl}/${encoded}?modules=summaryDetail%2CfundProfile%2CtopHoldings`;
 }
 
 export async function fetchEtfInfo(
   symbol: string,
-  apiKey: string,
   baseUrl: string = TI_BASE_URL,
 ): Promise<TiEtfInfo> {
   if (!symbol.trim()) throw new TiError('Ticker symbol is required');
-  if (!apiKey.trim()) throw new TiError('Alpha Vantage API key is required');
 
-  const url = buildFundUrl(symbol, apiKey, baseUrl);
+  const url = buildFundUrl(symbol, baseUrl);
   let response: Response;
   try {
     response = await fetch(url);
@@ -73,8 +64,9 @@ export async function fetchEtfInfo(
 
   if (!response.ok) {
     if (response.status === 404) throw new TiNotFoundError(symbol);
+    if (response.status === 429) throw new TiError('Yahoo Finance rate limit reached', 429);
     throw new TiError(
-      `Alpha Vantage request failed with HTTP ${response.status} for symbol "${symbol}"`,
+      `Yahoo Finance request failed with HTTP ${response.status} for symbol "${symbol}"`,
       response.status,
     );
   }
@@ -83,62 +75,61 @@ export async function fetchEtfInfo(
   try {
     body = await response.json();
   } catch {
-    throw new TiError('Alpha Vantage response was not valid JSON');
+    throw new TiError('Yahoo Finance response was not valid JSON');
   }
 
   if (!body || typeof body !== 'object') throw new TiNotFoundError(symbol);
   const record = body as Record<string, unknown>;
-  if (typeof record['Error Message'] === 'string' && record['Error Message']) {
-    throw new TiNotFoundError(symbol);
+  if (
+    record.quoteSummary &&
+    typeof record.quoteSummary === 'object' &&
+    (record.quoteSummary as Record<string, unknown>).error
+  ) {
+    const err = (record.quoteSummary as Record<string, unknown>).error as Record<string, unknown>;
+    if (typeof err.description === 'string' && err.description) throw new TiNotFoundError(symbol);
   }
-  if (typeof record.Information === 'string' && record.Information) {
-    throw new TiError(record.Information, 429);
-  }
-  if (Object.keys(record).length === 0) throw new TiNotFoundError(symbol);
 
   return validateTiEtfInfo(body, symbol);
 }
 
 export function validateTiEtfInfo(raw: unknown, symbolHint?: string): TiEtfInfo {
   if (!raw || typeof raw !== 'object') return {};
-  const v = raw as Record<string, unknown>;
-  const fund: Record<string, unknown> =
-    v.data && typeof v.data === 'object'
-      ? (v.data as Record<string, unknown>)
-      : v.fund && typeof v.fund === 'object'
-        ? (v.fund as Record<string, unknown>)
-        : (v as Record<string, unknown>);
+  const root = raw as Record<string, unknown>;
 
-  const aum = parseNumericValue(fund.aum ?? fund.net_assets ?? fund.total_assets);
+  // Yahoo Finance wraps data in quoteSummary.result[0]
+  let result: Record<string, unknown> = {};
+  if (root.quoteSummary && typeof root.quoteSummary === 'object') {
+    const qs = root.quoteSummary as Record<string, unknown>;
+    if (Array.isArray(qs.result) && qs.result.length > 0) {
+      result = qs.result[0] as Record<string, unknown>;
+    }
+  }
 
-  const rawHoldings = firstArray(fund.holdings, fund.top_holdings, fund.top10_holdings);
-  const holdingsCount =
-    parseCountValue(fund.total_holdings ?? fund.holdings_count ?? fund.nb_holdings) ??
-    (rawHoldings ? rawHoldings.length : null);
+  const summaryDetail = (result.summaryDetail as Record<string, unknown>) ?? {};
+  const fundProfile = (result.fundProfile as Record<string, unknown>) ?? {};
+  const topHoldingsData = (result.topHoldings as Record<string, unknown>) ?? {};
 
-  const exchange = firstString(fund.exchange, fund.main_exchange, fund.primary_exchange);
+  const symbol = symbolHint?.trim().toUpperCase() ?? undefined;
 
-  const domicileCountry = firstString(fund.domicile, fund.domicile_country, fund.country);
-
-  const fundCurrency = firstString(fund.currency, fund.fund_currency, fund.base_currency);
-
-  const inceptionDate =
-    typeof fund.inception_date === 'string' && fund.inception_date
-      ? fund.inception_date
-      : typeof fund.inceptionDate === 'string' && fund.inceptionDate
-        ? fund.inceptionDate
-        : fund.inception_date == null
-          ? null
-          : undefined;
-
-  const symbol =
-    firstString(fund.symbol, fund.ticker, fund.Symbol, symbolHint)?.toUpperCase() ?? undefined;
-
-  const sectors = parseSectors(
-    firstArray(fund.sectors, fund.weight_distribution, fund.sector_breakdown),
+  const fundCurrency = firstString(
+    rawValue(summaryDetail.currency),
+    rawValue(summaryDetail.financialCurrency),
   );
 
-  const topHoldings = parseTopHoldings(rawHoldings);
+  const domicileCountry = firstString(rawValue(fundProfile.domicile));
+
+  const exchange = firstString(rawValue(summaryDetail.exchange));
+
+  const aum = parseNumericValue(rawValue(summaryDetail.totalAssets) ?? rawValue(summaryDetail.nav));
+
+  const holdings = Array.isArray(topHoldingsData.holdings) ? topHoldingsData.holdings : null;
+  const holdingsCount = holdings ? holdings.length : null;
+
+  const topHoldings = parseTopHoldings(holdings);
+
+  const sectors = parseSectors(
+    Array.isArray(topHoldingsData.sectorWeightings) ? topHoldingsData.sectorWeightings : null,
+  );
 
   return {
     symbol,
@@ -146,44 +137,33 @@ export function validateTiEtfInfo(raw: unknown, symbolHint?: string): TiEtfInfo 
     domicileCountry,
     fundCurrency,
     aum,
-    inceptionDate,
+    inceptionDate: null,
     holdingsCount,
     sectors,
     topHoldings,
   };
 }
 
+function rawValue(v: unknown): unknown {
+  if (v && typeof v === 'object' && 'raw' in (v as Record<string, unknown>)) {
+    return (v as Record<string, unknown>).raw;
+  }
+  return v;
+}
+
 function parseSectors(raw: unknown): Array<{ industry: string; exposure: string }> | null {
   if (!Array.isArray(raw)) return null;
-  const result = raw
-    .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object')
-    .map((entry) => ({
-      industry:
-        typeof entry.name === 'string'
-          ? entry.name
-          : typeof entry.industry === 'string'
-            ? entry.industry
-            : typeof entry.sector === 'string'
-              ? entry.sector
-              : typeof entry.label === 'string'
-                ? entry.label
-                : typeof entry.category === 'string'
-                  ? entry.category
-                  : objectSingleKey(entry)
-                    ? objectSingleKey(entry)!
-                    : '',
-      exposure:
-        typeof entry.weight === 'number'
-          ? String(entry.weight)
-          : typeof entry.exposure === 'string'
-            ? entry.exposure
-            : typeof entry.weight === 'string'
-              ? entry.weight
-              : objectSingleKey(entry)
-                ? String(entry[objectSingleKey(entry)!] ?? '')
-                : '',
-    }))
-    .filter((entry) => !!entry.industry);
+  const result: Array<{ industry: string; exposure: string }> = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    for (const [key, val] of Object.entries(entry as Record<string, unknown>)) {
+      if (!key) continue;
+      const weight = rawValue(val);
+      const pct =
+        typeof weight === 'number' ? `${(weight * 100).toFixed(1)}%` : String(weight ?? '');
+      result.push({ industry: key, exposure: pct });
+    }
+  }
   return result.length > 0 ? result : null;
 }
 
@@ -191,28 +171,25 @@ function parseTopHoldings(raw: unknown): Array<{ asset: string; weightPercentage
   if (!Array.isArray(raw)) return null;
   const result = raw
     .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object')
-    .map((entry) => ({
-      asset:
-        typeof entry.name === 'string'
-          ? entry.name
-          : typeof entry.description === 'string'
-            ? entry.description
-            : typeof entry.asset === 'string'
-              ? entry.asset
+    .map((entry) => {
+      const weight = rawValue(entry.holdingPercent ?? entry.weight);
+      return {
+        asset:
+          typeof entry.holdingName === 'string'
+            ? entry.holdingName
+            : typeof entry.name === 'string'
+              ? entry.name
               : typeof entry.symbol === 'string'
                 ? entry.symbol
                 : '',
-      weightPercentage:
-        typeof entry.weight === 'number'
-          ? String(entry.weight)
-          : typeof entry.weightPercentage === 'string'
-            ? entry.weightPercentage
-            : typeof entry.percent === 'string'
-              ? entry.percent
-              : typeof entry.weight === 'string'
-                ? entry.weight
-                : '',
-    }))
+        weightPercentage:
+          typeof weight === 'number'
+            ? `${(weight * 100).toFixed(2)}%`
+            : typeof weight === 'string'
+              ? weight
+              : '',
+      };
+    })
     .filter((entry) => !!entry.asset);
   return result.length > 0 ? result : null;
 }
@@ -225,13 +202,6 @@ function firstString(...values: unknown[]): string | undefined {
     }
   }
   return undefined;
-}
-
-function firstArray(...values: unknown[]): unknown[] | null {
-  for (const value of values) {
-    if (Array.isArray(value)) return value;
-  }
-  return null;
 }
 
 function parseNumericValue(value: unknown): number | null {
@@ -251,16 +221,4 @@ function parseNumericValue(value: unknown): number | null {
   const parsed = Number(base);
   if (!Number.isFinite(parsed)) return null;
   return suffix in multipliers ? parsed * multipliers[suffix] : parsed;
-}
-
-function parseCountValue(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) return Math.round(value);
-  if (typeof value !== 'string') return null;
-  const parsed = Number(value.replace(/[^\d.-]/g, ''));
-  return Number.isFinite(parsed) ? Math.round(parsed) : null;
-}
-
-function objectSingleKey(record: Record<string, unknown>): string | null {
-  const keys = Object.keys(record).filter((k) => !!k && !k.startsWith('_'));
-  return keys.length === 1 ? keys[0] : null;
 }

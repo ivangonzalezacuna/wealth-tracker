@@ -78,6 +78,7 @@ export interface Holding {
   order: number;
   ter?: number; // total expense ratio in %, e.g. 0.2 for 0.20%
   notes?: string; // optional free-text notes about this holding
+  ticker?: string; // optional exchange ticker symbol (e.g. IWDA, VWCE) used for metadata lookup
 }
 
 // ─── Snapshot ────────────────────────────────────────────────────
@@ -115,7 +116,7 @@ export interface Settings {
   fx_integration_enabled?: string;
   /** When '1', the ETF metadata integration is enabled. Default off when absent. */
   ti_integration_enabled?: string;
-  /** Alpha Vantage API key used for ETF metadata enrichment. */
+  /** @deprecated Alpha Vantage API key — no longer used. Retained for backward-compatible settings reads. */
   ti_api_key?: string;
   /** Forward-compatible escape hatch for unknown / future keys. */
   [key: string]: string | null | undefined;

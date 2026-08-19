@@ -177,6 +177,15 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
             </div>
           </div>
           <div class="dialog-row">
+            <div class="dialog-field dialog-field-wide">
+              <label class="dialog-label" for="holdd-ticker">
+                Ticker${infoTip('Exchange ticker symbol used for ETF metadata lookup (e.g. IWDA, VWCE, SPY). Leave blank if not applicable.')}
+              </label>
+              <input type="text" id="holdd-ticker" class="form-input dialog-input dialog-input-uppercase"
+                value="${esc(existing?.ticker || '')}" placeholder="e.g. IWDA">
+            </div>
+          </div>
+          <div class="dialog-row">
             <div class="dialog-field">
               <label class="dialog-label" style="cursor:pointer">
                 <input type="checkbox" id="holdd-acc" ${existing?.acc !== false ? 'checked' : ''}>
@@ -273,9 +282,9 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
         btn.textContent = 'Refreshing...';
       }
       if (msg) msg.textContent = '';
-      const symbol = (overlay.querySelector('#holdd-short-name') as HTMLInputElement | null)?.value;
+      const symbol = (overlay.querySelector('#holdd-ticker') as HTMLInputElement | null)?.value;
       if (!symbol?.trim()) {
-        if (msg) msg.textContent = 'Enter a ticker in Short name first.';
+        if (msg) msg.textContent = 'Enter a ticker first.';
         if (btn) {
           btn.disabled = false;
           btn.textContent = 'Refresh';
@@ -316,6 +325,7 @@ function _submit(): void {
   const isAcc = getChecked('holdd-acc');
   const isActive = getChecked('holdd-active');
   const notesVal = get('holdd-notes');
+  const tickerVal = get('holdd-ticker');
 
   let valid = true;
 
@@ -354,6 +364,7 @@ function _submit(): void {
     order: existing?.order ?? _activeOrder,
     ter: terRaw !== '' ? parseFloat(terRaw) || 0 : undefined,
     ...(notesVal.trim() ? { notes: notesVal.trim() } : {}),
+    ...(tickerVal.trim() ? { ticker: tickerVal.trim().toUpperCase() } : {}),
   };
 
   _dismiss(draft);

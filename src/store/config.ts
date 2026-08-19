@@ -74,7 +74,6 @@ function applyFxServiceConfig(): void {
 function applyTiServiceConfig(): void {
   configureTiService({
     enabled: _settings.ti_integration_enabled === '1',
-    apiKey: _settings.ti_api_key ?? '',
   });
 }
 

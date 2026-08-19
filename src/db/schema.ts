@@ -68,7 +68,8 @@ export const SCHEMA_DDL: string[] = [
     fold_into TEXT NOT NULL DEFAULT '',
     "order" INTEGER NOT NULL DEFAULT 0,
     ter REAL NOT NULL DEFAULT 0,
-    notes TEXT NOT NULL DEFAULT ''
+    notes TEXT NOT NULL DEFAULT '',
+    ticker TEXT NOT NULL DEFAULT ''
   )`,
 
   // ── Snapshots ─────────────────────────────────────────────────
