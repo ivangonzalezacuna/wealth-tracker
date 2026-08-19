@@ -7,7 +7,7 @@ import { esc } from '../utils';
 import type { SecuritySuggestionPair, SecuritySuggestions } from '../model/securitySuggestions';
 import { ISIN_HINT, isValidISIN, normalizeISIN } from '../model/isin';
 import { TxType } from '../types';
-import type { Transaction } from '../types';
+import type { Transaction, FxRateRecord } from '../types';
 import {
   createDialogController,
   DIALOG_FOCUSABLES,
@@ -16,6 +16,7 @@ import {
   openDialogShell,
 } from './modalShell';
 import { attachSecurityAutocomplete } from './securityAutocomplete';
+import { resolveRate } from '../fx';
 
 let _activeExisting: Transaction | undefined = undefined;
 let _activeSuggestionPairs: SecuritySuggestionPair[] = [];
@@ -164,6 +165,7 @@ export function transactionDialog(
               <input type="text" inputmode="decimal" id="txd-fxrate" class="form-input dialog-input"
                 value="${esc(existing != null ? String(existing.fxRate) : '')}"
                 placeholder="1">
+              <span id="txd-fxrate-hint" class="note" style="display:none" aria-live="polite"></span>
               <span class="dialog-error dialog-error-compact" id="txd-fxrate-err"></span>
             </div>
           </div>
@@ -201,6 +203,7 @@ export function transactionDialog(
     });
     _applyTypeVisibility(existing?.type || TxType.BUY);
     _bindRealtimeIsinValidation(overlay);
+    _bindFxHintLookup(overlay);
 
     const typeEl = overlay.querySelector('#txd-type') as HTMLSelectElement | null;
     typeEl?.addEventListener('change', () => {
@@ -387,4 +390,64 @@ function _validateTransactionIsin(overlay: HTMLElement, mode: 'input' | 'blur'):
     return;
   }
   setErr('txd-isin', '');
+}
+
+function _bindFxHintLookup(overlay: HTMLElement): void {
+  const currencyInput = overlay.querySelector('#txd-currency') as HTMLInputElement | null;
+  const dateInput = overlay.querySelector('#txd-date') as HTMLInputElement | null;
+  if (!currencyInput || !dateInput) return;
+
+  const trigger = (): void => {
+    if (!_isVisible('txd-row-fx')) return;
+    const currency = currencyInput.value.toUpperCase().trim();
+    const date = dateInput.value.trim();
+    if (!/^[A-Z]{3}$/.test(currency) || currency === 'EUR') {
+      _hideFxHint(overlay);
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      _hideFxHint(overlay);
+      return;
+    }
+    void resolveRate(currency, date).then((record) => {
+      // Guard: ensure dialog is still open and inputs haven't changed
+      if (!_dialog.overlay()) return;
+      if (
+        currencyInput.value.toUpperCase().trim() !== currency ||
+        dateInput.value.trim() !== date
+      )
+        return;
+      _updateFxHint(overlay, record);
+    });
+  };
+
+  currencyInput.addEventListener('input', trigger);
+  dateInput.addEventListener('input', trigger);
+  dateInput.addEventListener('change', trigger);
+  // Trigger on open so editing an existing tx with non-EUR currency shows a hint immediately
+  trigger();
+}
+
+function _hideFxHint(overlay: HTMLElement): void {
+  const hintEl = overlay.querySelector('#txd-fxrate-hint') as HTMLElement | null;
+  if (hintEl) hintEl.style.display = 'none';
+}
+
+function _updateFxHint(
+  overlay: HTMLElement,
+  record: FxRateRecord | null,
+): void {
+  const hintEl = overlay.querySelector('#txd-fxrate-hint') as HTMLElement | null;
+  if (!hintEl) return;
+  if (!record) {
+    hintEl.style.display = 'none';
+    return;
+  }
+  const rateInput = overlay.querySelector('#txd-fxrate') as HTMLInputElement | null;
+  // Auto-populate only when the field is empty
+  if (rateInput && !rateInput.value.trim()) {
+    rateInput.value = String(record.rate);
+  }
+  hintEl.textContent = `ECB rate for ${record.effectiveDate}: ${record.rate.toFixed(4)}`;
+  hintEl.style.display = '';
 }

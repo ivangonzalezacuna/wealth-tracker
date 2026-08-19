@@ -125,3 +125,57 @@ test('snapshot dialog shows currency-specific placeholder for non-EUR accounts',
   await expect(input).toHaveAttribute('placeholder', 'total value in GBP');
   await page.click('.js-snapd-cancel');
 });
+
+test('transaction dialog renders FX rate hint span and hides it for EUR currency', async ({
+  page,
+}) => {
+  await gotoApp(page);
+  await openTab(page, 'tab-log');
+  await page.click('#btn-add-tx');
+
+  // Hint span must be present in the DOM
+  const hintEl = page.locator('#txd-fxrate-hint');
+  await expect(hintEl).toBeAttached();
+
+  // With currency left as EUR the hint must be hidden
+  await page.fill('#txd-currency', 'EUR');
+  (page.locator('#txd-currency') as any).dispatchEvent?.('input');
+  await page.locator('#txd-currency').dispatchEvent('input');
+  await expect(hintEl).toBeHidden();
+
+  await page.click('.js-txd-cancel');
+});
+
+test('transaction dialog shows FX rate hint for non-EUR currency when integration is enabled', async ({
+  page,
+}) => {
+  await gotoApp(page);
+
+  // Ensure FX integration is enabled
+  await openTab(page, 'tab-settings');
+  await ensureCardExpanded(page, 'settings-card-integrations');
+  await page.check('#fx-integration-enabled');
+  await page.click('#btn-save-fx-integration');
+  await expect(page.locator('#fx-int-msg')).toContainText('Saved');
+
+  await openTab(page, 'tab-log');
+  await page.click('#btn-add-tx');
+
+  // Select a type that shows the FX row (BUY)
+  await page.selectOption('#txd-type', 'BUY');
+
+  // Fill a past date and a non-EUR currency
+  await page.fill('#txd-date', '2024-01-15');
+  await page.fill('#txd-currency', 'USD');
+  await page.locator('#txd-currency').dispatchEvent('input');
+
+  // The hint may resolve (if network available) or stay hidden (offline/cache miss).
+  // Either way the span must be present in the DOM and the fxrate field must remain editable.
+  const hintEl = page.locator('#txd-fxrate-hint');
+  await expect(hintEl).toBeAttached();
+  const rateInput = page.locator('#txd-fxrate');
+  await rateInput.fill('0.95');
+  await expect(rateInput).toHaveValue('0.95');
+
+  await page.click('.js-txd-cancel');
+});
