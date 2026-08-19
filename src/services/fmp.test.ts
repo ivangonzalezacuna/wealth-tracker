@@ -31,9 +31,7 @@ describe('searchByIsin', () => {
       {
         symbol: 'IWDA',
         name: 'iShares Core MSCI World',
-        currency: 'USD',
-        stockExchange: 'XETRA',
-        exchangeShortName: 'XETRA',
+        marketCap: 98000000000,
       },
     ]);
 
@@ -41,9 +39,7 @@ describe('searchByIsin', () => {
       {
         symbol: 'IWDA',
         name: 'iShares Core MSCI World',
-        currency: 'USD',
-        stockExchange: 'XETRA',
-        exchangeShortName: 'XETRA',
+        marketCap: 98000000000,
       },
     ]);
   });
@@ -112,9 +108,9 @@ describe('fetchEtfInfo', () => {
 });
 
 describe('URL builders', () => {
-  it('builds the search URL with query and apikey', () => {
+  it('builds the search URL with isin and apikey', () => {
     expect(buildSearchUrl('IE00B4L5Y983', 'secret')).toBe(
-      `${FMP_BASE_URL}/search?query=IE00B4L5Y983&apikey=secret&limit=5`,
+      `${FMP_BASE_URL}/search-isin?isin=IE00B4L5Y983&apikey=secret`,
     );
   });
 
@@ -126,7 +122,7 @@ describe('URL builders', () => {
 
   it('redacts the apikey in logged URLs', () => {
     expect(redactApiKey(buildSearchUrl('IE00B4L5Y983', 'secret'))).toBe(
-      `${FMP_BASE_URL}/search?query=IE00B4L5Y983&apikey=***&limit=5`,
+      `${FMP_BASE_URL}/search-isin?isin=IE00B4L5Y983&apikey=***`,
     );
   });
 });

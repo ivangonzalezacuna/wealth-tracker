@@ -11,9 +11,7 @@ export const FMP_BASE_URL = 'https://financialmodelingprep.com/stable';
 export interface FmpSearchResult {
   symbol: string;
   name: string;
-  currency: string;
-  stockExchange: string;
-  exchangeShortName: string;
+  marketCap: number | null;
 }
 
 export interface FmpEtfInfo {
@@ -57,10 +55,9 @@ export function buildSearchUrl(
   apiKey: string,
   baseUrl: string = FMP_BASE_URL,
 ): string {
-  const url = new URL(`${baseUrl}/search`);
-  url.searchParams.set('query', isin);
+  const url = new URL(`${baseUrl}/search-isin`);
+  url.searchParams.set('isin', isin);
   url.searchParams.set('apikey', apiKey);
-  url.searchParams.set('limit', '5');
   return url.toString();
 }
 
@@ -125,14 +122,10 @@ export async function searchByIsin(
     .map((entry) => ({
       symbol: typeof entry.symbol === 'string' ? entry.symbol : '',
       name: typeof entry.name === 'string' ? entry.name : '',
-      currency: typeof entry.currency === 'string' ? entry.currency : '',
-      stockExchange:
-        typeof entry.stockExchange === 'string'
-          ? entry.stockExchange
-          : typeof entry.exchange === 'string'
-            ? entry.exchange
-            : '',
-      exchangeShortName: typeof entry.exchangeShortName === 'string' ? entry.exchangeShortName : '',
+      marketCap:
+        typeof entry.marketCap === 'number' && Number.isFinite(entry.marketCap)
+          ? entry.marketCap
+          : null,
     }))
     .filter((entry) => !!entry.symbol);
 }

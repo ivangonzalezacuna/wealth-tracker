@@ -61,7 +61,7 @@ async function fetchAndPersist(isin: string): Promise<HoldingMetadata | null> {
     recordFmpFetch(searchAt, redactApiKey(searchUrl)).catch(() => {});
 
     if (searchResults.length === 0) return null;
-    const { symbol, stockExchange: exchange } = searchResults[0];
+    const { symbol } = searchResults[0];
 
     if (!(await isWithinDailyLimit())) {
       console.warn(`[fmpService] Daily limit reached after search — skipping etf/info for ${isin}`);
@@ -77,7 +77,7 @@ async function fetchAndPersist(isin: string): Promise<HoldingMetadata | null> {
     const record: HoldingMetadata = {
       isin,
       symbol,
-      exchange: info.exchange ?? exchange ?? undefined,
+      exchange: info.exchange ?? undefined,
       domicileCountry: info.domicileCountry,
       fundCurrency: info.fundCurrency,
       aum: info.aum,

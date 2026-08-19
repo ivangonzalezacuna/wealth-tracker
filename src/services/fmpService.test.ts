@@ -78,9 +78,7 @@ describe('lookupHoldingMetadata', () => {
       {
         symbol: 'IWDA',
         name: 'World ETF',
-        currency: 'USD',
-        stockExchange: 'XETRA',
-        exchangeShortName: 'XETRA',
+        marketCap: 98000000000,
       },
     ]);
     vi.mocked(fetchEtfInfo).mockResolvedValue({
@@ -216,9 +214,7 @@ describe('bulkEnrichHoldings', () => {
       {
         symbol: 'EIMI',
         name: 'EM ETF',
-        currency: 'USD',
-        stockExchange: 'LSE',
-        exchangeShortName: 'LSE',
+        marketCap: null,
       },
     ]);
     vi.mocked(fetchEtfInfo).mockResolvedValue({
