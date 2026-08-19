@@ -177,14 +177,28 @@ describe('applySnapshotFxNormalization', () => {
     expect(result.etf_IE00AAA).toBeCloseTo(320);
   });
 
-  it('skips re-normalizing unchanged edit values when previous canonical snapshot is provided', async () => {
+  it('preserves the exact canonical EUR value when a non-EUR edit is unchanged', async () => {
+    // rate 0.92: user entered 1000 USD → 920 EUR = previousCanonical.usd_acc
     mockResolveMonthEndRate.mockResolvedValue(makeRate(0.92));
     const previous: Snapshot = { date: '2024-01', usd_acc: 920 };
-    const edited: Snapshot = { date: '2024-01', usd_acc: 920 };
+    // snap holds the native-currency value the user sees in the form
+    const edited: Snapshot = { date: '2024-01', usd_acc: 1000 };
     const accounts = [makeAccount('usd_acc', 'USD')];
 
     const result = await applySnapshotFxNormalization(edited, accounts, previous);
+    // The canonical EUR value must be written (not the native 1000)
     expect(result.usd_acc).toBe(920);
+  });
+
+  it('normalizes to EUR when a non-EUR edit is actually changed', async () => {
+    mockResolveMonthEndRate.mockResolvedValue(makeRate(0.92));
+    const previous: Snapshot = { date: '2024-01', usd_acc: 920 };
+    // User changed the balance from 1000 USD to 1100 USD
+    const edited: Snapshot = { date: '2024-01', usd_acc: 1100 };
+    const accounts = [makeAccount('usd_acc', 'USD')];
+
+    const result = await applySnapshotFxNormalization(edited, accounts, previous);
+    expect(result.usd_acc).toBeCloseTo(1012); // 1100 * 0.92
   });
 
   // ── Bug-fix regression tests ─────────────────────────────────────
@@ -234,12 +248,15 @@ describe('applySnapshotFxNormalization', () => {
     expect(result.etf_IE00AAA).toBeCloseTo(400 * 0.92);
   });
 
-  it('Bug 3: ETF rate is not fetched (and onRateUnavailable not called) when all etf_ values match previousCanonical', async () => {
-    mockResolveMonthEndRate.mockResolvedValue(null); // would fail if called
-    const onRateUnavailable = vi.fn();
+  it('Bug 3 (updated): preserves canonical EUR values for both account and ETF when edit is unchanged', async () => {
+    // With Bug C fixed the previousCanonical comparison happens AFTER conversion,
+    // so the rate IS fetched. What matters is that the output is in EUR and
+    // matches the stored canonical exactly (no floating-point drift).
+    mockResolveMonthEndRate.mockResolvedValue(makeRate(0.92));
 
-    const previous: Snapshot = { date: '2024-01', usd_acc: 1000, etf_IE00AAA: 400 };
-    // Both values in the edited snap match the canonical values → all would be skipped
+    // Canonical EUR values stored in DB
+    const previous: Snapshot = { date: '2024-01', usd_acc: 920, etf_IE00AAA: 368 };
+    // Native USD values the user sees in the form (= canonical / 0.92)
     const edited: Snapshot = { date: '2024-01', usd_acc: 1000, etf_IE00AAA: 400 };
     const accounts: Account[] = [
       {
@@ -251,12 +268,52 @@ describe('applySnapshotFxNormalization', () => {
       },
     ];
 
-    await applySnapshotFxNormalization(edited, accounts, previous, { onRateUnavailable });
+    const result = await applySnapshotFxNormalization(edited, accounts, previous);
 
-    // No rate fetch should have been attempted at all
-    expect(mockResolveMonthEndRate).not.toHaveBeenCalled();
-    // onRateUnavailable must not be called for a spurious ETF rate lookup
-    expect(onRateUnavailable).not.toHaveBeenCalled();
+    // Both converted values match canonical → exact canonical bits preserved
+    expect(result.usd_acc).toBe(920);
+    expect(result.etf_IE00AAA).toBe(368);
+    // Rate WAS fetched (needed for the EUR conversion / comparison)
+    expect(mockResolveMonthEndRate).toHaveBeenCalledWith('USD', '2024-01');
+  });
+
+  it('Bug B: previousCanonical comparison uses EUR-converted value, not native-currency value', async () => {
+    // With the old bug the comparison was snap[key] === previousCanonical[key],
+    // i.e. native-USD vs stored-EUR, which never matched for realistic values.
+    // The user enters 1000 USD; stored canonical is 920 EUR (= 1000 * 0.92).
+    // With the fix: 1000 * 0.92 === 920 → canonical EUR value is preserved.
+    // Without the fix: 1000 !== 920 → conversion would always run and overwrite.
+    mockResolveMonthEndRate.mockResolvedValue(makeRate(0.92));
+    const previous: Snapshot = { date: '2024-01', usd_acc: 920 };
+    const edited: Snapshot = { date: '2024-01', usd_acc: 1000 }; // native USD
+    const accounts = [makeAccount('usd_acc', 'USD')];
+
+    const result = await applySnapshotFxNormalization(edited, accounts, previous);
+
+    // Must output canonical EUR value, not the native 1000
+    expect(result.usd_acc).toBe(920);
+  });
+
+  it('Bug C: ETF previousCanonical comparison uses EUR-converted value, not native-currency value', async () => {
+    // Same class of bug as B but in the ETF branch.
+    // User enters 400 native USD for an ETF; canonical is 368 EUR (= 400 * 0.92).
+    mockResolveMonthEndRate.mockResolvedValue(makeRate(0.92));
+    const previous: Snapshot = { date: '2024-01', usd_acc: 920, etf_IE00AAA: 368 };
+    const edited: Snapshot = { date: '2024-01', usd_acc: 920, etf_IE00AAA: 400 }; // ETF native
+    const accounts: Account[] = [
+      {
+        id: 'usd_acc',
+        label: 'USD Broker',
+        currency: 'USD',
+        isPrimaryInvestment: true,
+        moneyType: 'investment',
+      },
+    ];
+
+    const result = await applySnapshotFxNormalization(edited, accounts, previous);
+
+    // ETF must output canonical EUR value (368), not native 400
+    expect(result.etf_IE00AAA).toBe(368);
   });
 });
 
@@ -295,5 +352,43 @@ describe('prepareSnapshotFxEditDraft', () => {
     const result = await prepareSnapshotFxEditDraft(snap, accounts);
     expect(result.usd_acc).toBeCloseTo(1000);
     expect(result.etf_IE00AAA).toBeCloseTo(400);
+  });
+
+  it('Bug A (regression): an etf_* account key is NOT re-divided by the ETF rate in the ETF loop', async () => {
+    // Account 'etf_broker' is in GBP; primary investment account drives USD ETF currency.
+    // The ETF loop must not divide etf_broker by the USD rate — it was already
+    // correctly de-normalized by the account loop (÷ GBP rate).
+    mockResolveMonthEndRate.mockImplementation(async (currency: string) => {
+      if (currency === 'GBP') return makeRate(1.15); // 1 GBP → 1.15 EUR
+      if (currency === 'USD') return makeRate(0.92); // 1 USD → 0.92 EUR
+      return null;
+    });
+
+    // Canonical EUR values stored in DB
+    const snap: Snapshot = {
+      date: '2024-01',
+      etf_broker: 115, // 100 GBP * 1.15
+      usd_acc: 184, // 200 USD * 0.92
+      etf_IE00AAA: 368, // 400 USD * 0.92
+    };
+    const accounts: Account[] = [
+      { id: 'etf_broker', label: 'GBP ETF Broker', currency: 'GBP' },
+      {
+        id: 'usd_acc',
+        label: 'USD Broker',
+        currency: 'USD',
+        isPrimaryInvestment: true,
+        moneyType: 'investment',
+      },
+    ];
+
+    const result = await prepareSnapshotFxEditDraft(snap, accounts);
+
+    // etf_broker must be back-converted using GBP rate (÷ 1.15), NOT USD rate
+    expect(result.etf_broker).toBeCloseTo(100); // 115 / 1.15 = 100 GBP
+    // usd_acc back-converted using USD rate
+    expect(result.usd_acc).toBeCloseTo(200); // 184 / 0.92 = 200 USD
+    // pure ETF key back-converted using USD rate
+    expect(result.etf_IE00AAA).toBeCloseTo(400); // 368 / 0.92 = 400 USD
   });
 });

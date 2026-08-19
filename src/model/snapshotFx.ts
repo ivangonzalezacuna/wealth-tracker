@@ -82,14 +82,22 @@ export async function applySnapshotFxNormalization(
   for (const [key, currency] of nonEurPairs) {
     const rawBalance = snap[key];
     if (typeof rawBalance !== 'number' || !isFinite(rawBalance)) continue;
-    if (previousCanonical && rawBalance === previousCanonical[key]) continue;
 
     const rate = await getRate(currency);
     if (rate === null) {
       reportUnavailable(currency);
       continue; // provider unavailable or disabled — keep raw value
     }
-    normalized[key] = rawBalance * rate;
+    // Bug fix B: previousCanonical holds EUR-canonical values while snap holds
+    // native-currency values, so they can never be compared directly.  Compute
+    // the EUR-converted value first; if it matches the stored canonical the user
+    // didn't change this field and we preserve the exact stored bits (avoiding
+    // floating-point drift from repeated rate roundtrips).
+    const convertedBalance = rawBalance * rate;
+    normalized[key] =
+      previousCanonical && convertedBalance === previousCanonical[key]
+        ? (previousCanonical[key] as number)
+        : convertedBalance;
   }
 
   const etfCurrency = inferEtfSnapshotCurrency(accounts);
@@ -98,19 +106,15 @@ export async function applySnapshotFxNormalization(
     return normalized;
   }
 
-  // Bug fix 3: only fetch the ETF rate (and report unavailability) when there
-  // are actually ETF entries that need normalization.  Skipping this when all
-  // etf_ values are unchanged (previousCanonical match) avoids a spurious fetch
-  // and a false onRateUnavailable notification.
-  //
-  // Bug fix 2: exclude keys that are already in nonEurPairs (i.e. account keys
-  // whose id happens to start with "etf_").  Those were already converted in the
-  // account loop above; re-converting them here with the ETF currency rate would
-  // produce an incorrect result when the two currencies differ.
+  // Bug fix C: the previousCanonical skip for ETF values must be deferred until
+  // after the rate is known, because snap values are in native currency while
+  // previousCanonical holds EUR-canonical values — comparing them directly is
+  // never meaningful for non-EUR ETFs.  Pre-filter only on the structural checks
+  // (key prefix, type, finiteness, account-key exclusion); the canonical
+  // comparison happens inside the loop after conversion.
   const pendingEtfEntries = Object.entries(snap).filter(([key, value]) => {
     if (!key.startsWith('etf_') || typeof value !== 'number' || !isFinite(value)) return false;
     if (nonEurPairs.has(key)) return false; // already handled as an account key
-    if (previousCanonical && value === previousCanonical[key]) return false;
     return true;
   });
 
@@ -127,7 +131,13 @@ export async function applySnapshotFxNormalization(
   }
 
   for (const [key, value] of pendingEtfEntries) {
-    normalized[key] = (value as number) * etfRate;
+    const converted = (value as number) * etfRate;
+    // Same correctness rule as Bug fix B: preserve exact canonical bits when
+    // the converted value matches the stored canonical (unchanged edit).
+    normalized[key] =
+      previousCanonical && converted === previousCanonical[key]
+        ? (previousCanonical[key] as number)
+        : converted;
   }
 
   recordFxNormalize(normalizeAttempted, normalizeResolved, normalizeFailed).catch(() => {});
@@ -179,6 +189,11 @@ export async function prepareSnapshotFxEditDraft(
   if (etfRate === null) return draft;
   for (const [key, value] of Object.entries(snap)) {
     if (!key.startsWith('etf_') || typeof value !== 'number' || !isFinite(value)) continue;
+    // Bug fix A: skip keys that were already de-normalized in the account loop
+    // above (account ids that happen to start with "etf_").  Re-dividing by the
+    // ETF currency rate here would produce a wrong result when their account
+    // currency differs from the ETF currency.
+    if (nonEurPairs.has(key)) continue;
     draft[key] = value / etfRate;
   }
   return draft;
