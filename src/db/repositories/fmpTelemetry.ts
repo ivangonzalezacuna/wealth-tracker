@@ -85,10 +85,10 @@ export async function recordFmpRequest(
 ): Promise<void> {
   const db = await getDb();
   const current = await getFmpTelemetry();
-  const nextLog: FmpRequestDebugEntry[] = [
-    { at, url, response },
-    ...current.requestLog,
-  ].slice(0, MAX_REQUEST_LOG_ENTRIES);
+  const nextLog: FmpRequestDebugEntry[] = [{ at, url, response }, ...current.requestLog].slice(
+    0,
+    MAX_REQUEST_LOG_ENTRIES,
+  );
   db.run(
     `INSERT INTO fmp_telemetry (id, request_log_json)
      VALUES (1, ?)
