@@ -273,7 +273,16 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
         btn.textContent = 'Refreshing...';
       }
       if (msg) msg.textContent = '';
-      const metadata = await refreshHoldingMetadata(isin);
+      const symbol = (overlay.querySelector('#holdd-short-name') as HTMLInputElement | null)?.value;
+      if (!symbol?.trim()) {
+        if (msg) msg.textContent = 'Enter a ticker in Short name first.';
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Refresh';
+        }
+        return;
+      }
+      const metadata = await refreshHoldingMetadata(isin, symbol);
       currentMetadata = metadata;
       currentCanRefresh = false;
       if (items) items.innerHTML = renderMetadataItems();

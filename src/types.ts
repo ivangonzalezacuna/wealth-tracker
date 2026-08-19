@@ -113,8 +113,10 @@ export interface Settings {
   retired_account_ids?: string;
   /** When '0', the Frankfurter FX integration is disabled app-wide; all other values (including absent) mean enabled. */
   fx_integration_enabled?: string;
-  /** When '1', the Trackinsight ETF metadata integration is enabled. Default off when absent. */
+  /** When '1', the ETF metadata integration is enabled. Default off when absent. */
   ti_integration_enabled?: string;
+  /** Alpha Vantage API key used for ETF metadata enrichment. */
+  ti_api_key?: string;
   /** Forward-compatible escape hatch for unknown / future keys. */
   [key: string]: string | null | undefined;
 }

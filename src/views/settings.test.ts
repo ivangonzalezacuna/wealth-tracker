@@ -68,7 +68,7 @@ vi.mock('../db', () => ({
   clearAllHoldingMetadata: vi.fn(async () => {}),
   getAllHoldingMetadata: vi.fn(async () => []),
   getDailyFetchCount: vi.fn(async () => 0),
-  getFmpTelemetry: vi.fn(async () => ({
+  getTiTelemetry: vi.fn(async () => ({
     lastFetchAt: '',
     lastRequestUrl: '',
     lastErrorAt: '',
@@ -101,7 +101,7 @@ vi.mock('../db', () => ({
     errorCount: 0,
   })),
   loadAllFxRates: vi.fn(async () => []),
-  resetFmpTelemetry: vi.fn(async () => {}),
+  resetTiTelemetry: vi.fn(async () => {}),
   restoreAllFxRates: vi.fn(async () => {}),
 }));
 
@@ -625,6 +625,7 @@ describe('FX integrations card', () => {
     expect(document.getElementById('btn-save-fx-integration')).not.toBeNull();
     expect(document.getElementById('fx-status-cache-entries')).not.toBeNull();
     expect(document.getElementById('fx-status-last-request-url')).toBeNull();
+    expect(document.getElementById('ti-api-key')).not.toBeNull();
     expect(document.getElementById('fmp-request-debug-log')).toBeNull();
     expect(document.getElementById('ti-request-debug-log')).not.toBeNull();
   });
@@ -650,6 +651,19 @@ describe('FX integrations card', () => {
     await new Promise((r) => setTimeout(r, 0));
 
     expect((restoreAllFxRates as ReturnType<typeof vi.fn>).mock.calls[0]).toEqual([[]]);
+  });
+
+  it('saves ETF integration enabled flag and API key', async () => {
+    const { setSettings } = await import('../store/config');
+    (setSettings as ReturnType<typeof vi.fn>).mockClear();
+    (document.getElementById('ti-integration-enabled') as HTMLInputElement).checked = true;
+    (document.getElementById('ti-api-key') as HTMLInputElement).value = 'demo';
+    (document.getElementById('btn-save-ti-integration') as HTMLButtonElement).click();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect((setSettings as ReturnType<typeof vi.fn>).mock.calls[0]).toEqual([
+      { ti_integration_enabled: '1', ti_api_key: 'demo' },
+    ]);
   });
 });
 

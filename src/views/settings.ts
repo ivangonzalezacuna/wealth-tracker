@@ -2027,6 +2027,7 @@ function subtractMonths(dateStr: string, months: number): string {
 function renderFxIntegrationsCard(settings: Settings): string {
   const enabled = settings.fx_integration_enabled !== '0';
   const tiEnabled = settings.ti_integration_enabled === '1';
+  const tiApiKey = (settings.ti_api_key || '').trim();
   return `
     <div class="card card-collapsible" id="settings-card-integrations" data-card-key="integrations">
       <div class="card-header js-card-toggle">
@@ -2059,14 +2060,20 @@ function renderFxIntegrationsCard(settings: Settings): string {
         <div class="form-actions">
           <button class="btn btn-danger btn-sm" id="btn-fx-clear-cache">Clear FX cache</button>
         </div>
-        <div class="card-section-head" style="margin-top:1.5rem">TRACKINSIGHT — ETF METADATA</div>
-        <p class="note" style="margin-bottom:.75rem">Enriches holdings with ETF metadata (exchange, domicile, AUM, top holdings) from Trackinsight. No API key required. Primarily covers UCITS and European ETFs.</p>
+        <div class="card-section-head" style="margin-top:1.5rem">ALPHA VANTAGE — ETF METADATA</div>
+        <p class="note" style="margin-bottom:.75rem">Enriches holdings with ETF metadata from Alpha Vantage ETF_PROFILE. Requires a ticker symbol and API key.</p>
         <div class="settings-field">
           <label class="settings-field-label" for="ti-integration-enabled">
-            Enable Trackinsight integration
+            Enable ETF metadata integration
           </label>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
             <input type="checkbox" id="ti-integration-enabled" ${tiEnabled ? 'checked' : ''}>
+          </div>
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label" for="ti-api-key">Alpha Vantage API key</label>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <input type="password" id="ti-api-key" class="form-input settings-input" value="${esc(tiApiKey)}" placeholder="e.g. demo" autocomplete="off">
             <button class="btn btn-primary btn-sm" id="btn-save-ti-integration">Save</button>
             <span id="ti-int-msg" class="form-msg"></span>
           </div>
@@ -2074,6 +2081,7 @@ function renderFxIntegrationsCard(settings: Settings): string {
         <div class="card-section-head" style="margin-top:1rem">ETF METADATA CACHE &amp; TELEMETRY</div>
         <div class="settings-items settings-items-compact" id="ti-status-items">
           <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Status</span><span id="ti-status-enabled" class="settings-item-value">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">API key</span><span id="ti-status-api-key" class="settings-item-value">-</span></div></div>
           <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Cached holdings</span><span id="ti-status-cache-entries" class="settings-item-value">-</span></div></div>
           <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Last fetch</span><span id="ti-status-last-fetch" class="settings-item-value">-</span></div></div>
           <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Last error</span><span id="ti-status-last-error" class="settings-item-value settings-item-value-error">-</span></div></div>
@@ -2251,7 +2259,9 @@ async function refreshTiIntegrationStatus(root: HTMLElement): Promise<void> {
     getAllHoldingMetadata().catch(() => [] as HoldingMetadata[]),
   ]);
   const enabled = getSettings().ti_integration_enabled === '1';
+  const apiKeyPresent = !!(getSettings().ti_api_key || '').trim();
   const statusEnabled = root.querySelector('#ti-status-enabled') as HTMLElement | null;
+  const apiKey = root.querySelector('#ti-status-api-key') as HTMLElement | null;
   const cacheEntries = root.querySelector('#ti-status-cache-entries') as HTMLElement | null;
   const lastFetch = root.querySelector('#ti-status-last-fetch') as HTMLElement | null;
   const lastError = root.querySelector('#ti-status-last-error') as HTMLElement | null;
@@ -2259,7 +2269,10 @@ async function refreshTiIntegrationStatus(root: HTMLElement): Promise<void> {
   const requestDebug = root.querySelector('#ti-request-debug-log') as HTMLElement | null;
 
   if (statusEnabled) {
-    statusEnabled.textContent = enabled ? 'Enabled' : 'Disabled';
+    statusEnabled.textContent = enabled ? (apiKeyPresent ? 'Enabled' : 'Missing API key') : 'Disabled';
+  }
+  if (apiKey) {
+    apiKey.textContent = apiKeyPresent ? 'Configured' : 'Missing';
   }
   if (cacheEntries) {
     const refreshed = cached
@@ -2305,11 +2318,18 @@ function attachTiIntegrationListeners(root: HTMLElement): void {
     const btn = root.querySelector('#btn-save-ti-integration') as HTMLButtonElement;
     const enabled = !!(root.querySelector('#ti-integration-enabled') as HTMLInputElement | null)
       ?.checked;
+    const apiKey = (
+      (root.querySelector('#ti-api-key') as HTMLInputElement | null)?.value || ''
+    ).trim();
     try {
       await withCardGuard(
         'integrations',
         btn,
-        () => setSetting('ti_integration_enabled', enabled ? '1' : '0'),
+        () =>
+          setSettings({
+            ti_integration_enabled: enabled ? '1' : '0',
+            ti_api_key: apiKey,
+          }),
         { busyText: 'Saving...' },
       );
       await refreshTiIntegrationStatus(root);
@@ -2321,16 +2341,16 @@ function attachTiIntegrationListeners(root: HTMLElement): void {
 
   root.querySelector('#btn-ti-bulk-enrich')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-ti-bulk-enrich') as HTMLButtonElement;
-    const isins = getHoldings()
-      .map((h) => h.isin)
-      .filter(Boolean);
+    const holdings = getHoldings()
+      .map((h) => ({ isin: h.isin, symbol: h.shortName }))
+      .filter((h) => !!h.isin);
     const msg = root.querySelector('#ti-bulk-msg') as HTMLElement | null;
     try {
       await withCardGuard(
         'integrations',
         btn,
         async () => {
-          const result = await bulkEnrichHoldings(isins, (done, total) => {
+          const result = await bulkEnrichHoldings(holdings, (done, total) => {
             if (msg) msg.textContent = `${done} / ${total} done…`;
           });
           await refreshTiIntegrationStatus(root);
@@ -2351,7 +2371,7 @@ function attachTiIntegrationListeners(root: HTMLElement): void {
     const btn = root.querySelector('#btn-ti-clear-cache') as HTMLButtonElement;
     const ok = await confirmDialog({
       title: 'Clear cached ETF metadata?',
-      body: 'This removes all cached ETF metadata and resets Trackinsight telemetry on this device.',
+      body: 'This removes all cached ETF metadata and resets telemetry on this device.',
       confirmLabel: 'Clear cache',
       danger: true,
     });

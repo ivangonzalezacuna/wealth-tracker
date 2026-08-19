@@ -11,7 +11,7 @@ vi.mock('../db', () => ({
 }));
 
 vi.mock('./trackinsight', () => ({
-  buildFundUrl: vi.fn((isin: string) => `https://ti.test/funds/${isin}.json`),
+  buildFundUrl: vi.fn((symbol: string, apiKey: string) => `https://ti.test/query?symbol=${symbol}&apikey=${apiKey}`),
   fetchEtfInfo: vi.fn(),
   validateTiEtfInfo: vi.fn((value: unknown) => value),
   TiError: class TiError extends Error {},
@@ -42,27 +42,29 @@ const cachedRecord: HoldingMetadata = {
   exchange: 'XETRA',
   fetchedAt: '2026-01-01T00:00:00.000Z',
   lastRefreshedAt: '2026-01-01T00:00:00.000Z',
-  provider: 'trackinsight',
+  provider: 'alphavantage',
 };
 
 afterEach(() => {
   vi.clearAllMocks();
-  configureTiService({ enabled: false });
+  configureTiService({ enabled: false, apiKey: '' });
 });
 
 describe('lookupHoldingMetadata', () => {
   it('returns cached metadata without fetching', async () => {
-    configureTiService({ enabled: true });
+    configureTiService({ enabled: true, apiKey: 'demo' });
     vi.mocked(getHoldingMetadata).mockResolvedValue(cachedRecord);
 
-    await expect(lookupHoldingMetadata(cachedRecord.isin)).resolves.toEqual(cachedRecord);
+    await expect(lookupHoldingMetadata(cachedRecord.isin, cachedRecord.symbol)).resolves.toEqual(
+      cachedRecord,
+    );
     expect(vi.mocked(fetchEtfInfo)).not.toHaveBeenCalled();
     await Promise.resolve();
     expect(vi.mocked(recordTiCacheHit)).toHaveBeenCalledOnce();
   });
 
   it('fetches and persists on cache miss', async () => {
-    configureTiService({ enabled: true });
+    configureTiService({ enabled: true, apiKey: 'demo' });
     vi.mocked(getHoldingMetadata).mockResolvedValue(null);
     vi.mocked(fetchEtfInfo).mockResolvedValue({
       symbol: undefined,
@@ -76,10 +78,11 @@ describe('lookupHoldingMetadata', () => {
       topHoldings: null,
     });
 
-    const result = await lookupHoldingMetadata(cachedRecord.isin);
+    const result = await lookupHoldingMetadata(cachedRecord.isin, 'IWDA');
 
     expect(result?.exchange).toBe('LSE');
-    expect(result?.provider).toBe('trackinsight');
+    expect(result?.provider).toBe('alphavantage');
+    expect(vi.mocked(fetchEtfInfo)).toHaveBeenCalledWith('IWDA', 'demo');
     await Promise.resolve();
     expect(vi.mocked(upsertHoldingMetadata)).toHaveBeenCalledOnce();
     expect(vi.mocked(recordTiFetch)).toHaveBeenCalledOnce();
@@ -87,35 +90,46 @@ describe('lookupHoldingMetadata', () => {
   });
 
   it('returns null when disabled', async () => {
-    configureTiService({ enabled: false });
-    await expect(lookupHoldingMetadata(cachedRecord.isin)).resolves.toBeNull();
+    configureTiService({ enabled: false, apiKey: 'demo' });
+    await expect(lookupHoldingMetadata(cachedRecord.isin, cachedRecord.symbol)).resolves.toBeNull();
+  });
+
+  it('returns null when API key is missing', async () => {
+    configureTiService({ enabled: true, apiKey: '' });
+    await expect(lookupHoldingMetadata(cachedRecord.isin, cachedRecord.symbol)).resolves.toBeNull();
   });
 });
 
 describe('refreshHoldingMetadata', () => {
   it('returns null and records offline errors', async () => {
-    configureTiService({ enabled: true });
+    configureTiService({ enabled: true, apiKey: 'demo' });
     vi.mocked(fetchEtfInfo).mockRejectedValue(new TiOfflineError('offline'));
-    await expect(refreshHoldingMetadata(cachedRecord.isin)).resolves.toBeNull();
+    await expect(refreshHoldingMetadata(cachedRecord.isin, cachedRecord.symbol)).resolves.toBeNull();
     await Promise.resolve();
     expect(vi.mocked(recordTiError)).toHaveBeenCalledOnce();
   });
 
   it('returns null on unexpected errors', async () => {
-    configureTiService({ enabled: true });
+    configureTiService({ enabled: true, apiKey: 'demo' });
     vi.mocked(fetchEtfInfo).mockRejectedValue(new Error('boom'));
-    await expect(refreshHoldingMetadata(cachedRecord.isin)).resolves.toBeNull();
+    await expect(refreshHoldingMetadata(cachedRecord.isin, cachedRecord.symbol)).resolves.toBeNull();
+  });
+
+  it('returns null when symbol is missing', async () => {
+    configureTiService({ enabled: true, apiKey: 'demo' });
+    await expect(refreshHoldingMetadata(cachedRecord.isin, '')).resolves.toBeNull();
+    expect(vi.mocked(fetchEtfInfo)).not.toHaveBeenCalled();
   });
 });
 
 describe('canRefreshMetadata', () => {
   it('returns false when disabled', async () => {
-    configureTiService({ enabled: false });
+    configureTiService({ enabled: false, apiKey: 'demo' });
     await expect(canRefreshMetadata(cachedRecord.isin)).resolves.toBe(false);
   });
 
   it('returns true when no cache exists', async () => {
-    configureTiService({ enabled: true });
+    configureTiService({ enabled: true, apiKey: 'demo' });
     vi.mocked(getHoldingMetadata).mockResolvedValue(null);
     await expect(canRefreshMetadata(cachedRecord.isin)).resolves.toBe(true);
   });
@@ -123,7 +137,7 @@ describe('canRefreshMetadata', () => {
   it('returns false when metadata was refreshed less than one hour ago', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-19T12:00:00.000Z'));
-    configureTiService({ enabled: true });
+    configureTiService({ enabled: true, apiKey: 'demo' });
     vi.mocked(getHoldingMetadata).mockResolvedValue({
       ...cachedRecord,
       lastRefreshedAt: '2026-08-19T11:30:00.000Z',
@@ -135,7 +149,7 @@ describe('canRefreshMetadata', () => {
   it('returns true when metadata was refreshed more than one hour ago', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-19T12:00:00.000Z'));
-    configureTiService({ enabled: true });
+    configureTiService({ enabled: true, apiKey: 'demo' });
     vi.mocked(getHoldingMetadata).mockResolvedValue({
       ...cachedRecord,
       lastRefreshedAt: '2026-08-19T10:30:00.000Z',
@@ -147,7 +161,7 @@ describe('canRefreshMetadata', () => {
 
 describe('bulkEnrichHoldings', () => {
   it('skips already-cached ISINs and reports progress', async () => {
-    configureTiService({ enabled: true });
+    configureTiService({ enabled: true, apiKey: 'demo' });
     vi.mocked(getHoldingMetadata).mockResolvedValueOnce(cachedRecord).mockResolvedValueOnce(null);
     vi.mocked(fetchEtfInfo).mockResolvedValue({
       symbol: undefined,
@@ -163,7 +177,13 @@ describe('bulkEnrichHoldings', () => {
     const progress = vi.fn();
 
     await expect(
-      bulkEnrichHoldings([cachedRecord.isin, 'IE00BKM4GZ66'], progress),
+      bulkEnrichHoldings(
+        [
+          { isin: cachedRecord.isin, symbol: cachedRecord.symbol },
+          { isin: 'IE00BKM4GZ66', symbol: 'EMIM' },
+        ],
+        progress,
+      ),
     ).resolves.toEqual({
       enriched: 1,
       failed: 0,
@@ -174,8 +194,17 @@ describe('bulkEnrichHoldings', () => {
   });
 
   it('returns all skipped when disabled', async () => {
-    configureTiService({ enabled: false });
-    await expect(bulkEnrichHoldings(['A', 'B'])).resolves.toEqual({
+    configureTiService({ enabled: false, apiKey: 'demo' });
+    await expect(bulkEnrichHoldings([{ isin: 'A' }, { isin: 'B' }])).resolves.toEqual({
+      enriched: 0,
+      failed: 0,
+      skipped: 2,
+    });
+  });
+
+  it('returns all skipped when API key is missing', async () => {
+    configureTiService({ enabled: true, apiKey: '' });
+    await expect(bulkEnrichHoldings([{ isin: 'A' }, { isin: 'B' }])).resolves.toEqual({
       enriched: 0,
       failed: 0,
       skipped: 2,

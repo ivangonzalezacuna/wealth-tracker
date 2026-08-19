@@ -1,9 +1,10 @@
 /**
- * Trackinsight metadata service — cache-first enrichment backed by the Trackinsight provider.
+ * ETF metadata service — cache-first enrichment backed by Alpha Vantage.
  * Single entry-point for all ETF metadata resolution. Never throws to callers.
  *
- * Unlike FMP, Trackinsight requires no API key and has no documented daily request limit.
- * The service is gated only by the ti_integration_enabled setting.
+ * The service is gated by:
+ * - ti_integration_enabled
+ * - ti_api_key presence
  */
 
 import type { HoldingMetadata } from '../types';
@@ -27,29 +28,41 @@ import {
 const TI_REFRESH_COOLDOWN_MS = 60 * 60 * 1000;
 
 let _enabled = false;
+let _apiKey = '';
 
-export function configureTiService(opts: { enabled: boolean }): void {
+export function configureTiService(opts: { enabled: boolean; apiKey?: string }): void {
   _enabled = opts.enabled;
+  _apiKey = (opts.apiKey ?? '').trim();
 }
 
 function isReady(): boolean {
-  return _enabled;
+  return _enabled && !!_apiKey;
 }
 
-async function fetchAndPersist(isin: string): Promise<HoldingMetadata | null> {
+function sanitizeTickerSymbol(raw?: string): string {
+  if (!raw) return '';
+  return raw
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9.\-_]/g, '');
+}
+
+async function fetchAndPersist(isin: string, symbol?: string): Promise<HoldingMetadata | null> {
+  const ticker = sanitizeTickerSymbol(symbol);
+  if (!ticker) return null;
   if (!isReady()) return null;
 
   try {
-    const url = buildFundUrl(isin);
-    const rawInfo = await fetchEtfInfo(isin);
+    const url = buildFundUrl(ticker, _apiKey);
+    const rawInfo = await fetchEtfInfo(ticker, _apiKey);
     const now = new Date().toISOString();
     recordTiFetch(now, url).catch(() => {});
     recordTiRequest(now, url, serializeDebugPayload(rawInfo)).catch(() => {});
 
-    const info = validateTiEtfInfo(rawInfo, isin);
+    const info = validateTiEtfInfo(rawInfo, ticker);
     const record: HoldingMetadata = {
       isin,
-      symbol: info.symbol ?? undefined,
+      symbol: info.symbol ?? ticker,
       exchange: info.exchange ?? undefined,
       domicileCountry: info.domicileCountry,
       fundCurrency: info.fundCurrency,
@@ -60,15 +73,15 @@ async function fetchAndPersist(isin: string): Promise<HoldingMetadata | null> {
       topHoldings: info.topHoldings,
       fetchedAt: now,
       lastRefreshedAt: now,
-      provider: 'trackinsight',
+      provider: 'alphavantage',
     };
     await upsertHoldingMetadata(record).catch(() => {});
     return record;
   } catch (err) {
     const now = new Date().toISOString();
     const message =
-      err instanceof Error ? err.message : 'Unexpected Trackinsight metadata enrichment failure';
-    const url = buildFundUrl(isin);
+      err instanceof Error ? err.message : 'Unexpected Alpha Vantage metadata enrichment failure';
+    const url = buildFundUrl(ticker, _apiKey);
     recordTiRequest(now, url, `ERROR: ${message}`).catch(() => {});
     if (
       err instanceof TiError ||
@@ -77,7 +90,7 @@ async function fetchAndPersist(isin: string): Promise<HoldingMetadata | null> {
       err instanceof Error
     ) {
       recordTiError(now, message).catch(() => {});
-      console.warn(`[trackinsightService] Could not fetch metadata for ${isin}: ${message}`);
+      console.warn(`[trackinsightService] Could not fetch metadata for ${isin} (${ticker}): ${message}`);
       return null;
     }
     recordTiError(now, message).catch(() => {});
@@ -95,8 +108,11 @@ function serializeDebugPayload(payload: unknown): string {
   }
 }
 
-export async function lookupHoldingMetadata(isin: string): Promise<HoldingMetadata | null> {
-  if (!isReady()) return null;
+export async function lookupHoldingMetadata(
+  isin: string,
+  symbol?: string,
+): Promise<HoldingMetadata | null> {
+  if (!_enabled) return null;
   try {
     const cached = await getHoldingMetadata(isin);
     if (cached !== null) {
@@ -106,12 +122,15 @@ export async function lookupHoldingMetadata(isin: string): Promise<HoldingMetada
   } catch {
     // Cache read failure should not block a live fetch.
   }
-  return fetchAndPersist(isin);
+  return fetchAndPersist(isin, symbol);
 }
 
-export async function refreshHoldingMetadata(isin: string): Promise<HoldingMetadata | null> {
-  if (!isReady()) return null;
-  return fetchAndPersist(isin);
+export async function refreshHoldingMetadata(
+  isin: string,
+  symbol?: string,
+): Promise<HoldingMetadata | null> {
+  if (!_enabled) return null;
+  return fetchAndPersist(isin, symbol);
 }
 
 export async function canRefreshMetadata(isin: string): Promise<boolean> {
@@ -128,35 +147,36 @@ export async function canRefreshMetadata(isin: string): Promise<boolean> {
 }
 
 export async function bulkEnrichHoldings(
-  isins: string[],
+  holdings: Array<{ isin: string; symbol?: string }>,
   onProgress?: (done: number, total: number) => void,
 ): Promise<{ enriched: number; failed: number; skipped: number }> {
-  if (!isReady()) return { enriched: 0, failed: 0, skipped: isins.length };
+  if (!_enabled) return { enriched: 0, failed: 0, skipped: holdings.length };
+  if (!_apiKey) return { enriched: 0, failed: 0, skipped: holdings.length };
 
   let enriched = 0;
   let failed = 0;
   let skipped = 0;
 
-  for (let i = 0; i < isins.length; i++) {
-    const isin = isins[i];
+  for (let i = 0; i < holdings.length; i++) {
+    const { isin, symbol } = holdings[i];
 
     try {
       const cached = await getHoldingMetadata(isin);
       if (cached) {
         skipped += 1;
-        onProgress?.(i + 1, isins.length);
+        onProgress?.(i + 1, holdings.length);
         continue;
       }
     } catch {
       // Ignore cache read failures and continue with the live fetch.
     }
 
-    const result = await fetchAndPersist(isin);
+    const result = await fetchAndPersist(isin, symbol);
     if (result) enriched += 1;
     else failed += 1;
-    onProgress?.(i + 1, isins.length);
+    onProgress?.(i + 1, holdings.length);
 
-    if (i < isins.length - 1) {
+    if (i < holdings.length - 1) {
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
   }

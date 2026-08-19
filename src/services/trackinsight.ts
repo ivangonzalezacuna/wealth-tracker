@@ -1,13 +1,11 @@
 /**
- * Trackinsight provider — pure HTTP fetcher for ETF metadata lookup.
+ * Alpha Vantage provider — pure HTTP fetcher for ETF metadata lookup.
  *
- * Trackinsight provides free, no-key ETF metadata keyed directly by ISIN,
- * eliminating the two-step search-then-fetch pattern required by FMP.
- * This module has no side effects: it only fetches and returns typed records.
+ * This module calls the ETF_PROFILE endpoint using a ticker symbol and API key.
  * Caching and persistence are handled by trackinsightService.ts.
  */
 
-export const TI_BASE_URL = 'https://www.trackinsight.com/data-api/v1';
+export const TI_BASE_URL = 'https://www.alphavantage.co/query';
 
 export interface TiEtfInfo {
   symbol?: string;
@@ -39,21 +37,33 @@ export class TiOfflineError extends TiError {
 }
 
 export class TiNotFoundError extends TiError {
-  constructor(isin: string) {
-    super(`Trackinsight returned no data for ISIN "${isin}"`, 404);
+  constructor(symbol: string) {
+    super(`Alpha Vantage returned no data for symbol "${symbol}"`, 404);
     this.name = 'TiNotFoundError';
   }
 }
 
-export function buildFundUrl(isin: string, baseUrl: string = TI_BASE_URL): string {
-  return `${baseUrl}/funds/${encodeURIComponent(isin)}.json`;
+export function buildFundUrl(
+  symbol: string,
+  apiKey: string,
+  baseUrl: string = TI_BASE_URL,
+): string {
+  const url = new URL(baseUrl);
+  url.searchParams.set('function', 'ETF_PROFILE');
+  url.searchParams.set('symbol', symbol.trim().toUpperCase());
+  url.searchParams.set('apikey', apiKey.trim());
+  return url.toString();
 }
 
 export async function fetchEtfInfo(
-  isin: string,
+  symbol: string,
+  apiKey: string,
   baseUrl: string = TI_BASE_URL,
 ): Promise<TiEtfInfo> {
-  const url = buildFundUrl(isin, baseUrl);
+  if (!symbol.trim()) throw new TiError('Ticker symbol is required');
+  if (!apiKey.trim()) throw new TiError('Alpha Vantage API key is required');
+
+  const url = buildFundUrl(symbol, apiKey, baseUrl);
   let response: Response;
   try {
     response = await fetch(url);
@@ -62,9 +72,9 @@ export async function fetchEtfInfo(
   }
 
   if (!response.ok) {
-    if (response.status === 404) throw new TiNotFoundError(isin);
+    if (response.status === 404) throw new TiNotFoundError(symbol);
     throw new TiError(
-      `Trackinsight request failed with HTTP ${response.status} for ISIN "${isin}"`,
+      `Alpha Vantage request failed with HTTP ${response.status} for symbol "${symbol}"`,
       response.status,
     );
   }
@@ -73,78 +83,62 @@ export async function fetchEtfInfo(
   try {
     body = await response.json();
   } catch {
-    throw new TiError('Trackinsight response was not valid JSON');
+    throw new TiError('Alpha Vantage response was not valid JSON');
   }
 
-  return validateTiEtfInfo(body, isin);
+  if (!body || typeof body !== 'object') throw new TiNotFoundError(symbol);
+  const record = body as Record<string, unknown>;
+  if (typeof record['Error Message'] === 'string' && record['Error Message']) {
+    throw new TiNotFoundError(symbol);
+  }
+  if (typeof record.Information === 'string' && record.Information) {
+    throw new TiError(record.Information, 429);
+  }
+  if (Object.keys(record).length === 0) throw new TiNotFoundError(symbol);
+
+  return validateTiEtfInfo(body, symbol);
 }
 
-export function validateTiEtfInfo(raw: unknown, isin?: string): TiEtfInfo {
+export function validateTiEtfInfo(raw: unknown, symbolHint?: string): TiEtfInfo {
   if (!raw || typeof raw !== 'object') return {};
   const v = raw as Record<string, unknown>;
-
-  // The response may have a top-level `fund` wrapper, or fields may be at the root.
   const fund: Record<string, unknown> =
-    v.fund && typeof v.fund === 'object'
+    v.data && typeof v.data === 'object'
+      ? (v.data as Record<string, unknown>)
+      : v.fund && typeof v.fund === 'object'
       ? (v.fund as Record<string, unknown>)
       : (v as Record<string, unknown>);
 
-  const aum =
-    typeof fund.total_assets === 'number' && Number.isFinite(fund.total_assets)
-      ? fund.total_assets
-      : typeof fund.aum === 'number' && Number.isFinite(fund.aum)
-        ? fund.aum
-        : null;
+  const aum = parseNumericValue(fund.aum ?? fund.net_assets ?? fund.total_assets);
 
+  const rawHoldings = firstArray(fund.holdings, fund.top_holdings, fund.top10_holdings);
   const holdingsCount =
-    typeof fund.total_holdings === 'number' && Number.isFinite(fund.total_holdings)
-      ? fund.total_holdings
-      : typeof fund.nb_holdings === 'number' && Number.isFinite(fund.nb_holdings)
-        ? fund.nb_holdings
-        : null;
+    parseCountValue(fund.total_holdings ?? fund.holdings_count ?? fund.nb_holdings) ??
+    (rawHoldings ? rawHoldings.length : null);
 
-  const exchange =
-    typeof fund.main_exchange === 'string' && fund.main_exchange
-      ? fund.main_exchange
-      : typeof fund.exchange === 'string' && fund.exchange
-        ? fund.exchange
-        : undefined;
+  const exchange = firstString(fund.exchange, fund.main_exchange, fund.primary_exchange);
 
-  const domicileCountry =
-    typeof fund.domicile === 'string' && fund.domicile
-      ? fund.domicile
-      : typeof fund.domicile_country === 'string' && fund.domicile_country
-        ? fund.domicile_country
-        : undefined;
+  const domicileCountry = firstString(fund.domicile, fund.domicile_country, fund.country);
 
-  const fundCurrency =
-    typeof fund.currency === 'string' && fund.currency
-      ? fund.currency
-      : typeof fund.fund_currency === 'string' && fund.fund_currency
-        ? fund.fund_currency
-        : undefined;
+  const fundCurrency = firstString(fund.currency, fund.fund_currency, fund.base_currency);
 
   const inceptionDate =
     typeof fund.inception_date === 'string' && fund.inception_date
       ? fund.inception_date
+      : typeof fund.inceptionDate === 'string' && fund.inceptionDate
+        ? fund.inceptionDate
       : fund.inception_date == null
         ? null
         : undefined;
 
-  // Ticker/symbol — Trackinsight typically does not return a canonical ticker symbol;
-  // we derive one from the ISIN if not present.
   const symbol =
-    typeof fund.ticker === 'string' && fund.ticker
-      ? fund.ticker
-      : typeof fund.symbol === 'string' && fund.symbol
-        ? fund.symbol
-        : isin
-          ? undefined // keep undefined; symbol is optional
-          : undefined;
+    firstString(fund.symbol, fund.ticker, fund.Symbol, symbolHint)?.toUpperCase() ?? undefined;
 
-  const sectors = parseSectors(fund.weight_distribution ?? fund.sectors ?? fund.sector_breakdown);
+  const sectors = parseSectors(
+    firstArray(fund.sectors, fund.weight_distribution, fund.sector_breakdown),
+  );
 
-  const topHoldings = parseTopHoldings(fund.top_holdings ?? fund.top10_holdings);
+  const topHoldings = parseTopHoldings(rawHoldings);
 
   return {
     symbol,
@@ -171,7 +165,13 @@ function parseSectors(raw: unknown): Array<{ industry: string; exposure: string 
             ? entry.industry
             : typeof entry.sector === 'string'
               ? entry.sector
-              : '',
+              : typeof entry.label === 'string'
+              ? entry.label
+              : typeof entry.category === 'string'
+                ? entry.category
+                : objectSingleKey(entry)
+                  ? objectSingleKey(entry)!
+                  : '',
       exposure:
         typeof entry.weight === 'number'
           ? String(entry.weight)
@@ -179,6 +179,8 @@ function parseSectors(raw: unknown): Array<{ industry: string; exposure: string 
             ? entry.exposure
             : typeof entry.weight === 'string'
               ? entry.weight
+              : objectSingleKey(entry)
+              ? String(entry[objectSingleKey(entry)!] ?? '')
               : '',
     }))
     .filter((entry) => !!entry.industry);
@@ -193,18 +195,67 @@ function parseTopHoldings(raw: unknown): Array<{ asset: string; weightPercentage
       asset:
         typeof entry.name === 'string'
           ? entry.name
+          : typeof entry.description === 'string'
+            ? entry.description
           : typeof entry.asset === 'string'
             ? entry.asset
+            : typeof entry.symbol === 'string'
+              ? entry.symbol
             : '',
       weightPercentage:
         typeof entry.weight === 'number'
           ? String(entry.weight)
           : typeof entry.weightPercentage === 'string'
             ? entry.weightPercentage
+            : typeof entry.percent === 'string'
+              ? entry.percent
             : typeof entry.weight === 'string'
               ? entry.weight
               : '',
     }))
     .filter((entry) => !!entry.asset);
   return result.length > 0 ? result : null;
+}
+
+function firstString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string') {
+      const normalized = value.trim();
+      if (normalized) return normalized;
+    }
+  }
+  return undefined;
+}
+
+function firstArray(...values: unknown[]): unknown[] | null {
+  for (const value of values) {
+    if (Array.isArray(value)) return value;
+  }
+  return null;
+}
+
+function parseNumericValue(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value !== 'string') return null;
+  const raw = value.trim();
+  if (!raw) return null;
+  const normalized = raw.replace(/[$€,]/g, '');
+  const suffix = normalized.slice(-1).toUpperCase();
+  const multipliers: Record<string, number> = { K: 1_000, M: 1_000_000, B: 1_000_000_000, T: 1_000_000_000_000 };
+  const base = suffix in multipliers ? normalized.slice(0, -1) : normalized;
+  const parsed = Number(base);
+  if (!Number.isFinite(parsed)) return null;
+  return suffix in multipliers ? parsed * multipliers[suffix] : parsed;
+}
+
+function parseCountValue(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.round(value);
+  if (typeof value !== 'string') return null;
+  const parsed = Number(value.replace(/[^\d.-]/g, ''));
+  return Number.isFinite(parsed) ? Math.round(parsed) : null;
+}
+
+function objectSingleKey(record: Record<string, unknown>): string | null {
+  const keys = Object.keys(record).filter((k) => !!k && !k.startsWith('_'));
+  return keys.length === 1 ? keys[0] : null;
 }

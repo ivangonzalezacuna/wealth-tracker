@@ -23,107 +23,106 @@ afterEach(() => {
 });
 
 describe('buildFundUrl', () => {
-  it('builds the fund URL from an ISIN', () => {
-    expect(buildFundUrl('IE00B4L5Y983')).toBe(`${TI_BASE_URL}/funds/IE00B4L5Y983.json`);
+  it('builds the ETF_PROFILE URL from symbol + API key', () => {
+    expect(buildFundUrl('QQQ', 'demo')).toBe(
+      `${TI_BASE_URL}?function=ETF_PROFILE&symbol=QQQ&apikey=demo`,
+    );
   });
 
-  it('URL-encodes the ISIN', () => {
-    expect(buildFundUrl('IE00B4L5Y983', 'https://example.com')).toBe(
-      'https://example.com/funds/IE00B4L5Y983.json',
+  it('URL-encodes values', () => {
+    expect(buildFundUrl('BRK.B', 'demo key', 'https://example.com/query')).toBe(
+      'https://example.com/query?function=ETF_PROFILE&symbol=BRK.B&apikey=demo+key',
     );
   });
 });
 
 describe('fetchEtfInfo', () => {
-  it('returns validated ETF info on success (root-level fields)', async () => {
+  it('returns validated ETF info on success', async () => {
     mockFetch({
+      symbol: 'QQQ',
       currency: 'USD',
-      domicile: 'IE',
-      total_assets: 79000000000,
+      country: 'US',
+      net_assets: '300.5B',
       inception_date: '2009-09-25',
-      total_holdings: 1500,
-      main_exchange: 'XETRA',
-      weight_distribution: [{ name: 'Technology', weight: 22.5 }],
-      top_holdings: [{ name: 'Microsoft', weight: 4.1 }],
+      holdings: [
+        { symbol: 'AAPL', description: 'Apple Inc', weight: '9.1%' },
+        { symbol: 'MSFT', description: 'Microsoft Corp', weight: '8.6%' },
+      ],
+      sectors: [{ Technology: '58.1%' }],
+      exchange: 'NASDAQ',
     });
 
-    await expect(fetchEtfInfo('IE00B4L5Y983')).resolves.toMatchObject({
+    await expect(fetchEtfInfo('QQQ', 'demo')).resolves.toMatchObject({
+      symbol: 'QQQ',
       fundCurrency: 'USD',
-      domicileCountry: 'IE',
-      aum: 79000000000,
+      domicileCountry: 'US',
+      aum: 300500000000,
       inceptionDate: '2009-09-25',
-      holdingsCount: 1500,
-      exchange: 'XETRA',
-      sectors: [{ industry: 'Technology', exposure: '22.5' }],
-      topHoldings: [{ asset: 'Microsoft', weightPercentage: '4.1' }],
+      holdingsCount: 2,
+      exchange: 'NASDAQ',
+      sectors: [{ industry: 'Technology', exposure: '58.1%' }],
+      topHoldings: [{ asset: 'Apple Inc', weightPercentage: '9.1%' }],
     });
   });
 
-  it('unwraps a fund wrapper object', async () => {
-    mockFetch({
-      fund: {
-        currency: 'EUR',
-        domicile: 'LU',
-        total_assets: 5000000000,
-        inception_date: '2015-03-10',
-        total_holdings: 400,
-        main_exchange: 'EURONEXT',
-      },
-    });
-
-    await expect(fetchEtfInfo('LU0290358497')).resolves.toMatchObject({
-      fundCurrency: 'EUR',
-      domicileCountry: 'LU',
-      aum: 5000000000,
-      exchange: 'EURONEXT',
-    });
+  it('throws TiError when symbol is missing', async () => {
+    await expect(fetchEtfInfo('', 'demo')).rejects.toThrow(TiError);
   });
 
-  it('throws TiNotFoundError on 404', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('Not Found', { status: 404 }));
-    await expect(fetchEtfInfo('UNKNOWN')).rejects.toThrow(TiNotFoundError);
+  it('throws TiError when API key is missing', async () => {
+    await expect(fetchEtfInfo('QQQ', '')).rejects.toThrow(TiError);
+  });
+
+  it('throws TiNotFoundError on provider symbol error', async () => {
+    mockFetch({ 'Error Message': 'Invalid API call.' });
+    await expect(fetchEtfInfo('UNKNOWN', 'demo')).rejects.toThrow(TiNotFoundError);
+  });
+
+  it('throws TiError on provider informational throttle', async () => {
+    mockFetch({ Information: 'Thank you for using Alpha Vantage! Please visit ...' });
+    await expect(fetchEtfInfo('QQQ', 'demo')).rejects.toThrow(TiError);
   });
 
   it('throws TiError on non-404 HTTP error', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('Server Error', { status: 500 }));
-    await expect(fetchEtfInfo('IE00B4L5Y983')).rejects.toThrow(TiError);
+    await expect(fetchEtfInfo('QQQ', 'demo')).rejects.toThrow(TiError);
   });
 
   it('throws TiOfflineError on network failure', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
-    await expect(fetchEtfInfo('IE00B4L5Y983')).rejects.toThrow(TiOfflineError);
+    await expect(fetchEtfInfo('QQQ', 'demo')).rejects.toThrow(TiOfflineError);
   });
 
   it('throws TiError on malformed JSON', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response('not-json', { status: 200, headers: { 'Content-Type': 'application/json' } }),
     );
-    await expect(fetchEtfInfo('IE00B4L5Y983')).rejects.toThrow(TiError);
+    await expect(fetchEtfInfo('QQQ', 'demo')).rejects.toThrow(TiError);
   });
 });
 
 describe('validateTiEtfInfo', () => {
   it('maps root-level fields correctly', () => {
     const result = validateTiEtfInfo({
+      symbol: 'QQQ',
       currency: 'USD',
-      domicile: 'IE',
-      total_assets: 1000,
+      domicile: 'US',
+      net_assets: '100M',
       inception_date: '2020-01-01',
-      total_holdings: 50,
-      main_exchange: 'LSE',
-      weight_distribution: [{ name: 'Financials', weight: 10 }],
-      top_holdings: [{ name: 'Apple', weight: 5 }],
+      holdings: [{ description: 'Apple', weight: '5%' }],
+      sectors: [{ Financials: '10%' }],
+      exchange: 'NASDAQ',
     });
     expect(result).toEqual({
-      symbol: undefined,
-      exchange: 'LSE',
-      domicileCountry: 'IE',
+      symbol: 'QQQ',
+      exchange: 'NASDAQ',
+      domicileCountry: 'US',
       fundCurrency: 'USD',
-      aum: 1000,
+      aum: 100000000,
       inceptionDate: '2020-01-01',
-      holdingsCount: 50,
-      sectors: [{ industry: 'Financials', exposure: '10' }],
-      topHoldings: [{ asset: 'Apple', weightPercentage: '5' }],
+      holdingsCount: 1,
+      sectors: [{ industry: 'Financials', exposure: '10%' }],
+      topHoldings: [{ asset: 'Apple', weightPercentage: '5%' }],
     });
   });
 
@@ -133,17 +132,19 @@ describe('validateTiEtfInfo', () => {
       domicile_country: 'CH',
       aum: 500,
       nb_holdings: 300,
-      exchange: 'SIX',
+      main_exchange: 'SIX',
+      ticker: 'SSAC',
     });
     expect(result.fundCurrency).toBe('CHF');
     expect(result.domicileCountry).toBe('CH');
     expect(result.aum).toBe(500);
     expect(result.holdingsCount).toBe(300);
     expect(result.exchange).toBe('SIX');
+    expect(result.symbol).toBe('SSAC');
   });
 
   it('handles missing and null fields gracefully', () => {
-    const result = validateTiEtfInfo({ currency: 'USD', total_assets: null });
+    const result = validateTiEtfInfo({ currency: 'USD', total_assets: null, top_holdings: null });
     expect(result.fundCurrency).toBe('USD');
     expect(result.aum).toBeNull();
     expect(result.exchange).toBeUndefined();
@@ -164,11 +165,11 @@ describe('validateTiEtfInfo', () => {
 
   it('filters out empty sector and holding entries', () => {
     const result = validateTiEtfInfo({
-      weight_distribution: [
+      sectors: [
         { name: '', weight: 0 },
         { name: 'Tech', weight: 30 },
       ],
-      top_holdings: [
+      holdings: [
         { name: '', weight: '' },
         { name: 'Microsoft', weight: 5 },
       ],

@@ -72,7 +72,10 @@ function applyFxServiceConfig(): void {
 }
 
 function applyTiServiceConfig(): void {
-  configureTiService({ enabled: _settings.ti_integration_enabled === '1' });
+  configureTiService({
+    enabled: _settings.ti_integration_enabled === '1',
+    apiKey: _settings.ti_api_key ?? '',
+  });
 }
 
 /**
@@ -321,11 +324,15 @@ export async function setSetting(key: string, value: string): Promise<void> {
   try {
     await dbSetSetting(key, value);
     // Integration-toggle settings are kept out of the config history audit log.
-    if (key !== 'fx_integration_enabled' && key !== 'ti_integration_enabled') {
+    if (
+      key !== 'fx_integration_enabled' &&
+      key !== 'ti_integration_enabled' &&
+      key !== 'ti_api_key'
+    ) {
       await logConfigChange('Settings', `${key} = ${value}`);
     }
     if (key === 'fx_integration_enabled') applyFxServiceConfig();
-    if (key === 'ti_integration_enabled') applyTiServiceConfig();
+    if (key === 'ti_integration_enabled' || key === 'ti_api_key') applyTiServiceConfig();
     scheduleUpload();
     if (_onChange) _onChange('settings');
   } catch (err) {
@@ -347,9 +354,15 @@ export async function setSettings(
   }
   try {
     await persistSettings();
-    await logConfigChange('Settings', `updated ${Object.keys(settings).join(', ')}`);
+    const changedKeys = Object.keys(settings).filter(
+      (key) =>
+        key !== 'fx_integration_enabled' && key !== 'ti_integration_enabled' && key !== 'ti_api_key',
+    );
+    if (changedKeys.length > 0) {
+      await logConfigChange('Settings', `updated ${changedKeys.join(', ')}`);
+    }
     if ('fx_integration_enabled' in settings) applyFxServiceConfig();
-    if ('ti_integration_enabled' in settings) applyTiServiceConfig();
+    if ('ti_integration_enabled' in settings || 'ti_api_key' in settings) applyTiServiceConfig();
     scheduleUpload();
     if (_onChange) _onChange('settings');
   } catch (err) {
