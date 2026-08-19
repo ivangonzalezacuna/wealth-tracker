@@ -63,7 +63,12 @@ import { renderAnalytics } from './views/analytics';
 import { renderPortfolio, getMaxDrift } from './views/portfolio';
 import { renderDCA } from './views/contributions';
 import { renderDividends } from './views/dividends';
-import { renderSettings, refreshSettingsAfterChange, applySyncBusyState } from './views/settings';
+import {
+  renderSettings,
+  refreshSettingsAfterChange,
+  applySyncBusyState,
+  accountCurrencyList,
+} from './views/settings';
 import { renderLog } from './views/log';
 import {
   fmtMon,
@@ -1525,7 +1530,10 @@ async function addManualTransaction(): Promise<void> {
   if (!ensureWriteAccess('tx-msg', 'signed-in-or-granted')) return;
   try {
     const suggestions = buildAppSecuritySuggestions(state.txs);
-    const draft = await transactionDialog({ suggestions });
+    const draft = await transactionDialog({
+      suggestions,
+      currencySuggestions: accountCurrencyList(getAccounts()),
+    });
     if (!draft) return;
     const candidate = [...state.txs, draft].sort((a, b) => a.date.localeCompare(b.date));
     const nextPd = computePdOrThrow(candidate);
@@ -1556,7 +1564,11 @@ async function editManualTransaction(rowId: bigint): Promise<void> {
 
   try {
     const suggestions = buildAppSecuritySuggestions(state.txs);
-    const draft = await transactionDialog({ existing, suggestions });
+    const draft = await transactionDialog({
+      existing,
+      suggestions,
+      currencySuggestions: accountCurrencyList(getAccounts()),
+    });
     if (!draft) return;
     const candidate = state.txs.map((t) => (t.rowId === rowId ? { ...draft, rowId } : t));
     const nextPd = computePdOrThrow(candidate);

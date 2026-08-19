@@ -390,7 +390,7 @@ function accountGroupList(accounts: Account[]): string[] {
 /** Common currency suggestions merged with any already used in accounts. */
 const COMMON_CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD', 'SEK', 'NOK', 'DKK'];
 
-function accountCurrencyList(accounts: Account[]): string[] {
+export function accountCurrencyList(accounts: Account[]): string[] {
   const fromAccounts = accounts.map((a) => (a.currency || 'EUR').trim().toUpperCase());
   return [...new Set([...COMMON_CURRENCIES, ...fromAccounts])].sort((a, b) => a.localeCompare(b));
 }

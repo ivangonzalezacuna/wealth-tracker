@@ -36,6 +36,7 @@ const suggestions: SecuritySuggestions = {
     { isin: 'IE00BBB', name: 'Beta Fund' },
   ],
 };
+const currencySuggestions = ['AUD', 'EUR', 'USD'];
 
 describe('transactionDialog', () => {
   beforeEach(() => {
@@ -325,6 +326,17 @@ describe('transactionDialog', () => {
     nameInput.dispatchEvent(new Event('change'));
     expect((document.querySelector('#txd-isin') as HTMLInputElement).value).toBe('IE00BBB');
     expect((document.querySelector('#txd-name') as HTMLInputElement).value).toBe('Beta Fund');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('populates the currency autocomplete list from suggestions', () => {
+    transactionDialog({ currencySuggestions });
+    const currencyInput = document.querySelector('#txd-currency') as HTMLInputElement;
+    const currencyOpts = Array.from(document.querySelectorAll('#txd-currency-list option')).map(
+      (o) => (o as HTMLOptionElement).value,
+    );
+    expect(currencyInput.getAttribute('list')).toBe('txd-currency-list');
+    expect(currencyOpts).toEqual(currencySuggestions);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
 

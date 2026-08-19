@@ -14,6 +14,7 @@ import {
   focusFirstInvalid,
   makeDialogHelpers,
   openDialogShell,
+  populateDatalist,
 } from './modalShell';
 import { attachSecurityAutocomplete } from './securityAutocomplete';
 import { resolveRate } from '../fx';
@@ -62,6 +63,7 @@ const FX_TYPES: ReadonlySet<Transaction['type']> = new Set([
 export interface TransactionDialogOptions {
   existing?: Transaction;
   suggestions?: SecuritySuggestions;
+  currencySuggestions?: string[];
 }
 
 export function transactionDialog(
@@ -157,7 +159,8 @@ export function transactionDialog(
               <label class="dialog-label" for="txd-currency">Currency</label>
               <input type="text" id="txd-currency" class="form-input dialog-input dialog-input-uppercase"
                 value="${esc(existing?.currency || 'EUR')}" placeholder="EUR"
-                maxlength="3">
+                maxlength="3" list="txd-currency-list" autocomplete="off">
+              <datalist id="txd-currency-list"></datalist>
               <span class="dialog-error dialog-error-compact" id="txd-currency-err"></span>
             </div>
             <div class="dialog-field">
@@ -201,6 +204,7 @@ export function transactionDialog(
       nameInputId: 'txd-name',
       nameListId: 'txd-name-list',
     });
+    populateDatalist(overlay.querySelector('#txd-currency-list'), opts.currencySuggestions ?? []);
     _applyTypeVisibility(existing?.type || TxType.BUY);
     _bindRealtimeIsinValidation(overlay);
     _bindCurrencyLabels(overlay);
