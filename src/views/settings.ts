@@ -38,7 +38,6 @@ import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { showMsg, reinjectPendingMsg, withButtonGuard, esc, fmtEur } from '../utils';
 import { buildAnnualReport, renderAnnualReportHtml } from '../model/annualReport';
-import { resolveMonthEndRate, APP_CURRENCY } from '../fx';
 import type {
   Account,
   FxTelemetry,
@@ -1996,18 +1995,19 @@ function subtractMonths(dateStr: string, months: number): string {
   return `${y}-${m}-${day}`;
 }
 
-// ── FX integrations ───────────────────────────────────────
+// ── Integrations ──────────────────────────────────────────
 
 function renderFxIntegrationsCard(settings: Settings): string {
   const enabled = settings.fx_integration_enabled !== '0';
   return `
     <div class="card card-collapsible" id="settings-card-integrations" data-card-key="integrations">
       <div class="card-header js-card-toggle">
-        <div class="card-title">FX integrations</div>
+        <div class="card-title">Integrations</div>
         <span class="card-chevron"></span>
       </div>
       <div class="card-body">
-        <p class="note" style="margin-bottom:.75rem">Frankfurter provides on-demand FX rates for mixed-currency accounts. The app stays fully usable offline and only fetches when you trigger a relevant action.</p>
+        <div class="card-section-head">FRANKFURTER</div>
+        <p class="note" style="margin-bottom:.75rem">Provides on-demand FX rates for mixed-currency accounts. The app stays fully usable offline and only fetches when you trigger a relevant action.</p>
         <div class="settings-field">
           <label class="settings-field-label" for="fx-integration-enabled">
             Enable Frankfurter FX integration${infoTip('When disabled, FX lookups are skipped and the app keeps entered values unchanged. You can re-enable at any time.')}
@@ -2019,17 +2019,14 @@ function renderFxIntegrationsCard(settings: Settings): string {
           </div>
         </div>
         <div class="card-section-head" style="margin-top:1rem">CACHE &amp; TELEMETRY</div>
-        <div class="settings-items" id="fx-status-items">
-          <div class="settings-item"><div class="settings-item-header"><span class="settings-item-title">Status</span><span id="fx-status-enabled" class="settings-item-meta">-</span></div></div>
-          <div class="settings-item"><div class="settings-item-header"><span class="settings-item-title">Cache entries</span><span id="fx-status-cache-entries" class="settings-item-meta">-</span></div></div>
-          <div class="settings-item"><div class="settings-item-header"><span class="settings-item-title">Last successful fetch</span><span id="fx-status-last-fetch" class="settings-item-meta">-</span></div></div>
-          <div class="settings-item"><div class="settings-item-header"><span class="settings-item-title">Last request URL</span><span id="fx-status-last-request-url" class="settings-item-meta">-</span></div></div>
-          <div class="settings-item"><div class="settings-item-header"><span class="settings-item-title">Last error</span><span id="fx-status-last-error" class="settings-item-meta">-</span></div></div>
-          <div class="settings-item"><div class="settings-item-header"><span class="settings-item-title">Provider fetches / cache hits / prefetch (a/s/f)</span><span id="fx-status-counters" class="settings-item-meta">-</span></div></div>
+        <div class="settings-items settings-items-compact" id="fx-status-items">
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Status</span><span id="fx-status-enabled" class="settings-item-value">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Cache entries</span><span id="fx-status-cache-entries" class="settings-item-value">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Last successful fetch</span><span id="fx-status-last-fetch" class="settings-item-value">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Last error</span><span id="fx-status-last-error" class="settings-item-value settings-item-value-error">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Live fetches / cache hits / prefetch (a/s/f)</span><span id="fx-status-counters" class="settings-item-value">-</span></div></div>
         </div>
         <div class="form-actions">
-          <button class="btn btn-outline btn-sm" id="btn-fx-refresh-status">Refresh status</button>
-          <button class="btn btn-outline btn-sm" id="btn-fx-warm-cache">Warm month-end cache</button>
           <button class="btn btn-danger btn-sm" id="btn-fx-clear-cache">Clear FX cache</button>
         </div>
       </div>
@@ -2043,7 +2040,6 @@ async function refreshFxIntegrationStatus(root: HTMLElement): Promise<void> {
   const statusEnabled = root.querySelector('#fx-status-enabled') as HTMLElement | null;
   const cacheEntries = root.querySelector('#fx-status-cache-entries') as HTMLElement | null;
   const lastFetch = root.querySelector('#fx-status-last-fetch') as HTMLElement | null;
-  const lastRequestUrl = root.querySelector('#fx-status-last-request-url') as HTMLElement | null;
   const lastError = root.querySelector('#fx-status-last-error') as HTMLElement | null;
   const counters = root.querySelector('#fx-status-counters') as HTMLElement | null;
 
@@ -2061,14 +2057,12 @@ async function refreshFxIntegrationStatus(root: HTMLElement): Promise<void> {
       ? formatEnglishDateTime(new Date(telemetry.lastFetchAt))
       : '—';
   }
-  if (lastRequestUrl) {
-    lastRequestUrl.textContent = telemetry.lastRequestUrl || '—';
-  }
   if (lastError) {
-    lastError.textContent =
-      telemetry.lastErrorAt && telemetry.lastError
-        ? `${formatEnglishDateTime(new Date(telemetry.lastErrorAt))} — ${telemetry.lastError}`
-        : '—';
+    const hasError = !!(telemetry.lastErrorAt && telemetry.lastError);
+    lastError.textContent = hasError
+      ? `${formatEnglishDateTime(new Date(telemetry.lastErrorAt))} — ${telemetry.lastError}`
+      : '—';
+    lastError.classList.toggle('settings-item-value-error--active', hasError);
   }
   if (counters) {
     counters.textContent = `${telemetry.fetchCount} / ${telemetry.cacheHitCount} / ${telemetry.prefetchAttemptCount}/${telemetry.prefetchSuccessCount}/${telemetry.prefetchFailureCount}`;
@@ -2096,21 +2090,6 @@ async function loadFxTelemetrySafe(): Promise<FxTelemetry> {
   }
 }
 
-function currentYearMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function getNonBaseAccountCurrencies(accounts: Account[]): string[] {
-  return [
-    ...new Set(
-      accounts
-        .map((acct) => (acct.currency || APP_CURRENCY).trim().toUpperCase())
-        .filter((cur) => cur && cur !== APP_CURRENCY),
-    ),
-  ];
-}
-
 function attachFxIntegrationListeners(root: HTMLElement): void {
   void refreshFxIntegrationStatus(root).catch((err) => {
     showMsg('fx-int-msg', 'Status load failed: ' + (err as Error).message, false);
@@ -2136,18 +2115,6 @@ function attachFxIntegrationListeners(root: HTMLElement): void {
     }
   });
 
-  root.querySelector('#btn-fx-refresh-status')?.addEventListener('click', async () => {
-    const btn = root.querySelector('#btn-fx-refresh-status') as HTMLButtonElement;
-    try {
-      await withCardGuard('integrations', btn, () => refreshFxIntegrationStatus(root), {
-        busyText: 'Refreshing...',
-      });
-      showMsg('fx-int-msg', 'Status refreshed.', true);
-    } catch (err) {
-      showMsg('fx-int-msg', 'Error: ' + (err as Error).message, false);
-    }
-  });
-
   root.querySelector('#btn-fx-clear-cache')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-fx-clear-cache') as HTMLButtonElement;
     const ok = await confirmDialog({
@@ -2163,40 +2130,6 @@ function attachFxIntegrationListeners(root: HTMLElement): void {
       });
       await refreshFxIntegrationStatus(root);
       showMsg('fx-int-msg', 'FX cache cleared.', true);
-    } catch (err) {
-      showMsg('fx-int-msg', 'Error: ' + (err as Error).message, false);
-    }
-  });
-
-  root.querySelector('#btn-fx-warm-cache')?.addEventListener('click', async () => {
-    const btn = root.querySelector('#btn-fx-warm-cache') as HTMLButtonElement;
-    const yearMonth = currentYearMonth();
-    const currencies = getNonBaseAccountCurrencies(getAccounts());
-    if (currencies.length === 0) {
-      showMsg('fx-int-msg', 'No non-EUR account currencies configured.', false);
-      return;
-    }
-    try {
-      let resolved = 0;
-      await withCardGuard(
-        'integrations',
-        btn,
-        async () => {
-          for (const cur of currencies) {
-            const rate = await resolveMonthEndRate(cur, yearMonth);
-            if (rate) resolved++;
-          }
-        },
-        {
-          busyText: 'Fetching...',
-        },
-      );
-      await refreshFxIntegrationStatus(root);
-      showMsg(
-        'fx-int-msg',
-        `Resolved ${resolved}/${currencies.length} month-end FX rates for ${yearMonth}.`,
-        resolved > 0,
-      );
     } catch (err) {
       showMsg('fx-int-msg', 'Error: ' + (err as Error).message, false);
     }

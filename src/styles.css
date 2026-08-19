@@ -2550,6 +2550,47 @@ input[type='color'] {
   margin: 0;
   padding: 0;
 }
+/* Compact telemetry row variant */
+.settings-items-compact {
+  gap: 2px;
+}
+.settings-item-compact {
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--line);
+}
+.settings-item-compact:last-child {
+  border-bottom: none;
+}
+.settings-item-compact .settings-item-header {
+  min-height: 28px;
+  padding: 2px 0;
+}
+.settings-item-label {
+  font-size: 11px;
+  color: var(--ink-3);
+  font-weight: 500;
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.settings-item-value {
+  font-size: 11px;
+  color: var(--ink-2);
+  flex: 0 1 55%;
+  min-width: 0;
+  text-align: right;
+  word-break: break-word;
+  white-space: normal;
+}
+.settings-item-value-error--active {
+  color: var(--warn-fg);
+  font-weight: 500;
+}
 .item-chevron {
   width: 14px;
   height: 14px;

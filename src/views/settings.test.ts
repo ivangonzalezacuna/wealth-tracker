@@ -599,7 +599,7 @@ describe('FX integrations card', () => {
     expect(document.getElementById('fx-integration-enabled')).not.toBeNull();
     expect(document.getElementById('btn-save-fx-integration')).not.toBeNull();
     expect(document.getElementById('fx-status-cache-entries')).not.toBeNull();
-    expect(document.getElementById('fx-status-last-request-url')).not.toBeNull();
+    expect(document.getElementById('fx-status-last-request-url')).toBeNull();
   });
 
   it('saves fx_integration_enabled setting from the toggle', async () => {
