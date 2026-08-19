@@ -435,10 +435,7 @@ function _bindFxHintLookup(overlay: HTMLElement): void {
     void resolveRate(currency, date).then((record) => {
       // Guard: ensure dialog is still open and inputs haven't changed
       if (!_dialog.overlay()) return;
-      if (
-        currencyInput.value.toUpperCase().trim() !== currency ||
-        dateInput.value.trim() !== date
-      )
+      if (currencyInput.value.toUpperCase().trim() !== currency || dateInput.value.trim() !== date)
         return;
       _updateFxHint(overlay, record);
     });
@@ -456,10 +453,7 @@ function _hideFxHint(overlay: HTMLElement): void {
   if (hintEl) hintEl.style.display = 'none';
 }
 
-function _updateFxHint(
-  overlay: HTMLElement,
-  record: FxRateRecord | null,
-): void {
+function _updateFxHint(overlay: HTMLElement, record: FxRateRecord | null): void {
   const hintEl = overlay.querySelector('#txd-fxrate-hint') as HTMLElement | null;
   if (!hintEl) return;
   if (!record) {

@@ -337,7 +337,14 @@ describe('transactionDialog', () => {
 
   it('populates the FX rate field and shows the hint when resolveRate returns a record', async () => {
     const { resolveRate } = await import('../fx');
-    const mockRecord = { base: 'USD', target: 'EUR', date: '2024-03-15', rate: 0.9234, effectiveDate: '2024-03-15', fetchedAt: '' };
+    const mockRecord = {
+      base: 'USD',
+      target: 'EUR',
+      date: '2024-03-15',
+      rate: 0.9234,
+      effectiveDate: '2024-03-15',
+      fetchedAt: '',
+    };
     vi.mocked(resolveRate).mockResolvedValueOnce(mockRecord);
 
     transactionDialog();
@@ -363,7 +370,14 @@ describe('transactionDialog', () => {
 
   it('does not overwrite a manually entered FX rate when resolveRate returns a record', async () => {
     const { resolveRate } = await import('../fx');
-    const mockRecord = { base: 'USD', target: 'EUR', date: '2024-03-15', rate: 0.9234, effectiveDate: '2024-03-15', fetchedAt: '' };
+    const mockRecord = {
+      base: 'USD',
+      target: 'EUR',
+      date: '2024-03-15',
+      rate: 0.9234,
+      effectiveDate: '2024-03-15',
+      fetchedAt: '',
+    };
     vi.mocked(resolveRate).mockResolvedValueOnce(mockRecord);
 
     transactionDialog();

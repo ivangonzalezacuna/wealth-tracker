@@ -321,7 +321,7 @@ describe('snapshotDialog', () => {
     await Promise.resolve();
     const status = document.querySelector('#snapd-fx-status') as HTMLElement | null;
     expect(status?.textContent).toContain('FX rate fetch failed');
-    expect(status?.textContent).toContain('manually');
+    expect(status?.textContent).toContain('converted to EUR');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
 });
