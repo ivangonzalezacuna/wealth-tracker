@@ -24,6 +24,7 @@ import { INTERVAL_PER_YEAR } from '../model/contributions';
 import type { CachedConfig } from '../cache/db';
 import { validateAccountIds } from '../model/accounts';
 import { configureFxService } from '../services/fxRateService';
+import { configureFmpService } from '../services/fmpService';
 
 // Valid contribution intervals, derived from the canonical INTERVAL_PER_YEAR map
 const VALID_INTERVALS = new Set(Object.keys(INTERVAL_PER_YEAR));
@@ -68,6 +69,13 @@ export function getSettings(): Settings {
  */
 function applyFxServiceConfig(): void {
   configureFxService({ enabled: _settings.fx_integration_enabled !== '0' });
+}
+
+function applyFmpServiceConfig(): void {
+  configureFmpService({
+    enabled: _settings.fmp_integration_enabled === '1',
+    apiKey: _settings.fmp_api_key ?? '',
+  });
 }
 
 /**
@@ -237,6 +245,7 @@ export function hydrateConfigFromCache(cfg: CachedConfig): void {
   _settings = cfg.settings || {};
   _loaded = true;
   applyFxServiceConfig();
+  applyFmpServiceConfig();
 }
 
 // ── Load config from SQLite ──────────────────────────────
@@ -273,6 +282,7 @@ export async function loadConfig(): Promise<void> {
   _loaded = true;
 
   applyFxServiceConfig();
+  applyFmpServiceConfig();
 
   // Flush any pending retired account IDs
   void flushPendingRetiredIds();
@@ -314,10 +324,15 @@ export async function setSetting(key: string, value: string): Promise<void> {
   try {
     await dbSetSetting(key, value);
     // Integration-toggle settings are kept out of the config history audit log.
-    if (key !== 'fx_integration_enabled') {
+    if (
+      key !== 'fx_integration_enabled' &&
+      key !== 'fmp_integration_enabled' &&
+      key !== 'fmp_api_key'
+    ) {
       await logConfigChange('Settings', `${key} = ${value}`);
     }
     if (key === 'fx_integration_enabled') applyFxServiceConfig();
+    if (key === 'fmp_integration_enabled' || key === 'fmp_api_key') applyFmpServiceConfig();
     scheduleUpload();
     if (_onChange) _onChange('settings');
   } catch (err) {
@@ -341,6 +356,7 @@ export async function setSettings(
     await persistSettings();
     await logConfigChange('Settings', `updated ${Object.keys(settings).join(', ')}`);
     if ('fx_integration_enabled' in settings) applyFxServiceConfig();
+    if ('fmp_integration_enabled' in settings || 'fmp_api_key' in settings) applyFmpServiceConfig();
     scheduleUpload();
     if (_onChange) _onChange('settings');
   } catch (err) {
@@ -357,6 +373,7 @@ export async function replaceSettings(settings: Settings): Promise<void> {
     await persistSettings();
     await logConfigChange('Settings', 'restored from backup');
     applyFxServiceConfig();
+    applyFmpServiceConfig();
     scheduleUpload();
     if (_onChange) _onChange('settings');
   } catch (err) {

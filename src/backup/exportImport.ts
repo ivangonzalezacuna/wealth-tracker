@@ -1,7 +1,15 @@
-import type { Account, FxRateRecord, Holding, Settings, Snapshot, Transaction } from '../types';
+import type {
+  Account,
+  FxRateRecord,
+  Holding,
+  HoldingMetadata,
+  Settings,
+  Snapshot,
+  Transaction,
+} from '../types';
 import { formatEnglishDate } from '../dateFormat';
 
-export const BACKUP_SCHEMA_VERSION = 4;
+export const BACKUP_SCHEMA_VERSION = 5;
 
 export interface BackupFile {
   schemaVersion: number;
@@ -17,6 +25,7 @@ export interface BackupFile {
     /** FX rate cache. Optional for backwards-compatibility with pre-v4 backups;
      *  migrateBackup (v3→v4) always fills in an empty array when absent. */
     fxRates?: FxRateRecord[];
+    holdingMetadata?: HoldingMetadata[];
   };
 }
 
@@ -84,6 +93,12 @@ export const MIGRATIONS: Record<number, Migration> = {
     }
     return data;
   },
+  4: (data) => {
+    if (!Array.isArray((data as unknown as Record<string, unknown>).holdingMetadata)) {
+      return { ...data, holdingMetadata: [] } as unknown as typeof data;
+    }
+    return data;
+  },
 };
 
 export function migrateBackup(b: BackupFile): BackupFile {
@@ -94,14 +109,19 @@ export function migrateBackup(b: BackupFile): BackupFile {
   return { ...b, schemaVersion: BACKUP_SCHEMA_VERSION, data };
 }
 
-export function buildBackup(input: BackupFile['data']): BackupFile {
+export function buildBackup(
+  input: BackupFile['data'] & { holdingMetadata?: HoldingMetadata[] },
+): BackupFile {
+  const { fmp_api_key: _stripped, ...safeSettings } = input.settings as Record<string, unknown>;
   return {
     schemaVersion: BACKUP_SCHEMA_VERSION,
     app: 'wealth-tracker',
     exportedAt: new Date().toISOString(),
     data: {
       ...input,
+      settings: safeSettings as Settings,
       fxRates: input.fxRates ?? [],
+      holdingMetadata: input.holdingMetadata ?? [],
       transactions: input.transactions.map(({ rowId: _rowId, ...tx }) => tx),
     },
   };
@@ -140,9 +160,11 @@ export function validateBackup(raw: unknown): BackupFile | null {
     // fxRates is optional for backwards compatibility: old backups omit it and
     // migrateBackup (v3→v4) fills in an empty array.
     (d.fxRates !== undefined &&
-      (!Array.isArray(d.fxRates) || !d.fxRates.every(isValidFxRateRecord)))
+     (!Array.isArray(d.fxRates) || !d.fxRates.every(isValidFxRateRecord))) ||
+     (d.holdingMetadata !== undefined &&
+       (!Array.isArray(d.holdingMetadata) || !d.holdingMetadata.every(isValidHoldingMetadata)))
   )
-    return null;
+   return null;
   return b as BackupFile;
 }
 
@@ -324,5 +346,40 @@ function isValidFxRateRecord(value: unknown): value is FxRateRecord {
     isFiniteNumber(value.rate) &&
     typeof value.effectiveDate === 'string' &&
     typeof value.fetchedAt === 'string'
+  );
+}
+
+function isValidHoldingMetadata(value: unknown): value is HoldingMetadata {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.isin === 'string' &&
+    isOptionalString(value.symbol) &&
+    isOptionalString(value.exchange) &&
+    isOptionalString(value.domicileCountry) &&
+    isOptionalString(value.fundCurrency) &&
+    (value.aum === null || isOptionalFiniteNumber(value.aum)) &&
+    (value.inceptionDate === null || isOptionalString(value.inceptionDate)) &&
+    (value.holdingsCount === null || isOptionalFiniteNumber(value.holdingsCount)) &&
+    (value.sectors === null ||
+      value.sectors === undefined ||
+      (Array.isArray(value.sectors) &&
+        value.sectors.every(
+          (entry) =>
+            isRecord(entry) &&
+            typeof entry.industry === 'string' &&
+            typeof entry.exposure === 'string',
+        ))) &&
+    (value.topHoldings === null ||
+      value.topHoldings === undefined ||
+      (Array.isArray(value.topHoldings) &&
+        value.topHoldings.every(
+          (entry) =>
+            isRecord(entry) &&
+            typeof entry.asset === 'string' &&
+            typeof entry.weightPercentage === 'string',
+        ))) &&
+    typeof value.fetchedAt === 'string' &&
+    typeof value.lastRefreshedAt === 'string' &&
+    typeof value.provider === 'string'
   );
 }

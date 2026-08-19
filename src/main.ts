@@ -23,6 +23,8 @@ import {
   clearSyncMetadata,
   loadAllFxRates,
   restoreAllFxRates,
+  getAllHoldingMetadata,
+  upsertHoldingMetadata,
 } from './db';
 import {
   pullFromCloud,
@@ -916,6 +918,7 @@ window.__forceFullResync = forceFullResync;
 // ── Backup export ─────────────────────────────────────────
 export async function exportBackup(): Promise<void> {
   const fxRates = await loadAllFxRates();
+  const holdingMetadata = await getAllHoldingMetadata();
   const backup = buildBackup({
     accounts: getAccounts(),
     holdings: getHoldings(),
@@ -924,6 +927,7 @@ export async function exportBackup(): Promise<void> {
     transactions: state.txs,
     importMeta: state.importMeta,
     fxRates,
+    holdingMetadata,
   });
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -1055,8 +1059,17 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
   // Cancel any in-flight pre-restore upload so stale data is never pushed.
   cancelPendingUpload();
   try {
-    const { accounts, holdings, settings, snapshots, transactions, importMeta, fxRates } =
-      backup.data;
+    const savedFmpApiKey = getSettings().fmp_api_key;
+    const {
+      accounts,
+      holdings,
+      settings,
+      snapshots,
+      transactions,
+      importMeta,
+      fxRates,
+      holdingMetadata,
+    } = backup.data;
 
     // Write all five tables atomically in one SQLite transaction.
     // Either everything is replaced or nothing is (full rollback on error).
@@ -1069,8 +1082,17 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
       await restoreAllFxRates(fxRates);
     }
 
+    if (holdingMetadata && holdingMetadata.length > 0) {
+      for (const record of holdingMetadata) {
+        await upsertHoldingMetadata(record).catch(() => {});
+      }
+    }
+
     // Reload in-memory config store from the freshly written SQLite tables.
     await loadConfig();
+    if (savedFmpApiKey) {
+      await setSetting('fmp_api_key', savedFmpApiKey);
+    }
     await logConfigChange('Restore', 'restored from backup');
 
     // Reapply collapse/expand UI state from the backup

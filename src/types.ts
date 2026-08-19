@@ -113,6 +113,10 @@ export interface Settings {
   retired_account_ids?: string;
   /** When '0', the Frankfurter FX integration is disabled app-wide; all other values (including absent) mean enabled. */
   fx_integration_enabled?: string;
+  /** When '1', the FMP ETF metadata integration is enabled. Default off when absent. */
+  fmp_integration_enabled?: string;
+  /** FMP API key — stored locally only, never exported in backups. */
+  fmp_api_key?: string;
   /** Forward-compatible escape hatch for unknown / future keys. */
   [key: string]: string | null | undefined;
 }
@@ -195,6 +199,36 @@ export interface FxTelemetryMonthly {
   cacheHitCount: number;
   /** Network/provider errors this month. */
   errorCount: number;
+}
+
+// ─── FMP Holding Metadata ─────────────────────────────────────────
+
+export interface HoldingMetadata {
+  isin: string;
+  symbol?: string;
+  exchange?: string;
+  domicileCountry?: string;
+  fundCurrency?: string;
+  aum?: number | null;
+  inceptionDate?: string | null;
+  holdingsCount?: number | null;
+  sectors?: Array<{ industry: string; exposure: string }> | null;
+  topHoldings?: Array<{ asset: string; weightPercentage: string }> | null;
+  fetchedAt: string;
+  lastRefreshedAt: string;
+  provider: string;
+}
+
+export interface FmpTelemetry {
+  lastFetchAt: string;
+  lastRequestUrl: string;
+  lastErrorAt: string;
+  lastError: string;
+  fetchCount: number;
+  cacheHitCount: number;
+  errorCount: number;
+  dailyFetchDate: string;
+  dailyFetchCount: number;
 }
 
 // ─── Alert Settings ──────────────────────────────────────

@@ -66,4 +66,21 @@ export {
   recordFxNormalize,
 } from './repositories/fxTelemetry';
 
+export {
+  getHoldingMetadata,
+  upsertHoldingMetadata,
+  getAllHoldingMetadata,
+  deleteHoldingMetadata,
+  clearAllHoldingMetadata,
+} from './repositories/holdingMetadata';
+
+export {
+  getFmpTelemetry,
+  recordFmpFetch,
+  recordFmpCacheHit,
+  recordFmpError,
+  getDailyFetchCount,
+  resetFmpTelemetry,
+} from './repositories/fmpTelemetry';
+
 export { getDb, persistDb, exportDb, importDb, destroyDb } from './connection';

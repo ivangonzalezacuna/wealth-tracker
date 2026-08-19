@@ -186,4 +186,35 @@ export const MIGRATIONS: string[][] = [
       error_count INTEGER NOT NULL DEFAULT 0
     )`,
   ],
+  // [16] version 15 → 16: add FMP ETF metadata cache and telemetry tables.
+  [
+    `CREATE TABLE IF NOT EXISTS holding_metadata (
+      isin TEXT PRIMARY KEY,
+      symbol TEXT,
+      exchange TEXT,
+      domicile_country TEXT,
+      fund_currency TEXT,
+      aum REAL,
+      inception_date TEXT,
+      holdings_count INTEGER,
+      sectors TEXT,
+      top_holdings TEXT,
+      fetched_at TEXT NOT NULL DEFAULT '',
+      last_refreshed_at TEXT NOT NULL DEFAULT '',
+      provider TEXT NOT NULL DEFAULT 'fmp'
+    )`,
+    `CREATE TABLE IF NOT EXISTS fmp_telemetry (
+      id INTEGER PRIMARY KEY,
+      last_fetch_at TEXT NOT NULL DEFAULT '',
+      last_request_url TEXT NOT NULL DEFAULT '',
+      last_error_at TEXT NOT NULL DEFAULT '',
+      last_error TEXT NOT NULL DEFAULT '',
+      fetch_count INTEGER NOT NULL DEFAULT 0,
+      cache_hit_count INTEGER NOT NULL DEFAULT 0,
+      error_count INTEGER NOT NULL DEFAULT 0,
+      daily_fetch_date TEXT NOT NULL DEFAULT '',
+      daily_fetch_count INTEGER NOT NULL DEFAULT 0
+    )`,
+    `INSERT OR IGNORE INTO fmp_telemetry (id) VALUES (1)`,
+  ],
 ];
