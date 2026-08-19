@@ -92,6 +92,10 @@ describe('applySnapshotFxNormalization', () => {
     expect(result.usd_acc).toBe(1000);
     expect(result.etf_IE00AAA).toBe(500);
     expect(onRateUnavailable).toHaveBeenCalledWith('USD');
+    // Bug fix 1: callback must fire exactly once per currency, not once per
+    // account/ETF path — previously it fired twice when the same USD rate was
+    // unavailable for both the account balance and the ETF block.
+    expect(onRateUnavailable).toHaveBeenCalledTimes(1);
   });
 
   it('converts only non-EUR accounts and leaves EUR accounts untouched', async () => {
@@ -181,6 +185,78 @@ describe('applySnapshotFxNormalization', () => {
 
     const result = await applySnapshotFxNormalization(edited, accounts, previous);
     expect(result.usd_acc).toBe(920);
+  });
+
+  // ── Bug-fix regression tests ─────────────────────────────────────
+
+  it('Bug 1: onRateUnavailable is called at most once per currency even with multiple accounts sharing that currency', async () => {
+    mockResolveMonthEndRate.mockResolvedValue(null);
+    const onRateUnavailable = vi.fn();
+    const snap: Snapshot = { date: '2024-01', usd_acc1: 1000, usd_acc2: 500 };
+    const accounts = [makeAccount('usd_acc1', 'USD'), makeAccount('usd_acc2', 'USD')];
+
+    await applySnapshotFxNormalization(snap, accounts, undefined, { onRateUnavailable });
+
+    expect(onRateUnavailable).toHaveBeenCalledTimes(1);
+    expect(onRateUnavailable).toHaveBeenCalledWith('USD');
+  });
+
+  it('Bug 2: an account key that starts with etf_ is NOT re-normalized by the ETF loop', async () => {
+    // Account 'etf_broker' is in GBP; the primary investment account is in USD.
+    // The ETF loop must not overwrite the GBP-converted value with the USD rate.
+    mockResolveMonthEndRate.mockImplementation(async (currency: string) => {
+      if (currency === 'GBP') return makeRate(1.15); // 1 GBP → 1.15 EUR
+      if (currency === 'USD') return makeRate(0.92); // 1 USD → 0.92 EUR
+      return null;
+    });
+
+    const snap: Snapshot = { date: '2024-01', etf_broker: 100, usd_acc: 200, etf_IE00AAA: 400 };
+    const accounts: Account[] = [
+      // etf_broker: GBP account (its key happens to start with "etf_")
+      { id: 'etf_broker', label: 'GBP ETF Broker', currency: 'GBP' },
+      // usd_acc: the primary USD investment account that drives ETF currency
+      {
+        id: 'usd_acc',
+        label: 'USD Broker',
+        currency: 'USD',
+        isPrimaryInvestment: true,
+        moneyType: 'investment',
+      },
+    ];
+
+    const result = await applySnapshotFxNormalization(snap, accounts);
+
+    // etf_broker must be converted at GBP rate, NOT overwritten by USD rate
+    expect(result.etf_broker).toBeCloseTo(100 * 1.15); // 115, not 92
+    // usd_acc converted at USD rate
+    expect(result.usd_acc).toBeCloseTo(200 * 0.92);
+    // pure ETF key converted at USD rate (primary investment currency)
+    expect(result.etf_IE00AAA).toBeCloseTo(400 * 0.92);
+  });
+
+  it('Bug 3: ETF rate is not fetched (and onRateUnavailable not called) when all etf_ values match previousCanonical', async () => {
+    mockResolveMonthEndRate.mockResolvedValue(null); // would fail if called
+    const onRateUnavailable = vi.fn();
+
+    const previous: Snapshot = { date: '2024-01', usd_acc: 1000, etf_IE00AAA: 400 };
+    // Both values in the edited snap match the canonical values → all would be skipped
+    const edited: Snapshot = { date: '2024-01', usd_acc: 1000, etf_IE00AAA: 400 };
+    const accounts: Account[] = [
+      {
+        id: 'usd_acc',
+        label: 'USD Broker',
+        currency: 'USD',
+        isPrimaryInvestment: true,
+        moneyType: 'investment',
+      },
+    ];
+
+    await applySnapshotFxNormalization(edited, accounts, previous, { onRateUnavailable });
+
+    // No rate fetch should have been attempted at all
+    expect(mockResolveMonthEndRate).not.toHaveBeenCalled();
+    // onRateUnavailable must not be called for a spurious ETF rate lookup
+    expect(onRateUnavailable).not.toHaveBeenCalled();
   });
 });
 

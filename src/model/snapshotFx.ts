@@ -54,6 +54,17 @@ export async function applySnapshotFxNormalization(
   let normalizeResolved = 0;
   let normalizeFailed = 0;
 
+  // Bug fix 1: deduplicate onRateUnavailable calls — each currency is reported
+  // at most once even when multiple accounts share the same currency or when the
+  // same currency is used for both account balances and ETF values.
+  const reportedUnavailable = new Set<string>();
+  const reportUnavailable = (currency: string): void => {
+    if (!reportedUnavailable.has(currency)) {
+      reportedUnavailable.add(currency);
+      opts?.onRateUnavailable?.(currency);
+    }
+  };
+
   const getRate = async (currency: string): Promise<number | null> => {
     if (rateCache.has(currency)) return rateCache.get(currency) ?? null;
     normalizeAttempted += 1;
@@ -75,7 +86,7 @@ export async function applySnapshotFxNormalization(
 
     const rate = await getRate(currency);
     if (rate === null) {
-      opts?.onRateUnavailable?.(currency);
+      reportUnavailable(currency);
       continue; // provider unavailable or disabled — keep raw value
     }
     normalized[key] = rawBalance * rate;
@@ -87,17 +98,36 @@ export async function applySnapshotFxNormalization(
     return normalized;
   }
 
-  const etfRate = await getRate(etfCurrency);
-  if (etfRate === null) {
-    opts?.onRateUnavailable?.(etfCurrency);
+  // Bug fix 3: only fetch the ETF rate (and report unavailability) when there
+  // are actually ETF entries that need normalization.  Skipping this when all
+  // etf_ values are unchanged (previousCanonical match) avoids a spurious fetch
+  // and a false onRateUnavailable notification.
+  //
+  // Bug fix 2: exclude keys that are already in nonEurPairs (i.e. account keys
+  // whose id happens to start with "etf_").  Those were already converted in the
+  // account loop above; re-converting them here with the ETF currency rate would
+  // produce an incorrect result when the two currencies differ.
+  const pendingEtfEntries = Object.entries(snap).filter(([key, value]) => {
+    if (!key.startsWith('etf_') || typeof value !== 'number' || !isFinite(value)) return false;
+    if (nonEurPairs.has(key)) return false; // already handled as an account key
+    if (previousCanonical && value === previousCanonical[key]) return false;
+    return true;
+  });
+
+  if (pendingEtfEntries.length === 0) {
     recordFxNormalize(normalizeAttempted, normalizeResolved, normalizeFailed).catch(() => {});
     return normalized;
   }
 
-  for (const [key, value] of Object.entries(snap)) {
-    if (!key.startsWith('etf_') || typeof value !== 'number' || !isFinite(value)) continue;
-    if (previousCanonical && value === previousCanonical[key]) continue;
-    normalized[key] = value * etfRate;
+  const etfRate = await getRate(etfCurrency);
+  if (etfRate === null) {
+    reportUnavailable(etfCurrency);
+    recordFxNormalize(normalizeAttempted, normalizeResolved, normalizeFailed).catch(() => {});
+    return normalized;
+  }
+
+  for (const [key, value] of pendingEtfEntries) {
+    normalized[key] = (value as number) * etfRate;
   }
 
   recordFxNormalize(normalizeAttempted, normalizeResolved, normalizeFailed).catch(() => {});
