@@ -102,6 +102,10 @@ export async function gotoApp(page: Page): Promise<void> {
   await expect(page.locator('#tab-networth')).toBeVisible();
 }
 
+export async function waitForSyncIdle(page: Page): Promise<void> {
+  await expect(page.locator('#btn-sync-now')).toHaveText('Sync now', { timeout: 15_000 });
+}
+
 export async function openTab(page: Page, tabId: string): Promise<void> {
   await page.click(`#${tabId}`);
 }
@@ -126,6 +130,7 @@ export async function addAccount(
     lockedUntil?: string;
     country?: string;
     group?: string;
+    currency?: string;
   },
 ): Promise<void> {
   await openTab(page, 'tab-settings');
@@ -144,6 +149,7 @@ export async function addAccount(
   }
   if (opts.country) await page.fill('#acctd-country', opts.country);
   if (opts.group) await page.fill('#acctd-group', opts.group);
+  if (opts.currency) await page.fill('#acctd-currency', opts.currency);
   await page.click('.js-acctd-submit');
   await expect(page.locator('#settings-accounts-tbl')).toContainText(opts.label);
   await page.click('#btn-save-accts');
@@ -181,7 +187,8 @@ export async function addSnapshot(
   await page.fill('#snapd-date', opts.month);
   if (opts.note) await page.fill('#snapd-notes', opts.note);
   for (const [label, value] of Object.entries(opts.accountValues ?? {})) {
-    await page.getByLabel(`${label} (€)`).fill(String(value));
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    await page.getByLabel(new RegExp(`^${escaped} \\([A-Z]{3}\\)$`)).fill(String(value));
   }
   await page.click('.js-snapd-submit');
   await expect(page.locator('#snap-msg')).toContainText('Saved');
@@ -238,11 +245,42 @@ export async function importCsvFixture(
   page: Page,
   fixturePath: string = CSV_FIXTURE,
 ): Promise<void> {
-  await openTab(page, 'tab-log');
-  await page.setInputFiles('#csv-file-input', fixturePath);
-  await expect(page.locator('#btn-confirm-import')).toBeVisible();
+  await openCsvImportPreview(page, fixturePath);
   await page.click('#btn-confirm-import');
   await expect(page.locator('#import-msg')).toContainText('Imported');
+}
+
+export async function openCsvImportPreview(
+  page: Page,
+  fixturePath: string = CSV_FIXTURE,
+): Promise<void> {
+  await openTab(page, 'tab-log');
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await waitForSyncIdle(page);
+    await page.setInputFiles('#csv-file-input', fixturePath);
+    const result = await page
+      .waitForFunction(
+        () => {
+          if (document.getElementById('btn-confirm-import')) return 'ready';
+          const msg = document.getElementById('import-msg')?.textContent ?? '';
+          if (
+            msg.includes('A sync is already in progress.') ||
+            msg.includes('A sync or save is in progress. Try again in a moment.')
+          ) {
+            return 'busy';
+          }
+          return null;
+        },
+        undefined,
+        { timeout: 15_000 },
+      )
+      .then((handle) => handle.jsonValue() as Promise<'ready' | 'busy'>);
+    if (result === 'ready') {
+      await expect(page.locator('#btn-confirm-import')).toBeVisible();
+      return;
+    }
+  }
+  throw new Error('CSV import preview did not become ready before sync settled.');
 }
 
 export function snapshotRow(page: Page, month: string) {

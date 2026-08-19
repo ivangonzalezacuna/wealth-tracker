@@ -23,6 +23,7 @@ import type {
 import { INTERVAL_PER_YEAR } from '../model/contributions';
 import type { CachedConfig } from '../cache/db';
 import { validateAccountIds } from '../model/accounts';
+import { configureFxService } from '../services/fxRateService';
 
 // Valid contribution intervals, derived from the canonical INTERVAL_PER_YEAR map
 const VALID_INTERVALS = new Set(Object.keys(INTERVAL_PER_YEAR));
@@ -58,6 +59,15 @@ export function getHoldings(): Holding[] {
 }
 export function getSettings(): Settings {
   return _settings;
+}
+
+/**
+ * Sync the FX integration enabled/disabled state from settings to the service.
+ * Called after any settings change and on initial load.
+ * The fx_integration_enabled setting defaults to enabled when absent.
+ */
+function applyFxServiceConfig(): void {
+  configureFxService({ enabled: _settings.fx_integration_enabled !== '0' });
 }
 
 /**
@@ -226,6 +236,7 @@ export function hydrateConfigFromCache(cfg: CachedConfig): void {
   _holdings = cfg.holdings || [];
   _settings = cfg.settings || {};
   _loaded = true;
+  applyFxServiceConfig();
 }
 
 // ── Load config from SQLite ──────────────────────────────
@@ -260,6 +271,8 @@ export async function loadConfig(): Promise<void> {
   }
 
   _loaded = true;
+
+  applyFxServiceConfig();
 
   // Flush any pending retired account IDs
   void flushPendingRetiredIds();
@@ -300,7 +313,11 @@ export async function setSetting(key: string, value: string): Promise<void> {
   _settings[key] = value;
   try {
     await dbSetSetting(key, value);
-    await logConfigChange('Settings', `${key} = ${value}`);
+    // Integration-toggle settings are kept out of the config history audit log.
+    if (key !== 'fx_integration_enabled') {
+      await logConfigChange('Settings', `${key} = ${value}`);
+    }
+    if (key === 'fx_integration_enabled') applyFxServiceConfig();
     scheduleUpload();
     if (_onChange) _onChange('settings');
   } catch (err) {
@@ -323,6 +340,7 @@ export async function setSettings(
   try {
     await persistSettings();
     await logConfigChange('Settings', `updated ${Object.keys(settings).join(', ')}`);
+    if ('fx_integration_enabled' in settings) applyFxServiceConfig();
     scheduleUpload();
     if (_onChange) _onChange('settings');
   } catch (err) {
@@ -338,6 +356,7 @@ export async function replaceSettings(settings: Settings): Promise<void> {
   try {
     await persistSettings();
     await logConfigChange('Settings', 'restored from backup');
+    applyFxServiceConfig();
     scheduleUpload();
     if (_onChange) _onChange('settings');
   } catch (err) {

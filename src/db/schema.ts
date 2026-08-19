@@ -6,7 +6,7 @@
  */
 
 /** Schema version - bump when DDL changes require a migration. */
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 15;
 
 /**
  * SQL statements executed on first database creation (version 0 → 1).
@@ -50,7 +50,8 @@ export const SCHEMA_DDL: string[] = [
     contrib_interval TEXT NOT NULL DEFAULT 'monthly',
     locked INTEGER NOT NULL DEFAULT 0,
     locked_until TEXT NOT NULL DEFAULT '',
-    extra_contrib REAL NOT NULL DEFAULT 0
+    extra_contrib REAL NOT NULL DEFAULT 0,
+    currency TEXT NOT NULL DEFAULT 'EUR'
   )`,
 
   // ── Holdings ──────────────────────────────────────────────────
@@ -97,5 +98,44 @@ export const SCHEMA_DDL: string[] = [
   `CREATE TABLE IF NOT EXISTS meta (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL DEFAULT ''
+  )`,
+
+  // ── FX rates cache (Frankfurter integration) ──────────────────
+  `CREATE TABLE IF NOT EXISTS fx_rates (
+    base TEXT NOT NULL,
+    target TEXT NOT NULL,
+    date TEXT NOT NULL,
+    rate REAL NOT NULL,
+    effective_date TEXT NOT NULL DEFAULT '',
+    fetched_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (base, target, date)
+  )`,
+
+  // ── FX integration telemetry ──────────────────────────────────
+  // Single-row table (id=1) for lightweight operational status tracking.
+  `CREATE TABLE IF NOT EXISTS fx_telemetry (
+    id INTEGER PRIMARY KEY,
+    last_fetch_at TEXT NOT NULL DEFAULT '',
+    last_request_url TEXT NOT NULL DEFAULT '',
+    last_error_at TEXT NOT NULL DEFAULT '',
+    last_error TEXT NOT NULL DEFAULT '',
+    fetch_count INTEGER NOT NULL DEFAULT 0,
+    cache_hit_count INTEGER NOT NULL DEFAULT 0,
+    prefetch_attempt_count INTEGER NOT NULL DEFAULT 0,
+    prefetch_success_count INTEGER NOT NULL DEFAULT 0,
+    prefetch_failure_count INTEGER NOT NULL DEFAULT 0,
+    normalize_attempt_count INTEGER NOT NULL DEFAULT 0,
+    normalize_success_count INTEGER NOT NULL DEFAULT 0,
+    normalize_failure_count INTEGER NOT NULL DEFAULT 0
+  )`,
+  `INSERT OR IGNORE INTO fx_telemetry (id) VALUES (1)`,
+
+  // ── FX monthly telemetry ──────────────────────────────────────
+  // One row per YYYY-MM; automatically reset each calendar month.
+  `CREATE TABLE IF NOT EXISTS fx_telemetry_monthly (
+    month TEXT PRIMARY KEY,
+    fetch_count INTEGER NOT NULL DEFAULT 0,
+    cache_hit_count INTEGER NOT NULL DEFAULT 0,
+    error_count INTEGER NOT NULL DEFAULT 0
   )`,
 ];

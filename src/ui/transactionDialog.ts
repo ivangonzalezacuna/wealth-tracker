@@ -7,15 +7,17 @@ import { esc } from '../utils';
 import type { SecuritySuggestionPair, SecuritySuggestions } from '../model/securitySuggestions';
 import { ISIN_HINT, isValidISIN, normalizeISIN } from '../model/isin';
 import { TxType } from '../types';
-import type { Transaction } from '../types';
+import type { Transaction, FxRateRecord } from '../types';
 import {
   createDialogController,
   DIALOG_FOCUSABLES,
   focusFirstInvalid,
   makeDialogHelpers,
   openDialogShell,
+  populateDatalist,
 } from './modalShell';
 import { attachSecurityAutocomplete } from './securityAutocomplete';
+import { resolveRate } from '../fx';
 
 let _activeExisting: Transaction | undefined = undefined;
 let _activeSuggestionPairs: SecuritySuggestionPair[] = [];
@@ -61,6 +63,7 @@ const FX_TYPES: ReadonlySet<Transaction['type']> = new Set([
 export interface TransactionDialogOptions {
   existing?: Transaction;
   suggestions?: SecuritySuggestions;
+  currencySuggestions?: string[];
 }
 
 export function transactionDialog(
@@ -123,7 +126,7 @@ export function transactionDialog(
           </div>
           <div class="dialog-row">
             <div class="dialog-field" id="txd-field-amount">
-              <label class="dialog-label" for="txd-amount">Amount (€)</label>
+              <label class="dialog-label" for="txd-amount" id="txd-amount-label">Amount (EUR)</label>
               <input type="text" inputmode="decimal" id="txd-amount" class="form-input dialog-input"
                 value="${esc(existing != null ? String(existing.amount) : '')}"
                 placeholder="0.00">
@@ -137,14 +140,14 @@ export function transactionDialog(
               <span class="dialog-error dialog-error-compact" id="txd-shares-err"></span>
             </div>
             <div class="dialog-field" id="txd-field-fee">
-              <label class="dialog-label" for="txd-fee">Fee (€)</label>
+              <label class="dialog-label" for="txd-fee" id="txd-fee-label">Fee (EUR)</label>
               <input type="text" inputmode="decimal" id="txd-fee" class="form-input dialog-input"
                 value="${esc(existing != null ? String(existing.fee) : '')}"
                 placeholder="0">
               <span class="dialog-error dialog-error-compact" id="txd-fee-err"></span>
             </div>
             <div class="dialog-field" id="txd-field-tax">
-              <label class="dialog-label" for="txd-tax">Tax (€)</label>
+              <label class="dialog-label" for="txd-tax" id="txd-tax-label">Tax (EUR)</label>
               <input type="text" inputmode="decimal" id="txd-tax" class="form-input dialog-input"
                 value="${esc(existing != null ? String(existing.tax) : '')}"
                 placeholder="0">
@@ -156,14 +159,16 @@ export function transactionDialog(
               <label class="dialog-label" for="txd-currency">Currency</label>
               <input type="text" id="txd-currency" class="form-input dialog-input dialog-input-uppercase"
                 value="${esc(existing?.currency || 'EUR')}" placeholder="EUR"
-                maxlength="3">
+                maxlength="3" list="txd-currency-list" autocomplete="off">
+              <datalist id="txd-currency-list"></datalist>
               <span class="dialog-error dialog-error-compact" id="txd-currency-err"></span>
             </div>
             <div class="dialog-field">
-              <label class="dialog-label" for="txd-fxrate">FX rate (EUR=1)</label>
+              <label class="dialog-label" for="txd-fxrate" id="txd-fxrate-label">FX rate (1 EUR → EUR)</label>
               <input type="text" inputmode="decimal" id="txd-fxrate" class="form-input dialog-input"
                 value="${esc(existing != null ? String(existing.fxRate) : '')}"
                 placeholder="1">
+              <span id="txd-fxrate-hint" class="note" style="display:none" aria-live="polite"></span>
               <span class="dialog-error dialog-error-compact" id="txd-fxrate-err"></span>
             </div>
           </div>
@@ -199,8 +204,11 @@ export function transactionDialog(
       nameInputId: 'txd-name',
       nameListId: 'txd-name-list',
     });
+    populateDatalist(overlay.querySelector('#txd-currency-list'), opts.currencySuggestions ?? []);
     _applyTypeVisibility(existing?.type || TxType.BUY);
     _bindRealtimeIsinValidation(overlay);
+    _bindCurrencyLabels(overlay);
+    _bindFxHintLookup(overlay);
 
     const typeEl = overlay.querySelector('#txd-type') as HTMLSelectElement | null;
     typeEl?.addEventListener('change', () => {
@@ -387,4 +395,80 @@ function _validateTransactionIsin(overlay: HTMLElement, mode: 'input' | 'blur'):
     return;
   }
   setErr('txd-isin', '');
+}
+
+function _bindCurrencyLabels(overlay: HTMLElement): void {
+  const currencyInput = overlay.querySelector('#txd-currency') as HTMLInputElement | null;
+  const amountLabel = overlay.querySelector('#txd-amount-label') as HTMLElement | null;
+  const feeLabel = overlay.querySelector('#txd-fee-label') as HTMLElement | null;
+  const taxLabel = overlay.querySelector('#txd-tax-label') as HTMLElement | null;
+  const fxRateLabel = overlay.querySelector('#txd-fxrate-label') as HTMLElement | null;
+  if (!currencyInput || !amountLabel || !feeLabel || !taxLabel || !fxRateLabel) return;
+
+  const update = (): void => {
+    const raw = currencyInput.value.toUpperCase().trim();
+    const currency = /^[A-Z]{3}$/.test(raw) ? raw : 'EUR';
+    amountLabel.textContent = `Amount (${currency})`;
+    feeLabel.textContent = `Fee (${currency})`;
+    taxLabel.textContent = `Tax (${currency})`;
+    fxRateLabel.textContent = `FX rate (1 ${currency} → EUR)`;
+  };
+
+  currencyInput.addEventListener('input', update);
+  currencyInput.addEventListener('change', update);
+  update();
+}
+
+function _bindFxHintLookup(overlay: HTMLElement): void {
+  const currencyInput = overlay.querySelector('#txd-currency') as HTMLInputElement | null;
+  const dateInput = overlay.querySelector('#txd-date') as HTMLInputElement | null;
+  if (!currencyInput || !dateInput) return;
+
+  const trigger = (): void => {
+    if (!_isVisible('txd-row-fx')) return;
+    const currency = currencyInput.value.toUpperCase().trim();
+    const date = dateInput.value.trim();
+    if (!/^[A-Z]{3}$/.test(currency) || currency === 'EUR') {
+      _hideFxHint(overlay);
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      _hideFxHint(overlay);
+      return;
+    }
+    void resolveRate(currency, date).then((record) => {
+      // Guard: ensure dialog is still open and inputs haven't changed
+      if (!_dialog.overlay()) return;
+      if (currencyInput.value.toUpperCase().trim() !== currency || dateInput.value.trim() !== date)
+        return;
+      _updateFxHint(overlay, record);
+    });
+  };
+
+  currencyInput.addEventListener('input', trigger);
+  dateInput.addEventListener('input', trigger);
+  dateInput.addEventListener('change', trigger);
+  // Trigger on open so editing an existing tx with non-EUR currency shows a hint immediately
+  trigger();
+}
+
+function _hideFxHint(overlay: HTMLElement): void {
+  const hintEl = overlay.querySelector('#txd-fxrate-hint') as HTMLElement | null;
+  if (hintEl) hintEl.style.display = 'none';
+}
+
+function _updateFxHint(overlay: HTMLElement, record: FxRateRecord | null): void {
+  const hintEl = overlay.querySelector('#txd-fxrate-hint') as HTMLElement | null;
+  if (!hintEl) return;
+  if (!record) {
+    hintEl.style.display = 'none';
+    return;
+  }
+  const rateInput = overlay.querySelector('#txd-fxrate') as HTMLInputElement | null;
+  // Auto-populate only when the field is empty
+  if (rateInput && !rateInput.value.trim()) {
+    rateInput.value = String(record.rate);
+  }
+  hintEl.textContent = `ECB rate for ${record.effectiveDate}: 1 ${record.base} = ${record.rate.toFixed(4)} ${record.target}`;
+  hintEl.style.display = '';
 }

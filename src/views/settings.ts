@@ -17,7 +17,16 @@ import {
   getCalibrationInterval,
 } from '../store/config';
 import type { ConfigChangeKind } from '../store/config';
-import { loadTransactions, loadConfigHistory, loadSnapshots, saveSnapshots } from '../db';
+import {
+  loadTransactions,
+  loadConfigHistory,
+  loadSnapshots,
+  saveSnapshots,
+  getFxTelemetry,
+  getFxTelemetryMonthly,
+  loadAllFxRates,
+  restoreAllFxRates,
+} from '../db';
 import type { ConfigHistoryEntry } from '../db';
 import {
   validatePrimaryInvestment,
@@ -32,6 +41,8 @@ import { showMsg, reinjectPendingMsg, withButtonGuard, esc, fmtEur } from '../ut
 import { buildAnnualReport, renderAnnualReportHtml } from '../model/annualReport';
 import type {
   Account,
+  FxTelemetry,
+  FxTelemetryMonthly,
   Holding,
   Settings,
   ContribInterval,
@@ -76,6 +87,7 @@ type CardKey =
   | 'calc-assumptions'
   | 'goal'
   | 'portfolio-behavior'
+  | 'integrations'
   | 'cache'
   | 'backup'
   | 'reports'
@@ -147,6 +159,7 @@ const SYNC_BUSY_TITLE = 'Sync in progress, try again in a moment';
 const SETTINGS_DEFAULT_COLLAPSE_MARKER = 'settings-defaults-v1';
 const SETTINGS_DEFAULT_COLLAPSED_CARDS: ReadonlySet<CardKey> = new Set([
   'portfolio-behavior',
+  'integrations',
   'cache',
   'backup',
   'reports',
@@ -225,9 +238,10 @@ export function renderSettings(): void {
     <div class="settings-group" id="settings-group-advanced">
       <div class="settings-group-header">
         <span class="settings-group-title">Advanced</span>
-        <span class="settings-group-note">Manage portfolio behaviour settings, data sync, and backup options.</span>
+        <span class="settings-group-note">Manage integrations, portfolio behaviour settings, data sync, and backup options.</span>
       </div>
       ${renderPortfolioBehaviorCard(settings)}
+      ${renderFxIntegrationsCard(settings)}
       ${renderCacheCard()}
       ${renderBackupCard()}
       ${renderReportCard()}
@@ -241,6 +255,7 @@ export function renderSettings(): void {
   attachCalcAssumptionsListeners(el);
   attachGoalListeners(el);
   attachPortfolioBehaviorListeners(el);
+  attachFxIntegrationListeners(el);
   attachCacheListeners(el);
   attachBackupListeners(el);
   attachReportListeners(el);
@@ -321,6 +336,12 @@ function refreshBackupData(): void {
   if (el) el.innerHTML = backupNudgeHtml(getSettings());
 }
 
+function refreshFxIntegrationsData(): void {
+  const root = document.getElementById('settings-content');
+  if (!root) return;
+  void refreshFxIntegrationStatus(root);
+}
+
 /** Dispatch a config-change notification to the narrowest correct refresh.
  *  'settings' backs cost-basis, goal, rules, and backup's nudge (all
  *  confirmed via source to read getSettings()); accounts/holdings are
@@ -340,6 +361,7 @@ export function refreshSettingsAfterChange(changed: ConfigChangeKind): void {
   refreshCostBasisData();
   refreshGoalData();
   refreshBackupData();
+  refreshFxIntegrationsData();
 }
 
 // ── Accounts ──────────────────────────────────────────────
@@ -363,6 +385,14 @@ function accountGroupList(accounts: Account[]): string[] {
   return [...new Set(accounts.map((a) => (a.group || '').trim()).filter(Boolean))].sort((a, b) =>
     a.localeCompare(b),
   );
+}
+
+/** Common currency suggestions merged with any already used in accounts. */
+const COMMON_CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD', 'SEK', 'NOK', 'DKK'];
+
+export function accountCurrencyList(accounts: Account[]): string[] {
+  const fromAccounts = accounts.map((a) => (a.currency || 'EUR').trim().toUpperCase());
+  return [...new Set([...COMMON_CURRENCIES, ...fromAccounts])].sort((a, b) => a.localeCompare(b));
 }
 
 interface EditableListController<T> {
@@ -600,6 +630,7 @@ function attachAccountListeners(root: HTMLElement): void {
       institutionSuggestions: accountInstitutionList(controller.items()),
       countrySuggestions: accountCountryList(controller.items()),
       groupSuggestions: accountGroupList(controller.items()),
+      currencySuggestions: accountCurrencyList(controller.items()),
     });
     if (!draft) return;
     draft.order = controller.items().length + 1;
@@ -620,6 +651,7 @@ function attachAccountListeners(root: HTMLElement): void {
       institutionSuggestions: accountInstitutionList(accounts),
       countrySuggestions: accountCountryList(accounts),
       groupSuggestions: accountGroupList(accounts),
+      currencySuggestions: accountCurrencyList(accounts),
     });
     if (!draft) return;
     draft.order = existing.order;
@@ -1963,6 +1995,174 @@ function subtractMonths(dateStr: string, months: number): string {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+// ── Integrations ──────────────────────────────────────────
+
+function renderFxIntegrationsCard(settings: Settings): string {
+  const enabled = settings.fx_integration_enabled !== '0';
+  return `
+    <div class="card card-collapsible" id="settings-card-integrations" data-card-key="integrations">
+      <div class="card-header js-card-toggle">
+        <div class="card-title">Integrations</div>
+        <span class="card-chevron"></span>
+      </div>
+      <div class="card-body">
+        <div class="card-section-head">FRANKFURTER</div>
+        <p class="note" style="margin-bottom:.75rem">Provides on-demand FX rates for mixed-currency accounts. The app stays fully usable offline and only fetches when you trigger a relevant action.</p>
+        <div class="settings-field">
+          <label class="settings-field-label" for="fx-integration-enabled">
+            Enable Frankfurter FX integration${infoTip('When disabled, FX lookups are skipped and the app keeps entered values unchanged. You can re-enable at any time.')}
+          </label>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <input type="checkbox" id="fx-integration-enabled" ${enabled ? 'checked' : ''}>
+            <button class="btn btn-primary btn-sm" id="btn-save-fx-integration">Save</button>
+            <span id="fx-int-msg" class="form-msg"></span>
+          </div>
+        </div>
+        <div class="card-section-head" style="margin-top:1rem">CACHE &amp; TELEMETRY</div>
+        <div class="settings-items settings-items-compact" id="fx-status-items">
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Status</span><span id="fx-status-enabled" class="settings-item-value">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Cached rates</span><span id="fx-status-cache-entries" class="settings-item-value">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Last successful fetch</span><span id="fx-status-last-fetch" class="settings-item-value">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Last error</span><span id="fx-status-last-error" class="settings-item-value settings-item-value-error">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">This month</span><span id="fx-status-month-summary" class="settings-item-value fx-stat-inline">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Prefetch</span><span id="fx-status-prefetch-summary" class="settings-item-value fx-stat-inline">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Normalize</span><span id="fx-status-normalize-summary" class="settings-item-value fx-stat-inline">-</span></div></div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-danger btn-sm" id="btn-fx-clear-cache">Clear FX cache</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function refreshFxIntegrationStatus(root: HTMLElement): Promise<void> {
+  const telemetry = await loadFxTelemetrySafe();
+  const currentMonth = (() => {
+    const now = new Date();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    return `${now.getFullYear()}-${mm}`;
+  })();
+  const monthly = await loadFxTelemetryMonthlySafe(currentMonth);
+  const rates = await loadAllFxRates();
+  const enabled = (getSettings().fx_integration_enabled ?? '1') !== '0';
+  const statusEnabled = root.querySelector('#fx-status-enabled') as HTMLElement | null;
+  const cacheEntries = root.querySelector('#fx-status-cache-entries') as HTMLElement | null;
+  const lastFetch = root.querySelector('#fx-status-last-fetch') as HTMLElement | null;
+  const lastError = root.querySelector('#fx-status-last-error') as HTMLElement | null;
+  const monthSummary = root.querySelector('#fx-status-month-summary') as HTMLElement | null;
+  const prefetchSummary = root.querySelector('#fx-status-prefetch-summary') as HTMLElement | null;
+  const normalizeSummary = root.querySelector('#fx-status-normalize-summary') as HTMLElement | null;
+
+  const cachedTimes = rates
+    .map((r) => r.fetchedAt)
+    .filter(Boolean)
+    .sort();
+  const lastCacheAt = cachedTimes.length > 0 ? cachedTimes[cachedTimes.length - 1] : '';
+  if (statusEnabled) statusEnabled.textContent = enabled ? 'Enabled' : 'Disabled';
+  if (cacheEntries) {
+    cacheEntries.textContent = `${rates.length} entr${rates.length === 1 ? 'y' : 'ies'}${lastCacheAt ? ` (last updated ${formatEnglishDateTime(new Date(lastCacheAt))})` : ''}`;
+  }
+  if (lastFetch) {
+    lastFetch.textContent = telemetry.lastFetchAt
+      ? formatEnglishDateTime(new Date(telemetry.lastFetchAt))
+      : '—';
+  }
+  if (lastError) {
+    const hasError = !!(telemetry.lastErrorAt && telemetry.lastError);
+    lastError.textContent = hasError
+      ? `${formatEnglishDateTime(new Date(telemetry.lastErrorAt))} — ${telemetry.lastError}`
+      : '—';
+    lastError.classList.toggle('settings-item-value-error--active', hasError);
+  }
+  if (monthSummary) {
+    monthSummary.textContent = `${monthly.fetchCount} req / ${monthly.cacheHitCount} hits / ${monthly.errorCount} err`;
+  }
+  if (prefetchSummary) {
+    prefetchSummary.textContent = `${telemetry.prefetchSuccessCount} ok / ${telemetry.prefetchFailureCount} failed`;
+  }
+  if (normalizeSummary) {
+    normalizeSummary.textContent = `${telemetry.normalizeSuccessCount} ok / ${telemetry.normalizeFailureCount} failed`;
+  }
+}
+
+async function loadFxTelemetrySafe(): Promise<FxTelemetry> {
+  try {
+    return await getFxTelemetry();
+  } catch (err) {
+    if (String(err).includes('no such table: fx_telemetry')) {
+      return {
+        lastFetchAt: '',
+        lastRequestUrl: '',
+        lastErrorAt: '',
+        lastError: '',
+        fetchCount: 0,
+        cacheHitCount: 0,
+        prefetchAttemptCount: 0,
+        prefetchSuccessCount: 0,
+        prefetchFailureCount: 0,
+        normalizeAttemptCount: 0,
+        normalizeSuccessCount: 0,
+        normalizeFailureCount: 0,
+      };
+    }
+    throw err;
+  }
+}
+
+async function loadFxTelemetryMonthlySafe(month: string): Promise<FxTelemetryMonthly> {
+  try {
+    return await getFxTelemetryMonthly(month);
+  } catch {
+    return { month, fetchCount: 0, cacheHitCount: 0, errorCount: 0 };
+  }
+}
+
+function attachFxIntegrationListeners(root: HTMLElement): void {
+  void refreshFxIntegrationStatus(root).catch((err) => {
+    showMsg('fx-int-msg', 'Status load failed: ' + (err as Error).message, false);
+  });
+
+  root.querySelector('#btn-save-fx-integration')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-save-fx-integration') as HTMLButtonElement;
+    const enabled = !!(root.querySelector('#fx-integration-enabled') as HTMLInputElement | null)
+      ?.checked;
+    try {
+      await withCardGuard(
+        'integrations',
+        btn,
+        () => setSetting('fx_integration_enabled', enabled ? '1' : '0'),
+        {
+          busyText: 'Saving...',
+        },
+      );
+      await refreshFxIntegrationStatus(root);
+      showMsg('fx-int-msg', 'Saved', true);
+    } catch (err) {
+      showMsg('fx-int-msg', 'Error: ' + (err as Error).message, false);
+    }
+  });
+
+  root.querySelector('#btn-fx-clear-cache')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-fx-clear-cache') as HTMLButtonElement;
+    const ok = await confirmDialog({
+      title: 'Clear cached FX rates?',
+      body: 'This removes cached rates. Future mixed-currency snapshots may need a new fetch.',
+      confirmLabel: 'Clear cache',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await withCardGuard('integrations', btn, () => restoreAllFxRates([]), {
+        busyText: 'Clearing...',
+      });
+      await refreshFxIntegrationStatus(root);
+      showMsg('fx-int-msg', 'FX cache cleared.', true);
+    } catch (err) {
+      showMsg('fx-int-msg', 'Error: ' + (err as Error).message, false);
+    }
+  });
 }
 
 // ── Cache / Force resync ──────────────────────────────────

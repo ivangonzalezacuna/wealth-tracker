@@ -1004,11 +1004,16 @@ function _getAccountSlices(
       if (val <= 0 && mode === 'active') return false;
       return true;
     })
-    .map((a) => ({
-      label: a.label || a.id || '',
-      value: (s[a.id || ''] as number) || 0,
-      color: a.color || '#888',
-    }))
+    .map((a) => {
+      const currency = (a.currency || 'EUR').trim().toUpperCase();
+      const label =
+        currency !== 'EUR' ? `${a.label || a.id || ''} (${currency})` : a.label || a.id || '';
+      return {
+        label,
+        value: (s[a.id || ''] as number) || 0,
+        color: a.color || '#888',
+      };
+    })
     .sort((a, b) => b.value - a.value);
 }
 

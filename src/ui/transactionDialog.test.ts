@@ -1,9 +1,16 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { transactionDialog } from './transactionDialog';
 import type { SecuritySuggestions } from '../model/securitySuggestions';
+
+vi.mock('../fx', () => ({
+  resolveRate: vi.fn().mockResolvedValue(null),
+  resolveMonthEndRate: vi.fn().mockResolvedValue(null),
+  APP_CURRENCY: 'EUR',
+  toBase: vi.fn((amount: number) => amount),
+}));
 
 function getOverlay() {
   return document.querySelector('.tx-dialog-overlay') as HTMLElement | null;
@@ -29,6 +36,7 @@ const suggestions: SecuritySuggestions = {
     { isin: 'IE00BBB', name: 'Beta Fund' },
   ],
 };
+const currencySuggestions = ['AUD', 'EUR', 'USD'];
 
 describe('transactionDialog', () => {
   beforeEach(() => {
@@ -140,6 +148,44 @@ describe('transactionDialog', () => {
     expect(tx!.name).toBe('Test Fund');
     expect(tx!.amount).toBeCloseTo(100.5);
     expect(tx!.source).toBe('manual');
+  });
+
+  it('updates amount/fee/tax labels to match selected currency', () => {
+    transactionDialog();
+    const amountLabel = document.querySelector('#txd-amount-label') as HTMLElement;
+    const feeLabel = document.querySelector('#txd-fee-label') as HTMLElement;
+    const taxLabel = document.querySelector('#txd-tax-label') as HTMLElement;
+    const fxLabel = document.querySelector('#txd-fxrate-label') as HTMLElement;
+    expect(amountLabel.textContent).toBe('Amount (EUR)');
+    expect(feeLabel.textContent).toBe('Fee (EUR)');
+    expect(taxLabel.textContent).toBe('Tax (EUR)');
+    expect(fxLabel.textContent).toBe('FX rate (1 EUR → EUR)');
+
+    setField('txd-currency', 'dkk');
+    (document.querySelector('#txd-currency') as HTMLInputElement).dispatchEvent(new Event('input'));
+    expect(amountLabel.textContent).toBe('Amount (DKK)');
+    expect(feeLabel.textContent).toBe('Fee (DKK)');
+    expect(taxLabel.textContent).toBe('Tax (DKK)');
+    expect(fxLabel.textContent).toBe('FX rate (1 DKK → EUR)');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('keeps entered non-EUR amount, fee, and tax values as native-currency values', async () => {
+    const p = transactionDialog();
+    fillRequired();
+    setField('txd-amount', '100');
+    setField('txd-fee', '2');
+    setField('txd-tax', '-1');
+    setField('txd-currency', 'USD');
+    setField('txd-fxrate', '0.9');
+    getSubmit()!.click();
+    const tx = await p;
+    expect(tx).not.toBeNull();
+    expect(tx!.amount).toBeCloseTo(100);
+    expect(tx!.fee).toBeCloseTo(2);
+    expect(tx!.tax).toBeCloseTo(-1);
+    expect(tx!.currency).toBe('USD');
+    expect(tx!.fxRate).toBeCloseTo(0.9);
   });
 
   it('canonicalizes TAX transactions so tax falls back to amount when tax is empty', async () => {
@@ -280,6 +326,101 @@ describe('transactionDialog', () => {
     nameInput.dispatchEvent(new Event('change'));
     expect((document.querySelector('#txd-isin') as HTMLInputElement).value).toBe('IE00BBB');
     expect((document.querySelector('#txd-name') as HTMLInputElement).value).toBe('Beta Fund');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('populates the currency autocomplete list from suggestions', () => {
+    transactionDialog({ currencySuggestions });
+    const currencyInput = document.querySelector('#txd-currency') as HTMLInputElement;
+    const currencyOpts = Array.from(document.querySelectorAll('#txd-currency-list option')).map(
+      (o) => (o as HTMLOptionElement).value,
+    );
+    expect(currencyInput.getAttribute('list')).toBe('txd-currency-list');
+    expect(currencyOpts).toEqual(currencySuggestions);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('renders the FX rate hint span in the dialog', () => {
+    transactionDialog();
+    const hintEl = document.querySelector('#txd-fxrate-hint') as HTMLElement | null;
+    expect(hintEl).not.toBeNull();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('populates the FX rate field and shows the hint when resolveRate returns a record', async () => {
+    const { resolveRate } = await import('../fx');
+    const mockRecord = {
+      base: 'USD',
+      target: 'EUR',
+      date: '2024-03-15',
+      rate: 0.9234,
+      effectiveDate: '2024-03-15',
+      fetchedAt: '',
+    };
+    vi.mocked(resolveRate).mockResolvedValueOnce(mockRecord);
+
+    transactionDialog();
+    const typeEl = document.querySelector('#txd-type') as HTMLSelectElement;
+    typeEl.value = 'BUY';
+    typeEl.dispatchEvent(new Event('change'));
+
+    setField('txd-currency', 'USD');
+    setField('txd-date', '2024-03-15');
+    (document.querySelector('#txd-currency') as HTMLInputElement).dispatchEvent(new Event('input'));
+
+    await vi.runAllTimersAsync?.().catch(() => undefined);
+    // Flush microtask queue
+    await new Promise((r) => setTimeout(r, 0));
+
+    const rateInput = document.querySelector('#txd-fxrate') as HTMLInputElement;
+    const hintEl = document.querySelector('#txd-fxrate-hint') as HTMLElement;
+    expect(rateInput.value).toBe('0.9234');
+    expect(hintEl.style.display).not.toBe('none');
+    expect(hintEl.textContent).toContain('1 USD = 0.9234 EUR');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('does not overwrite a manually entered FX rate when resolveRate returns a record', async () => {
+    const { resolveRate } = await import('../fx');
+    const mockRecord = {
+      base: 'USD',
+      target: 'EUR',
+      date: '2024-03-15',
+      rate: 0.9234,
+      effectiveDate: '2024-03-15',
+      fetchedAt: '',
+    };
+    vi.mocked(resolveRate).mockResolvedValueOnce(mockRecord);
+
+    transactionDialog();
+    setField('txd-fxrate', '1.05');
+    setField('txd-currency', 'USD');
+    setField('txd-date', '2024-03-15');
+    (document.querySelector('#txd-currency') as HTMLInputElement).dispatchEvent(new Event('input'));
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    const rateInput = document.querySelector('#txd-fxrate') as HTMLInputElement;
+    // User's value must be preserved
+    expect(rateInput.value).toBe('1.05');
+    const hintEl = document.querySelector('#txd-fxrate-hint') as HTMLElement;
+    expect(hintEl.textContent).toContain('0.9234');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('hides the FX hint when resolveRate returns null (offline / EUR)', async () => {
+    const { resolveRate } = await import('../fx');
+    vi.mocked(resolveRate).mockResolvedValueOnce(null);
+
+    transactionDialog();
+    setField('txd-currency', 'GBP');
+    setField('txd-date', '2024-03-15');
+    (document.querySelector('#txd-currency') as HTMLInputElement).dispatchEvent(new Event('input'));
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    const hintEl = document.querySelector('#txd-fxrate-hint') as HTMLElement;
+    expect(hintEl.style.display).toBe('none');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
 });

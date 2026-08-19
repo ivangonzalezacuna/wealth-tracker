@@ -24,6 +24,17 @@ export interface SnapshotDialogOptions {
   configHoldings?: Holding[];
   prefill?: Snapshot;
   mode?: 'add' | 'edit';
+  onFxPrefetchMonth?: (yearMonth: string) => Promise<SnapshotDialogFxPrefetchResult>;
+}
+
+export interface SnapshotDialogFxPrefetchResult {
+  needed: boolean;
+  disabled: boolean;
+  attempted: number;
+  resolved: number;
+  failed: number;
+  /** Resolved rates keyed by base currency (base → rate to the reporting currency). */
+  rates: Record<string, number>;
 }
 
 export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | null> {
@@ -52,6 +63,11 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
               <input type="month" id="snapd-date" class="form-input dialog-input"
                 value="${_esc(draft?.date || today)}" max="${today}">
               <span class="dialog-error" id="snapd-date-err"></span>
+              ${
+                opts.onFxPrefetchMonth
+                  ? '<div class="note" id="snapd-fx-status" aria-live="polite" style="margin-top:.35rem"></div>'
+                  : ''
+              }
             </div>
             <div class="dialog-field dialog-field-wide">
               <label class="dialog-label" for="snapd-notes">Notes (optional)</label>
@@ -88,7 +104,43 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
       const target = e.target as HTMLInputElement;
       const acctKey = target.dataset.acctKey || target.dataset.accountKey || '';
       if (acctKey) _updateRecon(acctKey);
+      const acctKeyForHint = target.dataset.accountKey || '';
+      if (acctKeyForHint) _updateFxHint(overlay, acctKeyForHint, target.value, fxRates);
     });
+    const fxStatusEl = overlay.querySelector('#snapd-fx-status') as HTMLElement | null;
+    const prefetchCache = new Map<string, SnapshotDialogFxPrefetchResult>();
+    let prefetchRequestSeq = 0;
+    let fxRates: Record<string, number> = {};
+    const triggerFxPrefetch = (yearMonth: string): void => {
+      if (!opts.onFxPrefetchMonth || !fxStatusEl || !yearMonth) return;
+      const cached = prefetchCache.get(yearMonth);
+      if (cached) {
+        fxRates = cached.rates;
+        renderFxPrefetchStatus(fxStatusEl, cached);
+        _updateAllFxHints(overlay, fxRates);
+        return;
+      }
+      fxStatusEl.textContent = 'FX: fetching month-end rates…';
+      const requestSeq = ++prefetchRequestSeq;
+      void opts
+        .onFxPrefetchMonth(yearMonth)
+        .then((result) => {
+          prefetchCache.set(yearMonth, result);
+          if (requestSeq !== prefetchRequestSeq) return;
+          fxRates = result.rates;
+          renderFxPrefetchStatus(fxStatusEl, result);
+          _updateAllFxHints(overlay, fxRates);
+        })
+        .catch(() => {
+          if (requestSeq !== prefetchRequestSeq) return;
+          fxStatusEl.classList.add('snapd-fx-status--warn');
+          fxStatusEl.innerHTML =
+            '<strong>⚠ FX rate fetch failed.</strong> Please enter values already converted to EUR before saving to ensure accuracy.';
+        });
+    };
+    const monthInput = overlay.querySelector('#snapd-date') as HTMLInputElement | null;
+    monthInput?.addEventListener('change', () => triggerFxPrefetch(monthInput.value.trim()));
+    if (monthInput) triggerFxPrefetch(monthInput.value.trim());
 
     for (const acct of _getDialogAccounts(opts.accounts)) {
       _updateRecon(acct.key);
@@ -112,12 +164,14 @@ function _renderAccountFields(
       return `
         <div class="snap-dialog-account">
           <div class="dialog-field">
-            <label class="dialog-label" for="snapd-acc-${_esc(acct.key)}">${_esc(acct.label)} (€)</label>
+            <label class="dialog-label" for="snapd-acc-${_esc(acct.key)}">${_esc(acct.label)} (${_esc(acct.currency)})</label>
             <input type="text" inputmode="decimal" id="snapd-acc-${_esc(acct.key)}"
               data-account-key="${_esc(acct.key)}"
+              data-currency="${_esc(acct.currency)}"
               class="form-input dialog-input"
               value="${typeof value === 'number' || typeof value === 'string' ? _esc(String(value)) : ''}"
-              placeholder="total value">
+              placeholder="${acct.currency !== 'EUR' ? `total value in ${_esc(acct.currency)}` : 'total value'}">
+            ${acct.currency !== 'EUR' ? `<span id="snapd-acc-${_esc(acct.key)}-fx" class="note snapd-fx-hint" style="display:none" aria-live="polite"></span>` : ''}
             <span class="dialog-error dialog-error-compact" id="snapd-acc-${_esc(acct.key)}-err"></span>
           </div>
           ${acct.showEtfBreakdown ? _renderEtfBreakdown(acct.key, holdings, configHoldings, draft) : ''}
@@ -352,6 +406,7 @@ function _dismiss(result: Snapshot | null): void {
 function _getDialogAccounts(accounts: Account[]): Array<{
   key: string;
   label: string;
+  currency: string;
   showEtfBreakdown: boolean;
 }> {
   return accounts
@@ -362,6 +417,7 @@ function _getDialogAccounts(accounts: Account[]): Array<{
         label:
           acct.label ||
           `${acct.moneyType || 'Account'}${acct.institution ? ` · ${acct.institution}` : ''}`,
+        currency: (acct.currency || 'EUR').trim().toUpperCase() || 'EUR',
         showEtfBreakdown: !!(
           key &&
           acct.isPrimaryInvestment &&
@@ -374,4 +430,55 @@ function _getDialogAccounts(accounts: Account[]): Array<{
 
 function _esc(s: string | null | undefined): string {
   return esc(s);
+}
+
+function _updateFxHint(
+  overlay: HTMLElement,
+  acctKey: string,
+  rawValue: string,
+  rates: Record<string, number>,
+): void {
+  const hintEl = overlay.querySelector(`#snapd-acc-${acctKey}-fx`) as HTMLElement | null;
+  if (!hintEl) return; // EUR accounts have no hint span
+  const input = overlay.querySelector(`#snapd-acc-${acctKey}`) as HTMLInputElement | null;
+  const currency = (input?.dataset.currency || '').toUpperCase();
+  const rate = rates[currency];
+  if (!rate) {
+    hintEl.style.display = 'none';
+    return;
+  }
+  const val = parseNum(rawValue.trim());
+  if (!rawValue.trim() || isNaN(val)) {
+    hintEl.style.display = 'none';
+    return;
+  }
+  hintEl.textContent = `≈ ${fmtEur2(val * rate)} EUR · rate: 1 ${currency} = ${rate.toFixed(4)} EUR`;
+  hintEl.style.display = '';
+}
+
+function _updateAllFxHints(overlay: HTMLElement, rates: Record<string, number>): void {
+  const inputs = overlay.querySelectorAll<HTMLInputElement>('[data-account-key]');
+  for (const input of Array.from(inputs)) {
+    const acctKey = input.dataset.accountKey || '';
+    if (acctKey) _updateFxHint(overlay, acctKey, input.value, rates);
+  }
+}
+
+function renderFxPrefetchStatus(el: HTMLElement, result: SnapshotDialogFxPrefetchResult): void {
+  el.classList.remove('snapd-fx-status--warn');
+  if (!result.needed) {
+    el.textContent = '';
+    return;
+  }
+  if (result.disabled) {
+    el.textContent = 'FX: integration disabled.';
+    return;
+  }
+  if (result.failed > 0) {
+    el.classList.add('snapd-fx-status--warn');
+    el.innerHTML =
+      '<strong>⚠ FX rate fetch failed.</strong> Please enter values already converted to EUR before saving to ensure accuracy.';
+    return;
+  }
+  el.textContent = 'FX: month-end rates ready.';
 }

@@ -14,6 +14,8 @@ import { toBase } from '../fx';
 export interface AnnualReportAccount {
   label: string;
   value: number;
+  /** ISO 4217 currency of the account denomination; undefined or 'EUR' = reporting currency. */
+  currency?: string;
 }
 
 export interface AnnualReportHolding {
@@ -114,6 +116,10 @@ export function buildAnnualReport(
   const accountRows: AnnualReportAccount[] = accounts.map((a) => ({
     label: a.label,
     value: snap ? (snap[a.id || ''] as number) || 0 : 0,
+    currency:
+      (a.currency || 'EUR').trim().toUpperCase() !== 'EUR'
+        ? (a.currency || 'EUR').trim().toUpperCase()
+        : undefined,
   }));
   const totalNetWorth = accountRows.reduce((s, a) => s + a.value, 0);
 
@@ -299,7 +305,12 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
 
   // ── Accounts table ──
   const accountsRows = report.accounts
-    .map((a) => _tableRow([_esc(a.label), _fmt(a.value, currency)]))
+    .map((a) => {
+      const labelCell = a.currency
+        ? `${_esc(a.label)} <span style="font-size:10px;color:#888">${_esc(a.currency)}</span>`
+        : _esc(a.label);
+      return _tableRow([labelCell, _fmt(a.value, currency)]);
+    })
     .join('');
 
   // ── Holdings table (only ISINs with shares or realised gains this year) ──

@@ -65,6 +65,33 @@ vi.mock('../db', () => ({
   loadConfigHistory: vi.fn(async () => []),
   loadSnapshots: vi.fn(async () => []),
   saveSnapshots: vi.fn(async () => {}),
+  getFxTelemetry: vi.fn(async () => ({
+    lastFetchAt: '',
+    lastRequestUrl: '',
+    lastErrorAt: '',
+    lastError: '',
+    fetchCount: 0,
+    cacheHitCount: 0,
+    prefetchAttemptCount: 0,
+    prefetchSuccessCount: 0,
+    prefetchFailureCount: 0,
+    normalizeAttemptCount: 0,
+    normalizeSuccessCount: 0,
+    normalizeFailureCount: 0,
+  })),
+  getFxTelemetryMonthly: vi.fn(async (month: string) => ({
+    month,
+    fetchCount: 0,
+    cacheHitCount: 0,
+    errorCount: 0,
+  })),
+  loadAllFxRates: vi.fn(async () => []),
+  restoreAllFxRates: vi.fn(async () => {}),
+}));
+
+vi.mock('../fx', () => ({
+  APP_CURRENCY: 'EUR',
+  resolveMonthEndRate: vi.fn(async () => null),
 }));
 
 // Collapse state: use real in-memory implementation for testability
@@ -209,7 +236,7 @@ describe('Settings scoped re-render (repaintCard)', () => {
     renderSettings();
   });
 
-  it('all seven card IDs are present after renderSettings()', () => {
+  it('core settings card IDs are present after renderSettings()', () => {
     const ids = [
       'settings-card-accounts',
       'settings-card-holdings',
@@ -217,6 +244,7 @@ describe('Settings scoped re-render (repaintCard)', () => {
       'settings-card-calc-assumptions',
       'settings-card-goal',
       'settings-card-portfolio-behavior',
+      'settings-card-integrations',
       'settings-card-cache',
     ];
     for (const id of ids) {
@@ -316,6 +344,7 @@ describe('Settings scoped re-render (repaintCard)', () => {
     expect(keys).toContain('calc-assumptions');
     expect(keys).toContain('goal');
     expect(keys).toContain('portfolio-behavior');
+    expect(keys).toContain('integrations');
     expect(keys).toContain('cache');
   });
 });
@@ -564,6 +593,45 @@ describe('Portfolio contributions card', () => {
       ['contribution_interval', 'biweekly'],
       ['calibration_interval', 'weekly'],
     ]);
+  });
+});
+
+describe('FX integrations card', () => {
+  beforeEach(() => {
+    _collapseState = {};
+    setupDOM();
+    renderSettings();
+  });
+
+  it('renders integrations controls and status rows', () => {
+    expect(document.getElementById('settings-card-integrations')).not.toBeNull();
+    expect(document.getElementById('fx-integration-enabled')).not.toBeNull();
+    expect(document.getElementById('btn-save-fx-integration')).not.toBeNull();
+    expect(document.getElementById('fx-status-cache-entries')).not.toBeNull();
+    expect(document.getElementById('fx-status-last-request-url')).toBeNull();
+  });
+
+  it('saves fx_integration_enabled setting from the toggle', async () => {
+    const { setSetting } = await import('../store/config');
+    (setSetting as ReturnType<typeof vi.fn>).mockClear();
+    const checkbox = document.getElementById('fx-integration-enabled') as HTMLInputElement;
+    checkbox.checked = false;
+    (document.getElementById('btn-save-fx-integration') as HTMLButtonElement).click();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect((setSetting as ReturnType<typeof vi.fn>).mock.calls[0]).toEqual([
+      'fx_integration_enabled',
+      '0',
+    ]);
+  });
+
+  it('clears FX cache from integrations card', async () => {
+    const { restoreAllFxRates } = await import('../db');
+    (restoreAllFxRates as ReturnType<typeof vi.fn>).mockClear();
+    (document.getElementById('btn-fx-clear-cache') as HTMLButtonElement).click();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect((restoreAllFxRates as ReturnType<typeof vi.fn>).mock.calls[0]).toEqual([[]]);
   });
 });
 

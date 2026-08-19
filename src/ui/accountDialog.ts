@@ -27,6 +27,8 @@ export interface AccountDialogOptions {
   countrySuggestions?: string[];
   /** Suggestions for the group autocomplete. */
   groupSuggestions?: string[];
+  /** Suggestions for the currency autocomplete (ISO 4217 codes). */
+  currencySuggestions?: string[];
   /** Existing account labels excluding the record being edited. */
   existingLabels?: string[];
 }
@@ -111,6 +113,15 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
                 value="${esc(existing?.group || '')}" placeholder="e.g. Retirement"
                 list="acctd-group-list" autocomplete="off">
               <datalist id="acctd-group-list"></datalist>
+            </div>
+            <div class="dialog-field">
+              <label class="dialog-label" for="acctd-currency">
+                Currency${infoTip('ISO 4217 code for the account denomination, e.g. USD. Balances entered in this currency are converted to EUR when saving a snapshot.')}
+              </label>
+              <input type="text" id="acctd-currency" class="form-input dialog-input"
+                value="${esc(existing?.currency || 'EUR')}" placeholder="EUR" maxlength="10"
+                list="acctd-currency-list" autocomplete="off">
+              <datalist id="acctd-currency-list"></datalist>
             </div>
           </div>
           <div class="dialog-row">
@@ -210,6 +221,7 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
     );
     populateDatalist(overlay.querySelector('#acctd-country-list'), opts.countrySuggestions ?? []);
     populateDatalist(overlay.querySelector('#acctd-group-list'), opts.groupSuggestions ?? []);
+    populateDatalist(overlay.querySelector('#acctd-currency-list'), opts.currencySuggestions ?? []);
     bindColorInputs(overlay, 'acctd-color', 'acctd-color-hex');
 
     // Primary investment toggle — show/hide contrib block
@@ -241,6 +253,8 @@ function _submit(): void {
   const institutionVal = get('acctd-institution');
   const countryVal = get('acctd-country');
   const groupVal = get('acctd-group');
+  const currencyRaw = get('acctd-currency');
+  const currencyVal = (currencyRaw || 'EUR').trim().toUpperCase() || 'EUR';
   const colorVal = get('acctd-color-hex') || get('acctd-color') || '#888888';
   const returnRaw = get('acctd-return');
   const isPrimary = getChecked('acctd-primary');
@@ -298,6 +312,7 @@ function _submit(): void {
     locked: isLocked,
     lockedUntil: isLocked ? lockedUntilVal : '',
     extraContrib: isLocked ? parseFloat(extraContribRaw) || 0 : 0,
+    currency: currencyVal,
   };
 
   _dismiss(draft);

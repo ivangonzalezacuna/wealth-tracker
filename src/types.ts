@@ -55,6 +55,7 @@ export interface Account {
   locked?: boolean; // true = funds not accessible until retirement (pension, AVD)
   lockedUntil?: string; // year when funds become accessible, e.g. "2055"
   extraContrib?: number; // additional contribution per execution (employer match, state subsidy, etc.)
+  currency?: string; // account denomination currency, e.g. "USD"; defaults to "EUR"
 }
 
 // ─── Contribution cadence ────────────────────────────────────────
@@ -110,6 +111,8 @@ export interface Settings {
   alerts?: string;
   /** JSON-serialised string[] of retired account IDs. */
   retired_account_ids?: string;
+  /** When '0', the Frankfurter FX integration is disabled app-wide; all other values (including absent) mean enabled. */
+  fx_integration_enabled?: string;
   /** Forward-compatible escape hatch for unknown / future keys. */
   [key: string]: string | null | undefined;
 }
@@ -125,6 +128,73 @@ export interface NamedGoal {
   targetNetWorth: string;
   targetDate: string;
   milestones?: GoalMilestone[];
+}
+
+// ─── FX Rate Cache ────────────────────────────────────────────────
+
+/**
+ * A cached FX rate record returned by the Frankfurter service.
+ *
+ * `date` is the requested lookup date (YYYY-MM-DD).
+ * `effectiveDate` is the provider's actual date, which may differ from
+ * `date` when the requested date falls on a weekend or public holiday
+ * (Frankfurter returns the prior business day's rate in that case).
+ */
+export interface FxRateRecord {
+  base: string;
+  target: string;
+  date: string;
+  rate: number;
+  effectiveDate: string;
+  fetchedAt: string;
+}
+
+// ─── FX Integration Telemetry ─────────────────────────────────────
+
+/**
+ * Lightweight operational status for the Frankfurter FX integration.
+ * Stored as a single row in the `fx_telemetry` table (id=1).
+ */
+export interface FxTelemetry {
+  /** ISO timestamp of the last successful live fetch from Frankfurter, or '' if none yet. */
+  lastFetchAt: string;
+  /** URL of the last attempted live request to Frankfurter, or '' if none yet. */
+  lastRequestUrl: string;
+  /** ISO timestamp of the last provider/network error, or '' if none yet. */
+  lastErrorAt: string;
+  /** Message of the last error, or '' if none yet. */
+  lastError: string;
+  /** Total number of live fetches performed (cache misses that reached the provider). */
+  fetchCount: number;
+  /** Total number of cache hits served without a live fetch. */
+  cacheHitCount: number;
+  /** Total number of month-end prefetch requests attempted for non-base currencies. */
+  prefetchAttemptCount: number;
+  /** Total number of month-end prefetch lookups that resolved a rate. */
+  prefetchSuccessCount: number;
+  /** Total number of month-end prefetch lookups that returned no rate. */
+  prefetchFailureCount: number;
+  /** Total number of snapshot normalization rate lookups attempted. */
+  normalizeAttemptCount: number;
+  /** Total number of snapshot normalization rate lookups that resolved a rate. */
+  normalizeSuccessCount: number;
+  /** Total number of snapshot normalization rate lookups that returned no rate. */
+  normalizeFailureCount: number;
+}
+
+/**
+ * Per-month operational counters for the Frankfurter FX integration.
+ * Stored in `fx_telemetry_monthly`, one row per YYYY-MM.
+ */
+export interface FxTelemetryMonthly {
+  /** Calendar month in YYYY-MM format. */
+  month: string;
+  /** Live network fetches performed this month. */
+  fetchCount: number;
+  /** Cache hits served without a live fetch this month. */
+  cacheHitCount: number;
+  /** Network/provider errors this month. */
+  errorCount: number;
 }
 
 // ─── Alert Settings ──────────────────────────────────────

@@ -10,7 +10,21 @@
  *
  * When fxRate is missing or invalid for a non-base transaction, a warning is
  * emitted and NaN is returned so callers must handle bad data explicitly.
+ *
+ * ─── External FX lookup ──────────────────────────────────────────────────────
+ *
+ * `resolveRate` and `resolveMonthEndRate` delegate to the fxRateService, which
+ * checks the local SQLite cache first and falls back to Frankfurter on a miss.
+ * Both return `null` when offline or when the provider is unavailable, so
+ * callers must handle the null case and fall back to their own logic.
+ *
+ * Snapshot normalization: `applySnapshotFxNormalization` in main.ts calls
+ * `resolveMonthEndRate(accountCurrency, snapshotYearMonth)` at save time to
+ * convert non-EUR account balances to the reporting currency before storage.
  */
+
+import { lookupRate, lookupMonthEndRate } from './services/fxRateService';
+import type { FxRateRecord } from './types';
 
 /** Canonical calculation and display currency for the app. */
 export const APP_CURRENCY = 'EUR';
@@ -36,4 +50,34 @@ export function toBase(amount: number, currency: string, fxRate: number): number
     return Number.NaN;
   }
   return amount * fxRate;
+}
+
+/**
+ * Resolve the FX rate for a currency pair on a specific calendar date via the
+ * cache-first fxRateService. Returns `null` when the provider is unreachable
+ * or returns an error — callers should degrade gracefully.
+ *
+ * When `currency` equals `APP_CURRENCY` the function returns `null`
+ * immediately: no conversion is needed, so no lookup is performed.
+ */
+export async function resolveRate(currency: string, date: string): Promise<FxRateRecord | null> {
+  const cur = currency || APP_CURRENCY;
+  if (cur === APP_CURRENCY) return null;
+  return lookupRate(cur, APP_CURRENCY, date);
+}
+
+/**
+ * Resolve the month-end FX rate for a currency pair for a given `YYYY-MM`
+ * snapshot month. Returns `null` when the provider is unreachable.
+ *
+ * When `currency` equals `APP_CURRENCY` the function returns `null`
+ * immediately.
+ */
+export async function resolveMonthEndRate(
+  currency: string,
+  yearMonth: string,
+): Promise<FxRateRecord | null> {
+  const cur = currency || APP_CURRENCY;
+  if (cur === APP_CURRENCY) return null;
+  return lookupMonthEndRate(cur, APP_CURRENCY, yearMonth);
 }

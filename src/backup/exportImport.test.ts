@@ -58,6 +58,7 @@ const FIXTURE_DATA: BackupFile['data'] = {
     },
   ],
   importMeta: { last_import: '2026-01-15' },
+  fxRates: [],
 };
 
 function validBackupObj(): BackupFile {

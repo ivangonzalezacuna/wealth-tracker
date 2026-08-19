@@ -21,6 +21,8 @@ import {
   restoreAllData,
   logConfigChange,
   clearSyncMetadata,
+  loadAllFxRates,
+  restoreAllFxRates,
 } from './db';
 import {
   pullFromCloud,
@@ -61,7 +63,12 @@ import { renderAnalytics } from './views/analytics';
 import { renderPortfolio, getMaxDrift } from './views/portfolio';
 import { renderDCA } from './views/contributions';
 import { renderDividends } from './views/dividends';
-import { renderSettings, refreshSettingsAfterChange, applySyncBusyState } from './views/settings';
+import {
+  renderSettings,
+  refreshSettingsAfterChange,
+  applySyncBusyState,
+  accountCurrencyList,
+} from './views/settings';
 import { renderLog } from './views/log';
 import {
   fmtMon,
@@ -105,8 +112,15 @@ import { attachInfoTips } from './ui/infoTip';
 import { withTimeout } from './sync/timeout';
 import { isBusy, setBusy } from './sync/lock';
 import { registerSW } from 'virtual:pwa-register';
-import type { Snapshot, Transaction, PortfolioData, ImportProfile, Account } from './types';
+import type { Snapshot, Transaction, PortfolioData, ImportProfile } from './types';
 import { buildAppSecuritySuggestions } from './securitySuggestions';
+import {
+  applySnapshotFxNormalization,
+  prepareSnapshotFxEditDraft,
+  getNonBaseCurrencies,
+} from './model/snapshotFx';
+import { APP_CURRENCY } from './fx';
+import { prefetchMonthEndRates, type FxPrefetchResult } from './services/fxRateService';
 
 // ── App state ────────────────────────────────────────────
 const state: {
@@ -901,7 +915,7 @@ window.__forceFullResync = forceFullResync;
 
 // ── Backup export ─────────────────────────────────────────
 export async function exportBackup(): Promise<void> {
-  await setSetting('last_backup_at', new Date().toISOString());
+  const fxRates = await loadAllFxRates();
   const backup = buildBackup({
     accounts: getAccounts(),
     holdings: getHoldings(),
@@ -909,6 +923,7 @@ export async function exportBackup(): Promise<void> {
     snapshots: state.snaps,
     transactions: state.txs,
     importMeta: state.importMeta,
+    fxRates,
   });
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -918,7 +933,8 @@ export async function exportBackup(): Promise<void> {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  await setSetting('last_backup_at', new Date().toISOString());
 }
 window.__exportBackup = exportBackup;
 
@@ -1039,11 +1055,19 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
   // Cancel any in-flight pre-restore upload so stale data is never pushed.
   cancelPendingUpload();
   try {
-    const { accounts, holdings, settings, snapshots, transactions, importMeta } = backup.data;
+    const { accounts, holdings, settings, snapshots, transactions, importMeta, fxRates } =
+      backup.data;
 
     // Write all five tables atomically in one SQLite transaction.
     // Either everything is replaced or nothing is (full rollback on error).
     await restoreAllData({ accounts, holdings, settings, snapshots, transactions });
+
+    // Restore FX rate cache (non-critical; failures are tolerated).
+    // Only call when there are rates to restore — restoreAllFxRates always
+    // runs DELETE FROM fx_rates first, so passing [] would wipe the cache.
+    if (fxRates && fxRates.length > 0) {
+      await restoreAllFxRates(fxRates);
+    }
 
     // Reload in-memory config store from the freshly written SQLite tables.
     await loadConfig();
@@ -1358,18 +1382,39 @@ async function saveSnapshot(snap: Snapshot) {
 async function saveMonthlyUpdate(editDate?: string) {
   if (!ensureWriteAccess('snap-msg')) return;
 
-  let existing = editDate ? state.snaps.find((s) => s.date === editDate) : undefined;
+  const accounts = getAccounts();
+  const fxUnavailableCurrencies = new Set<string>();
+  const existing = editDate ? state.snaps.find((s) => s.date === editDate) : undefined;
+  const existingDraft = existing ? await prepareSnapshotFxEditDraft(existing, accounts) : undefined;
 
   const snap = await snapshotDialog({
     mode: existing ? 'edit' : 'add',
-    existing,
+    existing: existingDraft,
     prefill: existing ? undefined : prefillSnapFormFromLatest(),
-    accounts: getAccounts(),
+    accounts,
     holdings: state.pd?.etfs || {},
     configHoldings: getHoldings(),
+    onFxPrefetchMonth: (yearMonth) => prefetchSnapshotFxMonth(accounts, yearMonth),
   });
   if (!snap) return;
-  await saveSnapshot(snap);
+  const normalizedSnap = await applySnapshotFxNormalization(snap, accounts, existing, {
+    onRateUnavailable: (currency) => fxUnavailableCurrencies.add(currency),
+  });
+  await saveSnapshot(normalizedSnap);
+  if (fxUnavailableCurrencies.size > 0) {
+    showMsg(
+      'snap-msg',
+      `Saved without FX conversion for ${Array.from(fxUnavailableCurrencies).join(', ')}.`,
+      false,
+    );
+  }
+}
+
+async function prefetchSnapshotFxMonth(
+  accounts: ReturnType<typeof getAccounts>,
+  yearMonth: string,
+): Promise<FxPrefetchResult> {
+  return prefetchMonthEndRates(getNonBaseCurrencies(accounts), APP_CURRENCY, yearMonth);
 }
 
 function editSnap(date: string) {
@@ -1485,7 +1530,10 @@ async function addManualTransaction(): Promise<void> {
   if (!ensureWriteAccess('tx-msg', 'signed-in-or-granted')) return;
   try {
     const suggestions = buildAppSecuritySuggestions(state.txs);
-    const draft = await transactionDialog({ suggestions });
+    const draft = await transactionDialog({
+      suggestions,
+      currencySuggestions: accountCurrencyList(getAccounts()),
+    });
     if (!draft) return;
     const candidate = [...state.txs, draft].sort((a, b) => a.date.localeCompare(b.date));
     const nextPd = computePdOrThrow(candidate);
@@ -1516,7 +1564,11 @@ async function editManualTransaction(rowId: bigint): Promise<void> {
 
   try {
     const suggestions = buildAppSecuritySuggestions(state.txs);
-    const draft = await transactionDialog({ existing, suggestions });
+    const draft = await transactionDialog({
+      existing,
+      suggestions,
+      currencySuggestions: accountCurrencyList(getAccounts()),
+    });
     if (!draft) return;
     const candidate = state.txs.map((t) => (t.rowId === rowId ? { ...draft, rowId } : t));
     const nextPd = computePdOrThrow(candidate);

@@ -47,4 +47,23 @@ export {
   clearSyncMetadata,
 } from './repositories/meta';
 
+export {
+  getRate,
+  upsertRate,
+  getRatesForPairs,
+  loadAllFxRates,
+  restoreAllFxRates,
+} from './repositories/fxRates';
+
+export {
+  getFxTelemetry,
+  getFxTelemetryMonthly,
+  recordFxFetch,
+  recordFxRequest,
+  recordFxError,
+  recordFxCacheHit,
+  recordFxPrefetch,
+  recordFxNormalize,
+} from './repositories/fxTelemetry';
+
 export { getDb, persistDb, exportDb, importDb, destroyDb } from './connection';

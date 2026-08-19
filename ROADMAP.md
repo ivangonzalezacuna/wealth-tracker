@@ -115,6 +115,47 @@ The app is intentionally slim and offline-capable. External data fetching remain
 
 #### Phased implementation roadmap
 
+##### Current execution status (split by integration track)
+
+This status is intentionally split so progress is not conflated across providers.
+
+**Track 1 — Frankfurter (FX)**
+
+- **Phase 1 (contract validation and scope freeze)** — ✅ done.
+- **Phase 2 (storage and provider infrastructure)** — ✅ done (storage/cache + backup path + integration enablement setting + telemetry storage).
+- **Phase 3 (domain and service wiring)** — ✅ done (provider + service + shared FX resolution + snapshot normalization at save time).
+- **Phase 4 (application integration and regression-safe rollout)** — ✅ done (FX-normalized values threaded through net worth KPIs, analytics account donut, and annual report; backup/restore of `fx_rates` cache wired).
+- **Phase 5 (UI rollout)** — ✅ done (account currency field + datalist in account dialog; snapshot dialog shows per-account currency labels, live FX hint with rate, currency-specific placeholder, and month-end prefetch status; Settings integrations card with toggle and telemetry).
+- **Phase 6 (tests and hardening)** — ✅ done (unit tests for snapshotFx normalization and annual report currency threading; E2E tests for FX integrations card, mixed-currency snapshot flow, net worth KPI currency indicator, and snapshot dialog placeholder).
+
+**Track 2 — FMP (ETF metadata)**
+
+- **Phase 1 (contract validation and scope freeze)** — 🟡 scope discussed, implementation path not started in code.
+- **Phase 2 (storage and provider infrastructure)** — ⏳ not started.
+- **Phase 3 (domain and service wiring)** — ⏳ not started.
+- **Phase 4 (application integration and regression-safe rollout)** — ⏳ not started.
+- **Phase 5 (UI rollout)** — ⏳ not started.
+- **Phase 6 (tests and hardening)** — ⏳ not started.
+
+**Current stack anchor for follow-up agents**
+
+- **Branch:** `copilot/fxrate-external-integrations`
+- **PR:** [#207](https://github.com/ivangonzalezacuna/wealth-tracker/pull/207)
+- **Rule:** every next PR in this phase stack must be opened from the previous phase branch/PR head so the chain stays linear and reviewable.
+
+**Stacked PR sequence (Frankfurter track)**
+
+1. **PR A — Phase 2 completion:** finish remaining FX storage/config/backup/telemetry pieces. ✅ Done.
+2. **PR B — Phase 3 completion + Phase 4/5 partial (based on PR A):** complete FX model/service wiring for snapshot normalization and shared lookup paths; backup/restore of fx_rates cache; account currency UI; snapshot dialog FX hints and prefetch status; Settings integrations card. ✅ Done.
+3. **PR C — Phase 4 completion (based on PR B):** thread FX-normalized values through net worth, analytics, and reporting consumers.
+4. **PR D — Phase 5 completion (based on PR C):** any remaining snapshot-entry UX polish and FX-related UI gaps.
+5. **PR E — Phase 6 hardening (based on PR D):** finalize unit/integration/Playwright coverage and resilience checks for FX behavior.
+
+**Later (separate stack): ETF/FMP track**
+
+- ETF metadata work follows the same phase structure, but starts only after the Frankfurter stack lands.
+- Use a fresh stack anchor (new branch + new base PR) dedicated to ETF/FMP so reviews stay isolated from FX changes.
+
 ##### Phase 1 — contract validation and scope freeze
 
 - Verify the exact Frankfurter endpoints, response fields, business-day fallback behavior, and supported query patterns before encoding them into code or migrations.

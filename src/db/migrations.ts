@@ -141,4 +141,49 @@ export const MIGRATIONS: string[][] = [
   [`ALTER TABLE accounts ADD COLUMN country TEXT NOT NULL DEFAULT ''`],
   // [10] version 9 → 10: add group column to accounts.
   [`ALTER TABLE accounts ADD COLUMN "group" TEXT NOT NULL DEFAULT ''`],
+  // [11] version 10 → 11: add FX integration support (rates cache, account currency, telemetry).
+  [
+    `CREATE TABLE IF NOT EXISTS fx_rates (
+      base TEXT NOT NULL,
+      target TEXT NOT NULL,
+      date TEXT NOT NULL,
+      rate REAL NOT NULL,
+      effective_date TEXT NOT NULL DEFAULT '',
+      fetched_at TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (base, target, date)
+    )`,
+    `ALTER TABLE accounts ADD COLUMN currency TEXT NOT NULL DEFAULT 'EUR'`,
+    `CREATE TABLE IF NOT EXISTS fx_telemetry (
+      id INTEGER PRIMARY KEY,
+      last_fetch_at TEXT NOT NULL DEFAULT '',
+      last_error_at TEXT NOT NULL DEFAULT '',
+      last_error TEXT NOT NULL DEFAULT '',
+      fetch_count INTEGER NOT NULL DEFAULT 0,
+      cache_hit_count INTEGER NOT NULL DEFAULT 0
+    )`,
+    `INSERT OR IGNORE INTO fx_telemetry (id) VALUES (1)`,
+  ],
+  // [12] version 11 → 12: add FX prefetch telemetry counters.
+  [
+    `ALTER TABLE fx_telemetry ADD COLUMN prefetch_attempt_count INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE fx_telemetry ADD COLUMN prefetch_success_count INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE fx_telemetry ADD COLUMN prefetch_failure_count INTEGER NOT NULL DEFAULT 0`,
+  ],
+  // [13] version 12 → 13: track last attempted Frankfurter request URL.
+  [`ALTER TABLE fx_telemetry ADD COLUMN last_request_url TEXT NOT NULL DEFAULT ''`],
+  // [14] version 13 → 14: add normalization telemetry counters.
+  [
+    `ALTER TABLE fx_telemetry ADD COLUMN normalize_attempt_count INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE fx_telemetry ADD COLUMN normalize_success_count INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE fx_telemetry ADD COLUMN normalize_failure_count INTEGER NOT NULL DEFAULT 0`,
+  ],
+  // [15] version 14 → 15: add monthly FX telemetry table.
+  [
+    `CREATE TABLE IF NOT EXISTS fx_telemetry_monthly (
+      month TEXT PRIMARY KEY,
+      fetch_count INTEGER NOT NULL DEFAULT 0,
+      cache_hit_count INTEGER NOT NULL DEFAULT 0,
+      error_count INTEGER NOT NULL DEFAULT 0
+    )`,
+  ],
 ];

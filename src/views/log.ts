@@ -586,16 +586,28 @@ function txColumns(): ColumnDef<Transaction>[] {
       sortValue: (t) => t.amount || 0,
       cellAttrs: () => 'style="text-align:right" data-ledger-label="Amount"',
       cell: (t) => {
-        const amountHtml = `<span class="tx-ledger-amount ${(t.amount || 0) < 0 ? 'neg' : 'pos'}">${fmtEur2(t.amount || 0)}</span>`;
+        const amountHtml = `<span class="tx-ledger-amount ${(t.amount || 0) < 0 ? 'neg' : 'pos'}">${fmtTxMoney(t.amount || 0, t.currency)}</span>`;
         const sharesHtml = t.shares ? `<span class="tx-ledger-meta">${t.shares} shares</span>` : '';
         const taxHtml =
           t.type === 'INTEREST' && t.tax
-            ? `<span class="tx-ledger-meta">Tax ${fmtEur2(t.tax)}</span>`
+            ? `<span class="tx-ledger-meta">Tax ${fmtTxMoney(t.tax, t.currency)}</span>`
             : '';
         return amountHtml + sharesHtml + taxHtml;
       },
     },
   ];
+}
+
+function fmtTxMoney(n: number, currency: string | undefined): string {
+  const code = (currency || 'EUR').toUpperCase();
+  const safeCode = /^[A-Z]{3}$/.test(code) ? code : 'EUR';
+  const value = Number.isFinite(n) ? n : 0;
+  return new Intl.NumberFormat('de-DE', {
+    style: 'currency',
+    currency: safeCode,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
 }
 
 function attachTxListeners(): void {
