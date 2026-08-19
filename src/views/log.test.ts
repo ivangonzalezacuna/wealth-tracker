@@ -374,6 +374,37 @@ describe('renderLog', () => {
     expect(ledger.textContent).toContain('-0,50');
   });
 
+  it('renders non-EUR transaction amounts with their native currency in ledger', () => {
+    renderLog({
+      txs: [
+        {
+          rowId: 12n,
+          id: 'tx-int-dkk',
+          date: '2026-02-15',
+          source: 'manual',
+          type: 'INTEREST',
+          name: 'DKK interest',
+          isin: '',
+          shares: 0,
+          price: 0,
+          amount: 100,
+          fee: 0,
+          tax: -5,
+          currency: 'DKK',
+          fxRate: 0.13,
+        },
+      ],
+      snaps: [],
+      importMeta: { last_import: '2026-02-01' },
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+    });
+    const ledger = document.getElementById('tx-ledger-list')!;
+    const amountCellText = ledger.querySelector('[data-ledger-label="Amount"]')?.textContent || '';
+    expect(amountCellText).toContain('DKK');
+    expect(amountCellText).not.toContain('€');
+  });
+
   it('wires transaction add/edit/delete callbacks', () => {
     const onAddTx = vi.fn();
     const onEditTx = vi.fn();

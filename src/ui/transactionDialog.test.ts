@@ -149,6 +149,44 @@ describe('transactionDialog', () => {
     expect(tx!.source).toBe('manual');
   });
 
+  it('updates amount/fee/tax labels to match selected currency', () => {
+    transactionDialog();
+    const amountLabel = document.querySelector('#txd-amount-label') as HTMLElement;
+    const feeLabel = document.querySelector('#txd-fee-label') as HTMLElement;
+    const taxLabel = document.querySelector('#txd-tax-label') as HTMLElement;
+    const fxLabel = document.querySelector('#txd-fxrate-label') as HTMLElement;
+    expect(amountLabel.textContent).toBe('Amount (EUR)');
+    expect(feeLabel.textContent).toBe('Fee (EUR)');
+    expect(taxLabel.textContent).toBe('Tax (EUR)');
+    expect(fxLabel.textContent).toBe('FX rate (1 EUR → EUR)');
+
+    setField('txd-currency', 'dkk');
+    (document.querySelector('#txd-currency') as HTMLInputElement).dispatchEvent(new Event('input'));
+    expect(amountLabel.textContent).toBe('Amount (DKK)');
+    expect(feeLabel.textContent).toBe('Fee (DKK)');
+    expect(taxLabel.textContent).toBe('Tax (DKK)');
+    expect(fxLabel.textContent).toBe('FX rate (1 DKK → EUR)');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('keeps entered non-EUR amount, fee, and tax values as native-currency values', async () => {
+    const p = transactionDialog();
+    fillRequired();
+    setField('txd-amount', '100');
+    setField('txd-fee', '2');
+    setField('txd-tax', '-1');
+    setField('txd-currency', 'USD');
+    setField('txd-fxrate', '0.9');
+    getSubmit()!.click();
+    const tx = await p;
+    expect(tx).not.toBeNull();
+    expect(tx!.amount).toBeCloseTo(100);
+    expect(tx!.fee).toBeCloseTo(2);
+    expect(tx!.tax).toBeCloseTo(-1);
+    expect(tx!.currency).toBe('USD');
+    expect(tx!.fxRate).toBeCloseTo(0.9);
+  });
+
   it('canonicalizes TAX transactions so tax falls back to amount when tax is empty', async () => {
     const p = transactionDialog();
     setField('txd-date', '2024-06-01');
@@ -319,7 +357,7 @@ describe('transactionDialog', () => {
     const hintEl = document.querySelector('#txd-fxrate-hint') as HTMLElement;
     expect(rateInput.value).toBe('0.9234');
     expect(hintEl.style.display).not.toBe('none');
-    expect(hintEl.textContent).toContain('0.9234');
+    expect(hintEl.textContent).toContain('1 USD = 0.9234 EUR');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
 

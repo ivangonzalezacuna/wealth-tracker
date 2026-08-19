@@ -135,7 +135,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
           if (requestSeq !== prefetchRequestSeq) return;
           fxStatusEl.classList.add('snapd-fx-status--warn');
           fxStatusEl.innerHTML =
-            '<strong>⚠ FX rate fetch failed.</strong> Please convert non-EUR values to EUR manually before saving to ensure accuracy.';
+            '<strong>⚠ FX rate fetch failed.</strong> Please enter values already converted to EUR before saving to ensure accuracy.';
         });
     };
     const monthInput = overlay.querySelector('#snapd-date') as HTMLInputElement | null;
@@ -452,7 +452,7 @@ function _updateFxHint(
     hintEl.style.display = 'none';
     return;
   }
-  hintEl.textContent = `≈ ${fmtEur2(val * rate)} EUR · rate: ${rate.toFixed(4)}`;
+  hintEl.textContent = `≈ ${fmtEur2(val * rate)} EUR · rate: 1 ${currency} = ${rate.toFixed(4)} EUR`;
   hintEl.style.display = '';
 }
 
@@ -477,7 +477,7 @@ function renderFxPrefetchStatus(el: HTMLElement, result: SnapshotDialogFxPrefetc
   if (result.failed > 0) {
     el.classList.add('snapd-fx-status--warn');
     el.innerHTML =
-      '<strong>⚠ FX rate fetch failed.</strong> Please convert non-EUR values to EUR manually before saving to ensure accuracy.';
+      '<strong>⚠ FX rate fetch failed.</strong> Please enter values already converted to EUR before saving to ensure accuracy.';
     return;
   }
   el.textContent = 'FX: month-end rates ready.';
