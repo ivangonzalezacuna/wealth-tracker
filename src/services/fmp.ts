@@ -6,7 +6,7 @@
  * handled by fmpService.ts, not here.
  */
 
-export const FMP_BASE_URL = 'https://financialmodelingprep.com/api';
+export const FMP_BASE_URL = 'https://financialmodelingprep.com/stable';
 
 export interface FmpSearchResult {
   symbol: string;
@@ -57,7 +57,7 @@ export function buildSearchUrl(
   apiKey: string,
   baseUrl: string = FMP_BASE_URL,
 ): string {
-  const url = new URL(`${baseUrl}/v3/search`);
+  const url = new URL(`${baseUrl}/search`);
   url.searchParams.set('query', isin);
   url.searchParams.set('apikey', apiKey);
   url.searchParams.set('limit', '5');
@@ -69,7 +69,7 @@ export function buildEtfInfoUrl(
   apiKey: string,
   baseUrl: string = FMP_BASE_URL,
 ): string {
-  const url = new URL(`${baseUrl}/v3/etf/info`);
+  const url = new URL(`${baseUrl}/etf/info`);
   url.searchParams.set('symbol', symbol);
   url.searchParams.set('apikey', apiKey);
   return url.toString();

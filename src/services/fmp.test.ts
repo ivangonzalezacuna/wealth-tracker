@@ -114,19 +114,19 @@ describe('fetchEtfInfo', () => {
 describe('URL builders', () => {
   it('builds the search URL with query and apikey', () => {
     expect(buildSearchUrl('IE00B4L5Y983', 'secret')).toBe(
-      `${FMP_BASE_URL}/v3/search?query=IE00B4L5Y983&apikey=secret&limit=5`,
+      `${FMP_BASE_URL}/search?query=IE00B4L5Y983&apikey=secret&limit=5`,
     );
   });
 
   it('builds the ETF info URL with symbol and apikey', () => {
     expect(buildEtfInfoUrl('IWDA', 'secret')).toBe(
-      `${FMP_BASE_URL}/v3/etf/info?symbol=IWDA&apikey=secret`,
+      `${FMP_BASE_URL}/etf/info?symbol=IWDA&apikey=secret`,
     );
   });
 
   it('redacts the apikey in logged URLs', () => {
     expect(redactApiKey(buildSearchUrl('IE00B4L5Y983', 'secret'))).toBe(
-      `${FMP_BASE_URL}/v3/search?query=IE00B4L5Y983&apikey=***&limit=5`,
+      `${FMP_BASE_URL}/search?query=IE00B4L5Y983&apikey=***&limit=5`,
     );
   });
 });
