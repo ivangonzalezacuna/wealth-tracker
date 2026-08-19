@@ -78,6 +78,7 @@ vi.mock('../db', () => ({
     errorCount: 0,
     dailyFetchDate: '',
     dailyFetchCount: 0,
+    requestLog: [],
   })),
   getFxTelemetry: vi.fn(async () => ({
     lastFetchAt: '',
@@ -624,6 +625,7 @@ describe('FX integrations card', () => {
     expect(document.getElementById('btn-save-fx-integration')).not.toBeNull();
     expect(document.getElementById('fx-status-cache-entries')).not.toBeNull();
     expect(document.getElementById('fx-status-last-request-url')).toBeNull();
+    expect(document.getElementById('fmp-request-debug-log')).not.toBeNull();
   });
 
   it('saves fx_integration_enabled setting from the toggle', async () => {

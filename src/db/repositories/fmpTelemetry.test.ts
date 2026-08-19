@@ -73,6 +73,7 @@ let getDailyFetchCount: typeof import('../../db').getDailyFetchCount;
 let getFmpTelemetry: typeof import('../../db').getFmpTelemetry;
 let recordFmpError: typeof import('../../db').recordFmpError;
 let recordFmpFetch: typeof import('../../db').recordFmpFetch;
+let recordFmpRequest: typeof import('../../db').recordFmpRequest;
 
 describe.sequential('fmpTelemetry repository', () => {
   beforeAll(async () => {
@@ -82,6 +83,7 @@ describe.sequential('fmpTelemetry repository', () => {
     getFmpTelemetry = db.getFmpTelemetry;
     recordFmpError = db.recordFmpError;
     recordFmpFetch = db.recordFmpFetch;
+    recordFmpRequest = db.recordFmpRequest;
   });
 
   beforeEach(async () => {
@@ -111,6 +113,7 @@ describe.sequential('fmpTelemetry repository', () => {
       errorCount: 0,
       dailyFetchDate: '',
       dailyFetchCount: 0,
+      requestLog: [],
     });
   });
 
@@ -132,6 +135,25 @@ describe.sequential('fmpTelemetry repository', () => {
       lastErrorAt: '2026-08-19T12:00:00.000Z',
       lastError: 'Auth failed',
       errorCount: 1,
+    });
+  });
+
+  it('stores request debug entries in newest-first order', async () => {
+    await recordFmpRequest('2026-08-19T12:00:00.000Z', 'https://fmp.test/a?apikey=***', '[]');
+    await recordFmpRequest('2026-08-19T12:01:00.000Z', 'https://fmp.test/b?apikey=***', '{"ok":1}');
+    await expect(getFmpTelemetry()).resolves.toMatchObject({
+      requestLog: [
+        {
+          at: '2026-08-19T12:01:00.000Z',
+          url: 'https://fmp.test/b?apikey=***',
+          response: '{"ok":1}',
+        },
+        {
+          at: '2026-08-19T12:00:00.000Z',
+          url: 'https://fmp.test/a?apikey=***',
+          response: '[]',
+        },
+      ],
     });
   });
 });

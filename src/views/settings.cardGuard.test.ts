@@ -44,6 +44,7 @@ vi.mock('../db', () => ({
     errorCount: 0,
     dailyFetchDate: '',
     dailyFetchCount: 0,
+    requestLog: [],
   })),
   getFxTelemetry: vi.fn(async () => ({
     lastFetchAt: '',

@@ -6,7 +6,7 @@
  */
 
 /** Schema version - bump when DDL changes require a migration. */
-export const SCHEMA_VERSION = 16;
+export const SCHEMA_VERSION = 17;
 
 /**
  * SQL statements executed on first database creation (version 0 → 1).
@@ -167,7 +167,8 @@ export const SCHEMA_DDL: string[] = [
     cache_hit_count INTEGER NOT NULL DEFAULT 0,
     error_count INTEGER NOT NULL DEFAULT 0,
     daily_fetch_date TEXT NOT NULL DEFAULT '',
-    daily_fetch_count INTEGER NOT NULL DEFAULT 0
+    daily_fetch_count INTEGER NOT NULL DEFAULT 0,
+    request_log_json TEXT NOT NULL DEFAULT '[]'
   )`,
   `INSERT OR IGNORE INTO fmp_telemetry (id) VALUES (1)`,
 ];

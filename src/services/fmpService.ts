@@ -21,6 +21,7 @@ import {
   recordFmpCacheHit,
   recordFmpError,
   recordFmpFetch,
+  recordFmpRequest,
   upsertHoldingMetadata,
 } from '../db';
 
@@ -54,11 +55,17 @@ async function fetchAndPersist(isin: string): Promise<HoldingMetadata | null> {
     return null;
   }
 
+  let lastRequestUrl = '';
   try {
     const searchUrl = buildSearchUrl(isin, _apiKey);
+    const redactedSearchUrl = redactApiKey(searchUrl);
+    lastRequestUrl = redactedSearchUrl;
     const searchResults = await searchByIsin(isin, _apiKey);
     const searchAt = new Date().toISOString();
-    recordFmpFetch(searchAt, redactApiKey(searchUrl)).catch(() => {});
+    recordFmpFetch(searchAt, redactedSearchUrl).catch(() => {});
+    recordFmpRequest(searchAt, redactedSearchUrl, serializeDebugPayload(searchResults)).catch(
+      () => {},
+    );
 
     if (searchResults.length === 0) return null;
     const { symbol } = searchResults[0];
@@ -69,9 +76,12 @@ async function fetchAndPersist(isin: string): Promise<HoldingMetadata | null> {
     }
 
     const infoUrl = buildEtfInfoUrl(symbol, _apiKey);
+    const redactedInfoUrl = redactApiKey(infoUrl);
+    lastRequestUrl = redactedInfoUrl;
     const rawInfo = await fetchEtfInfo(symbol, _apiKey);
     const now = new Date().toISOString();
-    recordFmpFetch(now, redactApiKey(infoUrl)).catch(() => {});
+    recordFmpFetch(now, redactedInfoUrl).catch(() => {});
+    recordFmpRequest(now, redactedInfoUrl, serializeDebugPayload(rawInfo)).catch(() => {});
 
     const info = validateFmpEtfInfo(rawInfo);
     const record: HoldingMetadata = {
@@ -95,6 +105,9 @@ async function fetchAndPersist(isin: string): Promise<HoldingMetadata | null> {
     const now = new Date().toISOString();
     const message =
       err instanceof Error ? err.message : 'Unexpected FMP metadata enrichment failure';
+    if (lastRequestUrl) {
+      recordFmpRequest(now, lastRequestUrl, `ERROR: ${message}`).catch(() => {});
+    }
     if (
       err instanceof FmpAuthError ||
       err instanceof FmpOfflineError ||
@@ -107,6 +120,16 @@ async function fetchAndPersist(isin: string): Promise<HoldingMetadata | null> {
     }
     recordFmpError(now, message).catch(() => {});
     return null;
+  }
+}
+
+function serializeDebugPayload(payload: unknown): string {
+  try {
+    const serialized = JSON.stringify(payload);
+    if (serialized.length <= 5000) return serialized;
+    return `${serialized.slice(0, 5000)}… [truncated]`;
+  } catch {
+    return String(payload);
   }
 }
 

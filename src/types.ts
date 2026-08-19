@@ -229,6 +229,13 @@ export interface FmpTelemetry {
   errorCount: number;
   dailyFetchDate: string;
   dailyFetchCount: number;
+  requestLog: FmpRequestDebugEntry[];
+}
+
+export interface FmpRequestDebugEntry {
+  at: string;
+  url: string;
+  response: string;
 }
 
 // ─── Alert Settings ──────────────────────────────────────

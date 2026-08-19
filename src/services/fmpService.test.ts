@@ -6,6 +6,7 @@ vi.mock('../db', () => ({
   upsertHoldingMetadata: vi.fn().mockResolvedValue(undefined),
   getDailyFetchCount: vi.fn(),
   recordFmpFetch: vi.fn().mockResolvedValue(undefined),
+  recordFmpRequest: vi.fn().mockResolvedValue(undefined),
   recordFmpCacheHit: vi.fn().mockResolvedValue(undefined),
   recordFmpError: vi.fn().mockResolvedValue(undefined),
 }));
@@ -42,6 +43,7 @@ import {
   recordFmpCacheHit,
   recordFmpError,
   recordFmpFetch,
+  recordFmpRequest,
   upsertHoldingMetadata,
 } from '../db';
 
@@ -100,6 +102,7 @@ describe('lookupHoldingMetadata', () => {
     await Promise.resolve();
     expect(vi.mocked(upsertHoldingMetadata)).toHaveBeenCalledOnce();
     expect(vi.mocked(recordFmpFetch)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(recordFmpRequest)).toHaveBeenCalledTimes(2);
   });
 
   it('returns null when disabled', async () => {

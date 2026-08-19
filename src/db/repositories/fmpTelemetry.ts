@@ -1,5 +1,7 @@
 import { getDb, persistDb } from '../connection';
-import type { FmpTelemetry } from '../../types';
+import type { FmpRequestDebugEntry, FmpTelemetry } from '../../types';
+
+const MAX_REQUEST_LOG_ENTRIES = 40;
 
 function currentDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -9,7 +11,7 @@ export async function getFmpTelemetry(): Promise<FmpTelemetry> {
   const db = await getDb();
   const result = db.exec(
     `SELECT last_fetch_at, last_request_url, last_error_at, last_error, fetch_count,
-            cache_hit_count, error_count, daily_fetch_date, daily_fetch_count
+           cache_hit_count, error_count, daily_fetch_date, daily_fetch_count, request_log_json
        FROM fmp_telemetry
       WHERE id = 1`,
   );
@@ -27,6 +29,7 @@ export async function getFmpTelemetry(): Promise<FmpTelemetry> {
     errorCount: Number(row[6]) || 0,
     dailyFetchDate: String(row[7] ?? ''),
     dailyFetchCount: Number(row[8]) || 0,
+    requestLog: parseRequestLog(row[9]),
   };
 }
 
@@ -75,6 +78,27 @@ export async function recordFmpError(at: string, message: string): Promise<void>
   await persistDb();
 }
 
+export async function recordFmpRequest(
+  at: string,
+  url: string,
+  response: string = '',
+): Promise<void> {
+  const db = await getDb();
+  const current = await getFmpTelemetry();
+  const nextLog: FmpRequestDebugEntry[] = [
+    { at, url, response },
+    ...current.requestLog,
+  ].slice(0, MAX_REQUEST_LOG_ENTRIES);
+  db.run(
+    `INSERT INTO fmp_telemetry (id, request_log_json)
+     VALUES (1, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       request_log_json = excluded.request_log_json`,
+    [JSON.stringify(nextLog)],
+  );
+  await persistDb();
+}
+
 export async function getDailyFetchCount(): Promise<number> {
   try {
     const telemetry = await getFmpTelemetry();
@@ -89,8 +113,8 @@ export async function resetFmpTelemetry(): Promise<void> {
   db.run(
     `INSERT INTO fmp_telemetry (
        id, last_fetch_at, last_request_url, last_error_at, last_error,
-       fetch_count, cache_hit_count, error_count, daily_fetch_date, daily_fetch_count
-     ) VALUES (1, '', '', '', '', 0, 0, 0, '', 0)
+       fetch_count, cache_hit_count, error_count, daily_fetch_date, daily_fetch_count, request_log_json
+    ) VALUES (1, '', '', '', '', 0, 0, 0, '', 0, '[]')
      ON CONFLICT(id) DO UPDATE SET
        last_fetch_at = '',
        last_request_url = '',
@@ -100,7 +124,8 @@ export async function resetFmpTelemetry(): Promise<void> {
        cache_hit_count = 0,
        error_count = 0,
        daily_fetch_date = '',
-       daily_fetch_count = 0`,
+       daily_fetch_count = 0,
+       request_log_json = '[]'`,
   );
   await persistDb();
 }
@@ -116,5 +141,28 @@ function zeroTelemetry(): FmpTelemetry {
     errorCount: 0,
     dailyFetchDate: '',
     dailyFetchCount: 0,
+    requestLog: [],
   };
+}
+
+function parseRequestLog(raw: unknown): FmpRequestDebugEntry[] {
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (entry): entry is Record<string, unknown> =>
+          !!entry && typeof entry === 'object' && !Array.isArray(entry),
+      )
+      .map((entry) => ({
+        at: typeof entry.at === 'string' ? entry.at : '',
+        url: typeof entry.url === 'string' ? entry.url : '',
+        response: typeof entry.response === 'string' ? entry.response : '',
+      }))
+      .filter((entry) => !!entry.url)
+      .slice(0, MAX_REQUEST_LOG_ENTRIES);
+  } catch {
+    return [];
+  }
 }

@@ -217,4 +217,6 @@ export const MIGRATIONS: string[][] = [
     )`,
     `INSERT OR IGNORE INTO fmp_telemetry (id) VALUES (1)`,
   ],
+  // [17] version 16 → 17: add persisted FMP request debug log.
+  [`ALTER TABLE fmp_telemetry ADD COLUMN request_log_json TEXT NOT NULL DEFAULT '[]'`],
 ];

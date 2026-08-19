@@ -2591,6 +2591,23 @@ input[type='color'] {
   color: var(--warn-fg);
   font-weight: 500;
 }
+.integration-debug-log {
+  margin: 0.4rem 0 0;
+  padding: 0.6rem 0.7rem;
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+}
 .fx-stat-inline {
   font-variant-numeric: tabular-nums;
   white-space: normal;

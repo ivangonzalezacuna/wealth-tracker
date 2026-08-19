@@ -2089,6 +2089,8 @@ function renderFxIntegrationsCard(settings: Settings): string {
           <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Last error</span><span id="fmp-status-last-error" class="settings-item-value settings-item-value-error">-</span></div></div>
           <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Today's requests</span><span id="fmp-status-daily" class="settings-item-value">-</span></div></div>
         </div>
+        <div class="card-section-head" style="margin-top:.9rem">REQUEST DEBUG</div>
+        <pre class="integration-debug-log" id="fmp-request-debug-log">No requests yet.</pre>
         <div class="form-actions" style="margin-top:.75rem">
           <button class="btn btn-outline btn-sm" id="btn-fmp-bulk-enrich">Enrich all holdings</button>
           <span id="fmp-bulk-msg" class="form-msg"></span>
@@ -2246,6 +2248,7 @@ async function loadFmpTelemetrySafe(): Promise<FmpTelemetry> {
         errorCount: 0,
         dailyFetchDate: '',
         dailyFetchCount: 0,
+        requestLog: [],
       };
     }
     throw err;
@@ -2264,6 +2267,7 @@ async function refreshFmpIntegrationStatus(root: HTMLElement): Promise<void> {
   const lastFetch = root.querySelector('#fmp-status-last-fetch') as HTMLElement | null;
   const lastError = root.querySelector('#fmp-status-last-error') as HTMLElement | null;
   const daily = root.querySelector('#fmp-status-daily') as HTMLElement | null;
+  const requestDebug = root.querySelector('#fmp-request-debug-log') as HTMLElement | null;
 
   if (statusEnabled) {
     statusEnabled.textContent = enabled
@@ -2295,6 +2299,20 @@ async function refreshFmpIntegrationStatus(root: HTMLElement): Promise<void> {
   if (daily) {
     daily.textContent = `${telemetry.dailyFetchCount} / 250`;
   }
+  if (requestDebug) {
+    requestDebug.innerHTML = formatFmpRequestDebugLog(telemetry);
+  }
+}
+
+function formatFmpRequestDebugLog(telemetry: FmpTelemetry): string {
+  if (!telemetry.requestLog.length) return 'No requests yet.';
+  return telemetry.requestLog
+    .map((entry, idx) => {
+      const at = entry.at ? formatEnglishDateTime(new Date(entry.at)) : 'Unknown time';
+      const response = entry.response ? esc(entry.response) : '<em>(no response body)</em>';
+      return `${idx + 1}. ${esc(at)}\nURL: ${esc(entry.url)}\nResponse: ${response}`;
+    })
+    .join('\n\n');
 }
 
 function attachFmpIntegrationListeners(root: HTMLElement): void {

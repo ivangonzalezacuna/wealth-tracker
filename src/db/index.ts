@@ -77,6 +77,7 @@ export {
 export {
   getFmpTelemetry,
   recordFmpFetch,
+  recordFmpRequest,
   recordFmpCacheHit,
   recordFmpError,
   getDailyFetchCount,
