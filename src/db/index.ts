@@ -75,13 +75,13 @@ export {
 } from './repositories/holdingMetadata';
 
 export {
-  getFmpTelemetry,
-  recordFmpFetch,
-  recordFmpRequest,
-  recordFmpCacheHit,
-  recordFmpError,
+  getTiTelemetry,
+  recordTiFetch,
+  recordTiRequest,
+  recordTiCacheHit,
+  recordTiError,
   getDailyFetchCount,
-  resetFmpTelemetry,
-} from './repositories/fmpTelemetry';
+  resetTiTelemetry,
+} from './repositories/tiTelemetry';
 
 export { getDb, persistDb, exportDb, importDb, destroyDb } from './connection';

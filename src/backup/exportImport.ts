@@ -112,14 +112,13 @@ export function migrateBackup(b: BackupFile): BackupFile {
 export function buildBackup(
   input: BackupFile['data'] & { holdingMetadata?: HoldingMetadata[] },
 ): BackupFile {
-  const { fmp_api_key: _stripped, ...safeSettings } = input.settings as Record<string, unknown>;
   return {
     schemaVersion: BACKUP_SCHEMA_VERSION,
     app: 'wealth-tracker',
     exportedAt: new Date().toISOString(),
     data: {
       ...input,
-      settings: safeSettings as Settings,
+      settings: input.settings,
       fxRates: input.fxRates ?? [],
       holdingMetadata: input.holdingMetadata ?? [],
       transactions: input.transactions.map(({ rowId: _rowId, ...tx }) => tx),

@@ -113,10 +113,8 @@ export interface Settings {
   retired_account_ids?: string;
   /** When '0', the Frankfurter FX integration is disabled app-wide; all other values (including absent) mean enabled. */
   fx_integration_enabled?: string;
-  /** When '1', the FMP ETF metadata integration is enabled. Default off when absent. */
-  fmp_integration_enabled?: string;
-  /** FMP API key — stored locally only, never exported in backups. */
-  fmp_api_key?: string;
+  /** When '1', the Trackinsight ETF metadata integration is enabled. Default off when absent. */
+  ti_integration_enabled?: string;
   /** Forward-compatible escape hatch for unknown / future keys. */
   [key: string]: string | null | undefined;
 }
@@ -201,7 +199,7 @@ export interface FxTelemetryMonthly {
   errorCount: number;
 }
 
-// ─── FMP Holding Metadata ─────────────────────────────────────────
+// ─── ETF Holding Metadata ────────────────────────────────────────
 
 export interface HoldingMetadata {
   isin: string;
@@ -219,7 +217,7 @@ export interface HoldingMetadata {
   provider: string;
 }
 
-export interface FmpTelemetry {
+export interface TiTelemetry {
   lastFetchAt: string;
   lastRequestUrl: string;
   lastErrorAt: string;
@@ -229,10 +227,10 @@ export interface FmpTelemetry {
   errorCount: number;
   dailyFetchDate: string;
   dailyFetchCount: number;
-  requestLog: FmpRequestDebugEntry[];
+  requestLog: TiRequestDebugEntry[];
 }
 
-export interface FmpRequestDebugEntry {
+export interface TiRequestDebugEntry {
   at: string;
   url: string;
   response: string;

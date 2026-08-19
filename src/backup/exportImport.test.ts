@@ -102,14 +102,13 @@ describe('buildBackup', () => {
     expect(() => JSON.stringify(result)).not.toThrow();
   });
 
-  it('strips fmp_api_key from settings', () => {
+  it('includes ti_integration_enabled setting in the backup payload', () => {
     const result = buildBackup({
       ...FIXTURE_DATA,
-      settings: { ...FIXTURE_DATA.settings, fmp_api_key: 'secret', fmp_integration_enabled: '1' },
+      settings: { ...FIXTURE_DATA.settings, ti_integration_enabled: '1' },
     });
 
-    expect(result.data.settings.fmp_api_key).toBeUndefined();
-    expect(result.data.settings.fmp_integration_enabled).toBe('1');
+    expect(result.data.settings.ti_integration_enabled).toBe('1');
   });
 
   it('preserves holdingMetadata in the backup payload', () => {

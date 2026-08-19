@@ -6,7 +6,7 @@
  */
 
 /** Schema version - bump when DDL changes require a migration. */
-export const SCHEMA_VERSION = 17;
+export const SCHEMA_VERSION = 18;
 
 /**
  * SQL statements executed on first database creation (version 0 → 1).
@@ -139,7 +139,7 @@ export const SCHEMA_DDL: string[] = [
     error_count INTEGER NOT NULL DEFAULT 0
   )`,
 
-  // ── ETF holding metadata cache (FMP integration) ────────────────
+  // ── ETF holding metadata cache (Trackinsight integration) ────────────────
   `CREATE TABLE IF NOT EXISTS holding_metadata (
     isin TEXT PRIMARY KEY,
     symbol TEXT,
@@ -153,11 +153,11 @@ export const SCHEMA_DDL: string[] = [
     top_holdings TEXT,
     fetched_at TEXT NOT NULL DEFAULT '',
     last_refreshed_at TEXT NOT NULL DEFAULT '',
-    provider TEXT NOT NULL DEFAULT 'fmp'
+    provider TEXT NOT NULL DEFAULT 'trackinsight'
   )`,
 
-  // ── FMP integration telemetry ────────────────────────────────────
-  `CREATE TABLE IF NOT EXISTS fmp_telemetry (
+  // ── Trackinsight integration telemetry ───────────────────────────
+  `CREATE TABLE IF NOT EXISTS ti_telemetry (
     id INTEGER PRIMARY KEY,
     last_fetch_at TEXT NOT NULL DEFAULT '',
     last_request_url TEXT NOT NULL DEFAULT '',
@@ -170,5 +170,5 @@ export const SCHEMA_DDL: string[] = [
     daily_fetch_count INTEGER NOT NULL DEFAULT 0,
     request_log_json TEXT NOT NULL DEFAULT '[]'
   )`,
-  `INSERT OR IGNORE INTO fmp_telemetry (id) VALUES (1)`,
+  `INSERT OR IGNORE INTO ti_telemetry (id) VALUES (1)`,
 ];

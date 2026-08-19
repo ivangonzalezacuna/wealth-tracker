@@ -1,5 +1,5 @@
 import { getDb, persistDb } from '../connection';
-import type { FmpRequestDebugEntry, FmpTelemetry } from '../../types';
+import type { TiRequestDebugEntry, TiTelemetry } from '../../types';
 
 const MAX_REQUEST_LOG_ENTRIES = 40;
 
@@ -7,12 +7,12 @@ function currentDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export async function getFmpTelemetry(): Promise<FmpTelemetry> {
+export async function getTiTelemetry(): Promise<TiTelemetry> {
   const db = await getDb();
   const result = db.exec(
     `SELECT last_fetch_at, last_request_url, last_error_at, last_error, fetch_count,
            cache_hit_count, error_count, daily_fetch_date, daily_fetch_count, request_log_json
-       FROM fmp_telemetry
+       FROM ti_telemetry
       WHERE id = 1`,
   );
   if (result.length === 0 || result[0].values.length === 0) {
@@ -33,19 +33,19 @@ export async function getFmpTelemetry(): Promise<FmpTelemetry> {
   };
 }
 
-export async function recordFmpFetch(at: string, url: string): Promise<void> {
+export async function recordTiFetch(at: string, url: string): Promise<void> {
   const db = await getDb();
   const today = currentDate();
-  const current = await getFmpTelemetry();
+  const current = await getTiTelemetry();
   const dailyFetchCount = current.dailyFetchDate === today ? current.dailyFetchCount + 1 : 1;
   db.run(
-    `INSERT INTO fmp_telemetry (
+    `INSERT INTO ti_telemetry (
        id, last_fetch_at, last_request_url, fetch_count, daily_fetch_date, daily_fetch_count
      ) VALUES (1, ?, ?, 1, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        last_fetch_at = excluded.last_fetch_at,
        last_request_url = excluded.last_request_url,
-       fetch_count = fmp_telemetry.fetch_count + 1,
+       fetch_count = ti_telemetry.fetch_count + 1,
        daily_fetch_date = excluded.daily_fetch_date,
        daily_fetch_count = excluded.daily_fetch_count`,
     [at, url, today, dailyFetchCount],
@@ -53,44 +53,44 @@ export async function recordFmpFetch(at: string, url: string): Promise<void> {
   await persistDb();
 }
 
-export async function recordFmpCacheHit(): Promise<void> {
+export async function recordTiCacheHit(): Promise<void> {
   const db = await getDb();
   db.run(
-    `INSERT INTO fmp_telemetry (id, cache_hit_count)
+    `INSERT INTO ti_telemetry (id, cache_hit_count)
      VALUES (1, 1)
      ON CONFLICT(id) DO UPDATE SET
-       cache_hit_count = fmp_telemetry.cache_hit_count + 1`,
+       cache_hit_count = ti_telemetry.cache_hit_count + 1`,
   );
   await persistDb();
 }
 
-export async function recordFmpError(at: string, message: string): Promise<void> {
+export async function recordTiError(at: string, message: string): Promise<void> {
   const db = await getDb();
   db.run(
-    `INSERT INTO fmp_telemetry (id, last_error_at, last_error, error_count)
+    `INSERT INTO ti_telemetry (id, last_error_at, last_error, error_count)
      VALUES (1, ?, ?, 1)
      ON CONFLICT(id) DO UPDATE SET
        last_error_at = excluded.last_error_at,
        last_error = excluded.last_error,
-       error_count = fmp_telemetry.error_count + 1`,
+       error_count = ti_telemetry.error_count + 1`,
     [at, message],
   );
   await persistDb();
 }
 
-export async function recordFmpRequest(
+export async function recordTiRequest(
   at: string,
   url: string,
   response: string = '',
 ): Promise<void> {
   const db = await getDb();
-  const current = await getFmpTelemetry();
-  const nextLog: FmpRequestDebugEntry[] = [{ at, url, response }, ...current.requestLog].slice(
+  const current = await getTiTelemetry();
+  const nextLog: TiRequestDebugEntry[] = [{ at, url, response }, ...current.requestLog].slice(
     0,
     MAX_REQUEST_LOG_ENTRIES,
   );
   db.run(
-    `INSERT INTO fmp_telemetry (id, request_log_json)
+    `INSERT INTO ti_telemetry (id, request_log_json)
      VALUES (1, ?)
      ON CONFLICT(id) DO UPDATE SET
        request_log_json = excluded.request_log_json`,
@@ -101,17 +101,17 @@ export async function recordFmpRequest(
 
 export async function getDailyFetchCount(): Promise<number> {
   try {
-    const telemetry = await getFmpTelemetry();
+    const telemetry = await getTiTelemetry();
     return telemetry.dailyFetchDate === currentDate() ? telemetry.dailyFetchCount : 0;
   } catch {
     return 0;
   }
 }
 
-export async function resetFmpTelemetry(): Promise<void> {
+export async function resetTiTelemetry(): Promise<void> {
   const db = await getDb();
   db.run(
-    `INSERT INTO fmp_telemetry (
+    `INSERT INTO ti_telemetry (
        id, last_fetch_at, last_request_url, last_error_at, last_error,
        fetch_count, cache_hit_count, error_count, daily_fetch_date, daily_fetch_count, request_log_json
     ) VALUES (1, '', '', '', '', 0, 0, 0, '', 0, '[]')
@@ -130,7 +130,7 @@ export async function resetFmpTelemetry(): Promise<void> {
   await persistDb();
 }
 
-function zeroTelemetry(): FmpTelemetry {
+function zeroTelemetry(): TiTelemetry {
   return {
     lastFetchAt: '',
     lastRequestUrl: '',
@@ -145,7 +145,7 @@ function zeroTelemetry(): FmpTelemetry {
   };
 }
 
-function parseRequestLog(raw: unknown): FmpRequestDebugEntry[] {
+function parseRequestLog(raw: unknown): TiRequestDebugEntry[] {
   if (typeof raw !== 'string' || !raw.trim()) return [];
   try {
     const parsed = JSON.parse(raw);

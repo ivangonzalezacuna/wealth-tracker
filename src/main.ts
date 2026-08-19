@@ -1061,7 +1061,6 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
   // Cancel any in-flight pre-restore upload so stale data is never pushed.
   cancelPendingUpload();
   try {
-    const savedFmpApiKey = getSettings().fmp_api_key;
     const {
       accounts,
       holdings,
@@ -1092,9 +1091,6 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
 
     // Reload in-memory config store from the freshly written SQLite tables.
     await loadConfig();
-    if (savedFmpApiKey) {
-      await setSetting('fmp_api_key', savedFmpApiKey);
-    }
     await logConfigChange('Restore', 'restored from backup');
 
     // Reapply collapse/expand UI state from the backup

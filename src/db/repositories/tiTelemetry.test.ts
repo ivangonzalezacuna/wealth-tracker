@@ -70,20 +70,20 @@ if (!(globalThis as { indexedDB?: unknown }).indexedDB) {
 
 let destroyDb: typeof import('../../db').destroyDb;
 let getDailyFetchCount: typeof import('../../db').getDailyFetchCount;
-let getFmpTelemetry: typeof import('../../db').getFmpTelemetry;
-let recordFmpError: typeof import('../../db').recordFmpError;
-let recordFmpFetch: typeof import('../../db').recordFmpFetch;
-let recordFmpRequest: typeof import('../../db').recordFmpRequest;
+let getTiTelemetry: typeof import('../../db').getTiTelemetry;
+let recordTiError: typeof import('../../db').recordTiError;
+let recordTiFetch: typeof import('../../db').recordTiFetch;
+let recordTiRequest: typeof import('../../db').recordTiRequest;
 
-describe.sequential('fmpTelemetry repository', () => {
+describe.sequential('tiTelemetry repository', () => {
   beforeAll(async () => {
     const db = await import('../../db');
     destroyDb = db.destroyDb;
     getDailyFetchCount = db.getDailyFetchCount;
-    getFmpTelemetry = db.getFmpTelemetry;
-    recordFmpError = db.recordFmpError;
-    recordFmpFetch = db.recordFmpFetch;
-    recordFmpRequest = db.recordFmpRequest;
+    getTiTelemetry = db.getTiTelemetry;
+    recordTiError = db.recordTiError;
+    recordTiFetch = db.recordTiFetch;
+    recordTiRequest = db.recordTiRequest;
   });
 
   beforeEach(async () => {
@@ -103,7 +103,7 @@ describe.sequential('fmpTelemetry repository', () => {
   });
 
   it('returns a zeroed telemetry record for a fresh DB', async () => {
-    await expect(getFmpTelemetry()).resolves.toEqual({
+    await expect(getTiTelemetry()).resolves.toEqual({
       lastFetchAt: '',
       lastRequestUrl: '',
       lastErrorAt: '',
@@ -118,20 +118,20 @@ describe.sequential('fmpTelemetry repository', () => {
   });
 
   it('increments daily count on fetch and resets when the date changes', async () => {
-    await recordFmpFetch('2026-08-19T12:00:00.000Z', 'https://fmp.test?a=1');
-    await recordFmpFetch('2026-08-19T12:30:00.000Z', 'https://fmp.test?a=2');
+    await recordTiFetch('2026-08-19T12:00:00.000Z', 'https://ti.test/funds/X.json?seq=1');
+    await recordTiFetch('2026-08-19T12:30:00.000Z', 'https://ti.test/funds/X.json?seq=2');
     await expect(getDailyFetchCount()).resolves.toBe(2);
 
     vi.setSystemTime(new Date('2026-08-20T09:00:00.000Z'));
     await expect(getDailyFetchCount()).resolves.toBe(0);
 
-    await recordFmpFetch('2026-08-20T09:00:00.000Z', 'https://fmp.test?a=3');
+    await recordTiFetch('2026-08-20T09:00:00.000Z', 'https://ti.test/funds/X.json?seq=3');
     await expect(getDailyFetchCount()).resolves.toBe(1);
   });
 
   it('records the last error fields', async () => {
-    await recordFmpError('2026-08-19T12:00:00.000Z', 'Auth failed');
-    await expect(getFmpTelemetry()).resolves.toMatchObject({
+    await recordTiError('2026-08-19T12:00:00.000Z', 'Auth failed');
+    await expect(getTiTelemetry()).resolves.toMatchObject({
       lastErrorAt: '2026-08-19T12:00:00.000Z',
       lastError: 'Auth failed',
       errorCount: 1,
@@ -139,18 +139,18 @@ describe.sequential('fmpTelemetry repository', () => {
   });
 
   it('stores request debug entries in newest-first order', async () => {
-    await recordFmpRequest('2026-08-19T12:00:00.000Z', 'https://fmp.test/a?apikey=***', '[]');
-    await recordFmpRequest('2026-08-19T12:01:00.000Z', 'https://fmp.test/b?apikey=***', '{"ok":1}');
-    await expect(getFmpTelemetry()).resolves.toMatchObject({
+    await recordTiRequest('2026-08-19T12:00:00.000Z', 'https://ti.test/funds/A.json', '[]');
+    await recordTiRequest('2026-08-19T12:01:00.000Z', 'https://ti.test/funds/B.json', '{"ok":1}');
+    await expect(getTiTelemetry()).resolves.toMatchObject({
       requestLog: [
         {
           at: '2026-08-19T12:01:00.000Z',
-          url: 'https://fmp.test/b?apikey=***',
+          url: 'https://ti.test/funds/B.json',
           response: '{"ok":1}',
         },
         {
           at: '2026-08-19T12:00:00.000Z',
-          url: 'https://fmp.test/a?apikey=***',
+          url: 'https://ti.test/funds/A.json',
           response: '[]',
         },
       ],

@@ -8,7 +8,7 @@ import type { Holding } from '../types';
 import { ASSET_CLASSES, REGIONS } from '../model/accountTypes';
 import { filterSecuritySuggestions, type SecuritySuggestions } from '../model/securitySuggestions';
 import { ISIN_HINT, isValidISIN, normalizeISIN } from '../model/isin';
-import { refreshHoldingMetadata } from '../services/fmpService';
+import { refreshHoldingMetadata } from '../services/trackinsightService';
 import {
   bindColorInputs,
   createDialogController,
@@ -26,7 +26,7 @@ export interface HoldingDialogOptions {
   /** Order index to assign to a new holding. */
   order?: number;
   existingIsins?: string[];
-  fmpEnabled?: boolean;
+  tiEnabled?: boolean;
   metadata?: import('../types').HoldingMetadata | null;
   canRefresh?: boolean;
 }
@@ -211,7 +211,7 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
             </div>
           </div>
           ${
-            opts.fmpEnabled
+            opts.tiEnabled
               ? `<details class="hold-metadata-details">
             <summary class="hold-metadata-summary">ETF metadata</summary>
             <div class="settings-items settings-items-compact" id="hold-metadata-items">

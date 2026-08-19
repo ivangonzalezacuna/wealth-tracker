@@ -1,124 +1,86 @@
 /**
- * FMP metadata service — cache-first enrichment backed by the FMP provider.
+ * Trackinsight metadata service — cache-first enrichment backed by the Trackinsight provider.
  * Single entry-point for all ETF metadata resolution. Never throws to callers.
+ *
+ * Unlike FMP, Trackinsight requires no API key and has no documented daily request limit.
+ * The service is gated only by the ti_integration_enabled setting.
  */
 
 import type { HoldingMetadata } from '../types';
 import {
-  buildEtfInfoUrl,
-  buildSearchUrl,
+  buildFundUrl,
   fetchEtfInfo,
-  FmpAuthError,
-  FmpError,
-  FmpOfflineError,
-  redactApiKey,
-  searchByIsin,
-  validateFmpEtfInfo,
-} from './fmp';
+  TiError,
+  TiNotFoundError,
+  TiOfflineError,
+  validateTiEtfInfo,
+} from './trackinsight';
 import {
-  getDailyFetchCount,
   getHoldingMetadata,
-  recordFmpCacheHit,
-  recordFmpError,
-  recordFmpFetch,
-  recordFmpRequest,
+  recordTiFetch,
+  recordTiError,
+  recordTiRequest,
+  recordTiCacheHit,
   upsertHoldingMetadata,
 } from '../db';
 
-const FMP_DAILY_LIMIT = 250;
-const FMP_REFRESH_COOLDOWN_MS = 60 * 60 * 1000;
+const TI_REFRESH_COOLDOWN_MS = 60 * 60 * 1000;
 
 let _enabled = false;
-let _apiKey = '';
 
-export function configureFmpService(opts: { enabled: boolean; apiKey: string }): void {
+export function configureTiService(opts: { enabled: boolean }): void {
   _enabled = opts.enabled;
-  _apiKey = opts.apiKey;
 }
 
 function isReady(): boolean {
-  return _enabled && !!_apiKey;
-}
-
-async function isWithinDailyLimit(): Promise<boolean> {
-  try {
-    return (await getDailyFetchCount()) < FMP_DAILY_LIMIT;
-  } catch {
-    return false;
-  }
+  return _enabled;
 }
 
 async function fetchAndPersist(isin: string): Promise<HoldingMetadata | null> {
   if (!isReady()) return null;
-  if (!(await isWithinDailyLimit())) {
-    console.warn(`[fmpService] Daily limit reached — skipping fetch for ${isin}`);
-    return null;
-  }
 
-  let lastRequestUrl = '';
   try {
-    const searchUrl = buildSearchUrl(isin, _apiKey);
-    const redactedSearchUrl = redactApiKey(searchUrl);
-    lastRequestUrl = redactedSearchUrl;
-    const searchResults = await searchByIsin(isin, _apiKey);
-    const searchAt = new Date().toISOString();
-    recordFmpFetch(searchAt, redactedSearchUrl).catch(() => {});
-    recordFmpRequest(searchAt, redactedSearchUrl, serializeDebugPayload(searchResults)).catch(
-      () => {},
-    );
-
-    if (searchResults.length === 0) return null;
-    const { symbol } = searchResults[0];
-
-    if (!(await isWithinDailyLimit())) {
-      console.warn(`[fmpService] Daily limit reached after search — skipping etf/info for ${isin}`);
-      return null;
-    }
-
-    const infoUrl = buildEtfInfoUrl(symbol, _apiKey);
-    const redactedInfoUrl = redactApiKey(infoUrl);
-    lastRequestUrl = redactedInfoUrl;
-    const rawInfo = await fetchEtfInfo(symbol, _apiKey);
+    const url = buildFundUrl(isin);
+    const rawInfo = await fetchEtfInfo(isin);
     const now = new Date().toISOString();
-    recordFmpFetch(now, redactedInfoUrl).catch(() => {});
-    recordFmpRequest(now, redactedInfoUrl, serializeDebugPayload(rawInfo)).catch(() => {});
+    recordTiFetch(now, url).catch(() => {});
+    recordTiRequest(now, url, serializeDebugPayload(rawInfo)).catch(() => {});
 
-    const info = validateFmpEtfInfo(rawInfo);
+    const info = validateTiEtfInfo(rawInfo, isin);
     const record: HoldingMetadata = {
       isin,
-      symbol,
+      symbol: info.symbol ?? undefined,
       exchange: info.exchange ?? undefined,
       domicileCountry: info.domicileCountry,
       fundCurrency: info.fundCurrency,
       aum: info.aum,
       inceptionDate: info.inceptionDate,
       holdingsCount: info.holdingsCount,
-      sectors: info.sectorsList,
+      sectors: info.sectors,
       topHoldings: info.topHoldings,
       fetchedAt: now,
       lastRefreshedAt: now,
-      provider: 'fmp',
+      provider: 'trackinsight',
     };
     await upsertHoldingMetadata(record).catch(() => {});
     return record;
   } catch (err) {
     const now = new Date().toISOString();
     const message =
-      err instanceof Error ? err.message : 'Unexpected FMP metadata enrichment failure';
-    if (lastRequestUrl) {
-      recordFmpRequest(now, lastRequestUrl, `ERROR: ${message}`).catch(() => {});
-    }
+      err instanceof Error ? err.message : 'Unexpected Trackinsight metadata enrichment failure';
+    const url = buildFundUrl(isin);
+    recordTiRequest(now, url, `ERROR: ${message}`).catch(() => {});
     if (
-      err instanceof FmpAuthError ||
-      err instanceof FmpOfflineError ||
-      err instanceof FmpError ||
+      err instanceof TiError ||
+      err instanceof TiOfflineError ||
+      err instanceof TiNotFoundError ||
       err instanceof Error
     ) {
-      recordFmpError(now, message).catch(() => {});
-      console.warn(`[fmpService] Could not fetch metadata for ${isin}: ${message}`);
+      recordTiError(now, message).catch(() => {});
+      console.warn(`[trackinsightService] Could not fetch metadata for ${isin}: ${message}`);
       return null;
     }
-    recordFmpError(now, message).catch(() => {});
+    recordTiError(now, message).catch(() => {});
     return null;
   }
 }
@@ -138,7 +100,7 @@ export async function lookupHoldingMetadata(isin: string): Promise<HoldingMetada
   try {
     const cached = await getHoldingMetadata(isin);
     if (cached !== null) {
-      recordFmpCacheHit().catch(() => {});
+      recordTiCacheHit().catch(() => {});
       return cached;
     }
   } catch {
@@ -154,13 +116,12 @@ export async function refreshHoldingMetadata(isin: string): Promise<HoldingMetad
 
 export async function canRefreshMetadata(isin: string): Promise<boolean> {
   if (!isReady()) return false;
-  if (!(await isWithinDailyLimit())) return false;
   try {
     const cached = await getHoldingMetadata(isin);
     if (!cached || !cached.lastRefreshedAt) return true;
     const lastRefresh = new Date(cached.lastRefreshedAt).getTime();
     if (!Number.isFinite(lastRefresh)) return true;
-    return Date.now() - lastRefresh > FMP_REFRESH_COOLDOWN_MS;
+    return Date.now() - lastRefresh > TI_REFRESH_COOLDOWN_MS;
   } catch {
     return true;
   }
@@ -178,10 +139,6 @@ export async function bulkEnrichHoldings(
 
   for (let i = 0; i < isins.length; i++) {
     const isin = isins[i];
-    if (!(await isWithinDailyLimit())) {
-      skipped += isins.length - i;
-      break;
-    }
 
     try {
       const cached = await getHoldingMetadata(isin);

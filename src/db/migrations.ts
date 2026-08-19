@@ -219,4 +219,23 @@ export const MIGRATIONS: string[][] = [
   ],
   // [17] version 16 → 17: add persisted FMP request debug log.
   [`ALTER TABLE fmp_telemetry ADD COLUMN request_log_json TEXT NOT NULL DEFAULT '[]'`],
+  // [18] version 17 → 18: migrate ETF metadata integration from FMP to Trackinsight.
+  // Creates the ti_telemetry table used by the new Trackinsight provider.
+  // The legacy fmp_telemetry table is left intact for backward compatibility.
+  [
+    `CREATE TABLE IF NOT EXISTS ti_telemetry (
+      id INTEGER PRIMARY KEY,
+      last_fetch_at TEXT NOT NULL DEFAULT '',
+      last_request_url TEXT NOT NULL DEFAULT '',
+      last_error_at TEXT NOT NULL DEFAULT '',
+      last_error TEXT NOT NULL DEFAULT '',
+      fetch_count INTEGER NOT NULL DEFAULT 0,
+      cache_hit_count INTEGER NOT NULL DEFAULT 0,
+      error_count INTEGER NOT NULL DEFAULT 0,
+      daily_fetch_date TEXT NOT NULL DEFAULT '',
+      daily_fetch_count INTEGER NOT NULL DEFAULT 0,
+      request_log_json TEXT NOT NULL DEFAULT '[]'
+    )`,
+    `INSERT OR IGNORE INTO ti_telemetry (id) VALUES (1)`,
+  ],
 ];

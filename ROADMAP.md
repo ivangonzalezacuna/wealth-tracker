@@ -99,16 +99,18 @@ The app is intentionally slim and offline-capable. External data fetching remain
 - Keep `fxRate` editable by the user. Provider values are suggestions or normalization inputs, not locked values.
 - Use the same FX cache for both transaction assistance and snapshot normalization, so the app has one auditable source of historical conversion context.
 
-#### ETF metadata — Financial Modeling Prep (FMP, free API key)
+#### ETF metadata — Trackinsight (free, no API key)
 
-**Service candidate:** [Financial Modeling Prep](https://financialmodelingprep.com) — free tier, ISIN search support, and ETF-oriented endpoints.
+**Service candidate:** [Trackinsight](https://www.trackinsight.com) — free, no authentication required, ISIN-first API at `https://www.trackinsight.com/data-api/v1/funds/{isin}.json`.
 
 **Why:** Holdings already store manual portfolio configuration (`name`, `shortName`, `TER`, `asset class`, `region`, `notes`). External metadata is only justified where it adds clear analytical value that cannot be inferred from the user's own ledger.
+
+**Why Trackinsight over alternatives:** ISIN is the primary key — no two-step ISIN → symbol → metadata chain. No API key required: no credential storage, no redaction logic, and no user-facing setup friction beyond a toggle. Strong UCITS/European ETF coverage suits the app's primary user base. Coverage gap: less reliable on US-domiciled funds (SPY, QQQ) and very niche products.
 
 **Metadata direction:**
 
 - Keep externally fetched metadata in a separate `holding_metadata` store rather than merging it into the manual holding contract.
-- Prioritize fields that enable analysis or validation: ticker/symbol, exchange, domicile/country, fund currency, AUM, inception date, holdings count, sector or industry classification where useful, and top underlying positions.
+- Prioritize fields that enable analysis or validation: exchange, domicile/country, fund currency, AUM, inception date, holdings count, sector or industry classification where useful, and top underlying positions.
 - Deprioritize low-value fields such as long descriptions or latest prices unless a later view proves they are useful.
 - Display fetched metadata as read-only supporting context, ideally in a collapsed section, so the core holding dialog stays focused.
 - Support one-off per-holding refresh plus a bulk enrichment action for holdings that do not yet have metadata.
@@ -128,40 +130,21 @@ This status is intentionally split so progress is not conflated across providers
 - **Phase 5 (UI rollout)** — ✅ done (account currency field + datalist in account dialog; snapshot dialog shows per-account currency labels, live FX hint with rate, currency-specific placeholder, and month-end prefetch status; Settings integrations card with toggle and telemetry).
 - **Phase 6 (tests and hardening)** — ✅ done (unit tests for snapshotFx normalization and annual report currency threading; E2E tests for FX integrations card, mixed-currency snapshot flow, net worth KPI currency indicator, and snapshot dialog placeholder).
 
-**Track 2 — FMP (ETF metadata)**
+**Track 2 — Trackinsight (ETF metadata)** *(migrated from FMP — no API key required)*
 
-- **Phase 1 (contract validation and scope freeze)** — ✅ done.
-- **Phase 2 (storage and provider infrastructure)** — ✅ done.
-- **Phase 3 (domain and service wiring)** — ✅ done.
-- **Phase 4 (application integration and regression-safe rollout)** — ✅ done.
-- **Phase 5 (UI rollout)** — ✅ done.
-- **Phase 6 (tests and hardening)** — ✅ done.
+- **Phase 1–6** — ✅ done (provider replaced: FMP → Trackinsight; `ti_telemetry` table added in migration [18]; `fmp_telemetry` table retained for backward compatibility; provider module, service, telemetry, types, settings UI, and tests updated).
 
-**Current stack anchor for follow-up agents**
+**Later (separate stack): ETF/Trackinsight track**
 
-- **Branch:** `copilot/fxrate-external-integrations`
-- **PR:** [#207](https://github.com/ivangonzalezacuna/wealth-tracker/pull/207)
-- **Rule:** every next PR in this phase stack must be opened from the previous phase branch/PR head so the chain stays linear and reviewable.
-
-**Stacked PR sequence (Frankfurter track)**
-
-1. **PR A — Phase 2 completion:** finish remaining FX storage/config/backup/telemetry pieces. ✅ Done.
-2. **PR B — Phase 3 completion + Phase 4/5 partial (based on PR A):** complete FX model/service wiring for snapshot normalization and shared lookup paths; backup/restore of fx_rates cache; account currency UI; snapshot dialog FX hints and prefetch status; Settings integrations card. ✅ Done.
-3. **PR C — Phase 4 completion (based on PR B):** thread FX-normalized values through net worth, analytics, and reporting consumers.
-4. **PR D — Phase 5 completion (based on PR C):** any remaining snapshot-entry UX polish and FX-related UI gaps.
-5. **PR E — Phase 6 hardening (based on PR D):** finalize unit/integration/Playwright coverage and resilience checks for FX behavior.
-
-**Later (separate stack): ETF/FMP track**
-
-- ETF metadata work follows the same phase structure, but starts only after the Frankfurter stack lands.
-- Use a fresh stack anchor (new branch + new base PR) dedicated to ETF/FMP so reviews stay isolated from FX changes.
+- ETF metadata work follows the same phase structure but uses Trackinsight as the provider.
+- Use a fresh stack anchor (new branch + new base PR) dedicated to ETF/Trackinsight so reviews stay isolated from FX changes.
 
 ##### Phase 1 — contract validation and scope freeze
 
 - Verify the exact Frankfurter endpoints, response fields, business-day fallback behavior, and supported query patterns before encoding them into code or migrations.
-- Verify the exact FMP endpoints and payloads needed to map `ISIN -> symbol -> profile/info/holdings`, then trim the metadata field list to the subset that adds real user value.
+- Verify the exact Trackinsight endpoint, response fields, ISIN coverage, and fallback semantics before encoding them into code or migrations.
 - Keep the canonical snapshot valuation rule for FX lookup fixed to month-end. Because snapshots are stored by month (`YYYY-MM`), the app should derive the FX lookup date as the last day of that month without changing the persisted snapshot key unless a broader migration proves worthwhile, and that detail should remain completely hidden from users.
-- Decide how API credentials are stored, redacted from backups, and surfaced in settings without leaking secrets.
+- No API credentials needed for Trackinsight. The integration is gated only by a simple enable/disable toggle stored in settings.
 - Confirm which analytics or read-only UI surfaces will consume holding metadata in the first release, so schema stays minimal.
 
 ##### Phase 2 — storage and provider infrastructure
