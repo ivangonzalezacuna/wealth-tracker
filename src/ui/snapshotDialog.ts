@@ -470,6 +470,7 @@ function _updateAllFxHints(overlay: HTMLElement, rates: Record<string, number>):
 }
 
 function renderFxPrefetchStatus(el: HTMLElement, result: SnapshotDialogFxPrefetchResult): void {
+  el.classList.remove('snapd-fx-status--warn');
   if (!result.needed) {
     el.textContent = '';
     return;
@@ -479,8 +480,9 @@ function renderFxPrefetchStatus(el: HTMLElement, result: SnapshotDialogFxPrefetc
     return;
   }
   if (result.failed > 0) {
-    el.textContent =
-      'FX: unavailable now — save will keep entered values when conversion is missing.';
+    el.classList.add('snapd-fx-status--warn');
+    el.innerHTML =
+      '<strong>⚠ FX rate fetch failed.</strong> Please convert non-EUR values to EUR manually before saving to ensure accuracy.';
     return;
   }
   el.textContent = 'FX: month-end rates ready.';

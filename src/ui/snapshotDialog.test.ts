@@ -320,7 +320,8 @@ describe('snapshotDialog', () => {
     snapshotDialog(baseOpts({ onFxPrefetchMonth }));
     await Promise.resolve();
     const status = document.querySelector('#snapd-fx-status') as HTMLElement | null;
-    expect(status?.textContent).toContain('unavailable');
+    expect(status?.textContent).toContain('FX rate fetch failed');
+    expect(status?.textContent).toContain('manually');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
 });

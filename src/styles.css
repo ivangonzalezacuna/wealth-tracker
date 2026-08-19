@@ -3128,6 +3128,10 @@ input[type='color'] {
   gap: 4px;
   padding-top: 5px;
 }
+.snapd-fx-status--warn {
+  color: var(--warn);
+  font-size: 12px;
+}
 
 /* ── Goal dialog & milestone rows ────────────────────────── */
 .goal-dialog-row-compact .dialog-field {
