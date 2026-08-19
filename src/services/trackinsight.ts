@@ -106,8 +106,8 @@ export function validateTiEtfInfo(raw: unknown, symbolHint?: string): TiEtfInfo 
     v.data && typeof v.data === 'object'
       ? (v.data as Record<string, unknown>)
       : v.fund && typeof v.fund === 'object'
-      ? (v.fund as Record<string, unknown>)
-      : (v as Record<string, unknown>);
+        ? (v.fund as Record<string, unknown>)
+        : (v as Record<string, unknown>);
 
   const aum = parseNumericValue(fund.aum ?? fund.net_assets ?? fund.total_assets);
 
@@ -127,9 +127,9 @@ export function validateTiEtfInfo(raw: unknown, symbolHint?: string): TiEtfInfo 
       ? fund.inception_date
       : typeof fund.inceptionDate === 'string' && fund.inceptionDate
         ? fund.inceptionDate
-      : fund.inception_date == null
-        ? null
-        : undefined;
+        : fund.inception_date == null
+          ? null
+          : undefined;
 
   const symbol =
     firstString(fund.symbol, fund.ticker, fund.Symbol, symbolHint)?.toUpperCase() ?? undefined;
@@ -166,12 +166,12 @@ function parseSectors(raw: unknown): Array<{ industry: string; exposure: string 
             : typeof entry.sector === 'string'
               ? entry.sector
               : typeof entry.label === 'string'
-              ? entry.label
-              : typeof entry.category === 'string'
-                ? entry.category
-                : objectSingleKey(entry)
-                  ? objectSingleKey(entry)!
-                  : '',
+                ? entry.label
+                : typeof entry.category === 'string'
+                  ? entry.category
+                  : objectSingleKey(entry)
+                    ? objectSingleKey(entry)!
+                    : '',
       exposure:
         typeof entry.weight === 'number'
           ? String(entry.weight)
@@ -180,8 +180,8 @@ function parseSectors(raw: unknown): Array<{ industry: string; exposure: string 
             : typeof entry.weight === 'string'
               ? entry.weight
               : objectSingleKey(entry)
-              ? String(entry[objectSingleKey(entry)!] ?? '')
-              : '',
+                ? String(entry[objectSingleKey(entry)!] ?? '')
+                : '',
     }))
     .filter((entry) => !!entry.industry);
   return result.length > 0 ? result : null;
@@ -197,11 +197,11 @@ function parseTopHoldings(raw: unknown): Array<{ asset: string; weightPercentage
           ? entry.name
           : typeof entry.description === 'string'
             ? entry.description
-          : typeof entry.asset === 'string'
-            ? entry.asset
-            : typeof entry.symbol === 'string'
-              ? entry.symbol
-            : '',
+            : typeof entry.asset === 'string'
+              ? entry.asset
+              : typeof entry.symbol === 'string'
+                ? entry.symbol
+                : '',
       weightPercentage:
         typeof entry.weight === 'number'
           ? String(entry.weight)
@@ -209,9 +209,9 @@ function parseTopHoldings(raw: unknown): Array<{ asset: string; weightPercentage
             ? entry.weightPercentage
             : typeof entry.percent === 'string'
               ? entry.percent
-            : typeof entry.weight === 'string'
-              ? entry.weight
-              : '',
+              : typeof entry.weight === 'string'
+                ? entry.weight
+                : '',
     }))
     .filter((entry) => !!entry.asset);
   return result.length > 0 ? result : null;
@@ -241,7 +241,12 @@ function parseNumericValue(value: unknown): number | null {
   if (!raw) return null;
   const normalized = raw.replace(/[$€,]/g, '');
   const suffix = normalized.slice(-1).toUpperCase();
-  const multipliers: Record<string, number> = { K: 1_000, M: 1_000_000, B: 1_000_000_000, T: 1_000_000_000_000 };
+  const multipliers: Record<string, number> = {
+    K: 1_000,
+    M: 1_000_000,
+    B: 1_000_000_000,
+    T: 1_000_000_000_000,
+  };
   const base = suffix in multipliers ? normalized.slice(0, -1) : normalized;
   const parsed = Number(base);
   if (!Number.isFinite(parsed)) return null;

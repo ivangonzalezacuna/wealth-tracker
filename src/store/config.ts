@@ -356,7 +356,9 @@ export async function setSettings(
     await persistSettings();
     const changedKeys = Object.keys(settings).filter(
       (key) =>
-        key !== 'fx_integration_enabled' && key !== 'ti_integration_enabled' && key !== 'ti_api_key',
+        key !== 'fx_integration_enabled' &&
+        key !== 'ti_integration_enabled' &&
+        key !== 'ti_api_key',
     );
     if (changedKeys.length > 0) {
       await logConfigChange('Settings', `updated ${changedKeys.join(', ')}`);

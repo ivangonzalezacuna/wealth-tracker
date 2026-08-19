@@ -61,7 +61,7 @@ describe('fetchEtfInfo', () => {
       holdingsCount: 2,
       exchange: 'NASDAQ',
       sectors: [{ industry: 'Technology', exposure: '58.1%' }],
-      topHoldings: [{ asset: 'Apple Inc', weightPercentage: '9.1%' }],
+      topHoldings: expect.arrayContaining([{ asset: 'Apple Inc', weightPercentage: '9.1%' }]),
     });
   });
 

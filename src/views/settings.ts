@@ -2269,7 +2269,11 @@ async function refreshTiIntegrationStatus(root: HTMLElement): Promise<void> {
   const requestDebug = root.querySelector('#ti-request-debug-log') as HTMLElement | null;
 
   if (statusEnabled) {
-    statusEnabled.textContent = enabled ? (apiKeyPresent ? 'Enabled' : 'Missing API key') : 'Disabled';
+    statusEnabled.textContent = enabled
+      ? apiKeyPresent
+        ? 'Enabled'
+        : 'Missing API key'
+      : 'Disabled';
   }
   if (apiKey) {
     apiKey.textContent = apiKeyPresent ? 'Configured' : 'Missing';

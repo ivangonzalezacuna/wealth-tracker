@@ -130,7 +130,7 @@ This status is intentionally split so progress is not conflated across providers
 - **Phase 5 (UI rollout)** — ✅ done (account currency field + datalist in account dialog; snapshot dialog shows per-account currency labels, live FX hint with rate, currency-specific placeholder, and month-end prefetch status; Settings integrations card with toggle and telemetry).
 - **Phase 6 (tests and hardening)** — ✅ done (unit tests for snapshotFx normalization and annual report currency threading; E2E tests for FX integrations card, mixed-currency snapshot flow, net worth KPI currency indicator, and snapshot dialog placeholder).
 
-**Track 2 — Trackinsight (ETF metadata)** *(migrated from FMP — no API key required)*
+**Track 2 — Trackinsight (ETF metadata)** _(migrated from FMP — no API key required)_
 
 - **Phase 1–6** — ✅ done (provider replaced: FMP → Trackinsight; `ti_telemetry` table added in migration [18]; `fmp_telemetry` table retained for backward compatibility; provider module, service, telemetry, types, settings UI, and tests updated).
 

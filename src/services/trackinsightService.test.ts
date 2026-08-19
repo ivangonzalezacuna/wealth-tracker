@@ -11,7 +11,9 @@ vi.mock('../db', () => ({
 }));
 
 vi.mock('./trackinsight', () => ({
-  buildFundUrl: vi.fn((symbol: string, apiKey: string) => `https://ti.test/query?symbol=${symbol}&apikey=${apiKey}`),
+  buildFundUrl: vi.fn(
+    (symbol: string, apiKey: string) => `https://ti.test/query?symbol=${symbol}&apikey=${apiKey}`,
+  ),
   fetchEtfInfo: vi.fn(),
   validateTiEtfInfo: vi.fn((value: unknown) => value),
   TiError: class TiError extends Error {},
@@ -104,7 +106,9 @@ describe('refreshHoldingMetadata', () => {
   it('returns null and records offline errors', async () => {
     configureTiService({ enabled: true, apiKey: 'demo' });
     vi.mocked(fetchEtfInfo).mockRejectedValue(new TiOfflineError('offline'));
-    await expect(refreshHoldingMetadata(cachedRecord.isin, cachedRecord.symbol)).resolves.toBeNull();
+    await expect(
+      refreshHoldingMetadata(cachedRecord.isin, cachedRecord.symbol),
+    ).resolves.toBeNull();
     await Promise.resolve();
     expect(vi.mocked(recordTiError)).toHaveBeenCalledOnce();
   });
@@ -112,7 +116,9 @@ describe('refreshHoldingMetadata', () => {
   it('returns null on unexpected errors', async () => {
     configureTiService({ enabled: true, apiKey: 'demo' });
     vi.mocked(fetchEtfInfo).mockRejectedValue(new Error('boom'));
-    await expect(refreshHoldingMetadata(cachedRecord.isin, cachedRecord.symbol)).resolves.toBeNull();
+    await expect(
+      refreshHoldingMetadata(cachedRecord.isin, cachedRecord.symbol),
+    ).resolves.toBeNull();
   });
 
   it('returns null when symbol is missing', async () => {

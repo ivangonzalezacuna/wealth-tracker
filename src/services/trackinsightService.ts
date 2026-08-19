@@ -90,7 +90,9 @@ async function fetchAndPersist(isin: string, symbol?: string): Promise<HoldingMe
       err instanceof Error
     ) {
       recordTiError(now, message).catch(() => {});
-      console.warn(`[trackinsightService] Could not fetch metadata for ${isin} (${ticker}): ${message}`);
+      console.warn(
+        `[trackinsightService] Could not fetch metadata for ${isin} (${ticker}): ${message}`,
+      );
       return null;
     }
     recordTiError(now, message).catch(() => {});
