@@ -22,11 +22,15 @@ import {
   loadConfigHistory,
   loadSnapshots,
   saveSnapshots,
+  clearAllHoldingMetadata,
+  getAllHoldingMetadata,
+  getDailyFetchCount,
+  getFmpTelemetry,
   getFxTelemetry,
   getFxTelemetryMonthly,
+  resetFmpTelemetry,
   loadAllFxRates,
   restoreAllFxRates,
-  getAllHoldingMetadata,
 } from '../db';
 import type { ConfigHistoryEntry } from '../db';
 import {
@@ -44,7 +48,9 @@ import type {
   Account,
   FxTelemetry,
   FxTelemetryMonthly,
+  FmpTelemetry,
   Holding,
+  HoldingMetadata,
   Settings,
   ContribInterval,
   NamedGoal,
@@ -67,6 +73,7 @@ import {
   buildHoldingSecuritySuggestions,
   loadAppSecuritySuggestions,
 } from '../securitySuggestions';
+import { bulkEnrichHoldings, canRefreshMetadata } from '../services/fmpService';
 
 /** Build <option> HTML for an interval <select>, marking `selected` the matching value. */
 function intervalOptionsHtml(selected: ContribInterval): string {
@@ -878,6 +885,22 @@ async function deleteHolding(
   });
 }
 
+async function loadHoldingDialogFmpOptions(
+  isin?: string,
+): Promise<{ fmpEnabled: boolean; metadata: HoldingMetadata | null; canRefresh: boolean }> {
+  const fmpEnabled = getSettings().fmp_integration_enabled === '1';
+  if (!fmpEnabled || !isin) {
+    return { fmpEnabled, metadata: null, canRefresh: false };
+  }
+  const [metadata, canRefresh] = await Promise.all([
+    getAllHoldingMetadata()
+      .then((records) => records.find((record) => record.isin === isin) ?? null)
+      .catch(() => null),
+    canRefreshMetadata(isin).catch(() => false),
+  ]);
+  return { fmpEnabled, metadata, canRefresh };
+}
+
 function attachHoldingListeners(root: HTMLElement): void {
   const controller = createEditableListController<Holding>({
     getItems: () => _holdings ?? _allHoldings ?? [],
@@ -910,6 +933,7 @@ function attachHoldingListeners(root: HTMLElement): void {
       ),
       order,
       existingIsins: controller.items().map((h) => h.isin),
+      ...(await loadHoldingDialogFmpOptions()),
     });
     if (!draft) return;
     controller.previewAdd(draft, 'Holding added. Click Save to persist.');
@@ -930,6 +954,7 @@ function attachHoldingListeners(root: HTMLElement): void {
         holds.filter((h) => h.isin !== existing.isin).map((h) => h.isin),
       ),
       existingIsins: holds.filter((h) => h.isin !== existing.isin).map((h) => h.isin),
+      ...(await loadHoldingDialogFmpOptions(existing.isin)),
     });
     if (!draft) return;
     controller.previewUpdate(
@@ -2002,6 +2027,7 @@ function subtractMonths(dateStr: string, months: number): string {
 
 function renderFxIntegrationsCard(settings: Settings): string {
   const enabled = settings.fx_integration_enabled !== '0';
+  const fmpEnabled = settings.fmp_integration_enabled === '1';
   return `
     <div class="card card-collapsible" id="settings-card-integrations" data-card-key="integrations">
       <div class="card-header js-card-toggle">
@@ -2033,6 +2059,40 @@ function renderFxIntegrationsCard(settings: Settings): string {
         </div>
         <div class="form-actions">
           <button class="btn btn-danger btn-sm" id="btn-fx-clear-cache">Clear FX cache</button>
+        </div>
+        <div class="card-section-head" style="margin-top:1.5rem">FMP — ETF METADATA</div>
+        <p class="note" style="margin-bottom:.75rem">Enriches holdings with ETF metadata (symbol, exchange, domicile, AUM, top holdings) from Financial Modeling Prep. Requires a free API key. Limited to 250 requests/day.</p>
+        <div class="settings-field">
+          <label class="settings-field-label" for="fmp-api-key">API key</label>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <input type="password" id="fmp-api-key" class="form-input" placeholder="Paste your FMP API key" autocomplete="off" style="max-width:260px">
+            <button class="btn btn-primary btn-sm" id="btn-save-fmp-api-key">Save</button>
+            <span id="fmp-key-msg" class="form-msg"></span>
+          </div>
+          <p class="note" style="margin-top:.25rem">Stored locally only, never exported in backups.</p>
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label" for="fmp-integration-enabled">
+            Enable FMP integration
+          </label>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <input type="checkbox" id="fmp-integration-enabled" ${fmpEnabled ? 'checked' : ''}>
+            <button class="btn btn-primary btn-sm" id="btn-save-fmp-integration">Save</button>
+            <span id="fmp-int-msg" class="form-msg"></span>
+          </div>
+        </div>
+        <div class="card-section-head" style="margin-top:1rem">FMP CACHE &amp; TELEMETRY</div>
+        <div class="settings-items settings-items-compact" id="fmp-status-items">
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Status</span><span id="fmp-status-enabled" class="settings-item-value">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Cached holdings</span><span id="fmp-status-cache-entries" class="settings-item-value">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Last fetch</span><span id="fmp-status-last-fetch" class="settings-item-value">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Last error</span><span id="fmp-status-last-error" class="settings-item-value settings-item-value-error">-</span></div></div>
+          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Today's requests</span><span id="fmp-status-daily" class="settings-item-value">-</span></div></div>
+        </div>
+        <div class="form-actions" style="margin-top:.75rem">
+          <button class="btn btn-outline btn-sm" id="btn-fmp-bulk-enrich">Enrich all holdings</button>
+          <span id="fmp-bulk-msg" class="form-msg"></span>
+          <button class="btn btn-danger btn-sm" id="btn-fmp-clear-cache">Clear metadata cache</button>
         </div>
       </div>
     </div>`;
@@ -2124,6 +2184,9 @@ function attachFxIntegrationListeners(root: HTMLElement): void {
   void refreshFxIntegrationStatus(root).catch((err) => {
     showMsg('fx-int-msg', 'Status load failed: ' + (err as Error).message, false);
   });
+  void refreshFmpIntegrationStatus(root).catch((err) => {
+    showMsg('fmp-int-msg', 'Status load failed: ' + (err as Error).message, false);
+  });
 
   root.querySelector('#btn-save-fx-integration')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-fx-integration') as HTMLButtonElement;
@@ -2162,6 +2225,165 @@ function attachFxIntegrationListeners(root: HTMLElement): void {
       showMsg('fx-int-msg', 'FX cache cleared.', true);
     } catch (err) {
       showMsg('fx-int-msg', 'Error: ' + (err as Error).message, false);
+    }
+  });
+
+  attachFmpIntegrationListeners(root);
+}
+
+async function loadFmpTelemetrySafe(): Promise<FmpTelemetry> {
+  try {
+    return await getFmpTelemetry();
+  } catch (err) {
+    if (String(err).includes('no such table: fmp_telemetry')) {
+      return {
+        lastFetchAt: '',
+        lastRequestUrl: '',
+        lastErrorAt: '',
+        lastError: '',
+        fetchCount: 0,
+        cacheHitCount: 0,
+        errorCount: 0,
+        dailyFetchDate: '',
+        dailyFetchCount: 0,
+      };
+    }
+    throw err;
+  }
+}
+
+async function refreshFmpIntegrationStatus(root: HTMLElement): Promise<void> {
+  const [telemetry, cached] = await Promise.all([
+    loadFmpTelemetrySafe(),
+    getAllHoldingMetadata().catch(() => [] as HoldingMetadata[]),
+  ]);
+  const enabled = getSettings().fmp_integration_enabled === '1';
+  const hasKey = !!(getSettings().fmp_api_key || '').trim();
+  const statusEnabled = root.querySelector('#fmp-status-enabled') as HTMLElement | null;
+  const cacheEntries = root.querySelector('#fmp-status-cache-entries') as HTMLElement | null;
+  const lastFetch = root.querySelector('#fmp-status-last-fetch') as HTMLElement | null;
+  const lastError = root.querySelector('#fmp-status-last-error') as HTMLElement | null;
+  const daily = root.querySelector('#fmp-status-daily') as HTMLElement | null;
+
+  if (statusEnabled) {
+    statusEnabled.textContent = enabled ? (hasKey ? 'Enabled' : 'Enabled (no API key)') : 'Disabled';
+  }
+  if (cacheEntries) {
+    const refreshed = cached
+      .map((record) => record.lastRefreshedAt || record.fetchedAt)
+      .filter(Boolean)
+      .sort();
+    const lastRefreshedAt = refreshed.length > 0 ? refreshed[refreshed.length - 1] : '';
+    cacheEntries.textContent = `${cached.length} entr${cached.length === 1 ? 'y' : 'ies'}${lastRefreshedAt ? ` (last updated ${formatEnglishDateTime(new Date(lastRefreshedAt))})` : ''}`;
+  }
+  if (lastFetch) {
+    lastFetch.textContent = telemetry.lastFetchAt
+      ? formatEnglishDateTime(new Date(telemetry.lastFetchAt))
+      : '—';
+  }
+  if (lastError) {
+    const hasError = !!(telemetry.lastErrorAt && telemetry.lastError);
+    lastError.textContent = hasError
+      ? `${formatEnglishDateTime(new Date(telemetry.lastErrorAt))} — ${telemetry.lastError}`
+      : '—';
+    lastError.classList.toggle('settings-item-value-error--active', hasError);
+  }
+  if (daily) {
+    daily.textContent = `${telemetry.dailyFetchCount} / 250`;
+  }
+}
+
+function attachFmpIntegrationListeners(root: HTMLElement): void {
+  root.querySelector('#btn-save-fmp-api-key')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-save-fmp-api-key') as HTMLButtonElement;
+    const value = (root.querySelector('#fmp-api-key') as HTMLInputElement | null)?.value ?? '';
+    try {
+      await withCardGuard('integrations', btn, () => setSetting('fmp_api_key', value), {
+        busyText: 'Saving...',
+      });
+      await refreshFmpIntegrationStatus(root);
+      showMsg('fmp-key-msg', 'Saved', true);
+      (root.querySelector('#fmp-api-key') as HTMLInputElement | null)?.setAttribute('value', '');
+      if (root.querySelector('#fmp-api-key')) {
+        (root.querySelector('#fmp-api-key') as HTMLInputElement).value = '';
+      }
+    } catch (err) {
+      showMsg('fmp-key-msg', 'Error: ' + (err as Error).message, false);
+    }
+  });
+
+  root.querySelector('#btn-save-fmp-integration')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-save-fmp-integration') as HTMLButtonElement;
+    const enabled = !!(root.querySelector('#fmp-integration-enabled') as HTMLInputElement | null)
+      ?.checked;
+    try {
+      await withCardGuard(
+        'integrations',
+        btn,
+        () => setSetting('fmp_integration_enabled', enabled ? '1' : '0'),
+        { busyText: 'Saving...' },
+      );
+      await refreshFmpIntegrationStatus(root);
+      showMsg('fmp-int-msg', 'Saved', true);
+    } catch (err) {
+      showMsg('fmp-int-msg', 'Error: ' + (err as Error).message, false);
+    }
+  });
+
+  root.querySelector('#btn-fmp-bulk-enrich')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-fmp-bulk-enrich') as HTMLButtonElement;
+    const isins = getHoldings().map((h) => h.isin).filter(Boolean);
+    const msg = root.querySelector('#fmp-bulk-msg') as HTMLElement | null;
+    try {
+      const dailyCount = await getDailyFetchCount().catch(() => 0);
+      if (dailyCount >= 250) {
+        showMsg('fmp-bulk-msg', 'Daily FMP request limit reached.', false);
+        return;
+      }
+      await withCardGuard(
+        'integrations',
+        btn,
+        async () => {
+          const result = await bulkEnrichHoldings(isins, (done, total) => {
+            if (msg) msg.textContent = `${done} / ${total} done…`;
+          });
+          await refreshFmpIntegrationStatus(root);
+          showMsg(
+            'fmp-bulk-msg',
+            `Enriched ${result.enriched}, failed ${result.failed}, skipped ${result.skipped}.`,
+            true,
+          );
+        },
+        { busyText: 'Enriching...' },
+      );
+    } catch (err) {
+      showMsg('fmp-bulk-msg', 'Error: ' + (err as Error).message, false);
+    }
+  });
+
+  root.querySelector('#btn-fmp-clear-cache')?.addEventListener('click', async () => {
+    const btn = root.querySelector('#btn-fmp-clear-cache') as HTMLButtonElement;
+    const ok = await confirmDialog({
+      title: 'Clear cached ETF metadata?',
+      body: 'This removes all cached ETF metadata and resets FMP telemetry on this device.',
+      confirmLabel: 'Clear cache',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await withCardGuard(
+        'integrations',
+        btn,
+        async () => {
+          await clearAllHoldingMetadata();
+          await resetFmpTelemetry();
+        },
+        { busyText: 'Clearing...' },
+      );
+      await refreshFmpIntegrationStatus(root);
+      showMsg('fmp-bulk-msg', 'Metadata cache cleared.', true);
+    } catch (err) {
+      showMsg('fmp-bulk-msg', 'Error: ' + (err as Error).message, false);
     }
   });
 }
