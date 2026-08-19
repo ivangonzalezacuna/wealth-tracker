@@ -6,6 +6,7 @@ import {
   gotoApp,
   monthOffsetValue,
   openCsvImportPreview,
+  openTab,
   preparePage,
 } from './helpers';
 
