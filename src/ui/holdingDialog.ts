@@ -8,7 +8,6 @@ import type { Holding } from '../types';
 import { ASSET_CLASSES, REGIONS } from '../model/accountTypes';
 import { filterSecuritySuggestions, type SecuritySuggestions } from '../model/securitySuggestions';
 import { ISIN_HINT, isValidISIN, normalizeISIN } from '../model/isin';
-import { refreshHoldingMetadata } from '../services/trackinsightService';
 import {
   bindColorInputs,
   createDialogController,
@@ -26,9 +25,6 @@ export interface HoldingDialogOptions {
   /** Order index to assign to a new holding. */
   order?: number;
   existingIsins?: string[];
-  tiEnabled?: boolean;
-  metadata?: import('../types').HoldingMetadata | null;
-  canRefresh?: boolean;
 }
 
 let _activeExisting: Holding | undefined = undefined;
@@ -56,42 +52,6 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
     _activeSuggestionPairs = filterSecuritySuggestions(opts.suggestions, opts.existingIsins).pairs;
     const existing = opts.existing;
     const title = existing ? 'Edit holding' : 'Add holding';
-    let currentMetadata = opts.metadata ?? null;
-    let currentCanRefresh = opts.canRefresh ?? false;
-
-    const renderMetadataItems = () => {
-      if (!currentMetadata) {
-        return '<p class="note" style="padding:.5rem 0">No metadata — click Refresh to fetch</p>';
-      }
-      return [
-        metadataRow('Symbol', currentMetadata.symbol ?? '—'),
-        metadataRow('Exchange', currentMetadata.exchange ?? '—'),
-        metadataRow('Domicile', currentMetadata.domicileCountry ?? '—'),
-        metadataRow('Fund currency', currentMetadata.fundCurrency ?? '—'),
-        metadataRow('AUM', currentMetadata.aum != null ? formatAum(currentMetadata.aum) : '—'),
-        metadataRow('Inception', currentMetadata.inceptionDate ?? '—'),
-        metadataRow(
-          'Holdings',
-          currentMetadata.holdingsCount != null ? String(currentMetadata.holdingsCount) : '—',
-        ),
-        currentMetadata.topHoldings?.length
-          ? metadataRow(
-              'Top holdings',
-              currentMetadata.topHoldings
-                .slice(0, 5)
-                .map((h) => `${h.asset} ${h.weightPercentage}%`)
-                .join(' · '),
-            )
-          : '',
-        metadataRow('Last fetched', currentMetadata.fetchedAt),
-      ].join('');
-    };
-
-    const renderMetadataActions = () => {
-      const showRefreshButton = currentCanRefresh || !currentMetadata;
-      return `${showRefreshButton ? '<button class="btn btn-outline btn-sm" id="btn-hold-refresh-metadata">Refresh</button>' : '<span class="note">Refreshed recently</span>'}
-    <span id="hold-metadata-msg" class="form-msg"></span>`;
-    };
 
     const assetClassOptions = ASSET_CLASSES.map(
       (c) =>
@@ -177,15 +137,6 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
             </div>
           </div>
           <div class="dialog-row">
-            <div class="dialog-field dialog-field-wide">
-              <label class="dialog-label" for="holdd-ticker">
-                Ticker${infoTip('Exchange ticker symbol used for ETF metadata lookup (e.g. IWDA, VWCE, SPY). Leave blank if not applicable.')}
-              </label>
-              <input type="text" id="holdd-ticker" class="form-input dialog-input dialog-input-uppercase"
-                value="${esc(existing?.ticker || '')}" placeholder="e.g. IWDA">
-            </div>
-          </div>
-          <div class="dialog-row">
             <div class="dialog-field">
               <label class="dialog-label" style="cursor:pointer">
                 <input type="checkbox" id="holdd-acc" ${existing?.acc !== false ? 'checked' : ''}>
@@ -219,19 +170,6 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
                 placeholder="e.g. Switched index from MSCI World to FTSE All-World in Oct 2024">${esc(existing?.notes || '')}</textarea>
             </div>
           </div>
-          ${
-            opts.tiEnabled
-              ? `<details class="hold-metadata-details">
-            <summary class="hold-metadata-summary">ETF metadata</summary>
-            <div class="settings-items settings-items-compact" id="hold-metadata-items">
-              ${renderMetadataItems()}
-            </div>
-            <div class="hold-metadata-actions" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:.75rem">
-              ${renderMetadataActions()}
-            </div>
-          </details>`
-              : ''
-          }
         </div>
         <div class="dialog-actions">
           <button class="btn btn-sm btn-ghost js-holdd-cancel">Cancel</button>
@@ -262,47 +200,6 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
 
     bindColorInputs(overlay, 'holdd-color', 'holdd-color-hex');
     _bindRealtimeIsinValidation(overlay);
-
-    overlay.querySelector('#btn-hold-refresh-metadata')?.addEventListener('click', async () => {
-      const btn = overlay.querySelector('#btn-hold-refresh-metadata') as HTMLButtonElement | null;
-      const msg = overlay.querySelector('#hold-metadata-msg') as HTMLElement | null;
-      const items = overlay.querySelector('#hold-metadata-items') as HTMLElement | null;
-      const actions = overlay.querySelector('.hold-metadata-actions') as HTMLElement | null;
-      const isin = normalizeISIN((overlay.querySelector('#holdd-isin') as HTMLInputElement).value);
-      if (!isin) {
-        if (msg) msg.textContent = 'Enter an ISIN first.';
-        return;
-      }
-      if (!isValidISIN(isin)) {
-        if (msg) msg.textContent = ISIN_HINT;
-        return;
-      }
-      if (btn) {
-        btn.disabled = true;
-        btn.textContent = 'Refreshing...';
-      }
-      if (msg) msg.textContent = '';
-      const symbol = (overlay.querySelector('#holdd-ticker') as HTMLInputElement | null)?.value;
-      if (!symbol?.trim()) {
-        if (msg) msg.textContent = 'Enter a ticker first.';
-        if (btn) {
-          btn.disabled = false;
-          btn.textContent = 'Refresh';
-        }
-        return;
-      }
-      const metadata = await refreshHoldingMetadata(isin, symbol);
-      currentMetadata = metadata;
-      currentCanRefresh = false;
-      if (items) items.innerHTML = renderMetadataItems();
-      if (actions) actions.innerHTML = renderMetadataActions();
-      const nextMsg = overlay.querySelector('#hold-metadata-msg') as HTMLElement | null;
-      if (nextMsg) nextMsg.textContent = metadata ? 'Metadata refreshed.' : 'No metadata found.';
-      const nextBtn = overlay.querySelector(
-        '#btn-hold-refresh-metadata',
-      ) as HTMLButtonElement | null;
-      if (nextBtn && metadata) nextBtn.disabled = true;
-    });
   });
 }
 
@@ -325,7 +222,6 @@ function _submit(): void {
   const isAcc = getChecked('holdd-acc');
   const isActive = getChecked('holdd-active');
   const notesVal = get('holdd-notes');
-  const tickerVal = get('holdd-ticker');
 
   let valid = true;
 
@@ -364,7 +260,6 @@ function _submit(): void {
     order: existing?.order ?? _activeOrder,
     ter: terRaw !== '' ? parseFloat(terRaw) || 0 : undefined,
     ...(notesVal.trim() ? { notes: notesVal.trim() } : {}),
-    ...(tickerVal.trim() ? { ticker: tickerVal.trim().toUpperCase() } : {}),
   };
 
   _dismiss(draft);
@@ -397,17 +292,4 @@ function _bindRealtimeIsinValidation(overlay: HTMLElement): void {
   };
   isinInput.addEventListener('input', () => validate('input'));
   isinInput.addEventListener('blur', () => validate('blur'));
-}
-
-function metadataRow(label: string, value: string): string {
-  return `<div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">${esc(label)}</span><span class="settings-item-value">${esc(value)}</span></div></div>`;
-}
-
-function formatAum(aum: number): string {
-  const abs = Math.abs(aum);
-  if (abs >= 1_000_000_000)
-    return `$${(aum / 1_000_000_000).toFixed(abs >= 10_000_000_000 ? 0 : 1)}B`;
-  if (abs >= 1_000_000) return `$${(aum / 1_000_000).toFixed(abs >= 100_000_000 ? 0 : 1)}M`;
-  if (abs >= 1_000) return `$${(aum / 1_000).toFixed(abs >= 100_000 ? 0 : 1)}K`;
-  return `$${aum.toFixed(0)}`;
 }

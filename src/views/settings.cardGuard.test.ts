@@ -28,47 +28,6 @@ vi.mock('../store/config', () => ({
 
 vi.mock('../db', () => ({
   loadTransactions: vi.fn(async () => []),
-  loadConfigHistory: vi.fn(async () => []),
-  loadSnapshots: vi.fn(async () => []),
-  saveSnapshots: vi.fn(async () => {}),
-  clearAllHoldingMetadata: vi.fn(async () => {}),
-  getAllHoldingMetadata: vi.fn(async () => []),
-  getDailyFetchCount: vi.fn(async () => 0),
-  getFmpTelemetry: vi.fn(async () => ({
-    lastFetchAt: '',
-    lastRequestUrl: '',
-    lastErrorAt: '',
-    lastError: '',
-    fetchCount: 0,
-    cacheHitCount: 0,
-    errorCount: 0,
-    dailyFetchDate: '',
-    dailyFetchCount: 0,
-    requestLog: [],
-  })),
-  getFxTelemetry: vi.fn(async () => ({
-    lastFetchAt: '',
-    lastRequestUrl: '',
-    lastErrorAt: '',
-    lastError: '',
-    fetchCount: 0,
-    cacheHitCount: 0,
-    prefetchAttemptCount: 0,
-    prefetchSuccessCount: 0,
-    prefetchFailureCount: 0,
-    normalizeAttemptCount: 0,
-    normalizeSuccessCount: 0,
-    normalizeFailureCount: 0,
-  })),
-  getFxTelemetryMonthly: vi.fn(async (month: string) => ({
-    month,
-    fetchCount: 0,
-    cacheHitCount: 0,
-    errorCount: 0,
-  })),
-  loadAllFxRates: vi.fn(async () => []),
-  resetFmpTelemetry: vi.fn(async () => {}),
-  restoreAllFxRates: vi.fn(async () => {}),
 }));
 
 vi.mock('../model/accounts', () => ({

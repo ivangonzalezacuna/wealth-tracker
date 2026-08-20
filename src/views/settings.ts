@@ -22,12 +22,8 @@ import {
   loadConfigHistory,
   loadSnapshots,
   saveSnapshots,
-  clearAllHoldingMetadata,
-  getAllHoldingMetadata,
-  getTiTelemetry,
   getFxTelemetry,
   getFxTelemetryMonthly,
-  resetTiTelemetry,
   loadAllFxRates,
   restoreAllFxRates,
 } from '../db';
@@ -47,9 +43,7 @@ import type {
   Account,
   FxTelemetry,
   FxTelemetryMonthly,
-  TiTelemetry,
   Holding,
-  HoldingMetadata,
   Settings,
   ContribInterval,
   NamedGoal,
@@ -72,7 +66,6 @@ import {
   buildHoldingSecuritySuggestions,
   loadAppSecuritySuggestions,
 } from '../securitySuggestions';
-import { bulkEnrichHoldings, canRefreshMetadata } from '../services/trackinsightService';
 
 /** Build <option> HTML for an interval <select>, marking `selected` the matching value. */
 function intervalOptionsHtml(selected: ContribInterval): string {
@@ -884,22 +877,6 @@ async function deleteHolding(
   });
 }
 
-async function loadHoldingDialogTiOptions(
-  isin?: string,
-): Promise<{ tiEnabled: boolean; metadata: HoldingMetadata | null; canRefresh: boolean }> {
-  const tiEnabled = getSettings().ti_integration_enabled === '1';
-  if (!tiEnabled || !isin) {
-    return { tiEnabled, metadata: null, canRefresh: false };
-  }
-  const [metadata, canRefresh] = await Promise.all([
-    getAllHoldingMetadata()
-      .then((records) => records.find((record) => record.isin === isin) ?? null)
-      .catch(() => null),
-    canRefreshMetadata(isin).catch(() => false),
-  ]);
-  return { tiEnabled, metadata, canRefresh };
-}
-
 function attachHoldingListeners(root: HTMLElement): void {
   const controller = createEditableListController<Holding>({
     getItems: () => _holdings ?? _allHoldings ?? [],
@@ -932,7 +909,6 @@ function attachHoldingListeners(root: HTMLElement): void {
       ),
       order,
       existingIsins: controller.items().map((h) => h.isin),
-      ...(await loadHoldingDialogTiOptions()),
     });
     if (!draft) return;
     controller.previewAdd(draft, 'Holding added. Click Save to persist.');
@@ -953,7 +929,6 @@ function attachHoldingListeners(root: HTMLElement): void {
         holds.filter((h) => h.isin !== existing.isin).map((h) => h.isin),
       ),
       existingIsins: holds.filter((h) => h.isin !== existing.isin).map((h) => h.isin),
-      ...(await loadHoldingDialogTiOptions(existing.isin)),
     });
     if (!draft) return;
     controller.previewUpdate(
@@ -2026,7 +2001,6 @@ function subtractMonths(dateStr: string, months: number): string {
 
 function renderFxIntegrationsCard(settings: Settings): string {
   const enabled = settings.fx_integration_enabled !== '0';
-  const tiEnabled = settings.ti_integration_enabled === '1';
   return `
     <div class="card card-collapsible" id="settings-card-integrations" data-card-key="integrations">
       <div class="card-header js-card-toggle">
@@ -2058,33 +2032,6 @@ function renderFxIntegrationsCard(settings: Settings): string {
         </div>
         <div class="form-actions">
           <button class="btn btn-danger btn-sm" id="btn-fx-clear-cache">Clear FX cache</button>
-        </div>
-        <div class="card-section-head" style="margin-top:1.5rem">YAHOO FINANCE — ETF METADATA</div>
-        <p class="note" style="margin-bottom:.75rem">Enriches holdings with ETF metadata (AUM, currency, sector weights, top holdings) from Yahoo Finance. Requires a ticker symbol set on each holding. No API key needed.</p>
-        <div class="settings-field">
-          <label class="settings-field-label" for="ti-integration-enabled">
-            Enable ETF metadata integration
-          </label>
-          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-            <input type="checkbox" id="ti-integration-enabled" ${tiEnabled ? 'checked' : ''}>
-            <button class="btn btn-primary btn-sm" id="btn-save-ti-integration">Save</button>
-            <span id="ti-int-msg" class="form-msg"></span>
-          </div>
-        </div>
-        <div class="card-section-head" style="margin-top:1rem">ETF METADATA CACHE &amp; TELEMETRY</div>
-        <div class="settings-items settings-items-compact" id="ti-status-items">
-          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Status</span><span id="ti-status-enabled" class="settings-item-value">-</span></div></div>
-          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Cached holdings</span><span id="ti-status-cache-entries" class="settings-item-value">-</span></div></div>
-          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Last fetch</span><span id="ti-status-last-fetch" class="settings-item-value">-</span></div></div>
-          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Last error</span><span id="ti-status-last-error" class="settings-item-value settings-item-value-error">-</span></div></div>
-          <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Today's requests</span><span id="ti-status-daily" class="settings-item-value">-</span></div></div>
-        </div>
-        <div class="card-section-head" style="margin-top:.9rem">REQUEST DEBUG</div>
-        <pre class="integration-debug-log" id="ti-request-debug-log">No requests yet.</pre>
-        <div class="form-actions" style="margin-top:.75rem">
-          <button class="btn btn-outline btn-sm" id="btn-ti-bulk-enrich">Enrich all holdings</button>
-          <span id="ti-bulk-msg" class="form-msg"></span>
-          <button class="btn btn-danger btn-sm" id="btn-ti-clear-cache">Clear metadata cache</button>
         </div>
       </div>
     </div>`;
@@ -2176,9 +2123,6 @@ function attachFxIntegrationListeners(root: HTMLElement): void {
   void refreshFxIntegrationStatus(root).catch((err) => {
     showMsg('fx-int-msg', 'Status load failed: ' + (err as Error).message, false);
   });
-  void refreshTiIntegrationStatus(root).catch((err) => {
-    showMsg('ti-int-msg', 'Status load failed: ' + (err as Error).message, false);
-  });
 
   root.querySelector('#btn-save-fx-integration')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-fx-integration') as HTMLButtonElement;
@@ -2217,162 +2161,6 @@ function attachFxIntegrationListeners(root: HTMLElement): void {
       showMsg('fx-int-msg', 'FX cache cleared.', true);
     } catch (err) {
       showMsg('fx-int-msg', 'Error: ' + (err as Error).message, false);
-    }
-  });
-
-  attachTiIntegrationListeners(root);
-}
-
-async function loadTiTelemetrySafe(): Promise<TiTelemetry> {
-  try {
-    return await getTiTelemetry();
-  } catch (err) {
-    if (String(err).includes('no such table: ti_telemetry')) {
-      return {
-        lastFetchAt: '',
-        lastRequestUrl: '',
-        lastErrorAt: '',
-        lastError: '',
-        fetchCount: 0,
-        cacheHitCount: 0,
-        errorCount: 0,
-        dailyFetchDate: '',
-        dailyFetchCount: 0,
-        requestLog: [],
-      };
-    }
-    throw err;
-  }
-}
-
-async function refreshTiIntegrationStatus(root: HTMLElement): Promise<void> {
-  const [telemetry, cached] = await Promise.all([
-    loadTiTelemetrySafe(),
-    getAllHoldingMetadata().catch(() => [] as HoldingMetadata[]),
-  ]);
-  const enabled = getSettings().ti_integration_enabled === '1';
-  const statusEnabled = root.querySelector('#ti-status-enabled') as HTMLElement | null;
-  const cacheEntries = root.querySelector('#ti-status-cache-entries') as HTMLElement | null;
-  const lastFetch = root.querySelector('#ti-status-last-fetch') as HTMLElement | null;
-  const lastError = root.querySelector('#ti-status-last-error') as HTMLElement | null;
-  const daily = root.querySelector('#ti-status-daily') as HTMLElement | null;
-  const requestDebug = root.querySelector('#ti-request-debug-log') as HTMLElement | null;
-
-  if (statusEnabled) {
-    statusEnabled.textContent = enabled ? 'Enabled' : 'Disabled';
-  }
-  if (cacheEntries) {
-    const refreshed = cached
-      .map((record) => record.lastRefreshedAt || record.fetchedAt)
-      .filter(Boolean)
-      .sort();
-    const lastRefreshedAt = refreshed.length > 0 ? refreshed[refreshed.length - 1] : '';
-    cacheEntries.textContent = `${cached.length} entr${cached.length === 1 ? 'y' : 'ies'}${lastRefreshedAt ? ` (last updated ${formatEnglishDateTime(new Date(lastRefreshedAt))})` : ''}`;
-  }
-  if (lastFetch) {
-    lastFetch.textContent = telemetry.lastFetchAt
-      ? formatEnglishDateTime(new Date(telemetry.lastFetchAt))
-      : '—';
-  }
-  if (lastError) {
-    const hasError = !!(telemetry.lastErrorAt && telemetry.lastError);
-    lastError.textContent = hasError
-      ? `${formatEnglishDateTime(new Date(telemetry.lastErrorAt))} — ${telemetry.lastError}`
-      : '—';
-    lastError.classList.toggle('settings-item-value-error--active', hasError);
-  }
-  if (daily) {
-    daily.textContent = String(telemetry.dailyFetchCount);
-  }
-  if (requestDebug) {
-    requestDebug.innerHTML = formatTiRequestDebugLog(telemetry);
-  }
-}
-
-function formatTiRequestDebugLog(telemetry: TiTelemetry): string {
-  if (!telemetry.requestLog.length) return 'No requests yet.';
-  return telemetry.requestLog
-    .map((entry, idx) => {
-      const at = entry.at ? formatEnglishDateTime(new Date(entry.at)) : 'Unknown time';
-      const response = entry.response ? esc(entry.response) : '<em>(no response body)</em>';
-      return `${idx + 1}. ${esc(at)}\nURL: ${esc(entry.url)}\nResponse: ${response}`;
-    })
-    .join('\n\n');
-}
-
-function attachTiIntegrationListeners(root: HTMLElement): void {
-  root.querySelector('#btn-save-ti-integration')?.addEventListener('click', async () => {
-    const btn = root.querySelector('#btn-save-ti-integration') as HTMLButtonElement;
-    const enabled = !!(root.querySelector('#ti-integration-enabled') as HTMLInputElement | null)
-      ?.checked;
-    try {
-      await withCardGuard(
-        'integrations',
-        btn,
-        () =>
-          setSettings({
-            ti_integration_enabled: enabled ? '1' : '0',
-          }),
-        { busyText: 'Saving...' },
-      );
-      await refreshTiIntegrationStatus(root);
-      showMsg('ti-int-msg', 'Saved', true);
-    } catch (err) {
-      showMsg('ti-int-msg', 'Error: ' + (err as Error).message, false);
-    }
-  });
-
-  root.querySelector('#btn-ti-bulk-enrich')?.addEventListener('click', async () => {
-    const btn = root.querySelector('#btn-ti-bulk-enrich') as HTMLButtonElement;
-    const holdings = getHoldings()
-      .map((h) => ({ isin: h.isin, symbol: h.shortName }))
-      .filter((h) => !!h.isin);
-    const msg = root.querySelector('#ti-bulk-msg') as HTMLElement | null;
-    try {
-      await withCardGuard(
-        'integrations',
-        btn,
-        async () => {
-          const result = await bulkEnrichHoldings(holdings, (done, total) => {
-            if (msg) msg.textContent = `${done} / ${total} done…`;
-          });
-          await refreshTiIntegrationStatus(root);
-          showMsg(
-            'ti-bulk-msg',
-            `Enriched ${result.enriched}, failed ${result.failed}, skipped ${result.skipped}.`,
-            true,
-          );
-        },
-        { busyText: 'Enriching...' },
-      );
-    } catch (err) {
-      showMsg('ti-bulk-msg', 'Error: ' + (err as Error).message, false);
-    }
-  });
-
-  root.querySelector('#btn-ti-clear-cache')?.addEventListener('click', async () => {
-    const btn = root.querySelector('#btn-ti-clear-cache') as HTMLButtonElement;
-    const ok = await confirmDialog({
-      title: 'Clear cached ETF metadata?',
-      body: 'This removes all cached ETF metadata and resets telemetry on this device.',
-      confirmLabel: 'Clear cache',
-      danger: true,
-    });
-    if (!ok) return;
-    try {
-      await withCardGuard(
-        'integrations',
-        btn,
-        async () => {
-          await clearAllHoldingMetadata();
-          await resetTiTelemetry();
-        },
-        { busyText: 'Clearing...' },
-      );
-      await refreshTiIntegrationStatus(root);
-      showMsg('ti-bulk-msg', 'Metadata cache cleared.', true);
-    } catch (err) {
-      showMsg('ti-bulk-msg', 'Error: ' + (err as Error).message, false);
     }
   });
 }
@@ -2535,20 +2323,8 @@ function attachReportListeners(root: HTMLElement): void {
 
       const accounts = getAccounts();
       const holdings = getHoldings();
-      const holdingMetadata = await getAllHoldingMetadata().catch(() => []);
-      const holdingMetadataByIsin = Object.fromEntries(
-        holdingMetadata.map((record) => [record.isin, record]),
-      );
       const method = getCostBasisMethod();
-      const report = buildAnnualReport(
-        year,
-        txs,
-        snaps,
-        holdings,
-        accounts,
-        method,
-        holdingMetadataByIsin,
-      );
+      const report = buildAnnualReport(year, txs, snaps, holdings, accounts, method);
       const html = renderAnnualReportHtml(report, 'EUR');
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
       const url = URL.createObjectURL(blob);

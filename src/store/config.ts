@@ -24,7 +24,6 @@ import { INTERVAL_PER_YEAR } from '../model/contributions';
 import type { CachedConfig } from '../cache/db';
 import { validateAccountIds } from '../model/accounts';
 import { configureFxService } from '../services/fxRateService';
-import { configureTiService } from '../services/trackinsightService';
 
 // Valid contribution intervals, derived from the canonical INTERVAL_PER_YEAR map
 const VALID_INTERVALS = new Set(Object.keys(INTERVAL_PER_YEAR));
@@ -69,12 +68,6 @@ export function getSettings(): Settings {
  */
 function applyFxServiceConfig(): void {
   configureFxService({ enabled: _settings.fx_integration_enabled !== '0' });
-}
-
-function applyTiServiceConfig(): void {
-  configureTiService({
-    enabled: _settings.ti_integration_enabled === '1',
-  });
 }
 
 /**
@@ -244,7 +237,6 @@ export function hydrateConfigFromCache(cfg: CachedConfig): void {
   _settings = cfg.settings || {};
   _loaded = true;
   applyFxServiceConfig();
-  applyTiServiceConfig();
 }
 
 // ── Load config from SQLite ──────────────────────────────
@@ -281,7 +273,6 @@ export async function loadConfig(): Promise<void> {
   _loaded = true;
 
   applyFxServiceConfig();
-  applyTiServiceConfig();
 
   // Flush any pending retired account IDs
   void flushPendingRetiredIds();
@@ -323,15 +314,10 @@ export async function setSetting(key: string, value: string): Promise<void> {
   try {
     await dbSetSetting(key, value);
     // Integration-toggle settings are kept out of the config history audit log.
-    if (
-      key !== 'fx_integration_enabled' &&
-      key !== 'ti_integration_enabled' &&
-      key !== 'ti_api_key'
-    ) {
+    if (key !== 'fx_integration_enabled') {
       await logConfigChange('Settings', `${key} = ${value}`);
     }
     if (key === 'fx_integration_enabled') applyFxServiceConfig();
-    if (key === 'ti_integration_enabled' || key === 'ti_api_key') applyTiServiceConfig();
     scheduleUpload();
     if (_onChange) _onChange('settings');
   } catch (err) {
@@ -353,17 +339,8 @@ export async function setSettings(
   }
   try {
     await persistSettings();
-    const changedKeys = Object.keys(settings).filter(
-      (key) =>
-        key !== 'fx_integration_enabled' &&
-        key !== 'ti_integration_enabled' &&
-        key !== 'ti_api_key',
-    );
-    if (changedKeys.length > 0) {
-      await logConfigChange('Settings', `updated ${changedKeys.join(', ')}`);
-    }
+    await logConfigChange('Settings', `updated ${Object.keys(settings).join(', ')}`);
     if ('fx_integration_enabled' in settings) applyFxServiceConfig();
-    if ('ti_integration_enabled' in settings || 'ti_api_key' in settings) applyTiServiceConfig();
     scheduleUpload();
     if (_onChange) _onChange('settings');
   } catch (err) {
@@ -380,7 +357,6 @@ export async function replaceSettings(settings: Settings): Promise<void> {
     await persistSettings();
     await logConfigChange('Settings', 'restored from backup');
     applyFxServiceConfig();
-    applyTiServiceConfig();
     scheduleUpload();
     if (_onChange) _onChange('settings');
   } catch (err) {

@@ -273,7 +273,7 @@ function getLocalAccountRows(db: Database): unknown[][] {
 
 function getLocalHoldingRows(db: Database): unknown[][] {
   const result = db.exec(
-    'SELECT isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter, notes, ticker FROM holdings ORDER BY rowid ASC',
+    'SELECT isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter, notes FROM holdings ORDER BY rowid ASC',
   );
   if (result.length === 0) return [];
   return result[0].values;
@@ -320,12 +320,10 @@ function mergeLocalAccounts(db: Database, rows: unknown[][]): void {
 
 function mergeLocalHoldings(db: Database, rows: unknown[][]): void {
   const stmt = db.prepare(
-    'INSERT INTO holdings (isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter, notes, ticker) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(isin) DO UPDATE SET name=excluded.name, short_name=excluded.short_name, color=excluded.color, acc=excluded.acc, active=excluded.active, target_pct=excluded.target_pct, asset_class=excluded.asset_class, region=excluded.region, fold_into=excluded.fold_into, "order"=excluded."order", ter=excluded.ter, notes=excluded.notes, ticker=excluded.ticker',
+    'INSERT INTO holdings (isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(isin) DO UPDATE SET name=excluded.name, short_name=excluded.short_name, color=excluded.color, acc=excluded.acc, active=excluded.active, target_pct=excluded.target_pct, asset_class=excluded.asset_class, region=excluded.region, fold_into=excluded.fold_into, "order"=excluded."order", ter=excluded.ter, notes=excluded.notes',
   );
   for (const row of rows) {
-    // Pad to 14 values if the row only has 13 (pre-migration DB)
-    const padded = row.length >= 14 ? row : [...row, ''];
-    stmt.run(padded as (string | number | null)[]);
+    stmt.run(row as (string | number | null)[]);
   }
   stmt.free();
 }

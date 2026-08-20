@@ -66,22 +66,4 @@ export {
   recordFxNormalize,
 } from './repositories/fxTelemetry';
 
-export {
-  getHoldingMetadata,
-  upsertHoldingMetadata,
-  getAllHoldingMetadata,
-  deleteHoldingMetadata,
-  clearAllHoldingMetadata,
-} from './repositories/holdingMetadata';
-
-export {
-  getTiTelemetry,
-  recordTiFetch,
-  recordTiRequest,
-  recordTiCacheHit,
-  recordTiError,
-  getDailyFetchCount,
-  resetTiTelemetry,
-} from './repositories/tiTelemetry';
-
 export { getDb, persistDb, exportDb, importDb, destroyDb } from './connection';

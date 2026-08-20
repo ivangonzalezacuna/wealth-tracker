@@ -78,7 +78,6 @@ export interface Holding {
   order: number;
   ter?: number; // total expense ratio in %, e.g. 0.2 for 0.20%
   notes?: string; // optional free-text notes about this holding
-  ticker?: string; // optional exchange ticker symbol (e.g. IWDA, VWCE) used for metadata lookup
 }
 
 // ─── Snapshot ────────────────────────────────────────────────────
@@ -114,10 +113,6 @@ export interface Settings {
   retired_account_ids?: string;
   /** When '0', the Frankfurter FX integration is disabled app-wide; all other values (including absent) mean enabled. */
   fx_integration_enabled?: string;
-  /** When '1', the ETF metadata integration is enabled. Default off when absent. */
-  ti_integration_enabled?: string;
-  /** @deprecated Alpha Vantage API key — no longer used. Retained for backward-compatible settings reads. */
-  ti_api_key?: string;
   /** Forward-compatible escape hatch for unknown / future keys. */
   [key: string]: string | null | undefined;
 }
@@ -202,43 +197,6 @@ export interface FxTelemetryMonthly {
   errorCount: number;
 }
 
-// ─── ETF Holding Metadata ────────────────────────────────────────
-
-export interface HoldingMetadata {
-  isin: string;
-  symbol?: string;
-  exchange?: string;
-  domicileCountry?: string;
-  fundCurrency?: string;
-  aum?: number | null;
-  inceptionDate?: string | null;
-  holdingsCount?: number | null;
-  sectors?: Array<{ industry: string; exposure: string }> | null;
-  topHoldings?: Array<{ asset: string; weightPercentage: string }> | null;
-  fetchedAt: string;
-  lastRefreshedAt: string;
-  provider: string;
-}
-
-export interface TiTelemetry {
-  lastFetchAt: string;
-  lastRequestUrl: string;
-  lastErrorAt: string;
-  lastError: string;
-  fetchCount: number;
-  cacheHitCount: number;
-  errorCount: number;
-  dailyFetchDate: string;
-  dailyFetchCount: number;
-  requestLog: TiRequestDebugEntry[];
-}
-
-export interface TiRequestDebugEntry {
-  at: string;
-  url: string;
-  response: string;
-}
-
 // ─── Alert Settings ──────────────────────────────────────
 
 export interface AlertSettings {
@@ -316,7 +274,6 @@ export interface EtfPosition {
   exited: boolean;
   marketValue?: number | null;
   unrealizedPnL?: number | null;
-  metadata?: HoldingMetadata;
 }
 
 // ─── Dividend history entry ──────────────────────────────────────
