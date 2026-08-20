@@ -17,7 +17,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
-    "@types/node": "^26.1.2",
+    "@types/node": "^26.2.0",
     "@types/sql.js": "^1.4.11",
     "jsdom": "^30.0.1",
     "prettier": "^3.9.6",
