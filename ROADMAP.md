@@ -128,14 +128,10 @@ This status is intentionally split so progress is not conflated across providers
 - **Phase 5 (UI rollout)** — ✅ done (account currency field + datalist in account dialog; snapshot dialog shows per-account currency labels, live FX hint with rate, currency-specific placeholder, and month-end prefetch status; Settings integrations card with toggle and telemetry).
 - **Phase 6 (tests and hardening)** — ✅ done (unit tests for snapshotFx normalization and annual report currency threading; E2E tests for FX integrations card, mixed-currency snapshot flow, net worth KPI currency indicator, and snapshot dialog placeholder).
 
-**Track 2 — FMP (ETF metadata)**
+**Track 2 — ETF metadata APIs (FMP/alternatives)**
 
-- **Phase 1 (contract validation and scope freeze)** — 🟡 scope discussed, implementation path not started in code.
-- **Phase 2 (storage and provider infrastructure)** — ⏳ not started.
-- **Phase 3 (domain and service wiring)** — ⏳ not started.
-- **Phase 4 (application integration and regression-safe rollout)** — ⏳ not started.
-- **Phase 5 (UI rollout)** — ⏳ not started.
-- **Phase 6 (tests and hardening)** — ⏳ not started.
+- **Status** — ❌ dropped (won’t implement).
+- **Reason** — API reliability and complexity do not justify the maintenance cost for this app.
 
 **Current stack anchor for follow-up agents**
 
@@ -151,10 +147,9 @@ This status is intentionally split so progress is not conflated across providers
 4. **PR D — Phase 5 completion (based on PR C):** any remaining snapshot-entry UX polish and FX-related UI gaps.
 5. **PR E — Phase 6 hardening (based on PR D):** finalize unit/integration/Playwright coverage and resilience checks for FX behavior.
 
-**Later (separate stack): ETF/FMP track**
+**Later (separate stack): ETF metadata API track**
 
-- ETF metadata work follows the same phase structure, but starts only after the Frankfurter stack lands.
-- Use a fresh stack anchor (new branch + new base PR) dedicated to ETF/FMP so reviews stay isolated from FX changes.
+- Not planned. The ETF metadata API work is intentionally closed and removed from the implementation queue.
 
 ##### Phase 1 — contract validation and scope freeze
 
