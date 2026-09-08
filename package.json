@@ -29,6 +29,6 @@
   "dependencies": {
     "chart.js": "^4.4.1",
     "idb-keyval": "^6.3.0",
-    "sql.js": "1.14.1"
+    "sql.js": "1.14.2"
   }
 }
