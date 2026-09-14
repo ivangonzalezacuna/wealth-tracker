@@ -83,7 +83,7 @@ let loadSettings: typeof import('../db').loadSettings;
 let loadSnapshots: typeof import('../db').loadSnapshots;
 let loadTransactions: typeof import('../db').loadTransactions;
 
-describe.sequential('db importDb local-preservation merge', () => {
+describe('db importDb local-preservation merge', () => {
   beforeAll(async () => {
     const db = await import('../db');
     destroyDb = db.destroyDb;
