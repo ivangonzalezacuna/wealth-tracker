@@ -7,6 +7,7 @@ import {
   gotoApp,
   monthOffsetValue,
   openTab,
+  openTransactionDialog,
   preparePage,
   snapshotRow,
 } from './helpers';
@@ -131,7 +132,7 @@ test('transaction dialog renders FX rate hint span and hides it for EUR currency
 }) => {
   await gotoApp(page);
   await openTab(page, 'tab-log');
-  await page.click('#btn-add-tx');
+  await openTransactionDialog(page);
 
   // Hint span must be present in the DOM
   const hintEl = page.locator('#txd-fxrate-hint');
@@ -159,7 +160,7 @@ test('transaction dialog shows FX rate hint for non-EUR currency when integratio
   await expect(page.locator('#fx-int-msg')).toContainText('Saved');
 
   await openTab(page, 'tab-log');
-  await page.click('#btn-add-tx');
+  await openTransactionDialog(page);
 
   // Select a type that shows the FX row (BUY)
   await page.selectOption('#txd-type', 'BUY');

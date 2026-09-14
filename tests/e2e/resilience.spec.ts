@@ -1,6 +1,5 @@
 import { expect, test } from '@playwright/test';
 import {
-  CSV_FIXTURE,
   gotoApp,
   openTab,
   preparePage,
@@ -9,6 +8,7 @@ import {
   dayOffsetValue,
   addManualTransaction,
   ensureCardExpanded,
+  openCsvImportPreview,
 } from './helpers';
 
 test.beforeEach(async ({ page }) => {
@@ -31,22 +31,19 @@ test('validation, cancellation, duplicate re-import, and sync-related recovery f
   await expect(page.locator('.hold-dialog-overlay')).toHaveCount(0);
 
   await openTab(page, 'tab-log');
-  await page.setInputFiles('#csv-file-input', CSV_FIXTURE);
-  await expect(page.locator('#btn-confirm-import')).toBeVisible();
+  await openCsvImportPreview(page);
   await page.click('#btn-cancel-import');
   await expect(page.locator('#import-msg')).toContainText('Import cancelled');
 
   await page.setInputFiles('#csv-file-input', []);
-  await page.setInputFiles('#csv-file-input', CSV_FIXTURE);
-  await expect(page.locator('#btn-confirm-import')).toBeVisible();
+  await openCsvImportPreview(page);
   await page.click('#btn-confirm-import');
   await expect(page.locator('#import-msg')).toContainText('Imported 1 row');
   const txRowsAfterFirstImport = await page.locator('#tx-ledger-list .tx-row').count();
   expect(txRowsAfterFirstImport).toBeGreaterThan(0);
 
   await page.setInputFiles('#csv-file-input', []);
-  await page.setInputFiles('#csv-file-input', CSV_FIXTURE);
-  await expect(page.locator('#btn-confirm-import')).toBeVisible();
+  await openCsvImportPreview(page);
   await page.click('#btn-confirm-import');
   await expect(page.locator('#import-msg')).toContainText('Imported 1 row');
   await expect(page.locator('#tx-ledger-list .tx-row')).toHaveCount(txRowsAfterFirstImport);

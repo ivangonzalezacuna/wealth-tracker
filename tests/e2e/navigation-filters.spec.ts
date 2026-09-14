@@ -8,6 +8,7 @@ import {
   importCsvFixture,
   monthOffsetValue,
   openTab,
+  openTransactionDialog,
   preparePage,
 } from './helpers';
 
@@ -25,7 +26,7 @@ test('transaction type filter narrows displayed rows', async ({ page }) => {
 
   // For DIVIDEND, the dialog requires a security name
   await openTab(page, 'tab-log');
-  await page.click('#btn-add-tx');
+  await openTransactionDialog(page);
   await page.fill('#txd-date', date2);
   await page.selectOption('#txd-type', 'DIVIDEND');
   await page.fill('#txd-name', 'Test ETF');
