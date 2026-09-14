@@ -183,13 +183,16 @@ export async function addSnapshot(
   opts: { month: string; note?: string; accountValues?: Record<string, string | number> },
 ): Promise<void> {
   await openTab(page, 'tab-log');
+  await waitForSyncIdle(page);
   await page.click('#btn-add-snap');
+  await expect(page.locator('#snapd-date')).toBeVisible();
   await page.fill('#snapd-date', opts.month);
   if (opts.note) await page.fill('#snapd-notes', opts.note);
   for (const [label, value] of Object.entries(opts.accountValues ?? {})) {
     const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     await page.getByLabel(new RegExp(`^${escaped} \\([A-Z]{3}\\)$`)).fill(String(value));
   }
+  await waitForSyncIdle(page);
   await page.click('.js-snapd-submit');
   await expect(page.locator('#snap-msg')).toContainText('Saved');
 }
@@ -292,7 +295,7 @@ export async function addManualTransaction(
   opts: { date: string; type?: string; amount: string; tax?: string; note?: string },
 ): Promise<void> {
   await openTab(page, 'tab-log');
-  await page.click('#btn-add-tx');
+  await openTransactionDialog(page);
   await page.fill('#txd-date', opts.date);
   await page.selectOption('#txd-type', opts.type ?? 'INTEREST');
   await page.fill('#txd-amount', opts.amount);
@@ -300,6 +303,39 @@ export async function addManualTransaction(
   if (opts.note) await page.fill('#txd-note', opts.note);
   await page.click('.js-txd-submit');
   await expect(page.locator('#tx-msg')).toContainText('Transaction');
+}
+
+/**
+ * Open the add-transaction dialog. Waits for any in-flight sync/save so
+ * `ensureWriteAccess()` doesn't reject with "A sync or save is in progress",
+ * and then waits for the dialog overlay to be attached before returning.
+ * This shields callers from a Firefox 155 timing race where the click can
+ * arrive between renders of `#btn-add-tx`.
+ */
+export async function openTransactionDialog(page: Page): Promise<void> {
+  await waitForSyncIdle(page);
+  await expect(page.locator('#btn-add-tx')).toBeVisible();
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await page.click('#btn-add-tx');
+    const overlay = page.locator('.tx-dialog-overlay');
+    try {
+      await expect(overlay).toBeVisible({ timeout: 2_000 });
+      await expect(page.locator('#txd-date')).toBeVisible({ timeout: 2_000 });
+      return;
+    } catch {
+      const msg = (await page.locator('#tx-msg').textContent()) ?? '';
+      if (
+        msg.includes('A sync or save is in progress') ||
+        msg.includes('A sync is already in progress')
+      ) {
+        await waitForSyncIdle(page);
+        continue;
+      }
+      // Dialog didn't open for another reason — retry after a short wait.
+      await page.waitForTimeout(200);
+    }
+  }
+  throw new Error('Transaction dialog did not open after retries.');
 }
 
 export function txRow(page: Page, text: string) {

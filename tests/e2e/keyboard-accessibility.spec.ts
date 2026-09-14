@@ -1,5 +1,11 @@
 import { expect, test } from '@playwright/test';
-import { ensureCardExpanded, gotoApp, openTab, preparePage } from './helpers';
+import {
+  ensureCardExpanded,
+  gotoApp,
+  openTab,
+  openTransactionDialog,
+  preparePage,
+} from './helpers';
 
 test.beforeEach(async ({ page }) => {
   await preparePage(page);
@@ -54,7 +60,7 @@ test('goal dialog closes on Escape key', async ({ page }) => {
 test('transaction dialog closes on Escape key', async ({ page }) => {
   await gotoApp(page);
   await openTab(page, 'tab-log');
-  await page.click('#btn-add-tx');
+  await openTransactionDialog(page);
   await expect(page.locator('.tx-dialog-overlay')).toBeVisible();
 
   await page.keyboard.press('Escape');
