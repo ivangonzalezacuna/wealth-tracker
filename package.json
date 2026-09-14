@@ -16,7 +16,7 @@
     "db:migrate-dry": "node --experimental-strip-types scripts/db-migrate-dry.ts"
   },
   "devDependencies": {
-    "@playwright/test": "^1.62.1",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^26.4.1",
     "@types/sql.js": "^1.4.11",
     "jsdom": "^30.0.1",
