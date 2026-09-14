@@ -30,12 +30,7 @@ jobs:
           cache: 'yarn'
 
       - name: Install dependencies
-        run: |
-          for i in 1 2 3; do
-            yarn install --immutable && break
-            echo "yarn install failed (attempt $i); retrying..."
-            sleep 5
-          done
+        run: yarn install --immutable
 
       - name: Lint
         run: yarn lint
@@ -78,12 +73,7 @@ jobs:
           cache: 'yarn'
 
       - name: Install dependencies
-        run: |
-          for i in 1 2 3; do
-            yarn install --immutable && break
-            echo "yarn install failed (attempt $i); retrying..."
-            sleep 5
-          done
+        run: yarn install --immutable
 
       - name: Install Playwright browser
         run: yarn playwright install --with-deps ${{ matrix.browser }}
