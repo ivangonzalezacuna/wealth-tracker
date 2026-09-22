@@ -2375,12 +2375,17 @@ input[type='color'] {
   margin-top: 1.5rem;
 }
 .settings-group-header {
-  display: flex;
-  align-items: baseline;
-  gap: 0.6rem;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: start;
+  column-gap: 0.85rem;
+  row-gap: 0.3rem;
   padding: 0 0.25rem 0.5rem;
   border-bottom: 1px solid var(--line);
   margin-bottom: 0.75rem;
+}
+.settings-group-header-advanced {
+  margin-bottom: 1rem;
 }
 .settings-group-title {
   font-size: 11px;
@@ -2392,8 +2397,49 @@ input[type='color'] {
 .settings-group-note {
   font-size: 11px;
   color: var(--ink-3);
+  max-width: 58ch;
+}
+#settings-content .card-collapsible {
+  padding: 0;
+  overflow: hidden;
+}
+#settings-content .card-collapsible .card-header {
+  min-height: 76px;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+}
+#settings-content .card-collapsible .card-title {
+  flex: 1;
+}
+#settings-content .card-collapsible .card-body {
+  margin-top: 0;
+  padding: 0 1.25rem 1rem;
+}
+#settings-content .card-collapsible:not(.collapsed) .card-header {
+  padding-bottom: 0.85rem;
+}
+#settings-content .card-collapsible:not(.collapsed) .card-body {
+  padding-top: 0.15rem;
+}
+#settings-content .card-collapsible.collapsed .card-body {
+  padding-top: 0;
+  padding-bottom: 0;
 }
 @media (max-width: 640px) {
+  .settings-group-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-group-header-advanced {
+    margin-bottom: 0.85rem;
+  }
+  #settings-content .card-collapsible .card-header {
+    min-height: 68px;
+    padding: 0.9rem 1rem;
+  }
+  #settings-content .card-collapsible .card-body {
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
   .settings-group-nav {
     flex-wrap: nowrap;
     overflow-x: auto;

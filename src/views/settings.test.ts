@@ -287,6 +287,26 @@ describe('Settings scoped re-render (repaintCard)', () => {
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
   });
 
+  it('renders the advanced section with the stacked header class and shared card headers', () => {
+    const advancedGroup = document.getElementById('settings-group-advanced');
+    const header = advancedGroup?.querySelector('.settings-group-header');
+    expect(header?.classList.contains('settings-group-header-advanced')).toBe(true);
+
+    const advancedCardIds = [
+      'settings-card-portfolio-behavior',
+      'settings-card-integrations',
+      'settings-card-cache',
+      'settings-card-backup',
+      'settings-card-reports',
+      'settings-card-config-history',
+    ];
+    for (const id of advancedCardIds) {
+      const card = document.getElementById(id);
+      expect(card?.querySelector('.card-header > .card-title')).not.toBeNull();
+      expect(card?.querySelector('.card-header > .card-chevron')).not.toBeNull();
+    }
+  });
+
   it('repaintCard("accounts") replaces only the accounts card, siblings are untouched', () => {
     // Capture reference to the holdings card before repaint
     const holdingsBefore = document.getElementById('settings-card-holdings');
