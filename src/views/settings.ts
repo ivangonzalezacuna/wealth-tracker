@@ -236,7 +236,7 @@ export function renderSettings(): void {
       ${renderGoalCard(settings)}
     </div>
     <div class="settings-group" id="settings-group-advanced">
-      <div class="settings-group-header settings-group-header-advanced">
+      <div class="settings-group-header">
         <span class="settings-group-title">Advanced</span>
         <span class="settings-group-note">Manage integrations, portfolio behaviour settings, data sync, and backup options.</span>
       </div>

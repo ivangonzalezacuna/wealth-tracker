@@ -287,11 +287,7 @@ describe('Settings scoped re-render (repaintCard)', () => {
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
   });
 
-  it('renders the advanced section with the stacked header class and shared card headers', () => {
-    const advancedGroup = document.getElementById('settings-group-advanced');
-    const header = advancedGroup?.querySelector('.settings-group-header');
-    expect(header?.classList.contains('settings-group-header-advanced')).toBe(true);
-
+  it('renders all advanced settings cards with the shared collapsible wrapper structure', () => {
     const advancedCardIds = [
       'settings-card-portfolio-behavior',
       'settings-card-integrations',
@@ -302,6 +298,8 @@ describe('Settings scoped re-render (repaintCard)', () => {
     ];
     for (const id of advancedCardIds) {
       const card = document.getElementById(id);
+      expect(card?.classList.contains('card')).toBe(true);
+      expect(card?.classList.contains('card-collapsible')).toBe(true);
       expect(card?.querySelector('.card-header > .card-title')).not.toBeNull();
       expect(card?.querySelector('.card-header > .card-chevron')).not.toBeNull();
     }
