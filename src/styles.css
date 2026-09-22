@@ -2404,6 +2404,9 @@ input[type='color'] {
 }
 #settings-content .card-collapsible .card-title {
   flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 #settings-content .card-collapsible .card-body {
   margin-top: 0.85rem;
