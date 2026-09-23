@@ -1681,8 +1681,15 @@ export function attachCardCollapseListeners(root: HTMLElement): void {
     };
     header.addEventListener('click', toggleCard);
     header.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Space') return;
-      if ((event.key === ' ' || event.key === 'Space') && event.repeat) return;
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        toggleCard();
+        return;
+      }
+      if (event.key === ' ' || event.key === 'Space') event.preventDefault();
+    });
+    header.addEventListener('keyup', (event) => {
+      if (event.key !== ' ' && event.key !== 'Space') return;
       event.preventDefault();
       toggleCard();
     });

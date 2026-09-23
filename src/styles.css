@@ -2410,9 +2410,6 @@ input[type='color'] {
 #settings-content .card-collapsible .card-title {
   min-width: 0;
   line-height: 1.1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 #settings-content .card-collapsible .card-body {
   display: block;

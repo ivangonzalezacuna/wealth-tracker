@@ -346,6 +346,8 @@ describe('Settings scoped re-render (repaintCard)', () => {
     expect(header?.getAttribute('aria-expanded')).toBe('false');
 
     header?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Space', bubbles: true }));
+    expect(card?.classList.contains('collapsed')).toBe(true);
+    header?.dispatchEvent(new KeyboardEvent('keyup', { key: 'Space', bubbles: true }));
     expect(card?.classList.contains('collapsed')).toBe(false);
     expect(header?.getAttribute('aria-expanded')).toBe('true');
   });
