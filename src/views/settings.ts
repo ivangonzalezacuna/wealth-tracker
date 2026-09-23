@@ -1672,6 +1672,8 @@ function syncCardHeaderState(header: HTMLButtonElement): void {
 export function attachCardCollapseListeners(root: HTMLElement): void {
   root.querySelectorAll<HTMLButtonElement>('.js-card-toggle').forEach((header) => {
     syncCardHeaderState(header);
+    if (header.dataset.cardToggleBound === '1') return;
+    header.dataset.cardToggleBound = '1';
     const toggleCard = () => {
       const card = header.closest('.card-collapsible') as HTMLElement | null;
       if (!card) return;
