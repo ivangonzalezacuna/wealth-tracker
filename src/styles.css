@@ -2415,10 +2415,12 @@ input[type='color'] {
   text-overflow: ellipsis;
 }
 #settings-content .card-collapsible .card-body {
+  display: block;
   margin-top: 0;
   padding: 0 1rem 0.9rem;
 }
 #settings-content .card-collapsible.collapsed .card-body {
+  display: none;
   margin-top: 0;
   padding: 0;
 }
