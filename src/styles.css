@@ -2405,15 +2405,15 @@ input[type='color'] {
   justify-content: space-between;
   gap: 0.75rem;
   box-sizing: border-box;
-  height: 3.5rem;
+  min-height: 3.5rem;
   padding: 0 1rem;
 }
 #settings-content .card-collapsible .card-title {
   display: flex;
   flex: 1 1 auto;
+  align-self: stretch;
   align-items: center;
   min-width: 0;
-  height: 100%;
   line-height: 1.1;
 }
 #settings-content .card-collapsible .card-chevron {
@@ -2438,7 +2438,7 @@ input[type='color'] {
   }
   #settings-content .card-collapsible .card-header {
     gap: 0.65rem;
-    height: 3.25rem;
+    min-height: 3.25rem;
     padding: 0 0.95rem;
   }
   #settings-content .card-collapsible .card-body {
