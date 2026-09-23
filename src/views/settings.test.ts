@@ -333,6 +333,23 @@ describe('Settings scoped re-render (repaintCard)', () => {
     expect(header?.getAttribute('aria-controls')).toBe('settings-card-demo-body');
   });
 
+  it('updates collapsed state and aria-expanded when activated by Enter and Space', () => {
+    const header = document.querySelector(
+      '#settings-card-portfolio-behavior .card-header',
+    ) as HTMLElement | null;
+    const card = document.getElementById('settings-card-portfolio-behavior');
+    expect(header?.getAttribute('aria-expanded')).toBe('true');
+    expect(card?.classList.contains('collapsed')).toBe(false);
+
+    header?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(card?.classList.contains('collapsed')).toBe(true);
+    expect(header?.getAttribute('aria-expanded')).toBe('false');
+
+    header?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Space', bubbles: true }));
+    expect(card?.classList.contains('collapsed')).toBe(false);
+    expect(header?.getAttribute('aria-expanded')).toBe('true');
+  });
+
   it('repaintCard("accounts") replaces only the accounts card, siblings are untouched', () => {
     // Capture reference to the holdings card before repaint
     const holdingsBefore = document.getElementById('settings-card-holdings');

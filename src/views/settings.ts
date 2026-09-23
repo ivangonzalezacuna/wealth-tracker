@@ -157,6 +157,7 @@ const SYNC_LOCK_EXEMPT_IDS = new Set([
 ]);
 const SYNC_BUSY_TITLE = 'Sync in progress, try again in a moment';
 const SETTINGS_DEFAULT_COLLAPSE_MARKER = 'settings-defaults-v1';
+let _generatedSettingsCardBodyId = 0;
 const SETTINGS_DEFAULT_COLLAPSED_CARDS: ReadonlySet<CardKey> = new Set([
   'portfolio-behavior',
   'integrations',
@@ -1648,7 +1649,9 @@ function syncCardHeaderState(header: HTMLElement): void {
   if (!card) return;
   const body = card.querySelector('.card-body') as HTMLElement | null;
   if (body) {
-    const bodyId = body.id || `${card.id}-body`;
+    const bodyId =
+      body.id ||
+      (card.id ? `${card.id}-body` : `settings-card-body-${++_generatedSettingsCardBodyId}`);
     body.id = bodyId;
     header.setAttribute('aria-controls', bodyId);
   }
@@ -1679,6 +1682,7 @@ export function attachCardCollapseListeners(root: HTMLElement): void {
     header.addEventListener('click', toggleCard);
     header.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Space') return;
+      if ((event.key === ' ' || event.key === 'Space') && event.repeat) return;
       event.preventDefault();
       toggleCard();
     });
