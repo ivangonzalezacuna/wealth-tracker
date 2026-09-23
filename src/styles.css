@@ -2430,6 +2430,10 @@ input[type='color'] {
 #settings-content .card-collapsible .card-chevron::before {
   margin-top: 0;
 }
+#settings-content .card-collapsible .card-header:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
 #settings-content .card-collapsible .card-body {
   display: block;
   margin-top: 0;
