@@ -2405,8 +2405,6 @@ input[type='color'] {
   align-items: center;
   column-gap: 0.75rem;
   padding: 0.8rem 1rem;
-}
-#settings-content .card-collapsible.collapsed .card-header {
   min-height: 3.5rem;
 }
 #settings-content .card-collapsible .card-title {
@@ -2431,8 +2429,6 @@ input[type='color'] {
   #settings-content .card-collapsible .card-header {
     column-gap: 0.65rem;
     padding: 0.75rem 0.95rem;
-  }
-  #settings-content .card-collapsible.collapsed .card-header {
     min-height: 3.25rem;
   }
   #settings-content .card-collapsible .card-body {
