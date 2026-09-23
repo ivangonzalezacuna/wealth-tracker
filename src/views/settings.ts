@@ -1658,9 +1658,12 @@ function syncCardHeaderState(header: HTMLButtonElement): void {
   header.setAttribute('aria-expanded', String(!card.classList.contains('collapsed')));
   const titleEl = header.querySelector('.card-title');
   const fullTitle = titleEl?.textContent?.trim();
-  if (fullTitle) {
-    const titleId = titleEl?.id || `${card.id || `settings-card-${++_generatedSettingsCardBodyId}`}-title`;
-    if (titleEl) titleEl.id = titleId;
+  if (fullTitle && titleEl) {
+    let titleId = titleEl.id;
+    if (!titleId) {
+      titleId = card.id ? `${card.id}-title` : `settings-card-title-${++_generatedSettingsCardBodyId}`;
+      titleEl.id = titleId;
+    }
     header.setAttribute('aria-labelledby', titleId);
   }
 }
