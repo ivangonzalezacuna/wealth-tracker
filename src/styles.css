@@ -2414,11 +2414,11 @@ input[type='color'] {
 }
 #settings-content .card-collapsible .card-body {
   margin-top: 0;
+}
+#settings-content .card-collapsible:not(.collapsed) .card-body {
   padding: 0 1rem 0.9rem;
 }
 #settings-content .card-collapsible.collapsed .card-body {
-  display: none;
-  margin-top: 0;
   padding: 0;
 }
 @media (max-width: 640px) {
@@ -2427,7 +2427,7 @@ input[type='color'] {
     min-height: 3.25rem;
     padding: 0 0.95rem;
   }
-  #settings-content .card-collapsible .card-body {
+  #settings-content .card-collapsible:not(.collapsed) .card-body {
     padding-right: 0.95rem;
     padding-bottom: 0.8rem;
     padding-left: 0.95rem;
