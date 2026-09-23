@@ -213,7 +213,6 @@ import {
   refreshSettingsAfterChange,
   renderConfigHistoryCard,
   _getEligibleYears,
-  attachCardCollapseListeners,
 } from './settings';
 import { isCollapsed } from '../ui/collapseState';
 import { isBackupStale } from '../backup/exportImport';
@@ -286,70 +285,6 @@ describe('Settings scoped re-render (repaintCard)', () => {
     expect(trackingBtn.hasAttribute('aria-pressed')).toBe(false);
     expect(portfolioBtn.hasAttribute('aria-pressed')).toBe(false);
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
-  });
-
-  it('renders all advanced settings cards with the shared collapsible wrapper structure', () => {
-    const advancedCardIds = [
-      'settings-card-portfolio-behavior',
-      'settings-card-integrations',
-      'settings-card-cache',
-      'settings-card-backup',
-      'settings-card-reports',
-      'settings-card-config-history',
-    ];
-    for (const id of advancedCardIds) {
-      const card = document.getElementById(id);
-      expect(card?.classList.contains('card')).toBe(true);
-      expect(card?.classList.contains('card-collapsible')).toBe(true);
-      expect(card?.querySelector('button.card-header > .card-title')).not.toBeNull();
-      expect(card?.querySelector('.card-header > .card-chevron')).not.toBeNull();
-    }
-  });
-
-  it('labels settings header buttons from their visible titles', () => {
-    const header = document.querySelector(
-      '#settings-card-portfolio-behavior .card-header',
-    ) as HTMLElement | null;
-    expect(header?.getAttribute('aria-expanded')).toBe('true');
-    expect(header?.getAttribute('aria-controls')).toBe('settings-card-portfolio-behavior-body');
-    expect(header?.getAttribute('aria-labelledby')).toBe('settings-card-portfolio-behavior-title');
-  });
-
-  it('trims surrounding whitespace when deriving a card header label id', () => {
-    document.body.innerHTML = `
-      <div id="settings-content">
-        <div class="card card-collapsible" id="settings-card-demo" data-card-key="demo">
-          <button type="button" class="card-header js-card-toggle">
-            <div class="card-title">  Demo title  </div>
-            <span class="card-chevron"></span>
-          </button>
-          <div class="card-body"></div>
-        </div>
-      </div>
-    `;
-    attachCardCollapseListeners(document.body);
-    const header = document.querySelector('#settings-card-demo .card-header') as HTMLElement | null;
-    expect(header?.getAttribute('aria-labelledby')).toBe('settings-card-demo-title');
-    expect(header?.getAttribute('aria-controls')).toBe('settings-card-demo-body');
-    const title = document.querySelector('#settings-card-demo .card-title') as HTMLElement | null;
-    expect(title?.id).toBe('settings-card-demo-title');
-  });
-
-  it('updates collapsed state and aria-expanded when the header button is clicked', () => {
-    const header = document.querySelector(
-      '#settings-card-accounts .card-header',
-    ) as HTMLElement | null;
-    const card = document.getElementById('settings-card-accounts');
-    expect(header?.getAttribute('aria-expanded')).toBe('true');
-    expect(card?.classList.contains('collapsed')).toBe(false);
-
-    header?.click();
-    expect(card?.classList.contains('collapsed')).toBe(true);
-    expect(header?.getAttribute('aria-expanded')).toBe('false');
-
-    header?.click();
-    expect(card?.classList.contains('collapsed')).toBe(false);
-    expect(header?.getAttribute('aria-expanded')).toBe('true');
   });
 
   it('repaintCard("accounts") replaces only the accounts card, siblings are untouched', () => {

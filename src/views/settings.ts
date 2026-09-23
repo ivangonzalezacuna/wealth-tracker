@@ -157,8 +157,6 @@ const SYNC_LOCK_EXEMPT_IDS = new Set([
 ]);
 const SYNC_BUSY_TITLE = 'Sync in progress, try again in a moment';
 const SETTINGS_DEFAULT_COLLAPSE_MARKER = 'settings-defaults-v1';
-let _generatedSettingsCardBodyId = 0;
-let _generatedSettingsCardTitleId = 0;
 const SETTINGS_DEFAULT_COLLAPSED_CARDS: ReadonlySet<CardKey> = new Set([
   'portfolio-behavior',
   'integrations',
@@ -478,10 +476,10 @@ function renderAccountsCard(accounts: Account[]): string {
 
   return `
     <div class="card card-collapsible" id="settings-card-accounts" data-card-key="accounts">
-      <button type="button" class="card-header js-card-toggle">
+      <div class="card-header js-card-toggle">
         <div class="card-title">Accounts</div>
         <span class="card-chevron"></span>
-      </button>
+      </div>
       <div class="card-body">
         <p class="note" style="margin-bottom:.75rem">Accounts tracked in each monthly net-worth snapshot. Add one row per bank account or portfolio.</p>
         <div id="settings-accounts-tbl" class="settings-items">
@@ -770,10 +768,10 @@ function renderHoldingsCard(holdings: Holding[]): string {
 
   return `
     <div class="card card-collapsible" id="settings-card-holdings" data-card-key="holdings">
-      <button type="button" class="card-header js-card-toggle">
+      <div class="card-header js-card-toggle">
         <div class="card-title">Holdings (ETFs)</div>
         <span class="card-chevron"></span>
-      </button>
+      </div>
       <div class="card-body">
         <p class="note" style="margin-bottom:.75rem">ETF positions in your portfolio. Set a target allocation percentage on each active holding to use the drift and rebalance features. Closed positions can be folded into a successor fund.</p>
         <div class="filter-bar" style="margin-bottom:8px">
@@ -1110,10 +1108,10 @@ function renderContributionsCard(_settings: Settings): string {
 
   return `
     <div class="card card-collapsible" id="settings-card-contributions" data-card-key="contributions">
-      <button type="button" class="card-header js-card-toggle">
+      <div class="card-header js-card-toggle">
         <div class="card-title">Portfolio contributions</div>
         <span class="card-chevron"></span>
-      </button>
+      </div>
       <div class="card-body">
         <p class="note" style="margin-bottom:.75rem">Configure your recurring contribution amount and cadence, plus the cadence used to express the rebalance plan in the Portfolio tab.</p>
         <div class="form-group">
@@ -1178,10 +1176,10 @@ function renderCalcAssumptionsCard(settings: Settings): string {
 
   return `
     <div class="card card-collapsible" id="settings-card-calc-assumptions" data-card-key="calc-assumptions">
-      <button type="button" class="card-header js-card-toggle">
+      <div class="card-header js-card-toggle">
         <div class="card-title">Calculation assumptions</div>
         <span class="card-chevron"></span>
-      </button>
+      </div>
       <div class="card-body">
         <div class="card-section-head">COST-BASIS METHOD</div>
         <p class="note" style="margin-bottom:.75rem">Choose how realized gains are calculated when you sell shares.</p>
@@ -1294,10 +1292,10 @@ function renderGoalCard(_settings: Settings): string {
   const rows = goals.map((g, i) => renderGoalRow(g, i)).join('');
   return `
     <div class="card card-collapsible" id="settings-card-goal" data-card-key="goal">
-      <button type="button" class="card-header js-card-toggle">
+      <div class="card-header js-card-toggle">
         <div class="card-title">Goals</div>
         <span class="card-chevron"></span>
-      </button>
+      </div>
       <div class="card-body">
         <p class="note" style="margin-bottom:.75rem">Add one or more net-worth targets to track on the Net Worth tab. Each goal shows progress, remaining amount, and ETA.</p>
         <div id="settings-goals-tbl" class="settings-items">
@@ -1447,10 +1445,10 @@ function renderPortfolioBehaviorCard(settings: Settings): string {
 
   return `
     <div class="card card-collapsible" id="settings-card-portfolio-behavior" data-card-key="portfolio-behavior">
-      <button type="button" class="card-header js-card-toggle">
+      <div class="card-header js-card-toggle">
         <div class="card-title">Portfolio behavior</div>
         <span class="card-chevron"></span>
-      </button>
+      </div>
       <div class="card-body">
         <div class="card-section-head">ALERTS</div>
         <p class="note" style="margin-bottom:.75rem">Configure alert conditions for drift and other notifications.</p>
@@ -1645,37 +1643,10 @@ function attachColorPickerSync(root: HTMLElement): void {
   });
 }
 
-function syncCardHeaderState(header: HTMLButtonElement): void {
-  const card = header.closest('.card-collapsible') as HTMLElement | null;
-  if (!card) return;
-  const body = card.querySelector('.card-body') as HTMLElement | null;
-  if (body) {
-    const bodyId =
-      body.id ||
-      (card.id ? `${card.id}-body` : `settings-card-body-${++_generatedSettingsCardBodyId}`);
-    body.id = bodyId;
-    header.setAttribute('aria-controls', bodyId);
-  }
-  header.setAttribute('aria-expanded', String(!card.classList.contains('collapsed')));
-  const titleEl = header.querySelector('.card-title');
-  const fullTitle = titleEl?.textContent?.trim();
-  if (fullTitle && titleEl) {
-    let titleId = titleEl.id;
-    if (!titleId) {
-      titleId = card.id ? `${card.id}-title` : `settings-card-title-${++_generatedSettingsCardTitleId}`;
-      titleEl.id = titleId;
-    }
-    header.setAttribute('aria-labelledby', titleId);
-  }
-}
-
 /** Attach click listeners to card headers for collapsing/expanding. */
-export function attachCardCollapseListeners(root: HTMLElement): void {
-  root.querySelectorAll<HTMLButtonElement>('.js-card-toggle').forEach((header) => {
-    syncCardHeaderState(header);
-    if (header.dataset.cardToggleBound === '1') return;
-    header.dataset.cardToggleBound = '1';
-    const toggleCard = () => {
+function attachCardCollapseListeners(root: HTMLElement): void {
+  root.querySelectorAll('.js-card-toggle').forEach((header) => {
+    header.addEventListener('click', () => {
       const card = header.closest('.card-collapsible') as HTMLElement | null;
       if (!card) return;
       const key = card.dataset.cardKey;
@@ -1685,9 +1656,7 @@ export function attachCardCollapseListeners(root: HTMLElement): void {
       } else {
         card.classList.toggle('collapsed');
       }
-      syncCardHeaderState(header);
-    };
-    header.addEventListener('click', toggleCard);
+    });
   });
   attachItemCollapseListeners(root);
 }
@@ -2034,10 +2003,10 @@ function renderFxIntegrationsCard(settings: Settings): string {
   const enabled = settings.fx_integration_enabled !== '0';
   return `
     <div class="card card-collapsible" id="settings-card-integrations" data-card-key="integrations">
-      <button type="button" class="card-header js-card-toggle">
+      <div class="card-header js-card-toggle">
         <div class="card-title">Integrations</div>
         <span class="card-chevron"></span>
-      </button>
+      </div>
       <div class="card-body">
         <div class="card-section-head">FRANKFURTER</div>
         <p class="note" style="margin-bottom:.75rem">Provides on-demand FX rates for mixed-currency accounts. The app stays fully usable offline and only fetches when you trigger a relevant action.</p>
@@ -2202,10 +2171,10 @@ function renderCacheCard(): string {
   const hasConflict = window.__hasSyncConflict?.() ?? false;
   return `
     <div class="card card-collapsible" id="settings-card-cache" data-card-key="cache">
-      <button type="button" class="card-header js-card-toggle">
+      <div class="card-header js-card-toggle">
         <div class="card-title">Cache &amp; sync</div>
         <span class="card-chevron"></span>
-      </button>
+      </div>
       <div class="card-body">
         <p class="note" style="margin-bottom:.75rem">Data is stored locally in SQLite and synced to Google Drive. If sync pauses because both copies changed, resolve the conflict here and export a backup first if you want the safest path.</p>
         ${
@@ -2276,10 +2245,10 @@ export function _getEligibleYears(txs: Transaction[], snaps: Snapshot[]): number
 function renderReportCard(): string {
   return `
     <div class="card card-collapsible" id="settings-card-reports" data-card-key="reports">
-      <button type="button" class="card-header js-card-toggle">
+      <div class="card-header js-card-toggle">
         <div class="card-title">Annual portfolio report</div>
         <span class="card-chevron"></span>
-      </button>
+      </div>
       <div class="card-body">
         <p class="note" style="margin-bottom:.85rem">Download a self-contained HTML summary of your portfolio for any calendar year — net worth, holdings, dividends, interest, and realised gains. Open it in any browser to print to PDF.</p>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
@@ -2391,10 +2360,10 @@ function backupNudgeHtml(settings: Settings): string {
 function renderBackupCard(): string {
   return `
     <div class="card card-collapsible" id="settings-card-backup" data-card-key="backup">
-      <button type="button" class="card-header js-card-toggle">
+      <div class="card-header js-card-toggle">
         <div class="card-title">Backup &amp; restore</div>
         <span class="card-chevron"></span>
-      </button>
+      </div>
       <div class="card-body">
         <p class="note" style="margin-bottom:.85rem">Export everything as one file you can keep somewhere safe. If anything happens to your Sheet, restore from that file.</p>
         <div id="settings-backup-nudge">${backupNudgeHtml(getSettings())}</div>
@@ -2614,10 +2583,10 @@ export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
 
   return `
     <div class="card card-collapsible collapsed" id="settings-card-config-history" data-card-key="config-history">
-      <button type="button" class="card-header js-card-toggle">
+      <div class="card-header js-card-toggle">
         <div class="card-title">Config history</div>
         <span class="card-chevron"></span>
-      </button>
+      </div>
       <div class="card-body">
         <p class="note" style="margin-bottom:.5rem">Read-only log of recent configuration changes (accounts, holdings, settings).</p>
         ${body}
