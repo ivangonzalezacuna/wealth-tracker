@@ -2417,12 +2417,10 @@ input[type='color'] {
   appearance: none;
 }
 #settings-content .card-collapsible .card-title {
-  display: flex;
   flex: 1 1 auto;
-  align-self: stretch;
-  align-items: center;
   min-width: 0;
   line-height: 1.1;
+  margin: 0;
 }
 #settings-content .card-collapsible .card-chevron {
   align-self: center;
