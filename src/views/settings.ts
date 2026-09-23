@@ -1643,16 +1643,28 @@ function attachColorPickerSync(root: HTMLElement): void {
   });
 }
 
+function syncCardHeaderState(header: HTMLElement): void {
+  const card = header.closest('.card-collapsible') as HTMLElement | null;
+  if (!card) return;
+  const body = card.querySelector('.card-body') as HTMLElement | null;
+  if (body) {
+    const bodyId = body.id || `${card.id}-body`;
+    body.id = bodyId;
+    header.setAttribute('aria-controls', bodyId);
+  }
+  header.setAttribute('aria-expanded', String(!card.classList.contains('collapsed')));
+  header.setAttribute('role', 'button');
+  if (!header.hasAttribute('tabindex')) header.tabIndex = 0;
+  const titleEl = header.querySelector('.card-title');
+  const fullTitle = titleEl?.textContent?.trim();
+  if (fullTitle) header.setAttribute('title', fullTitle);
+}
+
 /** Attach click listeners to card headers for collapsing/expanding. */
-function attachCardCollapseListeners(root: HTMLElement): void {
-  root.querySelectorAll('.js-card-toggle').forEach((header) => {
-    const titleEl = header.querySelector('.card-title');
-    const fullTitle = titleEl?.textContent?.trim();
-    if (fullTitle) {
-      header.setAttribute('title', fullTitle);
-      titleEl?.setAttribute('title', fullTitle);
-    }
-    header.addEventListener('click', () => {
+export function attachCardCollapseListeners(root: HTMLElement): void {
+  root.querySelectorAll<HTMLElement>('.js-card-toggle').forEach((header) => {
+    syncCardHeaderState(header);
+    const toggleCard = () => {
       const card = header.closest('.card-collapsible') as HTMLElement | null;
       if (!card) return;
       const key = card.dataset.cardKey;
@@ -1662,6 +1674,13 @@ function attachCardCollapseListeners(root: HTMLElement): void {
       } else {
         card.classList.toggle('collapsed');
       }
+      syncCardHeaderState(header);
+    };
+    header.addEventListener('click', toggleCard);
+    header.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      toggleCard();
     });
   });
   attachItemCollapseListeners(root);

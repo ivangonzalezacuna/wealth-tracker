@@ -213,6 +213,7 @@ import {
   refreshSettingsAfterChange,
   renderConfigHistoryCard,
   _getEligibleYears,
+  attachCardCollapseListeners,
 } from './settings';
 import { isCollapsed } from '../ui/collapseState';
 import { isBackupStale } from '../backup/exportImport';
@@ -309,11 +310,27 @@ describe('Settings scoped re-render (repaintCard)', () => {
     const header = document.querySelector(
       '#settings-card-portfolio-behavior .card-header',
     ) as HTMLElement | null;
-    const title = document.querySelector(
-      '#settings-card-portfolio-behavior .card-title',
-    ) as HTMLElement | null;
     expect(header?.getAttribute('title')).toBe('Portfolio behavior');
-    expect(title?.getAttribute('title')).toBe('Portfolio behavior');
+    expect(header?.getAttribute('aria-expanded')).toBe('true');
+    expect(header?.getAttribute('aria-controls')).toBe('settings-card-portfolio-behavior-body');
+  });
+
+  it('trims surrounding whitespace when deriving a card header title attribute', () => {
+    document.body.innerHTML = `
+      <div id="settings-content">
+        <div class="card card-collapsible" id="settings-card-demo" data-card-key="demo">
+          <div class="card-header js-card-toggle">
+            <div class="card-title">  Demo title  </div>
+            <span class="card-chevron"></span>
+          </div>
+          <div class="card-body"></div>
+        </div>
+      </div>
+    `;
+    attachCardCollapseListeners(document.body);
+    const header = document.querySelector('#settings-card-demo .card-header') as HTMLElement | null;
+    expect(header?.getAttribute('title')).toBe('Demo title');
+    expect(header?.getAttribute('aria-controls')).toBe('settings-card-demo-body');
   });
 
   it('repaintCard("accounts") replaces only the accounts card, siblings are untouched', () => {
