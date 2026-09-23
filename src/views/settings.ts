@@ -1649,7 +1649,6 @@ function attachCardCollapseListeners(root: HTMLElement): void {
     const titleEl = header.querySelector('.card-title');
     const fullTitle = titleEl?.textContent?.trim();
     if (fullTitle) {
-      header.setAttribute('aria-label', fullTitle);
       header.setAttribute('title', fullTitle);
       titleEl?.setAttribute('title', fullTitle);
     }

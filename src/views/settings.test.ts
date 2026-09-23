@@ -305,6 +305,17 @@ describe('Settings scoped re-render (repaintCard)', () => {
     }
   });
 
+  it('applies the full card title as a title attribute on settings headers', () => {
+    const header = document.querySelector(
+      '#settings-card-portfolio-behavior .card-header',
+    ) as HTMLElement | null;
+    const title = document.querySelector(
+      '#settings-card-portfolio-behavior .card-title',
+    ) as HTMLElement | null;
+    expect(header?.getAttribute('title')).toBe('Portfolio behavior');
+    expect(title?.getAttribute('title')).toBe('Portfolio behavior');
+  });
+
   it('repaintCard("accounts") replaces only the accounts card, siblings are untouched', () => {
     // Capture reference to the holdings card before repaint
     const holdingsBefore = document.getElementById('settings-card-holdings');
