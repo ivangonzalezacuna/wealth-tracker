@@ -158,6 +158,7 @@ const SYNC_LOCK_EXEMPT_IDS = new Set([
 const SYNC_BUSY_TITLE = 'Sync in progress, try again in a moment';
 const SETTINGS_DEFAULT_COLLAPSE_MARKER = 'settings-defaults-v1';
 let _generatedSettingsCardBodyId = 0;
+let _generatedSettingsCardTitleId = 0;
 const SETTINGS_DEFAULT_COLLAPSED_CARDS: ReadonlySet<CardKey> = new Set([
   'portfolio-behavior',
   'integrations',
@@ -1661,7 +1662,7 @@ function syncCardHeaderState(header: HTMLButtonElement): void {
   if (fullTitle && titleEl) {
     let titleId = titleEl.id;
     if (!titleId) {
-      titleId = card.id ? `${card.id}-title` : `settings-card-title-${++_generatedSettingsCardBodyId}`;
+      titleId = card.id ? `${card.id}-title` : `settings-card-title-${++_generatedSettingsCardTitleId}`;
       titleEl.id = titleId;
     }
     header.setAttribute('aria-labelledby', titleId);
