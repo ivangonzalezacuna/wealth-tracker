@@ -335,9 +335,9 @@ describe('Settings scoped re-render (repaintCard)', () => {
 
   it('updates collapsed state and aria-expanded when activated by Enter and Space', () => {
     const header = document.querySelector(
-      '#settings-card-portfolio-behavior .card-header',
+      '#settings-card-accounts .card-header',
     ) as HTMLElement | null;
-    const card = document.getElementById('settings-card-portfolio-behavior');
+    const card = document.getElementById('settings-card-accounts');
     expect(header?.getAttribute('aria-expanded')).toBe('true');
     expect(card?.classList.contains('collapsed')).toBe(false);
 
