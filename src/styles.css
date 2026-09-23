@@ -2419,7 +2419,7 @@ input[type='color'] {
   padding: 0 1rem 0.9rem;
 }
 #settings-content .card-collapsible.collapsed .card-body {
-  padding: 0;
+  padding: 0 1rem;
 }
 @media (max-width: 640px) {
   #settings-content .card-collapsible .card-header {
@@ -2430,6 +2430,10 @@ input[type='color'] {
   #settings-content .card-collapsible:not(.collapsed) .card-body {
     padding-right: 0.95rem;
     padding-bottom: 0.8rem;
+    padding-left: 0.95rem;
+  }
+  #settings-content .card-collapsible.collapsed .card-body {
+    padding-right: 0.95rem;
     padding-left: 0.95rem;
   }
   .settings-group-nav {
