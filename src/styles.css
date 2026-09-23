@@ -2404,9 +2404,17 @@ input[type='color'] {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   box-sizing: border-box;
   min-height: 3.5rem;
   padding: 0 1rem;
+  appearance: none;
 }
 #settings-content .card-collapsible .card-title {
   display: flex;

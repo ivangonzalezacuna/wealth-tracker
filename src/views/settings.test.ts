@@ -301,39 +301,41 @@ describe('Settings scoped re-render (repaintCard)', () => {
       const card = document.getElementById(id);
       expect(card?.classList.contains('card')).toBe(true);
       expect(card?.classList.contains('card-collapsible')).toBe(true);
-      expect(card?.querySelector('.card-header > .card-title')).not.toBeNull();
+      expect(card?.querySelector('button.card-header > .card-title')).not.toBeNull();
       expect(card?.querySelector('.card-header > .card-chevron')).not.toBeNull();
     }
   });
 
-  it('applies the full card title as a title attribute on settings headers', () => {
+  it('labels settings header buttons from their visible titles', () => {
     const header = document.querySelector(
       '#settings-card-portfolio-behavior .card-header',
     ) as HTMLElement | null;
-    expect(header?.getAttribute('title')).toBe('Portfolio behavior');
     expect(header?.getAttribute('aria-expanded')).toBe('true');
     expect(header?.getAttribute('aria-controls')).toBe('settings-card-portfolio-behavior-body');
+    expect(header?.getAttribute('aria-labelledby')).toBe('settings-card-portfolio-behavior-title');
   });
 
-  it('trims surrounding whitespace when deriving a card header title attribute', () => {
+  it('trims surrounding whitespace when deriving a card header label id', () => {
     document.body.innerHTML = `
       <div id="settings-content">
         <div class="card card-collapsible" id="settings-card-demo" data-card-key="demo">
-          <div class="card-header js-card-toggle">
+          <button type="button" class="card-header js-card-toggle">
             <div class="card-title">  Demo title  </div>
             <span class="card-chevron"></span>
-          </div>
+          </button>
           <div class="card-body"></div>
         </div>
       </div>
     `;
     attachCardCollapseListeners(document.body);
     const header = document.querySelector('#settings-card-demo .card-header') as HTMLElement | null;
-    expect(header?.getAttribute('title')).toBe('Demo title');
+    expect(header?.getAttribute('aria-labelledby')).toBe('settings-card-demo-title');
     expect(header?.getAttribute('aria-controls')).toBe('settings-card-demo-body');
+    const title = document.querySelector('#settings-card-demo .card-title') as HTMLElement | null;
+    expect(title?.id).toBe('settings-card-demo-title');
   });
 
-  it('updates collapsed state and aria-expanded when activated by Enter and Space', () => {
+  it('updates collapsed state and aria-expanded when the header button is clicked', () => {
     const header = document.querySelector(
       '#settings-card-accounts .card-header',
     ) as HTMLElement | null;
@@ -341,13 +343,11 @@ describe('Settings scoped re-render (repaintCard)', () => {
     expect(header?.getAttribute('aria-expanded')).toBe('true');
     expect(card?.classList.contains('collapsed')).toBe(false);
 
-    header?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    header?.click();
     expect(card?.classList.contains('collapsed')).toBe(true);
     expect(header?.getAttribute('aria-expanded')).toBe('false');
 
-    header?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Space', bubbles: true }));
-    expect(card?.classList.contains('collapsed')).toBe(true);
-    header?.dispatchEvent(new KeyboardEvent('keyup', { key: 'Space', bubbles: true }));
+    header?.click();
     expect(card?.classList.contains('collapsed')).toBe(false);
     expect(header?.getAttribute('aria-expanded')).toBe('true');
   });
