@@ -1646,6 +1646,13 @@ function attachColorPickerSync(root: HTMLElement): void {
 /** Attach click listeners to card headers for collapsing/expanding. */
 function attachCardCollapseListeners(root: HTMLElement): void {
   root.querySelectorAll('.js-card-toggle').forEach((header) => {
+    const titleEl = header.querySelector('.card-title');
+    const fullTitle = titleEl?.textContent?.trim();
+    if (fullTitle) {
+      header.setAttribute('aria-label', fullTitle);
+      header.setAttribute('title', fullTitle);
+      titleEl?.setAttribute('title', fullTitle);
+    }
     header.addEventListener('click', () => {
       const card = header.closest('.card-collapsible') as HTMLElement | null;
       if (!card) return;
