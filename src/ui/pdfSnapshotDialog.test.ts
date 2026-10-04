@@ -59,6 +59,27 @@ describe('PDF confirmation dialog', () => {
     click('#pdf-cancel');
     expect(await result).toBeNull();
   });
+  it('refuses review and confirmation when existing legacy balances cannot be preserved', async () => {
+    vi.mocked(readStatement).mockResolvedValue(statement);
+    const existing = { date: '2026-09', 'PRIVATE-LEGACY-KEY': 45 };
+    const result = pdfSnapshotDialog({ ...opts, snapshots: [existing] });
+    chooseFile();
+    await settle();
+    document.querySelector<HTMLSelectElement>('#pdf-cash')!.value = 'cash';
+    document.querySelector<HTMLSelectElement>('#pdf-investment')!.value = 'broker';
+    click('#pdf-review');
+    expect(document.querySelector('#pdf-status')!.textContent).toContain(
+      'Resolve existing balances before importing',
+    );
+    expect(document.body.textContent).not.toContain('PRIVATE-LEGACY-KEY');
+    expect(document.querySelector('#pdf-preview')!.textContent).toBe('');
+    expect(document.querySelector<HTMLButtonElement>('#pdf-confirm')!.disabled).toBe(true);
+    click('#pdf-confirm');
+    expect(document.querySelector('.pdf-dialog-overlay')).not.toBeNull();
+    expect(existing).toEqual({ date: '2026-09', 'PRIVATE-LEGACY-KEY': 45 });
+    click('#pdf-cancel');
+    expect(await result).toBeNull();
+  });
   it('ignores stale file results and requires mapping, preview and final confirmation', async () => {
     let finish!: (s: Statement) => void;
     vi.mocked(readStatement)

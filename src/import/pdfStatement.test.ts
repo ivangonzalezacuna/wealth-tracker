@@ -36,6 +36,51 @@ describe('local PDF statement', () => {
     expect(parse(lines).holdings[0].value).toBe(1234.56);
   });
   it.each([
+    '0',
+    '10',
+    '1000',
+    '0,125',
+    '10,123456',
+    '1.000',
+    '1.234,5678 Stk.',
+    '12.345.678,0001',
+    '123.456 Stk.',
+  ])('accepts German share quantity %s without deriving market value', (quantity) => {
+    const lines = statementFixture();
+    lines[11].cells[0].text = quantity;
+    expect(parse(lines).holdings).toEqual([{ isin: 'DE0000000016', value: 1234.56 }]);
+  });
+  it.each([
+    '1.00',
+    '1.0000',
+    '1234.567',
+    '1.23.456',
+    '1.000.00',
+    '01',
+    '01.000',
+    '00,1',
+    '1,234.5678',
+    '1.234,',
+    '.5',
+    ',5',
+    '-1',
+    '+1',
+    '1e3',
+    '1 000',
+    '1.000 shares',
+  ])('rejects malformed or foreign share quantity %s', (quantity) => {
+    const lines = statementFixture();
+    lines[11].cells[0].text = quantity;
+    expect(() => parse(lines)).toThrow();
+  });
+  it('does not accept a quantity from the security name or unit-price column', () => {
+    const lines = statementFixture();
+    lines[11].cells[0].text = 'invalid';
+    lines[11].cells[1].text = '1.000';
+    lines[11].cells[2].text = '1.234,5678 Stk.';
+    expect(() => parse(lines)).toThrow();
+  });
+  it.each([
     '1,234.56',
     '1.23,45',
     '-1,00',
@@ -96,7 +141,6 @@ describe('local PDF statement', () => {
         etf_DE0000000024: 100,
         filename: 'private.pdf',
         rawText: 'private',
-        arbitrary: 45,
       },
     );
     expect(snap).toEqual({
@@ -111,6 +155,48 @@ describe('local PDF statement', () => {
       date: '2026-09',
       cash: 100,
       broker: 1234.56,
+    });
+  });
+  it.each([
+    ['arbitrary', false, 45],
+    ['retired', false, 0],
+    ['legacy-account', true, 45],
+    ['PRIVATE-KEY', false, -45],
+  ])(
+    'refuses to discard an unpreservable balance without exposing its key',
+    (key, configured, value) => {
+      const existing = { date: '2026-09', [key]: value };
+      let error: unknown;
+      try {
+        mergeStatement(
+          parse(),
+          configured ? [...accounts, { id: key, label: 'Legacy' }] : accounts,
+          ['DE0000000016'],
+          'cash',
+          'broker',
+          [],
+          existing,
+        );
+      } catch (caught) {
+        error = caught;
+      }
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain('Resolve existing balances before importing');
+      expect((error as Error).message).not.toContain(key);
+      expect(existing).toEqual({ date: '2026-09', [key]: value });
+    },
+  );
+  it('ignores unpreservable balances in a different month', () => {
+    expect(
+      mergeStatement(parse(), accounts, ['DE0000000016'], 'cash', 'broker', [], {
+        date: '2026-08',
+        arbitrary: 45,
+      }),
+    ).toEqual({
+      date: '2026-09',
+      cash: 100,
+      broker: 1234.56,
+      etf_DE0000000016: 1234.56,
     });
   });
   it('requires explicit unknown exclusion and distinct EUR mappings', () => {

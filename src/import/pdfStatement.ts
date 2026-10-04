@@ -133,7 +133,13 @@ export function parseTradeRepublic(
     if (valueCells.length) {
       if (pending !== undefined) reject();
       pending = germanCents(valueCells.map((c) => c.text).join(' '));
-      if (!line.cells.some((c) => c.x < nameX && /^\d+(?:,\d+)?(?: Stk\.)?$/.test(c.text)))
+      if (
+        !line.cells.some(
+          (c) =>
+            c.x < nameX &&
+            /^(0|[1-9]\d*|[1-9]\d{0,2}(?:\.\d{3})+)(?:,\d+)?(?: Stk\.)?$/.test(c.text),
+        )
+      )
         reject();
     }
     if (isinMatch) {
@@ -209,6 +215,23 @@ export function mergeStatement(
   }
   const snap: Snapshot = { date: statement.valuationDate.slice(0, 7) };
   if (existing?.date === snap.date) {
+    const configuredIds = new Set(
+      accounts.map((a) => a.id).filter((id) => id && safeAccountId(id)),
+    );
+    if (
+      Object.entries(existing).some(
+        ([key, value]) =>
+          key !== 'date' &&
+          key !== 'notes' &&
+          !key.startsWith('etf_') &&
+          typeof value === 'number' &&
+          Number.isFinite(value) &&
+          !configuredIds.has(key),
+      )
+    )
+      throw new Error(
+        'This month contains existing balances that cannot be safely preserved as configured accounts. Resolve existing balances before importing, or use manual entry.',
+      );
     if (typeof existing.notes === 'string') snap.notes = existing.notes;
     for (const a of accounts) {
       if (

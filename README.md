@@ -116,7 +116,11 @@ still occur.
 
 The report's month-end valuation date (not creation date) selects the snapshot.
 Same-month imports preserve existing configured account values and user notes,
-without FX calls or reconversion. The primary account's globally scoped ETF
+without FX calls or reconversion. Review and confirmation are refused if the
+existing month contains numeric non-ETF balances for retired, legacy or
+unconfigured accounts that cannot be safely preserved. Resolve those existing
+balances before importing, or use manual entry; they are not silently discarded.
+The primary account's globally scoped ETF
 breakdown is replaced, removing stale entries. New snapshots are partial;
 unrelated absent accounts are not filled with zeros. Cash and brokerage are
 separate balances, so cash is not counted twice. All totals, position counts,
