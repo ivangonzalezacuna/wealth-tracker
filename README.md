@@ -88,6 +88,40 @@ For Vercel, Cloudflare Pages, or similar:
 
 ## How it works
 
+### Local PDF-assisted snapshots (conservative prototype)
+
+In **Monthly update**, choose **Import snapshot from PDF**, select a local PDF,
+and explicitly map its cash and brokerage to distinct existing EUR cash and
+primary investment accounts. Review the valuation date and old → new balances,
+then confirm to save through the normal local/Drive snapshot path. Nothing is
+saved before confirmation. Unknown ISINs require configuration in Settings or
+explicit exclusion from the ETF breakdown (not from the brokerage total).
+
+Only the German Trade Republic **Vermögensübersicht** layout pictured in the
+provided reference is supported. This is screenshot-derived support, **not
+validation against a real statement PDF**; unknown or incomplete layouts fail
+closed. N26 is deferred. Scans/images, encrypted PDFs, foreign-currency
+statements and text requiring optional external font/CMap resources are not
+supported. Use manual entry when extraction fails.
+
+PDF.js and its matching worker are lazy-loaded from this app's own origin and
+pre-cached by the PWA. Extraction is text-only, with no OCR, rendering, document
+scripts, cloud APIs or external document-resource fetches. Limits: 10 MB,
+20 pages, 250,000 text characters, 30,000 text items and 15 seconds. Cancellation
+and file replacement terminate processing. PDF bytes, filenames, metadata,
+account numbers, security names and full extracted text are not persisted;
+only month, balances and known ISIN market values are approved for saving.
+Approved values sync to Drive as before; unrelated app network activity may
+still occur.
+
+The report's month-end valuation date (not creation date) selects the snapshot.
+Same-month imports preserve existing configured account values and user notes,
+without FX calls or reconversion. The primary account's globally scoped ETF
+breakdown is replaced, removing stale entries. New snapshots are partial;
+unrelated absent accounts are not filled with zeros. Cash and brokerage are
+separate balances, so cash is not counted twice. All totals, position counts,
+security values and cash details must reconcile before review is available.
+
 The app stores all your data in a **local SQLite database** (sql.js WASM) running in the browser. This database is:
 
 1. **Persisted locally** in IndexedDB (survives reloads and restarts) — this is the primary working store for all reads and writes

@@ -29,6 +29,7 @@
   "dependencies": {
     "chart.js": "^4.4.1",
     "idb-keyval": "^6.3.0",
+    "pdfjs-dist": "6.3.289",
     "sql.js": "1.14.2"
   }
 }

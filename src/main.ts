@@ -296,7 +296,7 @@ function applyReadOnlyMode(): void {
       : '';
 
   // Disable write-action buttons
-  const writeIds = ['btn-add-snap', 'btn-confirm-import', 'btn-sync-now'];
+  const writeIds = ['btn-add-snap', 'btn-pdf-snap', 'btn-confirm-import', 'btn-sync-now'];
   for (const id of writeIds) {
     const el = document.getElementById(id) as HTMLButtonElement | null;
     if (!el) continue;
@@ -1337,9 +1337,34 @@ function renderSetupBanner(): void {
 // ── Snapshot form ─────────────────────────────────────────
 function initSnapForm() {
   document.getElementById('btn-add-snap')?.addEventListener('click', () => saveMonthlyUpdate());
+  document.getElementById('btn-pdf-snap')?.addEventListener('click', async () => {
+    if (!ensureWriteAccess('snap-msg')) return;
+    const fingerprint = () =>
+      JSON.stringify([state.snaps, getAccounts(), getHoldings(), state.pd?.etfs]);
+    const baseline = fingerprint();
+    try {
+      const { pdfSnapshotDialog } = await import('./ui/pdfSnapshotDialog');
+      if (!ensureWriteAccess('snap-msg') || fingerprint() !== baseline) return;
+      const snap = await pdfSnapshotDialog({
+        accounts: getAccounts(),
+        knownIsins: [
+          ...new Set([...getHoldings().map((h) => h.isin), ...Object.keys(state.pd?.etfs || {})]),
+        ],
+        snapshots: state.snaps,
+      });
+      if (!snap) return;
+      await saveSnapshot(snap, () => fingerprint() === baseline);
+    } catch {
+      showMsg(
+        'snap-msg',
+        'PDF import unavailable. Try again online or enter balances manually.',
+        false,
+      );
+    }
+  });
 }
 
-async function saveSnapshot(snap: Snapshot) {
+async function saveSnapshot(snap: Snapshot, isCurrent?: () => boolean) {
   const date = snap.date;
   if (!date) {
     showMsg('snap-msg', 'Please select a month.', false);
@@ -1356,6 +1381,9 @@ async function saveSnapshot(snap: Snapshot) {
     button: btn,
     busyText: 'Saving...',
     action: async () => {
+      if (isCurrent && !isCurrent()) {
+        throw new Error('Data changed while reviewing. Reopen the PDF import and review again.');
+      }
       await upsertSnapshot(snap);
       scheduleUpload();
       const idx = state.snaps.findIndex((s) => s.date === date);

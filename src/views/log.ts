@@ -234,6 +234,10 @@ function _updateBulkControls(kind: 'tx' | 'snap'): void {
   actionsEl.hidden = !isActive || _readOnly || !hasBulkHandler();
   if (addBtn) addBtn.hidden = isActive;
   if (addSnapBtn) addSnapBtn.disabled = _readOnly || isActive;
+  if (!isTx) {
+    const pdfBtn = document.getElementById('btn-pdf-snap') as HTMLButtonElement | null;
+    if (pdfBtn) pdfBtn.disabled = _readOnly || isActive;
+  }
   selectAllBtn.disabled = _readOnly || !isActive || filteredCount === 0;
   clearAllBtn.disabled = _readOnly || !isActive || count === 0;
   deleteBtn.textContent = count > 0 ? `Delete (${count})` : 'Delete';
