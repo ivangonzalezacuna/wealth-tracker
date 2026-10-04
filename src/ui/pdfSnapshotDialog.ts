@@ -1,6 +1,6 @@
 import type { Account, Snapshot } from '../types';
 import { esc, fmtEur2 } from '../utils';
-import { mergeStatement, PDF_ERROR, type Statement } from '../import/pdfStatement';
+import { mergeStatement, safePdfMessage, type Statement } from '../import/pdfStatement';
 import { readStatement } from '../import/readPdf';
 import { createDialogController, openDialogShell } from './modalShell';
 
@@ -127,8 +127,8 @@ export function pdfSnapshotDialog(opts: PdfSnapshotOptions): Promise<Snapshot | 
           }
         }
         review.disabled = false;
-      } catch {
-        if (!closed && request === generation) status.textContent = PDF_ERROR;
+      } catch (error) {
+        if (!closed && request === generation) status.textContent = safePdfMessage(error);
       } finally {
         if (request === generation) input.value = '';
       }

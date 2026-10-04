@@ -1,6 +1,6 @@
 import PdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?worker';
 import {
-  PDF_ERROR,
+  PdfValidationError,
   parseTradeRepublic,
   positionedLines,
   type Statement,
@@ -8,23 +8,31 @@ import {
 } from './pdfStatement';
 
 export async function readStatement(file: File, signal: AbortSignal): Promise<Statement> {
-  if (!file.size || file.size > 10 * 1024 * 1024 || signal.aborted) throw new Error(PDF_ERROR);
+  if (signal.aborted) throw new PdfValidationError('cancelled');
+  if (!file.size) throw new PdfValidationError('file');
+  if (file.size > 10 * 1024 * 1024) throw new PdfValidationError('size');
   let worker: Worker | undefined;
   let pdfWorker: import('pdfjs-dist').PDFWorker | undefined;
   let task: import('pdfjs-dist').PDFDocumentLoadingTask | undefined;
   let stopped = false;
   let timer: ReturnType<typeof setTimeout>;
   let abort = () => {};
+  let timedOut = false;
+  let rejectPending: (error: PdfValidationError) => void = () => {};
   const guard = () => {
-    if (stopped || signal.aborted) throw new Error(PDF_ERROR);
+    if (stopped || signal.aborted) throw new PdfValidationError(timedOut ? 'timeout' : 'cancelled');
   };
   const timeout = new Promise<never>((_, reject) => {
+    rejectPending = reject;
     abort = () => {
       stopped = true;
       worker?.terminate();
-      reject(new Error(PDF_ERROR));
+      reject(new PdfValidationError(timedOut ? 'timeout' : 'cancelled'));
     };
-    timer = setTimeout(abort, 15000);
+    timer = setTimeout(() => {
+      timedOut = true;
+      abort();
+    }, 15000);
     signal.addEventListener('abort', abort, { once: true });
   });
   try {
@@ -33,9 +41,9 @@ export async function readStatement(file: File, signal: AbortSignal): Promise<St
       (async () => {
         const bytes = new Uint8Array(await file.arrayBuffer());
         guard();
-        if (new TextDecoder().decode(bytes.subarray(0, 5)) !== '%PDF-') throw new Error(PDF_ERROR);
-        if (!/%%EOF\s*$/.test(new TextDecoder().decode(bytes.subarray(-1024))))
-          throw new Error(PDF_ERROR);
+        // PDF.js accepts a header within the first 1,024 bytes and validates the trailer itself.
+        if (!new TextDecoder().decode(bytes.subarray(0, 1024)).includes('%PDF-'))
+          throw new PdfValidationError('file');
         const pdfjs = await import('pdfjs-dist');
         guard();
         worker = new PdfWorker();
@@ -54,17 +62,23 @@ export async function readStatement(file: File, signal: AbortSignal): Promise<St
           enableXfa: false,
           BinaryDataFactory: class {
             async fetch() {
-              throw new Error(PDF_ERROR);
+              throw new PdfValidationError('loading');
             }
           },
           stopAtErrors: true,
           verbosity: 0,
           maxImageSize: 0,
         });
-        task.onPassword = () => abort();
+        task.onPassword = () => {
+          stopped = true;
+          worker?.terminate();
+          // Reject the pending race without including the document or PDF.js error message.
+          rejectPending(new PdfValidationError('password'));
+        };
         const doc = await task.promise;
         guard();
-        if (doc.numPages > 20 || (await doc.getPermissions()) !== null) throw new Error(PDF_ERROR);
+        if (doc.numPages > 20) throw new PdfValidationError('limit');
+        if ((await doc.getPermissions()) !== null) throw new PdfValidationError('password');
         const lines: StatementLine[] = [];
         let chars = 0;
         let count = 0;
@@ -83,7 +97,7 @@ export async function readStatement(file: File, signal: AbortSignal): Promise<St
                 if (!('str' in item)) continue;
                 chars += item.str.length;
                 count++;
-                if (chars > 250000 || count > 30000) throw new Error(PDF_ERROR);
+                if (chars > 250000 || count > 30000) throw new PdfValidationError('limit');
                 items.push(item);
               }
             }
@@ -94,11 +108,13 @@ export async function readStatement(file: File, signal: AbortSignal): Promise<St
           p.cleanup();
         }
         guard();
+        if (!lines.length) throw new PdfValidationError('text');
         return parseTradeRepublic(lines, doc.numPages);
       })(),
     ]);
-  } catch {
-    throw new Error(PDF_ERROR);
+  } catch (error) {
+    if (error instanceof PdfValidationError) throw error;
+    throw new PdfValidationError('loading');
   } finally {
     stopped = true;
     clearTimeout(timer!);

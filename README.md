@@ -102,7 +102,20 @@ provided reference is supported. This is screenshot-derived support, **not
 validation against a real statement PDF**; unknown or incomplete layouts fail
 closed. N26 is deferred. Scans/images, encrypted PDFs, foreign-currency
 statements and text requiring optional external font/CMap resources are not
-supported. Use manual entry when extraction fails.
+supported. Use manual entry when extraction fails. Validation failures identify
+the failing stage (file loading, text, layout, date, balances or positions) without
+displaying or recording document contents. If extraction still fails, share only
+the displayed validation code — not account numbers or a full text dump.
+
+The parser reconstructs adjacent text fragments and uses table-column geometry,
+including right-aligned amounts and price dates alongside ISIN rows. Fund names
+may mention USD or another currency; the report's actual balance and valuation
+columns must still be EUR. Regression PDFs use synthetic multi-position data,
+fragmented text and wrapped descriptions modeled on the screenshot; they do not
+establish compatibility with every provider PDF export.
+Brokerage tables continuing across pages are not supported by this adapter.
+The valuation date selects the month; an earlier valid quote date does not change
+that date or cause market values to be recomputed from unit prices.
 
 PDF.js and its matching worker are lazy-loaded from this app's own origin and
 pre-cached by the PWA. Extraction is text-only, with no OCR, rendering, document

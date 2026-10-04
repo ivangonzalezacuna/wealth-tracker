@@ -28,7 +28,7 @@ export default defineConfig({
       injectRegister: false,
       manifest: false, // public/manifest.json already exists
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        globPatterns: ['**/*.{js,mjs,css,html,svg,png,ico}'],
         navigateFallback: '/index.html',
         cleanupOutdatedCaches: true,
       },

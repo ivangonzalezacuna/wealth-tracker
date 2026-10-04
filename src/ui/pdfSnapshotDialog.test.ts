@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { pdfSnapshotDialog } from './pdfSnapshotDialog';
 import { readStatement } from '../import/readPdf';
-import type { Statement } from '../import/pdfStatement';
+import { PdfValidationError, type Statement } from '../import/pdfStatement';
 
 vi.mock('../import/readPdf', () => ({ readStatement: vi.fn() }));
 const statement: Statement = {
@@ -56,6 +56,24 @@ describe('PDF confirmation dialog', () => {
     expect(document.body.textContent).not.toContain('secret account number');
     expect(document.querySelector<HTMLButtonElement>('#pdf-confirm')!.disabled).toBe(true);
     expect(document.querySelector<HTMLButtonElement>('#pdf-review')!.disabled).toBe(true);
+    click('#pdf-cancel');
+    expect(await result).toBeNull();
+  });
+  it('shows a safe validation stage and permits a fresh file after a failure', async () => {
+    vi.mocked(readStatement)
+      .mockRejectedValueOnce(new PdfValidationError('positions'))
+      .mockResolvedValueOnce(statement);
+    const result = pdfSnapshotDialog(opts);
+    chooseFile();
+    await settle();
+    const status = document.querySelector('#pdf-status')!;
+    expect(status.textContent).toContain('positions');
+    expect(document.querySelector<HTMLButtonElement>('#pdf-review')!.disabled).toBe(true);
+    chooseFile();
+    await settle();
+    expect(status.textContent).toContain('Valuation date');
+    expect(document.querySelector<HTMLButtonElement>('#pdf-review')!.disabled).toBe(false);
+    expect(document.querySelector<HTMLButtonElement>('#pdf-confirm')!.disabled).toBe(true);
     click('#pdf-cancel');
     expect(await result).toBeNull();
   });
