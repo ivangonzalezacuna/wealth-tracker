@@ -20,8 +20,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 async function settleSetupUpload(page: Page) {
-  const response = await page.waitForResponse(
-    (response) => response.url().startsWith('https://www.googleapis.com/upload/drive/v3/'),
+  const response = await page.waitForResponse((response) =>
+    response.url().startsWith('https://www.googleapis.com/upload/drive/v3/'),
   );
   await response.finished();
   await waitForSyncIdle(page);
@@ -275,16 +275,13 @@ test('corrupt summaries, dates, missing positions and truncated statements fail 
     })),
   }));
   const cash = realisticStatementFixture();
-  const cashBalance = cash.find((line) =>
-    line.cells.some((cell) => cell.text === 'Cashkonto'),
-  )!;
+  const cashBalance = cash.find((line) => line.cells.some((cell) => cell.text === 'Cashkonto'))!;
   cashBalance.cells[cashBalance.cells.length - 1].text = '100,01 EUR';
   const cases = [
     { code: 'summary', file: pdfFile(summary) },
     { code: 'date', file: pdfFile(date) },
     { code: 'positions', file: pdfFile(incomplete) },
-    // The missing cash page first fails the required valuation-date gate.
-    { code: 'date', file: pdfFile(truncated) },
+    { code: 'pages', file: pdfFile(truncated) },
     { code: 'pages', file: pdfFile(pages) },
     { code: 'cash', file: pdfFile(cash) },
     {

@@ -85,8 +85,8 @@ test('built PDF worker runs under the deployed CSP and its asset is precached', 
   );
   await openTab(page, 'tab-log');
   await waitForSyncIdle(page);
-  const setupUpload = await page.waitForResponse(
-    (response) => response.url().startsWith('https://www.googleapis.com/upload/drive/v3/'),
+  const setupUpload = await page.waitForResponse((response) =>
+    response.url().startsWith('https://www.googleapis.com/upload/drive/v3/'),
   );
   await setupUpload.finished();
   await waitForSyncIdle(page);
