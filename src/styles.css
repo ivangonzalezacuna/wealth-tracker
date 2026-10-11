@@ -1455,6 +1455,9 @@ summary.section-label {
 .snapd-currency-details[open] > summary {
   margin-bottom: 6px;
 }
+.snap-etf-other > .snap-etf-group + .snap-etf-group {
+  margin-top: 6px;
+}
 .snapd-currency-help {
   display: flex;
   align-items: baseline;
@@ -3207,11 +3210,6 @@ input[type='color'] {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-}
-.snap-etf-other summary {
-  cursor: pointer;
-  padding: 8px;
-  color: var(--ink-2);
 }
 .snapd-review {
   display: flex;

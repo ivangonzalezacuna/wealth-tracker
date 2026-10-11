@@ -336,7 +336,12 @@ function _renderEtfBreakdown(
       .map((h) => h.isin),
   );
   const rows = new Map<string, { isin: string; name: string; shortName: string; color: string }>(
-    Object.values(holdings || {}).map((pos) => [pos.isin, pos]),
+    Object.values(holdings || {})
+      .filter(
+        (pos) =>
+          (!pos.exited && pos.shares >= 1e-6) || typeof draft?.[`etf_${pos.isin}`] === 'number',
+      )
+      .map((pos) => [pos.isin, pos]),
   );
   for (const h of configHoldings) {
     if (!rows.has(h.isin)) rows.set(h.isin, h);
@@ -355,6 +360,12 @@ function _renderEtfBreakdown(
   }
   const contributing = Array.from(rows.values()).filter((pos) => activeIsins.has(pos.isin));
   const legacy = Array.from(rows.values()).filter((pos) => !activeIsins.has(pos.isin));
+  const knownIsins = new Set([
+    ...configHoldings.map((h) => h.isin),
+    ...Object.values(holdings || {}).map((h) => h.isin),
+  ]);
+  const existingRows = legacy.filter((pos) => knownIsins.has(pos.isin));
+  const manualRows = legacy.filter((pos) => !knownIsins.has(pos.isin));
 
   const getName = (isin: string, fallbackName: string, shortName: string): string => {
     const cfg = configHoldings.find((h) => h.isin === isin);
@@ -368,10 +379,7 @@ function _renderEtfBreakdown(
     color: string;
   }): string => {
     const value = draft?.[`etf_${pos.isin}`];
-    if (
-      !configHoldings.some((h) => h.isin === pos.isin) &&
-      !Object.values(holdings || {}).some((h) => h.isin === pos.isin)
-    ) {
+    if (!knownIsins.has(pos.isin)) {
       return `<div class="snap-etf-row snap-etf-extra">${_renderManualEtfFields(acctKey, pos.isin, value)}</div>`;
     }
     return `
@@ -398,7 +406,7 @@ function _renderEtfBreakdown(
     contributing.length > 0
       ? `<div class="snap-etf-group"><div class="snap-etf-group-label">Usual ETFs</div>${contributing.map(renderRow).join('')}</div>`
       : '';
-  const legacyHtml = `<details class="snap-etf-other"><summary>Other ETFs</summary><div class="snap-etf-group">${legacy.map(renderRow).join('')}<button type="button" class="btn btn-sm btn-ghost js-snapd-extra" data-acct-key="${_esc(acctKey)}">Add other ETF</button><p class="note">Snapshot values only — no transactions or configured holdings are created. Leave blank to omit; enter 0 to record an explicit zero.</p></div></details>`;
+  const legacyHtml = `<details class="snap-etf-other"><summary>Other ETFs</summary>${existingRows.length ? `<div class="snap-etf-group" role="group" aria-label="Existing holdings"><div class="snap-etf-group-label">Existing holdings</div>${existingRows.map(renderRow).join('')}</div>` : ''}<div class="snap-etf-group" role="group" aria-label="Manual entries"><div class="snap-etf-group-label">Manual entries</div>${manualRows.map(renderRow).join('')}<button type="button" class="btn btn-sm btn-ghost js-snapd-extra" data-acct-key="${_esc(acctKey)}">Add ETF</button><p class="note">Snapshot only · blank omits; 0 records zero.</p></div></details>`;
 
   return `
     <div class="snap-etf-wrap">
@@ -574,6 +582,7 @@ async function _submit(): Promise<void> {
     const baseline = Object.entries(opts.prefill || {}).filter(([, v]) => typeof v === 'number');
     const copiedUnchanged =
       !opts.existing &&
+      !replacing &&
       opts.mode !== 'edit' &&
       !!opts.copiedFromMonth &&
       opts.copiedFromMonth !== date &&
@@ -610,7 +619,7 @@ async function _submit(): Promise<void> {
         <div class="dialog-title">Review snapshot — ${_esc(fmtMon(date))}</div>
         <p class="snapd-review-context">Month-end balances · EUR${date === currentMonth() ? ' · Provisional' : ''}</p>
       </div>
-      ${copiedUnchanged ? `<p class="snapd-review-context">Copied from ${_esc(opts.copiedFromMonth)} — values are unchanged; check before saving.</p>` : ''}
+      ${copiedUnchanged ? `<p class="snapd-review-warning" role="status">Copied from ${_esc(opts.copiedFromMonth)} — values are unchanged; check before saving.</p>` : ''}
       ${rateSummary ? `<p class="snapd-review-context">FX applied: ${rateSummary}</p>` : ''}
       ${replacing ? '<p class="snapd-review-warning" role="alert">Saving will replace the existing snapshot for this month.</p>' : ''}
       <section class="snapd-review-section" aria-label="Account balances">

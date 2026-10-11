@@ -600,6 +600,10 @@ describe('snapshotDialog', () => {
     expect(document.querySelector('.snapd-review')!.textContent!.includes('Copied from')).toBe(
       warning,
     );
+    if (warning)
+      expect(document.querySelector('.snapd-review [role="status"]')!.className).toBe(
+        'snapd-review-warning',
+      );
     getCancel()!.click();
     expect(await p).toBeNull();
   });
@@ -657,20 +661,49 @@ describe('snapshotDialog', () => {
     getCancel()!.click();
   });
 
+  it('shows overwrite only when an unchanged copied Add draft selects another existing month', async () => {
+    snapshotDialog(
+      baseOpts({
+        mode: 'add',
+        prefill: { date: '2024-06', cash: 0, broker: 900, etf_IE00AAA: 450 },
+        copiedFromMonth: '2024-05',
+        existingMonths: ['2024-04'],
+      }),
+    );
+    setField('snapd-date', '2024-04');
+    getSubmit()!.click();
+    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    expect(document.querySelector('.snapd-review')!.textContent).toContain('replace');
+    expect(document.querySelector('.snapd-review')!.textContent).not.toContain('Copied from');
+    getCancel()!.click();
+  });
+
   it('keeps configured and transaction-record identifiers fixed, including exited holdings', () => {
     snapshotDialog(
       baseOpts({
-        holdings: { IE00AAA: { ...holdings.IE00AAA, shares: 0, exited: true } },
+        holdings: {
+          IE00AAA: { ...holdings.IE00AAA, shares: 0, exited: true },
+          IE0000000004: { ...holdings.IE00AAA, isin: 'IE0000000004', shares: 0, exited: true },
+        },
         configHoldings: [configHoldings[1]],
-        existing: { date: '2024-06', cash: 0, broker: 900, etf_IE0000000001: 0 },
+        existing: {
+          date: '2024-06',
+          cash: 0,
+          broker: 900,
+          etf_IE00AAA: 150,
+          etf_IE0000000001: 0,
+        },
       }),
     );
     for (const isin of ['IE00AAA', 'IE00BBB']) {
       const row = document.querySelector(`[data-etf-isin="${isin}"]`)!.parentElement!;
       expect(row.querySelector('[data-extra-isin]')).toBeNull();
       expect(row.querySelector('.js-snapd-remove')).toBeNull();
+      expect(row.closest('[aria-label="Existing holdings"]')).not.toBeNull();
     }
     expect(document.querySelectorAll('.snap-etf-extra')).toHaveLength(1);
+    expect(document.querySelector('[data-etf-isin="IE0000000004"]')).toBeNull();
+    expect(document.querySelector('[aria-label="Manual entries"] .snap-etf-extra')).not.toBeNull();
     expect((document.querySelector('[data-extra-isin]') as HTMLInputElement).value).toBe(
       'IE0000000001',
     );

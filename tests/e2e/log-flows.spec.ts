@@ -40,6 +40,8 @@ test('snapshot review uses compact aligned rows on mobile and desktop', async ({
   await expect(summary).toHaveCSS('font-size', '11px');
   await expect(summary).toHaveCSS('border-top-style', 'solid');
   await expect(summary).toHaveCSS('display', 'list-item');
+  await expect(summary).toHaveCSS('padding', '3px 9px');
+  await expect(page.getByRole('group', { name: 'Manual entries' })).toContainText('Add ETF');
   for (const width of [390, 320, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     expect(
@@ -147,7 +149,7 @@ test('untracked ETF keys can be renamed and removed after saving without returni
   await expect(page.locator('.snap-etf-extra')).toHaveCount(1);
   await expect(page.getByLabel('Other ETF ISIN')).toHaveValue('IE0000000003');
   await page.getByRole('button', { name: 'Remove other ETF' }).click();
-  await expect(page.getByRole('button', { name: 'Add other ETF' })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Add ETF', exact: true })).toBeFocused();
   await page.click('.js-snapd-submit');
   await expect(page.locator('.snapd-review')).toContainText('replace');
   await expect(page.locator('.snapd-review')).not.toContainText('Copied from');
