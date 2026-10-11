@@ -160,6 +160,27 @@ test('snapshot dialog shows currency-specific placeholder for non-EUR accounts',
   await expect(input).toHaveAttribute('placeholder', 'total value in GBP');
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 844 });
+    const monthLayout = await page.locator('#snapd-date').evaluate((input) => {
+      const note = document.querySelector('#snapd-month-note')!;
+      const error = document.querySelector('#snapd-date-err')!;
+      const notes = document.querySelector('#snapd-notes')!;
+      const field = input.parentElement!;
+      const noteRect = note.getBoundingClientRect();
+      return {
+        gap: noteRect.top - input.getBoundingClientRect().bottom,
+        aligned: noteRect.left === input.getBoundingClientRect().left,
+        errorHidden: getComputedStyle(error).display === 'none',
+        notesBelowOrBeside:
+          notes.getBoundingClientRect().left >= field.getBoundingClientRect().right ||
+          notes.getBoundingClientRect().top >= field.getBoundingClientRect().bottom,
+      };
+    });
+    expect(monthLayout).toEqual({
+      gap: 3,
+      aligned: true,
+      errorHidden: true,
+      notesBelowOrBeside: true,
+    });
     const layout = await page.locator('.snapd-currency-help').evaluate((row) => {
       const label = row.querySelector('label')!;
       const checkbox = label.querySelector('input')!;

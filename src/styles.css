@@ -3198,6 +3198,9 @@ input[type='color'] {
 .snap-dialog-card [hidden] {
   display: none !important;
 }
+.snapd-field-note {
+  margin-top: 0;
+}
 .snapd-review {
   display: flex;
   flex-direction: column;

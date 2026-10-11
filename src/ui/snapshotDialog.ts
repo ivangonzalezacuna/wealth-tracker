@@ -75,11 +75,11 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
               <label class="dialog-label" for="snapd-date">Month</label>
               <input type="month" id="snapd-date" class="form-input dialog-input"
                 value="${_esc(draft?.date || defaultMonth)}" max="${today}" aria-describedby="snapd-month-note snapd-date-err">
-              <span class="dialog-error" id="snapd-date-err"></span>
-              <div class="note" id="snapd-month-note"></div>
+              <div class="note snapd-field-note" id="snapd-month-note"></div>
+              <span class="dialog-error dialog-error-compact" id="snapd-date-err"></span>
               ${
                 opts.onFxPrefetchMonth
-                  ? '<div class="note" id="snapd-fx-status" aria-live="polite" style="margin-top:.35rem"></div>'
+                  ? '<div class="note snapd-field-note" id="snapd-fx-status" aria-live="polite"></div>'
                   : ''
               }
             </div>
