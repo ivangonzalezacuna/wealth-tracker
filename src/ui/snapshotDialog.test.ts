@@ -369,6 +369,8 @@ describe('snapshotDialog', () => {
     getSubmit()!.click();
     await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
     expect(document.querySelector('.snapd-review')!.textContent).toContain('replace');
+    expect(document.querySelector('.snapd-review')!.textContent).toContain('Copied from 2024-05');
+    expect(document.querySelector('.snapd-review')!.textContent).toContain('Unexplained remainder');
     expect(document.querySelector('.snapd-review')!.textContent).toContain('900');
     (document.querySelector('.js-snapd-back') as HTMLElement).click();
     expect((document.querySelector('#snapd-acc-broker') as HTMLInputElement).value).toBe('1000');

@@ -381,7 +381,7 @@ function _renderEtfBreakdown(
         <div class="snap-etf-recon" id="snapd-etf-recon-${_esc(acctKey)}" style="display:none">
           <span class="snap-etf-recon-alloc">Allocated: <b>-</b></span>
           <span class="snap-etf-recon-sep">&middot;</span>
-          <span class="snap-etf-recon-remain">Remaining: <b>-</b></span>
+          <span class="snap-etf-recon-remain">Unexplained remainder (cash or unrecorded positions): <b>-</b></span>
         </div>
         <span class="dialog-error dialog-error-compact" id="snapd-etf-${_esc(acctKey)}-err"></span>
       </div>
@@ -544,14 +544,17 @@ async function _submit(): Promise<void> {
     const rateSummary = Object.entries(result.rates || {})
       .map(([currency, rate]) => `1 ${_esc(currency)} = ${rate} EUR`)
       .join(' — ');
-    review.innerHTML = `<h3>Review snapshot — ${_esc(date)}</h3><p class="note">All saved amounts below are EUR, as of month end. ${date === currentMonth() ? 'Current month — provisional.' : ''}</p><p class="note">${rateSummary ? `Conversion rates used for this review: ${rateSummary}` : 'Explicit EUR amounts — no FX conversion applied.'}</p>${replacing ? '<p class="snapd-fx-status--warn" role="alert"><strong>This will replace the existing snapshot for this month.</strong> Save only if replacement is intended.</p>' : ''}<dl class="snapd-review-values">${numeric
+    const sourceSummary = opts.copiedFromMonth
+      ? `<p class="note">Copied from ${_esc(opts.copiedFromMonth)} — confirm values belong to the selected month.</p>`
+      : '';
+    review.innerHTML = `<h3>Review snapshot — ${_esc(date)}</h3><p class="note">All saved amounts below are EUR, as of month end. ${date === currentMonth() ? 'Current month — provisional.' : ''}</p>${sourceSummary}<p class="note">${rateSummary ? `Conversion rates used for this review: ${rateSummary}` : 'Explicit EUR amounts — no FX conversion applied.'}</p>${replacing ? '<p class="snapd-fx-status--warn" role="alert"><strong>This will replace the existing snapshot for this month.</strong> Save only if replacement is intended.</p>' : ''}<dl class="snapd-review-values">${numeric
       .map(([key, value]) => {
         const acct = _getDialogAccounts(opts.accounts).find((a) => a.key === key);
         return `<div><dt>${_esc(acct?.label || key.replace(/^etf_/, 'ETF '))}</dt><dd>${fmtEur2(Number(value))} EUR</dd></div>`;
       })
       .join(
         '',
-      )}</dl>${primary ? `<p class="note">ETF allocated: ${fmtEur2(allocation)} EUR — unallocated cash: ${fmtEur2(Number(_reviewed[primary.key]) - allocation)} EUR</p>` : ''}<p class="note">Notes: ${_esc(_reviewed.notes || 'None')}</p>`;
+      )}</dl>${primary ? `<p class="note">ETF allocated: ${fmtEur2(allocation)} EUR — Unexplained remainder (cash or unrecorded positions): ${fmtEur2(Number(_reviewed[primary.key]) - allocation)} EUR</p>` : ''}<p class="note">Notes: ${_esc(_reviewed.notes || 'None')}</p>`;
     (overlay.querySelector('.dialog-fields') as HTMLElement).hidden = true;
     review.hidden = false;
     (overlay.querySelector('.js-snapd-back') as HTMLElement).hidden = false;
