@@ -782,17 +782,36 @@ describe('snapshotDialog', () => {
     });
   });
 
-  it('shows currency help only for foreign accounts in a native disclosure', () => {
+  it('shows shared currency infoTip without toggling the checkbox and cleans up on cancel', () => {
     snapshotDialog(baseOpts());
-    expect(document.querySelector('.snapd-currency-details summary')!.textContent).toBe(
-      'Currency help',
-    );
-    expect((document.querySelector('.snapd-currency-details') as HTMLDetailsElement).open).toBe(
-      false,
-    );
+    const tip = document.querySelector<HTMLElement>('.snapd-currency-help .info-tip')!;
+    const checkbox = document.querySelector<HTMLInputElement>('#snapd-eur')!;
+    expect(document.querySelector('.snapd-currency-details')).toBeNull();
+    expect(tip.dataset.tipBound).toBe('1');
+    expect(tip.tabIndex).toBe(0);
+    tip.click();
+    expect(document.querySelector('.info-tip-pop')!.textContent).toContain('native currency');
+    expect(checkbox.checked).toBe(false);
     getCancel()!.click();
+    expect(document.querySelector('.info-tip-pop')).toBeNull();
     snapshotDialog(baseOpts({ accounts: accounts.map((a) => ({ ...a, currency: 'EUR' })) }));
     expect(document.querySelector('.snapd-currency-help')).toBeNull();
+    getCancel()!.click();
+  });
+
+  it('dismisses currency infoTip when entering review and supports keyboard focus', async () => {
+    snapshotDialog(baseOpts());
+    setField('snapd-acc-cash', '0');
+    setField('snapd-acc-broker', '0');
+    const tip = document.querySelector<HTMLElement>('.snapd-currency-help .info-tip')!;
+    tip.focus();
+    expect(document.querySelector('.info-tip-pop')).not.toBeNull();
+    tip.blur();
+    expect(document.querySelector('.info-tip-pop')).toBeNull();
+    tip.click();
+    getSubmit()!.click();
+    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    expect(document.querySelector('.info-tip-pop')).toBeNull();
     getCancel()!.click();
   });
 });

@@ -1,5 +1,6 @@
 import { normalizeSnapshotReview, type SnapshotReviewResult } from '../model/snapshotFx';
 import { isValidISIN, normalizeISIN } from '../model/isin';
+import { infoTip, attachInfoTips } from './infoTip';
 import { currentMonth, fmtEur2, fmtMon, safeColor, esc } from '../utils';
 import type { Account, Holding, PortfolioData, Snapshot } from '../types';
 import {
@@ -88,7 +89,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
                 value="${_esc(draft?.notes || '')}" placeholder="e.g. catch-up done, got raise...">
             </div>
           </div>
-          ${_getDialogAccounts(opts.accounts).some((a) => a.currency !== 'EUR') ? `<div class="snapd-currency-help"><label class="note snapd-entry-mode"><input type="checkbox" id="snapd-eur" ${draft ? 'checked' : ''}> Enter all values in EUR</label><details class="snapd-currency-details"><summary>Currency help</summary><p class="note">Otherwise use each account’s native currency. Stored values are EUR; switching converts the draft only when FX rates are available.</p></details></div>` : ''}
+          ${_getDialogAccounts(opts.accounts).some((a) => a.currency !== 'EUR') ? `<div class="snapd-currency-help"><label class="note snapd-entry-mode"><input type="checkbox" id="snapd-eur" ${draft ? 'checked' : ''}> Enter all values in EUR</label>${infoTip('Otherwise use each account’s native currency. Stored values are EUR — switching converts the draft only when FX rates are available.')}</div>` : ''}
           ${_renderAccountFields(opts.accounts, opts.holdings, opts.configHoldings || [], draft)}
           <div class="dialog-error" id="snapd-review-err" role="alert"></div>
         </div>
@@ -116,9 +117,10 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
       cancelSelector: '.js-snapd-cancel',
       submitSelector: '.js-snapd-submit',
       focusablesSelector:
-        'input:not([disabled]):not([hidden]), button:not([disabled]):not([hidden]), summary',
+        'input:not([disabled]):not([hidden]), button:not([disabled]):not([hidden]), summary, .info-tip',
       initialFocusSelector: '#snapd-date',
     });
+    attachInfoTips(overlay);
     overlay.querySelector('.js-snapd-back')?.addEventListener('click', () => {
       _reviewed = null;
       (overlay.querySelector('.dialog-fields') as HTMLElement).hidden = false;
@@ -629,6 +631,7 @@ async function _submit(): Promise<void> {
       ${etfValues.length ? `<section class="snapd-review-section" aria-label="ETF values"><div class="section-label">ETF breakdown</div><dl class="snapd-review-values">${renderValues(etfValues)}</dl></section>` : ''}
       ${primary && etfValues.length ? `<div class="snapd-review-summary"><dl class="snapd-review-values"><div><dt>ETF allocated</dt><dd>${fmtEur2(allocation)}</dd></div><div><dt>Unexplained remainder</dt><dd>${fmtEur2(Number(_reviewed[primary.key]) - allocation)}</dd></div></dl><p class="snapd-review-context">Remainder may be cash or unrecorded positions.</p></div>` : ''}
       ${_reviewed.notes ? `<p class="snapd-review-context snapd-review-notes"><strong>Notes</strong> — ${_esc(_reviewed.notes)}</p>` : ''}`;
+    overlay.querySelector('.info-tip')?.dispatchEvent(new Event('blur'));
     (overlay.querySelector('.dialog-fields') as HTMLElement).hidden = true;
     (overlay.querySelector('.dialog-header') as HTMLElement).hidden = true;
     review.hidden = false;
@@ -717,6 +720,7 @@ function _setSectionOpen(acctKey: string, open: boolean): void {
 }
 
 function _dismiss(result: Snapshot | null): void {
+  _dialog.overlay()?.querySelector('.info-tip')?.dispatchEvent(new Event('blur'));
   _dialog.dismiss(result);
 }
 

@@ -1441,8 +1441,7 @@ summary.section-label {
   border-radius: var(--radius-sm);
   width: 100%;
 }
-.snap-etf-other > summary,
-.snapd-currency-details > summary {
+.snap-etf-other > summary {
   width: fit-content;
   padding: 3px 9px;
   border: 1px solid var(--line);
@@ -1451,8 +1450,7 @@ summary.section-label {
   color: var(--ink-2);
   cursor: pointer;
 }
-.snap-etf-other[open] > summary,
-.snapd-currency-details[open] > summary {
+.snap-etf-other[open] > summary {
   margin-bottom: 6px;
 }
 .snap-etf-other > .snap-etf-group + .snap-etf-group {
