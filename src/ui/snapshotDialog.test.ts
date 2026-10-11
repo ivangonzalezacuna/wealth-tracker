@@ -366,13 +366,26 @@ describe('snapshotDialog', () => {
     setField('snapd-date', '2024-06');
     setField('snapd-acc-cash', '0');
     setField('snapd-acc-broker', '1000');
+    setField('snapd-etf-broker-IE00AAA', '500');
     getSubmit()!.click();
     await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
     expect(document.querySelector('.snapd-review')!.textContent).toContain('replace');
     expect(document.querySelector('.snapd-review')!.textContent).toContain('Copied from 2024-05');
     expect(document.querySelector('.snapd-review')!.textContent).toContain('Unexplained remainder');
     expect(document.querySelector('.snapd-review')!.textContent).toContain('900');
+    expect(document.querySelector('.dialog-header')!.hasAttribute('hidden')).toBe(true);
+    expect(document.querySelector('.snapd-review .dialog-title')!.textContent).toContain(
+      'Jun 2024',
+    );
+    const values = document.querySelectorAll('.snapd-review-values dd');
+    for (const value of values) {
+      expect(value.textContent).toContain('€');
+      expect(value.textContent).not.toContain('EUR');
+    }
+    expect(document.querySelector('.snapd-review-isin')!.textContent).toBe('IE00AAA');
+    expect(document.querySelector('.snapd-review')!.textContent).toContain('World ETF');
     (document.querySelector('.js-snapd-back') as HTMLElement).click();
+    expect(document.querySelector('.dialog-header')!.hasAttribute('hidden')).toBe(false);
     expect((document.querySelector('#snapd-acc-broker') as HTMLInputElement).value).toBe('1000');
     getSubmit()!.click();
     await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));

@@ -19,6 +19,58 @@ test.beforeEach(async ({ page }) => {
   await preparePage(page);
 });
 
+test('snapshot review uses compact aligned rows on mobile and desktop', async ({ page }) => {
+  await gotoApp(page);
+  await addAccount(page, {
+    label: 'Primary investment account with a long label',
+    institution: 'Trade Republic',
+    primary: true,
+  });
+  await openTab(page, 'tab-log');
+  await page.click('#btn-add-snap');
+  await page.getByLabel(/^Primary investment account with a long label \(/).fill('19845.48');
+  await page.locator('.snap-etf-other summary').click();
+  for (const isin of ['IE00BYX2JD69', 'IE00B4L5Y983', 'IE00BDBRDM35']) {
+    await page.click('.js-snapd-extra');
+    const row = page.locator('.snap-etf-extra').last();
+    await row.getByLabel('Other ETF ISIN').fill(isin);
+    await row.getByLabel('Other ETF value').fill('1314.96');
+  }
+  await page.click('.js-snapd-submit');
+  const review = page.locator('.snapd-review');
+  await expect(review).toBeVisible();
+  await expect(page.locator('.dialog-header')).toBeHidden();
+  for (const width of [390, 320, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    const layout = await review.evaluate((element) => {
+      const rows = Array.from(element.querySelectorAll('.snapd-review-values > div'));
+      return {
+        fontSize: getComputedStyle(element).fontSize,
+        titleSize: getComputedStyle(element.querySelector('.dialog-title')!).fontSize,
+        overflow: element.scrollWidth > element.clientWidth,
+        rowsAligned: rows.every((row) => {
+          const label = row.querySelector('dt')!.getBoundingClientRect();
+          const value = row.querySelector('dd')!.getBoundingClientRect();
+          return label.right <= value.left && value.top < label.bottom;
+        }),
+        repeatedCurrency: rows.some((row) => row.querySelector('dd')!.textContent?.includes('EUR')),
+      };
+    });
+    expect(layout).toEqual({
+      fontSize: '12px',
+      titleSize: '15px',
+      overflow: false,
+      rowsAligned: true,
+      repeatedCurrency: false,
+    });
+  }
+  await page.getByRole('button', { name: 'Back to edit' }).click();
+  await expect(page.locator('.dialog-header')).toBeVisible();
+  await expect(page.getByLabel(/^Primary investment account with a long label \(/)).toHaveValue(
+    '19845.48',
+  );
+});
+
 test('snapshot create, edit, delete, and bulk delete flows keep log data consistent', async ({
   page,
 }) => {

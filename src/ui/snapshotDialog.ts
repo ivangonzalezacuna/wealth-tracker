@@ -1,5 +1,5 @@
 import { normalizeSnapshotReview, type SnapshotReviewResult } from '../model/snapshotFx';
-import { currentMonth, fmtEur2, safeColor, esc } from '../utils';
+import { currentMonth, fmtEur2, fmtMon, safeColor, esc } from '../utils';
 import type { Account, Holding, PortfolioData, Snapshot } from '../types';
 import {
   createDialogController,
@@ -113,6 +113,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
     overlay.querySelector('.js-snapd-back')?.addEventListener('click', () => {
       _reviewed = null;
       (overlay.querySelector('.dialog-fields') as HTMLElement).hidden = false;
+      (overlay.querySelector('.dialog-header') as HTMLElement).hidden = false;
       (overlay.querySelector('.snapd-review') as HTMLElement).hidden = true;
       (overlay.querySelector('.js-snapd-back') as HTMLElement).hidden = true;
       (overlay.querySelector('.js-snapd-submit') as HTMLElement).textContent = 'Review';
@@ -544,18 +545,38 @@ async function _submit(): Promise<void> {
     const rateSummary = Object.entries(result.rates || {})
       .map(([currency, rate]) => `1 ${_esc(currency)} = ${rate} EUR`)
       .join(' — ');
-    const sourceSummary = opts.copiedFromMonth
-      ? `<p class="note">Copied from ${_esc(opts.copiedFromMonth)} — confirm values belong to the selected month.</p>`
-      : '';
-    review.innerHTML = `<h3>Review snapshot — ${_esc(date)}</h3><p class="note">All saved amounts below are EUR, as of month end. ${date === currentMonth() ? 'Current month — provisional.' : ''}</p>${sourceSummary}<p class="note">${rateSummary ? `Conversion rates used for this review: ${rateSummary}` : 'Explicit EUR amounts — no FX conversion applied.'}</p>${replacing ? '<p class="snapd-fx-status--warn" role="alert"><strong>This will replace the existing snapshot for this month.</strong> Save only if replacement is intended.</p>' : ''}<dl class="snapd-review-values">${numeric
-      .map(([key, value]) => {
-        const acct = _getDialogAccounts(opts.accounts).find((a) => a.key === key);
-        return `<div><dt>${_esc(acct?.label || key.replace(/^etf_/, 'ETF '))}</dt><dd>${fmtEur2(Number(value))} EUR</dd></div>`;
-      })
-      .join(
-        '',
-      )}</dl>${primary ? `<p class="note">ETF allocated: ${fmtEur2(allocation)} EUR — Unexplained remainder (cash or unrecorded positions): ${fmtEur2(Number(_reviewed[primary.key]) - allocation)} EUR</p>` : ''}<p class="note">Notes: ${_esc(_reviewed.notes || 'None')}</p>`;
+    const accounts = _getDialogAccounts(opts.accounts);
+    const isEtf = (key: string) => key.startsWith('etf_') && !accounts.some((a) => a.key === key);
+    const renderValues = (entries: typeof numeric): string =>
+      entries
+        .map(([key, value]) => {
+          const acct = accounts.find((a) => a.key === key);
+          const isin = isEtf(key) ? key.slice(4) : '';
+          const holding = opts.configHoldings?.find((h) => h.isin === isin);
+          const label = acct?.label || holding?.name || (isin ? `ETF ${isin}` : key);
+          const detail = holding ? `<span class="snapd-review-isin">${_esc(isin)}</span>` : '';
+          return `<div><dt>${_esc(label)}${detail}</dt><dd>${fmtEur2(Number(value))}</dd></div>`;
+        })
+        .join('');
+    const accountValues = numeric.filter(([key]) => !isEtf(key));
+    const etfValues = numeric.filter(([key]) => isEtf(key));
+    review.innerHTML = `
+      <div class="snapd-review-header">
+        <div class="dialog-title">Review snapshot — ${_esc(fmtMon(date))}</div>
+        <p class="snapd-review-context">Month-end balances · EUR${date === currentMonth() ? ' · Provisional' : ''}</p>
+      </div>
+      ${opts.copiedFromMonth ? `<p class="snapd-review-context">Copied from ${_esc(opts.copiedFromMonth)} — check values before saving.</p>` : ''}
+      ${rateSummary ? `<p class="snapd-review-context">FX applied: ${rateSummary}</p>` : ''}
+      ${replacing ? '<p class="snapd-review-warning" role="alert">Saving will replace the existing snapshot for this month.</p>' : ''}
+      <section class="snapd-review-section" aria-label="Account balances">
+        <div class="section-label">Accounts</div>
+        <dl class="snapd-review-values">${renderValues(accountValues)}</dl>
+      </section>
+      ${etfValues.length ? `<section class="snapd-review-section" aria-label="ETF values"><div class="section-label">ETF breakdown</div><dl class="snapd-review-values">${renderValues(etfValues)}</dl></section>` : ''}
+      ${primary && etfValues.length ? `<div class="snapd-review-summary"><dl class="snapd-review-values"><div><dt>ETF allocated</dt><dd>${fmtEur2(allocation)}</dd></div><div><dt>Unexplained remainder</dt><dd>${fmtEur2(Number(_reviewed[primary.key]) - allocation)}</dd></div></dl><p class="snapd-review-context">Remainder may be cash or unrecorded positions.</p></div>` : ''}
+      ${_reviewed.notes ? `<p class="snapd-review-context snapd-review-notes"><strong>Notes</strong> — ${_esc(_reviewed.notes)}</p>` : ''}`;
     (overlay.querySelector('.dialog-fields') as HTMLElement).hidden = true;
+    (overlay.querySelector('.dialog-header') as HTMLElement).hidden = true;
     review.hidden = false;
     (overlay.querySelector('.js-snapd-back') as HTMLElement).hidden = false;
     review.focus();

@@ -3183,21 +3183,74 @@ input[type='color'] {
   color: var(--ink-2);
 }
 .snapd-review {
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.4;
   overflow-wrap: anywhere;
 }
+.snapd-review-header {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.snapd-review-context {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+.snapd-review-warning {
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  color: var(--warn);
+  font-size: 11px;
+}
+.snapd-review-section .section-label {
+  padding: 0 0 4px;
+}
 .snapd-review-values {
-  display: grid;
-  gap: 8px;
+  margin: 0;
 }
 .snapd-review-values > div {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 4px 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+.snapd-review-values > div:last-child {
+  border-bottom: 0;
+}
+.snapd-review-values dt {
+  min-width: 0;
+  color: var(--ink-2);
+}
+.snapd-review-isin {
+  display: block;
+  font-size: 10px;
+  color: var(--ink-3);
 }
 .snapd-review-values dd {
   margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.snapd-review-summary {
+  padding: 7px 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+}
+.snapd-review-notes {
+  padding-top: 7px;
+  border-top: 1px solid var(--line-2);
 }
 .snap-dialog-account {
   display: flex;
