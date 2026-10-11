@@ -19,8 +19,8 @@ test.beforeEach(async ({ page }) => {
 test('portfolio and analytics surfaces core data points from imported and snapshot data', async ({
   page,
 }) => {
-  const firstMonth = monthOffsetValue(-1);
-  const secondMonth = monthOffsetValue(0);
+  const firstMonth = monthOffsetValue(-2);
+  const secondMonth = monthOffsetValue(-1);
 
   await gotoApp(page);
   await addAccount(page, {

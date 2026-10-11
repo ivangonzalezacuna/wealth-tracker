@@ -13,6 +13,7 @@ import {
   preparePage,
   snapshotRow,
   txRow,
+  waitForSyncIdle,
 } from './helpers';
 
 test.beforeEach(async ({ page }) => {
@@ -100,6 +101,7 @@ test('untracked ETF keys can be renamed and removed after saving without returni
   await gotoApp(page);
   await addAccount(page, { label: 'Manual Broker', institution: 'Trade Republic', primary: true });
   await openTab(page, 'tab-log');
+  await waitForSyncIdle(page);
   await page.click('#btn-add-snap');
   await page.fill('#snapd-date', month);
   await page.getByLabel('Manual Broker (EUR)').fill('1000');
@@ -115,6 +117,7 @@ test('untracked ETF keys can be renamed and removed after saving without returni
   await page.click('.js-snapd-submit');
   await expect(page.locator('#snap-msg')).toContainText('Saved');
 
+  await waitForSyncIdle(page);
   await page.click('#btn-add-snap');
   await page.fill('#snapd-date', nextMonth);
   await expect(page.locator('.dialog-fields')).not.toContainText('Copied from');
@@ -144,6 +147,7 @@ test('untracked ETF keys can be renamed and removed after saving without returni
   await expect(page.locator('#snap-msg')).toContainText('Saved');
 
   await snapshotRow(page, nextMonth).click();
+  await waitForSyncIdle(page);
   await page.click('.snap-detail .js-edit-snap');
   await page.locator('.snap-etf-other summary').click();
   await expect(page.locator('.snap-etf-extra')).toHaveCount(1);
@@ -155,6 +159,7 @@ test('untracked ETF keys can be renamed and removed after saving without returni
   await expect(page.locator('.snapd-review')).not.toContainText('Copied from');
   await page.click('.js-snapd-submit');
   await expect(page.locator('#snap-msg')).toContainText('Saved');
+  await waitForSyncIdle(page);
   await page.click('.snap-detail .js-edit-snap');
   await page.locator('.snap-etf-other summary').click();
   await expect(page.locator('.snap-etf-extra')).toHaveCount(0);
