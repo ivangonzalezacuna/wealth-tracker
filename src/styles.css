@@ -1441,6 +1441,26 @@ summary.section-label {
   border-radius: var(--radius-sm);
   width: 100%;
 }
+.snap-etf-other > summary,
+.snapd-currency-details > summary {
+  width: fit-content;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.snap-etf-other[open] > summary,
+.snapd-currency-details[open] > summary {
+  margin-bottom: 6px;
+}
+.snapd-currency-help {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
 .snap-etf-group-label {
   font-size: 10px;
   text-transform: uppercase;
@@ -1462,6 +1482,17 @@ summary.section-label {
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+.snap-etf-row.snap-etf-extra {
+  grid-template-columns: minmax(0, 1fr) minmax(84px, 104px) auto;
+}
+.snap-etf-extra > input {
+  min-width: 0;
+  width: 100%;
+}
+.snap-etf-extra .js-snapd-remove {
+  padding: 4px 6px;
+  font-size: 11px;
 }
 .snap-etf-name-col {
   display: flex;

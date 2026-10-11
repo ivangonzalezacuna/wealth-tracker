@@ -1,4 +1,5 @@
 import { normalizeSnapshotReview, type SnapshotReviewResult } from '../model/snapshotFx';
+import { isValidISIN, normalizeISIN } from '../model/isin';
 import { currentMonth, fmtEur2, fmtMon, safeColor, esc } from '../utils';
 import type { Account, Holding, PortfolioData, Snapshot } from '../types';
 import {
@@ -11,6 +12,7 @@ import {
 let _activeOpts: SnapshotDialogOptions | null = null;
 let _reviewed: Snapshot | null = null;
 let _busy = false;
+const _representedEtfKeys = new WeakMap<HTMLElement, Set<string>>();
 const _dialog = createDialogController<Snapshot | null>(null, {
   overlaySelector: '.snap-dialog-overlay',
   reset: () => {
@@ -86,8 +88,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
                 value="${_esc(draft?.notes || '')}" placeholder="e.g. catch-up done, got raise...">
             </div>
           </div>
-          ${opts.copiedFromMonth ? `<p class="note">Copied from ${_esc(opts.copiedFromMonth)} — check every balance for the selected month.</p>` : ''}
-          ${_getDialogAccounts(opts.accounts).some((a) => a.currency !== 'EUR') ? `<label class="note snapd-entry-mode"><input type="checkbox" id="snapd-eur" ${draft ? 'checked' : ''}> Enter all balances and ETF values explicitly in EUR (not native currency)</label><p class="note">Copied and stored balances are canonical EUR. Switching entry currency converts the displayed draft only when rates are available.</p>` : ''}
+          ${_getDialogAccounts(opts.accounts).some((a) => a.currency !== 'EUR') ? `<div class="snapd-currency-help"><label class="note snapd-entry-mode"><input type="checkbox" id="snapd-eur" ${draft ? 'checked' : ''}> Enter all values in EUR</label><details class="snapd-currency-details"><summary>Currency help</summary><p class="note">Otherwise use each account’s native currency. Stored values are EUR; switching converts the draft only when FX rates are available.</p></details></div>` : ''}
           ${_renderAccountFields(opts.accounts, opts.holdings, opts.configHoldings || [], draft)}
           <div class="dialog-error" id="snapd-review-err" role="alert"></div>
         </div>
@@ -99,6 +100,14 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
         </div>
       </div>`;
 
+    _representedEtfKeys.set(
+      overlay,
+      new Set(
+        Array.from(overlay.querySelectorAll<HTMLInputElement>('[data-etf-isin]')).map(
+          (input) => `etf_${input.dataset.etfIsin}`,
+        ),
+      ),
+    );
     openDialogShell(_dialog, {
       overlay,
       onDismiss: () => _dismiss(null),
@@ -120,12 +129,27 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
       (overlay.querySelector('#snapd-date') as HTMLElement).focus();
     });
     overlay.addEventListener('click', (e) => {
+      const remove = (e.target as HTMLElement).closest('.js-snapd-remove') as HTMLElement | null;
+      if (remove) {
+        const row = remove.closest('.snap-etf-extra')!;
+        const key = remove.dataset.acctKey || '';
+        const group = row.parentElement!;
+        const rows = Array.from(group.querySelectorAll('.snap-etf-extra'));
+        const next = rows[rows.indexOf(row) + 1] || rows[rows.indexOf(row) - 1];
+        row.remove();
+        _updateRecon(key);
+        (
+          next?.querySelector<HTMLElement>('[data-extra-isin]') ||
+          group.querySelector<HTMLElement>('.js-snapd-extra')
+        )?.focus();
+        return;
+      }
       const add = (e.target as HTMLElement).closest('.js-snapd-extra') as HTMLElement | null;
       if (add) {
         const key = add.dataset.acctKey || '';
         const row = document.createElement('div');
         row.className = 'snap-etf-row snap-etf-extra';
-        row.innerHTML = `<input class="form-input" placeholder="ISIN" aria-label="Other ETF ISIN" data-extra-isin><input class="form-input snap-etf-input" inputmode="decimal" placeholder="Value" aria-label="Other ETF value" data-etf-isin="" data-acct-key="${_esc(key)}">`;
+        row.innerHTML = _renderManualEtfFields(key);
         add.before(row);
         (row.firstElementChild as HTMLElement).focus();
         return;
@@ -188,7 +212,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
       const month = monthInput?.value || '';
       const end = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
       (overlay.querySelector('#snapd-month-note') as HTMLElement).textContent =
-        `Record balances as of ${month}-${end}. ${month === today ? 'Current month — provisional, month end has not completed.' : 'Use month-end statement or account values, not today’s balance.'}`;
+        `Month-end balances as of ${month}-${end}.${month === today ? ' Current month is provisional.' : ''}`;
     };
     monthInput?.addEventListener('change', () => {
       const modeInput = overlay.querySelector('#snapd-eur') as HTMLInputElement | null;
@@ -312,7 +336,7 @@ function _renderEtfBreakdown(
       .map((h) => h.isin),
   );
   const rows = new Map<string, { isin: string; name: string; shortName: string; color: string }>(
-    held.map((pos) => [pos.isin, pos]),
+    Object.values(holdings || {}).map((pos) => [pos.isin, pos]),
   );
   for (const h of configHoldings) {
     if (!rows.has(h.isin)) rows.set(h.isin, h);
@@ -323,7 +347,7 @@ function _renderEtfBreakdown(
       key.startsWith('etf_') &&
       !accountKeys.has(key) &&
       typeof draft?.[key] === 'number' &&
-      /^[A-Z0-9]+$/.test(key.slice(4))
+      isValidISIN(key.slice(4))
     ) {
       const isin = key.slice(4);
       if (!rows.has(isin)) rows.set(isin, { isin, name: isin, shortName: isin, color: '#888888' });
@@ -344,6 +368,12 @@ function _renderEtfBreakdown(
     color: string;
   }): string => {
     const value = draft?.[`etf_${pos.isin}`];
+    if (
+      !configHoldings.some((h) => h.isin === pos.isin) &&
+      !Object.values(holdings || {}).some((h) => h.isin === pos.isin)
+    ) {
+      return `<div class="snap-etf-row snap-etf-extra">${_renderManualEtfFields(acctKey, pos.isin, value)}</div>`;
+    }
     return `
       <div class="snap-etf-row">
         <div class="snap-etf-meta">
@@ -389,6 +419,10 @@ function _renderEtfBreakdown(
     </div>`;
 }
 
+function _renderManualEtfFields(acctKey: string, isin = '', value?: Snapshot[string]): string {
+  return `<input class="form-input form-input-sm" placeholder="ISIN" aria-label="Other ETF ISIN" data-extra-isin data-acct-key="${_esc(acctKey)}" value="${_esc(isin)}"><input class="form-input form-input-sm snap-etf-input" inputmode="decimal" placeholder="Value" aria-label="Other ETF value" data-etf-isin="${_esc(isin)}" data-acct-key="${_esc(acctKey)}" value="${typeof value === 'number' ? _esc(String(value)) : ''}"><button type="button" class="btn btn-sm btn-ghost js-snapd-remove" data-acct-key="${_esc(acctKey)}" aria-label="Remove other ETF">Remove</button>`;
+}
+
 async function _submit(): Promise<void> {
   const overlay = _dialog.overlay();
   if (!overlay || !_activeOpts || _busy) return;
@@ -431,6 +465,8 @@ async function _submit(): Promise<void> {
     date,
     notes: (overlay.querySelector('#snapd-notes') as HTMLInputElement | null)?.value.trim() || '',
   };
+  // Clear every originally represented key before applying current rows, including renames/removals.
+  for (const key of _representedEtfKeys.get(overlay) || []) delete snap[key];
   let valid = !(overlay.querySelector('#snapd-date-err') as HTMLElement | null)?.textContent;
 
   for (const acct of _getDialogAccounts(_activeOpts.accounts)) {
@@ -456,14 +492,14 @@ async function _submit(): Promise<void> {
       const raw = input.value.trim();
       const value = parseNum(raw);
       const extraIsin = input.parentElement?.querySelector<HTMLInputElement>('[data-extra-isin]');
-      const isin = (extraIsin?.value || input.dataset.etfIsin || '').trim().toUpperCase();
+      const isin = normalizeISIN(extraIsin ? extraIsin.value : input.dataset.etfIsin || '');
       if (extraIsin && !raw && !isin) continue;
       if (
         !isin ||
         !/^[A-Z0-9]+$/.test(isin) ||
         seen.has(isin) ||
         _getDialogAccounts(opts.accounts).some((a) => a.key === `etf_${isin}`) ||
-        (extraIsin && !/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(isin))
+        (extraIsin && !isValidISIN(isin))
       ) {
         input.setAttribute('aria-invalid', 'true');
         if (extraIsin) extraIsin.setAttribute('aria-invalid', 'true');
@@ -533,8 +569,17 @@ async function _submit(): Promise<void> {
     }
     _reviewed = result.snapshot;
     const review = overlay.querySelector<HTMLElement>('.snapd-review')!;
-    const replacing = opts.existingMonths?.includes(date);
+    const replacing = opts.existingMonths?.includes(date) || opts.existing?.date === date;
     const numeric = Object.entries(_reviewed).filter(([, v]) => typeof v === 'number');
+    const baseline = Object.entries(opts.prefill || {}).filter(([, v]) => typeof v === 'number');
+    const copiedUnchanged =
+      !opts.existing &&
+      opts.mode !== 'edit' &&
+      !!opts.copiedFromMonth &&
+      opts.copiedFromMonth !== date &&
+      !!opts.prefill &&
+      numeric.length === baseline.length &&
+      baseline.every(([key, value]) => _reviewed![key] === value);
     const primary = _getDialogAccounts(opts.accounts).find((a) => a.showEtfBreakdown);
     const allocation = numeric
       .filter(
@@ -565,7 +610,7 @@ async function _submit(): Promise<void> {
         <div class="dialog-title">Review snapshot — ${_esc(fmtMon(date))}</div>
         <p class="snapd-review-context">Month-end balances · EUR${date === currentMonth() ? ' · Provisional' : ''}</p>
       </div>
-      ${opts.copiedFromMonth ? `<p class="snapd-review-context">Copied from ${_esc(opts.copiedFromMonth)} — check values before saving.</p>` : ''}
+      ${copiedUnchanged ? `<p class="snapd-review-context">Copied from ${_esc(opts.copiedFromMonth)} — values are unchanged; check before saving.</p>` : ''}
       ${rateSummary ? `<p class="snapd-review-context">FX applied: ${rateSummary}</p>` : ''}
       ${replacing ? '<p class="snapd-review-warning" role="alert">Saving will replace the existing snapshot for this month.</p>' : ''}
       <section class="snapd-review-section" aria-label="Account balances">
