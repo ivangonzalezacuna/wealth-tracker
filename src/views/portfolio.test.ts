@@ -299,6 +299,14 @@ describe('renderPortfolio', () => {
     expect(summary).not.toContain('Unrealized P&L (positions)');
   });
 
+  it('treats an explicit zero ETF market value as recorded rather than omitted', () => {
+    renderPortfolio(makePD(), [{ date: '2026-06', acct1: 1200, etf_IE00TEST1: 0 }]);
+    const summary = document.getElementById('port-summary')!.textContent!;
+    expect(summary).toContain('Market value (positions)');
+    expect(summary).toContain('Unrealized P&L (positions)');
+    expect(summary).toContain('Unallocated cash');
+  });
+
   it('hides Account value row when it equals Market value (no unallocated cash)', () => {
     const snap: Snapshot = { date: '2026-06-01', acct1: 1200, etf_IE00TEST1: 1200 };
     renderPortfolio(makePD(), [snap]);

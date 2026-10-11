@@ -14,6 +14,58 @@ export interface SnapshotFxNormalizationOptions {
   onRateUnavailable?: (currency: string) => void;
 }
 
+export interface SnapshotReviewResult {
+  snapshot?: Snapshot;
+  error?: string;
+  rates?: Record<string, number>;
+}
+
+/** Normalize only explicitly entered fields; hidden/retired canonical keys stay untouched. */
+export async function normalizeSnapshotReview(
+  snap: Snapshot,
+  currencies: Record<string, string>,
+): Promise<SnapshotReviewResult> {
+  const normalized = { ...snap };
+  const getRate = makeCachedRateLookup(snap.date);
+  const rates: Record<string, number> = {};
+  let attempted = 0;
+  let resolved = 0;
+  let failed = 0;
+  try {
+    for (const [key, currency] of Object.entries(currencies)) {
+      const value = snap[key];
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        return { error: 'Every entered balance must be a finite number.' };
+      }
+      if (currency === APP_CURRENCY) continue;
+      attempted += 1;
+      let rate: number | null;
+      try {
+        rate = await getRate(currency);
+      } catch {
+        failed += 1;
+        throw new Error('FX unavailable');
+      }
+      if (rate === null) {
+        failed += 1;
+        return {
+          error: `FX unavailable for ${currency}. Retry Review or choose explicit EUR entry and enter converted values.`,
+        };
+      }
+      resolved += 1;
+      rates[currency] = rate;
+      const converted = value * rate;
+      if (!Number.isFinite(converted)) return { error: 'Converted amount is too large.' };
+      normalized[key] = converted;
+    }
+    return { snapshot: normalized, rates };
+  } catch {
+    return { error: 'FX rate fetch failed. Retry Review or choose explicit EUR entry.' };
+  } finally {
+    if (attempted) void recordFxNormalize(attempted, resolved, failed).catch(() => {});
+  }
+}
+
 /**
  * Returns the distinct non-base currencies used by the given accounts.
  * Useful for callers that need to know which currency pairs will be needed
@@ -39,23 +91,25 @@ function makeCachedRateLookup(yearMonth: string): (currency: string) => Promise<
   return async (currency: string): Promise<number | null> => {
     if (rateCache.has(currency)) return rateCache.get(currency) ?? null;
     const fxRecord = await resolveMonthEndRate(currency, yearMonth);
-    const rate = fxRecord && fxRecord.rate > 0 ? fxRecord.rate : null;
+    const rate =
+      fxRecord && Number.isFinite(fxRecord.rate) && fxRecord.rate > 0 ? fxRecord.rate : null;
     rateCache.set(currency, rate);
     return rate;
   };
 }
 
 /**
- * Apply FX normalization to all snapshot balances.
+ * Legacy normalization helper — retained for compatibility tests.
+ * Monthly snapshot entry uses normalizeSnapshotReview instead and blocks
+ * saving when required FX rates are unavailable.
  *
  * For each account key in the snapshot whose account denomination currency
  * differs from APP_CURRENCY (EUR), this function fetches the month-end rate
- * and multiplies the stored balance so that all values reaching the database
- * are in EUR.
+ * and multiplies the provided balance.
  *
  * Graceful degradation: when the FX service is disabled, offline, or returns
  * an error for a particular pair, the original (unconverted) balance is kept
- * so existing offline-first behavior is fully preserved.
+ * for legacy callers only; this fallback is not safe for new snapshot saves.
  *
  * EUR-only portfolios (no account with a non-EUR currency) skip all async
  * work and return the snapshot unchanged.

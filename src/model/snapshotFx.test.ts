@@ -9,11 +9,60 @@ vi.mock('../services/fxRateService', () => ({
   recordFxNormalize: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { applySnapshotFxNormalization, prepareSnapshotFxEditDraft } from './snapshotFx';
+import {
+  applySnapshotFxNormalization,
+  prepareSnapshotFxEditDraft,
+  normalizeSnapshotReview,
+} from './snapshotFx';
 import { resolveMonthEndRate } from '../fx';
+import { recordFxNormalize } from '../services/fxRateService';
 import type { Snapshot, Account, FxRateRecord } from '../types';
 
 const mockResolveMonthEndRate = vi.mocked(resolveMonthEndRate);
+
+describe('normalizeSnapshotReview', () => {
+  it('returns canonical reviewed amounts with one rate per currency and preserves unknown canonical keys', async () => {
+    mockResolveMonthEndRate.mockResolvedValue(makeRate(0.9));
+    const result = await normalizeSnapshotReview(
+      { date: '2024-01', broker: 1000, etf_ABC: 500, retired: 250 },
+      { broker: 'USD', etf_ABC: 'USD' },
+    );
+    expect(result.snapshot).toEqual({ date: '2024-01', broker: 900, etf_ABC: 450, retired: 250 });
+    expect(mockResolveMonthEndRate).toHaveBeenCalledTimes(1);
+    expect(result.rates).toEqual({ USD: 0.9 });
+    expect(recordFxNormalize).toHaveBeenCalledWith(2, 2, 0);
+  });
+
+  it('never returns a saveable raw foreign balance when rates are unavailable', async () => {
+    mockResolveMonthEndRate.mockResolvedValue(null);
+    expect(
+      await normalizeSnapshotReview({ date: '2024-01', broker: 1000 }, { broker: 'USD' }),
+    ).toEqual({ error: expect.stringContaining('FX unavailable') });
+    expect(recordFxNormalize).toHaveBeenCalledWith(1, 0, 1);
+  });
+
+  it('allows explicit EUR amounts without fetching rates', async () => {
+    const snap = { date: '2024-01', broker: 900 };
+    expect(await normalizeSnapshotReview(snap, { broker: 'EUR' })).toEqual({
+      snapshot: snap,
+      rates: {},
+    });
+    expect(mockResolveMonthEndRate).not.toHaveBeenCalled();
+  });
+
+  it('uses the selected month and rejects invalid rates and conversion overflow', async () => {
+    mockResolveMonthEndRate.mockResolvedValue(makeRate(Infinity));
+    expect(
+      (await normalizeSnapshotReview({ date: '2024-02', broker: 1000 }, { broker: 'USD' }))
+        .snapshot,
+    ).toBeUndefined();
+    expect(mockResolveMonthEndRate).toHaveBeenCalledWith('USD', '2024-02');
+    mockResolveMonthEndRate.mockResolvedValue(makeRate(10));
+    expect(
+      (await normalizeSnapshotReview({ date: '2024-02', broker: 1e308 }, { broker: 'USD' })).error,
+    ).toContain('too large');
+  });
+});
 
 afterEach(() => {
   vi.clearAllMocks();

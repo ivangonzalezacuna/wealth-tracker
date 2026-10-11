@@ -61,7 +61,7 @@ function extractSnapEtfValues(snap: Snapshot | null): Record<string, number> {
   if (!snap) return {};
   const out: Record<string, number> = {};
   for (const [key, val] of Object.entries(snap)) {
-    if (key.startsWith('etf_') && typeof val === 'number' && val > 0) {
+    if (key.startsWith('etf_') && typeof val === 'number' && Number.isFinite(val) && val >= 0) {
       out[key.slice(4)] = val;
     }
   }

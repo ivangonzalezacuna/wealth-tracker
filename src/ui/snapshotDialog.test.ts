@@ -100,6 +100,7 @@ function baseOpts(extra: Partial<Parameters<typeof snapshotDialog>[0]> = {}) {
     accounts,
     holdings,
     configHoldings,
+    onReview: async (draft: Snapshot) => ({ snapshot: draft }),
     ...extra,
   };
 }
@@ -181,8 +182,11 @@ describe('snapshotDialog', () => {
   it('accepts partial ETF allocation as unallocated cash', async () => {
     const p = snapshotDialog(baseOpts());
     (document.querySelector('.snap-etf-toggle') as HTMLButtonElement).click();
+    setField('snapd-acc-cash', '0');
     setField('snapd-acc-broker', '1000');
     setField('snapd-etf-broker-IE00AAA', '700');
+    getSubmit()!.click();
+    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
     getSubmit()!.click();
     const snap = await p;
     expect(snap).not.toBeNull();
@@ -219,6 +223,8 @@ describe('snapshotDialog', () => {
     setField('snapd-acc-broker', '1000');
     setField('snapd-etf-broker-IE00AAA', '750');
     setField('snapd-etf-broker-IE00BBB', '250');
+    getSubmit()!.click();
+    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
     getSubmit()!.click();
     const snap = await p;
     expect(snap).not.toBeNull();
@@ -323,5 +329,209 @@ describe('snapshotDialog', () => {
     expect(status?.textContent).toContain('FX rate fetch failed');
     expect(status?.textContent).toContain('converted to EUR');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('defaults to the last completed month and marks the current month provisional', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 15));
+    snapshotDialog(baseOpts());
+    expect((document.querySelector('#snapd-date') as HTMLInputElement).value).toBe('2025-12');
+    setField('snapd-date', '2026-01');
+    document.querySelector('#snapd-date')!.dispatchEvent(new Event('change'));
+    expect(document.querySelector('#snapd-month-note')!.textContent).toContain('provisional');
+    getCancel()!.click();
+    vi.useRealTimers();
+  });
+
+  it.each(['', '12junk', 'Infinity', 'NaN', '1e309', '1e3', '12,34.50'])(
+    'rejects non-complete account number %s',
+    async (raw) => {
+      snapshotDialog(baseOpts());
+      setField('snapd-acc-cash', raw);
+      setField('snapd-acc-broker', '1000');
+      getSubmit()!.click();
+      expect(document.querySelector('#snapd-acc-cash-err')!.textContent).toContain(
+        'explicit finite',
+      );
+      expect(document.querySelector('.snapd-review')!.hasAttribute('hidden')).toBe(true);
+      getCancel()!.click();
+    },
+  );
+
+  it('reviews canonical amounts once, warns about replacement and Back preserves draft', async () => {
+    const onReview = vi.fn(async (draft: Snapshot) => ({ snapshot: { ...draft, broker: 900 } }));
+    const p = snapshotDialog(
+      baseOpts({ existingMonths: ['2024-06'], copiedFromMonth: '2024-05', onReview }),
+    );
+    setField('snapd-date', '2024-06');
+    setField('snapd-acc-cash', '0');
+    setField('snapd-acc-broker', '1000');
+    getSubmit()!.click();
+    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    expect(document.querySelector('.snapd-review')!.textContent).toContain('replace');
+    expect(document.querySelector('.snapd-review')!.textContent).toContain('900');
+    (document.querySelector('.js-snapd-back') as HTMLElement).click();
+    expect((document.querySelector('#snapd-acc-broker') as HTMLInputElement).value).toBe('1000');
+    getSubmit()!.click();
+    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    getSubmit()!.click();
+    expect((await p)!.broker).toBe(900);
+    expect(onReview).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps draft on failed FX review and supports explicit EUR retry', async () => {
+    const onReview = vi
+      .fn()
+      .mockResolvedValueOnce({ error: 'FX unavailable for USD — retry or use EUR.' })
+      .mockImplementation(async (draft: Snapshot) => ({ snapshot: draft }));
+    const p = snapshotDialog(baseOpts({ onReview }));
+    setField('snapd-acc-cash', '0');
+    setField('snapd-acc-broker', '1000');
+    getSubmit()!.click();
+    await vi.waitFor(() =>
+      expect(document.querySelector('#snapd-review-err')!.textContent).toContain('FX unavailable'),
+    );
+    expect(getOverlay()).not.toBeNull();
+    expect((document.querySelector('#snapd-acc-broker') as HTMLInputElement).value).toBe('1000');
+    setField('snapd-acc-broker', '');
+    (document.querySelector('#snapd-eur') as HTMLInputElement).click();
+    setField('snapd-acc-broker', '900');
+    getSubmit()!.click();
+    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    expect(onReview.mock.calls[1][1].broker).toBe('EUR');
+    getSubmit()!.click();
+    expect((await p)!.broker).toBe(900);
+  });
+
+  it('preserves hidden extra ETFs, retired balances, unknown keys and explicit zeros on edit', async () => {
+    const existing = {
+      date: '2024-06',
+      cash: 0,
+      broker: 1000,
+      retired: 123,
+      future: 'metadata',
+      etf_IE00CCC: 250,
+      etf_IE00AAA: 0,
+    };
+    const p = snapshotDialog(baseOpts({ existing }));
+    expect((document.querySelector('.snap-etf-other') as HTMLDetailsElement).open).toBe(false);
+    getSubmit()!.click();
+    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    getSubmit()!.click();
+    expect(await p).toEqual({ ...existing, notes: '' });
+  });
+
+  it('copies canonical EUR safely, converts to native on request, and clears stale month context', async () => {
+    const onFxPrefetchMonth = vi.fn().mockResolvedValue({
+      needed: true,
+      disabled: false,
+      attempted: 1,
+      resolved: 1,
+      failed: 0,
+      rates: { USD: 0.9 },
+    });
+    snapshotDialog(
+      baseOpts({
+        prefill: { date: '2024-06', cash: 0, broker: 900, etf_IE00AAA: 450 },
+        onFxPrefetchMonth,
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(document.querySelector('#snapd-fx-status')!.textContent).toContain('ready'),
+    );
+    expect(document.querySelector('label[for="snapd-acc-broker"]')!.textContent).toContain('EUR');
+    (document.querySelector('#snapd-eur') as HTMLInputElement).click();
+    expect((document.querySelector('#snapd-acc-broker') as HTMLInputElement).value).toBe('1000');
+    expect((document.querySelector('#snapd-etf-broker-IE00AAA') as HTMLInputElement).value).toBe(
+      '500',
+    );
+    setField('snapd-date', '2024-07');
+    document.querySelector('#snapd-date')!.dispatchEvent(new Event('change'));
+    expect((document.querySelector('#snapd-eur') as HTMLInputElement).checked).toBe(true);
+    expect((document.querySelector('#snapd-acc-broker') as HTMLInputElement).value).toBe('900');
+    getCancel()!.click();
+  });
+
+  it('locks draft while asynchronous review is pending and ignores a dismissed result', async () => {
+    let complete!: (value: { snapshot: Snapshot }) => void;
+    const onReview = () =>
+      new Promise<{ snapshot: Snapshot }>((resolve) => {
+        complete = resolve;
+      });
+    const p = snapshotDialog(baseOpts({ onReview }));
+    setField('snapd-acc-cash', '0');
+    setField('snapd-acc-broker', '1000');
+    getSubmit()!.click();
+    expect((document.querySelector('#snapd-acc-broker') as HTMLInputElement).disabled).toBe(true);
+    getCancel()!.click();
+    complete({ snapshot: { date: '2024-06', broker: 900 } });
+    expect(await p).toBeNull();
+    await Promise.resolve();
+    expect(getOverlay()).toBeNull();
+  });
+
+  it('keeps review focus on visible actions rather than hidden draft fields', async () => {
+    snapshotDialog(baseOpts());
+    setField('snapd-acc-cash', '0');
+    setField('snapd-acc-broker', '1000');
+    getSubmit()!.click();
+    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    getSubmit()!.focus();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    expect(document.activeElement).toBe(getCancel());
+    getCancel()!.focus();
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }),
+    );
+    expect(document.activeElement).toBe(getSubmit());
+    getCancel()!.click();
+  });
+
+  it.each(['1,234.50', '1.234,50'])('accepts complete locale format %s', async (value) => {
+    const p = snapshotDialog(baseOpts());
+    setField('snapd-acc-cash', value);
+    setField('snapd-acc-broker', '0');
+    getSubmit()!.click();
+    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    getSubmit()!.click();
+    expect((await p)!.cash).toBe(1234.5);
+  });
+
+  it('keeps active held ETFs without strategic targets in the usual group', () => {
+    snapshotDialog(
+      baseOpts({ configHoldings: configHoldings.map((h) => ({ ...h, targetPct: undefined })) }),
+    );
+    const usual = document.querySelector('.snap-etf-group')!;
+    expect(usual.textContent).toContain('World ETF');
+    expect(usual.closest('details')).toBeNull();
+    expect(document.querySelector('.snap-etf-other')!.textContent).toContain('Legacy ETF');
+    getCancel()!.click();
+  });
+
+  it('accepts configured ETFs without transactions and multiple untracked extra rows; rejects duplicates', async () => {
+    const p = snapshotDialog(baseOpts({ holdings: {} }));
+    setField('snapd-acc-cash', '0');
+    setField('snapd-acc-broker', '1000');
+    setField('snapd-etf-broker-IE00AAA', '100');
+    for (const isin of ['IE0000000001', 'IE0000000002']) {
+      (document.querySelector('.js-snapd-extra') as HTMLElement).click();
+      const rows = document.querySelectorAll('.snap-etf-extra');
+      const row = rows[rows.length - 1];
+      (row.querySelector('[data-extra-isin]') as HTMLInputElement).value = isin;
+      (row.querySelector('[data-etf-isin]') as HTMLInputElement).value = '100';
+    }
+    const isins = document.querySelectorAll<HTMLInputElement>('[data-extra-isin]');
+    isins[1].value = isins[0].value;
+    getSubmit()!.click();
+    expect(document.querySelector('#snapd-etf-broker-err')!.textContent).toContain('duplicates');
+    isins[1].value = 'IE0000000002';
+    getSubmit()!.click();
+    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    getSubmit()!.click();
+    expect(await p).toMatchObject({
+      etf_IE0000000001: 100,
+      etf_IE0000000002: 100,
+      etf_IE00AAA: 100,
+    });
   });
 });

@@ -45,8 +45,10 @@ test('mixed-currency snapshot flow stays stable when FX integration is disabled'
 
   await snapshotRow(page, month).click();
   await page.click('.snap-detail .js-edit-snap');
-  await expect(page.getByLabel('USD Broker (USD)')).toBeVisible();
-  await page.getByLabel('USD Broker (USD)').fill('1200');
+  await expect(page.getByLabel('USD Broker (EUR)')).toBeVisible();
+  await page.getByLabel('USD Broker (EUR)').fill('1200');
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('.snapd-review')).toBeVisible();
   await page.click('.js-snapd-submit');
   await expect(page.locator('#snap-msg')).toContainText('Saved');
   await expect(snapshotRow(page, month)).toContainText(formatUiMoney(1200));
@@ -80,6 +82,38 @@ test('FX integrations card exposes status and save/clear actions', async ({ page
   await page.click('#btn-fx-clear-cache');
   await page.click('.js-confirm-ok');
   await expect(page.locator('#fx-int-msg')).toContainText('FX cache cleared.');
+});
+
+test('unavailable native FX blocks review, keeps draft and permits explicit EUR recovery on mobile', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await gotoApp(page);
+  await addAccount(page, { label: 'USD Cash', institution: 'Wise', currency: 'USD' });
+  await openTab(page, 'tab-settings');
+  await ensureCardExpanded(page, 'settings-card-integrations');
+  await page.uncheck('#fx-integration-enabled');
+  await page.click('#btn-save-fx-integration');
+  await expect(page.locator('#fx-int-msg')).toContainText('Saved');
+  await openTab(page, 'tab-log');
+  await page.click('#btn-add-snap');
+  await page.uncheck('#snapd-eur');
+  await page.getByLabel('USD Cash (USD)').fill('1000');
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('#snapd-review-err')).toContainText('FX unavailable');
+  await expect(page.getByLabel('USD Cash (USD)')).toHaveValue('1000');
+  await expect(page.locator('.snapd-review')).toBeHidden();
+  await page.getByLabel('USD Cash (USD)').fill('');
+  await page.check('#snapd-eur');
+  await page.getByLabel('USD Cash (EUR)').fill('900');
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('.snapd-review')).toContainText(formatUiMoney(900));
+  await page.click('.js-snapd-back');
+  await expect(page.getByLabel('USD Cash (EUR)')).toHaveValue('900');
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('.snapd-review')).toBeVisible();
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('#snap-msg')).toContainText('Saved');
 });
 
 test('net worth KPI shows "in USD" indicator for a non-EUR account', async ({ page }) => {

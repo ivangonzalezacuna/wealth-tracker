@@ -3169,6 +3169,36 @@ input[type='color'] {
 .snap-dialog-card {
   max-width: 720px;
 }
+.snap-dialog-card [hidden] {
+  display: none !important;
+}
+.snapd-entry-mode {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.snap-etf-other summary {
+  cursor: pointer;
+  padding: 8px;
+  color: var(--ink-2);
+}
+.snapd-review {
+  padding: 16px;
+  overflow-wrap: anywhere;
+}
+.snapd-review-values {
+  display: grid;
+  gap: 8px;
+}
+.snapd-review-values > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.snapd-review-values dd {
+  margin: 0;
+}
 .snap-dialog-account {
   display: flex;
   flex-direction: column;

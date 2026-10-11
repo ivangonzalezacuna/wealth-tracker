@@ -130,7 +130,7 @@ Each holding can be given a **target allocation percentage** (set in the holding
 
 ### 3. Log your first monthly snapshot
 
-Go to the **+ Log** tab. Enter the current value for each account, then hit **Save snapshot**. This records your net worth for the month.
+Go to the **+ Log** tab. Enter the closing value for each account for the selected month, review the draft, then hit **Save snapshot**. This records your net worth for the month.
 
 Once these three steps are done, the setup banner transitions to a **"Recommended next steps"** prompt with two optional-but-important actions:
 
@@ -143,14 +143,18 @@ The banner disappears automatically once both are completed, or you can dismiss 
 
 1. Open the app on any device
 2. Go to the **+ Log** tab
-3. Enter account balances (~2 min)
-4. For investment accounts, optionally expand **ETF breakdown** to record the current market value of each ETF position (see below)
-5. Hit **Save snapshot** (saved immediately; synced to Drive within seconds when online)
+3. Select the month and enter its closing account balances. New snapshots default to the last completed month; current-month entries are provisional.
+4. For the primary investment account, optionally expand **ETF breakdown** to record the closing market value of each ETF position (see below).
+5. Review the draft, then hit **Save snapshot** (saved locally; synced to Drive when online).
 6. Re-import your broker CSV whenever you want updated cost-basis or dividend data
 
 #### Per-ETF market values in snapshots
 
-When recording a snapshot for your primary investment account, you can expand the **ETF breakdown** section to enter the current market value of each individual ETF position.
+The month describes when the balances were valued, not when you type them in. For example, record October's closing balances as **October**, even if you enter them in November. October ends on 31 October; a screenshot of November's current portfolio does not necessarily show October's closing values.
+
+Copied values are starting points, not fresh valuations — check their source month and update them before saving. Enter an explicit balance for every account, including zero where appropriate. Non-EUR balances must be converted successfully or explicitly entered in EUR; an unavailable FX rate must not silently mix currencies in your saved snapshot.
+
+When recording a snapshot for your primary investment account, you can expand the **ETF breakdown** section to enter the closing market value of each individual ETF position.
 
 This is optional, but enables two additional features:
 
@@ -161,14 +165,17 @@ This is optional, but enables two additional features:
 
 1. Enter the account total in the main balance field as usual.
 2. Click **ETF breakdown** to expand the section.
-3. Enter the current market value for each ETF (visible in your broker app, e.g. Trade Republic's Vermogensübersicht).
+3. Enter the closing market value for each ETF (from your broker's dated portfolio view or statement). Use the collapsed **Other ETFs** section for additional configured or untracked positions, identified by ISIN. These entries do not create transactions or holdings configuration.
 4. The reconciliation bar at the bottom shows **Allocated** (sum of ETF values entered) and **Remaining** (account total minus allocated), helping you catch typos before saving.
    - Remaining turns amber if you have over-allocated (sum exceeds total).
-   - Remaining stays green when ETF values are at or below the account total (the difference is unallocated cash).
+   - Remaining stays green when ETF values are at or below the account total. The difference is an unexplained remainder — it may be cash or positions you have not recorded, not automatically confirmed cash.
+5. Review account totals, ETF allocation, currency conversion and any existing-month replacement. Use **Back to edit** to make corrections without losing your draft, then save.
 
 **Storage format**
 
 Per-ETF market values are stored in the snapshot record as `etf_<ISIN>` keys alongside the regular account balance keys (e.g. `etf_IE00B4L5Y983: 12500`). No separate database migration is needed; missing keys are treated as "no data".
+
+Import assistance is deferred. See [snapshot import options](docs/snapshot-import-options.md) for paste-table, valuation CSV, local PDF and screenshot OCR trade-offs.
 
 **Inactive but held positions**
 

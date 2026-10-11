@@ -114,11 +114,7 @@ import { isBusy, setBusy } from './sync/lock';
 import { registerSW } from 'virtual:pwa-register';
 import type { Snapshot, Transaction, PortfolioData, ImportProfile } from './types';
 import { buildAppSecuritySuggestions } from './securitySuggestions';
-import {
-  applySnapshotFxNormalization,
-  prepareSnapshotFxEditDraft,
-  getNonBaseCurrencies,
-} from './model/snapshotFx';
+import { normalizeSnapshotReview, getNonBaseCurrencies } from './model/snapshotFx';
 import { APP_CURRENCY } from './fx';
 import { prefetchMonthEndRates, type FxPrefetchResult } from './services/fxRateService';
 
@@ -1383,31 +1379,22 @@ async function saveMonthlyUpdate(editDate?: string) {
   if (!ensureWriteAccess('snap-msg')) return;
 
   const accounts = getAccounts();
-  const fxUnavailableCurrencies = new Set<string>();
   const existing = editDate ? state.snaps.find((s) => s.date === editDate) : undefined;
-  const existingDraft = existing ? await prepareSnapshotFxEditDraft(existing, accounts) : undefined;
 
   const snap = await snapshotDialog({
     mode: existing ? 'edit' : 'add',
-    existing: existingDraft,
+    existing,
     prefill: existing ? undefined : prefillSnapFormFromLatest(),
     accounts,
     holdings: state.pd?.etfs || {},
     configHoldings: getHoldings(),
+    existingMonths: state.snaps.map((s) => s.date),
+    copiedFromMonth: existing ? undefined : state.snaps[state.snaps.length - 1]?.date,
+    onReview: normalizeSnapshotReview,
     onFxPrefetchMonth: (yearMonth) => prefetchSnapshotFxMonth(accounts, yearMonth),
   });
   if (!snap) return;
-  const normalizedSnap = await applySnapshotFxNormalization(snap, accounts, existing, {
-    onRateUnavailable: (currency) => fxUnavailableCurrencies.add(currency),
-  });
-  await saveSnapshot(normalizedSnap);
-  if (fxUnavailableCurrencies.size > 0) {
-    showMsg(
-      'snap-msg',
-      `Saved without FX conversion for ${Array.from(fxUnavailableCurrencies).join(', ')}.`,
-      false,
-    );
-  }
+  await saveSnapshot(snap);
 }
 
 async function prefetchSnapshotFxMonth(
@@ -1673,7 +1660,12 @@ function getLatestSnapshotValues(): Record<string, number | string | undefined> 
 
 function prefillSnapFormFromLatest(): Snapshot | undefined {
   const latest = getLatestSnapshotValues();
-  const prefill: Snapshot = { date: currentMonth() };
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() - 1);
+  const prefill: Snapshot = {
+    date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+  };
   if (!latest) return prefill;
 
   for (const a of getACCTSList()) {
@@ -1682,7 +1674,7 @@ function prefillSnapFormFromLatest(): Snapshot | undefined {
   }
 
   for (const [key, val] of Object.entries(latest)) {
-    if (key.startsWith('etf_') && typeof val === 'number' && val > 0) {
+    if (key.startsWith('etf_') && typeof val === 'number') {
       prefill[key] = val;
     }
   }
