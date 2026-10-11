@@ -478,6 +478,13 @@ describe('snapshotDialog', () => {
     setField('snapd-acc-broker', '1000');
     getSubmit()!.click();
     await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    expect(document.activeElement).toBe(document.querySelector('.snapd-review'));
+    const immediateShiftTab = new KeyboardEvent('keydown', {
+      key: 'Tab', shiftKey: true, bubbles: true, cancelable: true,
+    });
+    document.dispatchEvent(immediateShiftTab);
+    expect(immediateShiftTab.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(getSubmit());
     getSubmit()!.focus();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
     expect(document.activeElement).toBe(getCancel());
