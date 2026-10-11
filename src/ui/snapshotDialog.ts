@@ -1,7 +1,7 @@
 import { normalizeSnapshotReview, type SnapshotReviewResult } from '../model/snapshotFx';
 import { isValidISIN, normalizeISIN } from '../model/isin';
 import { infoTip, attachInfoTips } from './infoTip';
-import { currentMonth, fmtEur2, fmtMon, safeColor, esc } from '../utils';
+import { currentMonth, lastCompletedMonth, fmtEur2, fmtMon, safeColor, esc } from '../utils';
 import type { Account, Holding, PortfolioData, Snapshot } from '../types';
 import {
   createDialogController,
@@ -50,13 +50,11 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
   return new Promise<Snapshot | null>((resolve) => {
     _dialog.begin(resolve);
     _activeOpts = opts;
+    const accounts = _getDialogAccounts(opts.accounts);
+    const primary = accounts.find((acct) => acct.showEtfBreakdown);
     const draft = opts.existing || opts.prefill;
     const mode = opts.mode || (opts.existing ? 'edit' : 'add');
     const today = currentMonth();
-    const previous = new Date();
-    previous.setDate(1);
-    previous.setMonth(previous.getMonth() - 1);
-    const defaultMonth = `${previous.getFullYear()}-${String(previous.getMonth() + 1).padStart(2, '0')}`;
     const title = mode === 'edit' ? 'Edit snapshot' : 'Add monthly snapshot';
 
     const overlay = document.createElement('div');
@@ -74,7 +72,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
             <div class="dialog-field">
               <label class="dialog-label" for="snapd-date">Month</label>
               <input type="month" id="snapd-date" class="form-input dialog-input"
-                value="${_esc(draft?.date || defaultMonth)}" max="${today}" aria-describedby="snapd-month-note snapd-date-err">
+                value="${_esc(draft?.date || lastCompletedMonth())}" max="${today}" aria-describedby="snapd-month-note snapd-date-err">
               <div class="note snapd-field-note" id="snapd-month-note"></div>
               <span class="dialog-error dialog-error-compact" id="snapd-date-err"></span>
               ${
@@ -89,7 +87,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
                 value="${_esc(draft?.notes || '')}" placeholder="e.g. catch-up done, got raise...">
             </div>
           </div>
-          ${_getDialogAccounts(opts.accounts).some((a) => a.currency !== 'EUR') ? `<div class="snapd-currency-help"><label class="dialog-label" style="cursor:pointer"><input type="checkbox" id="snapd-eur" ${draft ? 'checked' : ''}> Enter all values in EUR${infoTip('Otherwise use each account’s native currency. Stored values are EUR. Switching converts the draft only when FX rates are available.')}</label></div>` : ''}
+          ${accounts.some((a) => a.currency !== 'EUR') ? `<div class="snapd-currency-help"><label class="dialog-label" style="cursor:pointer"><input type="checkbox" id="snapd-eur" ${draft ? 'checked' : ''}> Enter all values in EUR${infoTip('Otherwise use each account’s native currency. Stored values are EUR. Switching converts the draft only when FX rates are available.')}</label></div>` : ''}
           ${_renderAccountFields(opts.accounts, opts.holdings, opts.configHoldings || [], draft)}
           <div class="dialog-error" id="snapd-review-err" role="alert"></div>
         </div>
@@ -179,6 +177,24 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
     const prefetchCache = new Map<string, SnapshotDialogFxPrefetchResult>();
     let prefetchRequestSeq = 0;
     let fxRates: Record<string, number> = {};
+    const fieldCurrency = (field: HTMLInputElement) =>
+      field.dataset.currency || primary?.currency || 'EUR';
+    const foreignFields = () =>
+      Array.from(
+        overlay.querySelectorAll<HTMLInputElement>('[data-account-key], [data-etf-isin]'),
+      ).filter((field) => field.value.trim() && fieldCurrency(field) !== 'EUR');
+    const hasRate = (field: HTMLInputElement) => {
+      const rate = fxRates[fieldCurrency(field)];
+      return Number.isFinite(rate) && rate > 0;
+    };
+    const convertFields = (fields: HTMLInputElement[], toEur: boolean) => {
+      for (const field of fields) {
+        const value = parseNum(field.value);
+        if (!Number.isFinite(value)) continue;
+        const rate = fxRates[fieldCurrency(field)];
+        field.value = String(toEur ? value * rate : value / rate);
+      }
+    };
     const triggerFxPrefetch = (yearMonth: string): void => {
       ++prefetchRequestSeq;
       fxRates = {};
@@ -203,7 +219,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
           _updateAllFxHints(overlay, fxRates);
         })
         .catch(() => {
-          if (requestSeq !== prefetchRequestSeq) return;
+          if (requestSeq !== prefetchRequestSeq || _dialog.overlay() !== overlay) return;
           fxStatusEl.classList.add('snapd-fx-status--warn');
           fxStatusEl.innerHTML =
             '<strong>⚠ FX rate fetch failed.</strong> Please enter values already converted to EUR before saving to ensure accuracy.';
@@ -219,25 +235,9 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
     monthInput?.addEventListener('change', () => {
       const modeInput = overlay.querySelector('#snapd-eur') as HTMLInputElement | null;
       if (modeInput && !modeInput.checked && Object.keys(fxRates).length) {
-        const primary = _getDialogAccounts(opts.accounts).find((a) => a.showEtfBreakdown);
-        const fields = Array.from(
-          overlay.querySelectorAll<HTMLInputElement>('[data-account-key], [data-etf-isin]'),
-        );
-        const nonEmptyForeign = fields.filter(
-          (f) => f.value.trim() && (f.dataset.currency || primary?.currency || 'EUR') !== 'EUR',
-        );
-        if (
-          nonEmptyForeign.every(
-            (f) => fxRates[f.dataset.currency || primary?.currency || 'EUR'] > 0,
-          )
-        ) {
-          for (const field of nonEmptyForeign) {
-            const value = parseNum(field.value);
-            if (Number.isFinite(value))
-              field.value = String(
-                value * fxRates[field.dataset.currency || primary?.currency || 'EUR'],
-              );
-          }
+        const fields = foreignFields();
+        if (fields.every(hasRate)) {
+          convertFields(fields, true);
           modeInput.checked = true;
           updateCurrencyLabels();
           (overlay.querySelector('#snapd-review-err') as HTMLElement).textContent =
@@ -250,7 +250,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
     updateMonthNote();
     const eurMode = overlay.querySelector('#snapd-eur') as HTMLInputElement | null;
     const updateCurrencyLabels = () => {
-      for (const acct of _getDialogAccounts(opts.accounts)) {
+      for (const acct of accounts) {
         const label = overlay.querySelector(`label[for="snapd-acc-${acct.key}"]`);
         if (label)
           label.textContent = `${acct.label} (${eurMode?.checked ? 'EUR' : acct.currency})`;
@@ -258,34 +258,21 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
       _updateAllFxHints(overlay, eurMode?.checked ? {} : fxRates);
     };
     eurMode?.addEventListener('change', () => {
-      const fields = Array.from(
-        overlay.querySelectorAll<HTMLInputElement>('[data-account-key], [data-etf-isin]'),
-      );
-      const primary = _getDialogAccounts(opts.accounts).find((a) => a.showEtfBreakdown);
-      const needed = fields
-        .filter((f) => f.value.trim())
-        .map((f) => f.dataset.currency || primary?.currency || 'EUR')
-        .filter((c) => c !== 'EUR');
-      if (needed.some((c) => !Number.isFinite(fxRates[c]) || fxRates[c] <= 0)) {
+      const fields = foreignFields();
+      if (!fields.every(hasRate)) {
         eurMode.checked = !eurMode.checked;
         (overlay.querySelector('#snapd-review-err') as HTMLElement).textContent =
           'FX unavailable. Clear foreign values to enter explicitly converted EUR amounts, or retry Review / change month to fetch rates.';
         return;
       }
-      for (const field of fields) {
-        const value = parseNum(field.value);
-        if (!Number.isFinite(value)) continue;
-        const currency = field.dataset.currency || primary?.currency || 'EUR';
-        const rate = currency === 'EUR' ? 1 : fxRates[currency];
-        field.value = String(eurMode.checked ? value * rate : value / rate);
-      }
+      convertFields(fields, eurMode.checked);
       updateCurrencyLabels();
-      for (const acct of _getDialogAccounts(opts.accounts)) _updateRecon(acct.key);
+      for (const acct of accounts) _updateRecon(acct.key);
     });
     updateCurrencyLabels();
     if (monthInput) triggerFxPrefetch(monthInput.value.trim());
 
-    for (const acct of _getDialogAccounts(opts.accounts)) {
+    for (const acct of accounts) {
       _updateRecon(acct.key);
     }
   });
@@ -441,6 +428,10 @@ async function _submit(): Promise<void> {
     return;
   }
   const opts = _activeOpts;
+  const accounts = _getDialogAccounts(opts.accounts);
+  const accountByKey = new Map(accounts.map((acct) => [acct.key, acct]));
+  const primary = accounts.find((acct) => acct.showEtfBreakdown);
+  const isEtf = (key: string) => key.startsWith('etf_') && !accountByKey.has(key);
   overlay.querySelectorAll('[data-extra-isin]').forEach((el) => el.removeAttribute('aria-invalid'));
   const eurMode = !!(overlay.querySelector('#snapd-eur') as HTMLInputElement | null)?.checked;
   const currencies: Record<string, string> = {};
@@ -453,7 +444,7 @@ async function _submit(): Promise<void> {
   };
 
   setErr('snapd-date', '');
-  for (const acct of _getDialogAccounts(_activeOpts.accounts)) {
+  for (const acct of accounts) {
     setErr(`snapd-acc-${acct.key}`, '');
     setSectionErr(acct.key, '');
     overlay
@@ -479,7 +470,7 @@ async function _submit(): Promise<void> {
   for (const key of _representedEtfKeys.get(overlay) || []) delete snap[key];
   let valid = !(overlay.querySelector('#snapd-date-err') as HTMLElement | null)?.textContent;
 
-  for (const acct of _getDialogAccounts(_activeOpts.accounts)) {
+  for (const acct of accounts) {
     const totalInput = overlay.querySelector(`#snapd-acc-${acct.key}`) as HTMLInputElement | null;
     const totalRaw = totalInput?.value.trim() || '';
     const totalVal = parseNum(totalRaw);
@@ -508,7 +499,7 @@ async function _submit(): Promise<void> {
         !isin ||
         !/^[A-Z0-9]+$/.test(isin) ||
         seen.has(isin) ||
-        _getDialogAccounts(opts.accounts).some((a) => a.key === `etf_${isin}`) ||
+        accountByKey.has(`etf_${isin}`) ||
         (extraIsin && !isValidISIN(isin))
       ) {
         input.setAttribute('aria-invalid', 'true');
@@ -591,22 +582,13 @@ async function _submit(): Promise<void> {
       !!opts.prefill &&
       numeric.length === baseline.length &&
       baseline.every(([key, value]) => _reviewed![key] === value);
-    const primary = _getDialogAccounts(opts.accounts).find((a) => a.showEtfBreakdown);
-    const allocation = numeric
-      .filter(
-        ([key]) =>
-          key.startsWith('etf_') && !_getDialogAccounts(opts.accounts).some((a) => a.key === key),
-      )
-      .reduce((sum, [, value]) => sum + Number(value), 0);
     const rateSummary = Object.entries(result.rates || {})
       .map(([currency, rate]) => `1 ${_esc(currency)} = ${rate} EUR`)
       .join(': ');
-    const accounts = _getDialogAccounts(opts.accounts);
-    const isEtf = (key: string) => key.startsWith('etf_') && !accounts.some((a) => a.key === key);
     const renderValues = (entries: typeof numeric): string =>
       entries
         .map(([key, value]) => {
-          const acct = accounts.find((a) => a.key === key);
+          const acct = accountByKey.get(key);
           const isin = isEtf(key) ? key.slice(4) : '';
           const holding = opts.configHoldings?.find((h) => h.isin === isin);
           const label = acct?.label || holding?.name || (isin ? `ETF ${isin}` : key);
@@ -616,6 +598,7 @@ async function _submit(): Promise<void> {
         .join('');
     const accountValues = numeric.filter(([key]) => !isEtf(key));
     const etfValues = numeric.filter(([key]) => isEtf(key));
+    const allocation = etfValues.reduce((sum, [, value]) => sum + Number(value), 0);
     review.innerHTML = `
       <div class="snapd-review-header">
         <div class="dialog-title">Review snapshot: ${_esc(fmtMon(date))}</div>

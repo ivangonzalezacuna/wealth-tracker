@@ -3220,11 +3220,14 @@ input[type='color'] {
   color: var(--ink-3);
   line-height: 1.5;
 }
-.snapd-review-warning {
-  margin: 0;
+.snapd-review-warning,
+.snapd-review-summary {
   padding: 7px 9px;
   border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
+}
+.snapd-review-warning {
+  margin: 0;
   color: var(--warn);
   font-size: 11px;
 }
@@ -3261,11 +3264,6 @@ input[type='color'] {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   color: var(--ink);
-}
-.snapd-review-summary {
-  padding: 7px 9px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-sm);
 }
 .snapd-review-notes {
   padding-top: 7px;

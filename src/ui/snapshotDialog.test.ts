@@ -2,8 +2,9 @@
  * @vitest-environment jsdom
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { snapshotDialog } from './snapshotDialog';
+import { snapshotDialog, type SnapshotDialogFxPrefetchResult } from './snapshotDialog';
 import type { Account, Holding, PortfolioData, Snapshot } from '../types';
+import { fmtEur2 } from '../utils';
 
 const accounts: Account[] = [
   { id: 'cash', label: 'Cash account' },
@@ -87,6 +88,23 @@ function getSubmit() {
 }
 function getCancel() {
   return document.querySelector('.js-snapd-cancel') as HTMLElement | null;
+}
+async function reviewDraft() {
+  getSubmit()!.click();
+  await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+}
+function fxPrefetchResult(
+  overrides: Partial<SnapshotDialogFxPrefetchResult> = {},
+): SnapshotDialogFxPrefetchResult {
+  return {
+    needed: true,
+    disabled: false,
+    attempted: 1,
+    resolved: 1,
+    failed: 0,
+    rates: { USD: 0.9 },
+    ...overrides,
+  };
 }
 function setField(id: string, value: string) {
   const el = document.querySelector('#' + id) as HTMLInputElement | null;
@@ -185,8 +203,7 @@ describe('snapshotDialog', () => {
     setField('snapd-acc-cash', '0');
     setField('snapd-acc-broker', '1000');
     setField('snapd-etf-broker-IE00AAA', '700');
-    getSubmit()!.click();
-    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    await reviewDraft();
     getSubmit()!.click();
     const snap = await p;
     expect(snap).not.toBeNull();
@@ -223,8 +240,7 @@ describe('snapshotDialog', () => {
     setField('snapd-acc-broker', '1000');
     setField('snapd-etf-broker-IE00AAA', '750');
     setField('snapd-etf-broker-IE00BBB', '250');
-    getSubmit()!.click();
-    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    await reviewDraft();
     getSubmit()!.click();
     const snap = await p;
     expect(snap).not.toBeNull();
@@ -303,9 +319,7 @@ describe('snapshotDialog', () => {
   });
 
   it('prefetches FX rates on open and when month changes', async () => {
-    const onFxPrefetchMonth = vi
-      .fn()
-      .mockResolvedValue({ needed: true, disabled: false, attempted: 1, resolved: 1, failed: 0 });
+    const onFxPrefetchMonth = vi.fn().mockResolvedValue(fxPrefetchResult());
     snapshotDialog(baseOpts({ onFxPrefetchMonth }));
     await Promise.resolve();
     const initialMonth = (document.querySelector('#snapd-date') as HTMLInputElement).value;
@@ -322,7 +336,7 @@ describe('snapshotDialog', () => {
   it('renders unavailable FX prefetch status message', async () => {
     const onFxPrefetchMonth = vi
       .fn()
-      .mockResolvedValue({ needed: true, disabled: false, attempted: 1, resolved: 0, failed: 1 });
+      .mockResolvedValue(fxPrefetchResult({ resolved: 0, failed: 1, rates: {} }));
     snapshotDialog(baseOpts({ onFxPrefetchMonth }));
     await Promise.resolve();
     const status = document.querySelector('#snapd-fx-status') as HTMLElement | null;
@@ -367,8 +381,7 @@ describe('snapshotDialog', () => {
     setField('snapd-acc-cash', '0');
     setField('snapd-acc-broker', '1000');
     setField('snapd-etf-broker-IE00AAA', '500');
-    getSubmit()!.click();
-    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    await reviewDraft();
     expect(document.querySelector('.snapd-review')!.textContent).toContain('replace');
     expect(document.querySelector('.snapd-review')!.textContent).not.toContain('Copied from');
     expect(document.querySelector('.snapd-review')!.textContent).toContain('Unexplained remainder');
@@ -387,8 +400,7 @@ describe('snapshotDialog', () => {
     (document.querySelector('.js-snapd-back') as HTMLElement).click();
     expect(document.querySelector('.dialog-header')!.hasAttribute('hidden')).toBe(false);
     expect((document.querySelector('#snapd-acc-broker') as HTMLInputElement).value).toBe('1000');
-    getSubmit()!.click();
-    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    await reviewDraft();
     getSubmit()!.click();
     expect((await p)!.broker).toBe(900);
     expect(onReview).toHaveBeenCalledTimes(2);
@@ -411,8 +423,7 @@ describe('snapshotDialog', () => {
     setField('snapd-acc-broker', '');
     (document.querySelector('#snapd-eur') as HTMLInputElement).click();
     setField('snapd-acc-broker', '900');
-    getSubmit()!.click();
-    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    await reviewDraft();
     expect(onReview.mock.calls[1][1].broker).toBe('EUR');
     getSubmit()!.click();
     expect((await p)!.broker).toBe(900);
@@ -432,21 +443,13 @@ describe('snapshotDialog', () => {
     expect((document.querySelector('.snap-etf-other') as HTMLDetailsElement).open).toBe(false);
     expect(document.querySelector('[data-etf-isin="IE00CCC"]')).toBeNull();
     expect(document.querySelector('[data-extra-isin]')).toBeNull();
-    getSubmit()!.click();
-    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    await reviewDraft();
     getSubmit()!.click();
     expect(await p).toEqual({ ...existing, notes: '' });
   });
 
   it('copies canonical EUR safely, converts to native on request, and clears stale month context', async () => {
-    const onFxPrefetchMonth = vi.fn().mockResolvedValue({
-      needed: true,
-      disabled: false,
-      attempted: 1,
-      resolved: 1,
-      failed: 0,
-      rates: { USD: 0.9 },
-    });
+    const onFxPrefetchMonth = vi.fn().mockResolvedValue(fxPrefetchResult());
     snapshotDialog(
       baseOpts({
         prefill: { date: '2024-06', cash: 0, broker: 900, etf_IE00AAA: 450 },
@@ -467,6 +470,80 @@ describe('snapshotDialog', () => {
     expect((document.querySelector('#snapd-eur') as HTMLInputElement).checked).toBe(true);
     expect((document.querySelector('#snapd-acc-broker') as HTMLInputElement).value).toBe('900');
     getCancel()!.click();
+  });
+
+  it.each([0, -1, Infinity, NaN])(
+    'does not convert foreign draft values with invalid cached rate %s',
+    async (rate) => {
+      snapshotDialog(
+        baseOpts({
+          prefill: { date: '2024-06', cash: 0, broker: 900, etf_IE00AAA: 450 },
+          onFxPrefetchMonth: async () => fxPrefetchResult({ rates: { USD: rate } }),
+        }),
+      );
+      await vi.waitFor(() =>
+        expect(document.querySelector('#snapd-fx-status')!.textContent).toContain('ready'),
+      );
+      const eurMode = document.querySelector<HTMLInputElement>('#snapd-eur')!;
+      eurMode.click();
+      expect(eurMode.checked).toBe(true);
+      expect(document.querySelector('#snapd-review-err')!.textContent).toContain('FX unavailable');
+      eurMode.checked = false;
+      setField('snapd-date', '2024-07');
+      document.querySelector('#snapd-date')!.dispatchEvent(new Event('change'));
+      expect(eurMode.checked).toBe(false);
+      expect(document.querySelector<HTMLInputElement>('#snapd-acc-broker')!.value).toBe('900');
+      expect(document.querySelector<HTMLInputElement>('[data-etf-isin="IE00AAA"]')!.value).toBe(
+        '450',
+      );
+      getCancel()!.click();
+    },
+  );
+
+  it.each(['resolved', 'rejected'] as const)(
+    'ignores a %s FX prefetch after dismissal',
+    async (outcome) => {
+      let resolve!: (result: SnapshotDialogFxPrefetchResult) => void;
+      let reject!: (error: Error) => void;
+      const p = snapshotDialog(
+        baseOpts({
+          onFxPrefetchMonth: () =>
+            new Promise<SnapshotDialogFxPrefetchResult>((res, rej) => {
+              resolve = res;
+              reject = rej;
+            }),
+        }),
+      );
+      const status = document.querySelector('#snapd-fx-status')!;
+      getCancel()!.click();
+      expect(await p).toBeNull();
+      if (outcome === 'resolved') resolve(fxPrefetchResult());
+      else reject(new Error('offline'));
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(status.textContent).toContain('fetching');
+      expect(getOverlay()).toBeNull();
+    },
+  );
+
+  it('keeps an etf-prefixed account out of ETF review totals', async () => {
+    const existing = { date: '2024-06', cash: 0, broker: 900, etf_broker: 125, etf_IE00AAA: 450 };
+    const p = snapshotDialog(
+      baseOpts({
+        accounts: [...accounts, { id: 'etf_broker', label: 'GBP account', currency: 'GBP' }],
+        existing,
+      }),
+    );
+    await reviewDraft();
+    const accountValues = document.querySelector('[aria-label="Account balances"]')!;
+    const etfValues = document.querySelector('[aria-label="ETF values"]')!;
+    expect(accountValues.textContent).toContain('GBP account');
+    expect(etfValues.textContent).not.toContain('GBP account');
+    expect(
+      Array.from(document.querySelectorAll('.snapd-review-summary dd')).map((el) => el.textContent),
+    ).toEqual([fmtEur2(450), fmtEur2(450)]);
+    getSubmit()!.click();
+    expect(await p).toEqual({ ...existing, notes: '' });
   });
 
   it('locks draft while asynchronous review is pending and ignores a dismissed result', async () => {
@@ -491,8 +568,7 @@ describe('snapshotDialog', () => {
     snapshotDialog(baseOpts());
     setField('snapd-acc-cash', '0');
     setField('snapd-acc-broker', '1000');
-    getSubmit()!.click();
-    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    await reviewDraft();
     expect(document.activeElement).toBe(document.querySelector('.snapd-review'));
     const immediateShiftTab = new KeyboardEvent('keydown', {
       key: 'Tab',
@@ -518,8 +594,7 @@ describe('snapshotDialog', () => {
     const p = snapshotDialog(baseOpts());
     setField('snapd-acc-cash', value);
     setField('snapd-acc-broker', '0');
-    getSubmit()!.click();
-    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    await reviewDraft();
     getSubmit()!.click();
     expect((await p)!.cash).toBe(1234.5);
   });
@@ -552,8 +627,7 @@ describe('snapshotDialog', () => {
     getSubmit()!.click();
     expect(document.querySelector('#snapd-etf-broker-err')!.textContent).toContain('duplicates');
     isins[1].value = 'IE0000000002';
-    getSubmit()!.click();
-    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    await reviewDraft();
     getSubmit()!.click();
     expect(await p).toMatchObject({
       etf_IE0000000001: 100,
@@ -595,8 +669,7 @@ describe('snapshotDialog', () => {
     );
     expect(document.querySelector('.dialog-fields')!.textContent).not.toContain('Copied from');
     setField('snapd-notes', 'New notes do not affect numeric equality');
-    getSubmit()!.click();
-    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    await reviewDraft();
     expect(document.querySelector('.snapd-review')!.textContent!.includes('Copied from')).toBe(
       warning,
     );
@@ -620,8 +693,7 @@ describe('snapshotDialog', () => {
           mode,
         }),
       );
-      getSubmit()!.click();
-      await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+      await reviewDraft();
       expect(document.querySelector('.snapd-review')!.textContent).not.toContain('Copied from');
       if (mode === 'edit')
         expect(document.querySelector('.snapd-review')!.textContent).toContain('replace');
@@ -634,14 +706,7 @@ describe('snapshotDialog', () => {
       baseOpts({
         prefill: { date: '2024-06', cash: 0, broker: 900 },
         copiedFromMonth: '2024-05',
-        onFxPrefetchMonth: async () => ({
-          needed: true,
-          disabled: false,
-          attempted: 1,
-          resolved: 1,
-          failed: 0,
-          rates: { USD: 0.9 },
-        }),
+        onFxPrefetchMonth: async () => fxPrefetchResult(),
         onReview: async (draft) => ({
           snapshot: { ...draft, broker: Number(draft.broker) * 0.9 },
           rates: { USD: 0.9 },
@@ -653,8 +718,7 @@ describe('snapshotDialog', () => {
     );
     (document.querySelector('#snapd-eur') as HTMLInputElement).click();
     setField('snapd-acc-broker', String(canonical / 0.9));
-    getSubmit()!.click();
-    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    await reviewDraft();
     expect(document.querySelector('.snapd-review')!.textContent!.includes('Copied from')).toBe(
       canonical === 900,
     );
@@ -671,8 +735,7 @@ describe('snapshotDialog', () => {
       }),
     );
     setField('snapd-date', '2024-04');
-    getSubmit()!.click();
-    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    await reviewDraft();
     expect(document.querySelector('.snapd-review')!.textContent).toContain('replace');
     expect(document.querySelector('.snapd-review')!.textContent).not.toContain('Copied from');
     getCancel()!.click();
@@ -730,8 +793,7 @@ describe('snapshotDialog', () => {
       expect(document.querySelector('.snap-etf-recon-alloc b')!.textContent).toContain('500');
       (rows[1].querySelector('[data-extra-isin]') as HTMLInputElement).value = 'IE0000000003';
       (rows[1].querySelector('[data-etf-isin]') as HTMLInputElement).value = '0';
-      getSubmit()!.click();
-      await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+      await reviewDraft();
       expect(document.querySelector('.snapd-review')!.textContent).not.toContain('IE0000000001');
       expect(document.querySelector('.snapd-review')!.textContent).not.toContain('IE0000000002');
       (document.querySelector('.js-snapd-back') as HTMLElement).click();
@@ -739,8 +801,7 @@ describe('snapshotDialog', () => {
       expect((document.querySelector('[data-extra-isin]') as HTMLInputElement).value).toBe(
         'IE0000000003',
       );
-      getSubmit()!.click();
-      await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+      await reviewDraft();
       getSubmit()!.click();
       expect(await p).toEqual({
         date: '2024-06',
@@ -811,8 +872,7 @@ describe('snapshotDialog', () => {
     tip.blur();
     expect(document.querySelector('.info-tip-pop')).toBeNull();
     tip.click();
-    getSubmit()!.click();
-    await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
+    await reviewDraft();
     expect(document.querySelector('.info-tip-pop')).toBeNull();
     getCancel()!.click();
   });
