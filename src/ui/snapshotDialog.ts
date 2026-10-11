@@ -435,7 +435,6 @@ async function _submit(): Promise<void> {
   const accountByKey = new Map(accounts.map((acct) => [acct.key, acct]));
   const primary = accounts.find((acct) => acct.showEtfBreakdown);
   const isEtf = (key: string) => key.startsWith('etf_') && !accountByKey.has(key);
-  overlay.querySelectorAll('[data-extra-isin]').forEach((el) => el.removeAttribute('aria-invalid'));
   const eurMode = !!(overlay.querySelector('#snapd-eur') as HTMLInputElement | null)?.checked;
   const currencies: Record<string, string> = {};
   (overlay.querySelector('#snapd-review-err') as HTMLElement).textContent = '';

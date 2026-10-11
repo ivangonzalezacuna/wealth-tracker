@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import {
   addAccount,
   addManualTransaction,
@@ -16,6 +16,22 @@ import {
   waitForSyncIdle,
 } from './helpers';
 
+async function addManualEtfs(page: Page, isins: string[], value: string) {
+  for (const isin of isins) {
+    await page.click('.js-snapd-extra');
+    const row = page.locator('.snap-etf-extra').last();
+    await row.getByLabel('Other ETF ISIN').fill(isin);
+    await row.getByLabel('Other ETF value').fill(value);
+  }
+}
+
+async function reviewAndSaveSnapshot(page: Page) {
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('.snapd-review')).toBeVisible();
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('#snap-msg')).toContainText('Saved');
+}
+
 test.beforeEach(async ({ page }) => {
   await preparePage(page);
 });
@@ -31,12 +47,7 @@ test('snapshot review uses compact aligned rows on mobile and desktop', async ({
   await page.click('#btn-add-snap');
   await page.getByLabel(/^Primary investment account with a long label \(/).fill('19845.48');
   await page.locator('.snap-etf-other summary').click();
-  for (const isin of ['IE00BYX2JD69', 'IE00B4L5Y983', 'IE00BDBRDM35']) {
-    await page.click('.js-snapd-extra');
-    const row = page.locator('.snap-etf-extra').last();
-    await row.getByLabel('Other ETF ISIN').fill(isin);
-    await row.getByLabel('Other ETF value').fill('1314.96');
-  }
+  await addManualEtfs(page, ['IE00BYX2JD69', 'IE00B4L5Y983', 'IE00BDBRDM35'], '1314.96');
   const summary = page.locator('.snap-etf-other > summary');
   await expect(summary).toHaveCSS('font-size', '11px');
   await expect(summary).toHaveCSS('border-top-style', 'solid');
@@ -106,16 +117,8 @@ test('untracked ETF keys can be renamed and removed after saving without returni
   await page.fill('#snapd-date', month);
   await page.getByLabel('Manual Broker (EUR)').fill('1000');
   await page.locator('.snap-etf-other summary').click();
-  for (const isin of ['IE0000000001', 'IE0000000002']) {
-    await page.click('.js-snapd-extra');
-    const row = page.locator('.snap-etf-extra').last();
-    await row.getByLabel('Other ETF ISIN').fill(isin);
-    await row.getByLabel('Other ETF value').fill('100');
-  }
-  await page.click('.js-snapd-submit');
-  await expect(page.locator('.snapd-review')).toBeVisible();
-  await page.click('.js-snapd-submit');
-  await expect(page.locator('#snap-msg')).toContainText('Saved');
+  await addManualEtfs(page, ['IE0000000001', 'IE0000000002'], '100');
+  await reviewAndSaveSnapshot(page);
 
   await waitForSyncIdle(page);
   await page.click('#btn-add-snap');
@@ -141,10 +144,7 @@ test('untracked ETF keys can be renamed and removed after saving without returni
   await expect(page.locator('.snapd-review')).not.toContainText('IE0000000002');
   await page.click('.js-snapd-back');
   await expect(page.locator('.snap-etf-extra')).toHaveCount(1);
-  await page.click('.js-snapd-submit');
-  await expect(page.locator('.snapd-review')).toBeVisible();
-  await page.click('.js-snapd-submit');
-  await expect(page.locator('#snap-msg')).toContainText('Saved');
+  await reviewAndSaveSnapshot(page);
 
   await snapshotRow(page, nextMonth).click();
   await waitForSyncIdle(page);
@@ -193,10 +193,7 @@ test('snapshot create, edit, delete, and bulk delete flows keep log data consist
   await page.click('.snap-detail .js-edit-snap');
   await page.fill('#snapd-notes', 'Initial funding round updated');
   await page.getByLabel(/^Core Broker \([A-Z]{3}\)$/).fill('1500');
-  await page.click('.js-snapd-submit');
-  await expect(page.locator('.snapd-review')).toBeVisible();
-  await page.click('.js-snapd-submit');
-  await expect(page.locator('#snap-msg')).toContainText('Saved');
+  await reviewAndSaveSnapshot(page);
   await expect(snapshotRow(page, firstMonth)).toContainText(formatUiMoney(1500));
 
   await addSnapshot(page, {

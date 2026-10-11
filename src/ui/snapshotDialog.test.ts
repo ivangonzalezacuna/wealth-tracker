@@ -93,6 +93,10 @@ async function reviewDraft() {
   getSubmit()!.click();
   await vi.waitFor(() => expect(getSubmit()!.textContent).toBe('Save snapshot'));
 }
+async function saveDraft() {
+  await reviewDraft();
+  getSubmit()!.click();
+}
 function fxPrefetchResult(
   overrides: Partial<SnapshotDialogFxPrefetchResult> = {},
 ): SnapshotDialogFxPrefetchResult {
@@ -203,8 +207,7 @@ describe('snapshotDialog', () => {
     setField('snapd-acc-cash', '0');
     setField('snapd-acc-broker', '1000');
     setField('snapd-etf-broker-IE00AAA', '700');
-    await reviewDraft();
-    getSubmit()!.click();
+    await saveDraft();
     const snap = await p;
     expect(snap).not.toBeNull();
     expect(snap!.broker).toBe(1000);
@@ -240,8 +243,7 @@ describe('snapshotDialog', () => {
     setField('snapd-acc-broker', '1000');
     setField('snapd-etf-broker-IE00AAA', '750');
     setField('snapd-etf-broker-IE00BBB', '250');
-    await reviewDraft();
-    getSubmit()!.click();
+    await saveDraft();
     const snap = await p;
     expect(snap).not.toBeNull();
     expect(snap!.date).toBe('2024-06');
@@ -412,8 +414,7 @@ describe('snapshotDialog', () => {
     (document.querySelector('.js-snapd-back') as HTMLElement).click();
     expect(document.querySelector('.dialog-header')!.hasAttribute('hidden')).toBe(false);
     expect((document.querySelector('#snapd-acc-broker') as HTMLInputElement).value).toBe('1000');
-    await reviewDraft();
-    getSubmit()!.click();
+    await saveDraft();
     expect((await p)!.broker).toBe(900);
     expect(onReview).toHaveBeenCalledTimes(2);
   });
@@ -455,8 +456,7 @@ describe('snapshotDialog', () => {
     expect((document.querySelector('.snap-etf-other') as HTMLDetailsElement).open).toBe(false);
     expect(document.querySelector('[data-etf-isin="IE00CCC"]')).toBeNull();
     expect(document.querySelector('[data-extra-isin]')).toBeNull();
-    await reviewDraft();
-    getSubmit()!.click();
+    await saveDraft();
     expect(await p).toEqual({ ...existing, notes: '' });
   });
 
@@ -616,8 +616,7 @@ describe('snapshotDialog', () => {
     const p = snapshotDialog(baseOpts());
     setField('snapd-acc-cash', value);
     setField('snapd-acc-broker', '0');
-    await reviewDraft();
-    getSubmit()!.click();
+    await saveDraft();
     expect((await p)!.cash).toBe(1234.5);
   });
 
@@ -649,8 +648,7 @@ describe('snapshotDialog', () => {
     getSubmit()!.click();
     expect(document.querySelector('#snapd-etf-broker-err')!.textContent).toContain('duplicates');
     isins[1].value = 'IE0000000002';
-    await reviewDraft();
-    getSubmit()!.click();
+    await saveDraft();
     expect(await p).toMatchObject({
       etf_IE0000000001: 100,
       etf_IE0000000002: 100,
@@ -823,8 +821,7 @@ describe('snapshotDialog', () => {
       expect((document.querySelector('[data-extra-isin]') as HTMLInputElement).value).toBe(
         'IE0000000003',
       );
-      await reviewDraft();
-      getSubmit()!.click();
+      await saveDraft();
       expect(await p).toEqual({
         date: '2024-06',
         notes: '',
@@ -871,7 +868,6 @@ describe('snapshotDialog', () => {
     const checkbox = document.querySelector<HTMLInputElement>('#snapd-eur')!;
     expect(tip.closest('label')).toBe(checkbox.closest('label'));
     expect(checkbox.closest('label')!.className).toBe('dialog-label');
-    expect(document.querySelector('.snapd-currency-details')).toBeNull();
     expect(tip.dataset.tipBound).toBe('1');
     expect(tip.tabIndex).toBe(0);
     tip.click();

@@ -114,7 +114,7 @@ import { isBusy, setBusy } from './sync/lock';
 import { registerSW } from 'virtual:pwa-register';
 import type { Snapshot, Transaction, PortfolioData, ImportProfile } from './types';
 import { buildAppSecuritySuggestions } from './securitySuggestions';
-import { normalizeSnapshotReview, getNonBaseCurrencies } from './model/snapshotFx';
+import { getNonBaseCurrencies } from './model/snapshotFx';
 import { APP_CURRENCY } from './fx';
 import { prefetchMonthEndRates, type FxPrefetchResult } from './services/fxRateService';
 
@@ -1390,7 +1390,6 @@ async function saveMonthlyUpdate(editDate?: string) {
     configHoldings: getHoldings(),
     existingMonths: state.snaps.map((s) => s.date),
     copiedFromMonth: existing ? undefined : state.snaps[state.snaps.length - 1]?.date,
-    onReview: normalizeSnapshotReview,
     onFxPrefetchMonth: (yearMonth) => prefetchSnapshotFxMonth(accounts, yearMonth),
   });
   if (!snap) return;
