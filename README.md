@@ -152,7 +152,7 @@ The banner disappears automatically once both are completed, or you can dismiss 
 
 The month describes when the balances were valued, not when you type them in. For example, record October's closing balances as **October**, even if you enter them in November. October ends on 31 October; a screenshot of November's current portfolio does not necessarily show October's closing values.
 
-Copied values are starting points, not fresh valuations — update them before saving. Review warns when all numeric balances and ETF values remain unchanged from the source month; changed drafts do not show a copied-value notice. Enter an explicit balance for every account, including zero where appropriate. Non-EUR balances must be converted successfully or explicitly entered in EUR; an unavailable FX rate must not silently mix currencies in your saved snapshot.
+Copied values are starting points, not fresh valuations. Update them before saving. Review warns when all numeric balances and ETF values remain unchanged from the source month; changed drafts do not show a copied-value notice. Enter an explicit balance for every account, including zero where appropriate. Non-EUR balances must be converted successfully or explicitly entered in EUR; an unavailable FX rate must not silently mix currencies in your saved snapshot.
 
 When recording a snapshot for your primary investment account, you can expand the **ETF breakdown** section to enter the closing market value of each individual ETF position.
 
@@ -170,7 +170,7 @@ This is optional, but enables two additional features:
    - Manual entries allow ISIN and value changes, or removal from this snapshot. Removing a manual entry does not delete transactions, holdings configuration or other months' values.
 4. The reconciliation bar at the bottom shows **Allocated** (sum of ETF values entered) and **Remaining** (account total minus allocated), helping you catch typos before saving.
    - Remaining turns amber if you have over-allocated (sum exceeds total).
-   - Remaining stays green when ETF values are at or below the account total. The difference is an unexplained remainder — it may be cash or positions you have not recorded, not automatically confirmed cash.
+   - Remaining stays green when ETF values are at or below the account total. The difference is an unexplained remainder: it may be cash or positions you have not recorded, not automatically confirmed cash.
 5. Review account totals, ETF allocation, currency conversion and any existing-month replacement. Use **Back to edit** to make corrections without losing your draft, then save.
 
 **Storage format**

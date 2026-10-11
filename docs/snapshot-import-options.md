@@ -1,4 +1,4 @@
-# Snapshot import options — deferred work
+# Snapshot import options (deferred work)
 
 ## Scope
 

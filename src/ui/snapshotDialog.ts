@@ -89,7 +89,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
                 value="${_esc(draft?.notes || '')}" placeholder="e.g. catch-up done, got raise...">
             </div>
           </div>
-          ${_getDialogAccounts(opts.accounts).some((a) => a.currency !== 'EUR') ? `<div class="snapd-currency-help"><label class="dialog-label" style="cursor:pointer"><input type="checkbox" id="snapd-eur" ${draft ? 'checked' : ''}> Enter all values in EUR${infoTip('Otherwise use each account’s native currency. Stored values are EUR — switching converts the draft only when FX rates are available.')}</label></div>` : ''}
+          ${_getDialogAccounts(opts.accounts).some((a) => a.currency !== 'EUR') ? `<div class="snapd-currency-help"><label class="dialog-label" style="cursor:pointer"><input type="checkbox" id="snapd-eur" ${draft ? 'checked' : ''}> Enter all values in EUR${infoTip('Otherwise use each account’s native currency. Stored values are EUR. Switching converts the draft only when FX rates are available.')}</label></div>` : ''}
           ${_renderAccountFields(opts.accounts, opts.holdings, opts.configHoldings || [], draft)}
           <div class="dialog-error" id="snapd-review-err" role="alert"></div>
         </div>
@@ -241,7 +241,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
           modeInput.checked = true;
           updateCurrencyLabels();
           (overlay.querySelector('#snapd-review-err') as HTMLElement).textContent =
-            'Month changed — draft converted to explicit EUR using the previous month’s rates. Check balances or switch back to native currency after the new month’s rates load.';
+            'Month changed. Draft converted to explicit EUR using the previous month’s rates. Check balances or switch back to native currency after the new month’s rates load.';
         }
       }
       updateMonthNote();
@@ -269,7 +269,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
       if (needed.some((c) => !Number.isFinite(fxRates[c]) || fxRates[c] <= 0)) {
         eurMode.checked = !eurMode.checked;
         (overlay.querySelector('#snapd-review-err') as HTMLElement).textContent =
-          'FX unavailable — clear foreign values to enter explicitly converted EUR amounts, or retry Review / change month to fetch rates.';
+          'FX unavailable. Clear foreign values to enter explicitly converted EUR amounts, or retry Review / change month to fetch rates.';
         return;
       }
       for (const field of fields) {
@@ -475,7 +475,7 @@ async function _submit(): Promise<void> {
     date,
     notes: (overlay.querySelector('#snapd-notes') as HTMLInputElement | null)?.value.trim() || '',
   };
-  // Clear every originally represented key before applying current rows, including renames/removals.
+  // Remove original keys so renamed or deleted rows do not survive.
   for (const key of _representedEtfKeys.get(overlay) || []) delete snap[key];
   let valid = !(overlay.querySelector('#snapd-date-err') as HTMLElement | null)?.textContent;
 
@@ -600,7 +600,7 @@ async function _submit(): Promise<void> {
       .reduce((sum, [, value]) => sum + Number(value), 0);
     const rateSummary = Object.entries(result.rates || {})
       .map(([currency, rate]) => `1 ${_esc(currency)} = ${rate} EUR`)
-      .join(' — ');
+      .join(': ');
     const accounts = _getDialogAccounts(opts.accounts);
     const isEtf = (key: string) => key.startsWith('etf_') && !accounts.some((a) => a.key === key);
     const renderValues = (entries: typeof numeric): string =>
@@ -618,10 +618,10 @@ async function _submit(): Promise<void> {
     const etfValues = numeric.filter(([key]) => isEtf(key));
     review.innerHTML = `
       <div class="snapd-review-header">
-        <div class="dialog-title">Review snapshot — ${_esc(fmtMon(date))}</div>
+        <div class="dialog-title">Review snapshot: ${_esc(fmtMon(date))}</div>
         <p class="snapd-review-context">Month-end balances · EUR${date === currentMonth() ? ' · Provisional' : ''}</p>
       </div>
-      ${copiedUnchanged ? `<p class="snapd-review-warning" role="status">Copied from ${_esc(opts.copiedFromMonth)} — values are unchanged; check before saving.</p>` : ''}
+      ${copiedUnchanged ? `<p class="snapd-review-warning" role="status">Copied from ${_esc(opts.copiedFromMonth)}. Values are unchanged; check before saving.</p>` : ''}
       ${rateSummary ? `<p class="snapd-review-context">FX applied: ${rateSummary}</p>` : ''}
       ${replacing ? '<p class="snapd-review-warning" role="alert">Saving will replace the existing snapshot for this month.</p>' : ''}
       <section class="snapd-review-section" aria-label="Account balances">
@@ -630,7 +630,7 @@ async function _submit(): Promise<void> {
       </section>
       ${etfValues.length ? `<section class="snapd-review-section" aria-label="ETF values"><div class="section-label">ETF breakdown</div><dl class="snapd-review-values">${renderValues(etfValues)}</dl></section>` : ''}
       ${primary && etfValues.length ? `<div class="snapd-review-summary"><dl class="snapd-review-values"><div><dt>ETF allocated</dt><dd>${fmtEur2(allocation)}</dd></div><div><dt>Unexplained remainder</dt><dd>${fmtEur2(Number(_reviewed[primary.key]) - allocation)}</dd></div></dl><p class="snapd-review-context">Remainder may be cash or unrecorded positions.</p></div>` : ''}
-      ${_reviewed.notes ? `<p class="snapd-review-context snapd-review-notes"><strong>Notes</strong> — ${_esc(_reviewed.notes)}</p>` : ''}`;
+      ${_reviewed.notes ? `<p class="snapd-review-context snapd-review-notes"><strong>Notes:</strong> ${_esc(_reviewed.notes)}</p>` : ''}`;
     overlay.querySelector('.info-tip')?.dispatchEvent(new Event('blur'));
     (overlay.querySelector('.dialog-fields') as HTMLElement).hidden = true;
     (overlay.querySelector('.dialog-header') as HTMLElement).hidden = true;
@@ -640,7 +640,7 @@ async function _submit(): Promise<void> {
   } catch {
     if (_dialog.overlay() === overlay)
       (overlay.querySelector('#snapd-review-err') as HTMLElement).textContent =
-        'Review failed — your draft is kept. Retry.';
+        'Review failed. Your draft is kept. Retry.';
   } finally {
     if (_dialog.overlay() === overlay) {
       _busy = false;
@@ -651,7 +651,7 @@ async function _submit(): Promise<void> {
   }
 }
 
-/** Accept a complete decimal token, never parse a numeric prefix or grouping ambiguities. */
+/** Reject partial numbers and ambiguous grouping. */
 function parseNum(raw: string): number {
   const value = raw.trim();
   if (/^[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)$/.test(value)) {

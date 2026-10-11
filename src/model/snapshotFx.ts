@@ -99,20 +99,8 @@ function makeCachedRateLookup(yearMonth: string): (currency: string) => Promise<
 }
 
 /**
- * Legacy normalization helper — retained for compatibility tests.
- * Monthly snapshot entry uses normalizeSnapshotReview instead and blocks
- * saving when required FX rates are unavailable.
- *
- * For each account key in the snapshot whose account denomination currency
- * differs from APP_CURRENCY (EUR), this function fetches the month-end rate
- * and multiplies the provided balance.
- *
- * Graceful degradation: when the FX service is disabled, offline, or returns
- * an error for a particular pair, the original (unconverted) balance is kept
- * for legacy callers only; this fallback is not safe for new snapshot saves.
- *
- * EUR-only portfolios (no account with a non-EUR currency) skip all async
- * work and return the snapshot unchanged.
+ * Legacy helper retains unconverted balances when FX is unavailable.
+ * Snapshot saves must use normalizeSnapshotReview, which blocks this fallback.
  */
 export async function applySnapshotFxNormalization(
   snap: Snapshot,

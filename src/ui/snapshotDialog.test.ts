@@ -397,7 +397,7 @@ describe('snapshotDialog', () => {
   it('keeps draft on failed FX review and supports explicit EUR retry', async () => {
     const onReview = vi
       .fn()
-      .mockResolvedValueOnce({ error: 'FX unavailable for USD — retry or use EUR.' })
+      .mockResolvedValueOnce({ error: 'FX unavailable for USD. Retry or use EUR.' })
       .mockImplementation(async (draft: Snapshot) => ({ snapshot: draft }));
     const p = snapshotDialog(baseOpts({ onReview }));
     setField('snapd-acc-cash', '0');
