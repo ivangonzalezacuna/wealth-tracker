@@ -54,7 +54,6 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
     const primary = accounts.find((acct) => acct.showEtfBreakdown);
     const draft = opts.existing || opts.prefill;
     const mode = opts.mode || (opts.existing ? 'edit' : 'add');
-    const today = currentMonth();
     const previous = new Date();
     previous.setDate(1);
     previous.setMonth(previous.getMonth() - 1);
@@ -76,7 +75,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
             <div class="dialog-field">
               <label class="dialog-label" for="snapd-date">Month</label>
               <input type="month" id="snapd-date" class="form-input dialog-input"
-                value="${_esc(draft?.date || defaultMonth)}" max="${today}" aria-describedby="snapd-month-note snapd-date-err">
+                value="${_esc(draft?.date || defaultMonth)}" max="${defaultMonth}" aria-describedby="snapd-month-note snapd-date-err">
               <div class="note snapd-field-note" id="snapd-month-note"></div>
               <span class="dialog-error dialog-error-compact" id="snapd-date-err"></span>
               ${
@@ -234,7 +233,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
       const month = monthInput?.value || '';
       const end = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
       (overlay.querySelector('#snapd-month-note') as HTMLElement).textContent =
-        `Month-end balances as of ${month}-${end}.${month === today ? ' Current month is provisional.' : ''}`;
+        `Month-end balances as of ${month}-${end}.`;
     };
     monthInput?.addEventListener('change', () => {
       const modeInput = overlay.querySelector('#snapd-eur') as HTMLInputElement | null;
@@ -460,8 +459,8 @@ async function _submit(): Promise<void> {
     (overlay.querySelector('#snapd-date') as HTMLInputElement | null)?.value.trim() || '';
   if (!date || !/^\d{4}-(0[1-9]|1[0-2])$/.test(date)) {
     setErr('snapd-date', 'Required – use YYYY-MM format.');
-  } else if (date > currentMonth()) {
-    setErr('snapd-date', 'Cannot log a future month.');
+  } else if (date >= currentMonth()) {
+    setErr('snapd-date', 'Choose a completed month.');
   }
 
   const snap: Snapshot = {
@@ -606,7 +605,7 @@ async function _submit(): Promise<void> {
     review.innerHTML = `
       <div class="snapd-review-header">
         <div class="dialog-title">Review snapshot: ${_esc(fmtMon(date))}</div>
-        <p class="snapd-review-context">Month-end balances · EUR${date === currentMonth() ? ' · Provisional' : ''}</p>
+        <p class="snapd-review-context">Month-end balances · EUR</p>
       </div>
       ${copiedUnchanged ? `<p class="snapd-review-warning" role="status">Copied from ${_esc(opts.copiedFromMonth)}. Values are unchanged; check before saving.</p>` : ''}
       ${rateSummary ? `<p class="snapd-review-context">FX applied: ${rateSummary}</p>` : ''}

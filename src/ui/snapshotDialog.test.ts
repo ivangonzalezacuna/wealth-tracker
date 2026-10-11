@@ -191,7 +191,7 @@ describe('snapshotDialog', () => {
     await Promise.resolve();
     expect(settled).toBe(false);
     expect((document.querySelector('#snapd-date-err') as HTMLElement).textContent).toContain(
-      'future',
+      'completed',
     );
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     await p;
@@ -349,23 +349,25 @@ describe('snapshotDialog', () => {
     [2026, 0, '2025-12', '2026-01'],
     [2026, 2, '2026-02', '2026-03'],
     [2024, 2, '2024-02', '2024-03'],
-  ] as const)(
-    'defaults to %s-%s month-end and marks the current month provisional',
-    (year, month, expected, current) => {
-      vi.useFakeTimers();
-      try {
-        vi.setSystemTime(new Date(year, month, 31));
-        snapshotDialog(baseOpts());
-        expect((document.querySelector('#snapd-date') as HTMLInputElement).value).toBe(expected);
-        setField('snapd-date', current);
-        document.querySelector('#snapd-date')!.dispatchEvent(new Event('change'));
-        expect(document.querySelector('#snapd-month-note')!.textContent).toContain('provisional');
-        getCancel()!.click();
-      } finally {
-        vi.useRealTimers();
+    [2026, 9, '2026-09', '2026-10'],
+  ] as const)('limits %s-%s snapshots to completed months', (year, month, expected, current) => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(year, month, 31));
+      snapshotDialog(baseOpts());
+      expect((document.querySelector('#snapd-date') as HTMLInputElement).value).toBe(expected);
+      expect((document.querySelector('#snapd-date') as HTMLInputElement).max).toBe(expected);
+      for (const date of [current, `${year + 1}-01`]) {
+        setField('snapd-date', date);
+        getSubmit()!.click();
+        expect(document.querySelector('#snapd-date-err')!.textContent).toContain('completed');
+        expect(document.querySelector('.snapd-review')!.hasAttribute('hidden')).toBe(true);
       }
-    },
-  );
+      getCancel()!.click();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it.each(['', '12junk', 'Infinity', 'NaN', '1e309', '1e3', '12,34.50'])(
     'rejects non-complete account number %s',

@@ -143,7 +143,7 @@ The banner disappears automatically once both are completed, or you can dismiss 
 
 1. Open the app on any device
 2. Go to the **+ Log** tab
-3. Select the month and enter its closing account balances. New snapshots default to the last completed month; current-month entries are provisional.
+3. Select a completed month and enter its closing account balances. New snapshots default to the last completed month; current and future months cannot be selected.
 4. For the primary investment account, optionally expand **ETF breakdown** to record the closing market value of each ETF position (see below).
 5. Review the draft, then hit **Save snapshot** (saved locally; synced to Drive when online).
 6. Re-import your broker CSV whenever you want updated cost-basis or dividend data
