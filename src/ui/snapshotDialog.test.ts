@@ -349,20 +349,23 @@ describe('snapshotDialog', () => {
     [2026, 0, '2025-12', '2026-01'],
     [2026, 2, '2026-02', '2026-03'],
     [2024, 2, '2024-02', '2024-03'],
-  ] as const)('defaults to %s-%s month-end and marks the current month provisional', (year, month, expected, current) => {
-    vi.useFakeTimers();
-    try {
-      vi.setSystemTime(new Date(year, month, 31));
-      snapshotDialog(baseOpts());
-      expect((document.querySelector('#snapd-date') as HTMLInputElement).value).toBe(expected);
-      setField('snapd-date', current);
-      document.querySelector('#snapd-date')!.dispatchEvent(new Event('change'));
-      expect(document.querySelector('#snapd-month-note')!.textContent).toContain('provisional');
-      getCancel()!.click();
-    } finally {
-      vi.useRealTimers();
-    }
-  });
+  ] as const)(
+    'defaults to %s-%s month-end and marks the current month provisional',
+    (year, month, expected, current) => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date(year, month, 31));
+        snapshotDialog(baseOpts());
+        expect((document.querySelector('#snapd-date') as HTMLInputElement).value).toBe(expected);
+        setField('snapd-date', current);
+        document.querySelector('#snapd-date')!.dispatchEvent(new Event('change'));
+        expect(document.querySelector('#snapd-month-note')!.textContent).toContain('provisional');
+        getCancel()!.click();
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
 
   it.each(['', '12junk', 'Infinity', 'NaN', '1e309', '1e3', '12,34.50'])(
     'rejects non-complete account number %s',
@@ -482,7 +485,14 @@ describe('snapshotDialog', () => {
     getCancel()!.click();
   });
 
-  it.each<Record<string, number>>([{}, { GBP: 1.25 }, { USD: 0 }, { USD: -1 }, { USD: Infinity }, { USD: NaN }])(
+  it.each<Record<string, number>>([
+    {},
+    { GBP: 1.25 },
+    { USD: 0 },
+    { USD: -1 },
+    { USD: Infinity },
+    { USD: NaN },
+  ])(
     'keeps draft and reverts the currency toggle with missing or invalid rates %j',
     async (rates) => {
       snapshotDialog(
