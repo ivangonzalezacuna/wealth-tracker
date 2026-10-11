@@ -98,13 +98,6 @@ export function currentMonth(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export function lastCompletedMonth(): string {
-  const d = new Date();
-  d.setDate(1);
-  d.setMonth(d.getMonth() - 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
 // ── Transient message persistence ────────────────────────
 let _pendingMsg: { id: string; text: string; ok: boolean } | null = null;
 let _pendingMsgTimer: ReturnType<typeof setTimeout> | null = null;

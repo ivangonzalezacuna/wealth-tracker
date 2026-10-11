@@ -345,16 +345,23 @@ describe('snapshotDialog', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
 
-  it('defaults to the last completed month and marks the current month provisional', () => {
+  it.each([
+    [2026, 0, '2025-12', '2026-01'],
+    [2026, 2, '2026-02', '2026-03'],
+    [2024, 2, '2024-02', '2024-03'],
+  ] as const)('defaults to %s-%s month-end and marks the current month provisional', (year, month, expected, current) => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(2026, 0, 15));
-    snapshotDialog(baseOpts());
-    expect((document.querySelector('#snapd-date') as HTMLInputElement).value).toBe('2025-12');
-    setField('snapd-date', '2026-01');
-    document.querySelector('#snapd-date')!.dispatchEvent(new Event('change'));
-    expect(document.querySelector('#snapd-month-note')!.textContent).toContain('provisional');
-    getCancel()!.click();
-    vi.useRealTimers();
+    try {
+      vi.setSystemTime(new Date(year, month, 31));
+      snapshotDialog(baseOpts());
+      expect((document.querySelector('#snapd-date') as HTMLInputElement).value).toBe(expected);
+      setField('snapd-date', current);
+      document.querySelector('#snapd-date')!.dispatchEvent(new Event('change'));
+      expect(document.querySelector('#snapd-month-note')!.textContent).toContain('provisional');
+      getCancel()!.click();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it.each(['', '12junk', 'Infinity', 'NaN', '1e309', '1e3', '12,34.50'])(
@@ -469,16 +476,19 @@ describe('snapshotDialog', () => {
     document.querySelector('#snapd-date')!.dispatchEvent(new Event('change'));
     expect((document.querySelector('#snapd-eur') as HTMLInputElement).checked).toBe(true);
     expect((document.querySelector('#snapd-acc-broker') as HTMLInputElement).value).toBe('900');
+    expect((document.querySelector('#snapd-etf-broker-IE00AAA') as HTMLInputElement).value).toBe(
+      '450',
+    );
     getCancel()!.click();
   });
 
-  it.each([0, -1, Infinity, NaN])(
-    'does not convert foreign draft values with invalid cached rate %s',
-    async (rate) => {
+  it.each<Record<string, number>>([{}, { GBP: 1.25 }, { USD: 0 }, { USD: -1 }, { USD: Infinity }, { USD: NaN }])(
+    'keeps draft and reverts the currency toggle with missing or invalid rates %j',
+    async (rates) => {
       snapshotDialog(
         baseOpts({
           prefill: { date: '2024-06', cash: 0, broker: 900, etf_IE00AAA: 450 },
-          onFxPrefetchMonth: async () => fxPrefetchResult({ rates: { USD: rate } }),
+          onFxPrefetchMonth: async () => fxPrefetchResult({ rates }),
         }),
       );
       await vi.waitFor(() =>

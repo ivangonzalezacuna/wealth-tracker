@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   fmt,
   fmtEur2,
@@ -9,7 +9,6 @@ import {
   fmtPctSigned,
   fmtPctVal,
   currentMonth,
-  lastCompletedMonth,
   esc,
 } from './utils';
 
@@ -38,20 +37,6 @@ describe('fmt', () => {
 describe('currentMonth', () => {
   it('returns YYYY-MM format', () => {
     expect(currentMonth()).toMatch(/^\d{4}-\d{2}$/);
-  });
-
-  it.each([
-    [2026, 0, '2025-12'],
-    [2026, 2, '2026-02'],
-    [2024, 2, '2024-02'],
-  ] as const)('lastCompletedMonth handles month-end %s-%s', (year, month, expected) => {
-    vi.useFakeTimers();
-    try {
-      vi.setSystemTime(new Date(year, month, 31));
-      expect(lastCompletedMonth()).toBe(expected);
-    } finally {
-      vi.useRealTimers();
-    }
   });
 
   it('matches locally-computed YYYY-MM', () => {

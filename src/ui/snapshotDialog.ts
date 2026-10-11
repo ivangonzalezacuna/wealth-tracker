@@ -1,7 +1,7 @@
 import { normalizeSnapshotReview, type SnapshotReviewResult } from '../model/snapshotFx';
 import { isValidISIN, normalizeISIN } from '../model/isin';
 import { infoTip, attachInfoTips } from './infoTip';
-import { currentMonth, lastCompletedMonth, fmtEur2, fmtMon, safeColor, esc } from '../utils';
+import { currentMonth, fmtEur2, fmtMon, safeColor, esc } from '../utils';
 import type { Account, Holding, PortfolioData, Snapshot } from '../types';
 import {
   createDialogController,
@@ -55,6 +55,10 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
     const draft = opts.existing || opts.prefill;
     const mode = opts.mode || (opts.existing ? 'edit' : 'add');
     const today = currentMonth();
+    const previous = new Date();
+    previous.setDate(1);
+    previous.setMonth(previous.getMonth() - 1);
+    const defaultMonth = `${previous.getFullYear()}-${String(previous.getMonth() + 1).padStart(2, '0')}`;
     const title = mode === 'edit' ? 'Edit snapshot' : 'Add monthly snapshot';
 
     const overlay = document.createElement('div');
@@ -72,7 +76,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
             <div class="dialog-field">
               <label class="dialog-label" for="snapd-date">Month</label>
               <input type="month" id="snapd-date" class="form-input dialog-input"
-                value="${_esc(draft?.date || lastCompletedMonth())}" max="${today}" aria-describedby="snapd-month-note snapd-date-err">
+                value="${_esc(draft?.date || defaultMonth)}" max="${today}" aria-describedby="snapd-month-note snapd-date-err">
               <div class="note snapd-field-note" id="snapd-month-note"></div>
               <span class="dialog-error dialog-error-compact" id="snapd-date-err"></span>
               ${
