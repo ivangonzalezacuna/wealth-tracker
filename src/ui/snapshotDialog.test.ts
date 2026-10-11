@@ -786,6 +786,8 @@ describe('snapshotDialog', () => {
     snapshotDialog(baseOpts());
     const tip = document.querySelector<HTMLElement>('.snapd-currency-help .info-tip')!;
     const checkbox = document.querySelector<HTMLInputElement>('#snapd-eur')!;
+    expect(tip.closest('label')).toBe(checkbox.closest('label'));
+    expect(checkbox.closest('label')!.className).toBe('dialog-label');
     expect(document.querySelector('.snapd-currency-details')).toBeNull();
     expect(tip.dataset.tipBound).toBe('1');
     expect(tip.tabIndex).toBe(0);

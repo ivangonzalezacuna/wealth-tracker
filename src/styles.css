@@ -1456,12 +1456,6 @@ summary.section-label {
 .snap-etf-other > .snap-etf-group + .snap-etf-group {
   margin-top: 6px;
 }
-.snapd-currency-help {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-}
 .snap-etf-group-label {
   font-size: 10px;
   text-transform: uppercase;
@@ -3203,11 +3197,6 @@ input[type='color'] {
 }
 .snap-dialog-card [hidden] {
   display: none !important;
-}
-.snapd-entry-mode {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
 }
 .snapd-review {
   display: flex;

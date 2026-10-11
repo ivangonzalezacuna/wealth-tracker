@@ -89,7 +89,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
                 value="${_esc(draft?.notes || '')}" placeholder="e.g. catch-up done, got raise...">
             </div>
           </div>
-          ${_getDialogAccounts(opts.accounts).some((a) => a.currency !== 'EUR') ? `<div class="snapd-currency-help"><label class="note snapd-entry-mode"><input type="checkbox" id="snapd-eur" ${draft ? 'checked' : ''}> Enter all values in EUR</label>${infoTip('Otherwise use each account’s native currency. Stored values are EUR — switching converts the draft only when FX rates are available.')}</div>` : ''}
+          ${_getDialogAccounts(opts.accounts).some((a) => a.currency !== 'EUR') ? `<div class="snapd-currency-help"><label class="dialog-label" style="cursor:pointer"><input type="checkbox" id="snapd-eur" ${draft ? 'checked' : ''}> Enter all values in EUR${infoTip('Otherwise use each account’s native currency. Stored values are EUR — switching converts the draft only when FX rates are available.')}</label></div>` : ''}
           ${_renderAccountFields(opts.accounts, opts.holdings, opts.configHoldings || [], draft)}
           <div class="dialog-error" id="snapd-review-err" role="alert"></div>
         </div>

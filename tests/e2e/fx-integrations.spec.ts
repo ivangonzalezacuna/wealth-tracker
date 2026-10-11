@@ -158,7 +158,44 @@ test('snapshot dialog shows currency-specific placeholder for non-EUR accounts',
   // Placeholder for the non-EUR account input should mention GBP
   const input = page.locator('[data-currency="GBP"]');
   await expect(input).toHaveAttribute('placeholder', 'total value in GBP');
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    const layout = await page.locator('.snapd-currency-help').evaluate((row) => {
+      const label = row.querySelector('label')!;
+      const checkbox = label.querySelector('input')!;
+      const tip = label.querySelector('.info-tip')!;
+      const text = Array.from(label.childNodes).find(
+        (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.includes('Enter all'),
+      )!;
+      const range = document.createRange();
+      range.selectNode(text);
+      const textRect = range.getBoundingClientRect();
+      const checkRect = checkbox.getBoundingClientRect();
+      const tipRect = tip.getBoundingClientRect();
+      return {
+        fontSize: getComputedStyle(label).fontSize,
+        fontStyle: getComputedStyle(label).fontStyle,
+        sameLine:
+          checkRect.top < textRect.bottom &&
+          tipRect.top < textRect.bottom &&
+          tipRect.bottom > textRect.top,
+        overflow: row.scrollWidth > row.clientWidth,
+      };
+    });
+    expect(layout).toEqual({
+      fontSize: '12px',
+      fontStyle: 'normal',
+      sameLine: true,
+      overflow: false,
+    });
+  }
+  const eurChecked = await page.locator('#snapd-eur').isChecked();
+  await page.locator('.snapd-currency-help .info-tip').hover();
+  await expect(page.locator('.info-tip-pop')).toBeVisible();
+  await page.locator('.snapd-currency-help .info-tip').click();
+  await expect(page.locator('#snapd-eur')).toBeChecked({ checked: eurChecked });
   await page.click('.js-snapd-cancel');
+  await expect(page.locator('.info-tip-pop')).toHaveCount(0);
 });
 
 test('transaction dialog renders FX rate hint span and hides it for EUR currency', async ({
