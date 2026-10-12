@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import {
   addAccount,
   addManualTransaction,
@@ -13,10 +13,157 @@ import {
   preparePage,
   snapshotRow,
   txRow,
+  waitForSyncIdle,
 } from './helpers';
+
+async function addManualEtfs(page: Page, isins: string[], value: string) {
+  for (const isin of isins) {
+    await page.click('.js-snapd-extra');
+    const row = page.locator('.snap-etf-extra').last();
+    await row.getByLabel('Other ETF ISIN').fill(isin);
+    await row.getByLabel('Other ETF value').fill(value);
+  }
+}
+
+async function reviewAndSaveSnapshot(page: Page) {
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('.snapd-review')).toBeVisible();
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('#snap-msg')).toContainText('Saved');
+}
 
 test.beforeEach(async ({ page }) => {
   await preparePage(page);
+});
+
+test('snapshot review uses compact aligned rows on mobile and desktop', async ({ page }) => {
+  await gotoApp(page);
+  await addAccount(page, {
+    label: 'Primary investment account with a long label',
+    institution: 'Trade Republic',
+    primary: true,
+  });
+  await openTab(page, 'tab-log');
+  await page.click('#btn-add-snap');
+  await page.getByLabel(/^Primary investment account with a long label \(/).fill('19845.48');
+  await page.locator('.snap-etf-other summary').click();
+  await addManualEtfs(page, ['IE00BYX2JD69', 'IE00B4L5Y983', 'IE00BDBRDM35'], '1314.96');
+  const summary = page.locator('.snap-etf-other > summary');
+  await expect(summary).toHaveCSS('font-size', '11px');
+  await expect(summary).toHaveCSS('border-top-style', 'solid');
+  await expect(summary).toHaveCSS('display', 'list-item');
+  await expect(summary).toHaveCSS('padding', '3px 9px');
+  await expect(page.getByRole('group', { name: 'Manual entries' })).toContainText('Add ETF');
+  for (const width of [390, 320, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    expect(
+      await page.locator('.dialog-fields').evaluate((element) => ({
+        overflow: element.scrollWidth > element.clientWidth,
+        rowsFit: Array.from(element.querySelectorAll('.snap-etf-extra')).every((row) => {
+          const bounds = row.getBoundingClientRect();
+          return Array.from(row.children).every((child) => {
+            const rect = child.getBoundingClientRect();
+            return rect.left >= bounds.left && rect.right <= bounds.right + 1;
+          });
+        }),
+      })),
+    ).toEqual({ overflow: false, rowsFit: true });
+  }
+  await page.click('.js-snapd-submit');
+  const review = page.locator('.snapd-review');
+  await expect(review).toBeVisible();
+  await expect(page.locator('.dialog-header')).toBeHidden();
+  for (const width of [390, 320, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    const layout = await review.evaluate((element) => {
+      const rows = Array.from(element.querySelectorAll('.snapd-review-values > div'));
+      return {
+        fontSize: getComputedStyle(element).fontSize,
+        titleSize: getComputedStyle(element.querySelector('.dialog-title')!).fontSize,
+        overflow: element.scrollWidth > element.clientWidth,
+        rowsAligned: rows.every((row) => {
+          const label = row.querySelector('dt')!.getBoundingClientRect();
+          const value = row.querySelector('dd')!.getBoundingClientRect();
+          return label.right <= value.left && value.top < label.bottom;
+        }),
+        repeatedCurrency: rows.some((row) => row.querySelector('dd')!.textContent?.includes('EUR')),
+      };
+    });
+    expect(layout).toEqual({
+      fontSize: '12px',
+      titleSize: '15px',
+      overflow: false,
+      rowsAligned: true,
+      repeatedCurrency: false,
+    });
+  }
+  await page.getByRole('button', { name: 'Back to edit' }).click();
+  await expect(page.locator('.dialog-header')).toBeVisible();
+  await expect(page.getByLabel(/^Primary investment account with a long label \(/)).toHaveValue(
+    '19845.48',
+  );
+});
+
+test('untracked ETF keys can be renamed and removed after saving without returning on Back', async ({
+  page,
+}) => {
+  const month = monthOffsetValue(-2);
+  const nextMonth = monthOffsetValue(-1);
+  await gotoApp(page);
+  await addAccount(page, { label: 'Manual Broker', institution: 'Trade Republic', primary: true });
+  await openTab(page, 'tab-log');
+  await waitForSyncIdle(page);
+  await page.click('#btn-add-snap');
+  await page.fill('#snapd-date', month);
+  await page.getByLabel('Manual Broker (EUR)').fill('1000');
+  await page.locator('.snap-etf-other summary').click();
+  await addManualEtfs(page, ['IE0000000001', 'IE0000000002'], '100');
+  await reviewAndSaveSnapshot(page);
+
+  await waitForSyncIdle(page);
+  await page.click('#btn-add-snap');
+  await page.fill('#snapd-date', nextMonth);
+  await expect(page.locator('.dialog-fields')).not.toContainText('Copied from');
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('.snapd-review')).toContainText(`Copied from ${month}`);
+  await page.click('.js-snapd-back');
+  await page.locator('.snap-etf-other summary').click();
+  await page
+    .locator('.snap-etf-extra')
+    .first()
+    .getByRole('button', { name: 'Remove other ETF' })
+    .click();
+  const remaining = page.locator('.snap-etf-extra');
+  await expect(remaining.getByLabel('Other ETF ISIN')).toBeFocused();
+  await expect(page.locator('.snap-etf-recon-alloc')).toContainText(formatUiMoney(100));
+  await remaining.getByLabel('Other ETF ISIN').fill('IE0000000003');
+  await remaining.getByLabel('Other ETF value').fill('0');
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('.snapd-review')).not.toContainText('Copied from');
+  await expect(page.locator('.snapd-review')).not.toContainText('IE0000000001');
+  await expect(page.locator('.snapd-review')).not.toContainText('IE0000000002');
+  await page.click('.js-snapd-back');
+  await expect(page.locator('.snap-etf-extra')).toHaveCount(1);
+  await reviewAndSaveSnapshot(page);
+
+  await snapshotRow(page, nextMonth).click();
+  await waitForSyncIdle(page);
+  await page.click('.snap-detail .js-edit-snap');
+  await page.locator('.snap-etf-other summary').click();
+  await expect(page.locator('.snap-etf-extra')).toHaveCount(1);
+  await expect(page.getByLabel('Other ETF ISIN')).toHaveValue('IE0000000003');
+  await page.getByRole('button', { name: 'Remove other ETF' }).click();
+  await expect(page.getByRole('button', { name: 'Add ETF', exact: true })).toBeFocused();
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('.snapd-review')).toContainText('replace');
+  await expect(page.locator('.snapd-review')).not.toContainText('Copied from');
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('#snap-msg')).toContainText('Saved');
+  await waitForSyncIdle(page);
+  await page.click('.snap-detail .js-edit-snap');
+  await page.locator('.snap-etf-other summary').click();
+  await expect(page.locator('.snap-etf-extra')).toHaveCount(0);
+  await page.click('.js-snapd-cancel');
 });
 
 test('snapshot create, edit, delete, and bulk delete flows keep log data consistent', async ({
@@ -46,8 +193,7 @@ test('snapshot create, edit, delete, and bulk delete flows keep log data consist
   await page.click('.snap-detail .js-edit-snap');
   await page.fill('#snapd-notes', 'Initial funding round updated');
   await page.getByLabel(/^Core Broker \([A-Z]{3}\)$/).fill('1500');
-  await page.click('.js-snapd-submit');
-  await expect(page.locator('#snap-msg')).toContainText('Saved');
+  await reviewAndSaveSnapshot(page);
   await expect(snapshotRow(page, firstMonth)).toContainText(formatUiMoney(1500));
 
   await addSnapshot(page, {

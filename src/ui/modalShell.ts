@@ -59,19 +59,23 @@ export function activateModalShell(opts: ModalShellOptions): () => void {
     if (e.key !== 'Tab') return;
     const focusables = Array.from(
       overlay.querySelectorAll(opts.focusablesSelector || DEFAULT_FOCUSABLES),
-    ) as HTMLElement[];
+    ).filter((el) => {
+      if (el.closest('[hidden]')) return false;
+      const closedDetails = el.closest('details:not([open])');
+      return !closedDetails || el === closedDetails.querySelector('summary');
+    }) as HTMLElement[];
     if (!focusables.length) return;
     const first = focusables[0];
     const last = focusables[focusables.length - 1];
     const active = document.activeElement as HTMLElement | null;
     if (e.shiftKey) {
-      if (active === first || !active || !overlay.contains(active)) {
+      if (active === first || !active || !focusables.includes(active)) {
         e.preventDefault();
         last.focus();
       }
       return;
     }
-    if (active === last || !active || !overlay.contains(active)) {
+    if (active === last || !active || !focusables.includes(active)) {
       e.preventDefault();
       first.focus();
     }

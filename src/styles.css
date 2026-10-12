@@ -1441,6 +1441,21 @@ summary.section-label {
   border-radius: var(--radius-sm);
   width: 100%;
 }
+.snap-etf-other > summary {
+  width: fit-content;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.snap-etf-other[open] > summary {
+  margin-bottom: 6px;
+}
+.snap-etf-other > .snap-etf-group + .snap-etf-group {
+  margin-top: 6px;
+}
 .snap-etf-group-label {
   font-size: 10px;
   text-transform: uppercase;
@@ -1462,6 +1477,17 @@ summary.section-label {
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+.snap-etf-row.snap-etf-extra {
+  grid-template-columns: minmax(0, 1fr) minmax(84px, 104px) auto;
+}
+.snap-etf-extra > input {
+  min-width: 0;
+  width: 100%;
+}
+.snap-etf-extra .js-snapd-remove {
+  padding: 4px 6px;
+  font-size: 11px;
 }
 .snap-etf-name-col {
   display: flex;
@@ -3168,6 +3194,80 @@ input[type='color'] {
 /* ── Snapshot dialog overrides ──────────────────────────── */
 .snap-dialog-card {
   max-width: 720px;
+}
+.snap-dialog-card [hidden] {
+  display: none !important;
+}
+.snapd-field-note {
+  margin-top: 0;
+}
+.snapd-review {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.snapd-review-header {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.snapd-review-context {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+.snapd-review-warning,
+.snapd-review-summary {
+  padding: 7px 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+}
+.snapd-review-warning {
+  margin: 0;
+  color: var(--warn);
+  font-size: 11px;
+}
+.snapd-review-section .section-label {
+  padding: 0 0 4px;
+}
+.snapd-review-values {
+  margin: 0;
+}
+.snapd-review-values > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+.snapd-review-values > div:last-child {
+  border-bottom: 0;
+}
+.snapd-review-values dt {
+  min-width: 0;
+  color: var(--ink-2);
+}
+.snapd-review-isin {
+  display: block;
+  font-size: 10px;
+  color: var(--ink-3);
+}
+.snapd-review-values dd {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.snapd-review-notes {
+  padding-top: 7px;
+  border-top: 1px solid var(--line-2);
 }
 .snap-dialog-account {
   display: flex;

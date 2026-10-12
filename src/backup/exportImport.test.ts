@@ -100,6 +100,29 @@ describe('buildBackup', () => {
     expect('rowId' in result.data.transactions[0]).toBe(false);
     expect(() => JSON.stringify(result)).not.toThrow();
   });
+
+  it('round-trips extra ETF values, explicit zeros, omitted ETFs and retired balances without creating holdings or transactions', () => {
+    const snapshots = [
+      {
+        date: '2026-01',
+        a1: 5000,
+        retired_account: 123.45,
+        etf_IE00B4L5Y983: 0,
+        etf_IE0000000001: 250.75,
+        etf_IE0000000002: 100,
+        notes: 'Extra positions recorded only in snapshot',
+      },
+    ];
+    const exported = buildBackup({ ...FIXTURE_DATA, snapshots });
+    const restored = validateBackup(JSON.parse(JSON.stringify(exported)));
+    expect(restored).not.toBeNull();
+    expect(restored!.schemaVersion).toBe(BACKUP_SCHEMA_VERSION);
+    expect(restored!.data.snapshots).toEqual(snapshots);
+    expect(restored!.data.snapshots[0]).not.toHaveProperty('etf_IE0000000003');
+    expect(restored!.data.holdings).toEqual(FIXTURE_DATA.holdings);
+    expect(restored!.data.transactions).toEqual(FIXTURE_DATA.transactions);
+    expect(restored!.data.accounts).toEqual(FIXTURE_DATA.accounts);
+  });
 });
 
 describe('backupFilename', () => {

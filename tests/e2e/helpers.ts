@@ -188,11 +188,17 @@ export async function addSnapshot(
   await expect(page.locator('#snapd-date')).toBeVisible();
   await page.fill('#snapd-date', opts.month);
   if (opts.note) await page.fill('#snapd-notes', opts.note);
+  if (await page.locator('#snapd-eur').count()) await page.check('#snapd-eur');
+  for (const input of await page.locator('[data-account-key]').all()) {
+    if (!(await input.inputValue()).trim()) await input.fill('0');
+  }
   for (const [label, value] of Object.entries(opts.accountValues ?? {})) {
     const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     await page.getByLabel(new RegExp(`^${escaped} \\([A-Z]{3}\\)$`)).fill(String(value));
   }
   await waitForSyncIdle(page);
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('.snapd-review')).toBeVisible();
   await page.click('.js-snapd-submit');
   await expect(page.locator('#snap-msg')).toContainText('Saved');
 }

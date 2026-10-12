@@ -45,8 +45,10 @@ test('mixed-currency snapshot flow stays stable when FX integration is disabled'
 
   await snapshotRow(page, month).click();
   await page.click('.snap-detail .js-edit-snap');
-  await expect(page.getByLabel('USD Broker (USD)')).toBeVisible();
-  await page.getByLabel('USD Broker (USD)').fill('1200');
+  await expect(page.getByLabel('USD Broker (EUR)')).toBeVisible();
+  await page.getByLabel('USD Broker (EUR)').fill('1200');
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('.snapd-review')).toBeVisible();
   await page.click('.js-snapd-submit');
   await expect(page.locator('#snap-msg')).toContainText('Saved');
   await expect(snapshotRow(page, month)).toContainText(formatUiMoney(1200));
@@ -80,6 +82,38 @@ test('FX integrations card exposes status and save/clear actions', async ({ page
   await page.click('#btn-fx-clear-cache');
   await page.click('.js-confirm-ok');
   await expect(page.locator('#fx-int-msg')).toContainText('FX cache cleared.');
+});
+
+test('unavailable native FX blocks review, keeps draft and permits explicit EUR recovery on mobile', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await gotoApp(page);
+  await addAccount(page, { label: 'USD Cash', institution: 'Wise', currency: 'USD' });
+  await openTab(page, 'tab-settings');
+  await ensureCardExpanded(page, 'settings-card-integrations');
+  await page.uncheck('#fx-integration-enabled');
+  await page.click('#btn-save-fx-integration');
+  await expect(page.locator('#fx-int-msg')).toContainText('Saved');
+  await openTab(page, 'tab-log');
+  await page.click('#btn-add-snap');
+  await page.uncheck('#snapd-eur');
+  await page.getByLabel('USD Cash (USD)').fill('1000');
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('#snapd-review-err')).toContainText('FX unavailable');
+  await expect(page.getByLabel('USD Cash (USD)')).toHaveValue('1000');
+  await expect(page.locator('.snapd-review')).toBeHidden();
+  await page.getByLabel('USD Cash (USD)').fill('');
+  await page.check('#snapd-eur');
+  await page.getByLabel('USD Cash (EUR)').fill('900');
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('.snapd-review')).toContainText(formatUiMoney(900));
+  await page.click('.js-snapd-back');
+  await expect(page.getByLabel('USD Cash (EUR)')).toHaveValue('900');
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('.snapd-review')).toBeVisible();
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('#snap-msg')).toContainText('Saved');
 });
 
 test('net worth KPI shows "in USD" indicator for a non-EUR account', async ({ page }) => {
@@ -124,7 +158,65 @@ test('snapshot dialog shows currency-specific placeholder for non-EUR accounts',
   // Placeholder for the non-EUR account input should mention GBP
   const input = page.locator('[data-currency="GBP"]');
   await expect(input).toHaveAttribute('placeholder', 'total value in GBP');
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    const monthLayout = await page.locator('#snapd-date').evaluate((input) => {
+      const note = document.querySelector('#snapd-month-note')!;
+      const error = document.querySelector('#snapd-date-err')!;
+      const notes = document.querySelector('#snapd-notes')!;
+      const field = input.parentElement!;
+      const noteRect = note.getBoundingClientRect();
+      return {
+        gap: noteRect.top - input.getBoundingClientRect().bottom,
+        aligned: noteRect.left === input.getBoundingClientRect().left,
+        errorHidden: getComputedStyle(error).display === 'none',
+        notesBelowOrBeside:
+          notes.getBoundingClientRect().left >= field.getBoundingClientRect().right ||
+          notes.getBoundingClientRect().top >= field.getBoundingClientRect().bottom,
+      };
+    });
+    expect(monthLayout).toEqual({
+      gap: 3,
+      aligned: true,
+      errorHidden: true,
+      notesBelowOrBeside: true,
+    });
+    const layout = await page.locator('.snapd-currency-help').evaluate((row) => {
+      const label = row.querySelector('label')!;
+      const checkbox = label.querySelector('input')!;
+      const tip = label.querySelector('.info-tip')!;
+      const text = Array.from(label.childNodes).find(
+        (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.includes('Enter all'),
+      )!;
+      const range = document.createRange();
+      range.selectNode(text);
+      const textRect = range.getBoundingClientRect();
+      const checkRect = checkbox.getBoundingClientRect();
+      const tipRect = tip.getBoundingClientRect();
+      return {
+        fontSize: getComputedStyle(label).fontSize,
+        fontStyle: getComputedStyle(label).fontStyle,
+        sameLine:
+          checkRect.top < textRect.bottom &&
+          tipRect.top < textRect.bottom &&
+          tipRect.bottom > textRect.top,
+        overflow: row.scrollWidth > row.clientWidth,
+      };
+    });
+    expect(layout).toEqual({
+      fontSize: '12px',
+      fontStyle: 'normal',
+      sameLine: true,
+      overflow: false,
+    });
+  }
+  const eurChecked = await page.locator('#snapd-eur').isChecked();
+  await page.locator('.snapd-currency-help .info-tip').hover();
+  await expect(page.locator('.info-tip-pop')).toBeVisible();
+  await page.locator('.snapd-currency-help .info-tip').click();
+  await expect(page.locator('#snapd-eur')).toBeChecked({ checked: eurChecked });
   await page.click('.js-snapd-cancel');
+  await expect(page.locator('.info-tip-pop')).toHaveCount(0);
 });
 
 test('transaction dialog renders FX rate hint span and hides it for EUR currency', async ({
