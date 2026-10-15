@@ -81,6 +81,9 @@ jobs:
       - name: Run Playwright e2e tests
         run: yarn playwright test --project=${{ matrix.browser }}
 
+      - name: Verify production PDF worker, CSP, and offline import
+        run: yarn playwright test --config playwright.pdf-production.config.ts --project=${{ matrix.browser }}
+
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v7
@@ -88,5 +91,6 @@ jobs:
           name: playwright-report-${{ matrix.browser }}
           path: |
             playwright-report/
-            test-results/
+            test-results/playwright/
+            test-results/production/
           retention-days: 7
