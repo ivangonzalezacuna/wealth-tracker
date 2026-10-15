@@ -6,6 +6,7 @@ import {
   setHoldings,
   setSettings,
   setSetting,
+  saveSnapshotMapping,
   isConfigLoaded,
   getCostBasisMethod,
   getGoals,
@@ -16,6 +17,17 @@ import {
   getContributionInterval,
   getCalibrationInterval,
 } from '../store/config';
+import {
+  getSnapshotMapping,
+  updateSnapshotMapping,
+  SNAPSHOT_MAPPINGS_KEY,
+} from '../import/snapshotMapping';
+import { getSnapshotParser, snapshotParsers } from '../import/snapshotParsers';
+import {
+  snapshotMappingFields,
+  wireSnapshotMappingFields,
+  readSnapshotMappingFields,
+} from '../ui/snapshotMappingFields';
 import type { ConfigChangeKind } from '../store/config';
 import {
   loadTransactions,
@@ -2008,7 +2020,8 @@ function renderFxIntegrationsCard(settings: Settings): string {
         <span class="card-chevron"></span>
       </div>
       <div class="card-body">
-        <div class="card-section-head">FRANKFURTER</div>
+        ${renderStatementMapping(settings)}
+        <div class="card-section-head" style="margin-top:1.25rem">FRANKFURTER</div>
         <p class="note" style="margin-bottom:.75rem">Provides on-demand FX rates for mixed-currency accounts. The app stays fully usable offline and only fetches when you trigger a relevant action.</p>
         <div class="settings-field">
           <label class="settings-field-label" for="fx-integration-enabled">
@@ -2035,6 +2048,44 @@ function renderFxIntegrationsCard(settings: Settings): string {
         </div>
       </div>
     </div>`;
+}
+
+function renderStatementMappingDetails(settings: Settings, type: string): string {
+  let mapping;
+  let issue = '';
+  try {
+    mapping = getSnapshotMapping(settings[SNAPSHOT_MAPPINGS_KEY], type, getAccounts());
+  } catch (error) {
+    issue = (error as Error).message;
+  }
+  return `
+    <p class="note">${esc(getSnapshotParser(type).label)} · ${mapping ? 'Mapping remembered' : 'Set up on first import or here'}. Preferences follow backups and sync; PDF contents and draft values do not.</p>
+    ${issue ? `<p class="dialog-error" role="alert">${esc(issue)}</p>` : ''}
+    ${snapshotMappingFields(getAccounts(), 'settings-statement', mapping, type)}
+    <div class="form-actions">
+      <button class="btn btn-primary btn-sm" id="btn-save-statement-mapping">Save mapping</button>
+      <button class="btn btn-outline btn-sm" id="btn-reset-statement-mapping">Reset mapping</button>
+      <span id="statement-mapping-msg" class="form-msg" role="status"></span>
+    </div>
+  `;
+}
+
+function renderStatementMapping(settings: Settings): string {
+  const type = snapshotParsers[0].id;
+  return `<section id="statement-mapping" data-document-type="${esc(type)}">
+    <div class="card-section-head">STATEMENT IMPORTS</div>
+    ${
+      snapshotParsers.length > 1
+        ? `<div class="dialog-field">
+      <label class="dialog-label" for="statement-report-type">Report type</label>
+      <select id="statement-report-type" class="form-input dialog-input">
+        ${snapshotParsers.map((parser) => `<option value="${esc(parser.id)}">${esc(parser.label)}</option>`).join('')}
+      </select>
+    </div>`
+        : ''
+    }
+    <div data-statement-details>${renderStatementMappingDetails(settings, type)}</div>
+  </section>`;
 }
 
 async function refreshFxIntegrationStatus(root: HTMLElement): Promise<void> {
@@ -2120,6 +2171,85 @@ async function loadFxTelemetryMonthlySafe(month: string): Promise<FxTelemetryMon
 }
 
 function attachFxIntegrationListeners(root: HTMLElement): void {
+  const mappingRoot = root.querySelector<HTMLElement>('#statement-mapping');
+  if (mappingRoot) wireSnapshotMappingFields(mappingRoot);
+  mappingRoot
+    ?.querySelector<HTMLSelectElement>('#statement-report-type')
+    ?.addEventListener('change', (event) => {
+      const type = (event.currentTarget as HTMLSelectElement).value;
+      mappingRoot.dataset.documentType = type;
+      mappingRoot.querySelector<HTMLElement>('[data-statement-details]')!.innerHTML =
+        renderStatementMappingDetails(getSettings(), type);
+      wireSnapshotMappingFields(mappingRoot);
+    });
+  mappingRoot?.addEventListener('click', async (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>(
+      '#btn-save-statement-mapping',
+    );
+    if (!button) return;
+    const type = mappingRoot.dataset.documentType!;
+    try {
+      const mapping = readSnapshotMappingFields(mappingRoot, getAccounts(), type);
+      const saved = await withCardGuard('integrations', button, async () => {
+        await saveSnapshotMapping(type, mapping);
+        return true;
+      });
+      if (!saved) throw new Error('A sync or save is in progress. Try again in a moment.');
+      if (mappingRoot.dataset.documentType !== type) return;
+      showMsg(
+        'statement-mapping-msg',
+        'Mapping saved. Future imports fill the draft automatically.',
+        true,
+      );
+    } catch (error) {
+      if (mappingRoot.dataset.documentType === type)
+        showMsg('statement-mapping-msg', (error as Error).message, false);
+    }
+  });
+  mappingRoot?.addEventListener('click', async (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>(
+      '#btn-reset-statement-mapping',
+    );
+    if (!button) return;
+    const type = mappingRoot.dataset.documentType!;
+    const label = getSnapshotParser(type).label;
+    let resetAll = false;
+    try {
+      updateSnapshotMapping(getSettings()[SNAPSHOT_MAPPINGS_KEY], type, null, getAccounts());
+    } catch {
+      resetAll = true;
+    }
+    const ok = await confirmDialog({
+      title: resetAll ? 'Reset unreadable import preferences?' : `Reset ${label} mapping?`,
+      body: resetAll
+        ? 'The preferences cannot be read. This explicitly removes ALL statement mappings, including other providers. Your snapshots and accounts are unchanged.'
+        : `The next ${label} import will ask for a mapping again. Other providers and snapshots are unchanged.`,
+      confirmLabel: 'Reset mapping',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const reset = await withCardGuard('integrations', button, async () => {
+        await setSettings({
+          [SNAPSHOT_MAPPINGS_KEY]: resetAll
+            ? ''
+            : updateSnapshotMapping(
+                getSettings()[SNAPSHOT_MAPPINGS_KEY],
+                type,
+                null,
+                getAccounts(),
+              ),
+        });
+        return true;
+      });
+      if (!reset) throw new Error('A sync or save is in progress. Try again in a moment.');
+      if (mappingRoot.dataset.documentType !== type) return;
+      showMsg('statement-mapping-msg', 'Mapping reset. Set up your next import again.', true);
+    } catch (error) {
+      if (mappingRoot.dataset.documentType === type)
+        showMsg('statement-mapping-msg', (error as Error).message, false);
+    }
+  });
   void refreshFxIntegrationStatus(root).catch((err) => {
     showMsg('fx-int-msg', 'Status load failed: ' + (err as Error).message, false);
   });
