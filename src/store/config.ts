@@ -24,6 +24,22 @@ import { INTERVAL_PER_YEAR } from '../model/contributions';
 import type { CachedConfig } from '../cache/db';
 import { validateAccountIds } from '../model/accounts';
 import { configureFxService } from '../services/fxRateService';
+import {
+  SNAPSHOT_MAPPINGS_KEY,
+  updateSnapshotMapping,
+  type SnapshotMapping,
+} from '../import/snapshotMapping';
+
+export async function saveSnapshotMapping(type: string, mapping: SnapshotMapping): Promise<void> {
+  await setSettings({
+    [SNAPSHOT_MAPPINGS_KEY]: updateSnapshotMapping(
+      _settings[SNAPSHOT_MAPPINGS_KEY],
+      type,
+      mapping,
+      _accounts,
+    ),
+  });
+}
 
 // Valid contribution intervals, derived from the canonical INTERVAL_PER_YEAR map
 const VALID_INTERVALS = new Set(Object.keys(INTERVAL_PER_YEAR));

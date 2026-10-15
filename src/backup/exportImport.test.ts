@@ -71,6 +71,18 @@ function validBackupObj(): BackupFile {
 }
 
 describe('buildBackup', () => {
+  it('roundtrips statement mapping preferences without document metadata or a schema bump', () => {
+    const raw = JSON.stringify({
+      version: 1,
+      mappings: {
+        'trade-republic:valuation': { mode: 'combined', securitiesAccount: 'fictional-broker' },
+      },
+    });
+    const backup = buildBackup({ ...FIXTURE_DATA, settings: { snapshot_import_mappings: raw } });
+    const restored = validateBackup(JSON.parse(JSON.stringify(backup)));
+    expect(restored?.data.settings.snapshot_import_mappings).toBe(raw);
+    expect(restored?.schemaVersion).toBe(BACKUP_SCHEMA_VERSION);
+  });
   it('echoes input under data with valid schemaVersion/app/exportedAt', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-01T12:00:00.000Z'));
