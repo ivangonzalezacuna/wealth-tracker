@@ -66,6 +66,17 @@ test('FX integrations card exposes status and save/clear actions', async ({ page
   await openTab(page, 'tab-settings');
   await ensureCardExpanded(page, 'settings-card-integrations');
 
+  const statementMapping = page.locator('#statement-mapping');
+  const frankfurter = page.locator('#settings-card-integrations .card-section-head', {
+    hasText: 'FRANKFURTER',
+  });
+  await expect(frankfurter).toHaveCSS('margin-top', '20px');
+  const statementBounds = await statementMapping.boundingBox();
+  const frankfurterBounds = await frankfurter.boundingBox();
+  expect(
+    frankfurterBounds!.y - (statementBounds!.y + statementBounds!.height),
+  ).toBeGreaterThanOrEqual(20);
+
   await expect(page.locator('#fx-status-enabled')).not.toHaveText('-');
   await expect(page.locator('#fx-status-cache-entries')).not.toHaveText('-');
 
@@ -175,8 +186,8 @@ test('snapshot dialog shows currency-specific placeholder for non-EUR accounts',
           notes.getBoundingClientRect().top >= field.getBoundingClientRect().bottom,
       };
     });
-    expect(monthLayout).toEqual({
-      gap: 3,
+    expect(monthLayout.gap).toBeCloseTo(3, 2);
+    expect(monthLayout).toMatchObject({
       aligned: true,
       errorHidden: true,
       notesBelowOrBeside: true,

@@ -1202,8 +1202,6 @@ details[open] > summary .card-chevron {
 .form-input:focus-visible {
   border-color: var(--brand-border);
   background: var(--surface);
-  outline: 2px solid var(--brand-border);
-  outline-offset: 2px;
 }
 .form-input-sm {
   padding: 5px 7px;
@@ -1791,8 +1789,7 @@ summary.section-label {
 .forecast-inflation-input:focus {
   border-color: var(--brand-border);
   background: var(--surface);
-  outline: 2px solid var(--brand-border);
-  outline-offset: 2px;
+  outline: none;
 }
 /* Neutral form-row helpers used for drawdown controls and other planning inputs.
    Separate from .forecast-inflation-* so the semantics of each class are clear. */
@@ -1821,8 +1818,7 @@ summary.section-label {
 .planning-input:focus {
   border-color: var(--brand-border);
   background: var(--surface);
-  outline: 2px solid var(--brand-border);
-  outline-offset: 2px;
+  outline: none;
 }
 .forecast-inflation-hint {
   margin-top: 8px;
@@ -3200,6 +3196,62 @@ input[type='color'] {
 }
 .snapd-field-note {
   margin-top: 0;
+}
+.snap-pdf-panel {
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  overflow-wrap: anywhere;
+}
+.snap-pdf-panel .form-actions {
+  flex-wrap: wrap;
+}
+.snap-pdf-panel .dialog-field {
+  margin: 8px 0;
+  min-width: 0;
+}
+.snap-pdf-panel select {
+  width: 100%;
+  max-width: 100%;
+}
+.snap-pdf-panel p:empty,
+.snap-pdf-panel .dialog-error:empty {
+  display: none;
+}
+.snapd-review-more summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
+.snapd-review-values > div[hidden] {
+  display: none;
+}
+.snapd-review .snap-field-status {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  vertical-align: middle;
+}
+.snapd-review .snap-field-status[data-field-status='copied'],
+.snapd-review .snap-field-status[data-field-status='missing'] {
+  background: var(--warn);
+}
+.snapd-review .snap-field-status[data-field-status='modified'],
+.snapd-review .snap-field-status[data-field-status='new'],
+.snapd-review .snap-field-status[data-field-status='imported'] {
+  background: var(--pos);
+}
+.snap-dialog-overlay input[data-field-status='copied'],
+.snap-dialog-overlay input[data-field-status='missing'] {
+  border-inline-start: 2px solid var(--warn);
+}
+.snap-dialog-overlay input[data-field-status='modified'],
+.snap-dialog-overlay input[data-field-status='new'],
+.snap-dialog-overlay input[data-field-status='imported'] {
+  border-inline-start: 2px solid var(--pos);
 }
 .snapd-review {
   display: flex;
