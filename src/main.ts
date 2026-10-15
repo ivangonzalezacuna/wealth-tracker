@@ -44,7 +44,9 @@ import {
   getAlertSettings,
   hydrateConfigFromCache,
   setSetting,
+  saveSnapshotMapping,
 } from './store/config';
+import { getSnapshotMapping, SNAPSHOT_MAPPINGS_KEY } from './import/snapshotMapping';
 import type { ConfigChangeKind } from './store/config';
 import {
   buildBackup,
@@ -1391,6 +1393,14 @@ async function saveMonthlyUpdate(editDate?: string) {
     existingMonths: state.snaps.map((s) => s.date),
     copiedFromMonth: existing ? undefined : state.snaps[state.snaps.length - 1]?.date,
     onFxPrefetchMonth: (yearMonth) => prefetchSnapshotFxMonth(accounts, yearMonth),
+    importAccounts: getAccounts,
+    importMapping: (type) =>
+      getSnapshotMapping(getSettings()[SNAPSHOT_MAPPINGS_KEY], type, getAccounts()),
+    onSaveImportMapping: async (type, mapping) => {
+      if (!ensureWriteAccess('snap-msg'))
+        throw new Error('Sign in and wait for the current sync/save before saving the mapping.');
+      await runSynchronizedWrite({ action: () => saveSnapshotMapping(type, mapping) });
+    },
   });
   if (!snap) return;
   await saveSnapshot(snap);

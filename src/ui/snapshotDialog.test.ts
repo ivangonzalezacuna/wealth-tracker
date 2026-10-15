@@ -144,6 +144,52 @@ describe('snapshotDialog', () => {
     document.removeEventListener('keydown', () => {});
   });
 
+  it('marks copied and modified account/ETF values in both draft and Review, including reverts', async () => {
+    snapshotDialog(
+      baseOpts({
+        prefill: { date: '2024-01', cash: 0, broker: 1000, etf_IE00AAA: 200 },
+        copiedFromMonth: '2024-01',
+      }),
+    );
+    const marker = (selector: string) =>
+      document
+        .querySelector(selector)!
+        .parentElement!.querySelector<HTMLElement>('.snap-field-status')!;
+    expect(marker('#snapd-acc-cash').textContent).toBe('Copied');
+    expect(marker('#snapd-acc-broker').textContent).toBe('Copied');
+    expect(marker('[data-etf-isin="IE00AAA"]').textContent).toBe('Copied');
+    expect(marker('[data-etf-isin="IE00BBB"]').textContent).toBe('Missing');
+    setField('snapd-acc-cash', '0.00');
+    expect(marker('#snapd-acc-cash').textContent).toBe('Copied');
+    setField('snapd-acc-broker', '1100');
+    expect(marker('#snapd-acc-broker').textContent).toBe('Modified');
+    setField('snapd-acc-broker', '1000');
+    expect(marker('#snapd-acc-broker').textContent).toBe('Copied');
+    setField('snapd-etf-broker-IE00AAA', '250');
+    await reviewDraft();
+    expect(document.querySelector('.snapd-review [data-field-status="copied"]')).not.toBeNull();
+    expect(document.querySelector('.snapd-review [data-field-status="modified"]')).not.toBeNull();
+    expect(document.querySelector('.snapd-review')!.textContent).toContain('will be omitted');
+    document.querySelector<HTMLElement>('.js-snapd-back')!.click();
+    expect(marker('[data-etf-isin="IE00AAA"]').textContent).toBe('Modified');
+  });
+
+  it('uses Unchanged for saved snapshots and New for values without a baseline', async () => {
+    snapshotDialog(baseOpts({ existing: { date: '2024-01', cash: 10, broker: 1000 } }));
+    expect(document.querySelector('#snapd-acc-cash')!.parentElement!.textContent).toContain(
+      'Unchanged',
+    );
+    setField('snapd-etf-broker-IE00AAA', '100');
+    expect(
+      document.querySelector('[data-etf-isin="IE00AAA"]')!.parentElement!.textContent,
+    ).toContain('New');
+    await reviewDraft();
+    expect(document.querySelectorAll('.snapd-review [data-field-status="unchanged"]')).toHaveLength(
+      2,
+    );
+    expect(document.querySelector('.snapd-review [data-field-status="new"]')).not.toBeNull();
+  });
+
   it('appends exactly one .snap-dialog-overlay', () => {
     snapshotDialog(baseOpts());
     expect(document.querySelectorAll('.snap-dialog-overlay').length).toBe(1);
@@ -472,7 +518,13 @@ describe('snapshotDialog', () => {
       expect(document.querySelector('#snapd-fx-status')!.textContent).toContain('ready'),
     );
     expect(document.querySelector('label[for="snapd-acc-broker"]')!.textContent).toContain('EUR');
+    const badge = () =>
+      document
+        .querySelector('#snapd-acc-broker')!
+        .parentElement!.querySelector<HTMLElement>('.snap-field-status')!.dataset.fieldStatus;
+    expect(badge()).toBe('unchanged');
     (document.querySelector('#snapd-eur') as HTMLInputElement).click();
+    expect(badge()).toBe('modified');
     expect((document.querySelector('#snapd-acc-broker') as HTMLInputElement).value).toBe('1000');
     expect((document.querySelector('#snapd-etf-broker-IE00AAA') as HTMLInputElement).value).toBe(
       '500',
@@ -481,6 +533,7 @@ describe('snapshotDialog', () => {
     document.querySelector('#snapd-date')!.dispatchEvent(new Event('change'));
     expect((document.querySelector('#snapd-eur') as HTMLInputElement).checked).toBe(true);
     expect((document.querySelector('#snapd-acc-broker') as HTMLInputElement).value).toBe('900');
+    expect(badge()).toBe('unchanged');
     expect((document.querySelector('#snapd-etf-broker-IE00AAA') as HTMLInputElement).value).toBe(
       '450',
     );

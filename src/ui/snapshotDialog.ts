@@ -3,6 +3,19 @@ import { isValidISIN, normalizeISIN } from '../model/isin';
 import { infoTip, attachInfoTips } from './infoTip';
 import { currentMonth, fmtEur2, fmtMon, safeColor, esc } from '../utils';
 import type { Account, Holding, PortfolioData, Snapshot } from '../types';
+import { mountSnapshotImport } from './snapshotImportPanel';
+import { validateStatementMonth } from '../import/snapshotDraft';
+import type { SnapshotMapping } from '../import/snapshotMapping';
+import {
+  trackSnapshotFieldStatus,
+  snapshotStatusBadge,
+  type SnapshotFieldStatus,
+} from './snapshotFieldStatus';
+import {
+  createSnapshotImportDraft,
+  importReviews,
+  importReviewSummary,
+} from './snapshotImportDraft';
 import {
   createDialogController,
   focusFirstInvalid,
@@ -13,10 +26,14 @@ import {
 let _activeOpts: SnapshotDialogOptions | null = null;
 let _reviewed: Snapshot | null = null;
 let _busy = false;
+let _disposeImport: (() => void) | undefined;
 const _representedEtfKeys = new WeakMap<HTMLElement, Set<string>>();
+const _fieldStatuses = new WeakMap<HTMLElement, () => Map<string, SnapshotFieldStatus>>();
 const _dialog = createDialogController<Snapshot | null>(null, {
   overlaySelector: '.snap-dialog-overlay',
   reset: () => {
+    _disposeImport?.();
+    _disposeImport = undefined;
     _activeOpts = null;
     _reviewed = null;
     _busy = false;
@@ -32,6 +49,9 @@ export interface SnapshotDialogOptions {
   mode?: 'add' | 'edit';
   existingMonths?: string[];
   copiedFromMonth?: string;
+  importAccounts?: () => Account[];
+  importMapping?: (type: string) => SnapshotMapping | undefined;
+  onSaveImportMapping?: (type: string, mapping: SnapshotMapping) => Promise<void>;
   onReview?: (draft: Snapshot, currencies: Record<string, string>) => Promise<SnapshotReviewResult>;
   onFxPrefetchMonth?: (yearMonth: string) => Promise<SnapshotDialogFxPrefetchResult>;
 }
@@ -52,6 +72,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
     _activeOpts = opts;
     const accounts = _getDialogAccounts(opts.accounts);
     const primary = accounts.find((acct) => acct.showEtfBreakdown);
+    let importBusy = false;
     const draft = opts.existing || opts.prefill;
     const mode = opts.mode || (opts.existing ? 'edit' : 'add');
     const previous = new Date();
@@ -91,6 +112,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
             </div>
           </div>
           ${accounts.some((a) => a.currency !== 'EUR') ? `<div class="snapd-currency-help"><label class="dialog-label" style="cursor:pointer"><input type="checkbox" id="snapd-eur" ${draft ? 'checked' : ''}> Enter all values in EUR${infoTip('Otherwise use each account’s native currency. Stored values are EUR. Switching converts the draft only when FX rates are available.')}</label></div>` : ''}
+          <div class="snap-pdf-import"></div>
           ${_renderAccountFields(opts.accounts, opts.holdings, opts.configHoldings || [], draft)}
           <div class="dialog-error" id="snapd-review-err" role="alert"></div>
         </div>
@@ -114,11 +136,13 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
       overlay,
       onDismiss: () => _dismiss(null),
       onCancel: () => _dismiss(null),
-      onSubmit: () => void _submit(),
+      onSubmit: () => {
+        if (!importBusy) void _submit();
+      },
       cancelSelector: '.js-snapd-cancel',
       submitSelector: '.js-snapd-submit',
       focusablesSelector:
-        'input:not([disabled]):not([hidden]), button:not([disabled]):not([hidden]), summary, .info-tip',
+        'input:not([disabled]):not([hidden]), select:not([disabled]), button:not([disabled]):not([hidden]), summary, .info-tip',
       initialFocusSelector: '#snapd-date',
     });
     attachInfoTips(overlay);
@@ -154,6 +178,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
         row.className = 'snap-etf-row snap-etf-extra';
         row.innerHTML = _renderManualEtfFields(key);
         add.before(row);
+        fieldStatus.refresh();
         (row.firstElementChild as HTMLElement).focus();
         return;
       }
@@ -165,6 +190,12 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
     });
     overlay.addEventListener('input', (e) => {
       const target = e.target as HTMLInputElement;
+      if (target.dataset.pdfCurrency && !target.value.trim()) {
+        delete target.dataset.pdfCurrency;
+        delete target.dataset.pdfDate;
+        target.removeAttribute('aria-description');
+      }
+      fieldStatus.refresh(target);
       const acctKey = target.dataset.acctKey || target.dataset.accountKey || '';
       if (acctKey) _updateRecon(acctKey);
       const acctKeyForHint = target.dataset.accountKey || '';
@@ -182,10 +213,26 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
     let fxRates: Record<string, number> = {};
     const fieldCurrency = (field: HTMLInputElement) =>
       field.dataset.currency || primary?.currency || 'EUR';
+    const fieldStatus = trackSnapshotFieldStatus(
+      overlay,
+      draft,
+      !opts.existing && mode !== 'edit' ? opts.copiedFromMonth : undefined,
+      (input) =>
+        input.dataset.pdfCurrency ||
+        (overlay.querySelector<HTMLInputElement>('#snapd-eur')?.checked
+          ? 'EUR'
+          : fieldCurrency(input)),
+      parseNum,
+    );
+    _fieldStatuses.set(overlay, fieldStatus.statuses);
+    fieldStatus.refresh();
     const foreignFields = () =>
       Array.from(
         overlay.querySelectorAll<HTMLInputElement>('[data-account-key], [data-etf-isin]'),
-      ).filter((field) => field.value.trim() && fieldCurrency(field) !== 'EUR');
+      ).filter(
+        (field) =>
+          field.value.trim() && !field.dataset.pdfCurrency && fieldCurrency(field) !== 'EUR',
+      );
     const hasRate = (field: HTMLInputElement) => {
       const rate = fxRates[fieldCurrency(field)];
       return Number.isFinite(rate) && rate > 0;
@@ -259,6 +306,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
           label.textContent = `${acct.label} (${eurMode?.checked ? 'EUR' : acct.currency})`;
       }
       _updateAllFxHints(overlay, eurMode?.checked ? {} : fxRates);
+      fieldStatus.refresh();
     };
     eurMode?.addEventListener('change', () => {
       const fields = foreignFields();
@@ -278,6 +326,45 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
     for (const acct of accounts) {
       _updateRecon(acct.key);
     }
+    const importDraft = createSnapshotImportDraft(
+      overlay,
+      primary?.key,
+      (input) => input.dataset.pdfCurrency || (eurMode?.checked ? 'EUR' : fieldCurrency(input)),
+      () => {
+        for (const acct of accounts) _updateRecon(acct.key);
+        _updateAllFxHints(overlay, eurMode?.checked ? {} : fxRates);
+        fieldStatus.refresh();
+      },
+      (isin) => {
+        const row = document.createElement('div');
+        row.className = 'snap-etf-row snap-etf-extra';
+        row.innerHTML = _renderManualEtfFields(primary!.key, isin);
+        return row;
+      },
+      (key) => accounts.find((account) => account.key === key)?.label || key,
+    );
+    _disposeImport = mountSnapshotImport(overlay.querySelector<HTMLElement>('.snap-pdf-import')!, {
+      accounts: () => opts.importAccounts?.() || opts.accounts,
+      mapping: (type) => opts.importMapping?.(type),
+      saveMapping: async (type, mapping) => {
+        if (!opts.onSaveImportMapping)
+          throw new Error('Mapping persistence is unavailable. Use manual entry.');
+        await opts.onSaveImportMapping(type, mapping);
+      },
+      busy: (busy) => {
+        importBusy = busy;
+        const button = overlay.querySelector<HTMLButtonElement>('.js-snapd-submit');
+        if (button) button.disabled = busy;
+      },
+      undo: importDraft.undo,
+      apply: importDraft.apply,
+      month: () => monthInput?.value || '',
+      selectMonth: (month) => {
+        if (!monthInput) return;
+        monthInput.value = month;
+        monthInput.dispatchEvent(new Event('change', { bubbles: true }));
+      },
+    });
   });
 }
 
@@ -461,6 +548,11 @@ async function _submit(): Promise<void> {
   } else if (date >= currentMonth()) {
     setErr('snapd-date', 'Choose a completed month.');
   }
+  for (const input of overlay.querySelectorAll<HTMLInputElement>('[data-pdf-date]')) {
+    if (!input.value.trim()) continue;
+    const error = validateStatementMonth(input.dataset.pdfDate || '', date, currentMonth());
+    if (error) setErr('snapd-date', error);
+  }
 
   const snap: Snapshot = {
     ...opts.existing,
@@ -481,7 +573,7 @@ async function _submit(): Promise<void> {
       valid = false;
     }
     snap[acct.key] = totalVal;
-    currencies[acct.key] = eurMode ? 'EUR' : acct.currency;
+    currencies[acct.key] = totalInput?.dataset.pdfCurrency || (eurMode ? 'EUR' : acct.currency);
 
     const section = overlay.querySelector(`#snapd-etf-section-${acct.key}`) as HTMLElement | null;
     if (!section) continue;
@@ -490,6 +582,7 @@ async function _submit(): Promise<void> {
     let allocated = 0;
     let anySet = false;
     let hasInvalidEtf = false;
+    let sameCurrency = true;
     const seen = new Set<string>();
     for (const input of inputs) {
       const raw = input.value.trim();
@@ -523,7 +616,8 @@ async function _submit(): Promise<void> {
         anySet = true;
         allocated += value;
         snap[key] = value;
-        currencies[key] = eurMode ? 'EUR' : acct.currency;
+        currencies[key] = input.dataset.pdfCurrency || (eurMode ? 'EUR' : acct.currency);
+        if (currencies[key] !== currencies[acct.key]) sameCurrency = false;
       }
     }
     if (hasInvalidEtf) {
@@ -536,7 +630,7 @@ async function _submit(): Promise<void> {
       continue;
     }
     if (!anySet) continue;
-    if (Number.isFinite(totalVal) && allocated - totalVal > 0.005) {
+    if (sameCurrency && Number.isFinite(totalVal) && allocated - totalVal > 0.005) {
       _setSectionOpen(acct.key, true);
       _updateRecon(acct.key);
       setSectionErr(
@@ -558,7 +652,7 @@ async function _submit(): Promise<void> {
   submit.textContent = 'Preparing review…';
   const draftControls = Array.from(
     overlay.querySelectorAll<HTMLInputElement | HTMLButtonElement>(
-      '.dialog-fields input, .dialog-fields button',
+      '.dialog-fields input, .dialog-fields select, .dialog-fields button',
     ),
   );
   for (const control of draftControls) control.disabled = true;
@@ -569,6 +663,17 @@ async function _submit(): Promise<void> {
       (overlay.querySelector('#snapd-review-err') as HTMLElement).textContent =
         result.error || 'Unable to prepare review. Retry.';
       return;
+    }
+    if (primary) {
+      const allocated = Object.entries(result.snapshot)
+        .filter(([key, value]) => isEtf(key) && key in currencies && typeof value === 'number')
+        .reduce((sum, [, value]) => sum + Number(value), 0);
+      const total = result.snapshot[primary.key];
+      if (typeof total === 'number' && allocated - total > 0.005) {
+        (overlay.querySelector('#snapd-review-err') as HTMLElement).textContent =
+          'ETF values exceed the account total after EUR conversion. Review imported and retained values.';
+        return;
+      }
     }
     _reviewed = result.snapshot;
     const review = overlay.querySelector<HTMLElement>('.snapd-review')!;
@@ -587,19 +692,42 @@ async function _submit(): Promise<void> {
     const rateSummary = Object.entries(result.rates || {})
       .map(([currency, rate]) => `1 ${_esc(currency)} = ${rate} EUR`)
       .join(': ');
+    const sourceReview = importReviews.get(overlay);
+    const fieldStatuses = _fieldStatuses.get(overlay)?.();
+    const missingValues = [...(fieldStatuses?.values() || [])].filter(
+      (status) => status.kind === 'missing',
+    ).length;
+    const imported = sourceReview
+      ? {
+          ...sourceReview,
+          fields: new Map(
+            [...sourceReview.fields].filter(([key]) => typeof _reviewed![key] === 'number'),
+          ),
+        }
+      : undefined;
     const renderValues = (entries: typeof numeric): string =>
       entries
         .map(([key, value]) => {
           const acct = accountByKey.get(key);
           const isin = isEtf(key) ? key.slice(4) : '';
           const holding = opts.configHoldings?.find((h) => h.isin === isin);
-          const label = acct?.label || holding?.name || (isin ? `ETF ${isin}` : key);
-          const detail = holding ? `<span class="snapd-review-isin">${_esc(isin)}</span>` : '';
-          return `<div><dt>${_esc(label)}${detail}</dt><dd>${fmtEur2(Number(value))}</dd></div>`;
+          const source = imported?.fields.get(key);
+          const label =
+            acct?.label || holding?.name || source?.name || (isin ? `ETF ${isin}` : key);
+          const detail = isin ? `<span class="snapd-review-isin">${_esc(isin)}</span>` : '';
+          const provenance = source
+            ? `${source.before ? `Previously ${_esc(source.before)} ${_esc(source.beforeCurrency)} → ` : 'Added · '}${Number(value) === source.value ? 'Imported EUR' : 'Edited after import'}`
+            : imported
+              ? 'Retained · not verified by this statement'
+              : '';
+          const status = fieldStatuses?.get(key);
+          return `<div data-review-search="${_esc(`${label} ${isin}`.toLowerCase())}"><dt>${_esc(label)}${status ? snapshotStatusBadge(status) : ''}${detail}${provenance ? `<span class="snapd-review-isin">${provenance}</span>` : ''}</dt><dd>${fmtEur2(Number(value))}</dd></div>`;
         })
         .join('');
     const accountValues = numeric.filter(([key]) => !isEtf(key));
-    const etfValues = numeric.filter(([key]) => isEtf(key));
+    const etfValues = numeric
+      .filter(([key]) => isEtf(key))
+      .sort(([a], [b]) => Number(!!imported?.fields.has(b)) - Number(!!imported?.fields.has(a)));
     const allocation = etfValues.reduce((sum, [, value]) => sum + Number(value), 0);
     review.innerHTML = `
       <div class="snapd-review-header">
@@ -607,15 +735,27 @@ async function _submit(): Promise<void> {
         <p class="snapd-review-context">Month-end balances · EUR</p>
       </div>
       ${copiedUnchanged ? `<p class="snapd-review-warning" role="status">Copied from ${_esc(opts.copiedFromMonth)}. Values are unchanged; check before saving.</p>` : ''}
+      ${missingValues ? `<p class="snapd-review-warning" role="status">${missingValues} ETF fields have no value and will be omitted, not recorded as zero. Back to edit to complete missing valuations.</p>` : ''}
       ${rateSummary ? `<p class="snapd-review-context">FX applied: ${rateSummary}</p>` : ''}
       ${replacing ? '<p class="snapd-review-warning" role="alert">Saving will replace the existing snapshot for this month.</p>' : ''}
+      ${imported ? importReviewSummary(imported, numeric.filter(([key]) => !imported.fields.has(key)).length) : ''}
       <section class="snapd-review-section" aria-label="Account balances">
         <div class="section-label">Accounts</div>
         <dl class="snapd-review-values">${renderValues(accountValues)}</dl>
       </section>
-      ${etfValues.length ? `<section class="snapd-review-section" aria-label="ETF values"><div class="section-label">ETF breakdown</div><dl class="snapd-review-values">${renderValues(etfValues)}</dl></section>` : ''}
+      ${etfValues.length ? `<section class="snapd-review-section" aria-label="ETF values"><div class="section-label">ETF breakdown · ${etfValues.length} positions</div><dl class="snapd-review-values">${renderValues(etfValues.slice(0, 10))}</dl>${etfValues.length > 10 ? `<details class="snapd-review-more"><summary>Show ${etfValues.length - 10} more positions</summary><label class="dialog-label" for="snapd-review-search">Find remaining positions</label><input id="snapd-review-search" class="form-input" type="search"><dl class="snapd-review-values">${renderValues(etfValues.slice(10))}</dl></details>` : ''}</section>` : ''}
       ${primary && etfValues.length ? `<div class="snapd-review-summary"><dl class="snapd-review-values"><div><dt>ETF allocated</dt><dd>${fmtEur2(allocation)}</dd></div><div><dt>Unexplained remainder</dt><dd>${fmtEur2(Number(_reviewed[primary.key]) - allocation)}</dd></div></dl><p class="snapd-review-context">Remainder may be cash or unrecorded positions.</p></div>` : ''}
       ${_reviewed.notes ? `<p class="snapd-review-context snapd-review-notes"><strong>Notes:</strong> ${_esc(_reviewed.notes)}</p>` : ''}`;
+    review
+      .querySelector<HTMLInputElement>('#snapd-review-search')
+      ?.addEventListener('input', (event) => {
+        const query = (event.target as HTMLInputElement).value.toLowerCase().trim();
+        review
+          .querySelectorAll<HTMLElement>('.snapd-review-more [data-review-search]')
+          .forEach((row) => {
+            row.hidden = !row.dataset.reviewSearch?.includes(query);
+          });
+      });
     overlay.querySelector('.info-tip')?.dispatchEvent(new Event('blur'));
     (overlay.querySelector('.dialog-fields') as HTMLElement).hidden = true;
     (overlay.querySelector('.dialog-header') as HTMLElement).hidden = true;
@@ -678,6 +818,19 @@ function _updateRecon(acctKey: string): void {
   const allocEl = reconEl.querySelector('.snap-etf-recon-alloc b') as HTMLElement | null;
   const remainWrap = reconEl.querySelector('.snap-etf-recon-remain') as HTMLElement | null;
   const remainEl = reconEl.querySelector('.snap-etf-recon-remain b') as HTMLElement | null;
+  const account = _activeOpts?.accounts.find((a) => (a.id || a.key) === acctKey);
+  const eurMode = !!overlay.querySelector<HTMLInputElement>('#snapd-eur')?.checked;
+  const currency = (input: HTMLInputElement | null) =>
+    input?.dataset.pdfCurrency || (eurMode ? 'EUR' : account?.currency || 'EUR');
+  const mixed = Array.from(inputs).some(
+    (input) => input.value.trim() && currency(input) !== currency(totalInput),
+  );
+  if (mixed) {
+    if (allocEl) allocEl.textContent = 'Mixed currencies';
+    if (remainEl) remainEl.textContent = 'Compared in EUR on Review';
+    remainWrap?.classList.remove('snap-etf-recon-warn', 'snap-etf-recon-ok');
+    return;
+  }
   if (allocEl) allocEl.textContent = fmtEur2(allocated);
   if (remainEl) remainEl.textContent = fmtEur2(remain);
   if (remainWrap) {
@@ -749,6 +902,10 @@ function _updateFxHint(
   const input = overlay.querySelector(`#snapd-acc-${acctKey}`) as HTMLInputElement | null;
   const currency = (input?.dataset.currency || '').toUpperCase();
   const rate = rates[currency];
+  if (input?.dataset.pdfCurrency === 'EUR') {
+    hintEl.style.display = 'none';
+    return;
+  }
   if (!rate) {
     hintEl.style.display = 'none';
     return;
