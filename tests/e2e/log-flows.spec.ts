@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { FAKE_ISINS } from '../fixtures/snapshot-import/synthetic';
 import {
   addAccount,
   addManualTransaction,
@@ -36,6 +37,82 @@ test.beforeEach(async ({ page }) => {
   await preparePage(page);
 });
 
+test('draft and review distinguish copied, modified and missing valuations', async ({
+  page,
+}, testInfo) => {
+  await gotoApp(page);
+  await addAccount(page, { label: 'Fictional marker account', primary: true });
+  await openTab(page, 'tab-log');
+  await page.click('#btn-add-snap');
+  await page.fill('#snapd-date', '2024-01');
+  await page.getByLabel('Fictional marker account (EUR)').fill('1000');
+  await page.locator('.snap-etf-other summary').click();
+  await addManualEtfs(page, FAKE_ISINS.slice(0, 2), '100');
+  await reviewAndSaveSnapshot(page);
+  await waitForSyncIdle(page);
+  await page.click('#btn-add-snap');
+  await page.fill('#snapd-date', '2024-02');
+  const account = page.locator('.snap-dialog-account > .dialog-field .snap-field-status');
+  await expect(account).toHaveText('Copied');
+  await page.locator('.snap-etf-other summary').click();
+  const rows = page.locator('.snap-etf-extra');
+  await expect(rows.nth(0).locator('.snap-field-status')).toHaveText('Copied');
+  await rows.nth(0).getByLabel('Other ETF value').fill('120');
+  await expect(rows.nth(0).locator('.snap-field-status')).toHaveText('Modified');
+  await rows.nth(1).getByLabel('Other ETF value').fill('');
+  await expect(rows.nth(1).locator('.snap-field-status')).toHaveText('Missing');
+  const valueInput = rows.nth(1).getByLabel('Other ETF value');
+  await valueInput.hover();
+  await expect(valueInput).toHaveCSS('outline-style', 'none');
+  await valueInput.press('Tab');
+  await page.keyboard.press('Shift+Tab');
+  await expect(valueInput).toBeFocused();
+  await expect(valueInput).toHaveCSS('outline-style', 'none');
+  await expect(valueInput).toHaveCSS('box-shadow', 'none');
+  expect(
+    await valueInput.evaluate(
+      (input) =>
+        getComputedStyle(input).borderTopColor !==
+        getComputedStyle(input.parentElement!.querySelector('[data-extra-isin]')!).borderTopColor,
+    ),
+  ).toBe(true);
+  await expect(page.locator('.snapd-status-legend')).toHaveCount(0);
+  await expect(rows.nth(0).getByLabel('Other ETF value')).toHaveAttribute('title', /Modified:/);
+  await expect(rows.nth(1).getByLabel('Other ETF value')).toHaveCSS('border-left-width', '2px');
+  expect(
+    await rows
+      .nth(0)
+      .locator('.snap-field-status')
+      .evaluate((el) => getComputedStyle(el).position),
+  ).toBe('absolute');
+  await page.setViewportSize({ width: 320, height: 844 });
+  expect(
+    await page.locator('.dialog-fields').evaluate((el) => el.scrollWidth <= el.clientWidth),
+  ).toBe(true);
+  for (const [name, width, height] of [
+    ['mobile', 390, 1000],
+    ['laptop', 1440, 1000],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.screenshot({ path: testInfo.outputPath(`field-labels-${name}-draft.png`) });
+  }
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('.snapd-review [data-field-status="copied"]')).toHaveCount(1);
+  await expect(page.locator('.snapd-review [data-field-status="modified"]')).toHaveCount(1);
+  await expect(page.locator('.snapd-review')).toContainText('will be omitted');
+  await expect(page.locator('.snapd-review .snap-field-status').first()).toHaveCSS('width', '5px');
+  for (const [name, width, height] of [
+    ['mobile', 390, 1000],
+    ['laptop', 1440, 1000],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.screenshot({ path: testInfo.outputPath(`field-labels-${name}-review.png`) });
+  }
+  await page.click('.js-snapd-back');
+  await rows.nth(0).getByLabel('Other ETF value').fill('100.00');
+  await expect(rows.nth(0).locator('.snap-field-status')).toHaveText('Copied');
+});
+
 test('snapshot review uses compact aligned rows on mobile and desktop', async ({ page }) => {
   await gotoApp(page);
   await addAccount(page, {
@@ -61,10 +138,12 @@ test('snapshot review uses compact aligned rows on mobile and desktop', async ({
         overflow: element.scrollWidth > element.clientWidth,
         rowsFit: Array.from(element.querySelectorAll('.snap-etf-extra')).every((row) => {
           const bounds = row.getBoundingClientRect();
-          return Array.from(row.children).every((child) => {
-            const rect = child.getBoundingClientRect();
-            return rect.left >= bounds.left && rect.right <= bounds.right + 1;
-          });
+          return Array.from(row.children)
+            .filter((child) => !child.classList.contains('sr-only'))
+            .every((child) => {
+              const rect = child.getBoundingClientRect();
+              return rect.left >= bounds.left && rect.right <= bounds.right + 1;
+            });
         }),
       })),
     ).toEqual({ overflow: false, rowsFit: true });

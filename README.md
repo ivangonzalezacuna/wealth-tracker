@@ -132,6 +132,33 @@ Each holding can be given a **target allocation percentage** (set in the holding
 
 Go to the **+ Log** tab. Enter the closing value for each account for the selected month, review the draft, then hit **Save snapshot**. This records your net worth for the month.
 
+To avoid copying ETF values manually, click **Choose statement PDF** inside the snapshot
+dialog and select a text-based **German Trade Republic valuation statement**.
+The primary investment account is selected automatically. Set up combined,
+separate securities/cash, or positions-only mapping once; it is remembered in
+**Settings → Integrations** and follows backups/Drive sync. Valid ETF values and
+mapped totals automatically replace existing draft values; unrelated fields stay
+unchanged. **Undo import** preserves later edits. Complete other balances, then
+**Review → Save snapshot** as usual—the only valuation confirmation step.
+Unknown ETFs stay in **Other ETFs**; final Review includes extracted names,
+before/after context, retained-data warnings and expandable/searchable positions.
+
+PDFs are processed locally, one at a time, with no document uploads. The statement
+must be dated at month-end and match the selected completed month. English layouts
+remain gated pending verified broker labels; scans/OCR and other brokers are not
+supported. See the [PDF snapshot import guide](docs/pdf-snapshot-import.md) for
+limits, privacy, implementation and adding report parsers.
+
+**Change mapping** reapplies the import to the current draft. Settings edits or
+resets the mapping for future imports; cancelling a snapshot does not undo an
+explicitly saved mapping. Settings uses one mapping editor per selected report
+type rather than stacking a form for every provider.
+
+Slim amber input edges and Review dots identify copied or missing values; green
+marks modified, new or imported values. Hover hints and screen-reader descriptions
+provide details, including imported EUR currency. Copied values are not verified
+for the new month. Missing ETF values are omitted, not saved as zero.
+
 Once these three steps are done, the setup banner transitions to a **"Recommended next steps"** prompt with two optional-but-important actions:
 
 - **Import transactions** — imports your broker CSV to unlock cost-basis tracking, realized P&L, and dividend analytics (Portfolio and Dividends tabs)
@@ -153,6 +180,13 @@ The banner disappears automatically once both are completed, or you can dismiss 
 The month describes when the balances were valued, not when you type them in. For example, record October's closing balances as **October**, even if you enter them in November. October ends on 31 October; a screenshot of November's current portfolio does not necessarily show October's closing values.
 
 Copied values are starting points, not fresh valuations. Update them before saving. Review warns when all numeric balances and ETF values remain unchanged from the source month; changed drafts do not show a copied-value notice. Enter an explicit balance for every account, including zero where appropriate. Non-EUR balances must be converted successfully or explicitly entered in EUR; an unavailable FX rate must not silently mix currencies in your saved snapshot.
+
+Subtle input edges and tiny Review dots distinguish untouched values (amber)
+from modified/new/imported values (green), without extra label rows. Hover a
+field or dot for details; screen readers receive the status too. Saved-snapshot
+values that are unchanged stay neutral. Blank values use amber; blank ETF values
+are omitted, never treated as zero. Indicators update as you edit or revert and
+are temporary, not saved.
 
 When recording a snapshot for your primary investment account, you can expand the **ETF breakdown** section to enter the closing market value of each individual ETF position.
 
@@ -177,7 +211,8 @@ This is optional, but enables two additional features:
 
 Per-ETF market values are stored in the snapshot record as `etf_<ISIN>` keys alongside the regular account balance keys (e.g. `etf_IE00B4L5Y983: 12500`). No separate database migration is needed; missing keys are treated as "no data".
 
-Import assistance is deferred. See [snapshot import options](docs/snapshot-import-options.md) for paste-table, valuation CSV, local PDF and screenshot OCR trade-offs.
+To fill these values from a supported PDF, use the
+[monthly snapshot import workflow](#3-log-your-first-monthly-snapshot).
 
 **Inactive but held positions**
 
@@ -324,7 +359,12 @@ Run `yarn lint:fix` to auto-format before committing.
 ### sql.js and WASM maintenance
 
 For architecture notes, upgrade steps, and troubleshooting, see
-`docs/sqljs-wasm.md`.
+[sql.js + WASM integration](docs/sqljs-wasm.md).
+
+### PDF snapshot import maintenance
+
+For parser registration, account mapping schemas, worker loading, validation and
+troubleshooting, see the [PDF snapshot import integration guide](docs/pdf-snapshot-import.md).
 
 ---
 

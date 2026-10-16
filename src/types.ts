@@ -91,6 +91,8 @@ export interface Snapshot {
 // ─── Settings ────────────────────────────────────────────────────
 
 export interface Settings {
+  /** Versioned provider/document-type mappings; contains only internal account IDs and modes. */
+  snapshot_import_mappings?: string;
   /** Cost-basis calculation method. */
   costBasisMethod?: 'avgco' | 'fifo' | 'lifo' | 'hifo';
   /** Legacy global annual return % (numeric string); migrated to per-account annualReturnPct on load. */

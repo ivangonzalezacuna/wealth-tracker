@@ -1,7 +1,15 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { snapshotParsers } from '../import/snapshotParsers';
+import { fictionalBalanceParser } from '../../tests/fixtures/snapshot-import/balanceParser';
+import type { Settings } from '../types';
+import { getSettings, saveSnapshotMapping, setSettings } from '../store/config';
+import { showMsg } from '../utils';
+import { confirmDialog } from '../ui/confirmDialog';
+import { SNAPSHOT_MAPPINGS_KEY, TRADE_REPUBLIC_VALUATION } from '../import/snapshotMapping';
+import { setBusy } from '../sync/lock';
 
 // ── Mocks ───────────────────────────────────────────────────────
 
@@ -33,7 +41,7 @@ const MOCK_HOLDINGS = [
     order: 1,
   },
 ];
-const MOCK_SETTINGS = { annualReturnPct: '7', costBasisMethod: 'avgco' };
+const MOCK_SETTINGS: Settings = { annualReturnPct: '7', costBasisMethod: 'avgco' };
 let MOCK_CONTRIB_BUDGET = 500;
 let MOCK_CONTRIB_INTERVAL: 'weekly' | 'biweekly' | 'monthly' | 'quarterly' = 'monthly';
 let MOCK_CALIBRATION_INTERVAL: 'weekly' | 'biweekly' | 'monthly' | 'quarterly' = 'monthly';
@@ -56,6 +64,7 @@ vi.mock('../store/config', () => ({
   setHoldings: vi.fn(async () => {}),
   setSettings: vi.fn(async () => {}),
   setSetting: vi.fn(async () => {}),
+  saveSnapshotMapping: vi.fn(async () => {}),
   getRetiredAccountIds: () => [],
   retireAccountIdsSafely: vi.fn(async () => true),
 }));
@@ -228,6 +237,123 @@ function setupDOM(): void {
   (window as any).__hasSyncConflict = () => false;
   (window as any).__openSyncConflictResolver = vi.fn(async () => {});
 }
+
+describe('statement mapping settings', () => {
+  afterEach(() => {
+    snapshotParsers.splice(1);
+  });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setBusy(false);
+    delete MOCK_SETTINGS[SNAPSHOT_MAPPINGS_KEY];
+    setupDOM();
+    renderSettings();
+  });
+  it('saves through the guarded ordinary settings path', async () => {
+    document.querySelector<HTMLButtonElement>('#btn-save-statement-mapping')!.click();
+    await vi.waitFor(() =>
+      expect(saveSnapshotMapping).toHaveBeenCalledWith(TRADE_REPUBLIC_VALUATION, {
+        mode: 'combined',
+        securitiesAccount: 'acct1',
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(showMsg).toHaveBeenCalledWith(
+        'statement-mapping-msg',
+        expect.stringContaining('saved'),
+        true,
+      ),
+    );
+  });
+  it('uses one editor for dozens of registered reports and preserves section spacing', async () => {
+    for (let i = 0; i < 30; i++)
+      snapshotParsers.push({
+        ...fictionalBalanceParser,
+        id: `fictional:${i}`,
+        label: `Fictional report ${i}`,
+        mapping: {
+          kind: 'balances',
+          slots: [{ key: 'closing', label: 'Closing', moneyTypes: ['investment'] }],
+        },
+      });
+    renderSettings();
+    const selector = document.querySelector<HTMLSelectElement>('#statement-report-type')!;
+    expect(selector.options).toHaveLength(31);
+    expect(document.querySelectorAll('#btn-save-statement-mapping')).toHaveLength(1);
+    selector.value = 'fictional:29';
+    selector.dispatchEvent(new Event('change'));
+    expect(document.querySelectorAll('[data-mapping-balance]')).toHaveLength(1);
+    expect(document.querySelector('[data-mapping-mode]')).toBeNull();
+    document.querySelector<HTMLSelectElement>('[data-mapping-balance]')!.value = 'acct1';
+    document.querySelector<HTMLButtonElement>('#btn-save-statement-mapping')!.click();
+    await vi.waitFor(() =>
+      expect(saveSnapshotMapping).toHaveBeenCalledWith('fictional:29', {
+        mode: 'balances',
+        balanceAccounts: { closing: 'acct1' },
+      }),
+    );
+    const headings = Array.from(
+      document.querySelectorAll<HTMLElement>('#settings-card-integrations .card-section-head'),
+    );
+    expect(headings.find((heading) => heading.textContent === 'FRANKFURTER')!.style.marginTop).toBe(
+      '1.25rem',
+    );
+    selector.value = TRADE_REPUBLIC_VALUATION;
+    selector.dispatchEvent(new Event('change'));
+    expect(document.querySelector('[data-mapping-mode]')).not.toBeNull();
+    expect(document.querySelector('[data-mapping-balance]')).toBeNull();
+  });
+  it('reports persistence failures instead of success', async () => {
+    vi.mocked(saveSnapshotMapping).mockRejectedValueOnce(new Error('Storage unavailable'));
+    document.querySelector<HTMLButtonElement>('#btn-save-statement-mapping')!.click();
+    await vi.waitFor(() =>
+      expect(showMsg).toHaveBeenCalledWith('statement-mapping-msg', 'Storage unavailable', false),
+    );
+  });
+  it('resets only the current provider after confirmation', async () => {
+    MOCK_SETTINGS[SNAPSHOT_MAPPINGS_KEY] = JSON.stringify({
+      version: 1,
+      mappings: {
+        [TRADE_REPUBLIC_VALUATION]: { mode: 'combined', securitiesAccount: 'acct1' },
+        'future:valuation': { opaque: 'preserved' },
+      },
+    });
+    renderSettings();
+    document.querySelector<HTMLButtonElement>('#btn-reset-statement-mapping')!.click();
+    await vi.waitFor(() =>
+      expect(setSettings).toHaveBeenCalledWith({
+        [SNAPSHOT_MAPPINGS_KEY]: JSON.stringify({
+          version: 1,
+          mappings: { 'future:valuation': { opaque: 'preserved' } },
+        }),
+      }),
+    );
+    expect(confirmDialog).toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.stringContaining('Other providers') }),
+    );
+  });
+  it('explicitly confirms all-provider reset for corrupt preferences', async () => {
+    MOCK_SETTINGS[SNAPSHOT_MAPPINGS_KEY] = '{';
+    renderSettings();
+    expect(document.querySelector('#statement-mapping')!.textContent).toContain(
+      'could not be read',
+    );
+    document.querySelector<HTMLButtonElement>('#btn-reset-statement-mapping')!.click();
+    await vi.waitFor(() =>
+      expect(setSettings).toHaveBeenCalledWith({ [SNAPSHOT_MAPPINGS_KEY]: '' }),
+    );
+    expect(confirmDialog).toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.stringContaining('ALL statement mappings') }),
+    );
+  });
+  it('does not reset when confirmation is cancelled', async () => {
+    vi.mocked(confirmDialog).mockResolvedValueOnce(false);
+    document.querySelector<HTMLButtonElement>('#btn-reset-statement-mapping')!.click();
+    await vi.waitFor(() => expect(confirmDialog).toHaveBeenCalled());
+    expect(setSettings).not.toHaveBeenCalled();
+    expect(getSettings()[SNAPSHOT_MAPPINGS_KEY]).toBeUndefined();
+  });
+});
 
 describe('Settings scoped re-render (repaintCard)', () => {
   beforeEach(() => {

@@ -32,6 +32,7 @@ import {
   setHoldings,
   setSetting,
   setSettings,
+  saveSnapshotMapping,
   hydrateConfigFromCache,
   getAccounts,
   getHoldings,
@@ -49,6 +50,50 @@ import {
   setSetting as dbSetSetting,
   replaceAllSettings as dbReplaceAllSettings,
 } from '../db';
+import {
+  getSnapshotMapping,
+  SNAPSHOT_MAPPINGS_KEY,
+  TRADE_REPUBLIC_VALUATION,
+} from '../import/snapshotMapping';
+
+describe('statement mapping persistence', () => {
+  const accounts = [
+    { id: 'fake', label: 'Fake broker', moneyType: 'investment', isPrimaryInvestment: true },
+  ];
+  it('uses ordinary settings persistence, preserving other providers and scheduling sync', async () => {
+    hydrateConfigFromCache({
+      accounts,
+      holdings: [],
+      settings: {
+        [SNAPSHOT_MAPPINGS_KEY]: JSON.stringify({
+          version: 1,
+          mappings: { 'future:valuation': { mode: 'positions', securitiesAccount: 'future' } },
+        }),
+      },
+    });
+    await saveSnapshotMapping(TRADE_REPUBLIC_VALUATION, {
+      mode: 'combined',
+      securitiesAccount: 'fake',
+    });
+    const raw = getSettings()[SNAPSHOT_MAPPINGS_KEY]!;
+    expect(getSnapshotMapping(raw, TRADE_REPUBLIC_VALUATION, accounts)?.mode).toBe('combined');
+    expect(JSON.parse(raw).mappings['future:valuation'].securitiesAccount).toBe('future');
+    expect(dbReplaceAllSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ [SNAPSHOT_MAPPINGS_KEY]: raw }),
+    );
+  });
+  it('rolls back preferences and exposes persistence failures', async () => {
+    hydrateConfigFromCache({ accounts, holdings: [], settings: {} });
+    vi.mocked(dbReplaceAllSettings).mockRejectedValueOnce(new Error('Fake database failure'));
+    await expect(
+      saveSnapshotMapping(TRADE_REPUBLIC_VALUATION, {
+        mode: 'combined',
+        securitiesAccount: 'fake',
+      }),
+    ).rejects.toThrow('Fake database failure');
+    expect(getSettings()[SNAPSHOT_MAPPINGS_KEY]).toBeUndefined();
+  });
+});
 
 describe('parseAccounts', () => {
   it('legacy sheet (no new columns) defaults to annualReturnPct:0, contribAmount:0, contribInterval:monthly', () => {
