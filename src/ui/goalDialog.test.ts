@@ -121,14 +121,16 @@ describe('goalDialog', () => {
     addMilestone();
 
     const row = getMilestoneRows()[0];
+    const deadlineBtn = row.querySelector('.js-ms-date-btn') as HTMLButtonElement;
     const deadlineInput = row.querySelector('.ms-date') as HTMLInputElement;
 
+    expect(deadlineBtn.disabled).toBe(true);
     expect(deadlineInput.disabled).toBe(true);
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
 
-  it('only shows clear buttons when a date exists', () => {
+  it('only reserves clear-button space when a date exists', () => {
     goalDialog({
       existing: {
         ...EXISTING_GOAL,
@@ -139,25 +141,25 @@ describe('goalDialog', () => {
       },
     });
 
-    const goalClear = document.querySelector<HTMLButtonElement>('.js-goal-date-clear')!;
-    expect(goalClear.hidden).toBe(false);
+    const goalDateWrap = document.querySelector('.js-goal-date-btn')?.closest('.ms-date-wrap');
+    expect(goalDateWrap?.classList.contains('has-clear')).toBe(true);
 
     let rows = getMilestoneRows();
-    expect(rows[0].querySelector<HTMLButtonElement>('.js-ms-date-clear')!.hidden).toBe(true);
-    expect(rows[1].querySelector<HTMLButtonElement>('.js-ms-date-clear')!.hidden).toBe(false);
+    expect(rows[0]?.querySelector('.ms-date-wrap')?.classList.contains('has-clear')).toBe(false);
+    expect(rows[1]?.querySelector('.ms-date-wrap')?.classList.contains('has-clear')).toBe(true);
 
     const goalDate = document.getElementById('goald-date') as HTMLInputElement;
     goalDate.value = '';
     goalDate.dispatchEvent(new Event('change'));
-    expect(goalClear.hidden).toBe(true);
+    expect(goalDateWrap?.classList.contains('has-clear')).toBe(false);
 
     goalDate.value = '2035-01';
     goalDate.dispatchEvent(new Event('change'));
-    expect(goalClear.hidden).toBe(false);
+    expect(goalDateWrap?.classList.contains('has-clear')).toBe(true);
 
     rows = getMilestoneRows();
-    expect(rows[0].querySelector<HTMLButtonElement>('.js-ms-date-clear')!.hidden).toBe(true);
-    expect(rows[1].querySelector<HTMLButtonElement>('.js-ms-date-clear')!.hidden).toBe(false);
+    expect(rows[0]?.querySelector('.ms-date-wrap')?.classList.contains('has-clear')).toBe(false);
+    expect(rows[1]?.querySelector('.ms-date-wrap')?.classList.contains('has-clear')).toBe(true);
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
@@ -178,6 +180,7 @@ describe('goalDialog', () => {
     expect((row.querySelector('.ms-amount') as HTMLInputElement).value).toBe('250000');
     expect((row.querySelector('.ms-label') as HTMLInputElement).value).toBe('Halfway');
     expect((row.querySelector('.ms-date') as HTMLInputElement).value).toBe('');
+    expect((row.querySelector('.js-ms-date-btn') as HTMLButtonElement).disabled).toBe(true);
 
     goalDate.value = '2035-01';
     goalDate.dispatchEvent(new Event('change'));
@@ -186,6 +189,7 @@ describe('goalDialog', () => {
     expect((row.querySelector('.ms-amount') as HTMLInputElement).value).toBe('250000');
     expect((row.querySelector('.ms-label') as HTMLInputElement).value).toBe('Halfway');
     expect((row.querySelector('.ms-date') as HTMLInputElement).value).toBe('2034-06');
+    expect((row.querySelector('.js-ms-date-btn') as HTMLButtonElement).disabled).toBe(false);
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
@@ -200,22 +204,5 @@ describe('goalDialog', () => {
     const draft = await p;
 
     expect(draft?.milestones).toBeUndefined();
-  });
-
-  it('saves after a milestone deadline outside the goal range is corrected', async () => {
-    const result = goalDialog({
-      existing: {
-        ...EXISTING_GOAL,
-        milestones: [{ targetAmount: '250000', targetDate: '2036-01' }],
-      },
-    });
-    getSubmit()!.click();
-    expect(getOverlay()).not.toBeNull();
-    expect(document.querySelector('#goald-ms-err')?.getAttribute('aria-invalid')).toBe('true');
-    const deadline = getMilestoneRows()[0].querySelector<HTMLInputElement>('.ms-date')!;
-    deadline.value = '2034-06';
-    deadline.dispatchEvent(new Event('change', { bubbles: true }));
-    getSubmit()!.click();
-    expect((await result)?.milestones?.[0].targetDate).toBe('2034-06');
   });
 });

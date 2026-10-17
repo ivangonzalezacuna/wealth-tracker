@@ -1,5 +1,4 @@
 import { normalizeSnapshotReview, type SnapshotReviewResult } from '../model/snapshotFx';
-import { attachMonthInput, validateMonthInput } from './monthInput';
 import { isValidISIN, normalizeISIN } from '../model/isin';
 import { infoTip, attachInfoTips } from './infoTip';
 import { currentMonth, fmtEur2, fmtMon, safeColor, esc } from '../utils';
@@ -277,10 +276,6 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
         });
     };
     const monthInput = overlay.querySelector('#snapd-date') as HTMLInputElement | null;
-    if (monthInput) {
-      monthInput.required = true;
-      attachMonthInput(monthInput);
-    }
     const updateMonthNote = () => {
       const month = monthInput?.value || '';
       const end = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
@@ -538,8 +533,6 @@ async function _submit(): Promise<void> {
   };
 
   setErr('snapd-date', '');
-  const pickerInput = overlay.querySelector<HTMLInputElement>('#snapd-date')!;
-  const monthValid = validateMonthInput(pickerInput);
   for (const acct of accounts) {
     setErr(`snapd-acc-${acct.key}`, '');
     setSectionErr(acct.key, '');
@@ -569,8 +562,7 @@ async function _submit(): Promise<void> {
   };
   // Remove original keys so renamed or deleted rows do not survive.
   for (const key of _representedEtfKeys.get(overlay) || []) delete snap[key];
-  let valid =
-    monthValid && !(overlay.querySelector('#snapd-date-err') as HTMLElement | null)?.textContent;
+  let valid = !(overlay.querySelector('#snapd-date-err') as HTMLElement | null)?.textContent;
 
   for (const acct of accounts) {
     const totalInput = overlay.querySelector(`#snapd-acc-${acct.key}`) as HTMLInputElement | null;

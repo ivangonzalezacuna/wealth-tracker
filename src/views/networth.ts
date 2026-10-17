@@ -41,7 +41,6 @@ import { writeChartTable } from './chartTable';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { createChartRegistry } from './chartRegistry';
 import { formatEuroCompactPrefix, formatEuroCompactSuffix } from './chartOptions';
-import { attachMonthInput, validateMonthInput } from '../ui/monthInput';
 
 const { CH, destroyChart: _destroyChart } = createChartRegistry();
 let _nwRange: '12' | '36' | 'all' = 'all';
@@ -1746,13 +1745,6 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
 
   // Bind controls (only once per render; old listeners are discarded with innerHTML replacement)
   const dateInput = document.getElementById('dd-retirement-date') as HTMLInputElement | null;
-  if (dateInput) {
-    const minimum = new Date(`${latestSnap.date.substring(0, 7)}-01T12:00:00Z`);
-    minimum.setUTCMonth(minimum.getUTCMonth() + 1);
-    dateInput.setAttribute('min', minimum.toISOString().slice(0, 7));
-    dateInput.required = true;
-    attachMonthInput(dateInput);
-  }
   const withdrawalInput = document.getElementById('dd-withdrawal') as HTMLInputElement | null;
   const returnInput = document.getElementById('dd-return') as HTMLInputElement | null;
   const strategyToggle = document.getElementById('dd-strategy-toggle') as HTMLElement | null;
@@ -1760,7 +1752,6 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
   const rerender = () => _renderDecumulationCard(snaps, accounts);
 
   dateInput?.addEventListener('change', () => {
-    if (!validateMonthInput(dateInput)) return;
     const v = dateInput.value.trim();
     if (/^\d{4}-\d{2}$/.test(v) && v > latestSnap.date.substring(0, 7)) {
       _ddRetirementDate = v;
