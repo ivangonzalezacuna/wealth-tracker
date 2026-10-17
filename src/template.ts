@@ -403,29 +403,41 @@ export function appTemplate(): string {
   </div>
 
   <div id="log-content">
-    <div class="card" id="csv-import-card">
-      <div class="card-title">Transactions</div>
-
-      <div class="card-section-title" style="margin-top:.75rem">Import</div>
-      <p class="note" style="margin-bottom:.85rem">Import your transaction export CSV. Parsed locally; data synced to your Google Drive. Re-import anytime; duplicates handled automatically.</p>
-      <div class="drop-zone" id="drop-zone">
-        <input type="file" id="csv-file-input" accept=".csv" aria-label="Choose CSV file to import">
-        <div style="font-size:2rem;margin-bottom:.4rem" aria-hidden="true">📥</div>
-        <div id="csv-import-label" style="font-weight:500;font-size:13px;color:var(--ink-2);margin-bottom:.2rem">Drop CSV file here</div>
-        <div id="csv-import-hint" style="font-size:11px;color:var(--ink-3)">or click to browse</div>
+    <div class="log-toolbar" id="log-toolbar">
+      <div class="subnav range-toggle" id="log-subnav" role="tablist" aria-label="Log data views">
+        <button id="log-tab-transactions" class="btn btn-sm btn-ghost active" data-logview="transactions" role="tab" aria-selected="true" aria-controls="csv-import-card">Transactions <span class="log-tab-count" id="log-count-transactions"></span></button>
+        <button id="log-tab-snapshots" class="btn btn-sm btn-ghost" data-logview="snapshots" role="tab" aria-selected="false" aria-controls="balance-card">Snapshots <span class="log-tab-count" id="log-count-snapshots"></span></button>
       </div>
-      <div id="import-msg" style="font-size:12px;margin-top:.6rem;min-height:18px"></div>
-      <div id="import-preview" style="display:none"></div>
-      <div id="import-status" class="status-bar status-empty" style="margin-top:1rem">No CSV imported yet</div>
+      <div class="log-toolbar-actions" id="snap-add-row">
+        <span id="snap-msg" class="log-inline-msg" role="status" aria-live="polite"></span>
+        <button class="btn btn-primary btn-sm" id="btn-add-snap" title="Log month-end balances. Saving the same month overwrites the previous entry.">Add monthly snapshot</button>
+      </div>
+    </div>
 
-      <div class="card-section" id="tx-ledger-card">
-        <div class="card-section-title">Ledger</div>
-        <p class="note" style="margin-bottom:.85rem">Review, audit, and correct imported transactions.</p>
+    <div class="card log-panel" id="csv-import-card" role="tabpanel" aria-labelledby="log-tab-transactions">
+      <div class="log-panel-head">
+        <div class="card-title">Transaction ledger</div>
+        <button type="button" class="btn btn-ghost btn-sm log-import-toggle" id="btn-toggle-import" aria-expanded="false" aria-controls="csv-import-panel"><span class="row-expand-chevron" aria-hidden="true">&#x25B8;</span> Import CSV</button>
+      </div>
+      <div id="import-status" class="status-bar status-empty">No CSV imported yet</div>
+      <div id="csv-import-panel" class="log-import-panel" hidden>
+        <p class="note" style="margin-bottom:.6rem">Import your transaction export CSV. Parsed locally; data synced to your Google Drive. Re-import anytime; duplicates handled automatically.</p>
+        <div class="drop-zone" id="drop-zone">
+          <input type="file" id="csv-file-input" accept=".csv" aria-label="Choose CSV file to import">
+          <div class="drop-zone-icon" aria-hidden="true">📥</div>
+          <div id="csv-import-label" style="font-weight:500;font-size:13px;color:var(--ink-2);margin-bottom:.2rem">Drop CSV file here</div>
+          <div id="csv-import-hint" style="font-size:11px;color:var(--ink-3)">or click to browse</div>
+        </div>
+      </div>
+      <div id="import-msg" class="log-inline-msg" role="status" aria-live="polite"></div>
+      <div id="import-preview" style="display:none"></div>
+
+      <div id="tx-ledger-card" class="log-panel-body">
         <div class="filter-bar" id="tx-filter-bar">
-          <select id="tx-type-filter" class="form-input form-input-sm" aria-label="Filter transactions by type" style="flex-shrink:0">
+          <select id="tx-type-filter" class="form-input form-input-sm" aria-label="Filter transactions by type">
             <option value="">All types</option>
           </select>
-          <input type="text" id="tx-search" class="form-input form-input-sm" aria-label="Search transactions" placeholder="Search name, ISIN, source…" style="flex:1;min-width:80px">
+          <input type="search" id="tx-search" class="form-input form-input-sm" aria-label="Search transactions" placeholder="Search name, ISIN, source…">
           <div class="filter-bar-actions">
             <button class="btn btn-outline btn-sm" id="btn-start-del-txs">Bulk delete</button>
             <div class="bulk-actions" id="tx-bulk-actions" hidden>
@@ -440,27 +452,21 @@ export function appTemplate(): string {
           <div id="tx-ledger-wrap"><div id="tx-ledger-list" class="tx-ledger-grid" role="table" aria-label="Transaction ledger"></div></div>
         </div>
         <div id="tx-pagination" class="pagination"></div>
-        <div id="tx-msg" style="font-size:12px;min-height:18px;margin-top:.5rem"></div>
+        <div id="tx-msg" class="log-inline-msg" role="status" aria-live="polite"></div>
       </div>
     </div>
 
-    <div class="card" id="balance-card">
-      <div class="card-title">Snapshots</div>
-
-      <div class="card-section-title" style="margin-top:.75rem">Monthly update</div>
-      <p class="note" style="margin-bottom:.85rem">Log your latest month-end balances in a modal dialog. Same month overwrites the previous entry.</p>
-      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-        <button class="btn btn-primary" id="btn-add-snap">Add monthly snapshot</button>
-        <span id="snap-msg" style="font-size:12px;min-height:18px"></span>
+    <div class="card log-panel" id="balance-card" role="tabpanel" aria-labelledby="log-tab-snapshots" hidden>
+      <div class="log-panel-head">
+        <div class="card-title">Snapshot history</div>
+        <span class="log-panel-meta" id="snap-latest-meta"></span>
       </div>
-
-      <div class="card-section">
-        <div class="card-section-title">History</div>
+      <div class="log-panel-body">
         <div class="filter-bar" id="snap-filter-bar">
-          <select id="snap-year-filter" class="form-input form-input-sm" aria-label="Filter by year" style="width:auto;display:inline-block">
+          <select id="snap-year-filter" class="form-input form-input-sm" aria-label="Filter by year">
             <option value="">All years</option>
           </select>
-          <input type="text" id="snap-search" class="form-input form-input-sm" aria-label="Search snapshots by notes" placeholder="Search notes…" style="width:140px;display:inline-block;margin-left:6px">
+          <input type="search" id="snap-search" class="form-input form-input-sm" aria-label="Search snapshots by notes" placeholder="Search notes or month…">
           <div class="filter-bar-actions">
             <button class="btn btn-outline btn-sm" id="btn-start-del-snaps">Bulk delete</button>
             <div class="bulk-actions" id="snap-bulk-actions" hidden>
@@ -470,6 +476,7 @@ export function appTemplate(): string {
             </div>
           </div>
         </div>
+        <div class="legend snap-legend" id="snap-legend" aria-label="Account colours"></div>
         <div id="snaps-list" role="table" aria-label="Snapshot history"></div>
         <div id="snap-pagination" class="pagination"></div>
       </div>

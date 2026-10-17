@@ -12,6 +12,7 @@ import { renderPagination } from './pagination';
 import { bindExpandableRows, restoreExpandableRows } from './expandableRows';
 import { bindSortedTableHeader, sortAndPaginate } from './tableView';
 import { populateYearFilterOptions } from './yearFilter';
+import { LOG_VIEWS, type LogView } from '../nav';
 import {
   bindTableSearchFilter,
   bindTableYearFilter,
@@ -35,7 +36,35 @@ interface LogState {
   readOnly?: boolean;
 }
 
-const PAGE_SIZE = 12;
+const SNAP_PAGE_SIZES = [12, 24, 36] as const;
+const TX_PAGE_SIZES = [15, 25, 50, 100] as const;
+const SNAP_PAGE_SIZE_KEY = 'wt:log:snapPageSize';
+const TX_PAGE_SIZE_KEY = 'wt:log:txPageSize';
+
+function loadPageSize(key: string, allowed: readonly number[], fallback: number): number {
+  try {
+    const stored = Number(globalThis.localStorage?.getItem(key));
+    return allowed.includes(stored) ? stored : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function savePageSize(key: string, size: number): void {
+  try {
+    globalThis.localStorage?.setItem(key, String(size));
+  } catch {
+    // Storage may be unavailable (private mode); the size still applies for this session.
+  }
+}
+
+/** Sort value for ISO dates ("YYYY-MM" or "YYYY-MM-DD") so 'desc' means newest first. */
+function isoDateSortValue(date: string): number {
+  const ms = Date.parse(date.length === 7 ? `${date}-01` : date);
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+let _snapPageSize = loadPageSize(SNAP_PAGE_SIZE_KEY, SNAP_PAGE_SIZES, SNAP_PAGE_SIZES[0]);
 const _snapTableState = createTableState({
   sort: { key: null, dir: null },
   filters: { year: '', search: '' },
@@ -58,6 +87,90 @@ const _txTableState = createTableState({
   sort: { key: null, dir: null },
   filters: { search: '', type: '' },
 });
+let _txPageSize = loadPageSize(TX_PAGE_SIZE_KEY, TX_PAGE_SIZES, TX_PAGE_SIZES[0]);
+const _openTxDetails = new Set<string>();
+let _importPanelTouched = false;
+
+const LOG_VIEW_PANELS: Record<LogView, string> = {
+  transactions: 'csv-import-card',
+  snapshots: 'balance-card',
+};
+
+/** Show one Log sub-view (Transactions or Snapshots) and sync the tablist state. */
+export function applyLogView(view: LogView): void {
+  for (const v of LOG_VIEWS) {
+    const active = v === view;
+    const tab = document.getElementById(`log-tab-${v}`);
+    if (tab) {
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', String(active));
+      tab.setAttribute('tabindex', active ? '0' : '-1');
+    }
+    const panel = document.getElementById(LOG_VIEW_PANELS[v]);
+    if (panel) panel.hidden = !active;
+  }
+}
+
+/** Open or close the collapsible CSV import panel. `userAction` remembers an explicit choice. */
+export function setImportPanelOpen(open: boolean, userAction = false): void {
+  if (userAction) _importPanelTouched = true;
+  const panel = document.getElementById('csv-import-panel');
+  const toggle = document.getElementById('btn-toggle-import');
+  if (panel) panel.hidden = !open;
+  toggle?.setAttribute('aria-expanded', String(open));
+}
+
+export function isImportPanelOpen(): boolean {
+  const panel = document.getElementById('csv-import-panel');
+  return !!panel && !panel.hidden;
+}
+
+/** Short tab-badge label: exact up to 9.999, then "12k" / "1,2M" so the chip stays narrow. */
+export function fmtCountBadge(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return '';
+  if (n < 10_000) return n.toLocaleString('de-DE');
+  if (n < 1_000_000) return `${Math.floor(n / 1000)}k`;
+  return `${(Math.floor(n / 100_000) / 10).toLocaleString('de-DE')}M`;
+}
+
+function setTabCount(id: string, tabId: string, label: string, n: number): void {
+  const el = document.getElementById(id);
+  if (el) {
+    el.textContent = fmtCountBadge(n);
+    if (n > 0) el.title = `${n.toLocaleString('de-DE')} ${label.toLowerCase()}`;
+    else el.removeAttribute('title');
+  }
+  const tab = document.getElementById(tabId);
+  if (tab) {
+    if (n > 0) tab.setAttribute('aria-label', `${label} (${n.toLocaleString('de-DE')})`);
+    else tab.removeAttribute('aria-label');
+  }
+}
+
+function updateLogSummary(txs: Transaction[], snaps: Snapshot[]): void {
+  setTabCount('log-count-transactions', 'log-tab-transactions', 'Transactions', txs.length);
+  setTabCount('log-count-snapshots', 'log-tab-snapshots', 'Snapshots', snaps.length);
+  const latestEl = document.getElementById('snap-latest-meta');
+  if (latestEl) {
+    const latest = snaps[snaps.length - 1];
+    latestEl.textContent = latest
+      ? `Latest ${fmtMon(latest.date)} \u00B7 ${fmtEur2(snapTotal(latest))}`
+      : '';
+  }
+  const legendEl = document.getElementById('snap-legend');
+  if (legendEl) {
+    const used = getACCTSList().filter((a) => snaps.some((s) => ((s[a.key] as number) || 0) > 0));
+    legendEl.innerHTML = used
+      .map(
+        (a) =>
+          `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(a.color)}" aria-hidden="true"></span><span class="leg-label">${esc(a.label)}</span></span>`,
+      )
+      .join('');
+    legendEl.hidden = used.length < 2;
+  }
+  // First-time users land on an empty ledger: show the drop zone right away.
+  if (!_importPanelTouched) setImportPanelOpen(txs.length === 0);
+}
 
 /** Renders the snapshot log tab: the add/edit form and the snapshot history list. */
 export function renderLog(state: LogState): void {
@@ -90,6 +203,7 @@ export function renderLog(state: LogState): void {
   _snaps = snaps;
   _txs = txs;
 
+  updateLogSummary(txs, snaps);
   attachTxListeners();
   _updateBulkControls('tx');
   renderTxList(_txs);
@@ -187,7 +301,8 @@ function getFilteredSnaps(snaps: Snapshot[]): Snapshot[] {
 }
 
 function getFilteredTxs(txs: Transaction[]): Transaction[] {
-  let filtered = [...txs];
+  // Newest first by default, matching the snapshot history.
+  let filtered = [...txs].reverse();
   const txType = getTableFilter(_txTableState, 'type');
   const txSearch = getTableFilter(_txTableState, 'search');
   if (txType) filtered = filtered.filter((t) => t.type === txType);
@@ -300,6 +415,15 @@ function _updateBulkControls(kind: 'tx' | 'snap'): void {
   }
 }
 
+function snapShares(s: Snapshot) {
+  const total = snapTotal(s);
+  if (total <= 0) return [];
+  return getACCTSList()
+    .filter((a) => ((s[a.key] as number) || 0) > 0)
+    .map((a) => ({ a, share: ((s[a.key] as number) || 0) / total }))
+    .sort((x, y) => y.share - x.share);
+}
+
 function snapColumns(): ColumnDef<Snapshot>[] {
   const columns: ColumnDef<Snapshot>[] = [];
   if (_snapBulkMode && !_readOnly && !!_lastOnBulkDel) {
@@ -317,9 +441,9 @@ function snapColumns(): ColumnDef<Snapshot>[] {
     {
       key: 'month',
       label: 'Month',
-      sortValue: (s) => s.date,
+      sortValue: (s) => isoDateSortValue(s.date),
       cell: (s) =>
-        `<span class="row-expand-chevron">&#x25B8;</span><span class="snap-month">${fmtMon(s.date)}</span>${s.notes ? '<span class="snap-note-dot" title="Has a note"></span>' : ''}`,
+        `<span class="row-expand-chevron" aria-hidden="true">&#x25B8;</span><span class="snap-month">${fmtMon(s.date)}</span>${s.notes ? '<span class="snap-note-dot" title="Has a note"></span>' : ''}`,
       cellClass: () => 'snap-month-cell',
     },
     {
@@ -333,14 +457,16 @@ function snapColumns(): ColumnDef<Snapshot>[] {
       key: 'segbar',
       label: '',
       cellClass: () => 'snap-segbar',
+      cellAttrs: (s) => {
+        const shares = snapShares(s);
+        if (!shares.length) return '';
+        const label = shares
+          .map(({ a, share }) => `${a.label} ${Math.round(share * 100)}%`)
+          .join(', ');
+        return `aria-label="Account mix: ${esc(label)}"`;
+      },
       cell: (s) => {
-        const shown = getACCTSList();
-        const total = snapTotal(s);
-        if (total <= 0) return '';
-        return shown
-          .filter((a) => ((s[a.key] as number) || 0) > 0)
-          .map((a) => ({ a, share: ((s[a.key] as number) || 0) / total }))
-          .sort((x, y) => y.share - x.share)
+        return snapShares(s)
           .map(
             ({ a, share }) =>
               `<span class="snap-seg" style="flex-grow:${share.toFixed(4)};background:${safeColor(a.color)}" title="${esc(a.label)}: ${fmtEur2((s[a.key] as number) || 0)}"></span>`,
@@ -398,9 +524,10 @@ function renderSnapList(
     columns,
     _snapTableState.sort,
     _snapTableState.page,
-    PAGE_SIZE,
+    _snapPageSize,
   );
   setTablePage(_snapTableState, page);
+  el.style.setProperty('--snap-rows', String(pageItems.length + 1));
   const rowClass =
     _snapBulkMode && !_readOnly && !!_lastOnBulkDel
       ? 'snap-row-compact snap-row-selectable'
@@ -487,11 +614,28 @@ function renderSnapList(
   });
 
   // Pagination controls
-  renderPagination('snap-pagination', _snapTableState.page, totalPages, (page) => {
-    setTablePage(_snapTableState, page);
-    renderSnapList(snaps, onEdit, onDel);
-    _updateBulkControls('snap');
-  });
+  renderPagination(
+    'snap-pagination',
+    _snapTableState.page,
+    totalPages,
+    (page) => {
+      setTablePage(_snapTableState, page);
+      renderSnapList(snaps, onEdit, onDel);
+      _updateBulkControls('snap');
+    },
+    {
+      totalItems: filtered.length,
+      pageSize: _snapPageSize,
+      pageSizeOptions: SNAP_PAGE_SIZES,
+      itemLabel: 'snapshots',
+      onPageSizeChange: (size) => {
+        _snapPageSize = size;
+        savePageSize(SNAP_PAGE_SIZE_KEY, size);
+        setTablePage(_snapTableState, 1);
+        renderSnapList(snaps, onEdit, onDel);
+      },
+    },
+  );
   _updateBulkControls('snap');
 }
 
@@ -513,6 +657,7 @@ function _createSnapDetail(
   const panel = document.createElement('div');
   panel.className = 'hold-detail snap-detail';
   panel.innerHTML = `
+    <div class="snap-detail-head"><span class="snap-detail-month">${fmtMon(snap.date)}</span><span class="snap-detail-total">${fmtEur2(snapTotal(snap))}</span></div>
     ${detailRows}
     ${snap.notes ? `<div class="snap-detail-note"><span class="hold-detail-label">Note</span><span class="hold-detail-value">${esc(snap.notes)}</span></div>` : ''}
     ${
@@ -539,16 +684,76 @@ function hidePagination(): void {
   if (el) el.innerHTML = '';
 }
 
-const TX_PAGE_SIZE = 15;
+const TX_DETAIL_SELECTOR = '.tx-detail';
+
+function txKey(tx: Transaction, index: number): string {
+  return tx.id || (tx.rowId != null ? `row:${tx.rowId}` : `idx:${index}`);
+}
+
+function txDetailId(key: string): string {
+  return `tx-detail-${key.replace(/[^A-Za-z0-9_-]/g, '_')}`;
+}
+
+/** Build the detail panel shown beneath an expanded ledger row (all stored fields). */
+function _createTxDetail(tx: Transaction, key: string): HTMLElement {
+  const field = (label: string, value: string, cls = '') =>
+    `<div><span class="hold-detail-label">${label}</span><span class="hold-detail-value${cls ? ' ' + cls : ''}">${value}</span></div>`;
+  const parts: string[] = [];
+  if (tx.name) parts.push(field('Name', esc(tx.name)));
+  if (tx.isin) parts.push(field('ISIN', esc(tx.isin), 'hold-detail-isin'));
+  parts.push(
+    field('Amount', fmtTxMoney(tx.amount || 0, tx.currency), (tx.amount || 0) < 0 ? 'neg' : 'pos'),
+  );
+  if (tx.shares) parts.push(field('Shares', esc(String(tx.shares))));
+  if (tx.price) parts.push(field('Price', fmtTxMoney(tx.price, tx.currency)));
+  if (tx.fee) parts.push(field('Fee', fmtTxMoney(tx.fee, tx.currency)));
+  if (tx.tax) parts.push(field('Tax', fmtTxMoney(tx.tax, tx.currency)));
+  if (tx.currency) parts.push(field('Currency', esc(tx.currency.toUpperCase())));
+  if (tx.fxRate && tx.fxRate !== 1) parts.push(field('FX rate', esc(String(tx.fxRate))));
+  if (tx.source) parts.push(field('Source', esc(sourceLabel(tx.source))));
+  if (tx.category) parts.push(field('Category', esc(tx.category)));
+  if (tx.note)
+    parts.push(
+      `<div class="snap-detail-note"><span class="hold-detail-label">Note</span><span class="hold-detail-value">${esc(tx.note)}</span></div>`,
+    );
+  const panel = document.createElement('div');
+  panel.className = 'hold-detail tx-detail';
+  panel.id = txDetailId(key);
+  panel.dataset.txkey = key;
+  panel.setAttribute('role', 'region');
+  panel.setAttribute('aria-label', `Transaction details, ${fmtDay(tx.date)}`);
+  panel.innerHTML = parts.join('');
+  return panel;
+}
+
+function toggleTxDetail(row: HTMLElement): void {
+  const key = row.dataset.txkey;
+  if (!key) return;
+  const next = row.nextElementSibling as HTMLElement | null;
+  if (next?.matches(TX_DETAIL_SELECTOR)) {
+    next.remove();
+    row.setAttribute('aria-expanded', 'false');
+    _openTxDetails.delete(key);
+    return;
+  }
+  const tx = _txByKey.get(key);
+  if (!tx) return;
+  row.insertAdjacentElement('afterend', _createTxDetail(tx, key));
+  row.setAttribute('aria-expanded', 'true');
+  _openTxDetails.add(key);
+}
+
+let _txByKey = new Map<string, Transaction>();
 
 function txColumns(): ColumnDef<Transaction>[] {
   return [
     {
       key: 'date',
       label: 'Date',
-      sortValue: (t) => t.date,
+      sortValue: (t) => isoDateSortValue(t.date),
       cellAttrs: () => 'data-ledger-label="Date"',
-      cell: (t) => `<span class="snap-month">${fmtDay(t.date)}</span>`,
+      cell: (t) =>
+        `<span class="row-expand-chevron" aria-hidden="true">&#x25B8;</span><span class="snap-month">${fmtDay(t.date)}</span>`,
     },
     {
       key: 'type',
@@ -659,7 +864,18 @@ function attachTxListeners(): void {
         const raw = delBtn.dataset.rowid;
         const rowId = raw ? BigInt(raw) : null;
         if (rowId != null) _lastOnDelTx?.(rowId, delBtn);
+        return;
       }
+      if (target.closest('button, a, input, select, label, textarea')) return;
+      const row = target.closest('.tx-row:not(.th)') as HTMLElement | null;
+      if (row) toggleTxDetail(row);
+    });
+    listEl.addEventListener('keydown', (e) => {
+      const row = e.target as HTMLElement;
+      if (!row.matches?.('.tx-row:not(.th)')) return;
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      toggleTxDetail(row);
     });
     listEl.addEventListener('change', (e) => {
       const inp = (e.target as HTMLElement).closest('.js-tx-select') as HTMLInputElement | null;
@@ -719,11 +935,13 @@ function renderTxList(txs: Transaction[]): void {
     columns,
     _txTableState.sort,
     _txTableState.page,
-    TX_PAGE_SIZE,
+    _txPageSize,
   );
   setTablePage(_txTableState, page);
   const showActions = !_readOnly;
   const showSelection = !_readOnly && !!_lastOnBulkDelTxs && _txBulkMode;
+  const pageStart = (page - 1) * _txPageSize;
+  _txByKey = new Map();
 
   listEl.innerHTML = `
     <div class="tbl-row th tx-row" role="row" id="tx-table-header">
@@ -735,7 +953,9 @@ function renderTxList(txs: Transaction[]): void {
       }
     </div>
     ${pageItems
-      .map((tx) => {
+      .map((tx, i) => {
+        const key = txKey(tx, pageStart + i);
+        _txByKey.set(key, tx);
         const actionBtns = showSelection
           ? tx.rowId
             ? `<input type="checkbox" class="js-tx-select" data-rowid="${tx.rowId}" aria-label="Select transaction on ${fmtDay(tx.date)}" ${
@@ -768,7 +988,7 @@ function renderTxList(txs: Transaction[]): void {
             ${actionBtns}
           </div>`;
         const bodyCells = renderTableRow(restCols, tx);
-        return `<div class="tbl-row tx-row" role="row">
+        return `<div class="tbl-row tx-row" role="row" tabindex="0" aria-expanded="false" aria-controls="${txDetailId(key)}"         data-txkey="${esc(key)}">
           <div class="tx-card-header">${headerCells}${sourceChip}${mobileActionsCell}</div>
           ${bodyCells}
           ${desktopActionsCell}
@@ -776,6 +996,15 @@ function renderTxList(txs: Transaction[]): void {
       })
       .join('')}
   `;
+
+  // Re-open details that were expanded before the re-render (still on this page).
+  if (_openTxDetails.size) {
+    const keys = new Set(_openTxDetails);
+    _openTxDetails.clear();
+    listEl.querySelectorAll<HTMLElement>('.tx-row:not(.th)').forEach((row) => {
+      if (row.dataset.txkey && keys.has(row.dataset.txkey)) toggleTxDetail(row);
+    });
+  }
 
   bindSortedTableHeader(
     document.getElementById('tx-table-header'),
@@ -788,9 +1017,26 @@ function renderTxList(txs: Transaction[]): void {
 
   attachEtfPopovers(listEl);
 
-  renderPagination('tx-pagination', _txTableState.page, totalPages, (page) => {
-    setTablePage(_txTableState, page);
-    renderTxList(txs);
-  });
+  renderPagination(
+    'tx-pagination',
+    _txTableState.page,
+    totalPages,
+    (page) => {
+      setTablePage(_txTableState, page);
+      renderTxList(txs);
+    },
+    {
+      totalItems: filtered.length,
+      pageSize: _txPageSize,
+      pageSizeOptions: TX_PAGE_SIZES,
+      itemLabel: 'transactions',
+      onPageSizeChange: (size) => {
+        _txPageSize = size;
+        savePageSize(TX_PAGE_SIZE_KEY, size);
+        setTablePage(_txTableState, 1);
+        renderTxList(txs);
+      },
+    },
+  );
   _updateBulkControls('tx');
 }
