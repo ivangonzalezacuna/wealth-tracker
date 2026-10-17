@@ -956,6 +956,244 @@ details[open] > summary .card-chevron {
   padding-top: 8px;
   border-top: 1px solid var(--line);
 }
+/* Month + total heading: only needed in the desktop side panel */
+.snap-detail-head {
+  display: none;
+}
+
+/* ── Log tab layout ─────────────────────────────────────── */
+.log-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 0.75rem;
+}
+.log-toolbar .subnav {
+  margin-bottom: 0;
+}
+.log-tab-count {
+  display: inline-block;
+  min-width: 1.6em;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.log-tab-count:empty {
+  display: none;
+}
+.range-toggle .btn.active .log-tab-count {
+  background: var(--surface);
+  color: var(--brand);
+}
+.log-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  min-width: 0;
+}
+.log-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-bottom: 0.6rem;
+}
+.log-panel-meta {
+  font-size: 12px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.log-import-toggle {
+  gap: 6px;
+}
+.log-import-panel {
+  margin-top: 0.6rem;
+}
+.log-import-panel .drop-zone {
+  padding: 1.25rem 1rem;
+}
+.drop-zone-icon {
+  font-size: 20px;
+  line-height: 1;
+  margin-bottom: 0.35rem;
+}
+.log-inline-msg {
+  font-size: 12px;
+}
+.log-inline-msg:not(:empty) {
+  margin-top: 0.5rem;
+}
+.log-toolbar-actions .log-inline-msg:not(:empty) {
+  margin-top: 0;
+}
+#log-content .status-bar {
+  margin-bottom: 0;
+}
+.log-panel-body {
+  margin-top: 0.75rem;
+}
+#tx-type-filter,
+#snap-year-filter {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 0;
+}
+#tx-search,
+#snap-search {
+  flex: 1 1 160px;
+  width: auto;
+  min-width: 0;
+}
+.snap-legend {
+  gap: 4px 12px;
+  margin: 0 0 4px;
+  font-size: 11px;
+}
+.snap-legend .leg-sq {
+  width: 8px;
+  height: 8px;
+}
+
+/* Pagination: range · rows-per-page · prev/next */
+.pagination {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+.page-range {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-3);
+}
+.page-size select {
+  width: auto;
+  padding-right: 22px;
+}
+.pagination-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+/* Ledger rows expand to a full-width detail panel */
+#tx-ledger-list .tx-row:not(.th) {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#tx-ledger-list .tx-row:not(.th):hover {
+  background: var(--surface-2);
+}
+#tx-ledger-list .tx-row:not(.th):focus-visible {
+  outline: 2px solid var(--brand-border);
+  outline-offset: -2px;
+}
+#tx-ledger-list .tx-row [data-ledger-label='Date'] {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+#tx-ledger-list .tx-row > [data-ledger-label='Source'] .tx-ledger-source {
+  padding: 0;
+  background: none;
+  color: var(--ink-3);
+  font-weight: 400;
+  font-size: 11px;
+}
+.tx-detail {
+  grid-column: 1 / -1;
+}
+
+/* Desktop: snapshot history as master/detail (list left, details right) */
+@media (min-width: 1024px) {
+  #snaps-list {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+    column-gap: 16px;
+    align-items: start;
+  }
+  #snaps-list > .snap-row-compact,
+  #snaps-list > .empty-state {
+    grid-column: 1;
+  }
+  #snaps-list > .snap-detail {
+    grid-column: 2;
+    grid-row: 1 / span var(--snap-rows, 13);
+    position: sticky;
+    top: 12px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin: 0;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+  }
+  #snaps-list > .snap-detail > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+  }
+  #snaps-list > .snap-detail .hold-detail-label,
+  #snaps-list > .snap-detail .hold-detail-value {
+    display: inline;
+  }
+  #snaps-list > .snap-detail > .snap-detail-head {
+    padding-bottom: 6px;
+    margin-bottom: 2px;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  #snaps-list > .snap-detail > .snap-detail-note {
+    flex-direction: column;
+    gap: 2px;
+  }
+  #snaps-list > .snap-detail > .snap-detail-note .hold-detail-value {
+    font-weight: 400;
+    white-space: pre-wrap;
+  }
+  #snaps-list > .snap-detail > .snap-detail-actions {
+    justify-content: flex-end;
+  }
+  /* The row keeps its separator; the selected row is highlighted instead */
+  #snaps-list > [aria-expanded='true'].snap-row-compact {
+    border-bottom: 1px solid var(--surface-3);
+    background: var(--brand-weak);
+  }
+  #snaps-list:has(> .snap-row-compact:not(.th)):not(:has(> .snap-detail))::after {
+    content: 'Select a month to see its account breakdown';
+    grid-column: 2;
+    grid-row: 1 / span var(--snap-rows, 13);
+    align-self: start;
+    position: sticky;
+    top: 12px;
+    padding: 1.25rem 1rem;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius-md);
+    color: var(--ink-3);
+    font-size: 12px;
+    text-align: center;
+  }
+}
 
 /* Bar */
 .bar-wrap {
@@ -2019,8 +2257,14 @@ summary.section-label {
   #tx-filter-bar > select,
   #snap-filter-bar > .form-input,
   #snap-filter-bar > select {
-    flex: 1 1 100%;
+    flex: 0 1 auto;
     min-width: 0;
+    max-width: 45%;
+  }
+  #tx-filter-bar > #tx-search,
+  #snap-filter-bar > #snap-search {
+    flex: 1 1 0;
+    max-width: none;
   }
   #tx-bulk-actions,
   #snap-bulk-actions {
@@ -2347,6 +2591,64 @@ summary.section-label {
   }
   #tx-ledger-list .tx-row > [role='cell'].tx-actions-desktop {
     display: none;
+  }
+
+  /* Compact two-line ledger rows: date · type · actions / name … amount.
+     ISIN, source, shares and tax move into the tap-to-expand details. */
+  #tx-ledger-list .tx-row:not(.th) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'head head'
+      'name amount';
+    column-gap: 10px;
+    row-gap: 2px;
+    margin-bottom: 6px;
+    padding: 6px 10px;
+  }
+  #tx-ledger-list .tx-row:not(.th):hover {
+    background: var(--surface-2);
+  }
+  #tx-ledger-list .tx-row[aria-expanded='true'] {
+    margin-bottom: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  #tx-ledger-list .tx-card-header {
+    grid-area: head;
+    padding: 0;
+    border-bottom: none;
+    min-height: 28px;
+  }
+  #tx-ledger-list .tx-card-header .tx-header-source,
+  #tx-ledger-list .tx-row .tx-ledger-isin,
+  #tx-ledger-list .tx-row .tx-ledger-meta {
+    display: none;
+  }
+  #tx-ledger-list .tx-row > [role='cell'][data-ledger-label='Name'],
+  #tx-ledger-list .tx-row > [role='cell'][data-ledger-label='Amount'] {
+    padding: 0;
+  }
+  #tx-ledger-list .tx-row > [role='cell'][data-ledger-label='Name'] {
+    grid-area: name;
+    display: block;
+    min-width: 0;
+  }
+  #tx-ledger-list .tx-row > [role='cell'][data-ledger-label='Amount'] {
+    grid-area: amount;
+    display: block;
+    white-space: nowrap;
+  }
+  #tx-ledger-list .tx-row > [role='cell'][data-ledger-label='Name']::before,
+  #tx-ledger-list .tx-row > [role='cell'][data-ledger-label='Amount']::before {
+    display: none;
+  }
+  #tx-ledger-list .tx-detail {
+    margin: 0 0 6px;
+    border: 1px solid var(--surface-3);
+    border-top: 1px dashed var(--surface-3);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    background: var(--surface);
   }
 }
 

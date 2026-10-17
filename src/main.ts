@@ -71,7 +71,7 @@ import {
   applySyncBusyState,
   accountCurrencyList,
 } from './views/settings';
-import { renderLog } from './views/log';
+import { renderLog, applyLogView, setImportPanelOpen, isImportPanelOpen } from './views/log';
 import {
   fmtMon,
   showMsg,
@@ -81,7 +81,7 @@ import {
   withButtonGuard,
   fmtPctVal,
 } from './utils';
-import { navHash, parseNavHash } from './nav';
+import { navHash, parseNavHash, LOG_VIEWS, type LogView } from './nav';
 import {
   isCacheValid,
   clearCache,
@@ -144,6 +144,14 @@ const ALL_SECTIONS = ['networth', 'portfolio', 'analytics', 'settings', 'log'] a
 
 // ── Portfolio sub-view state ─────────────────────────────
 let _portfolioSubview: 'holdings' | 'contributions' | 'dividends' = 'holdings';
+let _logView: LogView = 'transactions';
+
+/** Subview to encode in the URL hash for a top-level section. */
+function sectionSubview(id: string): string | undefined {
+  if (id === 'portfolio') return _portfolioSubview;
+  if (id === 'log') return _logView;
+  return undefined;
+}
 
 // ── Unified sync/write lock (shared with settings.ts - see sync/lock.ts) ──
 let _lastSyncAt = 0;
@@ -318,7 +326,7 @@ function applyReadOnlyMode(): void {
           : 'Drop CSV file here';
     if (detail)
       detail.textContent = readOnly
-        ? 'Your cached ledger is still available below'
+        ? 'Your cached ledger is still available'
         : busy
           ? 'Try again when sync finishes'
           : 'or click to browse';
@@ -340,8 +348,7 @@ function applyReadOnlyMode(): void {
   // Collapse monthly update card in read-only mode
   const balanceCard = document.getElementById('balance-card');
   if (balanceCard) {
-    const actionRow = balanceCard.querySelector('#btn-add-snap')
-      ?.parentElement as HTMLElement | null;
+    const actionRow = document.getElementById('btn-add-snap');
     let roMsg = balanceCard.querySelector('.ro-msg') as HTMLElement | null;
 
     if (readOnly) {
@@ -407,6 +414,17 @@ function initNav() {
   initRovingTabindex(document.querySelector('.nav[role="tablist"]'));
   initRovingTabindex(subnav);
 
+  // Log tab: Transactions / Snapshots sub-views + collapsible CSV import
+  const logSubnav = document.getElementById('log-subnav');
+  logSubnav?.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('[data-logview]') as HTMLElement | null;
+    if (btn) showLogView(btn.dataset.logview as LogView);
+  });
+  initRovingTabindex(logSubnav);
+  document.getElementById('btn-toggle-import')?.addEventListener('click', () => {
+    setImportPanelOpen(!isImportPanelOpen(), true);
+  });
+
   // Hash-based initial routing
   resolveInitialSection();
 }
@@ -445,6 +463,8 @@ function resolveInitialSection(): void {
   showSection(targetSection, targetBtn);
   if (targetSection === 'portfolio') {
     showPortfolioSubview(subview || 'holdings');
+  } else if (targetSection === 'log') {
+    showLogView((subview as LogView | null) || 'transactions');
   }
 }
 
@@ -455,7 +475,7 @@ function showSection(id: string, btn: Element | null) {
   if (alreadyActive && id !== 'settings') {
     // Still worth a defensive re-sync of the hash in case it drifted (e.g. via
     // popstate or a stale deep link) - cheap, no DOM/render cost.
-    history.replaceState(null, '', navHash(id, id === 'portfolio' ? _portfolioSubview : undefined));
+    history.replaceState(null, '', navHash(id, sectionSubview(id)));
     return;
   }
   document.querySelectorAll('.section').forEach((s) => s.classList.remove('active'));
@@ -476,7 +496,15 @@ function showSection(id: string, btn: Element | null) {
     renderSection('settings');
   } // settings reflects live config; always repaint
   if (id === 'portfolio') showPortfolioSubview(_portfolioSubview);
-  history.replaceState(null, '', navHash(id, id === 'portfolio' ? _portfolioSubview : undefined));
+  if (id === 'log') applyLogView(_logView);
+  history.replaceState(null, '', navHash(id, sectionSubview(id)));
+}
+
+/** Switch the Log tab between the transaction ledger and the snapshot history. */
+function showLogView(view: LogView): void {
+  _logView = (LOG_VIEWS as readonly string[]).includes(view) ? view : 'transactions';
+  applyLogView(_logView);
+  if (_activeSection === 'log') history.replaceState(null, '', navHash('log', _logView));
 }
 
 // ── PWA update detection ──────────────────────────────────
@@ -1379,6 +1407,8 @@ async function saveSnapshot(snap: Snapshot) {
       const snapCached = await setCachedSnapshots(state.snaps);
       if (!snapCached) showCacheWriteWarning();
       renderAll();
+      // Show the saved month in the history right away.
+      if (_activeSection === 'log') showLogView('snapshots');
     },
     onlineMessage: 'Saved ✓',
     offlineMessage: 'Saved locally. Will sync to Drive when back online.',
@@ -1432,6 +1462,7 @@ function editSnap(date: string) {
   if (!s) return;
 
   showSection('log', document.querySelector('.nav button[data-section="log"]'));
+  showLogView('snapshots');
   void saveMonthlyUpdate(date);
 }
 
@@ -1714,12 +1745,23 @@ function initCSVDrop() {
   inp.addEventListener('change', () => {
     if (inp.files?.[0]) handleCSVFile(inp.files[0]);
   });
-  zone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    zone.classList.add('over');
+  // Dragging a file anywhere over the ledger card reveals the (collapsed) drop
+  // zone, and a drop anywhere on the card is accepted.
+  const card = document.getElementById('csv-import-card') ?? zone;
+  const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types?.includes('Files');
+  card.addEventListener('dragenter', (e) => {
+    if (hasFiles(e)) setImportPanelOpen(true);
   });
-  zone.addEventListener('dragleave', () => zone.classList.remove('over'));
-  zone.addEventListener('drop', (e) => {
+  card.addEventListener('dragover', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    zone.classList.toggle('over', zone.contains(e.target as Node));
+  });
+  card.addEventListener('dragleave', (e) => {
+    if (!card.contains(e.relatedTarget as Node | null)) zone.classList.remove('over');
+  });
+  card.addEventListener('drop', (e) => {
+    if (!hasFiles(e)) return;
     e.preventDefault();
     zone.classList.remove('over');
     const f = e.dataTransfer?.files[0];

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { renderLog } from './log';
+import { renderLog, applyLogView } from './log';
 import type { Snapshot, Transaction } from '../types';
 
 vi.mock('../constants', () => ({
@@ -548,7 +548,10 @@ describe('bulk delete mode', () => {
     (document.getElementById('btn-del-txs') as HTMLButtonElement).click();
     (document.getElementById('btn-del-snaps') as HTMLButtonElement).click();
 
-    expect(onBulkDelTxs).toHaveBeenCalledWith([10n, 11n], expect.any(HTMLButtonElement));
+    expect(onBulkDelTxs).toHaveBeenCalledWith(
+      expect.arrayContaining([10n, 11n]),
+      expect.any(HTMLButtonElement),
+    );
     expect(onBulkDelSnaps).toHaveBeenCalledWith(
       expect.arrayContaining(['2026-01-01', '2026-02-01']),
       expect.any(HTMLButtonElement),
@@ -645,5 +648,142 @@ describe('bulk delete mode', () => {
     expect((document.getElementById('btn-del-snaps') as HTMLButtonElement).textContent).toBe(
       'Delete',
     );
+  });
+});
+
+const LAYOUT_DOM_FIXTURE = `
+  <button id="log-tab-transactions" role="tab"><span id="log-count-transactions"></span></button>
+  <button id="log-tab-snapshots" role="tab"><span id="log-count-snapshots"></span></button>
+  <div id="csv-import-card">
+    <button id="btn-toggle-import" aria-expanded="false"></button>
+    <div id="csv-import-panel" hidden></div>
+  </div>
+  <div id="balance-card" hidden><span id="snap-latest-meta"></span></div>
+  <div id="snap-legend"></div>
+  ${DOM_FIXTURE}
+`;
+
+describe('log layout helpers', () => {
+  beforeEach(() => {
+    document.body.innerHTML = LAYOUT_DOM_FIXTURE;
+    _collapseState = {};
+    localStorage.clear();
+  });
+
+  function render(txs: Transaction[], snaps: Snapshot[] = []) {
+    renderLog({
+      txs,
+      snaps,
+      importMeta: txs.length ? { last_import: '2026-01-01' } : null,
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+    });
+    resetRenderedFilters();
+  }
+
+  it('lists transactions newest first by default', () => {
+    render([
+      makeTx(1n, { date: '2026-01-05', name: 'Oldest' }),
+      makeTx(2n, { date: '2026-03-05', name: 'Newest' }),
+    ]);
+    const names = [...document.querySelectorAll('.tx-row:not(.th) .tx-ledger-name')].map(
+      (el) => el.textContent,
+    );
+    expect(names).toEqual(['Newest', 'Oldest']);
+  });
+
+  it('fills tab counts, latest snapshot meta and the account legend', () => {
+    render(
+      [makeTx(1n), makeTx(2n)],
+      [makeSnap('2026-01-01', 500), { date: '2026-02-01', acct_1: 700, acct_2: 300 }],
+    );
+    expect(document.getElementById('log-count-transactions')?.textContent).toBe('2');
+    expect(document.getElementById('log-count-snapshots')?.textContent).toBe('2');
+    expect(document.getElementById('snap-latest-meta')?.textContent).toContain('Latest');
+    const legend = document.getElementById('snap-legend')!;
+    expect(legend.hidden).toBe(false);
+    expect(legend.textContent).toContain('Main');
+    expect(legend.textContent).toContain('Savings');
+    expect(
+      document.querySelector('.snap-row-compact:not(.th) .snap-segbar')?.getAttribute('aria-label'),
+    ).toContain('Main 70%');
+  });
+
+  it('expands a ledger row to show every stored field', () => {
+    render([makeTx(7n, { fee: 1.5, note: 'Monthly plan', category: 'ETF' })]);
+    const row = document.querySelector('.tx-row:not(.th)') as HTMLElement;
+    expect(row.getAttribute('aria-expanded')).toBe('false');
+    row.click();
+    const detail = row.nextElementSibling as HTMLElement;
+    expect(row.getAttribute('aria-expanded')).toBe('true');
+    expect(detail.classList.contains('tx-detail')).toBe(true);
+    expect(detail.classList.contains('tx-row')).toBe(false);
+    expect(detail.textContent).toContain('IE00B4L5Y983');
+    expect(detail.textContent).toContain('Fee');
+    expect(detail.textContent).toContain('Monthly plan');
+    expect(detail.textContent).toContain('ETF');
+
+    row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(row.getAttribute('aria-expanded')).toBe('false');
+    expect(document.querySelector('.tx-detail')).toBeNull();
+  });
+
+  it('does not expand the row when an action button is clicked', () => {
+    const onEditTx = vi.fn();
+    renderLog({
+      txs: [makeTx(8n)],
+      snaps: [],
+      importMeta: null,
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+      onEditTx,
+    });
+    (document.querySelector('.js-edit-tx') as HTMLButtonElement).click();
+    expect(onEditTx).toHaveBeenCalledWith(8n);
+    expect(document.querySelector('.tx-detail')).toBeNull();
+  });
+
+  it('changes and persists the ledger page size', () => {
+    const txs = Array.from({ length: 30 }, (_, i) =>
+      makeTx(BigInt(i + 1), { id: `t${i}`, date: `2026-01-${String(i + 1).padStart(2, '0')}` }),
+    );
+    render(txs);
+    expect(document.querySelectorAll('.tx-row:not(.th)')).toHaveLength(15);
+    const select = document.querySelector('#tx-pagination .js-page-size') as HTMLSelectElement;
+    select.value = '50';
+    select.dispatchEvent(new Event('change'));
+    expect(document.querySelectorAll('.tx-row:not(.th)')).toHaveLength(30);
+    expect(localStorage.getItem('wt:log:txPageSize')).toBe('50');
+    expect(document.querySelector('#tx-pagination .page-range')?.textContent).toBe(
+      '1\u201330 of 30',
+    );
+
+    // Restore default for other tests sharing module state.
+    const reset = document.querySelector('#tx-pagination .js-page-size') as HTMLSelectElement;
+    reset.value = '15';
+    reset.dispatchEvent(new Event('change'));
+  });
+
+  it('opens the import panel automatically only while the ledger is empty', () => {
+    render([]);
+    expect(document.getElementById('csv-import-panel')?.hidden).toBe(false);
+    expect(document.getElementById('btn-toggle-import')?.getAttribute('aria-expanded')).toBe(
+      'true',
+    );
+    render([makeTx(1n)]);
+    expect(document.getElementById('csv-import-panel')?.hidden).toBe(true);
+  });
+
+  it('switches between the transactions and snapshots panels', () => {
+    applyLogView('snapshots');
+    expect(document.getElementById('balance-card')?.hidden).toBe(false);
+    expect(document.getElementById('csv-import-card')?.hidden).toBe(true);
+    expect(document.getElementById('log-tab-snapshots')?.getAttribute('aria-selected')).toBe(
+      'true',
+    );
+    expect(document.getElementById('log-tab-transactions')?.getAttribute('tabindex')).toBe('-1');
+    applyLogView('transactions');
+    expect(document.getElementById('balance-card')?.hidden).toBe(true);
+    expect(document.getElementById('csv-import-card')?.hidden).toBe(false);
   });
 });
