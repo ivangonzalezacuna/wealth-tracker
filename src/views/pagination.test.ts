@@ -60,4 +60,48 @@ describe('renderPagination', () => {
     // No error thrown
     expect(cb).not.toHaveBeenCalled();
   });
+
+  it('renders the item range when extras are provided', () => {
+    renderPagination('test-pagination', 2, 3, vi.fn(), { totalItems: 40, pageSize: 15 });
+    expect(container.querySelector('.page-range')?.textContent).toBe('16\u201330 of 40');
+  });
+
+  it('renders a page-size selector and reports changes', () => {
+    const onSize = vi.fn();
+    renderPagination('test-pagination', 1, 3, vi.fn(), {
+      totalItems: 40,
+      pageSize: 15,
+      pageSizeOptions: [15, 25, 50],
+      onPageSizeChange: onSize,
+      itemLabel: 'transactions',
+    });
+    const select = container.querySelector('.js-page-size') as HTMLSelectElement;
+    expect(select.value).toBe('15');
+    expect(select.getAttribute('aria-label')).toBe('Rows per page (transactions)');
+    select.value = '50';
+    select.dispatchEvent(new Event('change'));
+    expect(onSize).toHaveBeenCalledWith(50);
+  });
+
+  it('keeps the page-size selector on a single page when items exceed the smallest size', () => {
+    renderPagination('test-pagination', 1, 1, vi.fn(), {
+      totalItems: 40,
+      pageSize: 50,
+      pageSizeOptions: [15, 25, 50],
+      onPageSizeChange: vi.fn(),
+    });
+    expect(container.querySelector('.js-page-size')).not.toBeNull();
+    expect(container.querySelector('.js-page-next')).toBeNull();
+    expect(container.querySelector('.page-range')?.textContent).toBe('1\u201340 of 40');
+  });
+
+  it('renders nothing on a single page when items fit the smallest size', () => {
+    renderPagination('test-pagination', 1, 1, vi.fn(), {
+      totalItems: 10,
+      pageSize: 15,
+      pageSizeOptions: [15, 25, 50],
+      onPageSizeChange: vi.fn(),
+    });
+    expect(container.innerHTML).toBe('');
+  });
 });

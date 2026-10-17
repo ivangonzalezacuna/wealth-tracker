@@ -1,11 +1,16 @@
 // ── Hash-based navigation helpers ────────────────────────
 const VALID_SECTIONS = ['networth', 'portfolio', 'settings', 'log', 'analytics'] as const;
 const VALID_SUBVIEWS = ['holdings', 'contributions', 'dividends'] as const;
+export const LOG_VIEWS = ['transactions', 'snapshots'] as const;
+export type LogView = (typeof LOG_VIEWS)[number];
 
 /** Compute the canonical hash for the current nav state. */
 export function navHash(section: string, subview?: string): string {
   if (section === 'portfolio' && subview && subview !== 'holdings') {
     return `#portfolio/${subview}`;
+  }
+  if (section === 'log' && subview === 'snapshots') {
+    return '#log/snapshots';
   }
   return `#${section}`;
 }
@@ -19,6 +24,10 @@ export function parseNavHash(hash: string): { section: string; subview: string |
     : 'networth';
   if (validSection === 'portfolio') {
     const validSubview = (VALID_SUBVIEWS as readonly string[]).includes(subview) ? subview : null;
+    return { section: validSection, subview: validSubview };
+  }
+  if (validSection === 'log') {
+    const validSubview = (LOG_VIEWS as readonly string[]).includes(subview) ? subview : null;
     return { section: validSection, subview: validSubview };
   }
   return { section: validSection, subview: null };

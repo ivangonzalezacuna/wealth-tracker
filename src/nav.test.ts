@@ -29,6 +29,14 @@ describe('navHash', () => {
   it('returns #log for log section', () => {
     expect(navHash('log')).toBe('#log');
   });
+
+  it('returns #log for the default transactions log view', () => {
+    expect(navHash('log', 'transactions')).toBe('#log');
+  });
+
+  it('returns #log/snapshots for the snapshots log view', () => {
+    expect(navHash('log', 'snapshots')).toBe('#log/snapshots');
+  });
 });
 
 describe('parseNavHash', () => {
@@ -79,5 +87,17 @@ describe('parseNavHash', () => {
 
   it('returns log for #log', () => {
     expect(parseNavHash('#log')).toEqual({ section: 'log', subview: null });
+  });
+
+  it('returns log with snapshots view for #log/snapshots', () => {
+    expect(parseNavHash('#log/snapshots')).toEqual({ section: 'log', subview: 'snapshots' });
+  });
+
+  it('returns log with transactions view for #log/transactions', () => {
+    expect(parseNavHash('#log/transactions')).toEqual({ section: 'log', subview: 'transactions' });
+  });
+
+  it('returns log with null view for unknown log view', () => {
+    expect(parseNavHash('#log/unknown')).toEqual({ section: 'log', subview: null });
   });
 });
