@@ -64,7 +64,7 @@ vi.mock('../store/config', () => ({
 
 vi.mock('../constants', () => ({
   getISIN_ORDERList: () => ['IE00TEST1'],
-  getMETAMap: () => ({ IWDA: { color: '#222222', acc: true, active: true } }),
+  getMETAMap: () => Object.fromEntries(MOCK_HOLDINGS.map((holding) => [holding.isin, holding])),
 }));
 
 let _collapseState: Record<string, boolean> = {};
@@ -638,9 +638,32 @@ describe('renderPortfolio', () => {
     const detail = table.querySelector('.hold-detail') as HTMLElement;
     expect(detail).not.toBeNull();
     expect(detail.textContent).toContain('ISIN');
-    expect(detail.textContent).toContain('Status');
+    expect(detail.textContent).toContain('Position');
+    expect(detail.textContent).toContain('Allocation');
     expect(detail.textContent).toContain('Type');
     expect(detail.textContent).toContain('Accumulating');
+  });
+
+  it.each([
+    { active: true, exited: false, position: 'Held', allocation: 'Active' },
+    { active: false, exited: false, position: 'Held', allocation: 'Inactive' },
+    { active: false, exited: true, position: 'Closed', allocation: 'Inactive' },
+  ])('distinguishes position $position from allocation $allocation', (state) => {
+    MOCK_HOLDINGS[0].active = state.active;
+    renderPortfolio(
+      makePD({
+        etfs: { IE00TEST1: makeEtf({ active: state.active, exited: state.exited }) },
+      }),
+      [],
+    );
+    if (state.exited) document.querySelector<HTMLButtonElement>('[data-filter="closed"]')!.click();
+    document.querySelector<HTMLElement>('#port-table .hold-row:not(.th)')!.click();
+    const values = [...document.querySelectorAll('.hold-detail > div')].map((row) => [
+      row.querySelector('.hold-detail-label')?.textContent,
+      row.querySelector('.hold-detail-value')?.textContent,
+    ]);
+    expect(values).toContainEqual(['Position', state.position]);
+    expect(values).toContainEqual(['Allocation', state.allocation]);
   });
 
   it('tap-to-expand shows market value and unrealized gain when snapshot has etf_ values', () => {

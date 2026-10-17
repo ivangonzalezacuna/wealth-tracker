@@ -43,7 +43,14 @@ export function activateModalShell(opts: ModalShellOptions): () => void {
   };
 
   const onKeydown = (e: KeyboardEvent): void => {
+    if (e.defaultPrevented) return;
     if (e.key === 'Escape') {
+      if (
+        typeof CSS !== 'undefined' &&
+        CSS.supports?.('selector(select:open)') &&
+        overlay.querySelector('select:open')
+      )
+        return;
       e.preventDefault();
       onDismiss();
       return;

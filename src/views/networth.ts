@@ -646,6 +646,7 @@ export function renderNW(snaps: Snapshot[]): void {
       'Account breakdown data',
       ['Account', 'Value (€)'],
       chartA.map((a) => [a.label, fmtEur2((s[a.key] as number) || 0)]),
+      [1],
     );
   } else {
     _renderNWHistChart(view, chartA);
@@ -803,6 +804,7 @@ function _renderNWHistChart(
       fmtEur2(snapTotal(sn)),
       ...chartA.map((a) => fmtEur2((sn[a.key] as number) || 0)),
     ]),
+    Array.from({ length: chartA.length + 1 }, (_, index) => index + 1),
   );
 
   // Make legend swatches clickable to toggle datasets
@@ -1320,7 +1322,13 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     if (showReal && realDataFull) row.push(fcFmt(realDataFull[i]));
     return row;
   });
-  writeChartTable('c-nw-forecast-table-wrap', 'Forecast data', fcTableHeaders, fcTableRows);
+  writeChartTable(
+    'c-nw-forecast-table-wrap',
+    'Forecast data',
+    fcTableHeaders,
+    fcTableRows,
+    fcTableHeaders.slice(1).map((_, index) => index + 1),
+  );
 
   _attachForecastRangeToggle();
   const scenarioToggle = document.getElementById('nw-scenario-toggle') as HTMLButtonElement | null;
@@ -1730,6 +1738,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
             ? [lbl, ddFmt(displayValues[i]), ddFmt(nominalValues[i]), ddFmt(ddSeries[i].withdrawal)]
             : [lbl, ddFmt(nominalValues[i]), ddFmt(ddSeries[i].withdrawal)],
         ),
+        ddTableHeaders.slice(1).map((_, index) => index + 1),
       );
     }
   }

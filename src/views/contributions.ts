@@ -304,6 +304,7 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
       histDataFull[i] != null ? fmtEur2(histDataFull[i] as number) : '—',
       fcDataFull[i] != null ? fmtEur2(fcDataFull[i] as number) : '—',
     ]),
+    [1, 2],
   );
 
   _attachDCAForecastRangeToggle(pd, accounts);
@@ -440,6 +441,7 @@ function renderDCAChart(
         fmtEur2(values.reduce((sum, value) => sum + value, 0)),
       ];
     }),
+    Array.from({ length: ordSyms.length + 1 }, (_, index) => index + 1),
   );
 }
 

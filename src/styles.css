@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   /* colour tokens */
   --bg: #f5f4f0;
   --surface: #fff;
@@ -247,14 +248,12 @@ code,
   align-items: center;
   gap: 4px;
   flex-wrap: nowrap;
-  overflow: hidden;
 }
 .kpi-label-text {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 .kpi-val {
   font-size: 22px;
@@ -690,6 +689,19 @@ details[open] > summary .card-chevron {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+#port-table .th.hold-row > * {
+  min-width: 0;
+  padding-inline: 4px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+#port-table .th-label {
+  display: inline;
+  white-space: normal;
+}
+#port-table .sort-arrow {
+  margin-left: 0;
 }
 /* Header label + InfoTip icon: never wrap apart, regardless of column width or text-align */
 .th-label {
@@ -2710,6 +2722,7 @@ input[type='color'] {
 /* Applied when the user hasn't set an explicit preference (system default) */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']):not([data-theme='dark']) {
+    color-scheme: dark;
     --bg: #141210;
     --surface: #1d1b18;
     --surface-2: #242220;
@@ -2746,6 +2759,7 @@ input[type='color'] {
 
 /* Explicit dark preference */
 :root[data-theme='dark'] {
+  color-scheme: dark;
   --bg: #141210;
   --surface: #1d1b18;
   --surface-2: #242220;
@@ -3433,7 +3447,35 @@ input[type='color'] {
   height: 0;
   border: none;
 }
-
+@supports (appearance: base-select) and selector(::picker(select)) {
+  @media (hover: hover) and (pointer: fine) {
+    select.themed-select,
+    select.themed-select::picker(select) {
+      appearance: base-select;
+      background: var(--bg);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+    }
+    select.themed-select::picker(select) {
+      background: var(--surface);
+      max-height: min(50vh, 320px);
+      overflow-y: auto;
+    }
+    select.themed-select option {
+      padding: 8px 10px;
+      white-space: normal;
+    }
+    select.themed-select option:checked {
+      background: var(--brand-weak);
+      color: var(--ink);
+    }
+    select.themed-select option:focus-visible {
+      outline: 2px solid var(--brand-border);
+      outline-offset: -2px;
+    }
+  }
+}
 /* ── Theme toggle button ────────────────────────────────── */
 .btn-theme-toggle {
   display: inline-flex;
@@ -3542,6 +3584,9 @@ input[type='color'] {
 .chart-data-table td {
   padding: 3px 6px;
   border-bottom: 1px solid var(--line);
+}
+.chart-data-table .chart-data-number {
+  text-align: right;
 }
 .chart-data-table tr:last-child td {
   border-bottom: none;

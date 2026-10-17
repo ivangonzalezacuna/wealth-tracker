@@ -97,7 +97,7 @@ export function transactionDialog(
             </div>
             <div class="dialog-field">
               <label class="dialog-label" for="txd-type">Type</label>
-              <select id="txd-type" class="form-input dialog-input">
+              <select id="txd-type" class="form-input dialog-input themed-select">
                 ${TX_TYPES.map(
                   (t) =>
                     `<option value="${esc(t)}" ${t === (existing?.type || TxType.BUY) ? 'selected' : ''}>${esc(t)}</option>`,
@@ -207,6 +207,15 @@ export function transactionDialog(
     populateDatalist(overlay.querySelector('#txd-currency-list'), opts.currencySuggestions ?? []);
     _applyTypeVisibility(existing?.type || TxType.BUY);
     _bindRealtimeIsinValidation(overlay);
+    const clearCorrectedNameError = (): void => {
+      const { get, setErr } = makeDialogHelpers(overlay);
+      if (get('txd-name')) setErr('txd-name', '');
+    };
+    for (const id of ['txd-name', 'txd-isin']) {
+      const input = overlay.querySelector('#' + id);
+      input?.addEventListener('input', clearCorrectedNameError);
+      input?.addEventListener('change', clearCorrectedNameError);
+    }
     _bindCurrencyLabels(overlay);
     _bindFxHintLookup(overlay);
 

@@ -407,12 +407,12 @@ export function appTemplate(): string {
       <div class="card-title">Transactions</div>
 
       <div class="card-section-title" style="margin-top:.75rem">Import</div>
-      <p class="note" style="margin-bottom:.85rem">Import your transaction export CSV. Drag your file here or click to browse. Parsed locally; data synced to your Google Drive. Re-import anytime; duplicates handled automatically.</p>
+      <p class="note" style="margin-bottom:.85rem">Import your transaction export CSV. Parsed locally; data synced to your Google Drive. Re-import anytime; duplicates handled automatically.</p>
       <div class="drop-zone" id="drop-zone">
         <input type="file" id="csv-file-input" accept=".csv" aria-label="Choose CSV file to import">
         <div style="font-size:2rem;margin-bottom:.4rem" aria-hidden="true">📥</div>
-        <div style="font-weight:500;font-size:13px;color:var(--ink-2);margin-bottom:.2rem">Drop CSV file here</div>
-        <div style="font-size:11px;color:var(--ink-3)">or click to browse</div>
+        <div id="csv-import-label" style="font-weight:500;font-size:13px;color:var(--ink-2);margin-bottom:.2rem">Drop CSV file here</div>
+        <div id="csv-import-hint" style="font-size:11px;color:var(--ink-3)">or click to browse</div>
       </div>
       <div id="import-msg" style="font-size:12px;margin-top:.6rem;min-height:18px"></div>
       <div id="import-preview" style="display:none"></div>

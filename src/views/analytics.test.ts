@@ -242,6 +242,29 @@ describe('renderAnalytics', () => {
     expect(table?.getAttribute('aria-label')).toBe('Portfolio growth over time data');
   });
 
+  it('preserves distinct fractional drawdown tick labels without rounding levels together', () => {
+    renderAnalytics(makePd(), monthlySnaps(2023, 1, 36), []);
+    const configs = chartInstances.map(
+      ({ config }) =>
+        config as {
+          data: { datasets: { label: string }[] };
+          options: { scales: { y: { ticks: { callback: (value: number) => string } } } };
+        },
+    );
+    const drawdown = configs.find((config) => config.data.datasets[0]?.label === 'Drawdown');
+    expect(drawdown).toBeDefined();
+    const format = drawdown!.options.scales.y.ticks.callback;
+    for (const values of [
+      [0, -0.5, -1, -1.5, -2],
+      [0, -0.001, -0.002, -0.003],
+      [0, -20, -40, -60],
+    ]) {
+      const labels = values.map(format);
+      expect(new Set(labels).size).toBe(values.length);
+      expect(labels).toEqual(values.map((value) => `${value}%`));
+    }
+  });
+
   it('renders companion tables for contribution and allocation charts', () => {
     const snaps = [
       makeSnap('2025-01', 900, 100),

@@ -465,7 +465,7 @@ function renderHoldPagination(totalPages: number, pd: PortfolioData, snaps: Snap
 
 function _createHoldingDetail(e: EtfPosition): HTMLElement {
   const meta = getMETAMap()[e.isin] || {};
-  const active = meta.active ? 'Active' : 'Closed';
+  const allocation = meta.active ? 'Active' : 'Inactive';
   const acc = e.acc ? 'Accumulating' : 'Distributing';
   const holdCfg = getHoldings().find((h) => h.isin === e.isin);
   const displayName = holdCfg?.name || e.name || '';
@@ -484,7 +484,8 @@ function _createHoldingDetail(e: EtfPosition): HTMLElement {
   panel.innerHTML = `
     <div><span class="hold-detail-label">Name</span><span class="hold-detail-value" style="font-size:11px">${esc(displayName)}</span></div>
     <div><span class="hold-detail-label">ISIN</span><span class="hold-detail-value hold-detail-isin">${esc(e.isin)}</span></div>
-    <div><span class="hold-detail-label">Status</span><span class="hold-detail-value">${active}</span></div>
+    <div><span class="hold-detail-label">Position</span><span class="hold-detail-value">${e.exited ? 'Closed' : 'Held'}</span></div>
+    <div><span class="hold-detail-label">Allocation</span><span class="hold-detail-value">${allocation}</span></div>
     <div><span class="hold-detail-label">Type</span><span class="hold-detail-value">${acc}</span></div>
     ${detailColRows}`;
   return panel;
@@ -630,6 +631,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
         pd.totalInv > 0 ? fmtPctVal((e.cost / pd.totalInv) * 100) : '0%',
         e.isin,
       ]),
+      [1, 2],
     );
   }
   CH['c-port-donut'] = new Chart(document.getElementById('c-port-donut') as HTMLCanvasElement, {
