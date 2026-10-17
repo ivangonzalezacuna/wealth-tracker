@@ -137,6 +137,49 @@ describe('transactionDialog', () => {
     await p;
   });
 
+  it.each(['input', 'change'])(
+    'clears the corrected name error on %s and permits resubmission',
+    async (event) => {
+      const pending = transactionDialog();
+      getSubmit()!.click();
+      const name = document.querySelector<HTMLInputElement>('#txd-name')!;
+      const error = document.querySelector('#txd-name-err')!;
+      expect(error.textContent).toBe('Name is required.');
+      expect(name.getAttribute('aria-invalid')).toBe('true');
+      name.value = '   ';
+      name.dispatchEvent(new Event(event));
+      expect(error.textContent).toBe('Name is required.');
+      name.value = 'Corrected Fund';
+      name.dispatchEvent(new Event(event));
+      expect(error.textContent).toBe('');
+      expect(name.hasAttribute('aria-invalid')).toBe(false);
+      getSubmit()!.click();
+      expect((await pending)?.name).toBe('Corrected Fund');
+    },
+  );
+
+  it('clears a required-name error when an ISIN suggestion fills the name', async () => {
+    const pending = transactionDialog({ suggestions });
+    getSubmit()!.click();
+    expect(document.querySelector('#txd-name-err')?.textContent).toBe('Name is required.');
+    setField('txd-isin', 'IE00AAA');
+    document.querySelector('#txd-isin')!.dispatchEvent(new Event('input'));
+    expect(document.querySelector<HTMLInputElement>('#txd-name')!.value).toBe('Alpha Fund');
+    expect(document.querySelector('#txd-name-err')?.textContent).toBe('');
+    expect(document.querySelector('#txd-name')!.hasAttribute('aria-invalid')).toBe(false);
+    getCancel()!.click();
+    await pending;
+  });
+
+  it('does not introduce required-name errors before submission', async () => {
+    const pending = transactionDialog();
+    setField('txd-name', '');
+    document.querySelector('#txd-name')!.dispatchEvent(new Event('input'));
+    expect(document.querySelector('#txd-name-err')?.textContent).toBe('');
+    getCancel()!.click();
+    await pending;
+  });
+
   it('submits with valid fields and resolves a Transaction', async () => {
     const p = transactionDialog();
     fillRequired();

@@ -7,13 +7,15 @@ const CHART_TABLE_PAGE_SIZE = 25;
  * The table is always present in the DOM for screen readers; a toggle button lets sighted
  * users show or hide it. Re-calling this function updates the content in place.
  * Tables with more than PAGE_SIZE rows show pagination controls. The scroll wrapper allows
- * wide tables to scroll horizontally without overflowing the page.
+ * wide tables to scroll horizontally without overflowing the page. Numeric column indexes
+ * explicitly control alignment, including columns containing formatted monetary strings.
  */
 export function writeChartTable(
   wrapId: string,
   ariaLabel: string,
   headers: string[],
   rows: (string | number)[][],
+  numericColumns: readonly number[] = [],
 ): void {
   const wrap = document.getElementById(wrapId);
   if (!wrap) return;
@@ -28,11 +30,18 @@ export function writeChartTable(
   const totalPages = Math.max(1, Math.ceil(rows.length / CHART_TABLE_PAGE_SIZE));
   let currentPage = 0;
 
-  const thCells = headers.map((h) => `<th scope="col">${esc(String(h))}</th>`).join('');
+  const cellClass = (index: number): string =>
+    numericColumns.includes(index) ? ' class="chart-data-number"' : '';
+  const thCells = headers
+    .map((h, index) => `<th scope="col"${cellClass(index)}>${esc(String(h))}</th>`)
+    .join('');
   const renderBodyRows = (page: number): string =>
     rows
       .slice(page * CHART_TABLE_PAGE_SIZE, (page + 1) * CHART_TABLE_PAGE_SIZE)
-      .map((r) => `<tr>${r.map((c) => `<td>${esc(String(c))}</td>`).join('')}</tr>`)
+      .map(
+        (r) =>
+          `<tr>${r.map((c, index) => `<td${cellClass(index)}>${esc(String(c))}</td>`).join('')}</tr>`,
+      )
       .join('');
 
   const paginationHtml =

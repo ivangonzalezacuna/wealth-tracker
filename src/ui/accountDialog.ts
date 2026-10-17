@@ -159,7 +159,7 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
               </div>
               <div class="dialog-field">
                 <label class="dialog-label" for="acctd-interval">Interval</label>
-                <select id="acctd-interval" class="form-input dialog-input">${intervalOptions}</select>
+                <select id="acctd-interval" class="form-input dialog-input themed-select">${intervalOptions}</select>
               </div>
             </div>
             <div class="dialog-row" id="acctd-primary-note" style="${isPrimary ? '' : 'display:none'}">

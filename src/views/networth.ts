@@ -41,6 +41,7 @@ import { writeChartTable } from './chartTable';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { createChartRegistry } from './chartRegistry';
 import { formatEuroCompactPrefix, formatEuroCompactSuffix } from './chartOptions';
+import { attachMonthInput, validateMonthInput } from '../ui/monthInput';
 
 const { CH, destroyChart: _destroyChart } = createChartRegistry();
 let _nwRange: '12' | '36' | 'all' = 'all';
@@ -646,6 +647,7 @@ export function renderNW(snaps: Snapshot[]): void {
       'Account breakdown data',
       ['Account', 'Value (€)'],
       chartA.map((a) => [a.label, fmtEur2((s[a.key] as number) || 0)]),
+      [1],
     );
   } else {
     _renderNWHistChart(view, chartA);
@@ -803,6 +805,7 @@ function _renderNWHistChart(
       fmtEur2(snapTotal(sn)),
       ...chartA.map((a) => fmtEur2((sn[a.key] as number) || 0)),
     ]),
+    Array.from({ length: chartA.length + 1 }, (_, index) => index + 1),
   );
 
   // Make legend swatches clickable to toggle datasets
@@ -1320,7 +1323,13 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     if (showReal && realDataFull) row.push(fcFmt(realDataFull[i]));
     return row;
   });
-  writeChartTable('c-nw-forecast-table-wrap', 'Forecast data', fcTableHeaders, fcTableRows);
+  writeChartTable(
+    'c-nw-forecast-table-wrap',
+    'Forecast data',
+    fcTableHeaders,
+    fcTableRows,
+    fcTableHeaders.slice(1).map((_, index) => index + 1),
+  );
 
   _attachForecastRangeToggle();
   const scenarioToggle = document.getElementById('nw-scenario-toggle') as HTMLButtonElement | null;
@@ -1730,12 +1739,20 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
             ? [lbl, ddFmt(displayValues[i]), ddFmt(nominalValues[i]), ddFmt(ddSeries[i].withdrawal)]
             : [lbl, ddFmt(nominalValues[i]), ddFmt(ddSeries[i].withdrawal)],
         ),
+        ddTableHeaders.slice(1).map((_, index) => index + 1),
       );
     }
   }
 
   // Bind controls (only once per render; old listeners are discarded with innerHTML replacement)
   const dateInput = document.getElementById('dd-retirement-date') as HTMLInputElement | null;
+  if (dateInput) {
+    const minimum = new Date(`${latestSnap.date.substring(0, 7)}-01T12:00:00Z`);
+    minimum.setUTCMonth(minimum.getUTCMonth() + 1);
+    dateInput.setAttribute('min', minimum.toISOString().slice(0, 7));
+    dateInput.required = true;
+    attachMonthInput(dateInput);
+  }
   const withdrawalInput = document.getElementById('dd-withdrawal') as HTMLInputElement | null;
   const returnInput = document.getElementById('dd-return') as HTMLInputElement | null;
   const strategyToggle = document.getElementById('dd-strategy-toggle') as HTMLElement | null;
@@ -1743,6 +1760,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
   const rerender = () => _renderDecumulationCard(snaps, accounts);
 
   dateInput?.addEventListener('change', () => {
+    if (!validateMonthInput(dateInput)) return;
     const v = dateInput.value.trim();
     if (/^\d{4}-\d{2}$/.test(v) && v > latestSnap.date.substring(0, 7)) {
       _ddRetirementDate = v;

@@ -548,6 +548,7 @@ function _renderGrowthChart(snaps: Snapshot[]): void {
     'Portfolio growth over time data',
     ['Month', 'Net Worth (€)'],
     view.map((s) => [fmtMon(s.date), fmtEur2(snapTotal(s))]),
+    [1],
   );
 }
 
@@ -663,6 +664,7 @@ function _renderContribChart(points: MonthlyGrowthPoint[]): void {
       fmtEurSigned(p.market, 2),
       fmtEurSigned(p.contributed + p.market, 2),
     ]),
+    [1, 2, 3],
   );
 }
 
@@ -1094,6 +1096,7 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
       fmtEur2(slice.value),
       total > 0 ? fmtPctVal((slice.value / total) * 100) : '0%',
     ]),
+    [1, 2],
   );
 
   // When there is only one slice the donut chart conveys no additional
@@ -1335,7 +1338,7 @@ function _renderDrawdownChart(series: { date: string; drawdown: number }[]): voi
           grid: { color: C.line },
           ticks: {
             color: C.ink4,
-            callback: (v) => formatPercentRounded(v),
+            callback: (v) => `${v}%`,
           },
         },
         x: {
@@ -1351,6 +1354,7 @@ function _renderDrawdownChart(series: { date: string; drawdown: number }[]): voi
     'Drawdown history data',
     ['Month', 'Drawdown (%)'],
     series.map((p) => [fmtMon(p.date), (p.drawdown * 100).toFixed(1) + '%']),
+    [1],
   );
 }
 
@@ -1445,6 +1449,7 @@ function _renderRollingCagrChart(
     'Rolling 3-year investment CAGR data',
     ['Month', 'Rolling 3Y CAGR (%)'],
     points.map((p) => [fmtMon(p.month), `${(p.cagr * 100).toFixed(1)}%`]),
+    [1],
   );
 }
 
@@ -1589,6 +1594,7 @@ function _renderIncomeChart(monthlyBreakdown: { month: string; amount: number }[
     'Income by month data',
     ['Month', 'Income (€)'],
     view.map((p) => [fmtMon(p.month), fmtEur2(p.amount)]),
+    [1],
   );
 }
 

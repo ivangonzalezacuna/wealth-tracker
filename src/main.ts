@@ -308,6 +308,20 @@ function applyReadOnlyMode(): void {
   if (zone) {
     zone.classList.toggle('drop-zone-disabled', disabled);
     zone.title = hint;
+    const label = zone.querySelector('#csv-import-label');
+    const detail = zone.querySelector('#csv-import-hint');
+    if (label)
+      label.textContent = readOnly
+        ? 'Sign in to import CSV'
+        : busy
+          ? 'Import unavailable during sync'
+          : 'Drop CSV file here';
+    if (detail)
+      detail.textContent = readOnly
+        ? 'Your cached ledger is still available below'
+        : busy
+          ? 'Try again when sync finishes'
+          : 'or click to browse';
   }
   if (csvInput) {
     csvInput.disabled = disabled;
