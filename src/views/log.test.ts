@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { renderLog, applyLogView } from './log';
+import { renderLog, applyLogView, fmtCountBadge } from './log';
 import type { Snapshot, Transaction } from '../types';
 
 vi.mock('../constants', () => ({
@@ -692,6 +692,15 @@ describe('log layout helpers', () => {
     expect(names).toEqual(['Newest', 'Oldest']);
   });
 
+  it('keeps tab count badges short for large ledgers', () => {
+    expect(fmtCountBadge(0)).toBe('');
+    expect(fmtCountBadge(36)).toBe('36');
+    expect(fmtCountBadge(9_999)).toBe('9.999');
+    expect(fmtCountBadge(12_345)).toBe('12k');
+    expect(fmtCountBadge(999_999)).toBe('999k');
+    expect(fmtCountBadge(1_250_000)).toBe('1,2M');
+  });
+
   it('fills tab counts, latest snapshot meta and the account legend', () => {
     render(
       [makeTx(1n), makeTx(2n)],
@@ -699,6 +708,9 @@ describe('log layout helpers', () => {
     );
     expect(document.getElementById('log-count-transactions')?.textContent).toBe('2');
     expect(document.getElementById('log-count-snapshots')?.textContent).toBe('2');
+    expect(document.getElementById('log-tab-transactions')?.getAttribute('aria-label')).toBe(
+      'Transactions (2)',
+    );
     expect(document.getElementById('snap-latest-meta')?.textContent).toContain('Latest');
     const legend = document.getElementById('snap-legend')!;
     expect(legend.hidden).toBe(false);

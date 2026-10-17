@@ -972,6 +972,11 @@ details[open] > summary .card-chevron {
 }
 .log-toolbar .subnav {
   margin-bottom: 0;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.log-toolbar .subnav .btn {
+  white-space: nowrap;
 }
 .log-tab-count {
   display: inline-block;
@@ -1130,6 +1135,10 @@ details[open] > summary .card-chevron {
   #snaps-list > .snap-row-compact,
   #snaps-list > .empty-state {
     grid-column: 1;
+  }
+  /* Details open in the side panel, so the inline expand chevron is redundant */
+  #snaps-list .row-expand-chevron {
+    display: none;
   }
   #snaps-list > .snap-detail {
     grid-column: 2;

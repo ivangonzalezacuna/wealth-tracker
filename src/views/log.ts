@@ -125,11 +125,31 @@ export function isImportPanelOpen(): boolean {
   return !!panel && !panel.hidden;
 }
 
+/** Short tab-badge label: exact up to 9.999, then "12k" / "1,2M" so the chip stays narrow. */
+export function fmtCountBadge(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return '';
+  if (n < 10_000) return n.toLocaleString('de-DE');
+  if (n < 1_000_000) return `${Math.floor(n / 1000)}k`;
+  return `${(Math.floor(n / 100_000) / 10).toLocaleString('de-DE')}M`;
+}
+
+function setTabCount(id: string, tabId: string, label: string, n: number): void {
+  const el = document.getElementById(id);
+  if (el) {
+    el.textContent = fmtCountBadge(n);
+    if (n > 0) el.title = `${n.toLocaleString('de-DE')} ${label.toLowerCase()}`;
+    else el.removeAttribute('title');
+  }
+  const tab = document.getElementById(tabId);
+  if (tab) {
+    if (n > 0) tab.setAttribute('aria-label', `${label} (${n.toLocaleString('de-DE')})`);
+    else tab.removeAttribute('aria-label');
+  }
+}
+
 function updateLogSummary(txs: Transaction[], snaps: Snapshot[]): void {
-  const txCount = document.getElementById('log-count-transactions');
-  const snapCount = document.getElementById('log-count-snapshots');
-  if (txCount) txCount.textContent = txs.length ? String(txs.length) : '';
-  if (snapCount) snapCount.textContent = snaps.length ? String(snaps.length) : '';
+  setTabCount('log-count-transactions', 'log-tab-transactions', 'Transactions', txs.length);
+  setTabCount('log-count-snapshots', 'log-tab-snapshots', 'Snapshots', snaps.length);
   const latestEl = document.getElementById('snap-latest-meta');
   if (latestEl) {
     const latest = snaps[snaps.length - 1];
