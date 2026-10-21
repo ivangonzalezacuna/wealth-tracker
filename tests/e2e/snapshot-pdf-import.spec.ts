@@ -15,6 +15,7 @@ import {
   preparePage,
   snapshotRow,
   waitForSyncIdle,
+  expectToast,
 } from './helpers';
 
 async function openImport(page: Page) {
@@ -181,7 +182,7 @@ test('maps separate securities and cash accounts without counting cash twice', a
   await page.selectOption('#acctd-type', 'cash');
   await page.click('.js-acctd-submit');
   await page.click('#btn-save-accts');
-  await expect(page.locator('#accts-msg')).toContainText('Saved');
+  await expectToast(page, 'accts-msg', 'Accounts saved');
   await openImport(page);
   await upload(page);
   const cash = await page.locator('#snapd-pdf-cash option').last().getAttribute('value');
@@ -227,7 +228,7 @@ test('Settings can change and reset mapping without keeping a snapshot', async (
   await ensureCardExpanded(page, 'settings-card-integrations');
   await page.selectOption('#settings-statement-mode', 'positions');
   await page.click('#btn-save-statement-mapping');
-  await expect(page.locator('#statement-mapping-msg')).toContainText('saved');
+  await expectToast(page, 'statement-mapping-msg', 'Mapping saved.');
   await waitForSyncIdle(page);
   await openImport(page);
   await page.getByLabel('Fictional Broker (EUR)').fill('9999');
@@ -242,7 +243,7 @@ test('Settings can change and reset mapping without keeping a snapshot', async (
     .getByRole('alertdialog')
     .getByRole('button', { name: 'Reset mapping', exact: true })
     .click();
-  await expect(page.locator('#statement-mapping-msg')).toContainText('reset');
+  await expectToast(page, 'statement-mapping-msg', 'Mapping reset.');
   await waitForSyncIdle(page);
   await openImport(page);
   await upload(page);

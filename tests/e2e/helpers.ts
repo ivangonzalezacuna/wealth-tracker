@@ -110,8 +110,31 @@ export async function openTab(page: Page, tabId: string): Promise<void> {
   await page.click(`#${tabId}`);
 }
 
+export async function expectToast(page: Page, source: string, text: string): Promise<void> {
+  await expect(
+    page.locator(`.toast-host .toast[data-source="${source}"] .toast-text`).last(),
+  ).toContainText(text);
+}
+
+export async function saveSettings(page: Page, section: string, message: string): Promise<void> {
+  const sources: Record<string, string> = { 'fx-integration': 'fx-int', 'cost-basis': 'costbasis' };
+  const button = page.locator(`#btn-save-${section}`);
+  await expect(button).toHaveAttribute('data-dirty', 'true');
+  await button.click();
+  await expectToast(page, `${sources[section] || section}-msg`, message);
+  await expect(button).toBeDisabled();
+  await expect(button).toHaveAttribute('data-dirty', 'false');
+  await expect(button).toHaveAttribute('title', 'No changes to save');
+}
+
 export async function ensureCardExpanded(page: Page, cardId: string): Promise<void> {
   const card = page.locator(`#${cardId}`);
+  await expect(card).toBeAttached();
+  const panelId = await card.evaluate((el) => {
+    const panel = el.closest<HTMLElement>('[role="tabpanel"]');
+    return panel?.hidden ? panel.id : null;
+  });
+  if (panelId) await page.click(`[role="tab"][aria-controls="${panelId}"]`);
   await expect(card).toBeVisible();
   const isCollapsed = await card.evaluate((el) => el.classList.contains('collapsed'));
   if (isCollapsed) {
@@ -140,6 +163,7 @@ export async function addAccount(
   await page.selectOption('#acctd-type', 'investment');
   if (opts.institution) await page.fill('#acctd-institution', opts.institution);
   if (opts.annualReturnPct != null) {
+    await openDialogOptional(page, '.acct-dialog-overlay');
     await page.fill('#acctd-return', String(opts.annualReturnPct));
   }
   if (opts.primary) await page.check('#acctd-primary');
@@ -147,13 +171,18 @@ export async function addAccount(
     await page.check('#acctd-locked');
     if (opts.lockedUntil) await page.fill('#acctd-locked-until', opts.lockedUntil);
   }
+  if (opts.country || opts.group) await openDialogOptional(page, '.acct-dialog-overlay');
   if (opts.country) await page.fill('#acctd-country', opts.country);
   if (opts.group) await page.fill('#acctd-group', opts.group);
   if (opts.currency) await page.fill('#acctd-currency', opts.currency);
   await page.click('.js-acctd-submit');
   await expect(page.locator('#settings-accounts-tbl')).toContainText(opts.label);
-  await page.click('#btn-save-accts');
-  await expect(page.locator('#accts-msg')).toContainText('Saved');
+  await saveSettings(page, 'accts', 'Accounts saved');
+}
+
+export async function openDialogOptional(page: Page, overlay: string): Promise<void> {
+  const details = page.locator(`${overlay} details.dialog-optional`);
+  if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
 }
 
 export async function addGoal(
@@ -174,8 +203,7 @@ export async function addGoal(
   }
   await page.click('.js-goald-submit');
   await expect(page.locator('#settings-goals-tbl')).toContainText(opts.label);
-  await page.click('#btn-save-goal');
-  await expect(page.locator('#goal-msg')).toContainText('Saved');
+  await saveSettings(page, 'goal', 'Goals saved');
 }
 
 export async function addSnapshot(
@@ -223,6 +251,8 @@ export async function addHolding(
   await page.fill('#holdd-short-name', opts.shortName);
   await page.fill('#holdd-name', opts.name);
   if (opts.targetPct != null) await page.fill('#holdd-target-pct', String(opts.targetPct));
+  if (opts.ter != null || opts.notes || opts.acc === false)
+    await openDialogOptional(page, '.hold-dialog-overlay');
   if (opts.ter != null) await page.fill('#holdd-ter', String(opts.ter));
   if (opts.notes) await page.fill('#holdd-notes', opts.notes);
   if (opts.acc === false) await page.uncheck('#holdd-acc');
@@ -233,8 +263,9 @@ export async function addHolding(
 
 export async function saveHoldings(page: Page): Promise<void> {
   await ensureCardExpanded(page, 'settings-card-holdings');
-  await page.click('#btn-save-holds');
-  await expect(page.locator('#holds-msg')).toContainText('Saved');
+  if (await page.locator('#btn-save-holds').isEnabled()) {
+    await saveSettings(page, 'holds', 'Holdings saved');
+  }
 }
 
 export async function setContributionsSettings(
@@ -246,8 +277,9 @@ export async function setContributionsSettings(
   await page.fill('#set-contrib-budget', opts.amount);
   await page.selectOption('#set-contribution-interval', opts.contributionInterval);
   await page.selectOption('#set-calibration-interval', opts.calibrationInterval);
-  await page.click('#btn-save-contributions');
-  await expect(page.locator('#contributions-msg')).toContainText('Saved');
+  if (await page.locator('#btn-save-contributions').isEnabled()) {
+    await saveSettings(page, 'contributions', 'Contributions saved');
+  }
 }
 
 export async function importCsvFixture(

@@ -7,6 +7,7 @@ import {
   monthOffsetValue,
   openTab,
   preparePage,
+  expectToast,
 } from './helpers';
 
 test.beforeEach(async ({ page }) => {
@@ -49,7 +50,7 @@ test('goal with milestones renders progress and milestone markers on net worth',
   await page.click('.js-goald-submit');
   await expect(page.locator('#settings-goals-tbl')).toContainText('Retirement');
   await page.click('#btn-save-goal');
-  await expect(page.locator('#goal-msg')).toContainText('Saved');
+  await expectToast(page, 'goal-msg', 'Goals saved');
 
   // Verify goal renders on net worth tab with milestone info
   await openTab(page, 'tab-networth');
@@ -74,7 +75,7 @@ test('goal edit and delete flows work correctly', async ({ page }) => {
   await page.fill('#goald-target', '50000');
   await page.click('.js-goald-submit');
   await page.click('#btn-save-goal');
-  await expect(page.locator('#goal-msg')).toContainText('Saved');
+  await expectToast(page, 'goal-msg', 'Goals saved');
 
   // Edit the goal
   await ensureCardExpanded(page, 'settings-card-goal');
@@ -84,12 +85,13 @@ test('goal edit and delete flows work correctly', async ({ page }) => {
   await page.click('.js-goald-submit');
   await expect(page.locator('#settings-goals-tbl')).toContainText('House Fund Updated');
   await page.click('#btn-save-goal');
-  await expect(page.locator('#goal-msg')).toContainText('Saved');
+  await expectToast(page, 'goal-msg', 'Goals saved');
 
   // Delete the goal
   await ensureCardExpanded(page, 'settings-card-goal');
   await page.locator('.js-del-goal').first().click();
   await page.click('.js-confirm-ok');
+  await expectToast(page, 'goal-msg', 'Goal removed');
   await expect(page.locator('#settings-goals-tbl')).not.toContainText('House Fund Updated');
 });
 
