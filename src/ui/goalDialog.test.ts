@@ -121,11 +121,11 @@ describe('goalDialog', () => {
     addMilestone();
 
     const row = getMilestoneRows()[0];
-    const deadlineBtn = row.querySelector('.js-ms-date-btn') as HTMLButtonElement;
     const deadlineInput = row.querySelector('.ms-date') as HTMLInputElement;
 
-    expect(deadlineBtn.disabled).toBe(true);
     expect(deadlineInput.disabled).toBe(true);
+    expect(deadlineInput.hasAttribute('aria-hidden')).toBe(false);
+    expect(deadlineInput.tabIndex).toBe(0);
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
@@ -141,7 +141,7 @@ describe('goalDialog', () => {
       },
     });
 
-    const goalDateWrap = document.querySelector('.js-goal-date-btn')?.closest('.ms-date-wrap');
+    const goalDateWrap = document.querySelector('#goald-date')?.closest('.ms-date-wrap');
     expect(goalDateWrap?.classList.contains('has-clear')).toBe(true);
 
     let rows = getMilestoneRows();
@@ -180,7 +180,7 @@ describe('goalDialog', () => {
     expect((row.querySelector('.ms-amount') as HTMLInputElement).value).toBe('250000');
     expect((row.querySelector('.ms-label') as HTMLInputElement).value).toBe('Halfway');
     expect((row.querySelector('.ms-date') as HTMLInputElement).value).toBe('');
-    expect((row.querySelector('.js-ms-date-btn') as HTMLButtonElement).disabled).toBe(true);
+    expect((row.querySelector('.ms-date') as HTMLInputElement).disabled).toBe(true);
 
     goalDate.value = '2035-01';
     goalDate.dispatchEvent(new Event('change'));
@@ -189,7 +189,7 @@ describe('goalDialog', () => {
     expect((row.querySelector('.ms-amount') as HTMLInputElement).value).toBe('250000');
     expect((row.querySelector('.ms-label') as HTMLInputElement).value).toBe('Halfway');
     expect((row.querySelector('.ms-date') as HTMLInputElement).value).toBe('2034-06');
-    expect((row.querySelector('.js-ms-date-btn') as HTMLButtonElement).disabled).toBe(false);
+    expect((row.querySelector('.ms-date') as HTMLInputElement).disabled).toBe(false);
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
@@ -204,5 +204,68 @@ describe('goalDialog', () => {
     const draft = await p;
 
     expect(draft?.milestones).toBeUndefined();
+  });
+
+  it('recovers from a milestone amount error without reopening the dialog', async () => {
+    const pending = goalDialog({
+      existing: {
+        ...EXISTING_GOAL,
+        targetNetWorth: '100000',
+        milestones: [{ targetAmount: '' }, { targetAmount: '120000' }],
+      },
+    });
+    const amount = getMilestoneRows()[1].querySelector<HTMLInputElement>('.ms-amount')!;
+    getSubmit()!.click();
+    expect(amount.getAttribute('aria-invalid')).toBe('true');
+    expect(document.activeElement).toBe(amount);
+    expect(document.getElementById('goald-ms-err')?.textContent).toContain('less than');
+    amount.value = '25000';
+    getSubmit()!.click();
+    expect((await pending)?.milestones).toEqual([
+      { targetAmount: '25000', label: '', targetDate: '' },
+    ]);
+    expect(getOverlay()).toBeNull();
+  });
+
+  it('rejects a late milestone date and accepts its correction', async () => {
+    const pending = goalDialog({
+      existing: {
+        ...EXISTING_GOAL,
+        milestones: [{ targetAmount: '25000', targetDate: '2036-01' }],
+      },
+    });
+    const date = getMilestoneRows()[0].querySelector<HTMLInputElement>('.ms-date')!;
+    getSubmit()!.click();
+    expect(date.getAttribute('aria-invalid')).toBe('true');
+    expect(document.activeElement).toBe(date);
+    expect(date.validationMessage).toContain('2035-01');
+    date.value = '2034-06';
+    date.dispatchEvent(new Event('input'));
+    expect(date.hasAttribute('aria-invalid')).toBe(false);
+    getSubmit()!.click();
+    expect((await pending)?.milestones?.[0].targetDate).toBe('2034-06');
+  });
+
+  it('clears dates accessibly and omits disabled deadlines from the submitted draft', async () => {
+    const pending = goalDialog({
+      existing: {
+        ...EXISTING_GOAL,
+        milestones: [{ targetAmount: '25000', targetDate: '2034-06' }],
+      },
+    });
+    document.querySelector<HTMLButtonElement>('.js-ms-date-clear')!.click();
+    let date = getMilestoneRows()[0].querySelector<HTMLInputElement>('.ms-date')!;
+    expect(date.value).toBe('');
+    expect(document.activeElement).toBe(date);
+    date.value = '2034-06';
+    date.dispatchEvent(new Event('change', { bubbles: true }));
+    document.querySelector<HTMLButtonElement>('.js-goal-date-clear')!.click();
+    date = getMilestoneRows()[0].querySelector<HTMLInputElement>('.ms-date')!;
+    expect(date.disabled).toBe(true);
+    expect(document.activeElement?.id).toBe('goald-date');
+    getSubmit()!.click();
+    const draft = await pending;
+    expect(draft?.targetDate).toBe('');
+    expect(draft?.milestones?.[0].targetDate).toBe('');
   });
 });

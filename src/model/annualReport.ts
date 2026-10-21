@@ -268,11 +268,12 @@ function _tableSection(
   const sectionClass = options?.sectionClass ? ` ${options.sectionClass}` : '';
   return `<section class="doc-section${sectionClass}">
 <h2>${title}</h2>
-${noteHtml}<table>
+${noteHtml}<div class="report-table-scroll" role="region" aria-label="${_esc(title)} table" tabindex="0">
+<p class="report-table-hint">Scroll horizontally to see all columns.</p><table>
   <thead>${_th(headers)}</thead>
   <tbody>${bodyRows}</tbody>
   <tfoot>${_tableRow(footerCells, 'total')}</tfoot>
-</table>
+</table></div>
 </section>`;
 }
 
@@ -494,6 +495,7 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${reportTitle}</title>
   <style>
     /* ── Reset ── */
@@ -623,8 +625,22 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
     }
 
     /* ── Screen-only helpers ── */
+    .report-table-hint { display: none; }
     @media screen {
       body { padding: 24px 32px; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+      .report-table-scroll { max-width: 100%; overflow-x: auto; margin-bottom: .5rem; }
+      .report-table-scroll:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+      .report-table-scroll table:has(th:nth-child(4)) { min-width: 620px; }
+      .report-table-scroll td:first-child { overflow-wrap: normal; }
+    }
+    @media screen and (max-width: 600px) {
+      body { padding: 16px; }
+      .doc-title { font-size: 16pt; }
+      .summary-table td:last-child { white-space: normal; }
+      .doc-meta { overflow-wrap: anywhere; }
+      .report-table-scroll:has(th:nth-child(4)) > .report-table-hint {
+        display: block; margin: 0 0 .5rem; font-size: 8pt; color: var(--ink-3);
+      }
     }
   </style>
 </head>
@@ -648,24 +664,25 @@ export function renderAnnualReportHtml(report: AnnualReport, currency: string): 
 
   <section class="doc-section">
     <h2>${report.isPartialYearReport ? `Net Worth by Account at Report End (${report.reportEndDate})` : 'Year-End Net Worth by Account'}</h2>
-    <table>
+    <div class="report-table-scroll" role="region" aria-label="Net worth by account table" tabindex="0"><table>
       <thead>${_th(['Account', `Value (${currency})`])}</thead>
       <tbody>${accountsRows}</tbody>
       <tfoot>${_tableRow(['Total', _fmt(report.totalNetWorth, currency)], 'total')}</tfoot>
-    </table>
+    </table></div>
   </section>
 
   ${
     report.holdings.length > 0
       ? `<section class="doc-section allow-break">
   <h2>${report.isPartialYearReport ? `Holdings at Report End (${report.reportEndDate})` : 'Holdings at Year-End'}</h2>
-  <table>
+  <div class="report-table-scroll" role="region" aria-label="Holdings table" tabindex="0">
+  <p class="report-table-hint">Scroll horizontally to see all columns.</p><table>
     <colgroup>
       <col class="col-isin"><col><col class="col-shares"><col class="col-num"><col class="col-num">
     </colgroup>
     <thead>${_th(['ISIN', 'Name', 'Shares held', `Cost basis (${currency})`, `Realised gain/loss ${year} (${currency})`])}</thead>
     <tbody>${holdingsRows}</tbody>
-  </table>
+  </table></div>
 </section>`
       : ''
   }

@@ -9,6 +9,7 @@ import {
   addManualTransaction,
   ensureCardExpanded,
   openCsvImportPreview,
+  expectToast,
 } from './helpers';
 
 test.beforeEach(async ({ page }) => {
@@ -60,6 +61,6 @@ test('validation, cancellation, duplicate re-import, and sync-related recovery f
   await ensureCardExpanded(page, 'settings-card-cache');
   await context.setOffline(true);
   await page.click('#btn-force-resync');
-  await expect(page.locator('#resync-msg')).toContainText('Unavailable offline');
+  await expectToast(page, 'resync-msg', 'Unavailable offline');
   await context.setOffline(false);
 });

@@ -10,6 +10,7 @@ import {
   openTransactionDialog,
   preparePage,
   snapshotRow,
+  expectToast,
 } from './helpers';
 
 test.beforeEach(async ({ page }) => {
@@ -34,7 +35,7 @@ test('mixed-currency snapshot flow stays stable when FX integration is disabled'
   await ensureCardExpanded(page, 'settings-card-integrations');
   await page.uncheck('#fx-integration-enabled');
   await page.click('#btn-save-fx-integration');
-  await expect(page.locator('#fx-int-msg')).toContainText('Saved');
+  await expectToast(page, 'fx-int-msg', 'FX preference saved');
 
   await addSnapshot(page, {
     month,
@@ -82,17 +83,17 @@ test('FX integrations card exposes status and save/clear actions', async ({ page
 
   await page.uncheck('#fx-integration-enabled');
   await page.click('#btn-save-fx-integration');
-  await expect(page.locator('#fx-int-msg')).toContainText('Saved');
+  await expectToast(page, 'fx-int-msg', 'FX preference saved');
   await expect(page.locator('#fx-status-enabled')).toHaveText('Disabled');
 
   await page.check('#fx-integration-enabled');
   await page.click('#btn-save-fx-integration');
-  await expect(page.locator('#fx-int-msg')).toContainText('Saved');
+  await expectToast(page, 'fx-int-msg', 'FX preference saved');
   await expect(page.locator('#fx-status-enabled')).toHaveText('Enabled');
 
   await page.click('#btn-fx-clear-cache');
   await page.click('.js-confirm-ok');
-  await expect(page.locator('#fx-int-msg')).toContainText('FX cache cleared.');
+  await expectToast(page, 'fx-int-msg', 'FX cache cleared');
 });
 
 test('unavailable native FX blocks review, keeps draft and permits explicit EUR recovery on mobile', async ({
@@ -105,7 +106,7 @@ test('unavailable native FX blocks review, keeps draft and permits explicit EUR 
   await ensureCardExpanded(page, 'settings-card-integrations');
   await page.uncheck('#fx-integration-enabled');
   await page.click('#btn-save-fx-integration');
-  await expect(page.locator('#fx-int-msg')).toContainText('Saved');
+  await expectToast(page, 'fx-int-msg', 'FX preference saved');
   await openTab(page, 'tab-log');
   await page.click('#btn-add-snap');
   await page.uncheck('#snapd-eur');
@@ -144,7 +145,7 @@ test('net worth KPI shows "in USD" indicator for a non-EUR account', async ({ pa
   await ensureCardExpanded(page, 'settings-card-integrations');
   await page.uncheck('#fx-integration-enabled');
   await page.click('#btn-save-fx-integration');
-  await expect(page.locator('#fx-int-msg')).toContainText('Saved');
+  await expectToast(page, 'fx-int-msg', 'FX preference saved');
 
   await addSnapshot(page, { month, accountValues: { 'USD Broker': 5000 } });
 
@@ -259,8 +260,12 @@ test('transaction dialog shows FX rate hint for non-EUR currency when integratio
   await openTab(page, 'tab-settings');
   await ensureCardExpanded(page, 'settings-card-integrations');
   await page.check('#fx-integration-enabled');
-  await page.click('#btn-save-fx-integration');
-  await expect(page.locator('#fx-int-msg')).toContainText('Saved');
+  await expect(page.locator('#btn-save-fx-integration')).toBeDisabled();
+  await expect(page.locator('#btn-save-fx-integration')).toHaveAttribute('data-dirty', 'false');
+  await expect(page.locator('#btn-save-fx-integration')).toHaveAttribute(
+    'title',
+    'No changes to save',
+  );
 
   await openTab(page, 'tab-log');
   await openTransactionDialog(page);

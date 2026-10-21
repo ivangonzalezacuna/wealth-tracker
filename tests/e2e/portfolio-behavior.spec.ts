@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { ensureCardExpanded, gotoApp, openTab, preparePage } from './helpers';
+import { expectToast } from './helpers';
 
 test.beforeEach(async ({ page }) => {
   await preparePage(page);
@@ -12,7 +13,7 @@ test('drift alert threshold saves and persists', async ({ page }) => {
 
   await page.fill('#alert-drift-threshold', '3.5');
   await page.click('#btn-save-alerts');
-  await expect(page.locator('#alerts-msg')).toContainText('Saved');
+  await expectToast(page, 'alerts-msg', 'Alerts saved');
 
   // Reload and verify persistence
   await page.reload();
@@ -37,12 +38,11 @@ test('reinvestment rules CRUD works', async ({ page }) => {
   await ruleRow.locator('input[data-field="value"]').fill('Reinvest into EIMI');
 
   await page.click('#btn-save-rules');
-  await expect(page.locator('#rules-msg')).toContainText('Saved');
+  await expectToast(page, 'rules-msg', 'Rules saved');
 
   // Delete the rule (triggers confirm dialog)
   await ensureCardExpanded(page, 'settings-card-portfolio-behavior');
   await page.locator('.js-del-rule').first().click();
   await page.click('.js-confirm-ok');
-  await page.click('#btn-save-rules');
-  await expect(page.locator('#rules-msg')).toContainText('Saved');
+  await expectToast(page, 'rules-msg', 'Rule removed');
 });

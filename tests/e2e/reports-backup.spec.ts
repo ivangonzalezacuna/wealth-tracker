@@ -12,6 +12,7 @@ import {
   preparePage,
   saveHoldings,
   snapshotRow,
+  expectToast,
 } from './helpers';
 
 test.beforeEach(async ({ page }) => {
@@ -44,10 +45,9 @@ test('annual report download and backup restore round-trip work', async ({ page 
   });
 
   await openTab(page, 'tab-settings');
-  await ensureCardExpanded(page, 'settings-card-reports');
-  await page.evaluate(() => {
-    document.querySelector('#report-year-select')?.dispatchEvent(new Event('focus'));
-  });
+  await page.locator('[data-settings-view="advanced"]').click();
+  const reports = page.locator('#settings-heading-reports');
+  if ((await reports.getAttribute('aria-expanded')) !== 'true') await reports.press('Enter');
   await expect(page.locator('#report-year-select')).toBeEnabled();
   const reportDownloadPromise = page.waitForEvent('download');
   await page.click('#btn-download-report');
@@ -57,7 +57,30 @@ test('annual report download and backup restore round-trip work', async ({ page 
   const reportHtml = await fs.readFile(reportPath, 'utf-8');
   await expect(reportDownload.suggestedFilename()).toContain('wealth-tracker-report-');
   expect(reportHtml).toContain('Annual Portfolio Report');
-  await expect(page.locator('#report-msg')).toContainText('downloaded');
+  await expectToast(page, 'report-msg', 'downloaded');
+  const report = await page.context().newPage();
+  await report.setContent(reportHtml);
+  for (const width of [320, 390, 768, 1280]) {
+    await report.setViewportSize({ width, height: 900 });
+    expect(
+      await report.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(1);
+    await expect(report.locator('.report-table-scroll').first()).toHaveAttribute('tabindex', '0');
+    if (width < 600) {
+      await expect(report.locator('.report-table-hint').first()).toBeVisible();
+      expect(
+        await report
+          .getByRole('region', { name: 'Holdings table', exact: true })
+          .evaluate((el) => el.scrollWidth > el.clientWidth),
+      ).toBe(true);
+    }
+  }
+  await report.emulateMedia({ media: 'print' });
+  await expect(report.locator('.report-table-scroll').first()).toHaveCSS('overflow-x', 'visible');
+  await expect(report.locator('.report-table-hint').first()).toBeHidden();
+  await report.close();
 
   await ensureCardExpanded(page, 'settings-card-backup');
   const backupDownloadPromise = page.waitForEvent('download');
@@ -65,7 +88,7 @@ test('annual report download and backup restore round-trip work', async ({ page 
   const backupDownload = await backupDownloadPromise;
   const backupPath = testInfo.outputPath('backup.json');
   await backupDownload.saveAs(backupPath);
-  await expect(page.locator('#backup-msg')).toContainText('Backup downloaded');
+  await expectToast(page, 'backup-msg', 'Backup downloaded.');
 
   await openTab(page, 'tab-log');
   await snapshotRow(page, month).click();
@@ -77,7 +100,7 @@ test('annual report download and backup restore round-trip work', async ({ page 
   await ensureCardExpanded(page, 'settings-card-backup');
   await page.setInputFiles('#backup-file-input', backupPath);
   await page.click('.js-confirm-ok');
-  await expect(page.locator('#backup-msg')).toContainText('Restore complete.');
+  await expectToast(page, 'backup-msg', 'Restore complete.');
 
   await openTab(page, 'tab-log');
   await expect(snapshotRow(page, month)).toHaveCount(1);

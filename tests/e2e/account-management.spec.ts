@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { addAccount, ensureCardExpanded, gotoApp, openTab, preparePage } from './helpers';
+import { expectToast, openDialogOptional } from './helpers';
 
 test.beforeEach(async ({ page }) => {
   await preparePage(page);
@@ -20,11 +21,12 @@ test('account edit and delete flows update settings table', async ({ page }) => 
   await page.locator('.js-edit-acct').first().click();
   await page.fill('#acctd-label', 'Renamed Account');
   await page.fill('#acctd-institution', 'Vanguard');
+  await openDialogOptional(page, '.acct-dialog-overlay');
   await page.fill('#acctd-return', '8');
   await page.click('.js-acctd-submit');
   await expect(page.locator('#settings-accounts-tbl')).toContainText('Renamed Account');
   await page.click('#btn-save-accts');
-  await expect(page.locator('#accts-msg')).toContainText('Saved');
+  await expectToast(page, 'accts-msg', 'Accounts saved');
 
   // Verify persistence after reload
   await page.reload();
@@ -37,8 +39,7 @@ test('account edit and delete flows update settings table', async ({ page }) => 
   // Delete the account
   await page.locator('.js-del-acct').first().click();
   await page.click('.js-confirm-ok');
-  await page.click('#btn-save-accts');
-  await expect(page.locator('#accts-msg')).toContainText('Saved');
+  await expectToast(page, 'accts-msg', 'Account removed');
   await expect(page.locator('#settings-accounts-tbl')).not.toContainText('Renamed Account');
 });
 
@@ -90,7 +91,7 @@ test('locked account shows locked-until field', async ({ page }) => {
   await page.click('.js-acctd-submit');
   await expect(page.locator('#settings-accounts-tbl')).toContainText('Locked Pension');
   await page.click('#btn-save-accts');
-  await expect(page.locator('#accts-msg')).toContainText('Saved');
+  await expectToast(page, 'accts-msg', 'Accounts saved');
 });
 
 test('account country field saves and persists after reload', async ({ page }) => {

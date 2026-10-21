@@ -52,6 +52,12 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
     _activeSuggestionPairs = filterSecuritySuggestions(opts.suggestions, opts.existingIsins).pairs;
     const existing = opts.existing;
     const title = existing ? 'Edit holding' : 'Add holding';
+    const advancedOpen =
+      !!existing &&
+      (existing.ter != null ||
+        existing.acc === false ||
+        !!existing.notes ||
+        (existing.color || '#888888').toLowerCase() !== '#888888');
 
     const assetClassOptions = ASSET_CLASSES.map(
       (c) =>
@@ -120,7 +126,8 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
               <select id="holdd-region" class="form-input dialog-input">${regionOptions}</select>
             </div>
           </div>
-          <div class="dialog-row">
+          <div class="dialog-subhead">Allocation plan</div>
+          <div class="dialog-row dialog-row-center">
             <div class="dialog-field">
               <label class="dialog-label" for="holdd-target-pct">
                 Target (%)${infoTip('Strategic allocation target for this holding as a percentage of the total portfolio.')}
@@ -129,51 +136,63 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
                 value="${esc(String(existing?.targetPct ?? ''))}" min="0" max="100" step="0.1" placeholder="e.g. 60">
             </div>
             <div class="dialog-field">
-              <label class="dialog-label" for="holdd-ter">
-                TER (%)${infoTip('Total Expense Ratio: the annual fund fee as a percentage (e.g. 0.20 for 0.20%).')}
-              </label>
-              <input type="number" id="holdd-ter" class="form-input dialog-input"
-                value="${esc(String(existing?.ter ?? ''))}" min="0" step="0.01" max="5" placeholder="e.g. 0.20">
-            </div>
-          </div>
-          <div class="dialog-row">
-            <div class="dialog-field">
-              <label class="dialog-label" style="cursor:pointer">
-                <input type="checkbox" id="holdd-acc" ${existing?.acc !== false ? 'checked' : ''}>
-                Accumulating${infoTip('Acc ETFs reinvest dividends; Dist ETFs pay them out.')}
-              </label>
-            </div>
-            <div class="dialog-field">
-              <label class="dialog-label" style="cursor:pointer">
-                <input type="checkbox" id="holdd-active" ${existing?.active !== false ? 'checked' : ''}>
-                Active
-              </label>
-            </div>
-          </div>
-          <div class="dialog-row">
-            <div class="dialog-field dialog-field-compact">
-              <label class="dialog-label" for="holdd-color-hex">Color</label>
-              <div class="color-picker-wrap">
-                <input type="color" id="holdd-color" class="color-picker-swatch"
-                  value="${esc(existing?.color || '#888888')}" aria-label="Color picker">
-                <input type="text" id="holdd-color-hex" class="form-input dialog-input color-picker-hex"
-                  value="${esc(existing?.color || '#888888')}" placeholder="#888888" maxlength="7">
+              <div class="dialog-check">
+                <label class="dialog-label dialog-check">
+                  <input type="checkbox" id="holdd-active" ${existing?.active !== false ? 'checked' : ''}>
+                  Active
+                </label>
+                ${infoTip('Active holdings take part in allocation targets and rebalancing suggestions.')}
               </div>
             </div>
           </div>
-          <div class="dialog-row">
-            <div class="dialog-field dialog-field-wide">
-              <label class="dialog-label" for="holdd-notes">
-                Notes${infoTip('Optional free-text notes: index changes, mergers, reminders, or any context about this holding.')}
-              </label>
-              <textarea id="holdd-notes" class="form-input dialog-input" rows="3"
-                placeholder="e.g. Switched index from MSCI World to FTSE All-World in Oct 2024">${esc(existing?.notes || '')}</textarea>
+          <details class="dialog-optional"${advancedOpen ? ' open' : ''}>
+            <summary>Advanced options</summary>
+            <div class="dialog-optional-body">
+              <div class="dialog-subhead">Fund details</div>
+              <div class="dialog-row dialog-row-center">
+                <div class="dialog-field">
+                  <label class="dialog-label" for="holdd-ter">
+                    TER (%)${infoTip('Total Expense Ratio: the annual fund fee as a percentage (e.g. 0.20 for 0.20%).')}
+                  </label>
+                  <input type="number" id="holdd-ter" class="form-input dialog-input"
+                    value="${esc(String(existing?.ter ?? ''))}" min="0" step="0.01" max="5" placeholder="e.g. 0.20">
+                </div>
+                <div class="dialog-field">
+                  <div class="dialog-check">
+                    <label class="dialog-label dialog-check">
+                      <input type="checkbox" id="holdd-acc" ${existing?.acc !== false ? 'checked' : ''}>
+                      Accumulating
+                    </label>
+                    ${infoTip('Acc ETFs reinvest dividends; Dist ETFs pay them out.')}
+                  </div>
+                </div>
+              </div>
+              <div class="dialog-row">
+                <div class="dialog-field dialog-field-wide">
+                  <label class="dialog-label" for="holdd-notes">
+                    Notes${infoTip('Optional free-text notes: index changes, mergers, reminders, or any context about this holding.')}
+                  </label>
+                  <textarea id="holdd-notes" class="form-input dialog-input" rows="3"
+                    placeholder="e.g. Switched index from MSCI World to FTSE All-World in Oct 2024">${esc(existing?.notes || '')}</textarea>
+                </div>
+              </div>
+              <div class="dialog-row">
+                <div class="dialog-field dialog-field-compact">
+                  <label class="dialog-label" for="holdd-color-hex">Color</label>
+                  <div class="color-picker-wrap">
+                    <input type="color" id="holdd-color" class="color-picker-swatch"
+                      value="${esc(existing?.color || '#888888')}" aria-label="Color picker">
+                    <input type="text" id="holdd-color-hex" class="form-input dialog-input color-picker-hex"
+                      value="${esc(existing?.color || '#888888')}" placeholder="#888888" maxlength="7">
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          </details>
         </div>
         <div class="dialog-actions">
           <button class="btn btn-sm btn-ghost js-holdd-cancel">Cancel</button>
-          <button class="btn btn-sm btn-primary js-holdd-submit">${existing ? 'Save changes' : 'Add holding'}</button>
+          <button class="btn btn-sm btn-primary js-holdd-submit">${existing ? 'Update draft' : 'Add to draft'}</button>
         </div>
       </div>`;
 
@@ -184,7 +203,7 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
       onSubmit: _submit,
       cancelSelector: '.js-holdd-cancel',
       submitSelector: '.js-holdd-submit',
-      focusablesSelector: DIALOG_FOCUSABLES,
+      focusablesSelector: `${DIALOG_FOCUSABLES}, textarea:not([disabled]), summary`,
       initialFocusSelector: '#holdd-isin',
     });
     attachInfoTips(overlay);

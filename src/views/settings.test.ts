@@ -7,9 +7,13 @@ import { fictionalBalanceParser } from '../../tests/fixtures/snapshot-import/bal
 import type { Settings } from '../types';
 import { getSettings, saveSnapshotMapping, setSettings } from '../store/config';
 import { showMsg } from '../utils';
+import { notify } from '../ui/toast';
 import { confirmDialog } from '../ui/confirmDialog';
 import { SNAPSHOT_MAPPINGS_KEY, TRADE_REPUBLIC_VALUATION } from '../import/snapshotMapping';
 import { setBusy } from '../sync/lock';
+import { loadConfigHistory, loadSnapshots } from '../db';
+import { accountDialog } from '../ui/accountDialog';
+import { applySyncBusyState } from './settings';
 
 // ── Mocks ───────────────────────────────────────────────────────
 
@@ -117,7 +121,8 @@ vi.mock('../ui/collapseState', () => ({
   },
 }));
 
-vi.mock('../utils', () => ({
+vi.mock('../utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../utils')>()),
   showMsg: vi.fn(),
   reinjectPendingMsg: vi.fn(),
   withButtonGuard: vi.fn(async (btn, action, opts) => {
@@ -191,6 +196,10 @@ vi.mock('../ui/infoTip', () => ({
   }),
 }));
 
+vi.mock('../ui/toast', () => ({
+  notify: vi.fn(() => ({ dismiss: vi.fn() })),
+}));
+
 vi.mock('../ui/confirmDialog', () => ({
   confirmDialog: vi.fn(async () => true),
 }));
@@ -222,12 +231,20 @@ import {
   refreshSettingsAfterChange,
   renderConfigHistoryCard,
   _getEligibleYears,
+  getSettingsView,
+  setSettingsView,
 } from './settings';
 import { isCollapsed } from '../ui/collapseState';
 import { isBackupStale } from '../backup/exportImport';
 import { withButtonGuard } from '../utils';
 
 // ── Test setup ──────────────────────────────────────────────────
+
+function stageChanges(btn: HTMLButtonElement): void {
+  btn.dataset.dirty = 'true';
+  btn.disabled = false;
+  btn.title = '';
+}
 
 function setupDOM(): void {
   MOCK_CONTRIB_BUDGET = 500;
@@ -258,11 +275,10 @@ describe('statement mapping settings', () => {
       }),
     );
     await vi.waitFor(() =>
-      expect(showMsg).toHaveBeenCalledWith(
-        'statement-mapping-msg',
-        expect.stringContaining('saved'),
-        true,
-      ),
+      expect(notify).toHaveBeenCalledWith(expect.stringContaining('saved'), {
+        variant: 'success',
+        source: 'statement-mapping-msg',
+      }),
     );
   });
   it('uses one editor for dozens of registered reports and preserves section spacing', async () => {
@@ -358,6 +374,7 @@ describe('statement mapping settings', () => {
 describe('Settings scoped re-render (repaintCard)', () => {
   beforeEach(() => {
     _collapseState = {};
+    setSettingsView('portfolio');
     setupDOM();
     renderSettings();
   });
@@ -378,41 +395,48 @@ describe('Settings scoped re-render (repaintCard)', () => {
     }
   });
 
-  it('renders the settings group nav with compact Holdings-style buttons', () => {
-    const nav = document.querySelector('.settings-group-nav');
-    expect(nav?.classList.contains('subnav')).toBe(true);
-    expect(nav?.classList.contains('range-toggle')).toBe(true);
+  it('renders settings sections as compact Log-style tabs', () => {
+    const tablist = document.querySelector('.settings-tabs');
+    expect(tablist?.getAttribute('role')).toBe('tablist');
+    expect(tablist?.classList.contains('range-toggle')).toBe(true);
 
-    const buttons = [...document.querySelectorAll<HTMLElement>('[data-settings-group-target]')];
-    expect(buttons).toHaveLength(3);
-    expect(buttons[0].className).toContain('btn btn-sm btn-ghost');
-    expect(buttons[0].classList.contains('active')).toBe(false);
-    expect(buttons[0].hasAttribute('aria-pressed')).toBe(false);
+    const tabs = [...document.querySelectorAll<HTMLElement>('[role="tab"][data-settings-view]')];
+    expect(tabs.map((t) => t.dataset.settingsView)).toEqual(['portfolio', 'planning', 'advanced']);
+    expect(tabs[0].className).toContain('btn btn-sm btn-ghost');
+    expect(tabs[0].getAttribute('aria-selected')).toBe('true');
+    expect(tabs[1].getAttribute('aria-selected')).toBe('false');
+    expect(document.getElementById('settings-group-portfolio')?.hidden).toBe(false);
+    expect(document.getElementById('settings-group-tracking')?.hidden).toBe(true);
+    expect(document.getElementById('settings-group-advanced')?.hidden).toBe(true);
   });
 
-  it('clicking a settings group nav button scrolls to its section without selected styling', () => {
-    const scrollIntoView = vi.fn();
-    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
-      configurable: true,
-      value: scrollIntoView,
-    });
+  it('clicking a tab shows only its section and survives re-render', () => {
+    const planning = document.getElementById('settings-tab-planning') as HTMLButtonElement;
+    planning.click();
 
-    const trackingBtn = document.querySelector(
-      '[data-settings-group-target="settings-group-tracking"]',
-    ) as HTMLButtonElement;
-    const portfolioBtn = document.querySelector(
-      '[data-settings-group-target="settings-group-portfolio"]',
-    ) as HTMLButtonElement;
+    expect(planning.getAttribute('aria-selected')).toBe('true');
+    expect(planning.classList.contains('active')).toBe(true);
+    expect(document.getElementById('settings-group-tracking')?.hidden).toBe(false);
+    expect(document.getElementById('settings-group-portfolio')?.hidden).toBe(true);
+    expect(getSettingsView()).toBe('planning');
 
-    trackingBtn.click();
-
-    expect(trackingBtn.classList.contains('active')).toBe(false);
-    expect(portfolioBtn.classList.contains('active')).toBe(false);
-    expect(trackingBtn.hasAttribute('aria-pressed')).toBe(false);
-    expect(portfolioBtn.hasAttribute('aria-pressed')).toBe(false);
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
+    renderSettings();
+    expect(document.getElementById('settings-group-tracking')?.hidden).toBe(false);
+    expect(document.getElementById('settings-tab-planning')?.getAttribute('aria-selected')).toBe(
+      'true',
+    );
   });
 
+  it('arrow keys move between settings tabs', () => {
+    const portfolio = document.getElementById('settings-tab-portfolio') as HTMLButtonElement;
+    portfolio.focus();
+    portfolio.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+
+    const advanced = document.getElementById('settings-tab-advanced') as HTMLButtonElement;
+    expect(advanced.getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(advanced);
+    expect(document.getElementById('settings-group-advanced')?.hidden).toBe(false);
+  });
   it('repaintCard("accounts") replaces only the accounts card, siblings are untouched', () => {
     // Capture reference to the holdings card before repaint
     const holdingsBefore = document.getElementById('settings-card-holdings');
@@ -711,6 +735,9 @@ describe('Portfolio contributions card', () => {
     (document.getElementById('set-contrib-budget') as HTMLInputElement).value = '300';
     (document.getElementById('set-contribution-interval') as HTMLSelectElement).value = 'biweekly';
     (document.getElementById('set-calibration-interval') as HTMLSelectElement).value = 'weekly';
+    document
+      .getElementById('set-contrib-budget')!
+      .dispatchEvent(new Event('change', { bubbles: true }));
     (document.getElementById('btn-save-contributions') as HTMLButtonElement).click();
     await new Promise((r) => setTimeout(r, 0));
 
@@ -742,6 +769,7 @@ describe('FX integrations card', () => {
     (setSetting as ReturnType<typeof vi.fn>).mockClear();
     const checkbox = document.getElementById('fx-integration-enabled') as HTMLInputElement;
     checkbox.checked = false;
+    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
     (document.getElementById('btn-save-fx-integration') as HTMLButtonElement).click();
     await new Promise((r) => setTimeout(r, 0));
 
@@ -779,6 +807,9 @@ describe('Busy state - cost-basis, goal, cache, backup', () => {
     );
 
     const btn = document.getElementById('btn-save-cost-basis') as HTMLButtonElement;
+    const method = document.getElementById('set-cost-basis-method') as HTMLSelectElement;
+    method.value = 'fifo';
+    method.dispatchEvent(new Event('change', { bubbles: true }));
     btn.click();
 
     // Wait for microtask to allow click handler to execute
@@ -788,7 +819,7 @@ describe('Busy state - cost-basis, goal, cache, backup', () => {
 
     resolveWrite!();
     await new Promise((r) => setTimeout(r, 0));
-    expect(btn.disabled).toBe(false);
+    expect(btn.disabled).toBe(true);
     expect(btn.textContent).toBe('Save cost-basis method');
   });
 
@@ -803,6 +834,7 @@ describe('Busy state - cost-basis, goal, cache, backup', () => {
     );
 
     const btn = document.getElementById('btn-save-goal') as HTMLButtonElement;
+    stageChanges(btn);
     btn.click();
 
     await new Promise((r) => setTimeout(r, 0));
@@ -811,7 +843,7 @@ describe('Busy state - cost-basis, goal, cache, backup', () => {
 
     resolveWrite!();
     await new Promise((r) => setTimeout(r, 0));
-    expect(btn.disabled).toBe(false);
+    expect(btn.disabled).toBe(true);
     expect(btn.textContent).toBe('Save goals');
   });
 
@@ -867,6 +899,9 @@ describe('Busy state - cost-basis, goal, cache, backup', () => {
     );
 
     const btn = document.getElementById('btn-save-cost-basis') as HTMLButtonElement;
+    const method = document.getElementById('set-cost-basis-method') as HTMLSelectElement;
+    method.value = 'fifo';
+    method.dispatchEvent(new Event('change', { bubbles: true }));
     btn.click();
     await new Promise((r) => setTimeout(r, 0));
 
@@ -905,6 +940,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
       );
 
       const btn = document.getElementById('btn-save-accts') as HTMLButtonElement;
+      stageChanges(btn);
       btn.click();
       await tick();
       await tick();
@@ -919,7 +955,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
 
       resolveWrite();
       await tick();
-      expect(btn.disabled).toBe(false);
+      expect(btn.disabled).toBe(true);
       expect(btn.textContent).toBe('Save accounts');
     });
 
@@ -933,17 +969,17 @@ describe('Button-disable verification: synchronous disable and double-click prev
       );
 
       const btn = document.getElementById('btn-save-accts') as HTMLButtonElement;
+      stageChanges(btn);
       btn.click();
       await tick();
       await tick();
 
       expect(btn.disabled).toBe(false);
       expect(btn.textContent).toBe('Save accounts');
-      expect(showMsg as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
-        'accts-msg',
-        'Error: Network error',
-        false,
-      );
+      expect(notify).toHaveBeenCalledWith('Could not save accounts: Network error', {
+        variant: 'error',
+        source: 'accts-msg',
+      });
     });
 
     it('migrates legacy snapshot keys to current account ids before saving', async () => {
@@ -965,6 +1001,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
         renderSettings();
 
         const btn = document.getElementById('btn-save-accts') as HTMLButtonElement;
+        stageChanges(btn);
         btn.click();
         await tick();
 
@@ -993,6 +1030,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
         renderSettings();
 
         const btn = document.getElementById('btn-save-accts') as HTMLButtonElement;
+        stageChanges(btn);
         btn.click();
         await tick();
 
@@ -1078,7 +1116,10 @@ describe('Button-disable verification: synchronous disable and double-click prev
       expect(setAccounts as ReturnType<typeof vi.fn>).toHaveBeenCalled();
       // The account was actually removed - this must never surface as an
       // "Error: ..." message, only a softer heads-up about the id.
-      expect(showMsg).toHaveBeenCalledWith('accts-msg', expect.stringContaining('Removed'), true);
+      expect(notify).toHaveBeenCalledWith(
+        'Account removed (will finish reserving its id once back online)',
+        { variant: 'success', source: 'accts-msg' },
+      );
       const errorCall = (showMsg as ReturnType<typeof vi.fn>).mock.calls.find(
         (c) => c[0] === 'accts-msg' && c[2] === false,
       );
@@ -1099,6 +1140,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
       );
 
       const btn = document.getElementById('btn-save-holds') as HTMLButtonElement;
+      stageChanges(btn);
       btn.click();
       await tick();
 
@@ -1111,7 +1153,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
 
       resolveWrite();
       await tick();
-      expect(btn.disabled).toBe(false);
+      expect(btn.disabled).toBe(true);
       expect(btn.textContent).toBe('Save holdings');
     });
 
@@ -1125,15 +1167,15 @@ describe('Button-disable verification: synchronous disable and double-click prev
       );
 
       const btn = document.getElementById('btn-save-holds') as HTMLButtonElement;
+      stageChanges(btn);
       btn.click();
       await tick();
 
       expect(btn.disabled).toBe(false);
-      expect(showMsg as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
-        'holds-msg',
-        'Error: Sheets API error',
-        false,
-      );
+      expect(notify).toHaveBeenCalledWith('Could not save holdings: Sheets API error', {
+        variant: 'error',
+        source: 'holds-msg',
+      });
     });
   });
 
@@ -1209,6 +1251,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
       );
 
       const btn = document.getElementById('btn-save-rules') as HTMLButtonElement;
+      stageChanges(btn);
       btn.click();
       await tick();
 
@@ -1221,7 +1264,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
 
       resolveWrite();
       await tick();
-      expect(btn.disabled).toBe(false);
+      expect(btn.disabled).toBe(true);
       expect(btn.textContent).toBe('Save rules');
     });
 
@@ -1235,15 +1278,15 @@ describe('Button-disable verification: synchronous disable and double-click prev
       );
 
       const btn = document.getElementById('btn-save-rules') as HTMLButtonElement;
+      stageChanges(btn);
       btn.click();
       await tick();
 
       expect(btn.disabled).toBe(false);
-      expect(showMsg as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
-        'rules-msg',
-        'Error: Write failed',
-        false,
-      );
+      expect(notify).toHaveBeenCalledWith('Could not save rules: Write failed', {
+        variant: 'error',
+        source: 'rules-msg',
+      });
     });
   });
 
@@ -1290,6 +1333,9 @@ describe('Button-disable verification: synchronous disable and double-click prev
       );
 
       const btn = document.getElementById('btn-save-cost-basis') as HTMLButtonElement;
+      const method = document.getElementById('set-cost-basis-method') as HTMLSelectElement;
+      method.value = 'fifo';
+      method.dispatchEvent(new Event('change', { bubbles: true }));
       btn.click();
       await tick();
 
@@ -1302,7 +1348,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
 
       resolveWrite();
       await tick();
-      expect(btn.disabled).toBe(false);
+      expect(btn.disabled).toBe(true);
       expect(btn.textContent).toBe('Save cost-basis method');
     });
 
@@ -1316,15 +1362,17 @@ describe('Button-disable verification: synchronous disable and double-click prev
       );
 
       const btn = document.getElementById('btn-save-cost-basis') as HTMLButtonElement;
+      const method = document.getElementById('set-cost-basis-method') as HTMLSelectElement;
+      method.value = 'fifo';
+      method.dispatchEvent(new Event('change', { bubbles: true }));
       btn.click();
       await tick();
 
       expect(btn.disabled).toBe(false);
-      expect(showMsg as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
-        'costbasis-msg',
-        'Error: API error',
-        false,
-      );
+      expect(notify).toHaveBeenCalledWith('Could not save cost-basis method: API error', {
+        variant: 'error',
+        source: 'costbasis-msg',
+      });
     });
   });
 
@@ -1341,6 +1389,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
       );
 
       const btn = document.getElementById('btn-save-goal') as HTMLButtonElement;
+      stageChanges(btn);
       btn.click();
       await tick();
       await tick();
@@ -1356,7 +1405,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
 
       resolveWrite();
       await tick();
-      expect(btn.disabled).toBe(false);
+      expect(btn.disabled).toBe(true);
       expect(btn.textContent).toBe('Save goals');
       (setSettings as ReturnType<typeof vi.fn>).mockImplementation(async () => {});
     });
@@ -1371,16 +1420,16 @@ describe('Button-disable verification: synchronous disable and double-click prev
       );
 
       const btn = document.getElementById('btn-save-goal') as HTMLButtonElement;
+      stageChanges(btn);
       btn.click();
       await tick();
       await tick();
 
       expect(btn.disabled).toBe(false);
-      expect(showMsg as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
-        'goal-msg',
-        'Error: Timeout',
-        false,
-      );
+      expect(notify).toHaveBeenCalledWith('Could not save goals: Timeout', {
+        variant: 'error',
+        source: 'goal-msg',
+      });
 
       // Restore default mock
       (setSettings as ReturnType<typeof vi.fn>).mockImplementation(async () => {});
@@ -1442,11 +1491,10 @@ describe('Button-disable verification: synchronous disable and double-click prev
       await tick();
 
       expect(btn.disabled).toBe(false);
-      expect(showMsg as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
-        'resync-msg',
-        'Error: Resync failed',
-        false,
-      );
+      expect(notify).toHaveBeenCalledWith('Resync failed: Resync failed', {
+        variant: 'error',
+        source: 'resync-msg',
+      });
     });
   });
 
@@ -1488,11 +1536,10 @@ describe('Button-disable verification: synchronous disable and double-click prev
       await tick();
 
       expect(btn.disabled).toBe(false);
-      expect(showMsg as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
-        'backup-msg',
-        'Export failed: Export failed',
-        false,
-      );
+      expect(notify).toHaveBeenCalledWith('Export failed: Export failed', {
+        variant: 'error',
+        source: 'backup-msg',
+      });
     });
   });
 
@@ -1625,5 +1672,187 @@ describe('_getEligibleYears', () => {
   it('returns empty array when no data exists', () => {
     const years = _getEligibleYears([], []);
     expect(years).toEqual([]);
+  });
+});
+
+describe('Settings accessible controls and report states', () => {
+  beforeEach(() => {
+    setBusy(false);
+    _collapseState = {};
+    setupDOM();
+    vi.mocked(loadSnapshots).mockReset().mockResolvedValue([]);
+    vi.mocked(loadConfigHistory).mockReset().mockResolvedValue([]);
+    vi.mocked(showMsg).mockClear();
+    vi.mocked(notify).mockClear();
+  });
+  afterEach(() => {
+    setBusy(false);
+    setSettingsView('portfolio');
+  });
+
+  it('associates accordion headings and preserves expansion during history loading', async () => {
+    let resolve!: (entries: []) => void;
+    vi.mocked(loadConfigHistory).mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          resolve = r;
+        }),
+    );
+    renderSettings();
+    const headings = [...document.querySelectorAll<HTMLButtonElement>('.js-card-toggle')];
+    expect(headings).toHaveLength(11);
+    for (const heading of headings) {
+      const body = document.getElementById(heading.getAttribute('aria-controls')!)!;
+      expect(heading.tagName).toBe('BUTTON');
+      expect(body.getAttribute('aria-labelledby')).toBe(heading.id);
+      expect(heading.getAttribute('aria-expanded')).toBe(String(!body.hidden));
+    }
+    setSettingsView('advanced');
+    const heading = document.getElementById('settings-heading-config-history') as HTMLButtonElement;
+    heading.focus();
+    heading.click();
+    resolve([]);
+    await vi.mocked(loadConfigHistory).mock.results[0].value;
+    expect(document.activeElement).toBe(heading);
+    expect(heading.getAttribute('aria-expanded')).toBe('true');
+    expect(document.getElementById('settings-body-config-history')!.hidden).toBe(false);
+  });
+
+  it.each([false, true])('loads report years with restored-open=%s', async (restored) => {
+    if (restored) _collapseState = { 'settings-defaults-v1': true };
+    vi.mocked(loadSnapshots).mockResolvedValueOnce([
+      { date: '2024-12-01' },
+      { date: '2025-01-01' },
+    ]);
+    renderSettings();
+    if (!restored) document.getElementById('settings-heading-reports')!.click();
+    const select = document.getElementById('report-year-select') as HTMLSelectElement;
+    await vi.waitFor(() => expect(select.disabled).toBe(false));
+    expect([...select.options].map((option) => option.value)).toEqual(['2025', '2024']);
+    expect((document.getElementById('btn-download-report') as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+    expect(document.getElementById('report-msg')!.textContent).toBe('');
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('keeps reports without data unavailable after sync and supports retries after failures', async () => {
+    vi.mocked(loadSnapshots).mockRejectedValueOnce(new Error('Read failed'));
+    renderSettings();
+    document.getElementById('settings-heading-reports')!.click();
+    const retry = document.getElementById('btn-retry-report') as HTMLButtonElement;
+    await vi.waitFor(() => expect(retry.hidden).toBe(false));
+    expect(showMsg).toHaveBeenCalledWith(
+      'report-msg',
+      'Report years could not be loaded: Read failed',
+      false,
+    );
+    retry.click();
+    await vi.waitFor(() =>
+      expect(showMsg).toHaveBeenCalledWith(
+        'report-msg',
+        'No data found. Add snapshots or transactions to generate a report.',
+        false,
+      ),
+    );
+    expect(retry.hidden).toBe(true);
+    setBusy(true);
+    applySyncBusyState();
+    setBusy(false);
+    applySyncBusyState();
+    expect((document.getElementById('btn-download-report') as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
+  it('keeps a ready report locked until an in-flight sync finishes', async () => {
+    let resolve!: (snapshots: Awaited<ReturnType<typeof loadSnapshots>>) => void;
+    vi.mocked(loadSnapshots).mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          resolve = r;
+        }),
+    );
+    renderSettings();
+    document.getElementById('settings-heading-reports')!.click();
+    setBusy(true);
+    applySyncBusyState();
+    resolve([{ date: '2024-01-01' }]);
+    const download = document.getElementById('btn-download-report') as HTMLButtonElement;
+    await vi.waitFor(() => expect(download.dataset.reportReady).toBe('true'));
+    expect(download.disabled).toBe(true);
+    setBusy(false);
+    applySyncBusyState();
+    expect(download.disabled).toBe(false);
+  });
+
+  it('enables analytics saving only while its value differs from the baseline', () => {
+    renderSettings();
+    const input = document.getElementById('analytics-risk-free-rate') as HTMLInputElement;
+    const save = document.getElementById('btn-save-analytics') as HTMLButtonElement;
+    const original = input.value;
+    for (const [value, dirty] of [
+      [original, false],
+      [String(Number(original) + 1), true],
+      [original, false],
+    ] as const) {
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      expect(save.disabled).toBe(!dirty);
+      expect(save.dataset.dirty).toBe(String(dirty));
+      expect(save.title).toBe(dirty ? '' : 'No changes to save');
+    }
+  });
+
+  it('renders staged account rows, explains immediate deletion, and clears drafts after saving', async () => {
+    vi.mocked(accountDialog).mockResolvedValueOnce({ label: 'Draft account', moneyType: 'cash' });
+    vi.mocked(confirmDialog).mockResolvedValueOnce(false);
+    renderSettings();
+    document.getElementById('btn-add-acct')!.click();
+    const card = document.getElementById('settings-card-accounts')!;
+    await vi.waitFor(() => expect(card.classList.contains('settings-dirty')).toBe(true));
+    expect(card.querySelector('.settings-draft-status')?.textContent).toBe('Unsaved changes');
+    expect(card.querySelector('.settings-card-summary')?.textContent).toBe('2 accounts');
+    const row = card.querySelectorAll('.settings-acct-row')[1];
+    expect(row.querySelector('.settings-item-copy .settings-item-title')?.textContent).toBe(
+      'Draft account',
+    );
+    const remove = row.querySelector<HTMLButtonElement>('.js-del-acct')!;
+    expect(remove.getAttribute('aria-label')).toBe('Delete account Draft account');
+    remove.click();
+    await vi.waitFor(() =>
+      expect(confirmDialog).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          body: expect.stringContaining(
+            'Removal is saved immediately. This also saves the other unsaved changes in this section.',
+          ),
+        }),
+      ),
+    );
+    const save = document.getElementById('btn-save-accts') as HTMLButtonElement;
+    expect(save.disabled).toBe(false);
+    save.click();
+    await vi.waitFor(() => expect(card.classList.contains('settings-dirty')).toBe(false));
+    expect(card.querySelector('.settings-draft-status')?.textContent).toBe('');
+    expect(save.disabled).toBe(true);
+    expect(notify).toHaveBeenCalledWith('Accounts saved', {
+      variant: 'success',
+      source: 'accts-msg',
+    });
+  });
+
+  it('preserves a goal draft when an unrelated settings save refreshes the view', async () => {
+    const { goalDialog } = await import('../ui/goalDialog');
+    vi.mocked(goalDialog).mockResolvedValueOnce({
+      label: 'Draft goal',
+      targetNetWorth: '100000',
+      targetDate: '',
+    });
+    renderSettings();
+    document.getElementById('btn-add-goal')!.click();
+    await vi.waitFor(() => expect(document.querySelectorAll('.settings-goal-row')).toHaveLength(1));
+    refreshSettingsAfterChange('settings');
+    expect(document.querySelector('.settings-goal-row')?.textContent).toContain('Draft goal');
+    expect(document.querySelector('#settings-card-goal.settings-dirty')).not.toBeNull();
   });
 });

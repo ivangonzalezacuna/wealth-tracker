@@ -231,7 +231,11 @@ export function createDialogController<Result>(
 }
 
 export function focusFirstInvalid(overlay: HTMLElement): void {
-  (overlay.querySelector('[aria-invalid="true"]') as HTMLElement | null)?.focus();
+  const el = overlay.querySelector('[aria-invalid="true"]') as HTMLElement | null;
+  if (!el) return;
+  const details = el.closest('details');
+  if (details) details.open = true;
+  el.focus();
 }
 
 export function populateDatalist(datalist: Element | null, values: readonly string[]): void {

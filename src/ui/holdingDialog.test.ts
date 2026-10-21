@@ -146,27 +146,23 @@ describe('holdingDialog', () => {
     await p;
   });
 
-  it('pre-fills notes textarea when editing an existing holding with notes', () => {
-    holdingDialog({ existing: { ...existingHolding, notes: 'Some reminder' }, suggestions });
-    expect((document.querySelector('#holdd-notes') as HTMLTextAreaElement).value).toBe(
-      'Some reminder',
-    );
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-  });
-
-  it('includes notes in the submitted draft when notes are entered', async () => {
-    const p = holdingDialog({ existing: existingHolding, suggestions });
-    (document.querySelector('#holdd-notes') as HTMLTextAreaElement).value = 'My note';
-    getSubmit()!.click();
-    const draft = await p;
-    expect(draft?.notes).toBe('My note');
-  });
-
-  it('omits notes from the draft when the notes field is empty', async () => {
-    const p = holdingDialog({ existing: existingHolding, suggestions });
-    (document.querySelector('#holdd-notes') as HTMLTextAreaElement).value = '';
-    getSubmit()!.click();
-    const draft = await p;
-    expect(draft?.notes).toBeUndefined();
+  it('keeps fund details in Advanced options and opens them only when customised', () => {
+    void holdingDialog({ existing: existingHolding });
+    const details = () =>
+      document.querySelector('.hold-dialog-overlay details.dialog-optional') as HTMLDetailsElement;
+    expect(details().querySelector('summary')?.textContent).toBe('Advanced options');
+    for (const id of ['holdd-ter', 'holdd-acc', 'holdd-notes', 'holdd-color']) {
+      expect(details().querySelector(`#${id}`)).not.toBeNull();
+    }
+    expect(details().querySelector('#holdd-active')).toBeNull();
+    expect(details().querySelector('#holdd-target-pct')).toBeNull();
+    // color differs from default -> open
+    expect(details().open).toBe(true);
+    getOverlay()?.remove();
+    void holdingDialog({ existing: { ...existingHolding, color: '#888888' } });
+    expect(details().open).toBe(false);
+    getOverlay()?.remove();
+    void holdingDialog({ existing: { ...existingHolding, color: '#888888', ter: 0.2 } });
+    expect(details().open).toBe(true);
   });
 });

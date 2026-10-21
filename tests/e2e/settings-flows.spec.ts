@@ -4,9 +4,12 @@ import {
   ensureCardExpanded,
   gotoApp,
   importCsvFixture,
+  openDialogOptional,
   preparePage,
   saveHoldings,
   setContributionsSettings,
+  expectToast,
+  saveSettings,
 } from './helpers';
 
 test.beforeEach(async ({ page }) => {
@@ -25,21 +28,23 @@ test('holdings CRUD works and contribution/calculation settings persist', async 
   await page.click('#tab-settings');
   await ensureCardExpanded(page, 'settings-card-holdings');
   await page.click('#btn-autofill-holds');
-  await expect(page.locator('#holds-msg')).toContainText('Added 1 holding');
+  await expectToast(page, 'holds-msg', 'Added 1 holding');
   await saveHoldings(page);
 
   await ensureCardExpanded(page, 'settings-card-holdings');
   await expect(page.locator('#settings-holdings-tbl .js-edit-hold')).toHaveCount(1);
-  await page.locator('#settings-holdings-tbl .js-edit-hold').first().click({ force: true });
+  await page.locator('#settings-holdings-tbl .js-edit-hold').first().click();
+  await expect(page.locator('.hold-dialog-overlay')).toBeVisible();
   await page.fill('#holdd-short-name', 'EIMI2');
+  await openDialogOptional(page, '.hold-dialog-overlay');
   await page.fill('#holdd-notes', 'Updated note');
   await page.click('.js-holdd-submit');
   await expect(page.locator('#settings-holdings-tbl')).toContainText('EIMI2');
   await saveHoldings(page);
 
-  await page.locator('#settings-holdings-tbl .js-del-hold').first().click({ force: true });
+  await page.locator('#settings-holdings-tbl .js-del-hold').first().click();
   await page.click('.js-confirm-ok');
-  await saveHoldings(page);
+  await expectToast(page, 'holds-msg', 'Holding removed');
   await expect(page.locator('#settings-holdings-tbl')).not.toContainText('EIMI2');
 
   await setContributionsSettings(page, {
@@ -50,11 +55,9 @@ test('holdings CRUD works and contribution/calculation settings persist', async 
 
   await ensureCardExpanded(page, 'settings-card-calc-assumptions');
   await page.selectOption('#set-cost-basis-method', 'fifo');
-  await page.click('#btn-save-cost-basis');
-  await expect(page.locator('#costbasis-msg')).toContainText('Saved');
+  await saveSettings(page, 'cost-basis', 'Cost-basis method saved');
   await page.fill('#analytics-risk-free-rate', '3.25');
-  await page.click('#btn-save-analytics');
-  await expect(page.locator('#analytics-msg')).toContainText('Saved');
+  await saveSettings(page, 'analytics', 'Analytics saved');
 
   await page.reload();
   await gotoApp(page);
