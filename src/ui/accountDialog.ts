@@ -71,6 +71,14 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
 
     const isPrimary = existing?.isPrimaryInvestment ?? false;
     const isLocked = existing?.locked ?? false;
+    const advancedOpen =
+      !!existing &&
+      ((existing.annualReturnPct ?? 0) !== 0 ||
+        (existing.contribAmount ?? 0) !== 0 ||
+        (existing.contribInterval || 'monthly') !== 'monthly' ||
+        !!existing.country ||
+        !!existing.group ||
+        (existing.color || '#888888').toLowerCase() !== '#888888');
 
     overlay.innerHTML = `
       <div class="dialog-card acct-dialog-card">
@@ -85,34 +93,11 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
                 value="${esc(existing?.label || '')}" placeholder="e.g. Main ETF portfolio">
               <span class="dialog-error" id="acctd-label-err"></span>
             </div>
+          </div>
+          <div class="dialog-row">
             <div class="dialog-field">
               <label class="dialog-label" for="acctd-type">Type</label>
               <select id="acctd-type" class="form-input dialog-input">${typeOptions}</select>
-            </div>
-          </div>
-          <div class="dialog-row">
-            <div class="dialog-field dialog-field-wide">
-              <label class="dialog-label" for="acctd-institution">Institution</label>
-              <input type="text" id="acctd-institution" class="form-input dialog-input"
-                value="${esc(existing?.institution || '')}" placeholder="e.g. Trade Republic"
-                list="acctd-institution-list" autocomplete="off">
-              <datalist id="acctd-institution-list"></datalist>
-            </div>
-            <div class="dialog-field">
-              <label class="dialog-label" for="acctd-country">Country (optional)</label>
-              <input type="text" id="acctd-country" class="form-input dialog-input"
-                value="${esc(existing?.country || '')}" placeholder="e.g. Germany"
-                list="acctd-country-list" autocomplete="off">
-              <datalist id="acctd-country-list"></datalist>
-            </div>
-          </div>
-          <div class="dialog-row">
-            <div class="dialog-field dialog-field-wide">
-              <label class="dialog-label" for="acctd-group">Group (optional)</label>
-              <input type="text" id="acctd-group" class="form-input dialog-input"
-                value="${esc(existing?.group || '')}" placeholder="e.g. Retirement"
-                list="acctd-group-list" autocomplete="off">
-              <datalist id="acctd-group-list"></datalist>
             </div>
             <div class="dialog-field">
               <label class="dialog-label" for="acctd-currency">
@@ -125,45 +110,32 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
             </div>
           </div>
           <div class="dialog-row">
-            <div class="dialog-field">
-              <label class="dialog-label" for="acctd-return">
-                Annual return (%/yr)${infoTip("Used for this account's slice of the 5-year forecast. Cash/savings are typically 0% unless they earn interest.")}
-              </label>
-              <input type="number" id="acctd-return" class="form-input dialog-input"
-                value="${esc(String(existing?.annualReturnPct ?? 0))}" min="-100" max="100" step="0.1" placeholder="0">
-              <span class="dialog-error" id="acctd-return-err"></span>
+            <div class="dialog-field dialog-field-wide">
+              <label class="dialog-label" for="acctd-institution">Institution</label>
+              <input type="text" id="acctd-institution" class="form-input dialog-input"
+                value="${esc(existing?.institution || '')}" placeholder="e.g. Trade Republic"
+                list="acctd-institution-list" autocomplete="off">
+              <datalist id="acctd-institution-list"></datalist>
             </div>
           </div>
-          <div class="dialog-row">
-            <div class="dialog-field dialog-field-wide">
-              <label class="dialog-label" style="cursor:pointer">
+          <div class="dialog-subhead">Tracking &amp; access</div>
+          <div class="dialog-field">
+            <div class="dialog-check">
+              <label class="dialog-label dialog-check">
                 <input type="checkbox" id="acctd-primary" ${isPrimary ? 'checked' : ''}>
-                Primary investment${infoTip('Used to split net-worth growth into contributions vs market returns. Only investment-type accounts should be marked.')}
+                Primary investment
               </label>
+              ${infoTip('Used to split net-worth growth into contributions vs market returns. Only investment-type accounts should be marked.')}
             </div>
-            <div class="dialog-field dialog-field-wide">
-              <label class="dialog-label" style="cursor:pointer">
-                <input type="checkbox" id="acctd-locked" ${isLocked ? 'checked' : ''}>
-                Locked until retirement${infoTip('Funds not accessible until retirement. Used to separate liquid net worth from locked retirement assets.')}
-              </label>
-            </div>
+            <p class="note dialog-note" id="acctd-primary-note" style="${isPrimary ? '' : 'display:none'}">Its contribution comes from the Holdings card.</p>
           </div>
-          <div id="acctd-contrib-block" aria-live="polite" style="${isPrimary ? 'display:none' : ''}">
-            <div class="dialog-row">
-              <div class="dialog-field">
-                <label class="dialog-label" for="acctd-contrib">
-                  Contribution (€)${infoTip('How much moves into this account each time, at the interval below.')}
-                </label>
-                <input type="number" id="acctd-contrib" class="form-input dialog-input"
-                  value="${esc(String(existing?.contribAmount ?? 0))}" min="0" step="1" placeholder="0">
-              </div>
-              <div class="dialog-field">
-                <label class="dialog-label" for="acctd-interval">Interval</label>
-                <select id="acctd-interval" class="form-input dialog-input themed-select">${intervalOptions}</select>
-              </div>
-            </div>
-            <div class="dialog-row" id="acctd-primary-note" style="${isPrimary ? '' : 'display:none'}">
-              <p class="note" style="margin:0">Contribution amount for the primary investment account comes from the Holdings card.</p>
+          <div class="dialog-field">
+            <div class="dialog-check">
+              <label class="dialog-label dialog-check">
+                <input type="checkbox" id="acctd-locked" ${isLocked ? 'checked' : ''}>
+                Locked until retirement
+              </label>
+              ${infoTip('Funds not accessible until retirement. Used to separate liquid net worth from locked retirement assets.')}
             </div>
           </div>
           <div id="acctd-locked-block" aria-live="polite" style="${isLocked ? '' : 'display:none'}">
@@ -184,21 +156,69 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
               </div>
             </div>
           </div>
-          <div class="dialog-row">
-            <div class="dialog-field dialog-field-compact">
-              <label class="dialog-label" for="acctd-color-hex">Color</label>
-              <div class="color-picker-wrap">
-                <input type="color" id="acctd-color" class="color-picker-swatch"
-                  value="${esc(existing?.color || '#888888')}" aria-label="Color picker">
-                <input type="text" id="acctd-color-hex" class="form-input dialog-input color-picker-hex"
-                  value="${esc(existing?.color || '#888888')}" placeholder="#888888" maxlength="7">
+          <details class="dialog-optional"${advancedOpen ? ' open' : ''}>
+            <summary>Advanced options</summary>
+            <div class="dialog-optional-body">
+              <div class="dialog-subhead">Forecast</div>
+              <div class="dialog-row">
+                <div class="dialog-field">
+                  <label class="dialog-label" for="acctd-return">
+                    Annual return (%/yr)${infoTip("Used for this account's slice of the 5-year forecast. Cash/savings are typically 0% unless they earn interest.")}
+                  </label>
+                  <input type="number" id="acctd-return" class="form-input dialog-input"
+                    value="${esc(String(existing?.annualReturnPct ?? 0))}" min="-100" max="100" step="0.1" placeholder="0">
+                  <span class="dialog-error" id="acctd-return-err"></span>
+                </div>
+              </div>
+              <div id="acctd-contrib-block" aria-live="polite" style="${isPrimary ? 'display:none' : ''}">
+                <div class="dialog-row">
+                  <div class="dialog-field">
+                    <label class="dialog-label" for="acctd-contrib">
+                      Contribution (€)${infoTip('How much moves into this account each time, at the interval below. Amounts are in EUR.')}
+                    </label>
+                    <input type="number" id="acctd-contrib" class="form-input dialog-input"
+                      value="${esc(String(existing?.contribAmount ?? 0))}" min="0" step="1" placeholder="0">
+                  </div>
+                  <div class="dialog-field">
+                    <label class="dialog-label" for="acctd-interval">Interval</label>
+                    <select id="acctd-interval" class="form-input dialog-input themed-select">${intervalOptions}</select>
+                  </div>
+                </div>
+              </div>
+              <div class="dialog-subhead">Chart grouping &amp; appearance</div>
+              <div class="dialog-row">
+                <div class="dialog-field">
+                  <label class="dialog-label" for="acctd-country">Country</label>
+                  <input type="text" id="acctd-country" class="form-input dialog-input"
+                    value="${esc(existing?.country || '')}" placeholder="e.g. Germany"
+                    list="acctd-country-list" autocomplete="off">
+                  <datalist id="acctd-country-list"></datalist>
+                </div>
+                <div class="dialog-field">
+                  <label class="dialog-label" for="acctd-group">Group</label>
+                  <input type="text" id="acctd-group" class="form-input dialog-input"
+                    value="${esc(existing?.group || '')}" placeholder="e.g. Retirement"
+                    list="acctd-group-list" autocomplete="off">
+                  <datalist id="acctd-group-list"></datalist>
+                </div>
+              </div>
+              <div class="dialog-row">
+                <div class="dialog-field dialog-field-compact">
+                  <label class="dialog-label" for="acctd-color-hex">Color</label>
+                  <div class="color-picker-wrap">
+                    <input type="color" id="acctd-color" class="color-picker-swatch"
+                      value="${esc(existing?.color || '#888888')}" aria-label="Color picker">
+                    <input type="text" id="acctd-color-hex" class="form-input dialog-input color-picker-hex"
+                      value="${esc(existing?.color || '#888888')}" placeholder="#888888" maxlength="7">
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          </details>
         </div>
         <div class="dialog-actions">
           <button class="btn btn-sm btn-ghost js-acctd-cancel">Cancel</button>
-          <button class="btn btn-sm btn-primary js-acctd-submit">${existing ? 'Save changes' : 'Add account'}</button>
+          <button class="btn btn-sm btn-primary js-acctd-submit">${existing ? 'Update draft' : 'Add to draft'}</button>
         </div>
       </div>`;
 
@@ -209,7 +229,7 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
       onSubmit: _submit,
       cancelSelector: '.js-acctd-cancel',
       submitSelector: '.js-acctd-submit',
-      focusablesSelector: DIALOG_FOCUSABLES,
+      focusablesSelector: `${DIALOG_FOCUSABLES}, summary`,
       initialFocusSelector: '#acctd-label',
     });
     attachInfoTips(overlay);
@@ -224,11 +244,13 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
     populateDatalist(overlay.querySelector('#acctd-currency-list'), opts.currencySuggestions ?? []);
     bindColorInputs(overlay, 'acctd-color', 'acctd-color-hex');
 
-    // Primary investment toggle — show/hide contrib block
+    // Primary investment: its contribution comes from Holdings, so swap the block for a note
     const primaryCb = overlay.querySelector('#acctd-primary') as HTMLInputElement | null;
     const contribBlock = overlay.querySelector('#acctd-contrib-block') as HTMLElement | null;
+    const primaryNote = overlay.querySelector('#acctd-primary-note') as HTMLElement | null;
     primaryCb?.addEventListener('change', () => {
       if (contribBlock) contribBlock.style.display = primaryCb.checked ? 'none' : '';
+      if (primaryNote) primaryNote.style.display = primaryCb.checked ? '' : 'none';
     });
 
     // Locked toggle — show/hide locked block

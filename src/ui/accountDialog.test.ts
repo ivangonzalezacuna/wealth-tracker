@@ -97,4 +97,36 @@ describe('accountDialog', () => {
     expect(lastRow?.querySelector('#acctd-color')).not.toBeNull();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
+  it('groups forecast and chart fields under Advanced options, closed for plain accounts', () => {
+    void accountDialog({
+      existing: { id: 'cash', label: 'Cash', moneyType: 'cash', institution: '' } as Account,
+    });
+    const details = document.querySelector(
+      '.acct-dialog-overlay details.dialog-optional',
+    ) as HTMLDetailsElement;
+    expect(details.querySelector('summary')?.textContent).toBe('Advanced options');
+    expect(details.open).toBe(false);
+    for (const id of ['acctd-return', 'acctd-contrib', 'acctd-interval', 'acctd-country']) {
+      expect(details.querySelector(`#${id}`)).not.toBeNull();
+    }
+    expect(details.querySelector('#acctd-primary')).toBeNull();
+    expect(details.querySelector('#acctd-locked')).toBeNull();
+    getOverlay()?.remove();
+    void accountDialog({ existing: EXISTING_ACCOUNT });
+    expect(
+      document.querySelector<HTMLDetailsElement>('.acct-dialog-overlay details.dialog-optional')
+        ?.open,
+    ).toBe(true);
+  });
+
+  it('opens Advanced options and focuses an invalid advanced field on submit', async () => {
+    void accountDialog();
+    setField('acctd-label', 'Valid');
+    setField('acctd-return', '-500');
+    getSubmit()!.click();
+    await Promise.resolve();
+    const details = document.querySelector('details.dialog-optional') as HTMLDetailsElement;
+    expect(details.open).toBe(true);
+    expect(document.activeElement?.id).toBe('acctd-return');
+  });
 });
