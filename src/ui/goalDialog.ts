@@ -9,7 +9,8 @@ import {
   openDialogShell,
 } from './modalShell';
 import { infoTip, attachInfoTips } from './infoTip';
-import { CALENDAR_ICON } from '../views/icons';
+import { validateMonthInput, wireMonthInputs } from './monthInput';
+import { CLEAR_ICON, DELETE_ICON } from '../views/icons';
 
 export interface GoalDialogOptions {
   existing?: NamedGoal;
@@ -26,26 +27,17 @@ const _dialog = createDialogController<NamedGoal | null>(null, {
   },
 });
 
-/** Format a YYYY-MM value to "Mon YYYY" label. */
-function _fmtMon(ym: string): string {
-  if (!ym || !/^\d{4}-\d{2}$/.test(ym)) return ym;
-  const [year, mo] = ym.split('-');
-  const label = new Date(+year, +mo - 1).toLocaleString('en', { month: 'short' });
-  return `${label} ${year}`;
-}
-
 function _renderMilestoneRows(container: HTMLElement, goalDate?: string): void {
   const hasGoalDate = Boolean(goalDate?.trim());
   container.innerHTML = _milestones
     .map((m, i) => {
       const dateVal = hasGoalDate ? m.targetDate || '' : '';
-      const dateLabel = dateVal ? _fmtMon(dateVal) : 'Set deadline';
       return `
     <div class="goal-milestone-row" data-ms-idx="${i}" data-ms-stored-date="${esc(m.targetDate || '')}">
       <div class="ms-header">
         <span class="ms-title">Milestone ${i + 1}</span>
         <button type="button" class="btn btn-sm btn-ghost btn-icon js-ms-del" data-ms-idx="${i}"
-          aria-label="Remove milestone ${i + 1}" title="Remove milestone">&#x2715;</button>
+          aria-label="Remove milestone ${i + 1}" title="Remove milestone">${DELETE_ICON}</button>
       </div>
       <div class="ms-body">
         <div class="ms-row">
@@ -53,27 +45,19 @@ function _renderMilestoneRows(container: HTMLElement, goalDate?: string): void {
             <span class="ms-field-label">Amount (€)</span>
             <input class="form-input dialog-input ms-amount" type="text" inputmode="decimal"
               value="${esc(m.targetAmount)}" placeholder="e.g. 250 000"
-              aria-label="Milestone ${i + 1} amount">
+              aria-label="Milestone ${i + 1} amount" aria-describedby="goald-ms-err">
           </div>
           <div class="ms-field ms-date-field">
             <span class="ms-field-label">Deadline <span class="ms-opt">(optional)</span></span>
-            <div class="ms-date-wrap ${dateVal ? 'has-clear' : ''}">
-              <button type="button" class="btn btn-sm btn-ghost ms-date-btn js-ms-date-btn"
-                aria-label="${dateVal ? `Deadline: ${esc(dateLabel)}` : `Set deadline for milestone ${i + 1}`}"
-                ${!hasGoalDate ? `disabled title="Set a target date on the goal first"` : ''}>
-                ${CALENDAR_ICON}<span class="ms-date-val">${esc(dateLabel)}</span>
-              </button>
-              ${
-                dateVal
-                  ? `<button type="button" class="btn btn-sm btn-ghost btn-icon ms-date-clear-btn js-ms-date-clear"
-                data-ms-idx="${i}" aria-label="Clear deadline for milestone ${i + 1}" title="Clear deadline">&#x2715;</button>`
-                  : ''
-              }
-              <input class="ms-date" type="month" value="${esc(dateVal)}"
+            <div class="ms-date-wrap ${dateVal ? 'has-clear' : ''}" data-month-host>
+              <span class="ms-date-control">
+              <input id="goald-ms-date-${i}" class="form-input dialog-input ms-date" type="month" value="${esc(dateVal)}" data-month-input
                 max="${esc(hasGoalDate ? (goalDate ?? '') : '')}"
-                aria-hidden="true" tabindex="-1"
-                ${!hasGoalDate ? 'disabled' : ''}
-                aria-label="Milestone ${i + 1} deadline">
+                ${!hasGoalDate ? 'disabled title="Set a target date on the goal first"' : ''}
+                aria-label="Milestone ${i + 1} deadline" aria-describedby="goald-ms-err">
+              <button type="button" class="btn btn-sm btn-ghost btn-icon ms-date-clear-btn js-ms-date-clear"
+                ${dateVal ? '' : 'hidden'} data-ms-idx="${i}" aria-label="Clear deadline for milestone ${i + 1}" title="Clear deadline">${CLEAR_ICON}</button>
+              </span>
             </div>
           </div>
         </div>
@@ -89,6 +73,7 @@ function _renderMilestoneRows(container: HTMLElement, goalDate?: string): void {
     </div>`;
     })
     .join('');
+  wireMonthInputs(container);
 }
 
 function _syncMilestonesFromDom(container: HTMLElement): void {
@@ -119,7 +104,6 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
     overlay.setAttribute('aria-labelledby', 'goal-dialog-title');
 
     const existingDate = existing?.targetDate || '';
-    const existingDateLabel = existingDate ? _fmtMon(existingDate) : 'Set date';
 
     overlay.innerHTML = `
       <div class="dialog-card">
@@ -130,7 +114,7 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
           <div class="dialog-row">
             <div class="dialog-field dialog-field-wide">
               <label class="dialog-label" for="goald-label">Goal label</label>
-              <input id="goald-label" class="form-input dialog-input" type="text" value="${esc(existing?.label || '')}" placeholder="e.g. Financial independence">
+              <input id="goald-label" class="form-input dialog-input" type="text" value="${esc(existing?.label || '')}" placeholder="e.g. Financial independence" aria-describedby="goald-label-err">
               <span class="dialog-error dialog-error-compact" id="goald-label-err"></span>
             </div>
           </div>
@@ -139,22 +123,20 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
               <label class="dialog-label" for="goald-target">
                 Target net worth (€)${infoTip('Supports plain numbers and German-formatted amounts such as 100.000,00.')}
               </label>
-              <input id="goald-target" class="form-input dialog-input" type="text" inputmode="decimal" value="${esc(existing?.targetNetWorth || '')}" placeholder="e.g. 500000">
+              <input id="goald-target" class="form-input dialog-input" type="text" inputmode="decimal" value="${esc(existing?.targetNetWorth || '')}" placeholder="e.g. 500000" aria-describedby="goald-target-err">
               <span class="dialog-error dialog-error-compact" id="goald-target-err"></span>
             </div>
             <div class="dialog-field goal-date-field">
-              <label class="dialog-label">
+              <label class="dialog-label" for="goald-date">
                 Target date${infoTip('Optional. Leave empty to track progress and ETA without a deadline.')}
               </label>
-              <div class="ms-date-wrap ${existingDate ? 'has-clear' : ''}">
-                <button type="button" class="btn btn-sm btn-ghost ms-date-btn js-goal-date-btn"
-                  aria-label="${existingDate ? `Target date: ${esc(existingDateLabel)}` : 'Set target date'}">
-                  ${CALENDAR_ICON}<span id="goald-date-val" class="ms-date-val">${esc(existingDateLabel)}</span>
-                </button>
+              <div class="ms-date-wrap ${existingDate ? 'has-clear' : ''}" data-month-host>
+                <span class="ms-date-control">
+                <input id="goald-date" class="form-input dialog-input ms-date" type="month" value="${esc(existingDate)}"
+                  data-month-input aria-label="Goal target date">
                 <button type="button" class="btn btn-sm btn-ghost btn-icon ms-date-clear-btn js-goal-date-clear"
-                  ${existingDate ? '' : 'hidden'} aria-label="Clear target date" title="Clear target date">&#x2715;</button>
-                <input id="goald-date" class="ms-date" type="month" value="${esc(existingDate)}"
-                  aria-hidden="true" tabindex="-1" aria-label="Goal target date">
+                  ${existingDate ? '' : 'hidden'} aria-label="Clear target date" title="Clear target date">${CLEAR_ICON}</button>
+                </span>
               </div>
             </div>
           </div>
@@ -163,7 +145,7 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
               <label class="dialog-label">
                 Milestones${infoTip('Optional intermediate targets. Each amount must be less than the goal target. They appear as tick marks on the progress bar.')}
               </label>
-              <span class="dialog-error dialog-error-compact" id="goald-ms-err"></span>
+              <span class="dialog-error dialog-error-compact" id="goald-ms-err" role="alert"></span>
               <div id="goald-ms-list"></div>
               <button type="button" class="btn btn-sm btn-outline js-ms-add" style="margin-top:4px">+ Add milestone</button>
             </div>
@@ -171,25 +153,18 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
         </div>
         <div class="dialog-actions">
           <button class="btn btn-sm btn-ghost js-goald-cancel">Cancel</button>
-          <button class="btn btn-sm btn-primary js-goald-submit">${existing ? 'Save changes' : 'Add goal'}</button>
+          <button class="btn btn-sm btn-primary js-goald-submit">${existing ? 'Update draft' : 'Add to draft'}</button>
         </div>
       </div>`;
 
     const msList = overlay.querySelector<HTMLElement>('#goald-ms-list')!;
     const dateInput = overlay.querySelector<HTMLInputElement>('#goald-date')!;
-    const dateValSpan = overlay.querySelector<HTMLElement>('#goald-date-val')!;
     const goalDateClearBtn = overlay.querySelector<HTMLButtonElement>('.js-goal-date-clear')!;
-    const goalDateBtn = overlay.querySelector<HTMLButtonElement>('.js-goal-date-btn')!;
-    const goalDateWrap = goalDateBtn.closest('.ms-date-wrap') as HTMLElement;
+    const goalDateWrap = dateInput.closest('.ms-date-wrap') as HTMLElement;
     const getGoalDate = () => dateInput.value.trim();
 
     const updateGoalDateBtn = () => {
       const val = dateInput.value;
-      dateValSpan.textContent = val ? _fmtMon(val) : 'Set date';
-      goalDateBtn.setAttribute(
-        'aria-label',
-        val ? `Target date: ${_fmtMon(val)}` : 'Set target date',
-      );
       goalDateClearBtn.hidden = !val;
       goalDateWrap.classList.toggle('has-clear', Boolean(val));
     };
@@ -198,23 +173,18 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
 
     overlay.addEventListener('click', (e) => {
       const t = e.target as Element;
-      if (t.closest('.js-goal-date-btn')) {
-        try {
-          (dateInput as HTMLInputElement & { showPicker(): void }).showPicker();
-        } catch {
-          /* unsupported */
-        }
-        return;
-      }
       if (t.closest('.js-goal-date-clear')) {
         dateInput.value = '';
+        validateMonthInput(dateInput);
         updateGoalDateBtn();
         _syncMilestonesFromDom(msList);
         _renderMilestoneRows(msList, getGoalDate());
+        dateInput.focus();
         return;
       }
     });
 
+    wireMonthInputs(overlay);
     dateInput.addEventListener('change', () => {
       updateGoalDateBtn();
       _syncMilestonesFromDom(msList);
@@ -223,37 +193,36 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
 
     msList.addEventListener('click', (e) => {
       const t = e.target as Element;
-      const dateBtn = t.closest('.js-ms-date-btn') as HTMLElement | null;
-      if (dateBtn) {
-        const inp = dateBtn.closest('.ms-date-wrap')?.querySelector<HTMLInputElement>('.ms-date');
-        if (inp && !inp.disabled) {
-          try {
-            (inp as HTMLInputElement & { showPicker(): void }).showPicker();
-          } catch {
-            /* unsupported */
-          }
-        }
-        return;
-      }
       const clearBtn = t.closest('.js-ms-date-clear') as HTMLElement | null;
       if (clearBtn) {
         _syncMilestonesFromDom(msList);
         const idx = parseInt(clearBtn.dataset.msIdx ?? '0', 10);
         if (_milestones[idx]) _milestones[idx].targetDate = '';
         _renderMilestoneRows(msList, getGoalDate());
+        msList.querySelector<HTMLInputElement>(`#goald-ms-date-${idx}`)?.focus();
         return;
       }
       const delBtn = t.closest('.js-ms-del') as HTMLElement | null;
       if (!delBtn) return;
       _syncMilestonesFromDom(msList);
-      _milestones.splice(parseInt(delBtn.dataset.msIdx!, 10), 1);
+      const index = parseInt(delBtn.dataset.msIdx!, 10);
+      _milestones.splice(index, 1);
       _renderMilestoneRows(msList, getGoalDate());
+      const amounts = msList.querySelectorAll<HTMLInputElement>('.ms-amount');
+      (
+        amounts[Math.min(index, amounts.length - 1)] ??
+        overlay.querySelector<HTMLButtonElement>('.js-ms-add')
+      )?.focus();
     });
 
     msList.addEventListener('change', (e) => {
       if ((e.target as Element).classList.contains('ms-date')) {
+        const input = e.target as HTMLInputElement;
+        const wrap = input.closest('.ms-date-wrap')!;
+        wrap.classList.toggle('has-clear', Boolean(input.value));
+        const clear = wrap.querySelector<HTMLButtonElement>('.js-ms-date-clear');
+        if (clear) clear.hidden = !input.value;
         _syncMilestonesFromDom(msList);
-        _renderMilestoneRows(msList, getGoalDate());
       }
     });
 
@@ -286,7 +255,18 @@ function _submit(msList: HTMLElement): void {
   setErr('goald-label', '');
   setErr('goald-target', '');
   const msErr = overlay.querySelector<HTMLElement>('#goald-ms-err');
-  if (msErr) msErr.textContent = '';
+  if (msErr) {
+    msErr.textContent = '';
+    msErr.removeAttribute('aria-invalid');
+  }
+  msList
+    .querySelectorAll('[aria-invalid]')
+    .forEach((input) => input.removeAttribute('aria-invalid'));
+  const datesValid = Array.from(
+    overlay.querySelectorAll<HTMLInputElement>('input[data-month-input]'),
+  )
+    .map(validateMonthInput)
+    .every(Boolean);
 
   const label = get('goald-label');
   const targetNetWorth = get('goald-target');
@@ -302,12 +282,20 @@ function _submit(msList: HTMLElement): void {
   }
 
   _syncMilestonesFromDom(msList);
-  const filledMilestones = _milestones.filter((m) => m.targetAmount.trim() !== '');
+  const filledRows = Array.from(msList.querySelectorAll<HTMLElement>('.goal-milestone-row')).filter(
+    (row) => row.querySelector<HTMLInputElement>('.ms-amount')?.value.trim(),
+  );
   const targetDate = get('goald-date');
+  const filledMilestones = _milestones
+    .filter((m) => m.targetAmount.trim() !== '')
+    .map((m) => (targetDate ? m : { ...m, targetDate: '' }));
   const msErrMsg = validateMilestones(filledMilestones, targetNetWorth, targetDate);
-  if (msErrMsg && msErr) {
+  if (datesValid && msErrMsg && msErr) {
     msErr.textContent = msErrMsg;
-    msErr.setAttribute('aria-invalid', 'true');
+    const index = Number(/^Milestone (\d+):/.exec(msErrMsg)?.[1] ?? 1) - 1;
+    filledRows[index]
+      ?.querySelector<HTMLInputElement>('.ms-amount')
+      ?.setAttribute('aria-invalid', 'true');
   }
 
   if (overlay.querySelector('[aria-invalid="true"]')) {
