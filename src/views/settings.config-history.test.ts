@@ -5,6 +5,10 @@ import { describe, it, expect } from 'vitest';
 import { renderConfigHistoryCard } from './settings';
 import type { ConfigHistoryEntry } from '../db';
 
+const localTime = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(
+  new Date('2026-01-15T10:45:00.000Z'),
+);
+
 describe('renderConfigHistoryCard', () => {
   it('renders empty-state message when no entries are provided', () => {
     const html = renderConfigHistoryCard([]);
@@ -90,7 +94,7 @@ describe('renderConfigHistoryCard', () => {
     expect(html).toContain('1 change');
   });
 
-  it('shows JSON summary titles inline and parsed JSON in expandable details', () => {
+  it('uses a friendly visibility label and retains complete raw JSON in details', () => {
     const entries: ConfigHistoryEntry[] = [
       {
         id: 1,
@@ -104,11 +108,11 @@ describe('renderConfigHistoryCard', () => {
     const html = renderConfigHistoryCard(entries);
     expect(html).toContain('config-history-row-expandable');
     expect(html).toContain(
-      '<span class="config-history-summary-text">ui_collapse_state (3 keys)</span>',
+      '<span class="config-history-summary-text">Section visibility changed</span>',
     );
-    expect(html).toContain('10:45');
-    expect(html).toContain('&quot;card:accounts&quot;: true');
-    expect(html).toContain('&quot;card:config-history&quot;: true');
+    expect(html).toContain(localTime);
+    expect(html).toContain('ui_collapse_state = {&quot;card:accounts&quot;:true');
+    expect(html).toContain('&quot;card:config-history&quot;:true');
   });
 
   it('shows item counts for JSON-array summaries', () => {
@@ -129,7 +133,7 @@ describe('renderConfigHistoryCard', () => {
     expect(html).toContain('&quot;sell&quot;');
   });
 
-  it('wraps plain rows in the shared single-line row layout', () => {
+  it('shows a friendly backup label with the raw timestamp in expandable details', () => {
     const entries: ConfigHistoryEntry[] = [
       {
         id: 1,
@@ -141,12 +145,12 @@ describe('renderConfigHistoryCard', () => {
     ];
     const html = renderConfigHistoryCard(entries);
     expect(html).toContain(
-      '<div class="config-history-row-main" title="last_backup_at = 2026-08-13T16:49:14.925Z">',
+      '<summary class="config-history-row-main" title="last_backup_at = 2026-08-13T16:49:14.925Z">',
     );
     expect(html).toContain(
-      '<span class="config-history-summary-text">last_backup_at = 2026-08-13T16:49:14.925Z</span>',
+      '<span class="config-history-summary-text">Backup export recorded</span>',
     );
-    expect(html).toContain('<span class="config-history-when">10:45</span>');
+    expect(html).toContain(`<span class="config-history-when">${localTime}</span>`);
   });
 
   it('trims long plain summaries inline and keeps full text in expandable details', () => {
@@ -157,16 +161,16 @@ describe('renderConfigHistoryCard', () => {
         source: 'web',
         entity: 'settings',
         summary:
-          'last_backup_at = 2026-08-14T07:26:05.911Z and this is intentionally long to test truncation',
+          'unknown_setting = 2026-08-14T07:26:05.911Z and this is intentionally long to test truncation',
       },
     ];
     const html = renderConfigHistoryCard(entries);
     expect(html).toContain('config-history-row-expandable');
     expect(html).toContain(
-      'config-history-summary-text">last_backup_at = 2026-08-14T07:26:05.911Z and this is i…',
+      'config-history-summary-text">unknown_setting = 2026-08-14T07:26:05.911Z and this is …',
     );
     expect(html).toContain(
-      'last_backup_at = 2026-08-14T07:26:05.911Z and this is intentionally long to test truncation',
+      'unknown_setting = 2026-08-14T07:26:05.911Z and this is intentionally long to test truncation',
     );
   });
 

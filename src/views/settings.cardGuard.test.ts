@@ -165,7 +165,7 @@ describe('isCardBusy / withCardGuard', () => {
       <div id="settings-card-accounts">
         <button id="save-btn">Save</button>
         <button id="delete-btn">Delete</button>
-        <button id="other-btn">Other</button>
+        <button id="other-btn" class="js-card-toggle">Other</button>
       </div>`;
     const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
     const deleteBtn = document.getElementById('delete-btn') as HTMLButtonElement;
@@ -173,7 +173,7 @@ describe('isCardBusy / withCardGuard', () => {
 
     let siblingDisabledDuringAction = false;
     await withCardGuard('accounts', saveBtn, async () => {
-      siblingDisabledDuringAction = deleteBtn.disabled && otherBtn.disabled;
+      siblingDisabledDuringAction = deleteBtn.disabled && !otherBtn.disabled;
       return 'done';
     });
 

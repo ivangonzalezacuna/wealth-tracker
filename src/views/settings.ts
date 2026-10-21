@@ -49,7 +49,7 @@ import {
 import { validateGoalLabels } from '../model/goals';
 import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
-import { showMsg, reinjectPendingMsg, withButtonGuard, esc, fmtEur } from '../utils';
+import { showMsg, reinjectPendingMsg, withButtonGuard, esc, fmtEur, fmtPctNeg } from '../utils';
 import { buildAnnualReport, renderAnnualReportHtml } from '../model/annualReport';
 import type {
   Account,
@@ -67,6 +67,7 @@ import { normalizeInstitution } from '../model/securitySuggestions';
 import { isCollapsed, setCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { confirmDialog } from '../ui/confirmDialog';
+import { notify, type ToastVariant } from '../ui/toast';
 import { accountDialog } from '../ui/accountDialog';
 import { holdingDialog } from '../ui/holdingDialog';
 import { goalDialog } from '../ui/goalDialog';
@@ -90,6 +91,7 @@ function intervalOptionsHtml(selected: ContribInterval): string {
 }
 
 import { EDIT_ICON, DELETE_ICON } from './icons';
+import { navHash, SETTINGS_VIEWS, type SettingsView } from '../nav';
 
 /** Card key: identifies which settings card an action belongs to. */
 type CardKey =
@@ -104,6 +106,120 @@ type CardKey =
   | 'backup'
   | 'reports'
   | 'config-history';
+
+function settingsCardHeader(key: CardKey, title: string, summary = ''): string {
+  const collapsed = key === 'config-history' || isCollapsed('card:' + key);
+  return `<h3 class="settings-card-heading">
+    <button type="button" class="card-header js-card-toggle" id="settings-heading-${key}"
+      aria-expanded="${!collapsed}" aria-controls="settings-body-${key}">
+      <span class="settings-card-label"><span class="card-title">${title}</span>
+      <span class="settings-card-summary">${esc(summary)}</span></span>
+      <span class="card-chevron" aria-hidden="true"></span>
+    </button>
+  </h3>`;
+}
+
+function setListDraftState(msgId: string, dirty: boolean): void {
+  const card = document.getElementById(msgId)?.closest<HTMLElement>('.card');
+  if (!card) return;
+  card.classList.toggle('settings-dirty', dirty);
+  const status = card.querySelector<HTMLElement>('.settings-draft-status');
+  if (status) status.textContent = dirty ? 'Unsaved changes' : '';
+  const save = card.querySelector<HTMLButtonElement>('button[data-save-for="' + msgId + '"]');
+  if (save) setSaveDirty(save, dirty);
+}
+
+const NO_CHANGES_TITLE = 'No changes to save';
+
+// Reapply data-dirty after card guards and sync locks release their buttons.
+function setSaveDirty(btn: HTMLButtonElement, dirty: boolean): void {
+  btn.dataset.dirty = String(dirty);
+  applySaveDirtyState(btn);
+  const card = btn.closest<HTMLElement>('.card');
+  card?.classList.toggle('settings-dirty', !!card.querySelector('button[data-dirty="true"]'));
+}
+
+function applySaveDirtyState(btn: HTMLButtonElement): void {
+  if (btn.dataset.dirty === undefined) return;
+  const clean = btn.dataset.dirty !== 'true';
+  if (btn.title === SYNC_BUSY_TITLE) return;
+  if (clean) {
+    btn.disabled = true;
+    btn.title = NO_CHANGES_TITLE;
+  } else {
+    if (btn.title === NO_CHANGES_TITLE) btn.title = '';
+    if (!isBusy() && !isCardBusy(btnCardKey(btn))) btn.disabled = false;
+  }
+}
+
+function btnCardKey(btn: HTMLElement): CardKey {
+  return (btn.closest<HTMLElement>('[data-card-key]')?.dataset.cardKey ?? '') as CardKey;
+}
+
+interface FormDirtyTracker {
+  refresh(): void;
+  commit(): void;
+}
+
+/** Trackers whose section can be re-rendered from the store outside its own listeners. */
+const _formDirty = new Map<string, FormDirtyTracker>();
+
+function trackFormDirty(
+  root: HTMLElement,
+  button: string,
+  selector: string | HTMLElement | null,
+  read?: () => string,
+  forceDirty: () => boolean = () => false,
+): FormDirtyTracker {
+  const scope = typeof selector === 'string' ? root.querySelector<HTMLElement>(selector) : selector;
+  const snapshot = read ?? (() => fieldValues(scope));
+  let baseline = snapshot();
+  const refresh = () => {
+    const btn = root.querySelector<HTMLButtonElement>(`#btn-save-${button}`);
+    if (btn) setSaveDirty(btn, forceDirty() || snapshot() !== baseline);
+  };
+  scope?.addEventListener('input', refresh);
+  scope?.addEventListener('change', refresh);
+  refresh();
+  return {
+    refresh,
+    commit() {
+      baseline = snapshot();
+      refresh();
+    },
+  };
+}
+
+function fieldValues(scope: ParentNode | null): string {
+  if (!scope) return '';
+  return JSON.stringify(
+    Array.from(
+      scope.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+        'input, select, textarea',
+      ),
+    ).map((el) =>
+      el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio')
+        ? el.checked
+        : el.value,
+    ),
+  );
+}
+
+function clearInlineMsg(id: string): void {
+  const inline = document.getElementById(id);
+  if (!inline) return;
+  inline.textContent = '';
+  inline.classList.remove('msg-ok', 'msg-err');
+}
+
+function toastResult(source: string, text: string, variant: ToastVariant): void {
+  clearInlineMsg(source);
+  notify(text, { variant, source });
+}
+
+function errorText(err: unknown): string {
+  return (err as Error)?.message || 'unknown error';
+}
 
 /** One busy flag per card. Every Save/Delete/action handler in a card must
  *  go through withCardGuard (never withButtonGuard directly), so two actions
@@ -140,7 +256,7 @@ export async function withCardGuard<T>(
   const siblingBtns: HTMLButtonElement[] = [];
   if (cardEl) {
     for (const b of Array.from(cardEl.querySelectorAll('button'))) {
-      if (b !== btn && !b.disabled) {
+      if (b !== btn && !b.disabled && !b.classList.contains('js-card-toggle')) {
         b.disabled = true;
         siblingBtns.push(b);
       }
@@ -155,6 +271,7 @@ export async function withCardGuard<T>(
     applySyncBusyState(); // re-enable the other cards' buttons
     // Re-enable sibling buttons that we disabled
     for (const b of siblingBtns) b.disabled = false;
+    cardEl?.querySelectorAll<HTMLButtonElement>('button[data-dirty]').forEach(applySaveDirtyState);
   }
 }
 
@@ -166,6 +283,7 @@ const SYNC_LOCK_EXEMPT_IDS = new Set([
   'btn-add-hold',
   'btn-add-rule',
   'btn-add-goal',
+  'btn-retry-report',
 ]);
 const SYNC_BUSY_TITLE = 'Sync in progress, try again in a moment';
 const SETTINGS_DEFAULT_COLLAPSE_MARKER = 'settings-defaults-v1';
@@ -177,6 +295,13 @@ const SETTINGS_DEFAULT_COLLAPSED_CARDS: ReadonlySet<CardKey> = new Set([
   'reports',
   'config-history',
 ]);
+
+const SETTINGS_TABS: ReadonlyArray<{ view: SettingsView; label: string; panel: string }> = [
+  { view: 'portfolio', label: 'Portfolio', panel: 'settings-group-portfolio' },
+  { view: 'planning', label: 'Planning', panel: 'settings-group-tracking' },
+  { view: 'advanced', label: 'Advanced', panel: 'settings-group-advanced' },
+];
+let _settingsView: SettingsView = 'portfolio';
 
 function applySettingsDefaultCollapseState(): void {
   if (isCollapsed(SETTINGS_DEFAULT_COLLAPSE_MARKER)) return;
@@ -195,13 +320,19 @@ export function applySyncBusyState(): void {
   if (!root) return;
   const busy = isBusy();
   root.querySelectorAll<HTMLButtonElement>('.card button').forEach((btn) => {
-    if (SYNC_LOCK_EXEMPT_IDS.has(btn.id) || btn.dataset.hfilter !== undefined) return;
+    if (
+      SYNC_LOCK_EXEMPT_IDS.has(btn.id) ||
+      btn.dataset.hfilter !== undefined ||
+      btn.classList.contains('js-card-toggle')
+    )
+      return;
     if (busy) {
       btn.disabled = true;
       btn.title = SYNC_BUSY_TITLE;
     } else if (btn.title === SYNC_BUSY_TITLE) {
-      btn.disabled = false;
+      btn.disabled = btn.id === 'btn-download-report' && btn.dataset.reportReady !== 'true';
       btn.title = '';
+      applySaveDirtyState(btn);
     }
   });
 }
@@ -225,33 +356,22 @@ export function renderSettings(): void {
   applySettingsDefaultCollapseState();
 
   el.innerHTML = `
-    <nav class="subnav range-toggle settings-group-nav" aria-label="Settings sections">
-      <button type="button" class="btn btn-sm btn-ghost" data-settings-group-target="settings-group-portfolio">Portfolio structure</button>
-      <button type="button" class="btn btn-sm btn-ghost" data-settings-group-target="settings-group-tracking">Tracking &amp; planning</button>
-      <button type="button" class="btn btn-sm btn-ghost" data-settings-group-target="settings-group-advanced">Advanced</button>
-    </nav>
-    <div class="settings-group" id="settings-group-portfolio">
-      <div class="settings-group-header">
-        <span class="settings-group-title">Portfolio structure</span>
-        <span class="settings-group-note">Start here, add an account first, then add your holdings.</span>
-      </div>
+    <div class="subnav range-toggle settings-tabs" role="tablist" aria-label="Settings sections">
+      ${SETTINGS_TABS.map(
+        (t) =>
+          `<button type="button" class="btn btn-sm btn-ghost" id="settings-tab-${t.view}" role="tab" data-settings-view="${t.view}" aria-controls="${t.panel}">${t.label}</button>`,
+      ).join('')}
+    </div>
+    <div class="settings-group" id="settings-group-portfolio" role="tabpanel" aria-labelledby="settings-tab-portfolio">
       ${renderAccountsCard(accounts)}
       ${renderHoldingsCard(holdings)}
     </div>
-    <div class="settings-group" id="settings-group-tracking">
-      <div class="settings-group-header">
-        <span class="settings-group-title">Tracking &amp; planning</span>
-        <span class="settings-group-note">Configure recurring contributions, performance parameters, and wealth targets.</span>
-      </div>
+    <div class="settings-group" id="settings-group-tracking" role="tabpanel" aria-labelledby="settings-tab-planning">
       ${renderContributionsCard(settings)}
       ${renderCalcAssumptionsCard(settings)}
       ${renderGoalCard(settings)}
     </div>
-    <div class="settings-group" id="settings-group-advanced">
-      <div class="settings-group-header">
-        <span class="settings-group-title">Advanced</span>
-        <span class="settings-group-note">Manage integrations, portfolio behaviour settings, data sync, and backup options.</span>
-      </div>
+    <div class="settings-group" id="settings-group-advanced" role="tabpanel" aria-labelledby="settings-tab-advanced">
       ${renderPortfolioBehaviorCard(settings)}
       ${renderFxIntegrationsCard(settings)}
       ${renderCacheCard()}
@@ -270,21 +390,36 @@ export function renderSettings(): void {
   attachFxIntegrationListeners(el);
   attachCacheListeners(el);
   attachBackupListeners(el);
-  attachReportListeners(el);
   attachColorPickerSync(el);
   attachCardCollapseListeners(el);
+  attachReportListeners(el);
   attachSettingsGroupNavListeners(el);
+  el.querySelectorAll('.form-msg, #backup-msg').forEach((message) => {
+    message.setAttribute('role', 'status');
+    message.setAttribute('aria-live', 'polite');
+  });
 
   // Load and render config history asynchronously after initial paint
-  void loadConfigHistory(50).then((entries) => {
-    const card = document.getElementById('settings-card-config-history');
-    if (card) card.outerHTML = renderConfigHistoryCard(entries);
-    const fresh = document.getElementById('settings-card-config-history');
-    if (fresh) {
-      attachCardCollapseListeners(fresh);
-      fresh.classList.add('collapsed');
-    }
-  });
+  const historyCard = el.querySelector('#settings-card-config-history');
+  void loadConfigHistory(50)
+    .then((entries) => {
+      if (!historyCard?.isConnected) return;
+      const template = document.createElement('template');
+      template.innerHTML = renderConfigHistoryCard(entries);
+      const body = historyCard.querySelector('.card-body');
+      const nextBody = template.content.querySelector('.card-body');
+      if (body && nextBody) body.innerHTML = nextBody.innerHTML;
+    })
+    .catch((error: unknown) => {
+      if (!historyCard?.isConnected) return;
+      const body = historyCard.querySelector('.card-body');
+      if (body) {
+        body.textContent =
+          'Configuration history could not be loaded: ' +
+          (error instanceof Error ? error.message : String(error));
+        body.setAttribute('role', 'status');
+      }
+    });
 
   // Reapply persisted collapse state after re-render
   el.querySelectorAll('.card-collapsible').forEach((card) => {
@@ -298,20 +433,61 @@ export function renderSettings(): void {
 }
 
 function attachSettingsGroupNavListeners(root: HTMLElement): void {
-  const nav = root.querySelector('.settings-group-nav');
-  if (!nav) return;
-  nav.addEventListener('click', (event) => {
-    const btn = (event.target as HTMLElement).closest<HTMLButtonElement>(
-      '[data-settings-group-target]',
-    );
-    const targetId = btn?.dataset.settingsGroupTarget;
-    if (!targetId) return;
-    const section = document.getElementById(targetId);
-    if (!section) return;
-    if (typeof section.scrollIntoView === 'function') {
-      section.scrollIntoView({ block: 'start' });
-    }
+  const tablist = root.querySelector<HTMLElement>('.settings-tabs');
+  if (!tablist) return;
+  applySettingsView(_settingsView);
+  tablist.addEventListener('click', (event) => {
+    const btn = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-settings-view]');
+    if (btn) selectSettingsView(btn.dataset.settingsView as SettingsView);
   });
+  tablist.addEventListener('keydown', (event) => {
+    const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!keys.includes(event.key)) return;
+    event.preventDefault();
+    const cur = SETTINGS_VIEWS.indexOf(_settingsView);
+    const n = SETTINGS_VIEWS.length;
+    const next =
+      event.key === 'ArrowRight'
+        ? (cur + 1) % n
+        : event.key === 'ArrowLeft'
+          ? (cur - 1 + n) % n
+          : event.key === 'Home'
+            ? 0
+            : n - 1;
+    selectSettingsView(SETTINGS_VIEWS[next]);
+    document.getElementById(`settings-tab-${SETTINGS_VIEWS[next]}`)?.focus();
+  });
+}
+
+function selectSettingsView(view: SettingsView): void {
+  setSettingsView(view);
+  if (document.getElementById('settings')?.classList.contains('active')) {
+    history.replaceState(null, '', navHash('settings', _settingsView));
+  }
+}
+
+/** Show one Settings section (tab) and hide the others. Safe before mount. */
+export function setSettingsView(view: SettingsView | null | undefined): void {
+  _settingsView = view && SETTINGS_VIEWS.includes(view) ? view : 'portfolio';
+  applySettingsView(_settingsView);
+}
+
+export function getSettingsView(): SettingsView {
+  return _settingsView;
+}
+
+function applySettingsView(view: SettingsView): void {
+  for (const t of SETTINGS_TABS) {
+    const active = t.view === view;
+    const tab = document.getElementById(`settings-tab-${t.view}`);
+    if (tab) {
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', String(active));
+      tab.setAttribute('tabindex', active ? '0' : '-1');
+    }
+    const panel = document.getElementById(t.panel);
+    if (panel) panel.hidden = !active;
+  }
 }
 
 // ── Data-only refresh functions ───────────────────────────
@@ -331,16 +507,18 @@ function refreshHoldingsData(): void {
 function refreshRulesData(): void {
   const root = document.getElementById('settings-card-portfolio-behavior');
   if (root) rerenderRulesTable(root, rulesFromSettings(getSettings()));
+  _formDirty.get('rules')?.commit();
 }
 
 function refreshCostBasisData(): void {
   const el = document.getElementById('settings-costbasis-fields');
   if (el) el.innerHTML = costBasisFieldsHtml(getCostBasisMethod());
+  _formDirty.get('cost-basis')?.commit();
 }
 
 function refreshGoalData(): void {
   const card = document.getElementById('settings-card-goal');
-  if (card) rerenderGoalsTable(card, getGoals());
+  if (card && !card.classList.contains('settings-dirty')) rerenderGoalsTable(card, getGoals());
 }
 
 function refreshBackupData(): void {
@@ -409,8 +587,8 @@ export function accountCurrencyList(accounts: Account[]): string[] {
 
 interface EditableListController<T> {
   items(): T[];
-  previewAdd(next: T, message: string): T[];
-  previewUpdate(index: number, next: T, message: string): T[];
+  previewAdd(next: T): T[];
+  previewUpdate(index: number, next: T): T[];
 }
 
 function createEditableListController<T>(opts: {
@@ -420,16 +598,16 @@ function createEditableListController<T>(opts: {
 }): EditableListController<T> {
   return {
     items: () => opts.getItems(),
-    previewAdd(next, message) {
+    previewAdd(next) {
       const updated = [...opts.getItems(), next];
       opts.apply(updated);
-      showMsg(opts.msgId, message, true);
+      setListDraftState(opts.msgId, true);
       return updated;
     },
-    previewUpdate(index, next, message) {
+    previewUpdate(index, next) {
       const updated = opts.getItems().map((item, itemIndex) => (itemIndex === index ? next : item));
       opts.apply(updated);
-      showMsg(opts.msgId, message, true);
+      setListDraftState(opts.msgId, true);
       return updated;
     },
   };
@@ -452,9 +630,10 @@ async function persistListRemoval<T>(opts: {
   confirmLabel?: string;
   afterPersist?: (items: T[]) => Promise<string | void>;
 }): Promise<void> {
+  const dirty = document.getElementById(opts.msgId)?.closest('.settings-dirty');
   const ok = await confirmDialog({
     title: opts.confirmTitle,
-    body: opts.confirmBody,
+    body: `${opts.confirmBody} Removal is saved immediately.${dirty ? ' This also saves the other unsaved changes in this section.' : ''}`,
     confirmLabel: opts.confirmLabel || 'Remove',
     danger: true,
   });
@@ -462,23 +641,26 @@ async function persistListRemoval<T>(opts: {
   const updated = opts.controller.items().filter((_, itemIndex) => itemIndex !== opts.index);
   try {
     let successMessage = opts.successMessage;
-    await withCardGuard(
+    const saved = await withCardGuard(
       opts.cardKey,
       opts.btn,
       async () => {
         await opts.persist(updated);
         const result = await opts.afterPersist?.(updated);
         if (result) successMessage = result;
+        return true;
       },
       {
         busyText: opts.busyText,
         keepDisabledOnSuccess: opts.keepDisabledOnSuccess,
       },
     );
+    if (!saved) return;
     opts.rerender(opts.root, updated);
-    showMsg(opts.msgId, successMessage, true);
+    setListDraftState(opts.msgId, false);
+    toastResult(opts.msgId, successMessage, 'success');
   } catch (err) {
-    showMsg(opts.msgId, 'Error: ' + (err as Error).message, false);
+    toastResult(opts.msgId, 'Could not remove: ' + errorText(err), 'error');
   }
 }
 
@@ -488,18 +670,16 @@ function renderAccountsCard(accounts: Account[]): string {
 
   return `
     <div class="card card-collapsible" id="settings-card-accounts" data-card-key="accounts">
-      <div class="card-header js-card-toggle">
-        <div class="card-title">Accounts</div>
-        <span class="card-chevron"></span>
-      </div>
+      ${settingsCardHeader('accounts', 'Accounts', `${accounts.length} account${accounts.length === 1 ? '' : 's'}`)}
       <div class="card-body">
-        <p class="note" style="margin-bottom:.75rem">Accounts tracked in each monthly net-worth snapshot. Add one row per bank account or portfolio.</p>
-        <div id="settings-accounts-tbl" class="settings-items">
+        <p class="note" style="margin-bottom:.5rem">One row per bank account or portfolio, tracked in each monthly snapshot.</p>
+        <div id="settings-accounts-tbl" class="settings-items settings-list">
           ${rows}
         </div>
         <div class="form-actions">
           <button class="btn btn-outline btn-sm" id="btn-add-acct">+ Add account</button>
-          <button class="btn btn-primary btn-sm" id="btn-save-accts">Save accounts</button>
+          <button class="btn btn-primary btn-sm" id="btn-save-accts" data-save-for="accts-msg" data-dirty="false" title="No changes to save" disabled>Save accounts</button>
+          <span class="settings-draft-status" role="status"></span>
           <span id="accts-msg" class="form-msg"></span>
         </div>
       </div>
@@ -511,28 +691,44 @@ function renderAccountRow(a: Account, i: number): string {
     ACCOUNT_TYPES.find((t) => t.value === a.moneyType)?.label || a.moneyType || '',
   );
   const color = a.color || 'var(--ink-4)';
-  const meta = [
-    typeLabel,
+  const sub = [
     a.institution ? esc(a.institution) : '',
+    typeLabel,
+    a.group ? esc(a.group) : '',
     a.country ? esc(a.country) : '',
-    a.group ? `Group: ${esc(a.group)}` : '',
-    a.isPrimaryInvestment ? 'Primary' : '',
   ]
     .filter(Boolean)
     .join(' · ');
+  const facts = [
+    a.annualReturnPct ? `${fmtPctNeg(a.annualReturnPct, 2)}/yr` : '',
+    a.currency && a.currency.toUpperCase() !== 'EUR' ? esc(a.currency.toUpperCase()) : '',
+    a.locked ? `Locked${a.lockedUntil ? ' to ' + esc(a.lockedUntil) : ''}` : '',
+  ].filter(Boolean);
+  const badge = a.isPrimaryInvestment ? '<span class="badge b-active">Primary</span>' : '';
+  const name = esc(a.label) || 'New account';
 
   return `
     <div class="settings-item settings-acct-row" data-idx="${i}">
       <div class="settings-item-header">
         <span class="leg-sq" style="background:${esc(color)};flex-shrink:0"></span>
-        <span class="settings-item-title">${esc(a.label) || 'New account'}</span>
-        <span class="settings-item-meta">${meta}</span>
+        <span class="settings-item-copy">
+          <span class="settings-item-title" title="${name}">${name}</span>
+          ${sub ? `<span class="settings-item-meta" title="${sub}">${sub}</span>` : ''}
+        </span>
+        ${settingsItemFacts(facts, badge)}
         <div class="settings-row-actions">
-          <button class="btn btn-sm btn-outline btn-icon js-edit-acct" data-idx="${i}" aria-label="Edit account" title="Edit account">${EDIT_ICON}</button>
-          <button class="btn btn-sm btn-danger btn-icon js-del-acct" data-idx="${i}" aria-label="Delete account" title="Delete account">${DELETE_ICON}</button>
+          <button class="btn btn-sm btn-outline btn-icon js-edit-acct" data-idx="${i}" aria-label="Edit account ${name}" title="Edit account">${EDIT_ICON}</button>
+          <button class="btn btn-sm btn-danger btn-icon js-del-acct" data-idx="${i}" aria-label="Delete account ${name}" title="Delete account">${DELETE_ICON}</button>
         </div>
       </div>
     </div>`;
+}
+
+function settingsItemFacts(facts: string[], badge = ''): string {
+  if (!facts.length && !badge) return '';
+  return `<span class="settings-item-facts">${facts
+    .map((f) => `<span class="settings-item-fact">${f}</span>`)
+    .join('')}${badge}</span>`;
 }
 
 /** Shared account-delete implementation. setAccounts runs before
@@ -584,13 +780,15 @@ async function deleteAccount(
     confirmBody:
       'This removes it from your configuration. The account has no stored snapshot balances, so historical totals stay unchanged. Its old data column stays reserved so a future account never accidentally reuses it.',
     msgId: 'accts-msg',
-    successMessage: 'Removed',
+    successMessage: 'Account removed',
     busyText: 'Removing...',
     keepDisabledOnSuccess: true,
     afterPersist: async () => {
       if (!a?.id) return;
       const retiredOk = await retireAccountIdsSafely([a.id]);
-      return retiredOk ? 'Removed' : 'Removed (will finish reserving its id once back online)';
+      return retiredOk
+        ? 'Account removed'
+        : 'Account removed (will finish reserving its id once back online)';
     },
   });
 }
@@ -646,7 +844,7 @@ function attachAccountListeners(root: HTMLElement): void {
     });
     if (!draft) return;
     draft.order = controller.items().length + 1;
-    controller.previewAdd(draft, 'Account added. Click Save to persist.');
+    controller.previewAdd(draft);
   });
 
   root.addEventListener('click', async (e) => {
@@ -667,7 +865,7 @@ function attachAccountListeners(root: HTMLElement): void {
     });
     if (!draft) return;
     draft.order = existing.order;
-    controller.previewUpdate(idx, draft, 'Account updated. Click Save to persist.');
+    controller.previewUpdate(idx, draft);
   });
 
   root.querySelector('#btn-save-accts')?.addEventListener('click', async () => {
@@ -710,18 +908,21 @@ function attachAccountListeners(root: HTMLElement): void {
       return;
     }
     try {
-      await withCardGuard(
+      const saved = await withCardGuard(
         'accounts',
         btn,
         async () => {
           await migrateLegacySnapshotKeys(accounts);
           await setAccounts(accounts);
+          return true;
         },
         { busyText: 'Saving...' },
       );
-      showMsg('accts-msg', 'Saved', true);
+      if (!saved) return;
+      setListDraftState('accts-msg', false);
+      toastResult('accts-msg', 'Accounts saved', 'success');
     } catch (err) {
-      showMsg('accts-msg', 'Error: ' + (err as Error).message, false);
+      toastResult('accts-msg', 'Could not save accounts: ' + errorText(err), 'error');
     }
   });
 
@@ -739,6 +940,9 @@ function collectAccounts(_root: HTMLElement): Account[] {
 
 function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
   _accounts = accounts.slice();
+  const summary = root.querySelector('#settings-heading-accounts .settings-card-summary');
+  if (summary)
+    summary.textContent = `${accounts.length} account${accounts.length === 1 ? '' : 's'}`;
   const tbl = root.querySelector('#settings-accounts-tbl') as HTMLElement | null;
   if (!tbl) return;
   const rows = accounts.map((a, i) => renderAccountRow(a, i)).join('');
@@ -780,12 +984,9 @@ function renderHoldingsCard(holdings: Holding[]): string {
 
   return `
     <div class="card card-collapsible" id="settings-card-holdings" data-card-key="holdings">
-      <div class="card-header js-card-toggle">
-        <div class="card-title">Holdings (ETFs)</div>
-        <span class="card-chevron"></span>
-      </div>
+      ${settingsCardHeader('holdings', 'Holdings (ETFs)', `${holdings.length} holdings · ${activeCount} active for allocation`)}
       <div class="card-body">
-        <p class="note" style="margin-bottom:.75rem">ETF positions in your portfolio. Set a target allocation percentage on each active holding to use the drift and rebalance features. Closed positions can be folded into a successor fund.</p>
+        <p class="note" style="margin-bottom:.5rem">Set a target % on active holdings for drift and rebalancing. Closed positions can fold into a successor fund.</p>
         <div class="filter-bar" style="margin-bottom:8px">
           <div class="range-toggle" id="hold-filter-toggle">
             <button class="btn btn-sm btn-ghost ${_holdingsSettingsFilter === 'all' ? 'active' : ''}" data-hfilter="all">All (${holdings.length})</button>
@@ -793,13 +994,14 @@ function renderHoldingsCard(holdings: Holding[]): string {
             <button class="btn btn-sm btn-ghost ${_holdingsSettingsFilter === 'closed' ? 'active' : ''}" data-hfilter="closed">Closed (${closedCount})</button>
           </div>
         </div>
-        <div id="settings-holdings-tbl" class="settings-items">
+        <div id="settings-holdings-tbl" class="settings-items settings-list">
           ${rows}
         </div>
         <div class="form-actions">
           <button class="btn btn-outline btn-sm" id="btn-add-hold">+ Add holding</button>
           <button class="btn btn-outline btn-sm" id="btn-autofill-holds">Auto-fill from transactions</button>
-          <button class="btn btn-primary btn-sm" id="btn-save-holds">Save holdings</button>
+          <button class="btn btn-primary btn-sm" id="btn-save-holds" data-save-for="holds-msg" data-dirty="false" title="No changes to save" disabled>Save holdings</button>
+          <span class="settings-draft-status" role="status"></span>
           <span id="holds-msg" class="form-msg"></span>
         </div>
       </div>
@@ -811,16 +1013,28 @@ function renderHoldingRow(h: Holding, i: number): string {
     ? '<span class="badge b-active">Active</span>'
     : '<span class="badge b-closed">Closed</span>';
   const color = h.color || 'var(--ink-4)';
+  const name = esc(h.shortName) || esc(h.isin) || 'New holding';
+  const sub = [h.isin ? esc(h.isin) : '', h.name && h.name !== h.shortName ? esc(h.name) : '']
+    .filter(Boolean)
+    .join(' · ');
+  const facts = [
+    h.targetPct != null && isFinite(h.targetPct) ? `${fmtPctNeg(h.targetPct, 2)} target` : '',
+    h.ter != null && isFinite(h.ter) ? `TER ${fmtPctNeg(h.ter, 2)}` : '',
+    h.acc === false ? 'Dist' : 'Acc',
+  ].filter(Boolean);
 
   return `
     <div class="settings-item settings-hold-row" data-idx="${i}">
       <div class="settings-item-header">
         <span class="leg-sq" style="background:${esc(color)};flex-shrink:0"></span>
-        <span class="settings-item-title">${esc(h.shortName) || esc(h.isin) || 'New holding'}</span>
-        ${statusBadge}
+        <span class="settings-item-copy">
+          <span class="settings-item-title" title="${name}">${name}</span>
+          ${sub ? `<span class="settings-item-meta" title="${sub}">${sub}</span>` : ''}
+        </span>
+        ${settingsItemFacts(facts, statusBadge)}
         <div class="settings-row-actions">
-          <button class="btn btn-sm btn-outline btn-icon js-edit-hold" data-idx="${i}" aria-label="Edit holding" title="Edit holding">${EDIT_ICON}</button>
-          <button class="btn btn-sm btn-danger btn-icon js-del-hold" data-idx="${i}" aria-label="Delete holding" title="Delete holding">${DELETE_ICON}</button>
+          <button class="btn btn-sm btn-outline btn-icon js-edit-hold" data-idx="${i}" aria-label="Edit holding ${name}" title="Edit holding">${EDIT_ICON}</button>
+          <button class="btn btn-sm btn-danger btn-icon js-del-hold" data-idx="${i}" aria-label="Delete holding ${name}" title="Delete holding">${DELETE_ICON}</button>
         </div>
       </div>
     </div>`;
@@ -883,7 +1097,7 @@ async function deleteHolding(
     confirmTitle: `Remove ${esc(hold?.shortName || hold?.isin || 'this holding')}?`,
     confirmBody: 'This removes it from your configuration. Historical data is not affected.',
     msgId: 'holds-msg',
-    successMessage: 'Removed',
+    successMessage: 'Holding removed',
     busyText: 'Removing...',
     keepDisabledOnSuccess: true,
   });
@@ -923,7 +1137,7 @@ function attachHoldingListeners(root: HTMLElement): void {
       existingIsins: controller.items().map((h) => h.isin),
     });
     if (!draft) return;
-    controller.previewAdd(draft, 'Holding added. Click Save to persist.');
+    controller.previewAdd(draft);
   });
 
   root.addEventListener('click', async (e) => {
@@ -943,11 +1157,7 @@ function attachHoldingListeners(root: HTMLElement): void {
       existingIsins: holds.filter((h) => h.isin !== existing.isin).map((h) => h.isin),
     });
     if (!draft) return;
-    controller.previewUpdate(
-      idx,
-      { ...draft, order: existing.order },
-      'Holding updated. Click Save to persist.',
-    );
+    controller.previewUpdate(idx, { ...draft, order: existing.order });
   });
 
   root.querySelector('#btn-autofill-holds')?.addEventListener('click', async () => {
@@ -1016,18 +1226,19 @@ function attachHoldingListeners(root: HTMLElement): void {
             }
           }
           rerenderHoldingsTable(root, holds);
-          showMsg(
+          if (added > 0) setListDraftState('holds-msg', true);
+          toastResult(
             'holds-msg',
             added > 0
               ? `Added ${added} holding(s) from transactions. Review and save.`
               : 'All transaction ISINs already configured.',
-            true,
+            'info',
           );
         },
         { busyText: 'Loading...' },
       );
     } catch (err) {
-      showMsg('holds-msg', 'Error: ' + (err as Error).message, false);
+      toastResult('holds-msg', 'Could not load transactions: ' + errorText(err), 'error');
     }
   });
 
@@ -1044,10 +1255,17 @@ function attachHoldingListeners(root: HTMLElement): void {
       return;
     }
     try {
-      await withCardGuard('holdings', btn, () => setHoldings(holds), { busyText: 'Saving...' });
-      showMsg('holds-msg', 'Saved', true);
+      const saved = await withCardGuard(
+        'holdings',
+        btn,
+        () => setHoldings(holds).then(() => true),
+        { busyText: 'Saving...' },
+      );
+      if (!saved) return;
+      setListDraftState('holds-msg', false);
+      toastResult('holds-msg', 'Holdings saved', 'success');
     } catch (err) {
-      showMsg('holds-msg', 'Error: ' + (err as Error).message, false);
+      toastResult('holds-msg', 'Could not save holdings: ' + errorText(err), 'error');
     }
   });
 
@@ -1064,6 +1282,9 @@ function rerenderHoldingsTable(root: HTMLElement, holdings: Holding[]): void {
   _holdings = holdings.slice();
   _allHoldings = holdings.slice();
   _holdingsSettingsFilter = 'all';
+  const summary = root.querySelector('#settings-heading-holdings .settings-card-summary');
+  if (summary)
+    summary.textContent = `${holdings.length} holdings · ${holdings.filter((h) => h.active).length} active for allocation`;
   const tbl = root.querySelector('#settings-holdings-tbl');
   if (!tbl) return;
   const rows = holdings.map((h, i) => renderHoldingRow(h, i)).join('');
@@ -1088,16 +1309,16 @@ function rerenderHoldingsTable(root: HTMLElement, holdings: Holding[]): void {
 
 function costBasisFieldsHtml(current: string): string {
   return `
-    <div class="form-grid" style="max-width:500px">
+    <div class="settings-method-fields">
       <div class="form-group">
-        <label class="form-label">Method</label>
+        <label class="form-label" for="set-cost-basis-method">Method</label>
         <select class="form-input" id="set-cost-basis-method">
           <option value="avgco" ${current === 'avgco' ? 'selected' : ''}>Average cost</option>
           <option value="fifo" ${current === 'fifo' ? 'selected' : ''}>FIFO (first in, first out)</option>
           <option value="lifo" ${current === 'lifo' ? 'selected' : ''}>LIFO (last in, first out)</option>
           <option value="hifo" ${current === 'hifo' ? 'selected' : ''}>HIFO (highest cost first)</option>
         </select>
-        <span class="note"><b>Average cost</b> spreads cost evenly across all shares; simple but less precise on partial sells. <b>FIFO</b> uses the oldest lots first; the default under German Abgeltungsteuer. <b>LIFO</b> uses the most recent lots first, often reducing short-term gains. <b>HIFO</b> uses the highest-cost lots first to minimize realized gains where jurisdiction allows.</span>
+        <p class="note settings-method-help"><b>Average cost</b> spreads cost evenly across all shares; simple but less precise on partial sells. <b>FIFO</b> uses the oldest lots first; the default under German Abgeltungsteuer. <b>LIFO</b> uses the most recent lots first, often reducing short-term gains. <b>HIFO</b> uses the highest-cost lots first to minimize realized gains where jurisdiction allows.</p>
       </div>
     </div>`;
 }
@@ -1120,10 +1341,7 @@ function renderContributionsCard(_settings: Settings): string {
 
   return `
     <div class="card card-collapsible" id="settings-card-contributions" data-card-key="contributions">
-      <div class="card-header js-card-toggle">
-        <div class="card-title">Portfolio contributions</div>
-        <span class="card-chevron"></span>
-      </div>
+      ${settingsCardHeader('contributions', 'Portfolio contributions', 'Amount, cadence, and calibration')}
       <div class="card-body">
         <p class="note" style="margin-bottom:.75rem">Configure your recurring contribution amount and cadence, plus the cadence used to express the rebalance plan in the Portfolio tab.</p>
         <div class="form-group">
@@ -1146,7 +1364,7 @@ function renderContributionsCard(_settings: Settings): string {
           <select id="set-calibration-interval" class="form-input">${intervalOptions}</select>
         </div>
         <div class="form-actions">
-          <button class="btn btn-primary btn-sm" id="btn-save-contributions">Save</button>
+          <button class="btn btn-primary btn-sm" id="btn-save-contributions">Save contributions</button>
           <span id="contributions-msg" class="form-msg"></span>
         </div>
       </div>
@@ -1154,6 +1372,11 @@ function renderContributionsCard(_settings: Settings): string {
 }
 
 function attachContributionsListeners(root: HTMLElement): void {
+  const contributionsDirty = trackFormDirty(
+    root,
+    'contributions',
+    '#settings-card-contributions .card-body',
+  );
   root.querySelector('#btn-save-contributions')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-contributions') as HTMLButtonElement;
     const budget =
@@ -1175,9 +1398,10 @@ function attachContributionsListeners(root: HTMLElement): void {
         },
         { busyText: 'Saving...' },
       );
-      showMsg('contributions-msg', 'Saved', true);
+      contributionsDirty.commit();
+      toastResult('contributions-msg', 'Contributions saved', 'success');
     } catch (err) {
-      showMsg('contributions-msg', 'Error: ' + (err as Error).message, false);
+      toastResult('contributions-msg', 'Could not save contributions: ' + errorText(err), 'error');
     }
   });
 }
@@ -1188,10 +1412,7 @@ function renderCalcAssumptionsCard(settings: Settings): string {
 
   return `
     <div class="card card-collapsible" id="settings-card-calc-assumptions" data-card-key="calc-assumptions">
-      <div class="card-header js-card-toggle">
-        <div class="card-title">Calculation assumptions</div>
-        <span class="card-chevron"></span>
-      </div>
+      ${settingsCardHeader('calc-assumptions', 'Calculation assumptions', 'Cost basis and risk parameters')}
       <div class="card-body">
         <div class="card-section-head">COST-BASIS METHOD</div>
         <p class="note" style="margin-bottom:.75rem">Choose how realized gains are calculated when you sell shares.</p>
@@ -1228,6 +1449,13 @@ function renderCalcAssumptionsCard(settings: Settings): string {
 }
 
 function attachCalcAssumptionsListeners(root: HTMLElement): void {
+  const costBasisDirty = trackFormDirty(root, 'cost-basis', '#settings-costbasis-fields');
+  _formDirty.set('cost-basis', costBasisDirty);
+  const analyticsDirty = trackFormDirty(
+    root,
+    'analytics',
+    '#settings-card-calc-assumptions .settings-field',
+  );
   root.querySelector('#btn-save-cost-basis')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-cost-basis') as HTMLButtonElement;
     const method =
@@ -1236,9 +1464,10 @@ function attachCalcAssumptionsListeners(root: HTMLElement): void {
       await withCardGuard('calc-assumptions', btn, () => setSetting('costBasisMethod', method), {
         busyText: 'Saving...',
       });
-      showMsg('costbasis-msg', 'Saved', true);
+      costBasisDirty.commit();
+      toastResult('costbasis-msg', 'Cost-basis method saved', 'success');
     } catch (err) {
-      showMsg('costbasis-msg', 'Error: ' + (err as Error).message, false);
+      toastResult('costbasis-msg', 'Could not save cost-basis method: ' + errorText(err), 'error');
     }
   });
 
@@ -1259,9 +1488,10 @@ function attachCalcAssumptionsListeners(root: HTMLElement): void {
         () => setSettings({ riskFreeRate: String(rfrValue) }),
         { busyText: 'Saving...' },
       );
-      showMsg('analytics-msg', 'Saved', true);
+      analyticsDirty.commit();
+      toastResult('analytics-msg', 'Analytics saved', 'success');
     } catch (err) {
-      showMsg('analytics-msg', 'Error: ' + (err as Error).message, false);
+      toastResult('analytics-msg', 'Could not save analytics: ' + errorText(err), 'error');
     }
   });
 }
@@ -1280,7 +1510,6 @@ function renderGoalRow(goal: NamedGoal, idx: number): string {
   const fmtNW = goal.targetNetWorth ? _fmtGoalNW(goal.targetNetWorth) : '';
   const title = goal.label || fmtNW || `Goal ${idx + 1}`;
   const metaParts: string[] = [];
-  if (fmtNW) metaParts.push(esc(fmtNW));
   if (goal.targetDate) metaParts.push(esc(formatEnglishMonth(goal.targetDate)));
   const msCount = goal.milestones?.length ?? 0;
   if (msCount > 0) metaParts.push(`${msCount} milestone${msCount === 1 ? '' : 's'}`);
@@ -1288,11 +1517,14 @@ function renderGoalRow(goal: NamedGoal, idx: number): string {
   return `
     <div class="settings-item settings-goal-row" data-idx="${idx}">
       <div class="settings-item-header">
-        <span class="settings-item-title">${esc(title)}</span>
-        ${metaStr ? `<span class="settings-item-meta">${metaStr}</span>` : ''}
+        <span class="settings-item-copy">
+          <span class="settings-item-title">${esc(title)}</span>
+          ${metaStr ? `<span class="settings-item-meta">${metaStr}</span>` : ''}
+        </span>
+        ${settingsItemFacts(fmtNW && title !== fmtNW ? [esc(fmtNW)] : [])}
         <div class="settings-row-actions">
-          <button class="btn btn-sm btn-outline btn-icon js-edit-goal" data-idx="${idx}" aria-label="Edit goal" title="Edit goal">${EDIT_ICON}</button>
-          <button class="btn btn-sm btn-danger btn-icon js-del-goal" data-idx="${idx}" aria-label="Delete goal" title="Delete goal">${DELETE_ICON}</button>
+          <button class="btn btn-sm btn-outline btn-icon js-edit-goal" data-idx="${idx}" aria-label="Edit goal ${esc(title)}" title="Edit goal">${EDIT_ICON}</button>
+          <button class="btn btn-sm btn-danger btn-icon js-del-goal" data-idx="${idx}" aria-label="Delete goal ${esc(title)}" title="Delete goal">${DELETE_ICON}</button>
         </div>
       </div>
     </div>`;
@@ -1304,18 +1536,16 @@ function renderGoalCard(_settings: Settings): string {
   const rows = goals.map((g, i) => renderGoalRow(g, i)).join('');
   return `
     <div class="card card-collapsible" id="settings-card-goal" data-card-key="goal">
-      <div class="card-header js-card-toggle">
-        <div class="card-title">Goals</div>
-        <span class="card-chevron"></span>
-      </div>
+      ${settingsCardHeader('goal', 'Goals', `${goals.length} goal${goals.length === 1 ? '' : 's'}`)}
       <div class="card-body">
-        <p class="note" style="margin-bottom:.75rem">Add one or more net-worth targets to track on the Net Worth tab. Each goal shows progress, remaining amount, and ETA.</p>
-        <div id="settings-goals-tbl" class="settings-items">
+        <p class="note" style="margin-bottom:.5rem">Net-worth targets shown on the Net Worth tab with progress and ETA.</p>
+        <div id="settings-goals-tbl" class="settings-items settings-list">
           ${rows}
         </div>
         <div class="form-actions">
           <button class="btn btn-outline btn-sm" id="btn-add-goal">+ Add goal</button>
-          <button class="btn btn-primary btn-sm" id="btn-save-goal">Save goals</button>
+          <button class="btn btn-primary btn-sm" id="btn-save-goal" data-save-for="goal-msg" data-dirty="false" title="No changes to save" disabled>Save goals</button>
+          <span class="settings-draft-status" role="status"></span>
           <span id="goal-msg" class="form-msg"></span>
         </div>
       </div>
@@ -1324,6 +1554,8 @@ function renderGoalCard(_settings: Settings): string {
 
 function rerenderGoalsTable(root: HTMLElement, goals: NamedGoal[]): void {
   _goals = goals.slice();
+  const summary = root.querySelector('#settings-heading-goal .settings-card-summary');
+  if (summary) summary.textContent = `${goals.length} goal${goals.length === 1 ? '' : 's'}`;
   const tbl = root.querySelector('#settings-goals-tbl') as HTMLElement | null;
   if (!tbl) return;
   tbl.innerHTML = goals.map((g, i) => renderGoalRow(g, i)).join('');
@@ -1351,7 +1583,7 @@ async function deleteGoal(root: HTMLElement, idx: number, btn: HTMLButtonElement
     confirmTitle: `Remove ${esc(title)}?`,
     confirmBody: 'This removes the goal from your configuration.',
     msgId: 'goal-msg',
-    successMessage: 'Removed',
+    successMessage: 'Goal removed',
     busyText: 'Removing...',
     keepDisabledOnSuccess: true,
   });
@@ -1368,7 +1600,7 @@ function attachGoalListeners(root: HTMLElement): void {
       existingLabels: controller.items().map((goal) => goal.label),
     });
     if (!draft) return;
-    controller.previewAdd(draft, 'Goal added. Click Save to persist.');
+    controller.previewAdd(draft);
   });
 
   root.addEventListener('click', async (e) => {
@@ -1384,7 +1616,7 @@ function attachGoalListeners(root: HTMLElement): void {
           existingLabels: goals.filter((_, i) => i !== idx).map((goal) => goal.label),
         });
         if (!draft) return;
-        controller.previewUpdate(idx, draft, 'Goal updated. Click Save to persist.');
+        controller.previewUpdate(idx, draft);
       }
       return;
     }
@@ -1404,13 +1636,18 @@ function attachGoalListeners(root: HTMLElement): void {
       return;
     }
     try {
-      await withCardGuard('goal', btn, () => setSettings({ goals: JSON.stringify(goals) }), {
-        busyText: 'Saving...',
-      });
+      const saved = await withCardGuard(
+        'goal',
+        btn,
+        () => setSettings({ goals: JSON.stringify(goals) }).then(() => true),
+        { busyText: 'Saving...' },
+      );
+      if (!saved) return;
       rerenderGoalsTable(root, goals);
-      showMsg('goal-msg', 'Saved', true);
+      setListDraftState('goal-msg', false);
+      toastResult('goal-msg', 'Goals saved', 'success');
     } catch (err) {
-      showMsg('goal-msg', 'Error: ' + (err as Error).message, false);
+      toastResult('goal-msg', 'Could not save goals: ' + errorText(err), 'error');
     }
   });
 }
@@ -1457,10 +1694,7 @@ function renderPortfolioBehaviorCard(settings: Settings): string {
 
   return `
     <div class="card card-collapsible" id="settings-card-portfolio-behavior" data-card-key="portfolio-behavior">
-      <div class="card-header js-card-toggle">
-        <div class="card-title">Portfolio behavior</div>
-        <span class="card-chevron"></span>
-      </div>
+      ${settingsCardHeader('portfolio-behavior', 'Portfolio behavior', 'Drift alerts and reinvestment rules')}
       <div class="card-body">
         <div class="card-section-head">ALERTS</div>
         <p class="note" style="margin-bottom:.75rem">Configure alert conditions for drift and other notifications.</p>
@@ -1533,13 +1767,23 @@ async function deleteRule(root: HTMLElement, idx: number, btn: HTMLButtonElement
       keepDisabledOnSuccess: true,
     });
     rerenderRulesTable(root, rules);
-    showMsg('rules-msg', 'Removed', true);
+    _formDirty.get('rules')?.commit();
+    toastResult('rules-msg', 'Rule removed', 'success');
   } catch (err) {
-    showMsg('rules-msg', 'Error: ' + (err as Error).message, false);
+    toastResult('rules-msg', 'Could not remove rule: ' + errorText(err), 'error');
   }
 }
 
 function attachPortfolioBehaviorListeners(root: HTMLElement): void {
+  const alertsDirty = trackFormDirty(
+    root,
+    'alerts',
+    '#settings-card-portfolio-behavior > .card-body > .settings-field',
+  );
+  const rulesDirty = trackFormDirty(root, 'rules', '#settings-rules-tbl', () =>
+    JSON.stringify(collectRules(root)),
+  );
+  _formDirty.set('rules', rulesDirty);
   root.querySelector('#btn-save-alerts')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-alerts') as HTMLButtonElement;
     const input = root.querySelector('#alert-drift-threshold') as HTMLInputElement;
@@ -1563,13 +1807,14 @@ function attachPortfolioBehaviorListeners(root: HTMLElement): void {
           busyText: 'Saving...',
         },
       );
-      showMsg('alerts-msg', 'Saved', true);
+      alertsDirty.commit();
+      toastResult('alerts-msg', 'Alerts saved', 'success');
       // Trigger drift badge update in main.ts
       if (typeof (window as any).updateDriftBadge === 'function') {
         (window as any).updateDriftBadge();
       }
     } catch (err) {
-      showMsg('alerts-msg', 'Error: ' + (err as Error).message, false);
+      toastResult('alerts-msg', 'Could not save alerts: ' + errorText(err), 'error');
     }
   });
 
@@ -1586,9 +1831,10 @@ function attachPortfolioBehaviorListeners(root: HTMLElement): void {
       await withCardGuard('portfolio-behavior', btn, () => persistRules(rules), {
         busyText: 'Saving...',
       });
-      showMsg('rules-msg', 'Saved', true);
+      rulesDirty.commit();
+      toastResult('rules-msg', 'Rules saved', 'success');
     } catch (err) {
-      showMsg('rules-msg', 'Error: ' + (err as Error).message, false);
+      toastResult('rules-msg', 'Could not save rules: ' + errorText(err), 'error');
     }
   });
 
@@ -1635,6 +1881,7 @@ function rerenderRulesTable(root: HTMLElement, rules: { label: string; value: st
       deleteRule(root, parseInt((btn as HTMLElement).dataset.idx!), btn as HTMLButtonElement),
     );
   });
+  _formDirty.get('rules')?.refresh();
 }
 
 // ── Helpers ───────────────────────────────────────────────
@@ -1657,7 +1904,20 @@ function attachColorPickerSync(root: HTMLElement): void {
 
 /** Attach click listeners to card headers for collapsing/expanding. */
 function attachCardCollapseListeners(root: HTMLElement): void {
-  root.querySelectorAll('.js-card-toggle').forEach((header) => {
+  root.querySelectorAll<HTMLButtonElement>('.js-card-toggle').forEach((header) => {
+    const card = header.closest<HTMLElement>('.card-collapsible');
+    const body = card?.querySelector<HTMLElement>('.card-body');
+    if (card && body) {
+      body.id = header.getAttribute('aria-controls') || '';
+      const key = card.dataset.cardKey;
+      card.classList.toggle(
+        'collapsed',
+        key === 'config-history' || (!!key && isCollapsed('card:' + key)),
+      );
+      body.hidden = card.classList.contains('collapsed');
+      header.setAttribute('aria-expanded', String(!body.hidden));
+      body.setAttribute('aria-labelledby', header.id);
+    }
     header.addEventListener('click', () => {
       const card = header.closest('.card-collapsible') as HTMLElement | null;
       if (!card) return;
@@ -1668,6 +1928,9 @@ function attachCardCollapseListeners(root: HTMLElement): void {
       } else {
         card.classList.toggle('collapsed');
       }
+      const body = card.querySelector<HTMLElement>('.card-body');
+      if (body) body.hidden = card.classList.contains('collapsed');
+      header.setAttribute('aria-expanded', String(!card.classList.contains('collapsed')));
     });
   });
   attachItemCollapseListeners(root);
@@ -2015,10 +2278,7 @@ function renderFxIntegrationsCard(settings: Settings): string {
   const enabled = settings.fx_integration_enabled !== '0';
   return `
     <div class="card card-collapsible" id="settings-card-integrations" data-card-key="integrations">
-      <div class="card-header js-card-toggle">
-        <div class="card-title">Integrations</div>
-        <span class="card-chevron"></span>
-      </div>
+      ${settingsCardHeader('integrations', 'Integrations', 'Statement imports and exchange rates')}
       <div class="card-body">
         ${renderStatementMapping(settings)}
         <div class="card-section-head" style="margin-top:1.25rem">FRANKFURTER</div>
@@ -2029,20 +2289,25 @@ function renderFxIntegrationsCard(settings: Settings): string {
           </label>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
             <input type="checkbox" id="fx-integration-enabled" ${enabled ? 'checked' : ''}>
-            <button class="btn btn-primary btn-sm" id="btn-save-fx-integration">Save</button>
+            <button class="btn btn-primary btn-sm" id="btn-save-fx-integration">Save FX preference</button>
             <span id="fx-int-msg" class="form-msg"></span>
           </div>
         </div>
-        <div class="card-section-head" style="margin-top:1rem">CACHE &amp; TELEMETRY</div>
+        <div class="card-section-head" style="margin-top:1rem">STATUS</div>
         <div class="settings-items settings-items-compact" id="fx-status-items">
           <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Status</span><span id="fx-status-enabled" class="settings-item-value">-</span></div></div>
           <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Cached rates</span><span id="fx-status-cache-entries" class="settings-item-value">-</span></div></div>
           <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Last successful fetch</span><span id="fx-status-last-fetch" class="settings-item-value">-</span></div></div>
           <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Last error</span><span id="fx-status-last-error" class="settings-item-value settings-item-value-error">-</span></div></div>
+        </div>
+        <details class="settings-details">
+          <summary>FX diagnostics</summary>
+          <div class="settings-items settings-items-compact">
           <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">This month</span><span id="fx-status-month-summary" class="settings-item-value fx-stat-inline">-</span></div></div>
           <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Prefetch</span><span id="fx-status-prefetch-summary" class="settings-item-value fx-stat-inline">-</span></div></div>
           <div class="settings-item settings-item-compact"><div class="settings-item-header"><span class="settings-item-label">Normalize</span><span id="fx-status-normalize-summary" class="settings-item-value fx-stat-inline">-</span></div></div>
         </div>
+        </details>
         <div class="form-actions">
           <button class="btn btn-danger btn-sm" id="btn-fx-clear-cache">Clear FX cache</button>
         </div>
@@ -2170,9 +2435,32 @@ async function loadFxTelemetryMonthlySafe(month: string): Promise<FxTelemetryMon
   }
 }
 
+function mappingRemembered(type: string): boolean {
+  try {
+    return !!getSnapshotMapping(getSettings()[SNAPSHOT_MAPPINGS_KEY], type, getAccounts());
+  } catch {
+    return false;
+  }
+}
+
 function attachFxIntegrationListeners(root: HTMLElement): void {
   const mappingRoot = root.querySelector<HTMLElement>('#statement-mapping');
   if (mappingRoot) wireSnapshotMappingFields(mappingRoot);
+  const mappingDirty = mappingRoot
+    ? trackFormDirty(
+        mappingRoot,
+        'statement-mapping',
+        '[data-statement-details]',
+        undefined,
+        // A suggested, never-saved mapping is worth saving as-is.
+        () => !mappingRemembered(mappingRoot.dataset.documentType!),
+      )
+    : null;
+  const fxDirty = trackFormDirty(
+    root,
+    'fx-integration',
+    root.querySelector('#fx-integration-enabled')?.parentElement ?? null,
+  );
   mappingRoot
     ?.querySelector<HTMLSelectElement>('#statement-report-type')
     ?.addEventListener('change', (event) => {
@@ -2181,6 +2469,7 @@ function attachFxIntegrationListeners(root: HTMLElement): void {
       mappingRoot.querySelector<HTMLElement>('[data-statement-details]')!.innerHTML =
         renderStatementMappingDetails(getSettings(), type);
       wireSnapshotMappingFields(mappingRoot);
+      mappingDirty?.commit();
     });
   mappingRoot?.addEventListener('click', async (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>(
@@ -2196,10 +2485,11 @@ function attachFxIntegrationListeners(root: HTMLElement): void {
       });
       if (!saved) throw new Error('A sync or save is in progress. Try again in a moment.');
       if (mappingRoot.dataset.documentType !== type) return;
-      showMsg(
+      mappingDirty?.commit();
+      toastResult(
         'statement-mapping-msg',
         'Mapping saved. Future imports fill the draft automatically.',
-        true,
+        'success',
       );
     } catch (error) {
       if (mappingRoot.dataset.documentType === type)
@@ -2244,7 +2534,12 @@ function attachFxIntegrationListeners(root: HTMLElement): void {
       });
       if (!reset) throw new Error('A sync or save is in progress. Try again in a moment.');
       if (mappingRoot.dataset.documentType !== type) return;
-      showMsg('statement-mapping-msg', 'Mapping reset. Set up your next import again.', true);
+      mappingDirty?.commit();
+      toastResult(
+        'statement-mapping-msg',
+        'Mapping reset. Set up your next import again.',
+        'success',
+      );
     } catch (error) {
       if (mappingRoot.dataset.documentType === type)
         showMsg('statement-mapping-msg', (error as Error).message, false);
@@ -2268,9 +2563,10 @@ function attachFxIntegrationListeners(root: HTMLElement): void {
         },
       );
       await refreshFxIntegrationStatus(root);
-      showMsg('fx-int-msg', 'Saved', true);
+      fxDirty.commit();
+      toastResult('fx-int-msg', 'FX preference saved', 'success');
     } catch (err) {
-      showMsg('fx-int-msg', 'Error: ' + (err as Error).message, false);
+      toastResult('fx-int-msg', 'Could not save FX preference: ' + errorText(err), 'error');
     }
   });
 
@@ -2288,9 +2584,9 @@ function attachFxIntegrationListeners(root: HTMLElement): void {
         busyText: 'Clearing...',
       });
       await refreshFxIntegrationStatus(root);
-      showMsg('fx-int-msg', 'FX cache cleared.', true);
+      toastResult('fx-int-msg', 'FX cache cleared', 'success');
     } catch (err) {
-      showMsg('fx-int-msg', 'Error: ' + (err as Error).message, false);
+      toastResult('fx-int-msg', 'Could not clear FX cache: ' + errorText(err), 'error');
     }
   });
 }
@@ -2301,10 +2597,7 @@ function renderCacheCard(): string {
   const hasConflict = window.__hasSyncConflict?.() ?? false;
   return `
     <div class="card card-collapsible" id="settings-card-cache" data-card-key="cache">
-      <div class="card-header js-card-toggle">
-        <div class="card-title">Cache &amp; sync</div>
-        <span class="card-chevron"></span>
-      </div>
+      ${settingsCardHeader('cache', 'Cache &amp; sync', hasConflict ? 'Sync conflict needs attention' : 'Sync recovery and local cache')}
       <div class="card-body">
         <p class="note" style="margin-bottom:.75rem">Data is stored locally in SQLite and synced to Google Drive. If sync pauses because both copies changed, resolve the conflict here and export a backup first if you want the safest path.</p>
         ${
@@ -2339,12 +2632,12 @@ function attachCacheListeners(root: HTMLElement): void {
         },
       );
     } catch (err: any) {
-      showMsg('resync-msg', 'Error: ' + (err?.message || 'unknown'), false);
+      toastResult('resync-msg', 'Could not open the conflict resolver: ' + errorText(err), 'error');
     }
   });
   root.querySelector('#btn-force-resync')?.addEventListener('click', async () => {
     if (!navigator.onLine) {
-      showMsg('resync-msg', 'Unavailable offline. Connect to the internet first.', false);
+      toastResult('resync-msg', 'Unavailable offline. Connect to the internet first.', 'error');
       return;
     }
     const btn = root.querySelector('#btn-force-resync') as HTMLButtonElement;
@@ -2352,9 +2645,9 @@ function attachCacheListeners(root: HTMLElement): void {
       await withCardGuard('cache', btn, () => window.__forceFullResync!(), {
         busyText: 'Resyncing...',
       });
-      showMsg('resync-msg', 'Done', true);
+      toastResult('resync-msg', 'Full resync complete', 'success');
     } catch (err: any) {
-      showMsg('resync-msg', 'Error: ' + (err?.message || 'unknown'), false);
+      toastResult('resync-msg', 'Resync failed: ' + errorText(err), 'error');
     }
   });
 }
@@ -2375,58 +2668,77 @@ export function _getEligibleYears(txs: Transaction[], snaps: Snapshot[]): number
 function renderReportCard(): string {
   return `
     <div class="card card-collapsible" id="settings-card-reports" data-card-key="reports">
-      <div class="card-header js-card-toggle">
-        <div class="card-title">Annual portfolio report</div>
-        <span class="card-chevron"></span>
-      </div>
+      ${settingsCardHeader('reports', 'Annual portfolio report', 'Download a yearly summary')}
       <div class="card-body">
         <p class="note" style="margin-bottom:.85rem">Download a self-contained HTML summary of your portfolio for any calendar year — net worth, holdings, dividends, interest, and realised gains. Open it in any browser to print to PDF.</p>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <label for="report-year-select" style="font-size:13px;color:var(--ink-2)">Year</label>
-          <select id="report-year-select" class="planning-input" style="width:90px;text-align:left" disabled><option value="">Loading…</option></select>
+          <select id="report-year-select" class="planning-input" style="width:auto;min-width:90px;max-width:100%;text-align:left" disabled><option value="">Loading…</option></select>
           <button class="btn btn-outline btn-sm" id="btn-download-report" disabled>Download HTML report</button>
         </div>
-        <div id="report-msg" style="font-size:12px;margin-top:.6rem;min-height:18px"></div>
+        <div id="report-msg" class="settings-inline-msg" role="status"></div>
+        <button class="btn btn-outline btn-sm settings-inline-retry" id="btn-retry-report" hidden>Retry loading years</button>
       </div>
     </div>`;
 }
 
 function attachReportListeners(root: HTMLElement): void {
   let yearsLoaded = false;
+  let loading: Promise<void> | undefined;
+  const yearEl = root.querySelector<HTMLSelectElement>('#report-year-select');
+  const btn = root.querySelector<HTMLButtonElement>('#btn-download-report');
+  const retry = root.querySelector<HTMLButtonElement>('#btn-retry-report');
+  const card = root.querySelector<HTMLElement>('#settings-card-reports');
+  if (!yearEl || !btn || !retry || !card) return;
 
-  /** Load year options lazily — called on first user interaction or before report generation. */
-  const ensureYearsLoaded = async () => {
-    if (yearsLoaded) return;
-    yearsLoaded = true;
-    const [txs, snaps] = await Promise.all([loadTransactions(), loadSnapshots()]);
-    const years = _getEligibleYears(txs, snaps);
-    const yearEl = root.querySelector('#report-year-select') as HTMLSelectElement | null;
-    const btn = root.querySelector('#btn-download-report') as HTMLButtonElement | null;
-    const msgEl = root.querySelector('#report-msg') as HTMLElement | null;
-    if (!yearEl) return;
-    if (years.length === 0) {
-      yearEl.innerHTML = '<option value="">—</option>';
-      if (msgEl) {
-        msgEl.textContent = 'No data found. Add snapshots or transactions to generate a report.';
-        msgEl.style.color = 'var(--ink-3)';
+  const ensureYearsLoaded = (): Promise<void> => {
+    if (loading) return loading;
+    if (yearsLoaded) return Promise.resolve();
+    retry.hidden = true;
+    yearEl.disabled = true;
+    btn.disabled = true;
+    btn.dataset.reportReady = 'false';
+    showMsg('report-msg', 'Loading report years...', true);
+    loading = (async () => {
+      try {
+        const [txs, snaps] = await Promise.all([loadTransactions(), loadSnapshots()]);
+        const years = _getEligibleYears(txs, snaps);
+        yearsLoaded = true;
+        if (!years.length) {
+          yearEl.innerHTML = '<option value="">No years available</option>';
+          showMsg(
+            'report-msg',
+            'No data found. Add snapshots or transactions to generate a report.',
+            false,
+          );
+          return;
+        }
+        yearEl.innerHTML = years.map((year) => `<option value="${year}">${year}</option>`).join('');
+        yearEl.disabled = false;
+        btn.dataset.reportReady = 'true';
+        btn.disabled = isBusy();
+        if (isBusy()) btn.title = SYNC_BUSY_TITLE;
+        clearInlineMsg('report-msg');
+      } catch (error) {
+        yearEl.innerHTML = '<option value="">Unable to load years</option>';
+        retry.hidden = false;
+        showMsg(
+          'report-msg',
+          'Report years could not be loaded: ' + (error as Error).message,
+          false,
+        );
+      } finally {
+        loading = undefined;
       }
-      return;
-    }
-    yearEl.innerHTML = years.map((y) => `<option value="${y}">${y}</option>`).join('');
-    yearEl.disabled = false;
-    if (btn) btn.disabled = false;
+    })();
+    return loading;
   };
 
-  // Pre-load years on first interaction with the select or button for snappy UX.
-  root
-    .querySelector('#report-year-select')
-    ?.addEventListener('focus', ensureYearsLoaded, { once: true });
-  root
-    .querySelector('#report-year-select')
-    ?.addEventListener('pointerdown', ensureYearsLoaded, { once: true });
-  root
-    .querySelector('#btn-download-report')
-    ?.addEventListener('pointerdown', ensureYearsLoaded, { once: true });
+  card.querySelector('.js-card-toggle')?.addEventListener('click', () => {
+    if (!card.classList.contains('collapsed')) void ensureYearsLoaded();
+  });
+  retry.addEventListener('click', () => void ensureYearsLoaded());
+  if (!card.classList.contains('collapsed')) void ensureYearsLoaded();
 
   root.querySelector('#btn-download-report')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-download-report') as HTMLButtonElement;
@@ -2465,11 +2777,11 @@ function attachReportListeners(root: HTMLElement): void {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      showMsg('report-msg', `Report for ${year} downloaded.`, true);
+      toastResult('report-msg', `Report for ${year} downloaded.`, 'success');
     } catch (err: any) {
-      showMsg('report-msg', 'Report generation failed: ' + err.message, false);
+      toastResult('report-msg', 'Report generation failed: ' + errorText(err), 'error');
     } finally {
-      btn.disabled = false;
+      btn.disabled = isBusy() || btn.dataset.reportReady !== 'true';
       btn.textContent = 'Download HTML report';
     }
   });
@@ -2490,10 +2802,7 @@ function backupNudgeHtml(settings: Settings): string {
 function renderBackupCard(): string {
   return `
     <div class="card card-collapsible" id="settings-card-backup" data-card-key="backup">
-      <div class="card-header js-card-toggle">
-        <div class="card-title">Backup &amp; restore</div>
-        <span class="card-chevron"></span>
-      </div>
+      ${settingsCardHeader('backup', 'Backup &amp; restore', 'Export a copy or restore your data')}
       <div class="card-body">
         <p class="note" style="margin-bottom:.85rem">Export everything as one file you can keep somewhere safe. If anything happens to your Sheet, restore from that file.</p>
         <div id="settings-backup-nudge">${backupNudgeHtml(getSettings())}</div>
@@ -2502,7 +2811,6 @@ function renderBackupCard(): string {
           <button class="btn btn-ghost btn-sm" id="btn-restore-backup">Restore from file\u2026</button>
           <input type="file" id="backup-file-input" accept="application/json" style="display:none">
         </div>
-        <div id="backup-msg" style="font-size:12px;margin-top:.6rem;min-height:18px"></div>
       </div>
     </div>`;
 }
@@ -2515,9 +2823,9 @@ function attachBackupListeners(root: HTMLElement): void {
         busyText: 'Exporting...',
       });
       refreshBackupData();
-      showMsg('backup-msg', 'Backup downloaded.', true);
+      toastResult('backup-msg', 'Backup downloaded.', 'success');
     } catch (err: any) {
-      showMsg('backup-msg', 'Export failed: ' + err.message, false);
+      toastResult('backup-msg', 'Export failed: ' + errorText(err), 'error');
     }
   });
   const fileInput = root.querySelector('#backup-file-input') as HTMLInputElement | null;
@@ -2532,12 +2840,12 @@ function attachBackupListeners(root: HTMLElement): void {
         busyText: 'Restoring...',
       });
       if (result === 'cancelled') {
-        showMsg('backup-msg', 'Restore cancelled.', false);
+        toastResult('backup-msg', 'Restore cancelled.', 'info');
       } else {
-        showMsg('backup-msg', 'Restore complete.', true);
+        toastResult('backup-msg', 'Restore complete.', 'success');
       }
     } catch (err: any) {
-      showMsg('backup-msg', 'Restore failed: ' + err.message, false);
+      toastResult('backup-msg', 'Restore failed: ' + errorText(err), 'error');
     }
   });
 }
@@ -2649,6 +2957,20 @@ function describeHistorySummary(summary: string): HistorySummaryDisplay {
   if (!trimmed) {
     return { text: '', title: '' };
   }
+  const key = trimmed.split('=')[0].trim();
+  const friendly: Record<string, string> = {
+    ui_collapse_state: 'Section visibility changed',
+    last_backup_at: 'Backup export recorded',
+    monthly_contrib_budget: 'Contribution amount changed',
+    contribution_interval: 'Contribution cadence changed',
+    calibration_interval: 'Calibration interval changed',
+    costBasisMethod: 'Cost-basis method changed',
+    riskFreeRate: 'Risk-free rate changed',
+    fx_integration_enabled: 'FX preference changed',
+  };
+  if (trimmed.includes('=') && friendly[key]) {
+    return { text: friendly[key], title: trimmed, detail: trimmed };
+  }
   const parsedJsonSummary = parseJsonHistorySummary(trimmed);
   if (parsedJsonSummary) return parsedJsonSummary;
   if (trimmed.length <= maxInlineChars) return { text: trimmed, title: trimmed };
@@ -2713,10 +3035,7 @@ export function renderConfigHistoryCard(entries: ConfigHistoryEntry[]): string {
 
   return `
     <div class="card card-collapsible collapsed" id="settings-card-config-history" data-card-key="config-history">
-      <div class="card-header js-card-toggle">
-        <div class="card-title">Config history</div>
-        <span class="card-chevron"></span>
-      </div>
+      ${settingsCardHeader('config-history', 'Config history', 'Recent configuration changes')}
       <div class="card-body">
         <p class="note" style="margin-bottom:.5rem">Read-only log of recent configuration changes (accounts, holdings, settings).</p>
         ${body}

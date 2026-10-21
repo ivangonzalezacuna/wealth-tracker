@@ -70,6 +70,8 @@ import {
   refreshSettingsAfterChange,
   applySyncBusyState,
   accountCurrencyList,
+  setSettingsView,
+  getSettingsView,
 } from './views/settings';
 import { renderLog, applyLogView, setImportPanelOpen, isImportPanelOpen } from './views/log';
 import {
@@ -81,7 +83,7 @@ import {
   withButtonGuard,
   fmtPctVal,
 } from './utils';
-import { navHash, parseNavHash, LOG_VIEWS, type LogView } from './nav';
+import { navHash, parseNavHash, LOG_VIEWS, type LogView, type SettingsView } from './nav';
 import {
   isCacheValid,
   clearCache,
@@ -150,6 +152,7 @@ let _logView: LogView = 'transactions';
 function sectionSubview(id: string): string | undefined {
   if (id === 'portfolio') return _portfolioSubview;
   if (id === 'log') return _logView;
+  if (id === 'settings') return getSettingsView();
   return undefined;
 }
 
@@ -460,6 +463,7 @@ function resolveInitialSection(): void {
   const targetBtn = document.querySelector(
     `.nav button[data-section="${targetSection}"]`,
   ) as HTMLElement | null;
+  if (targetSection === 'settings') setSettingsView(subview as SettingsView | null);
   showSection(targetSection, targetBtn);
   if (targetSection === 'portfolio') {
     showPortfolioSubview(subview || 'holdings');
