@@ -78,6 +78,17 @@ const baseTxs: Transaction[] = [
 
 // ── buildAnnualReport ──────────────────────────────────────────────────────────
 
+it('renders a mobile viewport and keyboard-reachable local table scrollers, separate from print styles', () => {
+  const report = buildAnnualReport(2024, baseTxs, snapshots, holdings, accounts);
+  const html = renderAnnualReportHtml(report, 'EUR');
+  expect(html).toContain('name="viewport" content="width=device-width, initial-scale=1"');
+  expect(html).toContain(
+    'class="report-table-scroll" role="region" aria-label="Holdings table" tabindex="0"',
+  );
+  expect(html).toContain('@media screen and (max-width: 600px)');
+  expect(html).toContain('@page');
+});
+
 describe('buildAnnualReport — snapshot & net worth', () => {
   it('picks the last snapshot on or before year end', () => {
     const report = buildAnnualReport(2024, baseTxs, snapshots, holdings, accounts);
