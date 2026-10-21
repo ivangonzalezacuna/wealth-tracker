@@ -24,6 +24,12 @@ describe('navHash', () => {
 
   it('returns #settings for settings section', () => {
     expect(navHash('settings')).toBe('#settings');
+    expect(navHash('settings', 'portfolio')).toBe('#settings');
+  });
+
+  it('returns #settings/<view> for non-default settings views', () => {
+    expect(navHash('settings', 'planning')).toBe('#settings/planning');
+    expect(navHash('settings', 'advanced')).toBe('#settings/advanced');
   });
 
   it('returns #log for log section', () => {
@@ -87,6 +93,18 @@ describe('parseNavHash', () => {
 
   it('returns log for #log', () => {
     expect(parseNavHash('#log')).toEqual({ section: 'log', subview: null });
+  });
+
+  it('returns settings views from #settings/<view>', () => {
+    expect(parseNavHash('#settings/planning')).toEqual({
+      section: 'settings',
+      subview: 'planning',
+    });
+    expect(parseNavHash('#settings/advanced')).toEqual({
+      section: 'settings',
+      subview: 'advanced',
+    });
+    expect(parseNavHash('#settings/nope')).toEqual({ section: 'settings', subview: null });
   });
 
   it('returns log with snapshots view for #log/snapshots', () => {
