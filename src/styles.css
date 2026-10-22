@@ -281,6 +281,113 @@ code,
   color: var(--ink-3);
   margin-top: 2px;
 }
+.kpi-row.kpi-row-groups {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+}
+/* A lead figure beside its group on wide screens; stacked above it on phones. */
+.kpi-row.kpi-row-groups > .kpi-lead {
+  grid-column: auto;
+}
+.kpi-group {
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 0.6rem 0.85rem;
+  min-width: 0;
+}
+.kpi-group-title {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  margin-bottom: 2px;
+}
+.kpi-group-row {
+  border-bottom-color: var(--line);
+}
+.kpi-group-row .row-label {
+  min-width: 0;
+}
+.kpi-group-label {
+  display: inline;
+}
+.kpi-group-label > .info-tip {
+  margin-left: 4px;
+}
+.kpi-group-sub {
+  display: block;
+  font-size: 10px;
+  color: var(--ink-3);
+  flex-basis: 100%;
+}
+.kpi-group-result .row-label,
+.kpi-group-result .row-val {
+  font-weight: 600;
+}
+
+/* Analytics uses the same compact summaries and locally scrolling tables. */
+.analytics-scope-note {
+  margin: 6px 0 12px;
+}
+#an-kpis-l1 {
+  align-items: start;
+}
+.analytics-balance-details {
+  margin-bottom: 12px;
+}
+.analytics-balance-details .kpi-group {
+  margin-top: 6px;
+}
+.analytics-subsection {
+  border-top: 1px solid var(--line);
+  margin-top: 10px;
+  padding-top: 10px;
+  min-width: 0;
+}
+.analytics-allocation-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px 16px;
+}
+.analytics-allocation-grid > * {
+  min-width: 0;
+}
+.analytics-holding-breakdown > div + div {
+  margin-top: 12px;
+}
+#an-kpis-risk .kpi-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 16px;
+}
+#an-kpis-risk .kpi-group-title {
+  grid-column: 1 / -1;
+}
+#analytics .range-toggle {
+  flex-wrap: wrap;
+}
+#analytics .btn-sm,
+#analytics summary,
+#analytics .chart-data-table-toggle,
+#analytics .chart-data-table-prev,
+#analytics .chart-data-table-next {
+  min-height: 24px;
+  min-width: 24px;
+}
+#analytics .chart-data-table-toggle {
+  padding: 3px 0;
+}
+#an-annual-table {
+  overflow-x: auto;
+}
+@media (max-width: 599px) {
+  .analytics-allocation-grid,
+  #an-kpis-risk .kpi-group {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 
 /* Cards */
 .card {
@@ -514,21 +621,19 @@ details[open] > summary .card-chevron {
 .annual-detail {
   background: var(--surface-2);
   border-radius: 0 0 var(--radius-sm) var(--radius-sm);
-  padding: 10px;
+  padding: 8px 12px;
   margin: 0 0 4px;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   grid-column: 1 / -1;
-  gap: 0;
   font-size: 11px;
 }
+/* Groups always stack (like .hold-detail rows) so dividers stay aligned on wide screens. */
 .annual-detail-group {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 8px 20px;
-  padding: 10px 0;
+  padding: 8px 0;
   border-top: 1px solid var(--line-2);
+}
+.annual-detail-group .row {
+  padding: 4px 0;
+  font-size: 12px;
 }
 .annual-detail-group:first-child {
   padding-top: 0;
@@ -1226,6 +1331,10 @@ details[open] > summary .card-chevron {
 .chart-h-sm {
   height: 165px;
 }
+/* Row-sized charts (height set from JS); beats the fixed mobile chart heights. */
+.chart-wrap.chart-h-fit {
+  height: var(--chart-fit-h, 165px) !important;
+}
 .chart-h-md {
   height: 180px;
 }
@@ -1273,12 +1382,12 @@ details[open] > summary .card-chevron {
 /* Layout */
 .two-col {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 @media (max-width: 600px) {
   .two-col {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1645,6 +1754,138 @@ summary.section-label {
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Shared inline disclosure for secondary details inside a card */
+.inline-details {
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--line-2);
+}
+.inline-details > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 0;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-2);
+  -webkit-tap-highlight-color: transparent;
+}
+.inline-details > summary::-webkit-details-marker {
+  display: none;
+}
+.inline-details > summary::before {
+  content: '▸';
+  color: var(--ink-3);
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+.inline-details[open] > summary::before {
+  transform: rotate(90deg);
+}
+.inline-details > summary:hover {
+  color: var(--ink);
+}
+.inline-details > summary:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+.inline-details-sub {
+  margin-left: auto;
+  font-weight: 400;
+  color: var(--ink-3);
+  font-size: 11px;
+}
+
+/* Net worth accounts card */
+.nw-acct-row .row-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+.nw-acct-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+.nw-acct-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.nw-acct-name {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.nw-acct-meta {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.nw-acct-meta .pos {
+  color: var(--pos);
+}
+.nw-acct-meta .neg {
+  color: var(--neg);
+}
+
+/* Goal progress */
+.goal-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.goal-stat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.goal-stat-label {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.goal-stat-val {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.goal-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0.6rem 0;
+}
+.goal-progress-bar {
+  flex: 1;
+  min-width: 0;
+}
+.goal-progress-label {
+  font-size: 12px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.goal-eta {
+  margin: 0 0 0.25rem;
+  font-size: 12px;
+  color: var(--ink);
+  overflow-wrap: break-word;
+}
+.goal-eta .goal-stat-label {
+  margin-right: 4px;
+}
+.goal-eta .note {
+  display: block;
+  font-size: 11px;
+}
+.planning-caveat {
+  margin-top: 0.5rem;
 }
 .form-actions {
   display: flex;
@@ -2020,7 +2261,10 @@ summary.section-label {
   white-space: nowrap;
 }
 .forecast-inflation {
-  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 0.75rem;
   font-style: normal;
 }
 .forecast-inflation-label {
@@ -2033,6 +2277,7 @@ summary.section-label {
   align-items: center;
   gap: 8px;
   flex-wrap: nowrap;
+  margin-left: auto;
 }
 .forecast-inflation-input {
   width: 80px;
@@ -2079,12 +2324,6 @@ summary.section-label {
   background: var(--surface);
   outline: none;
 }
-.forecast-inflation-hint {
-  margin-top: 8px;
-  color: var(--ink-3);
-  font-size: 11px;
-  line-height: 1.45;
-}
 .range-toggle {
   display: flex;
   gap: 4px;
@@ -2127,6 +2366,10 @@ summary.section-label {
   color: var(--ink-3);
   font-size: 11px;
   font-weight: 500;
+}
+.rebalance-summary-note.is-suggested {
+  color: var(--warn);
+  font-weight: 600;
 }
 .rebalance-body {
   margin-top: 0.7rem;
@@ -2384,7 +2627,7 @@ summary.section-label {
     height: 180px !important;
   }
   .two-col {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 6px;
   }
   .form-grid {
@@ -2426,15 +2669,10 @@ summary.section-label {
     font-size: 11px;
     gap: 6px;
   }
-  .forecast-inflation-input-wrap {
-    width: 100%;
-    justify-content: space-between;
-  }
   .forecast-inflation-input {
     width: 88px;
   }
-  .forecast-inflation-label,
-  .forecast-inflation-hint {
+  .forecast-inflation-label {
     font-size: 10px;
   }
   .planning-input-wrap {
@@ -2491,6 +2729,13 @@ summary.section-label {
   }
   #port-table .th.hold-row {
     font-size: 9px;
+  }
+}
+
+/* Very narrow phones (320–360px): keep fixed-height charts near a 2:1 ratio. */
+@media (max-width: 360px) {
+  .chart-wrap {
+    height: 160px !important;
   }
 }
 

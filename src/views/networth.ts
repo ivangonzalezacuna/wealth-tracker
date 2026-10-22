@@ -34,7 +34,7 @@ import {
 import type { AccountForecastInput, DecumulationStrategy } from '../model/forecast';
 import type { Snapshot, Account, GoalMilestone } from '../types';
 import Chart from 'chart.js/auto';
-import { T, R, resolvedT } from '../theme';
+import { T, BAR_END_ROUNDING, resolvedT } from '../theme';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import { SCENARIOS_ICON, SCENARIOS_OFF_ICON } from './icons';
 import { writeChartTable } from './chartTable';
@@ -308,10 +308,13 @@ function _renderMilestonesSection(
     })
     .join('');
 
-  return `<div style="margin-bottom:.5rem">
-    <div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Milestones</div>
+  const reachedCount = valid.filter(
+    (ms) => liquidTotal >= parseFloat(ms.targetAmount.replace(/\./g, '').replace(',', '.')),
+  ).length;
+  return `<details class="inline-details goal-milestones">
+    <summary>Milestones<span class="inline-details-sub">${reachedCount} of ${valid.length} reached</span></summary>
     ${rows}
-  </div>`;
+  </details>`;
 }
 
 /** Re-renders only the goal progress cards using latest cached state. */
@@ -383,18 +386,16 @@ function _renderGoalCards(): void {
     const title = goal.label ? esc(goal.label) : 'Goal';
     const lockedNote =
       lockedTotal > 0
-        ? `<p class="note" style="margin-top:4px">Excludes ${fmtEur(lockedTotal)} in locked (pension/retirement) accounts — those funds are not accessible for this goal.</p>`
+        ? `<p class="note" style="margin-top:4px">Counted now leaves out ${fmtEur(lockedTotal)} in locked accounts (such as pensions) until their unlock year.</p>`
         : '';
     const panelHtml = `
-      <div class="row"><div class="row-label">Target</div><div class="row-val">${fmtEur(target)}</div></div>
-      <div class="row"><div class="row-label">Current (liquid)</div><div class="row-val">${fmtEur(liquidTotal)}</div></div>
-      <div class="row"><div class="row-label">Remaining</div><div class="row-val">${fmtEur(remaining)}</div></div>
-      <div style="margin:.75rem 0">
-        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-          <span>${fmtPctVal(Math.min(100, (liquidTotal / target) * 100))} complete</span>
-          <span>${fmtEur(liquidTotal)} / ${fmtEur(target)}</span>
-        </div>
-        <div style="position:relative;height:8px;background:var(--surface-3);border-radius:var(--radius-xs);overflow:hidden">
+      <div class="goal-stats">
+        <div class="goal-stat"><span class="goal-stat-label">Counted now</span><span class="goal-stat-val">${fmtEur(liquidTotal)}</span></div>
+        <div class="goal-stat"><span class="goal-stat-label">Target</span><span class="goal-stat-val">${fmtEur(target)}</span></div>
+        <div class="goal-stat"><span class="goal-stat-label">Remaining</span><span class="goal-stat-val">${fmtEur(remaining)}</span></div>
+      </div>
+      <div class="goal-progress">
+        <div class="goal-progress-bar" style="position:relative;height:8px;background:var(--surface-3);border-radius:var(--radius-xs);overflow:hidden">
           <div style="width:${pctComplete}%;height:100%;background:${pctComplete >= 100 ? 'var(--pos)' : isOnTrack === false ? 'var(--warn)' : 'var(--brand)'};border-radius:var(--radius-xs);transition:width .3s"></div>
           ${(goal.milestones ?? [])
             .map((ms) => {
@@ -407,10 +408,11 @@ function _renderGoalCards(): void {
             })
             .join('')}
         </div>
+        <div class="goal-progress-label">${fmtPctVal(Math.min(100, (liquidTotal / target) * 100))} complete</div>
       </div>
-      ${_renderMilestonesSection(goal.milestones ?? [], liquidTotal, target, accountInputs)}
-      <div class="row" style="align-items:flex-start"><div class="row-label">ETA</div><div class="row-val" style="font-size:12px;text-align:left;flex-shrink:1;overflow-wrap:break-word;word-break:break-word;min-width:0">${etaText}${_inflationRate > 0 ? '<br><span class="note" style="font-size:11px">ETA is in nominal terms; inflation is not factored in.</span>' : ''}</div></div>
-      ${lockedNote}`;
+      <p class="goal-eta"><span class="goal-stat-label">Estimated date${infoTip('Estimated dates assume your current return and contribution settings.')}</span> ${etaText}${_inflationRate > 0 ? ' <span class="note">ETA is in nominal terms; inflation is not factored in.</span>' : ''}</p>
+      ${lockedNote}
+      ${_renderMilestonesSection(goal.milestones ?? [], liquidTotal, target, accountInputs)}`;
     panels.push({ title, html: panelHtml });
   }
 
@@ -520,24 +522,6 @@ export function renderNW(snaps: Snapshot[]): void {
           : fmtMon(s.date)
       }</div>
     </div>
-    ${activeA
-      .map((a) => {
-        const acctCagr = acctCagrMap.get(a.key);
-        const cagrSub =
-          acctCagr && acctCagr.cagrValue !== null
-            ? `<div class="kpi-sub ${acctCagr.cagrValue >= 0 ? 'pos' : 'neg'}">CAGR ${fmtPctNeg(acctCagr.cagrValue * 100)} (${acctCagr.monthsSpan}m)</div>`
-            : '';
-        const currency = acctCurrencyMap.get(a.key) || 'EUR';
-        const currencyNote = currency !== 'EUR' ? ` · in ${esc(currency)}` : '';
-        return `
-      <div class="kpi">
-        <div class="kpi-label">${esc(a.label)}</div>
-        <div class="kpi-val">${fmtEur2((s[a.key] as number) || 0)}</div>
-        <div class="kpi-sub">${fmtPctVal(total > 0 ? (((s[a.key] as number) || 0) / total) * 100 : 0)} of total${currencyNote}</div>
-        ${cagrSub}
-      </div>`;
-      })
-      .join('')}
     ${(() => {
       const accts = getAccounts();
       const locked = activeA.reduce((sum, a) => {
@@ -559,12 +543,12 @@ export function renderNW(snaps: Snapshot[]): void {
         : `${fmtPctVal(total > 0 ? (locked / total) * 100 : 0)} of total`;
       return `
       <div class="kpi">
-        <div class="kpi-label">Liquid${infoTip('Net worth accessible now, excluding pension and retirement accounts marked as locked.')}</div>
+        <div class="kpi-label">Liquid${infoTip('Accounts not marked as locked in Settings → Accounts. Investments can still take time to sell and their value can change, so this is not the same as cash ready to spend.')}</div>
         <div class="kpi-val">${fmtEur2(liquid)}</div>
         <div class="kpi-sub">${fmtPctVal(total > 0 ? (liquid / total) * 100 : 0)} of total</div>
       </div>
       <div class="kpi">
-        <div class="kpi-label">Locked${infoTip('Funds in pension/retirement accounts not accessible until retirement age.')}</div>
+        <div class="kpi-label">Locked${infoTip('Accounts marked as locked in Settings → Accounts, such as pensions. Goals start counting them after their configured unlock year.')}</div>
         <div class="kpi-val">${fmtEur2(locked)}</div>
         <div class="kpi-sub">${lockedSub}</div>
       </div>`;
@@ -602,8 +586,7 @@ export function renderNW(snaps: Snapshot[]): void {
             backgroundColor: chartA.map((a) => safeColor(a.color)),
             borderColor: chartA.map((a) => safeColor(a.color)),
             borderWidth: 1,
-            borderRadius: R.xs,
-            borderSkipped: false,
+            ...BAR_END_ROUNDING,
           },
         ],
       },
@@ -658,21 +641,33 @@ export function renderNW(snaps: Snapshot[]): void {
   const bkA = ACCTS.filter((a) => ((s[a.key] as number) || 0) > 0);
 
   let det = bkA
-    .map(
-      (a) =>
-        `<div class="row"><div class="row-label">${esc(a.label)}</div><div class="row-val">${fmtEur2((s[a.key] as number) || 0)}</div></div>`,
-    )
+    .map((a) => {
+      const val = (s[a.key] as number) || 0;
+      const acctCagr = acctCagrMap.get(a.key);
+      const currency = acctCurrencyMap.get(a.key) || 'EUR';
+      const meta = [`${fmtPctVal(total > 0 ? (val / total) * 100 : 0)} of total`];
+      if (currency !== 'EUR') meta.push(`in ${esc(currency)}`);
+      const cagr =
+        acctCagr && acctCagr.cagrValue !== null
+          ? ` · <span class="${acctCagr.cagrValue >= 0 ? 'pos' : 'neg'}">CAGR ${fmtPctNeg(acctCagr.cagrValue * 100)} (${acctCagr.monthsSpan}m)</span>`
+          : '';
+      return `<div class="row nw-acct-row">
+        <div class="row-label"><span class="nw-acct-swatch" style="background:${safeColor(a.color)}" aria-hidden="true"></span><span class="nw-acct-text"><span class="nw-acct-name">${esc(a.label)}</span><span class="nw-acct-meta">${meta.join(' · ')}${cagr}</span></span></div>
+        <div class="row-val">${fmtEur2(val)}</div></div>`;
+    })
     .join('');
-  det += `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px">
-    <div class="row-label" style="font-weight:500">Total</div>
+  // Previous-snapshot change sits under the total so the card does not need a separate row.
+  const totalChange = prev
+    ? `<span class="nw-acct-meta">vs ${fmtMon(prev.date)} <span class="${total - prevT! >= 0 ? 'pos' : 'neg'}">${fmtEurSigned(total - prevT!, 2)}</span></span>`
+    : '';
+  det += `<div class="row nw-acct-row" style="border-top:1px solid var(--line-2);margin-top:4px">
+    <div class="row-label"><span class="nw-acct-text"><span class="nw-acct-name" style="font-weight:500">Total</span>${totalChange}</span></div>
     <div class="row-val" style="font-weight:500">${fmtEur2(total)}</div></div>`;
-  if (prev) {
-    const c = total - prevT!;
-    det += `<div class="row"><div class="row-label" style="color:var(--ink-3);font-size:12px">vs ${fmtMon(prev.date)}</div>
-      <div class="row-val ${c >= 0 ? 'pos' : 'neg'}">${fmtEurSigned(c, 2)}</div></div>`;
-  }
   if (s.notes) det += `<p class="note" style="margin-top:.5rem">${esc(s.notes)}</p>`;
   document.getElementById('nw-detail')!.innerHTML = det;
+  const detailTitle = document.getElementById('nw-detail-title');
+  if (detailTitle)
+    detailTitle.innerHTML = `Accounts · ${fmtMon(s.date)} snapshot${infoTip('CAGR is the yearly growth rate of each account balance between its first and latest snapshots with a balance (shown after 12 months). It includes money you added or withdrew, so it is not the same as your investment return.')}`;
 
   // Goal progress cards (one per named goal)
   _renderGoalCards();
@@ -861,22 +856,22 @@ function _renderPlanningCard(snaps: Snapshot[], accounts: Account[]): void {
   el.innerHTML = `
     <div class="card" id="nw-planning-card">
       <div class="card-title">Projections</div>
-      <div class="forecast-inflation" style="margin-bottom:1rem">
-        <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation (%/yr)</label>
+      <div class="forecast-inflation">
+        <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation (%/yr)</label>${infoTip(`${inflHint} Applies to Forecast and Retirement withdrawals.`)}
         <div class="forecast-inflation-input-wrap">
           <input id="nw-forecast-inflation" class="forecast-inflation-input" type="number" inputmode="decimal" min="0" max="20" step="0.1"
                  value="${_inflationRate}"
                  aria-label="Annual inflation rate for real-return projection">
         </div>
-        <div class="forecast-inflation-hint">${inflHint} Applies to both Forecast and Drawdown.</div>
       </div>
-      <div class="range-toggle" id="nw-planning-tabs" role="tablist" aria-label="Projections" style="margin-bottom:1rem">
+      <div class="range-toggle" id="nw-planning-tabs" role="tablist" aria-label="Projections" style="margin-bottom:.75rem">
         <button class="btn btn-sm btn-ghost${_planningTab === 'forecast' ? ' active' : ''}" role="tab" aria-selected="${_planningTab === 'forecast'}" aria-controls="nw-fc-panel" data-planning-tab="forecast">Forecast</button>
-        <button class="btn btn-sm btn-ghost${_planningTab === 'drawdown' ? ' active' : ''}" role="tab" aria-selected="${_planningTab === 'drawdown'}" aria-controls="nw-dd-panel" data-planning-tab="drawdown">Drawdown</button>
+        <button class="btn btn-sm btn-ghost${_planningTab === 'drawdown' ? ' active' : ''}" role="tab" aria-selected="${_planningTab === 'drawdown'}" aria-controls="nw-dd-panel" data-planning-tab="drawdown">Retirement withdrawals</button>
       </div>
       <div id="nw-fc-panel" role="tabpanel"${_planningTab !== 'forecast' ? ' hidden' : ''}></div>
       <div id="nw-dd-panel" role="tabpanel"${_planningTab !== 'drawdown' ? ' hidden' : ''}></div>
     </div>`;
+  attachInfoTips(el);
 
   if (_planningTab === 'forecast') {
     _renderForecastChart(snaps, accounts);
@@ -1097,7 +1092,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       </div>
       <div class="forecast-scenario-card"${_showScenarioComparison ? '' : ' hidden'}>
         <div class="forecast-scenario-title">Scenario comparison</div>
-        <div class="note forecast-scenario-note">Baseline uses account return/contribution settings. Deltas below apply to the whole projection.</div>
+        <div class="note forecast-scenario-note">Editable what-if assumptions, not probabilities or guaranteed best/worst cases. The return change is added to every account's yearly return (percentage points). The monthly contribution change is applied to your main investment account.</div>
         ${_scenarios
           .map(
             (scenario) => `
@@ -1105,11 +1100,11 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
                 <div class="forecast-scenario-label">${esc(scenario.label)}</div>
                 <div class="forecast-scenario-fields">
                   <label class="forecast-scenario-field">
-                    <span>Ret Δ%</span>
+                    <span>Return ± pp/yr</span>
                     <input id="nw-scn-${scenario.id}-ret" class="form-input form-input-sm" type="number" inputmode="decimal" min="-30" max="30" step="0.1" value="${scenario.returnDeltaPct}">
                   </label>
                   <label class="forecast-scenario-field">
-                    <span>Contrib Δ€</span>
+                    <span>Monthly ± €</span>
                     <input id="nw-scn-${scenario.id}-contrib" class="form-input form-input-sm" type="number" inputmode="decimal" min="-5000" max="5000" step="10" value="${scenario.contribDeltaAmt}">
                   </label>
                 </div>
@@ -1119,18 +1114,21 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast" role="img" aria-label="Net worth forecast chart" aria-describedby="c-nw-forecast-table-wrap"></canvas></div>
       <div class="chart-data-table-wrap sr-only" id="c-nw-forecast-table-wrap"></div>
-      <div class="note" style="line-height:1.6">
-        <div style="margin-bottom:4px">Per-account return &amp; contribution assumptions (Settings \u2192 Accounts):</div>
-        ${acctSummaryLines}
-        ${
-          groupSummaryLines
-            ? `<div style="margin:8px 0 4px">Grouped forecast summary (current → horizon):</div>${groupSummaryLines}`
-            : ''
-        }
-        <div style="margin-top:4px;color:var(--ink-4)">Contribution timing follows each configured cadence (weekly, every 2 weeks, monthly, quarterly) and is bucketed month-by-month in the projection.</div>
-        <div style="margin-top:4px;color:var(--ink-4)">Does not account for taxes, fees, or FX. Assumes zero rebalancing costs; spreads, commissions, and capital-gains tax from rebalancing can reduce long-horizon returns.${goalDeadlines.length > 0 ? ' Goal deadlines and target amounts are shown as markers on the chart.' : ''}</div>
-        <div style="margin-top:4px;color:var(--ink-4)">Projection uses a single fixed return per account. A market downturn in the years approaching your target could reduce the actual balance by 30–40% compared with the deterministic figure. Consider re-running the forecast with a more conservative return to see the lower bound.</div>
-      </div>
+      <p class="note planning-caveat">Illustration, not a prediction: one fixed yearly return per account, before taxes, fees and FX. A downturn near your target could leave you 30–40% below this line; try a lower return too.${goalDeadlines.length > 0 ? ' Goal deadlines and target amounts are shown as markers on the chart.' : ''}</p>
+      <details class="inline-details">
+        <summary>Assumptions and grouped summary</summary>
+        <div class="note" style="line-height:1.6">
+          <div style="margin-bottom:4px">Per-account return &amp; contribution assumptions (Settings \u2192 Accounts):</div>
+          ${acctSummaryLines}
+          ${
+            groupSummaryLines
+              ? `<div style="margin:8px 0 4px">Grouped forecast summary (current → horizon):</div>${groupSummaryLines}`
+              : ''
+          }
+          <div style="margin-top:4px;color:var(--ink-4)">Contribution timing follows each configured cadence (weekly, every 2 weeks, monthly, quarterly) and is bucketed month-by-month in the projection.</div>
+          <div style="margin-top:4px;color:var(--ink-4)">Assumes zero rebalancing costs; spreads, commissions, and capital-gains tax from rebalancing can reduce long-horizon returns.</div>
+        </div>
+      </details>
     `;
 
   _destroyChart('c-nw-forecast');
@@ -1528,13 +1526,13 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
   // Corpus summary note
   const corpusNote =
     corpus && corpus.lockedCorpus > 0
-      ? `Starting corpus: ${fmtEur(corpus.liquidCorpus)} liquid` +
+      ? `Projected starting balance: ${fmtEur(corpus.liquidCorpus)} liquid` +
         corpus.lockedGroups
           .map((g) => ` + ${fmtEur(g.corpus)} locked (unlocks ${g.unlockYear})`)
           .join('') +
         `. Chart uses liquid portion only.`
       : corpus
-        ? `Starting corpus: ${fmtEur(corpus.liquidCorpus)} (projected at ${fmtMon(_ddRetirementDate)}).`
+        ? `Projected starting balance: ${fmtEur(corpus.liquidCorpus)} (at ${fmtMon(_ddRetirementDate)}).`
         : '';
 
   const withdrawalLabel =
@@ -1590,7 +1588,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
         corpus && corpus.liquidCorpus > 0 && _ddWithdrawalParam > 0
           ? `<div class="kpi-row" style="margin-bottom:.75rem">
               ${kpiTile({
-                label: `Portfolio lasts until${infoTip('When the liquid portfolio balance reaches zero. "Never" means it does not deplete within 40 years.')}`,
+                label: `Portfolio lasts until${infoTip('When the projected liquid balance reaches zero. "40+ years" means it does not run out within the 40-year model, which is not a guarantee that it never will.')}`,
                 value: endMonth ? fmtMon(endMonth) : '40+ years',
                 sub: lastsText,
               })}
@@ -1605,12 +1603,12 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
               ${
                 breakEvenMonthly > 0 && _ddStrategy !== 'pct'
                   ? kpiTile({
-                      label: `Estimated sustainable withdrawal${infoTip('The monthly amount where portfolio growth exactly offsets withdrawals. Above this the balance declines; below it, the balance grows. Results are highly sensitive to changes near this threshold.')}`,
+                      label: `Break-even withdrawal${infoTip('Model estimate of the monthly amount where projected growth exactly offsets withdrawals. Above it the balance declines; below it, the balance grows. It is not a safe-spending limit, and results are very sensitive near this threshold.')}`,
                       value: `${fmtEur(breakEvenMonthly)}/mo`,
                       sub:
                         _ddWithdrawalParam > breakEvenMonthly
-                          ? 'withdrawing above sustainable rate'
-                          : 'withdrawing below sustainable rate',
+                          ? 'withdrawing above break-even'
+                          : 'withdrawing below break-even',
                     })
                   : ''
               }
@@ -1618,7 +1616,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
             ${
               nearBreakEven
                 ? `<div class="status-bar status-info" style="margin-bottom:.75rem">
-                    ℹ️ Your withdrawal is near the sustainable rate (${fmtEur(breakEvenMonthly)}/mo). In this zone, small changes (e.g. ${fmtEur(1000)}/mo) cause large differences over 40 years due to compounding.
+                    ℹ️ Your withdrawal is near the break-even amount (${fmtEur(breakEvenMonthly)}/mo). In this zone, small changes (e.g. ${fmtEur(1000)}/mo) cause large differences over 40 years due to compounding.
                   </div>`
                 : ''
             }
@@ -1627,8 +1625,8 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
           : `<p class="note" style="color:var(--ink-3)">
               ${
                 !corpus || corpus.liquidCorpus <= 0
-                  ? 'Set a retirement date that is after your latest snapshot to project the starting corpus.'
-                  : 'Enter a withdrawal amount to see the drawdown projection.'
+                  ? 'Set a retirement date that is after your latest snapshot to project the starting balance.'
+                  : 'Enter a withdrawal amount to see the retirement withdrawal projection.'
               }
              </p>`
       }

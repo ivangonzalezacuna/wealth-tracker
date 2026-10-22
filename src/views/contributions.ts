@@ -56,10 +56,10 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const lastAmt = pd.monthly[lastM] || 0;
 
   document.getElementById('dca-kpis')!.innerHTML = `
-    ${kpiTile({ label: `Current cost basis${infoTip('The sum of purchase costs for all current open positions, net of any sold shares. Does not include positions fully exited.')}`, value: fmtEur(total), sub: 'all savings plans' })}
+    ${kpiTile({ label: `Current cost basis${infoTip('The sum of purchase costs for all current open positions, net of any sold shares. Does not include positions fully exited.')}`, value: fmtEur(total), sub: 'shares still owned' })}
     ${kpiTile({ label: 'Active months', value: String(n), sub: `${fmtMon(pd.months[0])} \u2192 ${fmtMon(lastM)}` })}
-    ${kpiTile({ label: 'Avg / month', value: fmtEur(avg) })}
-    ${kpiTile({ label: 'Latest month', value: fmtEur(lastAmt), sub: fmtMon(lastM) })}
+    ${kpiTile({ label: `Avg / month${infoTip('Current cost basis divided by the number of active months. Sold shares are excluded, so this is not your lifetime average contribution.')}`, value: fmtEur(avg), sub: 'cost basis ÷ active months' })}
+    ${kpiTile({ label: 'Latest month', value: fmtEur(lastAmt), sub: `purchases in ${fmtMon(lastM)}` })}
   `;
   attachInfoTips(document.getElementById('dca-kpis')!);
 

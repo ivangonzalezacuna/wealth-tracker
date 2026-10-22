@@ -150,8 +150,8 @@ test('net worth KPI shows "in USD" indicator for a non-EUR account', async ({ pa
   await addSnapshot(page, { month, accountValues: { 'USD Broker': 5000 } });
 
   await openTab(page, 'tab-networth');
-  // The per-account KPI sub-text should contain "in USD"
-  await expect(page.locator('#nw-kpis')).toContainText('in USD');
+  // The per-account row in the accounts card should contain "in USD"
+  await expect(page.locator('#nw-detail')).toContainText('in USD');
 });
 
 test('snapshot dialog shows currency-specific placeholder for non-EUR accounts', async ({

@@ -234,7 +234,7 @@ Transactions are merged with existing data using an append-only strategy: new ro
 
 Income analytics on the Analytics tab are anchored to your latest imported transaction month, so
 trailing-12-month income and income growth do not drift just because calendar time passed. Dividend
-yield is calculated against the current value of investment accounts, not total household net worth.
+yield is calculated against the current value of investment accounts, not total net worth.
 
 Tax amounts in the app are **aggregated informational context** from imported transactions
 (withholding + refunds), meant to help you understand personal cashflow history across providers.
@@ -267,13 +267,19 @@ The Portfolio tab has three subviews:
 
 ### Analytics tab
 
-The Analytics tab surfaces two layers of metrics:
+The Analytics tab separates net worth changes from investment returns:
 
-**Level 1 — Balance KPIs** (net worth change, no cash-flow adjustment): Total Return, Net Worth Gain, Investment Gain, YTD Return, CAGR. These include the effect of deposits and withdrawals.
+**Overview:** Net worth change is the lead balance figure. A compact investment summary shows investment value minus purchase cost, cumulative TWR (Time-Weighted Return), and annualized IRR (Internal Rate of Return). Investment value minus cost is not comprehensive profit: investment-account balances can include cash.
 
-**Level 2 — Investment performance KPIs** (cash-flow adjusted): TWR (Time-Weighted Return) and IRR (Internal Rate of Return). These isolate market performance by neutralizing deposits and withdrawals, so they reflect your investment skill rather than your savings rate. Both require at least a few months of history and improve in accuracy with longer data.
+**Net worth growth details:** Expand this section for net worth growth, YTD growth, annualized CAGR, and year-over-year change. These include deposits and withdrawals; they are not investment-performance measures.
 
-**Risk metrics**: Volatility, Max Drawdown, Sharpe, Sortino, and Calmar ratios. All are computed from investment-account-only monthly returns. They are gated behind a 24-month minimum history requirement to avoid statistically meaningless early values.
+**Investment returns:** TWR adjusts for external cash flows; IRR also reflects their timing and amounts. Cumulative TWR and annualized IRR are not directly comparable, and both depend on complete balances and cash-flow records. Monthly heatmap and annual returns share a card; annual differences are expressed in percentage points (`pp`). Blank periods are not zero returns.
+
+**Allocation:** Account shares use the latest snapshot balances, including savings and pension accounts. Expand **Holdings: asset class and region** for holding shares based on purchase costs, not market values. These breakdowns use different totals. Account grouping and active/all-holding filters remain available.
+
+**Advanced analytics:** Volatility, Max Drawdown, Sharpe, Sortino, Calmar, Average Drawdown, and Drawdown Duration use investment-account-only monthly returns. Risk summaries require at least 24 valid monthly return periods with no skipped gaps or missing investment valuations across the supplied history; normally this means at least 25 snapshots. The heatmap has a separate history-count gate. These historical measures are descriptive, not forecasts or universal investment targets.
+
+**Recorded income:** The income summary and chart include recorded dividends and interest. Amount magnitudes are summed without separately deducting tax or withholding; gross/net treatment depends on the source. The trailing window ends at the latest import, and the income numerator can cover a different account scope from the investment-value or purchase-cost denominator.
 
 The risk-free rate used for Sharpe and Sortino is configurable in Settings (default 2%).
 

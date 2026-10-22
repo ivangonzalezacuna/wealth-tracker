@@ -368,7 +368,7 @@ describe('renderPortfolio', () => {
     renderPortfolio(makePD(), [snap]);
     const summary = document.getElementById('port-summary')!.textContent!;
     expect(summary).toContain('PERFORMANCE');
-    expect(summary).toContain('INCOME & COSTS');
+    expect(summary).toContain('Income & costs');
     expect(summary).toContain('Total return');
     expect(summary.indexOf('Fees')).toBeLessThan(summary.indexOf('Total return'));
   });
@@ -717,7 +717,8 @@ describe('renderPortfolio', () => {
     renderPortfolio(makePD(), []);
     renderPortfolio(makePD(), []);
     const kpis = document.getElementById('port-kpis')!;
-    expect(kpis.children.length).toBe(5); // Total invested, Market value, Unrealized P&L, Realized P&L, Annual fee drag
+    expect(kpis.children.length).toBe(2); // Market value lead tile + "Costs and gains" group
+    expect(kpis.querySelectorAll('.kpi-group .kpi-group-row').length).toBe(4);
     // Only one set of data rows (non-header, non-total, non-filter)
     const rows = document.getElementById('port-table')!.querySelectorAll('.hold-row:not(.th)');
     expect(rows.length).toBe(1);
@@ -739,13 +740,8 @@ describe('renderPortfolio', () => {
     const config = chartInstances[0].config as {
       data: { datasets: Array<{ borderRadius: unknown; borderSkipped: unknown }> };
     };
-    expect(config.data.datasets[0].borderRadius).toEqual({
-      topLeft: 0,
-      bottomLeft: 0,
-      topRight: 4,
-      bottomRight: 4,
-    });
-    expect(config.data.datasets[0].borderSkipped).toBe(false);
+    expect(config.data.datasets[0].borderRadius).toBe(4);
+    expect(config.data.datasets[0].borderSkipped).toBe('start');
   });
 
   it('renders donut legend with short name and percentage', () => {
@@ -812,7 +808,7 @@ describe('renderPortfolio', () => {
     expect(labels).toContain('1 yr');
   });
 
-  it('rebalance section opens by default when drift is high', () => {
+  it('rebalance section stays collapsed but flags a suggestion when drift is high', () => {
     setRebalanceHoldings();
     const pd = makeRebalancePd({
       etfs: {
@@ -825,7 +821,10 @@ describe('renderPortfolio', () => {
     const drift = document.getElementById('port-drift')!;
     const details = drift.querySelector('.rebalance-collapsible') as HTMLDetailsElement;
     expect(details).not.toBeNull();
-    expect(details.hasAttribute('open')).toBe(true);
+    expect(details.hasAttribute('open')).toBe(false);
+    const note = details.querySelector('.rebalance-summary-note')!;
+    expect(note.textContent).toContain('Suggested');
+    expect(note.classList.contains('is-suggested')).toBe(true);
   });
 
   it('renders rebalance guidance when all positions are closed but cash is present', () => {
@@ -892,7 +891,7 @@ describe('renderPortfolio', () => {
     const details = drift.querySelector('.rebalance-collapsible') as HTMLDetailsElement;
     expect(details.hasAttribute('open')).toBe(false);
     const summaryNote = drift.querySelector('.rebalance-summary-note') as HTMLElement;
-    expect(summaryNote.textContent).toContain('Optional when drift is moderate or low');
+    expect(summaryNote.textContent).toContain('Drift is moderate or low');
     details.open = true;
 
     const btn6 = drift.querySelector('[data-rebalance-months="6"]') as HTMLButtonElement;
@@ -907,7 +906,7 @@ describe('renderPortfolio', () => {
     const nextSummaryNote = document.querySelector(
       '#port-drift .rebalance-summary-note',
     ) as HTMLElement;
-    expect(nextSummaryNote.textContent).toContain('Optional when drift is moderate or low');
+    expect(nextSummaryNote.textContent).toContain('Drift is moderate or low');
   });
 
   it('rebalance note shows projected drift reduction', () => {
@@ -916,7 +915,7 @@ describe('renderPortfolio', () => {
     renderPortfolio(pd, [makeRebalanceSnap()]);
     const drift = document.getElementById('port-drift')!;
     expect(drift.textContent).toContain('reduce max drift from');
-    expect(drift.textContent).toContain('scenario estimate');
+    expect(drift.textContent).toContain('what-if for new contributions only');
     expect(drift.textContent).toContain('actual results will vary');
   });
 

@@ -11,6 +11,7 @@ import {
   esc,
   safeColor,
   kpiTile,
+  kpiGroup,
 } from '../utils';
 import {
   cagr,
@@ -42,7 +43,7 @@ import { allInvestmentAccountsValue } from '../model/accounts';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import { hideChartTable, writeChartTable } from './chartTable';
-import { T, R, resolvedT } from '../theme';
+import { T, R, BAR_END_ROUNDING, resolvedT } from '../theme';
 import { createChartRegistry } from './chartRegistry';
 import Chart from 'chart.js/auto';
 import { formatEuroCompactSuffix, formatEuroPrefix, formatPercentRounded } from './chartOptions';
@@ -76,10 +77,9 @@ function _attachRangeToggle(
   setRange: (r: '12' | '36' | 'all') => void,
   rerender: () => void,
 ): void {
-  const toggle = document.getElementById(id) as (HTMLElement & { _bound?: boolean }) | null;
-  if (!toggle || toggle._bound) return;
-  toggle._bound = true;
-  toggle.addEventListener('click', (e) => {
+  const toggle = document.getElementById(id);
+  if (!toggle) return;
+  toggle.onclick = (e) => {
     const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
     if (!btn) return;
     const newRange = (btn.dataset.range as '12' | '36' | 'all') || 'all';
@@ -88,7 +88,7 @@ function _attachRangeToggle(
     toggle.querySelectorAll('.btn').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
     rerender();
-  });
+  };
 }
 
 function _getCountrySlices(
@@ -226,98 +226,85 @@ export function renderAnalytics(
 
   document.getElementById('an-kpis-l1')!.innerHTML = `
     ${kpiTile({
-      label: `Total Return${infoTip('Total percentage gain or loss from your first snapshot to today. Measures balance growth, not investment performance. For a cash-flow adjusted return, see IRR.')}`,
-      value: totalReturnVal !== null ? fmtPctNeg(totalReturnVal * 100) : '-',
-      valueClass: totalReturnVal === null ? '' : totalReturnVal >= 0 ? 'pos' : 'neg',
-      sub: totalReturnVal !== null ? `since ${fmtMon(firstDate)}` : 'needs 2 snapshots',
+      label: `Net worth change${infoTip('Total net worth at the latest snapshot minus the first snapshot. Includes all tracked accounts and money added or withdrawn.')}`,
+      value: netWorthGainVal !== null ? fmtEurNeg(netWorthGainVal, 2) : '-',
+      valueClass: netWorthGainVal === null ? '' : netWorthGainVal >= 0 ? 'pos' : 'neg',
+      sub: netWorthGainVal !== null ? `since ${fmtMon(firstDate)}` : 'needs 2 snapshots',
+      lead: true,
     })}
-    ${
-      netWorthGainVal !== null
-        ? kpiTile({
-            label: `Net Worth Gain${infoTip('Total net worth today minus total net worth at your first snapshot. Includes all accounts: investments, savings, and any other tracked balances.')}`,
-            value: fmtEurNeg(netWorthGainVal, 2),
-            valueClass: netWorthGainVal >= 0 ? 'pos' : 'neg',
-            sub: `since ${fmtMon(firstDate)}`,
-          })
-        : kpiTile({ label: 'Net Worth Gain', value: '-', sub: 'needs 2 snapshots' })
-    }
-    ${
-      absoluteGainVal !== null
-        ? kpiTile({
-            label: `Investment Gain${infoTip('Investment account value minus total purchase cost basis (buy transactions). Covers investment-type accounts only, not savings or cash accounts.')}`,
-            value: fmtEurNeg(absoluteGainVal, 2),
-            valueClass: absoluteGainVal >= 0 ? 'pos' : 'neg',
-            sub: `of ${fmtEur(pd!.totalInv)} invested (cost basis)`,
-          })
-        : kpiTile({
-            label: 'Investment Gain',
-            value: '-',
-            sub: 'import transactions to calculate',
-          })
-    }
-    ${
-      ytdVal !== null
-        ? kpiTile({
-            label: `YTD Return (balance)${infoTip('Measures year-to-date balance growth, not investment performance. Includes deposits, withdrawals, and contributions. For a cash-flow adjusted return, see TWR or IRR.')}`,
-            value: fmtPctNeg(ytdVal * 100),
-            valueClass: ytdVal >= 0 ? 'pos' : 'neg',
-            sub: `since Jan ${new Date().getFullYear()}`,
-          })
-        : kpiTile({
-            label: `YTD Return (balance)${infoTip('Measures year-to-date balance growth, not investment performance. Includes deposits, withdrawals, and contributions.')}`,
-            value: '-',
-            sub: 'needs prior-year snapshot',
-          })
-    }
-    ${
-      cagrVal !== null
-        ? kpiTile({
-            label: `CAGR (balance)${infoTip('Compound annual growth rate of your total net worth from first to latest snapshot. Treat this with caution until you have at least 2-3 years of history.')}`,
-            value: fmtPctNeg(cagrVal * 100),
-            valueClass: cagrVal >= 0 ? 'pos' : 'neg',
-            sub: `${monthsSpan} months${monthsSpan < 24 ? ' (early data)' : ''}`,
-          })
-        : kpiTile({
-            label: `CAGR${infoTip('Compound annual growth rate. Requires 12 months of history.')}`,
-            value: '-',
-            sub: `${monthsSpan}/12 months recorded`,
-          })
-    }
-    ${
-      yoyAbs !== null
-        ? kpiTile({
-            label: `YoY${infoTip('Year-over-Year change in total net worth compared to the same month last year.')}`,
-            value: fmtEurSigned(yoyAbs, 2),
-            valueClass: yoyAbs >= 0 ? 'pos' : 'neg',
-            sub: `${yoyPct !== null ? fmtPctSigned(yoyPct) : '-'} vs ${fmtMon(yoyData!.snap.date)}`,
-          })
-        : ''
-    }
+    ${kpiGroup(
+      'Investment value and returns',
+      [
+        {
+          label: `Value minus purchase cost${infoTip('Investment account value minus remaining purchase cost basis. Covers investment-type accounts only, may include account cash, and is not total investment profit.')}`,
+          value: absoluteGainVal !== null ? fmtEurNeg(absoluteGainVal, 2) : '-',
+          valueClass: absoluteGainVal === null ? '' : absoluteGainVal >= 0 ? 'pos' : 'neg',
+          sub:
+            absoluteGainVal !== null
+              ? `${fmtEur(pd!.totalInv)} cost basis`
+              : 'import transactions to calculate',
+        },
+        {
+          label: `Cumulative return (TWR)${infoTip('Time-weighted return across investment-account snapshots, adjusting for recorded external deposits and withdrawals. This is cumulative, not an annual rate.')}`,
+          value: twrVal !== null ? fmtPctNeg(twrVal * 100) : '-',
+          valueClass: twrVal === null ? '' : twrVal >= 0 ? 'pos' : 'neg',
+          sub:
+            twrVal !== null
+              ? `${investmentReturnCount} monthly periods, not annualized${investmentReturnCount < 24 ? ' (early data)' : ''}`
+              : 'insufficient investment history',
+        },
+        {
+          label: `Annualized return (IRR)${infoTip('Money-weighted annual return (XIRR). Reflects amounts and dates of recorded external deposits and withdrawals plus terminal investment value. Internal buys and sells are not external flows.')}`,
+          value: irrVal !== null ? fmtPctNeg(irrVal * 100) : '-',
+          valueClass: irrVal === null ? '' : irrVal >= 0 ? 'pos' : 'neg',
+          sub:
+            irrVal !== null
+              ? `XIRR, annualized${monthsSpan < 24 ? ' (early data)' : ''}`
+              : 'needs external cash flows and terminal value',
+        },
+      ],
+      { result: false },
+    )}
   `;
 
-  const perfHeading = document.getElementById('an-perf-detail-heading');
-  if (perfHeading) perfHeading.style.display = '';
-
-  document.getElementById('an-kpis-l2')!.innerHTML = `
-    ${kpiTile({
-      label: `TWR (investments)${infoTip('Time-weighted return across investment-account snapshots, neutralising external deposits and withdrawals. Measures investment performance independently of contribution timing.')}`,
-      value: twrVal !== null ? fmtPctNeg(twrVal * 100) : '-',
-      valueClass: twrVal === null ? '' : twrVal >= 0 ? 'pos' : 'neg',
-      sub:
-        twrVal !== null
-          ? `${investmentReturnCount} monthly periods, not annualized${investmentReturnCount < 24 ? ' (early data)' : ''}`
-          : 'insufficient investment history',
-    })}
-    ${kpiTile({
-      label: `IRR (investments)${infoTip('Money-weighted annual return on invested capital (XIRR). Uses normalized external deposits/withdrawals plus current investment value, so internal buys and sells do not distort the result.')}`,
-      value: irrVal !== null ? fmtPctNeg(irrVal * 100) : '-',
-      valueClass: irrVal === null ? '' : irrVal >= 0 ? 'pos' : 'neg',
-      sub:
-        irrVal !== null
-          ? `XIRR, annualized${monthsSpan < 24 ? ' (early data)' : ''}`
-          : 'needs external cash flows and terminal value',
-    })}
-  `;
+  document.getElementById('an-kpis-l2')!.innerHTML = kpiGroup(
+    'Net worth growth',
+    [
+      {
+        label: `Net worth growth${infoTip('Percentage balance change from first to latest snapshot. Includes deposits and withdrawals; not cash-flow-adjusted investment performance.')}`,
+        value: totalReturnVal !== null ? fmtPctNeg(totalReturnVal * 100) : '-',
+        valueClass: totalReturnVal === null ? '' : totalReturnVal >= 0 ? 'pos' : 'neg',
+        sub: totalReturnVal !== null ? `since ${fmtMon(firstDate)}` : 'needs 2 snapshots',
+      },
+      {
+        label: `Year-to-date growth${infoTip('Net worth balance growth since the prior year end, including money added or withdrawn.')}`,
+        value: ytdVal !== null ? fmtPctNeg(ytdVal * 100) : '-',
+        valueClass: ytdVal === null ? '' : ytdVal >= 0 ? 'pos' : 'neg',
+        sub:
+          ytdVal !== null ? `since Jan ${new Date().getFullYear()}` : 'needs prior-year snapshot',
+      },
+      {
+        label: `Annualized growth (CAGR)${infoTip('Compound annual growth of total net worth, including deposits and withdrawals. Short histories can produce unusually large rates.')}`,
+        value: cagrVal !== null ? fmtPctNeg(cagrVal * 100) : '-',
+        valueClass: cagrVal === null ? '' : cagrVal >= 0 ? 'pos' : 'neg',
+        sub:
+          cagrVal !== null
+            ? `${monthsSpan} months${monthsSpan < 24 ? ' (early data)' : ''}`
+            : `${monthsSpan}/12 months recorded`,
+      },
+      ...(yoyAbs !== null
+        ? [
+            {
+              label: `Year-over-year change${infoTip('Change in total net worth compared with the matching prior-year snapshot, including external money flows.')}`,
+              value: fmtEurSigned(yoyAbs, 2),
+              valueClass: yoyAbs >= 0 ? 'pos' : 'neg',
+              sub: `${yoyPct !== null ? fmtPctSigned(yoyPct) : '-'} vs ${fmtMon(yoyData!.snap.date)}`,
+            },
+          ]
+        : []),
+    ],
+    { result: false },
+  );
 
   // ── Portfolio growth chart ────────────────────────────────
   _renderGrowthChart(snaps);
@@ -372,7 +359,7 @@ export function renderAnalytics(
         reasons.push(`${perfData.skippedMissingValuePeriods} period(s) missing investment values`);
       if (perfData.skippedGapPeriods > 0)
         reasons.push(`${perfData.skippedGapPeriods} gap period(s) in snapshot history`);
-      riskMetricsNoteEl.textContent = `Insufficient data for investment risk metrics: ${reasons.join(', ')}.`;
+      riskMetricsNoteEl.textContent = `Insufficient data for investment risk metrics: ${reasons.join(', ')}. At least 24 valid monthly return periods are required, with no skipped gaps or unavailable investment values in the recorded history. Check snapshot months and investment balances.`;
       if (riskMetricsNoteCardEl) riskMetricsNoteCardEl.style.display = '';
     }
   }
@@ -399,48 +386,55 @@ export function renderAnalytics(
     if (riskKpisEl) {
       riskKpisEl.innerHTML = riskMetricsReady
         ? `
-      ${kpiTile({
-        label: `Volatility${infoTip('Annualized standard deviation of monthly investment returns after neutralising external cash flows. Higher volatility means a bumpier investment ride.')}`,
-        value: volResult.annualized !== null ? fmtPctNeg(volResult.annualized * 100) : '-',
-        valueClass: '',
-        sub: volResult.annualized !== null ? 'annualized, all history' : 'needs more data',
-      })}
-      ${kpiTile({
-        label: `Max Drawdown${infoTip('Largest peak-to-trough decline in the linked investment return series. Uses investment performance only, not household net-worth changes.')}`,
-        value: dd !== null ? (dd === 0 ? '0%' : fmtPctNeg(dd * 100)) : '-',
-        valueClass: dd === null ? '' : dd < 0 ? 'neg' : '',
-        sub: dd !== null ? 'all history' : 'needs more data',
-      })}
-      ${kpiTile({
-        label: `Calmar${infoTip('Annualized investment return divided by absolute max drawdown. Higher is better.')}`,
-        value: calmar !== null ? calmar.toFixed(2) : '-',
-        valueClass: calmar === null ? '' : calmar >= 0 ? 'pos' : 'neg',
-        sub: calmar !== null ? 'CAGR / |Max DD|' : 'needs more data',
-      })}
-      ${kpiTile({
-        label: `Sharpe${infoTip('(Annualized investment return minus risk-free rate) divided by annualized volatility. Measures return per unit of investment risk. A negative value means the portfolio return is below the risk-free rate; this is financially correct, not a data error.')}`,
-        value: sharpe !== null ? sharpe.toFixed(2) : '-',
-        valueClass: '',
-        sub: sharpe !== null ? `rf = ${(riskFreeRate * 100).toFixed(2)}%` : 'needs more data',
-      })}
-      ${kpiTile({
-        label: `Sortino${infoTip('Like Sharpe, but uses only downside volatility from negative investment months.')}`,
-        value: sortino !== null ? sortino.toFixed(2) : '-',
-        valueClass: '',
-        sub: sortino !== null ? 'downside risk only' : 'needs more data',
-      })}
-      ${kpiTile({
-        label: `Avg Drawdown${infoTip('Average of all monthly investment drawdowns in the linked performance series.')}`,
-        value: avgDD !== null && avgDD < 0 ? fmtPctNeg(avgDD * 100) : avgDD === 0 ? '0%' : '-',
-        valueClass: avgDD !== null && avgDD < 0 ? 'neg' : '',
-        sub: avgDD !== null ? 'mean of all drawdown months' : 'needs more data',
-      })}
-      ${kpiTile({
-        label: `DD Duration${infoTip('Maximum number of consecutive monthly investment periods spent below the prior peak.')}`,
-        value: ddDur > 0 ? `${ddDur} mo` : ddResult.series.length > 0 ? '0 mo' : '-',
-        valueClass: '',
-        sub: ddDur > 0 ? 'longest underwater streak' : 'no drawdown in history',
-      })}
+        ${kpiGroup(
+          'Investment risk',
+          [
+            {
+              label: `Volatility${infoTip('Annualized standard deviation of monthly investment returns after neutralising external cash flows. Higher volatility means a bumpier investment ride.')}`,
+              value: volResult.annualized !== null ? fmtPctNeg(volResult.annualized * 100) : '-',
+              valueClass: '',
+              sub: volResult.annualized !== null ? 'annualized, all history' : 'needs more data',
+            },
+            {
+              label: `Max Drawdown${infoTip('Largest peak-to-trough decline in the linked investment return series. Uses investment performance only, not net worth growth.')}`,
+              value: dd !== null ? (dd === 0 ? '0%' : fmtPctNeg(dd * 100)) : '-',
+              valueClass: dd === null ? '' : dd < 0 ? 'neg' : '',
+              sub: dd !== null ? 'all history' : 'needs more data',
+            },
+            {
+              label: `Calmar${infoTip('Annualized investment return divided by absolute max drawdown. Higher is better.')}`,
+              value: calmar !== null ? calmar.toFixed(2) : '-',
+              valueClass: calmar === null ? '' : calmar >= 0 ? 'pos' : 'neg',
+              sub: calmar !== null ? 'CAGR / |Max DD|' : 'needs more data',
+            },
+            {
+              label: `Sharpe${infoTip('(Annualized investment return minus risk-free rate) divided by annualized volatility. Measures return per unit of investment risk. A negative value means the portfolio return is below the risk-free rate; this is financially correct, not a data error.')}`,
+              value: sharpe !== null ? sharpe.toFixed(2) : '-',
+              valueClass: '',
+              sub: sharpe !== null ? `rf = ${(riskFreeRate * 100).toFixed(2)}%` : 'needs more data',
+            },
+            {
+              label: `Sortino${infoTip('Like Sharpe, but uses only downside volatility from negative investment months.')}`,
+              value: sortino !== null ? sortino.toFixed(2) : '-',
+              valueClass: '',
+              sub: sortino !== null ? 'downside risk only' : 'needs more data',
+            },
+            {
+              label: `Avg Drawdown${infoTip('Average of all monthly investment drawdowns in the linked performance series.')}`,
+              value:
+                avgDD !== null && avgDD < 0 ? fmtPctNeg(avgDD * 100) : avgDD === 0 ? '0%' : '-',
+              valueClass: avgDD !== null && avgDD < 0 ? 'neg' : '',
+              sub: avgDD !== null ? 'mean of all drawdown months' : 'needs more data',
+            },
+            {
+              label: `DD Duration${infoTip('Maximum number of consecutive monthly investment periods spent below the prior peak.')}`,
+              value: ddDur > 0 ? `${ddDur} mo` : ddResult.series.length > 0 ? '0 mo' : '-',
+              valueClass: '',
+              sub: ddDur > 0 ? 'longest underwater streak' : 'no drawdown in history',
+            },
+          ],
+          { result: false },
+        )}
     `
         : '';
     }
@@ -483,6 +477,7 @@ function _renderGrowthChart(snaps: Snapshot[]): void {
   _destroyChart('c-an-growth');
   document.getElementById('an-growth-legend')!.innerHTML = '';
   if (view.length < 2) {
+    hideChartTable('c-an-growth-table-wrap');
     return;
   }
 
@@ -707,7 +702,7 @@ function _renderHeatmap(
   const monthsCount = weighted.length;
   if (monthsCount < HEATMAP_MIN_MONTHS) {
     heatmapEl.innerHTML =
-      '<p class="note">Heatmap unlocks after 24 consecutive monthly investment-return periods. Until then, focus on balance growth and contribution consistency.</p>';
+      '<p class="note">Heatmap unlocks after 24 valid monthly investment-return periods are available.</p>';
     if (noteEl) noteEl.style.display = 'none';
     if (footerEl)
       footerEl.textContent =
@@ -717,12 +712,12 @@ function _renderHeatmap(
 
   if (noteEl) {
     noteEl.textContent =
-      'Use this as long-horizon investment context, not as a monthly trading signal.';
+      'Cells show cash-flow-adjusted monthly returns. Color strength also weights starting investment value.';
     noteEl.style.display = '';
   }
   if (footerEl)
     footerEl.textContent =
-      'Color intensity is weighted by investment value. Interpret as long-horizon context, not a signal to chase recent winners.';
+      'Blank = unknown, not 0%. Year totals compound available returns; * = partial year. Colors are descriptive, not trading signals.';
 
   // Find extremes for color scale (use weightedReturn for color intensity)
   const maxAbs = Math.max(...weighted.map((m) => Math.abs(m.weightedReturn)), 0.001);
@@ -835,23 +830,19 @@ function _renderHeatmap(
 function _attachHeatmapPager(
   monthlyReturns: { date: string; startValue: number; return: number }[],
 ): void {
-  const prevBtn = document.getElementById('an-heatmap-prev') as
-    (HTMLElement & { _bound?: boolean }) | null;
-  const nextBtn = document.getElementById('an-heatmap-next') as
-    (HTMLElement & { _bound?: boolean }) | null;
-  if (prevBtn && !prevBtn._bound) {
-    prevBtn._bound = true;
-    prevBtn.addEventListener('click', () => {
+  const prevBtn = document.getElementById('an-heatmap-prev');
+  const nextBtn = document.getElementById('an-heatmap-next');
+  if (prevBtn) {
+    prevBtn.onclick = () => {
       _heatmapPage++;
       _renderHeatmap(monthlyReturns);
-    });
+    };
   }
-  if (nextBtn && !nextBtn._bound) {
-    nextBtn._bound = true;
-    nextBtn.addEventListener('click', () => {
+  if (nextBtn) {
+    nextBtn.onclick = () => {
       _heatmapPage = Math.max(0, _heatmapPage - 1);
       _renderHeatmap(monthlyReturns);
-    });
+    };
   }
 }
 
@@ -922,7 +913,7 @@ function _renderAnnualTable(
         const delta = (row.return - prior.return) * 100;
         const dSign = delta >= 0 ? '+' : '';
         const dColor = delta >= 0 ? C.pos : C.neg;
-        deltaCell = `<td style="color:${dColor}">${dSign}${delta.toFixed(1)}%</td>`;
+        deltaCell = `<td style="color:${dColor}">${dSign}${delta.toFixed(1)} pp</td>`;
       }
 
       const sparkline = `<svg width="32" height="${MAX_BAR_H + 4}" viewBox="0 0 32 ${MAX_BAR_H + 4}" aria-hidden="true" style="display:block;margin:auto">
@@ -944,7 +935,7 @@ function _renderAnnualTable(
         <th style="text-align:left;padding:4px 6px">Year</th>
         <th style="text-align:left;padding:4px 6px">Return${infoTip('Rows marked with * are partial-year returns (fewer than 12 months of investment-return data).')}</th>
         <th style="text-align:center;padding:4px 6px">Bar${infoTip('Relative bar height scaled to the largest absolute annual return shown in this table.')}</th>
-        <th style="text-align:left;padding:4px 6px">vs prior year</th>
+        <th style="text-align:left;padding:4px 6px">Change (pp)${infoTip('Difference in percentage points from the previous listed year. Partial-year returns cover fewer months, so they are not directly comparable with full-year results.')}</th>
       </tr>
     </thead>
     <tbody style="color:var(--ink-2)">${tableRows}</tbody>
@@ -1135,7 +1126,7 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
 
       const hint =
         mode === 'active' && otherModeHasMore
-          ? `<p class="note" style="margin-top:6px">Switch to <em>All assets</em> to see the full breakdown.</p>`
+          ? `<p class="note" style="margin-top:6px">Switch to <em>All configured holdings</em> to see the full breakdown.</p>`
           : '';
 
       legendEl.style.flexWrap = 'wrap';
@@ -1234,7 +1225,7 @@ function _renderAllocToggleBtn(dim: AllocDim): void {
     wrapEl.innerHTML = `
       <div class="range-toggle" style="font-size:11px">
         <button class="btn btn-sm btn-ghost${groupDim === 'acct' ? ' active' : ''}" data-acct-group="acct">By account</button>
-        <button class="btn btn-sm btn-ghost${groupDim === 'country' ? ' active' : ''}" data-acct-group="country">By country</button>
+        <button class="btn btn-sm btn-ghost${groupDim === 'country' ? ' active' : ''}" data-acct-group="country">Account country</button>
         <button class="btn btn-sm btn-ghost${groupDim === 'group' ? ' active' : ''}" data-acct-group="group">By group</button>
         <button class="btn btn-sm btn-ghost${groupDim === 'type' ? ' active' : ''}" data-acct-group="type">By type</button>
       </div>`;
@@ -1258,8 +1249,8 @@ function _renderAllocToggleBtn(dim: AllocDim): void {
 
   const mode = _allocMode[dim] ?? 'active';
   wrapEl.innerHTML = `<div class="range-toggle" style="font-size:11px">
-    <button class="btn btn-sm btn-ghost${mode === 'all' ? ' active' : ''}" data-alloc-mode="all" data-alloc-dim="${dim}">All assets</button>
-    <button class="btn btn-sm btn-ghost${mode === 'active' ? ' active' : ''}" data-alloc-mode="active" data-alloc-dim="${dim}">Active only</button>
+    <button class="btn btn-sm btn-ghost${mode === 'all' ? ' active' : ''}" data-alloc-mode="all" data-alloc-dim="${dim}">All configured holdings</button>
+    <button class="btn btn-sm btn-ghost${mode === 'active' ? ' active' : ''}" data-alloc-mode="active" data-alloc-dim="${dim}">Active holdings only</button>
   </div>`;
   if (!(wrapEl as HTMLElement & { _dimBound?: boolean })._dimBound) {
     (wrapEl as HTMLElement & { _dimBound?: boolean })._dimBound = true;
@@ -1477,53 +1468,57 @@ function _renderIncomeAnalytics(
       ? `${fmtMon(metrics.asOfMonth)} vs ${fmtMon(priorWindowMonth)} (12M windows)`
       : `${throughLabel} vs prior 12M`;
 
-  document.getElementById('an-kpis-income')!.innerHTML = `
-    ${kpiTile({
-      label: `Trailing 12M Income${infoTip('Sum of all DIVIDEND and INTEREST transactions received in the trailing 12-month window anchored to your latest imported transaction month.')}`,
-      value: fmtEur2(metrics.trailing12m),
-      sub: throughLabel,
-    })}
-    ${
-      metrics.yieldPct !== null
-        ? kpiTile({
-            label: `Dividend Yield${infoTip('Trailing 12-month income divided by the current value of your investment accounts. Excludes cash, savings, pension, and other non-investment balances.')}`,
-            value: fmtPctNeg(metrics.yieldPct * 100),
-            sub: metrics.asOfMonth
-              ? `trailing 12M as of ${fmtMon(metrics.asOfMonth)} / investment value`
-              : 'trailing 12M / investment value',
-          })
-        : ''
-    }
-    ${
-      metrics.yieldOnCost !== null
-        ? kpiTile({
-            label: `Yield on Cost${infoTip('Trailing 12-month income divided by total invested capital (cost basis). Shows income as a percentage of your original investment. More stable than current yield.')}`,
-            value: fmtPctNeg(metrics.yieldOnCost * 100),
-            sub: 'trailing 12M / cost basis',
-          })
-        : ''
-    }
-    ${
-      metrics.yoyGrowth !== null
-        ? kpiTile({
-            label: `Income Growth (YoY)${infoTip('Trailing 12-month income compared with the prior trailing 12 months, anchored to your latest imported transaction month.')}`,
-            value: fmtPctSigned(metrics.yoyGrowth * 100),
-            valueClass: metrics.yoyGrowth >= 0 ? 'pos' : 'neg',
-            sub: yoyWindowLabel,
-          })
-        : ''
-    }
-    ${
-      metrics.dividendCagr !== null
-        ? kpiTile({
-            label: `Income CAGR${infoTip('Compound annual growth rate of income from year to year. Shows how fast your income stream is growing. Partial first years (portfolio started mid-year) inflate this rate, so treat it with caution until you have two full calendar years of dividend history.')}`,
-            value: fmtPctNeg(metrics.dividendCagr * 100),
-            valueClass: metrics.dividendCagr >= 0 ? 'pos' : 'neg',
-            sub: 'annual income growth rate',
-          })
-        : ''
-    }
-  `;
+  document.getElementById('an-kpis-income')!.innerHTML = kpiGroup(
+    'Recorded income',
+    [
+      {
+        label: `Trailing 12M Income${infoTip('Sum of all DIVIDEND and INTEREST transactions received in the trailing 12-month window anchored to your latest imported transaction month.')}`,
+        value: fmtEur2(metrics.trailing12m),
+        sub: throughLabel,
+      },
+      ...(metrics.yieldPct !== null
+        ? [
+            {
+              label: `Recorded income / investment value${infoTip('Trailing 12-month recorded dividend and interest income divided by latest investment-account value. Income can include interest outside investment accounts, so the numerator and denominator may cover different accounts.')}`,
+              value: fmtPctNeg(metrics.yieldPct * 100),
+              sub: metrics.asOfMonth
+                ? `trailing 12M as of ${fmtMon(metrics.asOfMonth)} / investment value`
+                : 'trailing 12M / investment value',
+            },
+          ]
+        : []),
+      ...(metrics.yieldOnCost !== null
+        ? [
+            {
+              label: `Recorded income / purchase cost${infoTip('Trailing 12-month recorded dividend and interest income divided by remaining purchase cost basis, not lifetime contributions.')}`,
+              value: fmtPctNeg(metrics.yieldOnCost * 100),
+              sub: 'trailing 12M / cost basis',
+            },
+          ]
+        : []),
+      ...(metrics.yoyGrowth !== null
+        ? [
+            {
+              label: `Income Growth (YoY)${infoTip('Trailing 12-month income compared with the prior trailing 12 months, anchored to your latest imported transaction month.')}`,
+              value: fmtPctSigned(metrics.yoyGrowth * 100),
+              valueClass: metrics.yoyGrowth >= 0 ? 'pos' : 'neg',
+              sub: yoyWindowLabel,
+            },
+          ]
+        : []),
+      ...(metrics.dividendCagr !== null
+        ? [
+            {
+              label: `Income CAGR${infoTip('Annualized change between first and latest recorded calendar-year income totals. Either year may be partial, materially distorting the rate. This is not a forecast.')}`,
+              value: fmtPctNeg(metrics.dividendCagr * 100),
+              valueClass: metrics.dividendCagr >= 0 ? 'pos' : 'neg',
+              sub: 'annual income growth rate',
+            },
+          ]
+        : []),
+    ],
+    { result: false },
+  );
 
   _renderIncomeChart(metrics.monthlyBreakdown);
   _attachIncomeRangeToggle(metrics.monthlyBreakdown);
@@ -1551,8 +1546,7 @@ function _renderIncomeChart(monthlyBreakdown: { month: string; amount: number }[
           label: 'Income',
           data: view.map((p) => p.amount),
           backgroundColor: C.pos,
-          borderRadius: R.xs,
-          borderSkipped: false,
+          ...BAR_END_ROUNDING,
         },
       ],
     },

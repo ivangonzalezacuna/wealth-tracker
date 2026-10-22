@@ -1,4 +1,5 @@
-import { fmtEur2, fmtMon, fmtDay, esc, safeColor, kpiTile } from '../utils';
+import { fmtEur2, fmtMon, fmtDay, esc, safeColor, kpiGroup } from '../utils';
+import { bindExpandableRows, restoreExpandableRows } from './expandableRows';
 import type { PortfolioData, DivHistEntry, IntHistEntry, Transaction } from '../types';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { attachEtfPopovers } from '../ui/etfPopover';
@@ -67,12 +68,43 @@ export function renderDividends(pd: PortfolioData | null, txs: Transaction[] = [
 
   const totalGross = pd.divHist.reduce((s, d) => s + d.gross, 0);
   document.getElementById('div-kpis')!.innerHTML = `
-    ${kpiTile({ label: `Gross dividends${infoTip('Before tax: Total distribution payments received from ETFs and stocks, before withholding tax is deducted.')}`, value: fmtEur2(totalGross) })}
-    ${kpiTile({ label: `Tax withheld${infoTip('Aggregated withholding imported on dividend transactions. Useful as a cashflow signal, not jurisdiction-aware tax reporting or filing guidance.')}`, value: fmtEur2(Math.abs(pd.totalTax)), valueClass: pd.totalTax >= 0 ? 'neg' : 'pos', sub: 'aggregated imported signal' })}
-    ${kpiTile({ label: `Net received${infoTip('Gross dividends minus dividend withholding tax for imported dividend rows.')}`, value: fmtEur2(pd.totalDivNet), valueClass: 'pos', sub: 'dividends' })}
-    ${kpiTile({ label: `Gross interest${infoTip('Interest credited on cash/savings balances before any withholding or refunds.')}`, value: fmtEur2(pd.totalIntGross), sub: 'on cash savings' })}
-    ${kpiTile({ label: `Tax on savings${infoTip('Aggregated savings-interest withholding and refunds imported from broker transactions. Useful as a cashflow signal, not jurisdiction-aware tax reporting or filing guidance.')}`, value: fmtEur2(pd.totalIntTax), valueClass: pd.totalIntTax > 0 ? 'neg' : 'ok', sub: 'aggregated withheld + refunds' })}
-    ${kpiTile({ label: `Net interest${infoTip('Gross interest minus savings-interest withholding tax, including imported refunds.')}`, value: fmtEur2(pd.totalInterest), valueClass: 'pos', sub: 'received' })}
+    ${kpiGroup('Dividends', [
+      {
+        label: `Gross dividends${infoTip('Before tax: Total distribution payments received from ETFs and stocks, before withholding tax is deducted.')}`,
+        value: fmtEur2(totalGross),
+      },
+      {
+        label: `Tax withheld${infoTip('Aggregated withholding imported on dividend transactions. Useful as a cashflow signal, not jurisdiction-aware tax reporting or filing guidance.')}`,
+        value: fmtEur2(Math.abs(pd.totalTax)),
+        valueClass: pd.totalTax >= 0 ? 'neg' : 'pos',
+        sub: 'aggregated imported signal',
+      },
+      {
+        label: `Net received${infoTip('Gross dividends minus dividend withholding tax for imported dividend rows.')}`,
+        value: fmtEur2(pd.totalDivNet),
+        valueClass: 'pos',
+        sub: 'dividends',
+      },
+    ])}
+    ${kpiGroup('Savings interest', [
+      {
+        label: `Gross interest${infoTip('Interest credited on cash/savings balances before any withholding or refunds.')}`,
+        value: fmtEur2(pd.totalIntGross),
+        sub: 'on cash savings',
+      },
+      {
+        label: `Tax on savings${infoTip('Aggregated savings-interest withholding and refunds imported from broker transactions. Useful as a cashflow signal, not jurisdiction-aware tax reporting or filing guidance.')}`,
+        value: fmtEur2(pd.totalIntTax),
+        valueClass: pd.totalIntTax > 0 ? 'neg' : 'ok',
+        sub: 'aggregated withheld + refunds',
+      },
+      {
+        label: `Net interest${infoTip('Gross interest minus savings-interest withholding tax, including imported refunds.')}`,
+        value: fmtEur2(pd.totalInterest),
+        valueClass: 'pos',
+        sub: 'received',
+      },
+    ])}
     <div class="note" style="grid-column:1 / -1;line-height:1.5">
       Tax figures in this tab are aggregated from imported transactions (withholding + refunds) for personal tracking only. They are not tax filing guidance, are not residence-aware, and may become incomplete if your tax country changes over time.
     </div>
@@ -189,13 +221,11 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
       const taxesPaidColor =
         taxesPaid > 0 ? 'var(--neg)' : taxesPaid < 0 ? 'var(--pos)' : 'var(--ink-3)';
       const detailOpen = _expandedAnnualYear === y;
-      const detail = renderAnnualDetail(r);
       return `<div class="tbl-row annual-row" role="row" tabindex="0" aria-expanded="${String(detailOpen)}" data-annual-year="${y}">
         <div style="font-weight:500;display:flex;align-items:center;gap:5px"><span class="row-expand-chevron">&#x25B8;</span>${y}</div>
         <div style="text-align:right;color:${taxesPaidColor}">${fmtEur2(taxesPaid)}</div>
         <div style="text-align:right;color:${benefitsNet >= 0 ? 'var(--pos)' : 'var(--neg)'};font-weight:500">${fmtEur2(benefitsNet)}</div>
-      </div>
-      ${detailOpen ? `<div class="annual-detail">${detail}</div>` : ''}`;
+      </div>`;
     })
     .join('');
   target.innerHTML = `<div class="tbl" role="table" aria-label="Annual income summary">
@@ -203,29 +233,34 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
       <div class="tbl-row th annual-row" role="row">
         <div>Year</div>
         <div style="text-align:right">Withheld / refunded${infoTip('Aggregated dividend and savings tax amounts imported during the year. Useful as a personal tracking signal, not tax filing guidance.')}</div>
-        <div style="text-align:right">Benefits (net)${infoTip('Net dividends + net savings interest + realized profit/loss from sells for the year.')}</div>
+        <div style="text-align:right">Benefits (net)${infoTip('Net dividends + net savings interest + realized profit/loss from sells for the year. A personal tracking total, not a tax calculation.')}</div>
       </div>
       ${rows}
     </div>
   </div>`;
-  const annualEl = document.getElementById('div-annual-table') as
-    (HTMLElement & { _bound?: boolean }) | null;
-  if (annualEl && !annualEl._bound) {
-    annualEl._bound = true;
-    annualEl.addEventListener('click', (ev) => {
-      const row = (ev.target as HTMLElement).closest('[data-annual-year]') as HTMLElement | null;
-      if (!row) return;
+  const annualEl = document.getElementById('div-annual-table');
+  const expandable = {
+    container: annualEl,
+    rowSelector: '[data-annual-year]',
+    detailSelector: '.annual-detail',
+    getItem: (row: HTMLElement) => byYear[row.dataset.annualYear || ''],
+    createDetail: (_row: HTMLElement, item: (typeof byYear)[string]) => {
+      const el = document.createElement('div');
+      el.className = 'annual-detail';
+      el.innerHTML = renderAnnualDetail(item);
+      return el;
+    },
+    onExpandedChange: (row: HTMLElement, expanded: boolean) => {
       const y = row.dataset.annualYear || '';
-      _expandedAnnualYear = _expandedAnnualYear === y ? '' : y;
-      renderAnnualSummary(_lastPd!, _lastTxs);
-    });
-    annualEl.addEventListener('keydown', (ev) => {
-      const row = (ev.target as HTMLElement).closest('[data-annual-year]') as HTMLElement | null;
-      if (!row || (ev.key !== 'Enter' && ev.key !== ' ')) return;
-      ev.preventDefault();
-      row.click();
-    });
-  }
+      if (expanded) _expandedAnnualYear = y;
+      else if (_expandedAnnualYear === y) _expandedAnnualYear = '';
+    },
+  };
+  bindExpandableRows(expandable);
+  restoreExpandableRows({
+    ...expandable,
+    isExpanded: (row) => row.dataset.annualYear === _expandedAnnualYear,
+  });
 
   function renderAnnualDetail(r: {
     grossDiv: number;
@@ -271,7 +306,7 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
           .filter((i) => !isZero(i.value))
           .map(
             (i) =>
-              `<div><span class="hold-detail-label">${i.label}</span><span class="hold-detail-value ${i.className || ''}">${fmtEur2(i.value)}</span></div>`,
+              `<div class="row"><span class="row-label">${i.label}</span><span class="row-val ${i.className || ''}">${fmtEur2(i.value)}</span></div>`,
           )
           .join('');
         if (!itemsHtml) return '';

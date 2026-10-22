@@ -14,7 +14,7 @@ function metricExplainerCard(
   icon: string,
   title: string,
   description: string,
-  benchmark: string,
+  interpretation: string,
   adviceLabel: string,
   advice: string,
 ): string {
@@ -23,7 +23,7 @@ function metricExplainerCard(
   return `<div class="card" style="padding:.75rem 1rem;margin:0">
               <div style="font-size:12px;font-weight:600;margin-bottom:.25rem">${icon} ${title}</div>
               ${p('margin:0 0 .25rem', description)}
-              ${p('margin:0 0 .25rem', `<strong>Good to aim for:</strong> ${benchmark}`)}
+              ${p('margin:0 0 .25rem', `<strong>How to read it:</strong> ${interpretation}`)}
               ${p('margin:0', `<strong>${adviceLabel}:</strong> ${advice}`)}
             </div>`;
 }
@@ -73,7 +73,7 @@ export function appTemplate(): string {
       <div class="chart-data-table-wrap sr-only" id="c-nw-hist-table-wrap"></div>
     </div>
     <div class="card">
-      <div class="card-title">Latest snapshot</div>
+      <div class="card-title" id="nw-detail-title">Accounts</div>
       <div id="nw-detail"></div>
     </div>
     <div id="nw-goal"></div>
@@ -96,9 +96,9 @@ export function appTemplate(): string {
       <button class="btn btn-primary" data-goto="log">Import CSV →</button>
     </div></div></div>
     <div id="port-content" style="display:none">
-      <div class="kpi-row" id="port-kpis"></div>
+      <div class="kpi-row kpi-row-groups" id="port-kpis"></div>
       <div class="card">
-        <div class="card-title">Holdings: cost basis &amp; performance</div>
+        <div class="card-title">Holdings</div>
         <div class="tbl" role="table" aria-label="Holdings"><div id="port-table"></div></div>
         <div id="port-pagination" class="pagination"></div>
       </div>
@@ -106,11 +106,11 @@ export function appTemplate(): string {
         <div class="card">
           <div class="card-title">Cost basis allocation</div>
           <div id="port-donut-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm"><canvas id="c-port-donut" role="img" aria-label="Cost basis allocation chart" aria-describedby="c-port-donut-table-wrap"></canvas></div>
+          <div class="chart-wrap chart-h-sm chart-h-fit"><canvas id="c-port-donut" role="img" aria-label="Cost basis allocation chart" aria-describedby="c-port-donut-table-wrap"></canvas></div>
           <div class="chart-data-table-wrap sr-only" id="c-port-donut-table-wrap"></div>
         </div>
         <div class="card">
-          <div class="card-title">Summary</div>
+          <div class="card-title">Value and returns</div>
           <div id="port-summary"></div>
         </div>
       </div>
@@ -126,7 +126,7 @@ export function appTemplate(): string {
     <div id="dca-content" style="display:none">
       <div class="kpi-row" id="dca-kpis"></div>
       <div class="card card-primary">
-        <div class="card-title">Monthly invested: stacked by ETF (savings plan executions)</div>
+        <div class="card-title">Monthly purchases by ETF (savings plan executions)</div>
         <div class="chart-controls">
           <div id="dca-legend" class="legend"></div>
           ${rangeToggleHtml('dca-range-toggle', 'Contributions range')}
@@ -157,7 +157,7 @@ export function appTemplate(): string {
       <button class="btn btn-primary" data-goto="log">Import CSV →</button>
     </div></div></div>
     <div id="div-content" style="display:none">
-      <div class="kpi-row" id="div-kpis"></div>
+      <div class="kpi-row kpi-row-groups" id="div-kpis"></div>
       <div class="card">
         <div class="card-title">Dividend payments received (most recent first)</div>
         <div class="filter-bar" id="div-year-filter-bar">
@@ -197,13 +197,16 @@ export function appTemplate(): string {
   </div></div></div>
   <div id="an-content" style="display:none">
 
-    <!-- Level 1: Performance Summary (always visible) -->
-    <div class="kpi-row" id="an-kpis-l1"></div>
-    <div class="section-label" id="an-perf-detail-heading" style="display:none">Performance Detail</div>
-    <div class="kpi-row" id="an-kpis-l2" style="margin-top:8px"></div>
+    <div class="kpi-row kpi-row-groups" id="an-kpis-l1"></div>
+    <p class="note analytics-scope-note">TWR is cumulative; IRR is annualized and money-weighted. Not directly comparable. Complete investment balances and external cash flows matter.</p>
+    <details id="an-balance-details" class="inline-details analytics-balance-details">
+      <summary>Net worth growth details</summary>
+      <p class="note">Balance changes include money added or withdrawn. They are not cash-flow-adjusted investment returns.</p>
+      <div id="an-kpis-l2"></div>
+    </details>
 
     <div class="card card-primary">
-      <div class="card-title">Portfolio growth over time</div>
+      <div class="card-title">Net worth over time</div>
       <div class="chart-controls">
         <div id="an-growth-legend" class="legend"></div>
         ${rangeToggleHtml('an-growth-range-toggle', 'Growth range')}
@@ -222,60 +225,65 @@ export function appTemplate(): string {
         </div>
         <div class="chart-wrap chart-h-md"><canvas id="c-an-contrib" role="img" aria-label="Investment balance breakdown chart" aria-describedby="c-an-contrib-table-wrap"></canvas></div>
         <div class="chart-data-table-wrap sr-only" id="c-an-contrib-table-wrap"></div>
-        <p class="note">Market movement is the residual after subtracting external deposits and withdrawals from the change in investment-account value. This is an investment-performance view, not total household net-worth growth.</p>
+        <p class="note">Investment value change = recorded external flows + market movement (the residual). This is not net worth growth.</p>
       </div>
 
       <div class="card">
         <div class="card-title">Monthly investment return heatmap</div>
         <div id="an-heatmap-note" class="note" style="display:none"></div>
         <div id="an-heatmap-pager" style="display:none;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;color:var(--ink-2)">
-          <button class="btn btn-sm btn-ghost" id="an-heatmap-prev">&#8249;</button>
+          <button class="btn btn-sm btn-ghost" id="an-heatmap-prev" aria-label="Older heatmap years">&#8249;</button>
           <span id="an-heatmap-page-label" style="min-width:80px;text-align:center"></span>
-          <button class="btn btn-sm btn-ghost" id="an-heatmap-next">&#8250;</button>
+          <button class="btn btn-sm btn-ghost" id="an-heatmap-next" aria-label="Newer heatmap years">&#8250;</button>
         </div>
-        <div id="an-heatmap-wrap" style="overflow-x:auto">
+        <div id="an-heatmap-wrap" role="region" aria-label="Monthly investment returns" tabindex="0" style="overflow-x:auto">
           <div id="an-heatmap"></div>
         </div>
         <p class="note" id="an-heatmap-footer">Heatmap colors are descriptive only and should not be used for short-term timing decisions.</p>
+        <div class="analytics-subsection" id="an-annual-table-card">
+          <div class="card-title">Annual investment returns</div>
+          <div id="an-annual-table"></div>
+          <p class="note">pp = percentage points; * = fewer than 12 months. Partial and full years are not directly comparable.</p>
+        </div>
       </div>
 
-      <div class="card" id="an-annual-table-card">
-        <div class="card-title">Annual investment returns</div>
-        <div id="an-annual-table"></div>
-      </div>
-
-      <div class="two-col">
-        <div class="card">
-          <div class="card-title" id="an-alloc-acct-title">Account allocation</div>
+      <div class="card">
+        <div class="card-title">Allocation</div>
+        <p class="note analytics-scope-note">Account shares use snapshot balances. Holding shares use purchase costs, not market values. They use different totals.</p>
+        <div class="analytics-allocation-grid">
+        <div class="analytics-allocation-accounts">
+          <div class="card-title" id="an-alloc-acct-title">Account balances: latest snapshot</div>
           <div id="an-alloc-acct-toggle-wrap" class="chart-controls"></div>
           <div id="an-alloc-acct-legend" class="legend"></div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-acct" role="img" aria-label="Allocation by account chart" aria-describedby="c-an-alloc-acct-table-wrap"></canvas></div>
           <div class="chart-data-table-wrap sr-only" id="c-an-alloc-acct-table-wrap"></div>
         </div>
-        <div class="card">
-          <div class="card-title">Allocation by asset class</div>
+        <details id="an-holding-allocation" class="inline-details">
+          <summary>Holdings: asset class and region</summary>
+        <div class="analytics-holding-breakdown">
+        <div>
+          <div class="card-title">Holding purchase costs by asset class</div>
           <div id="an-alloc-class-toggle-wrap" class="chart-controls"></div>
           <div id="an-alloc-class-legend" class="legend"></div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-class" role="img" aria-label="Allocation by asset class chart" aria-describedby="c-an-alloc-class-table-wrap"></canvas></div>
           <div class="chart-data-table-wrap sr-only" id="c-an-alloc-class-table-wrap"></div>
         </div>
-      </div>
-
-      <div class="two-col">
-        <div class="card">
-          <div class="card-title">Allocation by region</div>
+        <div>
+          <div class="card-title">Holding purchase costs by region</div>
           <div id="an-alloc-region-toggle-wrap" class="chart-controls"></div>
           <div id="an-alloc-region-legend" class="legend"></div>
           <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-region" role="img" aria-label="Allocation by region chart" aria-describedby="c-an-alloc-region-table-wrap"></canvas></div>
           <div class="chart-data-table-wrap sr-only" id="c-an-alloc-region-table-wrap"></div>
         </div>
+        </div>
+        </details>
+        </div>
       </div>
     </div>
 
     <!-- Level 3: Advanced Analytics (collapsible) -->
-    <details id="an-advanced" class="card-collapsible" style="margin-top:1rem">
+    <details id="an-advanced" class="card-collapsible inline-details" style="margin-top:1rem">
       <summary class="section-label">
-        <span class="card-chevron" id="an-advanced-arrow"></span>
         Advanced analytics
       </summary>
       <div id="an-advanced-content" style="padding-top:.75rem">
@@ -283,7 +291,7 @@ export function appTemplate(): string {
           <div class="card-title">Investment risk analytics</div>
           <div id="an-risk-metrics-note" class="note"></div>
         </div>
-        <div class="kpi-row" id="an-kpis-risk"></div>
+        <div class="kpi-row kpi-row-groups" id="an-kpis-risk"></div>
 
         <!-- Collapsible plain-language explainer for each advanced metric -->
         <details id="an-metrics-explainer" style="margin:.5rem 0 1rem">
@@ -296,58 +304,58 @@ export function appTemplate(): string {
             ${metricExplainerCard(
               '📈',
               'Volatility',
-              'How bumpy is the ride? Volatility measures how much your portfolio value fluctuates month to month. A higher number means larger swings - both up and down.',
-              'Below 10% is relatively calm for a long-term portfolio; 15-20% is typical for a global equity fund.',
-              'How to reduce it',
-              'Diversify across uncorrelated asset classes (e.g., bonds alongside equities) or add more stable assets like cash.',
+              'How bumpy was the ride? Annualized variability of monthly cash-flow-adjusted investment returns.',
+              'Higher values mean larger observed swings, up or down.',
+              'Limits',
+              'There is no universal target. Interpretation depends on the assets and period observed.',
             )}
             ${metricExplainerCard(
               '📉',
               'Max Drawdown',
-              'The biggest drop your portfolio has ever taken from a peak before recovering. A max drawdown of −20% means your portfolio fell 20% at its worst moment.',
-              'A well-diversified portfolio typically sees max drawdowns of −10% to −30%; less than −10% is very resilient.',
-              'How to reduce it',
-              'Add defensive assets (bonds, cash, gold) or diversify across regions so that different parts of your portfolio fall at different times.',
+              'Largest decline from a previous peak in the recorded investment-return series, whether or not it has recovered.',
+              'A value of −20% means a 20% decline from that peak.',
+              'Limits',
+              'Monthly observations can miss larger declines within a month. This is not a forecast of future losses.',
             )}
             ${metricExplainerCard(
               '⚖️',
               'Calmar Ratio',
-              'How much annual growth (CAGR) do you get for every unit of maximum loss you have endured? A Calmar of 1.0 means your annual return equals your worst drawdown; higher is better.',
-              'Above 0.5 is decent; above 1.0 is good; above 2.0 is excellent.',
-              'How to improve it',
-              'Growing your CAGR (longer investment horizon, higher-return assets) or reducing your worst drawdown both raise this ratio.',
+              'Annualized investment return divided by the size of the largest recorded drawdown.',
+              'A value of 1 means the two percentages have equal magnitude.',
+              'Limits',
+              'Unavailable when no drawdown was recorded. Comparisons depend strongly on the period observed.',
             )}
             ${metricExplainerCard(
               '📊',
               'Sharpe Ratio',
-              'Are you being rewarded enough for the risk you are taking? Sharpe compares your return above the risk-free rate (e.g., a savings account) to the total ups and downs in your portfolio.',
-              'Above 1.0 is considered good; above 2.0 is excellent. Below 0 means you&#39;d have been better off in a savings account.',
-              'How to improve it',
-              'Either raise your returns (diversified growth assets, lower fees) or reduce volatility. The risk-free rate is configurable in Settings.',
+              'Annualized investment return minus the configured risk-free rate, divided by annualized volatility.',
+              'A negative value means return was below that configured rate.',
+              'Limits',
+              'This does not establish how a particular savings account performed. The risk-free rate is configurable in Settings.',
             )}
             ${metricExplainerCard(
               '🎯',
               'Sortino Ratio',
-              'Like the Sharpe ratio, but it only penalises downward swings; good months don&#39;t count against you. A Sortino higher than your Sharpe means your losses are smaller than your gains, which is ideal.',
-              'Above 1.0 is solid; above 2.0 is excellent. A Sortino well above your Sharpe indicates your portfolio has more upside than downside volatility.',
-              'How to improve it',
-              'Focus on reducing losing months, for example by adding assets that are less correlated to your main equity holdings.',
+              'Annualized investment return minus the configured risk-free rate, divided by downside deviation from negative monthly returns.',
+              'Unlike Sharpe, it uses downside variability rather than all variability.',
+              'Limits',
+              'A higher Sortino than Sharpe does not prove gains exceeded losses. Unavailable when downside deviation is zero.',
             )}
             ${metricExplainerCard(
               '〰️',
               'Avg Drawdown',
-              'The average depth below a previous peak, taken across all months where the portfolio was underwater. It gives a better sense of the typical pain level than the one worst moment (max drawdown).',
-              'As close to 0% as possible. For a long-term equity portfolio, −3% to −8% average is common.',
-              'How to reduce it',
-              'Consistent contributions during downturns (cost-averaging) and a diversified portfolio that recovers faster both help shrink the average drawdown.',
+              'Average decline below the previous peak across months that were below that peak.',
+              'Months at the peak are excluded; this is not the single largest decline.',
+              'Limits',
+              'A dash can mean no underwater months were recorded. Contributions do not directly repair this cash-flow-adjusted measure.',
             )}
             ${metricExplainerCard(
               '⏱️',
               'DD Duration',
-              'The longest consecutive streak of months where your portfolio was below its previous high-water mark. Shorter is better: it means your portfolio recovered quickly after downturns.',
-              'Under 12 months is resilient; 12-24 months is normal for a global equity portfolio; above 36 months warrants a review of your asset mix.',
-              'How to reduce it',
-              'Diversify across asset classes that don&#39;t fall simultaneously, and keep contributing regularly so that new purchases at lower prices speed up the recovery.',
+              'Longest recorded run of consecutive months below the previous investment-performance peak.',
+              'The run may still be ongoing.',
+              'Limits',
+              'Past recovery times do not predict future recovery. Contributions do not directly shorten this cash-flow-adjusted measure.',
             )}
 
           </div>
@@ -368,7 +376,8 @@ export function appTemplate(): string {
 
         <div id="an-income" style="display:none">
           <div class="section-label">Income (dividends and interest)</div>
-          <div class="kpi-row" id="an-kpis-income" style="margin-top:8px"></div>
+          <div id="an-kpis-income" style="margin-top:8px"></div>
+          <p class="note analytics-scope-note">Income totals sum the magnitudes of recorded dividend and interest amounts. Separate tax rows and withholding fields are not deducted here. Gross/net treatment depends on imported amounts; this is not guaranteed after-tax income. The 12-month window ends in the latest imported transaction month.</p>
           <div class="card" style="margin:0 0 1rem">
             <div class="card-title">
               Income by month (dividends and interest)

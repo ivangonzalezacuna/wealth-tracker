@@ -197,6 +197,7 @@ export function kpiTile(opts: {
   value: string;
   valueClass?: string;
   sub?: string;
+  lead?: boolean;
 }): string {
   const cls = opts.valueClass ? ` ${opts.valueClass}` : '';
   const sub = opts.sub ? `<div class="kpi-sub">${opts.sub}</div>` : '';
@@ -207,5 +208,25 @@ export function kpiTile(opts: {
     tipIdx >= 0
       ? `<span class="kpi-label-text">${opts.label.slice(0, tipIdx)}</span>${opts.label.slice(tipIdx)}`
       : `<span class="kpi-label-text">${opts.label}</span>`;
-  return `<div class="kpi"><div class="kpi-label">${labelHtml}</div><div class="kpi-val${cls}">${opts.value}</div>${sub}</div>`;
+  return `<div class="kpi${opts.lead ? ' kpi-lead' : ''}"><div class="kpi-label">${labelHtml}</div><div class="kpi-val${cls}">${opts.value}</div>${sub}</div>`;
+}
+
+/**
+ * Renders related KPI figures as one compact receipt-style group (e.g. gross,
+ * tax, net). By default the last item is emphasised as the group's result; pass
+ * `result: false` for a list of peer figures.
+ */
+export function kpiGroup(
+  title: string,
+  items: Array<{ label: string; value: string; valueClass?: string; sub?: string }>,
+  opts: { result?: boolean } = {},
+): string {
+  const emphasiseLast = opts.result ?? true;
+  const rows = items
+    .map(
+      (it, i) =>
+        `<div class="row kpi-group-row${emphasiseLast && i === items.length - 1 ? ' kpi-group-result' : ''}"><div class="row-label"><span class="kpi-group-label">${it.label}</span>${it.sub ? `<span class="kpi-group-sub">${it.sub}</span>` : ''}</div><div class="row-val${it.valueClass ? ` ${it.valueClass}` : ''}">${it.value}</div></div>`,
+    )
+    .join('');
+  return `<div class="kpi-group"><div class="kpi-group-title">${title}</div>${rows}</div>`;
 }

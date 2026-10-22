@@ -172,19 +172,38 @@ describe('renderAnalytics', () => {
 
     renderAnalytics(makePd(), snaps, txs);
 
-    const incomeTiles = Array.from(document.querySelectorAll('#an-kpis-income .kpi'));
-    const yieldTile = incomeTiles.find((el) => el.textContent?.includes('Dividend Yield'));
+    const incomeTiles = Array.from(document.querySelectorAll('#an-kpis-income .kpi-group-row'));
+    const yieldTile = incomeTiles.find((el) =>
+      el.textContent?.includes('Recorded income / investment value'),
+    );
     const trailingTile = incomeTiles.find((el) => el.textContent?.includes('Trailing 12M Income'));
     const yoyTile = incomeTiles.find((el) => el.textContent?.includes('Income Growth (YoY)'));
 
-    expect(yieldTile?.querySelector('.kpi-val')?.textContent).toBe('10%');
-    expect(yieldTile?.querySelector('.kpi-sub')?.textContent).toBe(
+    expect(yieldTile?.querySelector('.row-val')?.textContent).toBe('10%');
+    expect(yieldTile?.querySelector('.kpi-group-sub')?.textContent).toBe(
       'trailing 12M as of Mar 2026 / investment value',
     );
-    expect(trailingTile?.querySelector('.kpi-sub')?.textContent).toBe('through Mar 2026');
-    expect(yoyTile?.querySelector('.kpi-sub')?.textContent).toBe(
+    expect(trailingTile?.querySelector('.kpi-group-sub')?.textContent).toBe('through Mar 2026');
+    expect(yoyTile?.querySelector('.kpi-group-sub')?.textContent).toBe(
       'Mar 2026 vs Mar 2025 (12M windows)',
     );
+    expect(document.querySelector('#an-kpis-l1 .kpi-group-result')).toBeNull();
+
+    renderAnalytics(
+      makePd(),
+      snaps,
+      txs.map((tx) => ({ ...tx, amount: tx.amount * 2 })),
+    );
+    document.querySelector<HTMLElement>('#an-income-range-toggle [data-range="12"]')!.click();
+    expect(document.getElementById('c-an-income-table-wrap')!.textContent).toContain('200,00');
+    expect(document.getElementById('c-an-income-table-wrap')!.textContent).not.toContain('100,00');
+    const incomeBars = chartInstances
+      .filter((c) => !c.destroyed)
+      .map((c) => c.config as { data: { datasets: Array<{ label?: string }> } })
+      .flatMap((c) => c.data.datasets)
+      .find((d) => d.label === 'Income') as { borderRadius: unknown; borderSkipped: unknown };
+    expect(incomeBars.borderRadius).toBe(4);
+    expect(incomeBars.borderSkipped).toBe('start');
   });
 
   it('gates risk metrics until 24 months of history while keeping income analytics visible', () => {
@@ -240,6 +259,56 @@ describe('renderAnalytics', () => {
     const table = wrap?.querySelector('.chart-data-table') as HTMLTableElement | null;
     expect(table).not.toBeNull();
     expect(table?.getAttribute('aria-label')).toBe('Portfolio growth over time data');
+  });
+
+  it('keeps growth and flow ranges on the latest rendered data', () => {
+    renderAnalytics(makePd(), [makeSnap('2025-01', 900), makeSnap('2025-02', 950)], []);
+    renderAnalytics(makePd(), [makeSnap('2026-01', 2000), makeSnap('2026-02', 2200)], []);
+    for (const id of ['an-growth-range-toggle', 'an-contrib-range-toggle']) {
+      document.querySelector<HTMLElement>(`#${id} [data-range="12"]`)!.click();
+    }
+    const growth = document.getElementById('c-an-growth-table-wrap')!.textContent!;
+    expect(growth).toContain('Feb 2026');
+    expect(growth).toContain('2.200');
+    expect(growth).not.toContain('950,00');
+    expect(document.getElementById('c-an-contrib-table-wrap')!.textContent).toContain('200,00');
+  });
+
+  it('removes the old growth data table when only one snapshot remains', () => {
+    renderAnalytics(makePd(), [makeSnap('2025-01', 900), makeSnap('2025-02', 950)], []);
+    renderAnalytics(makePd(), [makeSnap('2026-01', 2000)], []);
+    expect(document.querySelector('#c-an-growth-table-wrap table')).toBeNull();
+  });
+
+  it('pages the latest heatmap data after replacing history', () => {
+    renderAnalytics(makePd(), monthlySnaps(2019, 1, 40), []);
+    renderAnalytics(makePd(), monthlySnaps(2023, 1, 40), []);
+    document.getElementById('an-heatmap-prev')!.click();
+    expect(document.getElementById('an-heatmap')!.textContent).toContain('2023');
+    expect(document.getElementById('an-heatmap')!.textContent).not.toContain('2019');
+  });
+
+  it('keeps risk readiness separate from the heatmap count gate', () => {
+    renderAnalytics(makePd(), monthlySnaps(2023, 1, 24), []);
+    expect(document.getElementById('an-kpis-risk')!.style.display).toBe('none');
+    renderAnalytics(makePd(), monthlySnaps(2023, 1, 25), []);
+    expect(document.querySelectorAll('#an-kpis-risk .kpi-group-row')).toHaveLength(7);
+    const withGap = monthlySnaps(2023, 1, 40).filter((_, index) => index !== 10);
+    renderAnalytics(makePd(), withGap, []);
+    expect(document.getElementById('an-kpis-risk')!.style.display).toBe('none');
+    expect(document.querySelector('#an-heatmap table')).not.toBeNull();
+    expect(document.getElementById('an-risk-metrics-note')!.textContent).toContain('gap period');
+  });
+
+  it('shows unchanged balance figures and percentage-point annual differences', () => {
+    renderAnalytics(makePd(), [makeSnap('2025-01', 1000), makeSnap('2026-01', 1200)], []);
+    expect(document.querySelector('#an-kpis-l1 .kpi-val')!.textContent).toBe('200,00 €');
+    expect(document.querySelector('#an-kpis-l2 .row-val')!.textContent).toBe('20%');
+    renderAnalytics(makePd(), monthlySnaps(2023, 1, 40), []);
+    expect(document.getElementById('an-annual-table')!.textContent).toContain(' pp');
+    expect(document.getElementById('an-metrics-explainer')!.textContent).not.toContain(
+      'Good to aim for',
+    );
   });
 
   it('preserves distinct fractional drawdown tick labels without rounding levels together', () => {
@@ -379,10 +448,10 @@ describe('renderAnalytics', () => {
 
     renderAnalytics(makePd(), snaps, txs);
 
-    const perfTiles = Array.from(document.querySelectorAll('#an-kpis-l2 .kpi'));
-    const twrTile = perfTiles.find((el) => el.textContent?.includes('TWR (investments)'));
+    const perfTiles = Array.from(document.querySelectorAll('#an-kpis-l1 .kpi-group-row'));
+    const twrTile = perfTiles.find((el) => el.textContent?.includes('Cumulative return (TWR)'));
 
-    expect(twrTile?.querySelector('.kpi-val')?.textContent).toBe('21%');
+    expect(twrTile?.querySelector('.row-val')?.textContent).toBe('21%');
   });
 
   it('uses normalized external cash flows for IRR', () => {
@@ -407,18 +476,18 @@ describe('renderAnalytics', () => {
 
     renderAnalytics(makePd(), snaps, txs);
 
-    const perfTiles = Array.from(document.querySelectorAll('#an-kpis-l2 .kpi'));
-    const irrTile = perfTiles.find((el) => el.textContent?.includes('IRR (investments)'));
+    const perfTiles = Array.from(document.querySelectorAll('#an-kpis-l1 .kpi-group-row'));
+    const irrTile = perfTiles.find((el) => el.textContent?.includes('Annualized return (IRR)'));
 
-    expect(irrTile?.querySelector('.kpi-val')?.textContent).not.toBe('-');
-    expect(irrTile?.querySelector('.kpi-sub')?.textContent).toContain('XIRR, annualized');
+    expect(irrTile?.querySelector('.row-val')?.textContent).not.toBe('-');
+    expect(irrTile?.querySelector('.kpi-group-sub')?.textContent).toContain('XIRR, annualized');
   });
 
   it('keeps heatmap locked before 24 months and shows long-horizon guidance', () => {
     const snaps = monthlySnaps(2024, 1, 14);
     renderAnalytics(makePd(), snaps, []);
     expect(document.getElementById('an-heatmap')?.textContent).toContain(
-      'Heatmap unlocks after 24 consecutive monthly investment-return periods',
+      'Heatmap unlocks after 24 valid monthly investment-return periods',
     );
     expect(document.getElementById('an-heatmap-footer')?.textContent).toContain(
       'should not be used for short-term timing decisions',
