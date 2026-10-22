@@ -10,6 +10,7 @@ import {
   fmtPctVal,
   esc,
   safeColor,
+  kpiGroup,
   kpiTile,
 } from '../utils';
 import { getISIN_ORDERList, getMETAMap } from '../constants';
@@ -573,42 +574,46 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
             ? 'no primary investment account flagged'
             : 'add a snapshot',
     })}
-    ${kpiTile({
-      label: `Total invested${infoTip('Cost basis: what you paid for the shares you still own. Sold shares are removed, so this is not the same as everything you have ever put in.')}`,
-      value: fmtEur(pd.totalInv),
-      sub: 'cost of shares still owned',
-    })}
-    ${kpiTile({
-      label: `Unrealized P&amp;L${infoTip('Gain or loss on positions still held. Computed as market value minus invested capital (cost basis). Not locked in until you sell.')}`,
-      value: gain !== null ? fmtEurNeg(gain, 2) : '-',
-      valueClass: gain === null ? '' : gain >= 0 ? 'pos' : 'neg',
-      sub:
-        gainPct !== null
-          ? `${fmtPctNeg(gainPct)}${hasPartialPositionValues ? ' · valued holdings only' : ''}`
-          : hasPartialPositionValues
-            ? 'valued holdings only'
-            : '',
-    })}
-    ${kpiTile({
-      label: `Realized P&amp;L${infoTip('Gain or loss already locked in from shares you have sold. Computed as sell proceeds minus the cost basis of those shares, including fees.')}`,
-      value: fmtEurNeg(pd.realizedPnL, 2),
-      valueClass: pd.realizedPnL >= 0 ? 'pos' : 'neg',
-      sub: 'locked in from sales',
-    })}
-    ${
-      feeDrag !== null
-        ? kpiTile({
-            label: `Annual fee drag${infoTip('Estimated annual cost of fund management fees (TER) across all held positions. These costs are deducted by the fund manager directly from the fund assets, so they are already reflected in the ETF price and your returns. This figure is informational only; no money is deducted from your balance. Computed as the sum of each position value multiplied by its configured TER. Add TER values in Settings to see this figure. Positions without a TER configured are excluded.')}`,
-            value: fmtEur2(feeDrag.annualCost),
-            valueClass: 'neg',
-            sub: `${fmtPctVal(feeDrag.costPct * 100)}/yr · already in fund prices${feeDrag.coveredCount < Object.values(pd.etfs).filter((e) => !e.exited).length ? ' (partial)' : ''}`,
-          })
-        : kpiTile({
-            label: `Annual fee drag${infoTip('Estimated annual cost of fund management fees (TER) across all held positions. These costs are deducted by the fund manager directly from the fund assets, so they are already reflected in the ETF price and your returns. This figure is informational only; no money is deducted from your balance. Add TER values to your holdings in Settings to enable this calculation.')}`,
-            value: '-',
-            sub: 'add TER in Settings',
-          })
-    }
+    ${kpiGroup(
+      'Costs and gains',
+      [
+        {
+          label: `Total invested${infoTip('Cost basis: what you paid for the shares you still own. Sold shares are removed, so this is not the same as everything you have ever put in.')}`,
+          value: fmtEur(pd.totalInv),
+          sub: 'cost of shares still owned',
+        },
+        {
+          label: `Unrealized P&amp;L${infoTip('Gain or loss on positions still held. Computed as market value minus invested capital (cost basis). Not locked in until you sell.')}`,
+          value: gain !== null ? fmtEurNeg(gain, 2) : '-',
+          valueClass: gain === null ? '' : gain >= 0 ? 'pos' : 'neg',
+          sub:
+            gainPct !== null
+              ? `${fmtPctNeg(gainPct)}${hasPartialPositionValues ? ' · valued holdings only' : ''}`
+              : hasPartialPositionValues
+                ? 'valued holdings only'
+                : '',
+        },
+        {
+          label: `Realized P&amp;L${infoTip('Gain or loss already locked in from shares you have sold. Computed as sell proceeds minus the cost basis of those shares, including fees.')}`,
+          value: fmtEurNeg(pd.realizedPnL, 2),
+          valueClass: pd.realizedPnL >= 0 ? 'pos' : 'neg',
+          sub: 'locked in from sales',
+        },
+        feeDrag !== null
+          ? {
+              label: `Annual fee drag${infoTip('Estimated annual cost of fund management fees (TER) across all held positions. These costs are deducted by the fund manager directly from the fund assets, so they are already reflected in the ETF price and your returns. This figure is informational only; no money is deducted from your balance. Computed as the sum of each position value multiplied by its configured TER. Add TER values in Settings to see this figure. Positions without a TER configured are excluded.')}`,
+              value: fmtEur2(feeDrag.annualCost),
+              valueClass: 'neg',
+              sub: `${fmtPctVal(feeDrag.costPct * 100)}/yr · already in fund prices${feeDrag.coveredCount < Object.values(pd.etfs).filter((e) => !e.exited).length ? ' (partial)' : ''}`,
+            }
+          : {
+              label: `Annual fee drag${infoTip('Estimated annual cost of fund management fees (TER) across all held positions. These costs are deducted by the fund manager directly from the fund assets, so they are already reflected in the ETF price and your returns. This figure is informational only; no money is deducted from your balance. Add TER values to your holdings in Settings to enable this calculation.')}`,
+              value: '-',
+              sub: 'add TER in Settings',
+            },
+      ],
+      { result: false },
+    )}
   `;
 
   // Attach info-tips in the KPI row
@@ -891,7 +896,9 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
   // the plan is shown since it is purely contribution-target-based.
   if (plan.length >= 2 && monthlyBudget > 0 && !(hasCostMode && valuation.hasHeldPositions)) {
     const isRebalanceRecommended = max > 10;
-    const shouldOpenRebalance = keepRebalanceOpen || isRebalanceRecommended;
+    // Collapsed by default so the drift table stays the focus; the summary flags
+    // when the what-if is suggested and the open state survives picker re-renders.
+    const shouldOpenRebalance = keepRebalanceOpen;
     const pickerBtns = REBALANCE_MONTH_OPTIONS.map((m) => {
       const active = m === selectedMonths;
       const label = m === 12 ? '1 yr' : `${m} mo`;
@@ -944,7 +951,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
       <details class="rebalance-collapsible" ${shouldOpenRebalance ? 'open' : ''}>
         <summary class="rebalance-summary">
           Contribution rebalance
-          <span class="rebalance-summary-note">${isRebalanceRecommended ? 'Drift above 10%' : 'Drift is moderate or low'}</span>
+          <span class="rebalance-summary-note${isRebalanceRecommended ? ' is-suggested' : ''}">${isRebalanceRecommended ? 'Suggested · drift above 10%' : 'Drift is moderate or low'}</span>
         </summary>
         <div class="rebalance-body">
           <div class="rebalance-picker-row">

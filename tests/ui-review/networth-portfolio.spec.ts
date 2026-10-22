@@ -1,86 +1,8 @@
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
-import { ensureCardExpanded, gotoApp, openTab, preparePage, waitForSyncIdle } from '../e2e/helpers';
-import { reviewBackup, type ReviewState } from './fixture';
+import { expect, test } from '@playwright/test';
+import { ensureCardExpanded, openTab, waitForSyncIdle } from '../e2e/helpers';
+import { capture, seed, useReviewPage } from './helpers';
 
-async function seed(page: Page, state: ReviewState = 'complete') {
-  await openTab(page, 'tab-settings');
-  await ensureCardExpanded(page, 'settings-card-backup');
-  await page.setInputFiles('#backup-file-input', {
-    name: 'synthetic-ui-review.json',
-    mimeType: 'application/json',
-    buffer: Buffer.from(JSON.stringify(reviewBackup(state))),
-  });
-  await page.locator('.js-confirm-ok').click();
-  await expect(page.locator('.toast-text').last()).toContainText('Restore complete.');
-  await page.getByRole('button', { name: 'Dismiss notification' }).click();
-  await openTab(page, 'tab-networth');
-  await expect(page.locator('#nw-content')).toBeVisible();
-}
-
-async function capture(page: Page, info: TestInfo, name: string, root: string) {
-  await page.mouse.move(0, 0);
-  await page.locator(root).scrollIntoViewIfNeeded();
-  // Chart.js canvas animations are not disabled by Playwright's CSS animation option.
-  await page.waitForTimeout(1100);
-  await page.screenshot({
-    path: info.outputPath(`${name}.png`),
-    fullPage: true,
-    animations: 'disabled',
-  });
-  await info.attach(name, { path: info.outputPath(`${name}.png`), contentType: 'image/png' });
-  const metrics = await page.locator(root).evaluate((el) => {
-    const visible = (selector: string) =>
-      [...el.querySelectorAll<HTMLElement>(selector)].filter(
-        (node) => node.getClientRects().length,
-      );
-    return {
-      viewport: { width: innerWidth, height: innerHeight },
-      pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      height: el.getBoundingClientRect().height,
-      outOfBounds: [...el.querySelectorAll<HTMLElement>('*')]
-        .filter((node) => {
-          if (!node.getClientRects().length) return false;
-          for (let p = node.parentElement; p && p !== el; p = p.parentElement) {
-            if (getComputedStyle(p).overflowX !== 'visible') return false;
-          }
-          const box = node.getBoundingClientRect();
-          return box.right > document.documentElement.clientWidth + 1 || box.left < -1;
-        })
-        .map((node) => `${node.tagName.toLowerCase()}#${node.id}.${[...node.classList].join('.')}`)
-        .slice(0, 10),
-      controls: visible('button, input, select, summary').map((node) => ({
-        text: node.textContent?.trim().slice(0, 70) || node.getAttribute('aria-label') || node.id,
-        width: node.getBoundingClientRect().width,
-        height: node.getBoundingClientRect().height,
-      })),
-      clipped: visible('.row-label, .row-val, .kpi-val, .card-title, [role="cell"]')
-        .filter((node) => node.scrollWidth > node.clientWidth + 1)
-        .map((node) => ({
-          text: node.textContent?.trim(),
-          width: node.clientWidth,
-          scroll: node.scrollWidth,
-        })),
-    };
-  });
-  await info.attach(`${name}-layout`, {
-    body: JSON.stringify(metrics, null, 2),
-    contentType: 'application/json',
-  });
-  expect
-    .soft(metrics.pageOverflow, `${name}: document must not scroll sideways`)
-    .toBeLessThanOrEqual(1);
-  expect.soft(metrics.outOfBounds, `${name}: elements must stay inside the viewport`).toEqual([]);
-}
-
-test.beforeEach(async ({ page }, info) => {
-  await preparePage(page);
-  await page.clock.install({ time: new Date('2026-05-15T12:00:00Z') });
-  await page.addInitScript(
-    (theme) => localStorage.setItem('wt-theme', theme),
-    String(info.project.metadata.theme),
-  );
-  await gotoApp(page);
-});
+useReviewPage();
 
 test('empty states and navigation calls to action', async ({ page }, info) => {
   await expect(page.locator('#nw-empty')).toBeVisible();
@@ -128,6 +50,12 @@ test('net worth history, goals, scenarios and all drawdown strategies', async ({
   await page.locator('#nw-goal-tabs button').nth(1).click();
   await expect(page.locator('#nw-goal-tabs button').nth(1)).toHaveClass(/active/);
   await expect(page.locator('#nw-goal-panel')).toContainText('200.000');
+  const milestones = page.locator('#nw-goal-panel .goal-milestones');
+  if (await milestones.count()) {
+    await milestones.locator('summary').click();
+    await expect(milestones).toHaveAttribute('open', '');
+    await capture(page, info, 'networth-goal-milestones', '#nw-goal-panel');
+  }
   await page.locator('#nw-goal-tabs button').first().click();
   await page.locator('#nw-forecast-inflation').fill('2.5');
   await page.locator('#nw-forecast-inflation').press('Tab');
@@ -262,6 +190,22 @@ test('contributions and income ranges, year filters, pagination and annual detai
   await page.locator('#tab-dividends').press('Enter');
   await expect(page.locator('#div-content')).toBeVisible();
   await capture(page, info, 'dividends', '#portfolio');
+  const helpGaps = await page.locator('#div-kpis .kpi-group-label').evaluateAll((labels) =>
+    labels.map((label) => {
+      const text = label.firstChild!;
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      const lines = range.getClientRects();
+      const last = lines[lines.length - 1];
+      const tip = label.querySelector('.info-tip')!.getBoundingClientRect();
+      return { gap: tip.left - last.right, sameLine: Math.abs(tip.top - last.top) < 8 };
+    }),
+  );
+  for (const position of helpGaps) {
+    expect(position.sameLine).toBe(true);
+    expect(position.gap).toBeGreaterThanOrEqual(0);
+    expect(position.gap).toBeLessThanOrEqual(8);
+  }
   for (const prefix of ['div', 'int']) {
     await page.locator(`#${prefix}-pagination .js-page-next`).click();
     await expect(page.locator(`#${prefix}-pagination .page-info`)).toContainText('2 /');
@@ -272,6 +216,7 @@ test('contributions and income ranges, year filters, pagination and annual detai
   await annual.focus();
   await annual.press('Enter');
   await expect(annual).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('.annual-detail .row').first()).toBeVisible();
   await capture(page, info, 'income-annual-detail', '#portfolio');
 });
 
@@ -294,9 +239,14 @@ test('single snapshot and missing or partial market valuations remain explicit',
 
 test('everyday portfolio and Log and Settings design references', async ({ page }, info) => {
   await seed(page, 'everyday');
-  await capture(page, info, 'everyday-networth', '#networth');
+  const networth = await capture(page, info, 'everyday-networth', '#networth');
   await openTab(page, 'tab-portfolio');
-  await capture(page, info, 'everyday-holdings', '#portfolio');
+  const holdings = await capture(page, info, 'everyday-holdings', '#portfolio');
+  if (networth.viewport.width <= 320) {
+    // Plan acceptance target: default overview pages stay scannable on the narrowest phones.
+    expect.soft(networth.height, 'everyday Net worth height at 320px').toBeLessThanOrEqual(1600);
+    expect.soft(holdings.height, 'everyday Holdings height at 320px').toBeLessThanOrEqual(1600);
+  }
   for (const view of ['contributions', 'dividends']) {
     await page.locator(`#tab-${view}`).click();
     await capture(page, info, `everyday-${view}`, '#portfolio');

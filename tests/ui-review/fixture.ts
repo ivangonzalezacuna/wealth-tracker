@@ -1,7 +1,8 @@
 import type { BackupFile } from '../../src/backup/exportImport';
 import type { Holding, Snapshot, Transaction } from '../../src/types';
 
-export type ReviewState = 'complete' | 'partial' | 'cost' | 'single' | 'everyday';
+export type ReviewState =
+  'complete' | 'partial' | 'cost' | 'single' | 'everyday' | 'gap' | 'no-income';
 
 export function reviewBackup(state: ReviewState = 'complete'): BackupFile {
   const colors = ['#185FA5', '#0F6E56', '#BA7517', '#A32D2D'];
@@ -156,5 +157,10 @@ export function reviewBackup(state: ReviewState = 'complete'): BackupFile {
       snapshot.broker = Number(snapshot.etf_IE00TEST0000) * 3 + 500;
     }
   }
+  if (state === 'gap') backup.data.snapshots.splice(10, 1);
+  if (state === 'no-income')
+    backup.data.transactions = backup.data.transactions.filter(
+      (tx) => tx.type !== 'DIVIDEND' && tx.type !== 'INTEREST',
+    );
   return backup;
 }

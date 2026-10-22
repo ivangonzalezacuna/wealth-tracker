@@ -306,7 +306,7 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
           .filter((i) => !isZero(i.value))
           .map(
             (i) =>
-              `<div><span class="hold-detail-label">${i.label}</span><span class="hold-detail-value ${i.className || ''}">${fmtEur2(i.value)}</span></div>`,
+              `<div class="row"><span class="row-label">${i.label}</span><span class="row-val ${i.className || ''}">${fmtEur2(i.value)}</span></div>`,
           )
           .join('');
         if (!itemsHtml) return '';

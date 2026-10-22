@@ -308,10 +308,13 @@ function _renderMilestonesSection(
     })
     .join('');
 
-  return `<div style="margin-bottom:.5rem">
-    <div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Milestones</div>
+  const reachedCount = valid.filter(
+    (ms) => liquidTotal >= parseFloat(ms.targetAmount.replace(/\./g, '').replace(',', '.')),
+  ).length;
+  return `<details class="inline-details goal-milestones">
+    <summary>Milestones<span class="inline-details-sub">${reachedCount} of ${valid.length} reached</span></summary>
     ${rows}
-  </div>`;
+  </details>`;
 }
 
 /** Re-renders only the goal progress cards using latest cached state. */
@@ -383,7 +386,7 @@ function _renderGoalCards(): void {
     const title = goal.label ? esc(goal.label) : 'Goal';
     const lockedNote =
       lockedTotal > 0
-        ? `<p class="note" style="margin-top:4px">Counted now excludes ${fmtEur(lockedTotal)} in locked accounts (such as pensions) until their configured unlock year. Estimated dates assume your current return and contribution settings.</p>`
+        ? `<p class="note" style="margin-top:4px">Counted now leaves out ${fmtEur(lockedTotal)} in locked accounts (such as pensions) until their unlock year.</p>`
         : '';
     const panelHtml = `
       <div class="goal-stats">
@@ -392,8 +395,7 @@ function _renderGoalCards(): void {
         <div class="goal-stat"><span class="goal-stat-label">Remaining</span><span class="goal-stat-val">${fmtEur(remaining)}</span></div>
       </div>
       <div class="goal-progress">
-        <div class="goal-progress-label">${fmtPctVal(Math.min(100, (liquidTotal / target) * 100))} complete</div>
-        <div style="position:relative;height:8px;background:var(--surface-3);border-radius:var(--radius-xs);overflow:hidden">
+        <div class="goal-progress-bar" style="position:relative;height:8px;background:var(--surface-3);border-radius:var(--radius-xs);overflow:hidden">
           <div style="width:${pctComplete}%;height:100%;background:${pctComplete >= 100 ? 'var(--pos)' : isOnTrack === false ? 'var(--warn)' : 'var(--brand)'};border-radius:var(--radius-xs);transition:width .3s"></div>
           ${(goal.milestones ?? [])
             .map((ms) => {
@@ -406,10 +408,11 @@ function _renderGoalCards(): void {
             })
             .join('')}
         </div>
+        <div class="goal-progress-label">${fmtPctVal(Math.min(100, (liquidTotal / target) * 100))} complete</div>
       </div>
-      ${_renderMilestonesSection(goal.milestones ?? [], liquidTotal, target, accountInputs)}
-      <div class="row" style="align-items:flex-start"><div class="row-label">Estimated date</div><div class="row-val" style="font-size:12px;text-align:left;flex-shrink:1;overflow-wrap:break-word;word-break:break-word;min-width:0">${etaText}${_inflationRate > 0 ? '<br><span class="note" style="font-size:11px">ETA is in nominal terms; inflation is not factored in.</span>' : ''}</div></div>
-      ${lockedNote}`;
+      <p class="goal-eta"><span class="goal-stat-label">Estimated date${infoTip('Estimated dates assume your current return and contribution settings.')}</span> ${etaText}${_inflationRate > 0 ? ' <span class="note">ETA is in nominal terms; inflation is not factored in.</span>' : ''}</p>
+      ${lockedNote}
+      ${_renderMilestonesSection(goal.milestones ?? [], liquidTotal, target, accountInputs)}`;
     panels.push({ title, html: panelHtml });
   }
 
@@ -654,14 +657,13 @@ export function renderNW(snaps: Snapshot[]): void {
         <div class="row-val">${fmtEur2(val)}</div></div>`;
     })
     .join('');
-  det += `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px">
-    <div class="row-label" style="font-weight:500">Total</div>
+  // Previous-snapshot change sits under the total so the card does not need a separate row.
+  const totalChange = prev
+    ? `<span class="nw-acct-meta">vs ${fmtMon(prev.date)} <span class="${total - prevT! >= 0 ? 'pos' : 'neg'}">${fmtEurSigned(total - prevT!, 2)}</span></span>`
+    : '';
+  det += `<div class="row nw-acct-row" style="border-top:1px solid var(--line-2);margin-top:4px">
+    <div class="row-label"><span class="nw-acct-text"><span class="nw-acct-name" style="font-weight:500">Total</span>${totalChange}</span></div>
     <div class="row-val" style="font-weight:500">${fmtEur2(total)}</div></div>`;
-  if (prev) {
-    const c = total - prevT!;
-    det += `<div class="row"><div class="row-label" style="color:var(--ink-3);font-size:12px">vs ${fmtMon(prev.date)}</div>
-      <div class="row-val ${c >= 0 ? 'pos' : 'neg'}">${fmtEurSigned(c, 2)}</div></div>`;
-  }
   if (s.notes) det += `<p class="note" style="margin-top:.5rem">${esc(s.notes)}</p>`;
   document.getElementById('nw-detail')!.innerHTML = det;
   const detailTitle = document.getElementById('nw-detail-title');
@@ -855,22 +857,22 @@ function _renderPlanningCard(snaps: Snapshot[], accounts: Account[]): void {
   el.innerHTML = `
     <div class="card" id="nw-planning-card">
       <div class="card-title">Projections</div>
-      <div class="forecast-inflation" style="margin-bottom:1rem">
-        <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation (%/yr)</label>
+      <div class="forecast-inflation">
+        <label for="nw-forecast-inflation" class="forecast-inflation-label">Annual inflation (%/yr)</label>${infoTip(`${inflHint} Applies to Forecast and Retirement withdrawals.`)}
         <div class="forecast-inflation-input-wrap">
           <input id="nw-forecast-inflation" class="forecast-inflation-input" type="number" inputmode="decimal" min="0" max="20" step="0.1"
                  value="${_inflationRate}"
                  aria-label="Annual inflation rate for real-return projection">
         </div>
-        <div class="forecast-inflation-hint">${inflHint} Applies to Forecast and Retirement withdrawals.</div>
       </div>
-      <div class="range-toggle" id="nw-planning-tabs" role="tablist" aria-label="Projections" style="margin-bottom:1rem">
+      <div class="range-toggle" id="nw-planning-tabs" role="tablist" aria-label="Projections" style="margin-bottom:.75rem">
         <button class="btn btn-sm btn-ghost${_planningTab === 'forecast' ? ' active' : ''}" role="tab" aria-selected="${_planningTab === 'forecast'}" aria-controls="nw-fc-panel" data-planning-tab="forecast">Forecast</button>
         <button class="btn btn-sm btn-ghost${_planningTab === 'drawdown' ? ' active' : ''}" role="tab" aria-selected="${_planningTab === 'drawdown'}" aria-controls="nw-dd-panel" data-planning-tab="drawdown">Retirement withdrawals</button>
       </div>
       <div id="nw-fc-panel" role="tabpanel"${_planningTab !== 'forecast' ? ' hidden' : ''}></div>
       <div id="nw-dd-panel" role="tabpanel"${_planningTab !== 'drawdown' ? ' hidden' : ''}></div>
     </div>`;
+  attachInfoTips(el);
 
   if (_planningTab === 'forecast') {
     _renderForecastChart(snaps, accounts);
@@ -1113,7 +1115,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       </div>
       <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast" role="img" aria-label="Net worth forecast chart" aria-describedby="c-nw-forecast-table-wrap"></canvas></div>
       <div class="chart-data-table-wrap sr-only" id="c-nw-forecast-table-wrap"></div>
-      <p class="note planning-caveat">Illustration, not a prediction: each account grows at one fixed yearly return, before taxes, fees and FX. Real markets move up and down; a downturn in the years before your target could leave the balance 30–40% below this line. Try a more conservative return to see a lower outcome.${goalDeadlines.length > 0 ? ' Goal deadlines and target amounts are shown as markers on the chart.' : ''}</p>
+      <p class="note planning-caveat">Illustration, not a prediction: one fixed yearly return per account, before taxes, fees and FX. A downturn near your target could leave you 30–40% below this line; try a lower return too.${goalDeadlines.length > 0 ? ' Goal deadlines and target amounts are shown as markers on the chart.' : ''}</p>
       <details class="inline-details">
         <summary>Assumptions and grouped summary</summary>
         <div class="note" style="line-height:1.6">

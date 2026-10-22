@@ -267,13 +267,19 @@ The Portfolio tab has three subviews:
 
 ### Analytics tab
 
-The Analytics tab surfaces two layers of metrics:
+The Analytics tab separates household balance changes from investment returns:
 
-**Level 1 — Balance KPIs** (net worth change, no cash-flow adjustment): Total Return, Net Worth Gain, Investment Gain, YTD Return, CAGR. These include the effect of deposits and withdrawals.
+**Overview:** Net worth change is the lead balance figure. A compact investment summary shows investment value minus purchase cost, cumulative TWR (Time-Weighted Return), and annualized IRR (Internal Rate of Return). Investment value minus cost is not comprehensive profit: investment-account balances can include cash.
 
-**Level 2 — Investment performance KPIs** (cash-flow adjusted): TWR (Time-Weighted Return) and IRR (Internal Rate of Return). These isolate market performance by neutralizing deposits and withdrawals, so they reflect your investment skill rather than your savings rate. Both require at least a few months of history and improve in accuracy with longer data.
+**Balance growth details:** Expand this section for net worth growth, YTD growth, annualized CAGR, and year-over-year change. These include deposits and withdrawals; they are not investment-performance measures.
 
-**Risk metrics**: Volatility, Max Drawdown, Sharpe, Sortino, and Calmar ratios. All are computed from investment-account-only monthly returns. They are gated behind a 24-month minimum history requirement to avoid statistically meaningless early values.
+**Investment returns:** TWR adjusts for external cash flows; IRR also reflects their timing and amounts. Cumulative TWR and annualized IRR are not directly comparable, and both depend on complete balances and cash-flow records. Monthly heatmap and annual returns share a card; annual differences are expressed in percentage points (`pp`). Blank periods are not zero returns.
+
+**Allocation:** Account shares use the latest snapshot balances, including savings and pension accounts. Expand **Holdings: asset class and region** for holding shares based on purchase costs, not market values. These breakdowns use different totals. Account grouping and active/all-holding filters remain available.
+
+**Advanced analytics:** Volatility, Max Drawdown, Sharpe, Sortino, Calmar, Average Drawdown, and Drawdown Duration use investment-account-only monthly returns. Risk summaries require at least 24 valid monthly return periods with no skipped gaps or missing investment valuations across the supplied history; normally this means at least 25 snapshots. The heatmap has a separate history-count gate. These historical measures are descriptive, not forecasts or universal investment targets.
+
+**Recorded income:** The income summary and chart include recorded dividends and interest. Amount magnitudes are summed without separately deducting tax or withholding; gross/net treatment depends on the source. The trailing window ends at the latest import, and the income numerator can cover a different account scope from the investment-value or purchase-cost denominator.
 
 The risk-free rate used for Sharpe and Sortino is configurable in Settings (default 2%).
 
@@ -354,7 +360,7 @@ yarn build       # vite build
 
 CI runs lint, typecheck, test, and build on every push and PR to `main`. A separate weekly audit surfaces dependency vulnerabilities. Dependabot opens grouped weekly PRs for updates.
 
-### Net worth and Portfolio UI review
+### Net worth, Portfolio, and Analytics UI review
 
 Run the isolated, synthetic-data review suite locally:
 
@@ -370,8 +376,11 @@ not use a real Google account or personal financial data.
 Coverage includes Net worth history, chart data tables, goals, forecasts, scenarios,
 inflation and retirement withdrawal strategies; Portfolio holdings, filters,
 search, sorting, expandable details, contribution rebalancing, Contributions, and
-Dividends. Empty, single-snapshot, missing/partial market valuations, everyday
-three-fund and larger paginated portfolios are included.
+Dividends; Analytics summaries, keyboard-operated disclosures, chart ranges and
+tables, allocation filters, heatmap paging, risk explainers, and recorded income.
+Empty, single-snapshot, missing/partial market valuations, history gaps, no-income,
+everyday three-fund and larger paginated portfolios are included. Same-page data
+replacement checks guard against stale chart and heatmap callbacks.
 
 Chromium runs at 320x568, 390x844, 844x390, 768x1024, 1280x900 and 1920x1080
 in light and dark themes, with representative phone and laptop runs in Firefox and

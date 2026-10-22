@@ -717,7 +717,8 @@ describe('renderPortfolio', () => {
     renderPortfolio(makePD(), []);
     renderPortfolio(makePD(), []);
     const kpis = document.getElementById('port-kpis')!;
-    expect(kpis.children.length).toBe(5); // Total invested, Market value, Unrealized P&L, Realized P&L, Annual fee drag
+    expect(kpis.children.length).toBe(2); // Market value lead tile + "Costs and gains" group
+    expect(kpis.querySelectorAll('.kpi-group .kpi-group-row').length).toBe(4);
     // Only one set of data rows (non-header, non-total, non-filter)
     const rows = document.getElementById('port-table')!.querySelectorAll('.hold-row:not(.th)');
     expect(rows.length).toBe(1);
@@ -812,7 +813,7 @@ describe('renderPortfolio', () => {
     expect(labels).toContain('1 yr');
   });
 
-  it('rebalance section opens by default when drift is high', () => {
+  it('rebalance section stays collapsed but flags a suggestion when drift is high', () => {
     setRebalanceHoldings();
     const pd = makeRebalancePd({
       etfs: {
@@ -825,7 +826,10 @@ describe('renderPortfolio', () => {
     const drift = document.getElementById('port-drift')!;
     const details = drift.querySelector('.rebalance-collapsible') as HTMLDetailsElement;
     expect(details).not.toBeNull();
-    expect(details.hasAttribute('open')).toBe(true);
+    expect(details.hasAttribute('open')).toBe(false);
+    const note = details.querySelector('.rebalance-summary-note')!;
+    expect(note.textContent).toContain('Suggested');
+    expect(note.classList.contains('is-suggested')).toBe(true);
   });
 
   it('renders rebalance guidance when all positions are closed but cash is present', () => {

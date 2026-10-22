@@ -58,7 +58,7 @@ test('portfolio and analytics surfaces core data points from imported and snapsh
 
   await openTab(page, 'tab-analytics');
   await expect(page.locator('#an-content')).toBeVisible();
-  await expect(page.locator('#an-kpis-l1')).toContainText('Total Return');
+  await expect(page.locator('#an-kpis-l1')).toContainText('Net worth change');
   await expect(page.locator('#an-kpis-l1')).toContainText(formatUiMoney(20));
   await expect(page.locator('#c-an-growth-table-wrap')).not.toBeEmpty();
 });

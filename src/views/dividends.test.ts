@@ -101,6 +101,28 @@ describe('renderDividends', () => {
     expect(document.getElementById('div-kpis')!.innerHTML).toContain('pos');
   });
 
+  it('keeps each summary help tip beside its label and before secondary text', () => {
+    renderDividends(makePD());
+    const labels = document.querySelectorAll('#div-kpis .kpi-group-label');
+    expect(labels).toHaveLength(6);
+    for (const label of labels) {
+      expect(label.querySelector('.info-tip')).not.toBeNull();
+      expect(label.querySelector('.kpi-group-sub')).toBeNull();
+    }
+  });
+
+  it('uses shared label/value rows for the expanded annual breakdown', () => {
+    renderDividends(makePD());
+    document.querySelector<HTMLElement>('[data-annual-year]')!.click();
+    const rows = document.querySelectorAll('.annual-detail-group .row');
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(row.querySelector('.row-label')).not.toBeNull();
+      expect(row.querySelector('.row-val')).not.toBeNull();
+    }
+    expect(document.querySelector('.annual-detail')!.textContent).toContain('25,50');
+  });
+
   it('renders one row per divHist entry in div-history', () => {
     renderDividends(makePD());
     const historyText = document.getElementById('div-history')!.textContent;

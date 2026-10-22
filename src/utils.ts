@@ -213,16 +213,19 @@ export function kpiTile(opts: {
 
 /**
  * Renders related KPI figures as one compact receipt-style group (e.g. gross,
- * tax, net). The last item is emphasised as the group's result.
+ * tax, net). By default the last item is emphasised as the group's result; pass
+ * `result: false` for a list of peer figures.
  */
 export function kpiGroup(
   title: string,
   items: Array<{ label: string; value: string; valueClass?: string; sub?: string }>,
+  opts: { result?: boolean } = {},
 ): string {
+  const emphasiseLast = opts.result ?? true;
   const rows = items
     .map(
       (it, i) =>
-        `<div class="row kpi-group-row${i === items.length - 1 ? ' kpi-group-result' : ''}"><div class="row-label">${it.label}${it.sub ? `<span class="kpi-group-sub">${it.sub}</span>` : ''}</div><div class="row-val${it.valueClass ? ` ${it.valueClass}` : ''}">${it.value}</div></div>`,
+        `<div class="row kpi-group-row${emphasiseLast && i === items.length - 1 ? ' kpi-group-result' : ''}"><div class="row-label"><span class="kpi-group-label">${it.label}</span>${it.sub ? `<span class="kpi-group-sub">${it.sub}</span>` : ''}</div><div class="row-val${it.valueClass ? ` ${it.valueClass}` : ''}">${it.value}</div></div>`,
     )
     .join('');
   return `<div class="kpi-group"><div class="kpi-group-title">${title}</div>${rows}</div>`;
