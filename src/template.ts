@@ -200,7 +200,7 @@ export function appTemplate(): string {
     <div class="kpi-row kpi-row-groups" id="an-kpis-l1"></div>
     <p class="note analytics-scope-note">TWR is cumulative; IRR is annualized and money-weighted. Not directly comparable. Complete investment balances and external cash flows matter.</p>
     <details id="an-balance-details" class="inline-details analytics-balance-details">
-      <summary>Household balance growth details</summary>
+      <summary>Net worth growth details</summary>
       <p class="note">Balance changes include money added or withdrawn. They are not cash-flow-adjusted investment returns.</p>
       <div id="an-kpis-l2"></div>
     </details>
@@ -225,7 +225,7 @@ export function appTemplate(): string {
         </div>
         <div class="chart-wrap chart-h-md"><canvas id="c-an-contrib" role="img" aria-label="Investment balance breakdown chart" aria-describedby="c-an-contrib-table-wrap"></canvas></div>
         <div class="chart-data-table-wrap sr-only" id="c-an-contrib-table-wrap"></div>
-        <p class="note">Investment value change = recorded external flows + market movement (the residual). This is not household net worth growth.</p>
+        <p class="note">Investment value change = recorded external flows + market movement (the residual). This is not net worth growth.</p>
       </div>
 
       <div class="card">

@@ -234,7 +234,7 @@ Transactions are merged with existing data using an append-only strategy: new ro
 
 Income analytics on the Analytics tab are anchored to your latest imported transaction month, so
 trailing-12-month income and income growth do not drift just because calendar time passed. Dividend
-yield is calculated against the current value of investment accounts, not total household net worth.
+yield is calculated against the current value of investment accounts, not total net worth.
 
 Tax amounts in the app are **aggregated informational context** from imported transactions
 (withholding + refunds), meant to help you understand personal cashflow history across providers.
@@ -267,11 +267,11 @@ The Portfolio tab has three subviews:
 
 ### Analytics tab
 
-The Analytics tab separates household balance changes from investment returns:
+The Analytics tab separates net worth changes from investment returns:
 
 **Overview:** Net worth change is the lead balance figure. A compact investment summary shows investment value minus purchase cost, cumulative TWR (Time-Weighted Return), and annualized IRR (Internal Rate of Return). Investment value minus cost is not comprehensive profit: investment-account balances can include cash.
 
-**Balance growth details:** Expand this section for net worth growth, YTD growth, annualized CAGR, and year-over-year change. These include deposits and withdrawals; they are not investment-performance measures.
+**Net worth growth details:** Expand this section for net worth growth, YTD growth, annualized CAGR, and year-over-year change. These include deposits and withdrawals; they are not investment-performance measures.
 
 **Investment returns:** TWR adjusts for external cash flows; IRR also reflects their timing and amounts. Cumulative TWR and annualized IRR are not directly comparable, and both depend on complete balances and cash-flow records. Monthly heatmap and annual returns share a card; annual differences are expressed in percentage points (`pp`). Blank periods are not zero returns.
 
