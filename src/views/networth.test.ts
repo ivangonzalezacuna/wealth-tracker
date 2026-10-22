@@ -266,10 +266,11 @@ describe('renderNW', () => {
     expect(kpis).not.toContain('+');
   });
 
-  it('renders per-account KPI tiles for each active account', () => {
+  it('renders each active account once in the accounts card, not as KPI tiles', () => {
     const snaps = [makeSnap('2026-01-01', 1000, 500)];
     renderNW(snaps);
-    const kpis = document.getElementById('nw-kpis')!.textContent!;
+    expect(document.getElementById('nw-kpis')!.textContent).not.toContain('Trade Republic');
+    const kpis = document.getElementById('nw-detail')!.textContent!;
     expect(kpis).toContain('Trade Republic');
     expect(kpis).toContain('Savings');
   });
@@ -310,7 +311,7 @@ describe('renderNW', () => {
   it('forecast chart renders given snapshots and accounts', () => {
     const snaps = makeMonthlySnaps(14);
     renderNW(snaps);
-    const kpis = document.getElementById('nw-kpis')!.innerHTML;
+    const kpis = document.getElementById('nw-detail')!.innerHTML;
     expect(kpis).toContain('CAGR');
     expect(kpis).not.toContain('TWR');
     expect(kpis).not.toContain('IRR (investments)');
@@ -496,7 +497,7 @@ describe('renderNW', () => {
     const planningEl = document.getElementById('nw-planning')!;
     expect(planningEl.querySelector('#nw-planning-tabs')).not.toBeNull();
     expect(planningEl.innerHTML).toContain('Forecast');
-    expect(planningEl.innerHTML).toContain('Drawdown');
+    expect(planningEl.innerHTML).toContain('Retirement withdrawals');
     // Forecast panel should be visible by default
     const fcPanel = document.getElementById('nw-fc-panel')!;
     expect(fcPanel.hidden).toBe(false);
@@ -535,10 +536,10 @@ describe('renderNW', () => {
     const snaps = [makeSnap('2026-01', 5000, 2000)];
     renderNW(snaps);
     const ddEl = switchToDrawdownTab();
-    // Should show the corpus KPIs (Portfolio lasts until, Monthly withdrawal, Estimated sustainable withdrawal)
+    // Should show the corpus KPIs (Portfolio lasts until, Monthly withdrawal, Break-even withdrawal)
     expect(ddEl.textContent).toContain('Portfolio lasts until');
     expect(ddEl.textContent).toContain('Monthly withdrawal');
-    expect(ddEl.textContent).toContain('Estimated sustainable withdrawal');
+    expect(ddEl.textContent).toContain('Break-even withdrawal');
   });
 
   it('decumulation card shows near-break-even warning when withdrawal is within ±20% of sustainable rate', () => {
