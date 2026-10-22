@@ -197,6 +197,13 @@ describe('renderAnalytics', () => {
     document.querySelector<HTMLElement>('#an-income-range-toggle [data-range="12"]')!.click();
     expect(document.getElementById('c-an-income-table-wrap')!.textContent).toContain('200,00');
     expect(document.getElementById('c-an-income-table-wrap')!.textContent).not.toContain('100,00');
+    const incomeBars = chartInstances
+      .filter((c) => !c.destroyed)
+      .map((c) => c.config as { data: { datasets: Array<{ label?: string }> } })
+      .flatMap((c) => c.data.datasets)
+      .find((d) => d.label === 'Income') as { borderRadius: unknown; borderSkipped: unknown };
+    expect(incomeBars.borderRadius).toBe(4);
+    expect(incomeBars.borderSkipped).toBe('start');
   });
 
   it('gates risk metrics until 24 months of history while keeping income analytics visible', () => {

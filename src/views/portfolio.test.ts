@@ -740,13 +740,8 @@ describe('renderPortfolio', () => {
     const config = chartInstances[0].config as {
       data: { datasets: Array<{ borderRadius: unknown; borderSkipped: unknown }> };
     };
-    expect(config.data.datasets[0].borderRadius).toEqual({
-      topLeft: 0,
-      bottomLeft: 0,
-      topRight: 4,
-      bottomRight: 4,
-    });
-    expect(config.data.datasets[0].borderSkipped).toBe(false);
+    expect(config.data.datasets[0].borderRadius).toBe(4);
+    expect(config.data.datasets[0].borderSkipped).toBe('start');
   });
 
   it('renders donut legend with short name and percentage', () => {

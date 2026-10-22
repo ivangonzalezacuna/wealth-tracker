@@ -43,7 +43,7 @@ import { allInvestmentAccountsValue } from '../model/accounts';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import { hideChartTable, writeChartTable } from './chartTable';
-import { T, R, resolvedT } from '../theme';
+import { T, R, BAR_END_ROUNDING, resolvedT } from '../theme';
 import { createChartRegistry } from './chartRegistry';
 import Chart from 'chart.js/auto';
 import { formatEuroCompactSuffix, formatEuroPrefix, formatPercentRounded } from './chartOptions';
@@ -1546,8 +1546,7 @@ function _renderIncomeChart(monthlyBreakdown: { month: string; amount: number }[
           label: 'Income',
           data: view.map((p) => p.amount),
           backgroundColor: C.pos,
-          borderRadius: R.xs,
-          borderSkipped: false,
+          ...BAR_END_ROUNDING,
         },
       ],
     },

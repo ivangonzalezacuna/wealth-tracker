@@ -57,6 +57,9 @@ export const R = {
   lg: 12,
 } as const;
 
+/** Single-series bars: rounded at the value end, square on the baseline (also for negative values). */
+export const BAR_END_ROUNDING = { borderRadius: R.xs, borderSkipped: 'start' } as const;
+
 /** Runtime dark-mode resolution for Chart.js context at render-time. */
 export function resolvedT(): Record<keyof typeof T, string> {
   const pref = getUserThemePref();

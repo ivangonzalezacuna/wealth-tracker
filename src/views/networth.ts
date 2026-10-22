@@ -34,7 +34,7 @@ import {
 import type { AccountForecastInput, DecumulationStrategy } from '../model/forecast';
 import type { Snapshot, Account, GoalMilestone } from '../types';
 import Chart from 'chart.js/auto';
-import { T, R, resolvedT } from '../theme';
+import { T, BAR_END_ROUNDING, resolvedT } from '../theme';
 import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import { SCENARIOS_ICON, SCENARIOS_OFF_ICON } from './icons';
 import { writeChartTable } from './chartTable';
@@ -586,8 +586,7 @@ export function renderNW(snaps: Snapshot[]): void {
             backgroundColor: chartA.map((a) => safeColor(a.color)),
             borderColor: chartA.map((a) => safeColor(a.color)),
             borderWidth: 1,
-            borderRadius: R.xs,
-            borderSkipped: false,
+            ...BAR_END_ROUNDING,
           },
         ],
       },

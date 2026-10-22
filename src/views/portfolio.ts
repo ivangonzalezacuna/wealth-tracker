@@ -27,7 +27,7 @@ import { computeDrift, maxDrift, computeRebalancePlan } from '../model/drift';
 import { sourceLabel } from '../import/profiles/index';
 import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 import Chart from 'chart.js/auto';
-import { R, resolvedT } from '../theme';
+import { BAR_END_ROUNDING, resolvedT } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { attachEtfPopovers } from '../ui/etfPopover';
 import { renderPagination } from './pagination';
@@ -661,13 +661,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
           backgroundColor: donutE.map((e) => safeColor(e.color)),
           borderColor: donutE.map((e) => safeColor(e.color)),
           borderWidth: 1,
-          borderRadius: {
-            topLeft: R.none,
-            bottomLeft: R.none,
-            topRight: R.xs,
-            bottomRight: R.xs,
-          },
-          borderSkipped: false,
+          ...BAR_END_ROUNDING,
           maxBarThickness: 22,
         },
       ],
