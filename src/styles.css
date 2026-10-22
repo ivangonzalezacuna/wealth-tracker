@@ -2762,6 +2762,32 @@ input[type='color'] {
   content: ' · Unsaved changes';
   color: var(--warn-fg);
 }
+/* Unsaved list rows: new/edited are highlighted, removed are faded until Save. */
+.settings-item-new,
+.settings-item-edited {
+  border-color: var(--warn-fg);
+}
+.settings-item-removed {
+  border-style: dashed;
+}
+.settings-item-removed .settings-item-copy,
+.settings-item-removed .settings-item-facts > :not(.b-draft-removed),
+.settings-item-removed .leg-sq,
+.settings-item-removed .settings-item-fields {
+  opacity: 0.45;
+}
+.settings-item-removed .settings-item-title {
+  text-decoration: line-through;
+}
+.b-draft-new,
+.b-draft-edited {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+.b-draft-removed {
+  background: var(--surface-3);
+  color: var(--ink-2);
+}
 .settings-inline-msg {
   font-size: var(--fs-7);
 }
