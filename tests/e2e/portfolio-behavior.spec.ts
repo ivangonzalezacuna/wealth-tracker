@@ -40,9 +40,11 @@ test('reinvestment rules CRUD works', async ({ page }) => {
   await page.click('#btn-save-rules');
   await expectToast(page, 'rules-msg', 'Rules saved');
 
-  // Delete the rule (triggers confirm dialog)
+  // Mark the rule for removal; it is only removed once Save rules is used
   await ensureCardExpanded(page, 'settings-card-portfolio-behavior');
   await page.locator('.js-del-rule').first().click();
-  await page.click('.js-confirm-ok');
-  await expectToast(page, 'rules-msg', 'Rule removed');
+  await expect(page.locator('.settings-rule-row').first()).toHaveAttribute('data-removed', 'true');
+  await page.click('#btn-save-rules');
+  await expectToast(page, 'rules-msg', 'Rules saved');
+  await expect(page.locator('#settings-rules-tbl .settings-rule-row')).toHaveCount(0);
 });

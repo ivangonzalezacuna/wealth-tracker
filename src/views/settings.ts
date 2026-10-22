@@ -90,7 +90,7 @@ function intervalOptionsHtml(selected: ContribInterval): string {
     .join('');
 }
 
-import { EDIT_ICON, DELETE_ICON } from './icons';
+import { EDIT_ICON, DELETE_ICON, UNDO_ICON } from './icons';
 import { navHash, SETTINGS_VIEWS, type SettingsView } from '../nav';
 
 /** Card key: identifies which settings card an action belongs to. */
@@ -585,83 +585,103 @@ export function accountCurrencyList(accounts: Account[]): string[] {
   return [...new Set([...COMMON_CURRENCIES, ...fromAccounts])].sort((a, b) => a.localeCompare(b));
 }
 
+// Unsaved list changes are tracked per item object, so they survive filtered
+// re-renders and nothing is persisted until the card's Save button is used.
+const _newDrafts = new WeakSet<object>();
+const _editedDrafts = new WeakSet<object>();
+const _removedDrafts = new WeakSet<object>();
+
+function isRemovedDraft(item: object): boolean {
+  return _removedDrafts.has(item);
+}
+
+function hasDraftMark(item: object): boolean {
+  return _newDrafts.has(item) || _editedDrafts.has(item) || _removedDrafts.has(item);
+}
+
+/** Items that a Save should persist (everything not marked for removal). */
+function keptItems<T extends object>(items: T[]): T[] {
+  return items.filter((item) => !_removedDrafts.has(item));
+}
+
+function clearDraftMarks(items: object[]): void {
+  for (const item of items) {
+    _newDrafts.delete(item);
+    _editedDrafts.delete(item);
+    _removedDrafts.delete(item);
+  }
+}
+
+function draftRowClass(item: object): string {
+  if (_removedDrafts.has(item)) return ' settings-item-removed';
+  if (_newDrafts.has(item)) return ' settings-item-new';
+  if (_editedDrafts.has(item)) return ' settings-item-edited';
+  return '';
+}
+
+function draftBadge(item: object): string {
+  if (_removedDrafts.has(item)) return '<span class="badge b-draft-removed">Removed</span>';
+  if (_newDrafts.has(item)) return '<span class="badge b-draft-new">New</span>';
+  if (_editedDrafts.has(item)) return '<span class="badge b-draft-edited">Edited</span>';
+  return '';
+}
+
+/** Edit + Remove buttons, or a single Undo button once the row is marked for removal. */
+function rowActionsHtml(item: object, i: number, kind: string, noun: string, name: string): string {
+  if (_removedDrafts.has(item)) {
+    return `<div class="settings-row-actions">
+      <button class="btn btn-sm btn-outline btn-icon js-del-${kind}" data-idx="${i}" aria-label="Undo remove ${noun} ${name}" title="Undo remove">${UNDO_ICON}</button>
+    </div>`;
+  }
+  return `<div class="settings-row-actions">
+      <button class="btn btn-sm btn-outline btn-icon js-edit-${kind}" data-idx="${i}" aria-label="Edit ${noun} ${name}" title="Edit ${noun}">${EDIT_ICON}</button>
+      <button class="btn btn-sm btn-danger btn-icon js-del-${kind}" data-idx="${i}" aria-label="Delete ${noun} ${name}" title="Delete ${noun}">${DELETE_ICON}</button>
+    </div>`;
+}
+
 interface EditableListController<T> {
   items(): T[];
   previewAdd(next: T): T[];
   previewUpdate(index: number, next: T): T[];
+  toggleRemoval(index: number): T[];
 }
 
-function createEditableListController<T>(opts: {
+function createEditableListController<T extends object>(opts: {
   getItems: () => T[];
   apply: (items: T[]) => void;
   msgId: string;
 }): EditableListController<T> {
+  const commit = (updated: T[]) => {
+    opts.apply(updated);
+    setListDraftState(opts.msgId, updated.some(hasDraftMark));
+    return updated;
+  };
   return {
     items: () => opts.getItems(),
     previewAdd(next) {
-      const updated = [...opts.getItems(), next];
-      opts.apply(updated);
-      setListDraftState(opts.msgId, true);
-      return updated;
+      _newDrafts.add(next);
+      return commit([...opts.getItems(), next]);
     },
     previewUpdate(index, next) {
-      const updated = opts.getItems().map((item, itemIndex) => (itemIndex === index ? next : item));
-      opts.apply(updated);
-      setListDraftState(opts.msgId, true);
-      return updated;
+      const prev = opts.getItems()[index];
+      if (prev && _newDrafts.has(prev)) _newDrafts.add(next);
+      else _editedDrafts.add(next);
+      return commit(opts.getItems().map((item, itemIndex) => (itemIndex === index ? next : item)));
+    },
+    toggleRemoval(index) {
+      const items = opts.getItems();
+      const item = items[index];
+      if (!item) return items;
+      // An unsaved new item has nothing to restore, so it is simply dropped.
+      if (_newDrafts.has(item) && !_removedDrafts.has(item)) {
+        clearDraftMarks([item]);
+        return commit(items.filter((_, itemIndex) => itemIndex !== index));
+      }
+      if (_removedDrafts.has(item)) _removedDrafts.delete(item);
+      else _removedDrafts.add(item);
+      return commit(items.slice());
     },
   };
-}
-
-async function persistListRemoval<T>(opts: {
-  controller: EditableListController<T>;
-  index: number;
-  root: HTMLElement;
-  btn: HTMLButtonElement;
-  cardKey: CardKey;
-  persist: (items: T[]) => Promise<unknown>;
-  rerender: (root: HTMLElement, items: T[]) => void;
-  confirmTitle: string;
-  confirmBody: string;
-  msgId: string;
-  successMessage: string;
-  busyText: string;
-  keepDisabledOnSuccess?: boolean;
-  confirmLabel?: string;
-  afterPersist?: (items: T[]) => Promise<string | void>;
-}): Promise<void> {
-  const dirty = document.getElementById(opts.msgId)?.closest('.settings-dirty');
-  const ok = await confirmDialog({
-    title: opts.confirmTitle,
-    body: `${opts.confirmBody} Removal is saved immediately.${dirty ? ' This also saves the other unsaved changes in this section.' : ''}`,
-    confirmLabel: opts.confirmLabel || 'Remove',
-    danger: true,
-  });
-  if (!ok) return;
-  const updated = opts.controller.items().filter((_, itemIndex) => itemIndex !== opts.index);
-  try {
-    let successMessage = opts.successMessage;
-    const saved = await withCardGuard(
-      opts.cardKey,
-      opts.btn,
-      async () => {
-        await opts.persist(updated);
-        const result = await opts.afterPersist?.(updated);
-        if (result) successMessage = result;
-        return true;
-      },
-      {
-        busyText: opts.busyText,
-        keepDisabledOnSuccess: opts.keepDisabledOnSuccess,
-      },
-    );
-    if (!saved) return;
-    opts.rerender(opts.root, updated);
-    setListDraftState(opts.msgId, false);
-    toastResult(opts.msgId, successMessage, 'success');
-  } catch (err) {
-    toastResult(opts.msgId, 'Could not remove: ' + errorText(err), 'error');
-  }
 }
 
 function renderAccountsCard(accounts: Account[]): string {
@@ -704,11 +724,12 @@ function renderAccountRow(a: Account, i: number): string {
     a.currency && a.currency.toUpperCase() !== 'EUR' ? esc(a.currency.toUpperCase()) : '',
     a.locked ? `Locked${a.lockedUntil ? ' to ' + esc(a.lockedUntil) : ''}` : '',
   ].filter(Boolean);
-  const badge = a.isPrimaryInvestment ? '<span class="badge b-active">Primary</span>' : '';
+  const badge =
+    (a.isPrimaryInvestment ? '<span class="badge b-active">Primary</span>' : '') + draftBadge(a);
   const name = esc(a.label) || 'New account';
 
   return `
-    <div class="settings-item settings-acct-row" data-idx="${i}">
+    <div class="settings-item settings-acct-row${draftRowClass(a)}" data-idx="${i}">
       <div class="settings-item-header">
         <span class="leg-sq" style="background:${esc(color)};flex-shrink:0"></span>
         <span class="settings-item-copy">
@@ -716,10 +737,7 @@ function renderAccountRow(a: Account, i: number): string {
           ${sub ? `<span class="settings-item-meta" title="${sub}">${sub}</span>` : ''}
         </span>
         ${settingsItemFacts(facts, badge)}
-        <div class="settings-row-actions">
-          <button class="btn btn-sm btn-outline btn-icon js-edit-acct" data-idx="${i}" aria-label="Edit account ${name}" title="Edit account">${EDIT_ICON}</button>
-          <button class="btn btn-sm btn-danger btn-icon js-del-acct" data-idx="${i}" aria-label="Delete account ${name}" title="Delete account">${DELETE_ICON}</button>
-        </div>
+        ${rowActionsHtml(a, i, 'acct', 'account', name)}
       </div>
     </div>`;
 }
@@ -731,23 +749,20 @@ function settingsItemFacts(facts: string[], badge = ''): string {
     .join('')}${badge}</span>`;
 }
 
-/** Shared account-delete implementation. setAccounts runs before
- *  retireAccountIdsSafely so getAccounts() is correct the instant this
- *  resolves, closing the window where retirement's own setSetting ->
- *  _onChange could trigger a re-render from stale data.
- *  retireAccountIdsSafely never throws: if the Sheets write for the
- *  retirement itself fails after setAccounts already succeeded, the id is
- *  queued locally (getRetiredAccountIds() still protects against reuse
- *  immediately) and retried automatically on next load, instead of
- *  surfacing a misleading "Error" for a delete that actually went through. */
-async function deleteAccount(
-  root: HTMLElement,
+/** Mark an account for removal (or undo the mark). Nothing is persisted
+ *  here; Save accounts commits the removal and retires its id. Accounts
+ *  with stored snapshot balances cannot be marked at all. */
+async function toggleAccountRemoval(
+  controller: EditableListController<Account>,
   idx: number,
-  btn: HTMLButtonElement,
 ): Promise<void> {
-  if (isCardBusy('accounts') || isBusy()) return;
-  const accounts = _accounts ?? [];
-  const a = accounts[idx];
+  if (isCardBusy('accounts')) return;
+  const a = controller.items()[idx];
+  if (!a) return;
+  if (isRemovedDraft(a)) {
+    controller.toggleRemoval(idx);
+    return;
+  }
   const accountKeys = [a?.id, a?.key].filter((k): k is string => !!k && k.trim().length > 0);
   if (accountKeys.length > 0) {
     const snaps = await loadSnapshots();
@@ -763,34 +778,7 @@ async function deleteAccount(
       return;
     }
   }
-  const controller = createEditableListController<Account>({
-    getItems: () => _accounts ?? [],
-    apply: (updated) => rerenderAccountsTable(root, updated),
-    msgId: 'accts-msg',
-  });
-  await persistListRemoval({
-    controller,
-    index: idx,
-    root,
-    btn,
-    cardKey: 'accounts',
-    persist: async (updated) => setAccounts(updated),
-    rerender: rerenderAccountsTable,
-    confirmTitle: `Remove ${esc(a?.label || 'this account')}?`,
-    confirmBody:
-      'This removes it from your configuration. The account has no stored snapshot balances, so historical totals stay unchanged. Its old data column stays reserved so a future account never accidentally reuses it.',
-    msgId: 'accts-msg',
-    successMessage: 'Account removed',
-    busyText: 'Removing...',
-    keepDisabledOnSuccess: true,
-    afterPersist: async () => {
-      if (!a?.id) return;
-      const retiredOk = await retireAccountIdsSafely([a.id]);
-      return retiredOk
-        ? 'Account removed'
-        : 'Account removed (will finish reserving its id once back online)';
-    },
-  });
+  controller.toggleRemoval(idx);
 }
 
 async function migrateLegacySnapshotKeys(accounts: Account[]): Promise<void> {
@@ -847,7 +835,7 @@ function attachAccountListeners(root: HTMLElement): void {
     controller.previewAdd(draft);
   });
 
-  root.addEventListener('click', async (e) => {
+  root.querySelector('#settings-accounts-tbl')?.addEventListener('click', async (e) => {
     const editBtn = (e.target as Element).closest('.js-edit-acct') as HTMLElement | null;
     if (!editBtn) return;
     const idx = parseInt(editBtn.dataset.idx ?? '');
@@ -870,7 +858,12 @@ function attachAccountListeners(root: HTMLElement): void {
 
   root.querySelector('#btn-save-accts')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-accts') as HTMLButtonElement;
-    const accounts = _accounts ?? [];
+    const all = _accounts ?? [];
+    const accounts = keptItems(all);
+    const removedIds = all
+      .filter(isRemovedDraft)
+      .map((a) => a.id)
+      .filter((id): id is string => !!id);
     if (accounts.some((a) => !a.label)) {
       showMsg('accts-msg', 'Each account needs a name.', false);
       return;
@@ -882,7 +875,7 @@ function attachAccountListeners(root: HTMLElement): void {
     }
     // Auto-generate IDs for accounts that don't have one
     const taken = new Set([
-      ...accounts.map((a) => (a.id || a.key || '').trim()).filter((id) => !!id),
+      ...all.map((a) => (a.id || a.key || '').trim()).filter((id) => !!id),
       ...getRetiredAccountIds(),
     ]);
     for (const a of accounts) {
@@ -908,29 +901,38 @@ function attachAccountListeners(root: HTMLElement): void {
       return;
     }
     try {
+      let message = 'Accounts saved';
+      // setAccounts runs before retireAccountIdsSafely so getAccounts() is
+      // correct before retirement's own settings write can trigger a refresh.
+      // Retirement never throws: a failed write is queued and retried on load.
       const saved = await withCardGuard(
         'accounts',
         btn,
         async () => {
           await migrateLegacySnapshotKeys(accounts);
           await setAccounts(accounts);
+          if (removedIds.length > 0 && !(await retireAccountIdsSafely(removedIds))) {
+            message = 'Accounts saved (will finish reserving removed ids once back online)';
+          }
           return true;
         },
         { busyText: 'Saving...' },
       );
       if (!saved) return;
+      clearDraftMarks(all);
+      rerenderAccountsTable(root, accounts);
       setListDraftState('accts-msg', false);
-      toastResult('accts-msg', 'Accounts saved', 'success');
+      toastResult('accts-msg', message, 'success');
     } catch (err) {
       toastResult('accts-msg', 'Could not save accounts: ' + errorText(err), 'error');
     }
   });
 
-  root.addEventListener('click', (e) => {
+  root.querySelector('#settings-accounts-tbl')?.addEventListener('click', (e) => {
     const delBtn = (e.target as Element).closest('.js-del-acct') as HTMLButtonElement | null;
     if (!delBtn) return;
     const idx = parseInt(delBtn.dataset.idx ?? '');
-    if (!isNaN(idx)) deleteAccount(root, idx, delBtn);
+    if (!isNaN(idx)) void toggleAccountRemoval(controller, idx);
   });
 }
 
@@ -1024,18 +1026,15 @@ function renderHoldingRow(h: Holding, i: number): string {
   ].filter(Boolean);
 
   return `
-    <div class="settings-item settings-hold-row" data-idx="${i}">
+    <div class="settings-item settings-hold-row${draftRowClass(h)}" data-idx="${i}">
       <div class="settings-item-header">
         <span class="leg-sq" style="background:${esc(color)};flex-shrink:0"></span>
         <span class="settings-item-copy">
           <span class="settings-item-title" title="${name}">${name}</span>
           ${sub ? `<span class="settings-item-meta" title="${sub}">${sub}</span>` : ''}
         </span>
-        ${settingsItemFacts(facts, statusBadge)}
-        <div class="settings-row-actions">
-          <button class="btn btn-sm btn-outline btn-icon js-edit-hold" data-idx="${i}" aria-label="Edit holding ${name}" title="Edit holding">${EDIT_ICON}</button>
-          <button class="btn btn-sm btn-danger btn-icon js-del-hold" data-idx="${i}" aria-label="Delete holding ${name}" title="Delete holding">${DELETE_ICON}</button>
-        </div>
+        ${settingsItemFacts(facts, statusBadge + draftBadge(h))}
+        ${rowActionsHtml(h, i, 'hold', 'holding', name)}
       </div>
     </div>`;
 }
@@ -1072,35 +1071,10 @@ function applyHoldingsFilter(root: HTMLElement): void {
   });
 }
 
-/** Shared holding-delete implementation. */
-async function deleteHolding(
-  root: HTMLElement,
-  idx: number,
-  btn: HTMLButtonElement,
-): Promise<void> {
-  if (isCardBusy('holdings') || isBusy()) return;
-  const holds = _holdings ?? [];
-  const hold = holds[idx];
-  const controller = createEditableListController<Holding>({
-    getItems: () => _holdings ?? _allHoldings ?? [],
-    apply: (updated) => rerenderHoldingsTable(root, updated),
-    msgId: 'holds-msg',
-  });
-  await persistListRemoval({
-    controller,
-    index: idx,
-    root,
-    btn,
-    cardKey: 'holdings',
-    persist: async (updated) => setHoldings(updated),
-    rerender: rerenderHoldingsTable,
-    confirmTitle: `Remove ${esc(hold?.shortName || hold?.isin || 'this holding')}?`,
-    confirmBody: 'This removes it from your configuration. Historical data is not affected.',
-    msgId: 'holds-msg',
-    successMessage: 'Holding removed',
-    busyText: 'Removing...',
-    keepDisabledOnSuccess: true,
-  });
+/** Mark a holding for removal (or undo the mark); Save holdings commits it. */
+function toggleHoldingRemoval(controller: EditableListController<Holding>, idx: number): void {
+  if (isCardBusy('holdings')) return;
+  controller.toggleRemoval(idx);
 }
 
 function attachHoldingListeners(root: HTMLElement): void {
@@ -1140,7 +1114,7 @@ function attachHoldingListeners(root: HTMLElement): void {
     controller.previewAdd(draft);
   });
 
-  root.addEventListener('click', async (e) => {
+  root.querySelector('#settings-holdings-tbl')?.addEventListener('click', async (e) => {
     const editBtn = (e.target as Element).closest('.js-edit-hold') as HTMLElement | null;
     if (!editBtn) return;
     const idx = parseInt(editBtn.dataset.idx ?? '');
@@ -1198,7 +1172,7 @@ function attachHoldingListeners(root: HTMLElement): void {
             if (existing.has(isin)) continue;
             const parsed = parseHoldingName(name, isin);
             const isActive = (isinLatest[isin] || '') >= cutoff;
-            holds.push({
+            const newHolding: Holding = {
               isin,
               shortName: parsed.shortName,
               name,
@@ -1209,7 +1183,9 @@ function attachHoldingListeners(root: HTMLElement): void {
               region: parsed.region,
               foldInto: '',
               order: holds.length + 1,
-            });
+            };
+            _newDrafts.add(newHolding);
+            holds.push(newHolding);
             added++;
           }
           // Deduplicate shortNames: if two auto-generated names collide,
@@ -1244,7 +1220,8 @@ function attachHoldingListeners(root: HTMLElement): void {
 
   root.querySelector('#btn-save-holds')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-holds') as HTMLButtonElement;
-    const holds = _holdings ?? [];
+    const all = _holdings ?? [];
+    const holds = keptItems(all);
     if (holds.some((h) => !h.isin || !h.shortName)) {
       showMsg('holds-msg', 'Each holding needs an ISIN and short name.', false);
       return;
@@ -1262,6 +1239,8 @@ function attachHoldingListeners(root: HTMLElement): void {
         { busyText: 'Saving...' },
       );
       if (!saved) return;
+      clearDraftMarks(all);
+      rerenderHoldingsTable(root, holds);
       setListDraftState('holds-msg', false);
       toastResult('holds-msg', 'Holdings saved', 'success');
     } catch (err) {
@@ -1269,11 +1248,11 @@ function attachHoldingListeners(root: HTMLElement): void {
     }
   });
 
-  root.addEventListener('click', (e) => {
+  root.querySelector('#settings-holdings-tbl')?.addEventListener('click', (e) => {
     const delBtn = (e.target as Element).closest('.js-del-hold') as HTMLButtonElement | null;
     if (!delBtn) return;
     const idx = parseInt(delBtn.dataset.idx ?? '');
-    if (!isNaN(idx)) deleteHolding(root, idx, delBtn);
+    if (!isNaN(idx)) toggleHoldingRemoval(controller, idx);
   });
 }
 
@@ -1515,17 +1494,14 @@ function renderGoalRow(goal: NamedGoal, idx: number): string {
   if (msCount > 0) metaParts.push(`${msCount} milestone${msCount === 1 ? '' : 's'}`);
   const metaStr = metaParts.join(' \u00B7 ');
   return `
-    <div class="settings-item settings-goal-row" data-idx="${idx}">
+    <div class="settings-item settings-goal-row${draftRowClass(goal)}" data-idx="${idx}">
       <div class="settings-item-header">
         <span class="settings-item-copy">
           <span class="settings-item-title">${esc(title)}</span>
           ${metaStr ? `<span class="settings-item-meta">${metaStr}</span>` : ''}
         </span>
-        ${settingsItemFacts(fmtNW && title !== fmtNW ? [esc(fmtNW)] : [])}
-        <div class="settings-row-actions">
-          <button class="btn btn-sm btn-outline btn-icon js-edit-goal" data-idx="${idx}" aria-label="Edit goal ${esc(title)}" title="Edit goal">${EDIT_ICON}</button>
-          <button class="btn btn-sm btn-danger btn-icon js-del-goal" data-idx="${idx}" aria-label="Delete goal ${esc(title)}" title="Delete goal">${DELETE_ICON}</button>
-        </div>
+        ${settingsItemFacts(fmtNW && title !== fmtNW ? [esc(fmtNW)] : [], draftBadge(goal))}
+        ${rowActionsHtml(goal, idx, 'goal', 'goal', esc(title))}
       </div>
     </div>`;
 }
@@ -1561,32 +1537,10 @@ function rerenderGoalsTable(root: HTMLElement, goals: NamedGoal[]): void {
   tbl.innerHTML = goals.map((g, i) => renderGoalRow(g, i)).join('');
 }
 
-async function deleteGoal(root: HTMLElement, idx: number, btn: HTMLButtonElement): Promise<void> {
-  if (isCardBusy('goal') || isBusy()) return;
-  const goals = _goals ?? [];
-  const goal = goals[idx];
-  const title =
-    goal?.label || (goal?.targetNetWorth ? `\u20AC${goal.targetNetWorth}` : `Goal ${idx + 1}`);
-  const controller = createEditableListController<NamedGoal>({
-    getItems: () => _goals ?? [],
-    apply: (updated) => rerenderGoalsTable(root, updated),
-    msgId: 'goal-msg',
-  });
-  await persistListRemoval({
-    controller,
-    index: idx,
-    root,
-    btn,
-    cardKey: 'goal',
-    persist: async (updated) => setSettings({ goals: JSON.stringify(updated) }),
-    rerender: rerenderGoalsTable,
-    confirmTitle: `Remove ${esc(title)}?`,
-    confirmBody: 'This removes the goal from your configuration.',
-    msgId: 'goal-msg',
-    successMessage: 'Goal removed',
-    busyText: 'Removing...',
-    keepDisabledOnSuccess: true,
-  });
+/** Mark a goal for removal (or undo the mark); Save goals commits it. */
+function toggleGoalRemoval(controller: EditableListController<NamedGoal>, idx: number): void {
+  if (isCardBusy('goal')) return;
+  controller.toggleRemoval(idx);
 }
 
 function attachGoalListeners(root: HTMLElement): void {
@@ -1603,7 +1557,7 @@ function attachGoalListeners(root: HTMLElement): void {
     controller.previewAdd(draft);
   });
 
-  root.addEventListener('click', async (e) => {
+  root.querySelector('#settings-goals-tbl')?.addEventListener('click', async (e) => {
     const editBtn = (e.target as Element).closest('.js-edit-goal') as HTMLButtonElement | null;
     if (editBtn) {
       const idx = parseInt(editBtn.dataset.idx ?? '');
@@ -1624,12 +1578,13 @@ function attachGoalListeners(root: HTMLElement): void {
     const delBtn = (e.target as Element).closest('.js-del-goal') as HTMLButtonElement | null;
     if (!delBtn) return;
     const idx = parseInt(delBtn.dataset.idx ?? '');
-    if (!isNaN(idx)) deleteGoal(root, idx, delBtn);
+    if (!isNaN(idx)) toggleGoalRemoval(controller, idx);
   });
 
   root.querySelector('#btn-save-goal')?.addEventListener('click', async () => {
     const btn = root.querySelector('#btn-save-goal') as HTMLButtonElement;
-    const goals = (_goals ?? []).filter((g) => g.targetNetWorth);
+    const all = _goals ?? [];
+    const goals = keptItems(all).filter((g) => g.targetNetWorth);
     const labelErr = validateGoalLabels(goals);
     if (labelErr) {
       showMsg('goal-msg', labelErr, false);
@@ -1643,6 +1598,7 @@ function attachGoalListeners(root: HTMLElement): void {
         { busyText: 'Saving...' },
       );
       if (!saved) return;
+      clearDraftMarks(all);
       rerenderGoalsTable(root, goals);
       setListDraftState('goal-msg', false);
       toastResult('goal-msg', 'Goals saved', 'success');
@@ -1672,26 +1628,7 @@ function renderPortfolioBehaviorCard(settings: Settings): string {
   const threshold = alertSettings.driftThresholdPct || 5;
   const rules = rulesFromSettings(settings);
 
-  const rows = rules
-    .map(
-      (r, i) => `
-    <div class="settings-item settings-rule-row" data-idx="${i}">
-      <div class="settings-item-fields" style="flex-direction:column">
-        <div class="settings-field">
-          <label class="settings-field-label">Description</label>
-          <input class="form-input form-input-sm" data-field="label" value="${esc(r.label)}" placeholder="e.g. Dividends reinvested">
-        </div>
-        <div class="settings-field">
-          <label class="settings-field-label">Action</label>
-          <input class="form-input form-input-sm" data-field="value" value="${esc(r.value)}" placeholder="e.g. into IWDA weekly">
-        </div>
-      </div>
-      <div style="text-align:right;margin-top:4px"><button class="btn btn-sm btn-danger js-del-rule" data-idx="${i}">✕ Remove</button></div>
-    </div>
-  `,
-    )
-    .join('');
-
+  const rows = rules.map((r, i) => renderRuleRow(r, i)).join('');
   return `
     <div class="card card-collapsible" id="settings-card-portfolio-behavior" data-card-key="portfolio-behavior">
       ${settingsCardHeader('portfolio-behavior', 'Portfolio behavior', 'Drift alerts and reinvestment rules')}
@@ -1750,28 +1687,42 @@ async function persistRules(rules: { label: string; value: string }[]): Promise<
   await setSettings(updates);
 }
 
-/** Shared rule-delete implementation. */
-async function deleteRule(root: HTMLElement, idx: number, btn: HTMLButtonElement): Promise<void> {
-  if (isCardBusy('portfolio-behavior') || isBusy()) return;
-  const rules = collectRules(root);
-  const ok = await confirmDialog({
-    title: 'Remove this rule?',
-    confirmLabel: 'Remove',
-    danger: true,
-  });
-  if (!ok) return;
-  rules.splice(idx, 1);
-  try {
-    await withCardGuard('portfolio-behavior', btn, () => persistRules(rules), {
-      busyText: 'Removing...',
-      keepDisabledOnSuccess: true,
-    });
-    rerenderRulesTable(root, rules);
-    _formDirty.get('rules')?.commit();
-    toastResult('rules-msg', 'Rule removed', 'success');
-  } catch (err) {
-    toastResult('rules-msg', 'Could not remove rule: ' + errorText(err), 'error');
-  }
+type RuleDraft = { label: string; value: string; removed?: boolean };
+
+function renderRuleRow(r: RuleDraft, i: number): string {
+  const removed = !!r.removed;
+  const disabled = removed ? ' disabled' : '';
+  const action = removed
+    ? `<button class="btn btn-sm btn-outline js-del-rule" data-idx="${i}" aria-label="Undo remove rule ${i + 1}">Undo remove</button>`
+    : `<button class="btn btn-sm btn-danger js-del-rule" data-idx="${i}">✕ Remove</button>`;
+  return `
+    <div class="settings-item settings-rule-row${removed ? ' settings-item-removed' : ''}" data-idx="${i}"${removed ? ' data-removed="true"' : ''}>
+      <div class="settings-item-fields" style="flex-direction:column">
+        <div class="settings-field">
+          <label class="settings-field-label">Description</label>
+          <input class="form-input form-input-sm" data-field="label" value="${esc(r.label)}" placeholder="e.g. Dividends reinvested"${disabled}>
+        </div>
+        <div class="settings-field">
+          <label class="settings-field-label">Action</label>
+          <input class="form-input form-input-sm" data-field="value" value="${esc(r.value)}" placeholder="e.g. into IWDA weekly"${disabled}>
+        </div>
+      </div>
+      <div style="text-align:right;margin-top:4px">${removed ? '<span class="badge b-draft-removed">Removed</span> ' : ''}${action}</div>
+    </div>
+  `;
+}
+
+/** Mark a rule for removal (or undo the mark); Save rules commits it. */
+function toggleRuleRemoval(root: HTMLElement, idx: number): void {
+  if (isCardBusy('portfolio-behavior')) return;
+  const rules = collectRules(root, true);
+  const rule = rules[idx];
+  if (!rule) return;
+  rule.removed = !rule.removed;
+  rerenderRulesTable(root, rules);
+  root
+    .querySelector<HTMLButtonElement>(`.settings-rule-row[data-idx="${idx}"] .js-del-rule`)
+    ?.focus();
 }
 
 function attachPortfolioBehaviorListeners(root: HTMLElement): void {
@@ -1819,7 +1770,7 @@ function attachPortfolioBehaviorListeners(root: HTMLElement): void {
   });
 
   root.querySelector('#btn-add-rule')?.addEventListener('click', () => {
-    const rules = collectRules(root);
+    const rules = collectRules(root, true);
     rules.push({ label: '', value: '' });
     rerenderRulesTable(root, rules);
   });
@@ -1831,6 +1782,7 @@ function attachPortfolioBehaviorListeners(root: HTMLElement): void {
       await withCardGuard('portfolio-behavior', btn, () => persistRules(rules), {
         busyText: 'Saving...',
       });
+      rerenderRulesTable(root, rules);
       rulesDirty.commit();
       toastResult('rules-msg', 'Rules saved', 'success');
     } catch (err) {
@@ -1838,49 +1790,33 @@ function attachPortfolioBehaviorListeners(root: HTMLElement): void {
     }
   });
 
-  root.querySelectorAll('.js-del-rule').forEach((btn) => {
-    btn.addEventListener('click', () =>
-      deleteRule(root, parseInt((btn as HTMLElement).dataset.idx!), btn as HTMLButtonElement),
-    );
+  root.querySelector('#settings-rules-tbl')?.addEventListener('click', (e) => {
+    const btn = (e.target as Element).closest<HTMLElement>('.js-del-rule');
+    if (!btn) return;
+    const idx = parseInt(btn.dataset.idx ?? '');
+    if (!isNaN(idx)) toggleRuleRemoval(root, idx);
   });
 }
 
-function collectRules(root: HTMLElement): { label: string; value: string }[] {
-  const rows = root.querySelectorAll('.settings-rule-row');
-  return [...rows].map((row) => ({
-    label: (row.querySelector('[data-field="label"]') as HTMLInputElement).value.trim(),
-    value: (row.querySelector('[data-field="value"]') as HTMLInputElement).value.trim(),
-  }));
+/** Rule rows as shown; rows marked for removal are skipped unless `includeRemoved`. */
+function collectRules(root: HTMLElement, includeRemoved = false): RuleDraft[] {
+  const rows = root.querySelectorAll<HTMLElement>('.settings-rule-row');
+  return [...rows]
+    .map((row) => {
+      const rule: RuleDraft = {
+        label: (row.querySelector('[data-field="label"]') as HTMLInputElement).value.trim(),
+        value: (row.querySelector('[data-field="value"]') as HTMLInputElement).value.trim(),
+      };
+      if (row.dataset.removed === 'true') rule.removed = true;
+      return rule;
+    })
+    .filter((rule) => includeRemoved || !rule.removed);
 }
 
-function rerenderRulesTable(root: HTMLElement, rules: { label: string; value: string }[]): void {
+function rerenderRulesTable(root: HTMLElement, rules: RuleDraft[]): void {
   const tbl = root.querySelector('#settings-rules-tbl');
   if (!tbl) return;
-  const rows = rules
-    .map(
-      (r, i) => `
-    <div class="settings-item settings-rule-row" data-idx="${i}">
-      <div class="settings-item-fields" style="flex-direction:column">
-        <div class="settings-field">
-          <label class="settings-field-label">Description</label>
-          <input class="form-input form-input-sm" data-field="label" value="${esc(r.label)}" placeholder="e.g. Dividends reinvested">
-        </div>
-        <div class="settings-field">
-          <label class="settings-field-label">Action</label>
-          <input class="form-input form-input-sm" data-field="value" value="${esc(r.value)}" placeholder="e.g. into IWDA weekly">
-        </div>
-      </div>
-      <div style="text-align:right;margin-top:4px"><button class="btn btn-sm btn-danger js-del-rule" data-idx="${i}">✕ Remove</button></div>
-    </div>
-  `,
-    )
-    .join('');
-  tbl.innerHTML = rows;
-  tbl.querySelectorAll('.js-del-rule').forEach((btn) => {
-    btn.addEventListener('click', () =>
-      deleteRule(root, parseInt((btn as HTMLElement).dataset.idx!), btn as HTMLButtonElement),
-    );
-  });
+  tbl.innerHTML = rules.map((r, i) => renderRuleRow(r, i)).join('');
   _formDirty.get('rules')?.refresh();
 }
 

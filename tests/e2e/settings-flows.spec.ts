@@ -43,8 +43,10 @@ test('holdings CRUD works and contribution/calculation settings persist', async 
   await saveHoldings(page);
 
   await page.locator('#settings-holdings-tbl .js-del-hold').first().click();
-  await page.click('.js-confirm-ok');
-  await expectToast(page, 'holds-msg', 'Holding removed');
+  await expect(page.locator('#settings-holdings-tbl .settings-item-removed')).toContainText(
+    'EIMI2',
+  );
+  await saveHoldings(page);
   await expect(page.locator('#settings-holdings-tbl')).not.toContainText('EIMI2');
 
   await setContributionsSettings(page, {

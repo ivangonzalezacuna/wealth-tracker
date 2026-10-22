@@ -1066,33 +1066,56 @@ describe('Button-disable verification: synchronous disable and double-click prev
       );
     });
 
-    it('disables synchronously and prevents double-click', async () => {
-      const { setAccounts } = await import('../store/config');
+    it('marks the account for removal without writing, and Undo restores it', async () => {
+      const { setAccounts, retireAccountIdsSafely } = await import('../store/config');
       (setAccounts as ReturnType<typeof vi.fn>).mockClear();
-      let resolveWrite!: (value?: unknown) => void;
-      (setAccounts as ReturnType<typeof vi.fn>).mockImplementationOnce(
-        () =>
-          new Promise((r) => {
-            resolveWrite = r;
-          }),
-      );
+      (retireAccountIdsSafely as ReturnType<typeof vi.fn>).mockClear();
 
-      const btn = document.querySelector('.js-del-acct') as HTMLButtonElement;
-      expect(btn).not.toBeNull();
-      btn.click();
-      await tick(); // confirmDialog resolves
-      await tick(); // withCardGuard starts
-
-      expect(btn.disabled).toBe(true);
-      expect(btn.textContent).toBe('Removing...');
-
-      // Second click while busy
-      btn.click();
+      const card = document.getElementById('settings-card-accounts')!;
+      (document.querySelector('.js-del-acct') as HTMLButtonElement).click();
       await tick();
-      expect((setAccounts as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
 
-      resolveWrite();
+      const row = card.querySelector('.settings-acct-row')!;
+      expect(row.classList.contains('settings-item-removed')).toBe(true);
+      expect(row.textContent).toContain('Removed');
+      expect(row.querySelector('.js-edit-acct')).toBeNull();
+      const undo = row.querySelector<HTMLButtonElement>('.js-del-acct')!;
+      expect(undo.getAttribute('aria-label')).toBe('Undo remove account Main');
+      expect(card.classList.contains('settings-dirty')).toBe(true);
+      expect(setAccounts as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+      expect(confirmDialog).not.toHaveBeenCalled();
+
+      undo.click();
       await tick();
+      const restored = card.querySelector('.settings-acct-row')!;
+      expect(restored.classList.contains('settings-item-removed')).toBe(false);
+      expect(restored.querySelector('.js-edit-acct')).not.toBeNull();
+      expect(card.classList.contains('settings-dirty')).toBe(false);
+      expect((document.getElementById('btn-save-accts') as HTMLButtonElement).disabled).toBe(true);
+      expect(setAccounts as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+      expect(retireAccountIdsSafely as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+    });
+
+    it('commits a marked removal on Save and retires the removed id', async () => {
+      const { setAccounts, retireAccountIdsSafely } = await import('../store/config');
+      (setAccounts as ReturnType<typeof vi.fn>).mockClear();
+      (retireAccountIdsSafely as ReturnType<typeof vi.fn>).mockClear();
+
+      (document.querySelector('.js-del-acct') as HTMLButtonElement).click();
+      await tick();
+      const save = document.getElementById('btn-save-accts') as HTMLButtonElement;
+      expect(save.disabled).toBe(false);
+      save.click();
+      await tick();
+      await tick();
+
+      expect(setAccounts as ReturnType<typeof vi.fn>).toHaveBeenCalledWith([]);
+      expect(retireAccountIdsSafely as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(['acct1']);
+      expect(document.querySelectorAll('.settings-acct-row')).toHaveLength(0);
+      expect(notify).toHaveBeenCalledWith('Accounts saved', {
+        variant: 'success',
+        source: 'accts-msg',
+      });
     });
 
     it('still reports success (not an error) when the id retirement write itself fails', async () => {
@@ -1107,17 +1130,17 @@ describe('Button-disable verification: synchronous disable and double-click prev
       const { showMsg } = await import('../utils');
       (showMsg as ReturnType<typeof vi.fn>).mockClear();
 
-      const btn = document.querySelector('.js-del-acct') as HTMLButtonElement;
-      btn.click();
-      await tick(); // confirmDialog resolves
-      await tick(); // withCardGuard body runs
-      await tick(); // settle
+      (document.querySelector('.js-del-acct') as HTMLButtonElement).click();
+      await tick();
+      (document.getElementById('btn-save-accts') as HTMLButtonElement).click();
+      await tick();
+      await tick();
 
       expect(setAccounts as ReturnType<typeof vi.fn>).toHaveBeenCalled();
       // The account was actually removed - this must never surface as an
       // "Error: ..." message, only a softer heads-up about the id.
       expect(notify).toHaveBeenCalledWith(
-        'Account removed (will finish reserving its id once back online)',
+        'Accounts saved (will finish reserving removed ids once back online)',
         { variant: 'success', source: 'accts-msg' },
       );
       const errorCall = (showMsg as ReturnType<typeof vi.fn>).mock.calls.find(
@@ -1180,32 +1203,23 @@ describe('Button-disable verification: synchronous disable and double-click prev
   });
 
   describe('.js-del-hold (holdings delete)', () => {
-    it('disables synchronously and prevents double-click', async () => {
+    it('stages the removal and keeps unsaved edits out of storage until Save', async () => {
       const { setHoldings } = await import('../store/config');
       (setHoldings as ReturnType<typeof vi.fn>).mockClear();
-      let resolveWrite!: (value?: unknown) => void;
-      (setHoldings as ReturnType<typeof vi.fn>).mockImplementationOnce(
-        () =>
-          new Promise((r) => {
-            resolveWrite = r;
-          }),
-      );
 
-      const btn = document.querySelector('.js-del-hold') as HTMLButtonElement;
-      expect(btn).not.toBeNull();
-      btn.click();
-      await tick(); // confirmDialog
-      await tick(); // withCardGuard
-
-      expect(btn.disabled).toBe(true);
-      expect(btn.textContent).toBe('Removing...');
-
-      btn.click();
+      (document.querySelector('.js-del-hold') as HTMLButtonElement).click();
       await tick();
-      expect((setHoldings as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
+      expect(setHoldings as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+      expect(
+        document.querySelector('.settings-hold-row')!.classList.contains('settings-item-removed'),
+      ).toBe(true);
 
-      resolveWrite();
+      const save = document.getElementById('btn-save-holds') as HTMLButtonElement;
+      expect(save.disabled).toBe(false);
+      save.click();
       await tick();
+      expect(setHoldings as ReturnType<typeof vi.fn>).toHaveBeenCalledWith([]);
+      expect(document.querySelectorAll('.settings-hold-row')).toHaveLength(0);
     });
   });
 
@@ -1291,32 +1305,44 @@ describe('Button-disable verification: synchronous disable and double-click prev
   });
 
   describe('.js-del-rule (rules delete)', () => {
-    it('disables synchronously and prevents double-click', async () => {
+    it('stages the removal, supports Undo, and only Save rules persists', async () => {
       const { setSettings } = await import('../store/config');
       (setSettings as ReturnType<typeof vi.fn>).mockClear();
-      let resolveWrite!: (value?: unknown) => void;
-      (setSettings as ReturnType<typeof vi.fn>).mockImplementationOnce(
-        () =>
-          new Promise((r) => {
-            resolveWrite = r;
-          }),
+
+      const add = document.getElementById('btn-add-rule') as HTMLButtonElement;
+      add.click();
+      add.click();
+      const inputs = document.querySelectorAll<HTMLInputElement>('.settings-rule-row input');
+      inputs[0].value = 'Keep';
+      inputs[2].value = 'Drop';
+      inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+
+      const del = () =>
+        document.querySelectorAll<HTMLButtonElement>('.settings-rule-row .js-del-rule')[1];
+      del().click();
+      const row = document.querySelectorAll<HTMLElement>('.settings-rule-row')[1];
+      expect(row.dataset.removed).toBe('true');
+      expect(row.querySelector<HTMLInputElement>('input')!.disabled).toBe(true);
+      expect(del().textContent).toBe('Undo remove');
+      expect(setSettings as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+
+      del().click();
+      expect(document.querySelectorAll<HTMLElement>('.settings-rule-row')[1].dataset.removed).toBe(
+        undefined,
       );
+      expect(document.querySelectorAll<HTMLInputElement>('.settings-rule-row input')[2].value).toBe(
+        'Drop',
+      );
+      del().click();
 
-      const btn = document.querySelector('.js-del-rule') as HTMLButtonElement;
-      if (!btn) return; // rules may be empty, skip if no rule rows exist
-      btn.click();
-      await tick(); // confirmDialog
-      await tick(); // withCardGuard
-
-      expect(btn.disabled).toBe(true);
-      expect(btn.textContent).toBe('Removing...');
-
-      btn.click();
+      (document.getElementById('btn-save-rules') as HTMLButtonElement).click();
       await tick();
-      expect((setSettings as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
-
-      resolveWrite();
-      await tick();
+      expect(setSettings as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+        expect.objectContaining({ rule_1_label: 'Keep' }),
+      );
+      const updates = (setSettings as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(updates).not.toHaveProperty('rule_2_label');
+      expect(document.querySelectorAll('.settings-rule-row')).toHaveLength(1);
     });
   });
 
@@ -1804,36 +1830,37 @@ describe('Settings accessible controls and report states', () => {
     }
   });
 
-  it('renders staged account rows, explains immediate deletion, and clears drafts after saving', async () => {
-    vi.mocked(accountDialog).mockResolvedValueOnce({ label: 'Draft account', moneyType: 'cash' });
-    vi.mocked(confirmDialog).mockResolvedValueOnce(false);
+  it('renders staged account rows, drops an unsaved new row on delete, and clears drafts after saving', async () => {
+    vi.mocked(accountDialog)
+      .mockResolvedValueOnce({ label: 'Draft account', moneyType: 'cash' })
+      .mockResolvedValueOnce({ label: 'Second draft', moneyType: 'cash' });
     renderSettings();
-    document.getElementById('btn-add-acct')!.click();
     const card = document.getElementById('settings-card-accounts')!;
+    document.getElementById('btn-add-acct')!.click();
     await vi.waitFor(() => expect(card.classList.contains('settings-dirty')).toBe(true));
     expect(card.querySelector('.settings-draft-status')?.textContent).toBe('Unsaved changes');
     expect(card.querySelector('.settings-card-summary')?.textContent).toBe('2 accounts');
     const row = card.querySelectorAll('.settings-acct-row')[1];
+    expect(row.classList.contains('settings-item-new')).toBe(true);
+    expect(row.textContent).toContain('New');
     expect(row.querySelector('.settings-item-copy .settings-item-title')?.textContent).toBe(
       'Draft account',
     );
     const remove = row.querySelector<HTMLButtonElement>('.js-del-acct')!;
     expect(remove.getAttribute('aria-label')).toBe('Delete account Draft account');
     remove.click();
-    await vi.waitFor(() =>
-      expect(confirmDialog).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          body: expect.stringContaining(
-            'Removal is saved immediately. This also saves the other unsaved changes in this section.',
-          ),
-        }),
-      ),
-    );
+    await vi.waitFor(() => expect(card.querySelectorAll('.settings-acct-row')).toHaveLength(1));
+    expect(confirmDialog).not.toHaveBeenCalled();
+    expect(card.classList.contains('settings-dirty')).toBe(false);
+
+    document.getElementById('btn-add-acct')!.click();
+    await vi.waitFor(() => expect(card.querySelectorAll('.settings-acct-row')).toHaveLength(2));
     const save = document.getElementById('btn-save-accts') as HTMLButtonElement;
     expect(save.disabled).toBe(false);
     save.click();
     await vi.waitFor(() => expect(card.classList.contains('settings-dirty')).toBe(false));
     expect(card.querySelector('.settings-draft-status')?.textContent).toBe('');
+    expect(card.querySelector('.settings-item-new')).toBeNull();
     expect(save.disabled).toBe(true);
     expect(notify).toHaveBeenCalledWith('Accounts saved', {
       variant: 'success',
