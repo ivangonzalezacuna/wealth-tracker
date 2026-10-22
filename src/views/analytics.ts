@@ -396,7 +396,7 @@ export function renderAnalytics(
               sub: volResult.annualized !== null ? 'annualized, all history' : 'needs more data',
             },
             {
-              label: `Max Drawdown${infoTip('Largest peak-to-trough decline in the linked investment return series. Uses investment performance only, not net worth changes.')}`,
+              label: `Max Drawdown${infoTip('Largest peak-to-trough decline in the linked investment return series. Uses investment performance only, not net worth growth.')}`,
               value: dd !== null ? (dd === 0 ? '0%' : fmtPctNeg(dd * 100)) : '-',
               valueClass: dd === null ? '' : dd < 0 ? 'neg' : '',
               sub: dd !== null ? 'all history' : 'needs more data',
