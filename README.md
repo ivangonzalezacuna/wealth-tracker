@@ -360,41 +360,6 @@ yarn build       # vite build
 
 CI runs lint, typecheck, test, and build on every push and PR to `main`. A separate weekly audit surfaces dependency vulnerabilities. Dependabot opens grouped weekly PRs for updates.
 
-### Net worth, Portfolio, and Analytics UI review
-
-Run the isolated, synthetic-data review suite locally:
-
-```bash
-corepack yarn playwright test --config playwright.ui-review.config.ts
-corepack yarn playwright show-report test-results/ui-review-report
-```
-
-The suite restores a generated backup through the normal Settings UI, mocks Google
-authentication and Drive requests, and disables FX fetching in the fixture. It does
-not use a real Google account or personal financial data.
-
-Coverage includes Net worth history, chart data tables, goals, forecasts, scenarios,
-inflation and retirement withdrawal strategies; Portfolio holdings, filters,
-search, sorting, expandable details, contribution rebalancing, Contributions, and
-Dividends; Analytics summaries, keyboard-operated disclosures, chart ranges and
-tables, allocation filters, heatmap paging, risk explainers, and recorded income.
-Empty, single-snapshot, missing/partial market valuations, history gaps, no-income,
-everyday three-fund and larger paginated portfolios are included. Same-page data
-replacement checks guard against stale chart and heatmap callbacks.
-
-Chromium runs at 320x568, 390x844, 844x390, 768x1024, 1280x900 and 1920x1080
-in light and dark themes, with representative phone and laptop runs in Firefox and
-WebKit. These are browser viewport tests, not certification on physical devices.
-Screenshots, measured layout attachments, and failure traces go into ignored
-`test-results` folders. There are no approved visual snapshots yet: these captures
-are review evidence, not pixel-diff regression assertions.
-
-The suite runs locally rather than in CI because the full browser matrix is slow.
-Layout assertions fail when the page scrolls sideways or a visible element sits
-outside the viewport (unless it is inside an intentional scroll region). To run
-just one project, append
-`--project phone-390-light`; use `--workers 1 --timeout 180000` on slower machines.
-
 Run `yarn lint:fix` to auto-format before committing.
 
 ### sql.js and WASM maintenance
