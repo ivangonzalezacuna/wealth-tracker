@@ -158,7 +158,8 @@ describe('renderDividends', () => {
     renderDividends(makePD());
     renderDividends(makePD());
     const kpisEl = document.getElementById('div-kpis')!;
-    expect(kpisEl.children.length).toBe(7);
+    expect(kpisEl.querySelectorAll('.kpi-group')).toHaveLength(2);
+    expect(kpisEl.querySelectorAll('.kpi-group-row')).toHaveLength(6);
   });
 
   it('renders annual summary table', () => {

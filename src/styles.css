@@ -281,6 +281,43 @@ code,
   color: var(--ink-3);
   margin-top: 2px;
 }
+.kpi-row.kpi-row-groups {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+}
+.kpi-group {
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 0.6rem 0.85rem;
+  min-width: 0;
+}
+.kpi-group-title {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  margin-bottom: 2px;
+}
+.kpi-group-row {
+  border-bottom-color: var(--line);
+}
+.kpi-group-row .row-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 6px;
+  min-width: 0;
+}
+.kpi-group-sub {
+  font-size: 10px;
+  color: var(--ink-3);
+  flex-basis: 100%;
+}
+.kpi-group-result .row-label,
+.kpi-group-result .row-val {
+  font-weight: 600;
+}
 
 /* Cards */
 .card {
@@ -1226,6 +1263,10 @@ details[open] > summary .card-chevron {
 .chart-h-sm {
   height: 165px;
 }
+/* Row-sized charts (height set from JS); beats the fixed mobile chart heights. */
+.chart-wrap.chart-h-fit {
+  height: var(--chart-fit-h, 165px) !important;
+}
 .chart-h-md {
   height: 180px;
 }
@@ -1645,6 +1686,112 @@ summary.section-label {
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Shared inline disclosure for secondary details inside a card */
+.inline-details {
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--line-2);
+}
+.inline-details > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 0;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-2);
+  -webkit-tap-highlight-color: transparent;
+}
+.inline-details > summary::-webkit-details-marker {
+  display: none;
+}
+.inline-details > summary::before {
+  content: '▸';
+  color: var(--ink-3);
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+.inline-details[open] > summary::before {
+  transform: rotate(90deg);
+}
+.inline-details > summary:hover {
+  color: var(--ink);
+}
+.inline-details > summary:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+.inline-details-sub {
+  margin-left: auto;
+  font-weight: 400;
+  color: var(--ink-3);
+  font-size: 11px;
+}
+
+/* Net worth accounts card */
+.nw-acct-row .row-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+.nw-acct-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+.nw-acct-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.nw-acct-name {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.nw-acct-meta {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+/* Goal progress */
+.goal-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.goal-stat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.goal-stat-label {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.goal-stat-val {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.goal-progress {
+  margin: 0.6rem 0;
+}
+.goal-progress-label {
+  font-size: 12px;
+  margin-bottom: 4px;
+  color: var(--ink-2);
+}
+.planning-caveat {
+  margin-top: 0.5rem;
 }
 .form-actions {
   display: flex;

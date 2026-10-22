@@ -368,7 +368,7 @@ describe('renderPortfolio', () => {
     renderPortfolio(makePD(), [snap]);
     const summary = document.getElementById('port-summary')!.textContent!;
     expect(summary).toContain('PERFORMANCE');
-    expect(summary).toContain('INCOME & COSTS');
+    expect(summary).toContain('Income & costs');
     expect(summary).toContain('Total return');
     expect(summary.indexOf('Fees')).toBeLessThan(summary.indexOf('Total return'));
   });
@@ -892,7 +892,7 @@ describe('renderPortfolio', () => {
     const details = drift.querySelector('.rebalance-collapsible') as HTMLDetailsElement;
     expect(details.hasAttribute('open')).toBe(false);
     const summaryNote = drift.querySelector('.rebalance-summary-note') as HTMLElement;
-    expect(summaryNote.textContent).toContain('Optional when drift is moderate or low');
+    expect(summaryNote.textContent).toContain('Drift is moderate or low');
     details.open = true;
 
     const btn6 = drift.querySelector('[data-rebalance-months="6"]') as HTMLButtonElement;
@@ -907,7 +907,7 @@ describe('renderPortfolio', () => {
     const nextSummaryNote = document.querySelector(
       '#port-drift .rebalance-summary-note',
     ) as HTMLElement;
-    expect(nextSummaryNote.textContent).toContain('Optional when drift is moderate or low');
+    expect(nextSummaryNote.textContent).toContain('Drift is moderate or low');
   });
 
   it('rebalance note shows projected drift reduction', () => {
@@ -916,7 +916,7 @@ describe('renderPortfolio', () => {
     renderPortfolio(pd, [makeRebalanceSnap()]);
     const drift = document.getElementById('port-drift')!;
     expect(drift.textContent).toContain('reduce max drift from');
-    expect(drift.textContent).toContain('scenario estimate');
+    expect(drift.textContent).toContain('what-if for new contributions only');
     expect(drift.textContent).toContain('actual results will vary');
   });
 

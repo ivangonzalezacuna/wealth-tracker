@@ -73,7 +73,7 @@ export function appTemplate(): string {
       <div class="chart-data-table-wrap sr-only" id="c-nw-hist-table-wrap"></div>
     </div>
     <div class="card">
-      <div class="card-title">Latest snapshot</div>
+      <div class="card-title" id="nw-detail-title">Accounts</div>
       <div id="nw-detail"></div>
     </div>
     <div id="nw-goal"></div>
@@ -98,7 +98,7 @@ export function appTemplate(): string {
     <div id="port-content" style="display:none">
       <div class="kpi-row" id="port-kpis"></div>
       <div class="card">
-        <div class="card-title">Holdings: cost basis &amp; performance</div>
+        <div class="card-title">Holdings</div>
         <div class="tbl" role="table" aria-label="Holdings"><div id="port-table"></div></div>
         <div id="port-pagination" class="pagination"></div>
       </div>
@@ -106,11 +106,11 @@ export function appTemplate(): string {
         <div class="card">
           <div class="card-title">Cost basis allocation</div>
           <div id="port-donut-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm"><canvas id="c-port-donut" role="img" aria-label="Cost basis allocation chart" aria-describedby="c-port-donut-table-wrap"></canvas></div>
+          <div class="chart-wrap chart-h-sm chart-h-fit"><canvas id="c-port-donut" role="img" aria-label="Cost basis allocation chart" aria-describedby="c-port-donut-table-wrap"></canvas></div>
           <div class="chart-data-table-wrap sr-only" id="c-port-donut-table-wrap"></div>
         </div>
         <div class="card">
-          <div class="card-title">Summary</div>
+          <div class="card-title">Value and returns</div>
           <div id="port-summary"></div>
         </div>
       </div>
@@ -126,7 +126,7 @@ export function appTemplate(): string {
     <div id="dca-content" style="display:none">
       <div class="kpi-row" id="dca-kpis"></div>
       <div class="card card-primary">
-        <div class="card-title">Monthly invested: stacked by ETF (savings plan executions)</div>
+        <div class="card-title">Monthly purchases by ETF (savings plan executions)</div>
         <div class="chart-controls">
           <div id="dca-legend" class="legend"></div>
           ${rangeToggleHtml('dca-range-toggle', 'Contributions range')}
@@ -157,7 +157,7 @@ export function appTemplate(): string {
       <button class="btn btn-primary" data-goto="log">Import CSV →</button>
     </div></div></div>
     <div id="div-content" style="display:none">
-      <div class="kpi-row" id="div-kpis"></div>
+      <div class="kpi-row kpi-row-groups" id="div-kpis"></div>
       <div class="card">
         <div class="card-title">Dividend payments received (most recent first)</div>
         <div class="filter-bar" id="div-year-filter-bar">

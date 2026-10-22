@@ -562,9 +562,9 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   const feeDrag = computeFeeDrag(Object.values(pd.etfs), getHoldings(), feeDragValues);
 
   document.getElementById('port-kpis')!.innerHTML = `
-    ${kpiTile({ label: 'Total invested', value: fmtEur(pd.totalInv), sub: 'net of sells' })}
     ${kpiTile({
       label: 'Market value',
+      lead: true,
       value: marketValue !== null ? fmtEur2(marketValue) : '-',
       sub:
         marketValue !== null
@@ -574,21 +574,26 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
             : 'add a snapshot',
     })}
     ${kpiTile({
+      label: `Total invested${infoTip('Cost basis: what you paid for the shares you still own. Sold shares are removed, so this is not the same as everything you have ever put in.')}`,
+      value: fmtEur(pd.totalInv),
+      sub: 'cost of shares still owned',
+    })}
+    ${kpiTile({
       label: `Unrealized P&amp;L${infoTip('Gain or loss on positions still held. Computed as market value minus invested capital (cost basis). Not locked in until you sell.')}`,
       value: gain !== null ? fmtEurNeg(gain, 2) : '-',
       valueClass: gain === null ? '' : gain >= 0 ? 'pos' : 'neg',
       sub:
         gainPct !== null
-          ? `${fmtPctNeg(gainPct)}${hasPartialPositionValues ? ' (partial)' : ''}`
+          ? `${fmtPctNeg(gainPct)}${hasPartialPositionValues ? ' · valued holdings only' : ''}`
           : hasPartialPositionValues
-            ? 'partial'
+            ? 'valued holdings only'
             : '',
     })}
     ${kpiTile({
       label: `Realized P&amp;L${infoTip('Gain or loss already locked in from shares you have sold. Computed as sell proceeds minus the cost basis of those shares, including fees.')}`,
       value: fmtEurNeg(pd.realizedPnL, 2),
       valueClass: pd.realizedPnL >= 0 ? 'pos' : 'neg',
-      sub: 'from sells',
+      sub: 'locked in from sales',
     })}
     ${
       feeDrag !== null
@@ -596,7 +601,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
             label: `Annual fee drag${infoTip('Estimated annual cost of fund management fees (TER) across all held positions. These costs are deducted by the fund manager directly from the fund assets, so they are already reflected in the ETF price and your returns. This figure is informational only; no money is deducted from your balance. Computed as the sum of each position value multiplied by its configured TER. Add TER values in Settings to see this figure. Positions without a TER configured are excluded.')}`,
             value: fmtEur2(feeDrag.annualCost),
             valueClass: 'neg',
-            sub: `${fmtPctVal(feeDrag.costPct * 100)} of holdings${feeDrag.coveredCount < Object.values(pd.etfs).filter((e) => !e.exited).length ? ' (partial)' : ''}`,
+            sub: `${fmtPctVal(feeDrag.costPct * 100)}/yr · already in fund prices${feeDrag.coveredCount < Object.values(pd.etfs).filter((e) => !e.exited).length ? ' (partial)' : ''}`,
           })
         : kpiTile({
             label: `Annual fee drag${infoTip('Estimated annual cost of fund management fees (TER) across all held positions. These costs are deducted by the fund manager directly from the fund assets, so they are already reflected in the ETF price and your returns. This figure is informational only; no money is deducted from your balance. Add TER values to your holdings in Settings to enable this calculation.')}`,
@@ -634,7 +639,14 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
       [1, 2],
     );
   }
-  CH['c-port-donut'] = new Chart(document.getElementById('c-port-donut') as HTMLCanvasElement, {
+  const donutCanvas = document.getElementById('c-port-donut') as HTMLCanvasElement;
+  // Size the bar chart to its rows so a few holdings don't leave a tall, mostly empty chart.
+  const donutWrap = donutCanvas.parentElement;
+  if (donutWrap) {
+    const fitH = Math.min(320, Math.max(120, donutE.length * 32 + 40));
+    donutWrap.style.setProperty('--chart-fit-h', `${fitH}px`);
+  }
+  CH['c-port-donut'] = new Chart(donutCanvas, {
     type: 'bar',
     data: {
       labels: donutE.map((e) => e.shortName),
@@ -651,6 +663,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
             bottomRight: R.xs,
           },
           borderSkipped: false,
+          maxBarThickness: 22,
         },
       ],
     },
@@ -720,7 +733,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
       : '';
   const totalReturnRow =
     summaryGain !== null
-      ? `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px"><div class="row-label" style="font-weight:600">Total return</div><div class="row-val ${totalReturn >= 0 ? 'pos' : 'neg'}" style="font-weight:600">${fmtEurNeg(totalReturn, 2)}</div></div>`
+      ? `<div class="row" style="border-top:1px solid var(--line-2);margin-top:4px"><div class="row-label" style="font-weight:600">Total return ${infoTip('Unrealized gain + realized gain + dividends and interest after tax withheld − fees. An amount over the whole history, not a yearly return.')}</div><div class="row-val ${totalReturn >= 0 ? 'pos' : 'neg'}" style="font-weight:600">${fmtEurNeg(totalReturn, 2)}</div></div>`
       : '';
 
   // Known limitation: foldInto (multi-leg SELL consolidation, e.g. IEEM→CMEIU,
@@ -734,13 +747,15 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
     ${sectionHead('PERFORMANCE')}
     ${unrealizedRow}
     <div class="row"><div class="row-label">Realized P&amp;L ${infoTip(realizedTip)}</div><div class="row-val ${pd.realizedPnL >= 0 ? 'ok' : 'neg'}">${fmtEurNeg(pd.realizedPnL, 2)}</div></div>
-    ${sectionHead('INCOME &amp; COSTS')}
+    <details class="inline-details port-income-details">
+    <summary>Income &amp; costs<span class="inline-details-sub">dividends, interest, taxes, fees</span></summary>
     <div class="row"><div class="row-label">Dividends (gross)</div><div class="row-val ok">${fmtEur2(totalDivGross)}</div></div>
     <div class="row"><div class="row-label">Tax withheld on dividends</div><div class="row-val ${pd.totalTax > 0 ? 'neg' : 'ok'}">${fmtEur2(pd.totalTax)}</div></div>
     <div class="row"><div class="row-label">Interest received (gross)</div><div class="row-val ok">${fmtEur2(totalInterestGross)}</div></div>
     ${renderSourceBreakdown(interestGrossBySource)}
     <div class="row"><div class="row-label">Tax on savings</div><div class="row-val ${pd.totalIntTax > 0 ? 'neg' : 'ok'}">${fmtEur2(pd.totalIntTax)}</div></div>
     <div class="row"><div class="row-label">Fees</div><div class="row-val">${fmtEur2(pd.totalFees)}</div></div>
+    </details>
     ${totalReturnRow}
     <p class="note">Cost basis exact from CSV. ${valueNote} Non-EUR transactions are converted to EUR using the imported FX rate.</p>
   `;
@@ -929,7 +944,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
       <details class="rebalance-collapsible" ${shouldOpenRebalance ? 'open' : ''}>
         <summary class="rebalance-summary">
           Contribution rebalance
-          <span class="rebalance-summary-note">${isRebalanceRecommended ? 'Recommended now' : 'Optional when drift is moderate or low'}</span>
+          <span class="rebalance-summary-note">${isRebalanceRecommended ? 'Drift above 10%' : 'Drift is moderate or low'}</span>
         </summary>
         <div class="rebalance-body">
           <div class="rebalance-picker-row">
@@ -952,7 +967,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
             </div>
             ${rebalanceRows}
           </div>
-          <p class="note" style="margin-top:.5rem">Routing the suggested amounts for ${periodLabel} will reduce max drift from ${fmtPctVal(activeCurrentMax)} to ${fmtPctVal(projectedActiveMax)}. Budget: ${fmtEur(monthlyBudget)}/mo. This is a scenario estimate that assumes buy-only contributions and no market movement, actual results will vary.${legacyScopeNote}</p>
+          <p class="note" style="margin-top:.5rem">Routing the suggested amounts for ${periodLabel} will reduce max drift from ${fmtPctVal(activeCurrentMax)} to ${fmtPctVal(projectedActiveMax)}. Budget: ${fmtEur(monthlyBudget)}/mo. This is a what-if for new contributions only: it assumes no selling and no market movement, so actual results will vary. It is not buy or sell advice.${legacyScopeNote}</p>
           ${sellWarning}
         </div>
       </details>`;
@@ -970,7 +985,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
         </div>
         ${rows}
       </div>
-      <p class="note" style="margin-top:.5rem">${noteSource} Delta = amount to sell/buy to reach target.</p>
+      <p class="note" style="margin-top:.5rem">${noteSource} Drift = actual minus target share. Delta = current value minus target value (negative = below target, positive = above).</p>
       ${rebalanceSection}
     </div>`;
 
