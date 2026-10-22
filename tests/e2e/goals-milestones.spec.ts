@@ -87,11 +87,14 @@ test('goal edit and delete flows work correctly', async ({ page }) => {
   await page.click('#btn-save-goal');
   await expectToast(page, 'goal-msg', 'Goals saved');
 
-  // Delete the goal
+  // Delete the goal: staged until Save goals
   await ensureCardExpanded(page, 'settings-card-goal');
   await page.locator('.js-del-goal').first().click();
-  await page.click('.js-confirm-ok');
-  await expectToast(page, 'goal-msg', 'Goal removed');
+  await expect(page.locator('#settings-goals-tbl .settings-item-removed')).toContainText(
+    'House Fund Updated',
+  );
+  await page.click('#btn-save-goal');
+  await expectToast(page, 'goal-msg', 'Goals saved');
   await expect(page.locator('#settings-goals-tbl')).not.toContainText('House Fund Updated');
 });
 
@@ -122,4 +125,64 @@ test('milestone removal within goal dialog works', async ({ page }) => {
   // Cancel - nothing is saved
   await page.click('.js-goald-cancel');
   await expect(page.locator('.goal-dialog-overlay')).toHaveCount(0);
+});
+
+test('deleting a goal is staged with undo and never saves other drafts', async ({ page }) => {
+  await gotoApp(page);
+  await openTab(page, 'tab-settings');
+  await ensureCardExpanded(page, 'settings-card-goal');
+  for (const [label, target] of [
+    ['Goal A', '10000'],
+    ['Goal B', '20000'],
+  ]) {
+    await page.click('#btn-add-goal');
+    await page.fill('#goald-label', label);
+    await page.fill('#goald-target', target);
+    await page.click('.js-goald-submit');
+  }
+  await page.click('#btn-save-goal');
+  await expectToast(page, 'goal-msg', 'Goals saved');
+
+  // Draft edit + draft add
+  await page.locator('.js-edit-goal').nth(1).click();
+  await page.fill('#goald-label', 'Goal B EDITED');
+  await page.click('.js-goald-submit');
+  await page.click('#btn-add-goal');
+  await page.fill('#goald-label', 'Goal C NEW');
+  await page.fill('#goald-target', '30000');
+  await page.click('.js-goald-submit');
+
+  const table = page.locator('#settings-goals-tbl');
+  await expect(table.locator('.settings-item-edited')).toContainText('Goal B EDITED');
+  await expect(table.locator('.settings-item-new')).toContainText('Goal C NEW');
+
+  // Staged removal, then undo, then remove again
+  await table.locator('.js-del-goal').first().click();
+  await expect(page.locator('.js-confirm-ok')).toHaveCount(0);
+  await expect(table.locator('.settings-item-removed')).toContainText('Goal A');
+  await table.getByRole('button', { name: 'Undo remove goal Goal A' }).click();
+  await expect(table.locator('.settings-item-removed')).toHaveCount(0);
+  await table.locator('.js-del-goal').first().click();
+  await expect(table.locator('.settings-item-removed')).toContainText('Goal A');
+
+  // Nothing persisted without Save
+  await page.reload();
+  await gotoApp(page);
+  await openTab(page, 'tab-settings');
+  await ensureCardExpanded(page, 'settings-card-goal');
+  await expect(table).toContainText('Goal A');
+  await expect(table).toContainText('Goal B');
+  await expect(table).not.toContainText('EDITED');
+  await expect(table).not.toContainText('Goal C NEW');
+
+  // Stage again and Save commits only the removal
+  await table.locator('.js-del-goal').first().click();
+  await page.click('#btn-save-goal');
+  await expectToast(page, 'goal-msg', 'Goals saved');
+  await page.reload();
+  await gotoApp(page);
+  await openTab(page, 'tab-settings');
+  await ensureCardExpanded(page, 'settings-card-goal');
+  await expect(table).not.toContainText('Goal A');
+  await expect(table).toContainText('Goal B');
 });

@@ -36,10 +36,13 @@ test('account edit and delete flows update settings table', async ({ page }) => 
   await expect(page.locator('#settings-accounts-tbl')).toContainText('Renamed Account');
   await expect(page.locator('#settings-accounts-tbl')).toContainText('Vanguard');
 
-  // Delete the account
+  // Delete the account: staged until Save accounts
   await page.locator('.js-del-acct').first().click();
-  await page.click('.js-confirm-ok');
-  await expectToast(page, 'accts-msg', 'Account removed');
+  await expect(page.locator('#settings-accounts-tbl .settings-item-removed')).toContainText(
+    'Renamed Account',
+  );
+  await page.click('#btn-save-accts');
+  await expectToast(page, 'accts-msg', 'Accounts saved');
   await expect(page.locator('#settings-accounts-tbl')).not.toContainText('Renamed Account');
 });
 
