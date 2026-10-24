@@ -1620,11 +1620,6 @@ body.chart-expanded-open {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-@media (pointer: coarse) {
-  .chart-legend-item {
-    min-height: 28px;
-  }
-}
 /* Data table overlay (toolbox): compact rows, close button, scrolls inside the chart. */
 .chart-dataview {
   position: absolute;
