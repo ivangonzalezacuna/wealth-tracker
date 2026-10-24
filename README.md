@@ -105,7 +105,7 @@ All writes (snapshots, CSV imports, settings changes, backup restores) go to loc
 - **sql.js (WASM)** - in-browser SQLite database
 - **Google Drive AppData** - cloud backup and cross-device sync
 - **IndexedDB** - local persistence (SQLite blob + fast-boot cache)
-- **Chart.js** - charts
+- **Apache ECharts** - interactive charts (zoom, range presets, data view, fullscreen), lazy-loaded
 - **Google OAuth2** - authentication (`drive.appdata` scope only)
 
 ---

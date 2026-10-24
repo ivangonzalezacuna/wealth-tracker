@@ -1,15 +1,5 @@
 import { CONFIG } from './config';
 
-function rangeToggleHtml(
-  id: string,
-  ariaLabel: string,
-  activeRange: '12' | '36' | 'all' = 'all',
-): string {
-  const btn = (range: '12' | '36' | 'all', label: string) =>
-    `<button class="btn btn-sm btn-ghost${range === activeRange ? ' active' : ''}" data-range="${range}">${label}</button>`;
-  return `<div class="range-toggle" id="${id}" role="group" aria-label="${ariaLabel}">${btn('12', '1Y')}${btn('36', '3Y')}${btn('all', 'All')}</div>`;
-}
-
 function metricExplainerCard(
   icon: string,
   title: string,
@@ -65,12 +55,7 @@ export function appTemplate(): string {
     <div class="kpi-row" id="nw-kpis"></div>
     <div class="card card-primary">
       <div class="card-title" id="nw-chart-title">Net worth: stacked by account</div>
-      <div class="chart-controls">
-        <div id="nw-chart-legend" class="legend"></div>
-        ${rangeToggleHtml('nw-range-toggle', 'History range')}
-      </div>
-      <div class="chart-wrap chart-h-lg"><canvas id="c-nw-hist" role="img" aria-label="Net worth over time chart" aria-describedby="c-nw-hist-table-wrap"></canvas></div>
-      <div class="chart-data-table-wrap sr-only" id="c-nw-hist-table-wrap"></div>
+      <div class="chart-wrap chart-h-lg chart-zoomable"><div id="c-nw-hist" class="chart-host" role="img" aria-label="Net worth over time chart"></div></div>
     </div>
     <div class="card">
       <div class="card-title" id="nw-detail-title">Accounts</div>
@@ -105,9 +90,7 @@ export function appTemplate(): string {
       <div class="two-col">
         <div class="card">
           <div class="card-title">Cost basis allocation</div>
-          <div id="port-donut-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm chart-h-fit"><canvas id="c-port-donut" role="img" aria-label="Cost basis allocation chart" aria-describedby="c-port-donut-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap sr-only" id="c-port-donut-table-wrap"></div>
+          <div class="chart-wrap chart-h-sm chart-h-fit"><div id="c-port-donut" class="chart-host" role="img" aria-label="Cost basis allocation chart"></div></div>
         </div>
         <div class="card">
           <div class="card-title">Value and returns</div>
@@ -127,12 +110,7 @@ export function appTemplate(): string {
       <div class="kpi-row" id="dca-kpis"></div>
       <div class="card card-primary">
         <div class="card-title">Monthly purchases by ETF (savings plan executions)</div>
-        <div class="chart-controls">
-          <div id="dca-legend" class="legend"></div>
-          ${rangeToggleHtml('dca-range-toggle', 'Contributions range')}
-        </div>
-        <div class="chart-wrap chart-h-lg"><canvas id="c-dca-bar" role="img" aria-label="Monthly contributions bar chart" aria-describedby="c-dca-bar-table-wrap"></canvas></div>
-        <div class="chart-data-table-wrap sr-only" id="c-dca-bar-table-wrap"></div>
+        <div class="chart-wrap chart-h-lg"><div id="c-dca-bar" class="chart-host" role="img" aria-label="Monthly contributions bar chart"></div></div>
       </div>
       <div class="two-col">
         <div class="card">
@@ -207,24 +185,14 @@ export function appTemplate(): string {
 
     <div class="card card-primary">
       <div class="card-title">Net worth over time</div>
-      <div class="chart-controls">
-        <div id="an-growth-legend" class="legend"></div>
-        ${rangeToggleHtml('an-growth-range-toggle', 'Growth range')}
-      </div>
-      <div class="chart-wrap chart-h-lg"><canvas id="c-an-growth" role="img" aria-label="Portfolio growth chart" aria-describedby="c-an-growth-table-wrap"></canvas></div>
-      <div class="chart-data-table-wrap sr-only" id="c-an-growth-table-wrap"></div>
+      <div class="chart-wrap chart-h-lg chart-zoomable"><div id="c-an-growth" class="chart-host" role="img" aria-label="Portfolio growth chart"></div></div>
     </div>
 
     <!-- Level 2: Heatmap + Allocation (2+ snapshots) -->
     <div id="an-level2">
       <div class="card">
         <div class="card-title">Investment balance breakdown: external flows vs market</div>
-        <div class="chart-controls">
-          <div id="an-contrib-legend" class="legend"></div>
-          ${rangeToggleHtml('an-contrib-range-toggle', 'Contributions vs market range')}
-        </div>
-        <div class="chart-wrap chart-h-md"><canvas id="c-an-contrib" role="img" aria-label="Investment balance breakdown chart" aria-describedby="c-an-contrib-table-wrap"></canvas></div>
-        <div class="chart-data-table-wrap sr-only" id="c-an-contrib-table-wrap"></div>
+        <div class="chart-wrap chart-h-md chart-zoomable"><div id="c-an-contrib" class="chart-host" role="img" aria-label="Investment balance breakdown chart"></div></div>
         <p class="note">Investment value change = recorded external flows + market movement (the residual). This is not net worth growth.</p>
       </div>
 
@@ -254,9 +222,8 @@ export function appTemplate(): string {
         <div class="analytics-allocation-accounts">
           <div class="card-title" id="an-alloc-acct-title">Account balances: latest snapshot</div>
           <div id="an-alloc-acct-toggle-wrap" class="chart-controls"></div>
-          <div id="an-alloc-acct-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-acct" role="img" aria-label="Allocation by account chart" aria-describedby="c-an-alloc-acct-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap sr-only" id="c-an-alloc-acct-table-wrap"></div>
+          <p class="note" id="an-alloc-acct-hint" style="display:none">Switch to <em>All configured holdings</em> to see the full breakdown.</p>
+          <div class="chart-wrap chart-h-sm chart-tools"><div id="c-an-alloc-acct" class="chart-host" role="img" aria-label="Allocation by account chart"></div></div>
         </div>
         <details id="an-holding-allocation" class="inline-details">
           <summary>Holdings: asset class and region</summary>
@@ -264,16 +231,14 @@ export function appTemplate(): string {
         <div>
           <div class="card-title">Holding purchase costs by asset class</div>
           <div id="an-alloc-class-toggle-wrap" class="chart-controls"></div>
-          <div id="an-alloc-class-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-class" role="img" aria-label="Allocation by asset class chart" aria-describedby="c-an-alloc-class-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap sr-only" id="c-an-alloc-class-table-wrap"></div>
+          <p class="note" id="an-alloc-class-hint" style="display:none">Switch to <em>All configured holdings</em> to see the full breakdown.</p>
+          <div class="chart-wrap chart-h-sm chart-tools"><div id="c-an-alloc-class" class="chart-host" role="img" aria-label="Allocation by asset class chart"></div></div>
         </div>
         <div>
           <div class="card-title">Holding purchase costs by region</div>
           <div id="an-alloc-region-toggle-wrap" class="chart-controls"></div>
-          <div id="an-alloc-region-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-region" role="img" aria-label="Allocation by region chart" aria-describedby="c-an-alloc-region-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap sr-only" id="c-an-alloc-region-table-wrap"></div>
+          <p class="note" id="an-alloc-region-hint" style="display:none">Switch to <em>All configured holdings</em> to see the full breakdown.</p>
+          <div class="chart-wrap chart-h-sm chart-tools"><div id="c-an-alloc-region" class="chart-host" role="img" aria-label="Allocation by region chart"></div></div>
         </div>
         </div>
         </details>
@@ -363,15 +328,13 @@ export function appTemplate(): string {
 
         <div class="card" id="an-drawdown-card" style="margin:0 0 1rem">
           <div class="card-title">Investment drawdown history</div>
-          <div class="chart-wrap chart-h-md"><canvas id="c-an-drawdown" role="img" aria-label="Portfolio drawdown chart" aria-describedby="c-an-drawdown-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap sr-only" id="c-an-drawdown-table-wrap"></div>
+          <div class="chart-wrap chart-h-md chart-zoomable"><div id="c-an-drawdown" class="chart-host" role="img" aria-label="Portfolio drawdown chart"></div></div>
         </div>
 
         <div class="card" id="an-rolling-cagr-card" style="margin:0 0 1rem">
           <div class="card-title">Rolling 3-year investment CAGR</div>
           <div id="an-rolling-cagr-note" class="note" style="display:none"></div>
-          <div class="chart-wrap chart-h-md"><canvas id="c-an-rolling-cagr" role="img" aria-label="Rolling CAGR chart" aria-describedby="c-an-rolling-cagr-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap sr-only" id="c-an-rolling-cagr-table-wrap"></div>
+          <div class="chart-wrap chart-h-md chart-zoomable"><div id="c-an-rolling-cagr" class="chart-host" role="img" aria-label="Rolling CAGR chart"></div></div>
         </div>
 
         <div id="an-income" style="display:none">
@@ -382,11 +345,7 @@ export function appTemplate(): string {
             <div class="card-title">
               Income by month (dividends and interest)
             </div>
-            <div class="chart-controls" style="margin-bottom:4px">
-              ${rangeToggleHtml('an-income-range-toggle', 'Income range', '12')}
-            </div>
-            <div class="chart-wrap chart-h-md"><canvas id="c-an-income" role="img" aria-label="Income history chart" aria-describedby="c-an-income-table-wrap"></canvas></div>
-            <div class="chart-data-table-wrap sr-only" id="c-an-income-table-wrap"></div>
+            <div class="chart-wrap chart-h-md chart-zoomable"><div id="c-an-income" class="chart-host" role="img" aria-label="Income history chart"></div></div>
           </div>
         </div>
       </div>

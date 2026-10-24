@@ -104,6 +104,7 @@ import {
   setCollapseState,
 } from './cache/db';
 import { onThemeChange, setUserTheme, getUserThemePref } from './theme';
+import { loadCharts, refreshChartsTheme } from './views/charts';
 import { shouldAutoResync } from './sync/policy';
 import { loadCollapseState, replaceCollapseState } from './ui/collapseState';
 import { restoreCollapseFromSheet, backupCollapseToSheet } from './ui/collapseSync';
@@ -593,12 +594,18 @@ function initOnlineListeners() {
   window.addEventListener('focus', () => autoResyncIfNeeded());
 }
 
-/** Chart.js bakes colors into the canvas at render time, unlike CSS, which
- *  re-themes instantly via its own media query. Without this, a chart-bearing
- *  view stays visually stuck in the old color scheme until some unrelated
- *  action triggers the next re-render. */
+/** Canvas charts (and the inline-coloured heatmap) bake colours in at render
+ *  time, unlike CSS, which re-themes instantly via its own media query. Without
+ *  this, a chart-bearing view stays stuck in the old colour scheme until some
+ *  unrelated action triggers the next re-render. */
 function initThemeListener() {
-  onThemeChange(() => renderAll());
+  // Warm the code-split ECharts chunk while idle so the first chart paints without a load delay.
+  const idle = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1500));
+  idle(() => void loadCharts().catch(() => {}));
+  onThemeChange(() => {
+    refreshChartsTheme();
+    renderAll();
+  });
   document.getElementById('btn-theme-toggle')?.addEventListener('click', () => {
     const next =
       getUserThemePref() === 'light' ? 'dark' : getUserThemePref() === 'dark' ? 'system' : 'light';

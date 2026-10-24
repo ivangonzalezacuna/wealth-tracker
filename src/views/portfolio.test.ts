@@ -3,25 +3,13 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// ── Chart.js mock ──────────────────────────────────────────────────
-// jsdom has no canvas getContext implementation; mock the constructor to
-// record what it was called with instead of rendering anything real.
-const chartInstances: Array<{ config: unknown; destroyed: boolean }> = [];
-vi.mock('chart.js/auto', () => ({
-  default: class MockChart {
-    config: unknown;
-    private _record: { config: unknown; destroyed: boolean };
-    constructor(_ctx: unknown, config: unknown) {
-      this.config = config;
-      this._record = { config, destroyed: false };
-      chartInstances.push(this._record);
-    }
-    destroy() {
-      this._record.destroyed = true;
-    }
-    update() {}
-  },
-}));
+vi.mock('echarts/core', () => import('./charts/echartsMock'));
+import { chartFor, instances as chartInstances, resetMockCharts } from './charts/echartsMock';
+import { loadCharts } from './charts';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyRec = any;
+const costOption = () => chartFor('c-port-donut')!.option as AnyRec;
 
 // ── Mock store/config ──────────────────────────────────────────────
 const MOCK_ACCOUNTS = [
@@ -184,9 +172,7 @@ const DOM_FIXTURE = `
     <div id="port-kpis"></div>
     <div id="port-table-header"></div>
     <div id="port-table"></div>
-    <canvas id="c-port-donut"></canvas>
-    <div id="c-port-donut-table-wrap" hidden></div>
-    <div id="port-donut-legend"></div>
+    <div class="chart-wrap"><div id="c-port-donut"></div></div>
     <div id="port-summary"></div>
     <div id="port-drift"></div>
     <div id="port-pagination"></div>
@@ -194,10 +180,11 @@ const DOM_FIXTURE = `
 `;
 
 describe('renderPortfolio', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await loadCharts();
+    resetMockCharts();
     _collapseState = {};
     document.body.innerHTML = DOM_FIXTURE;
-    chartInstances.length = 0;
     localStorage.removeItem('drift-rebalance-months');
     localStorage.removeItem('drift-calibration-interval');
     MOCK_HOLDINGS.splice(0, MOCK_HOLDINGS.length, {
@@ -412,15 +399,15 @@ describe('renderPortfolio', () => {
   it('creates allocation charts on first render', () => {
     renderPortfolio(makePD(), []);
     expect(chartInstances.length).toBe(1);
-    expect(chartInstances[0].destroyed).toBe(false);
+    expect(chartInstances[0].disposed).toBe(false);
   });
 
-  it('destroys the prior chart and creates a new one on re-render', () => {
+  it('reuses the chart instance on re-render', () => {
+    renderPortfolio(makePD(), []);
+    const chart = chartFor('c-port-donut');
     renderPortfolio(makePD(), []);
     expect(chartInstances.length).toBe(1);
-    renderPortfolio(makePD(), []);
-    expect(chartInstances.length).toBe(2);
-    expect(chartInstances[0].destroyed).toBe(true);
+    expect(chartFor('c-port-donut')).toBe(chart);
   });
 
   it('renders holdings table with one row per etf entry', () => {
@@ -454,8 +441,7 @@ describe('renderPortfolio', () => {
     });
     renderPortfolio(pd, []);
 
-    const labels = (chartInstances[0].config as { data: { labels: string[] } }).data.labels;
-    expect(labels).toEqual(['IWDA', 'EIMI', 'BOND']);
+    expect(costOption().yAxis.data).toEqual(['IWDA', 'EIMI', 'BOND']);
 
     const rows = Array.from(
       document.querySelectorAll('#port-table .hold-row:not(.th) .hold-name'),
@@ -724,31 +710,32 @@ describe('renderPortfolio', () => {
     expect(rows.length).toBe(1);
   });
 
-  it('chart config contains the correct labels and data', () => {
+  it('chart option contains the correct labels and data', () => {
     renderPortfolio(makePD(), []);
     expect(chartInstances.length).toBe(1);
-    const config = chartInstances[0].config as { data: { labels: string[]; datasets: unknown[] } };
-    expect(config.data.labels).toContain('IWDA');
-    expect(config.data.datasets[0]).toHaveProperty('data');
-    const wrap = document.getElementById('c-port-donut-table-wrap');
-    expect(wrap?.hasAttribute('hidden')).toBe(false);
-    expect(wrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
+    const opt = costOption();
+    expect(opt.yAxis.data).toContain('IWDA');
+    expect(opt.series[0].data[0].value).toBe(1000);
   });
 
-  it('uses a square leading edge and the existing trailing radius for allocation bars', () => {
+  it('rounds only the trailing edge of allocation bars', () => {
     renderPortfolio(makePD(), []);
-    const config = chartInstances[0].config as {
-      data: { datasets: Array<{ borderRadius: unknown; borderSkipped: unknown }> };
-    };
-    expect(config.data.datasets[0].borderRadius).toBe(4);
-    expect(config.data.datasets[0].borderSkipped).toBe('start');
+    expect(costOption().series[0].data[0].itemStyle.borderRadius).toEqual([0, 4, 4, 0]);
   });
 
-  it('renders donut legend with short name and percentage', () => {
+  it('labels bars with their share and shows ISIN in the tooltip', () => {
     renderPortfolio(makePD(), []);
-    const legend = document.getElementById('port-donut-legend')!.textContent!;
-    expect(legend).toContain('IWDA');
-    expect(legend).toContain('100%');
+    const opt = costOption();
+    expect(opt.series[0].label.formatter({ dataIndex: 0 })).toBe('100%');
+    const html = opt.tooltip.formatter({ dataIndex: 0 });
+    expect(html).toContain('IWDA');
+    expect(html).toContain('IE00TEST1');
+  });
+
+  it('sizes the chart to its rows', () => {
+    renderPortfolio(makePD(), []);
+    const wrap = document.getElementById('c-port-donut')!.parentElement!;
+    expect(wrap.style.getPropertyValue('--chart-fit-h')).toBe('140px');
   });
 
   it('integrates allocation percentage into the cost basis cell', () => {

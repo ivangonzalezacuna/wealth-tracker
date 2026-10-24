@@ -109,7 +109,7 @@ test('portfolio sub-view tabs switch correctly', async ({ page }) => {
   await expect(page.locator('#subview-holdings')).toBeVisible();
 });
 
-test('net worth range toggles are interactive', async ({ page }) => {
+test('net worth history chart offers zoom range presets', async ({ page }) => {
   await gotoApp(page);
   await addAccount(page, {
     label: 'Broker',
@@ -118,23 +118,27 @@ test('net worth range toggles are interactive', async ({ page }) => {
     primary: true,
   });
   await addSnapshot(page, {
+    month: monthOffsetValue(-2),
+    note: 'Range start',
+    accountValues: { Broker: 900 },
+  });
+  await addSnapshot(page, {
     month: monthOffsetValue(-1),
     note: 'Range test',
     accountValues: { Broker: 1000 },
   });
 
   await openTab(page, 'tab-networth');
-  await expect(page.locator('#nw-range-toggle')).toBeVisible();
+  await expect(page.locator('#c-nw-hist canvas')).toHaveCount(1);
+  await expect(page.locator('#c-nw-hist')).toHaveAttribute('aria-label', /Net worth/);
 
-  // Click 1Y button
-  await page.locator('#nw-range-toggle [data-range="12"]').click();
-  await expect(page.locator('#nw-range-toggle [data-range="12"]')).toHaveClass(/active/);
-
-  // Click 3Y button
-  await page.locator('#nw-range-toggle [data-range="36"]').click();
-  await expect(page.locator('#nw-range-toggle [data-range="36"]')).toHaveClass(/active/);
-
-  // Click All button
-  await page.locator('#nw-range-toggle [data-range="all"]').click();
-  await expect(page.locator('#nw-range-toggle [data-range="all"]')).toHaveClass(/active/);
+  const presets = await page.evaluate(async () => {
+    const { getChart } = await import('/src/views/charts/index.ts');
+    const opt = getChart('c-nw-hist')?.getOption() as
+      { graphic?: Array<{ elements?: Array<{ id?: string }> }>; dataZoom?: unknown[] } | undefined;
+    const ids = (opt?.graphic?.[0]?.elements ?? []).map((e) => e.id ?? '');
+    return { ids, zooms: opt?.dataZoom?.length ?? 0 };
+  });
+  expect(presets.ids).toEqual(expect.arrayContaining(['preset-12', 'preset-36', 'preset-all']));
+  expect(presets.zooms).toBe(2);
 });

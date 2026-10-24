@@ -39,7 +39,7 @@ updates:
         update-types:
           - 'minor'
           - 'patch'
-      # Runtime dependencies: chart.js, idb-keyval — anything actually shipped
+      # Runtime dependencies: echarts, idb-keyval — anything actually shipped
       # to the browser, kept in its own group since these warrant closer
       # individual attention (visible runtime behavior) versus build-only tools.
       runtime-deps:

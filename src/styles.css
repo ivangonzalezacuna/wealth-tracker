@@ -369,15 +369,9 @@ code,
   flex-wrap: wrap;
 }
 #analytics .btn-sm,
-#analytics summary,
-#analytics .chart-data-table-toggle,
-#analytics .chart-data-table-prev,
-#analytics .chart-data-table-next {
+#analytics summary {
   min-height: 24px;
   min-width: 24px;
-}
-#analytics .chart-data-table-toggle {
-  padding: 3px 0;
 }
 #an-annual-table {
   overflow-x: auto;
@@ -1340,6 +1334,118 @@ details[open] > summary .card-chevron {
 }
 .chart-h-lg {
   height: 260px;
+}
+/* ECharts host fills the wrapper's padding box, so header (legend / presets / toolbox)
+   and range slider get extra room without shrinking the plot area. */
+.chart-host {
+  position: absolute;
+  inset: 0;
+}
+.chart-empty {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--ink-4);
+  font-size: 12px;
+}
+.chart-wrap.chart-tools {
+  box-sizing: content-box;
+  padding-bottom: 32px;
+}
+.chart-wrap.chart-zoomable {
+  box-sizing: content-box;
+  padding-bottom: 64px;
+}
+.chart-wrap:fullscreen {
+  box-sizing: border-box;
+  height: 100% !important;
+  padding: 16px;
+  background: var(--surface);
+}
+.chart-wrap.chart-expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  box-sizing: border-box;
+  height: 100% !important;
+  padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+  background: var(--surface);
+}
+body.chart-expanded-open {
+  overflow: hidden;
+}
+.chart-wrap:fullscreen .chart-host,
+.chart-wrap.chart-expanded .chart-host {
+  inset: 16px;
+}
+.chart-dataview {
+  height: 100%;
+  overflow: auto;
+  padding: 4px 2px 8px;
+}
+.chart-dataview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.chart-dataview-table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  text-align: left;
+  font-weight: 500;
+  color: var(--ink-3);
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--line-2);
+}
+.chart-dataview-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.chart-dataview-table .num {
+  text-align: right;
+}
+.ec-tt {
+  min-width: 150px;
+  /* Long account names must not push the tooltip past a phone-width chart. */
+  max-width: min(320px, calc(100vw - 72px));
+  font-variant-numeric: tabular-nums;
+}
+.ec-tt-title {
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+.ec-tt-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1.6;
+}
+.ec-tt-name {
+  flex: 1;
+  min-width: 0;
+  margin-right: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ec-tt-val {
+  flex-shrink: 0;
+  color: var(--ink);
+  font-weight: 600;
+}
+.ec-tt-foot {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+.ec-tt-note {
+  margin-top: 6px;
+  max-width: 260px;
+  white-space: normal;
+  font-style: italic;
+  color: var(--ink-3);
 }
 .legend {
   display: flex;
@@ -4416,85 +4522,6 @@ textarea.dialog-input {
   border-color: var(--brand-border);
   outline: 2px solid var(--brand-border);
   outline-offset: 2px;
-}
-
-/* ── Chart accessible data tables ──────────────────────── */
-.chart-data-table-wrap {
-  margin-top: 8px;
-}
-.chart-data-table-toggle {
-  font-size: 11px;
-  color: var(--ink-3);
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.chart-data-table-toggle:hover,
-.chart-data-table-toggle:focus-visible {
-  color: var(--brand);
-  outline: 2px solid var(--brand-border);
-  outline-offset: 2px;
-  border-radius: 2px;
-}
-.chart-data-table-scroll {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-.chart-data-table-pagination {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 4px;
-  font-size: 11px;
-  color: var(--ink-3);
-}
-.chart-data-table-prev,
-.chart-data-table-next {
-  background: none;
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 1px 5px;
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1.2;
-  color: var(--ink-2);
-}
-.chart-data-table-prev:disabled,
-.chart-data-table-next:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-.chart-data-table-prev:not(:disabled):hover,
-.chart-data-table-next:not(:disabled):hover {
-  color: var(--brand);
-  border-color: var(--brand-border);
-}
-.chart-data-table {
-  min-width: 100%;
-  border-collapse: collapse;
-  font-size: 11px;
-  margin-top: 6px;
-  color: var(--ink-2);
-}
-.chart-data-table th {
-  text-align: left;
-  padding: 3px 6px;
-  border-bottom: 1px solid var(--line);
-  color: var(--ink-3);
-  font-weight: 500;
-}
-.chart-data-table td {
-  padding: 3px 6px;
-  border-bottom: 1px solid var(--line);
-}
-.chart-data-table .chart-data-number {
-  text-align: right;
-}
-.chart-data-table tr:last-child td {
-  border-bottom: none;
 }
 
 /* Visually hidden but accessible to screen readers and resolvable by aria-describedby */

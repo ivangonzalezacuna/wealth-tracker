@@ -26,19 +26,15 @@ import { splitHoldings, computeFeeDrag } from '../model/holdings';
 import { computeDrift, maxDrift, computeRebalancePlan } from '../model/drift';
 import { sourceLabel } from '../import/profiles/index';
 import type { PortfolioData, Snapshot, EtfPosition } from '../types';
-import Chart from 'chart.js/auto';
-import { BAR_END_ROUNDING, resolvedT } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { attachEtfPopovers } from '../ui/etfPopover';
 import { renderPagination } from './pagination';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow } from './tableColumns';
-import { renderLegendHtml, tooltipSwatch } from './chartLegend';
-import { hideChartTable, writeChartTable } from './chartTable';
 import { bindExpandableRows, restoreExpandableRows } from './expandableRows';
 import { bindSortedTableHeader, sortAndPaginate } from './tableView';
 import { isCollapsed, setCollapsed } from '../ui/collapseState';
-import { createChartRegistry } from './chartRegistry';
+import { disposeChart, fmtEurCompact, renderChart } from './charts';
 import {
   createTableState,
   getTableFilter,
@@ -46,13 +42,6 @@ import {
   setTablePage,
   setTableSort,
 } from './tableState';
-import {
-  buildBaseChartOptions,
-  buildBaseTooltipOptions,
-  formatEuroCompactSuffix,
-} from './chartOptions';
-
-const { CH, destroyChart: _destroyChart } = createChartRegistry();
 
 /**
  * Extract per-ETF market values from a snapshot.
@@ -623,92 +612,9 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   // Render holdings table (filter-dependent)
   renderHoldingsTable(pd, snaps);
 
-  // Bar chart - only held positions with cost > 0
-  const donutE = held.filter((e) => e.cost > 0).sort((a, b) => b.cost - a.cost);
-  const C = resolvedT();
-  const baseOptions = buildBaseChartOptions();
-  _destroyChart('c-port-donut');
-  if (donutE.length === 0) {
-    hideChartTable('c-port-donut-table-wrap');
-  } else {
-    writeChartTable(
-      'c-port-donut-table-wrap',
-      'Cost basis allocation data',
-      ['ETF', 'Cost basis (€)', 'Share', 'ISIN'],
-      donutE.map((e) => [
-        e.shortName,
-        fmtEur2(e.cost),
-        pd.totalInv > 0 ? fmtPctVal((e.cost / pd.totalInv) * 100) : '0%',
-        e.isin,
-      ]),
-      [1, 2],
-    );
-  }
-  const donutCanvas = document.getElementById('c-port-donut') as HTMLCanvasElement;
-  // Size the bar chart to its rows so a few holdings don't leave a tall, mostly empty chart.
-  const donutWrap = donutCanvas.parentElement;
-  if (donutWrap) {
-    const fitH = Math.min(320, Math.max(120, donutE.length * 32 + 40));
-    donutWrap.style.setProperty('--chart-fit-h', `${fitH}px`);
-  }
-  CH['c-port-donut'] = new Chart(donutCanvas, {
-    type: 'bar',
-    data: {
-      labels: donutE.map((e) => e.shortName),
-      datasets: [
-        {
-          data: donutE.map((e) => e.cost),
-          backgroundColor: donutE.map((e) => safeColor(e.color)),
-          borderColor: donutE.map((e) => safeColor(e.color)),
-          borderWidth: 1,
-          ...BAR_END_ROUNDING,
-          maxBarThickness: 22,
-        },
-      ],
-    },
-    options: {
-      indexAxis: 'y',
-      ...baseOptions,
-      plugins: {
-        ...baseOptions.plugins,
-        tooltip: {
-          ...buildBaseTooltipOptions(C, true),
-          callbacks: {
-            label: (ctx) => ` ${fmtEur(ctx.raw as number)}`,
-            labelColor: tooltipSwatch(C.surface),
-            footer: (items) => {
-              if (!items.length) return '';
-              const idx = items[0].dataIndex;
-              const e = donutE[idx];
-              if (!e) return '';
-              const h = getHoldings().find((x) => x.isin === e.isin);
-              const name = h?.name || e.name || '';
-              const lines: string[] = [];
-              if (name) lines.push(name);
-              lines.push(e.isin);
-              return lines;
-            },
-          },
-        },
-      },
-      scales: {
-        x: {
-          grid: { color: C.line },
-          ticks: {
-            color: C.ink4,
-            callback: (v) => formatEuroCompactSuffix(v),
-          },
-        },
-        y: { grid: { display: false }, ticks: { color: C.ink2, font: { size: 12 } } },
-      },
-    },
-  });
-  document.getElementById('port-donut-legend')!.innerHTML = renderLegendHtml(
-    donutE.map((e) => ({
-      label: e.shortName,
-      meta: pd.totalInv > 0 ? fmtPctVal((e.cost / pd.totalInv) * 100) : '0%',
-      color: e.color,
-    })),
+  _renderCostBasisChart(
+    held.filter((e) => e.cost > 0).sort((a, b) => b.cost - a.cost),
+    pd.totalInv,
   );
   const mvRow =
     snapMarketValue !== null
@@ -1036,4 +942,89 @@ export function getMaxDrift(pd: PortfolioData | null, snaps: Snapshot[]): number
   );
   if (drift.length === 0) return null;
   return maxDrift(drift);
+}
+
+// ── Cost basis chart ──
+
+function _renderCostBasisChart(rows: EtfPosition[], totalInv: number): void {
+  const host = document.getElementById('c-port-donut');
+  if (!host) return;
+  if (rows.length === 0) {
+    disposeChart('c-port-donut');
+    host.innerHTML = '<div class="chart-empty">No open positions with a cost basis yet.</div>';
+    return;
+  }
+  host.querySelector('.chart-empty')?.remove();
+  // Size the bar chart to its rows so a few holdings don't leave a tall, mostly empty chart.
+  const wrap = host.parentElement;
+  if (wrap) {
+    const fitH = Math.min(380, Math.max(140, rows.length * 28 + 52));
+    wrap.style.setProperty('--chart-fit-h', `${fitH}px`);
+  }
+  const share = (cost: number) => (totalInv > 0 ? fmtPctVal((cost / totalInv) * 100) : '0%');
+  const fullName = (e: EtfPosition) =>
+    getHoldings().find((x) => x.isin === e.isin)?.name || e.name || '';
+
+  renderChart(
+    'c-port-donut',
+    ({ tokens: t, width }) => ({
+      tooltip: {
+        trigger: 'item',
+        confine: true,
+        formatter: (p: unknown) => {
+          const e = rows[(p as { dataIndex: number }).dataIndex];
+          if (!e) return '';
+          const name = fullName(e);
+          return `<div class="ec-tt"><div class="ec-tt-title">${esc(e.shortName)}</div>${
+            name
+              ? `<div class="ec-tt-note" style="font-style:normal;margin:0 0 4px">${esc(name)}</div>`
+              : ''
+          }<div class="ec-tt-row"><span class="ec-tt-name">Cost basis</span><span class="ec-tt-val">${esc(
+            fmtEur2(e.cost),
+          )}</span></div><div class="ec-tt-row"><span class="ec-tt-name">Share</span><span class="ec-tt-val">${esc(
+            share(e.cost),
+          )}</span></div><div class="ec-tt-row ec-tt-foot"><span class="ec-tt-name">ISIN</span><span class="ec-tt-val">${esc(
+            e.isin,
+          )}</span></div></div>`;
+        },
+      },
+      grid: { left: 4, right: 48, bottom: 4, containLabel: true },
+      xAxis: {
+        type: 'value',
+        splitNumber: 3,
+        axisLabel: { formatter: fmtEurCompact },
+      },
+      yAxis: {
+        type: 'category',
+        inverse: true,
+        data: rows.map((e) => e.shortName),
+        axisTick: { show: false },
+        axisLabel: {
+          color: t.ink2,
+          fontSize: 12,
+          width: width > 0 ? Math.max(80, Math.round(width * 0.32)) : 140,
+          overflow: 'truncate',
+        },
+      },
+      series: [
+        {
+          name: 'Cost basis',
+          type: 'bar',
+          barMaxWidth: 22,
+          label: {
+            show: true,
+            position: 'right',
+            color: t.ink3,
+            fontSize: 11,
+            formatter: (p: { dataIndex: number }) => share(rows[p.dataIndex]?.cost ?? 0),
+          },
+          data: rows.map((e) => ({
+            value: e.cost,
+            itemStyle: { color: safeColor(e.color), borderRadius: [0, 4, 4, 0] },
+          })),
+        },
+      ],
+    }),
+    { valueFormatter: fmtEur2 },
+  );
 }

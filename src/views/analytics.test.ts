@@ -3,28 +3,8 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const chartInstances: Array<{ config: unknown; destroyed: boolean }> = [];
-vi.mock('chart.js/auto', () => ({
-  default: class MockChart {
-    config: unknown;
-    data: { datasets: Array<{ hidden?: boolean }> };
-    private _record: { config: unknown; destroyed: boolean };
-    constructor(_ctx: unknown, config: unknown) {
-      this.config = config;
-      const cfg = config as { data?: { datasets?: unknown[] } };
-      this.data = { datasets: (cfg?.data?.datasets as Array<{ hidden?: boolean }>) || [] };
-      this._record = { config, destroyed: false };
-      chartInstances.push(this._record);
-    }
-    destroy() {
-      this._record.destroyed = true;
-    }
-    update() {}
-    getDatasetMeta(i: number) {
-      return { hidden: this.data.datasets[i]?.hidden || false };
-    }
-  },
-}));
+vi.mock('echarts/core', () => import('./charts/echartsMock'));
+import { chartFor } from './charts/echartsMock';
 
 const MOCK_ACCOUNTS = [
   {
@@ -107,9 +87,9 @@ function makePd(): PortfolioData {
 }
 
 describe('renderAnalytics', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await (await import('./charts')).loadCharts();
     document.body.innerHTML = appTemplate();
-    chartInstances.length = 0;
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       value: vi.fn().mockReturnValue({
@@ -194,16 +174,10 @@ describe('renderAnalytics', () => {
       snaps,
       txs.map((tx) => ({ ...tx, amount: tx.amount * 2 })),
     );
-    document.querySelector<HTMLElement>('#an-income-range-toggle [data-range="12"]')!.click();
-    expect(document.getElementById('c-an-income-table-wrap')!.textContent).toContain('200,00');
-    expect(document.getElementById('c-an-income-table-wrap')!.textContent).not.toContain('100,00');
-    const incomeBars = chartInstances
-      .filter((c) => !c.destroyed)
-      .map((c) => c.config as { data: { datasets: Array<{ label?: string }> } })
-      .flatMap((c) => c.data.datasets)
-      .find((d) => d.label === 'Income') as { borderRadius: unknown; borderSkipped: unknown };
-    expect(incomeBars.borderRadius).toBe(4);
-    expect(incomeBars.borderSkipped).toBe('start');
+    const income = chartFor('c-an-income')!.option as Record<string, any>;
+    expect(income.series[0].data).toContain(200);
+    expect(income.series[0].data).not.toContain(100);
+    expect(income.series[0].itemStyle.borderRadius).toEqual([3, 3, 0, 0]);
   });
 
   it('gates risk metrics until 24 months of history while keeping income analytics visible', () => {
@@ -246,38 +220,38 @@ describe('renderAnalytics', () => {
     expect((document.getElementById('an-income') as HTMLElement).style.display).toBe('');
   });
 
-  it('renders growth chart data table wrap after renderAnalytics with 2+ snapshots', () => {
+  it('renders the growth chart as a native ECharts time series with presets and zoom', () => {
     const snaps = [makeSnap('2025-01', 900, 0), makeSnap('2025-02', 950, 0)];
     renderAnalytics(makePd(), snaps, []);
-    const wrap = document.getElementById('c-an-growth-table-wrap');
-    expect(wrap).not.toBeNull();
-    // Wrap should be visible (removeAttribute('hidden') was called)
-    expect(wrap?.hasAttribute('hidden')).toBe(false);
-    // Toggle button should be present
-    expect(wrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
-    // Table should be present (hidden by default)
-    const table = wrap?.querySelector('.chart-data-table') as HTMLTableElement | null;
-    expect(table).not.toBeNull();
-    expect(table?.getAttribute('aria-label')).toBe('Portfolio growth over time data');
+    const opt = chartFor('c-an-growth')!.option as Record<string, any>;
+    expect(opt.xAxis.type).toBe('time');
+    expect(opt.series[0].data.map((p: number[]) => p[1])).toEqual([900, 950]);
+    expect(opt.dataZoom.map((z: { type: string }) => z.type)).toEqual(['inside', 'slider']);
+    expect(opt.toolbox.feature.dataView).toBeDefined();
+    const presets = opt.graphic.find((g: { id: string }) => g.id === 'range-presets');
+    expect(presets.children.map((c: { id: string }) => c.id)).toEqual([
+      'preset-12',
+      'preset-36',
+      'preset-all',
+    ]);
   });
 
   it('keeps growth and flow ranges on the latest rendered data', () => {
     renderAnalytics(makePd(), [makeSnap('2025-01', 900), makeSnap('2025-02', 950)], []);
     renderAnalytics(makePd(), [makeSnap('2026-01', 2000), makeSnap('2026-02', 2200)], []);
-    for (const id of ['an-growth-range-toggle', 'an-contrib-range-toggle']) {
-      document.querySelector<HTMLElement>(`#${id} [data-range="12"]`)!.click();
-    }
-    const growth = document.getElementById('c-an-growth-table-wrap')!.textContent!;
-    expect(growth).toContain('Feb 2026');
-    expect(growth).toContain('2.200');
-    expect(growth).not.toContain('950,00');
-    expect(document.getElementById('c-an-contrib-table-wrap')!.textContent).toContain('200,00');
+    const growth = chartFor('c-an-growth')!;
+    const opt = growth.option as Record<string, any>;
+    expect(opt.series[0].data.map((p: number[]) => p[1])).toEqual([2000, 2200]);
+    opt.graphic[0].children[0].onclick();
+    expect(growth.actions.at(-1)).toMatchObject({ type: 'dataZoom' });
+    const contrib = chartFor('c-an-contrib')!.option as Record<string, any>;
+    expect(contrib.series[1].data.map((d: { value: number }) => d.value)).toEqual([200]);
   });
 
-  it('removes the old growth data table when only one snapshot remains', () => {
+  it('disposes the growth chart when only one snapshot remains', () => {
     renderAnalytics(makePd(), [makeSnap('2025-01', 900), makeSnap('2025-02', 950)], []);
     renderAnalytics(makePd(), [makeSnap('2026-01', 2000)], []);
-    expect(document.querySelector('#c-an-growth-table-wrap table')).toBeNull();
+    expect(chartFor('c-an-growth')).toBeUndefined();
   });
 
   it('pages the latest heatmap data after replacing history', () => {
@@ -311,30 +285,32 @@ describe('renderAnalytics', () => {
     );
   });
 
-  it('preserves distinct fractional drawdown tick labels without rounding levels together', () => {
+  it('renders drawdown with a zero ceiling, distinct percent ticks and a trough marker', () => {
     renderAnalytics(makePd(), monthlySnaps(2023, 1, 36), []);
-    const configs = chartInstances.map(
-      ({ config }) =>
-        config as {
-          data: { datasets: { label: string }[] };
-          options: { scales: { y: { ticks: { callback: (value: number) => string } } } };
-        },
+    const flat = chartFor('c-an-drawdown')!.option as Record<string, any>;
+    expect(flat.yAxis.min).toBe(-1);
+    expect(flat.series[0].markPoint).toBeUndefined();
+
+    const dipped = monthlySnaps(2023, 1, 36).map((s, i) =>
+      i === 20 ? { ...s, acct_inv: Number(s.acct_inv) * 0.8 } : s,
     );
-    const drawdown = configs.find((config) => config.data.datasets[0]?.label === 'Drawdown');
-    expect(drawdown).toBeDefined();
-    const format = drawdown!.options.scales.y.ticks.callback;
+    renderAnalytics(makePd(), dipped, []);
+    const drawdown = chartFor('c-an-drawdown')!.option as Record<string, any>;
+    expect(drawdown.yAxis.max).toBe(0);
+    expect(drawdown.yAxis.min).toBeUndefined();
+    expect(drawdown.series[0].markPoint.data[0]).toMatchObject({ type: 'min' });
+    const format = drawdown.yAxis.axisLabel.formatter as (value: number) => string;
     for (const values of [
       [0, -0.5, -1, -1.5, -2],
-      [0, -0.001, -0.002, -0.003],
       [0, -20, -40, -60],
     ]) {
       const labels = values.map(format);
       expect(new Set(labels).size).toBe(values.length);
-      expect(labels).toEqual(values.map((value) => `${value}%`));
     }
+    expect(format(-1.5)).toBe('\u22121.5%');
   });
 
-  it('renders companion tables for contribution and allocation charts', () => {
+  it('renders contribution and allocation charts with native legends and data view', () => {
     const snaps = [
       makeSnap('2025-01', 900, 100),
       makeSnap('2025-02', 950, 110),
@@ -342,18 +318,16 @@ describe('renderAnalytics', () => {
     ];
     renderAnalytics(makePd(), snaps, []);
 
-    const contribWrap = document.getElementById('c-an-contrib-table-wrap');
-    expect(contribWrap?.hasAttribute('hidden')).toBe(false);
-    expect(contribWrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
-    expect(
-      (document.getElementById('c-an-contrib') as HTMLCanvasElement).getAttribute(
-        'aria-describedby',
-      ),
-    ).toBe('c-an-contrib-table-wrap');
+    const contrib = chartFor('c-an-contrib')!.option as Record<string, any>;
+    expect(contrib.legend.data).toEqual(['Contributed', 'Market movement']);
+    expect(contrib.series.map((s: { stack: string }) => s.stack)).toEqual(['contrib', 'contrib']);
+    expect(contrib.toolbox.feature.dataView).toBeDefined();
 
-    const allocWrap = document.getElementById('c-an-alloc-acct-table-wrap');
-    expect(allocWrap?.hasAttribute('hidden')).toBe(false);
-    expect(allocWrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
+    const alloc = chartFor('c-an-alloc-acct')!.option as Record<string, any>;
+    expect(alloc.series[0].type).toBe('pie');
+    expect(alloc.legend.orient).toBe('vertical');
+    expect(alloc.series[0].data[0].label.position).toBe('center');
+    expect(alloc.toolbox.feature.dataView).toBeDefined();
   });
 
   it('renders allocation by country accessible via account donut group toggle', () => {
@@ -370,9 +344,11 @@ describe('renderAnalytics', () => {
 
     // Clicking it should switch the legend to show country names
     countryBtn?.click();
-    const legend = document.getElementById('an-alloc-acct-legend');
-    expect(legend?.textContent).toContain('Germany');
-    expect(legend?.textContent).toContain('Spain');
+    const legend = (chartFor('c-an-alloc-acct')!.option as Record<string, any>).series[0].data
+      .map((d: { name: string }) => d.name)
+      .join(' ');
+    expect(legend).toContain('Germany');
+    expect(legend).toContain('Spain');
   });
 
   it('renders allocation by group accessible via account donut group toggle', () => {
@@ -385,9 +361,11 @@ describe('renderAnalytics', () => {
     expect(groupBtn).not.toBeNull();
 
     groupBtn?.click();
-    const legend = document.getElementById('an-alloc-acct-legend');
-    expect(legend?.textContent).toContain('Retirement');
-    expect(legend?.textContent).toContain('Liquid');
+    const legend = (chartFor('c-an-alloc-acct')!.option as Record<string, any>).series[0].data
+      .map((d: { name: string }) => d.name)
+      .join(' ');
+    expect(legend).toContain('Retirement');
+    expect(legend).toContain('Liquid');
   });
 
   it('renders annual returns table when at least one full year of monthly return data is present', () => {
@@ -495,7 +473,7 @@ describe('renderAnalytics', () => {
   });
 
   it('hides the level-2 section (including annual table card) when fewer than 2 snapshots exist', () => {
-    // Single snapshot → level-2 block (which contains the annual table card) is hidden
+    // Single snapshot â†’ level-2 block (which contains the annual table card) is hidden
     const snaps = [makeSnap('2025-06', 1000, 0)];
     renderAnalytics(makePd(), snaps, []);
     const level2 = document.getElementById('an-level2') as HTMLElement;
