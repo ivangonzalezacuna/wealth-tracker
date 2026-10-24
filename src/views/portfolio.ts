@@ -713,6 +713,14 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
 
 // ── Drift / rebalance card ──
 
+/** Cadence labels for the rebalance picker. */
+const REBALANCE_INTERVAL_LABEL: Record<string, string> = {
+  weekly: 'Weekly',
+  biweekly: 'Every 2 weeks',
+  monthly: 'Monthly',
+  quarterly: 'Quarterly',
+};
+
 /** Cadence suffix labels for the rebalance table (e.g. "/wk"). */
 const REBALANCE_INTERVAL_SUFFIX: Record<string, string> = {
   weekly: '/wk',
@@ -790,34 +798,28 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
   const plan12 = computeRebalancePlan(drift, monthlyBudget, totalValue, 12, calibrationInterval);
   const needsSell = plan12.some((e) => e.projectedDriftPct > 0.05);
 
-  const intervalLabels: Record<string, string> = {
-    weekly: 'Weekly',
-    biweekly: 'Biweekly',
-    monthly: 'Monthly',
-    quarterly: 'Quarterly',
-  };
-
   let rebalanceSection = '';
   // Only show the rebalance plan when market values are available for held positions.
   // Cost-basis drift figures are not reliable enough to base contribution decisions on.
   // When there are no held positions (all cash / re-entry), cost mode is irrelevant and
   // the plan is shown since it is purely contribution-target-based.
   if (plan.length >= 2 && monthlyBudget > 0 && !(hasCostMode && valuation.hasHeldPositions)) {
-    const isRebalanceRecommended = max > 10;
-    // Collapsed by default so the drift table stays the focus; the summary flags
+    // Same scale as the drift chart: suggested once drift is high for the alert threshold.
+    const isRebalanceRecommended = status.level === 'high';
+    // Collapsed by default so the drift chart stays the focus; the summary flags
     // when the what-if is suggested and the open state survives picker re-renders.
     const shouldOpenRebalance = keepRebalanceOpen;
     const pickerBtns = REBALANCE_MONTH_OPTIONS.map((m) => {
       const active = m === selectedMonths;
       const label = m === 12 ? '1 yr' : `${m} mo`;
-      return `<button class="btn btn-sm btn-ghost ${active ? 'active' : ''}" data-rebalance-months="${m}" aria-pressed="${active ? 'true' : 'false'}">${label}</button>`;
+      return `<button type="button" class="btn btn-sm btn-ghost ${active ? 'active' : ''}" data-rebalance-months="${m}" aria-pressed="${active ? 'true' : 'false'}">${label}</button>`;
     }).join('');
 
-    const intervalBtns = (['weekly', 'biweekly', 'monthly', 'quarterly'] as const)
-      .map((iv) => {
-        const active = iv === calibrationInterval;
-        return `<button class="btn btn-sm btn-ghost ${active ? 'active' : ''}" data-rebalance-interval="${iv}" aria-pressed="${active ? 'true' : 'false'}">${esc(intervalLabels[iv])}</button>`;
-      })
+    const cadenceOptions = (['weekly', 'biweekly', 'monthly', 'quarterly'] as const)
+      .map(
+        (iv) =>
+          `<option value="${iv}"${iv === calibrationInterval ? ' selected' : ''}>${esc(REBALANCE_INTERVAL_LABEL[iv])}</option>`,
+      )
       .join('');
 
     const suffix = esc(REBALANCE_INTERVAL_SUFFIX[calibrationInterval] ?? '');
@@ -826,70 +828,68 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
       Math.round(Math.max(...plan.map((e) => Math.abs(e.projectedDriftPct))) * 10) / 10;
     const hasLegacyDrift = drift.some((d) => d.targetPct === 0 && Math.abs(d.driftPct) > 0);
     const periodLabel = selectedMonths === 1 ? '1 month' : `${selectedMonths} months`;
+    const horizonShort = selectedMonths === 12 ? '1 yr' : `${selectedMonths} mo`;
     const legacyScopeNote = hasLegacyDrift
-      ? ' Projection reflects active-target holdings only; legacy positions are unchanged.'
+      ? ' Projection covers active-target holdings only; legacy positions are unchanged.'
       : '';
 
-    const rebalanceRows = plan
-      .map((e) => {
-        const stateLabel =
-          e.state === 'overweight'
-            ? 'Overweight'
-            : e.state === 'on-target'
-              ? 'On target'
-              : 'Underweight';
-        const suggestedCell =
-          e.suggestedAmt < 0.005
-            ? `<span class="rebalance-amount-primary" style="color:var(--ink-3)">€0.00<span class="rebalance-amount-suffix">${suffix}</span></span>`
-            : `<span class="rebalance-amount-primary">${fmtEur2(e.suggestedAmt)}<span class="rebalance-amount-suffix">${suffix}</span></span>`;
-        return `
-        <div class="tbl-row rebalance-plan-row" role="row" data-rebalance-state="${esc(e.state)}">
-          <div role="cell" class="rebalance-etf-cell"><span style="display:inline-block;width:8px;height:8px;border-radius:var(--radius-xs);background:${safeColor(e.color)};margin-right:6px"></span>${esc(e.shortName)}<br><span class="rebalance-state-badge rebalance-state-${esc(e.state)}" style="margin-left:14px">${stateLabel}</span></div>
-          <div role="cell" class="rebalance-amount-cell">${suggestedCell}<span class="rebalance-amount-meta">Target ${fmtEur2(e.targetAmt)}${suffix}</span></div>
+    const stateLabel: Record<string, string> = {
+      overweight: 'Overweight',
+      'on-target': 'On target',
+      underweight: 'Underweight',
+    };
+    const rowHtml = (e: (typeof plan)[number]) => {
+      const zero = e.suggestedAmt < 0.005;
+      return `
+        <div class="tbl-row rebalance-plan-row${zero ? ' is-zero' : ''}" role="row" data-rebalance-state="${esc(e.state)}">
+          <div role="cell" class="rebalance-etf-cell"><span class="rebalance-name"><span class="rebalance-dot" style="background:${safeColor(e.color)}"></span>${esc(e.shortName)}</span><span class="rebalance-meta"><span class="rebalance-state-${esc(e.state)}">${stateLabel[e.state]}</span> · usual ${fmtEur2(e.targetAmt)}${suffix}</span></div>
+          <div role="cell" class="rebalance-amount-cell"><span class="rebalance-amount-primary">${fmtEur2(zero ? 0 : e.suggestedAmt)}<span class="rebalance-amount-suffix">${suffix}</span></span></div>
           <div role="cell" class="rebalance-drift-cell">${fmtPctSigned(e.projectedDriftPct)}</div>
         </div>`;
-      })
-      .join('');
+    };
+    const funded = plan.filter((e) => e.suggestedAmt >= 0.005);
+    const unfunded = plan.filter((e) => e.suggestedAmt < 0.005);
+    // Fold the €0 rows only when there are several; a single one reads fine inline.
+    const foldZero = unfunded.length > 1 && funded.length > 0;
+    const zeroRows = foldZero
+      ? `<details class="rebalance-zero"><summary class="rebalance-zero-summary">${unfunded.length} holdings get ${fmtEur2(0)} this period</summary>${unfunded.map(rowHtml).join('')}</details>`
+      : unfunded.map(rowHtml).join('');
 
-    const sellWarning = needsSell
-      ? `<div class="status-bar status-warn" style="margin-top:.5rem">Some holdings remain overweight beyond a 12-month horizon. Consider reviewing whether a partial sell could speed up rebalancing, and account for taxes and trading fees before acting.</div>`
+    const disclaimer = `What-if for new contributions only: routing the suggested amounts for ${periodLabel} with a ${fmtEur(monthlyBudget)}/mo budget. It assumes no selling and no market movement, so actual results will vary. It is not buy or sell advice.${legacyScopeNote}`;
+    const sellNote = needsSell
+      ? `<p class="rebalance-sell-note">Some holdings stay above target after 12 months at this <span class="rebalance-nowrap">budget.&nbsp;${infoTip('A partial sell could rebalance faster. Account for taxes and trading fees before acting; this is not buy or sell advice.')}</span></p>`
       : '';
 
     rebalanceSection = `
       <details class="rebalance-collapsible" ${shouldOpenRebalance ? 'open' : ''}>
         <summary class="rebalance-summary">
-          Contribution rebalance
-          <span class="rebalance-summary-note${isRebalanceRecommended ? ' is-suggested' : ''}">${isRebalanceRecommended ? 'Suggested · drift above 10%' : 'Drift is moderate or low'}</span>
+          Rebalance with contributions
+          <span class="rebalance-summary-note${isRebalanceRecommended ? ' is-suggested' : ''}">${isRebalanceRecommended ? 'Suggested · high drift' : 'Drift is moderate or low'}</span>
         </summary>
         <div class="rebalance-body">
-          <div class="rebalance-picker-row">
-            <span class="rebalance-picker-label">Timeline:</span>
-            <div class="range-toggle rebalance-range-toggle" role="group" aria-label="Rebalance timeline">
+          <div class="filter-bar rebalance-controls">
+            <div class="range-toggle filter-chips rebalance-range-toggle" role="group" aria-label="Rebalance timeline">
               ${pickerBtns}
             </div>
+            <select class="form-input form-input-sm filter-select" data-rebalance-interval aria-label="Contribution cadence">${cadenceOptions}</select>
           </div>
-          <div class="rebalance-picker-row">
-            <span class="rebalance-picker-label">Cadence:</span>
-            <div class="range-toggle rebalance-range-toggle" role="group" aria-label="Calibration interval">
-              ${intervalBtns}
-            </div>
-          </div>
-          <div class="tbl" role="table" aria-label="Contribution rebalance plan">
+          <p class="rebalance-result">Max drift <strong>${fmtPctVal(activeCurrentMax)} → ${fmtPctVal(projectedActiveMax)}</strong> after ${periodLabel} <span class="rebalance-result-meta">· ${fmtEur(monthlyBudget)}/mo budget&nbsp;${infoTip(disclaimer)}</span></p>
+          <div class="tbl rebalance-plan" role="table" aria-label="Contribution rebalance plan">
             <div class="tbl-row th rebalance-plan-row" role="row">
-              <div role="columnheader">ETF</div>
-              <div role="columnheader" style="text-align:right">Amount</div>
-              <div role="columnheader" style="text-align:right">Projected drift</div>
+              <div role="columnheader">Holding</div>
+              <div role="columnheader" style="text-align:right">Suggested</div>
+              <div role="columnheader" style="text-align:right">After ${horizonShort}</div>
             </div>
-            ${rebalanceRows}
+            ${funded.map(rowHtml).join('')}
+            ${zeroRows}
           </div>
-          <p class="note" style="margin-top:.5rem">Routing the suggested amounts for ${periodLabel} will reduce max drift from ${fmtPctVal(activeCurrentMax)} to ${fmtPctVal(projectedActiveMax)}. Budget: ${fmtEur(monthlyBudget)}/mo. This is a what-if for new contributions only: it assumes no selling and no market movement, so actual results will vary. It is not buy or sell advice.${legacyScopeNote}</p>
-          ${sellWarning}
+          <p class="note rebalance-note">Estimate for new contributions only: no selling, no market moves.</p>
+          ${sellNote}
         </div>
       </details>`;
   } else if (plan.length >= 2 && monthlyBudget <= 0) {
     rebalanceSection = `<p class="note" style="margin-top:.5rem">Set your contribution amount and cadence in Settings to see the rebalance plan.</p>`;
   }
-
   const driftTip = `${noteSource} Drift = actual minus target share, in percentage points. The shaded band is your alert threshold (±${fmtPctVal(status.threshold, 'auto')}, set in Settings). Hover or tap a bar for target, actual and the euro gap; click it to open the holding.`;
   const keptWrap = document.getElementById('c-port-drift')?.parentElement ?? null;
   driftEl.innerHTML = `
@@ -920,13 +920,11 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
     });
   });
 
-  driftEl.querySelectorAll('[data-rebalance-interval]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const details = (btn as HTMLElement).closest(
-        '.rebalance-collapsible',
-      ) as HTMLDetailsElement | null;
+  driftEl.querySelectorAll<HTMLSelectElement>('[data-rebalance-interval]').forEach((sel) => {
+    sel.addEventListener('change', () => {
+      const details = sel.closest('.rebalance-collapsible') as HTMLDetailsElement | null;
       const keepOpen = details?.open ?? false;
-      const iv = (btn as HTMLElement).dataset.rebalanceInterval || 'monthly';
+      const iv = sel.value || 'monthly';
       localStorage.setItem('drift-calibration-interval', iv);
       _redrawDrift?.(keepOpen);
     });

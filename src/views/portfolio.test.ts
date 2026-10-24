@@ -800,7 +800,7 @@ describe('renderPortfolio', () => {
     // MOCK_HOLDINGS has a single holding; plan.length < 2 so section should not appear.
     renderPortfolio(makePD(), []);
     const drift = document.getElementById('port-drift')!;
-    expect(drift.innerHTML).not.toContain('Contribution rebalance');
+    expect(drift.innerHTML).not.toContain('Rebalance with contributions');
   });
 
   it('rebalance section is hidden when held positions have no ETF snapshot values', () => {
@@ -809,7 +809,7 @@ describe('renderPortfolio', () => {
     // No snapshot with ETF values: all drift rows are cost-basis mode.
     renderPortfolio(pd, []);
     const drift = document.getElementById('port-drift')!;
-    expect(drift.innerHTML).not.toContain('Contribution rebalance');
+    expect(drift.innerHTML).not.toContain('Rebalance with contributions');
   });
 
   it('rebalance section appears when there are two or more active holdings', () => {
@@ -817,7 +817,7 @@ describe('renderPortfolio', () => {
     const pd = makeRebalancePd();
     renderPortfolio(pd, [makeRebalanceSnap()]);
     const drift = document.getElementById('port-drift')!;
-    expect(drift.innerHTML).toContain('Contribution rebalance');
+    expect(drift.innerHTML).toContain('Rebalance with contributions');
   });
 
   it('rebalance picker renders five month-option buttons', () => {
@@ -880,8 +880,10 @@ describe('renderPortfolio', () => {
     const snap: Snapshot = { date: '2026-06-01', acct1: 5000 };
     renderPortfolio(pd, [snap]);
     const drift = document.getElementById('port-drift')!;
-    expect(drift.innerHTML).toContain('Contribution rebalance');
-    expect(drift.textContent).toContain('reduce max drift from');
+    expect(drift.innerHTML).toContain('Rebalance with contributions');
+    expect(drift.querySelector('.rebalance-result')?.textContent).toMatch(
+      /Max drift .+ → .+ after 3 months/,
+    );
   });
 
   it('shows the target cadence amount alongside the suggested amount', () => {
@@ -890,8 +892,8 @@ describe('renderPortfolio', () => {
     localStorage.setItem('drift-calibration-interval', 'weekly');
     renderPortfolio(pd, [makeRebalanceSnap()]);
     const drift = document.getElementById('port-drift')!;
-    expect(drift.textContent || '').toMatch(/Target\s+80,77\s*€\/wk/);
-    expect(drift.textContent || '').toMatch(/Target\s+34,62\s*€\/wk/);
+    expect(drift.textContent || '').toMatch(/usual\s+80,77\s*€\/wk/);
+    expect(drift.textContent || '').toMatch(/usual\s+34,62\s*€\/wk/);
   });
 
   it('rebalance picker click updates selected month and re-renders', () => {
@@ -908,7 +910,9 @@ describe('renderPortfolio', () => {
 
     expect(localStorage.getItem('drift-rebalance-months')).toBe('6');
     // After click the section should still be present (re-rendered).
-    expect(document.getElementById('port-drift')!.innerHTML).toContain('Contribution rebalance');
+    expect(document.getElementById('port-drift')!.innerHTML).toContain(
+      'Rebalance with contributions',
+    );
   });
 
   it('rebalance picker keeps section open after user opens it', () => {
@@ -943,9 +947,31 @@ describe('renderPortfolio', () => {
     const pd = makeRebalancePd();
     renderPortfolio(pd, [makeRebalanceSnap()]);
     const drift = document.getElementById('port-drift')!;
-    expect(drift.textContent).toContain('reduce max drift from');
-    expect(drift.textContent).toContain('what-if for new contributions only');
-    expect(drift.textContent).toContain('actual results will vary');
+    expect(drift.querySelector('.rebalance-result')?.textContent).toContain('Max drift');
+    const tip = drift.querySelector('.rebalance-result .info-tip')?.getAttribute('data-tip') ?? '';
+    expect(tip).toContain('What-if for new contributions only');
+    expect(tip).toContain('actual results will vary');
+    expect(drift.querySelector('.rebalance-note')?.textContent).toContain('no selling');
+  });
+
+  it('cadence select stores the interval and keeps the section open', () => {
+    setRebalanceHoldings();
+    const pd = makeRebalancePd();
+    localStorage.removeItem('drift-calibration-interval');
+    renderPortfolio(pd, [makeRebalanceSnap()]);
+    const drift = document.getElementById('port-drift')!;
+    (drift.querySelector('.rebalance-collapsible') as HTMLDetailsElement).open = true;
+    const sel = drift.querySelector('[data-rebalance-interval]') as HTMLSelectElement;
+    expect(Array.from(sel.options).map((o) => o.textContent)).toContain('Every 2 weeks');
+    sel.value = 'weekly';
+    sel.dispatchEvent(new Event('change'));
+    expect(localStorage.getItem('drift-calibration-interval')).toBe('weekly');
+    const next = document.querySelector('#port-drift .rebalance-collapsible') as HTMLDetailsElement;
+    expect(next.open).toBe(true);
+    expect((next.querySelector('[data-rebalance-interval]') as HTMLSelectElement).value).toBe(
+      'weekly',
+    );
+    localStorage.removeItem('drift-calibration-interval');
   });
 
   it('rebalance rows expose explicit state labels and attributes', () => {
@@ -984,8 +1010,9 @@ describe('renderPortfolio', () => {
     const snap = makeRebalanceSnap({ acct1: 100000, etf_IE00TEST1: 80000, etf_IE00TEST2: 20000 });
     renderPortfolio(pd, [snap]);
     const drift = document.getElementById('port-drift')!;
-    expect(drift.textContent).toContain('taxes');
-    expect(drift.textContent).toContain('trading fees');
+    expect(drift.querySelector('.rebalance-sell-note')?.textContent).toContain('stay above target');
+    expect(drift.innerHTML).toContain('taxes');
+    expect(drift.innerHTML).toContain('trading fees');
   });
 
   it('renders an on-target state when projected gap is neutral', () => {
