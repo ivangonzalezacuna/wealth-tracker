@@ -115,11 +115,6 @@ export function appTemplate(): string {
       <div class="two-col">
         <div class="card">
           <div class="card-title">Month-by-month</div>
-          <div class="filter-bar">
-            <select id="dca-year-filter" class="form-input form-input-sm filter-select themed-select" aria-label="Filter by year">
-              <option value="">All years</option>
-            </select>
-          </div>
           <div class="tbl" role="table" aria-label="Monthly contributions"><div id="dca-table"></div></div>
           <div id="dca-pagination" class="pagination"></div>
         </div>
@@ -138,21 +133,11 @@ export function appTemplate(): string {
       <div class="kpi-row kpi-row-groups" id="div-kpis"></div>
       <div class="card">
         <div class="card-title">Dividend payments received (most recent first)</div>
-        <div class="filter-bar" id="div-year-filter-bar">
-          <select id="div-year-filter" class="form-input form-input-sm filter-select themed-select" aria-label="Filter by year">
-            <option value="">All years</option>
-          </select>
-        </div>
         <div class="tbl" role="table" aria-label="Dividend history"><div id="div-history"></div></div>
         <div id="div-pagination" class="pagination"></div>
       </div>
       <div class="card">
         <div class="card-title">Cash / savings interest received</div>
-        <div class="filter-bar" id="int-year-filter-bar">
-          <select id="int-year-filter" class="form-input form-input-sm filter-select themed-select" aria-label="Filter by year">
-            <option value="">All years</option>
-          </select>
-        </div>
         <div id="div-interest"></div>
         <div id="int-pagination" class="pagination"></div>
       </div>

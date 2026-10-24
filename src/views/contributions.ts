@@ -5,16 +5,9 @@ import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import type { PortfolioData, Snapshot, Account } from '../types';
 import { bindSortedTableHeader, renderTableSection } from './tableView';
 import type { ColumnDef } from './tableColumns';
-import { renderPagination } from './pagination';
+import { createPageSizePref, MONTH_PAGE_SIZES, renderPagination } from './pagination';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
-import { populateYearFilterOptions } from './yearFilter';
-import {
-  bindTableYearFilter,
-  createTableState,
-  getTableFilter,
-  setTablePage,
-  setTableSort,
-} from './tableState';
+import { createTableState, setTablePage, setTableSort } from './tableState';
 import {
   addMonths,
   axisTooltip,
@@ -30,8 +23,8 @@ import {
 import { drillToTransactions } from './drill';
 import { TxType } from '../types';
 
-const DCA_PAGE_SIZE = 12;
-const _dcaTableState = createTableState({ sort: { key: null, dir: null }, filters: { year: '' } });
+const _dcaPageSize = createPageSizePref('wt:dca:pageSize', MONTH_PAGE_SIZES);
+const _dcaTableState = createTableState({ sort: { key: null, dir: null }, filters: {} });
 let _lastPd: PortfolioData | null = null;
 let _dcaFcMonths = 60; // visible forecast horizon (follows the chart zoom)
 
@@ -71,12 +64,6 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
 
   renderDCAChart(pd, ordSyms, ISIN, META);
 
-  // DCA table with filtering + pagination
-  populateYearFilterOptions(
-    'dca-year-filter',
-    pd.months.map((date) => ({ date })),
-  );
-  attachDCAFilterListeners(pd);
   renderDCATable(pd);
 
   // Contributions forecast (cumulative cash invested)
@@ -313,16 +300,7 @@ function renderDCAChart(
   );
 }
 
-// ── DCA table with filtering + pagination ────────────────
-
-function attachDCAFilterListeners(pd: PortfolioData): void {
-  bindTableYearFilter({
-    elementId: 'dca-year-filter',
-    state: _dcaTableState,
-    filterKey: 'year',
-    rerender: () => renderDCATable(pd),
-  });
-}
+// ── DCA table with pagination ────────────────────────────
 
 function dcaColumns(pd: PortfolioData): ColumnDef<string>[] {
   return [
@@ -346,18 +324,8 @@ function renderDCATable(pd: PortfolioData): void {
   const el = document.getElementById('dca-table');
   if (!el) return;
 
-  // Filter months
-  let months = [...pd.months].reverse();
-  const selectedYear = getTableFilter(_dcaTableState, 'year');
-  if (selectedYear) {
-    months = months.filter((m) => m.startsWith(selectedYear));
-  }
-
-  // Column definitions
+  const months = [...pd.months].reverse();
   const columns = dcaColumns(pd);
-
-  // Apply sort (before pagination)
-  // Calculate filtered total
   const filteredTotal = months.reduce((sum, m) => sum + (pd.monthly[m] || 0), 0);
 
   const { page, totalPages } = renderTableSection({
@@ -366,12 +334,12 @@ function renderDCATable(pd: PortfolioData): void {
     columns,
     sortState: _dcaTableState.sort,
     page: _dcaTableState.page,
-    pageSize: DCA_PAGE_SIZE,
+    pageSize: _dcaPageSize.size,
     rowClassName: 'tbl-row dca-row',
     headerId: 'dca-table-header',
     emptyHtml: '',
     footerHtml: `<div class="tbl-row dca-row" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
-      <div style="font-weight:500">${selectedYear ? 'Year total' : 'Total'}</div>
+      <div style="font-weight:500">Total</div>
       <div style="font-weight:500;text-align:right">${fmtEur(filteredTotal)}</div>
     </div>`,
   });
@@ -400,6 +368,16 @@ function renderDCAPagination(totalPages: number, totalItems: number, pd: Portfol
       setTablePage(_dcaTableState, p);
       renderDCATable(pd);
     },
-    { totalItems, pageSize: DCA_PAGE_SIZE },
+    {
+      totalItems,
+      pageSize: _dcaPageSize.size,
+      pageSizeOptions: _dcaPageSize.options,
+      itemLabel: 'months',
+      onPageSizeChange: (size) => {
+        _dcaPageSize.set(size);
+        setTablePage(_dcaTableState, 1);
+        renderDCATable(pd);
+      },
+    },
   );
 }

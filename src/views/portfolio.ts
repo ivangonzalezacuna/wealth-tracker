@@ -30,7 +30,7 @@ import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { bindChipGroup, bindSearchClear, chipGroupHtml, searchHtml } from '../ui/filterBar';
 import { attachEtfPopovers } from '../ui/etfPopover';
-import { renderPagination } from './pagination';
+import { createPageSizePref, DEFAULT_PAGE_SIZES, renderPagination } from './pagination';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow } from './tableColumns';
 import { bindExpandableRows, restoreExpandableRows } from './expandableRows';
@@ -124,7 +124,7 @@ function renderSourceBreakdown(bySource: Record<string, number>, signed = false)
 }
 
 // Module-level filter state (survives re-renders)
-const HOLD_PAGE_SIZE = 10;
+const _holdPageSize = createPageSizePref('wt:holdings:pageSize', DEFAULT_PAGE_SIZES);
 /** Latest holdings re-render (delegated filter handlers are bound once and call this). */
 let _holdRender: (() => void) | null = null;
 const _holdTableState = createTableState({
@@ -333,7 +333,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     columns,
     _holdTableState.sort,
     _holdTableState.page,
-    HOLD_PAGE_SIZE,
+    _holdPageSize.size,
   );
   setTablePage(_holdTableState, page);
   const pageItemsByKey = new Map(pageItems.map((e) => [e.isin, e]));
@@ -501,7 +501,17 @@ function renderHoldPagination(
       setTablePage(_holdTableState, p);
       renderHoldingsTable(pd, snaps);
     },
-    { totalItems, pageSize: HOLD_PAGE_SIZE },
+    {
+      totalItems,
+      pageSize: _holdPageSize.size,
+      pageSizeOptions: _holdPageSize.options,
+      itemLabel: 'holdings',
+      onPageSizeChange: (size) => {
+        _holdPageSize.set(size);
+        setTablePage(_holdTableState, 1);
+        renderHoldingsTable(pd, snaps);
+      },
+    },
   );
 }
 

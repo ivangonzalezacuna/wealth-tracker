@@ -7,7 +7,7 @@ import { EDIT_ICON, DELETE_ICON } from './icons';
 import { attachEtfPopovers } from '../ui/etfPopover';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow } from './tableColumns';
-import { renderPagination } from './pagination';
+import { loadPageSize, renderPagination, savePageSize } from './pagination';
 import { bindExpandableRows, restoreExpandableRows } from './expandableRows';
 import { bindSortedTableHeader, sortAndPaginate } from './tableView';
 import { populateYearFilterOptions } from './yearFilter';
@@ -46,23 +46,6 @@ const SNAP_PAGE_SIZES = [12, 24, 36] as const;
 const TX_PAGE_SIZES = [15, 25, 50, 100] as const;
 const SNAP_PAGE_SIZE_KEY = 'wt:log:snapPageSize';
 const TX_PAGE_SIZE_KEY = 'wt:log:txPageSize';
-
-function loadPageSize(key: string, allowed: readonly number[], fallback: number): number {
-  try {
-    const stored = Number(globalThis.localStorage?.getItem(key));
-    return allowed.includes(stored) ? stored : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function savePageSize(key: string, size: number): void {
-  try {
-    globalThis.localStorage?.setItem(key, String(size));
-  } catch {
-    // Storage may be unavailable (private mode); the size still applies for this session.
-  }
-}
 
 /** Sort value for ISO dates ("YYYY-MM" or "YYYY-MM-DD") so 'desc' means newest first. */
 function isoDateSortValue(date: string): number {
