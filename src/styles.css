@@ -345,17 +345,56 @@ code,
   padding-top: 10px;
   min-width: 0;
 }
+/* Allocation: two matching panels; side by side from laptop width, stacked below. */
 .analytics-allocation-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start;
-  gap: 12px 16px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
 }
-.analytics-allocation-grid > * {
+.alloc-panel {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
-.analytics-holding-breakdown > div + div {
-  margin-top: 12px;
+.alloc-panel + .alloc-panel {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+@media (min-width: 900px) {
+  .analytics-allocation-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 28px;
+  }
+  .alloc-panel + .alloc-panel {
+    border-top: 0;
+    padding-top: 0;
+  }
+}
+.alloc-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+.alloc-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.alloc-panel-sub {
+  font-size: 12px;
+  color: var(--ink4);
+}
+.alloc-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+.alloc-empty {
+  margin: 8px 0;
 }
 #an-kpis-risk .kpi-group {
   display: grid;
@@ -376,8 +415,100 @@ code,
 #an-annual-table {
   overflow-x: auto;
 }
+.an-annual {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+.an-annual th,
+.an-annual td {
+  padding: 6px;
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.an-annual thead th {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--line);
+}
+.an-annual tbody th {
+  font-weight: 500;
+  color: var(--ink);
+}
+.an-annual tbody tr + tr > * {
+  border-top: 1px solid var(--line);
+}
+.an-annual .num {
+  text-align: right;
+}
+.an-annual .pos {
+  color: var(--pos);
+}
+.an-annual .neg {
+  color: var(--neg);
+}
+.an-annual-months {
+  display: block;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+.an-annual-return {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.an-annual-bar {
+  position: relative;
+  flex: none;
+  width: 72px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--surface-2);
+}
+.an-annual-bar::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--line-2);
+}
+.an-annual-bar > span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+  background: currentColor;
+  opacity: 0.8;
+}
+@media (max-width: 420px) {
+  .an-annual th,
+  .an-annual td {
+    padding: 6px 4px;
+  }
+  .an-annual thead th,
+  .an-annual-months {
+    white-space: normal;
+  }
+  .an-annual-return {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .an-annual-bar {
+    order: 1;
+    width: 48px;
+    height: 6px;
+  }
+}
 @media (max-width: 599px) {
-  .analytics-allocation-grid,
   #an-kpis-risk .kpi-group {
     grid-template-columns: minmax(0, 1fr);
   }

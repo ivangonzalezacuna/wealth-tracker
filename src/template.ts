@@ -204,44 +204,37 @@ export function appTemplate(): string {
           <span id="an-heatmap-page-label" style="min-width:80px;text-align:center"></span>
           <button class="btn btn-sm btn-ghost" id="an-heatmap-next" aria-label="Newer heatmap years">&#8250;</button>
         </div>
-        <div id="an-heatmap-wrap" role="region" aria-label="Monthly investment returns" tabindex="0" style="overflow-x:auto">
-          <div id="an-heatmap"></div>
-        </div>
+        <div id="an-heatmap"></div>
+        <div class="chart-wrap" id="c-an-heatmap-wrap" style="display:none"><div id="c-an-heatmap" class="chart-host" role="img" aria-label="Monthly investment return heatmap"></div></div>
         <p class="note" id="an-heatmap-footer">Heatmap colors are descriptive only and should not be used for short-term timing decisions.</p>
         <div class="analytics-subsection" id="an-annual-table-card">
           <div class="card-title">Annual investment returns</div>
           <div id="an-annual-table"></div>
-          <p class="note">pp = percentage points; * = fewer than 12 months. Partial and full years are not directly comparable.</p>
+          <p class="note">Years with fewer than 12 months of data are not directly comparable with full years.</p>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-title">Allocation</div>
-        <p class="note analytics-scope-note">Account shares use snapshot balances. Holding shares use purchase costs, not market values. They use different totals.</p>
+      <div class="card" id="an-allocation-card">
+        <div class="card-title">Allocation<span class="info-tip" data-tip="Accounts use the latest snapshot balances, including savings and pensions. Holdings use purchase costs, not market values, so the two totals differ." data-tip-variant="" aria-label="Accounts use the latest snapshot balances, including savings and pensions. Holdings use purchase costs, not market values, so the two totals differ." tabindex="0">?</span></div>
         <div class="analytics-allocation-grid">
-        <div class="analytics-allocation-accounts">
-          <div class="card-title" id="an-alloc-acct-title">Account balances: latest snapshot</div>
-          <div id="an-alloc-acct-toggle-wrap" class="chart-controls"></div>
-          <p class="note" id="an-alloc-acct-hint" style="display:none">Switch to <em>All configured holdings</em> to see the full breakdown.</p>
-          <div class="chart-wrap chart-h-sm chart-tools"><div id="c-an-alloc-acct" class="chart-host" role="img" aria-label="Allocation by account chart"></div></div>
-        </div>
-        <details id="an-holding-allocation" class="inline-details">
-          <summary>Holdings: asset class and region</summary>
-        <div class="analytics-holding-breakdown">
-        <div>
-          <div class="card-title">Holding purchase costs by asset class</div>
-          <div id="an-alloc-class-toggle-wrap" class="chart-controls"></div>
-          <p class="note" id="an-alloc-class-hint" style="display:none">Switch to <em>All configured holdings</em> to see the full breakdown.</p>
-          <div class="chart-wrap chart-h-sm chart-tools"><div id="c-an-alloc-class" class="chart-host" role="img" aria-label="Allocation by asset class chart"></div></div>
-        </div>
-        <div>
-          <div class="card-title">Holding purchase costs by region</div>
-          <div id="an-alloc-region-toggle-wrap" class="chart-controls"></div>
-          <p class="note" id="an-alloc-region-hint" style="display:none">Switch to <em>All configured holdings</em> to see the full breakdown.</p>
-          <div class="chart-wrap chart-h-sm chart-tools"><div id="c-an-alloc-region" class="chart-host" role="img" aria-label="Allocation by region chart"></div></div>
-        </div>
-        </div>
-        </details>
+          <section class="alloc-panel" aria-labelledby="an-alloc-acct-title">
+            <div class="alloc-panel-head">
+              <span class="alloc-panel-title" id="an-alloc-acct-title">Accounts</span>
+              <span class="alloc-panel-sub">Latest snapshot balances</span>
+            </div>
+            <div id="an-alloc-acct-toggle-wrap" class="chart-controls alloc-controls"></div>
+            <p class="note alloc-empty" id="an-alloc-acct-empty" hidden>No account balances in the latest snapshot.</p>
+            <div class="chart-wrap chart-h-fit chart-tools"><div id="c-an-alloc-acct" class="chart-host" role="img" aria-label="Allocation by account chart"></div></div>
+          </section>
+          <section class="alloc-panel" aria-labelledby="an-alloc-hold-title">
+            <div class="alloc-panel-head">
+              <span class="alloc-panel-title" id="an-alloc-hold-title">Holdings</span>
+              <span class="alloc-panel-sub">Purchase costs</span>
+            </div>
+            <div id="an-alloc-hold-toggle-wrap" class="chart-controls alloc-controls"></div>
+            <p class="note alloc-empty" id="an-alloc-hold-empty" hidden>No holding purchases to break down yet.</p>
+            <div class="chart-wrap chart-h-fit chart-tools"><div id="c-an-alloc-hold" class="chart-host" role="img" aria-label="Allocation by holding chart"></div></div>
+          </section>
         </div>
       </div>
     </div>

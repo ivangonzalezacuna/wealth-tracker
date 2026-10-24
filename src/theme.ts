@@ -49,14 +49,6 @@ export const T = {
   white: '#fff',
 } as const;
 
-export const R = {
-  none: 0,
-  xs: 4,
-  sm: 6,
-  md: 8,
-  lg: 12,
-} as const;
-
 /** Runtime dark-mode resolution for inline colours computed at render time. */
 export function resolvedT(): Record<keyof typeof T, string> {
   const pref = getUserThemePref();

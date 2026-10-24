@@ -594,7 +594,7 @@ function initOnlineListeners() {
   window.addEventListener('focus', () => autoResyncIfNeeded());
 }
 
-/** Canvas charts (and the inline-coloured heatmap) bake colours in at render
+/** Canvas charts bake colours in at render
  *  time, unlike CSS, which re-themes instantly via its own media query. Without
  *  this, a chart-bearing view stays stuck in the old colour scheme until some
  *  unrelated action triggers the next re-render. */

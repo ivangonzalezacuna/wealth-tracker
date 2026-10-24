@@ -31,9 +31,11 @@ const MOCK_ACCOUNTS = [
   },
 ];
 
+const MOCK_HOLDINGS: Record<string, unknown>[] = [];
+
 vi.mock('../store/config', () => ({
   getAccounts: () => MOCK_ACCOUNTS,
-  getHoldings: () => [],
+  getHoldings: () => MOCK_HOLDINGS,
   getSettings: () => ({ riskFreeRate: '2' }),
   getNumberSetting: (_key: string, defaultVal: number) => defaultVal,
   isConfigLoaded: () => true,
@@ -250,12 +252,108 @@ describe('renderAnalytics', () => {
     expect(chartFor('c-an-growth')).toBeUndefined();
   });
 
+  const heatmapYears = () =>
+    (chartFor('c-an-heatmap')!.option as Record<string, any>).yAxis[0].data as string[];
+
   it('pages the latest heatmap data after replacing history', () => {
-    renderAnalytics(makePd(), monthlySnaps(2019, 1, 40), []);
-    renderAnalytics(makePd(), monthlySnaps(2023, 1, 40), []);
+    renderAnalytics(makePd(), monthlySnaps(2015, 1, 120), []);
     document.getElementById('an-heatmap-prev')!.click();
-    expect(document.getElementById('an-heatmap')!.textContent).toContain('2023');
-    expect(document.getElementById('an-heatmap')!.textContent).not.toContain('2019');
+    expect(heatmapYears()).toEqual(['2015', '2016', '2017', '2018', '2019']);
+    renderAnalytics(makePd(), monthlySnaps(2023, 1, 40), []);
+    expect(heatmapYears()).toEqual(['2023', '2024', '2025', '2026']);
+    expect(document.getElementById('an-heatmap-pager')!.style.display).toBe('none');
+  });
+
+  it('shows five years per heatmap page and pages through long histories', () => {
+    renderAnalytics(makePd(), monthlySnaps(1986, 1, 40 * 12), []);
+    const prev = document.getElementById('an-heatmap-prev') as HTMLButtonElement;
+    const next = document.getElementById('an-heatmap-next') as HTMLButtonElement;
+    const label = document.getElementById('an-heatmap-page-label')!;
+    expect(document.getElementById('an-heatmap-pager')!.style.display).toBe('flex');
+    expect(heatmapYears()).toEqual(['2021', '2022', '2023', '2024', '2025']);
+    expect(label.textContent).toBe('2021\u20132025');
+    expect(next.disabled).toBe(true);
+    for (let i = 0; i < 7; i++) prev.click();
+    expect(heatmapYears()).toEqual(['1986', '1987', '1988', '1989', '1990']);
+    expect(prev.disabled).toBe(true);
+    next.click();
+    expect(heatmapYears()[0]).toBe('1991');
+  });
+
+  it('pages the annual returns table together with the heatmap', () => {
+    renderAnalytics(makePd(), monthlySnaps(1986, 1, 40 * 12), []);
+    const tableYears = () =>
+      [...document.querySelectorAll('#an-annual-table tbody tr')].map((tr) =>
+        tr.querySelector('th')!.textContent!.slice(0, 4),
+      );
+    expect(tableYears()).toEqual(['2025', '2024', '2023', '2022', '2021']);
+    document.getElementById('an-heatmap-prev')!.click();
+    expect(tableYears()).toEqual(['2020', '2019', '2018', '2017', '2016']);
+    for (let i = 0; i < 6; i++) document.getElementById('an-heatmap-prev')!.click();
+    expect(tableYears()).toEqual(['1990', '1989', '1988', '1987', '1986']);
+    // 1986 starts in January, so its first return is February.
+    expect(
+      document.querySelector('#an-annual-table tbody tr:last-child th')!.textContent,
+    ).toContain('11 of 12 months');
+    document.getElementById('an-heatmap-next')!.click();
+    expect(tableYears()[0]).toBe('1995');
+  });
+
+  it('hides the annual returns table while the heatmap is still locked', () => {
+    renderAnalytics(makePd(), monthlySnaps(2024, 1, 14), []);
+    expect(document.getElementById('an-annual-table-card')!.style.display).toBe('none');
+    expect(document.querySelectorAll('#an-annual-table tbody tr')).toHaveLength(0);
+    expect(document.getElementById('an-heatmap')!.textContent).not.toBe('');
+  });
+
+  it('shows annual return, market gain and net contributions per year', () => {
+    const snaps = monthlySnaps(2023, 1, 40);
+    // A 500 € deposit in March 2024 lands in the year's net contributions, not its market gain.
+    const withDeposit = snaps.map((s) =>
+      s.date >= '2024-03' ? { ...s, acct_inv: Number(s.acct_inv) + 500 } : s,
+    );
+    const deposit: Transaction = {
+      id: 'dep-1',
+      date: '2024-03-05',
+      source: 'broker',
+      type: 'DEPOSIT',
+      name: 'Funding',
+      isin: '',
+      shares: 0,
+      price: 0,
+      amount: -500,
+      fee: 0,
+      tax: 0,
+      currency: 'EUR',
+      fxRate: 1,
+    };
+    renderAnalytics(makePd(), withDeposit, [deposit]);
+    const rows = [...document.querySelectorAll('#an-annual-table tbody tr')];
+    expect(rows.map((tr) => tr.querySelector('th')!.textContent!.slice(0, 4))).toEqual([
+      '2026',
+      '2025',
+      '2024',
+      '2023',
+    ]);
+    const row2024 = rows[2].querySelectorAll('td');
+    expect(row2024[0].textContent).toMatch(/^\+\d+\.\d%$/);
+    expect(row2024[0].classList.contains('pos')).toBe(true);
+    expect(row2024[1].textContent).toContain('120');
+    expect(row2024[2].textContent).toContain('500');
+    expect(rows[2].querySelector('th')!.textContent).toBe('2024');
+    expect(rows[0].querySelector('th')!.textContent).toContain('4 of 12 months');
+  });
+
+  it('renders monthly cells and compounded year totals in the heatmap chart', () => {
+    renderAnalytics(makePd(), monthlySnaps(2023, 1, 40), []);
+    const opt = chartFor('c-an-heatmap')!.option as Record<string, any>;
+    const cells = opt.series[0].data as { value: number[] }[];
+    // Feb 2023 is the first month with a return (Jan 2023 is the starting value).
+    expect(cells[0].value.slice(0, 2)).toEqual([1, 0]);
+    expect(cells[0].value[3]).toBeCloseTo(10 / 1000);
+    expect(opt.yAxis[1].data[0]).toMatch(/^\+\d+\.\d%\*$/);
+    expect(opt.visualMap.min).toBe(-1);
+    expect(document.getElementById('c-an-heatmap-wrap')!.style.display).toBe('');
   });
 
   it('keeps risk readiness separate from the heatmap count gate', () => {
@@ -266,16 +364,16 @@ describe('renderAnalytics', () => {
     const withGap = monthlySnaps(2023, 1, 40).filter((_, index) => index !== 10);
     renderAnalytics(makePd(), withGap, []);
     expect(document.getElementById('an-kpis-risk')!.style.display).toBe('none');
-    expect(document.querySelector('#an-heatmap table')).not.toBeNull();
+    expect(chartFor('c-an-heatmap')).toBeDefined();
     expect(document.getElementById('an-risk-metrics-note')!.textContent).toContain('gap period');
   });
 
-  it('shows unchanged balance figures and percentage-point annual differences', () => {
+  it('shows unchanged balance figures and no percentage-point annual differences', () => {
     renderAnalytics(makePd(), [makeSnap('2025-01', 1000), makeSnap('2026-01', 1200)], []);
     expect(document.querySelector('#an-kpis-l1 .kpi-val')!.textContent).toBe('200,00 €');
     expect(document.querySelector('#an-kpis-l2 .row-val')!.textContent).toBe('20%');
     renderAnalytics(makePd(), monthlySnaps(2023, 1, 40), []);
-    expect(document.getElementById('an-annual-table')!.textContent).toContain(' pp');
+    expect(document.getElementById('an-annual-table')!.textContent).not.toContain(' pp');
     expect(document.getElementById('an-metrics-explainer')!.textContent).not.toContain(
       'Good to aim for',
     );
@@ -322,8 +420,78 @@ describe('renderAnalytics', () => {
     const alloc = chartFor('c-an-alloc-acct')!.option as Record<string, any>;
     expect(alloc.series[0].type).toBe('pie');
     expect(alloc.legend.orient).toBe('vertical');
-    expect(alloc.series[0].data[0].label.position).toBe('center');
+    // Total is a fixed graphic at the ring centre, not a slice label that moves on hover.
+    const centre = alloc.graphic[0];
+    expect(centre.style.text).toContain('total');
+    expect([centre.x, centre.y]).toEqual(alloc.series[0].center);
+    expect(alloc.series[0].data[0].label).toBeUndefined();
     expect(alloc.toolbox.feature.myDataTable).toBeDefined();
+  });
+
+  it('holdings panel picks the first dimension with a real split, switches, and filters inactive', () => {
+    const holding = (isin: string, shortName: string, active: boolean) => ({
+      isin,
+      name: `${shortName} ETF`,
+      shortName,
+      color: '#333333',
+      acc: true,
+      active,
+      assetClass: 'equity',
+      region: isin === 'B' ? 'europe' : 'global',
+      foldInto: '',
+      order: 1,
+    });
+    MOCK_HOLDINGS.splice(
+      0,
+      MOCK_HOLDINGS.length,
+      holding('A', 'World', true),
+      holding('B', 'Europe', true),
+      holding('C', 'Old', false),
+    );
+    const pd = makePd();
+    pd.etfs = {
+      A: { cost: 600 },
+      B: { cost: 300 },
+      C: { cost: 100 },
+    } as unknown as PortfolioData['etfs'];
+    const snaps = [makeSnap('2025-01', 1000, 500), makeSnap('2025-02', 1200, 550)];
+    try {
+      renderAnalytics(pd, snaps, []);
+      const names = () =>
+        (chartFor('c-an-alloc-hold')!.option as Record<string, any>).series[0].data.map(
+          (d: { name: string }) => d.name,
+        );
+      // Asset class is a single slice (all equity), so the panel opens on Region.
+      expect(document.querySelector('[data-hold-dim="region"]')?.getAttribute('aria-pressed')).toBe(
+        'true',
+      );
+      expect(names()).toEqual(['Global', 'Europe']);
+
+      (document.querySelector('[data-hold-dim="holding"]') as HTMLElement).click();
+      expect(names()).toEqual(['World', 'Europe']);
+
+      const inactive = document.querySelector('[data-hold-inactive]') as HTMLElement;
+      expect(inactive).not.toBeNull();
+      expect(inactive.textContent).toBe('Include inactive');
+      inactive.click();
+      expect(names()).toEqual(['World', 'Europe', 'Old']);
+      const shown = document.querySelector('[data-hold-inactive]') as HTMLElement;
+      expect(shown.textContent).toBe('Hide inactive');
+      expect(shown.classList.contains('active')).toBe(true);
+      shown.click();
+      expect(names()).toEqual(['World', 'Europe']);
+      expect(document.querySelector('[data-hold-inactive]')?.textContent).toBe('Include inactive');
+    } finally {
+      MOCK_HOLDINGS.splice(0, MOCK_HOLDINGS.length);
+    }
+  });
+
+  it('holdings panel shows an empty note instead of a blank chart without purchases', () => {
+    renderAnalytics(makePd(), [makeSnap('2025-01', 1000, 500), makeSnap('2025-02', 1200, 550)], []);
+    expect(document.getElementById('an-alloc-hold-empty')?.hidden).toBe(false);
+    expect(
+      (document.getElementById('c-an-alloc-hold')!.closest('.chart-wrap') as HTMLElement).hidden,
+    ).toBe(true);
   });
 
   it('renders allocation by country accessible via account donut group toggle', () => {
@@ -364,8 +532,8 @@ describe('renderAnalytics', () => {
     expect(legend).toContain('Liquid');
   });
 
-  it('renders annual returns table when at least one full year of monthly return data is present', () => {
-    const snaps = monthlySnaps(2024, 1, 13);
+  it('renders annual returns table once the heatmap has enough monthly returns', () => {
+    const snaps = monthlySnaps(2024, 1, 25);
     renderAnalytics(makePd(), snaps, []);
     const card = document.getElementById('an-annual-table-card');
     const table = document.getElementById('an-annual-table');
@@ -374,11 +542,12 @@ describe('renderAnalytics', () => {
     expect(table?.querySelector('tbody tr')).not.toBeNull();
   });
 
-  it('marks partial-year annual returns with an asterisk', () => {
-    const snaps = monthlySnaps(2024, 1, 7);
-    renderAnalytics(makePd(), snaps, []);
-    const table = document.getElementById('an-annual-table');
-    expect(table?.textContent).toContain('*');
+  it('labels partial-year annual returns with their month count', () => {
+    renderAnalytics(makePd(), monthlySnaps(2024, 1, 30), []);
+    const table = document.getElementById('an-annual-table')!;
+    expect(table.textContent).not.toContain('*');
+    expect(table.textContent).toContain('11 of 12 months');
+    expect(table.textContent).toContain('6 of 12 months');
   });
 
   it('uses external deposit and withdrawal flows for TWR', () => {
@@ -466,6 +635,8 @@ describe('renderAnalytics', () => {
     expect(document.getElementById('an-heatmap-footer')?.textContent).toContain(
       'should not be used for short-term timing decisions',
     );
+    expect(chartFor('c-an-heatmap')).toBeUndefined();
+    expect(document.getElementById('c-an-heatmap-wrap')!.style.display).toBe('none');
   });
 
   it('hides the level-2 section (including annual table card) when fewer than 2 snapshots exist', () => {
