@@ -129,6 +129,41 @@ export function maxDrift(entries: DriftEntry[]): number {
   return Math.max(...entries.map((e) => Math.abs(e.driftPct)));
 }
 
+export type DriftLevel = 'ok' | 'moderate' | 'high';
+
+export interface DriftStatus {
+  level: DriftLevel;
+  label: string;
+  /** CSS colour variable for the level. */
+  color: string;
+  threshold: number;
+  highThreshold: number;
+}
+
+const DRIFT_LABEL: Record<DriftLevel, string> = {
+  ok: 'On target',
+  moderate: 'Moderate drift',
+  high: 'High drift',
+};
+const DRIFT_COLOR: Record<DriftLevel, string> = {
+  ok: 'var(--pos)',
+  moderate: 'var(--warn)',
+  high: 'var(--neg)',
+};
+
+/**
+ * Classify a drift (absolute percentage points) against the alert threshold: above the
+ * threshold is moderate, above twice the threshold is high. Shared by the Portfolio tab
+ * badge, the drift card header and its per-holding bars.
+ */
+export function driftStatus(drift: number, thresholdPct: number | undefined): DriftStatus {
+  const threshold = thresholdPct && thresholdPct > 0 ? thresholdPct : 5;
+  const highThreshold = threshold * 2;
+  const abs = Math.abs(drift);
+  const level: DriftLevel = abs > highThreshold ? 'high' : abs > threshold ? 'moderate' : 'ok';
+  return { level, label: DRIFT_LABEL[level], color: DRIFT_COLOR[level], threshold, highThreshold };
+}
+
 // ── Contribution rebalance plan ──────────────────────────────────────────────
 
 /**
