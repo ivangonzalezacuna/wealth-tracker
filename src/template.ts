@@ -214,12 +214,7 @@ export function appTemplate(): string {
     <div id="an-level2">
       <div class="card">
         <div class="card-title">Investment balance breakdown: external flows vs market</div>
-        <div class="chart-controls">
-          <div id="an-contrib-legend" class="legend"></div>
-          ${rangeToggleHtml('an-contrib-range-toggle', 'Contributions vs market range')}
-        </div>
-        <div class="chart-wrap chart-h-md"><canvas id="c-an-contrib" role="img" aria-label="Investment balance breakdown chart" aria-describedby="c-an-contrib-table-wrap"></canvas></div>
-        <div class="chart-data-table-wrap sr-only" id="c-an-contrib-table-wrap"></div>
+        <div class="chart-wrap chart-h-md chart-zoomable"><div id="c-an-contrib" class="chart-host" role="img" aria-label="Investment balance breakdown chart"></div></div>
         <p class="note">Investment value change = recorded external flows + market movement (the residual). This is not net worth growth.</p>
       </div>
 
@@ -249,9 +244,8 @@ export function appTemplate(): string {
         <div class="analytics-allocation-accounts">
           <div class="card-title" id="an-alloc-acct-title">Account balances: latest snapshot</div>
           <div id="an-alloc-acct-toggle-wrap" class="chart-controls"></div>
-          <div id="an-alloc-acct-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-acct" role="img" aria-label="Allocation by account chart" aria-describedby="c-an-alloc-acct-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap sr-only" id="c-an-alloc-acct-table-wrap"></div>
+          <p class="note" id="an-alloc-acct-hint" style="display:none">Switch to <em>All configured holdings</em> to see the full breakdown.</p>
+          <div class="chart-wrap chart-h-sm chart-tools"><div id="c-an-alloc-acct" class="chart-host" role="img" aria-label="Allocation by account chart"></div></div>
         </div>
         <details id="an-holding-allocation" class="inline-details">
           <summary>Holdings: asset class and region</summary>
@@ -259,16 +253,14 @@ export function appTemplate(): string {
         <div>
           <div class="card-title">Holding purchase costs by asset class</div>
           <div id="an-alloc-class-toggle-wrap" class="chart-controls"></div>
-          <div id="an-alloc-class-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-class" role="img" aria-label="Allocation by asset class chart" aria-describedby="c-an-alloc-class-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap sr-only" id="c-an-alloc-class-table-wrap"></div>
+          <p class="note" id="an-alloc-class-hint" style="display:none">Switch to <em>All configured holdings</em> to see the full breakdown.</p>
+          <div class="chart-wrap chart-h-sm chart-tools"><div id="c-an-alloc-class" class="chart-host" role="img" aria-label="Allocation by asset class chart"></div></div>
         </div>
         <div>
           <div class="card-title">Holding purchase costs by region</div>
           <div id="an-alloc-region-toggle-wrap" class="chart-controls"></div>
-          <div id="an-alloc-region-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-region" role="img" aria-label="Allocation by region chart" aria-describedby="c-an-alloc-region-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap sr-only" id="c-an-alloc-region-table-wrap"></div>
+          <p class="note" id="an-alloc-region-hint" style="display:none">Switch to <em>All configured holdings</em> to see the full breakdown.</p>
+          <div class="chart-wrap chart-h-sm chart-tools"><div id="c-an-alloc-region" class="chart-host" role="img" aria-label="Allocation by region chart"></div></div>
         </div>
         </div>
         </details>
@@ -358,15 +350,13 @@ export function appTemplate(): string {
 
         <div class="card" id="an-drawdown-card" style="margin:0 0 1rem">
           <div class="card-title">Investment drawdown history</div>
-          <div class="chart-wrap chart-h-md"><canvas id="c-an-drawdown" role="img" aria-label="Portfolio drawdown chart" aria-describedby="c-an-drawdown-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap sr-only" id="c-an-drawdown-table-wrap"></div>
+          <div class="chart-wrap chart-h-md chart-zoomable"><div id="c-an-drawdown" class="chart-host" role="img" aria-label="Portfolio drawdown chart"></div></div>
         </div>
 
         <div class="card" id="an-rolling-cagr-card" style="margin:0 0 1rem">
           <div class="card-title">Rolling 3-year investment CAGR</div>
           <div id="an-rolling-cagr-note" class="note" style="display:none"></div>
-          <div class="chart-wrap chart-h-md"><canvas id="c-an-rolling-cagr" role="img" aria-label="Rolling CAGR chart" aria-describedby="c-an-rolling-cagr-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap sr-only" id="c-an-rolling-cagr-table-wrap"></div>
+          <div class="chart-wrap chart-h-md chart-zoomable"><div id="c-an-rolling-cagr" class="chart-host" role="img" aria-label="Rolling CAGR chart"></div></div>
         </div>
 
         <div id="an-income" style="display:none">
@@ -377,11 +367,7 @@ export function appTemplate(): string {
             <div class="card-title">
               Income by month (dividends and interest)
             </div>
-            <div class="chart-controls" style="margin-bottom:4px">
-              ${rangeToggleHtml('an-income-range-toggle', 'Income range', '12')}
-            </div>
-            <div class="chart-wrap chart-h-md"><canvas id="c-an-income" role="img" aria-label="Income history chart" aria-describedby="c-an-income-table-wrap"></canvas></div>
-            <div class="chart-data-table-wrap sr-only" id="c-an-income-table-wrap"></div>
+            <div class="chart-wrap chart-h-md chart-zoomable"><div id="c-an-income" class="chart-host" role="img" aria-label="Income history chart"></div></div>
           </div>
         </div>
       </div>

@@ -98,13 +98,16 @@ test('account allocation donut shows correct labels when switching to By country
   await expect(page.locator('#an-content')).toBeVisible();
 
   // Default "By account" shows account names
-  await expect(page.locator('#c-an-alloc-acct-table-wrap')).toContainText('German Account');
+  await expect(page.locator('#c-an-alloc-acct')).toHaveAttribute('aria-label', /German Account/);
 
-  // Switch to "By country" — table should show country names instead
+  // Switch to "By country" — chart data should show country names instead
   await page.locator('#an-alloc-acct-toggle-wrap [data-acct-group="country"]').click();
-  await expect(page.locator('#c-an-alloc-acct-table-wrap')).toContainText('Germany');
-  await expect(page.locator('#c-an-alloc-acct-table-wrap')).toContainText('Ireland');
-  await expect(page.locator('#c-an-alloc-acct-table-wrap')).not.toContainText('German Account');
+  await expect(page.locator('#c-an-alloc-acct')).toHaveAttribute('aria-label', /Germany/);
+  await expect(page.locator('#c-an-alloc-acct')).toHaveAttribute('aria-label', /Ireland/);
+  await expect(page.locator('#c-an-alloc-acct')).not.toHaveAttribute(
+    'aria-label',
+    /German Account/,
+  );
 });
 
 test('account allocation donut shows correct labels when switching to By group', async ({
@@ -140,9 +143,9 @@ test('account allocation donut shows correct labels when switching to By group',
   await openTab(page, 'tab-analytics');
   await expect(page.locator('#an-content')).toBeVisible();
 
-  // Switch to "By group" — table should show group names
+  // Switch to "By group" — chart data should show group names
   await page.locator('#an-alloc-acct-toggle-wrap [data-acct-group="group"]').click();
-  await expect(page.locator('#c-an-alloc-acct-table-wrap')).toContainText('Retirement');
-  await expect(page.locator('#c-an-alloc-acct-table-wrap')).toContainText('Active');
-  await expect(page.locator('#c-an-alloc-acct-table-wrap')).not.toContainText('Pension Fund');
+  await expect(page.locator('#c-an-alloc-acct')).toHaveAttribute('aria-label', /Retirement/);
+  await expect(page.locator('#c-an-alloc-acct')).toHaveAttribute('aria-label', /Active/);
+  await expect(page.locator('#c-an-alloc-acct')).not.toHaveAttribute('aria-label', /Pension Fund/);
 });

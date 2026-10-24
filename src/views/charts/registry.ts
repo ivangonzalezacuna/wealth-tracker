@@ -1,6 +1,6 @@
 import type { ECElementEvent } from 'echarts/core';
 import type { DataZoomComponentOption, GraphicComponentOption } from 'echarts/components';
-import { echarts, type ChartInstance, type ChartOption } from './core';
+import type { ChartInstance, ChartOption } from './core';
 import { buildChartTheme, readChartTokens, type ChartTokens } from './theme';
 import { buildToolbox, fullscreenIcons } from './toolbox';
 import { fmtEur2, fmtMon } from '../../utils';
@@ -22,6 +22,8 @@ export interface ChartCtx {
   expanded: boolean;
   /** Coarse pointer (touch): in-page gestures stay with the page. */
   touch: boolean;
+  /** Host width in px (0 when not laid out yet). */
+  width: number;
 }
 
 export interface RenderChartOpts {
@@ -55,6 +57,28 @@ interface Entry {
 }
 
 const registry = new Map<string, Entry>();
+type EChartsNs = (typeof import('./core'))['echarts'];
+let ec: EChartsNs | null = null;
+let loading: Promise<void> | null = null;
+/** Charts requested before the ECharts chunk finished loading (latest request per host id wins). */
+const pending = new Map<string, { build: (ctx: ChartCtx) => ChartOption; opts: RenderChartOpts }>();
+
+/** Load the ECharts chunk once (code-split from the app bundle). */
+export function loadCharts(): Promise<void> {
+  if (!loading) {
+    loading = import('./core').then((m) => {
+      ec = m.echarts;
+      for (const [id, req] of [...pending]) {
+        pending.delete(id);
+        renderChart(id, req.build, req.opts);
+      }
+    });
+    loading.catch(() => {
+      loading = null;
+    });
+  }
+  return loading;
+}
 const PRESET_H = 22;
 const HEADER_GAP = 10;
 const LEGEND_ROW = 26;
@@ -77,6 +101,7 @@ function makeCtx(host: HTMLElement): ChartCtx {
     compact: width > 0 && width < 480,
     expanded: isExpanded(host),
     touch: mq('(pointer: coarse)'),
+    width,
   };
 }
 
@@ -238,6 +263,29 @@ function preserveState(entry: Entry, next: ChartOption): void {
   }
 }
 
+function timeAriaDescription(
+  label: string,
+  series: ChartOption['series'],
+  fmt: (value: number) => string,
+): string {
+  const list = (Array.isArray(series) ? series : series ? [series] : []) as Array<{
+    name?: string;
+    data?: unknown[];
+  }>;
+  const parts = list
+    .map((s) => {
+      const pts = (s.data ?? [])
+        .map((d) => (Array.isArray(d) ? d : (d as { value?: unknown })?.value))
+        .filter((p): p is [number, number] => Array.isArray(p) && typeof p[1] === 'number');
+      if (!pts.length) return '';
+      const first = pts[0]!;
+      const last = pts[pts.length - 1]!;
+      return `${s.name ?? 'Series'}: ${pts.length} points from ${fmtMon(timeToMonth(first[0]))} (${fmt(first[1])}) to ${fmtMon(timeToMonth(last[0]))} (${fmt(last[1])}).`;
+    })
+    .filter(Boolean);
+  return [label ? `${label}.` : '', ...parts].filter(Boolean).join(' ');
+}
+
 function compose(entry: Entry): ChartOption {
   const { ctx, opts } = entry;
   const t = ctx.tokens;
@@ -265,7 +313,10 @@ function compose(entry: Entry): ChartOption {
   const toolboxW = toolbox?.width ?? 0;
   const presetsW = presets.length ? presetsWidth(presets) : 0;
   const hasControls = toolboxW + presetsW > 0;
-  const hasLegend = option.legend != null && (option.legend as { show?: boolean }).show !== false;
+  const legendIn = option.legend as { show?: boolean; orient?: string } | undefined;
+  const hasLegend = legendIn != null && !Array.isArray(legendIn) && legendIn.show !== false;
+  // Vertical (side) legends, e.g. pies, are laid out by the view and stay out of the header row.
+  const headerLegend = hasLegend && legendIn.orient !== 'vertical';
   // Header row: [presets][legend ...][toolbox]; narrow hosts move the legend to its own row.
   const legendOwnRow = hasLegend && hasControls && ctx.compact;
   const top =
@@ -277,7 +328,7 @@ function compose(entry: Entry): ChartOption {
     animationDuration: 450,
     aria: {
       enabled: true,
-      label: { general: { withoutTitle: `${entry.host.dataset.chartLabel ?? ''}. ` } },
+      label: { general: { withoutTitle: `${entry.host.dataset.chartLabel ?? ''}.` } },
     },
     ...option,
   };
@@ -292,6 +343,17 @@ function compose(entry: Entry): ChartOption {
       ...timeAxis,
       axisLabel: { hideOverlap: true, ...((timeAxis.axisLabel as object) ?? {}) },
     } as ChartOption['xAxis'];
+    // ECharts' generated description reads raw timestamps on time axes; summarise instead.
+    out.aria = {
+      enabled: true,
+      label: {
+        description: timeAriaDescription(
+          entry.host.dataset.chartLabel ?? '',
+          out.series,
+          opts.valueFormatter ?? fmtEur2,
+        ),
+      },
+    };
   }
   if (!Array.isArray(out.grid)) {
     out.grid = {
@@ -302,7 +364,15 @@ function compose(entry: Entry): ChartOption {
       ...(out.grid ?? {}),
     };
   }
-  if (hasLegend && !Array.isArray(out.legend)) {
+  if (hasLegend && !headerLegend) {
+    out.legend = {
+      type: 'scroll',
+      itemWidth: 12,
+      itemHeight: 8,
+      icon: 'roundRect',
+      ...(legendIn as Record<string, unknown>),
+    } as ChartOption['legend'];
+  } else if (headerLegend) {
     out.legend = {
       type: 'scroll',
       left: legendOwnRow ? 0 : presetsW ? presetsW + 16 : 0,
@@ -332,6 +402,13 @@ function render(entry: Entry, keepState: boolean): void {
   entry.ctx = makeCtx(entry.host);
   const option = compose(entry);
   if (keepState) preserveState(entry, option);
+  const wrap = entry.host.closest('.chart-wrap');
+  if (wrap) {
+    // Wrapper padding reserves room for the slider / header around the fixed plot height.
+    const slider = Boolean(entry.opts.zoom) && entry.opts.slider !== false;
+    wrap.classList.toggle('chart-zoomable', slider);
+    wrap.classList.toggle('chart-tools', !slider && entry.opts.toolbox !== false);
+  }
   entry.chart.setOption(option, { notMerge: true });
 }
 
@@ -354,7 +431,7 @@ function bindEvents(entry: Entry): void {
   if (entry.opts.onClick) chart.on('click', entry.opts.onClick as (p: unknown) => void);
   if (entry.opts.group) {
     chart.group = entry.opts.group;
-    echarts.connect(entry.opts.group);
+    ec?.connect(entry.opts.group);
   }
 }
 
@@ -391,9 +468,14 @@ export function renderChart(
     entry = undefined;
   }
   if (!host.dataset.chartLabel) host.dataset.chartLabel = host.getAttribute('aria-label') ?? '';
+  if (!ec) {
+    pending.set(id, { build, opts });
+    void loadCharts();
+    return null;
+  }
   if (!entry) {
     const ctx = makeCtx(host);
-    const chart = echarts.init(host, buildChartTheme(ctx.tokens), { renderer: 'canvas' });
+    const chart = ec.init(host, buildChartTheme(ctx.tokens), { renderer: 'canvas' });
     entry = {
       id,
       host,
@@ -426,6 +508,7 @@ export function getChart(id: string): ChartInstance | null {
 }
 
 export function disposeChart(id: string): void {
+  pending.delete(id);
   const entry = registry.get(id);
   if (!entry) return;
   entry.ro?.disconnect();

@@ -7,6 +7,7 @@ export type {
 } from './core';
 export {
   renderChart,
+  loadCharts,
   disposeChart,
   getChart,
   refreshChartsTheme,
@@ -16,3 +17,4 @@ export {
 } from './registry';
 export { fmtEurCompact, fmtPctAxis, monthToTime, timeToMonth, addMonths } from './format';
 export { toRgba, readChartTokens, type ChartTokens } from './theme';
+export { monthPresets, monthTimeAxis, axisTooltip } from './options';

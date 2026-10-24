@@ -1406,6 +1406,33 @@ body.chart-expanded-open {
 .chart-dataview-table .num {
   text-align: right;
 }
+.ec-tt {
+  min-width: 150px;
+  font-variant-numeric: tabular-nums;
+}
+.ec-tt-title {
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+.ec-tt-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1.6;
+}
+.ec-tt-name {
+  flex: 1;
+  margin-right: 16px;
+}
+.ec-tt-val {
+  color: var(--ink);
+  font-weight: 600;
+}
+.ec-tt-foot {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
 .legend {
   display: flex;
   flex-wrap: wrap;

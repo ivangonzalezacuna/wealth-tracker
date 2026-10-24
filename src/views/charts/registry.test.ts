@@ -8,6 +8,7 @@ vi.mock('echarts/core', () => import('./echartsMock'));
 import { chartFor, resetMockCharts } from './echartsMock';
 import {
   _resetChartsForTests,
+  loadCharts,
   disposeChart,
   getChart,
   refreshChartsTheme,
@@ -26,7 +27,8 @@ const line = (): ChartOption => ({
   series: [{ type: 'line', name: 'A', data: [[monthToTime('2026-01'), 1]] }],
 });
 
-beforeEach(() => {
+beforeEach(async () => {
+  await loadCharts();
   document.body.innerHTML = '<div id="c-test" aria-label="Test chart"></div>';
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
@@ -74,7 +76,9 @@ describe('renderChart', () => {
     renderChart('c-test', line);
     const opt = chartFor('c-test')!.option as AnyRec;
     expect(opt.aria.enabled).toBe(true);
-    expect(opt.aria.label.general.withoutTitle).toContain('Test chart');
+    expect(opt.aria.label.description).toBe(
+      'Test chart. A: 1 points from Jan 2026 (1,00\u00A0€) to Jan 2026 (1,00\u00A0€).',
+    );
     expect(Object.keys(opt.toolbox.feature)).toEqual(
       expect.arrayContaining(['dataView', 'myFullscreen']),
     );
