@@ -34,6 +34,7 @@ import {
   weightedMonthlyReturns,
   dividendMetrics,
   type MonthlyGrowthPoint,
+  type InvestmentReturnPoint,
   buildInvestmentPerformanceData,
   annualizedReturnFromMonthlyReturns,
   monthEndDate,
@@ -41,18 +42,22 @@ import {
 import { getAccounts, getHoldings, getNumberSetting } from '../store/config';
 import { allInvestmentAccountsValue } from '../model/accounts';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
-import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
-import { hideChartTable, writeChartTable } from './chartTable';
-import { T, R, BAR_END_ROUNDING, resolvedT } from '../theme';
-import { createChartRegistry } from './chartRegistry';
-import Chart from 'chart.js/auto';
-import { formatEuroCompactSuffix, formatEuroPrefix, formatPercentRounded } from './chartOptions';
+import { resolvedT } from '../theme';
+import {
+  axisTooltip,
+  disposeChart,
+  drillHint,
+  fmtEurCompact,
+  fmtPctAxis,
+  monthTimeAxis,
+  monthToTime,
+  nearestMonth,
+  renderChart,
+  toRgba,
+} from './charts';
+import { drillToSnapshot, drillToTransactions } from './drill';
 import type { Snapshot, PortfolioData, Transaction, Holding } from '../types';
 
-const { CH, destroyChart: _destroyChart } = createChartRegistry();
-let _anGrowthRange: '12' | '36' | 'all' = 'all';
-let _anContribRange: '12' | '36' | 'all' = 'all';
-let _anIncomeRange: '12' | '36' | 'all' = '12';
 let _lastSnaps: Snapshot[] = [];
 let _lastPd: PortfolioData | null = null;
 let _lastTxs: Transaction[] = [];
@@ -60,36 +65,10 @@ let _lastTxs: Transaction[] = [];
 // Heatmap paging: page 0 = most recent 3 years
 let _heatmapPage = 0;
 
-// Allocation toggle state: 'active' | 'all'
-const _allocMode: Record<string, 'active' | 'all'> = {
-  acct: 'active',
-  class: 'active',
-  region: 'active',
-  country: 'active',
-};
-
-// Account donut group dimension: 'acct' | 'country' | 'type' | 'group'
+// Allocation panels: account grouping, holding dimension (null = auto) and inactive filter.
 let _acctGroupDim: 'acct' | 'country' | 'type' | 'group' = 'acct';
-
-function _attachRangeToggle(
-  id: string,
-  getRange: () => '12' | '36' | 'all',
-  setRange: (r: '12' | '36' | 'all') => void,
-  rerender: () => void,
-): void {
-  const toggle = document.getElementById(id);
-  if (!toggle) return;
-  toggle.onclick = (e) => {
-    const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
-    if (!btn) return;
-    const newRange = (btn.dataset.range as '12' | '36' | 'all') || 'all';
-    if (newRange === getRange()) return;
-    setRange(newRange);
-    toggle.querySelectorAll('.btn').forEach((b) => b.classList.remove('active'));
-    btn.classList.add('active');
-    rerender();
-  };
-}
+let _holdDim: 'class' | 'region' | 'holding' | null = null;
+let _holdIncludeInactive = false;
 
 function _getCountrySlices(
   snaps: Snapshot[],
@@ -308,7 +287,6 @@ export function renderAnalytics(
 
   // ── Portfolio growth chart ────────────────────────────────
   _renderGrowthChart(snaps);
-  _attachGrowthRangeToggle(snaps);
 
   // ── Level 2 content ───────────────────────────────────────
   const level2 = document.getElementById('an-level2');
@@ -323,15 +301,12 @@ export function renderAnalytics(
       total: point.endValue - point.startValue,
     }));
     _renderContribChart(growthPoints);
-    _attachContribRangeToggle(growthPoints);
 
     // Heatmap
+    // Heatmap + annual returns table (paged together)
     _heatmapPage = 0;
-    _renderHeatmap(perfData.monthlyReturns);
+    _renderReturnsPage(perfData.monthlyReturns);
     _attachHeatmapPager(perfData.monthlyReturns);
-
-    // Annual returns table
-    _renderAnnualTable(perfData.monthlyReturns);
 
     // Allocation donuts
     _renderAllocationDonuts(holdings, pd);
@@ -444,7 +419,7 @@ export function renderAnalytics(
     if (drawdownCardEl) drawdownCardEl.style.display = riskMetricsReady ? '' : 'none';
 
     if (riskMetricsReady) _renderDrawdownChart(ddResult.series);
-    else _destroyChart('c-an-drawdown');
+    else disposeChart('c-an-drawdown');
 
     // Rolling CAGR
     _renderRollingCagrChart(perfData.monthlyReturns);
@@ -469,247 +444,198 @@ export function renderAnalytics(
 
 // ── Portfolio growth chart ─────────────────────────────────
 
+/** Growth, drawdown and rolling CAGR share a month axis: zoom, presets and hover move together. */
+const TIMELINE_GROUP = 'an-timeline';
+
 function _renderGrowthChart(snaps: Snapshot[]): void {
-  const C = resolvedT();
-
-  const view = _anGrowthRange === 'all' ? snaps : snaps.slice(-parseInt(_anGrowthRange));
-
-  _destroyChart('c-an-growth');
-  document.getElementById('an-growth-legend')!.innerHTML = '';
-  if (view.length < 2) {
-    hideChartTable('c-an-growth-table-wrap');
+  if (snaps.length < 2) {
+    disposeChart('c-an-growth');
     return;
   }
 
-  const totalData = view.map((s) => snapTotal(s));
+  const points = snaps.map((s) => [monthToTime(s.date), snapTotal(s)] as [number, number]);
+  const last = points[points.length - 1][0];
+  const months = snaps.map((s) => s.date);
 
-  CH['c-an-growth'] = new Chart(document.getElementById('c-an-growth') as HTMLCanvasElement, {
-    type: 'line',
-    data: {
-      labels: view.map((s) => fmtMon(s.date)),
-      datasets: [
+  renderChart(
+    'c-an-growth',
+    ({ tokens: t, touch }) => ({
+      tooltip: {
+        trigger: 'axis',
+        confine: true,
+        formatter: axisTooltip({
+          value: (v) => fmtEur2(v),
+          hint: drillHint({ touch }, 'open this snapshot'),
+        }),
+      },
+      xAxis: monthTimeAxis(),
+      yAxis: {
+        type: 'value',
+        scale: true,
+        axisLabel: { formatter: (v: number) => fmtEurCompact(v) },
+      },
+      series: [
         {
-          label: 'Total net worth',
-          data: totalData,
-          borderColor: C.brand,
-          backgroundColor: C.brandWeak,
-          borderWidth: 2,
-          pointRadius: view.length > 24 ? 0 : 3,
-          fill: true,
-          tension: 0.3,
+          name: 'Total net worth',
+          type: 'line',
+          data: points,
+          showSymbol: points.length <= 24,
+          symbolSize: 5,
+          smooth: 0.3,
+          lineStyle: { width: 2, color: t.brand },
+          itemStyle: { color: t.brand },
+          areaStyle: {
+            origin: 'start',
+            color: {
+              type: 'linear',
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [
+                { offset: 0, color: toRgba(t.brand, 0.22) },
+                { offset: 1, color: toRgba(t.brand, 0.02) },
+              ],
+            },
+          },
         },
       ],
+    }),
+    {
+      zoom: true,
+      xAxisType: 'time',
+      group: TIMELINE_GROUP,
+      drill: { resolve: (v) => nearestMonth(v, months), select: drillToSnapshot },
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          mode: 'index',
-          intersect: false,
-          backgroundColor: C.surface,
-          ...TOOLTIP_BOX,
-          borderColor: C.line,
-          borderWidth: 1,
-          titleColor: C.ink,
-          bodyColor: C.ink2,
-          padding: 10,
-          cornerRadius: 8,
-          callbacks: {
-            label: (ctx) => ` ${ctx.dataset.label}: ${fmtEur2(ctx.raw as number)}`,
-            labelColor: tooltipSwatch(C.surface),
-          },
-        },
-      },
-      scales: {
-        y: {
-          grid: { color: C.line },
-          ticks: {
-            color: C.ink4,
-            callback: (v) => formatEuroCompactSuffix(v),
-          },
-        },
-        x: {
-          grid: { display: false },
-          ticks: { color: C.ink2, font: { size: 10 }, maxRotation: 0, autoSkip: true },
-        },
-      },
-    },
-  });
-
-  writeChartTable(
-    'c-an-growth-table-wrap',
-    'Portfolio growth over time data',
-    ['Month', 'Net Worth (€)'],
-    view.map((s) => [fmtMon(s.date), fmtEur2(snapTotal(s))]),
-    [1],
-  );
-}
-
-function _attachGrowthRangeToggle(snaps: Snapshot[]): void {
-  _attachRangeToggle(
-    'an-growth-range-toggle',
-    () => _anGrowthRange,
-    (r) => {
-      _anGrowthRange = r;
-    },
-    () => _renderGrowthChart(snaps),
   );
 }
 
 // ── Contributions vs market chart ──────────────────────────
 
 function _renderContribChart(points: MonthlyGrowthPoint[]): void {
-  const C = resolvedT();
   const el = document.getElementById('c-an-contrib');
   if (!el) return;
-  _destroyChart('c-an-contrib');
-
+  const card = el.closest('.card') as HTMLElement | null;
   if (points.length === 0) {
-    hideChartTable('c-an-contrib-table-wrap');
-    const card = el.closest('.card') as HTMLElement | null;
+    disposeChart('c-an-contrib');
     if (card) card.style.display = 'none';
     return;
   }
-  const card = el.closest('.card') as HTMLElement | null;
   if (card) card.style.display = '';
 
-  const view = _anContribRange === 'all' ? points : points.slice(-parseInt(_anContribRange));
+  const months = points.map((p) => fmtMon(p.month));
+  const n = months.length;
 
-  CH['c-an-contrib'] = new Chart(el as HTMLCanvasElement, {
-    type: 'bar',
-    data: {
-      labels: view.map((p) => fmtMon(p.month)),
-      datasets: [
+  renderChart(
+    'c-an-contrib',
+    ({ tokens: t }) => ({
+      legend: { data: ['Contributed', 'Market movement'] },
+      tooltip: {
+        trigger: 'axis',
+        confine: true,
+        axisPointer: { type: 'shadow' },
+        formatter: axisTooltip({
+          value: (v, name) => (name === 'Contributed' ? fmtEur2(v) : fmtEurSigned(v, 2)),
+          footer: (vals) => ({
+            label: 'Total',
+            value: fmtEurSigned(
+              vals.reduce((s, v) => s + v, 0),
+              2,
+            ),
+          }),
+        }),
+      },
+      xAxis: { type: 'category', data: months, axisTick: { show: false } },
+      yAxis: { type: 'value', axisLabel: { formatter: (v: number) => fmtEurCompact(v) } },
+      series: [
         {
-          label: 'Contributed',
-          data: view.map((p) => p.contributed),
-          backgroundColor: C.brand,
+          name: 'Contributed',
+          type: 'bar',
           stack: 'contrib',
+          data: points.map((p) => p.contributed),
+          itemStyle: { color: t.brand },
+          emphasis: { focus: 'series' },
         },
         {
-          label: 'Market movement',
-          data: view.map((p) => p.market),
-          backgroundColor: view.map((p) => (p.market >= 0 ? C.pos : C.neg)),
+          name: 'Market movement',
+          type: 'bar',
           stack: 'contrib',
+          // Per-bar sign colour; the series colour (legend swatch) stays the positive one.
+          itemStyle: { color: t.pos },
+          data: points.map((p) => ({
+            value: p.market,
+            itemStyle: { color: p.market >= 0 ? t.pos : t.neg },
+          })),
+          emphasis: { focus: 'series' },
         },
       ],
+    }),
+    {
+      zoom: true,
+      xAxisType: 'category',
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          mode: 'index',
-          intersect: false,
-          backgroundColor: C.surface,
-          ...TOOLTIP_BOX,
-          borderColor: C.line,
-          borderWidth: 1,
-          titleColor: C.ink,
-          bodyColor: C.ink2,
-          padding: 10,
-          cornerRadius: 8,
-          callbacks: {
-            label: (ctx) =>
-              ` ${ctx.dataset.label}: ${ctx.dataset.label === 'Contributed' ? fmtEur2(ctx.raw as number) : fmtEurSigned(ctx.raw as number, 2)}`,
-            labelColor: tooltipSwatch(C.surface),
-            footer: (items) =>
-              ` Total: ${fmtEurSigned(
-                items.reduce((s, i) => s + (i.raw as number), 0),
-                2,
-              )}`,
-          },
-          footerFont: { weight: 'bold' },
-        },
-      },
-      scales: {
-        y: {
-          stacked: true,
-          grid: { color: C.line },
-          ticks: { color: C.ink4, callback: (v) => formatEuroPrefix(v) },
-        },
-        x: {
-          stacked: true,
-          grid: { display: false },
-          ticks: { color: C.ink2, font: { size: 10 }, maxRotation: 0, autoSkip: true },
-        },
-      },
-    },
-  });
-
-  const legendEl = document.getElementById('an-contrib-legend');
-  if (legendEl) {
-    legendEl.innerHTML = renderLegendHtml([
-      { label: 'Contributed', color: C.brand },
-      { label: 'Market movement', color: C.pos, color2: C.neg },
-    ]);
-    bindLegendToggle(legendEl, CH['c-an-contrib'], { skipIndex: [] });
-  }
-
-  writeChartTable(
-    'c-an-contrib-table-wrap',
-    'Investment balance breakdown data',
-    ['Month', 'Contributed (€)', 'Market movement (€)', 'Total (€)'],
-    view.map((p) => [
-      fmtMon(p.month),
-      fmtEur2(p.contributed),
-      fmtEurSigned(p.market, 2),
-      fmtEurSigned(p.contributed + p.market, 2),
-    ]),
-    [1, 2, 3],
-  );
-}
-
-function _attachContribRangeToggle(points: MonthlyGrowthPoint[]): void {
-  _attachRangeToggle(
-    'an-contrib-range-toggle',
-    () => _anContribRange,
-    (r) => {
-      _anContribRange = r;
-    },
-    () => _renderContribChart(points),
   );
 }
 
 // ── Monthly return heatmap ─────────────────────────────────
 
-const HEATMAP_PAGE_SIZE = 3;
+/** Years per page: older years are reached with the pager, so 40 years stay readable. */
+const HEATMAP_PAGE_SIZE = 5;
 const HEATMAP_MIN_MONTHS = 24;
+const HEATMAP_MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+const HEATMAP_DISCLAIMER =
+  'Heatmap colors are descriptive only and should not be used for short-term timing decisions.';
 
+/** Heatmap and annual table share the pager: both show the years of the current page. */
+function _renderReturnsPage(monthlyReturns: InvestmentReturnPoint[]): void {
+  _renderAnnualTable(monthlyReturns, _renderHeatmap(monthlyReturns));
+}
+
+/** Render the current heatmap page; returns its years, or null while the heatmap is locked. */
 function _renderHeatmap(
   monthlyReturns: { date: string; startValue: number; return: number }[],
-): void {
+): number[] | null {
   const heatmapEl = document.getElementById('an-heatmap');
   const noteEl = document.getElementById('an-heatmap-note');
   const footerEl = document.getElementById('an-heatmap-footer');
-  if (!heatmapEl) return;
+  const pagerEl = document.getElementById('an-heatmap-pager');
+  const wrap = document.getElementById('c-an-heatmap-wrap');
+  if (!heatmapEl || !wrap) return null;
 
   const weighted = weightedMonthlyReturns(monthlyReturns);
-  const annualData = annualReturnsFromMonthlyReturns(monthlyReturns);
-
-  if (weighted.length === 0) {
-    heatmapEl.innerHTML =
-      '<p class="note">Add more consecutive monthly investment snapshots to see the return heatmap.</p>';
-    if (footerEl)
-      footerEl.textContent =
-        'Heatmap colors are descriptive only and should not be used for short-term timing decisions.';
-    return;
-  }
-
-  const monthsCount = weighted.length;
-  if (monthsCount < HEATMAP_MIN_MONTHS) {
-    heatmapEl.innerHTML =
-      '<p class="note">Heatmap unlocks after 24 valid monthly investment-return periods are available.</p>';
+  const locked = (message: string) => {
+    heatmapEl.innerHTML = `<p class="note">${message}</p>`;
+    heatmapEl.style.display = '';
     if (noteEl) noteEl.style.display = 'none';
-    if (footerEl)
-      footerEl.textContent =
-        'Heatmap colors are descriptive only and should not be used for short-term timing decisions.';
-    return;
+    if (pagerEl) pagerEl.style.display = 'none';
+    if (footerEl) footerEl.textContent = HEATMAP_DISCLAIMER;
+    wrap.style.display = 'none';
+    disposeChart('c-an-heatmap');
+  };
+  if (weighted.length === 0) {
+    locked('Add more consecutive monthly investment snapshots to see the return heatmap.');
+    return null;
+  }
+  if (weighted.length < HEATMAP_MIN_MONTHS) {
+    locked('Heatmap unlocks after 24 valid monthly investment-return periods are available.');
+    return null;
   }
 
+  heatmapEl.innerHTML = '';
+  heatmapEl.style.display = 'none';
   if (noteEl) {
     noteEl.textContent =
       'Cells show cash-flow-adjusted monthly returns. Color strength also weights starting investment value.';
@@ -719,263 +645,285 @@ function _renderHeatmap(
     footerEl.textContent =
       'Blank = unknown, not 0%. Year totals compound available returns; * = partial year. Colors are descriptive, not trading signals.';
 
-  // Find extremes for color scale (use weightedReturn for color intensity)
+  // One colour scale across every page so the same return looks the same on all pages.
   const maxAbs = Math.max(...weighted.map((m) => Math.abs(m.weightedReturn)), 0.001);
-
-  // Get year list (oldest first)
   const allYears = Array.from(new Set(weighted.map((m) => m.year))).sort((a, b) => a - b);
-
-  // Paging: page 0 = most recent page
   const totalPages = Math.max(1, Math.ceil(allYears.length / HEATMAP_PAGE_SIZE));
-  // Clamp page index
-  if (_heatmapPage >= totalPages) _heatmapPage = totalPages - 1;
-  if (_heatmapPage < 0) _heatmapPage = 0;
+  _heatmapPage = Math.min(Math.max(_heatmapPage, 0), totalPages - 1);
+  const end = allYears.length - _heatmapPage * HEATMAP_PAGE_SIZE;
+  const years = allYears.slice(Math.max(0, end - HEATMAP_PAGE_SIZE), end);
 
-  // Page 0 = last 3 years, page 1 = prior 3, etc. (reverse order so newest is page 0)
-  const reversedPages = [];
-  for (let p = 0; p < totalPages; p++) {
-    const start = allYears.length - (p + 1) * HEATMAP_PAGE_SIZE;
-    const end = allYears.length - p * HEATMAP_PAGE_SIZE;
-    reversedPages.push(allYears.slice(Math.max(0, start), end));
-  }
-  const years = reversedPages[_heatmapPage] || [];
-
-  // Update pager UI
-  const pagerEl = document.getElementById('an-heatmap-pager');
   const prevBtn = document.getElementById('an-heatmap-prev') as HTMLButtonElement | null;
   const nextBtn = document.getElementById('an-heatmap-next') as HTMLButtonElement | null;
   const pageLabelEl = document.getElementById('an-heatmap-page-label');
   if (pagerEl) pagerEl.style.display = totalPages > 1 ? 'flex' : 'none';
-  if (pageLabelEl && years.length > 0) {
+  if (pageLabelEl)
     pageLabelEl.textContent =
       years.length === 1 ? String(years[0]) : `${years[0]}\u2013${years[years.length - 1]}`;
-  }
   if (prevBtn) prevBtn.disabled = _heatmapPage >= totalPages - 1;
   if (nextBtn) nextBtn.disabled = _heatmapPage <= 0;
 
-  const MONTH_LABELS = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
+  const annual = new Map(
+    annualReturnsFromMonthlyReturns(monthlyReturns).map((a) => [a.year, a] as const),
+  );
+  const cells = weighted.filter((m) => years.includes(m.year));
+  const pct = (r: number, digits = 1) => `${r > 0 ? '+' : ''}${(r * 100).toFixed(digits)}%`;
+  const yearTotal = (y: number) => {
+    const a = annual.get(y);
+    return a ? `${pct(a.return)}${a.isPartial ? '*' : ''}` : '-';
+  };
 
-  const C = resolvedT();
-  const isDark = C.bg !== T.bg;
+  wrap.style.display = '';
+  const rowH = wrap.clientWidth > 0 && wrap.clientWidth < 480 ? 26 : 30;
+  // Inline !important beats the fixed chart heights of the small-screen media queries.
+  wrap.style.setProperty('height', `${years.length * rowH + 76}px`, 'important');
 
-  // Build lookup
-  const lookup = new Map<string, (typeof weighted)[0]>();
-  for (const m of weighted) {
-    lookup.set(`${m.year}-${m.month}`, m);
-  }
-  const annualLookup = new Map<number, { return: number; isPartial: boolean }>();
-  for (const a of annualData) {
-    annualLookup.set(a.year, { return: a.return, isPartial: a.isPartial });
-  }
-
-  const CELL_W = 42;
-  const minW = 12 * CELL_W + 56 + 64;
-  let html = `<table class="an-heatmap-table" style="border-collapse:collapse;font-size:11px;min-width:${minW}px">`;
-  // Header row
-  html += `<thead><tr><th style="width:52px;text-align:left;padding:2px 4px;color:var(--ink-3)"></th>`;
-  for (const ml of MONTH_LABELS) {
-    html += `<th style="width:${CELL_W}px;text-align:center;padding:2px;color:var(--ink-3);font-weight:normal">${ml}</th>`;
-  }
-  html += `<th style="width:60px;text-align:right;padding:2px 4px;color:var(--ink-3);font-weight:normal">Year</th>`;
-  html += '</tr></thead><tbody>';
-
-  for (const year of [...years].reverse()) {
-    html += `<tr><td style="padding:2px 4px;color:var(--ink-2);font-weight:500">${year}</td>`;
-    for (let mo = 1; mo <= 12; mo++) {
-      const entry = lookup.get(`${year}-${mo}`);
-      if (!entry) {
-        html += `<td style="padding:1px 2px;text-align:center"><div style="width:${CELL_W - 2}px;height:28px;border-radius:${R.xs}px;background:var(--line)"></div></td>`;
-        continue;
-      }
-      const intensity = Math.min(Math.abs(entry.weightedReturn) / maxAbs, 1);
-      const rawPct = entry.return * 100;
-      const color = _heatmapColor(entry.weightedReturn, intensity, isDark);
-      const textColor = _heatmapTextColor(intensity, entry.weightedReturn);
-      const sign = rawPct > 0 ? '+' : '';
-      html += `<td style="padding:1px 2px;text-align:center" title="${year}-${String(mo).padStart(2, '0')}: ${sign}${rawPct.toFixed(1)}%">
-        <div style="width:${CELL_W - 2}px;height:28px;border-radius:${R.xs}px;background:${color};display:flex;align-items:center;justify-content:center">
-          <span style="color:${textColor};font-size:10px;font-weight:500">${sign}${rawPct.toFixed(1)}%</span>
-        </div>
-      </td>`;
-    }
-    // Annual total column
-    const annualRet = annualLookup.get(year);
-    if (annualRet !== undefined) {
-      const annPct = annualRet.return * 100;
-      const annSign = annPct > 0 ? '+' : '';
-      const annCls = annPct >= 0 ? C.pos : C.neg;
-      html += `<td style="padding:2px 4px;text-align:right;font-weight:600;color:${annCls};white-space:nowrap" title="${annualRet.isPartial ? 'Partial year return (fewer than 12 months of data)' : 'Full-year return'}">${annSign}${annPct.toFixed(1)}%${annualRet.isPartial ? ' *' : ''}</td>`;
-    } else {
-      html += `<td style="padding:2px 4px;text-align:right;color:var(--ink-3)">-</td>`;
-    }
-    html += '</tr>';
-  }
-  html += '</tbody></table>';
-  heatmapEl.innerHTML = html;
+  renderChart(
+    'c-an-heatmap',
+    ({ tokens: t, compact, width }) => {
+      const gridLeft = compact ? 34 : 44;
+      const gridRight = compact ? 50 : 64;
+      // Very narrow phones: cells are too small for numbers; colour + tooltip carry the value.
+      const showLabels = !width || (width - gridLeft - gridRight) / 12 >= 18;
+      const yearLabelGap = 6;
+      return {
+        tooltip: {
+          trigger: 'item',
+          confine: true,
+          formatter: (p: unknown) => {
+            const [mo, row] = (p as { value: number[] }).value;
+            const year = years[row];
+            const m = cells.find((w) => w.year === year && w.month === mo + 1);
+            if (!m) return '';
+            return `<div class="ec-tt-title">${HEATMAP_MONTHS[mo]} ${year}</div>${pct(m.return, 2)}<div style="color:var(--ink-3)">Start value ${fmtEur2(m.startValue)}</div>`;
+          },
+        },
+        grid: { left: gridLeft, right: gridRight, top: 22, bottom: 40 },
+        // Header for the year-total column, on the same row as the month labels.
+        graphic: width
+          ? [
+              {
+                type: 'text',
+                left: width - gridRight + yearLabelGap,
+                top: 4,
+                silent: true,
+                style: {
+                  text: 'Year',
+                  fill: t.ink3,
+                  fontSize: 11,
+                  fontFamily: t.fontFamily,
+                },
+              },
+            ]
+          : [],
+        xAxis: {
+          type: 'category',
+          position: 'top',
+          data: HEATMAP_MONTHS.map((m) => (compact ? m[0] : m)),
+          splitArea: { show: false },
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: { color: t.ink3, fontSize: 11, interval: 0 },
+        },
+        yAxis: [
+          {
+            type: 'category',
+            data: years.map(String),
+            axisLine: { show: false },
+            axisTick: { show: false },
+            axisLabel: { color: t.ink2, fontWeight: 500, fontSize: compact ? 10 : 12 },
+          },
+          {
+            type: 'category',
+            position: 'right',
+            data: years.map(yearTotal),
+            axisLine: { show: false },
+            axisTick: { show: false },
+            axisLabel: {
+              fontSize: compact ? 10 : 11,
+              fontWeight: 600,
+              margin: yearLabelGap,
+              color: (_v?: string | number, i?: number) =>
+                (annual.get(years[i ?? 0])?.return ?? 0) >= 0 ? t.pos : t.neg,
+            },
+          },
+        ],
+        visualMap: {
+          type: 'continuous',
+          seriesIndex: 0,
+          dimension: 2,
+          min: -1,
+          max: 1,
+          calculable: false,
+          orient: 'horizontal',
+          left: 'center',
+          bottom: 4,
+          itemWidth: 10,
+          itemHeight: compact ? 140 : 200,
+          text: [pct(maxAbs), pct(-maxAbs)],
+          textStyle: { color: t.ink3, fontSize: 10 },
+          inRange: { color: [t.neg, toRgba(t.neg, 0.12), t.line, toRgba(t.pos, 0.12), t.pos] },
+        },
+        series: [
+          {
+            type: 'heatmap',
+            name: 'Monthly return',
+            itemStyle: { borderColor: t.surface, borderWidth: 2, borderRadius: 4 },
+            emphasis: { itemStyle: { borderColor: t.ink, borderWidth: 1 } },
+            label: {
+              show: showLabels,
+              fontSize: compact ? 8 : 10,
+              fontWeight: 500,
+              formatter: (p: unknown) => {
+                const r = ((p as { value: number[] }).value[3] ?? 0) * 100;
+                return compact ? r.toFixed(Math.abs(r) >= 10 ? 0 : 1) : pct(r / 100);
+              },
+            },
+            data: cells.map((m) => {
+              const v = m.weightedReturn / maxAbs;
+              return {
+                value: [m.month - 1, years.indexOf(m.year), v, m.return],
+                label: { color: Math.abs(v) > 0.72 ? '#fff' : t.ink },
+              };
+            }),
+          },
+        ],
+      };
+    },
+    { toolbox: false },
+  );
+  return years;
 }
 
-function _attachHeatmapPager(
-  monthlyReturns: { date: string; startValue: number; return: number }[],
-): void {
+function _attachHeatmapPager(monthlyReturns: InvestmentReturnPoint[]): void {
   const prevBtn = document.getElementById('an-heatmap-prev');
   const nextBtn = document.getElementById('an-heatmap-next');
   if (prevBtn) {
     prevBtn.onclick = () => {
       _heatmapPage++;
-      _renderHeatmap(monthlyReturns);
+      _renderReturnsPage(monthlyReturns);
     };
   }
   if (nextBtn) {
     nextBtn.onclick = () => {
       _heatmapPage = Math.max(0, _heatmapPage - 1);
-      _renderHeatmap(monthlyReturns);
+      _renderReturnsPage(monthlyReturns);
     };
   }
-}
-
-function _heatmapColor(weightedReturn: number, intensity: number, isDark: boolean): string {
-  if (weightedReturn > 0) {
-    // Green scale
-    const g = isDark ? Math.round(100 + 110 * intensity) : Math.round(200 - 80 * intensity);
-    const r = isDark ? Math.round(10 + 30 * (1 - intensity)) : Math.round(230 - 100 * intensity);
-    const b = isDark ? Math.round(10 + 30 * (1 - intensity)) : Math.round(230 - 100 * intensity);
-    return `rgb(${r},${g},${b})`;
-  } else if (weightedReturn < 0) {
-    // Red scale
-    const r = isDark ? Math.round(100 + 110 * intensity) : Math.round(200 - 80 * intensity);
-    const gb = isDark ? Math.round(10 + 30 * (1 - intensity)) : Math.round(230 - 100 * intensity);
-    return `rgb(${r},${gb},${gb})`;
-  }
-  return 'var(--line)';
-}
-
-function _heatmapTextColor(intensity: number, weightedReturn: number): string {
-  // Use white text on saturated backgrounds, dark text on light ones
-  if (intensity > 0.5) return '#fff';
-  return weightedReturn !== 0 ? 'var(--ink)' : 'var(--ink-3)';
 }
 
 // ── Annual returns table ───────────────────────────────────
 
 /**
- * Render a structured annual-returns table with a small inline SVG sparkline bar
- * for each year. Requires at least 2 annual data points (so a prior-year delta can
- * be shown). If fewer years are available, shows the data without the delta column.
+ * Annual summary for the years on the current heatmap page: compounded return with a
+ * zero-centred bar, market gain (value change not explained by external flows), net
+ * contributions and how many months the year covers. Hidden while the heatmap is locked.
  */
-function _renderAnnualTable(
-  monthlyReturns: { date: string; startValue: number; return: number }[],
-): void {
+function _renderAnnualTable(monthlyReturns: InvestmentReturnPoint[], years: number[] | null): void {
   const el = document.getElementById('an-annual-table');
   const card = document.getElementById('an-annual-table-card');
   if (!el || !card) return;
-
-  const data = annualReturnsFromMonthlyReturns(monthlyReturns);
-  if (data.length === 0) {
+  if (!years || years.length === 0) {
     card.style.display = 'none';
+    el.innerHTML = '';
     return;
   }
   card.style.display = '';
 
-  // Show newest year first
-  const rows = [...data].reverse();
-  const MAX_BAR_H = 28; // px — maximum bar height
-
-  // Compute max abs return for scaling sparkline bars
+  const money = new Map<number, { market: number; flows: number }>();
+  for (const p of monthlyReturns) {
+    const year = Number(p.date.slice(0, 4));
+    const m = money.get(year) ?? { market: 0, flows: 0 };
+    m.market += p.endValue - p.startValue - p.externalFlow;
+    m.flows += p.externalFlow;
+    money.set(year, m);
+  }
+  const rows = annualReturnsFromMonthlyReturns(monthlyReturns)
+    .filter((row) => years.includes(row.year))
+    .reverse();
   const maxAbs = Math.max(...rows.map((r) => Math.abs(r.return)), 0.001);
+  const tone = (n: number) => (n > 0 ? 'pos' : n < 0 ? 'neg' : '');
+  const pct = (r: number) =>
+    `${r > 0 ? '+' : r < 0 ? '\u2212' : ''}${Math.abs(r * 100).toFixed(1)}%`;
 
-  const C = resolvedT();
-
-  const tableRows = rows
-    .map((row, i) => {
-      const pct = row.return * 100;
-      const sign = pct >= 0 ? '+' : '';
-      const color = pct >= 0 ? C.pos : C.neg;
-      const barH = Math.round((Math.abs(row.return) / maxAbs) * MAX_BAR_H);
-      const barY = MAX_BAR_H - barH;
-
-      // vs prior year delta (prior year = next item since list is newest-first)
-      const prior = rows[i + 1];
-      let deltaCell = '<td style="color:var(--ink-3)">—</td>';
-      if (prior !== undefined) {
-        const delta = (row.return - prior.return) * 100;
-        const dSign = delta >= 0 ? '+' : '';
-        const dColor = delta >= 0 ? C.pos : C.neg;
-        deltaCell = `<td style="color:${dColor}">${dSign}${delta.toFixed(1)} pp</td>`;
-      }
-
-      const sparkline = `<svg width="32" height="${MAX_BAR_H + 4}" viewBox="0 0 32 ${MAX_BAR_H + 4}" aria-hidden="true" style="display:block;margin:auto">
-        <rect x="8" y="${barY + 2}" width="16" height="${barH}" rx="2" fill="${color}" opacity="0.85"/>
-      </svg>`;
-
+  const body = rows
+    .map((row) => {
+      const m = money.get(row.year) ?? { market: 0, flows: 0 };
+      const width = Math.max((Math.abs(row.return) / maxAbs) * 50, row.return ? 2 : 0);
+      const side = row.return < 0 ? 'right:50%' : 'left:50%';
+      const months = row.isPartial
+        ? `<span class="an-annual-months">${row.monthsCount} of 12 months</span>`
+        : '';
       return `<tr>
-        <td style="font-weight:500;color:var(--ink)">${row.year}</td>
-        <td style="color:${color};font-weight:600">${sign}${pct.toFixed(1)}%${row.isPartial ? ' *' : ''}</td>
-        <td style="text-align:center">${sparkline}</td>
-        ${deltaCell}
+        <th scope="row">${row.year}${months}</th>
+        <td class="an-annual-return ${tone(row.return)}"><span class="an-annual-bar" aria-hidden="true"><span style="${side};width:${width.toFixed(1)}%"></span></span><span>${pct(row.return)}</span></td>
+        <td class="num ${tone(m.market)}">${esc(fmtEurSigned(m.market))}</td>
+        <td class="num">${esc(fmtEurSigned(m.flows))}</td>
       </tr>`;
     })
     .join('');
 
-  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+  el.innerHTML = `<table class="an-annual">
     <thead>
-      <tr style="border-bottom:1px solid var(--line);color:var(--ink-3);font-weight:500">
-        <th style="text-align:left;padding:4px 6px">Year</th>
-        <th style="text-align:left;padding:4px 6px">Return${infoTip('Rows marked with * are partial-year returns (fewer than 12 months of investment-return data).')}</th>
-        <th style="text-align:center;padding:4px 6px">Bar${infoTip('Relative bar height scaled to the largest absolute annual return shown in this table.')}</th>
-        <th style="text-align:left;padding:4px 6px">Change (pp)${infoTip('Difference in percentage points from the previous listed year. Partial-year returns cover fewer months, so they are not directly comparable with full-year results.')}</th>
+      <tr>
+        <th scope="col">Year</th>
+        <th scope="col">Return${infoTip('Cash-flow-adjusted return compounded from the available months of that year. The bar is scaled to the largest return on this page; losses extend left, gains right.')}</th>
+        <th scope="col" class="num">Market gain${infoTip('Change in investment value that is not explained by deposits or withdrawals: price moves, dividends and interest kept in the accounts.')}</th>
+        <th scope="col" class="num">Net added${infoTip('Recorded deposits minus withdrawals into investment accounts during the year.')}</th>
       </tr>
     </thead>
-    <tbody style="color:var(--ink-2)">${tableRows}</tbody>
+    <tbody>${body}</tbody>
   </table>`;
 }
 
 // ── Allocation donuts ──────────────────────────────────────
 
-type AllocDim = 'class' | 'acct' | 'region' | 'country';
+type AllocSlice = { label: string; value: number; color: string };
+type AcctDim = 'acct' | 'country' | 'group' | 'type';
+type HoldDim = 'class' | 'region' | 'holding';
+
+const _ACCT_DIMS: { id: AcctDim; label: string; noun: string }[] = [
+  { id: 'acct', label: 'Account', noun: 'account' },
+  { id: 'country', label: 'Country', noun: 'country' },
+  { id: 'group', label: 'Group', noun: 'group' },
+  { id: 'type', label: 'Type', noun: 'type' },
+];
+const _HOLD_DIMS: { id: HoldDim; label: string; noun: string }[] = [
+  { id: 'class', label: 'Asset class', noun: 'asset class' },
+  { id: 'region', label: 'Region', noun: 'region' },
+  { id: 'holding', label: 'Holding', noun: 'holding' },
+];
 
 function _renderAllocationDonuts(holdings: Holding[], pd: PortfolioData | null): void {
-  const dims: AllocDim[] = ['acct', 'class', 'region'];
-  for (const dim of dims) {
-    _renderAllocDonut(dim, holdings, pd);
-    _attachAllocToggle(dim);
-  }
+  _renderAcctAllocation();
+  _renderHoldAllocation(holdings, pd);
 }
 
 function _getHoldingSlices(
   holdings: Holding[],
   pd: PortfolioData | null,
-  dim: Exclude<AllocDim, 'acct' | 'country'>,
-  mode: 'active' | 'all',
-): { label: string; value: number; color: string }[] {
+  dim: HoldDim,
+  includeInactive: boolean,
+): AllocSlice[] {
   if (!pd) return [];
-  const filtered = mode === 'active' ? holdings.filter((h) => h.active) : holdings;
   const buckets = new Map<string, { value: number; color: string }>();
 
-  for (const h of filtered) {
-    const pos = pd.etfs[h.isin];
-    if (!pos) continue;
-    const value = pos.cost || 0;
+  for (const h of holdings) {
+    if (!h.active && !includeInactive) continue;
+    const value = pd.etfs[h.isin]?.cost || 0;
     if (value <= 0) continue;
-    const key = dim === 'class' ? h.assetClass || 'Other' : h.region || 'Other';
-    const normalized = key.charAt(0).toUpperCase() + key.slice(1);
-    const existing = buckets.get(normalized);
+    let label: string;
+    if (dim === 'holding') {
+      label = h.shortName || h.name || h.isin;
+    } else {
+      const key = (dim === 'class' ? h.assetClass : h.region) || 'Other';
+      label = key.charAt(0).toUpperCase() + key.slice(1);
+    }
+    const existing = buckets.get(label);
     if (existing) {
       existing.value += value;
     } else {
-      buckets.set(normalized, { value, color: h.color || '#888' });
+      buckets.set(label, { value, color: h.color || '#888' });
     }
   }
 
@@ -984,19 +932,23 @@ function _getHoldingSlices(
     .sort((a, b) => b.value - a.value);
 }
 
-function _getAccountSlices(
-  snaps: Snapshot[],
-  mode: 'active' | 'all',
-): { label: string; value: number; color: string }[] {
+function _hasInactiveHoldingCost(holdings: Holding[], pd: PortfolioData | null): boolean {
+  return Boolean(pd) && holdings.some((h) => !h.active && (pd!.etfs[h.isin]?.cost || 0) > 0);
+}
+
+/** The picked dimension, or the first one that splits into more than one slice. */
+function _resolvedHoldDim(holdings: Holding[], pd: PortfolioData | null): HoldDim {
+  if (_holdDim) return _holdDim;
+  return (
+    _HOLD_DIMS.find((d) => _getHoldingSlices(holdings, pd, d.id, _holdIncludeInactive).length > 1)
+      ?.id ?? 'class'
+  );
+}
+
+function _getAccountSlices(snaps: Snapshot[]): AllocSlice[] {
   if (snaps.length === 0) return [];
   const s = snaps[snaps.length - 1];
-  const accounts = getAccounts();
-  return accounts
-    .filter((a) => {
-      const val = (s[a.id || ''] as number) || 0;
-      if (val <= 0 && mode === 'active') return false;
-      return true;
-    })
+  return getAccounts()
     .map((a) => {
       const currency = (a.currency || 'EUR').trim().toUpperCase();
       const label =
@@ -1010,7 +962,7 @@ function _getAccountSlices(
     .sort((a, b) => b.value - a.value);
 }
 
-function _getTypeSlices(snaps: Snapshot[]): { label: string; value: number; color: string }[] {
+function _getTypeSlices(snaps: Snapshot[]): AllocSlice[] {
   if (snaps.length === 0) return [];
   const s = snaps[snaps.length - 1];
   const accounts = getAccounts();
@@ -1031,321 +983,296 @@ function _getTypeSlices(snaps: Snapshot[]): { label: string; value: number; colo
     .sort((a, b) => b.value - a.value);
 }
 
-function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData | null): void {
-  const mode = _allocMode[dim] ?? 'active';
-  let slices: { label: string; value: number; color: string }[] = [];
-
-  if (dim === 'acct') {
-    if (_acctGroupDim === 'country') {
-      slices = _getCountrySlices(_lastSnaps, 'all');
-    } else if (_acctGroupDim === 'group') {
-      slices = _getAccountGroupSlices(_lastSnaps, 'all');
-    } else if (_acctGroupDim === 'type') {
-      slices = _getTypeSlices(_lastSnaps);
-    } else {
-      slices = _getAccountSlices(_lastSnaps, 'all');
-    }
-  } else if (dim === 'country') {
-    slices = _getCountrySlices(_lastSnaps, mode);
-  } else {
-    slices = _getHoldingSlices(holdings, pd, dim as Exclude<AllocDim, 'acct' | 'country'>, mode);
-  }
-
-  const canvasId = `c-an-alloc-${dim}`;
-  const legendId = `an-alloc-${dim}-legend`;
-  const tableWrapId = `${canvasId}-table-wrap`;
-
-  // Hide card if no data; destroy any previous chart to avoid stale display
-  if (slices.length === 0) {
-    _destroyChart(canvasId);
-    hideChartTable(tableWrapId);
-    return;
-  }
-
-  const total = slices.reduce((s, x) => s + x.value, 0);
-  const dimLabel =
-    dim === 'acct'
-      ? _acctGroupDim === 'country'
-        ? 'country'
-        : _acctGroupDim === 'group'
-          ? 'group'
-          : _acctGroupDim === 'type'
-            ? 'type'
-            : 'account'
-      : dim === 'class'
-        ? 'asset class'
-        : dim === 'region'
-          ? 'region'
-          : 'country';
-
-  writeChartTable(
-    tableWrapId,
-    `Allocation by ${dimLabel} data`,
-    ['Category', 'Value (€)', 'Share'],
-    slices.map((slice) => [
-      slice.label,
-      fmtEur2(slice.value),
-      total > 0 ? fmtPctVal((slice.value / total) * 100) : '0%',
-    ]),
-    [1, 2],
-  );
-
-  // When there is only one slice the donut chart conveys no additional
-  // information beyond the label itself. Destroy any previous chart and
-  // replace it with a clear full-concentration block instead.
-  _destroyChart(canvasId);
-  const canvas = document.getElementById(canvasId) as HTMLCanvasElement | null;
-  if (!canvas) return;
-
-  if (slices.length === 1) {
-    const slice = slices[0];
-    // Hide the canvas and its fixed-height wrapper; we render a compact text block in their place.
-    canvas.style.display = 'none';
-    const canvasWrap = canvas.closest('.chart-wrap') as HTMLElement | null;
-    if (canvasWrap) canvasWrap.style.display = 'none';
-
-    const legendEl = document.getElementById(legendId);
-    if (legendEl) {
-      // Check whether the other mode (all vs active) would yield more slices so
-      // we can show a helpful hint nudging the user to switch.
-      let otherModeHasMore = false;
-      if (dim === 'country') {
-        const otherMode = mode === 'active' ? 'all' : 'active';
-        const otherSlices = _getCountrySlices(_lastSnaps, otherMode);
-        otherModeHasMore = otherSlices.length > 1;
-      } else {
-        const otherMode = mode === 'active' ? 'all' : 'active';
-        const otherSlices = _getHoldingSlices(
-          holdings,
-          pd,
-          dim as Exclude<AllocDim, 'acct' | 'country'>,
-          otherMode,
-        );
-        otherModeHasMore = otherSlices.length > 1;
-      }
-
-      const hint =
-        mode === 'active' && otherModeHasMore
-          ? `<p class="note" style="margin-top:6px">Switch to <em>All configured holdings</em> to see the full breakdown.</p>`
-          : '';
-
-      legendEl.style.flexWrap = 'wrap';
-      legendEl.style.maxWidth = '100%';
-      legendEl.innerHTML = `
-        <div class="alloc-full-concentration" style="
-          display:flex;align-items:center;gap:10px;
-          background:${esc(safeColor(slice.color))}1a;
-          border-left:4px solid ${esc(safeColor(slice.color))};
-          border-radius:6px;padding:10px 14px;margin-top:4px
-        ">
-          <span style="
-            display:inline-block;width:12px;height:12px;border-radius:50%;flex-shrink:0;
-            background:${esc(safeColor(slice.color))}
-          "></span>
-          <span style="font-weight:600;font-size:13px">${esc(slice.label)}</span>
-          <span style="margin-left:auto;font-size:13px;font-weight:600">100%</span>
-          <span style="font-size:12px;color:var(--ink-2)">${fmtEur(slice.value)}</span>
-        </div>
-        ${hint}`;
-    }
-
-    // Render toggle button so the user can switch to the other mode.
-    _renderAllocToggleBtn(dim);
-    return;
-  }
-
-  // Multi-slice: restore canvas and its wrapper visibility (they may have been hidden on a prior single-slice render).
-  canvas.style.display = '';
-  const canvasWrap = canvas.closest('.chart-wrap') as HTMLElement | null;
-  if (canvasWrap) canvasWrap.style.display = '';
-
-  const C = resolvedT();
-
-  CH[canvasId] = new Chart(canvas, {
-    type: 'doughnut',
-    data: {
-      labels: slices.map((s) => s.label),
-      datasets: [
-        {
-          data: slices.map((s) => s.value),
-          backgroundColor: slices.map((s) => safeColor(s.color)),
-          borderColor: C.surface,
-          borderWidth: 2,
-          hoverBorderWidth: 2,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: C.surface,
-          ...TOOLTIP_BOX,
-          borderColor: C.line,
-          borderWidth: 1,
-          titleColor: C.ink,
-          bodyColor: C.ink2,
-          padding: 10,
-          cornerRadius: 8,
-          callbacks: {
-            label: (ctx) => ` ${fmtEur(ctx.raw as number)}`,
-            labelColor: tooltipSwatch(C.surface),
-          },
-        },
-      },
-    },
-  });
-
-  const legendEl = document.getElementById(legendId);
-  if (legendEl) {
-    legendEl.style.flexWrap = 'wrap';
-    legendEl.style.maxWidth = '100%';
-    legendEl.innerHTML = renderLegendHtml(
-      slices.map((s) => ({
-        label: s.label,
-        meta: total > 0 ? fmtPctVal((s.value / total) * 100) : '0%',
-        color: s.color,
-      })),
-    );
-  }
-
-  // Render toggle button
-  _renderAllocToggleBtn(dim);
+function _acctSlices(): AllocSlice[] {
+  if (_acctGroupDim === 'country') return _getCountrySlices(_lastSnaps, 'all');
+  if (_acctGroupDim === 'group') return _getAccountGroupSlices(_lastSnaps, 'all');
+  if (_acctGroupDim === 'type') return _getTypeSlices(_lastSnaps);
+  return _getAccountSlices(_lastSnaps);
 }
 
-function _renderAllocToggleBtn(dim: AllocDim): void {
-  const wrapId = `an-alloc-${dim}-toggle-wrap`;
-  const wrapEl = document.getElementById(wrapId);
+function _renderAcctAllocation(): void {
+  const slices = _acctSlices().filter((s) => s.value > 0);
+  const noun = _ACCT_DIMS.find((d) => d.id === _acctGroupDim)?.noun ?? 'account';
+  _renderAllocDonut('acct', slices, `Allocation by ${noun}`);
+
+  const wrapEl = document.getElementById('an-alloc-acct-toggle-wrap') as
+    (HTMLElement & { _acctBound?: boolean }) | null;
   if (!wrapEl) return;
-
-  if (dim === 'acct') {
-    const groupDim = _acctGroupDim;
-    wrapEl.innerHTML = `
-      <div class="range-toggle" style="font-size:11px">
-        <button class="btn btn-sm btn-ghost${groupDim === 'acct' ? ' active' : ''}" data-acct-group="acct">By account</button>
-        <button class="btn btn-sm btn-ghost${groupDim === 'country' ? ' active' : ''}" data-acct-group="country">Account country</button>
-        <button class="btn btn-sm btn-ghost${groupDim === 'group' ? ' active' : ''}" data-acct-group="group">By group</button>
-        <button class="btn btn-sm btn-ghost${groupDim === 'type' ? ' active' : ''}" data-acct-group="type">By type</button>
-      </div>`;
-    if (!(wrapEl as HTMLElement & { _acctBound?: boolean })._acctBound) {
-      (wrapEl as HTMLElement & { _acctBound?: boolean })._acctBound = true;
-      wrapEl.addEventListener('click', (e) => {
-        const btn = e.target as HTMLElement;
-        const groupBtn = btn.closest('[data-acct-group]') as HTMLElement | null;
-        const holdings = getHoldings();
-        const pd = _lastPd;
-        if (groupBtn) {
-          const newGroup = groupBtn.dataset.acctGroup as 'acct' | 'country' | 'type' | 'group';
-          if (_acctGroupDim === newGroup) return;
-          _acctGroupDim = newGroup;
-          _renderAllocDonut('acct', holdings, pd);
-        }
-      });
-    }
-    return;
-  }
-
-  const mode = _allocMode[dim] ?? 'active';
-  wrapEl.innerHTML = `<div class="range-toggle" style="font-size:11px">
-    <button class="btn btn-sm btn-ghost${mode === 'all' ? ' active' : ''}" data-alloc-mode="all" data-alloc-dim="${dim}">All configured holdings</button>
-    <button class="btn btn-sm btn-ghost${mode === 'active' ? ' active' : ''}" data-alloc-mode="active" data-alloc-dim="${dim}">Active holdings only</button>
-  </div>`;
-  if (!(wrapEl as HTMLElement & { _dimBound?: boolean })._dimBound) {
-    (wrapEl as HTMLElement & { _dimBound?: boolean })._dimBound = true;
+  wrapEl.innerHTML = `<div class="range-toggle alloc-dims" role="group" aria-label="Group accounts by">${_ACCT_DIMS
+    .map(
+      (d) =>
+        `<button type="button" class="btn btn-sm btn-ghost${_acctGroupDim === d.id ? ' active' : ''}" data-acct-group="${d.id}" aria-pressed="${_acctGroupDim === d.id}">${d.label}</button>`,
+    )
+    .join('')}</div>`;
+  if (!wrapEl._acctBound) {
+    wrapEl._acctBound = true;
     wrapEl.addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest('[data-alloc-mode]') as HTMLElement | null;
+      const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-acct-group]');
       if (!btn) return;
-      const newMode = btn.dataset.allocMode as 'active' | 'all';
-      const dimKey = btn.dataset.allocDim as AllocDim;
-      if (!dimKey || _allocMode[dimKey] === newMode) return;
-      _allocMode[dimKey] = newMode;
-      const holdings = getHoldings();
-      const pd = _lastPd;
-      _renderAllocDonut(dimKey, holdings, pd);
+      const next = btn.dataset.acctGroup as AcctDim;
+      if (_acctGroupDim === next) return;
+      _acctGroupDim = next;
+      _renderAcctAllocation();
     });
   }
 }
 
-function _attachAllocToggle(dim: AllocDim): void {
-  _renderAllocToggleBtn(dim);
+function _renderHoldAllocation(holdings: Holding[], pd: PortfolioData | null): void {
+  const dim = _resolvedHoldDim(holdings, pd);
+  const slices = _getHoldingSlices(holdings, pd, dim, _holdIncludeInactive);
+  const noun = _HOLD_DIMS.find((d) => d.id === dim)?.noun ?? 'asset class';
+  _renderAllocDonut('hold', slices, `Holdings by ${noun}`);
+
+  const wrapEl = document.getElementById('an-alloc-hold-toggle-wrap') as
+    (HTMLElement & { _holdBound?: boolean }) | null;
+  if (!wrapEl) return;
+  const showInactive = _hasInactiveHoldingCost(holdings, pd);
+  wrapEl.innerHTML = `<div class="range-toggle alloc-dims" role="group" aria-label="Group holdings by">${_HOLD_DIMS
+    .map(
+      (d) =>
+        `<button type="button" class="btn btn-sm btn-ghost${dim === d.id ? ' active' : ''}" data-hold-dim="${d.id}" aria-pressed="${dim === d.id}">${d.label}</button>`,
+    )
+    .join('')}</div>${
+    showInactive
+      ? `<button type="button" class="btn btn-sm btn-ghost alloc-inactive${_holdIncludeInactive ? ' active' : ''}" data-hold-inactive title="${_holdIncludeInactive ? 'Inactive holdings are included in this donut' : 'Only active holdings are shown'}">${_holdIncludeInactive ? 'Hide inactive' : 'Include inactive'}</button>`
+      : ''
+  }`;
+  if (!wrapEl._holdBound) {
+    wrapEl._holdBound = true;
+    wrapEl.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const dimBtn = target.closest<HTMLElement>('[data-hold-dim]');
+      if (dimBtn) {
+        _holdDim = dimBtn.dataset.holdDim as HoldDim;
+      } else if (target.closest('[data-hold-inactive]')) {
+        _holdIncludeInactive = !_holdIncludeInactive;
+      } else {
+        return;
+      }
+      _renderHoldAllocation(getHoldings(), _lastPd);
+    });
+  }
+}
+
+let _measureCtx: CanvasRenderingContext2D | null | undefined;
+
+/** Ellipsize text to fit a pixel width (ECharts' rich-text width does not clip legend tokens). */
+function _fitText(text: string, maxW: number, font: string): string {
+  if (_measureCtx === undefined) {
+    _measureCtx = document.createElement('canvas').getContext?.('2d') ?? null;
+  }
+  const ctx = _measureCtx;
+  if (!ctx) return text.length > 18 ? `${text.slice(0, 17)}…` : text;
+  ctx.font = font;
+  if (ctx.measureText(text).width <= maxW) return text;
+  let lo = 0;
+  let hi = text.length;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (ctx.measureText(`${text.slice(0, mid)}…`).width <= maxW) lo = mid;
+    else hi = mid - 1;
+  }
+  return `${text.slice(0, lo).trimEnd()}…`;
+}
+
+/** Toolbox row height (matches the registry header: 22 + 10 gap). */
+const DONUT_HEAD = 32;
+const DONUT_HOVER_GROW = 3;
+const DONUT_LEGEND_GAP = 7;
+/** Legend row pitch (measured): 12px text line + gap. */
+const DONUT_LEGEND_ROW = 12 + DONUT_LEGEND_GAP;
+const DONUT_MAX_H = 260;
+
+/** Outer radius: the ring gets ~40% of the width, capped so both panels match, and fits the height. */
+function _donutOuter(width: number, bodyH: number): number {
+  const ringW = Math.round(width * 0.4);
+  return Math.max(30, Math.floor(Math.min(ringW / 2 - 4, bodyH / 2 - 4 - DONUT_HOVER_GROW, 84)));
+}
+
+/** Shared donut: ring on the left, legend with right-aligned shares on the right, total inside. */
+function _renderAllocDonut(key: 'acct' | 'hold', slices: AllocSlice[], seriesName: string): void {
+  const canvasId = `c-an-alloc-${key}`;
+  const host = document.getElementById(canvasId);
+  const wrap = host?.closest<HTMLElement>('.chart-wrap');
+  const emptyEl = document.getElementById(`an-alloc-${key}-empty`);
+  const empty = slices.length === 0;
+  if (emptyEl) emptyEl.hidden = !empty;
+  if (wrap) wrap.hidden = empty;
+  if (empty) {
+    disposeChart(canvasId);
+    return;
+  }
+  // Fit the content area (below the toolbox row) to the taller of ring and legend, so there is no
+  // empty band under short legends. The wrap's `chart-tools` bottom padding hosts the toolbox row.
+  const wrapW = wrap?.clientWidth || 320;
+  const ringD = 2 * _donutOuter(wrapW, Infinity) + 2 * DONUT_HOVER_GROW;
+  const legendH = slices.length * DONUT_LEGEND_ROW - DONUT_LEGEND_GAP;
+  wrap?.style.setProperty(
+    '--chart-fit-h',
+    `${Math.min(DONUT_MAX_H, Math.max(ringD, legendH) + 8)}px`,
+  );
+
+  const total = slices.reduce((s, x) => s + x.value, 0);
+  const share = (v: number) => (total > 0 ? fmtPctVal((v / total) * 100) : '0%');
+  const byName = new Map(slices.map((s) => [s.label, s.value]));
+  // Rich-text markup characters in user labels would break the legend formatter.
+  const plain = (s: string) => s.replace(/[{}|]/g, '');
+
+  renderChart(
+    canvasId,
+    ({ tokens: t, width }) => {
+      const w = width || host?.clientWidth || 320;
+      const h = host?.clientHeight || 165 + DONUT_HEAD;
+      // Content area under the toolbox row; ring and legend are centred in it.
+      const bodyH = Math.max(40, h - DONUT_HEAD);
+      const ringW = Math.round(w * 0.4);
+      const outer = _donutOuter(w, bodyH);
+      const cx = Math.round(ringW / 2);
+      const cy = Math.round(DONUT_HEAD + bodyH / 2);
+      const legendTop = DONUT_HEAD + Math.max(0, Math.round((bodyH - legendH) / 2));
+      const legendLeft = ringW + 10;
+      // Capped so shares stay next to their names on wide panels.
+      const legendW = Math.max(90, Math.min(300, w - legendLeft));
+      const shareW = 46;
+      const nameW = legendW - 20 - shareW;
+      const nameFont = `12px ${t.fontFamily}`;
+      return {
+        // Total pinned to the ring centre; a series label would be re-laid out on hover.
+        graphic: [
+          {
+            type: 'text',
+            x: cx,
+            y: cy,
+            silent: true,
+            z: 10,
+            style: {
+              text: `{v|${fmtEurCompact(total)}}\n{l|total}`,
+              align: 'center',
+              verticalAlign: 'middle',
+              rich: {
+                v: {
+                  fontSize: outer < 50 ? 11 : 13,
+                  fontWeight: 600,
+                  fill: t.ink,
+                  lineHeight: 18,
+                  align: 'center',
+                  fontFamily: t.fontFamily,
+                },
+                l: { fontSize: 10, fill: t.ink4, align: 'center', fontFamily: t.fontFamily },
+              },
+            },
+          },
+        ],
+        tooltip: {
+          trigger: 'item',
+          confine: true,
+          formatter: (p: unknown) => {
+            const it = p as { marker?: string; name?: string; value?: number };
+            return `<div class="ec-tt"><div class="ec-tt-row">${it.marker ?? ''}<span class="ec-tt-name">${esc(it.name ?? '')}</span><span class="ec-tt-val">${esc(fmtEur(Number(it.value)))}</span></div><div class="ec-tt-row"><span class="ec-tt-name">Share</span><span class="ec-tt-val">${esc(share(Number(it.value)))}</span></div></div>`;
+          },
+        },
+        legend: {
+          orient: 'vertical',
+          left: legendLeft,
+          top: legendTop,
+          padding: 0,
+          width: legendW,
+          itemGap: 7,
+          tooltip: { show: true },
+          formatter: (name: string) =>
+            `{n|${plain(_fitText(name, nameW - 6, nameFont))}}{s|${share(byName.get(name) ?? 0)}}`,
+          textStyle: {
+            rich: {
+              n: { width: nameW, fontSize: 12, lineHeight: 12, color: t.ink2 },
+              s: { width: shareW, align: 'right', color: t.ink4, fontSize: 11, lineHeight: 12 },
+            },
+          },
+        },
+        series: [
+          {
+            name: seriesName,
+            type: 'pie',
+            radius: [Math.round(outer * 0.66), outer],
+            center: [cx, cy],
+            padAngle: slices.length > 1 ? 1 : 0,
+            itemStyle: { borderColor: t.surface, borderWidth: slices.length > 1 ? 2 : 0 },
+            label: { show: false },
+            emphasis: { scale: true, scaleSize: DONUT_HOVER_GROW, label: { show: false } },
+            labelLine: { show: false },
+            data: slices.map((s) => ({
+              name: s.label,
+              value: s.value,
+              itemStyle: { color: safeColor(s.color) },
+            })),
+          },
+        ],
+      };
+    },
+    { valueFormatter: fmtEur2 },
+  );
 }
 
 // ── Drawdown chart ─────────────────────────────────────────
 
 function _renderDrawdownChart(series: { date: string; drawdown: number }[]): void {
   const card = document.getElementById('an-drawdown-card');
-  const canvas = document.getElementById('c-an-drawdown') as HTMLCanvasElement | null;
-  if (!canvas || !card) return;
-  _destroyChart('c-an-drawdown');
-
+  if (!document.getElementById('c-an-drawdown') || !card) return;
   if (series.length < 2) {
+    disposeChart('c-an-drawdown');
     card.style.display = 'none';
     return;
   }
   card.style.display = '';
 
-  const C = resolvedT();
-  CH['c-an-drawdown'] = new Chart(canvas, {
-    type: 'line',
-    data: {
-      labels: series.map((p) => fmtMon(p.date)),
-      datasets: [
+  const points = series.map((p) => [monthToTime(p.date), p.drawdown * 100] as [number, number]);
+  const last = points[points.length - 1][0];
+  const pct = (v: number) => `${v.toFixed(1)}%`;
+  const hasDrawdown = points.some((p) => p[1] < 0);
+
+  renderChart(
+    'c-an-drawdown',
+    ({ tokens: t }) => ({
+      tooltip: { trigger: 'axis', confine: true, valueFormatter: (v) => pct(Number(v)) },
+      xAxis: monthTimeAxis(),
+      yAxis: {
+        type: 'value',
+        max: 0,
+        // Without any drawdown keep a negative scale instead of ECharts' default 0..1 range.
+        min: hasDrawdown ? undefined : -1,
+        axisLabel: { formatter: (v: number) => fmtPctAxis(v) },
+      },
+      series: [
         {
-          label: 'Drawdown',
-          data: series.map((p) => p.drawdown * 100),
-          borderColor: C.neg,
-          backgroundColor: C.neg + '33',
-          borderWidth: 1.5,
-          pointRadius: 0,
-          fill: true,
-          tension: 0.2,
+          name: 'Drawdown',
+          type: 'line',
+          data: points,
+          showSymbol: false,
+          smooth: 0.3,
+          lineStyle: { width: 1.5, color: t.neg },
+          itemStyle: { color: t.neg },
+          areaStyle: { color: toRgba(t.neg, 0.2) },
+          markPoint: hasDrawdown
+            ? {
+                symbol: 'pin',
+                symbolSize: 34,
+                itemStyle: { color: t.neg },
+                label: {
+                  color: '#fff',
+                  fontSize: 9,
+                  formatter: (p) => fmtPctAxis(Number(p.value)),
+                },
+                data: [{ type: 'min', name: 'Deepest drawdown' }],
+              }
+            : undefined,
         },
       ],
+    }),
+    {
+      zoom: true,
+      xAxisType: 'time',
+      valueFormatter: pct,
+      group: TIMELINE_GROUP,
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: C.surface,
-          ...TOOLTIP_BOX,
-          borderColor: C.line,
-          borderWidth: 1,
-          titleColor: C.ink,
-          bodyColor: C.ink2,
-          padding: 10,
-          cornerRadius: 8,
-          callbacks: {
-            label: (ctx) => ` Drawdown: ${(ctx.raw as number).toFixed(1)}%`,
-            labelColor: tooltipSwatch(C.surface),
-          },
-        },
-      },
-      scales: {
-        y: {
-          grid: { color: C.line },
-          ticks: {
-            color: C.ink4,
-            callback: (v) => `${v}%`,
-          },
-        },
-        x: {
-          grid: { display: false },
-          ticks: { color: C.ink2, font: { size: 10 }, maxRotation: 0, autoSkip: true },
-        },
-      },
-    },
-  });
-
-  writeChartTable(
-    'c-an-drawdown-table-wrap',
-    'Drawdown history data',
-    ['Month', 'Drawdown (%)'],
-    series.map((p) => [fmtMon(p.date), (p.drawdown * 100).toFixed(1) + '%']),
-    [1],
   );
 }
 
@@ -1356,9 +1283,8 @@ function _renderRollingCagrChart(
 ): void {
   const card = document.getElementById('an-rolling-cagr-card');
   const noteEl = document.getElementById('an-rolling-cagr-note');
-  const canvas = document.getElementById('c-an-rolling-cagr') as HTMLCanvasElement | null;
-  if (!canvas || !card) return;
-  _destroyChart('c-an-rolling-cagr');
+  const host = document.getElementById('c-an-rolling-cagr');
+  if (!host || !card) return;
 
   const WINDOW = 36;
   const points: Array<{ month: string; cagr: number }> = rollingAnnualizedReturnFromMonthlyReturns(
@@ -1376,71 +1302,50 @@ function _renderRollingCagrChart(
     }
   }
 
+  const wrap = host.closest('.chart-wrap') as HTMLElement | null;
   if (points.length === 0) {
-    const canvasWrap = canvas.closest('.chart-wrap') as HTMLElement | null;
-    hideChartTable('c-an-rolling-cagr-table-wrap');
-    if (canvasWrap) canvasWrap.style.display = 'none';
+    disposeChart('c-an-rolling-cagr');
+    if (wrap) wrap.style.display = 'none';
     return;
   }
-  const canvasWrap = canvas.closest('.chart-wrap') as HTMLElement | null;
-  if (canvasWrap) canvasWrap.style.display = '';
+  if (wrap) wrap.style.display = '';
 
-  const C = resolvedT();
-  CH['c-an-rolling-cagr'] = new Chart(canvas, {
-    type: 'line',
-    data: {
-      labels: points.map((p) => fmtMon(p.month)),
-      datasets: [
+  const data = points.map((p) => [monthToTime(p.month), p.cagr * 100] as [number, number]);
+  const last = data[data.length - 1][0];
+  const pct = (v: number) => `${v.toFixed(1)}%`;
+
+  renderChart(
+    'c-an-rolling-cagr',
+    ({ tokens: t }) => ({
+      tooltip: { trigger: 'axis', confine: true, valueFormatter: (v) => pct(Number(v)) },
+      xAxis: monthTimeAxis(),
+      yAxis: { type: 'value', scale: true, axisLabel: { formatter: (v: number) => fmtPctAxis(v) } },
+      series: [
         {
-          label: 'Rolling 3Y CAGR',
-          data: points.map((p) => p.cagr * 100),
-          borderColor: C.brand,
-          backgroundColor: 'transparent',
-          borderWidth: 2,
-          pointRadius: 0,
-          tension: 0.3,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: C.surface,
-          ...TOOLTIP_BOX,
-          borderColor: C.line,
-          borderWidth: 1,
-          titleColor: C.ink,
-          bodyColor: C.ink2,
-          padding: 10,
-          cornerRadius: 8,
-          callbacks: {
-            label: (ctx) => ` 3Y CAGR: ${(ctx.raw as number).toFixed(1)}%`,
-            labelColor: tooltipSwatch(C.surface),
+          name: 'Rolling 3Y CAGR',
+          type: 'line',
+          data,
+          showSymbol: data.length <= 24,
+          symbolSize: 4,
+          smooth: 0.3,
+          lineStyle: { width: 2, color: t.brand },
+          itemStyle: { color: t.brand },
+          markLine: {
+            silent: true,
+            symbol: 'none',
+            lineStyle: { type: 'dashed', color: t.line2 },
+            label: { show: false },
+            data: [{ yAxis: 0 }],
           },
         },
-      },
-      scales: {
-        y: {
-          grid: { color: C.line },
-          ticks: { color: C.ink4, callback: (v) => formatPercentRounded(v) },
-        },
-        x: {
-          grid: { display: false },
-          ticks: { color: C.ink2, font: { size: 10 }, maxRotation: 0, autoSkip: true },
-        },
-      },
+      ],
+    }),
+    {
+      zoom: data.length > 12,
+      xAxisType: 'time',
+      valueFormatter: pct,
+      group: TIMELINE_GROUP,
     },
-  });
-
-  writeChartTable(
-    'c-an-rolling-cagr-table-wrap',
-    'Rolling 3-year investment CAGR data',
-    ['Month', 'Rolling 3Y CAGR (%)'],
-    points.map((p) => [fmtMon(p.month), `${(p.cagr * 100).toFixed(1)}%`]),
-    [1],
   );
 }
 
@@ -1521,84 +1426,50 @@ function _renderIncomeAnalytics(
   );
 
   _renderIncomeChart(metrics.monthlyBreakdown);
-  _attachIncomeRangeToggle(metrics.monthlyBreakdown);
 }
-
-let _lastIncomeBreakdown: { month: string; amount: number }[] = [];
 
 function _renderIncomeChart(monthlyBreakdown: { month: string; amount: number }[]): void {
-  _lastIncomeBreakdown = monthlyBreakdown;
-  const canvas = document.getElementById('c-an-income') as HTMLCanvasElement | null;
-  if (!canvas) return;
-  _destroyChart('c-an-income');
+  if (!document.getElementById('c-an-income')) return;
+  if (monthlyBreakdown.length === 0) {
+    disposeChart('c-an-income');
+    return;
+  }
+  const months = monthlyBreakdown.map((p) => fmtMon(p.month));
+  const n = months.length;
 
-  const view =
-    _anIncomeRange === 'all' ? monthlyBreakdown : monthlyBreakdown.slice(-parseInt(_anIncomeRange));
-  if (view.length === 0) return;
-
-  const C = resolvedT();
-  CH['c-an-income'] = new Chart(canvas, {
-    type: 'bar',
-    data: {
-      labels: view.map((p) => fmtMon(p.month)),
-      datasets: [
+  renderChart(
+    'c-an-income',
+    ({ tokens: t, touch }) => ({
+      tooltip: {
+        trigger: 'axis',
+        confine: true,
+        axisPointer: { type: 'shadow' },
+        formatter: axisTooltip({
+          value: (v) => fmtEur2(v),
+          hint: drillHint({ touch }, "see this month's transactions"),
+        }),
+      },
+      xAxis: { type: 'category', data: months, axisTick: { show: false } },
+      yAxis: { type: 'value', axisLabel: { formatter: (v: number) => fmtEurCompact(v) } },
+      series: [
         {
-          label: 'Income',
-          data: view.map((p) => p.amount),
-          backgroundColor: C.pos,
-          ...BAR_END_ROUNDING,
+          name: 'Income',
+          type: 'bar',
+          data: monthlyBreakdown.map((p) => p.amount),
+          itemStyle: { color: t.pos, borderRadius: [3, 3, 0, 0] },
+          barMaxWidth: 28,
         },
       ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: C.surface,
-          ...TOOLTIP_BOX,
-          borderColor: C.line,
-          borderWidth: 1,
-          titleColor: C.ink,
-          bodyColor: C.ink2,
-          padding: 10,
-          cornerRadius: 8,
-          callbacks: {
-            label: (ctx) => ` Income: ${fmtEur2(ctx.raw as number)}`,
-            labelColor: tooltipSwatch(C.surface),
-          },
-        },
-      },
-      scales: {
-        y: {
-          grid: { color: C.line },
-          ticks: { color: C.ink4, callback: (v) => formatEuroPrefix(v) },
-        },
-        x: {
-          grid: { display: false },
-          ticks: { color: C.ink2, font: { size: 10 }, maxRotation: 0, autoSkip: true },
-        },
+    }),
+    {
+      zoom: n > 12,
+      xAxisType: 'category',
+      // Opens on the last year; zoom out (slider / pinch) for the full history.
+      window: n > 12 ? { startValue: n - 12, endValue: n - 1 } : undefined,
+      drill: {
+        resolve: (v) => monthlyBreakdown[Math.round(v)]?.month ?? null,
+        select: (month) => drillToTransactions(month),
       },
     },
-  });
-
-  writeChartTable(
-    'c-an-income-table-wrap',
-    'Income by month data',
-    ['Month', 'Income (€)'],
-    view.map((p) => [fmtMon(p.month), fmtEur2(p.amount)]),
-    [1],
-  );
-}
-
-function _attachIncomeRangeToggle(monthlyBreakdown: { month: string; amount: number }[]): void {
-  _attachRangeToggle(
-    'an-income-range-toggle',
-    () => _anIncomeRange,
-    (r) => {
-      _anIncomeRange = r;
-    },
-    () => _renderIncomeChart(monthlyBreakdown),
   );
 }

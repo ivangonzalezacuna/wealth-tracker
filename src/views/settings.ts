@@ -66,6 +66,7 @@ import { formatEnglishDate, formatEnglishDateTime, formatEnglishMonth } from '..
 import { normalizeInstitution } from '../model/securitySuggestions';
 import { isCollapsed, setCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
+import { bindSearchClear, chipButtonsHtml, searchHtml } from '../ui/filterBar';
 import { confirmDialog } from '../ui/confirmDialog';
 import { notify, type ToastVariant } from '../ui/toast';
 import { accountDialog } from '../ui/accountDialog';
@@ -956,45 +957,61 @@ function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
 /** In-memory list of holdings kept in sync by add/edit/delete dialog operations. */
 let _holdings: Holding[] | null = null;
 let _holdingsSettingsFilter = 'all'; // 'all' | 'active' | 'closed'
+let _holdingsSettingsSearch = '';
 let _allHoldings: Holding[] | null = null; // cached full holdings list for filtered views
 let _suggestionTransactions: Transaction[] = [];
+
+function filterSettingsHoldings(all: Holding[]): Holding[] {
+  const q = _holdingsSettingsSearch.trim().toLowerCase();
+  return all.filter((h) => {
+    if (_holdingsSettingsFilter === 'active' && !h.active) return false;
+    if (_holdingsSettingsFilter === 'closed' && h.active) return false;
+    if (!q) return true;
+    return [h.shortName, h.name, h.isin].some((v) => (v || '').toLowerCase().includes(q));
+  });
+}
+
+function settingsHoldingChips(all: Holding[]): string {
+  const activeCount = all.filter((h) => h.active).length;
+  return chipButtonsHtml({
+    attr: 'hfilter',
+    value: _holdingsSettingsFilter,
+    chips: [
+      { value: 'all', label: 'All', count: all.length },
+      { value: 'active', label: 'Active', count: activeCount },
+      { value: 'closed', label: 'Closed', count: all.length - activeCount },
+    ],
+  });
+}
+
+function settingsHoldingRows(all: Holding[]): string {
+  const filtered = filterSettingsHoldings(all);
+  if (!filtered.length && all.length)
+    return `<p class="note settings-hold-empty">No holdings match the current filter.</p>`;
+  // Keep the original index so delete/edit operations target the right holding.
+  return filtered.map((h) => renderHoldingRow(h, all.indexOf(h))).join('');
+}
 
 function renderHoldingsCard(holdings: Holding[]): string {
   // Cache the full list for merge-back when filter is active
   _holdings = holdings.slice();
   _allHoldings = holdings.slice();
   const activeCount = holdings.filter((h) => h.active).length;
-  const closedCount = holdings.filter((h) => !h.active).length;
-
-  // Apply filter
-  let filtered;
-  if (_holdingsSettingsFilter === 'active') {
-    filtered = holdings.filter((h) => h.active);
-  } else if (_holdingsSettingsFilter === 'closed') {
-    filtered = holdings.filter((h) => !h.active);
-  } else {
-    filtered = holdings;
-  }
-
-  const rows = filtered
-    .map((h) => {
-      // Store original index so delete/edit operations target the right holding
-      const origIdx = holdings.indexOf(h);
-      return renderHoldingRow(h, origIdx);
-    })
-    .join('');
+  const rows = settingsHoldingRows(holdings);
 
   return `
     <div class="card card-collapsible" id="settings-card-holdings" data-card-key="holdings">
       ${settingsCardHeader('holdings', 'Holdings (ETFs)', `${holdings.length} holdings · ${activeCount} active for allocation`)}
       <div class="card-body">
         <p class="note" style="margin-bottom:.5rem">Set a target % on active holdings for drift and rebalancing. Closed positions can fold into a successor fund.</p>
-        <div class="filter-bar" style="margin-bottom:8px">
-          <div class="range-toggle" id="hold-filter-toggle">
-            <button class="btn btn-sm btn-ghost ${_holdingsSettingsFilter === 'all' ? 'active' : ''}" data-hfilter="all">All (${holdings.length})</button>
-            <button class="btn btn-sm btn-ghost ${_holdingsSettingsFilter === 'active' ? 'active' : ''}" data-hfilter="active">Active (${activeCount})</button>
-            <button class="btn btn-sm btn-ghost ${_holdingsSettingsFilter === 'closed' ? 'active' : ''}" data-hfilter="closed">Closed (${closedCount})</button>
-          </div>
+        <div class="filter-bar filter-bar-stacked settings-hold-filter-bar">
+          ${searchHtml({
+            id: 'settings-hold-search',
+            value: _holdingsSettingsSearch,
+            placeholder: 'Search ISIN or name',
+            ariaLabel: 'Search holdings by ISIN or name',
+          })}
+          <div class="range-toggle filter-chips" id="hold-filter-toggle" role="group" aria-label="Show holdings">${settingsHoldingChips(holdings)}</div>
         </div>
         <div id="settings-holdings-tbl" class="settings-items settings-list">
           ${rows}
@@ -1045,30 +1062,10 @@ function renderHoldingRow(h: Holding, i: number): string {
  */
 function applyHoldingsFilter(root: HTMLElement): void {
   const all = _allHoldings ?? getHoldings();
-  let filtered: Holding[];
-  if (_holdingsSettingsFilter === 'active') filtered = all.filter((h) => h.active);
-  else if (_holdingsSettingsFilter === 'closed') filtered = all.filter((h) => !h.active);
-  else filtered = all;
-
   const tbl = root.querySelector('#settings-holdings-tbl');
-  if (tbl) {
-    tbl.innerHTML = filtered
-      .map((h) => {
-        const origIdx = all.indexOf(h);
-        return renderHoldingRow(h, origIdx);
-      })
-      .join('');
-  }
-
-  // Update filter-button active state and counts
-  const activeCount = all.filter((h) => h.active).length;
-  const closedCount = all.filter((h) => !h.active).length;
-  root.querySelectorAll('#hold-filter-toggle [data-hfilter]').forEach((b) => {
-    b.classList.toggle('active', (b as HTMLElement).dataset.hfilter === _holdingsSettingsFilter);
-    if ((b as HTMLElement).dataset.hfilter === 'all') b.textContent = `All (${all.length})`;
-    if ((b as HTMLElement).dataset.hfilter === 'active') b.textContent = `Active (${activeCount})`;
-    if ((b as HTMLElement).dataset.hfilter === 'closed') b.textContent = `Closed (${closedCount})`;
-  });
+  if (tbl) tbl.innerHTML = settingsHoldingRows(all);
+  const chips = root.querySelector('#hold-filter-toggle');
+  if (chips) chips.innerHTML = settingsHoldingChips(all);
 }
 
 /** Mark a holding for removal (or undo the mark); Save holdings commits it. */
@@ -1099,6 +1096,11 @@ function attachHoldingListeners(root: HTMLElement): void {
       applyHoldingsFilter(root);
     });
   }
+  root.querySelector<HTMLInputElement>('#settings-hold-search')?.addEventListener('input', (e) => {
+    _holdingsSettingsSearch = (e.currentTarget as HTMLInputElement).value;
+    applyHoldingsFilter(root);
+  });
+  bindSearchClear(root.querySelector<HTMLElement>('.settings-hold-filter-bar'));
 
   root.querySelector('#btn-add-hold')?.addEventListener('click', async () => {
     const order = controller.items().length + 1;
@@ -1261,6 +1263,9 @@ function rerenderHoldingsTable(root: HTMLElement, holdings: Holding[]): void {
   _holdings = holdings.slice();
   _allHoldings = holdings.slice();
   _holdingsSettingsFilter = 'all';
+  _holdingsSettingsSearch = '';
+  const search = root.querySelector<HTMLInputElement>('#settings-hold-search');
+  if (search) search.value = '';
   const summary = root.querySelector('#settings-heading-holdings .settings-card-summary');
   if (summary)
     summary.textContent = `${holdings.length} holdings · ${holdings.filter((h) => h.active).length} active for allocation`;
@@ -1268,20 +1273,8 @@ function rerenderHoldingsTable(root: HTMLElement, holdings: Holding[]): void {
   if (!tbl) return;
   const rows = holdings.map((h, i) => renderHoldingRow(h, i)).join('');
   tbl.innerHTML = rows;
-  // Update filter counts
   const toggle = root.querySelector('#hold-filter-toggle');
-  if (toggle) {
-    const activeCount = holdings.filter((h) => h.active).length;
-    const closedCount = holdings.filter((h) => !h.active).length;
-    const btns = toggle.querySelectorAll('[data-hfilter]');
-    btns.forEach((b) => {
-      const el = b as HTMLElement;
-      el.classList.toggle('active', el.dataset.hfilter === 'all');
-      if (el.dataset.hfilter === 'all') el.textContent = `All (${holdings.length})`;
-      if (el.dataset.hfilter === 'active') el.textContent = `Active (${activeCount})`;
-      if (el.dataset.hfilter === 'closed') el.textContent = `Closed (${closedCount})`;
-    });
-  }
+  if (toggle) toggle.innerHTML = settingsHoldingChips(holdings);
 }
 
 // ── Cost-basis method ───────────────────────────────────

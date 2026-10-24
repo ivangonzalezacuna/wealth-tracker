@@ -1,15 +1,5 @@
 import { CONFIG } from './config';
 
-function rangeToggleHtml(
-  id: string,
-  ariaLabel: string,
-  activeRange: '12' | '36' | 'all' = 'all',
-): string {
-  const btn = (range: '12' | '36' | 'all', label: string) =>
-    `<button class="btn btn-sm btn-ghost${range === activeRange ? ' active' : ''}" data-range="${range}">${label}</button>`;
-  return `<div class="range-toggle" id="${id}" role="group" aria-label="${ariaLabel}">${btn('12', '1Y')}${btn('36', '3Y')}${btn('all', 'All')}</div>`;
-}
-
 function metricExplainerCard(
   icon: string,
   title: string,
@@ -65,12 +55,7 @@ export function appTemplate(): string {
     <div class="kpi-row" id="nw-kpis"></div>
     <div class="card card-primary">
       <div class="card-title" id="nw-chart-title">Net worth: stacked by account</div>
-      <div class="chart-controls">
-        <div id="nw-chart-legend" class="legend"></div>
-        ${rangeToggleHtml('nw-range-toggle', 'History range')}
-      </div>
-      <div class="chart-wrap chart-h-lg"><canvas id="c-nw-hist" role="img" aria-label="Net worth over time chart" aria-describedby="c-nw-hist-table-wrap"></canvas></div>
-      <div class="chart-data-table-wrap sr-only" id="c-nw-hist-table-wrap"></div>
+      <div class="chart-wrap chart-h-lg chart-zoomable"><div id="c-nw-hist" class="chart-host" role="img" aria-label="Net worth over time chart"></div></div>
     </div>
     <div class="card">
       <div class="card-title" id="nw-detail-title">Accounts</div>
@@ -105,9 +90,7 @@ export function appTemplate(): string {
       <div class="two-col">
         <div class="card">
           <div class="card-title">Cost basis allocation</div>
-          <div id="port-donut-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm chart-h-fit"><canvas id="c-port-donut" role="img" aria-label="Cost basis allocation chart" aria-describedby="c-port-donut-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap sr-only" id="c-port-donut-table-wrap"></div>
+          <div class="chart-wrap chart-h-sm chart-h-fit"><div id="c-port-donut" class="chart-host" role="img" aria-label="Cost basis allocation chart"></div></div>
         </div>
         <div class="card">
           <div class="card-title">Value and returns</div>
@@ -127,21 +110,11 @@ export function appTemplate(): string {
       <div class="kpi-row" id="dca-kpis"></div>
       <div class="card card-primary">
         <div class="card-title">Monthly purchases by ETF (savings plan executions)</div>
-        <div class="chart-controls">
-          <div id="dca-legend" class="legend"></div>
-          ${rangeToggleHtml('dca-range-toggle', 'Contributions range')}
-        </div>
-        <div class="chart-wrap chart-h-lg"><canvas id="c-dca-bar" role="img" aria-label="Monthly contributions bar chart" aria-describedby="c-dca-bar-table-wrap"></canvas></div>
-        <div class="chart-data-table-wrap sr-only" id="c-dca-bar-table-wrap"></div>
+        <div class="chart-wrap chart-h-lg"><div id="c-dca-bar" class="chart-host" role="img" aria-label="Monthly contributions bar chart"></div></div>
       </div>
       <div class="two-col">
         <div class="card">
           <div class="card-title">Month-by-month</div>
-          <div class="filter-bar">
-            <select id="dca-year-filter" class="form-input form-input-sm" aria-label="Filter by year" style="width:auto;display:inline-block">
-              <option value="">All years</option>
-            </select>
-          </div>
           <div class="tbl" role="table" aria-label="Monthly contributions"><div id="dca-table"></div></div>
           <div id="dca-pagination" class="pagination"></div>
         </div>
@@ -160,21 +133,11 @@ export function appTemplate(): string {
       <div class="kpi-row kpi-row-groups" id="div-kpis"></div>
       <div class="card">
         <div class="card-title">Dividend payments received (most recent first)</div>
-        <div class="filter-bar" id="div-year-filter-bar">
-          <select id="div-year-filter" class="form-input form-input-sm" aria-label="Filter by year" style="width:auto;display:inline-block">
-            <option value="">All years</option>
-          </select>
-        </div>
         <div class="tbl" role="table" aria-label="Dividend history"><div id="div-history"></div></div>
         <div id="div-pagination" class="pagination"></div>
       </div>
       <div class="card">
         <div class="card-title">Cash / savings interest received</div>
-        <div class="filter-bar" id="int-year-filter-bar">
-          <select id="int-year-filter" class="form-input form-input-sm" aria-label="Filter by year" style="width:auto;display:inline-block">
-            <option value="">All years</option>
-          </select>
-        </div>
         <div id="div-interest"></div>
         <div id="int-pagination" class="pagination"></div>
       </div>
@@ -207,24 +170,14 @@ export function appTemplate(): string {
 
     <div class="card card-primary">
       <div class="card-title">Net worth over time</div>
-      <div class="chart-controls">
-        <div id="an-growth-legend" class="legend"></div>
-        ${rangeToggleHtml('an-growth-range-toggle', 'Growth range')}
-      </div>
-      <div class="chart-wrap chart-h-lg"><canvas id="c-an-growth" role="img" aria-label="Portfolio growth chart" aria-describedby="c-an-growth-table-wrap"></canvas></div>
-      <div class="chart-data-table-wrap sr-only" id="c-an-growth-table-wrap"></div>
+      <div class="chart-wrap chart-h-lg chart-zoomable"><div id="c-an-growth" class="chart-host" role="img" aria-label="Portfolio growth chart"></div></div>
     </div>
 
     <!-- Level 2: Heatmap + Allocation (2+ snapshots) -->
     <div id="an-level2">
       <div class="card">
         <div class="card-title">Investment balance breakdown: external flows vs market</div>
-        <div class="chart-controls">
-          <div id="an-contrib-legend" class="legend"></div>
-          ${rangeToggleHtml('an-contrib-range-toggle', 'Contributions vs market range')}
-        </div>
-        <div class="chart-wrap chart-h-md"><canvas id="c-an-contrib" role="img" aria-label="Investment balance breakdown chart" aria-describedby="c-an-contrib-table-wrap"></canvas></div>
-        <div class="chart-data-table-wrap sr-only" id="c-an-contrib-table-wrap"></div>
+        <div class="chart-wrap chart-h-md chart-zoomable"><div id="c-an-contrib" class="chart-host" role="img" aria-label="Investment balance breakdown chart"></div></div>
         <p class="note">Investment value change = recorded external flows + market movement (the residual). This is not net worth growth.</p>
       </div>
 
@@ -236,47 +189,37 @@ export function appTemplate(): string {
           <span id="an-heatmap-page-label" style="min-width:80px;text-align:center"></span>
           <button class="btn btn-sm btn-ghost" id="an-heatmap-next" aria-label="Newer heatmap years">&#8250;</button>
         </div>
-        <div id="an-heatmap-wrap" role="region" aria-label="Monthly investment returns" tabindex="0" style="overflow-x:auto">
-          <div id="an-heatmap"></div>
-        </div>
+        <div id="an-heatmap"></div>
+        <div class="chart-wrap" id="c-an-heatmap-wrap" style="display:none"><div id="c-an-heatmap" class="chart-host" role="img" aria-label="Monthly investment return heatmap"></div></div>
         <p class="note" id="an-heatmap-footer">Heatmap colors are descriptive only and should not be used for short-term timing decisions.</p>
         <div class="analytics-subsection" id="an-annual-table-card">
           <div class="card-title">Annual investment returns</div>
           <div id="an-annual-table"></div>
-          <p class="note">pp = percentage points; * = fewer than 12 months. Partial and full years are not directly comparable.</p>
+          <p class="note">Years with fewer than 12 months of data are not directly comparable with full years.</p>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-title">Allocation</div>
-        <p class="note analytics-scope-note">Account shares use snapshot balances. Holding shares use purchase costs, not market values. They use different totals.</p>
+      <div class="card" id="an-allocation-card">
+        <div class="card-title">Allocation<span class="info-tip" data-tip="Accounts use the latest snapshot balances, including savings and pensions. Holdings use purchase costs, not market values, so the two totals differ." data-tip-variant="" aria-label="Accounts use the latest snapshot balances, including savings and pensions. Holdings use purchase costs, not market values, so the two totals differ." tabindex="0">?</span></div>
         <div class="analytics-allocation-grid">
-        <div class="analytics-allocation-accounts">
-          <div class="card-title" id="an-alloc-acct-title">Account balances: latest snapshot</div>
-          <div id="an-alloc-acct-toggle-wrap" class="chart-controls"></div>
-          <div id="an-alloc-acct-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-acct" role="img" aria-label="Allocation by account chart" aria-describedby="c-an-alloc-acct-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap sr-only" id="c-an-alloc-acct-table-wrap"></div>
-        </div>
-        <details id="an-holding-allocation" class="inline-details">
-          <summary>Holdings: asset class and region</summary>
-        <div class="analytics-holding-breakdown">
-        <div>
-          <div class="card-title">Holding purchase costs by asset class</div>
-          <div id="an-alloc-class-toggle-wrap" class="chart-controls"></div>
-          <div id="an-alloc-class-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-class" role="img" aria-label="Allocation by asset class chart" aria-describedby="c-an-alloc-class-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap sr-only" id="c-an-alloc-class-table-wrap"></div>
-        </div>
-        <div>
-          <div class="card-title">Holding purchase costs by region</div>
-          <div id="an-alloc-region-toggle-wrap" class="chart-controls"></div>
-          <div id="an-alloc-region-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm"><canvas id="c-an-alloc-region" role="img" aria-label="Allocation by region chart" aria-describedby="c-an-alloc-region-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap sr-only" id="c-an-alloc-region-table-wrap"></div>
-        </div>
-        </div>
-        </details>
+          <section class="alloc-panel" aria-labelledby="an-alloc-acct-title">
+            <div class="alloc-panel-head">
+              <span class="alloc-panel-title" id="an-alloc-acct-title">Accounts</span>
+              <span class="alloc-panel-sub">Latest snapshot balances</span>
+            </div>
+            <div id="an-alloc-acct-toggle-wrap" class="chart-controls alloc-controls"></div>
+            <p class="note alloc-empty" id="an-alloc-acct-empty" hidden>No account balances in the latest snapshot.</p>
+            <div class="chart-wrap chart-h-fit chart-tools"><div id="c-an-alloc-acct" class="chart-host" role="img" aria-label="Allocation by account chart"></div></div>
+          </section>
+          <section class="alloc-panel" aria-labelledby="an-alloc-hold-title">
+            <div class="alloc-panel-head">
+              <span class="alloc-panel-title" id="an-alloc-hold-title">Holdings</span>
+              <span class="alloc-panel-sub">Purchase costs</span>
+            </div>
+            <div id="an-alloc-hold-toggle-wrap" class="chart-controls alloc-controls"></div>
+            <p class="note alloc-empty" id="an-alloc-hold-empty" hidden>No holding purchases to break down yet.</p>
+            <div class="chart-wrap chart-h-fit chart-tools"><div id="c-an-alloc-hold" class="chart-host" role="img" aria-label="Allocation by holding chart"></div></div>
+          </section>
         </div>
       </div>
     </div>
@@ -363,15 +306,13 @@ export function appTemplate(): string {
 
         <div class="card" id="an-drawdown-card" style="margin:0 0 1rem">
           <div class="card-title">Investment drawdown history</div>
-          <div class="chart-wrap chart-h-md"><canvas id="c-an-drawdown" role="img" aria-label="Portfolio drawdown chart" aria-describedby="c-an-drawdown-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap sr-only" id="c-an-drawdown-table-wrap"></div>
+          <div class="chart-wrap chart-h-md chart-zoomable"><div id="c-an-drawdown" class="chart-host" role="img" aria-label="Portfolio drawdown chart"></div></div>
         </div>
 
         <div class="card" id="an-rolling-cagr-card" style="margin:0 0 1rem">
           <div class="card-title">Rolling 3-year investment CAGR</div>
           <div id="an-rolling-cagr-note" class="note" style="display:none"></div>
-          <div class="chart-wrap chart-h-md"><canvas id="c-an-rolling-cagr" role="img" aria-label="Rolling CAGR chart" aria-describedby="c-an-rolling-cagr-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap sr-only" id="c-an-rolling-cagr-table-wrap"></div>
+          <div class="chart-wrap chart-h-md chart-zoomable"><div id="c-an-rolling-cagr" class="chart-host" role="img" aria-label="Rolling CAGR chart"></div></div>
         </div>
 
         <div id="an-income" style="display:none">
@@ -382,11 +323,7 @@ export function appTemplate(): string {
             <div class="card-title">
               Income by month (dividends and interest)
             </div>
-            <div class="chart-controls" style="margin-bottom:4px">
-              ${rangeToggleHtml('an-income-range-toggle', 'Income range', '12')}
-            </div>
-            <div class="chart-wrap chart-h-md"><canvas id="c-an-income" role="img" aria-label="Income history chart" aria-describedby="c-an-income-table-wrap"></canvas></div>
-            <div class="chart-data-table-wrap sr-only" id="c-an-income-table-wrap"></div>
+            <div class="chart-wrap chart-h-md chart-zoomable"><div id="c-an-income" class="chart-host" role="img" aria-label="Income history chart"></div></div>
           </div>
         </div>
       </div>
@@ -442,21 +379,20 @@ export function appTemplate(): string {
       <div id="import-preview" style="display:none"></div>
 
       <div id="tx-ledger-card" class="log-panel-body">
-        <div class="filter-bar" id="tx-filter-bar">
-          <select id="tx-type-filter" class="form-input form-input-sm" aria-label="Filter transactions by type">
-            <option value="">All types</option>
-          </select>
-          <input type="search" id="tx-search" class="form-input form-input-sm" aria-label="Search transactions" placeholder="Search name, ISIN, source…">
+        <div class="filter-bar log-filter-bar" id="tx-filter-bar">
+          <span class="filter-search"><input type="search" id="tx-search" class="form-input form-input-sm" aria-label="Search transactions" placeholder="Name, ISIN, source…" autocomplete="off"><button type="button" class="filter-clear" data-clear-search aria-label="Clear search">&times;</button></span>
           <div class="filter-bar-actions">
-            <button class="btn btn-outline btn-sm" id="btn-start-del-txs">Bulk delete</button>
-            <div class="bulk-actions" id="tx-bulk-actions" hidden>
-              <button class="btn btn-ghost btn-sm" id="btn-tx-select-all">Select all</button>
-              <button class="btn btn-ghost btn-sm" id="btn-tx-clear-all">Deselect all</button>
-              <button class="btn btn-danger btn-sm" id="btn-del-txs" disabled>Delete</button>
-            </div>
+            <button class="btn btn-outline btn-sm" id="btn-start-del-txs" aria-pressed="false">Select</button>
             <button class="btn btn-outline btn-sm" id="btn-add-tx">Add transaction</button>
           </div>
+          <div id="tx-type-filter" class="range-toggle filter-chips filter-chips-scroll" role="group" aria-label="Filter transactions by type"></div>
+          <div class="bulk-actions" id="tx-bulk-actions" hidden>
+            <button class="btn btn-ghost btn-sm" id="btn-tx-select-all">Select all</button>
+            <button class="btn btn-ghost btn-sm" id="btn-tx-clear-all">Deselect all</button>
+            <button class="btn btn-danger btn-sm" id="btn-del-txs" disabled>Delete</button>
+          </div>
         </div>
+        <div class="filter-status" id="tx-filter-status" role="status" hidden></div>
         <div class="tbl">
           <div id="tx-ledger-wrap"><div id="tx-ledger-list" class="tx-ledger-grid" role="table" aria-label="Transaction ledger"></div></div>
         </div>
@@ -471,20 +407,21 @@ export function appTemplate(): string {
         <span class="log-panel-meta" id="snap-latest-meta"></span>
       </div>
       <div class="log-panel-body">
-        <div class="filter-bar" id="snap-filter-bar">
-          <select id="snap-year-filter" class="form-input form-input-sm" aria-label="Filter by year">
+        <div class="filter-bar log-filter-bar" id="snap-filter-bar">
+          <select id="snap-year-filter" class="form-input form-input-sm filter-select themed-select" aria-label="Filter by year">
             <option value="">All years</option>
           </select>
-          <input type="search" id="snap-search" class="form-input form-input-sm" aria-label="Search snapshots by notes" placeholder="Search notes or month…">
+          <span class="filter-search"><input type="search" id="snap-search" class="form-input form-input-sm" aria-label="Search snapshots by notes" placeholder="Notes or month…" autocomplete="off"><button type="button" class="filter-clear" data-clear-search aria-label="Clear search">&times;</button></span>
           <div class="filter-bar-actions">
-            <button class="btn btn-outline btn-sm" id="btn-start-del-snaps">Bulk delete</button>
-            <div class="bulk-actions" id="snap-bulk-actions" hidden>
-              <button class="btn btn-ghost btn-sm" id="btn-snap-select-all">Select all</button>
-              <button class="btn btn-ghost btn-sm" id="btn-snap-clear-all">Deselect all</button>
-              <button class="btn btn-danger btn-sm" id="btn-del-snaps" disabled>Delete</button>
-            </div>
+            <button class="btn btn-outline btn-sm" id="btn-start-del-snaps" aria-pressed="false">Select</button>
+          </div>
+          <div class="bulk-actions" id="snap-bulk-actions" hidden>
+            <button class="btn btn-ghost btn-sm" id="btn-snap-select-all">Select all</button>
+            <button class="btn btn-ghost btn-sm" id="btn-snap-clear-all">Deselect all</button>
+            <button class="btn btn-danger btn-sm" id="btn-del-snaps" disabled>Delete</button>
           </div>
         </div>
+        <div class="filter-status" id="snap-filter-status" role="status" hidden></div>
         <div class="legend snap-legend" id="snap-legend" aria-label="Account colours"></div>
         <div id="snaps-list" role="table" aria-label="Snapshot history"></div>
         <div id="snap-pagination" class="pagination"></div>

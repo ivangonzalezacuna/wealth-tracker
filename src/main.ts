@@ -56,6 +56,7 @@ import {
   migrateBackup,
 } from './backup/exportImport';
 import { getSetupState } from './model/setup';
+import { driftStatus } from './model/drift';
 import type { SetupStep } from './model/setup';
 import { computePD } from './portfolio';
 import { parseWithProfile, detectProfile, previewSummary } from './import/parse';
@@ -104,6 +105,7 @@ import {
   setCollapseState,
 } from './cache/db';
 import { onThemeChange, setUserTheme, getUserThemePref } from './theme';
+import { loadCharts, refreshChartsTheme } from './views/charts';
 import { shouldAutoResync } from './sync/policy';
 import { loadCollapseState, replaceCollapseState } from './ui/collapseState';
 import { restoreCollapseFromSheet, backupCollapseToSheet } from './ui/collapseSync';
@@ -593,12 +595,18 @@ function initOnlineListeners() {
   window.addEventListener('focus', () => autoResyncIfNeeded());
 }
 
-/** Chart.js bakes colors into the canvas at render time, unlike CSS, which
- *  re-themes instantly via its own media query. Without this, a chart-bearing
- *  view stays visually stuck in the old color scheme until some unrelated
- *  action triggers the next re-render. */
+/** Canvas charts bake colours in at render
+ *  time, unlike CSS, which re-themes instantly via its own media query. Without
+ *  this, a chart-bearing view stays stuck in the old colour scheme until some
+ *  unrelated action triggers the next re-render. */
 function initThemeListener() {
-  onThemeChange(() => renderAll());
+  // Warm the code-split ECharts chunk while idle so the first chart paints without a load delay.
+  const idle = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1500));
+  idle(() => void loadCharts().catch(() => {}));
+  onThemeChange(() => {
+    refreshChartsTheme();
+    renderAll();
+  });
   document.getElementById('btn-theme-toggle')?.addEventListener('click', () => {
     const next =
       getUserThemePref() === 'light' ? 'dark' : getUserThemePref() === 'dark' ? 'system' : 'light';
@@ -2275,16 +2283,16 @@ function updateDriftBadge(): void {
   const btn = document.getElementById('tab-portfolio');
   if (!btn) return;
   const max = getMaxDrift(state.pd, state.snaps);
-  const threshold = getAlertSettings().driftThresholdPct || 5;
-  const highThreshold = threshold * 2;
+  const status = driftStatus(max ?? 0, getAlertSettings().driftThresholdPct);
+  const { threshold, highThreshold } = status;
 
-  if (max !== null && max > threshold) {
-    const isHigh = max > highThreshold;
+  if (max !== null && status.level !== 'ok') {
+    const isHigh = status.level === 'high';
     btn.classList.add('drift-alert');
     btn.classList.toggle('drift-alert-high', isHigh);
     btn.setAttribute('aria-label', `Portfolio (drift alert: ${fmtPctVal(max)})`);
 
-    const severityLabel = isHigh ? 'High drift' : 'Moderate drift';
+    const severityLabel = status.label;
     const thresholdLabel = isHigh
       ? `over ${fmtPctVal(highThreshold, 'auto')} (high threshold)`
       : `over ${fmtPctVal(threshold, 'auto')} (threshold)`;
@@ -2304,8 +2312,6 @@ function updateDriftBadge(): void {
       tipEl.className = `info-tip info-tip--${variant}`;
       tipEl.dataset.tipVariant = variant;
       tipEl.textContent = variant === 'alert' ? '\u203c' : '!';
-      // Re-bind listeners after class change by clearing the bound flag
-      delete (tipEl as HTMLElement & { dataset: DOMStringMap }).dataset.tipBound;
     }
     tipEl.dataset.tip = tipText;
     tipEl.setAttribute('aria-label', tipText);

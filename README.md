@@ -105,7 +105,7 @@ All writes (snapshots, CSV imports, settings changes, backup restores) go to loc
 - **sql.js (WASM)** - in-browser SQLite database
 - **Google Drive AppData** - cloud backup and cross-device sync
 - **IndexedDB** - local persistence (SQLite blob + fast-boot cache)
-- **Chart.js** - charts
+- **Apache ECharts** - interactive charts (zoom and pan, linked timelines, drill-down, data table, fullscreen), tree-shaken and lazy-loaded
 - **Google OAuth2** - authentication (`drive.appdata` scope only)
 
 ---
@@ -126,7 +126,7 @@ Accounts can optionally be marked as **locked** (e.g. pension or AVD accounts) w
 
 You can also configure extra contributions (employer match, state subsidies) that factor into DCA forecast projections. The **global monthly contribution budget** is routed to your primary investment account. To split contributions across multiple accounts, configure per-account contribution amounts in the account settings for each additional account. The **contribution interval** (weekly / bi-weekly / monthly / quarterly) controls how often you invest and normalises the budget into a per-execution amount.
 
-Each holding can be given a **target allocation percentage** (set in the holding dialog). Once at least one target is configured, the Portfolio tab's drift table compares your actual allocation against those targets and the rebalance plan suggests top-up amounts based on your **calibration interval** (weekly / monthly / quarterly), which controls how often the rebalance plan recalculates the per-execution top-up amount.
+Each holding can be given a **target allocation percentage** (set in the holding dialog). Once at least one target is configured, the Portfolio tab's allocation drift chart compares your actual allocation against those targets (one bar per holding, largest gap first, with your drift alert threshold shaded around zero; click a bar to open the holding) and the collapsible **Rebalance with contributions** section suggests top-up amounts based on your **calibration interval** (weekly / every 2 weeks / monthly / quarterly, picked from a compact select next to the 1 mo – 1 yr horizon toggles). It leads with one line showing how far max drift falls over the chosen horizon, lists funded holdings first, and folds holdings that get nothing this period under a single "N holdings get 0 €" row. It is flagged as suggested once drift reaches the high band of your alert threshold. The assumptions (new contributions only, no selling, no market moves) sit in an info tip, and a short warning appears when some holdings would still be above target after 12 months.
 
 ### 3. Log your first monthly snapshot
 
@@ -162,7 +162,7 @@ for the new month. Missing ETF values are omitted, not saved as zero.
 Once these three steps are done, the setup banner transitions to a **"Recommended next steps"** prompt with two optional-but-important actions:
 
 - **Import transactions** — imports your broker CSV to unlock cost-basis tracking, realized P&L, and dividend analytics (Portfolio and Dividends tabs)
-- **Configure holdings** — adds ETF/fund definitions to your investment account in Settings, enabling the Portfolio drift view. For each holding you can set the **TER** (total expense ratio in %) to see annual cost estimates, and a **target allocation %** to power the drift table and rebalance plan. The **cost-basis method** (average cost, FIFO, LIFO, or HIFO) is configured globally in Settings.
+- **Configure holdings** — adds ETF/fund definitions to your investment account in Settings, enabling the Portfolio drift view. For each holding you can set the **TER** (total expense ratio in %) to see annual cost estimates, and a **target allocation %** to power the drift chart and rebalance plan. The **cost-basis method** (average cost, FIFO, LIFO, or HIFO) is configured globally in Settings.
 
 The banner disappears automatically once both are completed, or you can dismiss it manually at any time.
 
@@ -192,7 +192,7 @@ When recording a snapshot for your primary investment account, you can expand th
 
 This is optional, but enables two additional features:
 
-- **Drift table**: uses actual market values instead of cost basis, giving a more accurate picture of your current allocation vs. target allocation.
+- **Drift chart**: uses actual market values instead of cost basis, giving a more accurate picture of your current allocation vs. target allocation.
 - **Holdings detail panel**: shows a "Market value" and "Unrealized gain" column for each position when ETF values are available for the latest snapshot.
 
 **How to use it**
@@ -216,7 +216,7 @@ To fill these values from a supported PDF, use the
 
 **Inactive but held positions**
 
-ETFs that you have stopped contributing to but still hold remain separate from manual entries inside **Other ETFs**. They should still be included when recording values, as they remain part of your total portfolio allocation. The drift table will show these with a 0% target, reflecting that they are being wound down over time.
+ETFs that you have stopped contributing to but still hold remain separate from manual entries inside **Other ETFs**. They should still be included when recording values, as they remain part of your total portfolio allocation. The drift chart will show these as legacy holdings with a 0% target, reflecting that they are being wound down over time.
 
 ### Importing transactions
 
@@ -226,7 +226,7 @@ For detailed cost-basis, realized P&L, and dividend tracking, import your broker
 2. Select or drag your broker CSV (Trade Republic full transaction history and N26 savings account transactions are supported built-in; N26 does not export investment transactions — for those use Trade Republic or a custom profile. [Adding more banks](#adding-support-for-a-new-bank) takes ~10 minutes)
 3. Review the detected transactions and confirm
 
-After import, transactions appear in the **transaction ledger** at the bottom of the **+ Log** tab, where you can review, filter, and delete individual records.
+After import, transactions appear in the **transaction ledger** at the bottom of the **+ Log** tab, where you can review, filter, and delete individual records. Filter by type with the chips (each shows its count), search by name, ISIN or source, and use **Clear filters** on the "x of y" line to reset. Chart drill-downs mark the filter as **From chart**. To delete several rows at once, press **Select** first.
 
 Transactions are merged with existing data using an append-only strategy: new rows are inserted, but rows that already exist are not overwritten. Matching is done by transaction ID (provider ID when available, otherwise deterministic profile-based IDs for providers without native IDs). This makes repeated imports deterministic across sessions while still preserving distinct same-key rows.
 
@@ -261,7 +261,7 @@ mobile view to reduce visual noise.
 
 The Portfolio tab has three subviews:
 
-- **Holdings** — your ETF positions with cost basis, unrealized gain, market value (when snapshot ETF values are recorded), and the drift table.
+- **Holdings** — your ETF positions with cost basis, unrealized gain, market value (when snapshot ETF values are recorded), and the allocation drift chart. The Held / Closed / All chips only appear once you have closed positions.
 - **Contributions** — month-by-month DCA history and contribution split across holdings.
 - **Dividends** — dividend and interest income history, yield, and growth metrics.
 
@@ -273,9 +273,9 @@ The Analytics tab separates net worth changes from investment returns:
 
 **Net worth growth details:** Expand this section for net worth growth, YTD growth, annualized CAGR, and year-over-year change. These include deposits and withdrawals; they are not investment-performance measures.
 
-**Investment returns:** TWR adjusts for external cash flows; IRR also reflects their timing and amounts. Cumulative TWR and annualized IRR are not directly comparable, and both depend on complete balances and cash-flow records. Monthly heatmap and annual returns share a card; annual differences are expressed in percentage points (`pp`). Blank periods are not zero returns.
+**Investment returns:** TWR adjusts for external cash flows; IRR also reflects their timing and amounts. Cumulative TWR and annualized IRR are not directly comparable, and both depend on complete balances and cash-flow records. Monthly heatmap and annual returns share a card and both appear once 24 monthly returns are available. Each year shows its return, its market gain (value change not explained by deposits or withdrawals) and its net contributions; partial years show how many months they cover. Blank periods are not zero returns.
 
-**Allocation:** Account shares use the latest snapshot balances, including savings and pension accounts. Expand **Holdings: asset class and region** for holding shares based on purchase costs, not market values. These breakdowns use different totals. Account grouping and active/all-holding filters remain available.
+**Allocation:** Two matching donuts. **Accounts** splits the latest snapshot balances (savings and pensions included) by account, country, group or type. **Holdings** splits purchase costs, not market values, by asset class, region or individual holding. It opens on the first breakdown that has more than one slice, and offers **Include inactive** when inactive holdings still carry cost (the button switches to **Hide inactive** while they are included). The two donuts use different totals. They sit side by side on wide screens and stack on phones and tablets.
 
 **Advanced analytics:** Volatility, Max Drawdown, Sharpe, Sortino, Calmar, Average Drawdown, and Drawdown Duration use investment-account-only monthly returns. Risk summaries require at least 24 valid monthly return periods with no skipped gaps or missing investment valuations across the supplied history; normally this means at least 25 snapshots. The heatmap has a separate history-count gate. These historical measures are descriptive, not forecasts or universal investment targets.
 
@@ -289,13 +289,27 @@ Named savings goals can be configured in **Settings > Goals**. Each goal has a t
 
 ### Retirement planning
 
-The **Net Worth** tab includes a **Drawdown** forecast alongside the standard accumulation projection. Configure a retirement date and select a withdrawal strategy:
+The **Net Worth** tab has a **Projections** card with two tabs that share one inflation setting:
 
-- **Fixed amount** — withdraw a fixed €/month (nominal, not inflation-adjusted)
-- **4% rule (SWR)** — withdraw 4% of the starting retirement balance per year, indexed annually for inflation
-- **% of portfolio** — withdraw a fixed percentage of the current balance each month
+- **Forecast** leads with the projected net worth at the end of the visible window (and in today's euros when inflation is set); zoom the chart to change the horizon. **Compare scenarios** adds editable optimistic and pessimistic what-ifs, drawn as a shaded band around the baseline. Goal deadlines and the retirement start are marked on the timeline. Per-account assumptions, the grouped summary and the model limitations sit in collapsible sections under the chart.
+- **Retirement withdrawals** leads with how long the money lasts, then the first withdrawal and the break-even amount. Configure a start date and a withdrawal strategy:
+  - **Fixed €** — the same €/month every month (nominal, not inflation-adjusted)
+  - **Inflation-linked €** — a starting €/month raised each year by the inflation rate (the classic "4% rule")
+  - **% of balance** — a fixed yearly percentage of the remaining balance, paid monthly
 
-The chart shows your projected portfolio balance through the drawdown period. If the balance reaches zero, the depletion date is displayed. **Note:** All withdrawal amounts shown are pre-tax. Actual spendable income will be lower depending on your jurisdiction and account type. Projections use a fixed expected return and do not model sequence-of-returns risk.
+The withdrawal starts at a suggestion of 4% of the balance at retirement and follows the start date until you type your own amount; typed amounts are kept per strategy and survive reloads (↺ returns to the suggestion). The chart shows the projected balance and the monthly withdrawal; if the balance reaches zero, the depletion date is marked and the empty period shaded. **Note:** All withdrawal amounts shown are pre-tax. Actual spendable income will be lower depending on your jurisdiction and account type. Projections use a fixed expected return and do not model sequence-of-returns risk.
+
+### Charts
+
+All charts share the same controls and follow the light/dark theme:
+
+- **Zoom and pan** on timelines instead of fixed range buttons. Each chart opens on a sensible default view (full history; the last 12 months for monthly bars; 5 years for forecasts) and **Reset view** returns to it. On a computer, drag inside the plot to pan, use Ctrl + mouse wheel (or a trackpad pinch) to zoom, or drag the slider under the chart. On touch screens, **pinch** inside the chart to zoom and drag sideways to pan; vertical swipes keep scrolling the page. Forecast titles follow the visible horizon (e.g. "12 years").
+- **Toolbox** (top-right): box zoom and undo (desktop), reset view, **data table** (a compact, scrollable table of the plotted values with headings that stay in place; close it with × or Escape), save as image (desktop) and **expand** to full screen.
+- **Lines** are drawn with gentle curves on every line chart.
+- **Legend** entries are buttons that toggle series on and off (keyboard accessible); long legends wrap onto extra rows instead of paging.
+- **Linked timelines:** the Analytics growth, drawdown and rolling CAGR charts share their zoom window and hover position.
+- **Drill-down:** click a point to jump to the underlying data. On touch screens a tap only shows the tooltip; tap its **Open …** button to navigate, so scrolling past a chart never jumps away. Net worth history and growth points open that month's snapshot in **Log › Snapshots**; contribution and income months open **Log › Transactions** filtered to that month; cost-basis and allocation drift bars reveal the holding in the Holdings table. The tooltip shows a hint (or the button on touch) on charts that support it.
+- **Return heatmap** (Analytics): one row per year, one cell per month and the compounded year total on the right, with a shared colour scale across pages. Five years are shown at a time; use ‹ › to page through older years, and the Annual investment returns table below follows the same page (return bar centred on zero, market gain, net contributions). Hover or tap a cell for the exact return and starting value; on very narrow screens the cell numbers are hidden and the tooltip carries them.
 
 ### Theme
 

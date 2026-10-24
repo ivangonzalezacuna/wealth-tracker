@@ -2,17 +2,23 @@ import { getACCTSList } from '../constants';
 import { snapTotal, fmtEur2, fmtMon, fmtDay, esc, safeColor } from '../utils';
 import { sourceLabel } from '../import/profiles/index';
 import type { Snapshot, Transaction } from '../types';
-import { T } from '../theme';
 import { isCollapsed, setCollapsed } from '../ui/collapseState';
 import { EDIT_ICON, DELETE_ICON } from './icons';
 import { attachEtfPopovers } from '../ui/etfPopover';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow } from './tableColumns';
-import { renderPagination } from './pagination';
+import { loadPageSize, renderPagination, savePageSize } from './pagination';
 import { bindExpandableRows, restoreExpandableRows } from './expandableRows';
 import { bindSortedTableHeader, sortAndPaginate } from './tableView';
 import { populateYearFilterOptions } from './yearFilter';
 import { LOG_VIEWS, type LogView } from '../nav';
+import {
+  bindChipGroup,
+  bindFilterStatus,
+  bindSearchClear,
+  chipButtonsHtml,
+  renderFilterStatus,
+} from '../ui/filterBar';
 import {
   bindTableSearchFilter,
   bindTableYearFilter,
@@ -40,23 +46,6 @@ const SNAP_PAGE_SIZES = [12, 24, 36] as const;
 const TX_PAGE_SIZES = [15, 25, 50, 100] as const;
 const SNAP_PAGE_SIZE_KEY = 'wt:log:snapPageSize';
 const TX_PAGE_SIZE_KEY = 'wt:log:txPageSize';
-
-function loadPageSize(key: string, allowed: readonly number[], fallback: number): number {
-  try {
-    const stored = Number(globalThis.localStorage?.getItem(key));
-    return allowed.includes(stored) ? stored : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function savePageSize(key: string, size: number): void {
-  try {
-    globalThis.localStorage?.setItem(key, String(size));
-  } catch {
-    // Storage may be unavailable (private mode); the size still applies for this session.
-  }
-}
 
 /** Sort value for ISO dates ("YYYY-MM" or "YYYY-MM-DD") so 'desc' means newest first. */
 function isoDateSortValue(date: string): number {
@@ -88,6 +77,15 @@ const _txTableState = createTableState({
   filters: { search: '', type: '' },
 });
 let _txPageSize = loadPageSize(TX_PAGE_SIZE_KEY, TX_PAGE_SIZES, TX_PAGE_SIZES[0]);
+/** Filters were set by a chart drill-down (shown as a "From chart" note until changed). */
+let _txFromChart = false;
+let _snapFromChart = false;
+
+/** "DIVIDEND" → "Dividend", "SAVINGS_PLAN" → "Savings plan". */
+function txTypeLabel(type: string): string {
+  const s = type.replace(/_/g, ' ').toLowerCase();
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 const _openTxDetails = new Set<string>();
 let _importPanelTouched = false;
 
@@ -263,24 +261,38 @@ function renderTxSummary(txs: Transaction[]): string {
 }
 
 function attachFilterListeners(): void {
+  const rerender = () => {
+    _snapFromChart = false;
+    if (_lastOnEdit && _lastOnDel) renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
+  };
   bindTableYearFilter({
     elementId: 'snap-year-filter',
     state: _snapTableState,
     filterKey: 'year',
     resetSort: true,
-    rerender: () => {
-      if (_lastOnEdit && _lastOnDel) renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
-    },
+    rerender,
   });
   bindTableSearchFilter({
     elementId: 'snap-search',
     state: _snapTableState,
     filterKey: 'search',
     resetSort: true,
-    rerender: () => {
-      if (_lastOnEdit && _lastOnDel) renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
-    },
+    rerender,
   });
+  bindSearchClear(document.getElementById('snap-filter-bar'));
+  bindFilterStatus(document.getElementById('snap-filter-status'), clearSnapFilters);
+}
+
+function clearSnapFilters(): void {
+  _snapTableState.filters.search = '';
+  _snapTableState.filters.year = '';
+  _snapFromChart = false;
+  setTablePage(_snapTableState, 1);
+  const yearEl = document.getElementById('snap-year-filter') as HTMLSelectElement | null;
+  const searchEl = document.getElementById('snap-search') as HTMLInputElement | null;
+  if (yearEl) yearEl.value = '';
+  if (searchEl) searchEl.value = '';
+  if (_lastOnEdit && _lastOnDel) renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
 }
 
 function getFilteredSnaps(snaps: Snapshot[]): Snapshot[] {
@@ -314,6 +326,58 @@ function getFilteredTxs(txs: Transaction[]): Transaction[] {
   return filtered;
 }
 
+/**
+ * Show one snapshot in the history (chart drill-down): filter to its year, jump to the page
+ * holding it and expand its row. Returns the row, or null when the snapshot is unknown.
+ */
+export function revealSnapshot(date: string): HTMLElement | null {
+  if (!_lastOnEdit || !_lastOnDel || !_snaps.some((s) => s.date === date)) return null;
+  const year = date.slice(0, 4);
+  _snapTableState.filters.search = '';
+  _snapTableState.filters.year = year;
+  _snapFromChart = true;
+  const yearEl = document.getElementById('snap-year-filter') as HTMLSelectElement | null;
+  const searchEl = document.getElementById('snap-search') as HTMLInputElement | null;
+  if (yearEl) yearEl.value = year;
+  if (searchEl) searchEl.value = '';
+  const { pageItems: ordered } = sortAndPaginate(
+    getFilteredSnaps(_snaps),
+    snapColumns(),
+    _snapTableState.sort,
+    1,
+    Number.MAX_SAFE_INTEGER,
+  );
+  const idx = Math.max(
+    0,
+    ordered.findIndex((s) => s.date === date),
+  );
+  setTablePage(_snapTableState, Math.floor(idx / _snapPageSize) + 1);
+  // Only one snapshot is open at a time; a stale `snap:` entry later in the list would
+  // otherwise be restored after (and replace) this one.
+  for (const s of _snaps) if (s.date !== date) setCollapsed('snap:' + s.date, false);
+  setCollapsed('snap:' + date, true);
+  renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
+  return (
+    [...document.querySelectorAll<HTMLElement>('#snaps-list .snap-row-compact:not(.th)')].find(
+      (row) => row.dataset.date === date,
+    ) ?? null
+  );
+}
+
+/** Filter the transaction ledger (chart drill-down) and return the ledger card. */
+export function showTransactions(filter: { search?: string; type?: string }): HTMLElement | null {
+  const search = filter.search ?? '';
+  const type = filter.type ?? '';
+  _txTableState.filters.search = search.toLowerCase();
+  _txTableState.filters.type = type;
+  _txFromChart = true;
+  setTablePage(_txTableState, 1);
+  const searchEl = document.getElementById('tx-search') as HTMLInputElement | null;
+  if (searchEl) searchEl.value = search;
+  renderTxList(_txs);
+  return document.getElementById('tx-ledger-card');
+}
+
 function _updateBulkControls(kind: 'tx' | 'snap'): void {
   const isTx = kind === 'tx';
   const hasBulkHandler = () => (isTx ? !!_lastOnBulkDelTxs : !!_lastOnBulkDel);
@@ -345,7 +409,8 @@ function _updateBulkControls(kind: 'tx' | 'snap'): void {
     : getFilteredSnaps(_snaps).length;
 
   startBtn.hidden = _readOnly || !hasBulkHandler();
-  startBtn.textContent = isActive ? 'Cancel' : 'Bulk delete';
+  startBtn.textContent = isActive ? 'Cancel' : 'Select';
+  startBtn.setAttribute('aria-pressed', String(isActive));
   actionsEl.hidden = !isActive || _readOnly || !hasBulkHandler();
   if (addBtn) addBtn.hidden = isActive;
   if (addSnapBtn) addSnapBtn.disabled = _readOnly || isActive;
@@ -494,23 +559,23 @@ function renderSnapList(
   }
 
   const filtered = getFilteredSnaps(snaps);
+  renderFilterStatus(document.getElementById('snap-filter-status'), {
+    shown: filtered.length,
+    total: snaps.length,
+    noun: 'snapshots',
+    active: !!(
+      getTableFilter(_snapTableState, 'year') || getTableFilter(_snapTableState, 'search')
+    ),
+    note: _snapFromChart ? 'From chart' : undefined,
+  });
 
   if (filtered.length === 0) {
     el.innerHTML = `<div class="empty-state" style="padding:1rem;font-size:12px;color:var(--ink-3)">
       No matching snapshots.
-      <button class="btn btn-ghost btn-sm js-clear-snap-filters" style="margin-left:6px;font-size:12px">Clear filters</button>
+      <button type="button" class="filter-clear-all js-clear-snap-filters" style="margin-left:6px">Clear filters</button>
     </div>`;
     hidePagination();
-    el.querySelector('.js-clear-snap-filters')?.addEventListener('click', () => {
-      _snapTableState.filters.search = '';
-      _snapTableState.filters.year = '';
-      setTablePage(_snapTableState, 1);
-      const yearEl = document.getElementById('snap-year-filter') as HTMLSelectElement | null;
-      const searchEl = document.getElementById('snap-search') as HTMLInputElement | null;
-      if (yearEl) yearEl.value = '';
-      if (searchEl) searchEl.value = '';
-      renderSnapList(snaps, onEdit, onDel);
-    });
+    el.querySelector('.js-clear-snap-filters')?.addEventListener('click', clearSnapFilters);
     _updateBulkControls('snap');
     return;
   }
@@ -818,8 +883,7 @@ function fmtTxMoney(n: number, currency: string | undefined): string {
 function attachTxListeners(): void {
   const searchEl = document.getElementById('tx-search') as
     (HTMLInputElement & { _bound?: boolean }) | null;
-  const typeEl = document.getElementById('tx-type-filter') as
-    (HTMLSelectElement & { _bound?: boolean }) | null;
+  const typeEl = document.getElementById('tx-type-filter');
   const addBtn = document.getElementById('btn-add-tx') as
     (HTMLButtonElement & { _bound?: boolean }) | null;
   const listEl = document.getElementById('tx-ledger-list') as
@@ -829,16 +893,33 @@ function attachTxListeners(): void {
     searchEl._bound = true;
     searchEl.addEventListener('input', () => {
       _txTableState.filters.search = searchEl.value.toLowerCase();
+      _txFromChart = false;
       setTablePage(_txTableState, 1);
       renderTxList(_txs);
     });
   }
-  if (typeEl && !typeEl._bound) {
-    typeEl._bound = true;
-    typeEl.addEventListener('change', () => {
-      _txTableState.filters.type = typeEl.value;
-      setTablePage(_txTableState, 1);
-      renderTxList(_txs);
+  bindChipGroup(typeEl, 'tx-type', (value) => {
+    if (value === getTableFilter(_txTableState, 'type')) return;
+    _txTableState.filters.type = value;
+    _txFromChart = false;
+    setTablePage(_txTableState, 1);
+    renderTxList(_txs);
+  });
+  bindSearchClear(document.getElementById('tx-filter-bar'));
+  const clearTxFilters = () => {
+    _txTableState.filters.search = '';
+    _txTableState.filters.type = '';
+    _txFromChart = false;
+    setTablePage(_txTableState, 1);
+    const input = document.getElementById('tx-search') as HTMLInputElement | null;
+    if (input) input.value = '';
+    renderTxList(_txs);
+  };
+  bindFilterStatus(document.getElementById('tx-filter-status'), clearTxFilters);
+  if (listEl && !listEl.dataset.clearBound) {
+    listEl.dataset.clearBound = '1';
+    listEl.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('[data-clear-filters]')) clearTxFilters();
     });
   }
   if (addBtn && !addBtn._bound) {
@@ -892,22 +973,37 @@ function attachTxListeners(): void {
 function renderTxList(txs: Transaction[]): void {
   const listEl = document.getElementById('tx-ledger-list');
   const paginationEl = document.getElementById('tx-pagination');
-  const typeEl = document.getElementById('tx-type-filter') as HTMLSelectElement | null;
+  const typeEl = document.getElementById('tx-type-filter');
+  const statusEl = document.getElementById('tx-filter-status');
   const addBtn = document.getElementById('btn-add-tx') as HTMLButtonElement | null;
   if (!listEl) return;
   if (addBtn) addBtn.disabled = _readOnly;
   if (addBtn) addBtn.hidden = _txBulkMode;
   listEl.className = `tx-ledger-grid${_readOnly ? ' tx-ledger-grid-readonly' : ''}`;
 
-  const types = [...new Set(txs.map((t) => t.type).filter(Boolean))].sort() as string[];
+  // Type chips: only types present in the ledger, each with its count; hidden for a single type.
+  const typeCounts = new Map<string, number>();
+  for (const t of txs) if (t.type) typeCounts.set(t.type, (typeCounts.get(t.type) ?? 0) + 1);
+  const types = [...typeCounts.keys()].sort();
+  if (!types.includes(getTableFilter(_txTableState, 'type'))) _txTableState.filters.type = '';
   const currentType = getTableFilter(_txTableState, 'type');
   if (typeEl) {
-    const prev = typeEl.value || currentType;
+    typeEl.hidden = types.length < 2;
     typeEl.innerHTML =
-      '<option value="">All types</option>' +
-      types.map((type) => `<option value="${esc(type)}">${esc(type)}</option>`).join('');
-    if (types.includes(prev)) typeEl.value = prev;
-    _txTableState.filters.type = typeEl.value;
+      types.length < 2
+        ? ''
+        : chipButtonsHtml({
+            attr: 'tx-type',
+            value: currentType,
+            chips: [
+              { value: '', label: 'All', count: txs.length },
+              ...types.map((type) => ({
+                value: type,
+                label: txTypeLabel(type),
+                count: typeCounts.get(type),
+              })),
+            ],
+          });
   }
 
   if (!txs.length) {
@@ -915,15 +1011,23 @@ function renderTxList(txs: Transaction[]): void {
     listEl.innerHTML =
       '<div class="empty-state" style="padding:1rem;font-size:13px">No transactions yet.</div>';
     if (paginationEl) paginationEl.innerHTML = '';
+    renderFilterStatus(statusEl, { shown: 0, total: 0, noun: 'transactions', active: false });
     _updateBulkControls('tx');
     return;
   }
 
   const filtered = getFilteredTxs(txs);
+  renderFilterStatus(statusEl, {
+    shown: filtered.length,
+    total: txs.length,
+    noun: 'transactions',
+    active: !!(currentType || getTableFilter(_txTableState, 'search')),
+    note: _txFromChart ? 'From chart' : undefined,
+  });
 
   if (!filtered.length) {
     listEl.innerHTML =
-      '<div class="empty-state" style="padding:1rem;font-size:13px">No matching transactions.</div>';
+      '<div class="empty-state" style="padding:1rem;font-size:13px">No matching transactions. <button type="button" class="filter-clear-all" data-clear-filters>Clear filters</button></div>';
     if (paginationEl) paginationEl.innerHTML = '';
     _updateBulkControls('tx');
     return;
