@@ -1034,7 +1034,7 @@ function _renderHoldAllocation(holdings: Holding[], pd: PortfolioData | null): v
     )
     .join('')}</div>${
     showInactive
-      ? `<button type="button" class="btn btn-sm btn-ghost alloc-inactive${_holdIncludeInactive ? ' active' : ''}" data-hold-inactive aria-pressed="${_holdIncludeInactive}">Include inactive</button>`
+      ? `<button type="button" class="btn btn-sm btn-ghost alloc-inactive${_holdIncludeInactive ? ' active' : ''}" data-hold-inactive title="${_holdIncludeInactive ? 'Inactive holdings are included in this donut' : 'Only active holdings are shown'}">${_holdIncludeInactive ? 'Hide inactive' : 'Include inactive'}</button>`
       : ''
   }`;
   if (!wrapEl._holdBound) {

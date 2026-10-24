@@ -472,11 +472,15 @@ describe('renderAnalytics', () => {
 
       const inactive = document.querySelector('[data-hold-inactive]') as HTMLElement;
       expect(inactive).not.toBeNull();
+      expect(inactive.textContent).toBe('Include inactive');
       inactive.click();
       expect(names()).toEqual(['World', 'Europe', 'Old']);
-      expect(document.querySelector('[data-hold-inactive]')?.getAttribute('aria-pressed')).toBe(
-        'true',
-      );
+      const shown = document.querySelector('[data-hold-inactive]') as HTMLElement;
+      expect(shown.textContent).toBe('Hide inactive');
+      expect(shown.classList.contains('active')).toBe(true);
+      shown.click();
+      expect(names()).toEqual(['World', 'Europe']);
+      expect(document.querySelector('[data-hold-inactive]')?.textContent).toBe('Include inactive');
     } finally {
       MOCK_HOLDINGS.splice(0, MOCK_HOLDINGS.length);
     }
