@@ -351,21 +351,22 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
           attr: 'filter',
           value: holdingsFilter,
           chips: [
+            { value: 'all', label: 'All', count: allEtfs.length },
             { value: 'held', label: 'Held', count: held.length },
             { value: 'closed', label: 'Closed', count: exitedCount },
-            { value: 'all', label: 'All', count: allEtfs.length },
           ],
         })
       : '';
+  // Same layout as the ledger: search first, chips on their own row below.
   const filterHtml = `
-    <div class="filter-bar hold-filter-bar">
-      ${statusChips}
+    <div class="filter-bar filter-bar-stacked hold-filter-bar">
       ${searchHtml({
         id: 'port-holdings-search',
         value: holdingsSearch,
         placeholder: 'Search ISIN or name',
         ariaLabel: 'Search holdings by ISIN or name',
       })}
+      ${statusChips}
     </div>`;
   const noMatch =
     pageItems.length === 0 && holdingsSearch
@@ -483,14 +484,25 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   });
 
   // Holdings pagination controls
-  renderHoldPagination(totalPages, pd, snaps);
+  renderHoldPagination(totalPages, defaultOrdered.length, pd, snaps);
 }
 
-function renderHoldPagination(totalPages: number, pd: PortfolioData, snaps: Snapshot[]): void {
-  renderPagination('port-pagination', _holdTableState.page, totalPages, (p) => {
-    setTablePage(_holdTableState, p);
-    renderHoldingsTable(pd, snaps);
-  });
+function renderHoldPagination(
+  totalPages: number,
+  totalItems: number,
+  pd: PortfolioData,
+  snaps: Snapshot[],
+): void {
+  renderPagination(
+    'port-pagination',
+    _holdTableState.page,
+    totalPages,
+    (p) => {
+      setTablePage(_holdTableState, p);
+      renderHoldingsTable(pd, snaps);
+    },
+    { totalItems, pageSize: HOLD_PAGE_SIZE },
+  );
 }
 
 function _createHoldingDetail(e: EtfPosition): HTMLElement {
@@ -871,7 +883,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
             <div class="range-toggle filter-chips rebalance-range-toggle" role="group" aria-label="Rebalance timeline">
               ${pickerBtns}
             </div>
-            <select class="form-input form-input-sm filter-select" data-rebalance-interval aria-label="Contribution cadence">${cadenceOptions}</select>
+            <select class="form-input form-input-sm filter-select themed-select" data-rebalance-interval aria-label="Contribution cadence">${cadenceOptions}</select>
           </div>
           <p class="rebalance-result">Max drift <strong>${fmtPctVal(activeCurrentMax)} → ${fmtPctVal(projectedActiveMax)}</strong> after ${periodLabel} <span class="rebalance-result-meta">· ${fmtEur(monthlyBudget)}/mo budget&nbsp;${infoTip(disclaimer)}</span></p>
           <div class="tbl rebalance-plan" role="table" aria-label="Contribution rebalance plan">

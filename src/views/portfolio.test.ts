@@ -514,7 +514,7 @@ describe('renderPortfolio', () => {
     expect(table.textContent).not.toContain('EXITED');
     const chips = document.getElementById('port-filter-toggle')!;
     expect(chips.getAttribute('role')).toBe('group');
-    expect(chips.textContent).toBe('Held 1Closed 1All 2');
+    expect(chips.textContent).toBe('All 2Held 1Closed 1');
     expect(chips.querySelector('[data-filter="held"]')!.getAttribute('aria-pressed')).toBe('true');
 
     // Click "Closed" filter button
