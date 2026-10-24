@@ -116,7 +116,7 @@ export function appTemplate(): string {
         <div class="card">
           <div class="card-title">Month-by-month</div>
           <div class="filter-bar">
-            <select id="dca-year-filter" class="form-input form-input-sm filter-select" aria-label="Filter by year">
+            <select id="dca-year-filter" class="form-input form-input-sm filter-select themed-select" aria-label="Filter by year">
               <option value="">All years</option>
             </select>
           </div>
@@ -139,7 +139,7 @@ export function appTemplate(): string {
       <div class="card">
         <div class="card-title">Dividend payments received (most recent first)</div>
         <div class="filter-bar" id="div-year-filter-bar">
-          <select id="div-year-filter" class="form-input form-input-sm filter-select" aria-label="Filter by year">
+          <select id="div-year-filter" class="form-input form-input-sm filter-select themed-select" aria-label="Filter by year">
             <option value="">All years</option>
           </select>
         </div>
@@ -149,7 +149,7 @@ export function appTemplate(): string {
       <div class="card">
         <div class="card-title">Cash / savings interest received</div>
         <div class="filter-bar" id="int-year-filter-bar">
-          <select id="int-year-filter" class="form-input form-input-sm filter-select" aria-label="Filter by year">
+          <select id="int-year-filter" class="form-input form-input-sm filter-select themed-select" aria-label="Filter by year">
             <option value="">All years</option>
           </select>
         </div>
@@ -423,7 +423,7 @@ export function appTemplate(): string {
       </div>
       <div class="log-panel-body">
         <div class="filter-bar log-filter-bar" id="snap-filter-bar">
-          <select id="snap-year-filter" class="form-input form-input-sm filter-select" aria-label="Filter by year">
+          <select id="snap-year-filter" class="form-input form-input-sm filter-select themed-select" aria-label="Filter by year">
             <option value="">All years</option>
           </select>
           <span class="filter-search"><input type="search" id="snap-search" class="form-input form-input-sm" aria-label="Search snapshots by notes" placeholder="Notes or month…" autocomplete="off"><button type="button" class="filter-clear" data-clear-search aria-label="Clear search">&times;</button></span>

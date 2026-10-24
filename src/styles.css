@@ -1281,22 +1281,23 @@ details[open] > summary .card-chevron {
 .log-panel-body {
   margin-top: 0.75rem;
 }
-.log-filter-bar {
+/* Stacked filter bar (ledger, holdings): search + actions on top, chips on their own row. */
+:is(.log-filter-bar, .filter-bar-stacked) {
   gap: 8px;
   margin-bottom: 0.6rem;
 }
-.log-filter-bar > .filter-chips,
+:is(.log-filter-bar, .filter-bar-stacked) > .filter-chips,
 .log-filter-bar > .bulk-actions {
   flex-basis: 100%;
 }
-.log-filter-bar > .filter-chips[hidden],
+:is(.log-filter-bar, .filter-bar-stacked) > .filter-chips[hidden],
 .log-filter-bar > .bulk-actions[hidden] {
   display: none;
 }
 .log-filter-bar .filter-bar-actions {
   flex: 0 0 auto;
 }
-.log-filter-bar .filter-search {
+:is(.log-filter-bar, .filter-bar-stacked) .filter-search {
   max-width: 360px;
 }
 .filter-bar[hidden] {
@@ -1321,10 +1322,7 @@ details[open] > summary .card-chevron {
 }
 
 /* Pagination: range · rows-per-page · prev/next */
-.pagination {
-  flex-wrap: wrap;
-  row-gap: 4px;
-}
+
 .page-range {
   color: var(--ink-3);
   font-variant-numeric: tabular-nums;
@@ -1337,8 +1335,8 @@ details[open] > summary .card-chevron {
 }
 .page-size select {
   width: auto;
-  padding-right: 22px;
 }
+
 .pagination-nav {
   display: inline-flex;
   align-items: center;
@@ -1617,6 +1615,16 @@ body.chart-expanded-open {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+@media (max-width: 768px) {
+  .chart-legend {
+    gap: 0 6px;
+  }
+  .chart-legend-item {
+    min-height: 18px;
+    font-size: 11px;
+    line-height: 1.1;
+  }
 }
 /* Data table overlay (toolbox): compact rows, close button, scrolls inside the chart. */
 .chart-dataview {
@@ -1977,19 +1985,7 @@ body.chart-expanded-open {
   padding-top: 6px;
   padding-bottom: 6px;
 }
-.hold-filter-bar {
-  margin-bottom: 8px;
-  gap: 6px;
-}
-.hold-filter-bar .filter-search {
-  max-width: 260px;
-}
-@media (max-width: 599px) {
-  .hold-filter-bar .filter-search {
-    max-width: none;
-    flex-basis: 100%;
-  }
-}
+
 .hold-empty {
   grid-column: 1 / -1;
   padding: 1rem;
@@ -2672,20 +2668,7 @@ summary.section-label {
 .filter-clear-all:hover {
   text-decoration: underline;
 }
-.pagination {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 0.75rem;
-  font-size: 12px;
-  color: var(--ink-2);
-}
-.pagination button {
-  cursor: pointer;
-}
-.pagination .page-info {
-  margin: 0 4px;
-}
+
 .chart-controls {
   display: flex;
   align-items: center;
@@ -3175,7 +3158,6 @@ summary.section-label {
 .rebalance-result .info-tip,
 .rebalance-sell-note .info-tip {
   margin-left: 2px;
-  vertical-align: -2px;
 }
 .rebalance-zero-summary {
   cursor: pointer;
@@ -3413,9 +3395,6 @@ summary.section-label {
   .status-bar {
     font-size: 11px;
     padding: 6px 10px;
-  }
-  .pagination {
-    font-size: 11px;
   }
   .badge {
     font-size: 9px;
@@ -5080,6 +5059,18 @@ textarea.dialog-input {
       border: 1px solid var(--line);
       border-radius: var(--radius-sm);
     }
+    select.themed-select {
+      display: inline-flex;
+      align-items: center;
+    }
+    select.themed-select::picker-icon {
+      margin-left: 6px;
+      color: var(--ink-3);
+      font-size: 0.7em;
+    }
+    :is(.filter-bar, .pagination) select.themed-select {
+      padding-right: 8px;
+    }
     select.themed-select::picker(select) {
       background: var(--surface);
       max-height: min(50vh, 320px);
@@ -5149,19 +5140,22 @@ textarea.dialog-input {
   border: 0;
 }
 
-/* Filter bars: search boxes and selects take the compact .btn-sm height (11px text, 1.4 line height,
-   3px / 5px vertical padding + 1px borders) so they line up with the chips and buttons next to them.
-   Buttons keep their own size. Last in the file so it wins over the generic phone-size input rules. */
+/* Compact controls: search boxes and selects in filter bars and pagination take the .btn-sm height
+   (11px text, 1.4 line height, 3px / 5px vertical padding + 1px borders) so they line up with the
+   chips and buttons next to them. Buttons keep their own size. Last in the file so it wins over the
+   generic phone-size input rules. */
 :root {
-  --filter-h: calc(11px * 1.4 + 8px);
+  --control-sm-h: calc(11px * 1.4 + 8px);
+  --chip-h: var(--control-sm-h);
 }
-.filter-bar .form-input {
+:is(.filter-bar, .pagination) .form-input {
   box-sizing: border-box;
-  height: var(--filter-h);
+  height: var(--control-sm-h);
   padding-top: 0;
   padding-bottom: 0;
   padding-left: 10px;
   font-size: 12px;
+  line-height: 1;
   border-radius: var(--radius-sm);
   background: var(--bg);
 }
@@ -5171,14 +5165,55 @@ textarea.dialog-input {
 .filter-bar .filter-clear {
   right: 5px;
 }
+/* Selects sit next to chips, so they follow the chip height. */
+:is(.filter-bar, .pagination) select.form-input {
+  height: var(--chip-h);
+  padding-right: 24px;
+}
 @media (max-width: 768px) {
   :root {
-    --filter-h: calc(11px * 1.4 + 12px);
+    --control-sm-h: calc(11px * 1.4 + 12px);
+    /* Chip toggles shrink to 10px text / 2px padding on phones. */
+    --chip-h: calc(10px * 1.4 + 6px);
   }
-  /* Selects sit next to the chip toggles, which shrink to 10px text / 2px padding on phones. */
-  .filter-bar select.form-input {
-    height: calc(10px * 1.4 + 6px);
+  :is(.filter-bar, .pagination) select.form-input {
     padding-left: 7px;
+    font-size: 11px;
+  }
+}
+
+/* Pagination: "x–y of n" · Rows select · ← page / pages → — same layout for every table. */
+.pagination {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 0.75rem;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.pagination:empty {
+  display: none;
+}
+.pagination-nav .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 28px;
+  height: var(--chip-h);
+  padding: 0 6px;
+  line-height: 1;
+}
+.pagination .page-info {
+  min-width: 3.5em;
+  margin: 0 2px;
+  text-align: center;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 768px) {
+  .pagination {
     font-size: 11px;
   }
 }

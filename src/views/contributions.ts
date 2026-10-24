@@ -388,12 +388,18 @@ function renderDCATable(pd: PortfolioData): void {
   );
 
   // Pagination controls
-  renderDCAPagination(totalPages, pd);
+  renderDCAPagination(totalPages, months.length, pd);
 }
 
-function renderDCAPagination(totalPages: number, pd: PortfolioData): void {
-  renderPagination('dca-pagination', _dcaTableState.page, totalPages, (p) => {
-    setTablePage(_dcaTableState, p);
-    renderDCATable(pd);
-  });
+function renderDCAPagination(totalPages: number, totalItems: number, pd: PortfolioData): void {
+  renderPagination(
+    'dca-pagination',
+    _dcaTableState.page,
+    totalPages,
+    (p) => {
+      setTablePage(_dcaTableState, p);
+      renderDCATable(pd);
+    },
+    { totalItems, pageSize: DCA_PAGE_SIZE },
+  );
 }

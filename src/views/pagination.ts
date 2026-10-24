@@ -42,7 +42,7 @@ export function renderPagination(
     rangeHtml = `<span class="page-range">${start}\u2013${end} of ${extras.totalItems}</span>`;
   }
   const sizeHtml = showSizes
-    ? `<label class="page-size"><span class="page-size-label">Rows</span><select class="form-input form-input-sm js-page-size" aria-label="Rows per page${
+    ? `<label class="page-size"><span class="page-size-label">Rows</span><select class="form-input form-input-sm themed-select js-page-size" aria-label="Rows per page${
         extras!.itemLabel ? ` (${extras!.itemLabel})` : ''
       }">${sizes
         .map(
