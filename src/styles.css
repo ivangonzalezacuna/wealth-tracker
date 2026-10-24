@@ -5116,23 +5116,17 @@ textarea.dialog-input {
   border: 0;
 }
 
-/* Filter bars: one control height for search, selects, chips and toolbar buttons so rows line up.
-   Last in the file so it wins over the generic phone-size input/button rules. */
+/* Filter bars: search boxes and selects take the compact .btn-sm height (11px text, 1.4 line height,
+   3px / 5px vertical padding + 1px borders) so they line up with the chips and buttons next to them.
+   Buttons keep their own size. Last in the file so it wins over the generic phone-size input rules. */
 :root {
-  --filter-h: 30px;
+  --filter-h: calc(11px * 1.4 + 8px);
 }
-@media (pointer: coarse) {
-  :root {
-    --filter-h: 36px;
-  }
-}
-.filter-bar :is(.form-input, .btn-sm) {
+.filter-bar .form-input {
   box-sizing: border-box;
   height: var(--filter-h);
   padding-top: 0;
   padding-bottom: 0;
-}
-.filter-bar .form-input {
   padding-left: 10px;
   font-size: 12px;
   border-radius: var(--radius-sm);
@@ -5144,17 +5138,14 @@ textarea.dialog-input {
 .filter-bar .filter-clear {
   right: 5px;
 }
-.filter-bar .btn-sm {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding-inline: 10px;
-  font-size: 12px;
-  line-height: 1;
-}
-/* iOS Safari zooms into inputs under 16px on focus. */
-@media (pointer: coarse) {
-  .filter-bar .form-input {
-    font-size: 16px;
+@media (max-width: 768px) {
+  :root {
+    --filter-h: calc(11px * 1.4 + 12px);
+  }
+  /* Selects sit next to the chip toggles, which shrink to 10px text / 2px padding on phones. */
+  .filter-bar select.form-input {
+    height: calc(10px * 1.4 + 6px);
+    padding-left: 7px;
+    font-size: 11px;
   }
 }
