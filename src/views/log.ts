@@ -225,9 +225,6 @@ export function renderLog(state: LogState): void {
 
   // Populate year filter options
   populateYearFilterOptions('snap-year-filter', _snaps);
-  const yearSel = document.getElementById('snap-year-filter') as HTMLSelectElement | null;
-  // "All years" plus a single year adds nothing.
-  if (yearSel) yearSel.hidden = yearSel.options.length <= 2;
   attachFilterListeners();
   _updateBulkControls('snap');
   renderSnapList(_snaps, state.onEditSnap, state.onDelSnap);

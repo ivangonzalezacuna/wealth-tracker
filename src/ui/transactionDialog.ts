@@ -97,7 +97,7 @@ export function transactionDialog(
             </div>
             <div class="dialog-field">
               <label class="dialog-label" for="txd-type">Type</label>
-              <select id="txd-type" class="form-input dialog-input themed-select">
+              <select id="txd-type" class="form-input dialog-input">
                 ${TX_TYPES.map(
                   (t) =>
                     `<option value="${esc(t)}" ${t === (existing?.type || TxType.BUY) ? 'selected' : ''}>${esc(t)}</option>`,

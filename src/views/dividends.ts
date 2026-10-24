@@ -335,11 +335,17 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
     return Math.abs(value) < 1e-9;
   }
   attachInfoTips(target);
-  renderPagination('div-annual-pagination', _annualPage, totalPages, (p) => {
-    _annualPage = p;
-    _expandedAnnualYear = '';
-    renderAnnualSummary(_lastPd!, _lastTxs);
-  });
+  renderPagination(
+    'div-annual-pagination',
+    _annualPage,
+    totalPages,
+    (p) => {
+      _annualPage = p;
+      _expandedAnnualYear = '';
+      renderAnnualSummary(_lastPd!, _lastTxs);
+    },
+    { totalItems: years.length, pageSize: ANNUAL_PAGE_SIZE },
+  );
 }
 
 function dividendColumns(pd: PortfolioData): ColumnDef<DivHistEntry>[] {
@@ -451,14 +457,20 @@ function renderDivTable(pd: PortfolioData): void {
   const divHistEl = document.getElementById('div-history');
   if (divHistEl) attachEtfPopovers(divHistEl);
 
-  renderDivPagination(totalPages, pd);
+  renderDivPagination(totalPages, list.length, pd);
 }
 
-function renderDivPagination(totalPages: number, pd: PortfolioData): void {
-  renderPagination('div-pagination', _divTableState.page, totalPages, (p) => {
-    setTablePage(_divTableState, p);
-    renderDivTable(_lastPd || pd);
-  });
+function renderDivPagination(totalPages: number, totalItems: number, pd: PortfolioData): void {
+  renderPagination(
+    'div-pagination',
+    _divTableState.page,
+    totalPages,
+    (p) => {
+      setTablePage(_divTableState, p);
+      renderDivTable(_lastPd || pd);
+    },
+    { totalItems, pageSize: DIV_PAGE_SIZE },
+  );
 }
 
 function intColumns(): ColumnDef<IntHistEntry>[] {
@@ -551,12 +563,18 @@ function renderIntTable(pd: PortfolioData): void {
     );
   }
 
-  renderIntPagination(totalPages, pd);
+  renderIntPagination(totalPages, list.length, pd);
 }
 
-function renderIntPagination(totalPages: number, pd: PortfolioData): void {
-  renderPagination('int-pagination', _intTableState.page, totalPages, (p) => {
-    setTablePage(_intTableState, p);
-    renderIntTable(_lastPd || pd);
-  });
+function renderIntPagination(totalPages: number, totalItems: number, pd: PortfolioData): void {
+  renderPagination(
+    'int-pagination',
+    _intTableState.page,
+    totalPages,
+    (p) => {
+      setTablePage(_intTableState, p);
+      renderIntTable(_lastPd || pd);
+    },
+    { totalItems, pageSize: DIV_PAGE_SIZE },
+  );
 }

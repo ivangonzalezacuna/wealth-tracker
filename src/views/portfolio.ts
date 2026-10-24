@@ -883,7 +883,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
             <div class="range-toggle filter-chips rebalance-range-toggle" role="group" aria-label="Rebalance timeline">
               ${pickerBtns}
             </div>
-            <select class="form-input form-input-sm filter-select themed-select" data-rebalance-interval aria-label="Contribution cadence">${cadenceOptions}</select>
+            <select class="form-input form-input-sm" data-rebalance-interval aria-label="Contribution cadence">${cadenceOptions}</select>
           </div>
           <p class="rebalance-result">Max drift <strong>${fmtPctVal(activeCurrentMax)} → ${fmtPctVal(projectedActiveMax)}</strong> after ${periodLabel} <span class="rebalance-result-meta">· ${fmtEur(monthlyBudget)}/mo budget&nbsp;${infoTip(disclaimer)}</span></p>
           <div class="tbl rebalance-plan" role="table" aria-label="Contribution rebalance plan">
