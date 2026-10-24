@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 vi.mock('echarts/core', () => import('./charts/echartsMock'));
 import { chartFor, instances as chartInstances, resetMockCharts } from './charts/echartsMock';
-import { loadCharts } from './charts';
+import { addMonths, loadCharts } from './charts';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRec = any;
@@ -164,7 +164,7 @@ describe('renderDCA', () => {
     expect(chartInstances.filter((c) => c.dom.id === 'c-dca-bar')).toHaveLength(1);
   });
 
-  it('DCA range presets zoom the full month axis', () => {
+  it('DCA bars open on the last 12 months of the full axis', () => {
     const months = Array.from({ length: 20 }, (_, i) => {
       const y = 2024 + Math.floor(i / 12);
       const m = (i % 12) + 1;
@@ -180,10 +180,8 @@ describe('renderDCA', () => {
     const chart = chartFor('c-dca-bar')!;
     const opt = chart.option as AnyRec;
     expect(opt.xAxis.data).toHaveLength(20);
-    const presets = opt.graphic[0].children;
-    expect(presets.map((c: AnyRec) => c.id)).toEqual(['preset-12', 'preset-36', 'preset-all']);
-    presets[0].onclick();
-    expect(chart.actions.at(-1)).toMatchObject({ type: 'dataZoom', startValue: 8, endValue: 19 });
+    expect(opt.graphic).toBeUndefined();
+    expect(opt.dataZoom[0]).toMatchObject({ startValue: 8, endValue: 19 });
   });
 
   it('bar tooltip skips zero rows and only totals multiple ETFs', () => {
@@ -208,26 +206,47 @@ describe('renderDCA', () => {
     const opt = chartFor('c-dca-proj')!.option as AnyRec;
     expect(opt.series.map((x: AnyRec) => x.name)).toEqual(['Actual', 'Projected']);
     expect(opt.series[0].data).toHaveLength(3);
-    // Projection always covers 30 years (plus the joining point); presets only zoom.
+    // Projection always covers 30 years (plus the joining point); the zoom picks the view.
     expect(opt.series[1].data).toHaveLength(361);
     expect(opt.series[1].data[0][1]).toBe(450);
     expect(opt.series[1].markArea.data[0][0].name).toBe('Projected');
   });
 
-  it('forecast presets zoom the projection and update the title', () => {
-    renderDCA(makePD(), []);
-    const chart = chartFor('c-dca-proj')!;
-    expect(document.getElementById('dca-proj-range')!.textContent).toBe('5 years');
-    const presets = (chart.option as AnyRec).graphic[0].children;
-    expect(presets.map((c: AnyRec) => c.id)).toEqual([
-      'preset-60',
-      'preset-120',
-      'preset-240',
-      'preset-360',
-    ]);
-    presets[1].onclick();
-    expect(chart.actions.at(-1)).toMatchObject({ type: 'dataZoom' });
-    expect(document.getElementById('dca-proj-range')!.textContent).toBe('10 years');
+  it('forecast opens on 5 years and the title follows the zoom', () => {
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    });
+    try {
+      renderDCA(makePD(), []);
+      const chart = chartFor('c-dca-proj')!;
+      const title = document.getElementById('dca-proj-range')!;
+      expect(title.textContent).toBe('5 years');
+      const opt = chart.option as AnyRec;
+      expect(opt.graphic).toBeUndefined();
+      const lastActual = opt.series[0].data.at(-1)[0];
+      expect(opt.dataZoom[0]).toMatchObject({
+        startValue: opt.series[0].data[0][0],
+        endValue: addMonths(lastActual, 60),
+      });
+      const zoomTo = (months: number) => {
+        chart.option = {
+          ...opt,
+          dataZoom: [
+            { startValue: opt.series[0].data[0][0], endValue: addMonths(lastActual, months) },
+          ],
+        };
+        chart.trigger('datazoom', {});
+      };
+      zoomTo(125);
+      expect(title.textContent).toBe('10 years');
+      zoomTo(3);
+      expect(title.textContent).toBe('1 year');
+      zoomTo(60);
+      expect(title.textContent).toBe('5 years');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('DCA table renders rows for each month plus a total row', () => {

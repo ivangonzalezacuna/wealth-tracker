@@ -53,3 +53,20 @@ export function nearestMonth(t: number, months: readonly string[]): string | nul
   }
   return best;
 }
+
+const MONTH_MS = 30.436875 * 86_400_000;
+
+/**
+ * Forecast horizon shown by a zoom window: whole years from `from` (last actual month) to the
+ * window end, clamped to 1 year … `maxMonths`.
+ */
+export function horizonMonths(from: number, to: number, maxMonths: number): number {
+  const years = Math.round((to - from) / MONTH_MS / 12);
+  return Math.min(Math.max(1, years), Math.floor(maxMonths / 12)) * 12;
+}
+
+/** `60` → `5 years`, `12` → `1 year`. */
+export function horizonLabel(months: number): string {
+  const years = Math.round(months / 12);
+  return `${years} year${years === 1 ? '' : 's'}`;
+}

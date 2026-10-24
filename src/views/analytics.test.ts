@@ -48,6 +48,7 @@ vi.mock('../store/config', () => ({
 
 import { renderAnalytics } from './analytics';
 import { appTemplate } from '../template';
+import { monthToTime } from './charts/format';
 import type { PortfolioData, Snapshot, Transaction } from '../types';
 
 function makeSnap(date: string, investment: number, cash = 0): Snapshot {
@@ -220,20 +221,16 @@ describe('renderAnalytics', () => {
     expect((document.getElementById('an-income') as HTMLElement).style.display).toBe('');
   });
 
-  it('renders the growth chart as a native ECharts time series with presets and zoom', () => {
+  it('renders the growth chart as a native ECharts time series with zoom and no range presets', () => {
     const snaps = [makeSnap('2025-01', 900, 0), makeSnap('2025-02', 950, 0)];
     renderAnalytics(makePd(), snaps, []);
     const opt = chartFor('c-an-growth')!.option as Record<string, any>;
     expect(opt.xAxis.type).toBe('time');
     expect(opt.series[0].data.map((p: number[]) => p[1])).toEqual([900, 950]);
     expect(opt.dataZoom.map((z: { type: string }) => z.type)).toEqual(['inside', 'slider']);
-    expect(opt.toolbox.feature.dataView).toBeDefined();
-    const presets = opt.graphic.find((g: { id: string }) => g.id === 'range-presets');
-    expect(presets.children.map((c: { id: string }) => c.id)).toEqual([
-      'preset-12',
-      'preset-36',
-      'preset-all',
-    ]);
+    expect(opt.toolbox.feature.myDataTable).toBeDefined();
+    expect(opt.graphic).toBeUndefined();
+    expect(opt.dataZoom[0]).toMatchObject({ start: 0, end: 100 });
   });
 
   it('keeps growth and flow ranges on the latest rendered data', () => {
@@ -242,8 +239,7 @@ describe('renderAnalytics', () => {
     const growth = chartFor('c-an-growth')!;
     const opt = growth.option as Record<string, any>;
     expect(opt.series[0].data.map((p: number[]) => p[1])).toEqual([2000, 2200]);
-    opt.graphic[0].children[0].onclick();
-    expect(growth.actions.at(-1)).toMatchObject({ type: 'dataZoom' });
+    expect(opt.series[0].data[0][0]).toBe(monthToTime('2026-01'));
     const contrib = chartFor('c-an-contrib')!.option as Record<string, any>;
     expect(contrib.series[1].data.map((d: { value: number }) => d.value)).toEqual([200]);
   });
@@ -321,13 +317,13 @@ describe('renderAnalytics', () => {
     const contrib = chartFor('c-an-contrib')!.option as Record<string, any>;
     expect(contrib.legend.data).toEqual(['Contributed', 'Market movement']);
     expect(contrib.series.map((s: { stack: string }) => s.stack)).toEqual(['contrib', 'contrib']);
-    expect(contrib.toolbox.feature.dataView).toBeDefined();
+    expect(contrib.toolbox.feature.myDataTable).toBeDefined();
 
     const alloc = chartFor('c-an-alloc-acct')!.option as Record<string, any>;
     expect(alloc.series[0].type).toBe('pie');
     expect(alloc.legend.orient).toBe('vertical');
     expect(alloc.series[0].data[0].label.position).toBe('center');
-    expect(alloc.toolbox.feature.dataView).toBeDefined();
+    expect(alloc.toolbox.feature.myDataTable).toBeDefined();
   });
 
   it('renders allocation by country accessible via account donut group toggle', () => {

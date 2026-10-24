@@ -16,7 +16,8 @@ import {
 } from './registry';
 import type { ChartOption } from './core';
 import { addMonths, fmtEurCompact, fmtPctAxis, monthToTime, timeToMonth } from './format';
-import { dataViewTable } from './toolbox';
+import { closeDataTable, dataViewTable, openDataTable } from './toolbox';
+import { drillHint, tooltipHint } from './options';
 import { toRgba } from './theme';
 
 type AnyRec = Record<string, any>;
@@ -81,48 +82,76 @@ describe('renderChart', () => {
       'Test chart. A: 1 points from Jan 2026 (1,00\u00A0€) to Jan 2026 (1,00\u00A0€).',
     );
     expect(Object.keys(opt.toolbox.feature)).toEqual(
-      expect.arrayContaining(['dataView', 'myFullscreen']),
+      expect.arrayContaining(['myDataTable', 'myFullscreen']),
     );
     expect(opt.grid.top).toBeGreaterThan(0);
     expect(getChart('c-test')).toBeTruthy();
   });
 
-  it('adds inside + slider dataZoom and preset buttons that drive the window', () => {
-    const start = monthToTime('2025-02');
-    renderChart('c-test', line, {
-      zoom: true,
-      xAxisType: 'time',
-      presets: [
-        { key: '12', label: '1Y', startValue: start },
-        { key: 'all', label: 'All' },
-      ],
-      defaultPreset: 'all',
-    });
-    const chart = chartFor('c-test')!;
-    const opt = chart.option as AnyRec;
+  it('adds inside + slider dataZoom showing everything by default', () => {
+    renderChart('c-test', line, { zoom: true, xAxisType: 'time' });
+    const opt = chartFor('c-test')!.option as AnyRec;
     expect(opt.dataZoom.map((z: AnyRec) => z.type)).toEqual(['inside', 'slider']);
-    expect(opt.dataZoom[0]).toMatchObject({ start: 0, end: 100 });
+    expect(opt.dataZoom[0]).toMatchObject({ start: 0, end: 100, moveOnMouseMove: true });
+    expect(opt.dataZoom[0].disabled).toBeUndefined();
     expect(opt.toolbox.feature.dataZoom).toBeDefined();
     expect(opt.toolbox.feature.restore).toBeDefined();
-
-    const presets = (opt.graphic as AnyRec[]).find((g) => g.id === 'range-presets')!;
-    expect(presets.children.map((c: AnyRec) => c.id)).toEqual(['preset-12', 'preset-all']);
-    presets.children[0].onclick();
-    expect(chart.actions.at(-1)).toMatchObject({ type: 'dataZoom', startValue: start, end: 100 });
-    const updated = (chart.option as AnyRec).graphic[0].children[0];
-    expect(updated.children[1].style.font).toContain('600');
+    expect(opt.graphic).toBeUndefined();
   });
 
-  it('clears the active preset when the user zooms manually', () => {
-    renderChart('c-test', line, {
-      zoom: true,
-      presets: [{ key: 'all', label: 'All' }],
-      defaultPreset: 'all',
-    });
+  it('opens on the initial window and reports the visible range', () => {
+    const start = monthToTime('2025-02');
+    const onZoom = vi.fn();
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => frames.push(cb));
+    const flush = () => frames.splice(0).forEach((cb) => cb(0));
+    try {
+      renderChart('c-test', line, { zoom: true, window: { startValue: start }, onZoom });
+      const chart = chartFor('c-test')!;
+      const opt = chart.option as AnyRec;
+      expect(opt.dataZoom[0]).toMatchObject({ startValue: start, end: 100 });
+      expect(opt.dataZoom[1]).toMatchObject({ startValue: start, end: 100 });
+      chart.option = { ...opt, dataZoom: [{ startValue: 5, endValue: 9 }] };
+      flush();
+      expect(onZoom).toHaveBeenCalledTimes(1);
+      // Drags fire many events per frame; the callback runs once per frame.
+      chart.option = { ...opt, dataZoom: [{ startValue: 6, endValue: 9 }] };
+      chart.trigger('datazoom', {});
+      chart.trigger('datazoom', {});
+      flush();
+      expect(onZoom).toHaveBeenCalledTimes(2);
+      expect(onZoom).toHaveBeenLastCalledWith({ startValue: 6, endValue: 9 });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('keeps a manual zoom across re-renders until Reset view', () => {
+    const build = (): ChartOption => line();
+    renderChart('c-test', build, { zoom: true, window: { startValue: 1 } });
     const chart = chartFor('c-test')!;
+    chart.option = { ...(chart.option as AnyRec), dataZoom: [{ start: 40, end: 60 }] };
     chart.trigger('datazoom', {});
-    const btn = (chart.option as AnyRec).graphic[0].children[0];
-    expect(btn.children[1].style.font).toContain('500');
+    renderChart('c-test', build, { zoom: true, window: { startValue: 1 } });
+    expect((chart.option as AnyRec).dataZoom[0]).toMatchObject({ start: 40, end: 60 });
+    expect((chart.option as AnyRec).dataZoom[0].startValue).toBeUndefined();
+    chart.trigger('restore', {});
+    expect((chart.option as AnyRec).dataZoom[0]).toMatchObject({ startValue: 1, end: 100 });
+  });
+
+  it('uses a taller slider and touch-friendly panning on touch screens', () => {
+    (window.matchMedia as ReturnType<typeof vi.fn>).mockReturnValue({ matches: true });
+    document.body.innerHTML = '<div class="chart-wrap"><div id="c-test"></div></div>';
+    renderChart('c-test', line, { zoom: true });
+    const opt = chartFor('c-test')!.option as AnyRec;
+    expect(opt.dataZoom[0]).toMatchObject({
+      moveOnMouseMove: true,
+      preventDefaultMouseMove: false,
+    });
+    expect(opt.dataZoom[1].height).toBe(24);
+    const wrap = document.querySelector('.chart-wrap')!;
+    expect(wrap.classList.contains('chart-zoomable')).toBe(true);
+    expect(wrap.classList.contains('chart-touch')).toBe(true);
   });
 
   it('keeps legend selection across re-renders', () => {
@@ -135,6 +164,52 @@ describe('renderChart', () => {
     };
     renderChart('c-test', build);
     expect((chart.option as AnyRec).legend.selected).toEqual({ A: false });
+    const btn = document.querySelector<HTMLButtonElement>('.chart-legend-item')!;
+    expect(btn.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('renders the header legend as wrapping HTML buttons', () => {
+    const build = (): ChartOption => ({
+      ...line(),
+      legend: {},
+      series: [
+        { type: 'line', name: 'A', data: [] },
+        { type: 'line', name: 'B', lineStyle: { type: 'dashed', color: '#123456' }, data: [] },
+        { type: 'bar', name: 'C', data: [] },
+      ],
+    });
+    renderChart('c-test', build);
+    const chart = chartFor('c-test')!;
+    expect((chart.option as AnyRec).legend.show).toBe(false);
+    const items = [...document.querySelectorAll<HTMLButtonElement>('#c-test .chart-legend-item')];
+    expect(items.map((b) => b.textContent)).toEqual(['A', 'B', 'C']);
+    expect(items.map((b) => b.querySelector('.chart-legend-swatch')!.className)).toEqual([
+      'chart-legend-swatch is-line',
+      'chart-legend-swatch is-dashed',
+      'chart-legend-swatch is-box',
+    ]);
+    expect(
+      (items[1].querySelector('.chart-legend-swatch') as HTMLElement).style.getPropertyValue(
+        '--swatch',
+      ),
+    ).toBe('#123456');
+
+    items[1].click();
+    expect(chart.actions.at(-1)).toEqual({ type: 'legendToggleSelect', name: 'B' });
+    chart.trigger('legendselectchanged', { selected: { A: true, B: false, C: true } });
+    expect(items[1].getAttribute('aria-pressed')).toBe('false');
+    items[0].dispatchEvent(new FocusEvent('focus'));
+    expect(chart.actions.at(-1)).toEqual({ type: 'highlight', seriesName: 'A' });
+
+    // Re-render reuses the same legend element.
+    renderChart('c-test', build);
+    expect(document.querySelectorAll('#c-test .chart-legend')).toHaveLength(1);
+  });
+
+  it('keeps vertical (side) legends on the canvas', () => {
+    renderChart('c-test', () => ({ ...line(), legend: { orient: 'vertical' } }));
+    expect(document.querySelector('.chart-legend')).toBeNull();
+    expect((chartFor('c-test')!.option as AnyRec).legend.show).toBeUndefined();
   });
 
   it('wires click handlers and disposes cleanly', () => {
@@ -163,10 +238,6 @@ describe('renderChart', () => {
 });
 
 describe('chart groups', () => {
-  const presetsFor = (last: number) => [
-    { key: '12', label: '1Y', startValue: addMonths(last, -11), endValue: last },
-    { key: 'all', label: 'All' },
-  ];
   const last = monthToTime('2026-06');
   const span =
     (from: string): (() => ChartOption) =>
@@ -187,19 +258,10 @@ describe('chart groups', () => {
 
   beforeEach(() => {
     document.body.innerHTML = '<div id="c-a"></div><div id="c-b"></div><div id="c-solo"></div>';
-    const opts = { zoom: true, xAxisType: 'time' as const, defaultPreset: 'all' };
-    renderChart('c-a', span('2023-01'), { ...opts, presets: presetsFor(last), group: 'g' });
-    renderChart('c-b', span('2024-01'), { ...opts, presets: presetsFor(last), group: 'g' });
-    renderChart('c-solo', span('2023-01'), { ...opts, presets: presetsFor(last) });
-  });
-
-  it('mirrors range presets to charts in the same group', () => {
-    const a = chartFor('c-a')!;
-    const b = chartFor('c-b')!;
-    (a.option as AnyRec).graphic[0].children[0].onclick();
-    expect(b.actions.at(-1)).toMatchObject({ type: 'dataZoom', startValue: addMonths(last, -11) });
-    expect((b.option as AnyRec).graphic[0].children[0].children[1].style.font).toContain('600');
-    expect(chartFor('c-solo')!.actions).toHaveLength(0);
+    const opts = { zoom: true, xAxisType: 'time' as const };
+    renderChart('c-a', span('2023-01'), { ...opts, group: 'g' });
+    renderChart('c-b', span('2024-01'), { ...opts, group: 'g' });
+    renderChart('c-solo', span('2023-01'), opts);
   });
 
   it('mirrors a manual zoom window by axis value', () => {
@@ -281,17 +343,37 @@ describe('chart drill-down', () => {
     expect(chart.zr.cursor).toBe('pointer');
   });
 
-  it('needs a second tap on the same point on touch screens', () => {
+  it('only navigates from the tooltip button on touch screens', () => {
     (window.matchMedia as ReturnType<typeof vi.fn>).mockReturnValue({ matches: true });
     const select = vi.fn();
-    renderChart('c-test', line, { drill: { resolve: keys, select } });
+    renderChart('c-test', () => ({ ...line(), tooltip: { trigger: 'axis' } }), {
+      drill: { resolve: keys, select },
+    });
     const chart = chartFor('c-test')!;
-    press(chart, 0, 0);
-    expect(select).not.toHaveBeenCalled();
+    expect((chart.option as AnyRec).tooltip.enterable).toBe(true);
+    press(chart, 1, 0);
     press(chart, 1, 0);
     expect(select).not.toHaveBeenCalled();
-    press(chart, 1, 0);
+
+    const host = document.getElementById('c-test')!;
+    host.insertAdjacentHTML('beforeend', tooltipHint(drillHint({ touch: true }, 'open month')));
+    host.querySelector<HTMLButtonElement>('[data-chart-drill]')!.click();
     expect(select).toHaveBeenCalledWith('b');
+
+    // A tap outside the data clears the pending target.
+    select.mockClear();
+    press(chart, 9, 0);
+    host.querySelector<HTMLButtonElement>('[data-chart-drill]')!.click();
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it('builds a text hint on desktop and an escaped button on touch', () => {
+    expect(drillHint({ touch: false }, 'open month')).toBe('Click to open month');
+    expect(drillHint({ touch: true }, 'open month')).toEqual({ button: 'Open month' });
+    expect(tooltipHint('Click to open')).toContain('Click to open');
+    const html = tooltipHint({ button: '<b>Go</b>' });
+    expect(html).toContain('data-chart-drill');
+    expect(html).not.toContain('<b>');
   });
 
   it('leaves the expanded overlay before navigating', () => {
@@ -309,6 +391,48 @@ describe('chart drill-down', () => {
     const chart = chartFor('c-test')!;
     press(chart, 0, 0);
     expect(chart.actions).toHaveLength(0);
+  });
+});
+
+describe('data table overlay', () => {
+  it('opens from the toolbox and closes with the button or Escape', () => {
+    document.body.innerHTML =
+      '<div id="c-test" aria-label="Growth"></div><button id="other"></button>';
+    renderChart('c-test', line);
+    const chart = chartFor('c-test')!;
+    const host = document.getElementById('c-test')!;
+    const feature = (chart.option as AnyRec).toolbox.feature.myDataTable;
+    expect(feature.title).toBe('Data table');
+    feature.onclick(null, { getDom: () => host, getOption: () => chart.getOption() });
+
+    const panel = host.querySelector<HTMLElement>('.chart-dataview')!;
+    expect(panel.getAttribute('role')).toBe('dialog');
+    expect(panel.getAttribute('aria-label')).toBe('Growth data');
+    expect(panel.querySelector('h4')).toBeNull();
+    expect(document.activeElement).toBe(panel.querySelector('.chart-dataview-close'));
+    expect(panel.querySelector('tbody tr')!.textContent).toBe('Jan 20261\u00A0€');
+
+    panel.querySelector<HTMLButtonElement>('.chart-dataview-close')!.click();
+    expect(host.querySelector('.chart-dataview')).toBeNull();
+
+    openDataTable(host, chart.getOption(), String);
+    const outer = vi.fn();
+    document.addEventListener('keydown', outer);
+    host
+      .querySelector('.chart-dataview')!
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    document.removeEventListener('keydown', outer);
+    expect(host.querySelector('.chart-dataview')).toBeNull();
+    expect(outer).not.toHaveBeenCalled();
+  });
+
+  it('is closed when the chart re-renders', () => {
+    renderChart('c-test', line);
+    const host = document.getElementById('c-test')!;
+    openDataTable(host, chartFor('c-test')!.getOption(), String);
+    renderChart('c-test', line);
+    expect(host.querySelector('.chart-dataview')).toBeNull();
+    closeDataTable(host);
   });
 });
 

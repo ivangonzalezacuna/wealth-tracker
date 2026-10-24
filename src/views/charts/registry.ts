@@ -1,15 +1,14 @@
 import type { ECElementEvent } from 'echarts/core';
-import type { DataZoomComponentOption, GraphicComponentOption } from 'echarts/components';
+import type { DataZoomComponentOption } from 'echarts/components';
 import type { ChartInstance, ChartOption } from './core';
 import { buildChartTheme, readChartTokens, type ChartTokens } from './theme';
-import { buildToolbox, fullscreenIcons } from './toolbox';
+import { buildToolbox, closeDataTable, fullscreenIcons } from './toolbox';
 import { fmtEur2, fmtMon } from '../../utils';
 import { timeToMonth } from './format';
+import { legendItems, renderLegend, syncLegend } from './legend';
 
-export interface RangePreset {
-  key: string;
-  label: string;
-  /** Window start (axis value: timestamp for time axes, index/category for category axes). Omit for "all". */
+/** Zoom window in axis values (timestamp for time axes, index for category axes). */
+export interface ZoomWindow {
   startValue?: number | string;
   endValue?: number | string;
 }
@@ -27,9 +26,8 @@ export interface ChartCtx {
 }
 
 export interface RenderChartOpts {
-  /** Range presets rendered as in-chart buttons; drive the dataZoom window. */
-  presets?: RangePreset[];
-  defaultPreset?: string;
+  /** Initial zoom window, also restored by "Reset view"; omit to show the whole axis. */
+  window?: ZoomWindow;
   /** Add inside + slider dataZoom on the first x axis (zoom / pan / range slider). */
   zoom?: boolean;
   /** Hide the slider even when zoom is enabled. */
@@ -43,8 +41,8 @@ export interface RenderChartOpts {
   onClick?: (params: ECElementEvent) => void;
   /** Click (or second tap on touch) anywhere in the plot to open the matching detail elsewhere. */
   drill?: ChartDrill;
-  /** Called when the active range preset changes (null after a manual zoom). */
-  onPresetChange?: (key: string | null) => void;
+  /** Visible x range (axis values) after the zoom window settles: initial render, zoom, reset. */
+  onZoom?: (range: { startValue: number; endValue: number }) => void;
   toolbox?: boolean;
 }
 
@@ -62,16 +60,14 @@ interface Entry {
   chart: ChartInstance;
   build: (ctx: ChartCtx) => ChartOption;
   opts: RenderChartOpts;
-  activePreset: string | null;
-  applyingPreset: boolean;
-  /** Tighter preset buttons when the full-size row would collide with the toolbox. */
-  densePresets: boolean;
-  /** Horizontal space reserved beside a header legend (presets + toolbox); null when no header legend. */
-  legendInset: number | null;
-  toolboxW: number;
+  /** The user moved the zoom window away from `opts.window` (kept across rebuilds). */
+  zoomed: boolean;
+  /** HTML legend above the plot (header legends only). */
+  legend: HTMLElement | null;
+  legendH: number;
   ctx: ChartCtx;
   ro: ResizeObserver | null;
-  /** Touch drill-down: first tap previews (tooltip), a second tap on the same key opens it. */
+  /** Touch drill-down: the key under the last tap, opened by the tooltip's action button. */
   drillTap: { key: string; at: number } | null;
 }
 
@@ -98,9 +94,13 @@ export function loadCharts(): Promise<void> {
   }
   return loading;
 }
-const PRESET_H = 22;
+/** Toolbox row height above the plot. */
+const HEADER_H = 22;
 const HEADER_GAP = 10;
-const LEGEND_ROW = 26;
+/** Gap between the toolbox row and a legend on its own row (narrow hosts). */
+const LEGEND_ROW_GAP = 4;
+/** Fallback legend height before layout (one row of legend buttons). */
+const LEGEND_ROW_H = 22;
 
 function mq(query: string): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
@@ -124,103 +124,15 @@ function makeCtx(host: HTMLElement): ChartCtx {
   };
 }
 
-function presetWidth(label: string, dense = false): number {
-  return dense ? Math.max(24, label.length * 6.5 + 8) : Math.max(30, label.length * 7 + 16);
-}
-
-function presetGap(dense: boolean): number {
-  return dense ? 2 : 4;
-}
-
-function presetGraphic(entry: Entry): GraphicComponentOption {
-  const t = entry.ctx.tokens;
-  const presets = entry.opts.presets ?? [];
-  const dense = entry.densePresets;
-  let x = 0;
-  const children = presets.map((p) => {
-    const w = presetWidth(p.label, dense);
-    const active = entry.activePreset === p.key;
-    const el = {
-      type: 'group' as const,
-      id: `preset-${p.key}`,
-      x,
-      y: 0,
-      onclick: () => applyPreset(entry, p.key),
-      children: [
-        {
-          type: 'rect' as const,
-          shape: { x: 0, y: 0, width: w, height: PRESET_H, r: 6 },
-          style: {
-            fill: active ? t.brandWeak : t.surface,
-            stroke: active ? t.brandBorder : t.line2,
-            lineWidth: 1,
-          },
-          cursor: 'pointer',
-        },
-        {
-          type: 'text' as const,
-          style: {
-            text: p.label,
-            x: w / 2,
-            y: PRESET_H / 2,
-            align: 'center' as const,
-            verticalAlign: 'middle' as const,
-            fill: active ? t.brandText : t.ink2,
-            font: `${active ? 600 : 500} 11px ${t.fontFamily}`,
-          },
-          cursor: 'pointer',
-        },
-      ],
-    };
-    x += w + presetGap(dense);
-    return el;
-  });
-  return {
-    type: 'group',
-    id: 'range-presets',
-    left: 0,
-    top: 0,
-    children,
-  } as GraphicComponentOption;
-}
-
-function presetsWidth(presets: RangePreset[], dense = false): number {
-  return (
-    presets.reduce((s, p) => s + presetWidth(p.label, dense), 0) +
-    Math.max(0, presets.length - 1) * presetGap(dense)
-  );
-}
-
-function windowFor(entry: Entry, key: string | null): Record<string, number | string> | null {
-  if (key == null) return null;
-  const p = entry.opts.presets?.find((x) => x.key === key);
-  if (!p) return null;
-  if (p.startValue == null && p.endValue == null) return { start: 0, end: 100 };
-  const w: Record<string, number | string> = {};
-  if (p.startValue != null) w.startValue = p.startValue;
-  else w.start = 0;
-  if (p.endValue != null) w.endValue = p.endValue;
-  else w.end = 100;
-  return w;
-}
-
-function applyPreset(entry: Entry, key: string): void {
-  const win = windowFor(entry, key);
-  if (!win) return;
-  entry.activePreset = key;
-  entry.applyingPreset = true;
-  try {
-    entry.chart.dispatchAction({ type: 'dataZoom', ...win });
-  } finally {
-    entry.applyingPreset = false;
-  }
-  syncPresetGraphic(entry);
-  entry.opts.onPresetChange?.(key);
-}
-
-function syncPresetGraphic(entry: Entry): void {
-  if (!entry.opts.presets?.length) return;
-  entry.chart.setOption({ graphic: [presetGraphic(entry)] });
+function windowFor(entry: Entry): Record<string, number | string> {
+  const w = entry.opts.window;
+  if (!w || (w.startValue == null && w.endValue == null)) return { start: 0, end: 100 };
+  const out: Record<string, number | string> = {};
+  if (w.startValue != null) out.startValue = w.startValue;
+  else out.start = 0;
+  if (w.endValue != null) out.endValue = w.endValue;
+  else out.end = 100;
+  return out;
 }
 
 function sliderLabel(entry: Entry) {
@@ -230,17 +142,18 @@ function sliderLabel(entry: Entry) {
   };
 }
 
-function zoomComponents(entry: Entry, bottom: number): DataZoomComponentOption[] {
+function zoomComponents(entry: Entry): DataZoomComponentOption[] {
   const { touch, expanded } = entry.ctx;
-  const gestures = !touch || expanded;
-  const win = windowFor(entry, entry.activePreset) ?? {};
+  const win = windowFor(entry);
   const out: DataZoomComponentOption[] = [
     {
       id: 'inside',
       type: 'inside',
       xAxisIndex: 0,
       filterMode: 'filter',
-      disabled: !gestures,
+      // Mouse: drag pans, ctrl+wheel / trackpad pinch zooms (plain wheel keeps scrolling the
+      // page). Touch: pinch zooms and a sideways drag pans; `touch-action: pan-y` on the host
+      // leaves vertical swipes to the page.
       zoomOnMouseWheel: expanded ? true : 'ctrl',
       moveOnMouseWheel: false,
       moveOnMouseMove: true,
@@ -254,8 +167,8 @@ function zoomComponents(entry: Entry, bottom: number): DataZoomComponentOption[]
       type: 'slider',
       xAxisIndex: 0,
       filterMode: 'filter',
-      height: 18,
-      bottom,
+      height: touch ? 24 : 18,
+      bottom: 0,
       brushSelect: false,
       labelFormatter: sliderLabel(entry) as unknown as string,
       ...win,
@@ -271,7 +184,7 @@ function preserveState(entry: Entry, next: ChartOption): void {
     legend?: Array<{ selected?: Record<string, boolean> }>;
   } | null;
   if (!prev) return;
-  if (entry.activePreset == null && Array.isArray(next.dataZoom)) {
+  if (entry.zoomed && Array.isArray(next.dataZoom)) {
     const dz = prev.dataZoom?.[0];
     if (dz && dz.start != null && dz.end != null) {
       for (const z of next.dataZoom as DataZoomComponentOption[]) {
@@ -316,7 +229,6 @@ function compose(entry: Entry): ChartOption {
   const { ctx, opts } = entry;
   const t = ctx.tokens;
   const option = entry.build(ctx);
-  const presets = opts.presets ?? [];
   const valueFormatter = opts.valueFormatter ?? fmtEur2;
   const useToolbox = opts.toolbox !== false;
   const toolbox = useToolbox
@@ -326,10 +238,6 @@ function compose(entry: Entry): ChartOption {
         zoom: Boolean(opts.zoom),
         valueFormatter,
         surface: t.surface,
-        ink: t.ink,
-        ink2: t.ink2,
-        line: t.line,
-        brand: t.brand,
       })
     : null;
   if (toolbox && ctx.expanded) {
@@ -337,22 +245,11 @@ function compose(entry: Entry): ChartOption {
     Object.assign(fs, fullscreenIcons(true));
   }
   const toolboxW = toolbox?.width ?? 0;
-  entry.toolboxW = toolboxW;
-  entry.densePresets =
-    presets.length > 0 && ctx.width > 0 && presetsWidth(presets) + toolboxW + 12 > ctx.width;
-  const presetsW = presets.length ? presetsWidth(presets, entry.densePresets) : 0;
-  const hasControls = toolboxW + presetsW > 0;
   const legendIn = option.legend as { show?: boolean; orient?: string } | undefined;
   const hasLegend = legendIn != null && !Array.isArray(legendIn) && legendIn.show !== false;
-  // Vertical (side) legends, e.g. pies, are laid out by the view and stay out of the header row.
+  // Vertical (side) legends, e.g. pies, are laid out by the view and stay on the canvas.
   const headerLegend = hasLegend && legendIn.orient !== 'vertical';
-  // Header row: [presets][legend ...][toolbox]; narrow hosts move the legend to its own row.
-  const legendOwnRow = hasLegend && hasControls && ctx.compact;
-  const top =
-    hasControls || hasLegend ? PRESET_H + HEADER_GAP + (legendOwnRow ? LEGEND_ROW : 0) : 8;
 
-  entry.legendInset = null;
-  const sliderOn = Boolean(opts.zoom) && opts.slider !== false;
   const out: ChartOption = {
     animation: !mq('(prefers-reduced-motion: reduce)'),
     animationDuration: 450,
@@ -364,6 +261,44 @@ function compose(entry: Entry): ChartOption {
     },
     ...option,
   };
+
+  // Header: toolbox on the right; a header legend is HTML (wraps instead of paging) beside it,
+  // or on its own row(s) on narrow hosts. The plot starts below whichever is taller.
+  let top = toolbox ? HEADER_H + HEADER_GAP : 8;
+  if (headerLegend) {
+    const ownRow = ctx.compact || !toolbox;
+    const legendTop = ownRow && toolbox ? HEADER_H + LEGEND_ROW_GAP : 0;
+    entry.legend = renderLegend(entry.host, entry.legend, {
+      items: legendItems(out, t),
+      top: legendTop,
+      right: ownRow ? 0 : toolboxW + 12,
+      onToggle: (name) => entry.chart.dispatchAction({ type: 'legendToggleSelect', name }),
+      onHover: (name, on) =>
+        entry.chart.dispatchAction({ type: on ? 'highlight' : 'downplay', seriesName: name }),
+    });
+    entry.legendH = entry.legend.offsetHeight || LEGEND_ROW_H;
+    top = Math.max(top, legendTop + entry.legendH + HEADER_GAP);
+    // Selection state stays in ECharts' (hidden) legend component.
+    out.legend = { ...(legendIn as Record<string, unknown>), show: false };
+  } else {
+    entry.legend?.remove();
+    entry.legend = null;
+    entry.legendH = 0;
+    if (hasLegend) {
+      out.legend = {
+        type: 'scroll',
+        itemWidth: 12,
+        itemHeight: 8,
+        icon: 'roundRect',
+        ...(legendIn as Record<string, unknown>),
+      } as ChartOption['legend'];
+    }
+  }
+  // Extra header height grows the card instead of shrinking the plot.
+  const wrap = entry.host.closest<HTMLElement>('.chart-wrap');
+  wrap?.style.setProperty('--chart-head-extra', `${Math.max(0, top - (HEADER_H + HEADER_GAP))}px`);
+
+  const sliderOn = Boolean(opts.zoom) && opts.slider !== false;
   const timeAxis =
     out.xAxis && !Array.isArray(out.xAxis) && (out.xAxis as { type?: string }).type === 'time'
       ? (out.xAxis as Record<string, unknown>)
@@ -392,59 +327,34 @@ function compose(entry: Entry): ChartOption {
       left: 4,
       right: timeAxis ? 16 : 8,
       top,
-      bottom: sliderOn ? 34 : 4,
+      bottom: sliderOn ? (ctx.touch ? 40 : 34) : 4,
       ...(out.grid ?? {}),
     };
   }
-  if (hasLegend && !headerLegend) {
-    out.legend = {
-      type: 'scroll',
-      itemWidth: 12,
-      itemHeight: 8,
-      icon: 'roundRect',
-      ...(legendIn as Record<string, unknown>),
-    } as ChartOption['legend'];
-  } else if (headerLegend) {
-    const legendLeft = legendOwnRow ? 0 : presetsW ? presetsW + 16 : 0;
-    const legendRight = legendOwnRow ? 0 : toolboxW + 16;
-    entry.legendInset = legendLeft + legendRight;
-    out.legend = {
-      type: 'scroll',
-      left: legendLeft,
-      top: legendOwnRow ? PRESET_H + 8 : 3,
-      // ECharts' box layout keeps only two of left/right/width, so pin an explicit width.
-      ...(ctx.width > 0
-        ? { width: Math.max(80, ctx.width - legendLeft - legendRight) }
-        : { right: legendRight }),
-      itemWidth: 12,
-      itemHeight: 8,
-      itemGap: 12,
-      icon: 'roundRect',
-      ...(out.legend ?? {}),
-    };
+  // Touch drill-down: the tooltip holds the "Open …" button, so it must take taps.
+  if (opts.drill && ctx.touch && out.tooltip && !Array.isArray(out.tooltip)) {
+    out.tooltip = { ...(out.tooltip as Record<string, unknown>), enterable: true };
   }
   if (toolbox) out.toolbox = toolbox.option;
-  if (presets.length) {
-    const g = presetGraphic(entry);
-    out.graphic = Array.isArray(out.graphic)
-      ? [...out.graphic, g]
-      : out.graphic
-        ? [out.graphic, g]
-        : [g];
-  }
-  if (opts.zoom) out.dataZoom = zoomComponents(entry, 0);
+  if (opts.zoom) out.dataZoom = zoomComponents(entry);
   return out;
 }
 
 function render(entry: Entry, keepState: boolean): void {
   entry.ctx = makeCtx(entry.host);
+  closeDataTable(entry.host);
   const option = compose(entry);
   if (keepState) preserveState(entry, option);
+  if (entry.legend) {
+    const sel = (option.legend as { selected?: Record<string, boolean> } | undefined)?.selected;
+    syncLegend(entry.legend, sel ?? {});
+  }
   const wrap = entry.host.closest('.chart-wrap');
   if (wrap) {
     // Wrapper padding reserves room for the slider / header around the fixed plot height.
     const slider = Boolean(entry.opts.zoom) && entry.opts.slider !== false;
     wrap.classList.toggle('chart-zoomable', slider);
+    wrap.classList.toggle('chart-touch', slider && entry.ctx.touch);
     wrap.classList.toggle('chart-tools', !slider && entry.opts.toolbox !== false);
   }
   entry.chart.setOption(option, { notMerge: true });
@@ -520,18 +430,32 @@ function clampWindow(
 function syncZoom(entry: Entry): void {
   const peers = groupPeers(entry).filter((p) => p.opts.zoom);
   if (!peers.length) return;
+  const win = zoomWindow(entry);
+  if (!win) return;
   withSync(() => {
-    const key = entry.activePreset;
-    const win = key == null ? zoomWindow(entry) : null;
     for (const peer of peers) {
-      if (key != null && peer.opts.presets?.some((p) => p.key === key)) {
-        applyPreset(peer, key);
-      } else {
-        const w = win ?? (key != null ? windowFor(entry, key) : null);
-        if (w) peer.chart.dispatchAction({ type: 'dataZoom', ...clampWindow(peer, w) });
-      }
+      peer.zoomed = entry.zoomed;
+      peer.chart.dispatchAction({ type: 'dataZoom', ...clampWindow(peer, win) });
+      notifyZoom(peer);
     }
   });
+}
+
+const zoomFrames = new WeakMap<Entry, number>();
+
+/** Report the visible x range to `opts.onZoom`, at most once per frame (drags fire per move). */
+function notifyZoom(entry: Entry): void {
+  if (!entry.opts.onZoom) return;
+  const run = () => {
+    zoomFrames.delete(entry);
+    if (entry.chart.isDisposed()) return;
+    const w = zoomWindow(entry);
+    if (w) entry.opts.onZoom?.(w);
+  };
+  if (typeof requestAnimationFrame !== 'function') return run();
+  if (zoomFrames.has(entry)) return;
+  zoomFrames.set(entry, 0);
+  requestAnimationFrame(run);
 }
 
 function syncPointer(entry: Entry, value: number | null): void {
@@ -557,18 +481,22 @@ function bindEvents(entry: Entry): void {
   chart.off('click');
   chart.off('updateaxispointer');
   chart.off('globalout');
+  chart.off('legendselectchanged');
   chart.on('datazoom', () => {
-    if (!entry.applyingPreset && entry.opts.presets?.length && entry.activePreset !== null) {
-      entry.activePreset = null;
-      syncPresetGraphic(entry);
-      entry.opts.onPresetChange?.(null);
-    }
-    if (entry.opts.group && !syncing) syncZoom(entry);
+    if (syncing) return;
+    entry.zoomed = true;
+    notifyZoom(entry);
+    if (entry.opts.group) syncZoom(entry);
   });
   chart.on('restore', () => {
-    entry.activePreset = entry.opts.defaultPreset ?? null;
+    entry.zoomed = false;
     render(entry, false);
-    entry.opts.onPresetChange?.(entry.activePreset);
+    notifyZoom(entry);
+    if (entry.opts.group) syncZoom(entry);
+  });
+  chart.on('legendselectchanged', (e: unknown) => {
+    const sel = (e as { selected?: Record<string, boolean> }).selected;
+    if (entry.legend && sel) syncLegend(entry.legend, sel);
   });
   if (entry.opts.onClick) chart.on('click', entry.opts.onClick as (p: unknown) => void);
   if (entry.opts.group) {
@@ -591,7 +519,7 @@ function bindEvents(entry: Entry): void {
   }
 }
 
-const DRILL_TAP_MS = 5000;
+const DRILL_TAP_MS = 30_000;
 const DRILL_MOVE_PX = 6;
 
 /** Close fullscreen / the expanded overlay before navigating away from a chart. */
@@ -614,6 +542,13 @@ function drillKeyAt(entry: Entry, drill: ChartDrill, x: number, y: number): stri
   return Number.isFinite(value) ? drill.resolve(value) : null;
 }
 
+function openDrill(entry: Entry, drill: ChartDrill, key: string): void {
+  entry.drillTap = null;
+  entry.chart.dispatchAction({ type: 'hideTip' });
+  leaveExpanded(entry.host);
+  drill.select(key);
+}
+
 // Bound once per instance. Handlers are kept by reference: `zr.off(event)` without one would
 // also drop ECharts' own listeners.
 function bindDrill(entry: Entry): void {
@@ -624,7 +559,7 @@ function bindDrill(entry: Entry): void {
   });
   zr.on('mousemove', (e: { offsetX: number; offsetY: number }) => {
     const drill = entry.opts.drill;
-    if (drill && drillKeyAt(entry, drill, e.offsetX, e.offsetY) != null)
+    if (drill && !entry.ctx.touch && drillKeyAt(entry, drill, e.offsetX, e.offsetY) != null)
       zr.setCursorStyle('pointer');
   });
   zr.on('click', (e: { offsetX: number; offsetY: number }) => {
@@ -635,21 +570,19 @@ function bindDrill(entry: Entry): void {
     // A drag (pan / slider / box zoom) also ends in a click; only a still press drills.
     if (start && Math.hypot(e.offsetX - start[0], e.offsetY - start[1]) > DRILL_MOVE_PX) return;
     const key = drillKeyAt(entry, drill, e.offsetX, e.offsetY);
-    if (key == null) {
-      entry.drillTap = null;
-      return;
-    }
-    if (entry.ctx.touch) {
-      const prev = entry.drillTap;
-      if (!prev || prev.key !== key || Date.now() - prev.at > DRILL_TAP_MS) {
-        entry.drillTap = { key, at: Date.now() };
-        return;
-      }
-    }
-    entry.drillTap = null;
-    entry.chart.dispatchAction({ type: 'hideTip' });
-    leaveExpanded(entry.host);
-    drill.select(key);
+    // Touch: a tap only shows the tooltip; its "Open …" button (below) navigates.
+    entry.drillTap = key == null ? null : { key, at: Date.now() };
+    if (key != null && !entry.ctx.touch) openDrill(entry, drill, key);
+  });
+  // The tooltip lives inside the host element, so its action button bubbles here.
+  entry.host.addEventListener('click', (e) => {
+    const btn = (e.target as Element | null)?.closest?.('[data-chart-drill]');
+    const drill = entry.opts.drill;
+    if (!btn || !drill) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const tap = entry.drillTap;
+    if (tap && Date.now() - tap.at <= DRILL_TAP_MS) openDrill(entry, drill, tap.key);
   });
 }
 
@@ -660,20 +593,16 @@ function observe(entry: Entry): void {
     const prev = entry.ctx;
     const next = makeCtx(entry.host);
     entry.chart.resize();
-    const presets = entry.opts.presets ?? [];
-    const dense =
-      presets.length > 0 &&
-      next.width > 0 &&
-      presetsWidth(presets) + entry.toolboxW + 12 > next.width;
+    // A legend that re-wraps to a different number of rows moves the plot's top edge.
+    const legendH = entry.legend ? entry.legend.offsetHeight : 0;
     if (
       next.compact !== prev.compact ||
       next.expanded !== prev.expanded ||
-      dense !== entry.densePresets
+      (entry.legend != null && legendH > 0 && legendH !== entry.legendH)
     ) {
       render(entry, true);
-    } else if (entry.legendInset != null && next.width > 0 && next.width !== prev.width) {
+    } else {
       entry.ctx = next;
-      entry.chart.setOption({ legend: { width: Math.max(80, next.width - entry.legendInset) } });
     }
   });
   entry.ro.observe(entry.host);
@@ -682,7 +611,7 @@ function observe(entry: Entry): void {
 /**
  * Create (or update) the ECharts instance hosted by element `id`.
  * `build` returns the chart-specific option; the registry adds theme, layout header
- * (legend / range presets / toolbox), dataZoom, aria and animation defaults.
+ * (legend / toolbox), dataZoom, aria and animation defaults.
  */
 export function renderChart(
   id: string,
@@ -714,11 +643,9 @@ export function renderChart(
       chart,
       build,
       opts,
-      activePreset: opts.defaultPreset ?? null,
-      applyingPreset: false,
-      densePresets: false,
-      legendInset: null,
-      toolboxW: 0,
+      zoomed: false,
+      legend: null,
+      legendH: 0,
       ctx,
       ro: null,
       drillTap: null,
@@ -728,15 +655,14 @@ export function renderChart(
     bindEvents(entry);
     bindDrill(entry);
     render(entry, false);
+    notifyZoom(entry);
     return chart;
   }
-  const presetKeys = new Set((opts.presets ?? []).map((p) => p.key));
-  if (entry.activePreset && !presetKeys.has(entry.activePreset))
-    entry.activePreset = opts.defaultPreset ?? null;
   entry.build = build;
   entry.opts = opts;
   bindEvents(entry);
   render(entry, true);
+  notifyZoom(entry);
   return entry.chart;
 }
 
@@ -749,6 +675,8 @@ export function disposeChart(id: string): void {
   const entry = registry.get(id);
   if (!entry) return;
   entry.ro?.disconnect();
+  entry.legend?.remove();
+  closeDataTable(entry.host);
   if (!entry.chart.isDisposed()) entry.chart.dispose();
   registry.delete(id);
 }

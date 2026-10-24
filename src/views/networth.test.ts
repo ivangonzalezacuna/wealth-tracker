@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 vi.mock('echarts/core', () => import('./charts/echartsMock'));
 import { chartFor, instances as chartInstances, resetMockCharts } from './charts/echartsMock';
-import { loadCharts } from './charts';
+import { addMonths, loadCharts } from './charts';
 
 type AnyRec = Record<string, any>;
 const seriesNames = (id: string): string[] =>
@@ -173,11 +173,8 @@ describe('renderNW', () => {
     expect(opt.xAxis.type).toBe('time');
     expect(seriesNames('c-nw-hist')).toEqual(['Total net worth', 'Trade Republic', 'Savings']);
     expect(opt.dataZoom.map((z: AnyRec) => z.type)).toEqual(['inside', 'slider']);
-    expect(opt.graphic[0].children.map((c: AnyRec) => c.id)).toEqual([
-      'preset-12',
-      'preset-36',
-      'preset-all',
-    ]);
+    expect(opt.graphic).toBeUndefined();
+    expect(opt.dataZoom[0]).toMatchObject({ start: 0, end: 100 });
   });
 
   it('renders a horizontal account breakdown for a single snapshot', () => {
@@ -299,30 +296,42 @@ describe('renderNW', () => {
     renderNW(snaps);
     const opt = chartFor('c-nw-forecast')!.option as AnyRec;
     expect(opt.xAxis.type).toBe('time');
-    // Full 50-year horizon is computed once; presets zoom into it.
+    // Full 50-year horizon is computed once; the zoom window picks the visible part.
     expect(opt.series[1].data).toHaveLength(601);
     expect(opt.series[0].markLine.data[0].xAxis).toBe(opt.series[0].data.at(-1)[0]);
     expect(opt.series[1].markArea.data[0][0].name).toBe('Forecast');
   });
 
-  it('forecast horizon presets zoom the chart and update the grouped summary', () => {
-    const snaps = [makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)];
-    renderNW(snaps);
-    const chart = chartFor('c-nw-forecast')!;
-    const presets = (chart.option as AnyRec).graphic[0].children;
-    expect(presets.map((c: AnyRec) => c.id)).toEqual([
-      'preset-60',
-      'preset-120',
-      'preset-240',
-      'preset-360',
-      'preset-480',
-      'preset-600',
-    ]);
-    expect(document.getElementById('nw-fc-group-summary')!.textContent).toContain('5 years');
-    presets[1].onclick();
-    expect(chart.actions.at(-1)).toMatchObject({ type: 'dataZoom' });
-    expect(document.getElementById('nw-fc-group-summary')!.textContent).toContain('10 years');
-    expect(chartFor('c-nw-forecast')).toBe(chart);
+  it('forecast opens on 5 years and the grouped summary follows the zoom', () => {
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    });
+    try {
+      const snaps = [makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)];
+      renderNW(snaps);
+      const chart = chartFor('c-nw-forecast')!;
+      const opt = chart.option as AnyRec;
+      const summary = () => document.getElementById('nw-fc-group-summary')!.textContent;
+      expect(opt.graphic).toBeUndefined();
+      const today = opt.series[0].data.at(-1)[0];
+      expect(opt.dataZoom[0].endValue).toBe(addMonths(today, 60));
+      expect(summary()).toContain('5 years');
+      const zoomTo = (months: number) => {
+        chart.option = {
+          ...opt,
+          dataZoom: [{ startValue: opt.series[0].data[0][0], endValue: addMonths(today, months) }],
+        };
+        chart.trigger('datazoom', {});
+      };
+      zoomTo(120);
+      expect(summary()).toContain('10 years');
+      expect(chartFor('c-nw-forecast')).toBe(chart);
+      zoomTo(60);
+      expect(summary()).toContain('5 years');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('forecast chart includes only baseline dataset by default when comparison is closed', () => {
@@ -370,7 +379,7 @@ describe('renderNW', () => {
 
   it('forecast data view is available through the toolbox', () => {
     renderNW([makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)]);
-    expect((chartFor('c-nw-forecast')!.option as AnyRec).toolbox.feature.dataView).toBeDefined();
+    expect((chartFor('c-nw-forecast')!.option as AnyRec).toolbox.feature.myDataTable).toBeDefined();
   });
 
   it('marks goal deadlines and targets on the forecast chart', () => {

@@ -14,7 +14,7 @@ export {
   leaveExpanded,
   type ChartCtx,
   type ChartDrill,
-  type RangePreset,
+  type ZoomWindow,
   type RenderChartOpts,
 } from './registry';
 export {
@@ -24,6 +24,8 @@ export {
   timeToMonth,
   addMonths,
   nearestMonth,
+  horizonMonths,
+  horizonLabel,
 } from './format';
 export { toRgba, readChartTokens, type ChartTokens } from './theme';
-export { monthPresets, monthTimeAxis, axisTooltip, tooltipHint, drillHint } from './options';
+export { monthTimeAxis, axisTooltip, tooltipHint, drillHint } from './options';

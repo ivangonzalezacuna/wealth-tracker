@@ -39,20 +39,13 @@ async function zoomWindow(page: Page, id: string): Promise<Win | null> {
   }, id);
 }
 
-/** Click an in-chart range preset button (canvas graphic) by index. */
-async function clickPreset(page: Page, id: string, index: number) {
-  const x = await page.evaluate(
-    async ([chartId, i]) => {
-      const { getChart } = await import('/src/views/charts/index.ts');
-      const opt = getChart(chartId as string)!.getOption() as {
-        graphic: Array<{ elements: Array<{ id?: string; x?: number }> }>;
-      };
-      return opt.graphic[0].elements.filter((e) => e.id?.startsWith('preset-'))[i as number].x ?? 0;
-    },
-    [id, index],
-  );
+/** Ctrl + wheel over the plot zooms in (a plain wheel keeps scrolling the page). */
+async function wheelZoom(page: Page, id: string) {
   const box = await showChart(page, id);
-  await page.mouse.click(box.x + x + 12, box.y + 11);
+  await page.mouse.move(box.x + box.width * 0.75, box.y + box.height * 0.5);
+  await page.keyboard.down('Control');
+  await page.mouse.wheel(0, -400);
+  await page.keyboard.up('Control');
 }
 
 /** Click a toolbox icon by its title (icons are canvas paths tagged with `__title`). */
@@ -110,24 +103,42 @@ async function pointAt(page: Page, id: string, dataIndex: number) {
   return { x: box.x + local[0], y: box.y + local[1] };
 }
 
-test('history chart range presets, reset, data table and expand', async ({ page }) => {
+test('history chart zoom, reset, legend, data table and expand', async ({ page }) => {
   await openTab(page, 'tab-networth');
   await showChart(page, 'c-nw-hist');
+  // No range preset buttons: the full history is shown and zoom does the rest.
+  expect((await zoomWindow(page, 'c-nw-hist'))?.start).toBe(0);
+  expect((await zoomWindow(page, 'c-nw-hist'))?.end).toBe(100);
 
-  await clickPreset(page, 'c-nw-hist', 0);
+  await wheelZoom(page, 'c-nw-hist');
   await expect
     .poll(async () => (await zoomWindow(page, 'c-nw-hist'))?.startValue)
-    .toBe(monthStart('2024-07'));
+    .toBeGreaterThan(monthStart('2023-01'));
 
   await clickToolbox(page, 'c-nw-hist', 'Reset view');
   await expect.poll(async () => (await zoomWindow(page, 'c-nw-hist'))?.start).toBe(0);
 
+  // HTML legend: real toggle buttons that wrap instead of paging.
+  const legend = page.locator('#c-nw-hist .chart-legend');
+  const total = legend.getByRole('button', { name: 'Total net worth' });
+  await expect(total).toHaveAttribute('aria-pressed', 'true');
+  await total.click();
+  await expect(total).toHaveAttribute('aria-pressed', 'false');
+  await total.click();
+  await expect(total).toHaveAttribute('aria-pressed', 'true');
+
   await clickToolbox(page, 'c-nw-hist', 'Data table');
+  const dialog = page.getByRole('dialog', { name: /data$/ });
   const table = page.locator('#c-nw-hist .chart-dataview-table');
   await expect(table).toBeVisible();
+  await expect(dialog.locator('h4')).toHaveCount(0);
   await expect(table).toContainText('Jan 2023');
   await expect(table).toContainText('Jun 2025');
-  await page.locator('#c-nw-hist').getByText('Close').click();
+  await page.getByRole('button', { name: 'Close data table' }).click();
+  await expect(table).toBeHidden();
+  await clickToolbox(page, 'c-nw-hist', 'Data table');
+  await expect(table).toBeVisible();
+  await page.keyboard.press('Escape');
   await expect(table).toBeHidden();
 
   await clickToolbox(page, 'c-nw-hist', 'Expand');
@@ -148,11 +159,15 @@ test('analytics timeline charts share their zoom window', async ({ page }) => {
   if ((await advanced.getAttribute('open')) === null) await advanced.locator('> summary').click();
   await showChart(page, 'c-an-drawdown');
 
-  await clickPreset(page, 'c-an-growth', 0);
+  await wheelZoom(page, 'c-an-growth');
   await expect
-    .poll(async () => (await zoomWindow(page, 'c-an-drawdown'))?.startValue)
-    .toBe(monthStart('2024-07'));
-  expect((await zoomWindow(page, 'c-an-growth'))?.startValue).toBe(monthStart('2024-07'));
+    .poll(async () => (await zoomWindow(page, 'c-an-growth'))?.startValue)
+    .toBeGreaterThan(monthStart('2023-01'));
+  const growth = (await zoomWindow(page, 'c-an-growth'))!;
+  await expect
+    .poll(async () => (await zoomWindow(page, 'c-an-drawdown'))?.endValue)
+    .toBe(growth.endValue);
+  expect((await zoomWindow(page, 'c-an-drawdown'))?.startValue).toBe(growth.startValue);
 });
 
 test('clicking a history point opens that snapshot in the log', async ({ page }) => {
@@ -174,4 +189,23 @@ test('clicking a contributions month filters the ledger to its purchases', async
   await expect(page.locator('#tx-search')).toHaveValue('2025-06');
   await expect(page.locator('#tx-type-filter')).toHaveValue('BUY');
   await expect(page.locator('#tx-ledger-list .tx-row:not(.th)')).toHaveCount(2);
+});
+
+test.describe('touch screens', () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+
+  test('a tap only shows the tooltip; its button opens the snapshot', async ({ page }) => {
+    await openTab(page, 'tab-networth');
+    expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
+    const pt = await pointAt(page, 'c-nw-hist', -2);
+    await page.touchscreen.tap(pt.x, pt.y);
+    const open = page.locator('#c-nw-hist [data-chart-drill]');
+    await expect(open).toBeVisible();
+    await expect(page.locator('#log-tab-snapshots')).not.toHaveAttribute('aria-selected', 'true');
+    await open.tap();
+    await expect(page.locator('#log-tab-snapshots')).toHaveAttribute('aria-selected', 'true');
+    await expect(
+      page.locator('#snaps-list .snap-row-compact[data-date="2025-05"]'),
+    ).toHaveAttribute('aria-expanded', 'true');
+  });
 });

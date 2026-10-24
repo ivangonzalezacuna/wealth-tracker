@@ -48,7 +48,6 @@ import {
   drillHint,
   fmtEurCompact,
   fmtPctAxis,
-  monthPresets,
   monthTimeAxis,
   monthToTime,
   nearestMonth,
@@ -512,8 +511,6 @@ function _renderGrowthChart(snaps: Snapshot[]): void {
     {
       zoom: true,
       xAxisType: 'time',
-      presets: monthPresets(last),
-      defaultPreset: 'all',
       group: TIMELINE_GROUP,
       drill: { resolve: (v) => nearestMonth(v, months), select: drillToSnapshot },
     },
@@ -583,12 +580,6 @@ function _renderContribChart(points: MonthlyGrowthPoint[]): void {
     {
       zoom: true,
       xAxisType: 'category',
-      presets: [
-        { key: '12', label: '1Y', startValue: Math.max(0, n - 12), endValue: n - 1 },
-        { key: '36', label: '3Y', startValue: Math.max(0, n - 36), endValue: n - 1 },
-        { key: 'all', label: 'All' },
-      ],
-      defaultPreset: 'all',
     },
   );
 }
@@ -1189,8 +1180,6 @@ function _renderDrawdownChart(series: { date: string; drawdown: number }[]): voi
     {
       zoom: true,
       xAxisType: 'time',
-      presets: monthPresets(last),
-      defaultPreset: 'all',
       valueFormatter: pct,
       group: TIMELINE_GROUP,
     },
@@ -1264,8 +1253,6 @@ function _renderRollingCagrChart(
     {
       zoom: data.length > 12,
       xAxisType: 'time',
-      presets: data.length > 12 ? monthPresets(last) : undefined,
-      defaultPreset: 'all',
       valueFormatter: pct,
       group: TIMELINE_GROUP,
     },
@@ -1387,15 +1374,8 @@ function _renderIncomeChart(monthlyBreakdown: { month: string; amount: number }[
     {
       zoom: n > 12,
       xAxisType: 'category',
-      presets:
-        n > 12
-          ? [
-              { key: '12', label: '1Y', startValue: Math.max(0, n - 12), endValue: n - 1 },
-              { key: '36', label: '3Y', startValue: Math.max(0, n - 36), endValue: n - 1 },
-              { key: 'all', label: 'All' },
-            ]
-          : undefined,
-      defaultPreset: '12',
+      // Opens on the last year; zoom out (slider / pinch) for the full history.
+      window: n > 12 ? { startValue: n - 12, endValue: n - 1 } : undefined,
       drill: {
         resolve: (v) => monthlyBreakdown[Math.round(v)]?.month ?? null,
         select: (month) => drillToTransactions(month),

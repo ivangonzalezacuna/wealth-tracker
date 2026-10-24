@@ -11,7 +11,7 @@ import {
   safeColor,
   kpiTile,
 } from '../utils';
-import { getACCTSList, FORECAST_RANGE_LABELS } from '../constants';
+import { getACCTSList } from '../constants';
 import {
   getAccounts,
   getContributionBudgetAmount,
@@ -41,10 +41,11 @@ import {
   disposeChart,
   drillHint,
   fmtEurCompact,
-  monthPresets,
   monthTimeAxis,
   monthToTime,
   nearestMonth,
+  horizonLabel,
+  horizonMonths,
   renderChart,
   timeToMonth,
   toRgba,
@@ -52,15 +53,7 @@ import {
 import { drillToSnapshot } from './drill';
 
 type Pt = [number, number];
-const FORECAST_RANGE_SHORT: Record<string, string> = {
-  '60': '5Y',
-  '120': '10Y',
-  '240': '20Y',
-  '360': '30Y',
-  '480': '40Y',
-  '600': '50Y',
-};
-let _fcRange: '60' | '120' | '240' | '360' | '480' | '600' = '60'; // 5y / 10y / 20y / 30y / 40y / 50y forecast horizon
+let _fcMonths = 60; // visible forecast horizon (follows the chart zoom)
 let _inflationRate = 0; // annual inflation % for real-return forecast overlay
 let _lastSnaps: Snapshot[] = [];
 let _lastAccounts: Account[] = [];
@@ -748,8 +741,6 @@ function _renderNWHistChart(snaps: Snapshot[], chartA: ChartAccount[]): void {
     {
       zoom: true,
       xAxisType: 'time',
-      presets: monthPresets(last),
-      defaultPreset: 'all',
       valueFormatter: fmtEur2,
       drill: { resolve: (v) => nearestMonth(v, months), select: drillToSnapshot },
     },
@@ -823,11 +814,10 @@ function _renderPlanningCard(snaps: Snapshot[], accounts: Account[]): void {
 // ── Forecast chart ──
 
 const FORECAST_MAX_MONTHS = 600;
-const FORECAST_HORIZONS = ['60', '120', '240', '360', '480', '600'] as const;
 
 function _forecastGroupSummaryHtml(groupSummaryLines: string): string {
   return groupSummaryLines
-    ? `<div style="margin:8px 0 4px">Grouped forecast summary (current → ${esc(FORECAST_RANGE_LABELS[_fcRange] || 'horizon')}):</div>${groupSummaryLines}`
+    ? `<div style="margin:8px 0 4px">Grouped forecast summary (current → ${esc(horizonLabel(_fcMonths))}):</div>${groupSummaryLines}`
     : '';
 }
 
@@ -856,7 +846,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   }
 
   const latestDate = latestSnap.date;
-  const forecastMonths = parseInt(_fcRange);
+  const forecastMonths = _fcMonths;
   const baselineSeries = forecastMultiAccountSeries(accountInputs, FORECAST_MAX_MONTHS, latestDate);
   const scenarioSeries = _showScenarioComparison
     ? _scenarios.map((scenario) => ({
@@ -998,12 +988,6 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
 
   const scenarioName = (scenario: ForecastScenario) =>
     `${scenario.label} (${scenario.returnDeltaPct >= 0 ? '+' : ''}${scenario.returnDeltaPct.toFixed(1)}% / ${fmtEurSigned(scenario.contribDeltaAmt, 0)}/mo)`;
-  const horizonPresets = FORECAST_HORIZONS.map((key) => ({
-    key,
-    label: FORECAST_RANGE_SHORT[key],
-    startValue: histStart,
-    endValue: addMonths(today, parseInt(key)),
-  }));
 
   renderChart(
     'c-nw-forecast',
@@ -1119,22 +1103,17 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     {
       zoom: true,
       xAxisType: 'time',
-      presets: horizonPresets,
-      defaultPreset: _fcRange,
+      window: { startValue: histStart, endValue: addMonths(today, _fcMonths) },
       valueFormatter: fmtEur2,
-      onPresetChange: (key) => {
-        if (!key || key === _fcRange) return;
-        _fcRange = key as typeof _fcRange;
+      // The grouped summary follows the zoom window's end (whole years past today).
+      onZoom: ({ endValue }) => {
+        const months = horizonMonths(today, endValue, FORECAST_MAX_MONTHS);
+        if (months === _fcMonths) return;
+        _fcMonths = months;
         const summaryEl = document.getElementById('nw-fc-group-summary');
         if (summaryEl)
           summaryEl.innerHTML = _forecastGroupSummaryHtml(
-            _buildForecastGroupSummary(
-              latestSnap,
-              latestDate,
-              parseInt(_fcRange),
-              accounts,
-              accountInputs,
-            ),
+            _buildForecastGroupSummary(latestSnap, latestDate, _fcMonths, accounts, accountInputs),
           );
       },
     },
@@ -1273,12 +1252,6 @@ function _renderDecumulationChart(
     {
       zoom: true,
       xAxisType: 'time',
-      presets: [
-        { key: '120', label: '10Y', startValue: first, endValue: addMonths(first, 119) },
-        { key: '240', label: '20Y', startValue: first, endValue: addMonths(first, 239) },
-        { key: 'all', label: 'All' },
-      ],
-      defaultPreset: 'all',
       valueFormatter: fmtEur2,
     },
   );
