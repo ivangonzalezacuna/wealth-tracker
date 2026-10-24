@@ -1075,6 +1075,20 @@ function _fitText(text: string, maxW: number, font: string): string {
   return `${text.slice(0, lo).trimEnd()}…`;
 }
 
+/** Toolbox row height (matches the registry header: 22 + 10 gap). */
+const DONUT_HEAD = 32;
+const DONUT_HOVER_GROW = 3;
+const DONUT_LEGEND_GAP = 7;
+/** Legend row pitch (measured): 12px text line + gap. */
+const DONUT_LEGEND_ROW = 12 + DONUT_LEGEND_GAP;
+const DONUT_MAX_H = 260;
+
+/** Outer radius: the ring gets ~40% of the width, capped so both panels match, and fits the height. */
+function _donutOuter(width: number, bodyH: number): number {
+  const ringW = Math.round(width * 0.4);
+  return Math.max(30, Math.floor(Math.min(ringW / 2 - 4, bodyH / 2 - 4 - DONUT_HOVER_GROW, 84)));
+}
+
 /** Shared donut: ring on the left, legend with right-aligned shares on the right, total inside. */
 function _renderAllocDonut(key: 'acct' | 'hold', slices: AllocSlice[], seriesName: string): void {
   const canvasId = `c-an-alloc-${key}`;
@@ -1088,11 +1102,14 @@ function _renderAllocDonut(key: 'acct' | 'hold', slices: AllocSlice[], seriesNam
     disposeChart(canvasId);
     return;
   }
-  // Grow with the legend (one row per slice) so long lists need less paging; the ring size
-  // is width-bound, so both panels keep matching rings.
+  // Fit the content area (below the toolbox row) to the taller of ring and legend, so there is no
+  // empty band under short legends. The wrap's `chart-tools` bottom padding hosts the toolbox row.
+  const wrapW = wrap?.clientWidth || 320;
+  const ringD = 2 * _donutOuter(wrapW, Infinity) + 2 * DONUT_HOVER_GROW;
+  const legendH = slices.length * DONUT_LEGEND_ROW - DONUT_LEGEND_GAP;
   wrap?.style.setProperty(
     '--chart-fit-h',
-    `${Math.min(260, Math.max(180, 40 + slices.length * 21))}px`,
+    `${Math.min(DONUT_MAX_H, Math.max(ringD, legendH) + 8)}px`,
   );
 
   const total = slices.reduce((s, x) => s + x.value, 0);
@@ -1105,27 +1122,47 @@ function _renderAllocDonut(key: 'acct' | 'hold', slices: AllocSlice[], seriesNam
     canvasId,
     ({ tokens: t, width }) => {
       const w = width || host?.clientWidth || 320;
-      const h = host?.clientHeight || 165;
-      // The ring gets ~40% of the width; its radius also respects the height so it never clips.
+      const h = host?.clientHeight || 165 + DONUT_HEAD;
+      // Content area under the toolbox row; ring and legend are centred in it.
+      const bodyH = Math.max(40, h - DONUT_HEAD);
       const ringW = Math.round(w * 0.4);
-      // Capped so both panels draw the same ring even when one chart is taller.
-      const outer = Math.max(30, Math.floor(Math.min(ringW / 2 - 4, h / 2 - 6, 84)));
+      const outer = _donutOuter(w, bodyH);
+      const cx = Math.round(ringW / 2);
+      const cy = Math.round(DONUT_HEAD + bodyH / 2);
+      const legendTop = DONUT_HEAD + Math.max(0, Math.round((bodyH - legendH) / 2));
       const legendLeft = ringW + 10;
       // Capped so shares stay next to their names on wide panels.
       const legendW = Math.max(90, Math.min(300, w - legendLeft));
       const shareW = 46;
       const nameW = legendW - 20 - shareW;
       const nameFont = `12px ${t.fontFamily}`;
-      const centreLabel = {
-        show: true,
-        position: 'center' as const,
-        formatter: `{v|${fmtEurCompact(total)}}\n{l|total}`,
-        rich: {
-          v: { fontSize: outer < 50 ? 11 : 13, fontWeight: 600, color: t.ink, lineHeight: 18 },
-          l: { fontSize: 10, color: t.ink4 },
-        },
-      };
       return {
+        // Total pinned to the ring centre; a series label would be re-laid out on hover.
+        graphic: [
+          {
+            type: 'text',
+            x: cx,
+            y: cy,
+            silent: true,
+            z: 10,
+            style: {
+              text: `{v|${fmtEurCompact(total)}}\n{l|total}`,
+              align: 'center',
+              verticalAlign: 'middle',
+              rich: {
+                v: {
+                  fontSize: outer < 50 ? 11 : 13,
+                  fontWeight: 600,
+                  fill: t.ink,
+                  lineHeight: 18,
+                  align: 'center',
+                  fontFamily: t.fontFamily,
+                },
+                l: { fontSize: 10, fill: t.ink4, align: 'center', fontFamily: t.fontFamily },
+              },
+            },
+          },
+        ],
         tooltip: {
           trigger: 'item',
           confine: true,
@@ -1137,8 +1174,8 @@ function _renderAllocDonut(key: 'acct' | 'hold', slices: AllocSlice[], seriesNam
         legend: {
           orient: 'vertical',
           left: legendLeft,
-          top: 30,
-          bottom: 4,
+          top: legendTop,
+          padding: 0,
           width: legendW,
           itemGap: 7,
           tooltip: { show: true },
@@ -1146,8 +1183,8 @@ function _renderAllocDonut(key: 'acct' | 'hold', slices: AllocSlice[], seriesNam
             `{n|${plain(_fitText(name, nameW - 6, nameFont))}}{s|${share(byName.get(name) ?? 0)}}`,
           textStyle: {
             rich: {
-              n: { width: nameW, fontSize: 12, color: t.ink2 },
-              s: { width: shareW, align: 'right', color: t.ink4, fontSize: 11 },
+              n: { width: nameW, fontSize: 12, lineHeight: 12, color: t.ink2 },
+              s: { width: shareW, align: 'right', color: t.ink4, fontSize: 11, lineHeight: 12 },
             },
           },
         },
@@ -1156,19 +1193,16 @@ function _renderAllocDonut(key: 'acct' | 'hold', slices: AllocSlice[], seriesNam
             name: seriesName,
             type: 'pie',
             radius: [Math.round(outer * 0.66), outer],
-            center: [Math.round(ringW / 2), Math.round(h / 2)],
-            avoidLabelOverlap: true,
+            center: [cx, cy],
             padAngle: slices.length > 1 ? 1 : 0,
             itemStyle: { borderColor: t.surface, borderWidth: slices.length > 1 ? 2 : 0 },
             label: { show: false },
-            emphasis: { scale: true, scaleSize: 3 },
+            emphasis: { scale: true, scaleSize: DONUT_HOVER_GROW, label: { show: false } },
             labelLine: { show: false },
-            // Centre total: a label on the first slice only, so it is drawn once.
-            data: slices.map((s, i) => ({
+            data: slices.map((s) => ({
               name: s.label,
               value: s.value,
               itemStyle: { color: safeColor(s.color) },
-              ...(i === 0 ? { label: centreLabel, emphasis: { label: centreLabel } } : {}),
             })),
           },
         ],

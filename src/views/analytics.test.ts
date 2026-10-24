@@ -420,7 +420,11 @@ describe('renderAnalytics', () => {
     const alloc = chartFor('c-an-alloc-acct')!.option as Record<string, any>;
     expect(alloc.series[0].type).toBe('pie');
     expect(alloc.legend.orient).toBe('vertical');
-    expect(alloc.series[0].data[0].label.position).toBe('center');
+    // Total is a fixed graphic at the ring centre, not a slice label that moves on hover.
+    const centre = alloc.graphic[0];
+    expect(centre.style.text).toContain('total');
+    expect([centre.x, centre.y]).toEqual(alloc.series[0].center);
+    expect(alloc.series[0].data[0].label).toBeUndefined();
     expect(alloc.toolbox.feature.myDataTable).toBeDefined();
   });
 
