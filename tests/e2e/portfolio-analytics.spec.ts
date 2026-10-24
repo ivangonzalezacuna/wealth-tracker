@@ -60,7 +60,8 @@ test('portfolio and analytics surfaces core data points from imported and snapsh
   await expect(page.locator('#an-content')).toBeVisible();
   await expect(page.locator('#an-kpis-l1')).toContainText('Net worth change');
   await expect(page.locator('#an-kpis-l1')).toContainText(formatUiMoney(20));
-  await expect(page.locator('#c-an-growth-table-wrap')).not.toBeEmpty();
+  await expect(page.locator('#c-an-growth canvas')).toHaveCount(1);
+  await expect(page.locator('#c-an-growth')).toHaveAttribute('aria-label', /Total net worth/);
 });
 
 test('account allocation donut shows correct labels when switching to By country', async ({

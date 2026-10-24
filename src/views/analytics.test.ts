@@ -3,6 +3,9 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('echarts/core', () => import('./charts/echartsMock'));
+import { chartFor } from './charts/echartsMock';
+
 const chartInstances: Array<{ config: unknown; destroyed: boolean }> = [];
 vi.mock('chart.js/auto', () => ({
   default: class MockChart {
@@ -246,38 +249,38 @@ describe('renderAnalytics', () => {
     expect((document.getElementById('an-income') as HTMLElement).style.display).toBe('');
   });
 
-  it('renders growth chart data table wrap after renderAnalytics with 2+ snapshots', () => {
+  it('renders the growth chart as a native ECharts time series with presets and zoom', () => {
     const snaps = [makeSnap('2025-01', 900, 0), makeSnap('2025-02', 950, 0)];
     renderAnalytics(makePd(), snaps, []);
-    const wrap = document.getElementById('c-an-growth-table-wrap');
-    expect(wrap).not.toBeNull();
-    // Wrap should be visible (removeAttribute('hidden') was called)
-    expect(wrap?.hasAttribute('hidden')).toBe(false);
-    // Toggle button should be present
-    expect(wrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
-    // Table should be present (hidden by default)
-    const table = wrap?.querySelector('.chart-data-table') as HTMLTableElement | null;
-    expect(table).not.toBeNull();
-    expect(table?.getAttribute('aria-label')).toBe('Portfolio growth over time data');
+    const opt = chartFor('c-an-growth')!.option as Record<string, any>;
+    expect(opt.xAxis.type).toBe('time');
+    expect(opt.series[0].data.map((p: number[]) => p[1])).toEqual([900, 950]);
+    expect(opt.dataZoom.map((z: { type: string }) => z.type)).toEqual(['inside', 'slider']);
+    expect(opt.toolbox.feature.dataView).toBeDefined();
+    const presets = opt.graphic.find((g: { id: string }) => g.id === 'range-presets');
+    expect(presets.children.map((c: { id: string }) => c.id)).toEqual([
+      'preset-12',
+      'preset-36',
+      'preset-all',
+    ]);
   });
 
   it('keeps growth and flow ranges on the latest rendered data', () => {
     renderAnalytics(makePd(), [makeSnap('2025-01', 900), makeSnap('2025-02', 950)], []);
     renderAnalytics(makePd(), [makeSnap('2026-01', 2000), makeSnap('2026-02', 2200)], []);
-    for (const id of ['an-growth-range-toggle', 'an-contrib-range-toggle']) {
-      document.querySelector<HTMLElement>(`#${id} [data-range="12"]`)!.click();
-    }
-    const growth = document.getElementById('c-an-growth-table-wrap')!.textContent!;
-    expect(growth).toContain('Feb 2026');
-    expect(growth).toContain('2.200');
-    expect(growth).not.toContain('950,00');
+    document.querySelector<HTMLElement>('#an-contrib-range-toggle [data-range="12"]')!.click();
+    const growth = chartFor('c-an-growth')!;
+    const opt = growth.option as Record<string, any>;
+    expect(opt.series[0].data.map((p: number[]) => p[1])).toEqual([2000, 2200]);
+    opt.graphic[0].children[0].onclick();
+    expect(growth.actions.at(-1)).toMatchObject({ type: 'dataZoom' });
     expect(document.getElementById('c-an-contrib-table-wrap')!.textContent).toContain('200,00');
   });
 
-  it('removes the old growth data table when only one snapshot remains', () => {
+  it('disposes the growth chart when only one snapshot remains', () => {
     renderAnalytics(makePd(), [makeSnap('2025-01', 900), makeSnap('2025-02', 950)], []);
     renderAnalytics(makePd(), [makeSnap('2026-01', 2000)], []);
-    expect(document.querySelector('#c-an-growth-table-wrap table')).toBeNull();
+    expect(chartFor('c-an-growth')).toBeUndefined();
   });
 
   it('pages the latest heatmap data after replacing history', () => {

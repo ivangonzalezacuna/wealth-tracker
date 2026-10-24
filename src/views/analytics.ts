@@ -47,10 +47,18 @@ import { T, R, BAR_END_ROUNDING, resolvedT } from '../theme';
 import { createChartRegistry } from './chartRegistry';
 import Chart from 'chart.js/auto';
 import { formatEuroCompactSuffix, formatEuroPrefix, formatPercentRounded } from './chartOptions';
+import {
+  addMonths,
+  disposeChart,
+  fmtEurCompact,
+  monthToTime,
+  renderChart,
+  timeToMonth,
+  toRgba,
+} from './charts';
 import type { Snapshot, PortfolioData, Transaction, Holding } from '../types';
 
 const { CH, destroyChart: _destroyChart } = createChartRegistry();
-let _anGrowthRange: '12' | '36' | 'all' = 'all';
 let _anContribRange: '12' | '36' | 'all' = 'all';
 let _anIncomeRange: '12' | '36' | 'all' = '12';
 let _lastSnaps: Snapshot[] = [];
@@ -308,7 +316,6 @@ export function renderAnalytics(
 
   // ── Portfolio growth chart ────────────────────────────────
   _renderGrowthChart(snaps);
-  _attachGrowthRangeToggle(snaps);
 
   // ── Level 2 content ───────────────────────────────────────
   const level2 = document.getElementById('an-level2');
@@ -470,91 +477,70 @@ export function renderAnalytics(
 // ── Portfolio growth chart ─────────────────────────────────
 
 function _renderGrowthChart(snaps: Snapshot[]): void {
-  const C = resolvedT();
-
-  const view = _anGrowthRange === 'all' ? snaps : snaps.slice(-parseInt(_anGrowthRange));
-
-  _destroyChart('c-an-growth');
-  document.getElementById('an-growth-legend')!.innerHTML = '';
-  if (view.length < 2) {
-    hideChartTable('c-an-growth-table-wrap');
+  if (snaps.length < 2) {
+    disposeChart('c-an-growth');
     return;
   }
 
-  const totalData = view.map((s) => snapTotal(s));
+  const points = snaps.map((s) => [monthToTime(s.date), snapTotal(s)] as [number, number]);
+  const last = points[points.length - 1][0];
 
-  CH['c-an-growth'] = new Chart(document.getElementById('c-an-growth') as HTMLCanvasElement, {
-    type: 'line',
-    data: {
-      labels: view.map((s) => fmtMon(s.date)),
-      datasets: [
+  renderChart(
+    'c-an-growth',
+    ({ tokens: t }) => ({
+      tooltip: {
+        trigger: 'axis',
+        confine: true,
+        valueFormatter: (v) => fmtEur2(Number(v)),
+      },
+      xAxis: {
+        type: 'time',
+        boundaryGap: ['0%', '0%'],
+        axisLabel: { formatter: { year: '{yyyy}', month: '{MMM}', day: '{MMM}' } },
+        axisPointer: { label: { formatter: (p) => fmtMon(timeToMonth(Number(p.value))) } },
+      },
+      yAxis: {
+        type: 'value',
+        scale: true,
+        axisLabel: { formatter: (v: number) => fmtEurCompact(v) },
+      },
+      series: [
         {
-          label: 'Total net worth',
-          data: totalData,
-          borderColor: C.brand,
-          backgroundColor: C.brandWeak,
-          borderWidth: 2,
-          pointRadius: view.length > 24 ? 0 : 3,
-          fill: true,
-          tension: 0.3,
+          name: 'Total net worth',
+          type: 'line',
+          data: points,
+          showSymbol: points.length <= 24,
+          symbolSize: 5,
+          smooth: 0.3,
+          lineStyle: { width: 2, color: t.brand },
+          itemStyle: { color: t.brand },
+          areaStyle: {
+            origin: 'start',
+            color: {
+              type: 'linear',
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [
+                { offset: 0, color: toRgba(t.brand, 0.22) },
+                { offset: 1, color: toRgba(t.brand, 0.02) },
+              ],
+            },
+          },
         },
       ],
+    }),
+    {
+      zoom: true,
+      xAxisType: 'time',
+      presets: [
+        { key: '12', label: '1Y', startValue: addMonths(last, -11), endValue: last },
+        { key: '36', label: '3Y', startValue: addMonths(last, -35), endValue: last },
+        { key: 'all', label: 'All' },
+      ],
+      defaultPreset: 'all',
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          mode: 'index',
-          intersect: false,
-          backgroundColor: C.surface,
-          ...TOOLTIP_BOX,
-          borderColor: C.line,
-          borderWidth: 1,
-          titleColor: C.ink,
-          bodyColor: C.ink2,
-          padding: 10,
-          cornerRadius: 8,
-          callbacks: {
-            label: (ctx) => ` ${ctx.dataset.label}: ${fmtEur2(ctx.raw as number)}`,
-            labelColor: tooltipSwatch(C.surface),
-          },
-        },
-      },
-      scales: {
-        y: {
-          grid: { color: C.line },
-          ticks: {
-            color: C.ink4,
-            callback: (v) => formatEuroCompactSuffix(v),
-          },
-        },
-        x: {
-          grid: { display: false },
-          ticks: { color: C.ink2, font: { size: 10 }, maxRotation: 0, autoSkip: true },
-        },
-      },
-    },
-  });
-
-  writeChartTable(
-    'c-an-growth-table-wrap',
-    'Portfolio growth over time data',
-    ['Month', 'Net Worth (€)'],
-    view.map((s) => [fmtMon(s.date), fmtEur2(snapTotal(s))]),
-    [1],
-  );
-}
-
-function _attachGrowthRangeToggle(snaps: Snapshot[]): void {
-  _attachRangeToggle(
-    'an-growth-range-toggle',
-    () => _anGrowthRange,
-    (r) => {
-      _anGrowthRange = r;
-    },
-    () => _renderGrowthChart(snaps),
   );
 }
 

@@ -207,12 +207,7 @@ export function appTemplate(): string {
 
     <div class="card card-primary">
       <div class="card-title">Net worth over time</div>
-      <div class="chart-controls">
-        <div id="an-growth-legend" class="legend"></div>
-        ${rangeToggleHtml('an-growth-range-toggle', 'Growth range')}
-      </div>
-      <div class="chart-wrap chart-h-lg"><canvas id="c-an-growth" role="img" aria-label="Portfolio growth chart" aria-describedby="c-an-growth-table-wrap"></canvas></div>
-      <div class="chart-data-table-wrap sr-only" id="c-an-growth-table-wrap"></div>
+      <div class="chart-wrap chart-h-lg chart-zoomable"><div id="c-an-growth" class="chart-host" role="img" aria-label="Portfolio growth chart"></div></div>
     </div>
 
     <!-- Level 2: Heatmap + Allocation (2+ snapshots) -->

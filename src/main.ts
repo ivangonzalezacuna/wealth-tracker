@@ -104,6 +104,7 @@ import {
   setCollapseState,
 } from './cache/db';
 import { onThemeChange, setUserTheme, getUserThemePref } from './theme';
+import { refreshChartsTheme } from './views/charts';
 import { shouldAutoResync } from './sync/policy';
 import { loadCollapseState, replaceCollapseState } from './ui/collapseState';
 import { restoreCollapseFromSheet, backupCollapseToSheet } from './ui/collapseSync';
@@ -598,7 +599,10 @@ function initOnlineListeners() {
  *  view stays visually stuck in the old color scheme until some unrelated
  *  action triggers the next re-render. */
 function initThemeListener() {
-  onThemeChange(() => renderAll());
+  onThemeChange(() => {
+    refreshChartsTheme();
+    renderAll();
+  });
   document.getElementById('btn-theme-toggle')?.addEventListener('click', () => {
     const next =
       getUserThemePref() === 'light' ? 'dark' : getUserThemePref() === 'dark' ? 'system' : 'light';
