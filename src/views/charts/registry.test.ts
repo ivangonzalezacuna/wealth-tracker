@@ -161,6 +161,84 @@ describe('renderChart', () => {
   });
 });
 
+describe('chart groups', () => {
+  const presetsFor = (last: number) => [
+    { key: '12', label: '1Y', startValue: addMonths(last, -11), endValue: last },
+    { key: 'all', label: 'All' },
+  ];
+  const last = monthToTime('2026-06');
+  const span =
+    (from: string): (() => ChartOption) =>
+    () => ({
+      xAxis: { type: 'time' },
+      yAxis: { type: 'value' },
+      series: [
+        {
+          type: 'line',
+          name: 'A',
+          data: [
+            [monthToTime(from), 1],
+            [last, 2],
+          ],
+        },
+      ],
+    });
+
+  beforeEach(() => {
+    document.body.innerHTML = '<div id="c-a"></div><div id="c-b"></div><div id="c-solo"></div>';
+    const opts = { zoom: true, xAxisType: 'time' as const, defaultPreset: 'all' };
+    renderChart('c-a', span('2023-01'), { ...opts, presets: presetsFor(last), group: 'g' });
+    renderChart('c-b', span('2024-01'), { ...opts, presets: presetsFor(last), group: 'g' });
+    renderChart('c-solo', span('2023-01'), { ...opts, presets: presetsFor(last) });
+  });
+
+  it('mirrors range presets to charts in the same group', () => {
+    const a = chartFor('c-a')!;
+    const b = chartFor('c-b')!;
+    (a.option as AnyRec).graphic[0].children[0].onclick();
+    expect(b.actions.at(-1)).toMatchObject({ type: 'dataZoom', startValue: addMonths(last, -11) });
+    expect((b.option as AnyRec).graphic[0].children[0].children[1].style.font).toContain('600');
+    expect(chartFor('c-solo')!.actions).toHaveLength(0);
+  });
+
+  it('mirrors a manual zoom window by axis value', () => {
+    const a = chartFor('c-a')!;
+    const b = chartFor('c-b')!;
+    const start = monthToTime('2025-01');
+    a.option = { ...(a.option as AnyRec), dataZoom: [{ startValue: start, endValue: last }] };
+    a.trigger('datazoom', {});
+    expect(b.actions.at(-1)).toEqual({ type: 'dataZoom', startValue: start, endValue: last });
+    // The peer's own datazoom event must not echo back to the source.
+    expect(a.actions).toHaveLength(0);
+  });
+
+  it('clamps a mirrored window to the peer data extent', () => {
+    const a = chartFor('c-a')!;
+    const b = chartFor('c-b')!;
+    const end = monthToTime('2025-06');
+    a.option = {
+      ...(a.option as AnyRec),
+      dataZoom: [{ startValue: monthToTime('2023-03'), endValue: end }],
+    };
+    a.trigger('datazoom', {});
+    expect(b.actions.at(-1)).toEqual({
+      type: 'dataZoom',
+      startValue: monthToTime('2024-01'),
+      endValue: end,
+    });
+  });
+
+  it('shows and hides the hover tooltip on peers at the same axis value', () => {
+    const a = chartFor('c-a')!;
+    const b = chartFor('c-b')!;
+    a.trigger('updateaxispointer', { axesInfo: [{ axisDim: 'x', value: 1234 }] });
+    expect(b.actions.at(-1)).toEqual({ type: 'showTip', x: 1234, y: 100 });
+    a.trigger('globalout');
+    expect(b.actions.at(-1)).toEqual({ type: 'hideTip' });
+    expect(chartFor('c-solo')!.actions).toHaveLength(0);
+  });
+});
+
 describe('dataViewTable', () => {
   it('renders time series as a formatted table using textContent', () => {
     const el = dataViewTable(

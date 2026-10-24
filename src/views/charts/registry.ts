@@ -436,18 +436,120 @@ function render(entry: Entry, keepState: boolean): void {
   entry.chart.setOption(option, { notMerge: true });
 }
 
+// ── Group sync ───────────────────────────────────────────
+// Charts sharing `opts.group` follow each other's zoom window and hover position by axis
+// value. ECharts' own `connect` syncs zoom by percentage, which misaligns time axes that
+// cover different date ranges (e.g. rolling CAGR starts 3 years after net worth).
+let syncing = false;
+
+function groupPeers(entry: Entry): Entry[] {
+  if (!entry.opts.group) return [];
+  return [...registry.values()].filter(
+    (p) =>
+      p !== entry &&
+      p.opts.group === entry.opts.group &&
+      p.host.isConnected &&
+      !p.chart.isDisposed(),
+  );
+}
+
+function withSync(fn: () => void): void {
+  if (syncing) return;
+  syncing = true;
+  try {
+    fn();
+  } finally {
+    syncing = false;
+  }
+}
+
+function zoomWindow(entry: Entry): { startValue: number; endValue: number } | null {
+  const dz = (
+    entry.chart.getOption() as { dataZoom?: Array<{ startValue?: unknown; endValue?: unknown }> }
+  ).dataZoom?.[0];
+  const s = Number(dz?.startValue);
+  const e = Number(dz?.endValue);
+  return Number.isFinite(s) && Number.isFinite(e) ? { startValue: s, endValue: e } : null;
+}
+
+/** Min/max x value across the chart's series (time axes use `[x, y]` points). */
+function xExtent(entry: Entry): [number, number] | null {
+  const series = (entry.chart.getOption() as { series?: Array<{ data?: unknown[] }> }).series;
+  let min = Infinity;
+  let max = -Infinity;
+  for (const s of series ?? []) {
+    for (const d of s.data ?? []) {
+      const point = Array.isArray(d) ? d : (d as { value?: unknown } | null)?.value;
+      const x = Array.isArray(point) ? Number(point[0]) : NaN;
+      if (!Number.isFinite(x)) continue;
+      if (x < min) min = x;
+      if (x > max) max = x;
+    }
+  }
+  return min <= max ? [min, max] : null;
+}
+
+// ECharts keeps the span and shifts a window that starts before the data, so clamp each
+// end to the peer's own extent to keep the visible dates aligned.
+function clampWindow(
+  peer: Entry,
+  w: { startValue?: number; endValue?: number },
+): { startValue?: number; endValue?: number } {
+  const ext = xExtent(peer);
+  if (!ext) return w;
+  const out = { ...w };
+  if (out.startValue != null) out.startValue = Math.min(Math.max(out.startValue, ext[0]), ext[1]);
+  if (out.endValue != null) out.endValue = Math.max(Math.min(out.endValue, ext[1]), ext[0]);
+  return out;
+}
+
+function syncZoom(entry: Entry): void {
+  const peers = groupPeers(entry).filter((p) => p.opts.zoom);
+  if (!peers.length) return;
+  withSync(() => {
+    const key = entry.activePreset;
+    const win = key == null ? zoomWindow(entry) : null;
+    for (const peer of peers) {
+      if (key != null && peer.opts.presets?.some((p) => p.key === key)) {
+        applyPreset(peer, key);
+      } else {
+        const w = win ?? (key != null ? windowFor(entry, key) : null);
+        if (w) peer.chart.dispatchAction({ type: 'dataZoom', ...clampWindow(peer, w) });
+      }
+    }
+  });
+}
+
+function syncPointer(entry: Entry, value: number | null): void {
+  const peers = groupPeers(entry);
+  if (!peers.length) return;
+  withSync(() => {
+    for (const peer of peers) {
+      if (value == null) {
+        peer.chart.dispatchAction({ type: 'hideTip' });
+        continue;
+      }
+      const x = Number(peer.chart.convertToPixel({ xAxisIndex: 0 }, value));
+      if (!Number.isFinite(x)) continue;
+      peer.chart.dispatchAction({ type: 'showTip', x, y: peer.chart.getHeight() / 2 });
+    }
+  });
+}
+
 function bindEvents(entry: Entry): void {
   const { chart } = entry;
   chart.off('datazoom');
   chart.off('restore');
   chart.off('click');
+  chart.off('updateaxispointer');
+  chart.off('globalout');
   chart.on('datazoom', () => {
-    if (entry.applyingPreset || !entry.opts.presets?.length) return;
-    if (entry.activePreset !== null) {
+    if (!entry.applyingPreset && entry.opts.presets?.length && entry.activePreset !== null) {
       entry.activePreset = null;
       syncPresetGraphic(entry);
       entry.opts.onPresetChange?.(null);
     }
+    if (entry.opts.group && !syncing) syncZoom(entry);
   });
   chart.on('restore', () => {
     entry.activePreset = entry.opts.defaultPreset ?? null;
@@ -456,8 +558,22 @@ function bindEvents(entry: Entry): void {
   });
   if (entry.opts.onClick) chart.on('click', entry.opts.onClick as (p: unknown) => void);
   if (entry.opts.group) {
-    chart.group = entry.opts.group;
-    ec?.connect(entry.opts.group);
+    let last: number | null = null;
+    chart.on('updateaxispointer', (e: unknown) => {
+      if (syncing) return;
+      const info = (e as { axesInfo?: Array<{ axisDim?: string; value?: unknown }> }).axesInfo;
+      const x = info?.find((a) => a.axisDim === 'x');
+      const value = x ? Number(x.value) : null;
+      const next = value != null && Number.isFinite(value) ? value : null;
+      if (next === last) return;
+      last = next;
+      syncPointer(entry, next);
+    });
+    chart.on('globalout', () => {
+      if (syncing || last == null) return;
+      last = null;
+      syncPointer(entry, null);
+    });
   }
 }
 

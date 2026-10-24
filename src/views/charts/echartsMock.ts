@@ -21,6 +21,8 @@ export interface MockChart {
   off(event: string): void;
   trigger(event: string, params?: unknown): void;
   resize(): void;
+  convertToPixel(finder: unknown, value: unknown): number;
+  getHeight(): number;
   setTheme(theme: unknown): void;
   dispose(): void;
   isDisposed(): boolean;
@@ -76,6 +78,12 @@ export function init(dom: HTMLElement, theme?: unknown): MockChart {
       for (const h of this.handlers.get(event) ?? []) h(params);
     },
     resize() {},
+    convertToPixel(_finder, value) {
+      return Number(value);
+    },
+    getHeight() {
+      return 200;
+    },
     setTheme(t) {
       this.theme = t;
     },

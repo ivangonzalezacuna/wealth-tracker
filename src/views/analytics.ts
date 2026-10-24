@@ -449,6 +449,9 @@ export function renderAnalytics(
 
 // ── Portfolio growth chart ─────────────────────────────────
 
+/** Growth, drawdown and rolling CAGR share a month axis: zoom, presets and hover move together. */
+const TIMELINE_GROUP = 'an-timeline';
+
 function _renderGrowthChart(snaps: Snapshot[]): void {
   if (snaps.length < 2) {
     disposeChart('c-an-growth');
@@ -504,6 +507,7 @@ function _renderGrowthChart(snaps: Snapshot[]): void {
       xAxisType: 'time',
       presets: monthPresets(last),
       defaultPreset: 'all',
+      group: TIMELINE_GROUP,
     },
   );
 }
@@ -1180,6 +1184,7 @@ function _renderDrawdownChart(series: { date: string; drawdown: number }[]): voi
       presets: monthPresets(last),
       defaultPreset: 'all',
       valueFormatter: pct,
+      group: TIMELINE_GROUP,
     },
   );
 }
@@ -1254,6 +1259,7 @@ function _renderRollingCagrChart(
       presets: data.length > 12 ? monthPresets(last) : undefined,
       defaultPreset: 'all',
       valueFormatter: pct,
+      group: TIMELINE_GROUP,
     },
   );
 }
