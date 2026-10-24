@@ -1254,6 +1254,9 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       });
     });
   }
+
+  // The panel re-renders on its own (scenario toggle/edits), so bind its infoTips every time.
+  attachInfoTips(forecastEl);
 }
 
 // ── Decumulation chart ──

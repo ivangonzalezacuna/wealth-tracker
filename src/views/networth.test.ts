@@ -389,6 +389,14 @@ describe('renderNW', () => {
     expect(tooltip).toContain('+350');
   });
 
+  it('binds the what-if infoTip after the forecast panel re-renders', () => {
+    renderNW([makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)]);
+    (document.getElementById('nw-scenario-toggle') as HTMLButtonElement).click();
+    const tip = document.querySelector('.forecast-scenario-card .info-tip') as HTMLElement;
+    expect(tip).not.toBeNull();
+    expect(tip.dataset.tipBound).toBe('1');
+  });
+
   it('scenario comparison draws a shaded band that stays out of legend, tooltip and table', () => {
     renderNW([makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)]);
     (document.getElementById('nw-scenario-toggle') as HTMLButtonElement).click();

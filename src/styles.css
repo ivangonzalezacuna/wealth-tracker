@@ -2812,9 +2812,26 @@ summary.section-label {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+}
+/* The input gives way first so the unit and the reset button always fit the column. */
+.proj-field .proj-input-row .planning-input {
+  flex: 1 1 6rem;
+  width: auto;
+  min-width: 3.5rem;
+  max-width: 6rem;
+}
+.proj-unit {
+  flex-shrink: 0;
 }
 .proj-reset {
-  padding: 2px 7px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
   line-height: 1;
 }
 .proj-balance {
