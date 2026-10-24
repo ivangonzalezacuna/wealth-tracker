@@ -369,15 +369,9 @@ code,
   flex-wrap: wrap;
 }
 #analytics .btn-sm,
-#analytics summary,
-#analytics .chart-data-table-toggle,
-#analytics .chart-data-table-prev,
-#analytics .chart-data-table-next {
+#analytics summary {
   min-height: 24px;
   min-width: 24px;
-}
-#analytics .chart-data-table-toggle {
-  padding: 3px 0;
 }
 #an-annual-table {
   overflow-x: auto;
@@ -4528,85 +4522,6 @@ textarea.dialog-input {
   border-color: var(--brand-border);
   outline: 2px solid var(--brand-border);
   outline-offset: 2px;
-}
-
-/* ── Chart accessible data tables ──────────────────────── */
-.chart-data-table-wrap {
-  margin-top: 8px;
-}
-.chart-data-table-toggle {
-  font-size: 11px;
-  color: var(--ink-3);
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.chart-data-table-toggle:hover,
-.chart-data-table-toggle:focus-visible {
-  color: var(--brand);
-  outline: 2px solid var(--brand-border);
-  outline-offset: 2px;
-  border-radius: 2px;
-}
-.chart-data-table-scroll {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-.chart-data-table-pagination {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 4px;
-  font-size: 11px;
-  color: var(--ink-3);
-}
-.chart-data-table-prev,
-.chart-data-table-next {
-  background: none;
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 1px 5px;
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1.2;
-  color: var(--ink-2);
-}
-.chart-data-table-prev:disabled,
-.chart-data-table-next:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-.chart-data-table-prev:not(:disabled):hover,
-.chart-data-table-next:not(:disabled):hover {
-  color: var(--brand);
-  border-color: var(--brand-border);
-}
-.chart-data-table {
-  min-width: 100%;
-  border-collapse: collapse;
-  font-size: 11px;
-  margin-top: 6px;
-  color: var(--ink-2);
-}
-.chart-data-table th {
-  text-align: left;
-  padding: 3px 6px;
-  border-bottom: 1px solid var(--line);
-  color: var(--ink-3);
-  font-weight: 500;
-}
-.chart-data-table td {
-  padding: 3px 6px;
-  border-bottom: 1px solid var(--line);
-}
-.chart-data-table .chart-data-number {
-  text-align: right;
-}
-.chart-data-table tr:last-child td {
-  border-bottom: none;
 }
 
 /* Visually hidden but accessible to screen readers and resolvable by aria-describedby */

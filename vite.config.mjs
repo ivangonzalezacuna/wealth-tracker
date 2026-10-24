@@ -11,11 +11,7 @@ export default defineConfig({
           if (id.includes('node_modules/echarts') || id.includes('node_modules/zrender')) {
             return 'echarts';
           }
-          if (
-            id.includes('node_modules/chart.js') ||
-            id.includes('node_modules/idb-keyval') ||
-            id.includes('node_modules/sql.js')
-          ) {
+          if (id.includes('node_modules/idb-keyval') || id.includes('node_modules/sql.js')) {
             return 'vendor';
           }
         },

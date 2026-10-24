@@ -2,7 +2,6 @@ import { getACCTSList } from '../constants';
 import { snapTotal, fmtEur2, fmtMon, fmtDay, esc, safeColor } from '../utils';
 import { sourceLabel } from '../import/profiles/index';
 import type { Snapshot, Transaction } from '../types';
-import { T } from '../theme';
 import { isCollapsed, setCollapsed } from '../ui/collapseState';
 import { EDIT_ICON, DELETE_ICON } from './icons';
 import { attachEtfPopovers } from '../ui/etfPopover';
