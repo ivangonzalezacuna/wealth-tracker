@@ -9,7 +9,9 @@ import { addMonths, loadCharts } from './charts';
 
 type AnyRec = Record<string, any>;
 const seriesNames = (id: string): string[] =>
-  ((chartFor(id)?.option as AnyRec | undefined)?.series ?? []).map((x: AnyRec) => x.name);
+  ((chartFor(id)?.option as AnyRec | undefined)?.series ?? [])
+    .map((x: AnyRec) => x.name)
+    .filter((n: unknown): n is string => typeof n === 'string');
 
 // ── Mock dependencies ──────────────────────────────────────────────
 const MOCK_ACCOUNTS: any[] = [
@@ -41,6 +43,9 @@ const MOCK_ACCOUNTS: any[] = [
   },
 ];
 
+// Mutable settings store so tests can simulate typed values surviving a reload.
+const mockSettings: Record<string, string> = {};
+
 vi.mock('../store/config', () => ({
   getAccounts: () => MOCK_ACCOUNTS,
   getTargetNetWorth: () => 100000,
@@ -51,9 +56,20 @@ vi.mock('../store/config', () => ({
   getContributionInterval: () => 'monthly',
   isConfigLoaded: () => true,
   getGoals: vi.fn(() => []),
-  getSettings: () => ({}),
-  getNumberSetting: (_key: string, defaultVal: number) => defaultVal,
-  setSetting: () => Promise.resolve(),
+  getSettings: () => ({ ...mockSettings }),
+  getNumberSetting: (key: string, defaultVal: number) =>
+    key in mockSettings ? parseFloat(mockSettings[key]) : defaultVal,
+  setSetting: vi.fn((key: string, value: string) => {
+    mockSettings[key] = value;
+    return Promise.resolve();
+  }),
+  setSettings: vi.fn((values: Record<string, string | null>) => {
+    for (const [k, v] of Object.entries(values)) {
+      if (v == null) delete mockSettings[k];
+      else mockSettings[k] = v;
+    }
+    return Promise.resolve();
+  }),
 }));
 
 vi.mock('../constants', () => ({
@@ -107,6 +123,7 @@ describe('renderNW', () => {
     await loadCharts();
     resetMockCharts();
     document.body.innerHTML = DOM_FIXTURE;
+    for (const k of Object.keys(mockSettings)) delete mockSettings[k];
     _resetPlanningTabForTest();
     delete (MOCK_ACCOUNTS[0] as any).locked;
     delete (MOCK_ACCOUNTS[0] as any).lockedUntil;
@@ -155,7 +172,7 @@ describe('renderNW', () => {
     expect(planning).toContain('Grouped forecast summary');
     expect(planning).toContain('Retirement');
     expect(planning).toContain('Liquid savings');
-    expect(planning).toContain('projected');
+    expect(planning).toContain('Projected');
   });
 
   it('creates the history chart on first render with 2+ snapshots', () => {
@@ -335,7 +352,7 @@ describe('renderNW', () => {
     expect(labels.some((l) => l.includes('Pessimistic'))).toBe(false);
   });
 
-  it('scenario controls update forecast dataset labels after editing deltas', () => {
+  it('scenario edits change the scenario lines and show the deltas in the tooltip', () => {
     const snaps = [makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)];
     renderNW(snaps);
     const scenarioToggle = document.getElementById('nw-scenario-toggle') as HTMLButtonElement;
@@ -347,10 +364,63 @@ describe('renderNW', () => {
     contribInput.value = '350';
     contribInput.dispatchEvent(new Event('change'));
 
-    const optimisticLabel = seriesNames('c-nw-forecast').find((l) => l.includes('Optimistic'));
-    expect(optimisticLabel).toBeTruthy();
-    expect(optimisticLabel).toContain('+3.5%');
-    expect(optimisticLabel).toContain('+350');
+    const opt = chartFor('c-nw-forecast')!.option as AnyRec;
+    const optimistic = opt.series.find((s: AnyRec) => s.name === 'Optimistic');
+    const baseline = opt.series.find((s: AnyRec) => s.name === 'Baseline (nominal)');
+    expect(optimistic).toBeTruthy();
+    const last = (s: AnyRec) => s.data[s.data.length - 1][1];
+    expect(last(optimistic)).toBeGreaterThan(last(baseline));
+    const tooltip = opt.tooltip.formatter([
+      {
+        seriesName: 'Optimistic',
+        value: [optimistic.data[1][0], 1000],
+        axisValue: optimistic.data[1][0],
+      },
+    ]);
+    expect(tooltip).toContain('+3.5 pp/yr');
+    expect(tooltip).toContain('+350');
+  });
+
+  it('binds the what-if infoTip after the forecast panel re-renders', () => {
+    renderNW([makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)]);
+    (document.getElementById('nw-scenario-toggle') as HTMLButtonElement).click();
+    const tip = document.querySelector('.forecast-scenario-card .info-tip') as HTMLElement;
+    expect(tip).not.toBeNull();
+    expect(tip.dataset.tipBound).toBe('1');
+  });
+
+  it('scenario comparison draws a shaded band that stays out of legend, tooltip and table', () => {
+    renderNW([makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)]);
+    (document.getElementById('nw-scenario-toggle') as HTMLButtonElement).click();
+    const opt = chartFor('c-nw-forecast')!.option as AnyRec;
+    const helpers = opt.series.filter((s: AnyRec) => String(s.id ?? '').startsWith('_'));
+    expect(helpers).toHaveLength(2);
+    expect(helpers.every((s: AnyRec) => s.stack === '_band' && !s.name)).toBe(true);
+    const pess = opt.series.find((s: AnyRec) => s.name === 'Pessimistic');
+    const optm = opt.series.find((s: AnyRec) => s.name === 'Optimistic');
+    const i = optm.data.length - 1;
+    expect(helpers[0].data[i][1] + helpers[1].data[i][1]).toBeCloseTo(optm.data[i][1]);
+    expect(helpers[0].data[i][1]).toBe(pess.data[i][1]);
+    const tooltip = opt.tooltip.formatter([
+      { seriesId: '_band-fill', seriesName: 'series2', value: [0, 5] },
+      { seriesName: 'Optimistic', value: [0, 10] },
+    ]);
+    expect(tooltip).not.toContain('series2');
+    expect(tooltip).toContain('Optimistic');
+  });
+
+  it('forecast headline shows the net worth at the end of the visible window', () => {
+    renderNW([makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)]);
+    const answer = document.getElementById('nw-fc-answer')!;
+    expect(answer.textContent).toContain('Net worth in Feb 2031');
+    expect(answer.textContent).toContain('vs today');
+  });
+
+  it('marks the retirement start on the forecast when it falls inside the horizon', () => {
+    mockSettings['dd_retirement_date'] = '2030-06';
+    renderNW([makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)]);
+    const baseline = (chartFor('c-nw-forecast')!.option as AnyRec).series[1];
+    expect(baseline.markLine.data.map((d: AnyRec) => d.name)).toContain('Retirement');
   });
 
   it('scenario comparison toggle adds and removes scenario datasets', () => {
@@ -480,20 +550,105 @@ describe('renderNW', () => {
     expect(dateInput?.value).toMatch(/^2046-/);
   });
 
-  it('decumulation card shows sustainable withdrawal KPI when corpus and withdrawal are set', () => {
+  it('decumulation card leads with how long the money lasts, then first withdrawal and break-even', () => {
     const snaps = [makeSnap('2026-01', 5000, 2000)];
     renderNW(snaps);
     const ddEl = switchToDrawdownTab();
-    // Should show the corpus KPIs (Portfolio lasts until, Monthly withdrawal, Break-even withdrawal)
-    expect(ddEl.textContent).toContain('Portfolio lasts until');
-    expect(ddEl.textContent).toContain('Monthly withdrawal');
-    expect(ddEl.textContent).toContain('Break-even withdrawal');
+    expect(ddEl.querySelector('#nw-dd-answer')?.textContent).toMatch(/Lasts 40\+ years|Runs out/);
+    expect(ddEl.textContent).toContain('First withdrawal');
+    expect(ddEl.textContent).toContain('same amount every month');
+    expect(ddEl.textContent).toContain('Break-even');
     const opt = chartFor('c-nw-decumulation')!.option as AnyRec;
     expect(opt.xAxis.type).toBe('time');
     expect(opt.series[0].markLine.data).toHaveLength(1);
     const withdrawal = opt.series.find((x: AnyRec) => x.name === 'Monthly withdrawal');
     expect(withdrawal.yAxisIndex).toBe(1);
-    expect(opt.legend.selected['Monthly withdrawal']).toBe(false);
+    // The withdrawal line is shown by default.
+    expect(opt.legend.selected?.['Monthly withdrawal']).not.toBe(false);
+  });
+
+  it('shades the zero-balance zone when the money runs out', () => {
+    mockSettings['dd_withdrawal_fixed'] = '5000';
+    renderNW([makeSnap('2026-01', 5000, 2000)]);
+    switchToDrawdownTab();
+    expect(document.getElementById('nw-dd-answer')?.textContent).toContain('Runs out');
+    const opt = chartFor('c-nw-decumulation')!.option as AnyRec;
+    expect(opt.series[0].markArea.data[0][0].name).toBe('Depleted');
+    expect(opt.series[0].markArea.label.position).toBe('inside');
+    expect(opt.series[0].markPoint).toBeUndefined();
+  });
+
+  it('suggests 4% of the balance for every strategy on first open', () => {
+    renderNW([makeSnap('2026-01', 5000, 2000)]);
+    let ddEl = switchToDrawdownTab();
+    const fixed = Number((ddEl.querySelector('#dd-withdrawal') as HTMLInputElement).value);
+    expect(fixed).toBeGreaterThan(10);
+    expect(ddEl.querySelector('#dd-withdrawal-reset')).toBeNull();
+    (ddEl.querySelector('[data-dd-strategy="pct"]') as HTMLElement).click();
+    ddEl = document.getElementById('nw-dd-panel')!;
+    expect((ddEl.querySelector('#dd-withdrawal') as HTMLInputElement).value).toBe('4');
+    (ddEl.querySelector('[data-dd-strategy="four-pct"]') as HTMLElement).click();
+    ddEl = document.getElementById('nw-dd-panel')!;
+    expect(Number((ddEl.querySelector('#dd-withdrawal') as HTMLInputElement).value)).toBe(fixed);
+  });
+
+  it('keeps the Fixed amount after typing a % rate, switching strategy and reloading', () => {
+    renderNW([makeSnap('2026-01', 5000, 2000)]);
+    let ddEl = switchToDrawdownTab();
+    const suggested = (ddEl.querySelector('#dd-withdrawal') as HTMLInputElement).value;
+    (ddEl.querySelector('[data-dd-strategy="pct"]') as HTMLElement).click();
+    const input = document.getElementById('dd-withdrawal') as HTMLInputElement;
+    input.value = '3.5';
+    input.dispatchEvent(new Event('change'));
+    (document.querySelector('[data-dd-strategy="fixed"]') as HTMLElement).click();
+    expect((document.getElementById('dd-withdrawal') as HTMLInputElement).value).toBe(suggested);
+
+    // Reload: module state is re-read from the persisted settings.
+    document.body.innerHTML = DOM_FIXTURE;
+    _resetPlanningTabForTest();
+    renderNW([makeSnap('2026-01', 5000, 2000)]);
+    ddEl = switchToDrawdownTab();
+    expect((ddEl.querySelector('[data-dd-strategy="fixed"]') as HTMLElement).classList).toContain(
+      'active',
+    );
+    expect((ddEl.querySelector('#dd-withdrawal') as HTMLInputElement).value).toBe(suggested);
+    (ddEl.querySelector('[data-dd-strategy="pct"]') as HTMLElement).click();
+    expect((document.getElementById('dd-withdrawal') as HTMLInputElement).value).toBe('3.5');
+  });
+
+  it('a typed amount survives date changes and reloads; reset returns to the suggestion', () => {
+    renderNW([makeSnap('2026-01', 5000, 2000)]);
+    switchToDrawdownTab();
+    const input = document.getElementById('dd-withdrawal') as HTMLInputElement;
+    const suggested = input.value;
+    input.value = '777';
+    input.dispatchEvent(new Event('change'));
+    const date = document.getElementById('dd-retirement-date') as HTMLInputElement;
+    date.value = '2050-01';
+    date.dispatchEvent(new Event('change'));
+    expect((document.getElementById('dd-withdrawal') as HTMLInputElement).value).toBe('777');
+
+    document.body.innerHTML = DOM_FIXTURE;
+    _resetPlanningTabForTest();
+    renderNW([makeSnap('2026-01', 5000, 2000)]);
+    switchToDrawdownTab();
+    expect((document.getElementById('dd-withdrawal') as HTMLInputElement).value).toBe('777');
+    (document.getElementById('dd-withdrawal-reset') as HTMLButtonElement).click();
+    const after = (document.getElementById('dd-withdrawal') as HTMLInputElement).value;
+    expect(after).not.toBe('777');
+    expect(mockSettings['dd_withdrawal_fixed']).toBeUndefined();
+    // The suggestion follows the later retirement date (bigger balance).
+    expect(Number(after)).toBeGreaterThan(Number(suggested));
+  });
+
+  it('drops the legacy unit-less withdrawal setting', () => {
+    mockSettings['dd_withdrawal_param'] = '4';
+    renderNW([makeSnap('2026-01', 5000, 2000)]);
+    expect(mockSettings['dd_withdrawal_param']).toBeUndefined();
+    const ddEl = switchToDrawdownTab();
+    expect(
+      Number((ddEl.querySelector('#dd-withdrawal') as HTMLInputElement).value),
+    ).toBeGreaterThan(10);
   });
 
   it('decumulation card shows near-break-even warning when withdrawal is within ±20% of sustainable rate', () => {

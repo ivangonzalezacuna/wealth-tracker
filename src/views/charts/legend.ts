@@ -1,4 +1,5 @@
 import type { ChartOption } from './core';
+import { isHelperSeries } from './options';
 import { chartPalette, type ChartTokens } from './theme';
 
 export interface LegendItem {
@@ -9,6 +10,7 @@ export interface LegendItem {
 }
 
 interface SeriesLike {
+  id?: string;
   name?: string;
   type?: string;
   color?: unknown;
@@ -25,7 +27,7 @@ export function legendItems(option: ChartOption, t: ChartTokens): LegendItem[] {
   const series = (Array.isArray(raw) ? raw : raw ? [raw] : []) as SeriesLike[];
   const byName = new Map<string, LegendItem>();
   series.forEach((s, i) => {
-    if (!s.name || byName.has(s.name)) return;
+    if (!s.name || byName.has(s.name) || isHelperSeries(s.id)) return;
     const line = s.type === 'line';
     const dash = s.lineStyle?.type;
     byName.set(s.name, {

@@ -289,13 +289,15 @@ Named savings goals can be configured in **Settings > Goals**. Each goal has a t
 
 ### Retirement planning
 
-The **Net Worth** tab includes a **Drawdown** forecast alongside the standard accumulation projection. Configure a retirement date and select a withdrawal strategy:
+The **Net Worth** tab has a **Projections** card with two tabs that share one inflation setting:
 
-- **Fixed amount** — withdraw a fixed €/month (nominal, not inflation-adjusted)
-- **4% rule (SWR)** — withdraw 4% of the starting retirement balance per year, indexed annually for inflation
-- **% of portfolio** — withdraw a fixed percentage of the current balance each month
+- **Forecast** leads with the projected net worth at the end of the visible window (and in today's euros when inflation is set); zoom the chart to change the horizon. **Compare scenarios** adds editable optimistic and pessimistic what-ifs, drawn as a shaded band around the baseline. Goal deadlines and the retirement start are marked on the timeline. Per-account assumptions, the grouped summary and the model limitations sit in collapsible sections under the chart.
+- **Retirement withdrawals** leads with how long the money lasts, then the first withdrawal and the break-even amount. Configure a start date and a withdrawal strategy:
+  - **Fixed €** — the same €/month every month (nominal, not inflation-adjusted)
+  - **Inflation-linked €** — a starting €/month raised each year by the inflation rate (the classic "4% rule")
+  - **% of balance** — a fixed yearly percentage of the remaining balance, paid monthly
 
-The chart shows your projected portfolio balance through the drawdown period. If the balance reaches zero, the depletion date is displayed. **Note:** All withdrawal amounts shown are pre-tax. Actual spendable income will be lower depending on your jurisdiction and account type. Projections use a fixed expected return and do not model sequence-of-returns risk.
+The withdrawal starts at a suggestion of 4% of the balance at retirement and follows the start date until you type your own amount; typed amounts are kept per strategy and survive reloads (↺ returns to the suggestion). The chart shows the projected balance and the monthly withdrawal; if the balance reaches zero, the depletion date is marked and the empty period shaded. **Note:** All withdrawal amounts shown are pre-tax. Actual spendable income will be lower depending on your jurisdiction and account type. Projections use a fixed expected return and do not model sequence-of-returns risk.
 
 ### Charts
 

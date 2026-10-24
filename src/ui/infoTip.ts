@@ -46,6 +46,10 @@ export function infoTip(text: string, variant?: InfoTipVariant): string {
 export function attachInfoTips(root: HTMLElement | Document = document): void {
   root.querySelectorAll('.info-tip:not([data-tip-bound])').forEach((el) => {
     (el as HTMLElement).dataset.tipBound = '1';
+    // The data flag can be cleared by callers; never stack a second set of listeners,
+    // or the click toggles would cancel each other out.
+    if (_boundTips.has(el)) return;
+    _boundTips.add(el);
 
     // Single tap on mobile / click on desktop - show/hide
     el.addEventListener('click', (e) => {
@@ -58,23 +62,27 @@ export function attachInfoTips(root: HTMLElement | Document = document): void {
     el.addEventListener('mouseenter', () => {
       // Skip hover behavior on touch devices (avoids double-fire)
       if (_isTouchEvent()) return;
-      _showPopover(el as HTMLElement);
+      _showPopover(el as HTMLElement, 'hover');
     });
     el.addEventListener('mouseleave', () => {
       if (_isTouchEvent()) return;
       _hidePopover(el as HTMLElement);
     });
-    el.addEventListener('focus', () => _showPopover(el as HTMLElement));
+    el.addEventListener('focus', () => _showPopover(el as HTMLElement, 'focus'));
     el.addEventListener('blur', () => _hidePopover(el as HTMLElement));
   });
 }
 
 // ── Internal popover management ─────────────────────────────────
 
+const _boundTips = new WeakSet<Element>();
+
 /** Extended HTMLElement with a reference to its body-appended popover. */
 interface _TipEl extends HTMLElement {
   _tipPop?: HTMLElement;
   _tipScrollCleanup?: () => void;
+  /** What opened the popover; only a click-opened popover is closed by the next click. */
+  _tipSource?: 'click' | 'hover' | 'focus';
 }
 
 /** Track if the device has seen a touch event (sticky after first touch). */
@@ -93,10 +101,15 @@ function _isTouchEvent(): boolean {
   return _hasTouch;
 }
 
-function _showPopover(trigger: HTMLElement): void {
+function _showPopover(trigger: HTMLElement, source: 'click' | 'hover' | 'focus'): void {
+  const tipEl = trigger as _TipEl;
+  if (tipEl._tipPop) {
+    if (source === 'click') tipEl._tipSource = 'click';
+    return;
+  }
   // Remove any other open popover first
   _dismissAll();
-  if ((trigger as _TipEl)._tipPop) return;
+  tipEl._tipSource = source;
   const text = trigger.dataset.tip || '';
   const pop = document.createElement('span');
   const variant = trigger.dataset.tipVariant;
@@ -133,17 +146,21 @@ function _hidePopover(trigger: HTMLElement): void {
     pop.remove();
     delete tipEl._tipPop;
   }
+  delete tipEl._tipSource;
   if (tipEl._tipScrollCleanup) {
     tipEl._tipScrollCleanup();
     delete tipEl._tipScrollCleanup;
   }
 }
 
+// A tap focuses the tip (opening it) right before the click fires, so a popover opened by
+// focus/hover in the same gesture is kept open; only a click-opened one toggles closed.
 function _togglePopover(trigger: HTMLElement): void {
-  if ((trigger as _TipEl)._tipPop) {
+  const tipEl = trigger as _TipEl;
+  if (tipEl._tipPop && tipEl._tipSource === 'click') {
     _hidePopover(trigger);
   } else {
-    _showPopover(trigger);
+    _showPopover(trigger, 'click');
   }
 }
 
@@ -204,6 +221,7 @@ function _dismissAll(): void {
   document.querySelectorAll<HTMLElement>('.info-tip[data-tip-bound]').forEach((el) => {
     const tipEl = el as _TipEl;
     delete tipEl._tipPop;
+    delete tipEl._tipSource;
     if (tipEl._tipScrollCleanup) {
       tipEl._tipScrollCleanup();
       delete tipEl._tipScrollCleanup;

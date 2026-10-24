@@ -2311,8 +2311,6 @@ function updateDriftBadge(): void {
       tipEl.className = `info-tip info-tip--${variant}`;
       tipEl.dataset.tipVariant = variant;
       tipEl.textContent = variant === 'alert' ? '\u203c' : '!';
-      // Re-bind listeners after class change by clearing the bound flag
-      delete (tipEl as HTMLElement & { dataset: DOMStringMap }).dataset.tipBound;
     }
     tipEl.dataset.tip = tipText;
     tipEl.setAttribute('aria-label', tipText);

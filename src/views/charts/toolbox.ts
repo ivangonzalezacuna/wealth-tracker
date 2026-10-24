@@ -1,6 +1,7 @@
 import { fmtEur, fmtEur2, fmtMon } from '../../utils';
 import type { ToolboxComponentOption } from 'echarts/components';
 import { timeToMonth } from './format';
+import { isHelperSeries } from './options';
 
 type Fmt = (value: number) => string;
 
@@ -142,7 +143,7 @@ export function closeDataTable(host: HTMLElement): void {
 interface UnitOption {
   xAxis?: Array<{ type?: string; data?: unknown[] }>;
   yAxis?: Array<{ type?: string; data?: unknown[] }>;
-  series?: Array<{ type?: string; name?: string; data?: unknown[] }>;
+  series?: Array<{ type?: string; id?: string; name?: string; data?: unknown[] }>;
 }
 
 function cellValue(d: unknown): unknown {
@@ -159,7 +160,7 @@ export function dataViewTable(raw: unknown, valueFormatter: Fmt = fmtEur2): HTML
   const table = document.createElement('table');
   table.className = 'chart-dataview-table';
   wrap.appendChild(table);
-  const series = (opt.series ?? []).filter((s) => Array.isArray(s.data));
+  const series = (opt.series ?? []).filter((s) => Array.isArray(s.data) && !isHelperSeries(s.id));
   const thead = table.createTHead().insertRow();
   const tbody = table.createTBody();
   const addCells = (row: HTMLTableRowElement, cells: string[], numericFrom = 1) => {
