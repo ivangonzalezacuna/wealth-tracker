@@ -1,6 +1,11 @@
 import * as echarts from 'echarts/core';
-import { BarChart, LineChart, PieChart } from 'echarts/charts';
-import type { BarSeriesOption, LineSeriesOption, PieSeriesOption } from 'echarts/charts';
+import { BarChart, HeatmapChart, LineChart, PieChart } from 'echarts/charts';
+import type {
+  BarSeriesOption,
+  HeatmapSeriesOption,
+  LineSeriesOption,
+  PieSeriesOption,
+} from 'echarts/charts';
 import {
   AriaComponent,
   AxisPointerComponent,
@@ -13,6 +18,7 @@ import {
   MarkPointComponent,
   ToolboxComponent,
   TooltipComponent,
+  VisualMapComponent,
 } from 'echarts/components';
 import type {
   AriaComponentOption,
@@ -26,6 +32,7 @@ import type {
   MarkPointComponentOption,
   ToolboxComponentOption,
   TooltipComponentOption,
+  VisualMapComponentOption,
 } from 'echarts/components';
 import { LabelLayout } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -34,6 +41,8 @@ echarts.use([
   LineChart,
   BarChart,
   PieChart,
+  HeatmapChart,
+  VisualMapComponent,
   GridComponent,
   LegendComponent,
   TooltipComponent,
@@ -53,6 +62,8 @@ export type ChartOption = echarts.ComposeOption<
   | LineSeriesOption
   | BarSeriesOption
   | PieSeriesOption
+  | HeatmapSeriesOption
+  | VisualMapComponentOption
   | GridComponentOption
   | LegendComponentOption
   | TooltipComponentOption

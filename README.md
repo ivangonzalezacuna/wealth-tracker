@@ -302,10 +302,12 @@ The chart shows your projected portfolio balance through the drawdown period. If
 All charts share the same controls and follow the light/dark theme:
 
 - **Zoom and pan** on timelines instead of fixed range buttons. Each chart opens on a sensible default view (full history; the last 12 months for monthly bars; 5 years for forecasts) and **Reset view** returns to it. On a computer, drag inside the plot to pan, use Ctrl + mouse wheel (or a trackpad pinch) to zoom, or drag the slider under the chart. On touch screens, **pinch** inside the chart to zoom and drag sideways to pan; vertical swipes keep scrolling the page. Forecast titles follow the visible horizon (e.g. "12 years").
-- **Toolbox** (top-right): box zoom and undo (desktop), reset view, **data table** (a compact, scrollable table of the plotted values; close it with × or Escape), save as image (desktop) and **expand** to full screen.
+- **Toolbox** (top-right): box zoom and undo (desktop), reset view, **data table** (a compact, scrollable table of the plotted values with headings that stay in place; close it with × or Escape), save as image (desktop) and **expand** to full screen.
+- **Lines** are drawn with gentle curves on every line chart.
 - **Legend** entries are buttons that toggle series on and off (keyboard accessible); long legends wrap onto extra rows instead of paging.
 - **Linked timelines:** the Analytics growth, drawdown and rolling CAGR charts share their zoom window and hover position.
 - **Drill-down:** click a point to jump to the underlying data. On touch screens a tap only shows the tooltip; tap its **Open …** button to navigate, so scrolling past a chart never jumps away. Net worth history and growth points open that month's snapshot in **Log › Snapshots**; contribution and income months open **Log › Transactions** filtered to that month; cost-basis bars reveal the holding in the Holdings table. The tooltip shows a hint (or the button on touch) on charts that support it.
+- **Return heatmap** (Analytics): one row per year, one cell per month and the compounded year total on the right, with a shared colour scale across pages. Five years are shown at a time; use ‹ › to page through older years. Hover or tap a cell for the exact return and starting value; on very narrow screens the cell numbers are hidden and the tooltip carries them.
 
 ### Theme
 

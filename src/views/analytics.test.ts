@@ -250,12 +250,44 @@ describe('renderAnalytics', () => {
     expect(chartFor('c-an-growth')).toBeUndefined();
   });
 
+  const heatmapYears = () =>
+    (chartFor('c-an-heatmap')!.option as Record<string, any>).yAxis[0].data as string[];
+
   it('pages the latest heatmap data after replacing history', () => {
-    renderAnalytics(makePd(), monthlySnaps(2019, 1, 40), []);
-    renderAnalytics(makePd(), monthlySnaps(2023, 1, 40), []);
+    renderAnalytics(makePd(), monthlySnaps(2015, 1, 120), []);
     document.getElementById('an-heatmap-prev')!.click();
-    expect(document.getElementById('an-heatmap')!.textContent).toContain('2023');
-    expect(document.getElementById('an-heatmap')!.textContent).not.toContain('2019');
+    expect(heatmapYears()).toEqual(['2015', '2016', '2017', '2018', '2019']);
+    renderAnalytics(makePd(), monthlySnaps(2023, 1, 40), []);
+    expect(heatmapYears()).toEqual(['2023', '2024', '2025', '2026']);
+    expect(document.getElementById('an-heatmap-pager')!.style.display).toBe('none');
+  });
+
+  it('shows five years per heatmap page and pages through long histories', () => {
+    renderAnalytics(makePd(), monthlySnaps(1986, 1, 40 * 12), []);
+    const prev = document.getElementById('an-heatmap-prev') as HTMLButtonElement;
+    const next = document.getElementById('an-heatmap-next') as HTMLButtonElement;
+    const label = document.getElementById('an-heatmap-page-label')!;
+    expect(document.getElementById('an-heatmap-pager')!.style.display).toBe('flex');
+    expect(heatmapYears()).toEqual(['2021', '2022', '2023', '2024', '2025']);
+    expect(label.textContent).toBe('2021\u20132025');
+    expect(next.disabled).toBe(true);
+    for (let i = 0; i < 7; i++) prev.click();
+    expect(heatmapYears()).toEqual(['1986', '1987', '1988', '1989', '1990']);
+    expect(prev.disabled).toBe(true);
+    next.click();
+    expect(heatmapYears()[0]).toBe('1991');
+  });
+
+  it('renders monthly cells and compounded year totals in the heatmap chart', () => {
+    renderAnalytics(makePd(), monthlySnaps(2023, 1, 40), []);
+    const opt = chartFor('c-an-heatmap')!.option as Record<string, any>;
+    const cells = opt.series[0].data as { value: number[] }[];
+    // Feb 2023 is the first month with a return (Jan 2023 is the starting value).
+    expect(cells[0].value.slice(0, 2)).toEqual([1, 0]);
+    expect(cells[0].value[3]).toBeCloseTo(10 / 1000);
+    expect(opt.yAxis[1].data[0]).toMatch(/^\+\d+\.\d%\*$/);
+    expect(opt.visualMap.min).toBe(-1);
+    expect(document.getElementById('c-an-heatmap-wrap')!.style.display).toBe('');
   });
 
   it('keeps risk readiness separate from the heatmap count gate', () => {
@@ -266,7 +298,7 @@ describe('renderAnalytics', () => {
     const withGap = monthlySnaps(2023, 1, 40).filter((_, index) => index !== 10);
     renderAnalytics(makePd(), withGap, []);
     expect(document.getElementById('an-kpis-risk')!.style.display).toBe('none');
-    expect(document.querySelector('#an-heatmap table')).not.toBeNull();
+    expect(chartFor('c-an-heatmap')).toBeDefined();
     expect(document.getElementById('an-risk-metrics-note')!.textContent).toContain('gap period');
   });
 
@@ -466,6 +498,8 @@ describe('renderAnalytics', () => {
     expect(document.getElementById('an-heatmap-footer')?.textContent).toContain(
       'should not be used for short-term timing decisions',
     );
+    expect(chartFor('c-an-heatmap')).toBeUndefined();
+    expect(document.getElementById('c-an-heatmap-wrap')!.style.display).toBe('none');
   });
 
   it('hides the level-2 section (including annual table card) when fewer than 2 snapshots exist', () => {

@@ -204,9 +204,8 @@ export function appTemplate(): string {
           <span id="an-heatmap-page-label" style="min-width:80px;text-align:center"></span>
           <button class="btn btn-sm btn-ghost" id="an-heatmap-next" aria-label="Newer heatmap years">&#8250;</button>
         </div>
-        <div id="an-heatmap-wrap" role="region" aria-label="Monthly investment returns" tabindex="0" style="overflow-x:auto">
-          <div id="an-heatmap"></div>
-        </div>
+        <div id="an-heatmap"></div>
+        <div class="chart-wrap" id="c-an-heatmap-wrap" style="display:none"><div id="c-an-heatmap" class="chart-host" role="img" aria-label="Monthly investment return heatmap"></div></div>
         <p class="note" id="an-heatmap-footer">Heatmap colors are descriptive only and should not be used for short-term timing decisions.</p>
         <div class="analytics-subsection" id="an-annual-table-card">
           <div class="card-title">Annual investment returns</div>

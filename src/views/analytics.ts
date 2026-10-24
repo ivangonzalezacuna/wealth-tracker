@@ -41,7 +41,7 @@ import {
 import { getAccounts, getHoldings, getNumberSetting } from '../store/config';
 import { allInvestmentAccountsValue } from '../model/accounts';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
-import { T, R, resolvedT } from '../theme';
+import { resolvedT } from '../theme';
 import {
   axisTooltip,
   disposeChart,
@@ -586,8 +586,25 @@ function _renderContribChart(points: MonthlyGrowthPoint[]): void {
 
 // ── Monthly return heatmap ─────────────────────────────────
 
-const HEATMAP_PAGE_SIZE = 3;
+/** Years per page: older years are reached with the pager, so 40 years stay readable. */
+const HEATMAP_PAGE_SIZE = 5;
 const HEATMAP_MIN_MONTHS = 24;
+const HEATMAP_MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+const HEATMAP_DISCLAIMER =
+  'Heatmap colors are descriptive only and should not be used for short-term timing decisions.';
 
 function _renderHeatmap(
   monthlyReturns: { date: string; startValue: number; return: number }[],
@@ -595,31 +612,29 @@ function _renderHeatmap(
   const heatmapEl = document.getElementById('an-heatmap');
   const noteEl = document.getElementById('an-heatmap-note');
   const footerEl = document.getElementById('an-heatmap-footer');
-  if (!heatmapEl) return;
+  const pagerEl = document.getElementById('an-heatmap-pager');
+  const wrap = document.getElementById('c-an-heatmap-wrap');
+  if (!heatmapEl || !wrap) return;
 
   const weighted = weightedMonthlyReturns(monthlyReturns);
-  const annualData = annualReturnsFromMonthlyReturns(monthlyReturns);
-
-  if (weighted.length === 0) {
-    heatmapEl.innerHTML =
-      '<p class="note">Add more consecutive monthly investment snapshots to see the return heatmap.</p>';
-    if (footerEl)
-      footerEl.textContent =
-        'Heatmap colors are descriptive only and should not be used for short-term timing decisions.';
-    return;
-  }
-
-  const monthsCount = weighted.length;
-  if (monthsCount < HEATMAP_MIN_MONTHS) {
-    heatmapEl.innerHTML =
-      '<p class="note">Heatmap unlocks after 24 valid monthly investment-return periods are available.</p>';
+  const locked = (message: string) => {
+    heatmapEl.innerHTML = `<p class="note">${message}</p>`;
+    heatmapEl.style.display = '';
     if (noteEl) noteEl.style.display = 'none';
-    if (footerEl)
-      footerEl.textContent =
-        'Heatmap colors are descriptive only and should not be used for short-term timing decisions.';
-    return;
-  }
+    if (pagerEl) pagerEl.style.display = 'none';
+    if (footerEl) footerEl.textContent = HEATMAP_DISCLAIMER;
+    wrap.style.display = 'none';
+    disposeChart('c-an-heatmap');
+  };
+  if (weighted.length === 0)
+    return locked('Add more consecutive monthly investment snapshots to see the return heatmap.');
+  if (weighted.length < HEATMAP_MIN_MONTHS)
+    return locked(
+      'Heatmap unlocks after 24 valid monthly investment-return periods are available.',
+    );
 
+  heatmapEl.innerHTML = '';
+  heatmapEl.style.display = 'none';
   if (noteEl) {
     noteEl.textContent =
       'Cells show cash-flow-adjusted monthly returns. Color strength also weights starting investment value.';
@@ -629,112 +644,153 @@ function _renderHeatmap(
     footerEl.textContent =
       'Blank = unknown, not 0%. Year totals compound available returns; * = partial year. Colors are descriptive, not trading signals.';
 
-  // Find extremes for color scale (use weightedReturn for color intensity)
+  // One colour scale across every page so the same return looks the same on all pages.
   const maxAbs = Math.max(...weighted.map((m) => Math.abs(m.weightedReturn)), 0.001);
-
-  // Get year list (oldest first)
   const allYears = Array.from(new Set(weighted.map((m) => m.year))).sort((a, b) => a - b);
-
-  // Paging: page 0 = most recent page
   const totalPages = Math.max(1, Math.ceil(allYears.length / HEATMAP_PAGE_SIZE));
-  // Clamp page index
-  if (_heatmapPage >= totalPages) _heatmapPage = totalPages - 1;
-  if (_heatmapPage < 0) _heatmapPage = 0;
+  _heatmapPage = Math.min(Math.max(_heatmapPage, 0), totalPages - 1);
+  const end = allYears.length - _heatmapPage * HEATMAP_PAGE_SIZE;
+  const years = allYears.slice(Math.max(0, end - HEATMAP_PAGE_SIZE), end);
 
-  // Page 0 = last 3 years, page 1 = prior 3, etc. (reverse order so newest is page 0)
-  const reversedPages = [];
-  for (let p = 0; p < totalPages; p++) {
-    const start = allYears.length - (p + 1) * HEATMAP_PAGE_SIZE;
-    const end = allYears.length - p * HEATMAP_PAGE_SIZE;
-    reversedPages.push(allYears.slice(Math.max(0, start), end));
-  }
-  const years = reversedPages[_heatmapPage] || [];
-
-  // Update pager UI
-  const pagerEl = document.getElementById('an-heatmap-pager');
   const prevBtn = document.getElementById('an-heatmap-prev') as HTMLButtonElement | null;
   const nextBtn = document.getElementById('an-heatmap-next') as HTMLButtonElement | null;
   const pageLabelEl = document.getElementById('an-heatmap-page-label');
   if (pagerEl) pagerEl.style.display = totalPages > 1 ? 'flex' : 'none';
-  if (pageLabelEl && years.length > 0) {
+  if (pageLabelEl)
     pageLabelEl.textContent =
       years.length === 1 ? String(years[0]) : `${years[0]}\u2013${years[years.length - 1]}`;
-  }
   if (prevBtn) prevBtn.disabled = _heatmapPage >= totalPages - 1;
   if (nextBtn) nextBtn.disabled = _heatmapPage <= 0;
 
-  const MONTH_LABELS = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
+  const annual = new Map(
+    annualReturnsFromMonthlyReturns(monthlyReturns).map((a) => [a.year, a] as const),
+  );
+  const cells = weighted.filter((m) => years.includes(m.year));
+  const pct = (r: number, digits = 1) => `${r > 0 ? '+' : ''}${(r * 100).toFixed(digits)}%`;
+  const yearTotal = (y: number) => {
+    const a = annual.get(y);
+    return a ? `${pct(a.return)}${a.isPartial ? '*' : ''}` : '-';
+  };
 
-  const C = resolvedT();
-  const isDark = C.bg !== T.bg;
+  wrap.style.display = '';
+  const rowH = wrap.clientWidth > 0 && wrap.clientWidth < 480 ? 26 : 30;
+  // Inline !important beats the fixed chart heights of the small-screen media queries.
+  wrap.style.setProperty('height', `${years.length * rowH + 76}px`, 'important');
 
-  // Build lookup
-  const lookup = new Map<string, (typeof weighted)[0]>();
-  for (const m of weighted) {
-    lookup.set(`${m.year}-${m.month}`, m);
-  }
-  const annualLookup = new Map<number, { return: number; isPartial: boolean }>();
-  for (const a of annualData) {
-    annualLookup.set(a.year, { return: a.return, isPartial: a.isPartial });
-  }
-
-  const CELL_W = 42;
-  const minW = 12 * CELL_W + 56 + 64;
-  let html = `<table class="an-heatmap-table" style="border-collapse:collapse;font-size:11px;min-width:${minW}px">`;
-  // Header row
-  html += `<thead><tr><th style="width:52px;text-align:left;padding:2px 4px;color:var(--ink-3)"></th>`;
-  for (const ml of MONTH_LABELS) {
-    html += `<th style="width:${CELL_W}px;text-align:center;padding:2px;color:var(--ink-3);font-weight:normal">${ml}</th>`;
-  }
-  html += `<th style="width:60px;text-align:right;padding:2px 4px;color:var(--ink-3);font-weight:normal">Year</th>`;
-  html += '</tr></thead><tbody>';
-
-  for (const year of [...years].reverse()) {
-    html += `<tr><td style="padding:2px 4px;color:var(--ink-2);font-weight:500">${year}</td>`;
-    for (let mo = 1; mo <= 12; mo++) {
-      const entry = lookup.get(`${year}-${mo}`);
-      if (!entry) {
-        html += `<td style="padding:1px 2px;text-align:center"><div style="width:${CELL_W - 2}px;height:28px;border-radius:${R.xs}px;background:var(--line)"></div></td>`;
-        continue;
-      }
-      const intensity = Math.min(Math.abs(entry.weightedReturn) / maxAbs, 1);
-      const rawPct = entry.return * 100;
-      const color = _heatmapColor(entry.weightedReturn, intensity, isDark);
-      const textColor = _heatmapTextColor(intensity, entry.weightedReturn);
-      const sign = rawPct > 0 ? '+' : '';
-      html += `<td style="padding:1px 2px;text-align:center" title="${year}-${String(mo).padStart(2, '0')}: ${sign}${rawPct.toFixed(1)}%">
-        <div style="width:${CELL_W - 2}px;height:28px;border-radius:${R.xs}px;background:${color};display:flex;align-items:center;justify-content:center">
-          <span style="color:${textColor};font-size:10px;font-weight:500">${sign}${rawPct.toFixed(1)}%</span>
-        </div>
-      </td>`;
-    }
-    // Annual total column
-    const annualRet = annualLookup.get(year);
-    if (annualRet !== undefined) {
-      const annPct = annualRet.return * 100;
-      const annSign = annPct > 0 ? '+' : '';
-      const annCls = annPct >= 0 ? C.pos : C.neg;
-      html += `<td style="padding:2px 4px;text-align:right;font-weight:600;color:${annCls};white-space:nowrap" title="${annualRet.isPartial ? 'Partial year return (fewer than 12 months of data)' : 'Full-year return'}">${annSign}${annPct.toFixed(1)}%${annualRet.isPartial ? ' *' : ''}</td>`;
-    } else {
-      html += `<td style="padding:2px 4px;text-align:right;color:var(--ink-3)">-</td>`;
-    }
-    html += '</tr>';
-  }
-  html += '</tbody></table>';
-  heatmapEl.innerHTML = html;
+  renderChart(
+    'c-an-heatmap',
+    ({ tokens: t, compact, width }) => {
+      const gridLeft = compact ? 34 : 44;
+      const gridRight = compact ? 50 : 64;
+      // Very narrow phones: cells are too small for numbers; colour + tooltip carry the value.
+      const showLabels = !width || (width - gridLeft - gridRight) / 12 >= 18;
+      const yearLabelGap = 6;
+      return {
+        tooltip: {
+          trigger: 'item',
+          confine: true,
+          formatter: (p: unknown) => {
+            const [mo, row] = (p as { value: number[] }).value;
+            const year = years[row];
+            const m = cells.find((w) => w.year === year && w.month === mo + 1);
+            if (!m) return '';
+            return `<div class="ec-tt-title">${HEATMAP_MONTHS[mo]} ${year}</div>${pct(m.return, 2)}<div style="color:var(--ink-3)">Start value ${fmtEur2(m.startValue)}</div>`;
+          },
+        },
+        grid: { left: gridLeft, right: gridRight, top: 22, bottom: 40 },
+        // Header for the year-total column, on the same row as the month labels.
+        graphic: width
+          ? [
+              {
+                type: 'text',
+                left: width - gridRight + yearLabelGap,
+                top: 4,
+                silent: true,
+                style: {
+                  text: 'Year',
+                  fill: t.ink3,
+                  fontSize: 11,
+                  fontFamily: t.fontFamily,
+                },
+              },
+            ]
+          : [],
+        xAxis: {
+          type: 'category',
+          position: 'top',
+          data: HEATMAP_MONTHS.map((m) => (compact ? m[0] : m)),
+          splitArea: { show: false },
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: { color: t.ink3, fontSize: 11, interval: 0 },
+        },
+        yAxis: [
+          {
+            type: 'category',
+            data: years.map(String),
+            axisLine: { show: false },
+            axisTick: { show: false },
+            axisLabel: { color: t.ink2, fontWeight: 500, fontSize: compact ? 10 : 12 },
+          },
+          {
+            type: 'category',
+            position: 'right',
+            data: years.map(yearTotal),
+            axisLine: { show: false },
+            axisTick: { show: false },
+            axisLabel: {
+              fontSize: compact ? 10 : 11,
+              fontWeight: 600,
+              margin: yearLabelGap,
+              color: (_v?: string | number, i?: number) =>
+                (annual.get(years[i ?? 0])?.return ?? 0) >= 0 ? t.pos : t.neg,
+            },
+          },
+        ],
+        visualMap: {
+          type: 'continuous',
+          seriesIndex: 0,
+          dimension: 2,
+          min: -1,
+          max: 1,
+          calculable: false,
+          orient: 'horizontal',
+          left: 'center',
+          bottom: 4,
+          itemWidth: 10,
+          itemHeight: compact ? 140 : 200,
+          text: [pct(maxAbs), pct(-maxAbs)],
+          textStyle: { color: t.ink3, fontSize: 10 },
+          inRange: { color: [t.neg, toRgba(t.neg, 0.12), t.line, toRgba(t.pos, 0.12), t.pos] },
+        },
+        series: [
+          {
+            type: 'heatmap',
+            name: 'Monthly return',
+            itemStyle: { borderColor: t.surface, borderWidth: 2, borderRadius: 4 },
+            emphasis: { itemStyle: { borderColor: t.ink, borderWidth: 1 } },
+            label: {
+              show: showLabels,
+              fontSize: compact ? 8 : 10,
+              fontWeight: 500,
+              formatter: (p: unknown) => {
+                const r = ((p as { value: number[] }).value[3] ?? 0) * 100;
+                return compact ? r.toFixed(Math.abs(r) >= 10 ? 0 : 1) : pct(r / 100);
+              },
+            },
+            data: cells.map((m) => {
+              const v = m.weightedReturn / maxAbs;
+              return {
+                value: [m.month - 1, years.indexOf(m.year), v, m.return],
+                label: { color: Math.abs(v) > 0.72 ? '#fff' : t.ink },
+              };
+            }),
+          },
+        ],
+      };
+    },
+    { toolbox: false },
+  );
 }
 
 function _attachHeatmapPager(
@@ -754,28 +810,6 @@ function _attachHeatmapPager(
       _renderHeatmap(monthlyReturns);
     };
   }
-}
-
-function _heatmapColor(weightedReturn: number, intensity: number, isDark: boolean): string {
-  if (weightedReturn > 0) {
-    // Green scale
-    const g = isDark ? Math.round(100 + 110 * intensity) : Math.round(200 - 80 * intensity);
-    const r = isDark ? Math.round(10 + 30 * (1 - intensity)) : Math.round(230 - 100 * intensity);
-    const b = isDark ? Math.round(10 + 30 * (1 - intensity)) : Math.round(230 - 100 * intensity);
-    return `rgb(${r},${g},${b})`;
-  } else if (weightedReturn < 0) {
-    // Red scale
-    const r = isDark ? Math.round(100 + 110 * intensity) : Math.round(200 - 80 * intensity);
-    const gb = isDark ? Math.round(10 + 30 * (1 - intensity)) : Math.round(230 - 100 * intensity);
-    return `rgb(${r},${gb},${gb})`;
-  }
-  return 'var(--line)';
-}
-
-function _heatmapTextColor(intensity: number, weightedReturn: number): string {
-  // Use white text on saturated backgrounds, dark text on light ones
-  if (intensity > 0.5) return '#fff';
-  return weightedReturn !== 0 ? 'var(--ink)' : 'var(--ink-3)';
 }
 
 // ── Annual returns table ───────────────────────────────────
