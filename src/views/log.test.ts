@@ -51,7 +51,6 @@ function makeTx(rowId: bigint, overrides: Partial<Transaction> = {}): Transactio
 
 function resetRenderedFilters(): void {
   const txSearch = document.getElementById('tx-search') as HTMLInputElement | null;
-  const txType = document.getElementById('tx-type-filter') as HTMLSelectElement | null;
   const snapSearch = document.getElementById('snap-search') as HTMLInputElement | null;
   const snapYear = document.getElementById('snap-year-filter') as HTMLSelectElement | null;
 
@@ -59,10 +58,7 @@ function resetRenderedFilters(): void {
     txSearch.value = '';
     txSearch.dispatchEvent(new Event('input'));
   }
-  if (txType) {
-    txType.value = '';
-    txType.dispatchEvent(new Event('change'));
-  }
+  document.querySelector<HTMLButtonElement>('#tx-type-filter [data-tx-type=""]')?.click();
   if (snapSearch) {
     snapSearch.value = '';
     snapSearch.dispatchEvent(new Event('input'));
@@ -79,11 +75,13 @@ const DOM_FIXTURE = `
   <div id="snap-table-header"></div>
   <div id="snaps-list"></div>
   <div id="snap-pagination"></div>
-  <select id="tx-type-filter"></select>
+  <div id="tx-type-filter"></div>
   <input id="tx-search" />
   <button id="btn-add-tx"></button>
   <div id="tx-ledger-list"></div>
   <div id="tx-pagination"></div>
+  <div id="tx-filter-status" hidden></div>
+  <div id="snap-filter-status" hidden></div>
   <div id="import-status"></div>
 `;
 
@@ -99,7 +97,7 @@ const BULK_DOM_FIXTURE = `
     <button id="btn-snap-clear-all"></button>
     <button id="btn-del-snaps" disabled></button>
   </div>
-  <select id="tx-type-filter"></select>
+  <div id="tx-type-filter"></div>
   <input id="tx-search" />
   <button id="btn-add-tx"></button>
   <div id="tx-ledger-list"></div>
@@ -521,8 +519,8 @@ describe('bulk delete mode', () => {
 
     txToggle.click();
     snapToggle.click();
-    expect(txToggle.textContent).toBe('Bulk delete');
-    expect(snapToggle.textContent).toBe('Bulk delete');
+    expect(txToggle.textContent).toBe('Select');
+    expect(snapToggle.textContent).toBe('Select');
     expect(document.getElementById('tx-bulk-actions')?.hidden).toBe(true);
     expect(document.getElementById('snap-bulk-actions')?.hidden).toBe(true);
   });
@@ -633,10 +631,10 @@ describe('bulk delete mode', () => {
     resetRenderedFilters();
 
     expect((document.getElementById('btn-start-del-txs') as HTMLButtonElement).textContent).toBe(
-      'Bulk delete',
+      'Select',
     );
     expect((document.getElementById('btn-start-del-snaps') as HTMLButtonElement).textContent).toBe(
-      'Bulk delete',
+      'Select',
     );
     expect(document.getElementById('tx-bulk-actions')?.hidden).toBe(true);
     expect(document.getElementById('snap-bulk-actions')?.hidden).toBe(true);
@@ -856,5 +854,41 @@ describe('chart drill-down targets', () => {
     expect(text).not.toContain('JanBuy');
     expect(text).not.toContain('FebDiv');
     expect((document.getElementById('tx-search') as HTMLInputElement).value).toBe('2026-02');
+    const buy = document.querySelector('#tx-type-filter [data-tx-type="BUY"]')!;
+    expect(buy.getAttribute('aria-pressed')).toBe('true');
+    const status = document.getElementById('tx-filter-status')!;
+    expect(status.hidden).toBe(false);
+    expect(status.textContent).toContain('From chart');
+    expect(status.textContent).toContain('1 of 3 transactions');
+  });
+
+  it('shows type chips with counts and clears all filters from the status line', () => {
+    render(
+      [],
+      [
+        makeTx(1n, { date: '2026-01-05', name: 'JanBuy' }),
+        makeTx(2n, { date: '2026-02-05', name: 'FebBuy' }),
+        makeTx(3n, { date: '2026-02-10', name: 'FebDiv', type: 'DIVIDEND', shares: 0 }),
+      ],
+    );
+    resetRenderedFilters();
+    const chips = document.getElementById('tx-type-filter')!;
+    expect(chips.textContent).toBe('All 3Buy 2Dividend 1');
+    const status = document.getElementById('tx-filter-status')!;
+    expect(status.hidden).toBe(true);
+    (chips.querySelector('[data-tx-type="DIVIDEND"]') as HTMLButtonElement).click();
+    const list = document.getElementById('tx-ledger-list')!;
+    expect(list.textContent).toContain('FebDiv');
+    expect(list.textContent).not.toContain('JanBuy');
+    expect(status.textContent).not.toContain('From chart');
+    expect(status.textContent).toContain('1 of 3 transactions');
+    (status.querySelector('[data-clear-filters]') as HTMLButtonElement).click();
+    expect(status.hidden).toBe(true);
+    expect(list.textContent).toContain('JanBuy');
+  });
+
+  it('hides type chips when the ledger has a single type', () => {
+    render([], [makeTx(1n), makeTx(2n, { date: '2026-02-05' })]);
+    expect(document.getElementById('tx-type-filter')!.hidden).toBe(true);
   });
 });

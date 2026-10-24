@@ -449,21 +449,24 @@ describe('renderPortfolio', () => {
     expect(rows).toEqual(['IWDA', 'EIMI', 'BOND']);
   });
 
-  it('shows the held/closed/all filter toggle', () => {
+  it('hides the held/closed/all chips when nothing has been closed', () => {
     renderPortfolio(makePD(), []);
-    const filterToggle = document.getElementById('port-filter-toggle');
-    expect(filterToggle).not.toBeNull();
-    expect(filterToggle!.textContent).toContain('Held');
-    expect(filterToggle!.textContent).toContain('Closed');
-    expect(filterToggle!.textContent).toContain('All');
+    expect(document.getElementById('port-filter-toggle')).toBeNull();
   });
 
-  it('renders a compact holdings search input', () => {
+  it('renders a holdings search input with a clear button', () => {
     renderPortfolio(makePD(), []);
     const search = document.getElementById('port-holdings-search') as HTMLInputElement;
     expect(search).not.toBeNull();
-    expect(search.className).toContain('holdings-search-input');
     expect(search.placeholder).toBe('Search ISIN or name');
+    search.value = 'zzz';
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    const table = document.getElementById('port-table')!;
+    expect(table.querySelector('.hold-empty')?.textContent).toContain('zzz');
+    (table.querySelector('[data-clear-search]') as HTMLButtonElement).click();
+    expect((document.getElementById('port-holdings-search') as HTMLInputElement).value).toBe('');
+    expect(table.querySelector('.hold-empty')).toBeNull();
+    expect(table.textContent).toContain('IWDA');
   });
 
   it('keeps the holdings search focused while filtering', () => {
@@ -505,12 +508,19 @@ describe('renderPortfolio', () => {
     // Default "Held" filter shows only non-exited
     expect(table.textContent).toContain('IWDA');
     expect(table.textContent).not.toContain('EXITED');
+    const chips = document.getElementById('port-filter-toggle')!;
+    expect(chips.getAttribute('role')).toBe('group');
+    expect(chips.textContent).toBe('Held 1Closed 1All 2');
+    expect(chips.querySelector('[data-filter="held"]')!.getAttribute('aria-pressed')).toBe('true');
 
     // Click "Closed" filter button
     const closedBtn = table.querySelector('[data-filter="closed"]') as HTMLElement;
     closedBtn.click();
     expect(table.textContent).toContain('EXITED');
     expect(table.textContent).not.toContain('IWDA');
+    expect(table.querySelector('[data-filter="closed"]')!.getAttribute('aria-pressed')).toBe(
+      'true',
+    );
 
     // Click "All" filter button
     const allBtn = table.querySelector('[data-filter="all"]') as HTMLElement;

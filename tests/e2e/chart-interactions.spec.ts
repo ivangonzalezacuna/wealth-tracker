@@ -187,7 +187,7 @@ test('clicking a contributions month filters the ledger to its purchases', async
   await page.mouse.click(pt.x, pt.y);
   await expect(page.locator('#log-tab-transactions')).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#tx-search')).toHaveValue('2025-06');
-  await expect(page.locator('#tx-type-filter')).toHaveValue('BUY');
+  await expect(page.locator('#tx-filter-status')).toContainText('From chart');
   await expect(page.locator('#tx-ledger-list .tx-row:not(.th)')).toHaveCount(2);
 });
 

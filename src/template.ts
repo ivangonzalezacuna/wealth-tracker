@@ -394,21 +394,20 @@ export function appTemplate(): string {
       <div id="import-preview" style="display:none"></div>
 
       <div id="tx-ledger-card" class="log-panel-body">
-        <div class="filter-bar" id="tx-filter-bar">
-          <select id="tx-type-filter" class="form-input form-input-sm" aria-label="Filter transactions by type">
-            <option value="">All types</option>
-          </select>
-          <input type="search" id="tx-search" class="form-input form-input-sm" aria-label="Search transactions" placeholder="Search name, ISIN, source…">
+        <div class="filter-bar log-filter-bar" id="tx-filter-bar">
+          <span class="filter-search"><input type="search" id="tx-search" class="form-input form-input-sm" aria-label="Search transactions" placeholder="Name, ISIN, source…" autocomplete="off"><button type="button" class="filter-clear" data-clear-search aria-label="Clear search">&times;</button></span>
           <div class="filter-bar-actions">
-            <button class="btn btn-outline btn-sm" id="btn-start-del-txs">Bulk delete</button>
-            <div class="bulk-actions" id="tx-bulk-actions" hidden>
-              <button class="btn btn-ghost btn-sm" id="btn-tx-select-all">Select all</button>
-              <button class="btn btn-ghost btn-sm" id="btn-tx-clear-all">Deselect all</button>
-              <button class="btn btn-danger btn-sm" id="btn-del-txs" disabled>Delete</button>
-            </div>
+            <button class="btn btn-outline btn-sm" id="btn-start-del-txs" aria-pressed="false">Select</button>
             <button class="btn btn-outline btn-sm" id="btn-add-tx">Add transaction</button>
           </div>
+          <div id="tx-type-filter" class="range-toggle filter-chips filter-chips-scroll" role="group" aria-label="Filter transactions by type"></div>
+          <div class="bulk-actions" id="tx-bulk-actions" hidden>
+            <button class="btn btn-ghost btn-sm" id="btn-tx-select-all">Select all</button>
+            <button class="btn btn-ghost btn-sm" id="btn-tx-clear-all">Deselect all</button>
+            <button class="btn btn-danger btn-sm" id="btn-del-txs" disabled>Delete</button>
+          </div>
         </div>
+        <div class="filter-status" id="tx-filter-status" role="status" hidden></div>
         <div class="tbl">
           <div id="tx-ledger-wrap"><div id="tx-ledger-list" class="tx-ledger-grid" role="table" aria-label="Transaction ledger"></div></div>
         </div>
@@ -423,20 +422,21 @@ export function appTemplate(): string {
         <span class="log-panel-meta" id="snap-latest-meta"></span>
       </div>
       <div class="log-panel-body">
-        <div class="filter-bar" id="snap-filter-bar">
-          <select id="snap-year-filter" class="form-input form-input-sm" aria-label="Filter by year">
+        <div class="filter-bar log-filter-bar" id="snap-filter-bar">
+          <select id="snap-year-filter" class="form-input form-input-sm filter-select" aria-label="Filter by year">
             <option value="">All years</option>
           </select>
-          <input type="search" id="snap-search" class="form-input form-input-sm" aria-label="Search snapshots by notes" placeholder="Search notes or month…">
+          <span class="filter-search"><input type="search" id="snap-search" class="form-input form-input-sm" aria-label="Search snapshots by notes" placeholder="Notes or month…" autocomplete="off"><button type="button" class="filter-clear" data-clear-search aria-label="Clear search">&times;</button></span>
           <div class="filter-bar-actions">
-            <button class="btn btn-outline btn-sm" id="btn-start-del-snaps">Bulk delete</button>
-            <div class="bulk-actions" id="snap-bulk-actions" hidden>
-              <button class="btn btn-ghost btn-sm" id="btn-snap-select-all">Select all</button>
-              <button class="btn btn-ghost btn-sm" id="btn-snap-clear-all">Deselect all</button>
-              <button class="btn btn-danger btn-sm" id="btn-del-snaps" disabled>Delete</button>
-            </div>
+            <button class="btn btn-outline btn-sm" id="btn-start-del-snaps" aria-pressed="false">Select</button>
+          </div>
+          <div class="bulk-actions" id="snap-bulk-actions" hidden>
+            <button class="btn btn-ghost btn-sm" id="btn-snap-select-all">Select all</button>
+            <button class="btn btn-ghost btn-sm" id="btn-snap-clear-all">Deselect all</button>
+            <button class="btn btn-danger btn-sm" id="btn-del-snaps" disabled>Delete</button>
           </div>
         </div>
+        <div class="filter-status" id="snap-filter-status" role="status" hidden></div>
         <div class="legend snap-legend" id="snap-legend" aria-label="Account colours"></div>
         <div id="snaps-list" role="table" aria-label="Snapshot history"></div>
         <div id="snap-pagination" class="pagination"></div>

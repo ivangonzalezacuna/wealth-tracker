@@ -27,6 +27,7 @@ import { computeDrift, maxDrift, computeRebalancePlan } from '../model/drift';
 import { sourceLabel } from '../import/profiles/index';
 import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
+import { bindChipGroup, bindSearchClear, chipGroupHtml, searchHtml } from '../ui/filterBar';
 import { attachEtfPopovers } from '../ui/etfPopover';
 import { renderPagination } from './pagination';
 import type { ColumnDef } from './tableColumns';
@@ -115,6 +116,8 @@ function renderSourceBreakdown(bySource: Record<string, number>, signed = false)
 
 // Module-level filter state (survives re-renders)
 const HOLD_PAGE_SIZE = 10;
+/** Latest holdings re-render (delegated filter handlers are bound once and call this). */
+let _holdRender: (() => void) | null = null;
 const _holdTableState = createTableState({
   sort: { key: null, dir: null },
   filters: { status: 'held', search: '' },
@@ -289,8 +292,12 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   const { held, exited } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
   const exitedCount = exited.length;
 
-  // Determine which ETFs to show based on filter
-  const holdingsFilter = getTableFilter(_holdTableState, 'status') || 'held';
+  // Status chips only matter once something has been closed; otherwise everything is "held".
+  let holdingsFilter = getTableFilter(_holdTableState, 'status') || 'held';
+  if (exitedCount === 0 && holdingsFilter !== 'held') {
+    holdingsFilter = 'held';
+    _holdTableState.filters.status = 'held';
+  }
   let displayList: EtfPosition[];
   if (holdingsFilter === 'closed') {
     displayList = exited;
@@ -327,16 +334,34 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   _currentColumns = columns;
 
   // Filter controls
+  const statusChips =
+    exitedCount > 0
+      ? chipGroupHtml({
+          id: 'port-filter-toggle',
+          ariaLabel: 'Show holdings',
+          attr: 'filter',
+          value: holdingsFilter,
+          chips: [
+            { value: 'held', label: 'Held', count: held.length },
+            { value: 'closed', label: 'Closed', count: exitedCount },
+            { value: 'all', label: 'All', count: allEtfs.length },
+          ],
+        })
+      : '';
   const filterHtml = `
-    <div class="filter-bar" style="margin-bottom:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <div class="range-toggle" id="port-filter-toggle">
-        <button class="btn btn-sm btn-ghost ${holdingsFilter === 'held' ? 'active' : ''}" data-filter="held">Held</button>
-        <button class="btn btn-sm btn-ghost ${holdingsFilter === 'closed' ? 'active' : ''}" data-filter="closed">Closed${exitedCount > 0 ? ' (' + exitedCount + ')' : ''}</button>
-        <button class="btn btn-sm btn-ghost ${holdingsFilter === 'all' ? 'active' : ''}" data-filter="all">All</button>
-      </div>
-      <input id="port-holdings-search" type="search" class="form-input form-input-sm holdings-search-input" placeholder="Search ISIN or name"
-        value="${esc(holdingsSearch)}" style="flex:1" aria-label="Search holdings by ISIN or name">
+    <div class="filter-bar hold-filter-bar">
+      ${statusChips}
+      ${searchHtml({
+        id: 'port-holdings-search',
+        value: holdingsSearch,
+        placeholder: 'Search ISIN or name',
+        ariaLabel: 'Search holdings by ISIN or name',
+      })}
     </div>`;
+  const noMatch =
+    pageItems.length === 0 && holdingsSearch
+      ? `<div class="empty-state hold-empty" role="row">No ${holdingsFilter === 'held' ? 'held ' : holdingsFilter === 'closed' ? 'closed ' : ''}holdings match “${esc(holdingsSearch)}”. <button type="button" class="filter-clear-all" data-clear-hold-search>Clear search</button></div>`
+      : '';
 
   const rows = pageItems
     .map((e) => {
@@ -352,7 +377,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     <div class="hold-grid">
       <div class="tbl-row th hold-row" role="row" id="port-table-header">
         ${renderTableHeader(columns, _holdTableState.sort)}
-      </div>${rows}
+      </div>${rows}${noMatch}
       <div class="tbl-row hold-total" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
         <div style="font-weight:500">Total</div>
         <div style="font-weight:500;text-align:right"><div class="hold-value-line"><span>${fmtEur(pd.totalInv)}</span><span class="hold-inline-meta">100%</span></div></div>
@@ -378,18 +403,23 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     },
   );
 
-  // Bind filter listeners once (_bound guard prevents stacking)
-  const filterToggle = document.getElementById('port-filter-toggle') as
-    (HTMLElement & { _bound?: boolean }) | null;
-  if (filterToggle && !filterToggle._bound) {
-    filterToggle._bound = true;
-    filterToggle.addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest('[data-filter]') as HTMLElement | null;
-      if (!btn) return;
-      setTableFilter(_holdTableState, 'status', btn.dataset.filter || 'held', {
-        resetSort: true,
-        rerender: () => renderHoldingsTable(pd, snaps),
-      });
+  // Delegated on the static #port-table, so they survive the innerHTML re-render.
+  const portTableEl = document.getElementById('port-table');
+  _holdRender = () => renderHoldingsTable(pd, snaps);
+  bindChipGroup(portTableEl, 'filter', (value) => {
+    if (value === (getTableFilter(_holdTableState, 'status') || 'held')) return;
+    setTableFilter(_holdTableState, 'status', value || 'held', {
+      resetSort: true,
+      rerender: () => _holdRender?.(),
+    });
+  });
+  bindSearchClear(portTableEl);
+  if (portTableEl && !portTableEl.dataset.holdClearBound) {
+    portTableEl.dataset.holdClearBound = '1';
+    portTableEl.addEventListener('click', (e) => {
+      if (!(e.target as HTMLElement).closest('[data-clear-hold-search]')) return;
+      setTableFilter(_holdTableState, 'search', '', { rerender: () => _holdRender?.() });
+      document.getElementById('port-holdings-search')?.focus();
     });
   }
 
