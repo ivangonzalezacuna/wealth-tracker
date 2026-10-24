@@ -1304,11 +1304,6 @@ details[open] > summary .card-chevron {
   width: auto;
   min-width: 0;
 }
-select.form-input.filter-select {
-  height: 30px;
-  padding-top: 0;
-  padding-bottom: 0;
-}
 .filter-select[hidden] {
   display: none;
 }
@@ -1985,11 +1980,6 @@ body.chart-expanded-open {
 }
 .hold-filter-bar .filter-search {
   max-width: 260px;
-}
-.hold-filter-bar .filter-search .form-input {
-  border-radius: 999px;
-  background: var(--surface);
-  padding-left: 10px;
 }
 @media (max-width: 599px) {
   .hold-filter-bar .filter-search {
@@ -5121,4 +5111,47 @@ textarea.dialog-input {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* Filter bars: one control height for search, selects, chips and toolbar buttons so rows line up.
+   Last in the file so it wins over the generic phone-size input/button rules. */
+:root {
+  --filter-h: 30px;
+}
+@media (pointer: coarse) {
+  :root {
+    --filter-h: 36px;
+  }
+}
+.filter-bar :is(.form-input, .btn-sm) {
+  box-sizing: border-box;
+  height: var(--filter-h);
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.filter-bar .form-input {
+  padding-left: 10px;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+.filter-bar .filter-search .form-input {
+  padding-right: 28px;
+}
+.filter-bar .filter-clear {
+  right: 5px;
+}
+.filter-bar .btn-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 10px;
+  font-size: 12px;
+  line-height: 1;
+}
+/* iOS Safari zooms into inputs under 16px on focus. */
+@media (pointer: coarse) {
+  .filter-bar .form-input {
+    font-size: 16px;
+  }
 }
