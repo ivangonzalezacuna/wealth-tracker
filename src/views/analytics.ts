@@ -34,6 +34,7 @@ import {
   weightedMonthlyReturns,
   dividendMetrics,
   type MonthlyGrowthPoint,
+  type InvestmentReturnPoint,
   buildInvestmentPerformanceData,
   annualizedReturnFromMonthlyReturns,
   monthEndDate,
@@ -308,12 +309,10 @@ export function renderAnalytics(
     _renderContribChart(growthPoints);
 
     // Heatmap
+    // Heatmap + annual returns table (paged together)
     _heatmapPage = 0;
-    _renderHeatmap(perfData.monthlyReturns);
+    _renderReturnsPage(perfData.monthlyReturns);
     _attachHeatmapPager(perfData.monthlyReturns);
-
-    // Annual returns table
-    _renderAnnualTable(perfData.monthlyReturns);
 
     // Allocation donuts
     _renderAllocationDonuts(holdings, pd);
@@ -606,15 +605,21 @@ const HEATMAP_MONTHS = [
 const HEATMAP_DISCLAIMER =
   'Heatmap colors are descriptive only and should not be used for short-term timing decisions.';
 
+/** Heatmap and annual table share the pager: both show the years of the current page. */
+function _renderReturnsPage(monthlyReturns: InvestmentReturnPoint[]): void {
+  _renderAnnualTable(monthlyReturns, _renderHeatmap(monthlyReturns));
+}
+
+/** Render the current heatmap page; returns its years, or null while the heatmap is locked. */
 function _renderHeatmap(
   monthlyReturns: { date: string; startValue: number; return: number }[],
-): void {
+): number[] | null {
   const heatmapEl = document.getElementById('an-heatmap');
   const noteEl = document.getElementById('an-heatmap-note');
   const footerEl = document.getElementById('an-heatmap-footer');
   const pagerEl = document.getElementById('an-heatmap-pager');
   const wrap = document.getElementById('c-an-heatmap-wrap');
-  if (!heatmapEl || !wrap) return;
+  if (!heatmapEl || !wrap) return null;
 
   const weighted = weightedMonthlyReturns(monthlyReturns);
   const locked = (message: string) => {
@@ -626,12 +631,14 @@ function _renderHeatmap(
     wrap.style.display = 'none';
     disposeChart('c-an-heatmap');
   };
-  if (weighted.length === 0)
-    return locked('Add more consecutive monthly investment snapshots to see the return heatmap.');
-  if (weighted.length < HEATMAP_MIN_MONTHS)
-    return locked(
-      'Heatmap unlocks after 24 valid monthly investment-return periods are available.',
-    );
+  if (weighted.length === 0) {
+    locked('Add more consecutive monthly investment snapshots to see the return heatmap.');
+    return null;
+  }
+  if (weighted.length < HEATMAP_MIN_MONTHS) {
+    locked('Heatmap unlocks after 24 valid monthly investment-return periods are available.');
+    return null;
+  }
 
   heatmapEl.innerHTML = '';
   heatmapEl.style.display = 'none';
@@ -791,23 +798,22 @@ function _renderHeatmap(
     },
     { toolbox: false },
   );
+  return years;
 }
 
-function _attachHeatmapPager(
-  monthlyReturns: { date: string; startValue: number; return: number }[],
-): void {
+function _attachHeatmapPager(monthlyReturns: InvestmentReturnPoint[]): void {
   const prevBtn = document.getElementById('an-heatmap-prev');
   const nextBtn = document.getElementById('an-heatmap-next');
   if (prevBtn) {
     prevBtn.onclick = () => {
       _heatmapPage++;
-      _renderHeatmap(monthlyReturns);
+      _renderReturnsPage(monthlyReturns);
     };
   }
   if (nextBtn) {
     nextBtn.onclick = () => {
       _heatmapPage = Math.max(0, _heatmapPage - 1);
-      _renderHeatmap(monthlyReturns);
+      _renderReturnsPage(monthlyReturns);
     };
   }
 }
@@ -815,74 +821,64 @@ function _attachHeatmapPager(
 // ── Annual returns table ───────────────────────────────────
 
 /**
- * Render a structured annual-returns table with a small inline SVG sparkline bar
- * for each year. Requires at least 2 annual data points (so a prior-year delta can
- * be shown). If fewer years are available, shows the data without the delta column.
+ * Annual summary for the years on the current heatmap page: compounded return with a
+ * zero-centred bar, market gain (value change not explained by external flows), net
+ * contributions and how many months the year covers. Hidden while the heatmap is locked.
  */
-function _renderAnnualTable(
-  monthlyReturns: { date: string; startValue: number; return: number }[],
-): void {
+function _renderAnnualTable(monthlyReturns: InvestmentReturnPoint[], years: number[] | null): void {
   const el = document.getElementById('an-annual-table');
   const card = document.getElementById('an-annual-table-card');
   if (!el || !card) return;
-
-  const data = annualReturnsFromMonthlyReturns(monthlyReturns);
-  if (data.length === 0) {
+  if (!years || years.length === 0) {
     card.style.display = 'none';
+    el.innerHTML = '';
     return;
   }
   card.style.display = '';
 
-  // Show newest year first
-  const rows = [...data].reverse();
-  const MAX_BAR_H = 28; // px — maximum bar height
-
-  // Compute max abs return for scaling sparkline bars
+  const money = new Map<number, { market: number; flows: number }>();
+  for (const p of monthlyReturns) {
+    const year = Number(p.date.slice(0, 4));
+    const m = money.get(year) ?? { market: 0, flows: 0 };
+    m.market += p.endValue - p.startValue - p.externalFlow;
+    m.flows += p.externalFlow;
+    money.set(year, m);
+  }
+  const rows = annualReturnsFromMonthlyReturns(monthlyReturns)
+    .filter((row) => years.includes(row.year))
+    .reverse();
   const maxAbs = Math.max(...rows.map((r) => Math.abs(r.return)), 0.001);
+  const tone = (n: number) => (n > 0 ? 'pos' : n < 0 ? 'neg' : '');
+  const pct = (r: number) =>
+    `${r > 0 ? '+' : r < 0 ? '\u2212' : ''}${Math.abs(r * 100).toFixed(1)}%`;
 
-  const C = resolvedT();
-
-  const tableRows = rows
-    .map((row, i) => {
-      const pct = row.return * 100;
-      const sign = pct >= 0 ? '+' : '';
-      const color = pct >= 0 ? C.pos : C.neg;
-      const barH = Math.round((Math.abs(row.return) / maxAbs) * MAX_BAR_H);
-      const barY = MAX_BAR_H - barH;
-
-      // vs prior year delta (prior year = next item since list is newest-first)
-      const prior = rows[i + 1];
-      let deltaCell = '<td style="color:var(--ink-3)">—</td>';
-      if (prior !== undefined) {
-        const delta = (row.return - prior.return) * 100;
-        const dSign = delta >= 0 ? '+' : '';
-        const dColor = delta >= 0 ? C.pos : C.neg;
-        deltaCell = `<td style="color:${dColor}">${dSign}${delta.toFixed(1)} pp</td>`;
-      }
-
-      const sparkline = `<svg width="32" height="${MAX_BAR_H + 4}" viewBox="0 0 32 ${MAX_BAR_H + 4}" aria-hidden="true" style="display:block;margin:auto">
-        <rect x="8" y="${barY + 2}" width="16" height="${barH}" rx="2" fill="${color}" opacity="0.85"/>
-      </svg>`;
-
+  const body = rows
+    .map((row) => {
+      const m = money.get(row.year) ?? { market: 0, flows: 0 };
+      const width = Math.max((Math.abs(row.return) / maxAbs) * 50, row.return ? 2 : 0);
+      const side = row.return < 0 ? 'right:50%' : 'left:50%';
+      const months = row.isPartial
+        ? `<span class="an-annual-months">${row.monthsCount} of 12 months</span>`
+        : '';
       return `<tr>
-        <td style="font-weight:500;color:var(--ink)">${row.year}</td>
-        <td style="color:${color};font-weight:600">${sign}${pct.toFixed(1)}%${row.isPartial ? ' *' : ''}</td>
-        <td style="text-align:center">${sparkline}</td>
-        ${deltaCell}
+        <th scope="row">${row.year}${months}</th>
+        <td class="an-annual-return ${tone(row.return)}"><span class="an-annual-bar" aria-hidden="true"><span style="${side};width:${width.toFixed(1)}%"></span></span><span>${pct(row.return)}</span></td>
+        <td class="num ${tone(m.market)}">${esc(fmtEurSigned(m.market))}</td>
+        <td class="num">${esc(fmtEurSigned(m.flows))}</td>
       </tr>`;
     })
     .join('');
 
-  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+  el.innerHTML = `<table class="an-annual">
     <thead>
-      <tr style="border-bottom:1px solid var(--line);color:var(--ink-3);font-weight:500">
-        <th style="text-align:left;padding:4px 6px">Year</th>
-        <th style="text-align:left;padding:4px 6px">Return${infoTip('Rows marked with * are partial-year returns (fewer than 12 months of investment-return data).')}</th>
-        <th style="text-align:center;padding:4px 6px">Bar${infoTip('Relative bar height scaled to the largest absolute annual return shown in this table.')}</th>
-        <th style="text-align:left;padding:4px 6px">Change (pp)${infoTip('Difference in percentage points from the previous listed year. Partial-year returns cover fewer months, so they are not directly comparable with full-year results.')}</th>
+      <tr>
+        <th scope="col">Year</th>
+        <th scope="col">Return${infoTip('Cash-flow-adjusted return compounded from the available months of that year. The bar is scaled to the largest return on this page; losses extend left, gains right.')}</th>
+        <th scope="col" class="num">Market gain${infoTip('Change in investment value that is not explained by deposits or withdrawals: price moves, dividends and interest kept in the accounts.')}</th>
+        <th scope="col" class="num">Net added${infoTip('Recorded deposits minus withdrawals into investment accounts during the year.')}</th>
       </tr>
     </thead>
-    <tbody style="color:var(--ink-2)">${tableRows}</tbody>
+    <tbody>${body}</tbody>
   </table>`;
 }
 

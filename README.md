@@ -273,7 +273,7 @@ The Analytics tab separates net worth changes from investment returns:
 
 **Net worth growth details:** Expand this section for net worth growth, YTD growth, annualized CAGR, and year-over-year change. These include deposits and withdrawals; they are not investment-performance measures.
 
-**Investment returns:** TWR adjusts for external cash flows; IRR also reflects their timing and amounts. Cumulative TWR and annualized IRR are not directly comparable, and both depend on complete balances and cash-flow records. Monthly heatmap and annual returns share a card; annual differences are expressed in percentage points (`pp`). Blank periods are not zero returns.
+**Investment returns:** TWR adjusts for external cash flows; IRR also reflects their timing and amounts. Cumulative TWR and annualized IRR are not directly comparable, and both depend on complete balances and cash-flow records. Monthly heatmap and annual returns share a card and both appear once 24 monthly returns are available. Each year shows its return, its market gain (value change not explained by deposits or withdrawals) and its net contributions; partial years show how many months they cover. Blank periods are not zero returns.
 
 **Allocation:** Account shares use the latest snapshot balances, including savings and pension accounts. Expand **Holdings: asset class and region** for holding shares based on purchase costs, not market values. These breakdowns use different totals. Account grouping and active/all-holding filters remain available.
 
@@ -307,7 +307,7 @@ All charts share the same controls and follow the light/dark theme:
 - **Legend** entries are buttons that toggle series on and off (keyboard accessible); long legends wrap onto extra rows instead of paging.
 - **Linked timelines:** the Analytics growth, drawdown and rolling CAGR charts share their zoom window and hover position.
 - **Drill-down:** click a point to jump to the underlying data. On touch screens a tap only shows the tooltip; tap its **Open …** button to navigate, so scrolling past a chart never jumps away. Net worth history and growth points open that month's snapshot in **Log › Snapshots**; contribution and income months open **Log › Transactions** filtered to that month; cost-basis bars reveal the holding in the Holdings table. The tooltip shows a hint (or the button on touch) on charts that support it.
-- **Return heatmap** (Analytics): one row per year, one cell per month and the compounded year total on the right, with a shared colour scale across pages. Five years are shown at a time; use ‹ › to page through older years. Hover or tap a cell for the exact return and starting value; on very narrow screens the cell numbers are hidden and the tooltip carries them.
+- **Return heatmap** (Analytics): one row per year, one cell per month and the compounded year total on the right, with a shared colour scale across pages. Five years are shown at a time; use ‹ › to page through older years, and the Annual investment returns table below follows the same page (return bar centred on zero, market gain, net contributions). Hover or tap a cell for the exact return and starting value; on very narrow screens the cell numbers are hidden and the tooltip carries them.
 
 ### Theme
 

@@ -278,6 +278,70 @@ describe('renderAnalytics', () => {
     expect(heatmapYears()[0]).toBe('1991');
   });
 
+  it('pages the annual returns table together with the heatmap', () => {
+    renderAnalytics(makePd(), monthlySnaps(1986, 1, 40 * 12), []);
+    const tableYears = () =>
+      [...document.querySelectorAll('#an-annual-table tbody tr')].map((tr) =>
+        tr.querySelector('th')!.textContent!.slice(0, 4),
+      );
+    expect(tableYears()).toEqual(['2025', '2024', '2023', '2022', '2021']);
+    document.getElementById('an-heatmap-prev')!.click();
+    expect(tableYears()).toEqual(['2020', '2019', '2018', '2017', '2016']);
+    for (let i = 0; i < 6; i++) document.getElementById('an-heatmap-prev')!.click();
+    expect(tableYears()).toEqual(['1990', '1989', '1988', '1987', '1986']);
+    // 1986 starts in January, so its first return is February.
+    expect(
+      document.querySelector('#an-annual-table tbody tr:last-child th')!.textContent,
+    ).toContain('11 of 12 months');
+    document.getElementById('an-heatmap-next')!.click();
+    expect(tableYears()[0]).toBe('1995');
+  });
+
+  it('hides the annual returns table while the heatmap is still locked', () => {
+    renderAnalytics(makePd(), monthlySnaps(2024, 1, 14), []);
+    expect(document.getElementById('an-annual-table-card')!.style.display).toBe('none');
+    expect(document.querySelectorAll('#an-annual-table tbody tr')).toHaveLength(0);
+    expect(document.getElementById('an-heatmap')!.textContent).not.toBe('');
+  });
+
+  it('shows annual return, market gain and net contributions per year', () => {
+    const snaps = monthlySnaps(2023, 1, 40);
+    // A 500 € deposit in March 2024 lands in the year's net contributions, not its market gain.
+    const withDeposit = snaps.map((s) =>
+      s.date >= '2024-03' ? { ...s, acct_inv: Number(s.acct_inv) + 500 } : s,
+    );
+    const deposit: Transaction = {
+      id: 'dep-1',
+      date: '2024-03-05',
+      source: 'broker',
+      type: 'DEPOSIT',
+      name: 'Funding',
+      isin: '',
+      shares: 0,
+      price: 0,
+      amount: -500,
+      fee: 0,
+      tax: 0,
+      currency: 'EUR',
+      fxRate: 1,
+    };
+    renderAnalytics(makePd(), withDeposit, [deposit]);
+    const rows = [...document.querySelectorAll('#an-annual-table tbody tr')];
+    expect(rows.map((tr) => tr.querySelector('th')!.textContent!.slice(0, 4))).toEqual([
+      '2026',
+      '2025',
+      '2024',
+      '2023',
+    ]);
+    const row2024 = rows[2].querySelectorAll('td');
+    expect(row2024[0].textContent).toMatch(/^\+\d+\.\d%$/);
+    expect(row2024[0].classList.contains('pos')).toBe(true);
+    expect(row2024[1].textContent).toContain('120');
+    expect(row2024[2].textContent).toContain('500');
+    expect(rows[2].querySelector('th')!.textContent).toBe('2024');
+    expect(rows[0].querySelector('th')!.textContent).toContain('4 of 12 months');
+  });
+
   it('renders monthly cells and compounded year totals in the heatmap chart', () => {
     renderAnalytics(makePd(), monthlySnaps(2023, 1, 40), []);
     const opt = chartFor('c-an-heatmap')!.option as Record<string, any>;
@@ -302,12 +366,12 @@ describe('renderAnalytics', () => {
     expect(document.getElementById('an-risk-metrics-note')!.textContent).toContain('gap period');
   });
 
-  it('shows unchanged balance figures and percentage-point annual differences', () => {
+  it('shows unchanged balance figures and no percentage-point annual differences', () => {
     renderAnalytics(makePd(), [makeSnap('2025-01', 1000), makeSnap('2026-01', 1200)], []);
     expect(document.querySelector('#an-kpis-l1 .kpi-val')!.textContent).toBe('200,00 €');
     expect(document.querySelector('#an-kpis-l2 .row-val')!.textContent).toBe('20%');
     renderAnalytics(makePd(), monthlySnaps(2023, 1, 40), []);
-    expect(document.getElementById('an-annual-table')!.textContent).toContain(' pp');
+    expect(document.getElementById('an-annual-table')!.textContent).not.toContain(' pp');
     expect(document.getElementById('an-metrics-explainer')!.textContent).not.toContain(
       'Good to aim for',
     );
@@ -396,8 +460,8 @@ describe('renderAnalytics', () => {
     expect(legend).toContain('Liquid');
   });
 
-  it('renders annual returns table when at least one full year of monthly return data is present', () => {
-    const snaps = monthlySnaps(2024, 1, 13);
+  it('renders annual returns table once the heatmap has enough monthly returns', () => {
+    const snaps = monthlySnaps(2024, 1, 25);
     renderAnalytics(makePd(), snaps, []);
     const card = document.getElementById('an-annual-table-card');
     const table = document.getElementById('an-annual-table');
@@ -406,11 +470,12 @@ describe('renderAnalytics', () => {
     expect(table?.querySelector('tbody tr')).not.toBeNull();
   });
 
-  it('marks partial-year annual returns with an asterisk', () => {
-    const snaps = monthlySnaps(2024, 1, 7);
-    renderAnalytics(makePd(), snaps, []);
-    const table = document.getElementById('an-annual-table');
-    expect(table?.textContent).toContain('*');
+  it('labels partial-year annual returns with their month count', () => {
+    renderAnalytics(makePd(), monthlySnaps(2024, 1, 30), []);
+    const table = document.getElementById('an-annual-table')!;
+    expect(table.textContent).not.toContain('*');
+    expect(table.textContent).toContain('11 of 12 months');
+    expect(table.textContent).toContain('6 of 12 months');
   });
 
   it('uses external deposit and withdrawal flows for TWR', () => {

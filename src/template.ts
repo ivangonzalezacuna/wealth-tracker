@@ -210,7 +210,7 @@ export function appTemplate(): string {
         <div class="analytics-subsection" id="an-annual-table-card">
           <div class="card-title">Annual investment returns</div>
           <div id="an-annual-table"></div>
-          <p class="note">pp = percentage points; * = fewer than 12 months. Partial and full years are not directly comparable.</p>
+          <p class="note">Years with fewer than 12 months of data are not directly comparable with full years.</p>
         </div>
       </div>
 
