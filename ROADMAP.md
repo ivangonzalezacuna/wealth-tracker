@@ -28,6 +28,8 @@ Focus: polish, usability gaps, and the most-requested missing pieces.
 
 - ~~**Keyboard navigation for modals**~~ ✅ — All dialogs (snapshot, account, holding, transaction, confirm) implement a focus trap and restore focus to the trigger element on close.
 
+- ~~**Interactive charts**~~ ✅ — Charts moved from Chart.js to a tree-shaken, lazy-loaded Apache ECharts setup with one shared registry: range presets, slider/inside zoom, box zoom, reset, data table, save image, full screen, linked Analytics timelines and click-to-drill into Log and Holdings. Follow-ups: keyboard access to the in-canvas legend and toolbox (the data table is the accessible fallback today) and goal annotations on the history chart.
+
 ---
 
 ## Medium-term (3–9 months)

@@ -105,7 +105,7 @@ All writes (snapshots, CSV imports, settings changes, backup restores) go to loc
 - **sql.js (WASM)** - in-browser SQLite database
 - **Google Drive AppData** - cloud backup and cross-device sync
 - **IndexedDB** - local persistence (SQLite blob + fast-boot cache)
-- **Apache ECharts** - interactive charts (zoom, range presets, data view, fullscreen), lazy-loaded
+- **Apache ECharts** - interactive charts (zoom, range presets, linked timelines, drill-down, data view, fullscreen), tree-shaken and lazy-loaded
 - **Google OAuth2** - authentication (`drive.appdata` scope only)
 
 ---
@@ -296,6 +296,16 @@ The **Net Worth** tab includes a **Drawdown** forecast alongside the standard ac
 - **% of portfolio** — withdraw a fixed percentage of the current balance each month
 
 The chart shows your projected portfolio balance through the drawdown period. If the balance reaches zero, the depletion date is displayed. **Note:** All withdrawal amounts shown are pre-tax. Actual spendable income will be lower depending on your jurisdiction and account type. Projections use a fixed expected return and do not model sequence-of-returns risk.
+
+### Charts
+
+All charts share the same controls and follow the light/dark theme:
+
+- **Range presets** (1Y, 3Y, All, …) in the top-left corner. On long timelines you can also **zoom and pan** with the slider under the chart, by dragging inside the plot, or with Ctrl + mouse wheel. On touch screens use the slider or presets so the page keeps scrolling normally (dragging inside the plot works in the expanded view).
+- **Toolbox** (top-right): box zoom and undo (desktop), reset view, **data table** (an accessible table of the plotted values), save as image (desktop) and **expand** to full screen.
+- **Legend** entries toggle series on and off; long legends page with arrows.
+- **Linked timelines:** the Analytics growth, drawdown and rolling CAGR charts share their zoom window and hover position.
+- **Drill-down:** click a point (on touch: tap once for the tooltip, tap again to open) to jump to the underlying data. Net worth history and growth points open that month's snapshot in **Log › Snapshots**; contribution and income months open **Log › Transactions** filtered to that month; cost-basis bars reveal the holding in the Holdings table. The tooltip shows a hint on charts that support it.
 
 ### Theme
 
