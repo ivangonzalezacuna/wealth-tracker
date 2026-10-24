@@ -338,6 +338,9 @@ export function revealSnapshot(date: string): HTMLElement | null {
     ordered.findIndex((s) => s.date === date),
   );
   setTablePage(_snapTableState, Math.floor(idx / _snapPageSize) + 1);
+  // Only one snapshot is open at a time; a stale `snap:` entry later in the list would
+  // otherwise be restored after (and replace) this one.
+  for (const s of _snaps) if (s.date !== date) setCollapsed('snap:' + s.date, false);
   setCollapsed('snap:' + date, true);
   renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
   return (

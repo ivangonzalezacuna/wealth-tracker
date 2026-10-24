@@ -823,6 +823,18 @@ describe('chart drill-down targets', () => {
     expect(document.querySelector('.snap-detail')).not.toBeNull();
   });
 
+  it('opens a newer month of the same year after an older one', () => {
+    const snaps = ['2025-01', '2025-02', '2025-03', '2025-04'].map((d) => makeSnap(d));
+    render(snaps);
+    revealSnapshot('2025-01');
+    const row = revealSnapshot('2025-03');
+    expect(row?.getAttribute('aria-expanded')).toBe('true');
+    const detail = document.querySelectorAll('.snap-detail');
+    expect(detail).toHaveLength(1);
+    expect((detail[0].previousElementSibling as HTMLElement).dataset.date).toBe('2025-03');
+    expect(_collapseState['snap:2025-01']).toBeUndefined();
+  });
+
   it('returns null for an unknown snapshot', () => {
     render([makeSnap('2025-01')]);
     expect(revealSnapshot('2020-01')).toBeNull();

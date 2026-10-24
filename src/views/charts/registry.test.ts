@@ -367,6 +367,73 @@ describe('chart drill-down', () => {
     expect(select).not.toHaveBeenCalled();
   });
 
+  it('stamps the drill target on the tooltip button so a scrub (no tap) still opens it', () => {
+    (window.matchMedia as ReturnType<typeof vi.fn>).mockReturnValue({ matches: true });
+    const select = vi.fn();
+    renderChart(
+      'c-test',
+      () => ({
+        ...line(),
+        tooltip: {
+          trigger: 'axis',
+          formatter: () => tooltipHint(drillHint({ touch: true }, 'open month')),
+        },
+      }),
+      { drill: { resolve: keys, select } },
+    );
+    const chart = chartFor('c-test')!;
+    const html = (chart.option as AnyRec).tooltip.formatter([{ axisValue: 2, dataIndex: 0 }]);
+    expect(html).toContain('data-chart-drill="c"');
+    const host = document.getElementById('c-test')!;
+    host.insertAdjacentHTML('beforeend', html);
+    host.querySelector<HTMLButtonElement>('[data-chart-drill]')!.click();
+    expect(select).toHaveBeenCalledWith('c');
+  });
+
+  it('uses the data index on category axes for the stamped target', () => {
+    (window.matchMedia as ReturnType<typeof vi.fn>).mockReturnValue({ matches: true });
+    renderChart(
+      'c-test',
+      () => ({
+        xAxis: { type: 'category', data: ['a', 'b', 'c'] },
+        yAxis: { type: 'value' },
+        series: [{ type: 'bar', data: [1, 2, 3] }],
+        tooltip: { trigger: 'axis', formatter: () => tooltipHint({ button: 'Go' }) },
+      }),
+      { drill: { resolve: keys, select: vi.fn() } },
+    );
+    const fmt = (chartFor('c-test')!.option as AnyRec).tooltip.formatter;
+    expect(fmt([{ axisValue: 'b', dataIndex: 1 }])).toContain('data-chart-drill="b"');
+  });
+
+  it('opens on a touch release over the button and ignores the click that follows', () => {
+    (window.matchMedia as ReturnType<typeof vi.fn>).mockReturnValue({ matches: true });
+    const select = vi.fn();
+    renderChart('c-test', line, { drill: { resolve: keys, select } });
+    const host = document.getElementById('c-test')!;
+    host.insertAdjacentHTML(
+      'beforeend',
+      tooltipHint({ button: 'Go' }).replace('data-chart-drill', 'data-chart-drill="a"'),
+    );
+    const btn = host.querySelector<HTMLButtonElement>('[data-chart-drill]')!;
+    const pointer = (type: string, x: number) =>
+      btn.dispatchEvent(
+        Object.assign(new MouseEvent(type, { bubbles: true, clientX: x, clientY: 0 }), {
+          pointerType: 'touch',
+        }),
+      );
+    // A wobble past the slop does nothing.
+    pointer('pointerdown', 0);
+    pointer('pointerup', 40);
+    expect(select).not.toHaveBeenCalled();
+    pointer('pointerdown', 0);
+    pointer('pointerup', 10);
+    expect(select).toHaveBeenCalledTimes(1);
+    expect(select).toHaveBeenCalledWith('a');
+    btn.click();
+    expect(select).toHaveBeenCalledTimes(1);
+  });
+
   it('builds a text hint on desktop and an escaped button on touch', () => {
     expect(drillHint({ touch: false }, 'open month')).toBe('Click to open month');
     expect(drillHint({ touch: true }, 'open month')).toEqual({ button: 'Open month' });

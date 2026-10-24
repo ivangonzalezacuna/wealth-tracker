@@ -225,6 +225,21 @@ function timeAriaDescription(
   return [label ? `${label}.` : '', ...parts].filter(Boolean).join(' ');
 }
 
+const escAttr = (s: string): string =>
+  s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+/** Drill axis value behind a tooltip: the category index, else the axis (time) value. */
+function drillValueOf(params: unknown, category: boolean, yAxis: boolean): number | null {
+  const p = (Array.isArray(params) ? params[0] : params) as
+    { dataIndex?: number; axisValue?: unknown; value?: unknown } | undefined;
+  if (!p) return null;
+  if (category) return typeof p.dataIndex === 'number' ? p.dataIndex : null;
+  const axisValue = Number(p.axisValue);
+  if (p.axisValue != null && Number.isFinite(axisValue)) return axisValue;
+  const v = Array.isArray(p.value) ? Number(p.value[yAxis ? 1 : 0]) : NaN;
+  return Number.isFinite(v) ? v : null;
+}
+
 function compose(entry: Entry): ChartOption {
   const { ctx, opts } = entry;
   const t = ctx.tokens;
@@ -331,9 +346,29 @@ function compose(entry: Entry): ChartOption {
       ...(out.grid ?? {}),
     };
   }
-  // Touch drill-down: the tooltip holds the "Open …" button, so it must take taps.
+  // Touch drill-down: the tooltip holds the "Open …" button, so it must take taps. The
+  // button carries its own target so it works however the tooltip was shown (tap or scrub).
   if (opts.drill && ctx.touch && out.tooltip && !Array.isArray(out.tooltip)) {
-    out.tooltip = { ...(out.tooltip as Record<string, unknown>), enterable: true };
+    const tip = out.tooltip as Record<string, unknown>;
+    out.tooltip = { ...tip, enterable: true };
+    if (typeof tip.formatter === 'function') {
+      const drill = opts.drill;
+      const axisOpt = (drill.axis === 'y' ? out.yAxis : out.xAxis) as { type?: string } | undefined;
+      const category = !Array.isArray(axisOpt) && axisOpt?.type === 'category';
+      const fmt = tip.formatter as (params: unknown, ...rest: unknown[]) => unknown;
+      (out.tooltip as Record<string, unknown>).formatter = (
+        params: unknown,
+        ...rest: unknown[]
+      ) => {
+        const html = fmt(params, ...rest);
+        if (typeof html !== 'string' || !html.includes('data-chart-drill')) return html;
+        const v = drillValueOf(params, category, drill.axis === 'y');
+        const key = v == null ? null : drill.resolve(v);
+        return key == null
+          ? html
+          : html.replace('data-chart-drill', `data-chart-drill="${escAttr(key)}"`);
+      };
+    }
   }
   if (toolbox) out.toolbox = toolbox.option;
   if (opts.zoom) out.dataZoom = zoomComponents(entry);
@@ -521,6 +556,18 @@ function bindEvents(entry: Entry): void {
 
 const DRILL_TAP_MS = 30_000;
 const DRILL_MOVE_PX = 6;
+const DRILL_BTN_SLOP_PX = 24;
+
+/**
+ * After navigating on pointerup, cancel this touch's `touchend` so the browser does not
+ * deliver the follow-up click to whatever now sits under the finger (the Log view).
+ */
+function suppressGhostClick(): void {
+  const stop = (e: Event) => e.preventDefault();
+  const opts = { capture: true, passive: false } as const;
+  document.addEventListener('touchend', stop, opts);
+  setTimeout(() => document.removeEventListener('touchend', stop, opts), 400);
+}
 
 /** Close fullscreen / the expanded overlay before navigating away from a chart. */
 export function leaveExpanded(host: HTMLElement): void {
@@ -575,14 +622,40 @@ function bindDrill(entry: Entry): void {
     if (key != null && !entry.ctx.touch) openDrill(entry, drill, key);
   });
   // The tooltip lives inside the host element, so its action button bubbles here.
-  entry.host.addEventListener('click', (e) => {
-    const btn = (e.target as Element | null)?.closest?.('[data-chart-drill]');
+  const pressDrill = (target: EventTarget | null): boolean => {
+    const btn = (target as Element | null)?.closest?.<HTMLElement>('[data-chart-drill]');
     const drill = entry.opts.drill;
-    if (!btn || !drill) return;
+    if (!btn || !drill) return false;
+    const own = btn.dataset.chartDrill;
+    const tap = entry.drillTap;
+    const key = own || (tap && Date.now() - tap.at <= DRILL_TAP_MS ? tap.key : null);
+    if (key) openDrill(entry, drill, key);
+    return true;
+  };
+  // Phones drop the click when a finger wobbles past the browser's tap slop, so a still
+  // enough touch press on the button opens it on release; the click that may follow is ignored.
+  let btnDown: { x: number; y: number } | null = null;
+  let openedAt = 0;
+  entry.host.addEventListener('pointerdown', (e) => {
+    const onBtn = (e.target as Element | null)?.closest?.('[data-chart-drill]');
+    btnDown = onBtn && e.pointerType !== 'mouse' ? { x: e.clientX, y: e.clientY } : null;
+  });
+  entry.host.addEventListener('pointerup', (e) => {
+    const start = btnDown;
+    btnDown = null;
+    if (!start || Math.hypot(e.clientX - start.x, e.clientY - start.y) > DRILL_BTN_SLOP_PX) return;
+    if (pressDrill(e.target)) {
+      openedAt = Date.now();
+      suppressGhostClick();
+    }
+  });
+  entry.host.addEventListener('pointercancel', () => (btnDown = null));
+  entry.host.addEventListener('click', (e) => {
+    if (!(e.target as Element | null)?.closest?.('[data-chart-drill]')) return;
     e.preventDefault();
     e.stopPropagation();
-    const tap = entry.drillTap;
-    if (tap && Date.now() - tap.at <= DRILL_TAP_MS) openDrill(entry, drill, tap.key);
+    if (Date.now() - openedAt < 800) return;
+    pressDrill(e.target);
   });
 }
 
