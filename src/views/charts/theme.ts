@@ -154,7 +154,7 @@ export function buildChartTheme(t: ChartTokens = readChartTokens()): Record<stri
     },
     markLine: { label: { color: t.ink2 }, lineStyle: { color: t.ink4 } },
     markPoint: { label: { color: t.ink } },
-    line: { symbol: 'circle', symbolSize: 5, smooth: false },
+    line: { symbol: 'circle', symbolSize: 5, smooth: 0.3 },
     bar: { barMaxWidth: 28 },
   };
 }

@@ -1012,6 +1012,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           z: 4,
           data: histPoints,
           showSymbol: false,
+          smooth: 0.3,
           lineStyle: { width: 2.5, color: t.brand },
           itemStyle: { color: t.brand },
           markLine: {
@@ -1242,9 +1243,9 @@ function _renderDecumulationChart(
           name: 'Monthly withdrawal',
           type: 'line',
           yAxisIndex: 1,
-          step: 'end',
           data: ddSeries.map((p, i) => [times[i], p.withdrawal] as Pt),
           showSymbol: false,
+          smooth: 0.3,
           lineStyle: { width: 1.25, color: t.warn },
           itemStyle: { color: t.warn },
         },

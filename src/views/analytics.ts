@@ -1157,7 +1157,7 @@ function _renderDrawdownChart(series: { date: string; drawdown: number }[]): voi
           type: 'line',
           data: points,
           showSymbol: false,
-          smooth: 0.2,
+          smooth: 0.3,
           lineStyle: { width: 1.5, color: t.neg },
           itemStyle: { color: t.neg },
           areaStyle: { color: toRgba(t.neg, 0.2) },
