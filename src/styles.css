@@ -153,6 +153,22 @@ code,
 .nav::-webkit-scrollbar {
   display: none;
 }
+/* Fade the edge where more tabs are hidden (src/ui/scrollHint.ts). */
+.nav.can-scroll-right {
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+.nav.can-scroll-left {
+  mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
+}
+.nav.can-scroll-left.can-scroll-right {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 28px,
+    #000 calc(100% - 28px),
+    transparent
+  );
+}
 .nav button {
   font-size: 13px;
   font-weight: 400;
@@ -5246,17 +5262,20 @@ textarea.dialog-input {
     }
   }
 }
-/* ── Theme toggle button ────────────────────────────────── */
-.btn-theme-toggle {
-  display: inline-flex;
+/* ── Header menu (theme + account) ─────────────────────── */
+.header-menu {
   position: absolute;
   top: 0;
   right: 0;
+  z-index: 30;
+}
+.header-menu-btn {
+  position: relative;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
-  font-size: 14px;
   padding: 0;
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
@@ -5269,20 +5288,140 @@ textarea.dialog-input {
   user-select: none;
   -webkit-user-select: none;
 }
-.btn-theme-toggle .theme-toggle-icon {
+.header-menu-icon {
   width: 16px;
   height: 16px;
   display: block;
+  flex: none;
 }
-.btn-theme-toggle:hover,
-.btn-theme-toggle:focus-visible {
+.header-menu-btn:hover,
+.header-menu-btn:focus-visible,
+.header-menu-btn[aria-expanded='true'] {
   background: var(--brand-weak);
   color: var(--brand);
   border-color: var(--brand-border);
+}
+.header-menu-btn:focus-visible {
   outline: 2px solid var(--brand-border);
   outline-offset: 2px;
 }
+/* Touch: same 28px look, 44px hit area. */
+@media (pointer: coarse) {
+  .header-menu-btn::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+  }
+}
+.header-menu-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 180px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+}
+.header-menu-label,
+.header-menu-note {
+  font-size: 11px;
+  color: var(--ink-3);
+  padding: 6px 8px 4px;
+}
+.header-menu-label {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.header-menu-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--line);
+}
+.header-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 30px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.header-menu-item .header-menu-icon {
+  color: var(--ink-3);
+}
+.header-menu-item[aria-checked='true'] {
+  background: var(--brand-weak);
+  color: var(--brand);
+}
+.header-menu-item[aria-checked='true'] .header-menu-icon {
+  color: currentColor;
+}
+.header-menu-item[aria-checked='true']::after {
+  content: '\2713';
+  margin-left: auto;
+  font-size: 12px;
+}
+.header-menu-item:focus-visible {
+  outline: 2px solid var(--brand-border);
+  outline-offset: -2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .header-menu-item:hover:not([aria-checked='true']) {
+    background: var(--surface-3);
+  }
+}
+@media (pointer: coarse) {
+  .header-menu-item {
+    min-height: 40px;
+  }
+}
 
+/* ── Header sync chip ──────────────────────────────────── */
+button.sync-chip {
+  gap: 5px;
+  border: none;
+  font-family: inherit;
+  line-height: 16px;
+  max-width: 100%;
+  cursor: default;
+}
+button.sync-chip[data-action] {
+  cursor: pointer;
+}
+.sync-chip-icon {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+.sync-chip .spinner {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+}
+.sync-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+button.sync-chip:focus-visible {
+  outline: 2px solid var(--brand-border);
+  outline-offset: 2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  button.sync-chip[data-action]:hover {
+    filter: brightness(0.96);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}
 /* Visually hidden but accessible to screen readers and resolvable by aria-describedby */
 .sr-only {
   position: absolute;

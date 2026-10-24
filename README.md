@@ -315,9 +315,11 @@ All charts share the same controls and follow the light/dark theme:
 - **Drill-down:** click a point to jump to the underlying data. On touch screens a tap only shows the tooltip; tap its **Open …** button to navigate, so scrolling past a chart never jumps away. Net worth history and growth points open that month's snapshot in **Log › Snapshots** (the history is filtered to that month and marked **From chart**; **Clear filters** shows all again); contribution and income months open **Log › Transactions** filtered to that month; cost-basis and allocation drift bars reveal the holding in the Holdings table. The tooltip shows a hint (or the button on touch) on charts that support it.
 - **Return heatmap** (Analytics): one row per year, one cell per month and the compounded year total on the right, with a shared colour scale across pages. Five years are shown at a time; use ‹ › to page through older years, and the Annual investment returns table below follows the same page (return bar centred on zero, market gain, net contributions). Hover or tap a cell for the exact return and starting value; on very narrow screens the cell numbers are hidden and the tooltip carries them.
 
-### Theme
+### Header, theme and sync status
 
-The **theme button** in the top navigation bar cycles between Light, Dark, and System (follows your OS preference). The choice is saved locally and applied on each page load.
+The **⋯ menu** in the top-right corner holds the theme choice (Light, Dark, or System, which follows your OS preference) and, when signed in, **Sign out**. The theme is saved locally and applied on each page load.
+
+The **sync chip** under the title shows the Google Drive state in one place: _Synced · 5 min ago_ (select it to sync now), _Syncing…_, _Sync failed_ (select to retry; the tooltip gives a short reason), _Sync paused_ (select to resolve a conflict), _Offline_, or _Read-only_ (cached data, sign in to sync). On narrow screens the tab bar scrolls sideways, with a fade at the edge showing more tabs.
 
 ### Currency and FX model
 

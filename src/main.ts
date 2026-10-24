@@ -115,6 +115,10 @@ import { transactionDialog } from './ui/transactionDialog';
 import { snapshotDialog } from './ui/snapshotDialog';
 import { showSigninOverlay, hideSigninOverlay } from './ui/signinOverlay';
 import { attachInfoTips } from './ui/infoTip';
+import { initHeaderMenu, type HeaderMenu } from './ui/headerMenu';
+import { renderSyncChip, shortSyncError, syncChipView, type SyncStatus } from './ui/headerStatus';
+import { attachScrollHint } from './ui/scrollHint';
+import { notify } from './ui/toast';
 import { withTimeout } from './sync/timeout';
 import { isBusy, setBusy } from './sync/lock';
 import { registerSW } from 'virtual:pwa-register';
@@ -160,6 +164,12 @@ function sectionSubview(id: string): string | undefined {
 
 // ── Unified sync/write lock (shared with settings.ts - see sync/lock.ts) ──
 let _lastSyncAt = 0;
+// Header state (declared before boot runs initHeader()).
+let _syncStatus: SyncStatus = '';
+let _syncStatusMsg = '';
+let _lastSyncOkAt: number | null = null;
+let _headerMenu: HeaderMenu | null = null;
+let _navScrollHint: (() => void) | null = null;
 const AUTO_RESYNC_MIN_INTERVAL_MS = 2 * 60_000; // 2 minutes
 function setSyncing(v: boolean): void {
   setBusy(v);
@@ -167,9 +177,8 @@ function setSyncing(v: boolean): void {
   applySyncBusyState();
   // Also disable write controls outside Settings (snapshot Save, CSV import, etc.).
   applyReadOnlyMode();
-  // Reflect syncing state on the Sync now button so users see auto-syncs too.
-  const syncNowBtn = document.getElementById('btn-sync-now') as HTMLButtonElement | null;
-  if (syncNowBtn) syncNowBtn.textContent = v ? 'Syncing\u2026' : 'Sync now';
+  // Reflect saves and auto-syncs on the header chip too.
+  renderHeaderStatus();
 }
 function isSyncBusy(): boolean {
   return isBusy();
@@ -252,18 +261,7 @@ async function performWriteAction(opts: {
 }
 
 function refreshConflictAccess(): void {
-  const el = document.getElementById('sync-status');
-  const actionable = !!getPendingSyncConflict();
-  if (!el) return;
-  if (actionable) {
-    el.setAttribute('role', 'button');
-    el.setAttribute('tabindex', '0');
-    el.setAttribute('title', 'Sync paused — activate to resolve sync conflict');
-    el.setAttribute('aria-label', 'Sync paused — activate to resolve sync conflict');
-  } else {
-    el.removeAttribute('role');
-    el.removeAttribute('tabindex');
-  }
+  renderHeaderStatus();
   if (document.getElementById('settings-content')) renderSettings();
 }
 
@@ -307,7 +305,7 @@ function applyReadOnlyMode(): void {
       : '';
 
   // Disable write-action buttons
-  const writeIds = ['btn-add-snap', 'btn-confirm-import', 'btn-sync-now'];
+  const writeIds = ['btn-add-snap', 'btn-confirm-import'];
   for (const id of writeIds) {
     const el = document.getElementById(id) as HTMLButtonElement | null;
     if (!el) continue;
@@ -385,7 +383,7 @@ document.getElementById('app')!.innerHTML = appTemplate();
 injectEnvBanner();
 // Apply persisted theme preference before first render to avoid flash
 setUserTheme(getUserThemePref());
-_updateThemeToggleLabel();
+initHeader();
 void checkStorageQuota(); // fire-and-forget storage check
 loadCollapseState(); // fire-and-forget: loads persisted UI collapse state from IDB
 initNav();
@@ -399,8 +397,14 @@ initPwaUpdate();
 // ── Navigation ───────────────────────────────────────────
 function initNav() {
   document.querySelectorAll<HTMLElement>('.nav button[data-section]').forEach((btn) => {
-    btn.addEventListener('click', () => showSection(btn.dataset.section!, btn));
+    btn.addEventListener('click', () => {
+      showSection(btn.dataset.section!, btn);
+      // Bring a half-hidden tab fully into view on narrow screens.
+      btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
   });
+  const mainNav = document.querySelector<HTMLElement>('.nav[role="tablist"]');
+  if (mainNav) _navScrollHint = attachScrollHint(mainNav);
   document.querySelectorAll<HTMLElement>('[data-goto]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const target = btn.dataset.goto!;
@@ -607,40 +611,36 @@ function initThemeListener() {
     refreshChartsTheme();
     renderAll();
   });
-  document.getElementById('btn-theme-toggle')?.addEventListener('click', () => {
-    const next =
-      getUserThemePref() === 'light' ? 'dark' : getUserThemePref() === 'dark' ? 'system' : 'light';
-    setUserTheme(next);
-    _updateThemeToggleLabel();
+}
+
+// ── Header: sync chip + theme/account menu ───────────────
+
+function initHeader(): void {
+  _headerMenu = initHeaderMenu({
+    getTheme: getUserThemePref,
+    onTheme: (pref) => setUserTheme(pref),
+    onSignOut: () => signOut(),
   });
+  // Keep "Synced · x min ago" current.
+  window.setInterval(() => {
+    if (_syncStatus === 'ok') renderHeaderStatus();
+  }, 60_000);
 }
 
-function _updateThemeToggleLabel(): void {
-  const btn = document.getElementById('btn-theme-toggle');
-  if (!btn) return;
-  const pref = getUserThemePref();
-  const icons: Record<string, string> = {
-    light:
-      '<svg class="theme-toggle-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="3.1" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.4v2M8 12.6v2M1.4 8h2M12.6 8h2M3.34 3.34l1.42 1.42M11.24 11.24l1.42 1.42M12.66 3.34l-1.42 1.42M4.76 11.24l-1.42 1.42" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
-    dark: '<svg class="theme-toggle-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M10.6 1.7a5.9 5.9 0 1 0 3.7 8.5A6.3 6.3 0 0 1 10.6 1.7Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
-    system:
-      '<svg class="theme-toggle-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="2.2" y="2.4" width="11.6" height="8.2" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 13h4M8 10.8V13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
-  };
-  const aria: Record<string, string> = {
-    light: 'Switch theme: currently Light',
-    dark: 'Switch theme: currently Dark',
-    system: 'Switch theme: currently System',
-  };
-  const title: Record<string, string> = {
-    light: 'Theme: Light (click to cycle Light → Dark → System)',
-    dark: 'Theme: Dark (click to cycle Light → Dark → System)',
-    system: 'Theme: System (click to cycle Light → Dark → System)',
-  };
-  btn.innerHTML = icons[pref] ?? icons.light;
-  btn.setAttribute('aria-label', aria[pref] ?? 'Switch theme');
-  btn.setAttribute('title', title[pref] ?? 'Switch theme');
+function renderHeaderStatus(): void {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  renderSyncChip(
+    el,
+    syncChipView({
+      status: getPendingSyncConflict() ? 'conflict' : _syncStatus,
+      msg: _syncStatusMsg,
+      busy: isSyncBusy(),
+      lastOkAt: _lastSyncOkAt,
+      now: Date.now(),
+    }),
+  );
 }
-
 /** Trigger syncInBackground only when shouldAutoResync passes. */
 function autoResyncIfNeeded(): void {
   if (
@@ -661,20 +661,13 @@ function autoResyncIfNeeded(): void {
 function initAuth() {
   document.getElementById('btn-signin')?.addEventListener('click', onSignInClick);
   document.getElementById('btn-signin-global')?.addEventListener('click', onSignInClick);
-  document.getElementById('btn-signout')?.addEventListener('click', () => {
-    signOut();
-  });
-  document.getElementById('btn-sync-now')?.addEventListener('click', () => {
-    if (!isSyncBusy()) syncInBackground();
-  });
   document.getElementById('sync-status')?.addEventListener('click', () => {
-    if (getPendingSyncConflict()) void openSyncConflictResolver();
-  });
-  document.getElementById('sync-status')?.addEventListener('keydown', (e) => {
-    if ((e.key === 'Enter' || e.key === ' ') && getPendingSyncConflict()) {
-      e.preventDefault();
+    if (getPendingSyncConflict()) {
       void openSyncConflictResolver();
+      return;
     }
+    const action = document.getElementById('sync-status')?.dataset.action;
+    if (action === 'sync' && !isSyncBusy()) void syncInBackground({ userInitiated: true });
   });
 
   // Boot: render from cache instantly, then check for a stored token.
@@ -721,33 +714,28 @@ async function onSignInClick() {
 function updateAuthUI(signedIn: boolean) {
   const prompt = document.getElementById('auth-prompt');
   const content = document.getElementById('log-content');
-  const signoutBtn = document.getElementById('btn-signout');
   const signinGlobal = document.getElementById('btn-signin-global');
-  const syncNowBtn = document.getElementById('btn-sync-now');
+  _headerMenu?.setSignedIn(signedIn);
 
   if (signedIn) {
     prompt?.style.setProperty('display', 'none');
     content?.style.setProperty('display', 'block');
-    signoutBtn?.style.setProperty('display', 'inline-block');
     signinGlobal?.style.setProperty('display', 'none');
-    syncNowBtn?.style.setProperty('display', 'inline-block');
-    setAuthStatus('✓ Signed in');
+    // The sync chip and the menu's account section say it; no extra text needed.
+    setAuthStatus('');
   } else {
     if (state.cacheLoaded) {
-      // Read-only mode: show data but block writes
+      // Read-only mode: show data but block writes. The chip says "Read-only".
       prompt?.style.setProperty('display', 'none');
       content?.style.setProperty('display', 'block');
       signinGlobal?.style.setProperty('display', 'inline-block');
-      syncNowBtn?.style.setProperty('display', 'none');
-      setAuthStatus('📦 Read-only, sign in to sync');
+      setAuthStatus('');
     } else {
       prompt?.style.setProperty('display', 'block');
       content?.style.setProperty('display', 'none');
       signinGlobal?.style.setProperty('display', 'inline-block');
-      syncNowBtn?.style.setProperty('display', 'none');
       setAuthStatus('Not signed in');
     }
-    signoutBtn?.style.setProperty('display', 'none');
   }
   applyReadOnlyMode();
   renderSetupBanner();
@@ -757,6 +745,7 @@ function setAuthStatus(msg: string, isErr = false, isBusy = false) {
   const el = document.getElementById('auth-status');
   if (!el) return;
   el.textContent = msg;
+  el.hidden = !msg;
   el.classList.toggle('auth-status-busy', isBusy);
   el.style.color = isErr ? 'var(--neg)' : 'var(--ink-2)';
 }
@@ -803,7 +792,7 @@ async function bootFromCache() {
 /**
  * Sync data from local SQLite DB, with Drive AppData pull if cloud is newer.
  */
-async function syncInBackground() {
+async function syncInBackground({ userInitiated = false } = {}) {
   if (isSyncBusy()) return; // re-entrancy guard
   if (state.offline) {
     setSyncStatus('offline');
@@ -866,6 +855,13 @@ async function syncInBackground() {
   } catch (err) {
     if (!handleSyncConflict(err)) {
       setSyncStatus('error', (err as Error).message);
+      // A tooltip is invisible on touch: tell the person who asked for the sync why it failed.
+      if (userInitiated) {
+        notify(`Sync failed: ${shortSyncError((err as Error).message)}`, {
+          variant: 'error',
+          source: 'sync',
+        });
+      }
     }
     // If we had cached data, keep showing it
     if (!state.cacheLoaded) {
@@ -1184,63 +1180,13 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
 }
 window.__restoreFromBackup = restoreFromBackup;
 
-function setSyncStatus(status: string, msg = '') {
-  const el = document.getElementById('sync-status');
-  if (!el) return;
-  const map: Record<string, { cls: string; text: string; title: string }> = {
-    loading: {
-      cls: 'status-warn',
-      text: '<span class="spinner"></span>Loading\u2026',
-      title: 'Loading app data and checking sync status',
-    },
-    syncing: {
-      cls: 'status-warn',
-      text: '<span class="spinner"></span>Syncing\u2026',
-      title: 'Syncing local data with Google Drive',
-    },
-    cached: {
-      cls: 'status-info',
-      text: '\uD83D\uDCE6 Showing cached data',
-      title: 'Showing cached local data; sign in to sync with Google Drive',
-    },
-    ok: {
-      cls: 'status-ok',
-      text: '\u2713 Synced',
-      title: 'Local data is synced with Google Drive',
-    },
-    offline: {
-      cls: 'status-warn',
-      text: '\uD83D\uDCF4 Offline, showing cached data',
-      title: 'Offline mode; showing cached local data until connection returns',
-    },
-    conflict: {
-      cls: 'status-warn',
-      text: '\u26A0 Sync paused \u2014 action needed',
-      title: 'Sync paused because local and Drive copies both changed',
-    },
-    error: {
-      cls: 'status-err',
-      text: '\u26A0 Sync error: ' + msg,
-      title: 'Sync error: ' + msg,
-    },
-  };
-  const state = map[status];
-  const cls = state?.cls || 'status-empty';
-  const text = state?.text || '';
-  const title = state?.title || '';
-  el.className = 'status-pill ' + cls;
-  el.innerHTML = text;
-  if (title) {
-    el.setAttribute('title', title);
-    el.setAttribute('aria-label', title);
-  } else {
-    el.removeAttribute('title');
-    el.removeAttribute('aria-label');
-  }
-  el.style.display = status ? 'inline-flex' : 'none';
+function setSyncStatus(status: SyncStatus, msg = '') {
+  // "ok" with a message (e.g. "Back online") is a state change, not a completed sync.
+  if (status === 'ok' && !msg) _lastSyncOkAt = Date.now();
+  _syncStatus = status;
+  _syncStatusMsg = msg;
   refreshConflictAccess();
 }
-
 // ── Setup banner (onboarding checklist) ───────────────────
 let _bannerDismissed = false;
 
@@ -2282,6 +2228,7 @@ function renderAll(changed?: ConfigChangeKind) {
   // Re-inject transient feedback message if still within its display window
   reinjectPendingMsg();
   updateDriftBadge();
+  _navScrollHint?.();
 }
 
 /** Shows a dot badge on the Portfolio tab when max allocation drift exceeds the configured threshold. */
