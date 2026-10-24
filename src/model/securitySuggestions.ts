@@ -3,6 +3,8 @@ import type { Transaction } from '../types';
 export interface SecuritySuggestionPair {
   isin: string;
   name: string;
+  /** Currency of the latest transaction for this security. */
+  currency?: string;
 }
 
 export interface SecuritySuggestions {
@@ -21,7 +23,8 @@ export function buildSecuritySuggestions(
     const isin = tx.isin.trim().toUpperCase();
     const name = (tx.name || '').trim();
     if (!isin || !name) continue;
-    byIsin.set(isin, { isin, name });
+    const currency = (tx.currency || '').trim().toUpperCase();
+    byIsin.set(isin, currency ? { isin, name, currency } : { isin, name });
   }
   return {
     pairs: [...byIsin.values()].sort((a, b) => a.isin.localeCompare(b.isin)),

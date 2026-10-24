@@ -63,7 +63,7 @@ import type {
   Snapshot,
 } from '../types';
 import { formatEnglishDate, formatEnglishDateTime, formatEnglishMonth } from '../dateFormat';
-import { normalizeInstitution } from '../model/securitySuggestions';
+import { accountSuggestions } from '../model/accountSuggestions';
 import { isCollapsed, setCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { bindSearchClear, chipButtonsHtml, searchHtml } from '../ui/filterBar';
@@ -560,30 +560,9 @@ export function refreshSettingsAfterChange(changed: ConfigChangeKind): void {
 /** In-memory list of accounts kept in sync by add/edit/delete dialog operations. */
 let _accounts: Account[] | null = null;
 
-function accountInstitutionList(accounts: Account[]): string[] {
-  return [
-    ...new Set(accounts.map((a) => normalizeInstitution(a.institution || '')).filter(Boolean)),
-  ].sort((a, b) => a.localeCompare(b));
-}
-
-function accountCountryList(accounts: Account[]): string[] {
-  return [...new Set(accounts.map((a) => (a.country || '').trim()).filter(Boolean))].sort((a, b) =>
-    a.localeCompare(b),
-  );
-}
-
-function accountGroupList(accounts: Account[]): string[] {
-  return [...new Set(accounts.map((a) => (a.group || '').trim()).filter(Boolean))].sort((a, b) =>
-    a.localeCompare(b),
-  );
-}
-
-/** Common currency suggestions merged with any already used in accounts. */
-const COMMON_CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD', 'SEK', 'NOK', 'DKK'];
-
-export function accountCurrencyList(accounts: Account[]): string[] {
-  const fromAccounts = accounts.map((a) => (a.currency || 'EUR').trim().toUpperCase());
-  return [...new Set([...COMMON_CURRENCIES, ...fromAccounts])].sort((a, b) => a.localeCompare(b));
+/** Dialog suggestions from the accounts that stay (rows marked for removal don't count). */
+function accountDialogSuggestions(accounts: Account[]) {
+  return accountSuggestions(keptItems(accounts));
 }
 
 // Unsaved list changes are tracked per item object, so they survive filtered
@@ -931,10 +910,7 @@ function attachAccountListeners(root: HTMLElement): void {
   root.querySelector('#btn-add-acct')?.addEventListener('click', async () => {
     const draft = await accountDialog({
       existingLabels: controller.items().map((a) => a.label),
-      institutionSuggestions: accountInstitutionList(controller.items()),
-      countrySuggestions: accountCountryList(controller.items()),
-      groupSuggestions: accountGroupList(controller.items()),
-      currencySuggestions: accountCurrencyList(controller.items()),
+      ...accountDialogSuggestions(controller.items()),
     });
     if (!draft) return;
     draft.order = controller.items().length + 1;
@@ -952,10 +928,7 @@ function attachAccountListeners(root: HTMLElement): void {
     const draft = await accountDialog({
       existing,
       existingLabels: accounts.filter((_, i) => i !== idx).map((a) => a.label),
-      institutionSuggestions: accountInstitutionList(accounts),
-      countrySuggestions: accountCountryList(accounts),
-      groupSuggestions: accountGroupList(accounts),
-      currencySuggestions: accountCurrencyList(accounts),
+      ...accountDialogSuggestions(accounts),
     });
     if (!draft) return;
     draft.order = existing.order;

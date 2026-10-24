@@ -15,14 +15,25 @@ import {
   focusFirstInvalid,
   makeDialogHelpers,
   openDialogShell,
-  populateDatalist,
 } from './modalShell';
 import { infoTip, attachInfoTips } from './infoTip';
+import {
+  attachCombobox,
+  setFieldValue,
+  toComboOptions,
+  trackUserEdits,
+  type ComboOption,
+} from './combobox';
+import { countryOptions, currencyForCountry } from '../model/accountSuggestions';
+import { normalizeCountry } from '../model/countryCurrency';
 
 export interface AccountDialogOptions {
   existing?: Account;
   /** Suggestions for the institution autocomplete. */
   institutionSuggestions?: string[];
+  /** Country of each known institution (only when unambiguous), filled when one is picked. */
+  /** Currency used by the user's accounts per country; built-in defaults cover the rest. */
+  countryLinks?: Record<string, string>;
   /** Suggestions for the country autocomplete. */
   countrySuggestions?: string[];
   /** Suggestions for the group autocomplete. */
@@ -76,7 +87,6 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
       ((existing.annualReturnPct ?? 0) !== 0 ||
         (existing.contribAmount ?? 0) !== 0 ||
         (existing.contribInterval || 'monthly') !== 'monthly' ||
-        !!existing.country ||
         !!existing.group ||
         (existing.color || '#888888').toLowerCase() !== '#888888');
 
@@ -99,23 +109,29 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
               <label class="dialog-label" for="acctd-type">Type</label>
               <select id="acctd-type" class="form-input dialog-input">${typeOptions}</select>
             </div>
-            <div class="dialog-field">
-              <label class="dialog-label" for="acctd-currency">
-                Currency${infoTip('ISO 4217 code for the account denomination, e.g. USD. Balances entered in this currency are converted to EUR when saving a snapshot.')}
-              </label>
-              <input type="text" id="acctd-currency" class="form-input dialog-input"
-                value="${esc(existing?.currency || 'EUR')}" placeholder="EUR" maxlength="10"
-                list="acctd-currency-list" autocomplete="off">
-              <datalist id="acctd-currency-list"></datalist>
-            </div>
-          </div>
-          <div class="dialog-row">
             <div class="dialog-field dialog-field-wide">
               <label class="dialog-label" for="acctd-institution">Institution</label>
               <input type="text" id="acctd-institution" class="form-input dialog-input"
                 value="${esc(existing?.institution || '')}" placeholder="e.g. Trade Republic"
-                list="acctd-institution-list" autocomplete="off">
-              <datalist id="acctd-institution-list"></datalist>
+                autocomplete="off">
+            </div>
+          </div>
+          <div class="dialog-row">
+            <div class="dialog-field dialog-field-wide">
+              <label class="dialog-label" for="acctd-country">
+                Country${infoTip('Where the account is held. Picking a country suggests its currency; you can still change the currency.')}
+              </label>
+              <input type="text" id="acctd-country" class="form-input dialog-input"
+                value="${esc(existing?.country || '')}" placeholder="e.g. Germany"
+                autocomplete="off">
+            </div>
+            <div class="dialog-field">
+              <label class="dialog-label" for="acctd-currency">
+                Currency${infoTip('ISO 4217 code for the account denomination, e.g. USD. Balances entered in this currency are converted to EUR when saving a snapshot.')}
+              </label>
+              <input type="text" id="acctd-currency" class="form-input dialog-input dialog-input-uppercase"
+                value="${esc(existing?.currency || 'EUR')}" placeholder="EUR" maxlength="10"
+                autocomplete="off">
             </div>
           </div>
           <div class="dialog-subhead">Tracking &amp; access</div>
@@ -187,22 +203,12 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
               </div>
               <div class="dialog-subhead">Chart grouping &amp; appearance</div>
               <div class="dialog-row">
-                <div class="dialog-field">
-                  <label class="dialog-label" for="acctd-country">Country</label>
-                  <input type="text" id="acctd-country" class="form-input dialog-input"
-                    value="${esc(existing?.country || '')}" placeholder="e.g. Germany"
-                    list="acctd-country-list" autocomplete="off">
-                  <datalist id="acctd-country-list"></datalist>
-                </div>
-                <div class="dialog-field">
+                <div class="dialog-field dialog-field-wide">
                   <label class="dialog-label" for="acctd-group">Group</label>
                   <input type="text" id="acctd-group" class="form-input dialog-input"
                     value="${esc(existing?.group || '')}" placeholder="e.g. Retirement"
-                    list="acctd-group-list" autocomplete="off">
-                  <datalist id="acctd-group-list"></datalist>
+                    autocomplete="off">
                 </div>
-              </div>
-              <div class="dialog-row">
                 <div class="dialog-field dialog-field-compact">
                   <label class="dialog-label" for="acctd-color-hex">Color</label>
                   <div class="color-picker-wrap">
@@ -222,6 +228,36 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
         </div>
       </div>`;
 
+    const combo = (id: string, options: ComboOption[]): void => {
+      const input = overlay.querySelector<HTMLInputElement>('#' + id);
+      if (input) attachCombobox(input, options);
+    };
+    const countryLinks = opts.countryLinks ?? {};
+    combo('acctd-institution', toComboOptions(opts.institutionSuggestions ?? []));
+    combo('acctd-currency', toComboOptions(opts.currencySuggestions ?? []));
+    combo('acctd-country', countryOptions(opts.countrySuggestions ?? [], countryLinks));
+    // Country → currency, one way: the country sets the currency until the user types or
+    // picks a currency themselves; changing the currency never touches the country.
+    const countryInput = overlay.querySelector<HTMLInputElement>('#acctd-country');
+    const currencyInput = overlay.querySelector<HTMLInputElement>('#acctd-currency');
+    if (countryInput && currencyInput) {
+      trackUserEdits(currencyInput);
+      const initialCountry = normalizeCountry(countryInput.value);
+      const initialCurrency = currencyInput.value;
+      const syncCurrency = (): void => {
+        if (currencyInput.dataset.userEdited) return;
+        const country = countryInput.value;
+        const next =
+          normalizeCountry(country) === initialCountry
+            ? initialCurrency
+            : (currencyForCountry(country, countryLinks) ?? initialCurrency);
+        setFieldValue(currencyInput, next);
+      };
+      countryInput.addEventListener('input', syncCurrency);
+      countryInput.addEventListener('change', syncCurrency);
+    }
+    combo('acctd-group', toComboOptions(opts.groupSuggestions ?? []));
+
     openDialogShell(_dialog, {
       overlay,
       onDismiss: () => _dismiss(null),
@@ -233,15 +269,6 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
       initialFocusSelector: '#acctd-label',
     });
     attachInfoTips(overlay);
-
-    // Populate datalists via DOM API (no esc needed — no innerHTML)
-    populateDatalist(
-      overlay.querySelector('#acctd-institution-list'),
-      opts.institutionSuggestions ?? [],
-    );
-    populateDatalist(overlay.querySelector('#acctd-country-list'), opts.countrySuggestions ?? []);
-    populateDatalist(overlay.querySelector('#acctd-group-list'), opts.groupSuggestions ?? []);
-    populateDatalist(overlay.querySelector('#acctd-currency-list'), opts.currencySuggestions ?? []);
     bindColorInputs(overlay, 'acctd-color', 'acctd-color-hex');
 
     // Primary investment: its contribution comes from Holdings, so swap the block for a note

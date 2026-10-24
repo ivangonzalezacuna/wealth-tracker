@@ -3624,7 +3624,14 @@ input[type='color'] {
 
 /* ── Settings card items ───────────────────────────────── */
 #settings-content .btn,
-:is(.acct-dialog-overlay, .hold-dialog-overlay, .goal-dialog-overlay) .btn {
+:is(
+    .acct-dialog-overlay,
+    .hold-dialog-overlay,
+    .goal-dialog-overlay,
+    .tx-dialog-overlay,
+    .snap-dialog-overlay
+  )
+  .btn {
   transition-property: color, background-color, border-color, opacity;
 }
 .settings-tabs {
@@ -4094,14 +4101,28 @@ input[type='color'] {
     flex-basis: 100%;
   }
   #settings-content .form-input,
-  :is(.acct-dialog-overlay, .hold-dialog-overlay, .goal-dialog-overlay) .form-input {
+  :is(
+      .acct-dialog-overlay,
+      .hold-dialog-overlay,
+      .goal-dialog-overlay,
+      .tx-dialog-overlay,
+      .snap-dialog-overlay
+    )
+    .form-input {
     padding-top: 7px;
     padding-bottom: 7px;
   }
 }
 /* WebKit ignores select padding; pin the compact input height. */
 #settings-content select.form-input,
-:is(.acct-dialog-overlay, .hold-dialog-overlay, .goal-dialog-overlay) select.form-input {
+:is(
+    .acct-dialog-overlay,
+    .hold-dialog-overlay,
+    .goal-dialog-overlay,
+    .tx-dialog-overlay,
+    .snap-dialog-overlay
+  )
+  select.form-input {
   height: 34px;
   padding-top: 0;
   padding-bottom: 0;
@@ -4661,6 +4682,9 @@ input[type='color'] {
 .dialog-row .dialog-field.dialog-field-wide {
   flex: 2 1 200px;
 }
+.dialog-row .dialog-field.dialog-field-narrow {
+  flex: 1 1 96px;
+}
 .dialog-row-relaxed .dialog-field {
   flex-basis: 160px;
 }
@@ -4680,6 +4704,121 @@ input[type='color'] {
 }
 .dialog-input-uppercase::placeholder {
   text-transform: none;
+}
+/* Editable dropdown (src/ui/combobox.ts): free text plus a list of known values. */
+.combo {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+.combo.has-options > .form-input {
+  padding-right: 30px;
+}
+.combo-toggle {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  bottom: 1px;
+  width: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.combo-toggle[hidden] {
+  display: none;
+}
+.combo-toggle svg {
+  transition: transform 0.15s;
+}
+.combo.is-open .combo-toggle svg {
+  transform: rotate(180deg);
+}
+/* Placed with `position: fixed` by combobox.ts so dialog bodies never clip it. */
+.combo-list {
+  position: fixed;
+  z-index: 1100;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.combo-list[hidden] {
+  display: none;
+}
+.combo-list-up {
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.14);
+}
+.combo-list [role='option'] {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.combo-list [role='option']::before {
+  content: '';
+  flex: 0 0 10px;
+}
+.combo-list [role='option'].is-current::before {
+  content: '✓';
+}
+.combo-list [role='option'].is-current {
+  background: var(--brand-weak);
+}
+.combo-list [role='option'].is-active {
+  outline: 2px solid var(--brand-border);
+  outline-offset: -2px;
+}
+.combo-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.combo-hint {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+@media (hover: hover) and (pointer: fine) {
+  .combo-list [role='option']:hover {
+    background: var(--bg);
+  }
+  .combo-list [role='option'].is-current:hover {
+    background: var(--brand-weak);
+  }
+}
+@media (pointer: coarse) {
+  .combo.has-options > .form-input {
+    padding-right: 40px;
+  }
+  .combo-toggle {
+    width: 38px;
+  }
+  .combo-list [role='option'] {
+    min-height: 40px;
+    align-items: center;
+    padding: 8px 12px;
+  }
 }
 .dialog-error {
   font-size: 11px;
@@ -4745,7 +4884,14 @@ input[type='color'] {
 }
 .snap-pdf-panel p:empty,
 .snap-pdf-panel .dialog-error:empty,
-:is(.acct-dialog-overlay, .hold-dialog-overlay, .goal-dialog-overlay) .dialog-error:empty {
+:is(
+    .acct-dialog-overlay,
+    .hold-dialog-overlay,
+    .goal-dialog-overlay,
+    .tx-dialog-overlay,
+    .snap-dialog-overlay
+  )
+  .dialog-error:empty {
   display: none;
 }
 textarea.form-input,
@@ -4966,20 +5112,49 @@ textarea.dialog-input {
 .month-input-hint {
   color: var(--ink-3);
 }
-:is(.acct-dialog-overlay, .hold-dialog-overlay, .goal-dialog-overlay) .dialog-card {
+:is(
+    .acct-dialog-overlay,
+    .hold-dialog-overlay,
+    .goal-dialog-overlay,
+    .tx-dialog-overlay,
+    .snap-dialog-overlay
+  )
+  .dialog-card {
   max-width: 640px;
   max-height: calc(100dvh - 3rem);
   display: flex;
   flex-direction: column;
 }
-:is(.acct-dialog-overlay, .hold-dialog-overlay, .goal-dialog-overlay) .dialog-fields {
+:is(
+    .acct-dialog-overlay,
+    .hold-dialog-overlay,
+    .goal-dialog-overlay,
+    .tx-dialog-overlay,
+    .snap-dialog-overlay
+  )
+  .dialog-fields {
   overflow-y: auto;
   min-height: 0;
   padding: 3px;
   scroll-padding: 12px;
 }
-:is(.acct-dialog-overlay, .hold-dialog-overlay, .goal-dialog-overlay) .dialog-actions {
+:is(
+    .acct-dialog-overlay,
+    .hold-dialog-overlay,
+    .goal-dialog-overlay,
+    .tx-dialog-overlay,
+    .snap-dialog-overlay
+  )
+  .dialog-actions {
   flex-shrink: 0;
+}
+.snap-dialog-overlay .snap-dialog-card {
+  max-width: 720px;
+}
+.snap-dialog-overlay .snapd-review {
+  overflow-y: auto;
+  min-height: 0;
+  padding: 3px;
 }
 .dialog-optional > summary {
   font-size: var(--fs-7);

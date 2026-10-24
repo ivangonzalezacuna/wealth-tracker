@@ -82,17 +82,16 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
         </div>
         <div class="dialog-fields">
           <div class="dialog-row">
-            <div class="dialog-field">
+            <div class="dialog-field dialog-field-wide">
               <label class="dialog-label" for="holdd-isin">
                 ISIN${infoTip('International Securities Identification Number: 12-character unique ID.')}
               </label>
               <input type="text" id="holdd-isin" class="form-input dialog-input dialog-input-uppercase"
-                value="${esc(existing?.isin || '')}" placeholder="e.g. IE00B4L5Y983" list="holdd-isin-list"
+                value="${esc(existing?.isin || '')}" placeholder="e.g. IE00B4L5Y983"
                 autocomplete="off">
-              <datalist id="holdd-isin-list"></datalist>
               <span class="dialog-error" id="holdd-isin-err"></span>
             </div>
-            <div class="dialog-field">
+            <div class="dialog-field dialog-field-narrow">
               <label class="dialog-label" for="holdd-short-name">
                 Short name${infoTip('A short label (max 10 chars) used in charts and legends.')}
               </label>
@@ -108,8 +107,7 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
               </label>
               <input type="text" id="holdd-name" class="form-input dialog-input"
                 value="${esc(existing?.name || '')}" placeholder="e.g. iShares Core MSCI World UCITS ETF"
-                list="holdd-name-list" autocomplete="off">
-              <datalist id="holdd-name-list"></datalist>
+                autocomplete="off">
             </div>
           </div>
           <div class="dialog-row">
@@ -196,6 +194,12 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
         </div>
       </div>`;
 
+    attachSecurityAutocomplete({
+      overlay,
+      pairs: _activeSuggestionPairs,
+      isinInputId: 'holdd-isin',
+      nameInputId: 'holdd-name',
+    });
     openDialogShell(_dialog, {
       overlay,
       onDismiss: () => _dismiss(null),
@@ -207,15 +211,6 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
       initialFocusSelector: '#holdd-isin',
     });
     attachInfoTips(overlay);
-
-    attachSecurityAutocomplete({
-      overlay,
-      pairs: _activeSuggestionPairs,
-      isinInputId: 'holdd-isin',
-      isinListId: 'holdd-isin-list',
-      nameInputId: 'holdd-name',
-      nameListId: 'holdd-name-list',
-    });
 
     bindColorInputs(overlay, 'holdd-color', 'holdd-color-hex');
     _bindRealtimeIsinValidation(overlay);

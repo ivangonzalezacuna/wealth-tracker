@@ -38,6 +38,18 @@ const suggestions: SecuritySuggestions = {
 };
 const currencySuggestions = ['AUD', 'EUR', 'USD'];
 
+function getOptions(inputId: string): string[] {
+  const input = document.getElementById(inputId) as HTMLInputElement;
+  const toggle = input.closest('.combo')?.querySelector<HTMLButtonElement>('.combo-toggle');
+  if (!toggle || toggle.hidden) return [];
+  toggle.click();
+  const values = Array.from(
+    document.querySelectorAll(`#${input.getAttribute('aria-controls')} .combo-value`),
+  ).map((el) => el.textContent ?? '');
+  toggle.click();
+  return values;
+}
+
 describe('transactionDialog', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
@@ -351,12 +363,8 @@ describe('transactionDialog', () => {
 
   it('populates ISIN and name autocomplete lists from suggestions', () => {
     transactionDialog({ suggestions });
-    const isinOpts = Array.from(document.querySelectorAll('#txd-isin-list option')).map(
-      (o) => (o as HTMLOptionElement).value,
-    );
-    const nameOpts = Array.from(document.querySelectorAll('#txd-name-list option')).map(
-      (o) => (o as HTMLOptionElement).value,
-    );
+    const isinOpts = getOptions('txd-isin');
+    const nameOpts = getOptions('txd-name');
     expect(isinOpts).toEqual(['IE00AAA', 'IE00BBB']);
     expect(nameOpts).toEqual(['Alpha Fund', 'Beta Fund']);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
@@ -375,11 +383,39 @@ describe('transactionDialog', () => {
   it('populates the currency autocomplete list from suggestions', () => {
     transactionDialog({ currencySuggestions });
     const currencyInput = document.querySelector('#txd-currency') as HTMLInputElement;
-    const currencyOpts = Array.from(document.querySelectorAll('#txd-currency-list option')).map(
-      (o) => (o as HTMLOptionElement).value,
-    );
-    expect(currencyInput.getAttribute('list')).toBe('txd-currency-list');
-    expect(currencyOpts).toEqual(currencySuggestions);
+    expect(currencyInput.getAttribute('role')).toBe('combobox');
+    expect(getOptions('txd-currency')).toEqual(currencySuggestions);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+
+  it('picking a known security fills its last-used currency unless the user typed one', () => {
+    transactionDialog({
+      suggestions: { pairs: [{ isin: 'US00AAA', name: 'Gamma Inc', currency: 'USD' }] },
+      currencySuggestions,
+    });
+    const currency = document.querySelector('#txd-currency') as HTMLInputElement;
+    const isin = document.querySelector('#txd-isin') as HTMLInputElement;
+    isin.closest('.combo')!.querySelector<HTMLButtonElement>('.combo-toggle')!.click();
+    document
+      .querySelector<HTMLElement>(`#${isin.getAttribute('aria-controls')} [role="option"]`)!
+      .click();
+    expect(isin.value).toBe('US00AAA');
+    expect((document.querySelector('#txd-name') as HTMLInputElement).value).toBe('Gamma Inc');
+    expect(currency.value).toBe('USD');
+    expect(document.querySelector('#txd-amount-label')?.textContent).toBe('Amount (USD)');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+
+    transactionDialog({
+      suggestions: { pairs: [{ isin: 'US00AAA', name: 'Gamma Inc', currency: 'USD' }] },
+    });
+    const currency2 = document.querySelector('#txd-currency') as HTMLInputElement;
+    currency2.value = 'GBP';
+    currency2.dispatchEvent(new Event('input', { bubbles: true }));
+    const name2 = document.querySelector('#txd-name') as HTMLInputElement;
+    name2.value = 'Gamma Inc';
+    name2.dispatchEvent(new Event('change'));
+    expect((document.querySelector('#txd-isin') as HTMLInputElement).value).toBe('US00AAA');
+    expect(currency2.value).toBe('GBP');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
 

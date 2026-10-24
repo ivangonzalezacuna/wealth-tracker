@@ -70,10 +70,10 @@ import {
   renderSettings,
   refreshSettingsAfterChange,
   applySyncBusyState,
-  accountCurrencyList,
   setSettingsView,
   getSettingsView,
 } from './views/settings';
+import { accountCurrencyList } from './model/accountSuggestions';
 import { renderLog, applyLogView, setImportPanelOpen, isImportPanelOpen } from './views/log';
 import {
   fmtMon,
@@ -1585,7 +1585,10 @@ async function addManualTransaction(): Promise<void> {
     const suggestions = buildAppSecuritySuggestions(state.txs);
     const draft = await transactionDialog({
       suggestions,
-      currencySuggestions: accountCurrencyList(getAccounts()),
+      currencySuggestions: accountCurrencyList(
+        getAccounts(),
+        state.txs.map((t) => t.currency),
+      ),
     });
     if (!draft) return;
     const candidate = [...state.txs, draft].sort((a, b) => a.date.localeCompare(b.date));
@@ -1620,7 +1623,10 @@ async function editManualTransaction(rowId: bigint): Promise<void> {
     const draft = await transactionDialog({
       existing,
       suggestions,
-      currencySuggestions: accountCurrencyList(getAccounts()),
+      currencySuggestions: accountCurrencyList(
+        getAccounts(),
+        state.txs.map((t) => t.currency),
+      ),
     });
     if (!draft) return;
     const candidate = state.txs.map((t) => (t.rowId === rowId ? { ...draft, rowId } : t));
