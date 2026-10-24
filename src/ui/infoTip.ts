@@ -46,6 +46,10 @@ export function infoTip(text: string, variant?: InfoTipVariant): string {
 export function attachInfoTips(root: HTMLElement | Document = document): void {
   root.querySelectorAll('.info-tip:not([data-tip-bound])').forEach((el) => {
     (el as HTMLElement).dataset.tipBound = '1';
+    // The data flag can be cleared by callers; never stack a second set of listeners,
+    // or the click toggles would cancel each other out.
+    if (_boundTips.has(el)) return;
+    _boundTips.add(el);
 
     // Single tap on mobile / click on desktop - show/hide
     el.addEventListener('click', (e) => {
@@ -70,6 +74,8 @@ export function attachInfoTips(root: HTMLElement | Document = document): void {
 }
 
 // ── Internal popover management ─────────────────────────────────
+
+const _boundTips = new WeakSet<Element>();
 
 /** Extended HTMLElement with a reference to its body-appended popover. */
 interface _TipEl extends HTMLElement {
