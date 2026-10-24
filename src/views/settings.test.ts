@@ -1868,6 +1868,40 @@ describe('Settings accessible controls and report states', () => {
     });
   });
 
+  it('shows account filters once there are 2+ accounts and resets them on edits', async () => {
+    vi.mocked(accountDialog)
+      .mockResolvedValueOnce({ label: 'Draft account', moneyType: 'cash' })
+      .mockResolvedValueOnce({ label: 'Second draft', moneyType: 'cash' });
+    renderSettings();
+    const card = document.getElementById('settings-card-accounts')!;
+    const bar = card.querySelector<HTMLElement>('.settings-acct-filter-bar')!;
+    const chips = card.querySelector<HTMLElement>('#acct-filter-toggle')!;
+    const rows = () =>
+      [...card.querySelectorAll('.settings-acct-row .settings-item-title')].map(
+        (e) => e.textContent,
+      );
+    expect(bar.hidden).toBe(true);
+
+    document.getElementById('btn-add-acct')!.click();
+    await vi.waitFor(() => expect(rows()).toHaveLength(2));
+    expect(bar.hidden).toBe(false);
+    expect(chips.hidden).toBe(false);
+    expect(chips.textContent?.replace(/\s+/g, '')).toBe('All2Investment1Cash1');
+
+    chips.querySelector<HTMLButtonElement>('[data-afilter="cash"]')!.click();
+    expect(rows()).toEqual(['Draft account']);
+
+    const search = card.querySelector<HTMLInputElement>('#settings-acct-search')!;
+    search.value = 'nothing';
+    search.dispatchEvent(new Event('input'));
+    expect(card.querySelector('.settings-acct-empty')).not.toBeNull();
+
+    document.getElementById('btn-add-acct')!.click();
+    await vi.waitFor(() => expect(rows()).toHaveLength(3));
+    expect(card.querySelector<HTMLInputElement>('#settings-acct-search')!.value).toBe('');
+    expect(chips.querySelector('[data-afilter="all"]')!.getAttribute('aria-pressed')).toBe('true');
+  });
+
   it('preserves a goal draft when an unrelated settings save refreshes the view', async () => {
     const { goalDialog } = await import('../ui/goalDialog');
     vi.mocked(goalDialog).mockResolvedValueOnce({

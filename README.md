@@ -120,7 +120,7 @@ Click **Sign in** to authorize the app. It requests only the `drive.appdata` sco
 
 ### 2. Add your accounts
 
-Go to **Settings** and add your investment accounts (e.g. "Trade Republic", "Interactive Brokers"). For each account, add the holdings (ETFs/funds) you track. This defines the structure of your portfolio.
+Go to **Settings** and add your investment accounts (e.g. "Trade Republic", "Interactive Brokers"). For each account, add the holdings (ETFs/funds) you track. This defines the structure of your portfolio. Once the lists grow, both cards offer a search box and chips (account types in use for accounts; All / Active / Closed for holdings). Adding or editing an item clears the filter so it stays visible.
 
 Accounts can optionally be marked as **locked** (e.g. pension or AVD accounts) with an expected accessibility year. Locked accounts are included in total net worth but shown separately as "Liquid" (accessible now) and "Locked" (retirement) net worth KPIs. Locked accounts are excluded from goal progress calculations and from the accumulation forecast — they only become available in the retirement projection from their unlock year onward.
 
@@ -261,7 +261,7 @@ mobile view to reduce visual noise.
 
 The Portfolio tab has three subviews:
 
-- **Holdings** — your ETF positions with cost basis, unrealized gain, market value (when snapshot ETF values are recorded), and the allocation drift chart. The Held / Closed / All chips only appear once you have closed positions.
+- **Holdings** — your ETF positions with cost basis, unrealized gain, market value (when snapshot ETF values are recorded), and the allocation drift chart. Search by ISIN or name; the All / Held / Closed chips only appear once you have closed positions. Choose 10, 25 or 50 rows per page.
 - **Contributions** — month-by-month DCA history and contribution split across holdings.
 - **Dividends** — dividend and interest income history, yield, and growth metrics.
 

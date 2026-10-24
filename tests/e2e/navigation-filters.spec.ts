@@ -37,18 +37,21 @@ test('transaction type filter narrows displayed rows', async ({ page }) => {
   // Switch away and back to ensure full list render with filter options
   await openTab(page, 'tab-networth');
   await openTab(page, 'tab-log');
-  // Wait for type filter options to be populated
-  await expect(page.locator('#tx-type-filter option[value="INTEREST"]')).toBeAttached();
+  // Type chips are populated from the ledger
+  const chip = (type: string) => page.locator(`#tx-type-filter [data-tx-type="${type}"]`);
+  await expect(chip('INTEREST')).toBeVisible();
   // Filter to INTEREST only
-  await page.selectOption('#tx-type-filter', 'INTEREST');
+  await chip('INTEREST').click();
+  await expect(chip('INTEREST')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#tx-ledger-list .tx-row:not(.th)')).toHaveCount(1);
 
   // Filter to DIVIDEND only
-  await page.selectOption('#tx-type-filter', 'DIVIDEND');
+  await chip('DIVIDEND').click();
+  await expect(chip('DIVIDEND')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#tx-ledger-list .tx-row:not(.th)')).toHaveCount(1);
 
   // Reset to all
-  await page.selectOption('#tx-type-filter', '');
+  await chip('').click();
   await expect(page.locator('#tx-ledger-list .tx-row:not(.th)')).toHaveCount(2);
 });
 

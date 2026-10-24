@@ -1281,17 +1281,31 @@ details[open] > summary .card-chevron {
 .log-panel-body {
   margin-top: 0.75rem;
 }
-#tx-type-filter,
-#snap-year-filter {
+.log-filter-bar {
+  gap: 8px;
+  margin-bottom: 0.6rem;
+}
+.log-filter-bar > .filter-chips,
+.log-filter-bar > .bulk-actions {
+  flex-basis: 100%;
+}
+.log-filter-bar > .filter-chips[hidden],
+.log-filter-bar > .bulk-actions[hidden] {
+  display: none;
+}
+.log-filter-bar .filter-bar-actions {
+  flex: 0 0 auto;
+}
+.log-filter-bar .filter-search {
+  max-width: 360px;
+}
+.form-input.filter-select {
   flex: 0 1 auto;
   width: auto;
   min-width: 0;
 }
-#tx-search,
-#snap-search {
-  flex: 1 1 160px;
-  width: auto;
-  min-width: 0;
+.filter-select[hidden] {
+  display: none;
 }
 .snap-legend {
   gap: 4px 12px;
@@ -1948,12 +1962,29 @@ body.chart-expanded-open {
   padding-top: 6px;
   padding-bottom: 6px;
 }
-.holdings-search-input {
-  min-width: 0;
-  max-width: 220px;
+.hold-filter-bar {
+  margin-bottom: 8px;
+  gap: 6px;
+}
+.hold-filter-bar .filter-search {
+  max-width: 260px;
+}
+.hold-filter-bar .filter-search .form-input {
   border-radius: 999px;
   background: var(--surface);
-  padding-inline: 10px;
+  padding-left: 10px;
+}
+@media (max-width: 599px) {
+  .hold-filter-bar .filter-search {
+    max-width: none;
+    flex-basis: 100%;
+  }
+}
+.hold-empty {
+  grid-column: 1 / -1;
+  padding: 1rem;
+  font-size: 12px;
+  color: var(--ink-3);
 }
 .form-grid {
   display: grid;
@@ -2530,6 +2561,106 @@ summary.section-label {
   gap: 8px;
   margin-bottom: 0.75rem;
   flex-wrap: wrap;
+}
+/* Shared filter controls (src/ui/filterBar.ts). */
+.filter-chips {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.filter-chips-scroll {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* Fade the right edge so a cut-off chip reads as "scroll for more". */
+  mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
+  padding-right: 18px;
+}
+.filter-chips-scroll::-webkit-scrollbar {
+  display: none;
+}
+.filter-chip {
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.chip-count {
+  display: inline-block;
+  margin-left: 3px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.filter-chip.active .chip-count {
+  background: var(--surface);
+  color: var(--brand);
+}
+.filter-search {
+  position: relative;
+  display: flex;
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.filter-search .form-input {
+  width: 100%;
+  min-width: 0;
+  padding-right: 26px;
+}
+.filter-search input::-webkit-search-cancel-button {
+  appearance: none;
+}
+.filter-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.filter-clear:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.filter-search input:placeholder-shown + .filter-clear {
+  display: none;
+}
+.filter-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin: -0.35rem 0 0.6rem;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.filter-status[hidden] {
+  display: none;
+}
+.filter-status-note {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--brand-weak);
+  color: var(--brand);
+}
+.filter-clear-all {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--brand);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.filter-clear-all:hover {
+  text-decoration: underline;
 }
 .pagination {
   display: flex;
@@ -3110,22 +3241,14 @@ summary.section-label {
 @media (max-width: 720px) {
   #tx-filter-bar .filter-bar-actions,
   #snap-filter-bar .filter-bar-actions {
-    flex-wrap: wrap;
-    width: 100%;
-    margin-left: 0;
+    gap: 6px;
   }
-  #tx-filter-bar > .form-input,
-  #tx-filter-bar > select,
-  #snap-filter-bar > .form-input,
   #snap-filter-bar > select {
-    flex: 0 1 auto;
-    min-width: 0;
-    max-width: 45%;
+    max-width: 40%;
   }
-  #tx-filter-bar > #tx-search,
-  #snap-filter-bar > #snap-search {
-    flex: 1 1 0;
-    max-width: none;
+  #tx-filter-bar .filter-search,
+  #snap-filter-bar .filter-search {
+    flex-basis: 120px;
   }
   #tx-bulk-actions,
   #snap-bulk-actions {
