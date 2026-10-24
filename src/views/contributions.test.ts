@@ -94,9 +94,9 @@ const DOM_FIXTURE = `
     <div id="dca-kpis"></div>
     <div id="c-dca-bar"></div>
     <div id="dca-proj-card"></div>
-    <select id="dca-year-filter"></select>
     <div id="dca-table-header"></div>
     <div id="dca-table"></div>
+    <div id="dca-pagination"></div>
   </div>
 `;
 
@@ -259,24 +259,31 @@ describe('renderDCA', () => {
     expect(dataRows.length).toBe(4);
   });
 
-  it('year filter narrows visible rows', () => {
-    const months = ['2024-11', '2024-12', '2025-01', '2025-02'];
+  it('pages months with the standard Rows selector', () => {
+    const months = Array.from({ length: 14 }, (_, i) =>
+      i < 12 ? `2024-${String(i + 1).padStart(2, '0')}` : `2025-0${i - 11}`,
+    );
     const monthly: Record<string, number> = {};
     const monthlyBy: Record<string, Record<string, number>> = {};
     months.forEach((mo) => {
       monthly[mo] = 100;
       monthlyBy[mo] = { IE00TEST1: 100 };
     });
-    renderDCA(makePD({ months, monthly, monthlyBy, totalInv: 400 }), []);
+    renderDCA(makePD({ months, monthly, monthlyBy, totalInv: 1400 }), []);
 
-    const select = document.getElementById('dca-year-filter') as HTMLSelectElement;
-    // Select 2024
-    select.value = '2024';
+    const rows = () => document.querySelectorAll('#dca-table .tbl-row:not(.th)');
+    // 12 months + total row
+    expect(rows().length).toBe(13);
+    const pag = document.getElementById('dca-pagination')!;
+    expect(pag.textContent).toContain('1\u201312 of 14');
+    const select = pag.querySelector<HTMLSelectElement>('.js-page-size')!;
+    select.value = '24';
     select.dispatchEvent(new Event('change'));
-    const table = document.getElementById('dca-table')!;
-    const rows = table.querySelectorAll('.tbl-row:not(.th)');
-    // 2 months in 2024 + 1 total row = 3
-    expect(rows.length).toBe(3);
+    expect(rows().length).toBe(15);
+    expect(localStorage.getItem('wt:dca:pageSize')).toBe('24');
+    const reset = document.querySelector<HTMLSelectElement>('#dca-pagination .js-page-size')!;
+    reset.value = '12';
+    reset.dispatchEvent(new Event('change'));
   });
 
   it('re-render does not throw or duplicate KPI tiles', () => {
