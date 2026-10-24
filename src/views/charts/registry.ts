@@ -41,6 +41,8 @@ export interface RenderChartOpts {
   /** Connect hover/zoom with other charts in the same group. */
   group?: string;
   onClick?: (params: ECElementEvent) => void;
+  /** Called when the active range preset changes (null after a manual zoom). */
+  onPresetChange?: (key: string | null) => void;
   toolbox?: boolean;
 }
 
@@ -52,6 +54,11 @@ interface Entry {
   opts: RenderChartOpts;
   activePreset: string | null;
   applyingPreset: boolean;
+  /** Tighter preset buttons when the full-size row would collide with the toolbox. */
+  densePresets: boolean;
+  /** Horizontal space reserved beside a header legend (presets + toolbox); null when no header legend. */
+  legendInset: number | null;
+  toolboxW: number;
   ctx: ChartCtx;
   ro: ResizeObserver | null;
 }
@@ -105,16 +112,21 @@ function makeCtx(host: HTMLElement): ChartCtx {
   };
 }
 
-function presetWidth(label: string): number {
-  return Math.max(30, label.length * 7 + 16);
+function presetWidth(label: string, dense = false): number {
+  return dense ? Math.max(24, label.length * 6.5 + 8) : Math.max(30, label.length * 7 + 16);
+}
+
+function presetGap(dense: boolean): number {
+  return dense ? 2 : 4;
 }
 
 function presetGraphic(entry: Entry): GraphicComponentOption {
   const t = entry.ctx.tokens;
   const presets = entry.opts.presets ?? [];
+  const dense = entry.densePresets;
   let x = 0;
   const children = presets.map((p) => {
-    const w = presetWidth(p.label);
+    const w = presetWidth(p.label, dense);
     const active = entry.activePreset === p.key;
     const el = {
       type: 'group' as const,
@@ -148,7 +160,7 @@ function presetGraphic(entry: Entry): GraphicComponentOption {
         },
       ],
     };
-    x += w + 4;
+    x += w + presetGap(dense);
     return el;
   });
   return {
@@ -160,9 +172,10 @@ function presetGraphic(entry: Entry): GraphicComponentOption {
   } as GraphicComponentOption;
 }
 
-function presetsWidth(presets: RangePreset[]): number {
+function presetsWidth(presets: RangePreset[], dense = false): number {
   return (
-    presets.reduce((s, p) => s + presetWidth(p.label), 0) + Math.max(0, presets.length - 1) * 4
+    presets.reduce((s, p) => s + presetWidth(p.label, dense), 0) +
+    Math.max(0, presets.length - 1) * presetGap(dense)
   );
 }
 
@@ -190,6 +203,7 @@ function applyPreset(entry: Entry, key: string): void {
     entry.applyingPreset = false;
   }
   syncPresetGraphic(entry);
+  entry.opts.onPresetChange?.(key);
 }
 
 function syncPresetGraphic(entry: Entry): void {
@@ -311,7 +325,10 @@ function compose(entry: Entry): ChartOption {
     Object.assign(fs, fullscreenIcons(true));
   }
   const toolboxW = toolbox?.width ?? 0;
-  const presetsW = presets.length ? presetsWidth(presets) : 0;
+  entry.toolboxW = toolboxW;
+  entry.densePresets =
+    presets.length > 0 && ctx.width > 0 && presetsWidth(presets) + toolboxW + 12 > ctx.width;
+  const presetsW = presets.length ? presetsWidth(presets, entry.densePresets) : 0;
   const hasControls = toolboxW + presetsW > 0;
   const legendIn = option.legend as { show?: boolean; orient?: string } | undefined;
   const hasLegend = legendIn != null && !Array.isArray(legendIn) && legendIn.show !== false;
@@ -322,6 +339,7 @@ function compose(entry: Entry): ChartOption {
   const top =
     hasControls || hasLegend ? PRESET_H + HEADER_GAP + (legendOwnRow ? LEGEND_ROW : 0) : 8;
 
+  entry.legendInset = null;
   const sliderOn = Boolean(opts.zoom) && opts.slider !== false;
   const out: ChartOption = {
     animation: !mq('(prefers-reduced-motion: reduce)'),
@@ -373,11 +391,17 @@ function compose(entry: Entry): ChartOption {
       ...(legendIn as Record<string, unknown>),
     } as ChartOption['legend'];
   } else if (headerLegend) {
+    const legendLeft = legendOwnRow ? 0 : presetsW ? presetsW + 16 : 0;
+    const legendRight = legendOwnRow ? 0 : toolboxW + 16;
+    entry.legendInset = legendLeft + legendRight;
     out.legend = {
       type: 'scroll',
-      left: legendOwnRow ? 0 : presetsW ? presetsW + 16 : 0,
+      left: legendLeft,
       top: legendOwnRow ? PRESET_H + 8 : 3,
-      right: legendOwnRow ? 0 : toolboxW + 16,
+      // ECharts' box layout keeps only two of left/right/width, so pin an explicit width.
+      ...(ctx.width > 0
+        ? { width: Math.max(80, ctx.width - legendLeft - legendRight) }
+        : { right: legendRight }),
       itemWidth: 12,
       itemHeight: 8,
       itemGap: 12,
@@ -422,11 +446,13 @@ function bindEvents(entry: Entry): void {
     if (entry.activePreset !== null) {
       entry.activePreset = null;
       syncPresetGraphic(entry);
+      entry.opts.onPresetChange?.(null);
     }
   });
   chart.on('restore', () => {
     entry.activePreset = entry.opts.defaultPreset ?? null;
     render(entry, false);
+    entry.opts.onPresetChange?.(entry.activePreset);
   });
   if (entry.opts.onClick) chart.on('click', entry.opts.onClick as (p: unknown) => void);
   if (entry.opts.group) {
@@ -442,7 +468,21 @@ function observe(entry: Entry): void {
     const prev = entry.ctx;
     const next = makeCtx(entry.host);
     entry.chart.resize();
-    if (next.compact !== prev.compact || next.expanded !== prev.expanded) render(entry, true);
+    const presets = entry.opts.presets ?? [];
+    const dense =
+      presets.length > 0 &&
+      next.width > 0 &&
+      presetsWidth(presets) + entry.toolboxW + 12 > next.width;
+    if (
+      next.compact !== prev.compact ||
+      next.expanded !== prev.expanded ||
+      dense !== entry.densePresets
+    ) {
+      render(entry, true);
+    } else if (entry.legendInset != null && next.width > 0 && next.width !== prev.width) {
+      entry.ctx = next;
+      entry.chart.setOption({ legend: { width: Math.max(80, next.width - entry.legendInset) } });
+    }
   });
   entry.ro.observe(entry.host);
 }
@@ -484,6 +524,9 @@ export function renderChart(
       opts,
       activePreset: opts.defaultPreset ?? null,
       applyingPreset: false,
+      densePresets: false,
+      legendInset: null,
+      toolboxW: 0,
       ctx,
       ro: null,
     };

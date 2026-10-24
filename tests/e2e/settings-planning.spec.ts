@@ -40,7 +40,7 @@ test('settings-driven account and goal changes propagate into net worth planning
   await expect(page.locator('#nw-goal')).toContainText('FIRE');
   await expect(page.locator('#nw-goal')).toContainText('Counted now10.000');
   await expect(page.locator('#nw-goal')).toContainText('50% complete');
-  await expect(page.locator('#c-nw-forecast-table-wrap')).toBeVisible();
+  await expect(page.locator('#c-nw-forecast canvas')).toHaveCount(1);
   await expect(page.locator('.forecast-scenario-card')).toBeHidden();
 
   await page.click('#nw-scenario-toggle');

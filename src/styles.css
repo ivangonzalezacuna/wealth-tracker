@@ -1408,6 +1408,8 @@ body.chart-expanded-open {
 }
 .ec-tt {
   min-width: 150px;
+  /* Long account names must not push the tooltip past a phone-width chart. */
+  max-width: min(320px, calc(100vw - 72px));
   font-variant-numeric: tabular-nums;
 }
 .ec-tt-title {
@@ -1422,9 +1424,13 @@ body.chart-expanded-open {
 }
 .ec-tt-name {
   flex: 1;
+  min-width: 0;
   margin-right: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .ec-tt-val {
+  flex-shrink: 0;
   color: var(--ink);
   font-weight: 600;
 }
@@ -1432,6 +1438,13 @@ body.chart-expanded-open {
   margin-top: 4px;
   padding-top: 4px;
   border-top: 1px solid var(--line);
+}
+.ec-tt-note {
+  margin-top: 6px;
+  max-width: 260px;
+  white-space: normal;
+  font-style: italic;
+  color: var(--ink-3);
 }
 .legend {
   display: flex;

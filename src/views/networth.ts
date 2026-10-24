@@ -33,17 +33,30 @@ import {
 } from '../model/forecast';
 import type { AccountForecastInput, DecumulationStrategy } from '../model/forecast';
 import type { Snapshot, Account, GoalMilestone } from '../types';
-import Chart from 'chart.js/auto';
-import { T, BAR_END_ROUNDING, resolvedT } from '../theme';
-import { bindLegendToggle, renderLegendHtml, TOOLTIP_BOX, tooltipSwatch } from './chartLegend';
 import { SCENARIOS_ICON, SCENARIOS_OFF_ICON } from './icons';
-import { writeChartTable } from './chartTable';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
-import { createChartRegistry } from './chartRegistry';
-import { formatEuroCompactPrefix, formatEuroCompactSuffix } from './chartOptions';
+import {
+  addMonths,
+  axisTooltip,
+  disposeChart,
+  fmtEurCompact,
+  monthPresets,
+  monthTimeAxis,
+  monthToTime,
+  renderChart,
+  timeToMonth,
+  toRgba,
+} from './charts';
 
-const { CH, destroyChart: _destroyChart } = createChartRegistry();
-let _nwRange: '12' | '36' | 'all' = 'all';
+type Pt = [number, number];
+const FORECAST_RANGE_SHORT: Record<string, string> = {
+  '60': '5Y',
+  '120': '10Y',
+  '240': '20Y',
+  '360': '30Y',
+  '480': '40Y',
+  '600': '50Y',
+};
 let _fcRange: '60' | '120' | '240' | '360' | '480' | '600' = '60'; // 5y / 10y / 20y / 30y / 40y / 50y forecast horizon
 let _inflationRate = 0; // annual inflation % for real-return forecast overlay
 let _lastSnaps: Snapshot[] = [];
@@ -557,10 +570,7 @@ export function renderNW(snaps: Snapshot[]): void {
 
   const chartA = ACCTS.filter((a) => snaps.some((sn) => ((sn[a.key] as number) || 0) > 0));
 
-  // Range-sliced view for the history chart
-  const view = _nwRange === 'all' ? snaps : snaps.slice(-parseInt(_nwRange));
-
-  // Chart title + legend + history chart
+  // Chart title + history chart
   document.getElementById('nw-chart-title')!.textContent =
     snaps.length === 1
       ? 'Account breakdown: ' +
@@ -568,75 +578,8 @@ export function renderNW(snaps: Snapshot[]): void {
         ' (add more snapshots to see growth over time)'
       : 'Net worth over time: total + per account';
 
-  const C = resolvedT();
-  _destroyChart('c-nw-hist');
-  if (snaps.length === 1) {
-    // Legend for single-snapshot: per-account only
-    document.getElementById('nw-chart-legend')!.innerHTML = renderLegendHtml(
-      chartA.map((a) => ({ label: a.label, color: a.color })),
-    );
-
-    CH['c-nw-hist'] = new Chart(document.getElementById('c-nw-hist') as HTMLCanvasElement, {
-      type: 'bar',
-      data: {
-        labels: chartA.map((a) => a.label),
-        datasets: [
-          {
-            data: chartA.map((a) => (s[a.key] as number) || 0),
-            backgroundColor: chartA.map((a) => safeColor(a.color)),
-            borderColor: chartA.map((a) => safeColor(a.color)),
-            borderWidth: 1,
-            ...BAR_END_ROUNDING,
-          },
-        ],
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: C.surface,
-            ...TOOLTIP_BOX,
-            borderColor: C.line,
-            borderWidth: 1,
-            titleColor: C.ink,
-            bodyColor: C.ink2,
-            padding: 10,
-            cornerRadius: 8,
-            callbacks: {
-              label: (ctx) => ` ${fmtEur(ctx.raw as number)}`,
-              labelColor: tooltipSwatch(C.surface),
-            },
-          },
-        },
-        scales: {
-          x: {
-            grid: { color: C.line },
-            ticks: {
-              color: C.ink4,
-              callback: (v) => formatEuroCompactSuffix(v),
-            },
-          },
-          y: { grid: { display: false }, ticks: { color: C.ink2, font: { size: 12 } } },
-        },
-      },
-    });
-
-    writeChartTable(
-      'c-nw-hist-table-wrap',
-      'Account breakdown data',
-      ['Account', 'Value (€)'],
-      chartA.map((a) => [a.label, fmtEur2((s[a.key] as number) || 0)]),
-      [1],
-    );
-  } else {
-    _renderNWHistChart(view, chartA);
-  }
-
-  // Bind range toggle once
-  _attachNWRangeToggle(chartA);
+  if (snaps.length === 1) _renderNWBreakdownChart(s, chartA);
+  else _renderNWHistChart(snaps, chartA);
 
   const bkA = ACCTS.filter((a) => ((s[a.key] as number) || 0) > 0);
 
@@ -678,163 +621,133 @@ export function renderNW(snaps: Snapshot[]): void {
   attachInfoTips(document.getElementById('networth')!);
 }
 
-// ── History chart helper (lines + dots, total line) ──
+// ── History chart (total + per-account lines) ──
 
-function _renderNWHistChart(
-  view: Snapshot[],
-  chartA: Array<{ key: string; label: string; color: string }>,
-): void {
-  if (view.length < 2) {
-    _destroyChart('c-nw-hist');
-    const parent = document.getElementById('c-nw-hist')?.parentElement;
-    if (parent && !parent.querySelector('.chart-no-data')) {
-      const msg = document.createElement('div');
-      msg.className = 'chart-no-data';
-      msg.style.cssText =
-        'display:flex;align-items:center;justify-content:center;height:100%;font-size:13px;color:var(--ink-3)';
-      msg.textContent = 'Not enough data for this range';
-      parent.appendChild(msg);
-    }
-    return;
-  }
-  document.getElementById('c-nw-hist')?.parentElement?.querySelector('.chart-no-data')?.remove();
+type ChartAccount = { key: string; label: string; color: string };
 
-  const C = resolvedT();
-  const labels = view.map((sn) => fmtMon(sn.date));
-  const totalSeries = view.map((sn) => snapTotal(sn));
-  const noteMarkerRadius = view.map((sn) => (String(sn.notes || '').trim() ? 3 : 0));
-
-  const accountDatasets = chartA.map((a) => ({
-    label: a.label,
-    data: view.map((sn) => (sn[a.key] as number) || 0),
-    borderColor: a.color,
-    backgroundColor: a.color,
-    borderWidth: 1,
-    fill: false,
-    tension: 0,
-    pointRadius: 0,
-    pointHoverRadius: 4,
-    pointBackgroundColor: a.color,
-    order: 2,
-    hidden: false, // all lines visible by default; legend allows toggling
-  }));
-  const totalDataset = {
-    label: 'Total net worth',
-    data: totalSeries,
-    borderColor: C.brand,
-    backgroundColor: C.brand,
-    borderWidth: 2.5,
-    fill: false,
-    tension: 0,
-    pointRadius: noteMarkerRadius,
-    pointHoverRadius: 5,
-    pointBackgroundColor: noteMarkerRadius.map((r) => (r > 0 ? C.brand : 'transparent')),
-    pointBorderColor: noteMarkerRadius.map((r) => (r > 0 ? C.surface : 'transparent')),
-    pointBorderWidth: noteMarkerRadius.map((r) => (r > 0 ? 1 : 0)),
-    order: 0, // drawn on top
-  };
-
-  // Legend: Total swatch first, then per-account swatches
-  document.getElementById('nw-chart-legend')!.innerHTML = renderLegendHtml([
-    { label: 'Total net worth', color: C.brand },
-    ...chartA.map((a) => ({ label: a.label, color: a.color })),
-  ]);
-
-  _destroyChart('c-nw-hist');
-  const chart = new Chart(document.getElementById('c-nw-hist') as HTMLCanvasElement, {
-    type: 'line',
-    data: { labels, datasets: [totalDataset, ...accountDatasets] },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          mode: 'index',
-          intersect: false,
-          backgroundColor: C.surface,
-          ...TOOLTIP_BOX,
-          borderColor: C.line,
-          borderWidth: 1,
-          titleColor: C.ink,
-          bodyColor: C.ink2,
-          padding: 10,
-          cornerRadius: 8,
-          callbacks: {
-            label: (ctx) => ` ${ctx.dataset.label}: ${fmtEur2(ctx.raw as number)}`,
-            afterBody: (items) => {
-              const idx = items[0]?.dataIndex;
-              if (idx == null) return '';
-              const note = String(view[idx]?.notes || '').trim();
-              return note ? `Note: ${note}` : '';
-            },
-            labelColor: tooltipSwatch(C.surface),
-          },
+function _renderNWBreakdownChart(s: Snapshot, chartA: ChartAccount[]): void {
+  renderChart(
+    'c-nw-hist',
+    ({ tokens: t, width }) => ({
+      tooltip: {
+        trigger: 'axis',
+        confine: true,
+        axisPointer: { type: 'shadow' },
+        valueFormatter: (v) => fmtEur2(Number(v)),
+      },
+      grid: { left: 4, right: 52, top: 36, bottom: 4, containLabel: true },
+      xAxis: { type: 'value', axisLabel: { formatter: (v: number) => fmtEurCompact(v) } },
+      yAxis: {
+        type: 'category',
+        inverse: true,
+        data: chartA.map((a) => a.label),
+        axisTick: { show: false },
+        axisLabel: {
+          color: t.ink2,
+          fontSize: 12,
+          // Long account names would otherwise squeeze the bars on narrow screens.
+          width: width > 0 ? Math.max(90, Math.round(width * 0.38)) : 180,
+          overflow: 'truncate',
         },
       },
-      scales: {
-        y: {
-          grid: { color: C.line },
-          ticks: {
-            color: C.ink4,
-            callback: (v) => formatEuroCompactSuffix(v),
+      series: [
+        {
+          name: 'Value',
+          label: {
+            show: true,
+            position: 'right',
+            color: t.ink2,
+            fontSize: 11,
+            formatter: (p: { value: unknown }) => fmtEurCompact(Number(p.value)),
           },
+          type: 'bar',
+          barMaxWidth: 28,
+          data: chartA.map((a) => ({
+            value: (s[a.key] as number) || 0,
+            itemStyle: { color: safeColor(a.color), borderRadius: [0, 4, 4, 0] },
+          })),
         },
-        x: {
-          grid: { display: false },
-          ticks: { color: C.ink2, font: { size: 10 }, maxRotation: 0, autoSkip: true },
-        },
-      },
-    },
-  });
-  CH['c-nw-hist'] = chart;
-
-  // Write accessible data table for screen readers / keyboard users
-  writeChartTable(
-    'c-nw-hist-table-wrap',
-    'Net worth history data',
-    ['Month', 'Total Net Worth (€)', ...chartA.map((a) => a.label + ' (€)')],
-    view.map((sn) => [
-      fmtMon(sn.date),
-      fmtEur2(snapTotal(sn)),
-      ...chartA.map((a) => fmtEur2((sn[a.key] as number) || 0)),
-    ]),
-    Array.from({ length: chartA.length + 1 }, (_, index) => index + 1),
+      ],
+    }),
+    { valueFormatter: fmtEur2 },
   );
-
-  // Make legend swatches clickable to toggle datasets
-  _bindLegendToggle(chart);
 }
 
-// ── Legend click toggle for many-account mode ──
+function _renderNWHistChart(snaps: Snapshot[], chartA: ChartAccount[]): void {
+  const times = snaps.map((sn) => monthToTime(sn.date));
+  const notes = new Map(
+    snaps.map((sn, i) => [times[i], String(sn.notes || '').trim()] as [number, string]),
+  );
+  const last = times[times.length - 1];
+  const totalName = 'Total net worth';
 
-function _bindLegendToggle(chart: Chart): void {
-  const legendEl = document.getElementById('nw-chart-legend');
-  if (!legendEl) return;
-  // Index 0 = Total - always visible, never togglable.
-  bindLegendToggle(legendEl, chart, { skipIndex: [0] });
-}
-
-// ── Range toggle binding ──
-
-function _attachNWRangeToggle(chartA: Array<{ key: string; label: string; color: string }>): void {
-  const toggle = document.getElementById('nw-range-toggle') as
-    (HTMLElement & { _bound?: boolean }) | null;
-  if (!toggle || toggle._bound) return;
-  toggle._bound = true;
-  toggle.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
-    if (!btn) return;
-    const newRange = (btn.dataset.range as '12' | '36' | 'all') || 'all';
-    if (newRange === _nwRange) return; // already on this range - no-op
-    _nwRange = newRange;
-    toggle.querySelectorAll('.btn').forEach((b) => b.classList.remove('active'));
-    btn.classList.add('active');
-    // Read current snaps from module state so re-renders after nav don't use a stale closure.
-    const snaps = _lastSnaps;
-    const view = _nwRange === 'all' ? snaps : snaps.slice(-parseInt(_nwRange));
-    _renderNWHistChart(view, chartA);
-  });
+  renderChart(
+    'c-nw-hist',
+    ({ tokens: t }) => ({
+      legend: {
+        data: [totalName, ...chartA.map((a) => a.label)],
+        // Total stays visible: it is the reference line for every account.
+        selector: false,
+      },
+      tooltip: {
+        trigger: 'axis',
+        confine: true,
+        order: 'seriesAsc',
+        formatter: axisTooltip({
+          value: (v) => fmtEur2(v),
+          note: (axisValue) => {
+            const note = notes.get(Number(axisValue));
+            return note ? `Note: ${note}` : null;
+          },
+        }),
+      },
+      xAxis: monthTimeAxis(),
+      yAxis: {
+        type: 'value',
+        scale: true,
+        axisLabel: { formatter: (v: number) => fmtEurCompact(v) },
+      },
+      series: [
+        {
+          name: totalName,
+          type: 'line',
+          z: 3,
+          data: snaps.map((sn, i) => [times[i], snapTotal(sn)]),
+          showSymbol: false,
+          smooth: 0.2,
+          lineStyle: { width: 2.5, color: t.brand },
+          itemStyle: { color: t.brand },
+          emphasis: { focus: 'series' },
+          markPoint: {
+            symbol: 'circle',
+            symbolSize: 7,
+            itemStyle: { color: t.brand, borderColor: t.surface, borderWidth: 1.5 },
+            label: { show: false },
+            data: snaps
+              .map((sn, i) => ({ sn, t: times[i] }))
+              .filter(({ t: time }) => notes.get(time))
+              .map(({ sn, t: time }) => ({ name: 'Note', coord: [time, snapTotal(sn)] })),
+          },
+        },
+        ...chartA.map((a) => ({
+          name: a.label,
+          type: 'line' as const,
+          data: snaps.map((sn, i) => [times[i], (sn[a.key] as number) || 0]),
+          showSymbol: false,
+          lineStyle: { width: 1.25, color: safeColor(a.color) },
+          itemStyle: { color: safeColor(a.color) },
+          emphasis: { focus: 'series' as const },
+        })),
+      ],
+    }),
+    {
+      zoom: true,
+      xAxisType: 'time',
+      presets: monthPresets(last),
+      defaultPreset: 'all',
+      valueFormatter: fmtEur2,
+    },
+  );
 }
 
 // ── Combined planning card (Forecast + Retirement drawdown) ──
@@ -901,28 +814,18 @@ function _renderPlanningCard(snaps: Snapshot[], accounts: Account[]): void {
   });
 }
 
-// ── Forecast range toggle binding ──
-
-function _attachForecastRangeToggle(): void {
-  const toggle = document.getElementById('nw-forecast-range-toggle') as
-    (HTMLElement & { _bound?: boolean }) | null;
-  if (!toggle || toggle._bound) return;
-  toggle._bound = true;
-  toggle.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
-    if (!btn) return;
-    const newRange = (btn.dataset.range as '60' | '120' | '240' | '360' | '480' | '600') || '60';
-    if (newRange === _fcRange) return;
-    _fcRange = newRange;
-    // Read current state from module variables so re-renders after nav use fresh data.
-    _renderForecastChart(_lastSnaps, _lastAccounts);
-  });
-}
-
 // ── Forecast chart ──
 
+const FORECAST_MAX_MONTHS = 600;
+const FORECAST_HORIZONS = ['60', '120', '240', '360', '480', '600'] as const;
+
+function _forecastGroupSummaryHtml(groupSummaryLines: string): string {
+  return groupSummaryLines
+    ? `<div style="margin:8px 0 4px">Grouped forecast summary (current → ${esc(FORECAST_RANGE_LABELS[_fcRange] || 'horizon')}):</div>${groupSummaryLines}`
+    : '';
+}
+
 function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
-  const C = resolvedT();
   const forecastEl = document.getElementById('nw-fc-panel');
   if (!forecastEl) return;
 
@@ -948,13 +851,13 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
 
   const latestDate = latestSnap.date;
   const forecastMonths = parseInt(_fcRange);
-  const baselineSeries = forecastMultiAccountSeries(accountInputs, forecastMonths, latestDate);
+  const baselineSeries = forecastMultiAccountSeries(accountInputs, FORECAST_MAX_MONTHS, latestDate);
   const scenarioSeries = _showScenarioComparison
     ? _scenarios.map((scenario) => ({
         scenario,
         series: forecastMultiAccountSeries(
           _applyScenarioToAccountInputs(accountInputs, accounts, scenario),
-          forecastMonths,
+          FORECAST_MAX_MONTHS,
           latestDate,
         ),
       }))
@@ -964,71 +867,43 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   const realSeries = _deflateByInflation(baselineSeries, _inflationRate);
   const showReal = _inflationRate > 0;
 
-  // Build combined history + forecast for a seamless line chart
-  const historySlice = snaps.slice(-12); // last 12 months of actual data
-  const histLabels = historySlice.map((sn) => fmtMon(sn.date));
-  const histValues = historySlice.map((sn) => snapTotal(sn));
-
-  const fcLabels = baselineSeries.map((p) => fmtMon(p.month));
-  const fcValues = baselineSeries.map((p) => p.value);
-  const scenarioValues = scenarioSeries.map((s) => ({
-    scenario: s.scenario,
-    values: s.series.map((p) => p.value),
-  }));
-  const realValues = realSeries.map((p) => p.value);
-
-  // Combined labels: history + forecast
-  const labels = [...histLabels, ...fcLabels];
-  const histDataFull = [...histValues, ...new Array(fcValues.length).fill(null)];
-  const fcDataFull = [
-    ...new Array(histValues.length - 1).fill(null),
-    histValues[histValues.length - 1],
-    ...fcValues,
+  // Last 12 months of actual data, then forecast series that start at the latest actual point.
+  const historySlice = snaps.slice(-12);
+  const histPoints = historySlice.map((sn) => [monthToTime(sn.date), snapTotal(sn)] as Pt);
+  const anchor = histPoints[histPoints.length - 1];
+  const toPoints = (series: Array<{ month: string; value: number }>): Pt[] => [
+    anchor,
+    ...series.map((p) => [monthToTime(p.month), p.value] as Pt),
   ];
-  const scenarioDataFull = scenarioValues.map(({ scenario, values }) => ({
-    scenario,
-    data: [
-      ...new Array(histValues.length - 1).fill(null),
-      histValues[histValues.length - 1],
-      ...values,
-    ],
+  const baselinePoints = toPoints(baselineSeries);
+  const realPoints = showReal ? toPoints(realSeries) : null;
+  const scenarioPoints = scenarioSeries.map((x) => ({
+    scenario: x.scenario,
+    points: toPoints(x.series),
   }));
-  const realDataFull = showReal
-    ? [
-        ...new Array(histValues.length - 1).fill(null),
-        histValues[histValues.length - 1],
-        ...realValues,
-      ]
-    : null;
+  const histStart = histPoints[0][0];
+  const today = anchor[0];
+  const horizonEnd = baselinePoints[baselinePoints.length - 1][0];
 
-  const _allGoals = getGoals();
-  const DEADLINE_COLORS = [
-    'rgba(255,160,30,0.9)',
-    'rgba(200,80,200,0.9)',
-    'rgba(30,190,180,0.9)',
-    'rgba(220,60,60,0.9)',
-  ];
-
-  // Deadline markers: vertical line + dot per goal that has a targetDate in the chart range.
+  const DEADLINE_COLORS = ['#e8961e', '#c050c8', '#1ebeb4', '#dc3c3c'];
   const goalDeadlines: Array<{
     title: string;
-    labelIndex: number;
+    time: number;
     color: string;
     targetNW: number | null;
   }> = [];
-  _allGoals.forEach((g, gi) => {
+  getGoals().forEach((g, gi) => {
     const dl = (g.targetDate || '').trim();
     if (!/^\d{4}-\d{2}$/.test(dl)) return;
     const rawNW = (g.targetNetWorth || '').replace(/\./g, '').replace(',', '.');
     const targetNW = parseFloat(rawNW);
     // Skip goals already reached
     if (!isNaN(targetNW) && targetNW > 0 && snapTotal(latestSnap) >= targetNW) return;
-    const dlLabel = fmtMon(dl);
-    const idx = labels.indexOf(dlLabel);
-    if (idx === -1) return;
+    const time = monthToTime(dl);
+    if (time < histStart || time > horizonEnd) return;
     goalDeadlines.push({
-      title: g.label ? esc(g.label) : `Goal ${gi + 1}`,
-      labelIndex: idx,
+      title: g.label || `Goal ${gi + 1}`,
+      time,
       color: DEADLINE_COLORS[gi % DEADLINE_COLORS.length],
       targetNW: isNaN(targetNW) || targetNW <= 0 ? null : targetNW,
     });
@@ -1067,28 +942,17 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   );
 
   forecastEl.innerHTML = `
-      <div class="chart-controls">
-        <div id="nw-forecast-legend" class="legend"></div>
-        <div class="forecast-controls-right">
-          <button
-            id="nw-scenario-toggle"
-            class="btn btn-sm btn-ghost scenario-toggle-btn ${_showScenarioComparison ? 'active' : ''}"
-            type="button"
-            aria-label="${_showScenarioComparison ? 'Hide scenario comparison' : 'Show scenario comparison'}"
-            aria-expanded="${_showScenarioComparison}"
-            title="${_showScenarioComparison ? 'Hide scenario comparison' : 'Show scenario comparison'}"
-          >
-            ${_showScenarioComparison ? SCENARIOS_OFF_ICON : SCENARIOS_ICON}
-          </button>
-          <div class="range-toggle" id="nw-forecast-range-toggle" role="group" aria-label="Forecast range">
-            <button class="btn btn-sm btn-ghost ${_fcRange === '60' ? 'active' : ''}" data-range="60" aria-pressed="${_fcRange === '60'}">5Y</button>
-            <button class="btn btn-sm btn-ghost ${_fcRange === '120' ? 'active' : ''}" data-range="120" aria-pressed="${_fcRange === '120'}">10Y</button>
-            <button class="btn btn-sm btn-ghost ${_fcRange === '240' ? 'active' : ''}" data-range="240" aria-pressed="${_fcRange === '240'}">20Y</button>
-            <button class="btn btn-sm btn-ghost ${_fcRange === '360' ? 'active' : ''}" data-range="360" aria-pressed="${_fcRange === '360'}">30Y</button>
-            <button class="btn btn-sm btn-ghost ${_fcRange === '480' ? 'active' : ''}" data-range="480" aria-pressed="${_fcRange === '480'}">40Y</button>
-            <button class="btn btn-sm btn-ghost ${_fcRange === '600' ? 'active' : ''}" data-range="600" aria-pressed="${_fcRange === '600'}">50Y</button>
-          </div>
-        </div>
+      <div class="forecast-controls-right">
+        <button
+          id="nw-scenario-toggle"
+          class="btn btn-sm btn-ghost scenario-toggle-btn ${_showScenarioComparison ? 'active' : ''}"
+          type="button"
+          aria-label="${_showScenarioComparison ? 'Hide scenario comparison' : 'Show scenario comparison'}"
+          aria-expanded="${_showScenarioComparison}"
+          title="${_showScenarioComparison ? 'Hide scenario comparison' : 'Show scenario comparison'}"
+        >
+          ${_showScenarioComparison ? SCENARIOS_OFF_ICON : SCENARIOS_ICON}
+        </button>
       </div>
       <div class="forecast-scenario-card"${_showScenarioComparison ? '' : ' hidden'}>
         <div class="forecast-scenario-title">Scenario comparison</div>
@@ -1112,223 +976,164 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           )
           .join('')}
       </div>
-      <div class="chart-wrap chart-h-lg"><canvas id="c-nw-forecast" role="img" aria-label="Net worth forecast chart" aria-describedby="c-nw-forecast-table-wrap"></canvas></div>
-      <div class="chart-data-table-wrap sr-only" id="c-nw-forecast-table-wrap"></div>
+      <div class="chart-wrap chart-h-lg chart-zoomable"><div id="c-nw-forecast" class="chart-host" role="img" aria-label="Net worth forecast chart"></div></div>
       <p class="note planning-caveat">Illustration, not a prediction: one fixed yearly return per account, before taxes, fees and FX. A downturn near your target could leave you 30–40% below this line; try a lower return too.${goalDeadlines.length > 0 ? ' Goal deadlines and target amounts are shown as markers on the chart.' : ''}</p>
       <details class="inline-details">
         <summary>Assumptions and grouped summary</summary>
         <div class="note" style="line-height:1.6">
           <div style="margin-bottom:4px">Per-account return &amp; contribution assumptions (Settings \u2192 Accounts):</div>
           ${acctSummaryLines}
-          ${
-            groupSummaryLines
-              ? `<div style="margin:8px 0 4px">Grouped forecast summary (current → horizon):</div>${groupSummaryLines}`
-              : ''
-          }
+          <div id="nw-fc-group-summary">${_forecastGroupSummaryHtml(groupSummaryLines)}</div>
           <div style="margin-top:4px;color:var(--ink-4)">Contribution timing follows each configured cadence (weekly, every 2 weeks, monthly, quarterly) and is bucketed month-by-month in the projection.</div>
           <div style="margin-top:4px;color:var(--ink-4)">Assumes zero rebalancing costs; spreads, commissions, and capital-gains tax from rebalancing can reduce long-horizon returns.</div>
         </div>
       </details>
     `;
 
-  _destroyChart('c-nw-forecast');
+  const scenarioName = (scenario: ForecastScenario) =>
+    `${scenario.label} (${scenario.returnDeltaPct >= 0 ? '+' : ''}${scenario.returnDeltaPct.toFixed(1)}% / ${fmtEurSigned(scenario.contribDeltaAmt, 0)}/mo)`;
+  const horizonPresets = FORECAST_HORIZONS.map((key) => ({
+    key,
+    label: FORECAST_RANGE_SHORT[key],
+    startValue: histStart,
+    endValue: addMonths(today, parseInt(key)),
+  }));
 
-  // Inline plugin: draw vertical deadline markers for each goal
-  const deadlinePlugin =
-    goalDeadlines.length > 0
-      ? {
-          id: 'goalDeadlines',
-          afterDraw(chart: import('chart.js').Chart) {
-            const { ctx, chartArea, scales } = chart;
-            if (!chartArea) return;
-            ctx.save();
-            goalDeadlines.forEach((d) => {
-              const x = scales['x'].getPixelForValue(d.labelIndex);
-              if (x < chartArea.left || x > chartArea.right) return;
-              ctx.strokeStyle = d.color;
-              ctx.lineWidth = 1.5;
-              ctx.setLineDash([4, 3]);
-              ctx.beginPath();
-              ctx.moveTo(x, chartArea.top);
-              ctx.lineTo(x, chartArea.bottom);
-              ctx.stroke();
-              ctx.setLineDash([]);
-              ctx.fillStyle = d.color;
-              ctx.font = '10px sans-serif';
-              ctx.textAlign = 'left';
-              ctx.fillText(d.title, x + 3, chartArea.top + 12);
-              if (d.targetNW !== null && scales['y']) {
-                const y = scales['y'].getPixelForValue(d.targetNW);
-                if (y >= chartArea.top && y <= chartArea.bottom) {
-                  ctx.beginPath();
-                  ctx.arc(x, y, 5, 0, Math.PI * 2);
-                  ctx.fillStyle = d.color;
-                  ctx.fill();
-                  ctx.strokeStyle = 'var(--surface)';
-                  ctx.lineWidth = 1.5;
-                  ctx.stroke();
-                }
-              }
-            });
-            ctx.restore();
+  renderChart(
+    'c-nw-forecast',
+    ({ tokens: t }) => ({
+      legend: {},
+      tooltip: {
+        trigger: 'axis',
+        confine: true,
+        formatter: axisTooltip({ value: (v) => fmtEur2(v) }),
+      },
+      xAxis: monthTimeAxis(),
+      yAxis: {
+        type: 'value',
+        scale: true,
+        axisLabel: { formatter: (v: number) => fmtEurCompact(v) },
+      },
+      series: [
+        {
+          name: 'Actual',
+          type: 'line',
+          z: 4,
+          data: histPoints,
+          showSymbol: false,
+          lineStyle: { width: 2.5, color: t.brand },
+          itemStyle: { color: t.brand },
+          markLine: {
+            silent: true,
+            symbol: 'none',
+            lineStyle: { type: 'solid', color: t.line2, width: 1 },
+            label: {
+              // With a single snapshot "Today" sits on the y-axis; the Forecast label marks it.
+              show: histPoints.length > 1,
+              formatter: 'Today',
+              color: t.ink3,
+              fontSize: 10,
+              position: 'insideEndTop',
+            },
+            data: [{ xAxis: today }],
           },
-        }
-      : null;
-
-  CH['c-nw-forecast'] = new Chart(document.getElementById('c-nw-forecast') as HTMLCanvasElement, {
-    type: 'line',
-    plugins: deadlinePlugin ? [deadlinePlugin] : [],
-    data: {
-      labels,
-      datasets: [
-        {
-          label: 'Actual',
-          data: histDataFull,
-          borderColor: C.brand,
-          backgroundColor: C.brand,
-          borderWidth: 2.5,
-          pointRadius: 0,
-          pointHoverRadius: 4,
-          pointBackgroundColor: C.brand,
-          fill: false,
-          tension: 0,
-          spanGaps: false,
-          order: 1,
         },
         {
-          label: 'Baseline (nominal)',
-          data: fcDataFull,
-          borderColor: C.brandChart,
-          backgroundColor: 'rgba(42,120,214,0.07)',
-          borderWidth: 2,
-          borderDash: [5, 3],
-          pointRadius: 0,
-          fill: true,
-          tension: 0.3,
-          spanGaps: false,
-          order: 2,
+          name: 'Baseline (nominal)',
+          type: 'line',
+          z: 3,
+          data: baselinePoints,
+          showSymbol: false,
+          smooth: 0.3,
+          lineStyle: { width: 2, type: [5, 3], color: t.brand },
+          itemStyle: { color: t.brand },
+          areaStyle: { origin: 'start', color: toRgba(t.brand, 0.07) },
+          markArea: {
+            silent: true,
+            itemStyle: { color: toRgba(t.brand, 0.03) },
+            label: { show: true, position: 'insideTopLeft', color: t.ink4, fontSize: 10 },
+            data: [[{ name: 'Forecast', xAxis: today }, { xAxis: horizonEnd }]],
+          },
+          markLine: goalDeadlines.length
+            ? {
+                symbol: 'none',
+                data: goalDeadlines.map((d) => ({
+                  name: d.title,
+                  xAxis: d.time,
+                  lineStyle: { color: d.color, type: [4, 3], width: 1.5 },
+                  label: {
+                    formatter: d.title,
+                    color: d.color,
+                    fontSize: 10,
+                    position: 'insideEndTop' as const,
+                  },
+                })),
+              }
+            : undefined,
+          markPoint: goalDeadlines.some((d) => d.targetNW !== null)
+            ? {
+                symbol: 'circle',
+                symbolSize: 10,
+                label: { show: false },
+                tooltip: { show: true },
+                data: goalDeadlines
+                  .filter((d) => d.targetNW !== null)
+                  .map((d) => ({
+                    name: `${d.title}: ${fmtEur(d.targetNW!)} by ${fmtMon(timeToMonth(d.time))}`,
+                    coord: [d.time, d.targetNW!],
+                    itemStyle: { color: d.color, borderColor: t.surface, borderWidth: 1.5 },
+                  })),
+              }
+            : undefined,
         },
-        ...scenarioDataFull.map((s, idx) => ({
-          label: `${s.scenario.label} (${s.scenario.returnDeltaPct >= 0 ? '+' : ''}${s.scenario.returnDeltaPct.toFixed(1)}% / ${fmtEurSigned(s.scenario.contribDeltaAmt, 0)}/mo)`,
-          data: s.data,
-          borderColor: s.scenario.color,
-          backgroundColor: 'transparent',
-          borderWidth: 2,
-          borderDash: idx === 0 ? [2, 3] : [8, 3],
-          pointRadius: 0,
-          fill: false,
-          tension: 0.3,
-          spanGaps: false,
-          order: 3 + idx,
+        ...scenarioPoints.map(({ scenario, points }, idx) => ({
+          name: scenarioName(scenario),
+          type: 'line' as const,
+          data: points,
+          showSymbol: false,
+          smooth: 0.3,
+          lineStyle: { width: 2, type: idx === 0 ? [2, 3] : [8, 3], color: scenario.color },
+          itemStyle: { color: scenario.color },
         })),
-        ...(realDataFull
+        ...(realPoints
           ? [
               {
-                label: `Real (${_inflationRate}% inflation)`,
-                data: realDataFull,
-                borderColor: C.ink4 || 'rgba(150,150,150,0.9)',
-                backgroundColor: 'transparent',
-                borderWidth: 1.5,
-                borderDash: [3, 3],
-                pointRadius: 0,
-                fill: false,
-                tension: 0.3,
-                spanGaps: false,
-                order: 6,
+                name: `Real (${_inflationRate}% inflation)`,
+                type: 'line' as const,
+                data: realPoints,
+                showSymbol: false,
+                smooth: 0.3,
+                lineStyle: { width: 1.5, type: [3, 3], color: t.ink4 },
+                itemStyle: { color: t.ink4 },
               },
             ]
           : []),
       ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          mode: 'index',
-          intersect: false,
-          backgroundColor: C.surface,
-          ...TOOLTIP_BOX,
-          borderColor: C.line,
-          borderWidth: 1,
-          titleColor: C.ink,
-          bodyColor: C.ink2,
-          padding: 10,
-          cornerRadius: 8,
-          callbacks: {
-            label: (ctx) =>
-              ctx.raw != null ? ` ${ctx.dataset.label}: ${fmtEur(ctx.raw as number)}` : '',
-            labelColor: tooltipSwatch(C.surface),
-          },
-        },
-      },
-      scales: {
-        y: {
-          grid: { color: C.line },
-          ticks: {
-            color: C.ink4,
-            callback: (v) => formatEuroCompactPrefix(v),
-          },
-        },
-        x: {
-          grid: { display: false },
-          ticks: {
-            color: C.ink2,
-            font: { size: 10 },
-            maxRotation: 0,
-            autoSkip: true,
-            maxTicksLimit: 12,
-          },
-        },
+    }),
+    {
+      zoom: true,
+      xAxisType: 'time',
+      presets: horizonPresets,
+      defaultPreset: _fcRange,
+      valueFormatter: fmtEur2,
+      onPresetChange: (key) => {
+        if (!key || key === _fcRange) return;
+        _fcRange = key as typeof _fcRange;
+        const summaryEl = document.getElementById('nw-fc-group-summary');
+        if (summaryEl)
+          summaryEl.innerHTML = _forecastGroupSummaryHtml(
+            _buildForecastGroupSummary(
+              latestSnap,
+              latestDate,
+              parseInt(_fcRange),
+              accounts,
+              accountInputs,
+            ),
+          );
       },
     },
-  });
-
-  // Build custom HTML legend for forecast chart
-  const fcLegendEl = document.getElementById('nw-forecast-legend');
-  if (fcLegendEl) {
-    const datasets = CH['c-nw-forecast'].data.datasets;
-    fcLegendEl.innerHTML = renderLegendHtml(
-      datasets.map((ds) => ({
-        label: ds.label as string,
-        color: ds.borderColor as string,
-        dashed: Array.isArray((ds as any).borderDash) && (ds as any).borderDash.length > 0,
-      })),
-    );
-    bindLegendToggle(fcLegendEl, CH['c-nw-forecast'], { rescaleX: true });
-  }
-
-  // Write accessible data table for screen readers / keyboard users
-  const fcFmt = (v: number | null) => (v != null ? fmtEur2(v) : '—');
-  const fcTableHeaders = ['Month', 'Actual (€)', 'Baseline nominal (€)'];
-  if (_showScenarioComparison) {
-    _scenarios.forEach((scenario) => {
-      fcTableHeaders.push(
-        `${scenario.label} (${scenario.returnDeltaPct >= 0 ? '+' : ''}${scenario.returnDeltaPct.toFixed(1)}% / ${fmtEurSigned(scenario.contribDeltaAmt, 0)}/mo)`,
-      );
-    });
-  }
-  if (showReal) fcTableHeaders.push('Baseline real (€)');
-  const fcTableRows = labels.map((lbl, i) => {
-    const row: string[] = [lbl, fcFmt(histDataFull[i]), fcFmt(fcDataFull[i])];
-    if (_showScenarioComparison) {
-      scenarioDataFull.forEach((scenario) => {
-        row.push(fcFmt(scenario.data[i] as number | null));
-      });
-    }
-    if (showReal && realDataFull) row.push(fcFmt(realDataFull[i]));
-    return row;
-  });
-  writeChartTable(
-    'c-nw-forecast-table-wrap',
-    'Forecast data',
-    fcTableHeaders,
-    fcTableRows,
-    fcTableHeaders.slice(1).map((_, index) => index + 1),
   );
 
-  _attachForecastRangeToggle();
   const scenarioToggle = document.getElementById('nw-scenario-toggle') as HTMLButtonElement | null;
   scenarioToggle?.addEventListener('click', () => {
     _showScenarioComparison = !_showScenarioComparison;
@@ -1359,6 +1164,119 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
 }
 
 // ── Decumulation chart ──
+
+function _renderDecumulationChart(
+  ddSeries: ReturnType<typeof decumulationSeries>,
+  ddRealSeries: Array<{ month: string; value: number }> | null,
+  startingCorpus: number,
+  endMonth: string | null,
+): void {
+  const times = ddSeries.map((p) => monthToTime(p.month));
+  const balanceName = ddRealSeries
+    ? `Portfolio balance (real, ${_inflationRate}% inflation)`
+    : 'Portfolio balance';
+  const balance = (ddRealSeries ?? ddSeries).map((p, i) => [times[i], p.value] as Pt);
+  const first = times[0];
+  const last = times[times.length - 1];
+  const depletion = endMonth ? monthToTime(endMonth) : null;
+
+  renderChart(
+    'c-nw-decumulation',
+    ({ tokens: t }) => ({
+      legend: { selected: { 'Monthly withdrawal': false } },
+      tooltip: {
+        trigger: 'axis',
+        confine: true,
+        formatter: axisTooltip({ value: (v) => fmtEur2(v) }),
+      },
+      xAxis: monthTimeAxis(),
+      yAxis: [
+        { type: 'value', min: 0, axisLabel: { formatter: (v: number) => fmtEurCompact(v) } },
+        {
+          type: 'value',
+          min: 0,
+          splitLine: { show: false },
+          axisLabel: { formatter: (v: number) => fmtEurCompact(v) },
+        },
+      ],
+      series: [
+        {
+          name: balanceName,
+          type: 'line',
+          z: 3,
+          data: balance,
+          showSymbol: false,
+          smooth: 0.3,
+          lineStyle: { width: 2, color: t.brand },
+          itemStyle: { color: t.brand },
+          areaStyle: { color: toRgba(t.brand, 0.08) },
+          markLine: {
+            silent: true,
+            symbol: 'none',
+            lineStyle: { type: [4, 4], color: t.ink4, width: 1 },
+            label: {
+              formatter: `Starting balance ${fmtEurCompact(startingCorpus)}`,
+              color: t.ink3,
+              fontSize: 10,
+              position: 'insideEndTop',
+            },
+            data: [{ yAxis: startingCorpus }],
+          },
+          markPoint:
+            depletion !== null
+              ? {
+                  symbol: 'pin',
+                  symbolSize: 34,
+                  itemStyle: { color: t.neg },
+                  label: { color: '#fff', fontSize: 9, formatter: '0' },
+                  tooltip: { show: true },
+                  data: [
+                    {
+                      name: `Depleted ${fmtMon(endMonth!)}`,
+                      coord: [depletion, 0],
+                    },
+                  ],
+                }
+              : undefined,
+        },
+        ...(ddRealSeries
+          ? [
+              {
+                name: 'Portfolio balance (nominal)',
+                type: 'line' as const,
+                data: ddSeries.map((p, i) => [times[i], p.value] as Pt),
+                showSymbol: false,
+                smooth: 0.3,
+                lineStyle: { width: 1.25, type: [5, 3], color: t.ink4 },
+                itemStyle: { color: t.ink4 },
+              },
+            ]
+          : []),
+        {
+          name: 'Monthly withdrawal',
+          type: 'line',
+          yAxisIndex: 1,
+          step: 'end',
+          data: ddSeries.map((p, i) => [times[i], p.withdrawal] as Pt),
+          showSymbol: false,
+          lineStyle: { width: 1.25, color: t.warn },
+          itemStyle: { color: t.warn },
+        },
+      ],
+    }),
+    {
+      zoom: true,
+      xAxisType: 'time',
+      presets: [
+        { key: '120', label: '10Y', startValue: first, endValue: addMonths(first, 119) },
+        { key: '240', label: '20Y', startValue: first, endValue: addMonths(first, 239) },
+        { key: 'all', label: 'All' },
+      ],
+      defaultPreset: 'all',
+      valueFormatter: fmtEur2,
+    },
+  );
+}
 
 /**
  * Builds the projected balance at the given retirement month by running the
@@ -1429,7 +1347,6 @@ function _buildCorpusAtRetirement(
 }
 
 function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
-  const C = resolvedT();
   const el = document.getElementById('nw-dd-panel');
   if (!el) return;
 
@@ -1620,8 +1537,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
                   </div>`
                 : ''
             }
-            <div class="chart-wrap chart-h-lg"><canvas id="c-nw-decumulation" role="img" aria-label="Retirement drawdown chart" aria-describedby="c-nw-decumulation-table-wrap"></canvas></div>
-            <div class="chart-data-table-wrap sr-only" id="c-nw-decumulation-table-wrap"></div>`
+            <div class="chart-wrap chart-h-lg chart-zoomable"><div id="c-nw-decumulation" class="chart-host" role="img" aria-label="Retirement drawdown chart"></div></div>`
           : `<p class="note" style="color:var(--ink-3)">
               ${
                 !corpus || corpus.liquidCorpus <= 0
@@ -1636,109 +1552,10 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
       </div>
     `;
 
-  // Render chart if we have data
-  _destroyChart('c-nw-decumulation');
   if (ddSeries.length > 0 && corpus && corpus.liquidCorpus > 0) {
-    const canvas = document.getElementById('c-nw-decumulation') as HTMLCanvasElement | null;
-    if (canvas) {
-      const labels = ddSeries.map((p) => fmtMon(p.month));
-      const nominalValues = ddSeries.map((p) => p.value);
-      const displayValues = ddRealSeries ? ddRealSeries.map((p) => p.value) : nominalValues;
-      const startingCorpus = corpus.liquidCorpus;
-
-      CH['c-nw-decumulation'] = new Chart(canvas, {
-        type: 'line',
-        data: {
-          labels,
-          datasets: [
-            {
-              label: ddShowReal
-                ? `Portfolio balance (real, ${_inflationRate}% inflation)`
-                : 'Portfolio balance',
-              data: displayValues,
-              borderColor: C.brand,
-              backgroundColor: 'rgba(42,120,214,0.08)',
-              borderWidth: 2,
-              pointRadius: 0,
-              fill: true,
-              tension: 0.3,
-              spanGaps: false,
-            },
-            {
-              label: 'Starting corpus',
-              data: new Array(displayValues.length).fill(startingCorpus),
-              borderColor: C.ink4,
-              borderWidth: 1,
-              borderDash: [4, 4],
-              pointRadius: 0,
-              fill: false,
-              tension: 0,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              mode: 'index',
-              intersect: false,
-              backgroundColor: C.surface,
-              ...TOOLTIP_BOX,
-              borderColor: C.line,
-              borderWidth: 1,
-              titleColor: C.ink,
-              bodyColor: C.ink2,
-              padding: 10,
-              cornerRadius: 8,
-              callbacks: {
-                label: (ctx) =>
-                  ctx.raw != null ? ` ${ctx.dataset.label}: ${fmtEur(ctx.raw as number)}` : '',
-                labelColor: tooltipSwatch(C.surface),
-              },
-            },
-          },
-          scales: {
-            y: {
-              min: 0,
-              grid: { color: C.line },
-              ticks: {
-                color: C.ink4,
-                callback: (v) => formatEuroCompactPrefix(v),
-              },
-            },
-            x: {
-              grid: { display: false },
-              ticks: {
-                color: C.ink2,
-                font: { size: 10 },
-                maxRotation: 0,
-                autoSkip: true,
-                maxTicksLimit: 12,
-              },
-            },
-          },
-        },
-      });
-
-      // Write accessible data table for screen readers / keyboard users
-      const ddFmt = (v: number) => fmtEur2(v);
-      const ddTableHeaders = ddShowReal
-        ? ['Month', `Balance real (€)`, 'Balance nominal (€)', 'Withdrawal (€)']
-        : ['Month', 'Balance (€)', 'Withdrawal (€)'];
-      writeChartTable(
-        'c-nw-decumulation-table-wrap',
-        'Retirement drawdown data',
-        ddTableHeaders,
-        labels.map((lbl, i) =>
-          ddShowReal
-            ? [lbl, ddFmt(displayValues[i]), ddFmt(nominalValues[i]), ddFmt(ddSeries[i].withdrawal)]
-            : [lbl, ddFmt(nominalValues[i]), ddFmt(ddSeries[i].withdrawal)],
-        ),
-        ddTableHeaders.slice(1).map((_, index) => index + 1),
-      );
-    }
+    _renderDecumulationChart(ddSeries, ddRealSeries, corpus.liquidCorpus, endMonth);
+  } else {
+    disposeChart('c-nw-decumulation');
   }
 
   // Bind controls (only once per render; old listeners are discarded with innerHTML replacement)

@@ -51,6 +51,8 @@ function rawValue(p: AxisParam): number {
 export function axisTooltip(opts: {
   value: (v: number, seriesName: string) => string;
   footer?: (values: number[]) => { label: string; value: string } | null;
+  /** Free-text note for the hovered axis value (escaped). */
+  note?: (axisValue: unknown) => string | null | undefined;
 }) {
   return (raw: unknown): string => {
     const params = (Array.isArray(raw) ? raw : [raw]) as AxisParam[];
@@ -74,6 +76,8 @@ export function axisTooltip(opts: {
     const foot = f
       ? `<div class="ec-tt-row ec-tt-foot"><span class="ec-tt-name">${esc(f.label)}</span><span class="ec-tt-val">${esc(f.value)}</span></div>`
       : '';
-    return `<div class="ec-tt"><div class="ec-tt-title">${title}</div>${rows}${foot}</div>`;
+    const noteText = opts.note?.(first.axisValue);
+    const note = noteText ? `<div class="ec-tt-note">${esc(noteText)}</div>` : '';
+    return `<div class="ec-tt"><div class="ec-tt-title">${title}</div>${rows}${foot}${note}</div>`;
   };
 }

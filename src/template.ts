@@ -65,12 +65,7 @@ export function appTemplate(): string {
     <div class="kpi-row" id="nw-kpis"></div>
     <div class="card card-primary">
       <div class="card-title" id="nw-chart-title">Net worth: stacked by account</div>
-      <div class="chart-controls">
-        <div id="nw-chart-legend" class="legend"></div>
-        ${rangeToggleHtml('nw-range-toggle', 'History range')}
-      </div>
-      <div class="chart-wrap chart-h-lg"><canvas id="c-nw-hist" role="img" aria-label="Net worth over time chart" aria-describedby="c-nw-hist-table-wrap"></canvas></div>
-      <div class="chart-data-table-wrap sr-only" id="c-nw-hist-table-wrap"></div>
+      <div class="chart-wrap chart-h-lg chart-zoomable"><div id="c-nw-hist" class="chart-host" role="img" aria-label="Net worth over time chart"></div></div>
     </div>
     <div class="card">
       <div class="card-title" id="nw-detail-title">Accounts</div>
