@@ -1347,6 +1347,13 @@ details[open] > summary .card-chevron {
   position: absolute;
   inset: 0;
 }
+.chart-empty {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--ink-4);
+  font-size: 12px;
+}
 .chart-wrap.chart-tools {
   box-sizing: content-box;
   padding-bottom: 32px;

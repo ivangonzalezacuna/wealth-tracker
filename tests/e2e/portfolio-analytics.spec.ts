@@ -54,7 +54,7 @@ test('portfolio and analytics surfaces core data points from imported and snapsh
   await expect(page.locator('#port-table')).toContainText('IWDA');
   await expect(page.locator('#port-table')).toContainText(formatUiMoney(100));
   await expect(page.locator('#port-kpis')).toContainText('Annual fee drag');
-  await expect(page.locator('#c-port-donut-table-wrap')).toContainText('IWDA');
+  await expect(page.locator('#c-port-donut canvas')).toHaveCount(1);
 
   await openTab(page, 'tab-analytics');
   await expect(page.locator('#an-content')).toBeVisible();

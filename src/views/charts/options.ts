@@ -53,6 +53,8 @@ export function axisTooltip(opts: {
   footer?: (values: number[]) => { label: string; value: string } | null;
   /** Free-text note for the hovered axis value (escaped). */
   note?: (axisValue: unknown) => string | null | undefined;
+  /** Skip rows whose value is 0 (e.g. stacked series with no data that month). */
+  hideZero?: boolean;
 }) {
   return (raw: unknown): string => {
     const params = (Array.isArray(raw) ? raw : [raw]) as AxisParam[];
@@ -63,7 +65,10 @@ export function axisTooltip(opts: {
         ? monthLabel(first.axisValue)
         : esc(String(first.axisValueLabel ?? first.axisValue ?? ''));
     const rows = params
-      .filter((p) => p.value != null && !Number.isNaN(rawValue(p)))
+      .filter(
+        (p) =>
+          p.value != null && !Number.isNaN(rawValue(p)) && !(opts.hideZero && rawValue(p) === 0),
+      )
       .map(
         (p) =>
           `<div class="ec-tt-row">${typeof p.marker === 'string' ? p.marker : ''}<span class="ec-tt-name">${esc(

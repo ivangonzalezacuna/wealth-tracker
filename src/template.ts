@@ -1,15 +1,5 @@
 import { CONFIG } from './config';
 
-function rangeToggleHtml(
-  id: string,
-  ariaLabel: string,
-  activeRange: '12' | '36' | 'all' = 'all',
-): string {
-  const btn = (range: '12' | '36' | 'all', label: string) =>
-    `<button class="btn btn-sm btn-ghost${range === activeRange ? ' active' : ''}" data-range="${range}">${label}</button>`;
-  return `<div class="range-toggle" id="${id}" role="group" aria-label="${ariaLabel}">${btn('12', '1Y')}${btn('36', '3Y')}${btn('all', 'All')}</div>`;
-}
-
 function metricExplainerCard(
   icon: string,
   title: string,
@@ -100,9 +90,7 @@ export function appTemplate(): string {
       <div class="two-col">
         <div class="card">
           <div class="card-title">Cost basis allocation</div>
-          <div id="port-donut-legend" class="legend"></div>
-          <div class="chart-wrap chart-h-sm chart-h-fit"><canvas id="c-port-donut" role="img" aria-label="Cost basis allocation chart" aria-describedby="c-port-donut-table-wrap"></canvas></div>
-          <div class="chart-data-table-wrap sr-only" id="c-port-donut-table-wrap"></div>
+          <div class="chart-wrap chart-h-sm chart-h-fit"><div id="c-port-donut" class="chart-host" role="img" aria-label="Cost basis allocation chart"></div></div>
         </div>
         <div class="card">
           <div class="card-title">Value and returns</div>
@@ -122,12 +110,7 @@ export function appTemplate(): string {
       <div class="kpi-row" id="dca-kpis"></div>
       <div class="card card-primary">
         <div class="card-title">Monthly purchases by ETF (savings plan executions)</div>
-        <div class="chart-controls">
-          <div id="dca-legend" class="legend"></div>
-          ${rangeToggleHtml('dca-range-toggle', 'Contributions range')}
-        </div>
-        <div class="chart-wrap chart-h-lg"><canvas id="c-dca-bar" role="img" aria-label="Monthly contributions bar chart" aria-describedby="c-dca-bar-table-wrap"></canvas></div>
-        <div class="chart-data-table-wrap sr-only" id="c-dca-bar-table-wrap"></div>
+        <div class="chart-wrap chart-h-lg"><div id="c-dca-bar" class="chart-host" role="img" aria-label="Monthly contributions bar chart"></div></div>
       </div>
       <div class="two-col">
         <div class="card">
