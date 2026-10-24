@@ -180,6 +180,22 @@ test('clicking a history point opens that snapshot in the log', async ({ page })
   await expect(row).toBeInViewport();
 });
 
+test('clicking a drift bar opens that holding', async ({ page }) => {
+  await openTab(page, 'tab-portfolio');
+  const box = await showChart(page, 'c-port-drift');
+  const target = await page.evaluate(async () => {
+    const { getChart } = await import('/src/views/charts/index.ts');
+    const chart = getChart('c-port-drift')!;
+    const opt = chart.getOption() as { series: { data: { value: number }[] }[] };
+    const v = opt.series[0].data[0].value;
+    return chart.convertToPixel({ gridIndex: 0 }, [v / 2, 0]) as number[];
+  });
+  await page.mouse.click(box.x + target[0], box.y + target[1]);
+  const row = page.locator('#port-table .hold-row[aria-expanded="true"]');
+  await expect(row).toHaveCount(1);
+  await expect(row).toBeInViewport();
+});
+
 test('clicking a contributions month filters the ledger to its purchases', async ({ page }) => {
   await openTab(page, 'tab-portfolio');
   await page.locator('#tab-contributions').click();

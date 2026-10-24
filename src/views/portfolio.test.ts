@@ -10,6 +10,7 @@ import { loadCharts } from './charts';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRec = any;
 const costOption = () => chartFor('c-port-donut')!.option as AnyRec;
+const driftOption = () => chartFor('c-port-drift')!.option as AnyRec;
 
 // ── Mock store/config ──────────────────────────────────────────────
 const MOCK_ACCOUNTS = [
@@ -398,16 +399,19 @@ describe('renderPortfolio', () => {
 
   it('creates allocation charts on first render', () => {
     renderPortfolio(makePD(), []);
-    expect(chartInstances.length).toBe(1);
-    expect(chartInstances[0].disposed).toBe(false);
+    expect(chartInstances.length).toBe(2);
+    expect(chartFor('c-port-donut')!.disposed).toBe(false);
+    expect(chartFor('c-port-drift')!.disposed).toBe(false);
   });
 
   it('reuses the chart instance on re-render', () => {
     renderPortfolio(makePD(), []);
     const chart = chartFor('c-port-donut');
+    const drift = chartFor('c-port-drift');
     renderPortfolio(makePD(), []);
-    expect(chartInstances.length).toBe(1);
+    expect(chartInstances.length).toBe(2);
     expect(chartFor('c-port-donut')).toBe(chart);
+    expect(chartFor('c-port-drift')).toBe(drift);
   });
 
   it('renders holdings table with one row per etf entry', () => {
@@ -535,7 +539,7 @@ describe('renderPortfolio', () => {
     const drift = document.getElementById('port-drift')!;
     // With a single holding that has contribAmount, drift should render
     expect(drift.innerHTML).toContain('Allocation drift');
-    expect(drift.innerHTML).toContain('IWDA');
+    expect(driftOption().yAxis.data).toEqual(['IWDA']);
   });
 
   it('drift note mentions cost basis when no snapshot ETF values are present', () => {
@@ -592,9 +596,38 @@ describe('renderPortfolio', () => {
     });
     const snap: Snapshot = { date: '2026-06-01', acct1: 3500, etf_IE00TEST1: 3000 };
     renderPortfolio(pd, [snap]);
-    const note = document.getElementById('port-drift')!.textContent || '';
+    const note = document.getElementById('port-drift')!.innerHTML;
     expect(note).toContain('Allocation is based on purchase cost');
     expect(note).toContain('Actual from cost basis (partial ETF snapshot coverage)');
+  });
+
+  it('draws drift as diverging bars, largest gap first, with the alert band', () => {
+    setRebalanceHoldings();
+    const pd = makeRebalancePd({
+      etfs: {
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 7000 }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 3000 }),
+      },
+      totalInv: 10000,
+    });
+    const snap: Snapshot = { date: '2026-06-01', acct1: 20000, etf_IE00TEST1: 9000 };
+    renderPortfolio(pd, [snap]);
+    const opt = driftOption();
+    const values = opt.series[0].data.map((d: AnyRec) => d.value as number);
+    const abs = values.map(Math.abs);
+    expect(abs).toEqual([...abs].sort((a: number, b: number) => b - a));
+    expect(opt.series[0].markArea.data).toEqual([[{ xAxis: -5 }, { xAxis: 5 }]]);
+    expect(opt.xAxis.min).toBe(-opt.xAxis.max);
+    for (const d of opt.series[0].data) {
+      expect(d.label.position).toMatch(d.value < 0 ? /^(inside)?left$/i : /^(inside)?right$/i);
+    }
+    const tip = opt.tooltip.formatter({ dataIndex: 0 });
+    expect(tip).toContain('Target');
+    expect(tip).toContain('Actual');
+    expect(tip).toMatch(/(Above|Below) target/);
+    expect(opt.yAxis.axisLabel.formatter('', 0)).toMatch(/^\{n\|.+\}\n\{s\|.+ of .+\}$/);
+    const header = document.querySelector('#port-drift .drift-title-status')!.textContent!;
+    expect(header).toMatch(/^(On target|Moderate drift|High drift) · max /);
   });
 
   it('keeps nav drift badge and drift card max aligned for partial ETF snapshots', () => {
@@ -722,7 +755,6 @@ describe('renderPortfolio', () => {
 
   it('chart option contains the correct labels and data', () => {
     renderPortfolio(makePD(), []);
-    expect(chartInstances.length).toBe(1);
     const opt = costOption();
     expect(opt.yAxis.data).toContain('IWDA');
     expect(opt.series[0].data[0].value).toBe(1000);

@@ -126,7 +126,7 @@ Accounts can optionally be marked as **locked** (e.g. pension or AVD accounts) w
 
 You can also configure extra contributions (employer match, state subsidies) that factor into DCA forecast projections. The **global monthly contribution budget** is routed to your primary investment account. To split contributions across multiple accounts, configure per-account contribution amounts in the account settings for each additional account. The **contribution interval** (weekly / bi-weekly / monthly / quarterly) controls how often you invest and normalises the budget into a per-execution amount.
 
-Each holding can be given a **target allocation percentage** (set in the holding dialog). Once at least one target is configured, the Portfolio tab's drift table compares your actual allocation against those targets and the rebalance plan suggests top-up amounts based on your **calibration interval** (weekly / monthly / quarterly), which controls how often the rebalance plan recalculates the per-execution top-up amount.
+Each holding can be given a **target allocation percentage** (set in the holding dialog). Once at least one target is configured, the Portfolio tab's allocation drift chart compares your actual allocation against those targets (one bar per holding, largest gap first, with your drift alert threshold shaded around zero; click a bar to open the holding) and the rebalance plan suggests top-up amounts based on your **calibration interval** (weekly / monthly / quarterly), which controls how often the rebalance plan recalculates the per-execution top-up amount.
 
 ### 3. Log your first monthly snapshot
 
@@ -162,7 +162,7 @@ for the new month. Missing ETF values are omitted, not saved as zero.
 Once these three steps are done, the setup banner transitions to a **"Recommended next steps"** prompt with two optional-but-important actions:
 
 - **Import transactions** — imports your broker CSV to unlock cost-basis tracking, realized P&L, and dividend analytics (Portfolio and Dividends tabs)
-- **Configure holdings** — adds ETF/fund definitions to your investment account in Settings, enabling the Portfolio drift view. For each holding you can set the **TER** (total expense ratio in %) to see annual cost estimates, and a **target allocation %** to power the drift table and rebalance plan. The **cost-basis method** (average cost, FIFO, LIFO, or HIFO) is configured globally in Settings.
+- **Configure holdings** — adds ETF/fund definitions to your investment account in Settings, enabling the Portfolio drift view. For each holding you can set the **TER** (total expense ratio in %) to see annual cost estimates, and a **target allocation %** to power the drift chart and rebalance plan. The **cost-basis method** (average cost, FIFO, LIFO, or HIFO) is configured globally in Settings.
 
 The banner disappears automatically once both are completed, or you can dismiss it manually at any time.
 
@@ -192,7 +192,7 @@ When recording a snapshot for your primary investment account, you can expand th
 
 This is optional, but enables two additional features:
 
-- **Drift table**: uses actual market values instead of cost basis, giving a more accurate picture of your current allocation vs. target allocation.
+- **Drift chart**: uses actual market values instead of cost basis, giving a more accurate picture of your current allocation vs. target allocation.
 - **Holdings detail panel**: shows a "Market value" and "Unrealized gain" column for each position when ETF values are available for the latest snapshot.
 
 **How to use it**
@@ -216,7 +216,7 @@ To fill these values from a supported PDF, use the
 
 **Inactive but held positions**
 
-ETFs that you have stopped contributing to but still hold remain separate from manual entries inside **Other ETFs**. They should still be included when recording values, as they remain part of your total portfolio allocation. The drift table will show these with a 0% target, reflecting that they are being wound down over time.
+ETFs that you have stopped contributing to but still hold remain separate from manual entries inside **Other ETFs**. They should still be included when recording values, as they remain part of your total portfolio allocation. The drift chart will show these as legacy holdings with a 0% target, reflecting that they are being wound down over time.
 
 ### Importing transactions
 
@@ -226,7 +226,7 @@ For detailed cost-basis, realized P&L, and dividend tracking, import your broker
 2. Select or drag your broker CSV (Trade Republic full transaction history and N26 savings account transactions are supported built-in; N26 does not export investment transactions — for those use Trade Republic or a custom profile. [Adding more banks](#adding-support-for-a-new-bank) takes ~10 minutes)
 3. Review the detected transactions and confirm
 
-After import, transactions appear in the **transaction ledger** at the bottom of the **+ Log** tab, where you can review, filter, and delete individual records.
+After import, transactions appear in the **transaction ledger** at the bottom of the **+ Log** tab, where you can review, filter, and delete individual records. Filter by type with the chips (each shows its count), search by name, ISIN or source, and use **Clear filters** on the "x of y" line to reset. Chart drill-downs mark the filter as **From chart**. To delete several rows at once, press **Select** first.
 
 Transactions are merged with existing data using an append-only strategy: new rows are inserted, but rows that already exist are not overwritten. Matching is done by transaction ID (provider ID when available, otherwise deterministic profile-based IDs for providers without native IDs). This makes repeated imports deterministic across sessions while still preserving distinct same-key rows.
 
@@ -261,7 +261,7 @@ mobile view to reduce visual noise.
 
 The Portfolio tab has three subviews:
 
-- **Holdings** — your ETF positions with cost basis, unrealized gain, market value (when snapshot ETF values are recorded), and the drift table.
+- **Holdings** — your ETF positions with cost basis, unrealized gain, market value (when snapshot ETF values are recorded), and the allocation drift chart. The Held / Closed / All chips only appear once you have closed positions.
 - **Contributions** — month-by-month DCA history and contribution split across holdings.
 - **Dividends** — dividend and interest income history, yield, and growth metrics.
 
@@ -308,7 +308,7 @@ All charts share the same controls and follow the light/dark theme:
 - **Lines** are drawn with gentle curves on every line chart.
 - **Legend** entries are buttons that toggle series on and off (keyboard accessible); long legends wrap onto extra rows instead of paging.
 - **Linked timelines:** the Analytics growth, drawdown and rolling CAGR charts share their zoom window and hover position.
-- **Drill-down:** click a point to jump to the underlying data. On touch screens a tap only shows the tooltip; tap its **Open …** button to navigate, so scrolling past a chart never jumps away. Net worth history and growth points open that month's snapshot in **Log › Snapshots**; contribution and income months open **Log › Transactions** filtered to that month; cost-basis bars reveal the holding in the Holdings table. The tooltip shows a hint (or the button on touch) on charts that support it.
+- **Drill-down:** click a point to jump to the underlying data. On touch screens a tap only shows the tooltip; tap its **Open …** button to navigate, so scrolling past a chart never jumps away. Net worth history and growth points open that month's snapshot in **Log › Snapshots**; contribution and income months open **Log › Transactions** filtered to that month; cost-basis and allocation drift bars reveal the holding in the Holdings table. The tooltip shows a hint (or the button on touch) on charts that support it.
 - **Return heatmap** (Analytics): one row per year, one cell per month and the compounded year total on the right, with a shared colour scale across pages. Five years are shown at a time; use ‹ › to page through older years, and the Annual investment returns table below follows the same page (return bar centred on zero, market gain, net contributions). Hover or tap a cell for the exact return and starting value; on very narrow screens the cell numbers are hidden and the tooltip carries them.
 
 ### Theme

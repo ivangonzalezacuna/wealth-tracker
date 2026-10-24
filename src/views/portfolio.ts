@@ -23,7 +23,8 @@ import {
 } from '../store/config';
 import { primaryInvestmentValue } from '../model/accounts';
 import { splitHoldings, computeFeeDrag } from '../model/holdings';
-import { computeDrift, maxDrift, computeRebalancePlan } from '../model/drift';
+import { computeDrift, maxDrift, computeRebalancePlan, driftStatus } from '../model/drift';
+import type { DriftEntry } from '../model/drift';
 import { sourceLabel } from '../import/profiles/index';
 import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
@@ -35,7 +36,15 @@ import { renderTableHeader, renderTableRow } from './tableColumns';
 import { bindExpandableRows, restoreExpandableRows } from './expandableRows';
 import { bindSortedTableHeader, sortAndPaginate } from './tableView';
 import { isCollapsed, setCollapsed } from '../ui/collapseState';
-import { disposeChart, drillHint, fmtEurCompact, renderChart, tooltipHint } from './charts';
+import {
+  disposeChart,
+  drillHint,
+  fmtEurCompact,
+  renderChart,
+  toRgba,
+  tooltipHint,
+  type ChartTokens,
+} from './charts';
 import { revealElement } from './drill';
 import {
   createTableState,
@@ -735,46 +744,13 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
   const drift = computeDrift(holdings, pd.etfs, totalValue, valuation.snapEtfValuesForDrift);
 
   if (drift.length === 0) {
+    disposeChart('c-port-drift');
     driftEl.innerHTML = '';
     return;
   }
 
-  const alertSettings = getAlertSettings();
-  const threshold = alertSettings.driftThresholdPct || 5;
-  const highThreshold = threshold * 2;
-
   const max = maxDrift(drift);
-  const statusColor =
-    max > highThreshold ? 'var(--neg)' : max > threshold ? 'var(--warn)' : 'var(--pos)';
-  const statusLabel =
-    max > highThreshold ? 'High drift' : max > threshold ? 'Moderate drift' : 'On target';
-
-  const rows = drift
-    .map((d) => {
-      const driftColor =
-        Math.abs(d.driftPct) > threshold
-          ? 'var(--neg)'
-          : Math.abs(d.driftPct) > 2
-            ? 'var(--warn)'
-            : 'var(--pos)';
-      const isLegacy = d.targetPct === 0;
-      const costBadge =
-        d.valuationMode === 'cost'
-          ? infoTip(
-              'Actual % based on cost basis, not current market value. Enter ETF values in your next snapshot for market-based drift.',
-            )
-          : '';
-      return `
-      <div class="tbl-row" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
-        <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:var(--radius-xs);background:${safeColor(d.color)};margin-right:6px;opacity:${isLegacy ? '0.6' : '1'}"></span><span data-etf-isin="${esc(d.isin)}" data-etf-name="${esc(d.name)}">${esc(d.shortName)}</span></div>
-        <div role="cell" style="text-align:right${isLegacy ? ';color:var(--ink-3)' : ''}">${isLegacy ? '(legacy)' : fmtPctVal(d.targetPct)}</div>
-        <div role="cell" style="text-align:right">${fmtPctVal(d.actualPct)}${costBadge}</div>
-        <div role="cell" style="text-align:right;color:${driftColor}" aria-label="Drift ${fmtPctSigned(d.driftPct)}">${fmtPctSigned(d.driftPct)}</div>
-        <div role="cell" style="text-align:right;color:${d.deltaValue >= 0 ? 'var(--ink-3)' : 'var(--ink-2)'}">${fmtEurSigned(d.deltaValue)}</div>
-      </div>`;
-    })
-    .join('');
-
+  const status = driftStatus(max, getAlertSettings().driftThresholdPct);
   const noteSource =
     valuation.mode === 'market'
       ? `Actual from market values (snapshot: ${fmtMon(latSnap!.date)}). Legacy = inactive positions still held.`
@@ -914,19 +890,22 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
     rebalanceSection = `<p class="note" style="margin-top:.5rem">Set your contribution amount and cadence in Settings to see the rebalance plan.</p>`;
   }
 
+  const driftTip = `${noteSource} Drift = actual minus target share, in percentage points. The shaded band is your alert threshold (±${fmtPctVal(status.threshold, 'auto')}, set in Settings). Hover or tap a bar for target, actual and the euro gap; click it to open the holding.`;
+  const keptWrap = document.getElementById('c-port-drift')?.parentElement ?? null;
   driftEl.innerHTML = `
     <div class="card">
-      <div class="card-title drift-title">Allocation drift <span class="drift-title-status" style="color:${statusColor}">${statusLabel} (max ${fmtPctVal(max)})</span></div>
+      <div class="card-title drift-title">Allocation drift ${infoTip(driftTip)}<span class="drift-title-status" style="color:${status.color}">${status.label} · max ${fmtPctVal(max)}</span></div>
       ${costModeBanner}
-      <div class="tbl" role="table" aria-label="Allocation drift">
-        <div class="tbl-row th" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
-          <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right">Target</div><div role="columnheader" style="text-align:right">Actual</div><div role="columnheader" style="text-align:right">Drift</div><div role="columnheader" style="text-align:right">Delta</div>
-        </div>
-        ${rows}
-      </div>
-      <p class="note" style="margin-top:.5rem">${noteSource} Drift = actual minus target share. Delta = current value minus target value (negative = below target, positive = above).</p>
+      <div class="chart-wrap chart-h-fit"><div id="c-port-drift" class="chart-host" role="img" aria-label="Allocation drift per holding: ${esc(status.label)}, max ${esc(fmtPctVal(max))}"></div></div>
       ${rebalanceSection}
     </div>`;
+  // Reuse the live chart host so re-renders (e.g. rebalance picker) update it in place.
+  const freshHost = document.getElementById('c-port-drift');
+  if (keptWrap && freshHost) {
+    freshHost.parentElement!.replaceWith(keptWrap);
+    keptWrap.firstElementChild!.setAttribute('aria-label', freshHost.getAttribute('aria-label')!);
+  }
+  _renderDriftChart(drift, status.threshold, (isin) => _revealHolding(pd, snaps, isin));
 
   // Attach picker click handlers.
   driftEl.querySelectorAll('[data-rebalance-months]').forEach((btn) => {
@@ -974,6 +953,143 @@ export function getMaxDrift(pd: PortfolioData | null, snaps: Snapshot[]): number
   );
   if (drift.length === 0) return null;
   return maxDrift(drift);
+}
+
+// ── Drift chart ──
+
+/** Diverging bars: drift in pp per holding, largest gap first, alert band around zero. */
+function _renderDriftChart(
+  drift: DriftEntry[],
+  threshold: number,
+  onSelect: (isin: string) => void,
+): void {
+  const rows = [...drift].sort(
+    (a, b) => Math.abs(b.driftPct) - Math.abs(a.driftPct) || a.shortName.localeCompare(b.shortName),
+  );
+  const host = document.getElementById('c-port-drift');
+  const wrap = host?.parentElement;
+  if (wrap) {
+    const fitH = Math.min(560, Math.max(150, rows.length * 36 + 30));
+    wrap.style.setProperty('--chart-fit-h', `${fitH}px`);
+  }
+  const maxAbs = Math.max(threshold * 1.5, ...rows.map((d) => Math.abs(d.driftPct)));
+  // Symmetric axis with room for the value labels outside the bars; ticks at ±ext/2 and ±ext.
+  const step = [1, 2, 2.5, 5, 10, 20, 25, 50].find((s) => s * 2 >= maxAbs * 1.3) ?? 50;
+  const ext = step * 2;
+  const isLegacy = (d: DriftEntry) => d.targetPct === 0;
+  const levelColor = (t: ChartTokens, d: DriftEntry) => {
+    const level = driftStatus(d.driftPct, threshold).level;
+    return level === 'high' ? t.neg : level === 'moderate' ? t.warn : t.pos;
+  };
+  const sub = (d: DriftEntry) =>
+    isLegacy(d)
+      ? `${fmtPctVal(d.actualPct)} · legacy`
+      : `${fmtPctVal(d.actualPct)} of ${fmtPctVal(d.targetPct)}`;
+
+  renderChart(
+    'c-port-drift',
+    ({ tokens: t, width, touch }) => ({
+      tooltip: {
+        trigger: 'item',
+        confine: true,
+        formatter: (p: unknown) => {
+          const d = rows[(p as { dataIndex: number }).dataIndex];
+          if (!d) return '';
+          const row = (name: string, val: string, color?: string) =>
+            `<div class="ec-tt-row"><span class="ec-tt-name">${name}</span><span class="ec-tt-val"${
+              color ? ` style="color:${color}"` : ''
+            }>${esc(val)}</span></div>`;
+          return `<div class="ec-tt"><div class="ec-tt-title">${esc(d.shortName)}</div>${
+            d.name
+              ? `<div class="ec-tt-note" style="font-style:normal;margin:0 0 4px">${esc(d.name)}</div>`
+              : ''
+          }${row('Target', isLegacy(d) ? 'Legacy (0%)' : fmtPctVal(d.targetPct))}${row(
+            'Actual',
+            fmtPctVal(d.actualPct) + (d.valuationMode === 'cost' ? ' (cost)' : ''),
+          )}${row('Drift', fmtPctSigned(d.driftPct), levelColor(t, d))}${row(
+            d.deltaValue >= 0 ? 'Above target' : 'Below target',
+            fmtEurSigned(d.deltaValue),
+          )}${tooltipHint(drillHint({ touch }, 'show it in Holdings'))}</div>`;
+        },
+      },
+      grid: { left: 4, right: 8, bottom: 4, containLabel: true },
+      xAxis: {
+        type: 'value',
+        min: -ext,
+        max: ext,
+        interval: ext / 2,
+        axisLabel: { formatter: (v: number) => fmtPctSigned(v, 0) },
+      },
+      yAxis: {
+        type: 'category',
+        inverse: true,
+        data: rows.map((d) => d.shortName),
+        axisLine: { show: false, onZero: false },
+        axisTick: { show: false },
+        axisLabel: {
+          width: width > 0 ? Math.max(76, Math.round(width * 0.28)) : 120,
+          overflow: 'truncate',
+          formatter: (_: string, i: number) => {
+            const d = rows[i];
+            return d ? `{n|${d.shortName}}\n{s|${sub(d)}}` : '';
+          },
+          rich: {
+            n: { color: t.ink2, fontSize: 12, fontWeight: 500, lineHeight: 15 },
+            s: { color: t.ink3, fontSize: 10, lineHeight: 13 },
+          },
+        },
+      },
+      series: [
+        {
+          name: 'Drift',
+          type: 'bar',
+          barMaxWidth: 18,
+          label: {
+            show: true,
+            fontSize: 11,
+            fontWeight: 600,
+            formatter: (p: { dataIndex: number }) => fmtPctSigned(rows[p.dataIndex]?.driftPct ?? 0),
+          },
+          markArea: {
+            silent: true,
+            itemStyle: { color: toRgba(t.pos, 0.08) },
+            data: [[{ xAxis: -threshold }, { xAxis: threshold }]],
+          },
+          markLine: {
+            silent: true,
+            symbol: 'none',
+            label: { show: false },
+            lineStyle: { color: t.line2, type: 'solid', width: 1 },
+            data: [{ xAxis: 0 }],
+          },
+          data: rows.map((d) => {
+            const inside = Math.abs(d.driftPct) > ext * 0.6;
+            const neg = d.driftPct < 0;
+            return {
+              value: d.driftPct,
+              // Long bars carry their label inside so it never runs into the axis labels.
+              label: inside
+                ? { position: neg ? 'insideLeft' : 'insideRight', color: '#fff' }
+                : { position: neg ? 'left' : 'right', color: levelColor(t, d) },
+              itemStyle: {
+                color: safeColor(d.color),
+                opacity: isLegacy(d) ? 0.55 : 1,
+                borderRadius: neg ? [4, 0, 0, 4] : [0, 4, 4, 0],
+              },
+            };
+          }),
+        },
+      ],
+    }),
+    {
+      valueFormatter: (v) => fmtPctSigned(v),
+      drill: {
+        axis: 'y',
+        resolve: (v) => rows[Math.round(v)]?.isin ?? null,
+        select: onSelect,
+      },
+    },
+  );
 }
 
 // ── Cost basis chart ──
