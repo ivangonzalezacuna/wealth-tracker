@@ -356,6 +356,8 @@ function compose(entry: Entry): ChartOption {
   const out: ChartOption = {
     animation: !mq('(prefers-reduced-motion: reduce)'),
     animationDuration: 450,
+    // Month data points are UTC month starts (monthToTime); local ticks would drift off them.
+    useUTC: true,
     aria: {
       enabled: true,
       label: { general: { withoutTitle: `${entry.host.dataset.chartLabel ?? ''}.` } },

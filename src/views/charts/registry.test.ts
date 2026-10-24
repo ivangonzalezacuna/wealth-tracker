@@ -76,6 +76,7 @@ describe('renderChart', () => {
     renderChart('c-test', line);
     const opt = chartFor('c-test')!.option as AnyRec;
     expect(opt.aria.enabled).toBe(true);
+    expect(opt.useUTC).toBe(true);
     expect(opt.aria.label.description).toBe(
       'Test chart. A: 1 points from Jan 2026 (1,00\u00A0€) to Jan 2026 (1,00\u00A0€).',
     );
