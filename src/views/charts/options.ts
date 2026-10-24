@@ -1,8 +1,17 @@
 import { esc, fmtMon } from '../../utils';
 import { timeToMonth } from './format';
 
+/**
+ * Series whose id starts with `_` are drawing helpers (e.g. the stacked layers of a shaded band):
+ * they stay out of the legend, tooltip and data table.
+ */
+export function isHelperSeries(id: unknown): boolean {
+  return typeof id === 'string' && id.startsWith('_');
+}
+
 type AxisParam = {
   marker?: unknown;
+  seriesId?: string;
   seriesName?: string;
   value?: unknown;
   data?: unknown;
@@ -49,7 +58,9 @@ export function axisTooltip(opts: {
   hint?: TooltipHint;
 }) {
   return (raw: unknown): string => {
-    const params = (Array.isArray(raw) ? raw : [raw]) as AxisParam[];
+    const params = ((Array.isArray(raw) ? raw : [raw]) as AxisParam[]).filter(
+      (p) => !isHelperSeries(p.seriesId),
+    );
     if (!params.length) return '';
     const first = params[0];
     const title =

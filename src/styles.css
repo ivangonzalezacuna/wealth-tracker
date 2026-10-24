@@ -1748,18 +1748,6 @@ body.chart-expanded-open {
   }
 }
 
-.dd-inputs-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem 1.5rem;
-  margin-bottom: 0.75rem;
-}
-@media (max-width: 640px) {
-  .dd-inputs-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* Badges */
 .badge {
   font-size: 10px;
@@ -2541,68 +2529,6 @@ summary.section-label {
   margin-bottom: 8px;
   flex-wrap: wrap;
 }
-.forecast-controls-right {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
-}
-.forecast-controls-right .btn.active {
-  background: var(--brand-weak);
-  color: var(--brand);
-  border-color: var(--brand-border);
-}
-.scenario-toggle-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.forecast-scenario-card {
-  margin-bottom: 0.75rem;
-  padding: 0.65rem 0.75rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-}
-.forecast-scenario-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ink);
-}
-.forecast-scenario-note {
-  margin: 0.35rem 0 0.45rem;
-  font-size: 11px;
-}
-.forecast-scenario-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 0.45rem;
-}
-.forecast-scenario-row:last-child {
-  margin-bottom: 0;
-}
-.forecast-scenario-label {
-  font-size: 12px;
-  color: var(--ink-2);
-  font-weight: 600;
-  min-width: 80px;
-  flex-shrink: 0;
-}
-.forecast-scenario-fields {
-  display: flex;
-  gap: 8px;
-  flex: 1;
-}
-.forecast-scenario-field {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: 11px;
-  color: var(--ink-3);
-  flex: 1;
-  min-width: 0;
-}
 .filter-bar-actions {
   display: flex;
   align-items: center;
@@ -2617,53 +2543,14 @@ summary.section-label {
 .bulk-actions .btn {
   white-space: nowrap;
 }
-.forecast-inflation {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0 0 0.75rem;
-  font-style: normal;
-}
-.forecast-inflation-label {
-  color: var(--ink-2);
-  font-size: 12px;
-  font-weight: 500;
-}
-.forecast-inflation-input-wrap {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: nowrap;
-  margin-left: auto;
-}
-.forecast-inflation-input {
-  width: 80px;
-  padding: 5px 7px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-sm);
-  background: var(--bg);
-  color: var(--ink);
-  text-align: right;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-.forecast-inflation-input:focus {
-  border-color: var(--brand-border);
-  background: var(--surface);
-  outline: none;
-}
-/* Neutral form-row helpers used for drawdown controls and other planning inputs.
-   Separate from .forecast-inflation-* so the semantics of each class are clear. */
+/* Neutral form-row helpers used by the Projections card inputs. */
 .planning-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   color: var(--ink-2);
   font-size: 12px;
   font-weight: 500;
-}
-.planning-input-wrap {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: nowrap;
 }
 .planning-input {
   width: 80px;
@@ -2680,6 +2567,297 @@ summary.section-label {
   border-color: var(--brand-border);
   background: var(--surface);
   outline: none;
+}
+
+/* Projections card (Forecast + Retirement withdrawals) */
+.proj-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 0.75rem;
+}
+.proj-inflation {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.proj-inflation .planning-input {
+  width: 64px;
+}
+.proj-unit,
+.proj-hint {
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.proj-answer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.proj-answer {
+  margin-bottom: 0.5rem;
+  min-width: 0;
+}
+.proj-answer-head .proj-answer {
+  margin-bottom: 0;
+}
+.proj-answer-label {
+  font-size: 11px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.proj-answer-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+}
+.proj-answer-value {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.proj-answer-value.pos {
+  color: var(--pos);
+}
+.proj-answer-value.neg {
+  color: var(--neg);
+}
+.proj-answer-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.proj-answer-delta.pos {
+  color: var(--pos);
+}
+.proj-answer-delta.neg {
+  color: var(--neg);
+}
+.proj-answer-sub {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.scenario-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.scenario-toggle-btn svg {
+  width: 14px;
+  height: 14px;
+}
+.scenario-toggle-btn.active {
+  background: var(--brand-weak);
+  color: var(--brand);
+  border-color: var(--brand-border);
+}
+.forecast-scenario-card {
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.forecast-scenario-grid {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 7rem) minmax(0, 7rem);
+  align-items: center;
+  gap: 6px 10px;
+}
+.forecast-scenario-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.forecast-scenario-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.proj-swatch {
+  width: 10px;
+  height: 3px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.proj-details {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+}
+.proj-sub {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+  margin-top: 4px;
+}
+.proj-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.proj-table th,
+.proj-table td {
+  padding: 3px 6px 3px 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  color: var(--ink-2);
+}
+.proj-table thead th {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.proj-table tbody th {
+  font-weight: 500;
+  color: var(--ink);
+}
+.proj-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.proj-limits {
+  margin: 4px 0 0;
+  padding-left: 1.1rem;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+.proj-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+  margin-bottom: 0.5rem;
+}
+.proj-stat {
+  display: grid;
+  gap: 1px;
+}
+.proj-stat-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.proj-stat-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.proj-stat-sub {
+  font-size: 11px;
+  color: var(--ink-4);
+}
+.proj-warn {
+  margin: 0 0 0.5rem;
+  font-size: 12px;
+  color: var(--warn, var(--neg));
+}
+.proj-warn::before {
+  content: '⚠ ';
+}
+.proj-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, auto));
+  justify-content: start;
+  gap: 10px 20px;
+  margin: 0.25rem 0 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.proj-field {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  min-width: 0;
+}
+.proj-field-wide {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+.proj-field .planning-input[type='month'] {
+  width: 9rem;
+  text-align: left;
+}
+.proj-field .planning-input[type='number'] {
+  width: 6rem;
+}
+.proj-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.proj-reset {
+  padding: 2px 7px;
+  line-height: 1;
+}
+.proj-balance {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 12px;
+  margin-bottom: 0.25rem;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.proj-balance strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.proj-balance-locked {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+@media (max-width: 520px) {
+  .proj-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 12px;
+  }
+  .proj-field-wide .range-toggle {
+    flex-wrap: wrap;
+  }
+  .proj-answer-value {
+    font-size: 19px;
+  }
+  .forecast-scenario-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 4.5rem) minmax(0, 4.5rem);
+    gap: 6px;
+  }
+  .forecast-scenario-label .proj-swatch {
+    display: none;
+  }
+}
+@media (max-width: 359px) {
+  .proj-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .range-toggle {
   display: flex;
@@ -2850,8 +3028,8 @@ summary.section-label {
     padding: 2px 7px;
   }
   .scenario-toggle-btn {
-    font-size: 10px;
-    padding: 2px 7px;
+    font-size: 11px;
+    padding: 2px 8px;
   }
 }
 
@@ -2879,17 +3057,6 @@ summary.section-label {
   #snap-bulk-actions {
     flex-wrap: nowrap;
     gap: 6px;
-  }
-  .forecast-controls-right {
-    width: 100%;
-    justify-content: space-between;
-    margin-left: 0;
-  }
-  .forecast-scenario-row {
-    flex-wrap: wrap;
-  }
-  .forecast-scenario-label {
-    min-width: 100%;
   }
 }
 
@@ -3026,21 +3193,8 @@ summary.section-label {
     font-size: 11px;
     gap: 6px;
   }
-  .forecast-inflation-input {
-    width: 88px;
-  }
-  .forecast-inflation-label {
-    font-size: 10px;
-  }
-  .planning-input-wrap {
-    width: 100%;
-    justify-content: space-between;
-  }
-  .planning-input {
-    width: 88px;
-  }
   .planning-label {
-    font-size: 10px;
+    font-size: 11px;
   }
   .leg-meta,
   .hold-inline-meta {

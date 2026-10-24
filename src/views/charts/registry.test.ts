@@ -18,6 +18,7 @@ import type { ChartOption } from './core';
 import { addMonths, fmtEurCompact, fmtPctAxis, monthToTime, timeToMonth } from './format';
 import { closeDataTable, dataViewTable, openDataTable } from './toolbox';
 import { drillHint, tooltipHint } from './options';
+import { legendItems } from './legend';
 import { toRgba } from './theme';
 
 type AnyRec = Record<string, any>;
@@ -525,6 +526,26 @@ describe('dataViewTable', () => {
     expect(rows).toEqual(['Jan 20261000 €', 'Feb 20262200 €']);
     expect(el.querySelector('th:nth-child(2)')!.textContent).toBe('<b>Total</b>');
     expect(el.querySelector('b')).toBeNull();
+  });
+
+  it('leaves out helper series (id starting with "_") from the table and legend', () => {
+    const option = {
+      xAxis: [{ type: 'time' }],
+      series: [
+        { type: 'line', name: 'Real', data: [[monthToTime('2026-01'), 1]] },
+        { type: 'line', id: '_band', data: [[monthToTime('2026-01'), 2]] },
+        { type: 'line', id: '_named', name: 'Hidden', data: [[monthToTime('2026-01'), 3]] },
+      ],
+    };
+    const el = dataViewTable(option, (v) => String(v));
+    expect([...el.querySelectorAll('thead th')].map((th) => th.textContent)).toEqual([
+      'Month',
+      'Real',
+    ]);
+    const tokens = { brand: '#000' } as unknown as Parameters<typeof legendItems>[1];
+    expect(legendItems(option as unknown as ChartOption, tokens).map((i) => i.name)).toEqual([
+      'Real',
+    ]);
   });
 
   it('renders pie data as name/value rows', () => {
