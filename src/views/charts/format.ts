@@ -39,3 +39,17 @@ export function addMonths(t: number, months: number): number {
   const d = new Date(t);
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + months, 1);
 }
+
+/** The `YYYY-MM` entry of `months` closest to timestamp `t` (null when empty). */
+export function nearestMonth(t: number, months: readonly string[]): string | null {
+  let best: string | null = null;
+  let bestDist = Infinity;
+  for (const m of months) {
+    const dist = Math.abs(monthToTime(m) - t);
+    if (dist < bestDist) {
+      best = m;
+      bestDist = dist;
+    }
+  }
+  return best;
+}

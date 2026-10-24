@@ -239,6 +239,78 @@ describe('chart groups', () => {
   });
 });
 
+describe('chart drill-down', () => {
+  const press = (chart: ReturnType<typeof chartFor>, x: number, y: number, upX = x) => {
+    chart!.zr.trigger('mousedown', { offsetX: x, offsetY: y });
+    chart!.zr.trigger('click', { offsetX: upX, offsetY: y });
+  };
+  const keys = (v: number) => (v >= 0 && v < 3 ? ['a', 'b', 'c'][Math.round(v)] : null);
+
+  it('selects the key under a click on the x axis', () => {
+    const select = vi.fn();
+    renderChart('c-test', line, { drill: { resolve: keys, select } });
+    const chart = chartFor('c-test')!;
+    press(chart, 1.2, 40);
+    expect(select).toHaveBeenCalledWith('b');
+    expect(chart.actions.at(-1)).toEqual({ type: 'hideTip' });
+  });
+
+  it('resolves along the y axis for horizontal bars', () => {
+    const select = vi.fn();
+    renderChart('c-test', line, { drill: { axis: 'y', resolve: keys, select } });
+    press(chartFor('c-test'), 40, 2);
+    expect(select).toHaveBeenCalledWith('c');
+  });
+
+  it('ignores drags and points outside the data', () => {
+    const select = vi.fn();
+    renderChart('c-test', line, { drill: { resolve: keys, select } });
+    const chart = chartFor('c-test')!;
+    press(chart, 0, 10, 30);
+    press(chart, 9, 10);
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it('shows a pointer cursor only over drillable points', () => {
+    renderChart('c-test', line, { drill: { resolve: keys, select: vi.fn() } });
+    const chart = chartFor('c-test')!;
+    chart.zr.trigger('mousemove', { offsetX: 9, offsetY: 0 });
+    expect(chart.zr.cursor).not.toBe('pointer');
+    chart.zr.trigger('mousemove', { offsetX: 1, offsetY: 0 });
+    expect(chart.zr.cursor).toBe('pointer');
+  });
+
+  it('needs a second tap on the same point on touch screens', () => {
+    (window.matchMedia as ReturnType<typeof vi.fn>).mockReturnValue({ matches: true });
+    const select = vi.fn();
+    renderChart('c-test', line, { drill: { resolve: keys, select } });
+    const chart = chartFor('c-test')!;
+    press(chart, 0, 0);
+    expect(select).not.toHaveBeenCalled();
+    press(chart, 1, 0);
+    expect(select).not.toHaveBeenCalled();
+    press(chart, 1, 0);
+    expect(select).toHaveBeenCalledWith('b');
+  });
+
+  it('leaves the expanded overlay before navigating', () => {
+    document.body.innerHTML =
+      '<div class="chart-card chart-expanded"><div id="c-test"></div></div>';
+    document.body.classList.add('chart-expanded-open');
+    renderChart('c-test', line, { drill: { resolve: keys, select: vi.fn() } });
+    press(chartFor('c-test'), 0, 0);
+    expect(document.querySelector('.chart-expanded')).toBeNull();
+    expect(document.body.classList.contains('chart-expanded-open')).toBe(false);
+  });
+
+  it('does nothing without a drill option', () => {
+    renderChart('c-test', line);
+    const chart = chartFor('c-test')!;
+    press(chart, 0, 0);
+    expect(chart.actions).toHaveLength(0);
+  });
+});
+
 describe('dataViewTable', () => {
   it('renders time series as a formatted table using textContent', () => {
     const el = dataViewTable(

@@ -1348,6 +1348,20 @@ details[open] > summary .card-chevron {
   color: var(--ink-4);
   font-size: 12px;
 }
+/* Chart drill-down target: a short colour fade (no movement), so it stays under reduced motion. */
+@keyframes drill-flash {
+  from {
+    background-color: var(--brand-weak);
+    box-shadow: inset 0 0 0 1px var(--brand-border);
+  }
+  to {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 1px transparent;
+  }
+}
+.drill-flash {
+  animation: drill-flash 1.8s ease-out;
+}
 .chart-wrap.chart-tools {
   box-sizing: content-box;
   padding-bottom: 32px;
@@ -1445,6 +1459,13 @@ body.chart-expanded-open {
   max-width: 260px;
   white-space: normal;
   font-style: italic;
+  color: var(--ink-3);
+}
+.ec-tt-hint {
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
   color: var(--ink-3);
 }
 .legend {

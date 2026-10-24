@@ -313,6 +313,55 @@ function getFilteredTxs(txs: Transaction[]): Transaction[] {
   return filtered;
 }
 
+/**
+ * Show one snapshot in the history (chart drill-down): filter to its year, jump to the page
+ * holding it and expand its row. Returns the row, or null when the snapshot is unknown.
+ */
+export function revealSnapshot(date: string): HTMLElement | null {
+  if (!_lastOnEdit || !_lastOnDel || !_snaps.some((s) => s.date === date)) return null;
+  const year = date.slice(0, 4);
+  _snapTableState.filters.search = '';
+  _snapTableState.filters.year = year;
+  const yearEl = document.getElementById('snap-year-filter') as HTMLSelectElement | null;
+  const searchEl = document.getElementById('snap-search') as HTMLInputElement | null;
+  if (yearEl) yearEl.value = year;
+  if (searchEl) searchEl.value = '';
+  const { pageItems: ordered } = sortAndPaginate(
+    getFilteredSnaps(_snaps),
+    snapColumns(),
+    _snapTableState.sort,
+    1,
+    Number.MAX_SAFE_INTEGER,
+  );
+  const idx = Math.max(
+    0,
+    ordered.findIndex((s) => s.date === date),
+  );
+  setTablePage(_snapTableState, Math.floor(idx / _snapPageSize) + 1);
+  setCollapsed('snap:' + date, true);
+  renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
+  return (
+    [...document.querySelectorAll<HTMLElement>('#snaps-list .snap-row-compact:not(.th)')].find(
+      (row) => row.dataset.date === date,
+    ) ?? null
+  );
+}
+
+/** Filter the transaction ledger (chart drill-down) and return the ledger card. */
+export function showTransactions(filter: { search?: string; type?: string }): HTMLElement | null {
+  const search = filter.search ?? '';
+  const type = filter.type ?? '';
+  _txTableState.filters.search = search.toLowerCase();
+  _txTableState.filters.type = type;
+  setTablePage(_txTableState, 1);
+  const searchEl = document.getElementById('tx-search') as HTMLInputElement | null;
+  const typeEl = document.getElementById('tx-type-filter') as HTMLSelectElement | null;
+  if (searchEl) searchEl.value = search;
+  if (typeEl) typeEl.value = type;
+  renderTxList(_txs);
+  return document.getElementById('tx-ledger-card');
+}
+
 function _updateBulkControls(kind: 'tx' | 'snap'): void {
   const isTx = kind === 'tx';
   const hasBulkHandler = () => (isTx ? !!_lastOnBulkDelTxs : !!_lastOnBulkDel);

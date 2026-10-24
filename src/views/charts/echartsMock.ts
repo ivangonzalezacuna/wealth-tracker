@@ -22,6 +22,10 @@ export interface MockChart {
   trigger(event: string, params?: unknown): void;
   resize(): void;
   convertToPixel(finder: unknown, value: unknown): number;
+  convertFromPixel(finder: unknown, value: unknown): unknown;
+  containPixel(finder: unknown, value: unknown): boolean;
+  getZr(): MockZr;
+  zr: MockZr;
   getHeight(): number;
   setTheme(theme: unknown): void;
   dispose(): void;
@@ -30,6 +34,31 @@ export interface MockChart {
 
 export const instances: MockChart[] = [];
 const byDom = new Map<HTMLElement, MockChart>();
+
+/** zrender stand-in: tests fire raw pointer events with `chart.zr.trigger('click', {offsetX, offsetY})`. */
+export interface MockZr {
+  handlers: Map<string, Handler[]>;
+  cursor: string;
+  on(event: string, handler: Handler): void;
+  trigger(event: string, params?: unknown): void;
+  setCursorStyle(cursor: string): void;
+}
+
+function mockZr(): MockZr {
+  return {
+    handlers: new Map(),
+    cursor: 'default',
+    on(event, handler) {
+      this.handlers.set(event, [...(this.handlers.get(event) ?? []), handler]);
+    },
+    trigger(event, params) {
+      for (const h of this.handlers.get(event) ?? []) h(params);
+    },
+    setCursorStyle(cursor) {
+      this.cursor = cursor;
+    },
+  };
+}
 
 function toArrays(option: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -80,6 +109,17 @@ export function init(dom: HTMLElement, theme?: unknown): MockChart {
     resize() {},
     convertToPixel(_finder, value) {
       return Number(value);
+    },
+    // Pixels map 1:1 to axis values and the whole canvas is the plot.
+    convertFromPixel(_finder, value) {
+      return value;
+    },
+    containPixel() {
+      return true;
+    },
+    zr: mockZr(),
+    getZr() {
+      return this.zr;
     },
     getHeight() {
       return 200;

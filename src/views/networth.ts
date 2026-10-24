@@ -39,14 +39,17 @@ import {
   addMonths,
   axisTooltip,
   disposeChart,
+  drillHint,
   fmtEurCompact,
   monthPresets,
   monthTimeAxis,
   monthToTime,
+  nearestMonth,
   renderChart,
   timeToMonth,
   toRgba,
 } from './charts';
+import { drillToSnapshot } from './drill';
 
 type Pt = [number, number];
 const FORECAST_RANGE_SHORT: Record<string, string> = {
@@ -680,10 +683,11 @@ function _renderNWHistChart(snaps: Snapshot[], chartA: ChartAccount[]): void {
   );
   const last = times[times.length - 1];
   const totalName = 'Total net worth';
+  const months = snaps.map((sn) => sn.date);
 
   renderChart(
     'c-nw-hist',
-    ({ tokens: t }) => ({
+    ({ tokens: t, touch }) => ({
       legend: {
         data: [totalName, ...chartA.map((a) => a.label)],
         // Total stays visible: it is the reference line for every account.
@@ -699,6 +703,7 @@ function _renderNWHistChart(snaps: Snapshot[], chartA: ChartAccount[]): void {
             const note = notes.get(Number(axisValue));
             return note ? `Note: ${note}` : null;
           },
+          hint: drillHint({ touch }, 'open this snapshot'),
         }),
       },
       xAxis: monthTimeAxis(),
@@ -746,6 +751,7 @@ function _renderNWHistChart(snaps: Snapshot[], chartA: ChartAccount[]): void {
       presets: monthPresets(last),
       defaultPreset: 'all',
       valueFormatter: fmtEur2,
+      drill: { resolve: (v) => nearestMonth(v, months), select: drillToSnapshot },
     },
   );
 }

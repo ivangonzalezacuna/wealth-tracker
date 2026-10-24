@@ -11,10 +11,19 @@ export {
   disposeChart,
   getChart,
   refreshChartsTheme,
+  leaveExpanded,
   type ChartCtx,
+  type ChartDrill,
   type RangePreset,
   type RenderChartOpts,
 } from './registry';
-export { fmtEurCompact, fmtPctAxis, monthToTime, timeToMonth, addMonths } from './format';
+export {
+  fmtEurCompact,
+  fmtPctAxis,
+  monthToTime,
+  timeToMonth,
+  addMonths,
+  nearestMonth,
+} from './format';
 export { toRgba, readChartTokens, type ChartTokens } from './theme';
-export { monthPresets, monthTimeAxis, axisTooltip } from './options';
+export { monthPresets, monthTimeAxis, axisTooltip, tooltipHint, drillHint } from './options';

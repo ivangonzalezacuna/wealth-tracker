@@ -55,6 +55,8 @@ export function axisTooltip(opts: {
   note?: (axisValue: unknown) => string | null | undefined;
   /** Skip rows whose value is 0 (e.g. stacked series with no data that month). */
   hideZero?: boolean;
+  /** Drill-down affordance shown under the rows (see `drillHint`). */
+  hint?: string;
 }) {
   return (raw: unknown): string => {
     const params = (Array.isArray(raw) ? raw : [raw]) as AxisParam[];
@@ -83,6 +85,16 @@ export function axisTooltip(opts: {
       : '';
     const noteText = opts.note?.(first.axisValue);
     const note = noteText ? `<div class="ec-tt-note">${esc(noteText)}</div>` : '';
-    return `<div class="ec-tt"><div class="ec-tt-title">${title}</div>${rows}${foot}${note}</div>`;
+    return `<div class="ec-tt"><div class="ec-tt-title">${title}</div>${rows}${foot}${note}${tooltipHint(opts.hint)}</div>`;
   };
+}
+
+/** Tooltip footer for drill-down charts. */
+export function tooltipHint(hint: string | undefined): string {
+  return hint ? `<div class="ec-tt-hint">${esc(hint)}</div>` : '';
+}
+
+/** "Click to …" on pointer devices, "Tap again to …" on touch (first tap shows the tooltip). */
+export function drillHint(ctx: { touch: boolean }, action: string): string {
+  return `${ctx.touch ? 'Tap again' : 'Click'} to ${action}`;
 }

@@ -34,7 +34,8 @@ import { renderTableHeader, renderTableRow } from './tableColumns';
 import { bindExpandableRows, restoreExpandableRows } from './expandableRows';
 import { bindSortedTableHeader, sortAndPaginate } from './tableView';
 import { isCollapsed, setCollapsed } from '../ui/collapseState';
-import { disposeChart, fmtEurCompact, renderChart } from './charts';
+import { disposeChart, drillHint, fmtEurCompact, renderChart, tooltipHint } from './charts';
+import { revealElement } from './drill';
 import {
   createTableState,
   getTableFilter,
@@ -615,6 +616,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   _renderCostBasisChart(
     held.filter((e) => e.cost > 0).sort((a, b) => b.cost - a.cost),
     pd.totalInv,
+    (isin) => _revealHolding(pd, snaps, isin),
   );
   const mvRow =
     snapMarketValue !== null
@@ -946,7 +948,24 @@ export function getMaxDrift(pd: PortfolioData | null, snaps: Snapshot[]): number
 
 // ── Cost basis chart ──
 
-function _renderCostBasisChart(rows: EtfPosition[], totalInv: number): void {
+/** Cost-basis drill-down: narrow the holdings table to one ISIN and expand its row. */
+function _revealHolding(pd: PortfolioData, snaps: Snapshot[], isin: string): void {
+  if (getTableFilter(_holdTableState, 'status') === 'closed')
+    setTableFilter(_holdTableState, 'status', 'held');
+  setTableFilter(_holdTableState, 'search', isin);
+  setCollapsed('hold:' + isin, true);
+  renderHoldingsTable(pd, snaps);
+  const row = [...document.querySelectorAll<HTMLElement>('#port-table .hold-row:not(.th)')].find(
+    (r) => r.dataset.etfKey === isin,
+  );
+  revealElement(row ?? null);
+}
+
+function _renderCostBasisChart(
+  rows: EtfPosition[],
+  totalInv: number,
+  onSelect: (isin: string) => void,
+): void {
   const host = document.getElementById('c-port-donut');
   if (!host) return;
   if (rows.length === 0) {
@@ -967,7 +986,7 @@ function _renderCostBasisChart(rows: EtfPosition[], totalInv: number): void {
 
   renderChart(
     'c-port-donut',
-    ({ tokens: t, width }) => ({
+    ({ tokens: t, width, touch }) => ({
       tooltip: {
         trigger: 'item',
         confine: true,
@@ -985,7 +1004,7 @@ function _renderCostBasisChart(rows: EtfPosition[], totalInv: number): void {
             share(e.cost),
           )}</span></div><div class="ec-tt-row ec-tt-foot"><span class="ec-tt-name">ISIN</span><span class="ec-tt-val">${esc(
             e.isin,
-          )}</span></div></div>`;
+          )}</span></div>${tooltipHint(drillHint({ touch }, 'show it in Holdings'))}</div>`;
         },
       },
       grid: { left: 4, right: 48, bottom: 4, containLabel: true },
@@ -1025,6 +1044,13 @@ function _renderCostBasisChart(rows: EtfPosition[], totalInv: number): void {
         },
       ],
     }),
-    { valueFormatter: fmtEur2 },
+    {
+      valueFormatter: fmtEur2,
+      drill: {
+        axis: 'y',
+        resolve: (v) => rows[Math.round(v)]?.isin ?? null,
+        select: onSelect,
+      },
+    },
   );
 }

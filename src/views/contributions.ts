@@ -18,12 +18,15 @@ import {
 import {
   addMonths,
   axisTooltip,
+  drillHint,
   fmtEurCompact,
   monthTimeAxis,
   monthToTime,
   renderChart,
   toRgba,
 } from './charts';
+import { drillToTransactions } from './drill';
+import { TxType } from '../types';
 
 const DCA_PAGE_SIZE = 12;
 const DCA_FC_HORIZONS = ['60', '120', '240', '360'] as const;
@@ -272,7 +275,7 @@ function renderDCAChart(
 
   renderChart(
     'c-dca-bar',
-    ({ tokens: t }) => ({
+    ({ tokens: t, touch }) => ({
       legend: {},
       tooltip: {
         trigger: 'axis',
@@ -285,6 +288,7 @@ function renderDCAChart(
             vals.filter((v) => v > 0).length > 1
               ? { label: 'Total', value: fmtEur2(vals.reduce((s, v) => s + v, 0)) }
               : null,
+          hint: drillHint({ touch }, "see this month's purchases"),
         }),
       },
       xAxis: { type: 'category', data: months.map(fmtMon), axisTick: { show: false } },
@@ -320,6 +324,10 @@ function renderDCAChart(
       valueFormatter: fmtEur2,
       onPresetChange: (key) => {
         if (key) _dcaRange = key;
+      },
+      drill: {
+        resolve: (v) => months[Math.round(v)] ?? null,
+        select: (month) => drillToTransactions(month, TxType.BUY),
       },
     },
   );

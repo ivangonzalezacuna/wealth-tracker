@@ -41,9 +41,19 @@ export interface RenderChartOpts {
   /** Connect hover/zoom with other charts in the same group. */
   group?: string;
   onClick?: (params: ECElementEvent) => void;
+  /** Click (or second tap on touch) anywhere in the plot to open the matching detail elsewhere. */
+  drill?: ChartDrill;
   /** Called when the active range preset changes (null after a manual zoom). */
   onPresetChange?: (key: string | null) => void;
   toolbox?: boolean;
+}
+
+export interface ChartDrill {
+  /** Axis whose value at the pointer identifies the target (default 'x'). */
+  axis?: 'x' | 'y';
+  /** Map an axis value (timestamp, category index or number) to a target key; null ignores it. */
+  resolve: (value: number) => string | null;
+  select: (key: string) => void;
 }
 
 interface Entry {
@@ -61,6 +71,8 @@ interface Entry {
   toolboxW: number;
   ctx: ChartCtx;
   ro: ResizeObserver | null;
+  /** Touch drill-down: first tap previews (tooltip), a second tap on the same key opens it. */
+  drillTap: { key: string; at: number } | null;
 }
 
 const registry = new Map<string, Entry>();
@@ -577,6 +589,68 @@ function bindEvents(entry: Entry): void {
   }
 }
 
+const DRILL_TAP_MS = 5000;
+const DRILL_MOVE_PX = 6;
+
+/** Close fullscreen / the expanded overlay before navigating away from a chart. */
+export function leaveExpanded(host: HTMLElement): void {
+  const doc = document as Document & { webkitFullscreenElement?: Element | null };
+  const fsEl = doc.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
+  if (fsEl?.contains(host)) void document.exitFullscreen?.();
+  const overlay = host.closest('.chart-expanded');
+  if (overlay) {
+    overlay.classList.remove('chart-expanded');
+    document.body.classList.remove('chart-expanded-open');
+  }
+}
+
+function drillKeyAt(entry: Entry, drill: ChartDrill, x: number, y: number): string | null {
+  const chart = entry.chart;
+  if (!chart.containPixel({ gridIndex: 0 }, [x, y])) return null;
+  const v = chart.convertFromPixel({ gridIndex: 0 }, [x, y]) as unknown;
+  const value = Array.isArray(v) ? Number(v[drill.axis === 'y' ? 1 : 0]) : NaN;
+  return Number.isFinite(value) ? drill.resolve(value) : null;
+}
+
+// Bound once per instance. Handlers are kept by reference: `zr.off(event)` without one would
+// also drop ECharts' own listeners.
+function bindDrill(entry: Entry): void {
+  const zr = entry.chart.getZr();
+  let down: [number, number] | null = null;
+  zr.on('mousedown', (e: { offsetX: number; offsetY: number }) => {
+    down = [e.offsetX, e.offsetY];
+  });
+  zr.on('mousemove', (e: { offsetX: number; offsetY: number }) => {
+    const drill = entry.opts.drill;
+    if (drill && drillKeyAt(entry, drill, e.offsetX, e.offsetY) != null)
+      zr.setCursorStyle('pointer');
+  });
+  zr.on('click', (e: { offsetX: number; offsetY: number }) => {
+    const drill = entry.opts.drill;
+    const start = down;
+    down = null;
+    if (!drill) return;
+    // A drag (pan / slider / box zoom) also ends in a click; only a still press drills.
+    if (start && Math.hypot(e.offsetX - start[0], e.offsetY - start[1]) > DRILL_MOVE_PX) return;
+    const key = drillKeyAt(entry, drill, e.offsetX, e.offsetY);
+    if (key == null) {
+      entry.drillTap = null;
+      return;
+    }
+    if (entry.ctx.touch) {
+      const prev = entry.drillTap;
+      if (!prev || prev.key !== key || Date.now() - prev.at > DRILL_TAP_MS) {
+        entry.drillTap = { key, at: Date.now() };
+        return;
+      }
+    }
+    entry.drillTap = null;
+    entry.chart.dispatchAction({ type: 'hideTip' });
+    leaveExpanded(entry.host);
+    drill.select(key);
+  });
+}
+
 function observe(entry: Entry): void {
   if (typeof ResizeObserver === 'undefined') return;
   entry.ro = new ResizeObserver(() => {
@@ -645,10 +719,12 @@ export function renderChart(
       toolboxW: 0,
       ctx,
       ro: null,
+      drillTap: null,
     };
     registry.set(id, entry);
     observe(entry);
     bindEvents(entry);
+    bindDrill(entry);
     render(entry, false);
     return chart;
   }

@@ -45,14 +45,17 @@ import { T, R, resolvedT } from '../theme';
 import {
   axisTooltip,
   disposeChart,
+  drillHint,
   fmtEurCompact,
   fmtPctAxis,
   monthPresets,
   monthTimeAxis,
   monthToTime,
+  nearestMonth,
   renderChart,
   toRgba,
 } from './charts';
+import { drillToSnapshot, drillToTransactions } from './drill';
 import type { Snapshot, PortfolioData, Transaction, Holding } from '../types';
 
 let _lastSnaps: Snapshot[] = [];
@@ -460,14 +463,18 @@ function _renderGrowthChart(snaps: Snapshot[]): void {
 
   const points = snaps.map((s) => [monthToTime(s.date), snapTotal(s)] as [number, number]);
   const last = points[points.length - 1][0];
+  const months = snaps.map((s) => s.date);
 
   renderChart(
     'c-an-growth',
-    ({ tokens: t }) => ({
+    ({ tokens: t, touch }) => ({
       tooltip: {
         trigger: 'axis',
         confine: true,
-        valueFormatter: (v) => fmtEur2(Number(v)),
+        formatter: axisTooltip({
+          value: (v) => fmtEur2(v),
+          hint: drillHint({ touch }, 'open this snapshot'),
+        }),
       },
       xAxis: monthTimeAxis(),
       yAxis: {
@@ -508,6 +515,7 @@ function _renderGrowthChart(snaps: Snapshot[]): void {
       presets: monthPresets(last),
       defaultPreset: 'all',
       group: TIMELINE_GROUP,
+      drill: { resolve: (v) => nearestMonth(v, months), select: drillToSnapshot },
     },
   );
 }
@@ -1354,12 +1362,15 @@ function _renderIncomeChart(monthlyBreakdown: { month: string; amount: number }[
 
   renderChart(
     'c-an-income',
-    ({ tokens: t }) => ({
+    ({ tokens: t, touch }) => ({
       tooltip: {
         trigger: 'axis',
         confine: true,
         axisPointer: { type: 'shadow' },
-        valueFormatter: (v) => fmtEur2(Number(v)),
+        formatter: axisTooltip({
+          value: (v) => fmtEur2(v),
+          hint: drillHint({ touch }, "see this month's transactions"),
+        }),
       },
       xAxis: { type: 'category', data: months, axisTick: { show: false } },
       yAxis: { type: 'value', axisLabel: { formatter: (v: number) => fmtEurCompact(v) } },
@@ -1385,6 +1396,10 @@ function _renderIncomeChart(monthlyBreakdown: { month: string; amount: number }[
             ]
           : undefined,
       defaultPreset: '12',
+      drill: {
+        resolve: (v) => monthlyBreakdown[Math.round(v)]?.month ?? null,
+        select: (month) => drillToTransactions(month),
+      },
     },
   );
 }
