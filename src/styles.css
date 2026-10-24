@@ -550,6 +550,9 @@ code,
 .card-title + .chart-controls {
   margin-top: 10px;
 }
+.card-title + .chart-wrap {
+  margin-top: 8px;
+}
 .card-section {
   margin-top: 1.25rem;
   padding-top: 1rem;
@@ -1519,11 +1522,11 @@ details[open] > summary .card-chevron {
 .chart-wrap.chart-zoomable {
   box-sizing: content-box;
   padding-top: var(--chart-head-extra, 0px);
-  padding-bottom: 64px;
+  padding-bottom: 76px;
 }
 /* Taller range slider for fingers. */
 .chart-wrap.chart-zoomable.chart-touch {
-  padding-bottom: 70px;
+  padding-bottom: 82px;
 }
 /* Pinch and sideways drags zoom / pan the chart; vertical swipes still scroll the page. */
 .chart-wrap.chart-zoomable .chart-host {
@@ -1559,7 +1562,7 @@ body.chart-expanded-open {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0 6px;
+  gap: 2px 6px;
 }
 .chart-legend-item {
   display: inline-flex;

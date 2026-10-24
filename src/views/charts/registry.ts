@@ -101,6 +101,13 @@ const HEADER_GAP = 10;
 const LEGEND_ROW_GAP = 4;
 /** Fallback legend height before layout (one row of legend buttons). */
 const LEGEND_ROW_H = 22;
+/** Legend box to grid top; the top y-axis label pokes ~6px above the grid, leaving ~10px clear. */
+const LEGEND_PLOT_GAP = 16;
+/** Range slider heights and the space between the axis labels and the slider. */
+const SLIDER_H = 18;
+const SLIDER_H_TOUCH = 24;
+/** Axis label margin (8) + label line (12) + 8px clear above the slider. */
+const SLIDER_LABEL_SPACE = 28;
 
 function mq(query: string): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
@@ -167,7 +174,7 @@ function zoomComponents(entry: Entry): DataZoomComponentOption[] {
       type: 'slider',
       xAxisIndex: 0,
       filterMode: 'filter',
-      height: touch ? 24 : 18,
+      height: touch ? SLIDER_H_TOUCH : SLIDER_H,
       bottom: 0,
       brushSelect: false,
       labelFormatter: sliderLabel(entry) as unknown as string,
@@ -292,7 +299,7 @@ function compose(entry: Entry): ChartOption {
         entry.chart.dispatchAction({ type: on ? 'highlight' : 'downplay', seriesName: name }),
     });
     entry.legendH = entry.legend.offsetHeight || LEGEND_ROW_H;
-    top = Math.max(top, legendTop + entry.legendH + HEADER_GAP);
+    top = Math.max(top, legendTop + entry.legendH + LEGEND_PLOT_GAP);
     // Selection state stays in ECharts' (hidden) legend component.
     out.legend = { ...(legendIn as Record<string, unknown>), show: false };
   } else {
@@ -342,7 +349,7 @@ function compose(entry: Entry): ChartOption {
       left: 4,
       right: timeAxis ? 16 : 8,
       top,
-      bottom: sliderOn ? (ctx.touch ? 40 : 34) : 4,
+      bottom: sliderOn ? (ctx.touch ? SLIDER_H_TOUCH : SLIDER_H) + SLIDER_LABEL_SPACE : 4,
       ...(out.grid ?? {}),
     };
   }
