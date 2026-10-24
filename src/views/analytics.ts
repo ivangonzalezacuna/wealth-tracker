@@ -65,16 +65,10 @@ let _lastTxs: Transaction[] = [];
 // Heatmap paging: page 0 = most recent 3 years
 let _heatmapPage = 0;
 
-// Allocation toggle state: 'active' | 'all'
-const _allocMode: Record<string, 'active' | 'all'> = {
-  acct: 'active',
-  class: 'active',
-  region: 'active',
-  country: 'active',
-};
-
-// Account donut group dimension: 'acct' | 'country' | 'type' | 'group'
+// Allocation panels: account grouping, holding dimension (null = auto) and inactive filter.
 let _acctGroupDim: 'acct' | 'country' | 'type' | 'group' = 'acct';
+let _holdDim: 'class' | 'region' | 'holding' | null = null;
+let _holdIncludeInactive = false;
 
 function _getCountrySlices(
   snaps: Snapshot[],
@@ -884,38 +878,52 @@ function _renderAnnualTable(monthlyReturns: InvestmentReturnPoint[], years: numb
 
 // ── Allocation donuts ──────────────────────────────────────
 
-type AllocDim = 'class' | 'acct' | 'region' | 'country';
+type AllocSlice = { label: string; value: number; color: string };
+type AcctDim = 'acct' | 'country' | 'group' | 'type';
+type HoldDim = 'class' | 'region' | 'holding';
+
+const _ACCT_DIMS: { id: AcctDim; label: string; noun: string }[] = [
+  { id: 'acct', label: 'Account', noun: 'account' },
+  { id: 'country', label: 'Country', noun: 'country' },
+  { id: 'group', label: 'Group', noun: 'group' },
+  { id: 'type', label: 'Type', noun: 'type' },
+];
+const _HOLD_DIMS: { id: HoldDim; label: string; noun: string }[] = [
+  { id: 'class', label: 'Asset class', noun: 'asset class' },
+  { id: 'region', label: 'Region', noun: 'region' },
+  { id: 'holding', label: 'Holding', noun: 'holding' },
+];
 
 function _renderAllocationDonuts(holdings: Holding[], pd: PortfolioData | null): void {
-  const dims: AllocDim[] = ['acct', 'class', 'region'];
-  for (const dim of dims) {
-    _renderAllocDonut(dim, holdings, pd);
-    _attachAllocToggle(dim);
-  }
+  _renderAcctAllocation();
+  _renderHoldAllocation(holdings, pd);
 }
 
 function _getHoldingSlices(
   holdings: Holding[],
   pd: PortfolioData | null,
-  dim: Exclude<AllocDim, 'acct' | 'country'>,
-  mode: 'active' | 'all',
-): { label: string; value: number; color: string }[] {
+  dim: HoldDim,
+  includeInactive: boolean,
+): AllocSlice[] {
   if (!pd) return [];
-  const filtered = mode === 'active' ? holdings.filter((h) => h.active) : holdings;
   const buckets = new Map<string, { value: number; color: string }>();
 
-  for (const h of filtered) {
-    const pos = pd.etfs[h.isin];
-    if (!pos) continue;
-    const value = pos.cost || 0;
+  for (const h of holdings) {
+    if (!h.active && !includeInactive) continue;
+    const value = pd.etfs[h.isin]?.cost || 0;
     if (value <= 0) continue;
-    const key = dim === 'class' ? h.assetClass || 'Other' : h.region || 'Other';
-    const normalized = key.charAt(0).toUpperCase() + key.slice(1);
-    const existing = buckets.get(normalized);
+    let label: string;
+    if (dim === 'holding') {
+      label = h.shortName || h.name || h.isin;
+    } else {
+      const key = (dim === 'class' ? h.assetClass : h.region) || 'Other';
+      label = key.charAt(0).toUpperCase() + key.slice(1);
+    }
+    const existing = buckets.get(label);
     if (existing) {
       existing.value += value;
     } else {
-      buckets.set(normalized, { value, color: h.color || '#888' });
+      buckets.set(label, { value, color: h.color || '#888' });
     }
   }
 
@@ -924,19 +932,23 @@ function _getHoldingSlices(
     .sort((a, b) => b.value - a.value);
 }
 
-function _getAccountSlices(
-  snaps: Snapshot[],
-  mode: 'active' | 'all',
-): { label: string; value: number; color: string }[] {
+function _hasInactiveHoldingCost(holdings: Holding[], pd: PortfolioData | null): boolean {
+  return Boolean(pd) && holdings.some((h) => !h.active && (pd!.etfs[h.isin]?.cost || 0) > 0);
+}
+
+/** The picked dimension, or the first one that splits into more than one slice. */
+function _resolvedHoldDim(holdings: Holding[], pd: PortfolioData | null): HoldDim {
+  if (_holdDim) return _holdDim;
+  return (
+    _HOLD_DIMS.find((d) => _getHoldingSlices(holdings, pd, d.id, _holdIncludeInactive).length > 1)
+      ?.id ?? 'class'
+  );
+}
+
+function _getAccountSlices(snaps: Snapshot[]): AllocSlice[] {
   if (snaps.length === 0) return [];
   const s = snaps[snaps.length - 1];
-  const accounts = getAccounts();
-  return accounts
-    .filter((a) => {
-      const val = (s[a.id || ''] as number) || 0;
-      if (val <= 0 && mode === 'active') return false;
-      return true;
-    })
+  return getAccounts()
     .map((a) => {
       const currency = (a.currency || 'EUR').trim().toUpperCase();
       const label =
@@ -950,7 +962,7 @@ function _getAccountSlices(
     .sort((a, b) => b.value - a.value);
 }
 
-function _getTypeSlices(snaps: Snapshot[]): { label: string; value: number; color: string }[] {
+function _getTypeSlices(snaps: Snapshot[]): AllocSlice[] {
   if (snaps.length === 0) return [];
   const s = snaps[snaps.length - 1];
   const accounts = getAccounts();
@@ -971,76 +983,145 @@ function _getTypeSlices(snaps: Snapshot[]): { label: string; value: number; colo
     .sort((a, b) => b.value - a.value);
 }
 
-function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData | null): void {
-  const mode = _allocMode[dim] ?? 'active';
-  let slices: { label: string; value: number; color: string }[] = [];
+function _acctSlices(): AllocSlice[] {
+  if (_acctGroupDim === 'country') return _getCountrySlices(_lastSnaps, 'all');
+  if (_acctGroupDim === 'group') return _getAccountGroupSlices(_lastSnaps, 'all');
+  if (_acctGroupDim === 'type') return _getTypeSlices(_lastSnaps);
+  return _getAccountSlices(_lastSnaps);
+}
 
-  if (dim === 'acct') {
-    if (_acctGroupDim === 'country') {
-      slices = _getCountrySlices(_lastSnaps, 'all');
-    } else if (_acctGroupDim === 'group') {
-      slices = _getAccountGroupSlices(_lastSnaps, 'all');
-    } else if (_acctGroupDim === 'type') {
-      slices = _getTypeSlices(_lastSnaps);
-    } else {
-      slices = _getAccountSlices(_lastSnaps, 'all');
-    }
-  } else if (dim === 'country') {
-    slices = _getCountrySlices(_lastSnaps, mode);
-  } else {
-    slices = _getHoldingSlices(holdings, pd, dim as Exclude<AllocDim, 'acct' | 'country'>, mode);
+function _renderAcctAllocation(): void {
+  const slices = _acctSlices().filter((s) => s.value > 0);
+  const noun = _ACCT_DIMS.find((d) => d.id === _acctGroupDim)?.noun ?? 'account';
+  _renderAllocDonut('acct', slices, `Allocation by ${noun}`);
+
+  const wrapEl = document.getElementById('an-alloc-acct-toggle-wrap') as
+    (HTMLElement & { _acctBound?: boolean }) | null;
+  if (!wrapEl) return;
+  wrapEl.innerHTML = `<div class="range-toggle alloc-dims" role="group" aria-label="Group accounts by">${_ACCT_DIMS
+    .map(
+      (d) =>
+        `<button type="button" class="btn btn-sm btn-ghost${_acctGroupDim === d.id ? ' active' : ''}" data-acct-group="${d.id}" aria-pressed="${_acctGroupDim === d.id}">${d.label}</button>`,
+    )
+    .join('')}</div>`;
+  if (!wrapEl._acctBound) {
+    wrapEl._acctBound = true;
+    wrapEl.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-acct-group]');
+      if (!btn) return;
+      const next = btn.dataset.acctGroup as AcctDim;
+      if (_acctGroupDim === next) return;
+      _acctGroupDim = next;
+      _renderAcctAllocation();
+    });
   }
+}
 
-  const canvasId = `c-an-alloc-${dim}`;
+function _renderHoldAllocation(holdings: Holding[], pd: PortfolioData | null): void {
+  const dim = _resolvedHoldDim(holdings, pd);
+  const slices = _getHoldingSlices(holdings, pd, dim, _holdIncludeInactive);
+  const noun = _HOLD_DIMS.find((d) => d.id === dim)?.noun ?? 'asset class';
+  _renderAllocDonut('hold', slices, `Holdings by ${noun}`);
 
-  // No data: dispose any previous chart to avoid a stale display
-  if (slices.length === 0) {
+  const wrapEl = document.getElementById('an-alloc-hold-toggle-wrap') as
+    (HTMLElement & { _holdBound?: boolean }) | null;
+  if (!wrapEl) return;
+  const showInactive = _hasInactiveHoldingCost(holdings, pd);
+  wrapEl.innerHTML = `<div class="range-toggle alloc-dims" role="group" aria-label="Group holdings by">${_HOLD_DIMS
+    .map(
+      (d) =>
+        `<button type="button" class="btn btn-sm btn-ghost${dim === d.id ? ' active' : ''}" data-hold-dim="${d.id}" aria-pressed="${dim === d.id}">${d.label}</button>`,
+    )
+    .join('')}</div>${
+    showInactive
+      ? `<button type="button" class="btn btn-sm btn-ghost alloc-inactive${_holdIncludeInactive ? ' active' : ''}" data-hold-inactive aria-pressed="${_holdIncludeInactive}">Include inactive</button>`
+      : ''
+  }`;
+  if (!wrapEl._holdBound) {
+    wrapEl._holdBound = true;
+    wrapEl.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const dimBtn = target.closest<HTMLElement>('[data-hold-dim]');
+      if (dimBtn) {
+        _holdDim = dimBtn.dataset.holdDim as HoldDim;
+      } else if (target.closest('[data-hold-inactive]')) {
+        _holdIncludeInactive = !_holdIncludeInactive;
+      } else {
+        return;
+      }
+      _renderHoldAllocation(getHoldings(), _lastPd);
+    });
+  }
+}
+
+let _measureCtx: CanvasRenderingContext2D | null | undefined;
+
+/** Ellipsize text to fit a pixel width (ECharts' rich-text width does not clip legend tokens). */
+function _fitText(text: string, maxW: number, font: string): string {
+  if (_measureCtx === undefined) {
+    _measureCtx = document.createElement('canvas').getContext?.('2d') ?? null;
+  }
+  const ctx = _measureCtx;
+  if (!ctx) return text.length > 18 ? `${text.slice(0, 17)}…` : text;
+  ctx.font = font;
+  if (ctx.measureText(text).width <= maxW) return text;
+  let lo = 0;
+  let hi = text.length;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (ctx.measureText(`${text.slice(0, mid)}…`).width <= maxW) lo = mid;
+    else hi = mid - 1;
+  }
+  return `${text.slice(0, lo).trimEnd()}…`;
+}
+
+/** Shared donut: ring on the left, legend with right-aligned shares on the right, total inside. */
+function _renderAllocDonut(key: 'acct' | 'hold', slices: AllocSlice[], seriesName: string): void {
+  const canvasId = `c-an-alloc-${key}`;
+  const host = document.getElementById(canvasId);
+  const wrap = host?.closest<HTMLElement>('.chart-wrap');
+  const emptyEl = document.getElementById(`an-alloc-${key}-empty`);
+  const empty = slices.length === 0;
+  if (emptyEl) emptyEl.hidden = !empty;
+  if (wrap) wrap.hidden = empty;
+  if (empty) {
     disposeChart(canvasId);
     return;
   }
+  // Grow with the legend (one row per slice) so long lists need less paging; the ring size
+  // is width-bound, so both panels keep matching rings.
+  wrap?.style.setProperty(
+    '--chart-fit-h',
+    `${Math.min(260, Math.max(180, 40 + slices.length * 21))}px`,
+  );
 
   const total = slices.reduce((s, x) => s + x.value, 0);
-  const dimLabel =
-    dim === 'acct'
-      ? _acctGroupDim === 'country'
-        ? 'country'
-        : _acctGroupDim === 'group'
-          ? 'group'
-          : _acctGroupDim === 'type'
-            ? 'type'
-            : 'account'
-      : dim === 'class'
-        ? 'asset class'
-        : dim === 'region'
-          ? 'region'
-          : 'country';
-
-  // Single slice renders as a full ring natively; the hint nudges to the broader mode when useful.
-  const hintEl = document.getElementById(`an-alloc-${dim}-hint`);
-  if (hintEl) {
-    let otherModeHasMore = false;
-    if (slices.length === 1 && dim !== 'acct' && mode === 'active') {
-      const other =
-        dim === 'country'
-          ? _getCountrySlices(_lastSnaps, 'all')
-          : _getHoldingSlices(holdings, pd, dim as Exclude<AllocDim, 'acct' | 'country'>, 'all');
-      otherModeHasMore = other.length > 1;
-    }
-    hintEl.style.display = otherModeHasMore ? '' : 'none';
-  }
+  const share = (v: number) => (total > 0 ? fmtPctVal((v / total) * 100) : '0%');
+  const byName = new Map(slices.map((s) => [s.label, s.value]));
+  // Rich-text markup characters in user labels would break the legend formatter.
+  const plain = (s: string) => s.replace(/[{}|]/g, '');
 
   renderChart(
     canvasId,
-    ({ tokens: t, compact, width }) => {
-      const legendW = Math.max(90, Math.round(width * (compact ? 0.5 : 0.52)) - 16);
-      const share = (v: number) => (total > 0 ? fmtPctVal((v / total) * 100) : '0%');
-      const byName = new Map(slices.map((s) => [s.label, s.value]));
+    ({ tokens: t, width }) => {
+      const w = width || host?.clientWidth || 320;
+      const h = host?.clientHeight || 165;
+      // The ring gets ~40% of the width; its radius also respects the height so it never clips.
+      const ringW = Math.round(w * 0.4);
+      // Capped so both panels draw the same ring even when one chart is taller.
+      const outer = Math.max(30, Math.floor(Math.min(ringW / 2 - 4, h / 2 - 6, 84)));
+      const legendLeft = ringW + 10;
+      // Capped so shares stay next to their names on wide panels.
+      const legendW = Math.max(90, Math.min(300, w - legendLeft));
+      const shareW = 46;
+      const nameW = legendW - 20 - shareW;
+      const nameFont = `12px ${t.fontFamily}`;
       const centreLabel = {
         show: true,
         position: 'center' as const,
         formatter: `{v|${fmtEurCompact(total)}}\n{l|total}`,
         rich: {
-          v: { fontSize: 13, fontWeight: 600, color: t.ink, lineHeight: 18 },
+          v: { fontSize: outer < 50 ? 11 : 13, fontWeight: 600, color: t.ink, lineHeight: 18 },
           l: { fontSize: 10, color: t.ink4 },
         },
       };
@@ -1055,28 +1136,32 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
         },
         legend: {
           orient: 'vertical',
-          right: 0,
-          top: 'middle',
+          left: legendLeft,
+          top: 30,
+          bottom: 4,
           width: legendW,
-          itemGap: 8,
-          formatter: (name: string) => `${name}  {share|${share(byName.get(name) ?? 0)}}`,
+          itemGap: 7,
+          tooltip: { show: true },
+          formatter: (name: string) =>
+            `{n|${plain(_fitText(name, nameW - 6, nameFont))}}{s|${share(byName.get(name) ?? 0)}}`,
           textStyle: {
-            width: legendW - 20,
-            overflow: 'truncate',
-            rich: { share: { color: t.ink4, fontSize: 11 } },
+            rich: {
+              n: { width: nameW, fontSize: 12, color: t.ink2 },
+              s: { width: shareW, align: 'right', color: t.ink4, fontSize: 11 },
+            },
           },
         },
         series: [
           {
-            name: `Allocation by ${dimLabel}`,
+            name: seriesName,
             type: 'pie',
-            radius: ['55%', '82%'],
-            center: [`${compact ? 26 : 25}%`, '54%'],
+            radius: [Math.round(outer * 0.66), outer],
+            center: [Math.round(ringW / 2), Math.round(h / 2)],
             avoidLabelOverlap: true,
             padAngle: slices.length > 1 ? 1 : 0,
             itemStyle: { borderColor: t.surface, borderWidth: slices.length > 1 ? 2 : 0 },
             label: { show: false },
-            emphasis: { scale: true, scaleSize: 4 },
+            emphasis: { scale: true, scaleSize: 3 },
             labelLine: { show: false },
             // Centre total: a label on the first slice only, so it is drawn once.
             data: slices.map((s, i) => ({
@@ -1091,65 +1176,6 @@ function _renderAllocDonut(dim: AllocDim, holdings: Holding[], pd: PortfolioData
     },
     { valueFormatter: fmtEur2 },
   );
-
-  _renderAllocToggleBtn(dim);
-}
-
-function _renderAllocToggleBtn(dim: AllocDim): void {
-  const wrapId = `an-alloc-${dim}-toggle-wrap`;
-  const wrapEl = document.getElementById(wrapId);
-  if (!wrapEl) return;
-
-  if (dim === 'acct') {
-    const groupDim = _acctGroupDim;
-    wrapEl.innerHTML = `
-      <div class="range-toggle" style="font-size:11px">
-        <button class="btn btn-sm btn-ghost${groupDim === 'acct' ? ' active' : ''}" data-acct-group="acct">By account</button>
-        <button class="btn btn-sm btn-ghost${groupDim === 'country' ? ' active' : ''}" data-acct-group="country">Account country</button>
-        <button class="btn btn-sm btn-ghost${groupDim === 'group' ? ' active' : ''}" data-acct-group="group">By group</button>
-        <button class="btn btn-sm btn-ghost${groupDim === 'type' ? ' active' : ''}" data-acct-group="type">By type</button>
-      </div>`;
-    if (!(wrapEl as HTMLElement & { _acctBound?: boolean })._acctBound) {
-      (wrapEl as HTMLElement & { _acctBound?: boolean })._acctBound = true;
-      wrapEl.addEventListener('click', (e) => {
-        const btn = e.target as HTMLElement;
-        const groupBtn = btn.closest('[data-acct-group]') as HTMLElement | null;
-        const holdings = getHoldings();
-        const pd = _lastPd;
-        if (groupBtn) {
-          const newGroup = groupBtn.dataset.acctGroup as 'acct' | 'country' | 'type' | 'group';
-          if (_acctGroupDim === newGroup) return;
-          _acctGroupDim = newGroup;
-          _renderAllocDonut('acct', holdings, pd);
-        }
-      });
-    }
-    return;
-  }
-
-  const mode = _allocMode[dim] ?? 'active';
-  wrapEl.innerHTML = `<div class="range-toggle" style="font-size:11px">
-    <button class="btn btn-sm btn-ghost${mode === 'all' ? ' active' : ''}" data-alloc-mode="all" data-alloc-dim="${dim}">All configured holdings</button>
-    <button class="btn btn-sm btn-ghost${mode === 'active' ? ' active' : ''}" data-alloc-mode="active" data-alloc-dim="${dim}">Active holdings only</button>
-  </div>`;
-  if (!(wrapEl as HTMLElement & { _dimBound?: boolean })._dimBound) {
-    (wrapEl as HTMLElement & { _dimBound?: boolean })._dimBound = true;
-    wrapEl.addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest('[data-alloc-mode]') as HTMLElement | null;
-      if (!btn) return;
-      const newMode = btn.dataset.allocMode as 'active' | 'all';
-      const dimKey = btn.dataset.allocDim as AllocDim;
-      if (!dimKey || _allocMode[dimKey] === newMode) return;
-      _allocMode[dimKey] = newMode;
-      const holdings = getHoldings();
-      const pd = _lastPd;
-      _renderAllocDonut(dimKey, holdings, pd);
-    });
-  }
-}
-
-function _attachAllocToggle(dim: AllocDim): void {
-  _renderAllocToggleBtn(dim);
 }
 
 // ── Drawdown chart ─────────────────────────────────────────

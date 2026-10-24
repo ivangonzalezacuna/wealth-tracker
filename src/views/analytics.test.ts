@@ -31,9 +31,11 @@ const MOCK_ACCOUNTS = [
   },
 ];
 
+const MOCK_HOLDINGS: Record<string, unknown>[] = [];
+
 vi.mock('../store/config', () => ({
   getAccounts: () => MOCK_ACCOUNTS,
-  getHoldings: () => [],
+  getHoldings: () => MOCK_HOLDINGS,
   getSettings: () => ({ riskFreeRate: '2' }),
   getNumberSetting: (_key: string, defaultVal: number) => defaultVal,
   isConfigLoaded: () => true,
@@ -420,6 +422,68 @@ describe('renderAnalytics', () => {
     expect(alloc.legend.orient).toBe('vertical');
     expect(alloc.series[0].data[0].label.position).toBe('center');
     expect(alloc.toolbox.feature.myDataTable).toBeDefined();
+  });
+
+  it('holdings panel picks the first dimension with a real split, switches, and filters inactive', () => {
+    const holding = (isin: string, shortName: string, active: boolean) => ({
+      isin,
+      name: `${shortName} ETF`,
+      shortName,
+      color: '#333333',
+      acc: true,
+      active,
+      assetClass: 'equity',
+      region: isin === 'B' ? 'europe' : 'global',
+      foldInto: '',
+      order: 1,
+    });
+    MOCK_HOLDINGS.splice(
+      0,
+      MOCK_HOLDINGS.length,
+      holding('A', 'World', true),
+      holding('B', 'Europe', true),
+      holding('C', 'Old', false),
+    );
+    const pd = makePd();
+    pd.etfs = {
+      A: { cost: 600 },
+      B: { cost: 300 },
+      C: { cost: 100 },
+    } as unknown as PortfolioData['etfs'];
+    const snaps = [makeSnap('2025-01', 1000, 500), makeSnap('2025-02', 1200, 550)];
+    try {
+      renderAnalytics(pd, snaps, []);
+      const names = () =>
+        (chartFor('c-an-alloc-hold')!.option as Record<string, any>).series[0].data.map(
+          (d: { name: string }) => d.name,
+        );
+      // Asset class is a single slice (all equity), so the panel opens on Region.
+      expect(document.querySelector('[data-hold-dim="region"]')?.getAttribute('aria-pressed')).toBe(
+        'true',
+      );
+      expect(names()).toEqual(['Global', 'Europe']);
+
+      (document.querySelector('[data-hold-dim="holding"]') as HTMLElement).click();
+      expect(names()).toEqual(['World', 'Europe']);
+
+      const inactive = document.querySelector('[data-hold-inactive]') as HTMLElement;
+      expect(inactive).not.toBeNull();
+      inactive.click();
+      expect(names()).toEqual(['World', 'Europe', 'Old']);
+      expect(document.querySelector('[data-hold-inactive]')?.getAttribute('aria-pressed')).toBe(
+        'true',
+      );
+    } finally {
+      MOCK_HOLDINGS.splice(0, MOCK_HOLDINGS.length);
+    }
+  });
+
+  it('holdings panel shows an empty note instead of a blank chart without purchases', () => {
+    renderAnalytics(makePd(), [makeSnap('2025-01', 1000, 500), makeSnap('2025-02', 1200, 550)], []);
+    expect(document.getElementById('an-alloc-hold-empty')?.hidden).toBe(false);
+    expect(
+      (document.getElementById('c-an-alloc-hold')!.closest('.chart-wrap') as HTMLElement).hidden,
+    ).toBe(true);
   });
 
   it('renders allocation by country accessible via account donut group toggle', () => {
