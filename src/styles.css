@@ -419,6 +419,9 @@ code,
 .card-title + .chart-controls {
   margin-top: 10px;
 }
+.card-title + .chart-wrap {
+  margin-top: 8px;
+}
 .card-section {
   margin-top: 1.25rem;
   padding-top: 1rem;
@@ -1348,13 +1351,38 @@ details[open] > summary .card-chevron {
   color: var(--ink-4);
   font-size: 12px;
 }
+/* Chart drill-down target: a short colour fade (no movement), so it stays under reduced motion. */
+@keyframes drill-flash {
+  from {
+    background-color: var(--brand-weak);
+    box-shadow: inset 0 0 0 1px var(--brand-border);
+  }
+  to {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 1px transparent;
+  }
+}
+.drill-flash {
+  animation: drill-flash 1.8s ease-out;
+}
+/* --chart-head-extra: header height beyond the toolbox row (wrapped legend), set from JS. */
 .chart-wrap.chart-tools {
   box-sizing: content-box;
+  padding-top: var(--chart-head-extra, 0px);
   padding-bottom: 32px;
 }
 .chart-wrap.chart-zoomable {
   box-sizing: content-box;
-  padding-bottom: 64px;
+  padding-top: var(--chart-head-extra, 0px);
+  padding-bottom: 76px;
+}
+/* Taller range slider for fingers. */
+.chart-wrap.chart-zoomable.chart-touch {
+  padding-bottom: 82px;
+}
+/* Pinch and sideways drags zoom / pan the chart; vertical swipes still scroll the page. */
+.chart-wrap.chart-zoomable .chart-host {
+  touch-action: pan-y;
 }
 .chart-wrap:fullscreen {
   box-sizing: border-box;
@@ -1378,31 +1406,136 @@ body.chart-expanded-open {
 .chart-wrap.chart-expanded .chart-host {
   inset: 16px;
 }
+/* HTML legend over the chart header (wraps instead of paging). */
+.chart-legend {
+  position: absolute;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+}
+.chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 22px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.chart-legend-item:hover {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+.chart-legend-item:focus-visible {
+  outline: 2px solid var(--brand-border);
+  outline-offset: 0;
+}
+.chart-legend-item[aria-pressed='false'] {
+  color: var(--ink-4);
+}
+.chart-legend-swatch {
+  flex: none;
+  width: 12px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--swatch);
+}
+.chart-legend-swatch.is-line {
+  width: 14px;
+  height: 3px;
+}
+.chart-legend-swatch.is-dashed {
+  width: 14px;
+  height: 0;
+  border-top: 2px dashed var(--swatch);
+  border-radius: 0;
+  background: none;
+}
+.chart-legend-item[aria-pressed='false'] .chart-legend-swatch {
+  background: var(--line-2);
+  border-top-color: var(--line-2);
+}
+.chart-legend-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Data table overlay (toolbox): compact rows, close button, scrolls inside the chart. */
 .chart-dataview {
-  height: 100%;
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+}
+.chart-dataview-close {
+  flex: none;
+  align-self: flex-end;
+  width: 28px;
+  height: 24px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-3);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.chart-dataview-close:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.chart-dataview-close:focus-visible {
+  outline: 2px solid var(--brand-border);
+}
+.chart-dataview-scroll {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
-  padding: 4px 2px 8px;
+  overscroll-behavior: contain;
 }
 .chart-dataview-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
+  line-height: 1.35;
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
 }
 .chart-dataview-table th {
   position: sticky;
   top: 0;
+  z-index: 1;
+  padding: 0 8px 6px;
   background: var(--surface);
+  /* Collapsed borders scroll away with sticky cells; draw the rule as a shadow. */
+  box-shadow: inset 0 -1px var(--line-2);
   text-align: left;
+  font-size: 11px;
   font-weight: 500;
   color: var(--ink-3);
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--line-2);
+  white-space: nowrap;
 }
 .chart-dataview-table td {
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--line);
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+.chart-dataview-table td.num {
+  color: var(--ink);
+}
+.chart-dataview-table tbody tr:nth-child(even) td {
+  background: var(--surface-2);
 }
 .chart-dataview-table .num {
   text-align: right;
@@ -1447,6 +1580,29 @@ body.chart-expanded-open {
   font-style: italic;
   color: var(--ink-3);
 }
+.ec-tt-hint {
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+/* Touch drill-down: the only way to navigate from a chart on phones. */
+.ec-tt-action {
+  display: block;
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--brand-border);
+  border-radius: var(--radius-sm);
+  background: var(--brand-weak);
+  color: var(--brand);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+}
 .legend {
   display: flex;
   flex-wrap: wrap;
@@ -1462,20 +1618,8 @@ body.chart-expanded-open {
   min-width: 0;
   max-width: 100%;
 }
-.leg-text {
-  display: inline-flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 4px;
-  min-width: 0;
-}
 .leg-label {
   color: inherit;
-  overflow-wrap: anywhere;
-}
-.leg-meta {
-  font-size: 11px;
-  color: var(--ink-3);
   overflow-wrap: anywhere;
 }
 .leg-sq {
@@ -2791,7 +2935,6 @@ summary.section-label {
   .planning-label {
     font-size: 10px;
   }
-  .leg-meta,
   .hold-inline-meta {
     font-size: 10px;
   }

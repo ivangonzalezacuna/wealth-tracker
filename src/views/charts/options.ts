@@ -1,6 +1,5 @@
 import { esc, fmtMon } from '../../utils';
-import { addMonths, timeToMonth } from './format';
-import type { RangePreset } from './registry';
+import { timeToMonth } from './format';
 
 type AxisParam = {
   marker?: unknown;
@@ -11,15 +10,6 @@ type AxisParam = {
   axisValueLabel?: string;
   axisType?: string;
 };
-
-/** 1Y / 3Y / All presets ending at the last month timestamp (time axes). */
-export function monthPresets(last: number): RangePreset[] {
-  return [
-    { key: '12', label: '1Y', startValue: addMonths(last, -11), endValue: last },
-    { key: '36', label: '3Y', startValue: addMonths(last, -35), endValue: last },
-    { key: 'all', label: 'All' },
-  ];
-}
 
 /** Monthly time x-axis: month/year tick labels, `Jan 2026` crosshair label. */
 export function monthTimeAxis(extra: Record<string, unknown> = {}) {
@@ -55,6 +45,8 @@ export function axisTooltip(opts: {
   note?: (axisValue: unknown) => string | null | undefined;
   /** Skip rows whose value is 0 (e.g. stacked series with no data that month). */
   hideZero?: boolean;
+  /** Drill-down affordance shown under the rows (see `drillHint`). */
+  hint?: TooltipHint;
 }) {
   return (raw: unknown): string => {
     const params = (Array.isArray(raw) ? raw : [raw]) as AxisParam[];
@@ -83,6 +75,28 @@ export function axisTooltip(opts: {
       : '';
     const noteText = opts.note?.(first.axisValue);
     const note = noteText ? `<div class="ec-tt-note">${esc(noteText)}</div>` : '';
-    return `<div class="ec-tt"><div class="ec-tt-title">${title}</div>${rows}${foot}${note}</div>`;
+    return `<div class="ec-tt"><div class="ec-tt-title">${title}</div>${rows}${foot}${note}${tooltipHint(opts.hint)}</div>`;
   };
+}
+
+/** Plain footer text, or (touch) a button that opens the drill-down target. */
+export type TooltipHint = string | { button: string };
+
+/** Tooltip footer for drill-down charts. */
+export function tooltipHint(hint: TooltipHint | undefined): string {
+  if (!hint) return '';
+  if (typeof hint === 'string') return `<div class="ec-tt-hint">${esc(hint)}</div>`;
+  return `<div class="ec-tt-hint"><button type="button" class="ec-tt-action" data-chart-drill>${esc(
+    hint.button,
+  )}<span aria-hidden="true"> ›</span></button></div>`;
+}
+
+/**
+ * Pointer devices: "Click to …" (a click in the plot opens it). Touch: a tap only shows the
+ * tooltip, whose button opens the target, so scrolling past a chart never navigates away.
+ */
+export function drillHint(ctx: { touch: boolean }, action: string): TooltipHint {
+  return ctx.touch
+    ? { button: action.charAt(0).toUpperCase() + action.slice(1) }
+    : `Click to ${action}`;
 }

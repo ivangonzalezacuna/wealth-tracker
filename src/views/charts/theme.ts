@@ -70,6 +70,11 @@ export function readChartTokens(): ChartTokens {
   return out;
 }
 
+/** Default series colours (shared by the theme and the HTML legend). */
+export function chartPalette(t: ChartTokens): string[] {
+  return [t.brand, t.pos, t.warn, t.neg, t.ink3];
+}
+
 /** ECharts theme object built from the app tokens (axis, tooltip, legend, toolbox, dataZoom). */
 export function buildChartTheme(t: ChartTokens = readChartTokens()): Record<string, unknown> {
   const axisCommon = {
@@ -86,7 +91,7 @@ export function buildChartTheme(t: ChartTokens = readChartTokens()): Record<stri
     splitLine: { show: false },
   };
   return {
-    color: [t.brand, t.pos, t.warn, t.neg, t.ink3],
+    color: chartPalette(t),
     backgroundColor: 'transparent',
     textStyle: { fontFamily: t.fontFamily, color: t.ink2 },
     title: { textStyle: { color: t.ink }, subtextStyle: { color: t.ink4 } },
@@ -149,7 +154,7 @@ export function buildChartTheme(t: ChartTokens = readChartTokens()): Record<stri
     },
     markLine: { label: { color: t.ink2 }, lineStyle: { color: t.ink4 } },
     markPoint: { label: { color: t.ink } },
-    line: { symbol: 'circle', symbolSize: 5, smooth: false },
+    line: { symbol: 'circle', symbolSize: 5, smooth: 0.3 },
     bar: { barMaxWidth: 28 },
   };
 }

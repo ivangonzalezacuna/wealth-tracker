@@ -45,14 +45,16 @@ import { T, R, resolvedT } from '../theme';
 import {
   axisTooltip,
   disposeChart,
+  drillHint,
   fmtEurCompact,
   fmtPctAxis,
-  monthPresets,
   monthTimeAxis,
   monthToTime,
+  nearestMonth,
   renderChart,
   toRgba,
 } from './charts';
+import { drillToSnapshot, drillToTransactions } from './drill';
 import type { Snapshot, PortfolioData, Transaction, Holding } from '../types';
 
 let _lastSnaps: Snapshot[] = [];
@@ -449,6 +451,9 @@ export function renderAnalytics(
 
 // ── Portfolio growth chart ─────────────────────────────────
 
+/** Growth, drawdown and rolling CAGR share a month axis: zoom, presets and hover move together. */
+const TIMELINE_GROUP = 'an-timeline';
+
 function _renderGrowthChart(snaps: Snapshot[]): void {
   if (snaps.length < 2) {
     disposeChart('c-an-growth');
@@ -457,14 +462,18 @@ function _renderGrowthChart(snaps: Snapshot[]): void {
 
   const points = snaps.map((s) => [monthToTime(s.date), snapTotal(s)] as [number, number]);
   const last = points[points.length - 1][0];
+  const months = snaps.map((s) => s.date);
 
   renderChart(
     'c-an-growth',
-    ({ tokens: t }) => ({
+    ({ tokens: t, touch }) => ({
       tooltip: {
         trigger: 'axis',
         confine: true,
-        valueFormatter: (v) => fmtEur2(Number(v)),
+        formatter: axisTooltip({
+          value: (v) => fmtEur2(v),
+          hint: drillHint({ touch }, 'open this snapshot'),
+        }),
       },
       xAxis: monthTimeAxis(),
       yAxis: {
@@ -502,8 +511,8 @@ function _renderGrowthChart(snaps: Snapshot[]): void {
     {
       zoom: true,
       xAxisType: 'time',
-      presets: monthPresets(last),
-      defaultPreset: 'all',
+      group: TIMELINE_GROUP,
+      drill: { resolve: (v) => nearestMonth(v, months), select: drillToSnapshot },
     },
   );
 }
@@ -571,12 +580,6 @@ function _renderContribChart(points: MonthlyGrowthPoint[]): void {
     {
       zoom: true,
       xAxisType: 'category',
-      presets: [
-        { key: '12', label: '1Y', startValue: Math.max(0, n - 12), endValue: n - 1 },
-        { key: '36', label: '3Y', startValue: Math.max(0, n - 36), endValue: n - 1 },
-        { key: 'all', label: 'All' },
-      ],
-      defaultPreset: 'all',
     },
   );
 }
@@ -1154,7 +1157,7 @@ function _renderDrawdownChart(series: { date: string; drawdown: number }[]): voi
           type: 'line',
           data: points,
           showSymbol: false,
-          smooth: 0.2,
+          smooth: 0.3,
           lineStyle: { width: 1.5, color: t.neg },
           itemStyle: { color: t.neg },
           areaStyle: { color: toRgba(t.neg, 0.2) },
@@ -1177,9 +1180,8 @@ function _renderDrawdownChart(series: { date: string; drawdown: number }[]): voi
     {
       zoom: true,
       xAxisType: 'time',
-      presets: monthPresets(last),
-      defaultPreset: 'all',
       valueFormatter: pct,
+      group: TIMELINE_GROUP,
     },
   );
 }
@@ -1251,9 +1253,8 @@ function _renderRollingCagrChart(
     {
       zoom: data.length > 12,
       xAxisType: 'time',
-      presets: data.length > 12 ? monthPresets(last) : undefined,
-      defaultPreset: 'all',
       valueFormatter: pct,
+      group: TIMELINE_GROUP,
     },
   );
 }
@@ -1348,12 +1349,15 @@ function _renderIncomeChart(monthlyBreakdown: { month: string; amount: number }[
 
   renderChart(
     'c-an-income',
-    ({ tokens: t }) => ({
+    ({ tokens: t, touch }) => ({
       tooltip: {
         trigger: 'axis',
         confine: true,
         axisPointer: { type: 'shadow' },
-        valueFormatter: (v) => fmtEur2(Number(v)),
+        formatter: axisTooltip({
+          value: (v) => fmtEur2(v),
+          hint: drillHint({ touch }, "see this month's transactions"),
+        }),
       },
       xAxis: { type: 'category', data: months, axisTick: { show: false } },
       yAxis: { type: 'value', axisLabel: { formatter: fmtEurCompact } },
@@ -1370,15 +1374,12 @@ function _renderIncomeChart(monthlyBreakdown: { month: string; amount: number }[
     {
       zoom: n > 12,
       xAxisType: 'category',
-      presets:
-        n > 12
-          ? [
-              { key: '12', label: '1Y', startValue: Math.max(0, n - 12), endValue: n - 1 },
-              { key: '36', label: '3Y', startValue: Math.max(0, n - 36), endValue: n - 1 },
-              { key: 'all', label: 'All' },
-            ]
-          : undefined,
-      defaultPreset: '12',
+      // Opens on the last year; zoom out (slider / pinch) for the full history.
+      window: n > 12 ? { startValue: n - 12, endValue: n - 1 } : undefined,
+      drill: {
+        resolve: (v) => monthlyBreakdown[Math.round(v)]?.month ?? null,
+        select: (month) => drillToTransactions(month),
+      },
     },
   );
 }

@@ -1,5 +1,5 @@
 import { fmtEur, fmtEur2, fmtMon, esc, safeColor, kpiTile } from '../utils';
-import { getISIN_ORDERList, getISIN, getMETAMap, FORECAST_RANGE_LABELS } from '../constants';
+import { getISIN_ORDERList, getISIN, getMETAMap } from '../constants';
 import { getMonthlyContribBudget, getAccounts } from '../store/config';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import type { PortfolioData, Snapshot, Account } from '../types';
@@ -18,25 +18,22 @@ import {
 import {
   addMonths,
   axisTooltip,
+  drillHint,
   fmtEurCompact,
+  horizonLabel,
+  horizonMonths,
   monthTimeAxis,
   monthToTime,
   renderChart,
   toRgba,
 } from './charts';
+import { drillToTransactions } from './drill';
+import { TxType } from '../types';
 
 const DCA_PAGE_SIZE = 12;
-const DCA_FC_HORIZONS = ['60', '120', '240', '360'] as const;
-const DCA_FC_SHORT: Record<string, string> = {
-  '60': '5Y',
-  '120': '10Y',
-  '240': '20Y',
-  '360': '30Y',
-};
-let _dcaRange = 'all'; // '12', '36', 'all'
 const _dcaTableState = createTableState({ sort: { key: null, dir: null }, filters: { year: '' } });
 let _lastPd: PortfolioData | null = null;
-let _dcaFcRange: '60' | '120' | '240' | '360' = '60'; // 5y / 10y / 20y / 30y forecast horizon
+let _dcaFcMonths = 60; // visible forecast horizon (follows the chart zoom)
 
 /**
  * Renders the Contributions (DCA) tab: monthly-total KPI tiles, the
@@ -139,7 +136,7 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
     return;
   }
 
-  // Project the longest horizon once; the 5Y–30Y presets only move the zoom window.
+  // Project the longest horizon once; zooming only moves the window (5 years by default).
   const lastTime = monthToTime(lastMonth);
   const histPoints: [number, number][] = histMonths.map((m, i) => [
     monthToTime(m),
@@ -180,7 +177,7 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
 
   projCard.innerHTML = `
     <div class="card">
-      <div class="card-title">Cumulative contributions: <span id="dca-proj-range">${FORECAST_RANGE_LABELS[_dcaFcRange]}</span></div>
+      <div class="card-title">Cumulative contributions: <span id="dca-proj-range">${horizonLabel(_dcaFcMonths)}</span></div>
       <div class="chart-wrap chart-h-md"><div id="c-dca-proj" class="chart-host" role="img" aria-label="Cumulative contributions forecast chart"></div></div>
       <div class="note" style="line-height:1.6">
         <div style="margin-bottom:4px">Projected monthly contributions (Settings \u2192 Accounts):</div>
@@ -211,6 +208,7 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
           z: 4,
           data: histPoints,
           showSymbol: histPoints.length === 1,
+          smooth: 0.3,
           lineStyle: { width: 2.5, color: t.brand },
           itemStyle: { color: t.brand },
         },
@@ -220,6 +218,7 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
           z: 3,
           data: fcPoints,
           showSymbol: false,
+          smooth: 0.3,
           lineStyle: { width: 2, type: [5, 3], color: t.brand },
           itemStyle: { color: t.brand },
           areaStyle: { origin: 'start', color: toRgba(t.brand, 0.07) },
@@ -235,19 +234,13 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
     {
       zoom: true,
       xAxisType: 'time',
-      presets: DCA_FC_HORIZONS.map((key) => ({
-        key,
-        label: DCA_FC_SHORT[key],
-        startValue: histStart,
-        endValue: addMonths(lastTime, parseInt(key)),
-      })),
-      defaultPreset: _dcaFcRange,
+      window: { startValue: histStart, endValue: addMonths(lastTime, _dcaFcMonths) },
       valueFormatter: fmtEur2,
-      onPresetChange: (key) => {
-        if (!key || !(DCA_FC_HORIZONS as readonly string[]).includes(key)) return;
-        _dcaFcRange = key as typeof _dcaFcRange;
+      // The title follows the zoom window: "Cumulative contributions: 12 years".
+      onZoom: ({ endValue }) => {
+        _dcaFcMonths = horizonMonths(lastTime, endValue, 360);
         const titleEl = document.getElementById('dca-proj-range');
-        if (titleEl) titleEl.textContent = FORECAST_RANGE_LABELS[_dcaFcRange];
+        if (titleEl) titleEl.textContent = horizonLabel(_dcaFcMonths);
       },
     },
   );
@@ -272,7 +265,7 @@ function renderDCAChart(
 
   renderChart(
     'c-dca-bar',
-    ({ tokens: t }) => ({
+    ({ tokens: t, touch }) => ({
       legend: {},
       tooltip: {
         trigger: 'axis',
@@ -285,6 +278,7 @@ function renderDCAChart(
             vals.filter((v) => v > 0).length > 1
               ? { label: 'Total', value: fmtEur2(vals.reduce((s, v) => s + v, 0)) }
               : null,
+          hint: drillHint({ touch }, "see this month's purchases"),
         }),
       },
       xAxis: { type: 'category', data: months.map(fmtMon), axisTick: { show: false } },
@@ -308,18 +302,12 @@ function renderDCAChart(
     {
       zoom: true,
       xAxisType: 'category',
-      presets:
-        n > 12
-          ? [
-              { key: '12', label: '1Y', startValue: Math.max(0, n - 12), endValue: n - 1 },
-              { key: '36', label: '3Y', startValue: Math.max(0, n - 36), endValue: n - 1 },
-              { key: 'all', label: 'All' },
-            ]
-          : undefined,
-      defaultPreset: _dcaRange,
+      // Opens on the last year; zoom out (slider / pinch) for the full history.
+      window: n > 12 ? { startValue: n - 12, endValue: n - 1 } : undefined,
       valueFormatter: fmtEur2,
-      onPresetChange: (key) => {
-        if (key) _dcaRange = key;
+      drill: {
+        resolve: (v) => months[Math.round(v)] ?? null,
+        select: (month) => drillToTransactions(month, TxType.BUY),
       },
     },
   );

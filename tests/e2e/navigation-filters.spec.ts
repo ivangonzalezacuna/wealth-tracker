@@ -109,7 +109,7 @@ test('portfolio sub-view tabs switch correctly', async ({ page }) => {
   await expect(page.locator('#subview-holdings')).toBeVisible();
 });
 
-test('net worth history chart offers zoom range presets', async ({ page }) => {
+test('net worth history chart offers zoom without range presets', async ({ page }) => {
   await gotoApp(page);
   await addAccount(page, {
     label: 'Broker',
@@ -139,6 +139,6 @@ test('net worth history chart offers zoom range presets', async ({ page }) => {
     const ids = (opt?.graphic?.[0]?.elements ?? []).map((e) => e.id ?? '');
     return { ids, zooms: opt?.dataZoom?.length ?? 0 };
   });
-  expect(presets.ids).toEqual(expect.arrayContaining(['preset-12', 'preset-36', 'preset-all']));
+  expect(presets.ids.filter((id) => id.startsWith('preset-'))).toEqual([]);
   expect(presets.zooms).toBe(2);
 });

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { renderLog, applyLogView, fmtCountBadge } from './log';
+import { renderLog, applyLogView, fmtCountBadge, revealSnapshot, showTransactions } from './log';
 import type { Snapshot, Transaction } from '../types';
 
 vi.mock('../constants', () => ({
@@ -797,5 +797,64 @@ describe('log layout helpers', () => {
     applyLogView('transactions');
     expect(document.getElementById('balance-card')?.hidden).toBe(true);
     expect(document.getElementById('csv-import-card')?.hidden).toBe(false);
+  });
+});
+
+describe('chart drill-down targets', () => {
+  beforeEach(() => {
+    document.body.innerHTML = `<div id="tx-ledger-card">${DOM_FIXTURE}</div>`;
+    _collapseState = {};
+  });
+
+  const render = (snaps: Snapshot[], txs: Transaction[] = []) =>
+    renderLog({ txs, snaps, importMeta: null, onEditSnap: vi.fn(), onDelSnap: vi.fn() });
+
+  it('reveals and expands a snapshot from another year', () => {
+    const snaps = ['2024-11', '2024-12', '2025-01', '2025-02'].map((d) => makeSnap(d));
+    render(snaps);
+    const row = revealSnapshot('2024-12');
+    expect(row?.dataset.date).toBe('2024-12');
+    expect(_collapseState['snap:2024-12']).toBe(true);
+    expect((document.getElementById('snap-year-filter') as HTMLSelectElement).value).toBe('2024');
+    const dates = [
+      ...document.querySelectorAll<HTMLElement>('#snaps-list .snap-row-compact:not(.th)'),
+    ].map((r) => r.dataset.date);
+    expect(dates).not.toContain('2025-01');
+    expect(document.querySelector('.snap-detail')).not.toBeNull();
+  });
+
+  it('opens a newer month of the same year after an older one', () => {
+    const snaps = ['2025-01', '2025-02', '2025-03', '2025-04'].map((d) => makeSnap(d));
+    render(snaps);
+    revealSnapshot('2025-01');
+    const row = revealSnapshot('2025-03');
+    expect(row?.getAttribute('aria-expanded')).toBe('true');
+    const detail = document.querySelectorAll('.snap-detail');
+    expect(detail).toHaveLength(1);
+    expect((detail[0].previousElementSibling as HTMLElement).dataset.date).toBe('2025-03');
+    expect(_collapseState['snap:2025-01']).toBeUndefined();
+  });
+
+  it('returns null for an unknown snapshot', () => {
+    render([makeSnap('2025-01')]);
+    expect(revealSnapshot('2020-01')).toBeNull();
+  });
+
+  it('filters the ledger to a month and transaction type', () => {
+    render(
+      [],
+      [
+        makeTx(1n, { date: '2026-01-05', name: 'JanBuy' }),
+        makeTx(2n, { date: '2026-02-05', name: 'FebBuy' }),
+        makeTx(3n, { date: '2026-02-10', name: 'FebDiv', type: 'DIVIDEND', shares: 0 }),
+      ],
+    );
+    const card = showTransactions({ search: '2026-02', type: 'BUY' });
+    expect(card?.id).toBe('tx-ledger-card');
+    const text = document.getElementById('tx-ledger-list')!.textContent!;
+    expect(text).toContain('FebBuy');
+    expect(text).not.toContain('JanBuy');
+    expect(text).not.toContain('FebDiv');
+    expect((document.getElementById('tx-search') as HTMLInputElement).value).toBe('2026-02');
   });
 });

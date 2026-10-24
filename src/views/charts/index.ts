@@ -12,9 +12,19 @@ export {
   getChart,
   refreshChartsTheme,
   type ChartCtx,
-  type RangePreset,
+  type ChartDrill,
+  type ZoomWindow,
   type RenderChartOpts,
 } from './registry';
-export { fmtEurCompact, fmtPctAxis, monthToTime, timeToMonth, addMonths } from './format';
-export { toRgba, readChartTokens, type ChartTokens } from './theme';
-export { monthPresets, monthTimeAxis, axisTooltip } from './options';
+export {
+  fmtEurCompact,
+  fmtPctAxis,
+  monthToTime,
+  timeToMonth,
+  addMonths,
+  nearestMonth,
+  horizonMonths,
+  horizonLabel,
+} from './format';
+export { toRgba, type ChartTokens } from './theme';
+export { monthTimeAxis, axisTooltip, tooltipHint, drillHint } from './options';
