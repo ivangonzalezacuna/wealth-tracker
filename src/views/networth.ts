@@ -1313,7 +1313,8 @@ function _renderDecumulationChart(
               ? {
                   silent: true,
                   itemStyle: { color: toRgba(t.neg, 0.07) },
-                  label: { show: true, position: 'insideTop', color: t.neg, fontSize: 10 },
+                  // Centred in the empty zone: the top is taken by the starting-balance label.
+                  label: { show: true, position: 'inside', color: t.neg, fontSize: 10 },
                   data: [[{ name: 'Depleted', xAxis: depletion }, { xAxis: last }]],
                 }
               : undefined,
@@ -1329,22 +1330,6 @@ function _renderDecumulationChart(
             },
             data: [{ yAxis: startingCorpus }],
           },
-          markPoint:
-            depletion !== null
-              ? {
-                  symbol: 'pin',
-                  symbolSize: 34,
-                  itemStyle: { color: t.neg },
-                  label: { color: '#fff', fontSize: 9, formatter: '0' },
-                  tooltip: { show: true },
-                  data: [
-                    {
-                      name: `Depleted ${fmtMon(endMonth!)}`,
-                      coord: [depletion, 0],
-                    },
-                  ],
-                }
-              : undefined,
         },
         ...(ddRealSeries
           ? [

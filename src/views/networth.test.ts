@@ -582,6 +582,8 @@ describe('renderNW', () => {
     expect(document.getElementById('nw-dd-answer')?.textContent).toContain('Runs out');
     const opt = chartFor('c-nw-decumulation')!.option as AnyRec;
     expect(opt.series[0].markArea.data[0][0].name).toBe('Depleted');
+    expect(opt.series[0].markArea.label.position).toBe('inside');
+    expect(opt.series[0].markPoint).toBeUndefined();
   });
 
   it('suggests 4% of the balance for every strategy on first open', () => {
