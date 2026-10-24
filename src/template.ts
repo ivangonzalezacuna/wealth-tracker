@@ -408,10 +408,8 @@ export function appTemplate(): string {
       </div>
       <div class="log-panel-body">
         <div class="filter-bar log-filter-bar" id="snap-filter-bar">
-          <select id="snap-year-filter" class="form-input form-input-sm filter-select themed-select" aria-label="Filter by year">
-            <option value="">All years</option>
-          </select>
-          <span class="filter-search"><input type="search" id="snap-search" class="form-input form-input-sm" aria-label="Search snapshots by notes" placeholder="Notes or month…" autocomplete="off"><button type="button" class="filter-clear" data-clear-search aria-label="Clear search">&times;</button></span>
+
+          <span class="filter-search"><input type="search" id="snap-search" class="form-input form-input-sm" aria-label="Search snapshots by month, year or notes" placeholder="Month, year or notes…" autocomplete="off"><button type="button" class="filter-clear" data-clear-search aria-label="Clear search">&times;</button></span>
           <div class="filter-bar-actions">
             <button class="btn btn-outline btn-sm" id="btn-start-del-snaps" aria-pressed="false">Select</button>
           </div>

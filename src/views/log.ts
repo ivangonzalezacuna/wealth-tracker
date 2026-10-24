@@ -10,7 +10,6 @@ import { renderTableHeader, renderTableRow } from './tableColumns';
 import { loadPageSize, renderPagination, savePageSize } from './pagination';
 import { bindExpandableRows, restoreExpandableRows } from './expandableRows';
 import { bindSortedTableHeader, sortAndPaginate } from './tableView';
-import { populateYearFilterOptions } from './yearFilter';
 import { LOG_VIEWS, type LogView } from '../nav';
 import {
   bindChipGroup,
@@ -21,7 +20,6 @@ import {
 } from '../ui/filterBar';
 import {
   bindTableSearchFilter,
-  bindTableYearFilter,
   createTableState,
   getTableFilter,
   setTablePage,
@@ -56,7 +54,7 @@ function isoDateSortValue(date: string): number {
 let _snapPageSize = loadPageSize(SNAP_PAGE_SIZE_KEY, SNAP_PAGE_SIZES, SNAP_PAGE_SIZES[0]);
 const _snapTableState = createTableState({
   sort: { key: null, dir: null },
-  filters: { year: '', search: '' },
+  filters: { search: '' },
 });
 let _lastOnEdit: ((date: string) => void) | null = null;
 let _lastOnDel: ((date: string, btn?: HTMLButtonElement) => void) | null = null;
@@ -206,8 +204,6 @@ export function renderLog(state: LogState): void {
   _updateBulkControls('tx');
   renderTxList(_txs);
 
-  // Populate year filter options
-  populateYearFilterOptions('snap-year-filter', _snaps);
   attachFilterListeners();
   _updateBulkControls('snap');
   renderSnapList(_snaps, state.onEditSnap, state.onDelSnap);
@@ -265,13 +261,7 @@ function attachFilterListeners(): void {
     _snapFromChart = false;
     if (_lastOnEdit && _lastOnDel) renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
   };
-  bindTableYearFilter({
-    elementId: 'snap-year-filter',
-    state: _snapTableState,
-    filterKey: 'year',
-    resetSort: true,
-    rerender,
-  });
+
   bindTableSearchFilter({
     elementId: 'snap-search',
     state: _snapTableState,
@@ -285,26 +275,20 @@ function attachFilterListeners(): void {
 
 function clearSnapFilters(): void {
   _snapTableState.filters.search = '';
-  _snapTableState.filters.year = '';
   _snapFromChart = false;
   setTablePage(_snapTableState, 1);
-  const yearEl = document.getElementById('snap-year-filter') as HTMLSelectElement | null;
   const searchEl = document.getElementById('snap-search') as HTMLInputElement | null;
-  if (yearEl) yearEl.value = '';
   if (searchEl) searchEl.value = '';
   if (_lastOnEdit && _lastOnDel) renderSnapList(_snaps, _lastOnEdit, _lastOnDel);
 }
 
 function getFilteredSnaps(snaps: Snapshot[]): Snapshot[] {
   let filtered = [...snaps].reverse();
-  const selectedYear = getTableFilter(_snapTableState, 'year');
   const searchTerm = getTableFilter(_snapTableState, 'search');
-  if (selectedYear) {
-    filtered = filtered.filter((s) => s.date.startsWith(selectedYear));
-  }
   if (searchTerm) {
     filtered = filtered.filter(
       (s) =>
+        s.date.includes(searchTerm) ||
         (s.notes || '').toLowerCase().includes(searchTerm) ||
         fmtMon(s.date).toLowerCase().includes(searchTerm),
     );
@@ -327,19 +311,16 @@ function getFilteredTxs(txs: Transaction[]): Transaction[] {
 }
 
 /**
- * Show one snapshot in the history (chart drill-down): filter to its year, jump to the page
- * holding it and expand its row. Returns the row, or null when the snapshot is unknown.
+ * Show one snapshot in the history (chart drill-down): filter to its month, matching the
+ * ledger drill-down, and expand its row. Returns the row, or null when the snapshot is unknown.
  */
 export function revealSnapshot(date: string): HTMLElement | null {
   if (!_lastOnEdit || !_lastOnDel || !_snaps.some((s) => s.date === date)) return null;
-  const year = date.slice(0, 4);
-  _snapTableState.filters.search = '';
-  _snapTableState.filters.year = year;
+  const month = fmtMon(date);
+  _snapTableState.filters.search = month.toLowerCase();
   _snapFromChart = true;
-  const yearEl = document.getElementById('snap-year-filter') as HTMLSelectElement | null;
   const searchEl = document.getElementById('snap-search') as HTMLInputElement | null;
-  if (yearEl) yearEl.value = year;
-  if (searchEl) searchEl.value = '';
+  if (searchEl) searchEl.value = month;
   const { pageItems: ordered } = sortAndPaginate(
     getFilteredSnaps(_snaps),
     snapColumns(),
@@ -563,9 +544,7 @@ function renderSnapList(
     shown: filtered.length,
     total: snaps.length,
     noun: 'snapshots',
-    active: !!(
-      getTableFilter(_snapTableState, 'year') || getTableFilter(_snapTableState, 'search')
-    ),
+    active: !!getTableFilter(_snapTableState, 'search'),
     note: _snapFromChart ? 'From chart' : undefined,
   });
 

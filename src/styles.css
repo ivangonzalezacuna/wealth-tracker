@@ -1367,6 +1367,9 @@ details[open] > summary .card-chevron {
   #snaps-list {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+    /* A trailing filler row absorbs a detail panel taller than the rows, so short
+       (e.g. filtered) lists keep their rows at the top. */
+    grid-template-rows: repeat(var(--snap-rows, 13), auto) 1fr;
     column-gap: 16px;
     align-items: start;
   }
@@ -1380,7 +1383,7 @@ details[open] > summary .card-chevron {
   }
   #snaps-list > .snap-detail {
     grid-column: 2;
-    grid-row: 1 / span var(--snap-rows, 13);
+    grid-row: 1 / -1;
     position: sticky;
     top: 12px;
     flex-direction: column;
@@ -1429,7 +1432,7 @@ details[open] > summary .card-chevron {
   #snaps-list:has(> .snap-row-compact:not(.th)):not(:has(> .snap-detail))::after {
     content: 'Select a month to see its account breakdown';
     grid-column: 2;
-    grid-row: 1 / span var(--snap-rows, 13);
+    grid-row: 1 / -1;
     align-self: start;
     position: sticky;
     top: 12px;

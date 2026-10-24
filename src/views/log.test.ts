@@ -52,7 +52,6 @@ function makeTx(rowId: bigint, overrides: Partial<Transaction> = {}): Transactio
 function resetRenderedFilters(): void {
   const txSearch = document.getElementById('tx-search') as HTMLInputElement | null;
   const snapSearch = document.getElementById('snap-search') as HTMLInputElement | null;
-  const snapYear = document.getElementById('snap-year-filter') as HTMLSelectElement | null;
 
   if (txSearch) {
     txSearch.value = '';
@@ -63,14 +62,9 @@ function resetRenderedFilters(): void {
     snapSearch.value = '';
     snapSearch.dispatchEvent(new Event('input'));
   }
-  if (snapYear) {
-    snapYear.value = '';
-    snapYear.dispatchEvent(new Event('change'));
-  }
 }
 
 const DOM_FIXTURE = `
-  <select id="snap-year-filter"></select>
   <input id="snap-search" />
   <div id="snap-table-header"></div>
   <div id="snaps-list"></div>
@@ -86,7 +80,6 @@ const DOM_FIXTURE = `
 `;
 
 const BULK_DOM_FIXTURE = `
-  <select id="snap-year-filter"></select>
   <input id="snap-search" />
   <div id="snaps-list"></div>
   <div id="snap-pagination"></div>
@@ -234,7 +227,7 @@ describe('renderLog', () => {
     expect(onDel).toHaveBeenCalledWith('2026-03-01', delBtn);
   });
 
-  it('populates year filter with distinct years from snaps', () => {
+  it('search filters snapshots by year', () => {
     const snaps = [makeSnap('2025-06-01'), makeSnap('2026-01-01'), makeSnap('2026-02-01')];
     renderLog({
       txs: [],
@@ -243,12 +236,13 @@ describe('renderLog', () => {
       onEditSnap: vi.fn(),
       onDelSnap: vi.fn(),
     });
-    const select = document.getElementById('snap-year-filter') as HTMLSelectElement;
-    const options = Array.from(select.querySelectorAll('option'));
-    expect(options[0].value).toBe('');
-    expect(options[0].textContent).toBe('All years');
-    expect(options[1].value).toBe('2026');
-    expect(options[2].value).toBe('2025');
+    const input = document.getElementById('snap-search') as HTMLInputElement;
+    input.value = '2025';
+    input.dispatchEvent(new Event('input'));
+    const dates = [
+      ...document.querySelectorAll<HTMLElement>('#snaps-list .snap-row-compact:not(.th)'),
+    ].map((r) => r.dataset.date);
+    expect(dates).toEqual(['2025-06-01']);
   });
 
   it('search filters snapshots by date/notes', () => {
@@ -807,17 +801,17 @@ describe('chart drill-down targets', () => {
   const render = (snaps: Snapshot[], txs: Transaction[] = []) =>
     renderLog({ txs, snaps, importMeta: null, onEditSnap: vi.fn(), onDelSnap: vi.fn() });
 
-  it('reveals and expands a snapshot from another year', () => {
+  it('filters the history to the snapshot month and expands it', () => {
     const snaps = ['2024-11', '2024-12', '2025-01', '2025-02'].map((d) => makeSnap(d));
     render(snaps);
     const row = revealSnapshot('2024-12');
     expect(row?.dataset.date).toBe('2024-12');
     expect(_collapseState['snap:2024-12']).toBe(true);
-    expect((document.getElementById('snap-year-filter') as HTMLSelectElement).value).toBe('2024');
+    expect((document.getElementById('snap-search') as HTMLInputElement).value).toBe('Dec 2024');
     const dates = [
       ...document.querySelectorAll<HTMLElement>('#snaps-list .snap-row-compact:not(.th)'),
     ].map((r) => r.dataset.date);
-    expect(dates).not.toContain('2025-01');
+    expect(dates).toEqual(['2024-12']);
     expect(document.querySelector('.snap-detail')).not.toBeNull();
   });
 

@@ -1,5 +1,4 @@
 import type { SortState } from './tableSort';
-import { bindYearFilter } from './yearFilter';
 
 export interface TableState {
   page: number;
@@ -16,14 +15,6 @@ export interface CreateTableStateOptions {
 export interface SetTableFilterOptions {
   resetSort?: boolean;
   rerender?: () => void;
-}
-
-export interface BindTableYearFilterOptions {
-  elementId: string;
-  state: TableState;
-  filterKey?: string;
-  resetSort?: boolean;
-  rerender: () => void;
 }
 
 export interface BindTableSearchFilterOptions {
@@ -70,13 +61,6 @@ export function setTableFilter(
   state.page = 1;
   if (options.resetSort) resetTableSort(state);
   options.rerender?.();
-}
-
-export function bindTableYearFilter(opts: BindTableYearFilterOptions): void {
-  const { elementId, state, filterKey = 'year', resetSort = false, rerender } = opts;
-  bindYearFilter(elementId, (year) => {
-    setTableFilter(state, filterKey, year, { resetSort, rerender });
-  });
 }
 
 export function bindTableSearchFilter(opts: BindTableSearchFilterOptions): void {
