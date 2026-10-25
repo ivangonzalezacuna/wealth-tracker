@@ -5,8 +5,7 @@ import { describe, it, expect, beforeEach, afterEach, beforeAll, vi } from 'vite
 import { TxType } from '../types';
 
 vi.mock('sql.js/dist/sql-wasm-browser.wasm?url', () => ({
-  default:
-    '/home/runner/work/wealth-tracker/wealth-tracker/node_modules/sql.js/dist/sql-wasm-browser.wasm',
+  default: `${process.cwd().replaceAll('\\', '/')}/node_modules/sql.js/dist/sql-wasm-browser.wasm`,
 }));
 
 const idbStore = new Map<string, Uint8Array>();
@@ -70,6 +69,8 @@ if (!(globalThis as { indexedDB?: unknown }).indexedDB) {
 }
 
 let destroyDb: typeof import('../db').destroyDb;
+let getDb: typeof import('../db').getDb;
+let persistDb: typeof import('../db').persistDb;
 let exportDb: typeof import('../db').exportDb;
 let importDb: typeof import('../db').importDb;
 let saveAccounts: typeof import('../db').saveAccounts;
@@ -87,6 +88,8 @@ describe('db importDb local-preservation merge', () => {
   beforeAll(async () => {
     const db = await import('../db');
     destroyDb = db.destroyDb;
+    getDb = db.getDb;
+    persistDb = db.persistDb;
     exportDb = db.exportDb;
     importDb = db.importDb;
     saveAccounts = db.saveAccounts;
@@ -253,5 +256,22 @@ describe('db importDb local-preservation merge', () => {
 
     expect(txs.some((t) => t.id === 'tx-cloud')).toBe(true);
     expect(txs.some((t) => t.id === 'tx-local')).toBe(true);
+  });
+
+  it('persists applied schema migrations so later loads see the upgraded schema', async () => {
+    const db = await getDb();
+    db.run("UPDATE meta SET value = '14' WHERE key = 'schema_version'");
+    await persistDb(db);
+
+    const oldSchema = idbStore.get('main.db');
+    expect(oldSchema).toBeDefined();
+    await destroyDb();
+    idbStore.set('main.db', oldSchema!);
+
+    const migratedDb = await getDb();
+    expect(migratedDb.exec("SELECT value FROM meta WHERE key = 'schema_version'")[0].values[0][0]).toBe(
+      '15',
+    );
+    expect(Array.from(idbStore.get('main.db')!)).toEqual(Array.from(migratedDb.export()));
   });
 });
