@@ -292,6 +292,7 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
   const numberErrorCounts: Record<string, { field: string; raw: string; count: number }> = {};
   const idHashCounts: Record<string, number> = {}; // preserve duplicates with identical row hash
   const errorLines: string[] = [];
+  const numberErrorRows = new Set<Transaction>();
   const headerLine = lines[0];
 
   for (let i = 1; i < lines.length; i++) {
@@ -403,7 +404,7 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
     const canonicalTax = txType === 'TAX' ? (tax !== 0 ? tax : amount) : tax;
     const canonicalAmount = txType === 'TAX' ? canonicalTax : amount;
 
-    transactions.push({
+    const tx: Transaction = {
       id,
       date,
       source: profile.id,
@@ -418,7 +419,9 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
       tax: canonicalTax,
       currency: get('currency') || profile.defaultCurrency,
       fxRate,
-    });
+    };
+    transactions.push(tx);
+    if (hadNumberError) numberErrorRows.add(tx);
   }
 
   // Filter rows that somehow still have no date or type (shouldn't happen after above guards)
@@ -487,7 +490,15 @@ export function parseWithProfile(text: string, profile: ImportProfile): ParseRes
     .sort((a, b) => b.count - a.count);
   const numberErrors = Object.values(numberErrorCounts).sort((a, b) => b.count - a.count);
 
-  return { transactions: filtered, unmapped, dateErrors, numberErrors, errorLines, headerLine };
+  return {
+    transactions: filtered,
+    unmapped,
+    dateErrors,
+    numberErrors,
+    errorLines,
+    headerLine,
+    numberErrorRows,
+  };
 }
 
 /**
