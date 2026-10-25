@@ -66,7 +66,7 @@ function validBackupObj(): BackupFile {
     schemaVersion: BACKUP_SCHEMA_VERSION,
     app: 'wealth-tracker',
     exportedAt: '2026-06-15T10:00:00.000Z',
-    data: FIXTURE_DATA,
+    data: structuredClone(FIXTURE_DATA),
   };
 }
 
@@ -207,6 +207,19 @@ describe('validateBackup', () => {
     (obj.data.snapshots as any)[0].date = '2026/01';
     expect(validateBackup(obj)).toBeNull();
   });
+
+  it.each(['2024-02-30', '2024-04-31', '2024-13', '2023-02-29'])(
+    'rejects impossible calendar date %s in snapshots and transactions',
+    (date) => {
+      const snapshotBackup = validBackupObj();
+      (snapshotBackup.data.snapshots as any)[0].date = date;
+      expect(validateBackup(snapshotBackup)).toBeNull();
+
+      const transactionBackup = validBackupObj();
+      (transactionBackup.data.transactions as any)[0].date = date;
+      expect(validateBackup(transactionBackup)).toBeNull();
+    },
+  );
 
   it('importMeta with non-string value returns null', () => {
     const obj = validBackupObj();

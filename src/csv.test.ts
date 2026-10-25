@@ -50,4 +50,10 @@ describe('parseCSV auto-detection', () => {
     expect(txs[0].source).toBe('n26');
     expect(txs[0].amount).toBeCloseTo(0.75);
   });
+
+  it('rejects unsupported headers rather than interpreting them as Trade Republic data', () => {
+    expect(() => parseCSV('BookingDate,Description,Value\n2024-01-01,Transfer,100')).toThrow(
+      'Unsupported CSV format',
+    );
+  });
 });

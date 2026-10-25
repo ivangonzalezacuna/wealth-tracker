@@ -110,6 +110,7 @@ export async function getDb(): Promise<Database> {
     const currentVersion = getDbVersion(_db);
     if (currentVersion < SCHEMA_VERSION) {
       applyMigrations(_db, currentVersion);
+      await persistDb();
     }
   } else {
     // Fresh database

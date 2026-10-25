@@ -141,6 +141,18 @@ describe('parseNumber', () => {
     expect(parseNumber(null, 'auto')).toBe(0);
     expect(parseNumber(undefined, 'auto')).toBe(0);
   });
+
+  it.each(['100EUR', '1,234abc', '12.3.4', '1,23,4', '1.23.456'])(
+    'rejects malformed numeric token %s instead of parsing a numeric prefix',
+    (value) => {
+      expect(Number.isNaN(parseNumber(value, 'auto'))).toBe(true);
+    },
+  );
+
+  it('rejects malformed grouping for explicit decimal modes', () => {
+    expect(Number.isNaN(parseNumber('12,34,567', 'dot'))).toBe(true);
+    expect(Number.isNaN(parseNumber('12.34.567', 'comma'))).toBe(true);
+  });
 });
 
 describe('parseDate', () => {

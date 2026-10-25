@@ -427,6 +427,7 @@ function initNav() {
   });
 
   // Hash-based initial routing
+  window.addEventListener('hashchange', resolveInitialSection);
   resolveInitialSection();
 }
 
@@ -453,6 +454,7 @@ function initRovingTabindex(tablist: Element | null): void {
     for (const t of items) t.setAttribute('tabindex', '-1');
     items[next].setAttribute('tabindex', '0');
     items[next].focus();
+    items[next].scrollIntoView({ block: 'nearest', inline: 'nearest' });
   });
 }
 

@@ -60,15 +60,15 @@ export function parseNumber(s: string | null | undefined, mode: DecimalMode = 'a
   if (!str) return 0;
 
   if (mode === 'comma' || (mode === 'auto' && isGermanNumber(str))) {
+    if (!/^[+-]?(?:\d+|\d{1,3}(?:\.\d{3})+)(?:,\d+)?$/.test(str)) return NaN;
     // German: dots are thousands, comma is decimal
     str = str.replace(/\./g, '').replace(',', '.');
-  } else if (mode === 'dot') {
+  } else {
+    if (!/^[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$/.test(str)) return NaN;
     // Standard: commas are thousands, dot is decimal
     str = str.replace(/,/g, '');
   }
-  // mode === 'auto' and not German → assume dot-decimal (default parseFloat)
-  const n = parseFloat(str);
-  return isNaN(n) ? NaN : n;
+  return Number(str);
 }
 
 /** Detect German number format: 1.234,56 or plain 12,34. */

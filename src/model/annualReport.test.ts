@@ -95,6 +95,13 @@ describe('buildAnnualReport — snapshot & net worth', () => {
     expect(report.totalNetWorth).toBe(117_000); // 100k + 17k from 2024-12-01
   });
 
+  it('selects opening and closing balances by date regardless of snapshot input order', () => {
+    const report = buildAnnualReport(2024, baseTxs, [...snapshots].reverse(), holdings, accounts);
+    expect(report.openingNetWorth).toBe(95_000);
+    expect(report.totalNetWorth).toBe(117_000);
+    expect(report.reportEndDate).toBe('2024-12-01');
+  });
+
   it('maps account IDs to labels correctly', () => {
     const report = buildAnnualReport(2024, baseTxs, snapshots, holdings, accounts);
     expect(report.accounts[0].label).toBe('Investment Account');
@@ -128,6 +135,30 @@ describe('buildAnnualReport — snapshot & net worth', () => {
   it('reports zero net worth when no snapshot exists for the year', () => {
     const report = buildAnnualReport(2020, baseTxs, snapshots, holdings, accounts);
     expect(report.totalNetWorth).toBe(0);
+  });
+
+  it('computes realized gains identically when transactions arrive out of date order', () => {
+    const sell: Transaction = {
+      id: 'sell-1',
+      date: '2024-01-15',
+      source: 'broker',
+      type: 'SELL',
+      name: 'iShares Core MSCI World',
+      isin: 'IE00B4L5Y983',
+      shares: 5,
+      price: 80,
+      amount: 400,
+      fee: 0,
+      tax: 0,
+      currency: 'EUR',
+      fxRate: 1,
+    };
+    const ordered = [...baseTxs, sell].sort((a, b) => a.date.localeCompare(b.date));
+    const forward = buildAnnualReport(2024, ordered, snapshots, holdings, accounts);
+    const reversed = buildAnnualReport(2024, [...ordered].reverse(), snapshots, holdings, accounts);
+
+    expect(reversed.totalYearRealisedGains).toBe(forward.totalYearRealisedGains);
+    expect(reversed.holdings).toEqual(forward.holdings);
   });
 });
 
@@ -275,7 +306,7 @@ describe('buildAnnualReport — realised gains', () => {
   });
 
   it('does not include gains from sells before the year', () => {
-    const earlyTxs = [...baseTxs, { ...sellTxs[0], id: 'sell-early', date: '2022-05-01' }];
+    const earlyTxs = [...baseTxs, { ...sellTxs[0], id: 'sell-early', date: '2023-05-01' }];
     const report = buildAnnualReport(2024, earlyTxs, snapshots, holdings, accounts);
     const isinEntry = report.holdings.find((h) => h.isin === 'IE00B4L5Y983');
     // Gain happened in 2022, so yearRealisedGain for 2024 should be 0
