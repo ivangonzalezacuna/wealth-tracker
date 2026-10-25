@@ -93,9 +93,11 @@ export function buildAnnualReport(
   const yearStart = `${yearStr}-01-01`;
   const yearEnd = `${yearStr}-12-31`;
   const today = new Date().toISOString().slice(0, 10);
+  const orderedSnapshots = [...snapshots].sort((a, b) => a.date.localeCompare(b.date));
+  const orderedTransactions = [...transactions].sort((a, b) => a.date.localeCompare(b.date));
 
   // ── Opening net worth: last snapshot on or before the previous year end ──
-  const snapsBeforeYear = snapshots.filter((s) => s.date <= prevYearEnd);
+  const snapsBeforeYear = orderedSnapshots.filter((s) => s.date <= prevYearEnd);
   const openingSnap =
     snapsBeforeYear.length > 0 ? snapsBeforeYear[snapsBeforeYear.length - 1] : null;
   const openingNetWorth = accounts.reduce(
@@ -104,7 +106,7 @@ export function buildAnnualReport(
   );
 
   // ── Closing net worth: last snapshot on or before year end ──
-  const snapsUntilYearEnd = snapshots.filter((s) => s.date <= yearEnd);
+  const snapsUntilYearEnd = orderedSnapshots.filter((s) => s.date <= yearEnd);
   const snap =
     snapsUntilYearEnd.length > 0 ? snapsUntilYearEnd[snapsUntilYearEnd.length - 1] : null;
   const hasReachedYearEnd = today >= yearEnd;
@@ -124,8 +126,8 @@ export function buildAnnualReport(
   const totalNetWorth = accountRows.reduce((s, a) => s + a.value, 0);
 
   // ── Cost basis: two-pass to extract year-specific realised gains ──
-  const txsBeforeYear = transactions.filter((t) => t.date < yearStart);
-  const txsThroughYear = transactions.filter((t) => t.date <= yearEnd);
+  const txsBeforeYear = orderedTransactions.filter((t) => t.date < yearStart);
+  const txsThroughYear = orderedTransactions.filter((t) => t.date <= yearEnd);
   const prevBasis = computeCostBasis(txsBeforeYear, method);
   const yearBasis = computeCostBasis(txsThroughYear, method);
 
@@ -143,7 +145,7 @@ export function buildAnnualReport(
   const totalYearRealisedGains = holdingRows.reduce((s, h) => s + h.yearRealisedGain, 0);
 
   // ── Dividends for the year ──
-  const yearTxs = transactions.filter((t) => t.date >= yearStart && t.date <= yearEnd);
+  const yearTxs = orderedTransactions.filter((t) => t.date >= yearStart && t.date <= yearEnd);
   const divByIsin: Record<string, { gross: number; tax: number; net: number }> = {};
   for (const tx of yearTxs.filter((t) => t.type === TxType.DIVIDEND)) {
     const isin = tx.isin || '';
