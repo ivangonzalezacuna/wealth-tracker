@@ -35,6 +35,7 @@ describe('combobox', () => {
     expect(input.getAttribute('aria-controls')).toBe(list.id);
     expect(input.getAttribute('aria-expanded')).toBe('false');
     expect(toggle.hidden).toBe(false);
+    expect(toggle.tabIndex).toBe(0);
     expect(list.hidden).toBe(true);
   });
 

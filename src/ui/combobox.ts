@@ -102,7 +102,7 @@ export function attachCombobox(
   const toggle = document.createElement('button');
   toggle.type = 'button';
   toggle.className = 'combo-toggle';
-  toggle.tabIndex = -1;
+  toggle.tabIndex = 0;
   toggle.setAttribute('aria-label', 'Show options');
   toggle.innerHTML =
     '<svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
