@@ -1134,12 +1134,12 @@ details[open] > summary .card-chevron {
     minmax(12ch, 1.2fr);
   min-width: 500px;
 }
-#tx-ledger-list .tx-row {
+:is(#tx-ledger-list, #import-preview-list) .tx-row {
   grid-template-columns: subgrid;
   grid-column: 1 / -1;
 }
-#tx-ledger-list .tx-row > [role='cell'],
-#tx-ledger-list .tx-row > [role='columnheader'] {
+:is(#tx-ledger-list, #import-preview-list) .tx-row > [role='cell'],
+:is(#tx-ledger-list, #import-preview-list) .tx-row > [role='columnheader'] {
   min-width: 0;
 }
 .tx-ledger-name {
@@ -1381,6 +1381,9 @@ details[open] > summary .card-chevron {
     margin: 0 -6px;
   }
 }
+.log-import-note {
+  margin: 0.5rem 0 0;
+}
 .log-import-toggle {
   gap: 6px;
 }
@@ -1464,23 +1467,26 @@ details[open] > summary .card-chevron {
 }
 
 /* Ledger rows expand to a full-width detail panel */
-#tx-ledger-list .tx-row:not(.th) {
+:is(#tx-ledger-list, #import-preview-list) .tx-row:not(.th) {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-#tx-ledger-list .tx-row:not(.th):hover {
+:is(#tx-ledger-list, #import-preview-list) .tx-row:not(.th):hover {
   background: var(--surface-2);
 }
-#tx-ledger-list .tx-row:not(.th):focus-visible {
+:is(#tx-ledger-list, #import-preview-list) .tx-row:not(.th):focus-visible {
   outline: 2px solid var(--brand-border);
   outline-offset: -2px;
 }
-#tx-ledger-list .tx-row [data-ledger-label='Date'] {
+:is(#tx-ledger-list, #import-preview-list) .tx-row [data-ledger-label='Date'] {
   display: flex;
   align-items: center;
   gap: 5px;
 }
-#tx-ledger-list .tx-row > [data-ledger-label='Source'] .tx-ledger-source {
+:is(#tx-ledger-list, #import-preview-list)
+  .tx-row
+  > [data-ledger-label='Source']
+  .tx-ledger-source {
   padding: 0;
   background: none;
   color: var(--ink-3);
@@ -1489,6 +1495,110 @@ details[open] > summary .card-chevron {
 }
 .tx-detail {
   grid-column: 1 / -1;
+}
+
+/* CSV import preview: ledger rows plus an include checkbox and a status column */
+.import-preview-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 0.6rem;
+}
+.import-preview-title .section-label {
+  margin: 0 0 2px;
+}
+.import-profile {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.import-issues {
+  margin-bottom: 0.6rem;
+}
+#log-content .import-issues {
+  margin-bottom: 0.6rem;
+}
+.import-issues ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.import-issues li + li {
+  margin-top: 3px;
+}
+.import-issues code {
+  font-size: 11px;
+}
+.import-issues .btn-link {
+  color: inherit;
+  font-weight: 500;
+  text-decoration: underline;
+}
+.import-issues > .btn {
+  margin-top: 6px;
+}
+#import-preview-wrap {
+  overflow-x: auto;
+}
+#import-preview-list {
+  display: grid;
+  grid-template-columns:
+    28px
+    minmax(11ch, 0.9fr)
+    minmax(10ch, 0.85fr)
+    minmax(18ch, 2fr)
+    minmax(12ch, 1fr)
+    minmax(15ch, auto);
+  min-width: 600px;
+}
+.import-include-cell {
+  display: flex;
+  align-items: center;
+}
+.import-include-cell input {
+  margin: 0;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+.import-status-cell {
+  align-items: center;
+}
+.import-row-stored > [role='cell'],
+.import-row-stored .tx-card-header > [role='cell']:not(.tx-actions) {
+  opacity: 0.55;
+}
+.import-row-excluded > [role='cell']:not(.tx-actions),
+.import-row-excluded .tx-card-header > [role='cell']:not(.tx-actions, .import-include-cell) {
+  opacity: 0.45;
+}
+.import-row-excluded .tx-ledger-name {
+  text-decoration: line-through;
+}
+.import-row-blocked {
+  box-shadow: inset 3px 0 0 var(--neg);
+}
+.tx-ledger-chip-unknown {
+  color: var(--warn-fg);
+  background: var(--warn-bg);
+}
+.import-preview-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+.import-preview-actions .note {
+  margin: 0 auto 0 0;
+  min-width: 0;
 }
 
 /* Desktop: snapshot history as master/detail (list left, details right) */
@@ -2143,6 +2253,14 @@ input[type='checkbox']:checked {
   background-position: center;
   background-size: 9px 7px;
 }
+input[type='checkbox']:indeterminate {
+  background: var(--brand);
+  border-color: var(--brand);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 8'%3E%3Cpath d='M2 4h6' stroke='%23fff' stroke-width='1.5' stroke-linecap='round' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 9px 7px;
+}
 input[type='checkbox']:focus-visible {
   outline: 2px solid var(--brand-border);
   outline-offset: 2px;
@@ -2243,6 +2361,16 @@ input[type='checkbox']:disabled {
   opacity: 0.5;
   pointer-events: none;
   cursor: not-allowed;
+}
+.drop-zone-label {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--ink-2);
+  margin-bottom: 0.2rem;
+}
+.drop-zone-hint {
+  font-size: 11px;
+  color: var(--ink-3);
 }
 
 /* Misc */
@@ -3544,19 +3672,26 @@ summary.section-label {
 }
 
 @media (max-width: 480px) {
-  #tx-ledger-wrap {
+  #tx-ledger-wrap,
+  #import-preview-wrap {
     overflow-x: visible;
     box-shadow: none;
   }
-  #tx-ledger-list,
+  .import-preview-head {
+    align-items: stretch;
+  }
+  .import-preview-actions .note {
+    flex: 1 1 100%;
+  }
+  :is(#tx-ledger-list, #import-preview-list),
   #tx-ledger-list.tx-ledger-grid-readonly {
     display: block;
     min-width: 0;
   }
-  #tx-ledger-list .tx-row.th {
+  :is(#tx-ledger-list, #import-preview-list) .tx-row.th {
     display: none;
   }
-  #tx-ledger-list .tx-row {
+  :is(#tx-ledger-list, #import-preview-list) .tx-row {
     position: relative;
     display: block;
     margin-bottom: 10px;
@@ -3566,7 +3701,7 @@ summary.section-label {
     background: var(--surface-2);
   }
   /* Date + Type header row — relative so action icons anchor to it */
-  #tx-ledger-list .tx-card-header {
+  :is(#tx-ledger-list, #import-preview-list) .tx-card-header {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -3574,15 +3709,15 @@ summary.section-label {
     min-width: 0;
     border-bottom: 1px dashed var(--surface-3);
   }
-  #tx-ledger-list .tx-card-header > [role='cell'] {
+  :is(#tx-ledger-list, #import-preview-list) .tx-card-header > [role='cell'] {
     display: flex;
     align-items: center;
   }
-  #tx-ledger-list .tx-card-header > [role='cell']::before {
+  :is(#tx-ledger-list, #import-preview-list) .tx-card-header > [role='cell']::before {
     display: none;
   }
   /* Action icons are part of the header row in stacked view */
-  #tx-ledger-list .tx-actions {
+  :is(#tx-ledger-list, #import-preview-list) .tx-actions {
     display: flex;
     align-items: center;
     justify-content: flex-end;
@@ -3590,30 +3725,30 @@ summary.section-label {
     border-bottom: none;
     padding: 0;
   }
-  #tx-ledger-list .tx-actions-mobile {
+  :is(#tx-ledger-list, #import-preview-list) .tx-actions-mobile {
     display: flex;
     margin-left: auto;
     flex-shrink: 0;
   }
-  #tx-ledger-list .tx-actions-desktop {
+  :is(#tx-ledger-list, #import-preview-list) .tx-actions-desktop {
     display: none;
   }
-  #tx-ledger-list .tx-actions .btn-sm {
+  :is(#tx-ledger-list, #import-preview-list) .tx-actions .btn-sm {
     min-height: 28px;
     padding: 3px 6px;
   }
-  #tx-ledger-list .tx-actions::before {
+  :is(#tx-ledger-list, #import-preview-list) .tx-actions::before {
     display: none;
   }
   /* Body cells — no dotted separator between rows */
-  #tx-ledger-list .tx-row > [role='cell'] {
+  :is(#tx-ledger-list, #import-preview-list) .tx-row > [role='cell'] {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 8px;
     padding: 4px 0;
   }
-  #tx-ledger-list .tx-row > [role='cell']::before {
+  :is(#tx-ledger-list, #import-preview-list) .tx-row > [role='cell']::before {
     content: attr(data-ledger-label);
     color: var(--ink-3);
     font-size: 10px;
@@ -3621,14 +3756,14 @@ summary.section-label {
     letter-spacing: 0.04em;
     flex-shrink: 0;
   }
-  #tx-ledger-list .tx-card-header > [role='cell']:first-child {
+  :is(#tx-ledger-list, #import-preview-list) .tx-card-header > [role='cell']:first-child {
     flex-shrink: 0;
   }
-  #tx-ledger-list .tx-card-header > [role='cell']:nth-child(2) {
+  :is(#tx-ledger-list, #import-preview-list) .tx-card-header > [role='cell']:nth-child(2) {
     flex-shrink: 0;
   }
   /* Source chip fills remaining header space and truncates with ellipsis */
-  #tx-ledger-list .tx-card-header .tx-ledger-source {
+  :is(#tx-ledger-list, #import-preview-list) .tx-card-header .tx-ledger-source {
     flex: 1 1 0;
     min-width: 0;
     overflow: hidden;
@@ -3636,24 +3771,24 @@ summary.section-label {
     white-space: nowrap;
   }
   /* Show the in-header source chip in stacked view */
-  #tx-ledger-list .tx-card-header .tx-header-source {
+  :is(#tx-ledger-list, #import-preview-list) .tx-card-header .tx-header-source {
     display: inline-flex;
   }
   /* Hide the source body cell in stacked view (shown in header instead) */
-  #tx-ledger-list .tx-row > [role='cell'][data-ledger-label='Source'] {
+  :is(#tx-ledger-list, #import-preview-list) .tx-row > [role='cell'][data-ledger-label='Source'] {
     display: none;
   }
   /* Hide body rows with no data in stacked view */
-  #tx-ledger-list .tx-row > [role='cell'][data-ledger-empty='1'] {
+  :is(#tx-ledger-list, #import-preview-list) .tx-row > [role='cell'][data-ledger-empty='1'] {
     display: none;
   }
-  #tx-ledger-list .tx-row > [role='cell'].tx-actions-desktop {
+  :is(#tx-ledger-list, #import-preview-list) .tx-row > [role='cell'].tx-actions-desktop {
     display: none;
   }
 
   /* Compact two-line ledger rows: date · type · actions / name … amount.
      ISIN, source, shares and tax move into the tap-to-expand details. */
-  #tx-ledger-list .tx-row:not(.th) {
+  :is(#tx-ledger-list, #import-preview-list) .tx-row:not(.th) {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
@@ -3664,44 +3799,48 @@ summary.section-label {
     margin-bottom: 6px;
     padding: 6px 10px;
   }
-  #tx-ledger-list .tx-row:not(.th):hover {
+  :is(#tx-ledger-list, #import-preview-list) .tx-row:not(.th):hover {
     background: var(--surface-2);
   }
-  #tx-ledger-list .tx-row[aria-expanded='true'] {
+  :is(#tx-ledger-list, #import-preview-list) .tx-row[aria-expanded='true'] {
     margin-bottom: 0;
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
   }
-  #tx-ledger-list .tx-card-header {
+  :is(#tx-ledger-list, #import-preview-list) .tx-card-header {
     grid-area: head;
     padding: 0;
     border-bottom: none;
     min-height: 28px;
   }
-  #tx-ledger-list .tx-card-header .tx-header-source,
-  #tx-ledger-list .tx-row .tx-ledger-isin,
-  #tx-ledger-list .tx-row .tx-ledger-meta {
+  :is(#tx-ledger-list, #import-preview-list) .tx-card-header .tx-header-source,
+  :is(#tx-ledger-list, #import-preview-list) .tx-row .tx-ledger-isin,
+  :is(#tx-ledger-list, #import-preview-list) .tx-row .tx-ledger-meta {
     display: none;
   }
-  #tx-ledger-list .tx-row > [role='cell'][data-ledger-label='Name'],
-  #tx-ledger-list .tx-row > [role='cell'][data-ledger-label='Amount'] {
+  :is(#tx-ledger-list, #import-preview-list) .tx-row > [role='cell'][data-ledger-label='Name'],
+  :is(#tx-ledger-list, #import-preview-list) .tx-row > [role='cell'][data-ledger-label='Amount'] {
     padding: 0;
   }
-  #tx-ledger-list .tx-row > [role='cell'][data-ledger-label='Name'] {
+  :is(#tx-ledger-list, #import-preview-list) .tx-row > [role='cell'][data-ledger-label='Name'] {
     grid-area: name;
     display: block;
     min-width: 0;
   }
-  #tx-ledger-list .tx-row > [role='cell'][data-ledger-label='Amount'] {
+  :is(#tx-ledger-list, #import-preview-list) .tx-row > [role='cell'][data-ledger-label='Amount'] {
     grid-area: amount;
     display: block;
     white-space: nowrap;
   }
-  #tx-ledger-list .tx-row > [role='cell'][data-ledger-label='Name']::before,
-  #tx-ledger-list .tx-row > [role='cell'][data-ledger-label='Amount']::before {
+  :is(#tx-ledger-list, #import-preview-list)
+    .tx-row
+    > [role='cell'][data-ledger-label='Name']::before,
+  :is(#tx-ledger-list, #import-preview-list)
+    .tx-row
+    > [role='cell'][data-ledger-label='Amount']::before {
     display: none;
   }
-  #tx-ledger-list .tx-detail {
+  :is(#tx-ledger-list, #import-preview-list) .tx-detail {
     margin: 0 0 6px;
     border: 1px solid var(--surface-3);
     border-top: 1px dashed var(--surface-3);
@@ -5548,7 +5687,8 @@ button.sync-chip:focus-visible {
   border: 0;
 }
 
-/* Compact controls: search boxes and selects in filter bars and pagination take the .btn-sm height
+/* Compact controls: search boxes and selects in filter bars, pagination and the import format
+   picker take the .btn-sm height
    (11px text, 1.4 line height, 3px / 5px vertical padding + 1px borders) so they line up with the
    chips and buttons next to them. Buttons keep their own size. Last in the file so it wins over the
    generic phone-size input rules. */
@@ -5556,7 +5696,7 @@ button.sync-chip:focus-visible {
   --control-sm-h: calc(11px * 1.4 + 8px);
   --chip-h: var(--control-sm-h);
 }
-:is(.filter-bar, .pagination) .form-input {
+:is(.filter-bar, .pagination, .import-profile) .form-input {
   box-sizing: border-box;
   height: var(--control-sm-h);
   padding-top: 0;
@@ -5574,7 +5714,7 @@ button.sync-chip:focus-visible {
   right: 5px;
 }
 /* Selects sit next to chips, so they follow the chip height and size to their content. */
-:is(.filter-bar, .pagination) select.form-input {
+:is(.filter-bar, .pagination, .import-profile) select.form-input {
   flex: 0 1 auto;
   width: auto;
   min-width: 0;
@@ -5587,7 +5727,7 @@ button.sync-chip:focus-visible {
     /* Chip toggles shrink to 10px text / 2px padding on phones. */
     --chip-h: calc(10px * 1.4 + 6px);
   }
-  :is(.filter-bar, .pagination) select.form-input {
+  :is(.filter-bar, .pagination, .import-profile) select.form-input {
     padding-left: 7px;
     font-size: 11px;
   }
@@ -5596,7 +5736,7 @@ button.sync-chip:focus-visible {
 /* The themed picker draws its own arrow, so drop the space reserved for the native one. */
 @supports (appearance: base-select) and selector(::picker(select)) {
   @media (hover: hover) and (pointer: fine) {
-    :is(.filter-bar, .pagination) select.form-input {
+    :is(.filter-bar, .pagination, .import-profile) select.form-input {
       padding-right: 8px;
     }
   }

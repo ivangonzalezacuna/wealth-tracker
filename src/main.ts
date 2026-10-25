@@ -11,7 +11,7 @@ import {
   upsertSnapshot,
   loadTransactions,
   mergeTransactions,
-  countAmendedRows,
+  selectNewTransactions,
   insertTransaction,
   updateTransaction,
   deleteTransaction,
@@ -59,8 +59,14 @@ import {
 import { getSetupState } from './model/setup';
 import type { SetupStep } from './model/setup';
 import { computePD } from './portfolio';
-import { parseWithProfile, detectProfile, previewSummary } from './import/parse';
+import { detectProfile } from './import/parse';
 import { builtInProfiles } from './import/profiles/index';
+import {
+  nothingNewNotice,
+  openCsvImportPreview,
+  refreshCsvImportPreview,
+  type CsvImportResult,
+} from './ui/csvImportPanel';
 import { renderNW } from './views/networth';
 import { renderAnalytics } from './views/analytics';
 import { renderPortfolio, getMaxDrift } from './views/portfolio';
@@ -75,7 +81,7 @@ import {
 } from './views/settings';
 import { accountCurrencyList } from './model/accountSuggestions';
 import { renderLog, applyLogView, setImportPanelOpen, isImportPanelOpen } from './views/log';
-import { fmtMon, showMsg, reinjectPendingMsg, esc, currentMonth, withButtonGuard } from './utils';
+import { fmtMon, showMsg, reinjectPendingMsg, currentMonth, withButtonGuard } from './utils';
 import { navHash, parseNavHash, LOG_VIEWS, type LogView, type SettingsView } from './nav';
 import {
   isCacheValid,
@@ -297,13 +303,15 @@ function applyReadOnlyMode(): void {
       : '';
 
   // Disable write-action buttons
-  const writeIds = ['btn-add-snap', 'btn-confirm-import'];
+  const writeIds = ['btn-add-snap'];
   for (const id of writeIds) {
     const el = document.getElementById(id) as HTMLButtonElement | null;
     if (!el) continue;
     el.disabled = disabled;
     el.title = hint;
   }
+  // The CSV import preview owns its Confirm button (it also blocks on oversells / empty imports).
+  refreshCsvImportPreview();
 
   // Disable CSV drop zone and file input
   const zone = document.getElementById('drop-zone');
@@ -1737,347 +1745,105 @@ async function handleCSVFile(file: File) {
     showMsg('import-msg', 'A sync is already in progress.', false);
     return;
   }
-  showMsg('import-msg', 'Parsing\u2026', true);
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const text = e.target!.result as string;
-    const headerLine = text.trim().split('\n')[0] || '';
-
-    // Auto-detect profile
-    let profile = detectProfile(headerLine);
-
-    if (profile) {
-      // Profile detected - parse immediately and show preview
-      showImportPreview(text, profile);
-    } else {
-      // No match - show profile picker
-      showProfilePicker(text);
-    }
-  };
-  reader.readAsText(file, 'UTF-8');
-}
-
-/** Show a dropdown to pick a profile when auto-detect fails. */
-function showProfilePicker(csvText: string) {
   const container = document.getElementById('import-preview');
   if (!container) return;
-
-  const options = builtInProfiles
-    .map((p) => `<option value="${esc(p.id)}">${esc(p.label)}</option>`)
-    .join('');
-
-  container.innerHTML = `
-    <div class="card" style="margin-top:.75rem">
-      <div class="card-title">Select import profile</div>
-      <p class="note" style="margin-bottom:.75rem">Could not auto-detect the CSV format. Please select the matching bank/broker profile:</p>
-      <div style="display:flex;gap:10px;align-items:center;margin-bottom:.75rem">
-        <select id="profile-select" class="form-input" style="width:auto;max-width:260px">
-          ${options}
-        </select>
-        <button class="btn btn-primary btn-sm" id="btn-apply-profile">Parse with profile</button>
-      </div>
-      <button class="btn btn-ghost btn-sm" id="btn-cancel-profile">Cancel</button>
-    </div>
-  `;
-  container.style.display = 'block';
-
-  document.getElementById('btn-apply-profile')?.addEventListener('click', () => {
-    const id = (document.getElementById('profile-select') as HTMLSelectElement | null)?.value;
-    const profile = builtInProfiles.find((p) => p.id === id);
-    if (profile) showImportPreview(csvText, profile);
-  });
-  document.getElementById('btn-cancel-profile')?.addEventListener('click', () => {
-    container.innerHTML = '';
-    container.style.display = 'none';
-    showMsg('import-msg', 'Import cancelled.', false);
-  });
-}
-
-/** Parse CSV with profile and show a preview for confirmation. */
-function showImportPreview(csvText: string, profile: ImportProfile) {
-  const parsed = parseWithProfile(csvText, profile);
-  const summary = previewSummary(parsed);
-  const container = document.getElementById('import-preview');
-  if (!container) return;
-  const cont = container; // capture for closures
-  const allRows = parsed.transactions;
-  const excludedRows = new Set<number>();
-  const PAGE_SIZE = 25;
-  let currentPage = 0;
-  let hideDateWarning = false;
-
-  function getIncludedRows() {
-    return allRows.filter((_, idx) => !excludedRows.has(idx));
+  let csvText: string;
+  try {
+    csvText = await file.text();
+  } catch (err) {
+    showMsg('import-msg', `Could not read ${file.name}: ${(err as Error).message}`, false);
+    return;
   }
+  showMsg('import-msg', '', true);
+  const headerLine = csvText.trim().split('\n')[0] || '';
+  const source = { csvText, fileName: file.name, profile: detectProfile(headerLine) ?? null };
+  const notice = nothingNewNotice(source, state.txs);
+  if (notice) {
+    const input = document.getElementById('csv-file-input') as HTMLInputElement | null;
+    if (input) input.value = '';
+    showMsg('import-msg', notice, true);
+    return;
+  }
+  openCsvImportPreview(container, source, {
+    profiles: builtInProfiles,
+    existing: () => state.txs,
+    blocked: () =>
+      isReadOnly()
+        ? 'Sign in to enable editing'
+        : isSyncBusy()
+          ? 'Sync in progress - try again in a moment'
+          : '',
+    confirm: confirmCsvImport,
+    onOpenChange: (open) => {
+      const ledger = document.getElementById('tx-ledger-card');
+      if (ledger) ledger.hidden = open;
+      if (open) setImportPanelOpen(false);
+      const input = document.getElementById('csv-file-input') as HTMLInputElement | null;
+      if (input) input.value = '';
+    },
+    onCancel: () => showMsg('import-msg', 'Import cancelled. Nothing was saved.', false),
+  });
+}
 
-  // Confirm handler - save to database
-  async function confirmImport() {
-    if (isSyncBusy()) {
-      showMsg('import-msg', 'A sync or save is in progress. Try again in a moment.', false);
-      return;
-    }
-    const includedRows = getIncludedRows();
-    if (includedRows.length === 0) {
-      showMsg('import-msg', 'No rows selected for import. Include at least one row.', false);
-      return;
-    }
-    cont.innerHTML = '';
-    cont.style.display = 'none';
-    setSyncing(true);
+/** Store the reviewed rows. Validates the merged ledger before writing anything. */
+async function confirmCsvImport(result: CsvImportResult): Promise<boolean> {
+  if (isSyncBusy()) {
+    showMsg('import-msg', 'A sync or save is in progress. Try again in a moment.', false);
+    return false;
+  }
+  const newTxs = selectNewTransactions(state.txs, result.rows);
+  if (!newTxs.length) {
+    showMsg('import-msg', 'Nothing new to import.', false);
+    return false;
+  }
+  let nextPd: PortfolioData | null;
+  try {
+    nextPd = computePdOrThrow([...state.txs, ...newTxs]);
+  } catch (err) {
+    showMsg('import-msg', `Not imported: ${(err as Error).message}`, false);
+    return false;
+  }
+  const before = state.txs.length;
+  setSyncing(true);
+  try {
+    await mergeTransactions(state.txs, newTxs);
+    const today = new Date().toISOString().slice(0, 10);
+    await saveImportMeta(today);
+    state.importMeta = { last_import: today };
+    const metaCached = await setCachedImportMeta({ last_import: today });
+    await persistTransactionsState(nextPd);
+    if (!metaCached) showCacheWriteWarning();
+    renderAll();
+    const added = state.txs.length - before;
+    const parts = [
+      `\u2713 Imported ${added.toLocaleString('de-DE')} new transaction${added === 1 ? '' : 's'}`,
+    ];
+    if (result.duplicateCount)
+      parts.push(`${result.duplicateCount.toLocaleString('de-DE')} already in ledger`);
+    if (result.excludedCount)
+      parts.push(`${result.excludedCount.toLocaleString('de-DE')} excluded`);
+    const offline = state.offline || !navigator.onLine;
+    showMsg(
+      'import-msg',
+      parts.join(' \u00B7 ') +
+        (offline ? '. Saved locally; will sync to Drive when back online.' : '.'),
+      true,
+    );
+    // Push right away so a reload doesn't pull the older cloud DB over the new rows.
+    // Offline, the push fails gracefully and the rows go up on the next sync.
     try {
-      const merged = await mergeTransactions(state.txs, includedRows);
-      const today = new Date().toISOString().slice(0, 10);
-      await saveImportMeta(today);
-      state.txs = merged;
-      state.importMeta = { last_import: today };
-      state.pd = computePD(merged, { method: getCostBasisMethod() });
-
-      // Update cache
-      const [txCached] = await Promise.all([
-        setCachedTransactions(merged),
-        setCachedImportMeta({ last_import: today }),
-        state.pd ? setCachedAggregates(state.pd) : Promise.resolve(),
-        state.pd
-          ? setInputsHash(
-              computeInputsHash(
-                merged.length,
-                merged[merged.length - 1]?.date || '',
-                getCostBasisMethod(),
-                holdingsSignature(getHoldings()),
-              ),
-            )
-          : Promise.resolve(),
-      ]);
-      if (!txCached) showCacheWriteWarning();
-
-      renderAll();
-      showMsg(
-        'import-msg',
-        state.offline || !navigator.onLine
-          ? `\u2713 Imported ${includedRows.length} row${includedRows.length > 1 ? 's' : ''} locally (${excludedRows.size} excluded). Will sync to Drive when back online.`
-          : `\u2713 Imported ${includedRows.length} row${includedRows.length > 1 ? 's' : ''} (${excludedRows.size} excluded).`,
-        true,
-      );
-
-      // Push to cloud immediately so a page reload won't pull
-      // the stale cloud DB and overwrite the freshly imported data.
-      // When offline, pushToCloud() fails gracefully; the data is safe
-      // in local SQLite and will be pushed on next Sync Now or write.
-      try {
-        await pushToCloud();
-      } catch (err) {
-        if (!handleSyncConflict(err)) throw err;
-      }
+      await pushToCloud();
     } catch (err) {
-      showMsg('import-msg', 'Error: ' + (err as Error).message, false);
-    } finally {
-      setSyncing(false);
+      if (!handleSyncConflict(err))
+        showMsg('import-msg', `Saved locally, but sync failed: ${(err as Error).message}`, false);
     }
+    return true;
+  } catch (err) {
+    showMsg('import-msg', 'Error: ' + (err as Error).message, false);
+    return false;
+  } finally {
+    setSyncing(false);
   }
-
-  // Build type counts string
-  const typeCounts = Object.entries(summary.byCounts)
-    .sort(([, a], [, b]) => b - a)
-    .map(([type, count]) => `<span style="font-weight:500">${count}</span> ${esc(type)}`)
-    .join(', ');
-
-  // Unmapped warning
-  const totalUnmapped = summary.unmapped.reduce((s, u) => s + u.count, 0);
-  const unmappedList = summary.unmapped
-    .map((u) => `<code>${esc(u.type)}</code> (${u.count})`)
-    .join(', ');
-  const unmappedHtml =
-    totalUnmapped > 0
-      ? `
-    <div class="status-bar status-warn" style="margin:.6rem 0">
-      ⚠ ${totalUnmapped} row${totalUnmapped > 1 ? 's' : ''} with unmapped type${totalUnmapped > 1 ? 's' : ''}: ${unmappedList}
-    </div>
-  `
-      : '';
-
-  const totalDateErrors = summary.dateErrors.reduce((s, d) => s + d.count, 0);
-  const dateErrorsList = summary.dateErrors
-    .map((d) => `<code>${esc(d.raw)}</code> (${d.count})`)
-    .join(', ');
-  const dateErrorsHtml =
-    totalDateErrors > 0
-      ? `
-    <div class="status-bar status-warn" style="margin:.6rem 0" id="import-date-warn">
-      ⚠ ${totalDateErrors} row${totalDateErrors > 1 ? 's' : ''} skipped due to invalid date${totalDateErrors > 1 ? 's' : ''}: ${dateErrorsList}
-      <button class="btn btn-ghost btn-sm" id="btn-dismiss-date-warn" style="margin-left:8px">Dismiss</button>
-    </div>
-  `
-      : '';
-
-  const totalNumberErrors = summary.numberErrors.reduce((s, e) => s + e.count, 0);
-  const numberErrorsList = summary.numberErrors
-    .map((e) => `<code>${esc(e.field)}: ${esc(e.raw)}</code> (${e.count})`)
-    .join(', ');
-  const numberErrorsHtml =
-    totalNumberErrors > 0
-      ? `
-    <div class="status-bar status-warn" style="margin:.6rem 0">
-      ⚠ ${totalNumberErrors} cell${totalNumberErrors > 1 ? 's' : ''} with unparseable number (coerced to 0): ${numberErrorsList}
-    </div>
-  `
-      : '';
-
-  const hasErrors = totalDateErrors > 0 || totalNumberErrors > 0;
-  const downloadErrorRowsHtml = hasErrors
-    ? `
-    <div style="margin:.4rem 0 .6rem">
-      <button class="btn btn-ghost btn-sm" id="btn-dl-error-rows">Download error rows as CSV</button>
-    </div>
-  `
-    : '';
-
-  // Amended-rows warning: rows that already exist but differ in at least one data field.
-  // Computed once against the current stored set; the merge will silently keep the stored values.
-  const amendedCount = countAmendedRows(state.txs, allRows);
-  const amendedHtml =
-    amendedCount > 0
-      ? `
-    <div class="status-bar status-warn" style="margin:.6rem 0">
-      ⚠ ${amendedCount} row${amendedCount > 1 ? 's' : ''} already exist and differ from the imported file — re-import does not overwrite existing data.
-    </div>
-  `
-      : '';
-
-  function renderPreview() {
-    const includedCount = summary.total - excludedRows.size;
-    const totalPages = Math.max(1, Math.ceil(allRows.length / PAGE_SIZE));
-    currentPage = Math.min(currentPage, totalPages - 1);
-    const start = currentPage * PAGE_SIZE;
-    const end = Math.min(start + PAGE_SIZE, allRows.length);
-    const pageRows = allRows.slice(start, end);
-
-    const previewTableHtml =
-      pageRows.length > 0
-        ? `
-      <div style="overflow-x:auto;margin-top:.6rem;-webkit-overflow-scrolling:touch">
-        <table style="width:100%;font-size:11px;border-collapse:collapse">
-          <thead>
-            <tr style="color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em">
-              <th style="padding:4px 6px;text-align:left">Date</th>
-              <th style="padding:4px 6px;text-align:left">Type</th>
-              <th style="padding:4px 6px;text-align:left">Name</th>
-              <th style="padding:4px 6px;text-align:right">Shares</th>
-              <th style="padding:4px 6px;text-align:right">Amount</th>
-              <th style="padding:4px 6px;text-align:left">Currency</th>
-              <th style="padding:4px 6px;text-align:right">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${pageRows
-              .map((tx, idxOnPage) => {
-                const idx = start + idxOnPage;
-                const excluded = excludedRows.has(idx);
-                return `
-                <tr style="border-top:1px solid var(--line);opacity:${excluded ? '0.5' : '1'}">
-                  <td style="padding:4px 6px">${esc(tx.date)}</td>
-                  <td style="padding:4px 6px">${esc(tx.type)}</td>
-                  <td style="padding:4px 6px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(tx.name)}</td>
-                  <td style="padding:4px 6px;text-align:right">${tx.shares || ''}</td>
-                  <td style="padding:4px 6px;text-align:right">${tx.amount}</td>
-                  <td style="padding:4px 6px">${esc(tx.currency)}</td>
-                  <td style="padding:4px 6px;text-align:right">
-                    <button class="btn btn-ghost btn-sm" data-toggle-exclude="1" data-idx="${idx}">
-                      ${excluded ? 'Include' : 'Exclude'}
-                    </button>
-                  </td>
-                </tr>
-              `;
-              })
-              .join('')}
-          </tbody>
-        </table>
-      </div>
-    `
-        : '';
-
-    const pageInfoHtml =
-      allRows.length > 0
-        ? `
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:.6rem">
-        <div class="note">
-          Showing rows ${start + 1}-${end} of ${allRows.length}
-        </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <button class="btn btn-ghost btn-sm" id="btn-prev-import-page" ${currentPage === 0 ? 'disabled' : ''}>Previous</button>
-          <span class="note">Page ${currentPage + 1} / ${totalPages}</span>
-          <button class="btn btn-ghost btn-sm" id="btn-next-import-page" ${currentPage >= totalPages - 1 ? 'disabled' : ''}>Next</button>
-        </div>
-      </div>
-    `
-        : '<div class="note" style="margin-top:.6rem">No parsed rows to preview.</div>';
-
-    cont.innerHTML = `
-      <div class="card" style="margin-top:.75rem">
-        <div class="card-title">Import preview</div>
-        <div style="margin:.6rem 0;font-size:13px">
-          <span style="font-weight:500">Profile:</span> ${esc(profile.label)}
-        </div>
-        <div style="font-size:13px">
-          <span style="font-weight:500">${summary.total}</span> rows parsed (${includedCount} included, ${excludedRows.size} excluded): ${typeCounts}
-        </div>
-        ${unmappedHtml}
-        ${hideDateWarning ? '' : dateErrorsHtml}
-        ${numberErrorsHtml}
-        ${downloadErrorRowsHtml}
-        ${amendedHtml}
-        ${previewTableHtml}
-        ${pageInfoHtml}
-        <div style="display:flex;gap:10px;margin-top:.85rem">
-          <button class="btn btn-primary" id="btn-confirm-import" ${includedCount === 0 ? 'disabled' : ''}>Confirm import (${includedCount})</button>
-          <button class="btn btn-ghost" id="btn-cancel-import">Cancel</button>
-        </div>
-      </div>
-    `;
-    cont.style.display = 'block';
-
-    document.getElementById('btn-confirm-import')?.addEventListener('click', () => confirmImport());
-    document.getElementById('btn-cancel-import')?.addEventListener('click', () => {
-      cont.innerHTML = '';
-      cont.style.display = 'none';
-      showMsg('import-msg', 'Import cancelled.', false);
-    });
-    document.getElementById('btn-dismiss-date-warn')?.addEventListener('click', () => {
-      document.getElementById('import-date-warn')?.remove();
-    });
-    document.getElementById('btn-dl-error-rows')?.addEventListener('click', () => {
-      const csvContent = [summary.headerLine, ...summary.errorLines].join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'import-errors.csv';
-      a.click();
-      URL.revokeObjectURL(url);
-    });
-    document.getElementById('btn-prev-import-page')?.addEventListener('click', () => {
-      if (currentPage > 0) {
-        currentPage -= 1;
-        renderPreview();
-      }
-    });
-    document.getElementById('btn-next-import-page')?.addEventListener('click', () => {
-      if (currentPage < totalPages - 1) {
-        currentPage += 1;
-        renderPreview();
-      }
-    });
-    document.querySelectorAll<HTMLButtonElement>('[data-toggle-exclude="1"]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const idx = Number(btn.dataset.idx);
-        if (!Number.isInteger(idx)) return;
-        if (excludedRows.has(idx)) excludedRows.delete(idx);
-        else excludedRows.add(idx);
-        renderPreview();
-      });
-    });
-  }
-
-  renderPreview();
 }
 
 // ── Update subtitle ───────────────────────────────────────
