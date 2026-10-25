@@ -42,6 +42,7 @@ import {
   getAccounts,
   getSettings,
   getAlertSettings,
+  isConfigLoaded,
   hydrateConfigFromCache,
   setSetting,
   saveSnapshotMapping,
@@ -56,7 +57,6 @@ import {
   migrateBackup,
 } from './backup/exportImport';
 import { getSetupState } from './model/setup';
-import { driftStatus } from './model/drift';
 import type { SetupStep } from './model/setup';
 import { computePD } from './portfolio';
 import { parseWithProfile, detectProfile, previewSummary } from './import/parse';
@@ -75,15 +75,7 @@ import {
 } from './views/settings';
 import { accountCurrencyList } from './model/accountSuggestions';
 import { renderLog, applyLogView, setImportPanelOpen, isImportPanelOpen } from './views/log';
-import {
-  fmtMon,
-  showMsg,
-  reinjectPendingMsg,
-  esc,
-  currentMonth,
-  withButtonGuard,
-  fmtPctVal,
-} from './utils';
+import { fmtMon, showMsg, reinjectPendingMsg, esc, currentMonth, withButtonGuard } from './utils';
 import { navHash, parseNavHash, LOG_VIEWS, type LogView, type SettingsView } from './nav';
 import {
   isCacheValid,
@@ -114,10 +106,10 @@ import { conflictDialog } from './ui/conflictDialog';
 import { transactionDialog } from './ui/transactionDialog';
 import { snapshotDialog } from './ui/snapshotDialog';
 import { showSigninOverlay, hideSigninOverlay } from './ui/signinOverlay';
-import { attachInfoTips } from './ui/infoTip';
 import { initHeaderMenu, type HeaderMenu } from './ui/headerMenu';
 import { renderSyncChip, shortSyncError, syncChipView, type SyncStatus } from './ui/headerStatus';
 import { attachScrollHint } from './ui/scrollHint';
+import { refreshAttention, setAttentionSource } from './ui/attention';
 import { notify } from './ui/toast';
 import { withTimeout } from './sync/timeout';
 import { isBusy, setBusy } from './sync/lock';
@@ -2227,58 +2219,21 @@ function renderAll(changed?: ConfigChangeKind) {
   applyReadOnlyMode();
   // Re-inject transient feedback message if still within its display window
   reinjectPendingMsg();
-  updateDriftBadge();
+  refreshAttention();
   _navScrollHint?.();
 }
 
-/** Shows a dot badge on the Portfolio tab when max allocation drift exceeds the configured threshold. */
-function updateDriftBadge(): void {
-  const btn = document.getElementById('tab-portfolio');
-  if (!btn) return;
-  const max = getMaxDrift(state.pd, state.snaps);
-  const status = driftStatus(max ?? 0, getAlertSettings().driftThresholdPct);
-  const { threshold, highThreshold } = status;
-
-  if (max !== null && status.level !== 'ok') {
-    const isHigh = status.level === 'high';
-    btn.classList.add('drift-alert');
-    btn.classList.toggle('drift-alert-high', isHigh);
-    btn.setAttribute('aria-label', `Portfolio (drift alert: ${fmtPctVal(max)})`);
-
-    const severityLabel = status.label;
-    const thresholdLabel = isHigh
-      ? `over ${fmtPctVal(highThreshold, 'auto')} (high threshold)`
-      : `over ${fmtPctVal(threshold, 'auto')} (threshold)`;
-    const tipText = `${severityLabel}: max allocation drift is ${fmtPctVal(max)}, ${thresholdLabel}. Open Portfolio to review it.`;
-
-    // Embed an infoTip span so hover/tap reveals the drift detail using the
-    // shared popover system instead of a parallel custom implementation.
-    const variant = isHigh ? 'alert' : 'warn';
-    let tipEl = btn.querySelector<HTMLElement>('.info-tip');
-    if (!tipEl) {
-      const wrapper = document.createElement('span');
-      wrapper.innerHTML = `<span class="info-tip info-tip--${variant}" data-tip="" data-tip-variant="${variant}" aria-label="" tabindex="0">${variant === 'alert' ? '\u203c' : '!'}</span>`;
-      tipEl = wrapper.firstElementChild as HTMLElement;
-      btn.appendChild(tipEl);
-    } else {
-      // Update variant class/icon in case severity changed
-      tipEl.className = `info-tip info-tip--${variant}`;
-      tipEl.dataset.tipVariant = variant;
-      tipEl.textContent = variant === 'alert' ? '\u203c' : '!';
-    }
-    tipEl.dataset.tip = tipText;
-    tipEl.setAttribute('aria-label', tipText);
-    attachInfoTips(btn);
-  } else {
-    btn.classList.remove('drift-alert', 'drift-alert-high');
-    btn.removeAttribute('aria-label');
-    // Remove the embedded info-tip when drift clears
-    btn.querySelector('.info-tip')?.remove();
-  }
-}
-
-// Export updateDriftBadge so it can be called from settings when alert threshold changes
-(window as any).updateDriftBadge = updateDriftBadge;
+setAttentionSource(() => ({
+  maxDrift: getMaxDrift(state.pd, state.snaps),
+  driftThresholdPct: getAlertSettings().driftThresholdPct,
+  backup:
+    isSignedIn() && isConfigLoaded()
+      ? {
+          lastBackupAt: getSettings()['last_backup_at'] || undefined,
+          hasData: state.snaps.length > 0,
+        }
+      : undefined,
+}));
 
 /**
  * Shows a one-time dismissible warning banner when an IDB cache write fails.

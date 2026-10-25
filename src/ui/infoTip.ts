@@ -44,12 +44,15 @@ export function infoTip(text: string, variant?: InfoTipVariant): string {
  * Safe to call multiple times - already-bound tips are skipped.
  */
 export function attachInfoTips(root: HTMLElement | Document = document): void {
-  root.querySelectorAll('.info-tip:not([data-tip-bound])').forEach((el) => {
+  root.querySelectorAll(TRIGGER_UNBOUND).forEach((el) => {
     (el as HTMLElement).dataset.tipBound = '1';
     // The data flag can be cleared by callers; never stack a second set of listeners,
     // or the click toggles would cancel each other out.
     if (_boundTips.has(el)) return;
     _boundTips.add(el);
+    if ((el as HTMLElement).dataset.tipHover === 'parent' && el.parentElement) {
+      _bindParentHover(el.parentElement);
+    }
 
     // Single tap on mobile / click on desktop - show/hide
     el.addEventListener('click', (e) => {
@@ -59,13 +62,14 @@ export function attachInfoTips(root: HTMLElement | Document = document): void {
     });
 
     // Desktop hover (non-touch) - show on enter, hide on leave
+    const ownHover = (el as HTMLElement).dataset.tipHover !== 'parent';
     el.addEventListener('mouseenter', () => {
       // Skip hover behavior on touch devices (avoids double-fire)
-      if (_isTouchEvent()) return;
+      if (!ownHover || _isTouchEvent()) return;
       _showPopover(el as HTMLElement, 'hover');
     });
     el.addEventListener('mouseleave', () => {
-      if (_isTouchEvent()) return;
+      if (!ownHover || _isTouchEvent()) return;
       _hidePopover(el as HTMLElement);
     });
     el.addEventListener('focus', () => _showPopover(el as HTMLElement, 'focus'));
@@ -73,9 +77,37 @@ export function attachInfoTips(root: HTMLElement | Document = document): void {
   });
 }
 
+/** Closes the popover of one trigger, e.g. before the trigger is removed. */
+export function hideInfoTip(trigger: HTMLElement): void {
+  _hidePopover(trigger);
+}
+
 // ── Internal popover management ─────────────────────────────────
 
+// Besides the "?" icons, any element marked with data-tip-trigger (and a data-tip text)
+// opens the same popover, without the icon styling.
+const TRIGGER_UNBOUND = '.info-tip:not([data-tip-bound]), [data-tip-trigger]:not([data-tip-bound])';
+const PARENT_HOVER_CHILD = ':scope > [data-tip-hover="parent"][data-tip-bound]';
+
 const _boundTips = new WeakSet<Element>();
+const _hoverParents = new WeakSet<Element>();
+
+// data-tip-hover="parent": hovering the whole parent (e.g. a nav tab) shows the tip, while
+// a tap or click on the trigger itself toggles it. The parent looks up its current trigger
+// on each hover, so triggers can be replaced without stacking listeners.
+function _bindParentHover(parent: HTMLElement): void {
+  if (_hoverParents.has(parent)) return;
+  _hoverParents.add(parent);
+  const trigger = () => parent.querySelector<HTMLElement>(PARENT_HOVER_CHILD);
+  parent.addEventListener('mouseenter', () => {
+    const el = trigger();
+    if (el && !_isTouchEvent()) _showPopover(el, 'hover');
+  });
+  parent.addEventListener('mouseleave', () => {
+    const el = trigger() as _TipEl | null;
+    if (el && !_isTouchEvent() && el._tipSource === 'hover') _hidePopover(el);
+  });
+}
 
 /** Extended HTMLElement with a reference to its body-appended popover. */
 interface _TipEl extends HTMLElement {
@@ -218,7 +250,7 @@ function _findScrollAncestor(el: HTMLElement): HTMLElement | null {
 
 function _dismissAll(): void {
   document.querySelectorAll('.info-tip-pop').forEach((p) => p.remove());
-  document.querySelectorAll<HTMLElement>('.info-tip[data-tip-bound]').forEach((el) => {
+  document.querySelectorAll<HTMLElement>('[data-tip-bound]').forEach((el) => {
     const tipEl = el as _TipEl;
     delete tipEl._tipPop;
     delete tipEl._tipSource;

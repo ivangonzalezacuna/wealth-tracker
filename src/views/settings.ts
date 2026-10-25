@@ -75,6 +75,7 @@ import { goalDialog } from '../ui/goalDialog';
 import { ACCOUNT_TYPES } from '../model/accountTypes';
 import { isSignedIn } from '../auth/google';
 import { isBackupStale } from '../backup/exportImport';
+import { applyAttention, refreshAttention } from '../ui/attention';
 import { isBusy, setBusy } from '../sync/lock';
 import {
   buildHoldingSecuritySuggestions,
@@ -429,6 +430,7 @@ export function renderSettings(): void {
   });
 
   attachInfoTips(el);
+  applyAttention();
   reinjectPendingMsg();
   applySyncBusyState();
 }
@@ -525,6 +527,7 @@ function refreshGoalData(): void {
 function refreshBackupData(): void {
   const el = document.getElementById('settings-backup-nudge');
   if (el) el.innerHTML = backupNudgeHtml(getSettings());
+  refreshAttention();
 }
 
 function refreshFxIntegrationsData(): void {
@@ -1836,10 +1839,7 @@ function attachPortfolioBehaviorListeners(root: HTMLElement): void {
       );
       alertsDirty.commit();
       toastResult('alerts-msg', 'Alerts saved', 'success');
-      // Trigger drift badge update in main.ts
-      if (typeof (window as any).updateDriftBadge === 'function') {
-        (window as any).updateDriftBadge();
-      }
+      refreshAttention();
     } catch (err) {
       toastResult('alerts-msg', 'Could not save alerts: ' + errorText(err), 'error');
     }

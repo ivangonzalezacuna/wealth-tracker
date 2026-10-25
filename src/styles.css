@@ -195,26 +195,49 @@ code,
 .nav .log-btn {
   color: var(--ink-2);
 }
-.nav button.drift-alert {
-  position: relative;
+/* Attention trail: dot on the tab and sub-tab chip, badge on the card header. */
+.attn-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+  vertical-align: middle;
 }
-/* Info-tip badge inside nav buttons: no light background, just a coloured dot */
-.nav button .info-tip {
-  background: transparent;
-  border-color: transparent;
-  margin-left: 2px;
+/* Touch: a finger-sized tap area around the dot opens its note instead of switching tabs.
+   It reaches less to the left so the label itself still navigates. */
+@media (pointer: coarse) {
+  .attn-dot {
+    position: relative;
+  }
+  .attn-dot::after {
+    content: '';
+    position: absolute;
+    inset: -12px -12px -12px -6px;
+  }
 }
-.nav button .info-tip--warn {
-  color: var(--warn);
-  background: transparent;
-  border-color: transparent;
+.attn-badge[data-tip] {
+  cursor: help;
 }
-.nav button .info-tip--alert {
-  color: var(--neg);
-  background: transparent;
-  border-color: transparent;
+.attn-dot--alert {
+  background: var(--neg);
 }
-/* Sections */
+.attn-badge {
+  margin-left: 8px;
+  vertical-align: middle;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.attn-badge--warn {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+.attn-badge--alert {
+  background: var(--err-bg);
+  color: var(--err-fg);
+} /* Sections */
 .section {
   display: none;
 }
