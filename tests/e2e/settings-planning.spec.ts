@@ -7,6 +7,7 @@ import {
   monthOffsetValue,
   openTab,
   preparePage,
+  waitForSyncIdle,
 } from './helpers';
 
 test.beforeEach(async ({ page }) => {
@@ -103,10 +104,20 @@ test('retirement withdrawal keeps the Fixed amount after typing a % rate and rel
   expect(Number(suggested)).toBeGreaterThan(100);
 
   await page.click('[data-dd-strategy="pct"]');
-  await page.fill('#dd-withdrawal', '3.5');
-  await page.locator('#dd-withdrawal').press('Enter');
+  // Switching strategy persists a setting asynchronously, which triggers a delayed re-render of
+  // this card. A re-render that lands while the field is being edited discards the typed value,
+  // so retry the type-and-commit until the committed value sticks.
+  await expect
+    .poll(async () => {
+      await page.fill('#dd-withdrawal', '3.5');
+      await page.locator('#dd-withdrawal').press('Enter');
+      return page.locator('#dd-withdrawal').inputValue();
+    })
+    .toBe('3.5');
   await page.click('[data-dd-strategy="fixed"]');
   await expect(page.locator('#dd-withdrawal')).toHaveValue(suggested);
+  // Ensure the typed % rate has persisted before reloading (the setting write is async).
+  await waitForSyncIdle(page);
 
   await gotoApp(page);
   await openTab(page, 'tab-networth');
