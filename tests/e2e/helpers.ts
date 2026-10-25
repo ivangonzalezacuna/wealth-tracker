@@ -2,11 +2,19 @@ import { expect, type Page } from '@playwright/test';
 import path from 'node:path';
 
 export const CSV_FIXTURE = path.resolve(
-  '/home/runner/work/wealth-tracker/wealth-tracker/tests/e2e/fixtures/trade-republic-sample.csv',
+  process.cwd(),
+  'tests',
+  'e2e',
+  'fixtures',
+  'trade-republic-sample.csv',
 );
 
 export const INVALID_DATE_CSV_FIXTURE = path.resolve(
-  '/home/runner/work/wealth-tracker/wealth-tracker/tests/e2e/fixtures/trade-republic-invalid-date.csv',
+  process.cwd(),
+  'tests',
+  'e2e',
+  'fixtures',
+  'trade-republic-invalid-date.csv',
 );
 
 export function monthOffsetValue(offsetMonths: number): string {
