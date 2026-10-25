@@ -2,7 +2,11 @@
  * @vitest-environment jsdom
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { activateModalShell } from './modalShell';
+import {
+  activateModalShell,
+  createDialogController,
+  openDialogShell,
+} from './modalShell';
 
 afterEach(() => {
   document.body.innerHTML = '';
@@ -45,5 +49,44 @@ describe('modal keyboard handling', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
     expect(dismiss).toHaveBeenCalledOnce();
     cleanup();
+  });
+
+  it('wraps Tab and Shift+Tab inside the modal', () => {
+    const overlay = document.createElement('div');
+    overlay.innerHTML = '<button id="first">First</button><button id="last">Last</button>';
+    document.body.append(overlay);
+    const cleanup = activateModalShell({ overlay, onDismiss: vi.fn() });
+
+    const last = overlay.querySelector('#last') as HTMLButtonElement;
+    last.focus();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    expect(document.activeElement).toBe(overlay.querySelector('#first'));
+
+    const first = overlay.querySelector('#first') as HTMLButtonElement;
+    first.focus();
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }),
+    );
+    expect(document.activeElement).toBe(last);
+    cleanup();
+  });
+
+  it('focuses the configured initial target and restores the trigger on dismissal', () => {
+    const trigger = document.createElement('button');
+    document.body.append(trigger);
+    trigger.focus();
+    const overlay = document.createElement('div');
+    overlay.innerHTML = '<input id="initial">';
+    const controller = createDialogController(false);
+    controller.begin(vi.fn());
+    openDialogShell(controller, {
+      overlay,
+      onDismiss: () => controller.dismiss(false),
+      initialFocusSelector: '#initial',
+    });
+    expect(document.activeElement).toBe(overlay.querySelector('#initial'));
+
+    controller.dismiss(false);
+    expect(document.activeElement).toBe(trigger);
   });
 });
