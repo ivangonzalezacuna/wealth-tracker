@@ -86,6 +86,7 @@ function _loadScenarioFromStorage(
         typeof p['contribDeltaAmt'] === 'number' ? p['contribDeltaAmt'] : defaults.contribDeltaAmt;
       return { returnDeltaPct: ret, contribDeltaAmt: contrib };
     }
+
   } catch {
     // ignore
   }
@@ -141,6 +142,9 @@ const DD_WITHDRAWAL_KEYS: Record<DecumulationStrategy, string> = {
   'four-pct': 'dd_withdrawal_four_pct',
   pct: 'dd_withdrawal_pct',
 };
+// Stage fast planning edits synchronously so a reload cannot outrun IndexedDB.
+const DD_PENDING_SETTING_PREFIX = 'wealth-tracker-pending-drawdown-';
+const DD_UNSET_SETTING = '__unset__';
 let _ddReturnPct = 0; // annual return % during retirement; 0 = derive from accounts on each render
 let _ddReturnPctManual = false; // true once user has edited the return-rate input
 let _stateLoaded = false; // tracks whether persisted settings have been loaded into module state
@@ -152,7 +156,26 @@ function _loadPersistedState(): void {
   if (_stateLoaded) return;
   _stateLoaded = true;
   const s = getSettings();
-  const infl = getNumberSetting('nw_inflation_rate', NaN);
+  const pendingSettings = [
+    'dd_retirement_date',
+    'dd_strategy',
+    ...Object.values(DD_WITHDRAWAL_KEYS),
+    'dd_return_pct',
+  ];
+  for (const key of pendingSettings) {
+    const pending = sessionStorage.getItem(DD_PENDING_SETTING_PREFIX + key);
+    if (pending === null) continue;
+    const saved = pending === DD_UNSET_SETTING ? undefined : pending;
+    if (s[key] === saved) {
+      sessionStorage.removeItem(DD_PENDING_SETTING_PREFIX + key);
+    } else {
+      _persistDrawdownSetting(key, saved ?? null);
+      if (saved === undefined) delete s[key];
+      else s[key] = saved;
+    }
+  }
+
+    const infl = getNumberSetting('nw_inflation_rate', NaN);
   if (isFinite(infl) && infl >= 0) _inflationRate = Math.min(infl, 20);
   const ddDate = (s['dd_retirement_date'] || '').trim();
   if (/^\d{4}-\d{2}$/.test(ddDate)) _ddRetirementDate = ddDate;
@@ -160,17 +183,27 @@ function _loadPersistedState(): void {
   if (ddStrat === 'fixed' || ddStrat === 'four-pct' || ddStrat === 'pct') _ddStrategy = ddStrat;
   _ddManualWithdrawal = {};
   for (const [strategy, key] of Object.entries(DD_WITHDRAWAL_KEYS)) {
-    const v = getNumberSetting(key, NaN);
+    const v = Number(s[key]);
     if (isFinite(v) && v > 0 && (strategy !== 'pct' || v <= 100))
       _ddManualWithdrawal[strategy as DecumulationStrategy] = v;
   }
   // The old single value did not record its unit (€ or %), so it cannot be trusted.
   if (s['dd_withdrawal_param'] != null) void setSettings({ dd_withdrawal_param: null });
-  const ddRet = getNumberSetting('dd_return_pct', NaN);
+  const ddRet = Number(s['dd_return_pct']);
   if (isFinite(ddRet) && ddRet > 0) {
     _ddReturnPct = Math.min(ddRet, 20);
     _ddReturnPctManual = true;
   }
+}
+
+function _persistDrawdownSetting(key: string, value: string | null): void {
+  const storageKey = DD_PENDING_SETTING_PREFIX + key;
+  const pending = value ?? DD_UNSET_SETTING;
+  sessionStorage.setItem(storageKey, pending);
+  const write = value === null ? setSettings({ [key]: null }) : setSetting(key, value);
+  void write.then(() => {
+    if (sessionStorage.getItem(storageKey) === pending) sessionStorage.removeItem(storageKey);
+  });
 }
 
 /** Apply annual inflation to convert a nominal forecast series to real values. */
@@ -508,6 +541,14 @@ export function _resetPlanningTabForTest(): void {
   _ddRetirementDate = '';
   _ddStrategy = 'fixed';
   _ddManualWithdrawal = {};
+  for (const key of [
+    'dd_retirement_date',
+    'dd_strategy',
+    ...Object.values(DD_WITHDRAWAL_KEYS),
+    'dd_return_pct',
+  ]) {
+    sessionStorage.removeItem(DD_PENDING_SETTING_PREFIX + key);
+  }
   _ddReturnPct = 0;
   _ddReturnPctManual = false;
 }
@@ -1665,31 +1706,39 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
   const strategyToggle = document.getElementById('dd-strategy-toggle') as HTMLElement | null;
 
   const rerender = () => _renderDecumulationCard(snaps, accounts);
+  const saveManualWithdrawal = (value: string): boolean => {
+    const v = parseFloat(value);
+    if (!isFinite(v) || v <= 0 || (isPct && v > 100)) return false;
+    withdrawalInput?.removeAttribute('aria-invalid');
+    _ddManualWithdrawal[_ddStrategy] = v;
+    _persistDrawdownSetting(DD_WITHDRAWAL_KEYS[_ddStrategy], String(v));
+    return true;
+  };
 
   dateInput?.addEventListener('change', () => {
     const v = dateInput.value.trim();
     if (/^\d{4}-\d{2}$/.test(v) && v > latestSnap.date.substring(0, 7)) {
       _ddRetirementDate = v;
-      void setSetting('dd_retirement_date', _ddRetirementDate);
+      _persistDrawdownSetting('dd_retirement_date', _ddRetirementDate);
       rerender();
     }
   });
 
   withdrawalInput?.addEventListener('change', () => {
-    const v = parseFloat(withdrawalInput.value);
-    if (isFinite(v) && v > 0 && (!isPct || v <= 100)) {
-      withdrawalInput.removeAttribute('aria-invalid');
-      _ddManualWithdrawal[_ddStrategy] = v;
-      void setSetting(DD_WITHDRAWAL_KEYS[_ddStrategy], String(v));
-      rerender();
-    } else {
+    if (!saveManualWithdrawal(withdrawalInput.value)) {
       withdrawalInput.setAttribute('aria-invalid', 'true');
+      return;
     }
+    // A change can fire while focus moves to a strategy button. Let its click
+    // handler run before replacing the card.
+    queueMicrotask(() => {
+      if (!strategyToggle?.contains(document.activeElement)) rerender();
+    });
   });
 
   document.getElementById('dd-withdrawal-reset')?.addEventListener('click', () => {
     delete _ddManualWithdrawal[_ddStrategy];
-    void setSettings({ [DD_WITHDRAWAL_KEYS[_ddStrategy]]: null });
+    _persistDrawdownSetting(DD_WITHDRAWAL_KEYS[_ddStrategy], null);
     rerender();
   });
 
@@ -1699,7 +1748,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
       returnInput.removeAttribute('aria-invalid');
       _ddReturnPct = Math.min(v, 20);
       _ddReturnPctManual = true;
-      void setSetting('dd_return_pct', String(_ddReturnPct));
+      _persistDrawdownSetting('dd_return_pct', String(_ddReturnPct));
       rerender();
     } else {
       returnInput.setAttribute('aria-invalid', 'true');
@@ -1710,7 +1759,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
   resetReturnBtn?.addEventListener('click', () => {
     _ddReturnPctManual = false;
     _ddReturnPct = 0; // will be re-derived on next render
-    void setSettings({ dd_return_pct: null });
+    _persistDrawdownSetting('dd_return_pct', null);
     rerender();
   });
 
@@ -1719,8 +1768,12 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
     if (!btn) return;
     const newStrategy = btn.dataset.ddStrategy as DecumulationStrategy;
     if (newStrategy === _ddStrategy) return;
+    if (withdrawalInput && !saveManualWithdrawal(withdrawalInput.value)) {
+      withdrawalInput.setAttribute('aria-invalid', 'true');
+      return;
+    }
     _ddStrategy = newStrategy;
-    void setSetting('dd_strategy', _ddStrategy);
+    _persistDrawdownSetting('dd_strategy', _ddStrategy);
     rerender();
   });
 
