@@ -427,6 +427,7 @@ function initNav() {
   });
 
   // Hash-based initial routing
+  window.addEventListener('hashchange', resolveInitialSection);
   resolveInitialSection();
 }
 
