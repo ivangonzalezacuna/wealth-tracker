@@ -10,6 +10,8 @@ import {
   ensureCardExpanded,
   openCsvImportPreview,
   expectToast,
+  waitForSyncIdle,
+  CSV_FIXTURE,
 } from './helpers';
 
 test.beforeEach(async ({ page }) => {
@@ -39,14 +41,17 @@ test('validation, cancellation, duplicate re-import, and sync-related recovery f
   await page.setInputFiles('#csv-file-input', []);
   await openCsvImportPreview(page);
   await page.click('#btn-confirm-import');
-  await expect(page.locator('#import-msg')).toContainText('Imported 1 row');
+  await expect(page.locator('#import-msg')).toContainText('Imported 1 new transaction');
   const txRowsAfterFirstImport = await page.locator('#tx-ledger-list .tx-row').count();
   expect(txRowsAfterFirstImport).toBeGreaterThan(0);
 
+  // Re-importing the same file: every row is already stored, so the preview is skipped.
   await page.setInputFiles('#csv-file-input', []);
-  await openCsvImportPreview(page);
-  await page.click('#btn-confirm-import');
-  await expect(page.locator('#import-msg')).toContainText('Imported 1 row');
+  await waitForSyncIdle(page);
+  await page.setInputFiles('#csv-file-input', CSV_FIXTURE);
+  await expect(page.locator('#import-msg')).toContainText('already in the ledger');
+  await expect(page.locator('#import-preview')).toBeHidden();
+  await expect(page.locator('#tx-ledger-card')).toBeVisible();
   await expect(page.locator('#tx-ledger-list .tx-row')).toHaveCount(txRowsAfterFirstImport);
 
   const txDate = dayOffsetValue(-3);
@@ -54,7 +59,7 @@ test('validation, cancellation, duplicate re-import, and sync-related recovery f
   await txRow(page, formatUiDay(txDate)).locator('.tx-actions-desktop .js-edit-tx').click();
   await page.fill('#txd-note', 'this should be cancelled');
   await page.click('.js-txd-cancel');
-  await expect(txRow(page, formatUiDay(txDate))).toContainText('manual');
+  await expect(txRow(page, formatUiDay(txDate))).toContainText('Manual');
   await expect(txRow(page, formatUiDay(txDate))).not.toContainText('this should be cancelled');
 
   await openTab(page, 'tab-settings');

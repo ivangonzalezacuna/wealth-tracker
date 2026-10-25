@@ -362,20 +362,23 @@ export function appTemplate(): string {
     <div class="card log-panel" id="csv-import-card" role="tabpanel" aria-labelledby="log-tab-transactions">
       <div class="log-panel-head">
         <div class="card-title">Transaction ledger</div>
-        <button type="button" class="btn btn-ghost btn-sm log-import-toggle" id="btn-toggle-import" aria-expanded="false" aria-controls="csv-import-panel"><span class="row-expand-chevron" aria-hidden="true">&#x25B8;</span> Import CSV</button>
+        <div class="log-panel-head-actions">
+          <button type="button" class="ledger-summary-toggle log-panel-meta" id="btn-ledger-summary" aria-expanded="false" aria-controls="tx-ledger-summary" hidden></button>
+          <button type="button" class="btn btn-ghost btn-sm log-import-toggle" id="btn-toggle-import" aria-expanded="false" aria-controls="csv-import-panel"><span class="row-expand-chevron" aria-hidden="true">&#x25B8;</span> Import CSV</button>
+        </div>
       </div>
-      <div id="import-status" class="status-bar status-empty">No CSV imported yet</div>
+      <div id="tx-ledger-summary" class="ledger-summary" hidden></div>
       <div id="csv-import-panel" class="log-import-panel" hidden>
-        <p class="note" style="margin-bottom:.6rem">Import your transaction export CSV. Parsed locally; data synced to your Google Drive. Re-import anytime; duplicates handled automatically.</p>
         <div class="drop-zone" id="drop-zone">
           <input type="file" id="csv-file-input" accept=".csv" aria-label="Choose CSV file to import">
           <div class="drop-zone-icon" aria-hidden="true">📥</div>
-          <div id="csv-import-label" style="font-weight:500;font-size:13px;color:var(--ink-2);margin-bottom:.2rem">Drop CSV file here</div>
-          <div id="csv-import-hint" style="font-size:11px;color:var(--ink-3)">or click to browse</div>
+          <div id="csv-import-label" class="drop-zone-label">Drop CSV file here</div>
+          <div id="csv-import-hint" class="drop-zone-hint">or click to browse</div>
         </div>
+        <p class="note log-import-note">Parsed locally and synced to your Google Drive. You review every row before anything is saved; rows already in the ledger are skipped.</p>
       </div>
       <div id="import-msg" class="log-inline-msg" role="status" aria-live="polite"></div>
-      <div id="import-preview" style="display:none"></div>
+      <div id="import-preview" class="log-panel-body import-preview" hidden></div>
 
       <div id="tx-ledger-card" class="log-panel-body">
         <div class="filter-bar log-filter-bar" id="tx-filter-bar">

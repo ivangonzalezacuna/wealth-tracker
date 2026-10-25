@@ -349,6 +349,8 @@ export interface ParseResult {
   errorLines: string[];
   /** The raw header line from the source CSV, for reconstructing a downloadable error file. */
   headerLine: string;
+  /** Parsed rows that had at least one number cell coerced to 0. */
+  numberErrorRows?: ReadonlySet<Transaction>;
 }
 
 export interface PreviewSummary {

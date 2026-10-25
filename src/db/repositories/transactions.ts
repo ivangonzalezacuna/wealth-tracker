@@ -99,6 +99,15 @@ export async function deleteTransactions(rowIds: bigint[]): Promise<void> {
   await persistDb();
 }
 
+/** Incoming transactions not yet stored (by txKey); the rows an import would add. */
+export function selectNewTransactions(
+  existing: Transaction[],
+  incoming: Transaction[],
+): Transaction[] {
+  const seen = new Set(existing.map(txKey));
+  return incoming.filter((t) => !seen.has(txKey(t)));
+}
+
 /**
  * Merge incoming transactions with existing ones (append-only dedup).
  * Only genuinely new transactions (by txKey) are inserted.
@@ -108,8 +117,7 @@ export async function mergeTransactions(
   existing: Transaction[],
   incoming: Transaction[],
 ): Promise<Transaction[]> {
-  const seen = new Set(existing.map(txKey));
-  const newTxs = incoming.filter((t) => !seen.has(txKey(t)));
+  const newTxs = selectNewTransactions(existing, incoming);
 
   if (newTxs.length > 0) {
     const db = await getDb();
@@ -151,6 +159,17 @@ export async function mergeTransactions(
   return merged;
 }
 
+/** A stored row and its re-imported version share a txKey but differ in a data field. */
+export function isAmended(stored: Transaction, t: Transaction): boolean {
+  return (
+    stored.shares !== t.shares ||
+    stored.price !== t.price ||
+    stored.fee !== t.fee ||
+    stored.tax !== t.tax ||
+    stored.amount !== t.amount
+  );
+}
+
 /**
  * Count incoming transactions that already exist (same txKey) but differ in
  * at least one data field (shares, price, fee, tax). These are broker
@@ -161,16 +180,7 @@ export function countAmendedRows(existing: Transaction[], incoming: Transaction[
   let count = 0;
   for (const t of incoming) {
     const stored = existingMap.get(txKey(t));
-    if (!stored) continue;
-    if (
-      stored.shares !== t.shares ||
-      stored.price !== t.price ||
-      stored.fee !== t.fee ||
-      stored.tax !== t.tax ||
-      stored.amount !== t.amount
-    ) {
-      count++;
-    }
+    if (stored && isAmended(stored, t)) count++;
   }
   return count;
 }

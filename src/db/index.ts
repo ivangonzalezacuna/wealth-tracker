@@ -15,6 +15,8 @@ export {
   deleteTransactions,
   txKey,
   countAmendedRows,
+  isAmended,
+  selectNewTransactions,
 } from './repositories/transactions';
 
 export { loadSnapshots, upsertSnapshot, saveSnapshots } from './repositories/snapshots';

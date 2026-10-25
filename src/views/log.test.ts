@@ -76,7 +76,8 @@ const DOM_FIXTURE = `
   <div id="tx-pagination"></div>
   <div id="tx-filter-status" hidden></div>
   <div id="snap-filter-status" hidden></div>
-  <div id="import-status"></div>
+  <button id="btn-ledger-summary" hidden></button>
+  <div id="tx-ledger-summary" hidden></div>
 `;
 
 const BULK_DOM_FIXTURE = `
@@ -101,7 +102,8 @@ const BULK_DOM_FIXTURE = `
     <button id="btn-tx-clear-all"></button>
     <button id="btn-del-txs" disabled></button>
   </div>
-  <div id="import-status"></div>
+  <button id="btn-ledger-summary" hidden></button>
+  <div id="tx-ledger-summary" hidden></div>
 `;
 
 describe('renderLog', () => {
@@ -285,19 +287,89 @@ describe('renderLog', () => {
       onEditSnap: vi.fn(),
       onDelSnap: vi.fn(),
     });
-    const statusEl = document.getElementById('import-status')!;
-    expect(statusEl.textContent).toContain('1 transactions');
+    const btn = document.getElementById('btn-ledger-summary')!;
+    expect(btn.hidden).toBe(false);
+    expect(btn.textContent).toContain('1 transaction ·');
+    expect(btn.textContent).not.toContain('transactions');
   });
 
-  it('shows "No CSV imported yet" when importMeta is null', () => {
+  it('toggles a per-source breakdown with the last import date', () => {
+    const tx = {
+      id: 's1',
+      date: '2025-03-01',
+      source: 'manual',
+      type: 'BUY' as const,
+      name: 'IWDA',
+      isin: 'IE00',
+      shares: 1,
+      price: 80,
+      amount: 80,
+      fee: 0,
+      tax: 0,
+      currency: 'EUR',
+      fxRate: 1,
+    };
     renderLog({
-      txs: [],
+      txs: [
+        tx,
+        { ...tx, id: 's2', source: 'TR', date: '2025-01-10' },
+        { ...tx, id: 's3', source: 'TR', date: '2025-06-20' },
+      ],
+      snaps: [],
+      importMeta: { last_import: '2025-07-01' },
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+    });
+    const btn = document.getElementById('btn-ledger-summary')!;
+    const panel = document.getElementById('tx-ledger-summary')!;
+    expect(btn.getAttribute('aria-expanded')).toBe('false');
+    expect(panel.hidden).toBe(true);
+    btn.click();
+    expect(btn.getAttribute('aria-expanded')).toBe('true');
+    expect(panel.hidden).toBe(false);
+    const rows = [...panel.querySelectorAll('.ledger-summary-item')];
+    expect(rows).toHaveLength(2);
+    // Largest source first, with its own count and range.
+    expect(rows[0].textContent).toContain('2');
+    expect(rows[0].textContent).toContain('Jan 2025');
+    expect(rows[0].textContent).toContain('Jun 2025');
+    expect(rows[1].textContent).toContain('Manual');
+    expect(panel.textContent).toContain('Last CSV import');
+    btn.click();
+    expect(panel.hidden).toBe(true);
+    expect(btn.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('shows the ledger meta even without an import, and clears it when empty', () => {
+    const tx = {
+      id: 'm1',
+      date: '2026-02-03',
+      source: 'manual',
+      type: 'BUY' as const,
+      name: 'IWDA',
+      isin: 'IE00',
+      shares: 1,
+      price: 80,
+      amount: 80,
+      fee: 0,
+      tax: 0,
+      currency: 'EUR',
+      fxRate: 1,
+    };
+    renderLog({
+      txs: [tx, { ...tx, id: 'm2' }],
       snaps: [],
       importMeta: null,
       onEditSnap: vi.fn(),
       onDelSnap: vi.fn(),
     });
-    expect(document.getElementById('import-status')!.textContent).toContain('No CSV imported yet');
+    expect(document.getElementById('btn-ledger-summary')!.textContent).toContain('2 transactions');
+    renderLog({ txs: [], snaps: [], importMeta: null, onEditSnap: vi.fn(), onDelSnap: vi.fn() });
+    expect(document.getElementById('btn-ledger-summary')!.hidden).toBe(true);
+    expect(document.getElementById('tx-ledger-summary')!.hidden).toBe(true);
+    expect(
+      document.getElementById('tx-ledger-list')!.querySelector('.tbl-empty-state'),
+    ).not.toBeNull();
   });
 
   it('renders transaction ledger rows', () => {

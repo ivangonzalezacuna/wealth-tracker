@@ -200,11 +200,13 @@ export async function getCachedAggregates(): Promise<PortfolioData | null> {
   }
 }
 
-export async function setCachedAggregates(pd: PortfolioData): Promise<void> {
+export async function setCachedAggregates(pd: PortfolioData): Promise<boolean> {
   try {
     await setIfChanged(KEYS.AGGREGATES, pd);
+    return true;
   } catch {
     /* degrade */
+    return false;
   }
 }
 
@@ -221,11 +223,13 @@ export async function getCachedImportMeta(): Promise<Record<string, string> | nu
   }
 }
 
-export async function setCachedImportMeta(meta: Record<string, string>): Promise<void> {
+export async function setCachedImportMeta(meta: Record<string, string>): Promise<boolean> {
   try {
     await setIfChanged(KEYS.IMPORT_META, meta);
+    return true;
   } catch {
     /* degrade */
+    return false;
   }
 }
 
@@ -242,11 +246,13 @@ export async function getSyncCursor(): Promise<SyncCursor | null> {
   }
 }
 
-export async function setSyncCursor(cursor: SyncCursor): Promise<void> {
+export async function setSyncCursor(cursor: SyncCursor): Promise<boolean> {
   try {
     await setIfChanged(KEYS.SYNC_CURSOR, cursor);
+    return true;
   } catch {
     /* degrade */
+    return false;
   }
 }
 
@@ -263,11 +269,13 @@ export async function getInputsHash(): Promise<string | null> {
   }
 }
 
-export async function setInputsHash(hash: string): Promise<void> {
+export async function setInputsHash(hash: string): Promise<boolean> {
   try {
     await setIfChanged(KEYS.INPUTS_HASH, hash);
+    return true;
   } catch {
     /* degrade */
+    return false;
   }
 }
 

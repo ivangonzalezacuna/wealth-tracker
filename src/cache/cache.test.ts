@@ -37,6 +37,8 @@ import {
   setCachedAggregates,
   getInputsHash,
   setInputsHash,
+  setCachedImportMeta,
+  setSyncCursor,
   computeInputsHash,
   holdingsSignature,
 } from './db';
@@ -170,6 +172,16 @@ describe('Cache: aggregate cache with inputsHash', () => {
     await setInputsHash('test-hash-123');
     const result = await getInputsHash();
     expect(result).toBe('test-hash-123');
+  });
+
+  // Callers treat a falsy result as a failed write and show the cache warning.
+  it('reports successful writes as true for every setter', async () => {
+    mockStore.set('meta:schemaVersion', CACHE_VERSION);
+    await expect(setCachedTransactions([makeTx('a', '2026-01-01')])).resolves.toBe(true);
+    await expect(setCachedAggregates({ etfs: {}, totalInv: 1 } as any)).resolves.toBe(true);
+    await expect(setInputsHash('h')).resolves.toBe(true);
+    await expect(setCachedImportMeta({ last_import: '2026-01-01' })).resolves.toBe(true);
+    await expect(setSyncCursor({} as any)).resolves.toBe(true);
   });
 });
 
