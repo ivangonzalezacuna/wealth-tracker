@@ -10,6 +10,47 @@ export interface PaginationExtras {
   itemLabel?: string;
 }
 
+/** Page sizes for month-based tables (one, two or four years of rows). */
+export const MONTH_PAGE_SIZES = [12, 24, 48] as const;
+/** Page sizes for general tables. */
+export const DEFAULT_PAGE_SIZES = [10, 25, 50] as const;
+
+export function loadPageSize(key: string, allowed: readonly number[], fallback: number): number {
+  try {
+    const stored = Number(globalThis.localStorage?.getItem(key));
+    return allowed.includes(stored) ? stored : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function savePageSize(key: string, size: number): void {
+  try {
+    globalThis.localStorage?.setItem(key, String(size));
+  } catch {
+    // Storage may be unavailable (private mode); the size still applies for this session.
+  }
+}
+
+/** A remembered rows-per-page choice for one table. */
+export interface PageSizePref {
+  readonly options: readonly number[];
+  size: number;
+  /** Store a new size (persisted in localStorage). */
+  set(size: number): void;
+}
+
+export function createPageSizePref(key: string, options: readonly number[]): PageSizePref {
+  const pref: PageSizePref = {
+    options,
+    size: loadPageSize(key, options, options[0]),
+    set(size: number) {
+      pref.size = size;
+      savePageSize(key, size);
+    },
+  };
+  return pref;
+}
 /**
  * Render prev/next pagination controls. Hidden when totalPages <= 1, unless
  * a page-size selector is requested and there are more items than the

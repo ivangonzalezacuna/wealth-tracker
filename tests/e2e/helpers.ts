@@ -103,7 +103,9 @@ export async function gotoApp(page: Page): Promise<void> {
 }
 
 export async function waitForSyncIdle(page: Page): Promise<void> {
-  await expect(page.locator('#btn-sync-now')).toHaveText('Sync now', { timeout: 15_000 });
+  await expect(page.locator('#sync-status[aria-busy="true"]')).toHaveCount(0, {
+    timeout: 15_000,
+  });
 }
 
 export async function openTab(page: Page, tabId: string): Promise<void> {

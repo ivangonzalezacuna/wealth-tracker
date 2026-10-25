@@ -10,10 +10,16 @@ function getOverlay() {
   return document.querySelector('.hold-dialog-overlay') as HTMLElement | null;
 }
 
-function getOptions(id: string): string[] {
-  return Array.from(document.querySelectorAll(`#${id} option`)).map(
-    (opt) => (opt as HTMLOptionElement).value,
-  );
+function getOptions(inputId: string): string[] {
+  const input = document.getElementById(inputId) as HTMLInputElement;
+  const toggle = input.closest('.combo')?.querySelector<HTMLButtonElement>('.combo-toggle');
+  if (!toggle || toggle.hidden) return [];
+  toggle.click();
+  const values = Array.from(
+    document.querySelectorAll(`#${input.getAttribute('aria-controls')} .combo-value`),
+  ).map((el) => el.textContent ?? '');
+  toggle.click();
+  return values;
 }
 
 function getSubmit() {
@@ -52,16 +58,16 @@ describe('holdingDialog', () => {
   it('populates ISIN and name autocomplete lists from suggestions', () => {
     holdingDialog({ suggestions });
 
-    expect(getOptions('holdd-isin-list')).toEqual(['IE00B4L5Y983', 'IE00BKM4GZ66']);
-    expect(getOptions('holdd-name-list')).toEqual(['Alpha Fund', 'Beta Fund']);
+    expect(getOptions('holdd-isin')).toEqual(['IE00B4L5Y983', 'IE00BKM4GZ66']);
+    expect(getOptions('holdd-name')).toEqual(['Alpha Fund', 'Beta Fund']);
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
 
   it('filters autocomplete options by existing holdings isins', () => {
     holdingDialog({ suggestions, existingIsins: ['IE00B4L5Y983'] });
-    expect(getOptions('holdd-isin-list')).toEqual(['IE00BKM4GZ66']);
-    expect(getOptions('holdd-name-list')).toEqual(['Beta Fund']);
+    expect(getOptions('holdd-isin')).toEqual(['IE00BKM4GZ66']);
+    expect(getOptions('holdd-name')).toEqual(['Beta Fund']);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
 
@@ -75,8 +81,8 @@ describe('holdingDialog', () => {
       },
       existingIsins: ['IE00AAA'],
     });
-    expect(getOptions('holdd-isin-list')).toEqual(['IE00BKM4GZ66']);
-    expect(getOptions('holdd-name-list')).toEqual(['Beta Fund']);
+    expect(getOptions('holdd-isin')).toEqual(['IE00BKM4GZ66']);
+    expect(getOptions('holdd-name')).toEqual(['Beta Fund']);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
 

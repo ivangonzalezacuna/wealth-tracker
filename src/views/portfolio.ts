@@ -23,22 +23,29 @@ import {
 } from '../store/config';
 import { primaryInvestmentValue } from '../model/accounts';
 import { splitHoldings, computeFeeDrag } from '../model/holdings';
-import { computeDrift, maxDrift, computeRebalancePlan } from '../model/drift';
+import { computeDrift, maxDrift, computeRebalancePlan, driftStatus } from '../model/drift';
+import type { DriftEntry } from '../model/drift';
 import { sourceLabel } from '../import/profiles/index';
 import type { PortfolioData, Snapshot, EtfPosition } from '../types';
-import Chart from 'chart.js/auto';
-import { BAR_END_ROUNDING, resolvedT } from '../theme';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
+import { bindChipGroup, bindSearchClear, chipGroupHtml, searchHtml } from '../ui/filterBar';
 import { attachEtfPopovers } from '../ui/etfPopover';
-import { renderPagination } from './pagination';
+import { createPageSizePref, DEFAULT_PAGE_SIZES, renderPagination } from './pagination';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow } from './tableColumns';
-import { renderLegendHtml, tooltipSwatch } from './chartLegend';
-import { hideChartTable, writeChartTable } from './chartTable';
 import { bindExpandableRows, restoreExpandableRows } from './expandableRows';
 import { bindSortedTableHeader, sortAndPaginate } from './tableView';
 import { isCollapsed, setCollapsed } from '../ui/collapseState';
-import { createChartRegistry } from './chartRegistry';
+import {
+  disposeChart,
+  drillHint,
+  fmtEurCompact,
+  renderChart,
+  toRgba,
+  tooltipHint,
+  type ChartTokens,
+} from './charts';
+import { revealElement } from './drill';
 import {
   createTableState,
   getTableFilter,
@@ -46,13 +53,6 @@ import {
   setTablePage,
   setTableSort,
 } from './tableState';
-import {
-  buildBaseChartOptions,
-  buildBaseTooltipOptions,
-  formatEuroCompactSuffix,
-} from './chartOptions';
-
-const { CH, destroyChart: _destroyChart } = createChartRegistry();
 
 /**
  * Extract per-ETF market values from a snapshot.
@@ -124,7 +124,9 @@ function renderSourceBreakdown(bySource: Record<string, number>, signed = false)
 }
 
 // Module-level filter state (survives re-renders)
-const HOLD_PAGE_SIZE = 10;
+const _holdPageSize = createPageSizePref('wt:holdings:pageSize', DEFAULT_PAGE_SIZES);
+/** Latest holdings re-render (delegated filter handlers are bound once and call this). */
+let _holdRender: (() => void) | null = null;
 const _holdTableState = createTableState({
   sort: { key: null, dir: null },
   filters: { status: 'held', search: '' },
@@ -299,8 +301,12 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   const { held, exited } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
   const exitedCount = exited.length;
 
-  // Determine which ETFs to show based on filter
-  const holdingsFilter = getTableFilter(_holdTableState, 'status') || 'held';
+  // Status chips only matter once something has been closed; otherwise everything is "held".
+  let holdingsFilter = getTableFilter(_holdTableState, 'status') || 'held';
+  if (exitedCount === 0 && holdingsFilter !== 'held') {
+    holdingsFilter = 'held';
+    _holdTableState.filters.status = 'held';
+  }
   let displayList: EtfPosition[];
   if (holdingsFilter === 'closed') {
     displayList = exited;
@@ -327,7 +333,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     columns,
     _holdTableState.sort,
     _holdTableState.page,
-    HOLD_PAGE_SIZE,
+    _holdPageSize.size,
   );
   setTablePage(_holdTableState, page);
   const pageItemsByKey = new Map(pageItems.map((e) => [e.isin, e]));
@@ -337,16 +343,35 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   _currentColumns = columns;
 
   // Filter controls
+  const statusChips =
+    exitedCount > 0
+      ? chipGroupHtml({
+          id: 'port-filter-toggle',
+          ariaLabel: 'Show holdings',
+          attr: 'filter',
+          value: holdingsFilter,
+          chips: [
+            { value: 'all', label: 'All', count: allEtfs.length },
+            { value: 'held', label: 'Held', count: held.length },
+            { value: 'closed', label: 'Closed', count: exitedCount },
+          ],
+        })
+      : '';
+  // Same layout as the ledger: search first, chips on their own row below.
   const filterHtml = `
-    <div class="filter-bar" style="margin-bottom:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <div class="range-toggle" id="port-filter-toggle">
-        <button class="btn btn-sm btn-ghost ${holdingsFilter === 'held' ? 'active' : ''}" data-filter="held">Held</button>
-        <button class="btn btn-sm btn-ghost ${holdingsFilter === 'closed' ? 'active' : ''}" data-filter="closed">Closed${exitedCount > 0 ? ' (' + exitedCount + ')' : ''}</button>
-        <button class="btn btn-sm btn-ghost ${holdingsFilter === 'all' ? 'active' : ''}" data-filter="all">All</button>
-      </div>
-      <input id="port-holdings-search" type="search" class="form-input form-input-sm holdings-search-input" placeholder="Search ISIN or name"
-        value="${esc(holdingsSearch)}" style="flex:1" aria-label="Search holdings by ISIN or name">
+    <div class="filter-bar filter-bar-stacked hold-filter-bar">
+      ${searchHtml({
+        id: 'port-holdings-search',
+        value: holdingsSearch,
+        placeholder: 'Search ISIN or name',
+        ariaLabel: 'Search holdings by ISIN or name',
+      })}
+      ${statusChips}
     </div>`;
+  const noMatch =
+    pageItems.length === 0 && holdingsSearch
+      ? `<div class="empty-state hold-empty" role="row">No ${holdingsFilter === 'held' ? 'held ' : holdingsFilter === 'closed' ? 'closed ' : ''}holdings match “${esc(holdingsSearch)}”. <button type="button" class="filter-clear-all" data-clear-hold-search>Clear search</button></div>`
+      : '';
 
   const rows = pageItems
     .map((e) => {
@@ -362,7 +387,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     <div class="hold-grid">
       <div class="tbl-row th hold-row" role="row" id="port-table-header">
         ${renderTableHeader(columns, _holdTableState.sort)}
-      </div>${rows}
+      </div>${rows}${noMatch}
       <div class="tbl-row hold-total" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
         <div style="font-weight:500">Total</div>
         <div style="font-weight:500;text-align:right"><div class="hold-value-line"><span>${fmtEur(pd.totalInv)}</span><span class="hold-inline-meta">100%</span></div></div>
@@ -388,18 +413,23 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     },
   );
 
-  // Bind filter listeners once (_bound guard prevents stacking)
-  const filterToggle = document.getElementById('port-filter-toggle') as
-    (HTMLElement & { _bound?: boolean }) | null;
-  if (filterToggle && !filterToggle._bound) {
-    filterToggle._bound = true;
-    filterToggle.addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest('[data-filter]') as HTMLElement | null;
-      if (!btn) return;
-      setTableFilter(_holdTableState, 'status', btn.dataset.filter || 'held', {
-        resetSort: true,
-        rerender: () => renderHoldingsTable(pd, snaps),
-      });
+  // Delegated on the static #port-table, so they survive the innerHTML re-render.
+  const portTableEl = document.getElementById('port-table');
+  _holdRender = () => renderHoldingsTable(pd, snaps);
+  bindChipGroup(portTableEl, 'filter', (value) => {
+    if (value === (getTableFilter(_holdTableState, 'status') || 'held')) return;
+    setTableFilter(_holdTableState, 'status', value || 'held', {
+      resetSort: true,
+      rerender: () => _holdRender?.(),
+    });
+  });
+  bindSearchClear(portTableEl);
+  if (portTableEl && !portTableEl.dataset.holdClearBound) {
+    portTableEl.dataset.holdClearBound = '1';
+    portTableEl.addEventListener('click', (e) => {
+      if (!(e.target as HTMLElement).closest('[data-clear-hold-search]')) return;
+      setTableFilter(_holdTableState, 'search', '', { rerender: () => _holdRender?.() });
+      document.getElementById('port-holdings-search')?.focus();
     });
   }
 
@@ -454,14 +484,35 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   });
 
   // Holdings pagination controls
-  renderHoldPagination(totalPages, pd, snaps);
+  renderHoldPagination(totalPages, defaultOrdered.length, pd, snaps);
 }
 
-function renderHoldPagination(totalPages: number, pd: PortfolioData, snaps: Snapshot[]): void {
-  renderPagination('port-pagination', _holdTableState.page, totalPages, (p) => {
-    setTablePage(_holdTableState, p);
-    renderHoldingsTable(pd, snaps);
-  });
+function renderHoldPagination(
+  totalPages: number,
+  totalItems: number,
+  pd: PortfolioData,
+  snaps: Snapshot[],
+): void {
+  renderPagination(
+    'port-pagination',
+    _holdTableState.page,
+    totalPages,
+    (p) => {
+      setTablePage(_holdTableState, p);
+      renderHoldingsTable(pd, snaps);
+    },
+    {
+      totalItems,
+      pageSize: _holdPageSize.size,
+      pageSizeOptions: _holdPageSize.options,
+      itemLabel: 'holdings',
+      onPageSizeChange: (size) => {
+        _holdPageSize.set(size);
+        setTablePage(_holdTableState, 1);
+        renderHoldingsTable(pd, snaps);
+      },
+    },
+  );
 }
 
 function _createHoldingDetail(e: EtfPosition): HTMLElement {
@@ -623,92 +674,10 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   // Render holdings table (filter-dependent)
   renderHoldingsTable(pd, snaps);
 
-  // Bar chart - only held positions with cost > 0
-  const donutE = held.filter((e) => e.cost > 0).sort((a, b) => b.cost - a.cost);
-  const C = resolvedT();
-  const baseOptions = buildBaseChartOptions();
-  _destroyChart('c-port-donut');
-  if (donutE.length === 0) {
-    hideChartTable('c-port-donut-table-wrap');
-  } else {
-    writeChartTable(
-      'c-port-donut-table-wrap',
-      'Cost basis allocation data',
-      ['ETF', 'Cost basis (€)', 'Share', 'ISIN'],
-      donutE.map((e) => [
-        e.shortName,
-        fmtEur2(e.cost),
-        pd.totalInv > 0 ? fmtPctVal((e.cost / pd.totalInv) * 100) : '0%',
-        e.isin,
-      ]),
-      [1, 2],
-    );
-  }
-  const donutCanvas = document.getElementById('c-port-donut') as HTMLCanvasElement;
-  // Size the bar chart to its rows so a few holdings don't leave a tall, mostly empty chart.
-  const donutWrap = donutCanvas.parentElement;
-  if (donutWrap) {
-    const fitH = Math.min(320, Math.max(120, donutE.length * 32 + 40));
-    donutWrap.style.setProperty('--chart-fit-h', `${fitH}px`);
-  }
-  CH['c-port-donut'] = new Chart(donutCanvas, {
-    type: 'bar',
-    data: {
-      labels: donutE.map((e) => e.shortName),
-      datasets: [
-        {
-          data: donutE.map((e) => e.cost),
-          backgroundColor: donutE.map((e) => safeColor(e.color)),
-          borderColor: donutE.map((e) => safeColor(e.color)),
-          borderWidth: 1,
-          ...BAR_END_ROUNDING,
-          maxBarThickness: 22,
-        },
-      ],
-    },
-    options: {
-      indexAxis: 'y',
-      ...baseOptions,
-      plugins: {
-        ...baseOptions.plugins,
-        tooltip: {
-          ...buildBaseTooltipOptions(C, true),
-          callbacks: {
-            label: (ctx) => ` ${fmtEur(ctx.raw as number)}`,
-            labelColor: tooltipSwatch(C.surface),
-            footer: (items) => {
-              if (!items.length) return '';
-              const idx = items[0].dataIndex;
-              const e = donutE[idx];
-              if (!e) return '';
-              const h = getHoldings().find((x) => x.isin === e.isin);
-              const name = h?.name || e.name || '';
-              const lines: string[] = [];
-              if (name) lines.push(name);
-              lines.push(e.isin);
-              return lines;
-            },
-          },
-        },
-      },
-      scales: {
-        x: {
-          grid: { color: C.line },
-          ticks: {
-            color: C.ink4,
-            callback: (v) => formatEuroCompactSuffix(v),
-          },
-        },
-        y: { grid: { display: false }, ticks: { color: C.ink2, font: { size: 12 } } },
-      },
-    },
-  });
-  document.getElementById('port-donut-legend')!.innerHTML = renderLegendHtml(
-    donutE.map((e) => ({
-      label: e.shortName,
-      meta: pd.totalInv > 0 ? fmtPctVal((e.cost / pd.totalInv) * 100) : '0%',
-      color: e.color,
-    })),
+  _renderCostBasisChart(
+    held.filter((e) => e.cost > 0).sort((a, b) => b.cost - a.cost),
+    pd.totalInv,
+    (isin) => _revealHolding(pd, snaps, isin),
   );
   const mvRow =
     snapMarketValue !== null
@@ -766,6 +735,14 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
 
 // ── Drift / rebalance card ──
 
+/** Cadence labels for the rebalance picker. */
+const REBALANCE_INTERVAL_LABEL: Record<string, string> = {
+  weekly: 'Weekly',
+  biweekly: 'Every 2 weeks',
+  monthly: 'Monthly',
+  quarterly: 'Quarterly',
+};
+
 /** Cadence suffix labels for the rebalance table (e.g. "/wk"). */
 const REBALANCE_INTERVAL_SUFFIX: Record<string, string> = {
   weekly: '/wk',
@@ -797,46 +774,13 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
   const drift = computeDrift(holdings, pd.etfs, totalValue, valuation.snapEtfValuesForDrift);
 
   if (drift.length === 0) {
+    disposeChart('c-port-drift');
     driftEl.innerHTML = '';
     return;
   }
 
-  const alertSettings = getAlertSettings();
-  const threshold = alertSettings.driftThresholdPct || 5;
-  const highThreshold = threshold * 2;
-
   const max = maxDrift(drift);
-  const statusColor =
-    max > highThreshold ? 'var(--neg)' : max > threshold ? 'var(--warn)' : 'var(--pos)';
-  const statusLabel =
-    max > highThreshold ? 'High drift' : max > threshold ? 'Moderate drift' : 'On target';
-
-  const rows = drift
-    .map((d) => {
-      const driftColor =
-        Math.abs(d.driftPct) > threshold
-          ? 'var(--neg)'
-          : Math.abs(d.driftPct) > 2
-            ? 'var(--warn)'
-            : 'var(--pos)';
-      const isLegacy = d.targetPct === 0;
-      const costBadge =
-        d.valuationMode === 'cost'
-          ? infoTip(
-              'Actual % based on cost basis, not current market value. Enter ETF values in your next snapshot for market-based drift.',
-            )
-          : '';
-      return `
-      <div class="tbl-row" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
-        <div role="cell"><span style="display:inline-block;width:8px;height:8px;border-radius:var(--radius-xs);background:${safeColor(d.color)};margin-right:6px;opacity:${isLegacy ? '0.6' : '1'}"></span><span data-etf-isin="${esc(d.isin)}" data-etf-name="${esc(d.name)}">${esc(d.shortName)}</span></div>
-        <div role="cell" style="text-align:right${isLegacy ? ';color:var(--ink-3)' : ''}">${isLegacy ? '(legacy)' : fmtPctVal(d.targetPct)}</div>
-        <div role="cell" style="text-align:right">${fmtPctVal(d.actualPct)}${costBadge}</div>
-        <div role="cell" style="text-align:right;color:${driftColor}" aria-label="Drift ${fmtPctSigned(d.driftPct)}">${fmtPctSigned(d.driftPct)}</div>
-        <div role="cell" style="text-align:right;color:${d.deltaValue >= 0 ? 'var(--ink-3)' : 'var(--ink-2)'}">${fmtEurSigned(d.deltaValue)}</div>
-      </div>`;
-    })
-    .join('');
-
+  const status = driftStatus(max, getAlertSettings().driftThresholdPct);
   const noteSource =
     valuation.mode === 'market'
       ? `Actual from market values (snapshot: ${fmtMon(latSnap!.date)}). Legacy = inactive positions still held.`
@@ -876,34 +820,28 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
   const plan12 = computeRebalancePlan(drift, monthlyBudget, totalValue, 12, calibrationInterval);
   const needsSell = plan12.some((e) => e.projectedDriftPct > 0.05);
 
-  const intervalLabels: Record<string, string> = {
-    weekly: 'Weekly',
-    biweekly: 'Biweekly',
-    monthly: 'Monthly',
-    quarterly: 'Quarterly',
-  };
-
   let rebalanceSection = '';
   // Only show the rebalance plan when market values are available for held positions.
   // Cost-basis drift figures are not reliable enough to base contribution decisions on.
   // When there are no held positions (all cash / re-entry), cost mode is irrelevant and
   // the plan is shown since it is purely contribution-target-based.
   if (plan.length >= 2 && monthlyBudget > 0 && !(hasCostMode && valuation.hasHeldPositions)) {
-    const isRebalanceRecommended = max > 10;
-    // Collapsed by default so the drift table stays the focus; the summary flags
+    // Same scale as the drift chart: suggested once drift is high for the alert threshold.
+    const isRebalanceRecommended = status.level === 'high';
+    // Collapsed by default so the drift chart stays the focus; the summary flags
     // when the what-if is suggested and the open state survives picker re-renders.
     const shouldOpenRebalance = keepRebalanceOpen;
     const pickerBtns = REBALANCE_MONTH_OPTIONS.map((m) => {
       const active = m === selectedMonths;
       const label = m === 12 ? '1 yr' : `${m} mo`;
-      return `<button class="btn btn-sm btn-ghost ${active ? 'active' : ''}" data-rebalance-months="${m}" aria-pressed="${active ? 'true' : 'false'}">${label}</button>`;
+      return `<button type="button" class="btn btn-sm btn-ghost ${active ? 'active' : ''}" data-rebalance-months="${m}" aria-pressed="${active ? 'true' : 'false'}">${label}</button>`;
     }).join('');
 
-    const intervalBtns = (['weekly', 'biweekly', 'monthly', 'quarterly'] as const)
-      .map((iv) => {
-        const active = iv === calibrationInterval;
-        return `<button class="btn btn-sm btn-ghost ${active ? 'active' : ''}" data-rebalance-interval="${iv}" aria-pressed="${active ? 'true' : 'false'}">${esc(intervalLabels[iv])}</button>`;
-      })
+    const cadenceOptions = (['weekly', 'biweekly', 'monthly', 'quarterly'] as const)
+      .map(
+        (iv) =>
+          `<option value="${iv}"${iv === calibrationInterval ? ' selected' : ''}>${esc(REBALANCE_INTERVAL_LABEL[iv])}</option>`,
+      )
       .join('');
 
     const suffix = esc(REBALANCE_INTERVAL_SUFFIX[calibrationInterval] ?? '');
@@ -912,83 +850,84 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
       Math.round(Math.max(...plan.map((e) => Math.abs(e.projectedDriftPct))) * 10) / 10;
     const hasLegacyDrift = drift.some((d) => d.targetPct === 0 && Math.abs(d.driftPct) > 0);
     const periodLabel = selectedMonths === 1 ? '1 month' : `${selectedMonths} months`;
+    const horizonShort = selectedMonths === 12 ? '1 yr' : `${selectedMonths} mo`;
     const legacyScopeNote = hasLegacyDrift
-      ? ' Projection reflects active-target holdings only; legacy positions are unchanged.'
+      ? ' Projection covers active-target holdings only; legacy positions are unchanged.'
       : '';
 
-    const rebalanceRows = plan
-      .map((e) => {
-        const stateLabel =
-          e.state === 'overweight'
-            ? 'Overweight'
-            : e.state === 'on-target'
-              ? 'On target'
-              : 'Underweight';
-        const suggestedCell =
-          e.suggestedAmt < 0.005
-            ? `<span class="rebalance-amount-primary" style="color:var(--ink-3)">€0.00<span class="rebalance-amount-suffix">${suffix}</span></span>`
-            : `<span class="rebalance-amount-primary">${fmtEur2(e.suggestedAmt)}<span class="rebalance-amount-suffix">${suffix}</span></span>`;
-        return `
-        <div class="tbl-row rebalance-plan-row" role="row" data-rebalance-state="${esc(e.state)}">
-          <div role="cell" class="rebalance-etf-cell"><span style="display:inline-block;width:8px;height:8px;border-radius:var(--radius-xs);background:${safeColor(e.color)};margin-right:6px"></span>${esc(e.shortName)}<br><span class="rebalance-state-badge rebalance-state-${esc(e.state)}" style="margin-left:14px">${stateLabel}</span></div>
-          <div role="cell" class="rebalance-amount-cell">${suggestedCell}<span class="rebalance-amount-meta">Target ${fmtEur2(e.targetAmt)}${suffix}</span></div>
+    const stateLabel: Record<string, string> = {
+      overweight: 'Overweight',
+      'on-target': 'On target',
+      underweight: 'Underweight',
+    };
+    const rowHtml = (e: (typeof plan)[number]) => {
+      const zero = e.suggestedAmt < 0.005;
+      return `
+        <div class="tbl-row rebalance-plan-row${zero ? ' is-zero' : ''}" role="row" data-rebalance-state="${esc(e.state)}">
+          <div role="cell" class="rebalance-etf-cell"><span class="rebalance-name"><span class="rebalance-dot" style="background:${safeColor(e.color)}"></span>${esc(e.shortName)}</span><span class="rebalance-meta"><span class="rebalance-state-${esc(e.state)}">${stateLabel[e.state]}</span> · usual ${fmtEur2(e.targetAmt)}${suffix}</span></div>
+          <div role="cell" class="rebalance-amount-cell"><span class="rebalance-amount-primary">${fmtEur2(zero ? 0 : e.suggestedAmt)}<span class="rebalance-amount-suffix">${suffix}</span></span></div>
           <div role="cell" class="rebalance-drift-cell">${fmtPctSigned(e.projectedDriftPct)}</div>
         </div>`;
-      })
-      .join('');
+    };
+    const funded = plan.filter((e) => e.suggestedAmt >= 0.005);
+    const unfunded = plan.filter((e) => e.suggestedAmt < 0.005);
+    // Fold the €0 rows only when there are several; a single one reads fine inline.
+    const foldZero = unfunded.length > 1 && funded.length > 0;
+    const zeroRows = foldZero
+      ? `<details class="rebalance-zero"><summary class="rebalance-zero-summary">${unfunded.length} holdings get ${fmtEur2(0)} this period</summary>${unfunded.map(rowHtml).join('')}</details>`
+      : unfunded.map(rowHtml).join('');
 
-    const sellWarning = needsSell
-      ? `<div class="status-bar status-warn" style="margin-top:.5rem">Some holdings remain overweight beyond a 12-month horizon. Consider reviewing whether a partial sell could speed up rebalancing, and account for taxes and trading fees before acting.</div>`
+    const disclaimer = `What-if for new contributions only: routing the suggested amounts for ${periodLabel} with a ${fmtEur(monthlyBudget)}/mo budget. It assumes no selling and no market movement, so actual results will vary. It is not buy or sell advice.${legacyScopeNote}`;
+    const sellNote = needsSell
+      ? `<p class="rebalance-sell-note">Some holdings stay above target after 12 months at this <span class="rebalance-nowrap">budget.&nbsp;${infoTip('A partial sell could rebalance faster. Account for taxes and trading fees before acting; this is not buy or sell advice.')}</span></p>`
       : '';
 
     rebalanceSection = `
       <details class="rebalance-collapsible" ${shouldOpenRebalance ? 'open' : ''}>
         <summary class="rebalance-summary">
-          Contribution rebalance
-          <span class="rebalance-summary-note${isRebalanceRecommended ? ' is-suggested' : ''}">${isRebalanceRecommended ? 'Suggested · drift above 10%' : 'Drift is moderate or low'}</span>
+          Rebalance with contributions
+          <span class="rebalance-summary-note${isRebalanceRecommended ? ' is-suggested' : ''}">${isRebalanceRecommended ? 'Suggested · high drift' : 'Drift is moderate or low'}</span>
         </summary>
         <div class="rebalance-body">
-          <div class="rebalance-picker-row">
-            <span class="rebalance-picker-label">Timeline:</span>
-            <div class="range-toggle rebalance-range-toggle" role="group" aria-label="Rebalance timeline">
+          <div class="filter-bar rebalance-controls">
+            <div class="range-toggle filter-chips rebalance-range-toggle" role="group" aria-label="Rebalance timeline">
               ${pickerBtns}
             </div>
+            <select class="form-input form-input-sm" data-rebalance-interval aria-label="Contribution cadence">${cadenceOptions}</select>
           </div>
-          <div class="rebalance-picker-row">
-            <span class="rebalance-picker-label">Cadence:</span>
-            <div class="range-toggle rebalance-range-toggle" role="group" aria-label="Calibration interval">
-              ${intervalBtns}
-            </div>
-          </div>
-          <div class="tbl" role="table" aria-label="Contribution rebalance plan">
+          <p class="rebalance-result">Max drift <strong>${fmtPctVal(activeCurrentMax)} → ${fmtPctVal(projectedActiveMax)}</strong> after ${periodLabel} <span class="rebalance-result-meta">· ${fmtEur(monthlyBudget)}/mo budget&nbsp;${infoTip(disclaimer)}</span></p>
+          <div class="tbl rebalance-plan" role="table" aria-label="Contribution rebalance plan">
             <div class="tbl-row th rebalance-plan-row" role="row">
-              <div role="columnheader">ETF</div>
-              <div role="columnheader" style="text-align:right">Amount</div>
-              <div role="columnheader" style="text-align:right">Projected drift</div>
+              <div role="columnheader">Holding</div>
+              <div role="columnheader" style="text-align:right">Suggested</div>
+              <div role="columnheader" style="text-align:right">After ${horizonShort}</div>
             </div>
-            ${rebalanceRows}
+            ${funded.map(rowHtml).join('')}
+            ${zeroRows}
           </div>
-          <p class="note" style="margin-top:.5rem">Routing the suggested amounts for ${periodLabel} will reduce max drift from ${fmtPctVal(activeCurrentMax)} to ${fmtPctVal(projectedActiveMax)}. Budget: ${fmtEur(monthlyBudget)}/mo. This is a what-if for new contributions only: it assumes no selling and no market movement, so actual results will vary. It is not buy or sell advice.${legacyScopeNote}</p>
-          ${sellWarning}
+          <p class="note rebalance-note">Estimate for new contributions only: no selling, no market moves.</p>
+          ${sellNote}
         </div>
       </details>`;
   } else if (plan.length >= 2 && monthlyBudget <= 0) {
     rebalanceSection = `<p class="note" style="margin-top:.5rem">Set your contribution amount and cadence in Settings to see the rebalance plan.</p>`;
   }
-
+  const driftTip = `${noteSource} Drift = actual minus target share, in percentage points. The shaded band is your alert threshold (±${fmtPctVal(status.threshold, 'auto')}, set in Settings). Hover or tap a bar for target, actual and the euro gap; click it to open the holding.`;
+  const keptWrap = document.getElementById('c-port-drift')?.parentElement ?? null;
   driftEl.innerHTML = `
     <div class="card">
-      <div class="card-title drift-title">Allocation drift <span class="drift-title-status" style="color:${statusColor}">${statusLabel} (max ${fmtPctVal(max)})</span></div>
+      <div class="card-title drift-title">Allocation drift ${infoTip(driftTip)}<span class="drift-title-status" style="color:${status.color}">${status.label} · max ${fmtPctVal(max)}</span></div>
       ${costModeBanner}
-      <div class="tbl" role="table" aria-label="Allocation drift">
-        <div class="tbl-row th" role="row" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr">
-          <div role="columnheader">ETF</div><div role="columnheader" style="text-align:right">Target</div><div role="columnheader" style="text-align:right">Actual</div><div role="columnheader" style="text-align:right">Drift</div><div role="columnheader" style="text-align:right">Delta</div>
-        </div>
-        ${rows}
-      </div>
-      <p class="note" style="margin-top:.5rem">${noteSource} Drift = actual minus target share. Delta = current value minus target value (negative = below target, positive = above).</p>
+      <div class="chart-wrap chart-h-fit"><div id="c-port-drift" class="chart-host" role="img" aria-label="Allocation drift per holding: ${esc(status.label)}, max ${esc(fmtPctVal(max))}"></div></div>
       ${rebalanceSection}
     </div>`;
+  // Reuse the live chart host so re-renders (e.g. rebalance picker) update it in place.
+  const freshHost = document.getElementById('c-port-drift');
+  if (keptWrap && freshHost) {
+    freshHost.parentElement!.replaceWith(keptWrap);
+    keptWrap.firstElementChild!.setAttribute('aria-label', freshHost.getAttribute('aria-label')!);
+  }
+  _renderDriftChart(drift, status.threshold, (isin) => _revealHolding(pd, snaps, isin));
 
   // Attach picker click handlers.
   driftEl.querySelectorAll('[data-rebalance-months]').forEach((btn) => {
@@ -1003,13 +942,11 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
     });
   });
 
-  driftEl.querySelectorAll('[data-rebalance-interval]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const details = (btn as HTMLElement).closest(
-        '.rebalance-collapsible',
-      ) as HTMLDetailsElement | null;
+  driftEl.querySelectorAll<HTMLSelectElement>('[data-rebalance-interval]').forEach((sel) => {
+    sel.addEventListener('change', () => {
+      const details = sel.closest('.rebalance-collapsible') as HTMLDetailsElement | null;
       const keepOpen = details?.open ?? false;
-      const iv = (btn as HTMLElement).dataset.rebalanceInterval || 'monthly';
+      const iv = sel.value || 'monthly';
       localStorage.setItem('drift-calibration-interval', iv);
       _redrawDrift?.(keepOpen);
     });
@@ -1036,4 +973,250 @@ export function getMaxDrift(pd: PortfolioData | null, snaps: Snapshot[]): number
   );
   if (drift.length === 0) return null;
   return maxDrift(drift);
+}
+
+// ── Drift chart ──
+
+/** Diverging bars: drift in pp per holding, largest gap first, alert band around zero. */
+function _renderDriftChart(
+  drift: DriftEntry[],
+  threshold: number,
+  onSelect: (isin: string) => void,
+): void {
+  const rows = [...drift].sort(
+    (a, b) => Math.abs(b.driftPct) - Math.abs(a.driftPct) || a.shortName.localeCompare(b.shortName),
+  );
+  const host = document.getElementById('c-port-drift');
+  const wrap = host?.parentElement;
+  if (wrap) {
+    const fitH = Math.min(560, Math.max(150, rows.length * 36 + 30));
+    wrap.style.setProperty('--chart-fit-h', `${fitH}px`);
+  }
+  const maxAbs = Math.max(threshold * 1.5, ...rows.map((d) => Math.abs(d.driftPct)));
+  // Symmetric axis with room for the value labels outside the bars; ticks at ±ext/2 and ±ext.
+  const step = [1, 2, 2.5, 5, 10, 20, 25, 50].find((s) => s * 2 >= maxAbs * 1.3) ?? 50;
+  const ext = step * 2;
+  const isLegacy = (d: DriftEntry) => d.targetPct === 0;
+  const levelColor = (t: ChartTokens, d: DriftEntry) => {
+    const level = driftStatus(d.driftPct, threshold).level;
+    return level === 'high' ? t.neg : level === 'moderate' ? t.warn : t.pos;
+  };
+  const sub = (d: DriftEntry) =>
+    isLegacy(d)
+      ? `${fmtPctVal(d.actualPct)} · legacy`
+      : `${fmtPctVal(d.actualPct)} of ${fmtPctVal(d.targetPct)}`;
+
+  renderChart(
+    'c-port-drift',
+    ({ tokens: t, width, touch }) => ({
+      tooltip: {
+        trigger: 'item',
+        confine: true,
+        formatter: (p: unknown) => {
+          const d = rows[(p as { dataIndex: number }).dataIndex];
+          if (!d) return '';
+          const row = (name: string, val: string, color?: string) =>
+            `<div class="ec-tt-row"><span class="ec-tt-name">${name}</span><span class="ec-tt-val"${
+              color ? ` style="color:${color}"` : ''
+            }>${esc(val)}</span></div>`;
+          return `<div class="ec-tt"><div class="ec-tt-title">${esc(d.shortName)}</div>${
+            d.name
+              ? `<div class="ec-tt-note" style="font-style:normal;margin:0 0 4px">${esc(d.name)}</div>`
+              : ''
+          }${row('Target', isLegacy(d) ? 'Legacy (0%)' : fmtPctVal(d.targetPct))}${row(
+            'Actual',
+            fmtPctVal(d.actualPct) + (d.valuationMode === 'cost' ? ' (cost)' : ''),
+          )}${row('Drift', fmtPctSigned(d.driftPct), levelColor(t, d))}${row(
+            d.deltaValue >= 0 ? 'Above target' : 'Below target',
+            fmtEurSigned(d.deltaValue),
+          )}${tooltipHint(drillHint({ touch }, 'show it in Holdings'))}</div>`;
+        },
+      },
+      grid: { left: 4, right: 8, bottom: 4, containLabel: true },
+      xAxis: {
+        type: 'value',
+        min: -ext,
+        max: ext,
+        interval: ext / 2,
+        axisLabel: { formatter: (v: number) => fmtPctSigned(v, 0) },
+      },
+      yAxis: {
+        type: 'category',
+        inverse: true,
+        data: rows.map((d) => d.shortName),
+        axisLine: { show: false, onZero: false },
+        axisTick: { show: false },
+        axisLabel: {
+          width: width > 0 ? Math.max(76, Math.round(width * 0.28)) : 120,
+          overflow: 'truncate',
+          formatter: (_: string, i: number) => {
+            const d = rows[i];
+            return d ? `{n|${d.shortName}}\n{s|${sub(d)}}` : '';
+          },
+          rich: {
+            n: { color: t.ink2, fontSize: 12, fontWeight: 500, lineHeight: 15 },
+            s: { color: t.ink3, fontSize: 10, lineHeight: 13 },
+          },
+        },
+      },
+      series: [
+        {
+          name: 'Drift',
+          type: 'bar',
+          barMaxWidth: 18,
+          label: {
+            show: true,
+            fontSize: 11,
+            fontWeight: 600,
+            formatter: (p: { dataIndex: number }) => fmtPctSigned(rows[p.dataIndex]?.driftPct ?? 0),
+          },
+          markArea: {
+            silent: true,
+            itemStyle: { color: toRgba(t.pos, 0.08) },
+            data: [[{ xAxis: -threshold }, { xAxis: threshold }]],
+          },
+          markLine: {
+            silent: true,
+            symbol: 'none',
+            label: { show: false },
+            lineStyle: { color: t.line2, type: 'solid', width: 1 },
+            data: [{ xAxis: 0 }],
+          },
+          data: rows.map((d) => {
+            const inside = Math.abs(d.driftPct) > ext * 0.6;
+            const neg = d.driftPct < 0;
+            return {
+              value: d.driftPct,
+              // Long bars carry their label inside so it never runs into the axis labels.
+              label: inside
+                ? { position: neg ? 'insideLeft' : 'insideRight', color: '#fff' }
+                : { position: neg ? 'left' : 'right', color: levelColor(t, d) },
+              itemStyle: {
+                color: safeColor(d.color),
+                opacity: isLegacy(d) ? 0.55 : 1,
+                borderRadius: neg ? [4, 0, 0, 4] : [0, 4, 4, 0],
+              },
+            };
+          }),
+        },
+      ],
+    }),
+    {
+      valueFormatter: (v) => fmtPctSigned(v),
+      drill: {
+        axis: 'y',
+        resolve: (v) => rows[Math.round(v)]?.isin ?? null,
+        select: onSelect,
+      },
+    },
+  );
+}
+
+// ── Cost basis chart ──
+
+/** Cost-basis drill-down: narrow the holdings table to one ISIN and expand its row. */
+function _revealHolding(pd: PortfolioData, snaps: Snapshot[], isin: string): void {
+  if (getTableFilter(_holdTableState, 'status') === 'closed')
+    setTableFilter(_holdTableState, 'status', 'held');
+  setTableFilter(_holdTableState, 'search', isin);
+  setCollapsed('hold:' + isin, true);
+  renderHoldingsTable(pd, snaps);
+  const row = [...document.querySelectorAll<HTMLElement>('#port-table .hold-row:not(.th)')].find(
+    (r) => r.dataset.etfKey === isin,
+  );
+  revealElement(row ?? null);
+}
+
+function _renderCostBasisChart(
+  rows: EtfPosition[],
+  totalInv: number,
+  onSelect: (isin: string) => void,
+): void {
+  const host = document.getElementById('c-port-donut');
+  if (!host) return;
+  if (rows.length === 0) {
+    disposeChart('c-port-donut');
+    host.innerHTML = '<div class="chart-empty">No open positions with a cost basis yet.</div>';
+    return;
+  }
+  host.querySelector('.chart-empty')?.remove();
+  // Size the bar chart to its rows so a few holdings don't leave a tall, mostly empty chart.
+  const wrap = host.parentElement;
+  if (wrap) {
+    const fitH = Math.min(380, Math.max(140, rows.length * 28 + 52));
+    wrap.style.setProperty('--chart-fit-h', `${fitH}px`);
+  }
+  const share = (cost: number) => (totalInv > 0 ? fmtPctVal((cost / totalInv) * 100) : '0%');
+  const fullName = (e: EtfPosition) =>
+    getHoldings().find((x) => x.isin === e.isin)?.name || e.name || '';
+
+  renderChart(
+    'c-port-donut',
+    ({ tokens: t, width, touch }) => ({
+      tooltip: {
+        trigger: 'item',
+        confine: true,
+        formatter: (p: unknown) => {
+          const e = rows[(p as { dataIndex: number }).dataIndex];
+          if (!e) return '';
+          const name = fullName(e);
+          return `<div class="ec-tt"><div class="ec-tt-title">${esc(e.shortName)}</div>${
+            name
+              ? `<div class="ec-tt-note" style="font-style:normal;margin:0 0 4px">${esc(name)}</div>`
+              : ''
+          }<div class="ec-tt-row"><span class="ec-tt-name">Cost basis</span><span class="ec-tt-val">${esc(
+            fmtEur2(e.cost),
+          )}</span></div><div class="ec-tt-row"><span class="ec-tt-name">Share</span><span class="ec-tt-val">${esc(
+            share(e.cost),
+          )}</span></div><div class="ec-tt-row ec-tt-foot"><span class="ec-tt-name">ISIN</span><span class="ec-tt-val">${esc(
+            e.isin,
+          )}</span></div>${tooltipHint(drillHint({ touch }, 'show it in Holdings'))}</div>`;
+        },
+      },
+      grid: { left: 4, right: 48, bottom: 4, containLabel: true },
+      xAxis: {
+        type: 'value',
+        splitNumber: 3,
+        axisLabel: { formatter: fmtEurCompact },
+      },
+      yAxis: {
+        type: 'category',
+        inverse: true,
+        data: rows.map((e) => e.shortName),
+        axisTick: { show: false },
+        axisLabel: {
+          color: t.ink2,
+          fontSize: 12,
+          width: width > 0 ? Math.max(80, Math.round(width * 0.32)) : 140,
+          overflow: 'truncate',
+        },
+      },
+      series: [
+        {
+          name: 'Cost basis',
+          type: 'bar',
+          barMaxWidth: 22,
+          label: {
+            show: true,
+            position: 'right',
+            color: t.ink3,
+            fontSize: 11,
+            formatter: (p: { dataIndex: number }) => share(rows[p.dataIndex]?.cost ?? 0),
+          },
+          data: rows.map((e) => ({
+            value: e.cost,
+            itemStyle: { color: safeColor(e.color), borderRadius: [0, 4, 4, 0] },
+          })),
+        },
+      ],
+    }),
+    {
+      valueFormatter: fmtEur2,
+      drill: {
+        axis: 'y',
+        resolve: (v) => rows[Math.round(v)]?.isin ?? null,
+        select: onSelect,
+      },
+    },
+  );
 }

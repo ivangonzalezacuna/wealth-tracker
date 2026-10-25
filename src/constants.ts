@@ -19,16 +19,6 @@ interface AccountEntry {
   color: string;
 }
 
-/** Forecast-range labels shared across views (months -> human-readable label). */
-export const FORECAST_RANGE_LABELS: Record<string, string> = {
-  '60': '5 years',
-  '120': '10 years',
-  '240': '20 years',
-  '360': '30 years',
-  '480': '40 years',
-  '600': '50 years',
-};
-
 // ISIN → shortName (live from store when loaded, else from static config)
 export function getISIN(): Record<string, string> {
   if (isConfigLoaded()) return getISINMap();

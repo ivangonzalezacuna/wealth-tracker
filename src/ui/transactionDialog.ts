@@ -14,9 +14,9 @@ import {
   focusFirstInvalid,
   makeDialogHelpers,
   openDialogShell,
-  populateDatalist,
 } from './modalShell';
 import { attachSecurityAutocomplete } from './securityAutocomplete';
+import { attachCombobox, toComboOptions } from './combobox';
 import { resolveRate } from '../fx';
 
 let _activeExisting: Transaction | undefined = undefined;
@@ -97,7 +97,7 @@ export function transactionDialog(
             </div>
             <div class="dialog-field">
               <label class="dialog-label" for="txd-type">Type</label>
-              <select id="txd-type" class="form-input dialog-input themed-select">
+              <select id="txd-type" class="form-input dialog-input">
                 ${TX_TYPES.map(
                   (t) =>
                     `<option value="${esc(t)}" ${t === (existing?.type || TxType.BUY) ? 'selected' : ''}>${esc(t)}</option>`,
@@ -111,16 +111,14 @@ export function transactionDialog(
               <label class="dialog-label" for="txd-name">Name</label>
               <input type="text" id="txd-name" class="form-input dialog-input"
                 value="${esc(existing?.name || '')}" placeholder="e.g. iShares Core MSCI World"
-                list="txd-name-list" autocomplete="off">
-              <datalist id="txd-name-list"></datalist>
+                autocomplete="off">
               <span class="dialog-error dialog-error-compact" id="txd-name-err"></span>
             </div>
             <div class="dialog-field">
               <label class="dialog-label" for="txd-isin">ISIN</label>
               <input type="text" id="txd-isin" class="form-input dialog-input dialog-input-uppercase"
-                value="${esc(existing?.isin || '')}" placeholder="e.g. IE00B4L5Y983" list="txd-isin-list"
+                value="${esc(existing?.isin || '')}" placeholder="e.g. IE00B4L5Y983"
                 autocomplete="off">
-              <datalist id="txd-isin-list"></datalist>
               <span class="dialog-error dialog-error-compact" id="txd-isin-err"></span>
             </div>
           </div>
@@ -159,8 +157,7 @@ export function transactionDialog(
               <label class="dialog-label" for="txd-currency">Currency</label>
               <input type="text" id="txd-currency" class="form-input dialog-input dialog-input-uppercase"
                 value="${esc(existing?.currency || 'EUR')}" placeholder="EUR"
-                maxlength="3" list="txd-currency-list" autocomplete="off">
-              <datalist id="txd-currency-list"></datalist>
+                maxlength="3" autocomplete="off"${existing ? '' : ' data-autofill="1"'}>
               <span class="dialog-error dialog-error-compact" id="txd-currency-err"></span>
             </div>
             <div class="dialog-field">
@@ -186,6 +183,16 @@ export function transactionDialog(
         </div>
       </div>`;
 
+    attachSecurityAutocomplete({
+      overlay,
+      pairs: _activeSuggestionPairs,
+      isinInputId: 'txd-isin',
+      nameInputId: 'txd-name',
+      currencyInputId: 'txd-currency',
+    });
+    const currencyInput = overlay.querySelector<HTMLInputElement>('#txd-currency');
+    if (currencyInput)
+      attachCombobox(currencyInput, toComboOptions(opts.currencySuggestions ?? []));
     openDialogShell(_dialog, {
       overlay,
       onDismiss: () => _dismiss(null),
@@ -196,15 +203,7 @@ export function transactionDialog(
       focusablesSelector: DIALOG_FOCUSABLES,
       initialFocusSelector: '#txd-date',
     });
-    attachSecurityAutocomplete({
-      overlay,
-      pairs: _activeSuggestionPairs,
-      isinInputId: 'txd-isin',
-      isinListId: 'txd-isin-list',
-      nameInputId: 'txd-name',
-      nameListId: 'txd-name-list',
-    });
-    populateDatalist(overlay.querySelector('#txd-currency-list'), opts.currencySuggestions ?? []);
+
     _applyTypeVisibility(existing?.type || TxType.BUY);
     _bindRealtimeIsinValidation(overlay);
     const clearCorrectedNameError = (): void => {

@@ -14,7 +14,7 @@ Focus: polish, usability gaps, and the most-requested missing pieces.
 
 ### Snapshots & Net Worth
 
-- ~~**Snapshot notes in the timeline chart**~~ ✅ — Notes are surfaced as dot markers on the Net Worth chart, with the full note text visible in the tooltip on hover.
+- ~~**Snapshot notes in the timeline chart**~~ ✅ — Notes are surfaced as dot markers on the Net Worth chart, with the full note text visible in the tooltip on hover or tap.
 
 - ~~**Bulk snapshot delete**~~ ✅ — The log view supports multi-select and bulk delete for both snapshots and transactions, accessible via the "Bulk delete" toggle in the filter bar.
 
@@ -27,6 +27,8 @@ Focus: polish, usability gaps, and the most-requested missing pieces.
 ### UX / Accessibility
 
 - ~~**Keyboard navigation for modals**~~ ✅ — All dialogs (snapshot, account, holding, transaction, confirm) implement a focus trap and restore focus to the trigger element on close.
+
+- ~~**Interactive charts**~~ ✅ — Charts moved from Chart.js to a tree-shaken, lazy-loaded Apache ECharts setup with one shared registry: default views with slider/inside zoom (pinch and pan on touch), box zoom, reset, data table, save image, full screen, linked Analytics timelines and click-to-drill into Log and Holdings (a tooltip button on touch), with an HTML legend that wraps and works with the keyboard. Follow-ups: keyboard access to the in-canvas toolbox (the data table is the accessible fallback today) and goal annotations on the history chart.
 
 ---
 
@@ -56,7 +58,7 @@ Focus: deeper analytics, richer planning, and data quality.
 
 ### Developer Experience
 
-- ~~**End-to-end tests (Playwright) — comprehensive coverage**~~ ✅ — Playwright E2E suite provides full coverage of all major app flows: smoke tests, snapshot/transaction CRUD and bulk delete, CSV import (preview/confirm/cancel/invalid-date/duplicate), settings (accounts CRUD, holdings CRUD, contributions, calc assumptions, portfolio behavior alerts and reinvestment rules, goals with milestones edit/delete), portfolio and analytics data assertions, portfolio sub-view navigation (holdings/contributions/dividends), transaction type and search filtering, net worth range toggles, annual report download and backup/restore round-trip, empty states across all tabs, keyboard accessibility (Escape closes all dialogs), config history, global shell behavior (theme persistence, auth state transitions, offline navigation), and resilience scenarios. CI runs cross-browser (Chromium, Firefox, WebKit) via a matrix strategy with video capture on first retry.
+- ~~**End-to-end tests (Playwright) — comprehensive coverage**~~ ✅ — Playwright E2E suite provides full coverage of all major app flows: smoke tests, snapshot/transaction CRUD and bulk delete, CSV import (preview/confirm/cancel/invalid-date/duplicate), settings (accounts CRUD, holdings CRUD, contributions, calc assumptions, portfolio behavior alerts and reinvestment rules, goals with milestones edit/delete), portfolio and analytics data assertions, portfolio sub-view navigation (holdings/contributions/dividends), transaction type and search filtering, chart zoom, reset and drill-down, annual report download and backup/restore round-trip, empty states across all tabs, keyboard accessibility (Escape closes all dialogs), config history, global shell behavior (theme persistence, auth state transitions, offline navigation), and resilience scenarios. CI runs cross-browser (Chromium, Firefox, WebKit) via a matrix strategy with video capture on first retry.
 
 - ~~**Schema migration dry-run**~~ ✅ — Schema migrations run automatically on DB load and are irreversible once applied. The only way to test a new migration today is to apply it against real data or a manually prepared test fixture. A `yarn db:migrate-dry` CLI script that clones the database in memory, runs the pending migrations, and reports success or failure before any real write would make it safe to iterate on migrations during development without risking data loss.
 

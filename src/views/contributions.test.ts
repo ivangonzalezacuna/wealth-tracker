@@ -3,29 +3,12 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// ── Chart.js mock ───────
-const chartInstances: Array<{ config: unknown; destroyed: boolean }> = [];
-vi.mock('chart.js/auto', () => ({
-  default: class MockChart {
-    config: unknown;
-    data: { datasets: Array<{ hidden?: boolean }> };
-    private _record: { config: unknown; destroyed: boolean };
-    constructor(_ctx: unknown, config: unknown) {
-      this.config = config;
-      const cfg = config as { data?: { datasets?: unknown[] } };
-      this.data = { datasets: (cfg?.data?.datasets as Array<{ hidden?: boolean }>) || [] };
-      this._record = { config, destroyed: false };
-      chartInstances.push(this._record);
-    }
-    destroy() {
-      this._record.destroyed = true;
-    }
-    update() {}
-    getDatasetMeta(i: number) {
-      return { hidden: this.data.datasets[i]?.hidden || false };
-    }
-  },
-}));
+vi.mock('echarts/core', () => import('./charts/echartsMock'));
+import { chartFor, instances as chartInstances, resetMockCharts } from './charts/echartsMock';
+import { addMonths, loadCharts } from './charts';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyRec = any;
 
 // ── Mock dependencies ──────────────────────────────────────────────
 const MOCK_ACCOUNTS = [
@@ -68,12 +51,6 @@ vi.mock('../constants', () => ({
   getISIN_ORDERList: () => ['IE00TEST1'],
   getISIN: () => ({ IE00TEST1: 'IWDA' }),
   getMETAMap: () => ({ IWDA: { color: '#222222', acc: true, active: true } }),
-  FORECAST_RANGE_LABELS: {
-    '60': '5 years',
-    '120': '10 years',
-    '240': '20 years',
-    '360': '30 years',
-  },
 }));
 
 import { renderDCA } from './contributions';
@@ -109,34 +86,19 @@ const DOM_FIXTURE = `
   <div id="dca-empty"></div>
   <div id="dca-content">
     <div id="dca-kpis"></div>
-    <div id="dca-legend"></div>
-    <canvas id="c-dca-bar" role="img" aria-label="Monthly contributions bar chart" aria-describedby="c-dca-bar-table-wrap"></canvas>
-    <div id="c-dca-bar-table-wrap" hidden></div>
-    <div class="range-toggle" id="dca-range-toggle">
-      <button class="btn active" data-range="12">12M</button>
-      <button class="btn" data-range="36">36M</button>
-      <button class="btn" data-range="all">All</button>
-    </div>
-    <div id="dca-proj-card">
-      <div id="dca-forecast-legend"></div>
-      <canvas id="c-dca-proj"></canvas>
-      <div class="range-toggle" id="dca-forecast-range-toggle">
-        <button class="btn active" data-range="60">5Y</button>
-        <button class="btn" data-range="120">10Y</button>
-        <button class="btn" data-range="240">20Y</button>
-        <button class="btn" data-range="360">30Y</button>
-      </div>
-    </div>
-    <select id="dca-year-filter"></select>
+    <div id="c-dca-bar"></div>
+    <div id="dca-proj-card"></div>
     <div id="dca-table-header"></div>
     <div id="dca-table"></div>
+    <div id="dca-pagination"></div>
   </div>
 `;
 
 describe('renderDCA', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await loadCharts();
+    resetMockCharts();
     document.body.innerHTML = DOM_FIXTURE;
-    chartInstances.length = 0;
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -177,31 +139,26 @@ describe('renderDCA', () => {
     expect(kpis).toContain('3');
   });
 
-  it('creates DCA bar chart with monthlyBy data', () => {
+  it('creates DCA bar chart with one stacked series per ETF', () => {
     renderDCA(makePD(), []);
-    // Should create at least the bar chart
-    expect(chartInstances.length).toBeGreaterThanOrEqual(1);
-    const wrap = document.getElementById('c-dca-bar-table-wrap');
-    expect(wrap?.hasAttribute('hidden')).toBe(false);
-    expect(wrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
-    expect(
-      (document.getElementById('c-dca-bar') as HTMLCanvasElement).getAttribute('aria-describedby'),
-    ).toBe('c-dca-bar-table-wrap');
+    const opt = chartFor('c-dca-bar')!.option as AnyRec;
+    expect(opt.xAxis.data).toHaveLength(3);
+    expect(opt.series).toHaveLength(1);
+    expect(opt.series[0]).toMatchObject({ name: 'IWDA', type: 'bar', stack: 'dca' });
+    expect(opt.series[0].data.map((d: AnyRec) => d.value)).toEqual([100, 150, 200]);
+    // Only the top segment of each stack is rounded.
+    expect(opt.series[0].data[0].itemStyle.borderRadius).toEqual([3, 3, 0, 0]);
   });
 
-  it('destroys prior bar chart on re-render', () => {
+  it('reuses the bar chart instance on re-render', () => {
     renderDCA(makePD(), []);
-    const firstCount = chartInstances.length;
+    const chart = chartFor('c-dca-bar');
     renderDCA(makePD(), []);
-    // Prior charts destroyed
-    for (let i = 0; i < firstCount; i++) {
-      expect(chartInstances[i].destroyed).toBe(true);
-    }
-    expect(chartInstances.length).toBeGreaterThan(firstCount);
+    expect(chartFor('c-dca-bar')).toBe(chart);
+    expect(chartInstances.filter((c) => c.dom.id === 'c-dca-bar')).toHaveLength(1);
   });
 
-  it('DCA range toggle changes the chart labels length', () => {
-    // Use a longer months array to make range filtering visible
+  it('DCA bars open on the last 12 months of the full axis', () => {
     const months = Array.from({ length: 20 }, (_, i) => {
       const y = 2024 + Math.floor(i / 12);
       const m = (i % 12) + 1;
@@ -214,43 +171,76 @@ describe('renderDCA', () => {
       monthlyBy[mo] = { IE00TEST1: 100 };
     });
     renderDCA(makePD({ months, monthly, monthlyBy, totalInv: 2000 }), []);
-    const countAfterFirst = chartInstances.length;
-
-    // Click "12M" range button (it's already active by default in the toggle HTML but
-    // the internal state starts at 'all', so clicking '12' will trigger a re-render)
-    const toggle = document.getElementById('dca-range-toggle')!;
-    const btn12 = toggle.querySelector('[data-range="12"]') as HTMLElement;
-    btn12.click();
-
-    // A new chart should be created
-    expect(chartInstances.length).toBeGreaterThan(countAfterFirst);
-    // The new chart should have fewer labels (12 months vs 20)
-    const newChart = chartInstances[chartInstances.length - 1];
-    const cfg = newChart.config as { data?: { labels?: string[] } };
-    expect(cfg.data!.labels!.length).toBe(12);
+    const chart = chartFor('c-dca-bar')!;
+    const opt = chart.option as AnyRec;
+    expect(opt.xAxis.data).toHaveLength(20);
+    expect(opt.graphic).toBeUndefined();
+    expect(opt.dataZoom[0]).toMatchObject({ startValue: 8, endValue: 19 });
   });
 
-  it('projection chart renders given contribution data', () => {
+  it('bar tooltip skips zero rows and only totals multiple ETFs', () => {
     renderDCA(makePD(), []);
-    // Proj chart (c-dca-proj) should be created in addition to bar chart
-    expect(chartInstances.length).toBeGreaterThanOrEqual(2);
-    const wrap = document.getElementById('c-dca-proj-table-wrap');
-    expect(wrap?.hasAttribute('hidden')).toBe(false);
-    expect(wrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
-    expect(
-      (document.getElementById('c-dca-proj') as HTMLCanvasElement).getAttribute('aria-describedby'),
-    ).toBe('c-dca-proj-table-wrap');
+    const fmt = (chartFor('c-dca-bar')!.option as AnyRec).tooltip.formatter;
+    const html = fmt([
+      { seriesName: 'IWDA', value: 100, axisValue: 'Jan 25', axisValueLabel: 'Jan 25' },
+      { seriesName: 'VWCE', value: 0, axisValue: 'Jan 25', axisValueLabel: 'Jan 25' },
+    ]);
+    expect(html).toContain('IWDA');
+    expect(html).not.toContain('VWCE');
+    expect(html).not.toContain('Total');
+    const both = fmt([
+      { seriesName: 'IWDA', value: 100, axisValue: 'Jan 25', axisValueLabel: 'Jan 25' },
+      { seriesName: 'VWCE', value: 50, axisValue: 'Jan 25', axisValueLabel: 'Jan 25' },
+    ]);
+    expect(both).toContain('Total');
   });
 
-  it('forecast range toggle re-creates projection chart', () => {
+  it('projection chart renders actual and projected series', () => {
     renderDCA(makePD(), []);
-    const countBefore = chartInstances.length;
+    const opt = chartFor('c-dca-proj')!.option as AnyRec;
+    expect(opt.series.map((x: AnyRec) => x.name)).toEqual(['Actual', 'Projected']);
+    expect(opt.series[0].data).toHaveLength(3);
+    // Projection always covers 30 years (plus the joining point); the zoom picks the view.
+    expect(opt.series[1].data).toHaveLength(361);
+    expect(opt.series[1].data[0][1]).toBe(450);
+    expect(opt.series[1].markArea.data[0][0].name).toBe('Projected');
+  });
 
-    const toggle = document.getElementById('dca-forecast-range-toggle')!;
-    const btn10Y = toggle.querySelector('[data-range="120"]') as HTMLElement;
-    btn10Y.click();
-
-    expect(chartInstances.length).toBeGreaterThan(countBefore);
+  it('forecast opens on 5 years and the title follows the zoom', () => {
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    });
+    try {
+      renderDCA(makePD(), []);
+      const chart = chartFor('c-dca-proj')!;
+      const title = document.getElementById('dca-proj-range')!;
+      expect(title.textContent).toBe('5 years');
+      const opt = chart.option as AnyRec;
+      expect(opt.graphic).toBeUndefined();
+      const lastActual = opt.series[0].data.at(-1)[0];
+      expect(opt.dataZoom[0]).toMatchObject({
+        startValue: opt.series[0].data[0][0],
+        endValue: addMonths(lastActual, 60),
+      });
+      const zoomTo = (months: number) => {
+        chart.option = {
+          ...opt,
+          dataZoom: [
+            { startValue: opt.series[0].data[0][0], endValue: addMonths(lastActual, months) },
+          ],
+        };
+        chart.trigger('datazoom', {});
+      };
+      zoomTo(125);
+      expect(title.textContent).toBe('10 years');
+      zoomTo(3);
+      expect(title.textContent).toBe('1 year');
+      zoomTo(60);
+      expect(title.textContent).toBe('5 years');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('DCA table renders rows for each month plus a total row', () => {
@@ -263,24 +253,31 @@ describe('renderDCA', () => {
     expect(dataRows.length).toBe(4);
   });
 
-  it('year filter narrows visible rows', () => {
-    const months = ['2024-11', '2024-12', '2025-01', '2025-02'];
+  it('pages months with the standard Rows selector', () => {
+    const months = Array.from({ length: 14 }, (_, i) =>
+      i < 12 ? `2024-${String(i + 1).padStart(2, '0')}` : `2025-0${i - 11}`,
+    );
     const monthly: Record<string, number> = {};
     const monthlyBy: Record<string, Record<string, number>> = {};
     months.forEach((mo) => {
       monthly[mo] = 100;
       monthlyBy[mo] = { IE00TEST1: 100 };
     });
-    renderDCA(makePD({ months, monthly, monthlyBy, totalInv: 400 }), []);
+    renderDCA(makePD({ months, monthly, monthlyBy, totalInv: 1400 }), []);
 
-    const select = document.getElementById('dca-year-filter') as HTMLSelectElement;
-    // Select 2024
-    select.value = '2024';
+    const rows = () => document.querySelectorAll('#dca-table .tbl-row:not(.th)');
+    // 12 months + total row
+    expect(rows().length).toBe(13);
+    const pag = document.getElementById('dca-pagination')!;
+    expect(pag.textContent).toContain('1\u201312 of 14');
+    const select = pag.querySelector<HTMLSelectElement>('.js-page-size')!;
+    select.value = '24';
     select.dispatchEvent(new Event('change'));
-    const table = document.getElementById('dca-table')!;
-    const rows = table.querySelectorAll('.tbl-row:not(.th)');
-    // 2 months in 2024 + 1 total row = 3
-    expect(rows.length).toBe(3);
+    expect(rows().length).toBe(15);
+    expect(localStorage.getItem('wt:dca:pageSize')).toBe('24');
+    const reset = document.querySelector<HTMLSelectElement>('#dca-pagination .js-page-size')!;
+    reset.value = '12';
+    reset.dispatchEvent(new Event('change'));
   });
 
   it('re-render does not throw or duplicate KPI tiles', () => {

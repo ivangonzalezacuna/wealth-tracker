@@ -238,17 +238,6 @@ export function focusFirstInvalid(overlay: HTMLElement): void {
   el.focus();
 }
 
-export function populateDatalist(datalist: Element | null, values: readonly string[]): void {
-  if (!datalist) return;
-  datalist.replaceChildren(
-    ...values.map((value) => {
-      const opt = document.createElement('option');
-      opt.value = value;
-      return opt;
-    }),
-  );
-}
-
 export function bindColorInputs(
   overlay: HTMLElement,
   colorInputId: string,

@@ -1,38 +1,32 @@
 import { fmtEur, fmtEur2, fmtMon, esc, safeColor, kpiTile } from '../utils';
-import { getISIN_ORDERList, getISIN, getMETAMap, FORECAST_RANGE_LABELS } from '../constants';
-import { getMonthlyContribBudget, getAccounts, getHoldings } from '../store/config';
+import { getISIN_ORDERList, getISIN, getMETAMap } from '../constants';
+import { getMonthlyContribBudget, getAccounts } from '../store/config';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import type { PortfolioData, Snapshot, Account } from '../types';
-import Chart from 'chart.js/auto';
-import { T, R, resolvedT } from '../theme';
-import { bindLegendToggle, renderLegendHtml, tooltipSwatch } from './chartLegend';
-import { writeChartTable } from './chartTable';
 import { bindSortedTableHeader, renderTableSection } from './tableView';
 import type { ColumnDef } from './tableColumns';
-import { renderPagination } from './pagination';
+import { createPageSizePref, MONTH_PAGE_SIZES, renderPagination } from './pagination';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
-import { createChartRegistry } from './chartRegistry';
-import { populateYearFilterOptions } from './yearFilter';
+import { createTableState, setTablePage, setTableSort } from './tableState';
 import {
-  bindTableYearFilter,
-  createTableState,
-  getTableFilter,
-  setTablePage,
-  setTableSort,
-} from './tableState';
-import {
-  buildBaseChartOptions,
-  buildBaseTooltipOptions,
-  formatEuroCompactPrefix,
-  formatEuroCompactSuffix,
-} from './chartOptions';
+  addMonths,
+  axisTooltip,
+  drillHint,
+  fmtEurCompact,
+  horizonLabel,
+  horizonMonths,
+  monthTimeAxis,
+  monthToTime,
+  renderChart,
+  toRgba,
+} from './charts';
+import { drillToTransactions } from './drill';
+import { TxType } from '../types';
 
-const { CH, destroyChart: _destroyChart } = createChartRegistry();
-const DCA_PAGE_SIZE = 12;
-let _dcaRange = 'all'; // '12', '36', 'all'
-const _dcaTableState = createTableState({ sort: { key: null, dir: null }, filters: { year: '' } });
+const _dcaPageSize = createPageSizePref('wt:dca:pageSize', MONTH_PAGE_SIZES);
+const _dcaTableState = createTableState({ sort: { key: null, dir: null }, filters: {} });
 let _lastPd: PortfolioData | null = null;
-let _dcaFcRange: '60' | '120' | '240' | '360' = '60'; // 5y / 10y / 20y / 30y forecast horizon
+let _dcaFcMonths = 60; // visible forecast horizon (follows the chart zoom)
 
 /**
  * Renders the Contributions (DCA) tab: monthly-total KPI tiles, the
@@ -68,18 +62,8 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
     allSyms.filter((s) => !ISIN_ORDER.includes(s)),
   );
 
-  // Chart with range toggle
   renderDCAChart(pd, ordSyms, ISIN, META);
-  attachRangeToggle(pd, ordSyms, ISIN, META);
 
-  _rebuildDCALegend(ordSyms, ISIN, META);
-
-  // DCA table with filtering + pagination
-  populateYearFilterOptions(
-    'dca-year-filter',
-    pd.months.map((date) => ({ date })),
-  );
-  attachDCAFilterListeners(pd);
   renderDCATable(pd);
 
   // Contributions forecast (cumulative cash invested)
@@ -139,30 +123,20 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
     return;
   }
 
-  // Forecast: project forward from the last CSV month
-  const forecastMonths = parseInt(_dcaFcRange);
-  const fcLabels: string[] = [];
-  const fcValues: number[] = [];
-  let [year, mon] = lastMonth.split('-').map(Number);
+  // Project the longest horizon once; zooming only moves the window (5 years by default).
+  const lastTime = monthToTime(lastMonth);
+  const histPoints: [number, number][] = histMonths.map((m, i) => [
+    monthToTime(m),
+    histCumulative[i],
+  ]);
+  const fcPoints: [number, number][] = [[lastTime, baseCash]];
   let runningTotal = baseCash;
-  for (let i = 0; i < forecastMonths; i++) {
-    mon++;
-    if (mon > 12) {
-      mon = 1;
-      year++;
-    }
+  for (let i = 1; i <= 360; i++) {
     runningTotal += monthlyContrib;
-    fcLabels.push(fmtMon(`${year}-${String(mon).padStart(2, '0')}`));
-    fcValues.push(Math.round(runningTotal));
+    fcPoints.push([addMonths(lastTime, i), Math.round(runningTotal)]);
   }
-
-  // Combined chart: history (actual) + forecast (projected)
-  // The actual line ends at the last CSV month; the forecast starts from the next month.
-  // For visual continuity, the forecast's first point connects from baseCash.
-  const histLabels = histMonths.map((m) => fmtMon(m));
-  const labels = [...histLabels, ...fcLabels];
-  const histDataFull = [...histCumulative, ...new Array(fcValues.length).fill(null)];
-  const fcDataFull = [...new Array(histCumulative.length).fill(null), ...fcValues];
+  const histStart = histPoints[0][0];
+  const horizonEnd = fcPoints[fcPoints.length - 1][0];
 
   // Per-account contribution summary
   const acctSummaryLines = forecastAccounts
@@ -190,18 +164,8 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
 
   projCard.innerHTML = `
     <div class="card">
-      <div class="card-title">Cumulative contributions: ${FORECAST_RANGE_LABELS[_dcaFcRange]}</div>
-      <div class="chart-controls">
-        <div id="dca-forecast-legend" class="legend"></div>
-        <div class="range-toggle" id="dca-forecast-range-toggle">
-          <button class="btn btn-sm btn-ghost ${_dcaFcRange === '60' ? 'active' : ''}" data-range="60">5Y</button>
-          <button class="btn btn-sm btn-ghost ${_dcaFcRange === '120' ? 'active' : ''}" data-range="120">10Y</button>
-          <button class="btn btn-sm btn-ghost ${_dcaFcRange === '240' ? 'active' : ''}" data-range="240">20Y</button>
-          <button class="btn btn-sm btn-ghost ${_dcaFcRange === '360' ? 'active' : ''}" data-range="360">30Y</button>
-        </div>
-      </div>
-      <div class="chart-wrap chart-h-md"><canvas id="c-dca-proj" role="img" aria-label="Cumulative contributions forecast chart" aria-describedby="c-dca-proj-table-wrap"></canvas></div>
-      <div class="chart-data-table-wrap sr-only" id="c-dca-proj-table-wrap"></div>
+      <div class="card-title">Cumulative contributions: <span id="dca-proj-range">${horizonLabel(_dcaFcMonths)}</span></div>
+      <div class="chart-wrap chart-h-md"><div id="c-dca-proj" class="chart-host" role="img" aria-label="Cumulative contributions forecast chart"></div></div>
       <div class="note" style="line-height:1.6">
         <div style="margin-bottom:4px">Projected monthly contributions (Settings \u2192 Accounts):</div>
         ${acctSummaryLines}
@@ -209,120 +173,64 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
       </div>
     </div>`;
 
-  const C2 = resolvedT();
-  _destroyChart('c-dca-proj');
-  const baseOptions = buildBaseChartOptions();
-  CH['c-dca-proj'] = new Chart(document.getElementById('c-dca-proj') as HTMLCanvasElement, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [
+  renderChart(
+    'c-dca-proj',
+    ({ tokens: t }) => ({
+      legend: {},
+      tooltip: {
+        trigger: 'axis',
+        confine: true,
+        formatter: axisTooltip({ value: (v) => fmtEur(v) }),
+      },
+      xAxis: monthTimeAxis(),
+      yAxis: {
+        type: 'value',
+        scale: true,
+        axisLabel: { formatter: fmtEurCompact },
+      },
+      series: [
         {
-          label: 'Actual',
-          data: histDataFull,
-          borderColor: C2.brand,
-          backgroundColor: C2.brand,
-          borderWidth: 2.5,
-          pointRadius: 0,
-          fill: false,
-          tension: 0,
-          spanGaps: false,
-          order: 1,
+          name: 'Actual',
+          type: 'line',
+          z: 4,
+          data: histPoints,
+          showSymbol: histPoints.length === 1,
+          smooth: 0.3,
+          lineStyle: { width: 2.5, color: t.brand },
+          itemStyle: { color: t.brand },
         },
         {
-          label: 'Projected',
-          data: fcDataFull,
-          borderColor: C2.brandChart,
-          backgroundColor: 'rgba(42,120,214,0.07)',
-          borderWidth: 2,
-          borderDash: [5, 3],
-          pointRadius: 0,
-          fill: true,
-          tension: 0.3,
-          spanGaps: false,
-          order: 2,
+          name: 'Projected',
+          type: 'line',
+          z: 3,
+          data: fcPoints,
+          showSymbol: false,
+          smooth: 0.3,
+          lineStyle: { width: 2, type: [5, 3], color: t.brand },
+          itemStyle: { color: t.brand },
+          areaStyle: { origin: 'start', color: toRgba(t.brand, 0.07) },
+          markArea: {
+            silent: true,
+            itemStyle: { color: toRgba(t.brand, 0.03) },
+            label: { show: true, position: 'insideTopLeft', color: t.ink4, fontSize: 10 },
+            data: [[{ name: 'Projected', xAxis: lastTime }, { xAxis: horizonEnd }]],
+          },
         },
       ],
-    },
-    options: {
-      ...baseOptions,
-      plugins: {
-        ...baseOptions.plugins,
-        tooltip: {
-          mode: 'index',
-          intersect: false,
-          ...buildBaseTooltipOptions(C2),
-          callbacks: {
-            label: (ctx) =>
-              ctx.raw != null ? ` ${ctx.dataset.label}: ${fmtEur(ctx.raw as number)}` : '',
-            labelColor: tooltipSwatch(C2.surface),
-          },
-        },
-      },
-      scales: {
-        y: {
-          grid: { color: C2.line },
-          ticks: {
-            color: C2.ink4,
-            callback: (v) => formatEuroCompactPrefix(v),
-          },
-        },
-        x: {
-          grid: { display: false },
-          ticks: {
-            color: C2.ink2,
-            font: { size: 10 },
-            maxRotation: 0,
-            autoSkip: true,
-            maxTicksLimit: 12,
-          },
-        },
+    }),
+    {
+      zoom: true,
+      xAxisType: 'time',
+      window: { startValue: histStart, endValue: addMonths(lastTime, _dcaFcMonths) },
+      valueFormatter: fmtEur2,
+      // The title follows the zoom window: "Cumulative contributions: 12 years".
+      onZoom: ({ endValue }) => {
+        _dcaFcMonths = horizonMonths(lastTime, endValue, 360);
+        const titleEl = document.getElementById('dca-proj-range');
+        if (titleEl) titleEl.textContent = horizonLabel(_dcaFcMonths);
       },
     },
-  });
-
-  // Build custom HTML legend for DCA forecast chart
-  const dcaFcLegendEl = document.getElementById('dca-forecast-legend');
-  if (dcaFcLegendEl) {
-    const datasets = CH['c-dca-proj'].data.datasets;
-    dcaFcLegendEl.innerHTML = renderLegendHtml(
-      datasets.map((ds) => ({
-        label: ds.label as string,
-        color: ds.borderColor as string,
-        dashed: Array.isArray((ds as any).borderDash) && (ds as any).borderDash.length > 0,
-      })),
-    );
-    bindLegendToggle(dcaFcLegendEl, CH['c-dca-proj'], { rescaleX: true });
-  }
-
-  writeChartTable(
-    'c-dca-proj-table-wrap',
-    'Cumulative contributions forecast data',
-    ['Month', 'Actual (€)', 'Projected (€)'],
-    labels.map((label, i) => [
-      label,
-      histDataFull[i] != null ? fmtEur2(histDataFull[i] as number) : '—',
-      fcDataFull[i] != null ? fmtEur2(fcDataFull[i] as number) : '—',
-    ]),
-    [1, 2],
   );
-
-  _attachDCAForecastRangeToggle(pd, accounts);
-}
-
-function _attachDCAForecastRangeToggle(pd: PortfolioData, accounts: Account[]): void {
-  const toggle = document.getElementById('dca-forecast-range-toggle') as
-    (HTMLElement & { _bound?: boolean }) | null;
-  if (!toggle || toggle._bound) return;
-  toggle._bound = true;
-  toggle.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
-    if (!btn) return;
-    const newRange = (btn.dataset.range as '60' | '120' | '240' | '360') || '60';
-    if (newRange === _dcaFcRange) return;
-    _dcaFcRange = newRange;
-    _renderDCAForecast(pd, accounts);
-  });
 }
 
 // ── Chart with range toggle ──────────────────────────────
@@ -333,188 +241,66 @@ function renderDCAChart(
   ISIN: Record<string, string>,
   META: Record<string, { color: string }>,
 ): void {
-  const C = resolvedT();
-  // Apply range filter to months
-  let months = pd.months;
-  if (_dcaRange !== 'all') {
-    const limit = parseInt(_dcaRange);
-    months = months.slice(-limit);
-  }
-
-  const datasets = ordSyms.map((sym) => {
-    const t = ISIN[sym] || sym;
-    const m = META[sym] || {};
-    return {
-      label: t,
-      data: months.map((mo) => (pd.monthlyBy[mo] || {})[sym] || 0),
-      backgroundColor: m.color || C.ink4,
-      borderRadius: (ctx: { chart: Chart; datasetIndex: number; dataIndex: number }) => {
-        const ds = ctx.chart.data.datasets,
-          i = ctx.datasetIndex,
-          j = ctx.dataIndex;
-        const isTop = !ds.some(
-          (d: { data: unknown[] }, k: number) => k > i && ((d.data[j] as number) || 0) > 0,
-        );
-        return isTop
-          ? {
-              topLeft: R.xs,
-              topRight: R.xs,
-              bottomLeft: R.none,
-              bottomRight: R.none,
-            }
-          : R.none;
-      },
-      borderSkipped: false,
-    };
+  const months = pd.months;
+  const n = months.length;
+  const values = ordSyms.map((sym) => months.map((mo) => (pd.monthlyBy[mo] || {})[sym] || 0));
+  // Only the topmost non-zero segment of each stack gets rounded corners.
+  const topIdx = months.map((_, j) => {
+    for (let i = ordSyms.length - 1; i >= 0; i--) if (values[i][j] > 0) return i;
+    return -1;
   });
 
-  // Adaptive x-axis: show every Nth label to avoid crowding
-  const maxLabels = 18;
-  const step = Math.ceil(months.length / maxLabels);
-
-  _destroyChart('c-dca-bar');
-  const baseOptions = buildBaseChartOptions();
-  CH['c-dca-bar'] = new Chart(document.getElementById('c-dca-bar') as HTMLCanvasElement, {
-    type: 'bar',
-    data: { labels: months.map(fmtMon), datasets },
-    options: {
-      ...baseOptions,
-      plugins: {
-        ...baseOptions.plugins,
-        tooltip: {
-          ...buildBaseTooltipOptions(C, true),
-          callbacks: {
-            label: (ctx: { dataset: { label?: string }; raw: unknown; datasetIndex: number }) => {
-              return ` ${fmtEur(ctx.raw as number)}`;
-            },
-            labelColor: tooltipSwatch(C.surface),
-            footer: (items: { datasetIndex: number }[]) => {
-              if (!items.length) return '';
-              const isin = ordSyms[items[0].datasetIndex];
-              if (!isin) return '';
-              const h = getHoldings().find((x) => x.isin === isin);
-              const posName = pd.etfs[isin]?.name || '';
-              const name = h?.name || posName;
-              const lines: string[] = [];
-              if (name) lines.push(name);
-              lines.push(isin);
-              return lines;
-            },
-          },
-        },
+  renderChart(
+    'c-dca-bar',
+    ({ tokens: t, touch }) => ({
+      legend: {},
+      tooltip: {
+        trigger: 'axis',
+        confine: true,
+        axisPointer: { type: 'shadow' },
+        formatter: axisTooltip({
+          value: (v) => fmtEur2(v),
+          hideZero: true,
+          footer: (vals) =>
+            vals.filter((v) => v > 0).length > 1
+              ? { label: 'Total', value: fmtEur2(vals.reduce((s, v) => s + v, 0)) }
+              : null,
+          hint: drillHint({ touch }, "see this month's purchases"),
+        }),
       },
-      scales: {
-        x: {
-          stacked: true,
-          grid: { display: false },
-          ticks: {
-            color: C.ink2,
-            font: { size: 10 },
-            maxRotation: 45,
-            autoSkip: false,
-            callback: function (val, idx) {
-              return idx % step === 0 ? this.getLabelForValue(val as number) : '';
-            },
-          },
-        },
-        y: {
-          stacked: true,
-          grid: { color: C.line },
-          ticks: {
-            color: C.ink4,
-            callback: (v) => formatEuroCompactSuffix(v),
-          },
-        },
+      xAxis: { type: 'category', data: months.map(fmtMon), axisTick: { show: false } },
+      yAxis: { type: 'value', axisLabel: { formatter: fmtEurCompact } },
+      series: ordSyms.map((sym, i) => {
+        const color = META[sym]?.color ? safeColor(META[sym].color) : t.ink4;
+        return {
+          name: ISIN[sym] || sym,
+          type: 'bar' as const,
+          stack: 'dca',
+          barMaxWidth: 28,
+          itemStyle: { color },
+          emphasis: { focus: 'series' as const },
+          data: values[i].map((v, j) => ({
+            value: v,
+            itemStyle: { borderRadius: topIdx[j] === i ? [3, 3, 0, 0] : 0 },
+          })),
+        };
+      }),
+    }),
+    {
+      zoom: true,
+      xAxisType: 'category',
+      // Opens on the last year; zoom out (slider / pinch) for the full history.
+      window: n > 12 ? { startValue: n - 12, endValue: n - 1 } : undefined,
+      valueFormatter: fmtEur2,
+      drill: {
+        resolve: (v) => months[Math.round(v)] ?? null,
+        select: (month) => drillToTransactions(month, TxType.BUY),
       },
     },
-  });
-
-  writeChartTable(
-    'c-dca-bar-table-wrap',
-    'Monthly contributions by ETF data',
-    ['Month', ...ordSyms.map((sym) => ISIN[sym] || sym), 'Total (€)'],
-    months.map((month) => {
-      const values = ordSyms.map((sym) => (pd.monthlyBy[month] || {})[sym] || 0);
-      return [
-        fmtMon(month),
-        ...values.map((value) => (value > 0 ? fmtEur2(value) : '—')),
-        fmtEur2(values.reduce((sum, value) => sum + value, 0)),
-      ];
-    }),
-    Array.from({ length: ordSyms.length + 1 }, (_, index) => index + 1),
   );
 }
 
-function _rebuildDCALegend(
-  ordSyms: string[],
-  ISIN: Record<string, string>,
-  META: Record<string, { color: string }>,
-): void {
-  const legendEl = document.getElementById('dca-legend');
-  if (!legendEl) return;
-  legendEl.innerHTML = renderLegendHtml(
-    ordSyms.map((sym) => {
-      const t = ISIN[sym] || sym;
-      const m = META[sym] || {};
-      return { label: t, color: m.color || 'var(--ink-4)' };
-    }),
-  );
-  _bindDCALegendToggle(ordSyms);
-}
-
-function _bindDCALegendToggle(ordSyms: string[]): void {
-  const legend = document.getElementById('dca-legend');
-  const chart = CH['c-dca-bar'];
-  if (!legend || !chart) return;
-  bindLegendToggle(legend, chart, { skipIndex: [] }); // no Total dataset in the DCA stack
-}
-
-function attachRangeToggle(
-  pd: PortfolioData,
-  ordSyms: string[],
-  ISIN: Record<string, string>,
-  META: Record<string, { color: string }>,
-): void {
-  const toggle = document.getElementById('dca-range-toggle') as
-    (HTMLElement & { _bound?: boolean }) | null;
-  if (!toggle || toggle._bound) return;
-  toggle._bound = true;
-  toggle.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest('[data-range]') as HTMLElement | null;
-    if (!btn) return;
-    const newRange = btn.dataset.range || 'all';
-    if (newRange === _dcaRange) return; // already on this range - no-op
-    _dcaRange = newRange;
-    setTablePage(_dcaTableState, 1);
-    toggle.querySelectorAll('.btn').forEach((b) => b.classList.remove('active'));
-    btn.classList.add('active');
-    // Recompute ordSyms/ISIN/META from current data to avoid stale closures
-    const currentPd = _lastPd || pd;
-    const freshISIN = getISIN();
-    const freshMETA = getMETAMap();
-    const freshISIN_ORDER = getISIN_ORDERList();
-    const allSyms = [
-      ...new Set(currentPd.months.flatMap((m) => Object.keys(currentPd.monthlyBy[m] || {}))),
-    ];
-    const freshOrdSyms = freshISIN_ORDER
-      .filter((s) => allSyms.includes(s))
-      .concat(allSyms.filter((s) => !freshISIN_ORDER.includes(s)));
-    renderDCAChart(currentPd, freshOrdSyms, freshISIN, freshMETA);
-    _rebuildDCALegend(freshOrdSyms, freshISIN, freshMETA);
-    renderDCATable(currentPd);
-  });
-}
-
-// ── DCA table with filtering + pagination ────────────────
-
-function attachDCAFilterListeners(pd: PortfolioData): void {
-  bindTableYearFilter({
-    elementId: 'dca-year-filter',
-    state: _dcaTableState,
-    filterKey: 'year',
-    rerender: () => renderDCATable(pd),
-  });
-}
+// ── DCA table with pagination ────────────────────────────
 
 function dcaColumns(pd: PortfolioData): ColumnDef<string>[] {
   return [
@@ -538,18 +324,8 @@ function renderDCATable(pd: PortfolioData): void {
   const el = document.getElementById('dca-table');
   if (!el) return;
 
-  // Filter months
-  let months = [...pd.months].reverse();
-  const selectedYear = getTableFilter(_dcaTableState, 'year');
-  if (selectedYear) {
-    months = months.filter((m) => m.startsWith(selectedYear));
-  }
-
-  // Column definitions
+  const months = [...pd.months].reverse();
   const columns = dcaColumns(pd);
-
-  // Apply sort (before pagination)
-  // Calculate filtered total
   const filteredTotal = months.reduce((sum, m) => sum + (pd.monthly[m] || 0), 0);
 
   const { page, totalPages } = renderTableSection({
@@ -558,12 +334,12 @@ function renderDCATable(pd: PortfolioData): void {
     columns,
     sortState: _dcaTableState.sort,
     page: _dcaTableState.page,
-    pageSize: DCA_PAGE_SIZE,
+    pageSize: _dcaPageSize.size,
     rowClassName: 'tbl-row dca-row',
     headerId: 'dca-table-header',
     emptyHtml: '',
     footerHtml: `<div class="tbl-row dca-row" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
-      <div style="font-weight:500">${selectedYear ? 'Year total' : 'Total'}</div>
+      <div style="font-weight:500">Total</div>
       <div style="font-weight:500;text-align:right">${fmtEur(filteredTotal)}</div>
     </div>`,
   });
@@ -580,12 +356,28 @@ function renderDCATable(pd: PortfolioData): void {
   );
 
   // Pagination controls
-  renderDCAPagination(totalPages, pd);
+  renderDCAPagination(totalPages, months.length, pd);
 }
 
-function renderDCAPagination(totalPages: number, pd: PortfolioData): void {
-  renderPagination('dca-pagination', _dcaTableState.page, totalPages, (p) => {
-    setTablePage(_dcaTableState, p);
-    renderDCATable(pd);
-  });
+function renderDCAPagination(totalPages: number, totalItems: number, pd: PortfolioData): void {
+  renderPagination(
+    'dca-pagination',
+    _dcaTableState.page,
+    totalPages,
+    (p) => {
+      setTablePage(_dcaTableState, p);
+      renderDCATable(pd);
+    },
+    {
+      totalItems,
+      pageSize: _dcaPageSize.size,
+      pageSizeOptions: _dcaPageSize.options,
+      itemLabel: 'months',
+      onPageSizeChange: (size) => {
+        _dcaPageSize.set(size);
+        setTablePage(_dcaTableState, 1);
+        renderDCATable(pd);
+      },
+    },
+  );
 }

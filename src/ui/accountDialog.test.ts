@@ -37,6 +37,87 @@ describe('accountDialog', () => {
     getOverlay()?.remove();
   });
 
+  const pickFirst = (input: HTMLInputElement, value?: string) => {
+    input.closest('.combo')!.querySelector<HTMLButtonElement>('.combo-toggle')!.click();
+    const options = [
+      ...document.querySelectorAll<HTMLElement>(
+        `#${input.getAttribute('aria-controls')} [role="option"]`,
+      ),
+    ];
+    const target = value
+      ? options.find((o) => o.querySelector('.combo-value')?.textContent === value)!
+      : options[0];
+    target.click();
+    return options.map((o) => o.querySelector('.combo-value')?.textContent);
+  };
+  const field = (id: string) => document.getElementById(id) as HTMLInputElement;
+  const typeInto = (id: string, value: string) => {
+    const el = field(id);
+    el.value = value;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+
+  it('offers stored institutions on their own, without filling other fields', () => {
+    accountDialog({ institutionSuggestions: ['Broker', 'Savings Bank'] });
+    const inst = field('acctd-institution');
+    expect(inst.getAttribute('role')).toBe('combobox');
+    expect(pickFirst(inst)).toEqual(['Broker', 'Savings Bank']);
+    expect(inst.value).toBe('Broker');
+    expect(field('acctd-country').value).toBe('');
+    expect(field('acctd-currency').value).toBe('EUR');
+  });
+
+  it('lists your countries first, then built-in countries with their currency', () => {
+    accountDialog({ countrySuggestions: ['Deutschland'], countryLinks: { Deutschland: 'USD' } });
+    const values = pickFirst(field('acctd-country'));
+    expect(values[0]).toBe('Deutschland');
+    expect(values).toContain('Switzerland');
+    // Germany is already covered by the stored German name.
+    expect(values).not.toContain('Germany');
+    expect(field('acctd-currency').value).toBe('USD');
+  });
+
+  it('a country typed in another language sets its currency, and unknown text restores it', () => {
+    accountDialog({});
+    typeInto('acctd-country', 'Suiza');
+    expect(field('acctd-currency').value).toBe('CHF');
+    typeInto('acctd-country', 'Polen');
+    expect(field('acctd-currency').value).toBe('PLN');
+    typeInto('acctd-country', 'Atlantis');
+    expect(field('acctd-currency').value).toBe('EUR');
+  });
+
+  it("prefers the user's own currency for a country over the built-in default", () => {
+    accountDialog({ countrySuggestions: ['Spain'], countryLinks: { Spain: 'USD' } });
+    pickFirst(field('acctd-country'), 'Spain');
+    expect(field('acctd-currency').value).toBe('USD');
+    typeInto('acctd-country', 'united kingdom');
+    expect(field('acctd-currency').value).toBe('GBP');
+  });
+
+  it('a typed currency is kept, and changing the currency never changes the country', () => {
+    accountDialog({});
+    typeInto('acctd-currency', 'USD');
+    typeInto('acctd-country', 'Japan');
+    expect(field('acctd-currency').value).toBe('USD');
+    expect(field('acctd-country').value).toBe('Japan');
+  });
+
+  it('a currency picked from the list is kept when the country changes', () => {
+    accountDialog({ currencySuggestions: ['EUR', 'USD'] });
+    pickFirst(field('acctd-currency'), 'USD');
+    typeInto('acctd-country', 'Japan');
+    expect(field('acctd-currency').value).toBe('USD');
+  });
+
+  it('changing an existing account country updates its currency, and reverting restores it', () => {
+    accountDialog({ existing: { ...EXISTING_ACCOUNT, country: 'Germany', currency: 'USD' } });
+    expect(field('acctd-currency').value).toBe('USD');
+    typeInto('acctd-country', 'Switzerland');
+    expect(field('acctd-currency').value).toBe('CHF');
+    typeInto('acctd-country', 'Germany');
+    expect(field('acctd-currency').value).toBe('USD');
+  });
   it('rejects duplicate account names after trimming and lowercasing', async () => {
     const p = accountDialog({ existingLabels: ['Main Account'] });
     setField('acctd-label', '  main account  ');
@@ -106,9 +187,10 @@ describe('accountDialog', () => {
     ) as HTMLDetailsElement;
     expect(details.querySelector('summary')?.textContent).toBe('Advanced options');
     expect(details.open).toBe(false);
-    for (const id of ['acctd-return', 'acctd-contrib', 'acctd-interval', 'acctd-country']) {
+    for (const id of ['acctd-return', 'acctd-contrib', 'acctd-interval', 'acctd-group']) {
       expect(details.querySelector(`#${id}`)).not.toBeNull();
     }
+    expect(details.querySelector('#acctd-country')).toBeNull();
     expect(details.querySelector('#acctd-primary')).toBeNull();
     expect(details.querySelector('#acctd-locked')).toBeNull();
     getOverlay()?.remove();

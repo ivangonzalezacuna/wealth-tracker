@@ -3,29 +3,15 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// ── Chart.js mock ───────
-const chartInstances: Array<{ config: unknown; destroyed: boolean }> = [];
-vi.mock('chart.js/auto', () => ({
-  default: class MockChart {
-    config: unknown;
-    data: { datasets: Array<{ hidden?: boolean }> };
-    private _record: { config: unknown; destroyed: boolean };
-    constructor(_ctx: unknown, config: unknown) {
-      this.config = config;
-      const cfg = config as { data?: { datasets?: unknown[] } };
-      this.data = { datasets: (cfg?.data?.datasets as Array<{ hidden?: boolean }>) || [] };
-      this._record = { config, destroyed: false };
-      chartInstances.push(this._record);
-    }
-    destroy() {
-      this._record.destroyed = true;
-    }
-    update() {}
-    getDatasetMeta(i: number) {
-      return { hidden: this.data.datasets[i]?.hidden || false };
-    }
-  },
-}));
+vi.mock('echarts/core', () => import('./charts/echartsMock'));
+import { chartFor, instances as chartInstances, resetMockCharts } from './charts/echartsMock';
+import { addMonths, loadCharts } from './charts';
+
+type AnyRec = Record<string, any>;
+const seriesNames = (id: string): string[] =>
+  ((chartFor(id)?.option as AnyRec | undefined)?.series ?? [])
+    .map((x: AnyRec) => x.name)
+    .filter((n: unknown): n is string => typeof n === 'string');
 
 // ── Mock dependencies ──────────────────────────────────────────────
 const MOCK_ACCOUNTS: any[] = [
@@ -57,6 +43,9 @@ const MOCK_ACCOUNTS: any[] = [
   },
 ];
 
+// Mutable settings store so tests can simulate typed values surviving a reload.
+const mockSettings: Record<string, string> = {};
+
 vi.mock('../store/config', () => ({
   getAccounts: () => MOCK_ACCOUNTS,
   getTargetNetWorth: () => 100000,
@@ -67,9 +56,20 @@ vi.mock('../store/config', () => ({
   getContributionInterval: () => 'monthly',
   isConfigLoaded: () => true,
   getGoals: vi.fn(() => []),
-  getSettings: () => ({}),
-  getNumberSetting: (_key: string, defaultVal: number) => defaultVal,
-  setSetting: () => Promise.resolve(),
+  getSettings: () => ({ ...mockSettings }),
+  getNumberSetting: (key: string, defaultVal: number) =>
+    key in mockSettings ? parseFloat(mockSettings[key]) : defaultVal,
+  setSetting: vi.fn((key: string, value: string) => {
+    mockSettings[key] = value;
+    return Promise.resolve();
+  }),
+  setSettings: vi.fn((values: Record<string, string | null>) => {
+    for (const [k, v] of Object.entries(values)) {
+      if (v == null) delete mockSettings[k];
+      else mockSettings[k] = v;
+    }
+    return Promise.resolve();
+  }),
 }));
 
 vi.mock('../constants', () => ({
@@ -77,14 +77,6 @@ vi.mock('../constants', () => ({
     { key: 'acct1', label: 'Trade Republic', color: '#111111' },
     { key: 'acct2', label: 'Savings', color: '#222222' },
   ],
-  FORECAST_RANGE_LABELS: {
-    '60': '5 years',
-    '120': '10 years',
-    '240': '20 years',
-    '360': '30 years',
-    '480': '40 years',
-    '600': '50 years',
-  },
 }));
 
 import { renderNW, _resetPlanningTabForTest } from './networth';
@@ -111,22 +103,7 @@ const DOM_FIXTURE = `
   <div id="nw-content">
     <div id="nw-kpis"></div>
     <div id="nw-chart-title"></div>
-    <div id="nw-chart-legend"></div>
-    <canvas id="c-nw-hist"></canvas>
-    <div class="range-toggle" id="nw-range-toggle">
-      <button class="btn active" data-range="12">12M</button>
-      <button class="btn" data-range="36">36M</button>
-      <button class="btn" data-range="all">All</button>
-    </div>
-    <div class="card">
-      <div id="nw-growth-legend"></div>
-      <canvas id="c-nw-growth"></canvas>
-      <div class="range-toggle" id="nw-growth-range-toggle">
-        <button class="btn active" data-range="12">12M</button>
-        <button class="btn" data-range="36">36M</button>
-        <button class="btn" data-range="all">All</button>
-      </div>
-    </div>
+    <div id="c-nw-hist"></div>
     <div id="nw-planning"></div>
     <div id="nw-goal"></div>
     <div id="nw-detail"></div>
@@ -142,9 +119,11 @@ function switchToDrawdownTab(): HTMLElement {
 }
 
 describe('renderNW', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await loadCharts();
+    resetMockCharts();
     document.body.innerHTML = DOM_FIXTURE;
-    chartInstances.length = 0;
+    for (const k of Object.keys(mockSettings)) delete mockSettings[k];
     _resetPlanningTabForTest();
     delete (MOCK_ACCOUNTS[0] as any).locked;
     delete (MOCK_ACCOUNTS[0] as any).lockedUntil;
@@ -193,55 +172,59 @@ describe('renderNW', () => {
     expect(planning).toContain('Grouped forecast summary');
     expect(planning).toContain('Retirement');
     expect(planning).toContain('Liquid savings');
-    expect(planning).toContain('projected');
+    expect(planning).toContain('Projected');
   });
 
   it('creates the history chart on first render with 2+ snapshots', () => {
     const snaps = [makeSnap('2026-01-01'), makeSnap('2026-02-01', 1100, 550)];
     renderNW(snaps);
-    // At least the history chart is created
-    expect(chartInstances.length).toBeGreaterThanOrEqual(1);
+    const opt = chartFor('c-nw-hist')!.option as AnyRec;
+    expect(opt.xAxis.type).toBe('time');
+    expect(seriesNames('c-nw-hist')).toEqual(['Total net worth', 'Trade Republic', 'Savings']);
+    expect(opt.dataZoom.map((z: AnyRec) => z.type)).toEqual(['inside', 'slider']);
+    expect(opt.graphic).toBeUndefined();
+    expect(opt.dataZoom[0]).toMatchObject({ start: 0, end: 100 });
+  });
+
+  it('renders a horizontal account breakdown for a single snapshot', () => {
+    renderNW([makeSnap('2026-01-01', 1000, 500)]);
+    const opt = chartFor('c-nw-hist')!.option as AnyRec;
+    expect(opt.yAxis.type).toBe('category');
+    expect(opt.yAxis.data).toEqual(['Trade Republic', 'Savings']);
+    expect(opt.series[0].data.map((d: AnyRec) => d.value)).toEqual([1000, 500]);
+    expect(opt.dataZoom).toBeUndefined();
   });
 
   it('adds note markers and tooltip note text in net-worth history chart', () => {
     const snaps = [
       makeSnap('2026-01-01', 1000, 500),
-      { ...makeSnap('2026-02-01', 1100, 550), notes: 'bonus payment' },
+      { ...makeSnap('2026-02-01', 1100, 550), notes: 'bonus <b>payment</b>' },
     ];
     renderNW(snaps);
-    const config = chartInstances[0].config as {
-      data: { datasets: Array<{ label?: string; pointRadius?: number[] }> };
-      options?: {
-        plugins?: {
-          tooltip?: {
-            callbacks?: {
-              afterBody?: (items: Array<{ dataIndex: number }>) => string;
-            };
-          };
-        };
-      };
-    };
-    const totalDs = config.data.datasets.find((ds) => ds.label === 'Total net worth');
-    expect(totalDs?.pointRadius).toEqual([0, 3]);
-    const afterBody = config.options?.plugins?.tooltip?.callbacks?.afterBody;
-    expect(afterBody?.([{ dataIndex: 1 }])).toContain('Note: bonus payment');
-    expect(afterBody?.([{ dataIndex: 0 }]) || '').toBe('');
+    const opt = chartFor('c-nw-hist')!.option as AnyRec;
+    const total = opt.series[0];
+    expect(total.markPoint.data).toHaveLength(1);
+    expect(total.markPoint.data[0].coord[1]).toBe(1650);
+    const t1 = total.data[1][0];
+    const html = opt.tooltip.formatter([
+      { axisValue: t1, axisType: 'xAxis.time', seriesName: 'Total net worth', value: [t1, 1650] },
+    ]);
+    expect(html).toContain('Note: bonus &lt;b&gt;payment&lt;/b&gt;');
+    const t0 = total.data[0][0];
+    expect(
+      opt.tooltip.formatter([
+        { axisValue: t0, axisType: 'xAxis.time', seriesName: 'Total net worth', value: [t0, 1500] },
+      ]),
+    ).not.toContain('Note:');
   });
 
-  it('destroys prior charts on re-render', () => {
+  it('reuses chart instances on re-render', () => {
     const snaps = [makeSnap('2026-01-01'), makeSnap('2026-02-01', 1100, 550)];
     renderNW(snaps);
-    const firstCount = chartInstances.length;
-    expect(firstCount).toBeGreaterThanOrEqual(1);
-
-    // Re-render
+    const hist = chartFor('c-nw-hist');
     renderNW(snaps);
-    // All prior charts should be destroyed
-    for (let i = 0; i < firstCount; i++) {
-      expect(chartInstances[i].destroyed).toBe(true);
-    }
-    // New charts created
-    expect(chartInstances.length).toBeGreaterThan(firstCount);
+    expect(chartFor('c-nw-hist')).toBe(hist);
+    expect(hist!.disposed).toBe(false);
   });
 
   it('renders lead KPI tile with net worth total and MoM delta for 2+ snapshots', () => {
@@ -320,43 +303,59 @@ describe('renderNW', () => {
   it('forecast chart renders given snapshots and accounts', () => {
     const snaps = [makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)];
     renderNW(snaps);
-    // The forecast chart should be among the created charts
-    expect(chartInstances.length).toBeGreaterThanOrEqual(2);
+    const opt = chartFor('c-nw-forecast')!.option as AnyRec;
+    expect(opt.xAxis.type).toBe('time');
+    // Full 50-year horizon is computed once; the zoom window picks the visible part.
+    expect(opt.series[1].data).toHaveLength(601);
+    expect(opt.series[0].markLine.data[0].xAxis).toBe(opt.series[0].data.at(-1)[0]);
+    expect(opt.series[1].markArea.data[0][0].name).toBe('Forecast');
   });
 
-  it('forecast range toggle re-creates the forecast chart on click', () => {
-    const snaps = [makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)];
-    renderNW(snaps);
-    const countBefore = chartInstances.length;
-
-    // Click 10Y range button
-    const toggle = document.getElementById('nw-forecast-range-toggle')!;
-    const btn10Y = toggle.querySelector('[data-range="120"]') as HTMLElement;
-    btn10Y.click();
-
-    // A new chart should have been created (forecast re-rendered)
-    expect(chartInstances.length).toBeGreaterThan(countBefore);
-    // The forecast chart is always the 2nd chart created (index 1, after the history chart at 0).
-    // It should have been destroyed and replaced when the range toggle was clicked.
-    expect(chartInstances[1].destroyed).toBe(true);
+  it('forecast opens on 5 years and the grouped summary follows the zoom', () => {
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    });
+    try {
+      const snaps = [makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)];
+      renderNW(snaps);
+      const chart = chartFor('c-nw-forecast')!;
+      const opt = chart.option as AnyRec;
+      const summary = () => document.getElementById('nw-fc-group-summary')!.textContent;
+      expect(opt.graphic).toBeUndefined();
+      const today = opt.series[0].data.at(-1)[0];
+      expect(opt.dataZoom[0].endValue).toBe(addMonths(today, 60));
+      expect(summary()).toContain('5 years');
+      const zoomTo = (months: number) => {
+        chart.option = {
+          ...opt,
+          dataZoom: [{ startValue: opt.series[0].data[0][0], endValue: addMonths(today, months) }],
+        };
+        chart.trigger('datazoom', {});
+      };
+      zoomTo(120);
+      expect(summary()).toContain('10 years');
+      expect(chartFor('c-nw-forecast')).toBe(chart);
+      zoomTo(60);
+      expect(summary()).toContain('5 years');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('forecast chart includes only baseline dataset by default when comparison is closed', () => {
     const snaps = [makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)];
     renderNW(snaps);
-    const forecastConfig = chartInstances[1].config as {
-      data?: { datasets?: Array<{ label?: string }> };
-    };
-    const labels = (forecastConfig.data?.datasets || []).map((d) => d.label || '');
-    expect(labels.some((l) => l.includes('Baseline (nominal)'))).toBe(true);
+    const labels = seriesNames('c-nw-forecast');
+    expect(labels).toContain('Baseline (nominal)');
     expect(labels.some((l) => l.includes('Optimistic'))).toBe(false);
     expect(labels.some((l) => l.includes('Pessimistic'))).toBe(false);
   });
 
-  it('scenario controls update forecast dataset labels after editing deltas', () => {
+  it('scenario edits change the scenario lines and show the deltas in the tooltip', () => {
     const snaps = [makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)];
     renderNW(snaps);
-    let scenarioToggle = document.getElementById('nw-scenario-toggle') as HTMLButtonElement;
+    const scenarioToggle = document.getElementById('nw-scenario-toggle') as HTMLButtonElement;
     scenarioToggle.click();
     const retInput = document.getElementById('nw-scn-optimistic-ret') as HTMLInputElement;
     const contribInput = document.getElementById('nw-scn-optimistic-contrib') as HTMLInputElement;
@@ -365,76 +364,95 @@ describe('renderNW', () => {
     contribInput.value = '350';
     contribInput.dispatchEvent(new Event('change'));
 
-    const latestConfig = chartInstances[chartInstances.length - 1].config as {
-      data?: { datasets?: Array<{ label?: string }> };
-    };
-    const labels = (latestConfig.data?.datasets || []).map((d) => d.label || '');
-    const optimisticLabel = labels.find((l) => l.includes('Optimistic'));
-    expect(optimisticLabel).toBeTruthy();
-    expect(optimisticLabel).toContain('+3.5%');
-    expect(optimisticLabel).toContain('+350');
+    const opt = chartFor('c-nw-forecast')!.option as AnyRec;
+    const optimistic = opt.series.find((s: AnyRec) => s.name === 'Optimistic');
+    const baseline = opt.series.find((s: AnyRec) => s.name === 'Baseline (nominal)');
+    expect(optimistic).toBeTruthy();
+    const last = (s: AnyRec) => s.data[s.data.length - 1][1];
+    expect(last(optimistic)).toBeGreaterThan(last(baseline));
+    const tooltip = opt.tooltip.formatter([
+      {
+        seriesName: 'Optimistic',
+        value: [optimistic.data[1][0], 1000],
+        axisValue: optimistic.data[1][0],
+      },
+    ]);
+    expect(tooltip).toContain('+3.5 pp/yr');
+    expect(tooltip).toContain('+350');
+  });
+
+  it('binds the what-if infoTip after the forecast panel re-renders', () => {
+    renderNW([makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)]);
+    (document.getElementById('nw-scenario-toggle') as HTMLButtonElement).click();
+    const tip = document.querySelector('.forecast-scenario-card .info-tip') as HTMLElement;
+    expect(tip).not.toBeNull();
+    expect(tip.dataset.tipBound).toBe('1');
+  });
+
+  it('scenario comparison draws a shaded band that stays out of legend, tooltip and table', () => {
+    renderNW([makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)]);
+    (document.getElementById('nw-scenario-toggle') as HTMLButtonElement).click();
+    const opt = chartFor('c-nw-forecast')!.option as AnyRec;
+    const helpers = opt.series.filter((s: AnyRec) => String(s.id ?? '').startsWith('_'));
+    expect(helpers).toHaveLength(2);
+    expect(helpers.every((s: AnyRec) => s.stack === '_band' && !s.name)).toBe(true);
+    const pess = opt.series.find((s: AnyRec) => s.name === 'Pessimistic');
+    const optm = opt.series.find((s: AnyRec) => s.name === 'Optimistic');
+    const i = optm.data.length - 1;
+    expect(helpers[0].data[i][1] + helpers[1].data[i][1]).toBeCloseTo(optm.data[i][1]);
+    expect(helpers[0].data[i][1]).toBe(pess.data[i][1]);
+    const tooltip = opt.tooltip.formatter([
+      { seriesId: '_band-fill', seriesName: 'series2', value: [0, 5] },
+      { seriesName: 'Optimistic', value: [0, 10] },
+    ]);
+    expect(tooltip).not.toContain('series2');
+    expect(tooltip).toContain('Optimistic');
+  });
+
+  it('forecast headline shows the net worth at the end of the visible window', () => {
+    renderNW([makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)]);
+    const answer = document.getElementById('nw-fc-answer')!;
+    expect(answer.textContent).toContain('Net worth in Feb 2031');
+    expect(answer.textContent).toContain('vs today');
+  });
+
+  it('marks the retirement start on the forecast when it falls inside the horizon', () => {
+    mockSettings['dd_retirement_date'] = '2030-06';
+    renderNW([makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)]);
+    const baseline = (chartFor('c-nw-forecast')!.option as AnyRec).series[1];
+    expect(baseline.markLine.data.map((d: AnyRec) => d.name)).toContain('Retirement');
   });
 
   it('scenario comparison toggle adds and removes scenario datasets', () => {
     const snaps = [makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)];
     renderNW(snaps);
+    expect(seriesNames('c-nw-forecast').some((l) => l.includes('Optimistic'))).toBe(false);
 
-    let latestConfig = chartInstances[chartInstances.length - 1].config as {
-      data?: { datasets?: Array<{ label?: string }> };
-    };
-    let labels = (latestConfig.data?.datasets || []).map((d) => d.label || '');
-    expect(labels.some((l) => l.includes('Optimistic'))).toBe(false);
-
-    let scenarioToggle = document.getElementById('nw-scenario-toggle') as HTMLButtonElement;
-    scenarioToggle = document.getElementById('nw-scenario-toggle') as HTMLButtonElement;
-    scenarioToggle.click();
-    latestConfig = chartInstances[chartInstances.length - 1].config as {
-      data?: { datasets?: Array<{ label?: string }> };
-    };
-    labels = (latestConfig.data?.datasets || []).map((d) => d.label || '');
+    (document.getElementById('nw-scenario-toggle') as HTMLButtonElement).click();
+    let labels = seriesNames('c-nw-forecast');
     expect(labels.some((l) => l.includes('Optimistic'))).toBe(true);
     expect(labels.some((l) => l.includes('Pessimistic'))).toBe(true);
 
-    scenarioToggle.click();
-    latestConfig = chartInstances[chartInstances.length - 1].config as {
-      data?: { datasets?: Array<{ label?: string }> };
-    };
-    labels = (latestConfig.data?.datasets || []).map((d) => d.label || '');
+    (document.getElementById('nw-scenario-toggle') as HTMLButtonElement).click();
+    labels = seriesNames('c-nw-forecast');
     expect(labels.some((l) => l.includes('Optimistic'))).toBe(false);
     expect(labels.some((l) => l.includes('Pessimistic'))).toBe(false);
   });
 
-  it('forecast data table includes scenario columns only when comparison is shown', () => {
-    const snaps = [makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)];
-    renderNW(snaps);
-
-    let headers = Array.from(
-      document.querySelectorAll('#c-nw-forecast-table-wrap .chart-data-table th'),
-    ).map((el) => el.textContent || '');
-    expect(headers).toContain('Baseline nominal (€)');
-    expect(headers.some((h) => h.includes('Optimistic'))).toBe(false);
-
-    const scenarioToggle = document.getElementById('nw-scenario-toggle') as HTMLButtonElement;
-    scenarioToggle.click();
-
-    headers = Array.from(
-      document.querySelectorAll('#c-nw-forecast-table-wrap .chart-data-table th'),
-    ).map((el) => el.textContent || '');
-    expect(headers.some((h) => h.includes('Optimistic'))).toBe(true);
-    expect(headers.some((h) => h.includes('Pessimistic'))).toBe(true);
+  it('forecast data view is available through the toolbox', () => {
+    renderNW([makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)]);
+    expect((chartFor('c-nw-forecast')!.option as AnyRec).toolbox.feature.myDataTable).toBeDefined();
   });
 
-  it('NW history range toggle re-creates the history chart on click', () => {
-    const snaps = makeMonthlySnaps(20);
-    renderNW(snaps);
-    const countBefore = chartInstances.length;
-
-    // Click 36M range button
-    const toggle = document.getElementById('nw-range-toggle')!;
-    const btn36 = toggle.querySelector('[data-range="36"]') as HTMLElement;
-    btn36.click();
-
-    expect(chartInstances.length).toBeGreaterThan(countBefore);
+  it('marks goal deadlines and targets on the forecast chart', () => {
+    vi.mocked(configStore.getGoals).mockReturnValue([
+      { label: 'House <deposit>', targetNetWorth: '50000', targetDate: '2028-06' },
+    ] as any);
+    renderNW([makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)]);
+    const baseline = (chartFor('c-nw-forecast')!.option as AnyRec).series[1];
+    expect(baseline.markLine.data[0].name).toBe('House <deposit>');
+    expect(baseline.markPoint.data[0].coord[1]).toBe(50000);
+    vi.mocked(configStore.getGoals).mockReturnValue([]);
   });
 
   it('goal progress card renders when target net worth is set', () => {
@@ -532,14 +550,105 @@ describe('renderNW', () => {
     expect(dateInput?.value).toMatch(/^2046-/);
   });
 
-  it('decumulation card shows sustainable withdrawal KPI when corpus and withdrawal are set', () => {
+  it('decumulation card leads with how long the money lasts, then first withdrawal and break-even', () => {
     const snaps = [makeSnap('2026-01', 5000, 2000)];
     renderNW(snaps);
     const ddEl = switchToDrawdownTab();
-    // Should show the corpus KPIs (Portfolio lasts until, Monthly withdrawal, Break-even withdrawal)
-    expect(ddEl.textContent).toContain('Portfolio lasts until');
-    expect(ddEl.textContent).toContain('Monthly withdrawal');
-    expect(ddEl.textContent).toContain('Break-even withdrawal');
+    expect(ddEl.querySelector('#nw-dd-answer')?.textContent).toMatch(/Lasts 40\+ years|Runs out/);
+    expect(ddEl.textContent).toContain('First withdrawal');
+    expect(ddEl.textContent).toContain('same amount every month');
+    expect(ddEl.textContent).toContain('Break-even');
+    const opt = chartFor('c-nw-decumulation')!.option as AnyRec;
+    expect(opt.xAxis.type).toBe('time');
+    expect(opt.series[0].markLine.data).toHaveLength(1);
+    const withdrawal = opt.series.find((x: AnyRec) => x.name === 'Monthly withdrawal');
+    expect(withdrawal.yAxisIndex).toBe(1);
+    // The withdrawal line is shown by default.
+    expect(opt.legend.selected?.['Monthly withdrawal']).not.toBe(false);
+  });
+
+  it('shades the zero-balance zone when the money runs out', () => {
+    mockSettings['dd_withdrawal_fixed'] = '5000';
+    renderNW([makeSnap('2026-01', 5000, 2000)]);
+    switchToDrawdownTab();
+    expect(document.getElementById('nw-dd-answer')?.textContent).toContain('Runs out');
+    const opt = chartFor('c-nw-decumulation')!.option as AnyRec;
+    expect(opt.series[0].markArea.data[0][0].name).toBe('Depleted');
+    expect(opt.series[0].markArea.label.position).toBe('inside');
+    expect(opt.series[0].markPoint).toBeUndefined();
+  });
+
+  it('suggests 4% of the balance for every strategy on first open', () => {
+    renderNW([makeSnap('2026-01', 5000, 2000)]);
+    let ddEl = switchToDrawdownTab();
+    const fixed = Number((ddEl.querySelector('#dd-withdrawal') as HTMLInputElement).value);
+    expect(fixed).toBeGreaterThan(10);
+    expect(ddEl.querySelector('#dd-withdrawal-reset')).toBeNull();
+    (ddEl.querySelector('[data-dd-strategy="pct"]') as HTMLElement).click();
+    ddEl = document.getElementById('nw-dd-panel')!;
+    expect((ddEl.querySelector('#dd-withdrawal') as HTMLInputElement).value).toBe('4');
+    (ddEl.querySelector('[data-dd-strategy="four-pct"]') as HTMLElement).click();
+    ddEl = document.getElementById('nw-dd-panel')!;
+    expect(Number((ddEl.querySelector('#dd-withdrawal') as HTMLInputElement).value)).toBe(fixed);
+  });
+
+  it('keeps the Fixed amount after typing a % rate, switching strategy and reloading', () => {
+    renderNW([makeSnap('2026-01', 5000, 2000)]);
+    let ddEl = switchToDrawdownTab();
+    const suggested = (ddEl.querySelector('#dd-withdrawal') as HTMLInputElement).value;
+    (ddEl.querySelector('[data-dd-strategy="pct"]') as HTMLElement).click();
+    const input = document.getElementById('dd-withdrawal') as HTMLInputElement;
+    input.value = '3.5';
+    input.dispatchEvent(new Event('change'));
+    (document.querySelector('[data-dd-strategy="fixed"]') as HTMLElement).click();
+    expect((document.getElementById('dd-withdrawal') as HTMLInputElement).value).toBe(suggested);
+
+    // Reload: module state is re-read from the persisted settings.
+    document.body.innerHTML = DOM_FIXTURE;
+    _resetPlanningTabForTest();
+    renderNW([makeSnap('2026-01', 5000, 2000)]);
+    ddEl = switchToDrawdownTab();
+    expect((ddEl.querySelector('[data-dd-strategy="fixed"]') as HTMLElement).classList).toContain(
+      'active',
+    );
+    expect((ddEl.querySelector('#dd-withdrawal') as HTMLInputElement).value).toBe(suggested);
+    (ddEl.querySelector('[data-dd-strategy="pct"]') as HTMLElement).click();
+    expect((document.getElementById('dd-withdrawal') as HTMLInputElement).value).toBe('3.5');
+  });
+
+  it('a typed amount survives date changes and reloads; reset returns to the suggestion', () => {
+    renderNW([makeSnap('2026-01', 5000, 2000)]);
+    switchToDrawdownTab();
+    const input = document.getElementById('dd-withdrawal') as HTMLInputElement;
+    const suggested = input.value;
+    input.value = '777';
+    input.dispatchEvent(new Event('change'));
+    const date = document.getElementById('dd-retirement-date') as HTMLInputElement;
+    date.value = '2050-01';
+    date.dispatchEvent(new Event('change'));
+    expect((document.getElementById('dd-withdrawal') as HTMLInputElement).value).toBe('777');
+
+    document.body.innerHTML = DOM_FIXTURE;
+    _resetPlanningTabForTest();
+    renderNW([makeSnap('2026-01', 5000, 2000)]);
+    switchToDrawdownTab();
+    expect((document.getElementById('dd-withdrawal') as HTMLInputElement).value).toBe('777');
+    (document.getElementById('dd-withdrawal-reset') as HTMLButtonElement).click();
+    const after = (document.getElementById('dd-withdrawal') as HTMLInputElement).value;
+    expect(after).not.toBe('777');
+    expect(mockSettings['dd_withdrawal_fixed']).toBeUndefined();
+    // The suggestion follows the later retirement date (bigger balance).
+    expect(Number(after)).toBeGreaterThan(Number(suggested));
+  });
+
+  it('drops the legacy unit-less withdrawal setting', () => {
+    mockSettings['dd_withdrawal_param'] = '4';
+    renderNW([makeSnap('2026-01', 5000, 2000)]);
+    expect(mockSettings['dd_withdrawal_param']).toBeUndefined();
+    const ddEl = switchToDrawdownTab();
+    expect(
+      Number((ddEl.querySelector('#dd-withdrawal') as HTMLInputElement).value),
+    ).toBeGreaterThan(10);
   });
 
   it('decumulation card shows near-break-even warning when withdrawal is within ±20% of sustainable rate', () => {

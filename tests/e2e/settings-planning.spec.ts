@@ -40,7 +40,7 @@ test('settings-driven account and goal changes propagate into net worth planning
   await expect(page.locator('#nw-goal')).toContainText('FIRE');
   await expect(page.locator('#nw-goal')).toContainText('Counted now10.000');
   await expect(page.locator('#nw-goal')).toContainText('50% complete');
-  await expect(page.locator('#c-nw-forecast-table-wrap')).toBeVisible();
+  await expect(page.locator('#c-nw-forecast canvas')).toHaveCount(1);
   await expect(page.locator('.forecast-scenario-card')).toBeHidden();
 
   await page.click('#nw-scenario-toggle');
@@ -80,4 +80,39 @@ test('forecast shows grouped summary when accounts belong to different groups', 
   await expect(page.locator('#nw-fc-panel')).toContainText('Grouped forecast summary');
   await expect(page.locator('#nw-fc-panel')).toContainText('Tax-Sheltered');
   await expect(page.locator('#nw-fc-panel')).toContainText('Taxable');
+});
+
+test('retirement withdrawal keeps the Fixed amount after typing a % rate and reloading', async ({
+  page,
+}) => {
+  await gotoApp(page);
+  await addAccount(page, {
+    label: 'Retirement Broker',
+    institution: 'Interactive Brokers',
+    annualReturnPct: 5,
+    primary: true,
+  });
+  await addSnapshot(page, {
+    month: monthOffsetValue(-1),
+    accountValues: { 'Retirement Broker': 100000 },
+  });
+
+  await openTab(page, 'tab-networth');
+  await page.click('[data-planning-tab="drawdown"]');
+  const suggested = await page.locator('#dd-withdrawal').inputValue();
+  expect(Number(suggested)).toBeGreaterThan(100);
+
+  await page.click('[data-dd-strategy="pct"]');
+  await page.fill('#dd-withdrawal', '3.5');
+  await page.locator('#dd-withdrawal').press('Enter');
+  await page.click('[data-dd-strategy="fixed"]');
+  await expect(page.locator('#dd-withdrawal')).toHaveValue(suggested);
+
+  await gotoApp(page);
+  await openTab(page, 'tab-networth');
+  await page.click('[data-planning-tab="drawdown"]');
+  await expect(page.locator('[data-dd-strategy="fixed"]')).toHaveClass(/active/);
+  await expect(page.locator('#dd-withdrawal')).toHaveValue(suggested);
+  await page.click('[data-dd-strategy="pct"]');
+  await expect(page.locator('#dd-withdrawal')).toHaveValue('3.5');
 });

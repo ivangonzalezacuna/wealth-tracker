@@ -50,8 +50,6 @@ const DOM_FIXTURE = `
   <div id="div-empty"></div>
   <div id="div-content">
     <div id="div-kpis"></div>
-    <div id="div-year-filter-bar"><select id="div-year-filter"></select></div>
-    <div id="int-year-filter-bar"><select id="int-year-filter"></select></div>
     <div id="div-table-header"></div>
     <div id="div-history"></div>
     <div id="div-pagination"></div>
@@ -135,47 +133,37 @@ describe('renderDividends', () => {
     expect(interestText).toContain('4,20');
   });
 
-  it('hides dividend filter and pagination when there is no dividend source data', () => {
+  it('hides pagination when there is no dividend source data', () => {
     renderDividends(makePD({ divHist: [] }));
-    expect((document.getElementById('div-year-filter-bar') as HTMLElement).style.display).toBe(
-      'none',
-    );
     expect((document.getElementById('div-pagination') as HTMLElement).style.display).toBe('none');
     expect(document.getElementById('div-history')!.textContent).toContain(
       'No dividend payments recorded yet.',
     );
   });
 
-  it('keeps dividend filter visible for empty selected-year results', () => {
-    renderDividends(makePD());
-    const select = document.getElementById('div-year-filter') as HTMLSelectElement;
-    select.innerHTML = '<option value="">All years</option><option value="2030">2030</option>';
-    select.value = '2030';
+  it('offers the standard Rows selector and remembers the chosen size', () => {
+    const divHist = Array.from({ length: 14 }, (_, i) => ({
+      date: `2025-${String((i % 12) + 1).padStart(2, '0')}-0${(i % 9) + 1}`,
+      isin: '',
+      shortName: `E${i}`,
+      color: '#000',
+      gross: 1,
+      tax: 0,
+      net: 1,
+    }));
+    renderDividends(makePD({ divHist }));
+    const pag = document.getElementById('div-pagination')!;
+    expect(pag.textContent).toContain('1\u201312 of 14');
+    const select = pag.querySelector<HTMLSelectElement>('.js-page-size')!;
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(['12', '24', '48']);
+    select.value = '24';
     select.dispatchEvent(new Event('change'));
-    expect((document.getElementById('div-year-filter-bar') as HTMLElement).style.display).toBe('');
-    expect(document.getElementById('div-history')!.textContent).toContain(
-      'No dividend payments found for the selected year.',
-    );
+    expect(document.querySelectorAll('#div-history .div-row:not(.th)')).toHaveLength(15);
+    expect(localStorage.getItem('wt:div:pageSize')).toBe('24');
+    const reset = document.querySelector<HTMLSelectElement>('#div-pagination .js-page-size')!;
+    reset.value = '12';
+    reset.dispatchEvent(new Event('change'));
   });
-
-  it('populates year filter with distinct years plus All years default', () => {
-    const pd = makePD({
-      divHist: [
-        { date: '2025-06-01', isin: '', shortName: 'A', color: '#000', gross: 1, tax: 0, net: 1 },
-        { date: '2026-01-15', isin: '', shortName: 'B', color: '#000', gross: 2, tax: 0, net: 2 },
-        { date: '2026-04-15', isin: '', shortName: 'C', color: '#000', gross: 3, tax: 0, net: 3 },
-      ],
-    });
-    renderDividends(pd);
-    const select = document.getElementById('div-year-filter') as HTMLSelectElement;
-    const options = Array.from(select.querySelectorAll('option'));
-    expect(options[0].value).toBe('');
-    expect(options[0].textContent).toBe('All years');
-    // Years sorted in reverse order
-    expect(options[1].value).toBe('2026');
-    expect(options[2].value).toBe('2025');
-  });
-
   it('does not throw or duplicate KPIs when called twice', () => {
     renderDividends(makePD());
     renderDividends(makePD());

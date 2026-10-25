@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { computeDrift, maxDrift, computeRebalancePlan } from './drift';
+import { computeDrift, maxDrift, computeRebalancePlan, driftStatus } from './drift';
 import type { Holding, EtfPosition } from '../types';
 
 function makeHolding(overrides: Partial<Holding> = {}): Holding {
@@ -205,6 +205,24 @@ describe('maxDrift', () => {
 });
 
 // ── computeRebalancePlan ─────────────────────────────────────────────────────
+
+describe('driftStatus', () => {
+  it('classifies against the threshold and twice the threshold', () => {
+    expect(driftStatus(4.9, 5).level).toBe('ok');
+    expect(driftStatus(-5, 5).level).toBe('ok');
+    expect(driftStatus(-5.1, 5)).toMatchObject({ level: 'moderate', label: 'Moderate drift' });
+    expect(driftStatus(10.1, 5)).toMatchObject({ level: 'high', color: 'var(--neg)' });
+  });
+
+  it('falls back to 5 pp when the threshold is unset', () => {
+    expect(driftStatus(6, undefined)).toMatchObject({
+      level: 'moderate',
+      threshold: 5,
+      highThreshold: 10,
+    });
+    expect(driftStatus(6, 0).threshold).toBe(5);
+  });
+});
 
 describe('computeRebalancePlan', () => {
   it('returns empty for months <= 0', () => {

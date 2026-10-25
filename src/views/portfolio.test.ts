@@ -3,25 +3,14 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// ── Chart.js mock ──────────────────────────────────────────────────
-// jsdom has no canvas getContext implementation; mock the constructor to
-// record what it was called with instead of rendering anything real.
-const chartInstances: Array<{ config: unknown; destroyed: boolean }> = [];
-vi.mock('chart.js/auto', () => ({
-  default: class MockChart {
-    config: unknown;
-    private _record: { config: unknown; destroyed: boolean };
-    constructor(_ctx: unknown, config: unknown) {
-      this.config = config;
-      this._record = { config, destroyed: false };
-      chartInstances.push(this._record);
-    }
-    destroy() {
-      this._record.destroyed = true;
-    }
-    update() {}
-  },
-}));
+vi.mock('echarts/core', () => import('./charts/echartsMock'));
+import { chartFor, instances as chartInstances, resetMockCharts } from './charts/echartsMock';
+import { loadCharts } from './charts';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyRec = any;
+const costOption = () => chartFor('c-port-donut')!.option as AnyRec;
+const driftOption = () => chartFor('c-port-drift')!.option as AnyRec;
 
 // ── Mock store/config ──────────────────────────────────────────────
 const MOCK_ACCOUNTS = [
@@ -184,9 +173,7 @@ const DOM_FIXTURE = `
     <div id="port-kpis"></div>
     <div id="port-table-header"></div>
     <div id="port-table"></div>
-    <canvas id="c-port-donut"></canvas>
-    <div id="c-port-donut-table-wrap" hidden></div>
-    <div id="port-donut-legend"></div>
+    <div class="chart-wrap"><div id="c-port-donut"></div></div>
     <div id="port-summary"></div>
     <div id="port-drift"></div>
     <div id="port-pagination"></div>
@@ -194,10 +181,11 @@ const DOM_FIXTURE = `
 `;
 
 describe('renderPortfolio', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await loadCharts();
+    resetMockCharts();
     _collapseState = {};
     document.body.innerHTML = DOM_FIXTURE;
-    chartInstances.length = 0;
     localStorage.removeItem('drift-rebalance-months');
     localStorage.removeItem('drift-calibration-interval');
     MOCK_HOLDINGS.splice(0, MOCK_HOLDINGS.length, {
@@ -411,16 +399,19 @@ describe('renderPortfolio', () => {
 
   it('creates allocation charts on first render', () => {
     renderPortfolio(makePD(), []);
-    expect(chartInstances.length).toBe(1);
-    expect(chartInstances[0].destroyed).toBe(false);
+    expect(chartInstances.length).toBe(2);
+    expect(chartFor('c-port-donut')!.disposed).toBe(false);
+    expect(chartFor('c-port-drift')!.disposed).toBe(false);
   });
 
-  it('destroys the prior chart and creates a new one on re-render', () => {
+  it('reuses the chart instance on re-render', () => {
     renderPortfolio(makePD(), []);
-    expect(chartInstances.length).toBe(1);
+    const chart = chartFor('c-port-donut');
+    const drift = chartFor('c-port-drift');
     renderPortfolio(makePD(), []);
     expect(chartInstances.length).toBe(2);
-    expect(chartInstances[0].destroyed).toBe(true);
+    expect(chartFor('c-port-donut')).toBe(chart);
+    expect(chartFor('c-port-drift')).toBe(drift);
   });
 
   it('renders holdings table with one row per etf entry', () => {
@@ -454,8 +445,7 @@ describe('renderPortfolio', () => {
     });
     renderPortfolio(pd, []);
 
-    const labels = (chartInstances[0].config as { data: { labels: string[] } }).data.labels;
-    expect(labels).toEqual(['IWDA', 'EIMI', 'BOND']);
+    expect(costOption().yAxis.data).toEqual(['IWDA', 'EIMI', 'BOND']);
 
     const rows = Array.from(
       document.querySelectorAll('#port-table .hold-row:not(.th) .hold-name'),
@@ -463,21 +453,24 @@ describe('renderPortfolio', () => {
     expect(rows).toEqual(['IWDA', 'EIMI', 'BOND']);
   });
 
-  it('shows the held/closed/all filter toggle', () => {
+  it('hides the held/closed/all chips when nothing has been closed', () => {
     renderPortfolio(makePD(), []);
-    const filterToggle = document.getElementById('port-filter-toggle');
-    expect(filterToggle).not.toBeNull();
-    expect(filterToggle!.textContent).toContain('Held');
-    expect(filterToggle!.textContent).toContain('Closed');
-    expect(filterToggle!.textContent).toContain('All');
+    expect(document.getElementById('port-filter-toggle')).toBeNull();
   });
 
-  it('renders a compact holdings search input', () => {
+  it('renders a holdings search input with a clear button', () => {
     renderPortfolio(makePD(), []);
     const search = document.getElementById('port-holdings-search') as HTMLInputElement;
     expect(search).not.toBeNull();
-    expect(search.className).toContain('holdings-search-input');
     expect(search.placeholder).toBe('Search ISIN or name');
+    search.value = 'zzz';
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    const table = document.getElementById('port-table')!;
+    expect(table.querySelector('.hold-empty')?.textContent).toContain('zzz');
+    (table.querySelector('[data-clear-search]') as HTMLButtonElement).click();
+    expect((document.getElementById('port-holdings-search') as HTMLInputElement).value).toBe('');
+    expect(table.querySelector('.hold-empty')).toBeNull();
+    expect(table.textContent).toContain('IWDA');
   });
 
   it('keeps the holdings search focused while filtering', () => {
@@ -519,12 +512,19 @@ describe('renderPortfolio', () => {
     // Default "Held" filter shows only non-exited
     expect(table.textContent).toContain('IWDA');
     expect(table.textContent).not.toContain('EXITED');
+    const chips = document.getElementById('port-filter-toggle')!;
+    expect(chips.getAttribute('role')).toBe('group');
+    expect(chips.textContent).toBe('All 2Held 1Closed 1');
+    expect(chips.querySelector('[data-filter="held"]')!.getAttribute('aria-pressed')).toBe('true');
 
     // Click "Closed" filter button
     const closedBtn = table.querySelector('[data-filter="closed"]') as HTMLElement;
     closedBtn.click();
     expect(table.textContent).toContain('EXITED');
     expect(table.textContent).not.toContain('IWDA');
+    expect(table.querySelector('[data-filter="closed"]')!.getAttribute('aria-pressed')).toBe(
+      'true',
+    );
 
     // Click "All" filter button
     const allBtn = table.querySelector('[data-filter="all"]') as HTMLElement;
@@ -539,7 +539,7 @@ describe('renderPortfolio', () => {
     const drift = document.getElementById('port-drift')!;
     // With a single holding that has contribAmount, drift should render
     expect(drift.innerHTML).toContain('Allocation drift');
-    expect(drift.innerHTML).toContain('IWDA');
+    expect(driftOption().yAxis.data).toEqual(['IWDA']);
   });
 
   it('drift note mentions cost basis when no snapshot ETF values are present', () => {
@@ -596,9 +596,38 @@ describe('renderPortfolio', () => {
     });
     const snap: Snapshot = { date: '2026-06-01', acct1: 3500, etf_IE00TEST1: 3000 };
     renderPortfolio(pd, [snap]);
-    const note = document.getElementById('port-drift')!.textContent || '';
+    const note = document.getElementById('port-drift')!.innerHTML;
     expect(note).toContain('Allocation is based on purchase cost');
     expect(note).toContain('Actual from cost basis (partial ETF snapshot coverage)');
+  });
+
+  it('draws drift as diverging bars, largest gap first, with the alert band', () => {
+    setRebalanceHoldings();
+    const pd = makeRebalancePd({
+      etfs: {
+        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 7000 }),
+        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 3000 }),
+      },
+      totalInv: 10000,
+    });
+    const snap: Snapshot = { date: '2026-06-01', acct1: 20000, etf_IE00TEST1: 9000 };
+    renderPortfolio(pd, [snap]);
+    const opt = driftOption();
+    const values = opt.series[0].data.map((d: AnyRec) => d.value as number);
+    const abs = values.map(Math.abs);
+    expect(abs).toEqual([...abs].sort((a: number, b: number) => b - a));
+    expect(opt.series[0].markArea.data).toEqual([[{ xAxis: -5 }, { xAxis: 5 }]]);
+    expect(opt.xAxis.min).toBe(-opt.xAxis.max);
+    for (const d of opt.series[0].data) {
+      expect(d.label.position).toMatch(d.value < 0 ? /^(inside)?left$/i : /^(inside)?right$/i);
+    }
+    const tip = opt.tooltip.formatter({ dataIndex: 0 });
+    expect(tip).toContain('Target');
+    expect(tip).toContain('Actual');
+    expect(tip).toMatch(/(Above|Below) target/);
+    expect(opt.yAxis.axisLabel.formatter('', 0)).toMatch(/^\{n\|.+\}\n\{s\|.+ of .+\}$/);
+    const header = document.querySelector('#port-drift .drift-title-status')!.textContent!;
+    expect(header).toMatch(/^(On target|Moderate drift|High drift) · max /);
   });
 
   it('keeps nav drift badge and drift card max aligned for partial ETF snapshots', () => {
@@ -724,31 +753,31 @@ describe('renderPortfolio', () => {
     expect(rows.length).toBe(1);
   });
 
-  it('chart config contains the correct labels and data', () => {
+  it('chart option contains the correct labels and data', () => {
     renderPortfolio(makePD(), []);
-    expect(chartInstances.length).toBe(1);
-    const config = chartInstances[0].config as { data: { labels: string[]; datasets: unknown[] } };
-    expect(config.data.labels).toContain('IWDA');
-    expect(config.data.datasets[0]).toHaveProperty('data');
-    const wrap = document.getElementById('c-port-donut-table-wrap');
-    expect(wrap?.hasAttribute('hidden')).toBe(false);
-    expect(wrap?.querySelector('.chart-data-table-toggle')).not.toBeNull();
+    const opt = costOption();
+    expect(opt.yAxis.data).toContain('IWDA');
+    expect(opt.series[0].data[0].value).toBe(1000);
   });
 
-  it('uses a square leading edge and the existing trailing radius for allocation bars', () => {
+  it('rounds only the trailing edge of allocation bars', () => {
     renderPortfolio(makePD(), []);
-    const config = chartInstances[0].config as {
-      data: { datasets: Array<{ borderRadius: unknown; borderSkipped: unknown }> };
-    };
-    expect(config.data.datasets[0].borderRadius).toBe(4);
-    expect(config.data.datasets[0].borderSkipped).toBe('start');
+    expect(costOption().series[0].data[0].itemStyle.borderRadius).toEqual([0, 4, 4, 0]);
   });
 
-  it('renders donut legend with short name and percentage', () => {
+  it('labels bars with their share and shows ISIN in the tooltip', () => {
     renderPortfolio(makePD(), []);
-    const legend = document.getElementById('port-donut-legend')!.textContent!;
-    expect(legend).toContain('IWDA');
-    expect(legend).toContain('100%');
+    const opt = costOption();
+    expect(opt.series[0].label.formatter({ dataIndex: 0 })).toBe('100%');
+    const html = opt.tooltip.formatter({ dataIndex: 0 });
+    expect(html).toContain('IWDA');
+    expect(html).toContain('IE00TEST1');
+  });
+
+  it('sizes the chart to its rows', () => {
+    renderPortfolio(makePD(), []);
+    const wrap = document.getElementById('c-port-donut')!.parentElement!;
+    expect(wrap.style.getPropertyValue('--chart-fit-h')).toBe('140px');
   });
 
   it('integrates allocation percentage into the cost basis cell', () => {
@@ -771,7 +800,7 @@ describe('renderPortfolio', () => {
     // MOCK_HOLDINGS has a single holding; plan.length < 2 so section should not appear.
     renderPortfolio(makePD(), []);
     const drift = document.getElementById('port-drift')!;
-    expect(drift.innerHTML).not.toContain('Contribution rebalance');
+    expect(drift.innerHTML).not.toContain('Rebalance with contributions');
   });
 
   it('rebalance section is hidden when held positions have no ETF snapshot values', () => {
@@ -780,7 +809,7 @@ describe('renderPortfolio', () => {
     // No snapshot with ETF values: all drift rows are cost-basis mode.
     renderPortfolio(pd, []);
     const drift = document.getElementById('port-drift')!;
-    expect(drift.innerHTML).not.toContain('Contribution rebalance');
+    expect(drift.innerHTML).not.toContain('Rebalance with contributions');
   });
 
   it('rebalance section appears when there are two or more active holdings', () => {
@@ -788,7 +817,7 @@ describe('renderPortfolio', () => {
     const pd = makeRebalancePd();
     renderPortfolio(pd, [makeRebalanceSnap()]);
     const drift = document.getElementById('port-drift')!;
-    expect(drift.innerHTML).toContain('Contribution rebalance');
+    expect(drift.innerHTML).toContain('Rebalance with contributions');
   });
 
   it('rebalance picker renders five month-option buttons', () => {
@@ -851,8 +880,10 @@ describe('renderPortfolio', () => {
     const snap: Snapshot = { date: '2026-06-01', acct1: 5000 };
     renderPortfolio(pd, [snap]);
     const drift = document.getElementById('port-drift')!;
-    expect(drift.innerHTML).toContain('Contribution rebalance');
-    expect(drift.textContent).toContain('reduce max drift from');
+    expect(drift.innerHTML).toContain('Rebalance with contributions');
+    expect(drift.querySelector('.rebalance-result')?.textContent).toMatch(
+      /Max drift .+ → .+ after 3 months/,
+    );
   });
 
   it('shows the target cadence amount alongside the suggested amount', () => {
@@ -861,8 +892,8 @@ describe('renderPortfolio', () => {
     localStorage.setItem('drift-calibration-interval', 'weekly');
     renderPortfolio(pd, [makeRebalanceSnap()]);
     const drift = document.getElementById('port-drift')!;
-    expect(drift.textContent || '').toMatch(/Target\s+80,77\s*€\/wk/);
-    expect(drift.textContent || '').toMatch(/Target\s+34,62\s*€\/wk/);
+    expect(drift.textContent || '').toMatch(/usual\s+80,77\s*€\/wk/);
+    expect(drift.textContent || '').toMatch(/usual\s+34,62\s*€\/wk/);
   });
 
   it('rebalance picker click updates selected month and re-renders', () => {
@@ -879,7 +910,9 @@ describe('renderPortfolio', () => {
 
     expect(localStorage.getItem('drift-rebalance-months')).toBe('6');
     // After click the section should still be present (re-rendered).
-    expect(document.getElementById('port-drift')!.innerHTML).toContain('Contribution rebalance');
+    expect(document.getElementById('port-drift')!.innerHTML).toContain(
+      'Rebalance with contributions',
+    );
   });
 
   it('rebalance picker keeps section open after user opens it', () => {
@@ -914,9 +947,31 @@ describe('renderPortfolio', () => {
     const pd = makeRebalancePd();
     renderPortfolio(pd, [makeRebalanceSnap()]);
     const drift = document.getElementById('port-drift')!;
-    expect(drift.textContent).toContain('reduce max drift from');
-    expect(drift.textContent).toContain('what-if for new contributions only');
-    expect(drift.textContent).toContain('actual results will vary');
+    expect(drift.querySelector('.rebalance-result')?.textContent).toContain('Max drift');
+    const tip = drift.querySelector('.rebalance-result .info-tip')?.getAttribute('data-tip') ?? '';
+    expect(tip).toContain('What-if for new contributions only');
+    expect(tip).toContain('actual results will vary');
+    expect(drift.querySelector('.rebalance-note')?.textContent).toContain('no selling');
+  });
+
+  it('cadence select stores the interval and keeps the section open', () => {
+    setRebalanceHoldings();
+    const pd = makeRebalancePd();
+    localStorage.removeItem('drift-calibration-interval');
+    renderPortfolio(pd, [makeRebalanceSnap()]);
+    const drift = document.getElementById('port-drift')!;
+    (drift.querySelector('.rebalance-collapsible') as HTMLDetailsElement).open = true;
+    const sel = drift.querySelector('[data-rebalance-interval]') as HTMLSelectElement;
+    expect(Array.from(sel.options).map((o) => o.textContent)).toContain('Every 2 weeks');
+    sel.value = 'weekly';
+    sel.dispatchEvent(new Event('change'));
+    expect(localStorage.getItem('drift-calibration-interval')).toBe('weekly');
+    const next = document.querySelector('#port-drift .rebalance-collapsible') as HTMLDetailsElement;
+    expect(next.open).toBe(true);
+    expect((next.querySelector('[data-rebalance-interval]') as HTMLSelectElement).value).toBe(
+      'weekly',
+    );
+    localStorage.removeItem('drift-calibration-interval');
   });
 
   it('rebalance rows expose explicit state labels and attributes', () => {
@@ -955,8 +1010,9 @@ describe('renderPortfolio', () => {
     const snap = makeRebalanceSnap({ acct1: 100000, etf_IE00TEST1: 80000, etf_IE00TEST2: 20000 });
     renderPortfolio(pd, [snap]);
     const drift = document.getElementById('port-drift')!;
-    expect(drift.textContent).toContain('taxes');
-    expect(drift.textContent).toContain('trading fees');
+    expect(drift.querySelector('.rebalance-sell-note')?.textContent).toContain('stay above target');
+    expect(drift.innerHTML).toContain('taxes');
+    expect(drift.innerHTML).toContain('trading fees');
   });
 
   it('renders an on-target state when projected gap is neutral', () => {

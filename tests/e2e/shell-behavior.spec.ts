@@ -1,53 +1,47 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { gotoApp, preparePage } from './helpers';
 
 // ── Theme persistence ────────────────────────────────────────────────────────
 
-test.describe('Theme toggle', () => {
+test.describe('Theme menu', () => {
   test.beforeEach(async ({ page }) => {
     await preparePage(page);
   });
 
-  test('cycles system → light → dark → system and updates data-theme + aria-label', async ({
-    page,
-  }) => {
+  const pick = async (page: Page, choice: string) => {
+    if (!(await page.locator('#header-menu').isVisible())) await page.click('#btn-header-menu');
+    await page.click(`[data-theme-choice="${choice}"]`);
+  };
+
+  test('switches between light, dark and system from the header menu', async ({ page }) => {
     await gotoApp(page);
 
     // Initial state: no wt-theme in localStorage → default is 'system'
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'system');
-    await expect(page.locator('#btn-theme-toggle')).toHaveAttribute(
-      'aria-label',
-      /currently System/,
+    await page.click('#btn-header-menu');
+    await expect(page.locator('#btn-header-menu')).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('[data-theme-choice="system"]')).toHaveAttribute(
+      'aria-checked',
+      'true',
     );
 
-    // system → light
-    await page.click('#btn-theme-toggle');
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-    await expect(page.locator('#btn-theme-toggle')).toHaveAttribute(
-      'aria-label',
-      /currently Light/,
-    );
+    for (const choice of ['light', 'dark', 'system']) {
+      await pick(page, choice);
+      await expect(page.locator('html')).toHaveAttribute('data-theme', choice);
+      await expect(page.locator(`[data-theme-choice="${choice}"]`)).toHaveAttribute(
+        'aria-checked',
+        'true',
+      );
+    }
 
-    // light → dark
-    await page.click('#btn-theme-toggle');
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await expect(page.locator('#btn-theme-toggle')).toHaveAttribute('aria-label', /currently Dark/);
-
-    // dark → system
-    await page.click('#btn-theme-toggle');
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'system');
-    await expect(page.locator('#btn-theme-toggle')).toHaveAttribute(
-      'aria-label',
-      /currently System/,
-    );
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#header-menu')).toBeHidden();
+    await expect(page.locator('#btn-header-menu')).toBeFocused();
   });
 
   test('persists the selected dark theme across a page reload', async ({ page }) => {
     await gotoApp(page);
-
-    // Two clicks: system → light → dark
-    await page.click('#btn-theme-toggle');
-    await page.click('#btn-theme-toggle');
+    await pick(page, 'dark');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
     // Reload — the addInitScript re-runs but does NOT write wt-theme, so the
@@ -56,7 +50,11 @@ test.describe('Theme toggle', () => {
     await expect(page.locator('#tab-networth')).toBeVisible();
 
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await expect(page.locator('#btn-theme-toggle')).toHaveAttribute('aria-label', /currently Dark/);
+    await page.click('#btn-header-menu');
+    await expect(page.locator('[data-theme-choice="dark"]')).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
   });
 });
 
@@ -80,19 +78,20 @@ test.describe('Auth state', () => {
     // whether cached data exists (the #auth-prompt card visibility depends on
     // state.cacheLoaded which varies across runs, but the header controls do not).
     await expect(page.locator('#btn-signin-global')).toBeVisible();
+    await expect(page.locator('#sync-status')).not.toHaveAttribute('data-action', /.+/);
+    await page.click('#btn-header-menu');
     await expect(page.locator('#btn-signout')).not.toBeVisible();
-    await expect(page.locator('#btn-sync-now')).not.toBeVisible();
-    await expect(page.locator('#auth-status')).not.toContainText('Signed in');
   });
 
   test('signed-in state shows correct shell controls', async ({ page }) => {
     await preparePage(page);
     await gotoApp(page);
 
-    await expect(page.locator('#auth-status')).toContainText('Signed in');
-    await expect(page.locator('#btn-signout')).toBeVisible();
-    await expect(page.locator('#btn-sync-now')).toBeVisible();
+    await expect(page.locator('#sync-status')).toBeVisible();
     await expect(page.locator('#btn-signin-global')).not.toBeVisible();
+    await page.click('#btn-header-menu');
+    await expect(page.locator('#btn-signout')).toBeVisible();
+    await page.keyboard.press('Escape');
     // The in-page auth-prompt card must be hidden in signed-in state
     await expect(page.locator('#auth-prompt')).not.toBeVisible();
   });
@@ -100,6 +99,7 @@ test.describe('Auth state', () => {
   test('clicking sign-out triggers a page reload clearing the session', async ({ page }) => {
     await preparePage(page);
     await gotoApp(page);
+    await page.click('#btn-header-menu');
     await expect(page.locator('#btn-signout')).toBeVisible();
 
     // signOut() in google.ts clears localStorage tokens then calls
@@ -142,24 +142,21 @@ test.describe('Offline shell behavior', () => {
     await context.setOffline(false);
   });
 
-  test('sync-now button is hidden when offline and sign-out completes', async ({
+  test('sync chip cannot be triggered while offline and the shell keeps working', async ({
     page,
     context,
   }) => {
     await gotoApp(page);
+    const chip = page.locator('#sync-status');
+    await expect(chip).toBeVisible();
 
-    // Confirm sync-now is visible when signed in
-    await expect(page.locator('#btn-sync-now')).toBeVisible();
-
-    // Go offline
     await context.setOffline(true);
 
-    // The sync-now button visibility is controlled by auth state, not
-    // network state, so it remains visible while signed in even offline.
-    // Triggering it while offline should surface the "Unavailable offline"
-    // message (already covered in resilience.spec.ts).
-    // What we additionally verify: after the page goes offline the app does
-    // NOT crash and the main tabs are still rendered.
+    // The chip switches to "Offline" and is aria-disabled (still focusable
+    // so its tooltip explains why), and the app does not crash.
+    await expect(chip).toContainText('Offline');
+    await expect(chip).toHaveAttribute('aria-disabled', 'true');
+    await expect(chip).not.toHaveAttribute('data-action', /.+/);
     await expect(page.locator('#tab-networth')).toBeVisible();
     await expect(page.locator('#tab-portfolio')).toBeVisible();
 

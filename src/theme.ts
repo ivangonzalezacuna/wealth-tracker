@@ -14,7 +14,7 @@ export function getUserThemePref(): UserThemePref {
 
 /**
  * Persist a user theme preference, apply a `data-theme` attribute to `<html>`,
- * and notify all theme-change listeners so Chart.js canvases re-render.
+ * and notify all theme-change listeners so chart canvases re-render.
  */
 export function setUserTheme(pref: UserThemePref): void {
   try {
@@ -49,18 +49,7 @@ export const T = {
   white: '#fff',
 } as const;
 
-export const R = {
-  none: 0,
-  xs: 4,
-  sm: 6,
-  md: 8,
-  lg: 12,
-} as const;
-
-/** Single-series bars: rounded at the value end, square on the baseline (also for negative values). */
-export const BAR_END_ROUNDING = { borderRadius: R.xs, borderSkipped: 'start' } as const;
-
-/** Runtime dark-mode resolution for Chart.js context at render-time. */
+/** Runtime dark-mode resolution for inline colours computed at render time. */
 export function resolvedT(): Record<keyof typeof T, string> {
   const pref = getUserThemePref();
   const dark =
@@ -91,7 +80,7 @@ export function resolvedT(): Record<keyof typeof T, string> {
 
 // ── Live OS/browser theme-change notification ────────────────────
 // resolvedT() is only read at render time, so CSS (media-query driven)
-// re-themes instantly on an OS dark/light switch while Chart.js canvases
+// re-themes instantly on an OS dark/light switch while chart canvases
 // - which bake colors into the canvas at creation time - would otherwise
 // stay stale until the next unrelated re-render. This lets callers (main.ts)
 // subscribe once and trigger a re-render whenever the OS scheme flips.

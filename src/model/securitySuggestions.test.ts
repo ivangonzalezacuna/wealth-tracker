@@ -26,12 +26,12 @@ describe('security suggestions', () => {
     const suggestions = buildSecuritySuggestions([
       tx({ isin: ' ie00bbb ', name: 'Beta Fund' }),
       tx({ isin: 'IE00AAA', name: 'Alpha Fund' }),
-      tx({ isin: 'IE00BBB', name: 'Beta Fund Updated' }),
+      tx({ isin: 'IE00BBB', name: 'Beta Fund Updated', currency: 'usd' }),
       tx({ isin: 'IE00CCC', name: '' }),
     ]);
     expect(suggestions.pairs).toEqual([
-      { isin: 'IE00AAA', name: 'Alpha Fund' },
-      { isin: 'IE00BBB', name: 'Beta Fund Updated' },
+      { isin: 'IE00AAA', name: 'Alpha Fund', currency: 'EUR' },
+      { isin: 'IE00BBB', name: 'Beta Fund Updated', currency: 'USD' },
     ]);
   });
 
