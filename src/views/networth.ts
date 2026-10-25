@@ -86,7 +86,6 @@ function _loadScenarioFromStorage(
         typeof p['contribDeltaAmt'] === 'number' ? p['contribDeltaAmt'] : defaults.contribDeltaAmt;
       return { returnDeltaPct: ret, contribDeltaAmt: contrib };
     }
-
   } catch {
     // ignore
   }
@@ -175,7 +174,7 @@ function _loadPersistedState(): void {
     }
   }
 
-    const infl = getNumberSetting('nw_inflation_rate', NaN);
+  const infl = getNumberSetting('nw_inflation_rate', NaN);
   if (isFinite(infl) && infl >= 0) _inflationRate = Math.min(infl, 20);
   const ddDate = (s['dd_retirement_date'] || '').trim();
   if (/^\d{4}-\d{2}$/.test(ddDate)) _ddRetirementDate = ddDate;

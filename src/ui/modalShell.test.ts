@@ -2,11 +2,7 @@
  * @vitest-environment jsdom
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  activateModalShell,
-  createDialogController,
-  openDialogShell,
-} from './modalShell';
+import { activateModalShell, createDialogController, openDialogShell } from './modalShell';
 
 afterEach(() => {
   document.body.innerHTML = '';

@@ -272,9 +272,9 @@ describe('db importDb local-preservation merge', () => {
     idbStore.set('main.db', oldSchema!);
 
     const migratedDb = await getDb();
-    expect(migratedDb.exec("SELECT value FROM meta WHERE key = 'schema_version'")[0].values[0][0]).toBe(
-      '15',
-    );
+    expect(
+      migratedDb.exec("SELECT value FROM meta WHERE key = 'schema_version'")[0].values[0][0],
+    ).toBe('15');
     expect(Array.from(idbStore.get('main.db')!)).toEqual(Array.from(migratedDb.export()));
   });
 });
