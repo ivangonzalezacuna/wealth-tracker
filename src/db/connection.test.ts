@@ -4,9 +4,12 @@
 import { describe, it, expect, beforeEach, afterEach, beforeAll, vi } from 'vitest';
 import { TxType } from '../types';
 
-vi.mock('sql.js/dist/sql-wasm-browser.wasm?url', () => ({
-  default: `${process.cwd().replaceAll('\\', '/')}/node_modules/sql.js/dist/sql-wasm-browser.wasm`,
-}));
+const wasmAssetPath = vi.hoisted(() => {
+  const cwd = (globalThis as typeof globalThis & { process: { cwd(): string } }).process.cwd();
+  return `${cwd.replaceAll('\\', '/')}/node_modules/sql.js/dist/sql-wasm-browser.wasm`;
+});
+
+vi.mock('sql.js/dist/sql-wasm-browser.wasm?url', () => ({ default: wasmAssetPath }));
 
 const idbStore = new Map<string, Uint8Array>();
 
