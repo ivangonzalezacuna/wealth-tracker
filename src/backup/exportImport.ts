@@ -225,9 +225,29 @@ function isIsoTimestamp(value: unknown): value is string {
 }
 
 function isMonthOrDayDate(value: unknown): value is string {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}(-\d{2})?$/.test(value)) return false;
-  const normalized = value.length === 7 ? `${value}-01` : value;
-  return !isNaN(new Date(normalized).getTime());
+  if (typeof value !== 'string') return false;
+  const match = value.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?$/);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return false;
+  if (match[3] === undefined) return true;
+  const day = Number(match[3]);
+  const daysInMonth = [
+    31,
+    year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28,
+    31,
+    30,
+    31,
+    30,
+    31,
+    31,
+    30,
+    31,
+    30,
+    31,
+  ];
+  return day >= 1 && day <= daysInMonth[month - 1];
 }
 
 function isStringMap(value: unknown): value is Record<string, string> {
