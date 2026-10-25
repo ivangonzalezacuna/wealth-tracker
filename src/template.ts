@@ -362,9 +362,12 @@ export function appTemplate(): string {
     <div class="card log-panel" id="csv-import-card" role="tabpanel" aria-labelledby="log-tab-transactions">
       <div class="log-panel-head">
         <div class="card-title">Transaction ledger</div>
-        <button type="button" class="btn btn-ghost btn-sm log-import-toggle" id="btn-toggle-import" aria-expanded="false" aria-controls="csv-import-panel"><span class="row-expand-chevron" aria-hidden="true">&#x25B8;</span> Import CSV</button>
+        <div class="log-panel-head-actions">
+          <button type="button" class="ledger-summary-toggle log-panel-meta" id="btn-ledger-summary" aria-expanded="false" aria-controls="tx-ledger-summary" hidden></button>
+          <button type="button" class="btn btn-ghost btn-sm log-import-toggle" id="btn-toggle-import" aria-expanded="false" aria-controls="csv-import-panel"><span class="row-expand-chevron" aria-hidden="true">&#x25B8;</span> Import CSV</button>
+        </div>
       </div>
-      <div id="import-status" class="status-bar status-empty">No CSV imported yet</div>
+      <div id="tx-ledger-summary" class="ledger-summary" hidden></div>
       <div id="csv-import-panel" class="log-import-panel" hidden>
         <p class="note" style="margin-bottom:.6rem">Import your transaction export CSV. Parsed locally; data synced to your Google Drive. Re-import anytime; duplicates handled automatically.</p>
         <div class="drop-zone" id="drop-zone">

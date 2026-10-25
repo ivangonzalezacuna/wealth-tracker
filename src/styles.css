@@ -1291,6 +1291,96 @@ details[open] > summary .card-chevron {
   color: var(--ink-3);
   font-variant-numeric: tabular-nums;
 }
+.log-panel-head-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-left: auto;
+  min-width: 0;
+}
+.log-panel-head-actions .log-panel-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ledger-summary-toggle[hidden] {
+  display: none;
+}
+.ledger-summary-toggle {
+  gap: 6px;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.ledger-summary-toggle:hover,
+.ledger-summary-toggle[aria-expanded='true'] {
+  color: var(--ink-2);
+  background: var(--surface-2);
+}
+.ledger-summary-toggle:focus-visible {
+  outline: 2px solid var(--brand-border);
+  outline-offset: 1px;
+}
+.ledger-summary {
+  margin-bottom: 0.75rem;
+}
+.ledger-summary-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ledger-summary-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.ledger-summary-source {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--ink);
+}
+.ledger-summary-count {
+  color: var(--ink-2);
+}
+.ledger-summary-range {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.ledger-summary-note {
+  margin: 0.4rem 0 0;
+}
+/* Phones: keep "Import CSV" beside the title and give the summary line its own row, so the
+   breakdown opens right under the line that toggles it. */
+@media (max-width: 600px) {
+  #csv-import-card .log-panel-head-actions {
+    display: contents;
+  }
+  #csv-import-card #btn-ledger-summary {
+    order: 3;
+    flex: 1 1 100%;
+    justify-content: flex-start;
+    margin: 0 -6px;
+  }
+}
 .log-import-toggle {
   gap: 6px;
 }

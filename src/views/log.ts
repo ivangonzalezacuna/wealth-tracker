@@ -9,7 +9,7 @@ import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow } from './tableColumns';
 import { loadPageSize, renderPagination, savePageSize } from './pagination';
 import { bindExpandableRows, restoreExpandableRows } from './expandableRows';
-import { bindSortedTableHeader, sortAndPaginate } from './tableView';
+import { bindSortedTableHeader, sortAndPaginate, tableEmptyStateHtml } from './tableView';
 import { LOG_VIEWS, type LogView } from '../nav';
 import {
   bindChipGroup,
@@ -41,7 +41,7 @@ interface LogState {
 }
 
 const SNAP_PAGE_SIZES = [12, 24, 36] as const;
-const TX_PAGE_SIZES = [15, 25, 50, 100] as const;
+export const TX_PAGE_SIZES = [15, 25, 50, 100] as const;
 const SNAP_PAGE_SIZE_KEY = 'wt:log:snapPageSize';
 const TX_PAGE_SIZE_KEY = 'wt:log:txPageSize';
 
@@ -80,7 +80,7 @@ let _txFromChart = false;
 let _snapFromChart = false;
 
 /** "DIVIDEND" → "Dividend", "SAVINGS_PLAN" → "Savings plan". */
-function txTypeLabel(type: string): string {
+export function txTypeLabel(type: string): string {
   const s = type.replace(/_/g, ' ').toLowerCase();
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
@@ -172,17 +172,7 @@ function updateLogSummary(txs: Transaction[], snaps: Snapshot[]): void {
 export function renderLog(state: LogState): void {
   const { txs, snaps, importMeta } = state;
 
-  // Import status bar
-  const el = document.getElementById('import-status');
-  if (el) {
-    if (importMeta?.last_import && txs.length) {
-      el.innerHTML = renderTxSummary(txs);
-      el.className = 'status-bar status-info';
-    } else {
-      el.textContent = 'No CSV imported yet';
-      el.className = 'status-bar status-empty';
-    }
-  }
+  renderLedgerSummary(txs, importMeta);
 
   _lastOnEdit = state.onEditSnap;
   _lastOnDel = state.onDelSnap;
@@ -209,51 +199,87 @@ export function renderLog(state: LogState): void {
   renderSnapList(_snaps, state.onEditSnap, state.onDelSnap);
 }
 
-// ── Curated transaction summary ──────────────────────────────────
+// ── Ledger header summary ────────────────────────────────────────
 
-/** Build a curated HTML summary of imported transactions grouped by source. */
-function renderTxSummary(txs: Transaction[]): string {
-  const total = txs.length;
-  const firstDate = txs[0]?.date || '';
-  const lastDate = txs[total - 1]?.date || '';
+let _ledgerSummaryOpen = false;
 
-  // Group by source
-  const bySource: Record<string, Transaction[]> = {};
+interface SourceSummary {
+  source: string;
+  count: number;
+  first: string;
+  last: string;
+}
+
+/** Per-source counts and date ranges, largest source first. */
+export function summarizeSources(txs: Transaction[]): SourceSummary[] {
+  const bySource = new Map<string, SourceSummary>();
   for (const tx of txs) {
-    const src = tx.source || 'unknown';
-    if (!bySource[src]) bySource[src] = [];
-    bySource[src].push(tx);
+    const source = tx.source || 'unknown';
+    const s = bySource.get(source);
+    if (!s) bySource.set(source, { source, count: 1, first: tx.date, last: tx.date });
+    else {
+      s.count += 1;
+      if (tx.date < s.first) s.first = tx.date;
+      if (tx.date > s.last) s.last = tx.date;
+    }
   }
+  return [...bySource.values()].sort(
+    (a, b) => b.count - a.count || a.source.localeCompare(b.source),
+  );
+}
 
-  const sources = Object.keys(bySource).sort((a, b) => bySource[b].length - bySource[a].length);
-
-  // Only show per-source breakdown when 2+ sources exist
-  if (sources.length < 2) {
-    return `\u2713 ${total} transactions \u00B7 ${fmtDay(firstDate)} \u2013 ${fmtDay(lastDate)}`;
+/**
+ * Header line "702 transactions · 05 Jan 2023 – 28 May 2026 ▸" that toggles a small
+ * per-source table (closed by default), so long source lists never crowd the header.
+ */
+function renderLedgerSummary(txs: Transaction[], importMeta: Record<string, string> | null): void {
+  const btn = document.getElementById('btn-ledger-summary') as
+    (HTMLButtonElement & { _bound?: boolean }) | null;
+  const panel = document.getElementById('tx-ledger-summary');
+  if (!btn || !panel) return;
+  if (!btn._bound) {
+    btn._bound = true;
+    btn.addEventListener('click', () => {
+      _ledgerSummaryOpen = !_ledgerSummaryOpen;
+      btn.setAttribute('aria-expanded', String(_ledgerSummaryOpen));
+      panel.hidden = !_ledgerSummaryOpen;
+    });
   }
-
-  const sourceLines = sources
-    .map((src) => {
-      const srcTxs = bySource[src];
-      const srcFirst = srcTxs[0]?.date || '';
-      const srcLast = srcTxs[srcTxs.length - 1]?.date || '';
-
-      // Count by type
-      const typeCounts: Record<string, number> = {};
-      for (const tx of srcTxs) {
-        const t = tx.type || 'UNKNOWN';
-        typeCounts[t] = (typeCounts[t] || 0) + 1;
-      }
-      const typeBreakdown = Object.entries(typeCounts)
-        .sort((a, b) => b[1] - a[1])
-        .map(([t, c]) => `${c} ${t.charAt(0) + t.slice(1).toLowerCase()}`)
-        .join(' \u00B7 ');
-
-      return `<span style="display:inline-block;margin-top:4px"><strong>${esc(sourceLabel(src))}</strong>: ${srcTxs.length} txs, ${fmtDay(srcFirst)} \u2013 ${fmtDay(srcLast)}<br><span style="color:var(--ink-3);font-size:0.85em;margin-left:8px">${typeBreakdown}</span></span>`;
-    })
-    .join('<br>');
-
-  return `\u2713 <strong>${total} transactions</strong> synced<br>${sourceLines}`;
+  if (!txs.length) {
+    btn.hidden = true;
+    btn.innerHTML = '';
+    panel.hidden = true;
+    panel.innerHTML = '';
+    return;
+  }
+  const sources = summarizeSources(txs);
+  const first = sources.reduce((d, s) => (s.first < d ? s.first : d), sources[0].first);
+  const last = sources.reduce((d, s) => (s.last > d ? s.last : d), sources[0].last);
+  const n = txs.length;
+  btn.hidden = false;
+  btn.innerHTML = `<span>${esc(
+    `${n.toLocaleString('de-DE')} transaction${n === 1 ? '' : 's'} \u00B7 ${fmtDay(first)} \u2013 ${fmtDay(last)}`,
+  )}</span><span class="row-expand-chevron" aria-hidden="true">&#x25B8;</span>`;
+  btn.setAttribute('aria-expanded', String(_ledgerSummaryOpen));
+  btn.title = _ledgerSummaryOpen ? 'Hide breakdown by source' : 'Show breakdown by source';
+  panel.hidden = !_ledgerSummaryOpen;
+  panel.innerHTML = `
+    <ul class="ledger-summary-list" aria-label="Transactions by source">
+      ${sources
+        .map(
+          (s) => `<li class="ledger-summary-item">
+        <span class="ledger-summary-source" title="${esc(sourceLabel(s.source))}">${esc(sourceLabel(s.source))}</span>
+        <span class="ledger-summary-count">${s.count.toLocaleString('de-DE')}</span>
+        <span class="ledger-summary-range">${fmtDay(s.first)} \u2013 ${fmtDay(s.last)}</span>
+      </li>`,
+        )
+        .join('')}
+    </ul>
+    ${
+      importMeta?.last_import
+        ? `<p class="note ledger-summary-note">Last CSV import: ${fmtDay(importMeta.last_import)}</p>`
+        : ''
+    }`;
 }
 
 function attachFilterListeners(): void {
@@ -389,7 +415,8 @@ function _updateBulkControls(kind: 'tx' | 'snap'): void {
     ? getFilteredTxs(_txs).filter((t) => t.rowId != null).length
     : getFilteredSnaps(_snaps).length;
 
-  startBtn.hidden = _readOnly || !hasBulkHandler();
+  const total = isTx ? _txs.length : _snaps.length;
+  startBtn.hidden = _readOnly || !hasBulkHandler() || (total === 0 && !isActive);
   startBtn.textContent = isActive ? 'Cancel' : 'Select';
   startBtn.setAttribute('aria-pressed', String(isActive));
   actionsEl.hidden = !isActive || _readOnly || !hasBulkHandler();
@@ -734,12 +761,12 @@ function txKey(tx: Transaction, index: number): string {
   return tx.id || (tx.rowId != null ? `row:${tx.rowId}` : `idx:${index}`);
 }
 
-function txDetailId(key: string): string {
+export function txDetailId(key: string): string {
   return `tx-detail-${key.replace(/[^A-Za-z0-9_-]/g, '_')}`;
 }
 
 /** Build the detail panel shown beneath an expanded ledger row (all stored fields). */
-function _createTxDetail(tx: Transaction, key: string): HTMLElement {
+export function createTxDetail(tx: Transaction, key: string): HTMLElement {
   const field = (label: string, value: string, cls = '') =>
     `<div><span class="hold-detail-label">${label}</span><span class="hold-detail-value${cls ? ' ' + cls : ''}">${value}</span></div>`;
   const parts: string[] = [];
@@ -782,7 +809,7 @@ function toggleTxDetail(row: HTMLElement): void {
   }
   const tx = _txByKey.get(key);
   if (!tx) return;
-  row.insertAdjacentElement('afterend', _createTxDetail(tx, key));
+  row.insertAdjacentElement('afterend', createTxDetail(tx, key));
   row.setAttribute('aria-expanded', 'true');
   _openTxDetails.add(key);
 }
@@ -813,7 +840,7 @@ function txColumns(): ColumnDef<Transaction>[] {
       cellAttrs: (t) => `data-ledger-label="Source"${!t.source ? ' data-ledger-empty="1"' : ''}`,
       cell: (t) =>
         t.source
-          ? `<span class="tx-ledger-source tx-ledger-chip-trim" title="${esc(t.source)}">${esc(t.source)}</span>`
+          ? `<span class="tx-ledger-source tx-ledger-chip-trim" title="${esc(sourceLabel(t.source))}">${esc(sourceLabel(t.source))}</span>`
           : '',
     },
     {
@@ -847,7 +874,7 @@ function txColumns(): ColumnDef<Transaction>[] {
   ];
 }
 
-function fmtTxMoney(n: number, currency: string | undefined): string {
+export function fmtTxMoney(n: number, currency: string | undefined): string {
   const code = (currency || 'EUR').toUpperCase();
   const safeCode = /^[A-Z]{3}$/.test(code) ? code : 'EUR';
   const value = Number.isFinite(n) ? n : 0;
@@ -987,8 +1014,9 @@ function renderTxList(txs: Transaction[]): void {
 
   if (!txs.length) {
     _selectedTxRowIds.clear();
-    listEl.innerHTML =
-      '<div class="empty-state" style="padding:1rem;font-size:13px">No transactions yet.</div>';
+    listEl.innerHTML = tableEmptyStateHtml(
+      '<p class="note">No transactions yet. Import a CSV export from your broker or add one manually.</p>',
+    );
     if (paginationEl) paginationEl.innerHTML = '';
     renderFilterStatus(statusEl, { shown: 0, total: 0, noun: 'transactions', active: false });
     _updateBulkControls('tx');
@@ -1005,8 +1033,9 @@ function renderTxList(txs: Transaction[]): void {
   });
 
   if (!filtered.length) {
-    listEl.innerHTML =
-      '<div class="empty-state" style="padding:1rem;font-size:13px">No matching transactions. <button type="button" class="filter-clear-all" data-clear-filters>Clear filters</button></div>';
+    listEl.innerHTML = tableEmptyStateHtml(
+      '<p class="note">No matching transactions. <button type="button" class="btn-link filter-clear-all" data-clear-filters>Clear filters</button></p>',
+    );
     if (paginationEl) paginationEl.innerHTML = '';
     _updateBulkControls('tx');
     return;
@@ -1052,7 +1081,7 @@ function renderTxList(txs: Transaction[]): void {
         const [dateCol, typeCol, ...restCols] = columns;
         const headerCells = renderTableRow([dateCol, typeCol], tx);
         const sourceChip = tx.source
-          ? `<span class="tx-ledger-source tx-ledger-chip-trim tx-header-source" title="${esc(tx.source)}">${esc(tx.source)}</span>`
+          ? `<span class="tx-ledger-source tx-ledger-chip-trim tx-header-source" title="${esc(sourceLabel(tx.source))}">${esc(sourceLabel(tx.source))}</span>`
           : '';
         const mobileActionsCell =
           !showActions || !tx.rowId
