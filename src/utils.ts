@@ -26,7 +26,7 @@ export function fmt(n: number, d = 0): string {
 /** Whole-euro display (no decimals). */
 export const fmtEur = (n: number) => fmt(n);
 /** Euro display with cents (2 decimals). */
-export const fmtEur2 = (n: number) => fmt(n, 2);
+export const fmtEur2 = (n: number) => fmt(Math.abs(n) < 0.005 ? 0 : n, 2);
 
 /** Format with U+2212 minus for negatives; no sign for positive/zero. */
 export function fmtEurNeg(n: number, d = 0): string {

@@ -260,6 +260,22 @@ describe('snapshotDialog', () => {
     expect(snap!.etf_IE00AAA).toBe(700);
   });
 
+  it('shows zero rather than negative zero when ETF totals match in draft and review', async () => {
+    const p = snapshotDialog(baseOpts());
+    setField('snapd-acc-cash', '0');
+    setField('snapd-acc-broker', '0.3');
+    setField('snapd-etf-broker-IE00AAA', '0.1');
+    setField('snapd-etf-broker-IE00BBB', '0.2');
+    expect(document.querySelector('.snap-etf-recon-remain b')!.textContent).toBe(fmtEur2(0));
+    await reviewDraft();
+    const remainder = Array.from(document.querySelectorAll('.snapd-review-summary dl > div')).find(
+      (row) => row.querySelector('dt')?.textContent === 'Unexplained remainder',
+    );
+    expect(remainder?.querySelector('dd')?.textContent).toBe(fmtEur2(0));
+    getCancel()!.click();
+    await p;
+  });
+
   it('rejects ETF over-allocation inline', async () => {
     const p = snapshotDialog(baseOpts());
     (document.querySelector('.snap-etf-toggle') as HTMLButtonElement).click();
