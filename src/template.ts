@@ -422,7 +422,6 @@ export function appTemplate(): string {
           </div>
         </div>
         <div class="filter-status" id="snap-filter-status" role="status" hidden></div>
-        <div class="legend snap-legend" id="snap-legend" aria-label="Account colours"></div>
         <div id="snaps-list" role="table" aria-label="Snapshot history"></div>
         <div id="snap-pagination" class="pagination"></div>
       </div>

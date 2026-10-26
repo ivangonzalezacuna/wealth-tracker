@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { FAKE_ISINS } from '../fixtures/snapshot-import/synthetic';
 import {
   addAccount,
@@ -31,6 +31,45 @@ async function reviewAndSaveSnapshot(page: Page) {
   await expect(page.locator('.snapd-review')).toBeVisible();
   await page.click('.js-snapd-submit');
   await expect(page.locator('#snap-msg')).toContainText('Saved');
+}
+
+async function captureSnapshotList(
+  page: Page,
+  testInfo: TestInfo,
+  state: string,
+  beforeCapture?: () => Promise<void>,
+) {
+  for (const theme of ['light', 'dark'] as const) {
+    await page.locator('#btn-header-menu').click();
+    await page.locator(`[data-theme-choice="${theme}"]`).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    await page.keyboard.press('Escape');
+    for (const width of [1440, 390, 320]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await beforeCapture?.();
+      const card = page.locator('#balance-card');
+      expect(
+        await card.evaluate((element) => {
+          const fits = (el: Element) => {
+            const bounds = el.getBoundingClientRect();
+            return Array.from(el.children).every((child) => {
+              const rect = child.getBoundingClientRect();
+              return rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1;
+            });
+          };
+          return (
+            element.scrollWidth <= element.clientWidth &&
+            Array.from(element.querySelectorAll('.snap-row-selectable, #snap-bulk-actions')).every(
+              fits,
+            )
+          );
+        }),
+      ).toBe(true);
+      await card.screenshot({
+        path: testInfo.outputPath(`snapshot-list-${state}-${theme}-${width}.png`),
+      });
+    }
+  }
 }
 
 test.beforeEach(async ({ page }) => {
@@ -305,6 +344,127 @@ test('snapshot create, edit, delete, and bulk delete flows keep log data consist
   await page.click('.js-confirm-ok');
   await expect(page.locator('#snap-msg')).toContainText('Snapshot deleted.');
   await expect(snapshotRow(page, firstMonth)).toHaveCount(0);
+});
+
+test('deleting the last filtered snapshot clears stale status but preserves search', async ({
+  page,
+}, testInfo) => {
+  const month = monthOffsetValue(-1);
+  await gotoApp(page);
+  await addAccount(page, { label: 'Last snapshot account', primary: true });
+  await addSnapshot(page, {
+    month,
+    note: 'Final filtered snapshot',
+    accountValues: { 'Last snapshot account': 1000 },
+  });
+  await page.locator('#snap-search').fill('No matching snapshot note');
+  await expect(page.locator('#snaps-list .tbl-empty-state')).toContainText('No matching snapshots');
+  await expect(page.locator('#snap-filter-status')).toContainText('0 of 1 snapshots');
+  await captureSnapshotList(page, testInfo, 'filtered-empty');
+  await page.locator('#snap-search').fill('Final filtered');
+  await expect(page.locator('#snap-filter-status')).toContainText('1 of 1 snapshots');
+  await snapshotRow(page, month).click();
+  await waitForSyncIdle(page);
+  await page.locator('.snap-detail .js-del-snap').click();
+  await page.locator('.js-confirm-ok').click();
+  await expect(page.locator('#snap-msg')).toContainText('Snapshot deleted.');
+  await expect(page.locator('#snaps-list .tbl-empty-state')).toContainText('No snapshots yet');
+  await expect(page.locator('#snap-search')).toHaveValue('Final filtered');
+  await expect(page.locator('#snap-filter-status')).toBeHidden();
+  await expect(page.locator('#snap-filter-status')).toBeEmpty();
+  await expect(page.locator('.snap-detail')).toHaveCount(0);
+  await expect(page.locator('#snap-pagination')).toBeEmpty();
+  await captureSnapshotList(page, testInfo, 'empty');
+});
+
+test('snapshot expanded relationships survive sorting and fit narrow selection with long labels', async ({
+  page,
+}, testInfo) => {
+  const firstMonth = monthOffsetValue(-2);
+  const secondMonth = monthOffsetValue(-1);
+  const label = 'LongInvestmentAccountLabelWithoutSpacesForSnapshotDetailWrapping';
+  const note = 'LongSnapshotNoteWithoutSpacesForCheckingDetailPanelWrappingAtNarrowWidths';
+  await gotoApp(page);
+  await addAccount(page, { label, primary: true });
+  await addAccount(page, { label: 'Snapshot savings' });
+  await addSnapshot(page, {
+    month: firstMonth,
+    note,
+    accountValues: { [label]: 2500, 'Snapshot savings': 7500 },
+  });
+  await addSnapshot(page, {
+    month: secondMonth,
+    note,
+    accountValues: { [label]: 8000, 'Snapshot savings': 2000 },
+  });
+  await page.locator('#snap-search').fill('LongSnapshotNote');
+  const first = snapshotRow(page, firstMonth);
+  const second = snapshotRow(page, secondMonth);
+  await expect(first).not.toHaveAttribute('aria-controls');
+  await first.click();
+  const rowId = await first.getAttribute('id');
+  const panelId = await first.getAttribute('aria-controls');
+  expect(rowId).toBeTruthy();
+  expect(panelId).toBeTruthy();
+  const panel = page.locator('.snap-detail');
+  await expect(panel).toHaveAttribute('id', panelId!);
+  await expect(panel).toHaveAttribute('aria-labelledby', rowId!);
+  await expect(panel).toHaveAttribute('role', 'region');
+  await expect(panel.locator('.snap-detail-share')).toHaveText(['75%', '25%']);
+  await expect(panel.locator('.snap-detail-account .hold-detail-label')).toHaveText([
+    'Snapshot savings',
+    label,
+  ]);
+  await expect(first.locator('.snap-seg').first()).toHaveAttribute('title', /^Snapshot savings:/);
+  await expect(page.locator('#snap-legend')).toHaveCount(0);
+  await expect(panel.locator('.snap-detail-account .hold-dot')).toHaveCount(2);
+  await expect(first.locator('.snap-segbar')).toHaveCSS('height', '6px');
+  await expect(first.locator('.snap-segbar')).toHaveAttribute('title', /75%.*25%/);
+  await expect(first.locator('.snap-seg').last()).toHaveCSS('min-width', '0px');
+  await page.locator('#snap-table-header').getByRole('columnheader', { name: /Month/ }).click();
+  await expect(first).toHaveAttribute('aria-expanded', 'true');
+  await expect(first).toHaveAttribute('aria-controls', panelId!);
+  await expect(panel).toHaveAttribute('id', panelId!);
+  await expect(panel).toHaveAttribute('aria-labelledby', rowId!);
+
+  for (const width of [320, 390, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(panel).toContainText(label);
+    await expect(panel).toContainText(note);
+    expect(
+      await panel.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        const row = element.previousElementSibling!.getBoundingClientRect();
+        return {
+          fits: element.scrollWidth <= element.clientWidth,
+          inline: bounds.top >= row.bottom - 1,
+          side: bounds.left >= row.right,
+        };
+      }),
+    ).toEqual({ fits: true, inline: width < 1024, side: width >= 1024 });
+  }
+  await captureSnapshotList(page, testInfo, 'expanded-long-labels');
+
+  await second.click();
+  await expect(first).toHaveAttribute('aria-expanded', 'false');
+  await expect(first).not.toHaveAttribute('aria-controls');
+  await expect(panel).toHaveAttribute('id', (await second.getAttribute('aria-controls'))!);
+  await second.click();
+  await expect(second).not.toHaveAttribute('aria-controls');
+  await expect(panel).toHaveCount(0);
+
+  await page.setViewportSize({ width: 320, height: 844 });
+  await page.locator('#btn-start-del-snaps').click();
+  await page.locator('#btn-snap-select-all').click();
+  await expect(page.locator('#btn-del-snaps')).toHaveText('Delete (2)');
+  await expect(page.locator('.js-snap-select:checked')).toHaveCount(2);
+  await captureSnapshotList(page, testInfo, 'selection', async () => {
+    const select = page.locator('#btn-start-del-snaps');
+    if ((await select.getAttribute('aria-pressed')) !== 'true') await select.click();
+    await page.locator('#btn-snap-select-all').click();
+    await expect(page.locator('#btn-del-snaps')).toHaveText('Delete (2)');
+    await expect(page.locator('.js-snap-select:checked')).toHaveCount(2);
+  });
 });
 
 test('transaction create, edit, delete, and bulk delete flows update the ledger', async ({

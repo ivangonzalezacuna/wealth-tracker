@@ -553,6 +553,176 @@ describe('renderLog', () => {
   });
 });
 
+describe('snapshot list regressions', () => {
+  beforeEach(() => {
+    document.body.innerHTML = DOM_FIXTURE;
+    _collapseState = {};
+    renderLog({ txs: [], snaps: [], importMeta: null, onEditSnap: vi.fn(), onDelSnap: vi.fn() });
+    resetRenderedFilters();
+  });
+
+  it('explains the account mix in expanded details without distorting small segments', () => {
+    renderLog({
+      txs: [],
+      snaps: [{ date: '2024-12', acct_1: 9999, acct_2: 1 }],
+      importMeta: null,
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+    });
+    const row = document.querySelector<HTMLElement>('.snap-row-compact[data-date="2024-12"]')!;
+    const segments = row.querySelectorAll<HTMLElement>('.snap-seg');
+    expect(segments[0].style.flexGrow).toBe('0.9999');
+    expect(segments[1].style.flexGrow).toBe('0.0001');
+    expect(row.querySelector('.snap-segbar')?.getAttribute('title')).toContain('Main');
+    expect(segments[1].title).toContain('Savings');
+    row.click();
+    const accounts = document.querySelectorAll('.snap-detail-account');
+    expect(accounts).toHaveLength(2);
+    expect(accounts[0].querySelector('.hold-dot')).not.toBeNull();
+    expect(accounts[0].querySelector('.snap-detail-share')?.textContent).toBe('99.99%');
+    expect(accounts[1].querySelector('.snap-detail-share')?.textContent).toBe('0.01%');
+  });
+
+  it.each([
+    [250, 750, ['Savings', 'Main'], ['75%', '25%']],
+    [500, 500, ['Main', 'Savings'], ['50%', '50%']],
+  ])(
+    'orders expanded accounts like bar segments for balances %s and %s, with stable ties',
+    (main, savings, labels, percentages) => {
+      renderLog({
+        txs: [],
+        snaps: [{ date: '2024-12', acct_1: main, acct_2: savings }],
+        importMeta: null,
+        onEditSnap: vi.fn(),
+        onDelSnap: vi.fn(),
+      });
+      const row = document.querySelector<HTMLElement>('.snap-row-compact[data-date="2024-12"]')!;
+      const segmentLabels = Array.from(row.querySelectorAll<HTMLElement>('.snap-seg')).map(
+        (segment) => segment.title.split(':')[0],
+      );
+      row.click();
+      const detailLabels = Array.from(
+        document.querySelectorAll('.snap-detail-account .hold-detail-label'),
+      ).map((label) => label.textContent);
+      expect(detailLabels).toEqual(labels);
+      expect(detailLabels).toEqual(segmentLabels);
+      expect(
+        Array.from(document.querySelectorAll('.snap-detail-share')).map(
+          (share) => share.textContent,
+        ),
+      ).toEqual(percentages);
+    },
+  );
+
+  it('uses positive balances as the account-mix denominator when net worth includes debt', () => {
+    renderLog({
+      txs: [],
+      snaps: [{ date: '2024-12', acct_1: 1000, acct_2: -250 }],
+      importMeta: null,
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+    });
+    const row = document.querySelector<HTMLElement>('.snap-row-compact[data-date="2024-12"]')!;
+    expect(row.querySelector<HTMLElement>('.snap-seg')!.style.flexGrow).toBe('1');
+    expect(row.querySelector('.snap-segbar')?.getAttribute('aria-label')).toContain('Main 100%');
+    expect(row.querySelector('.snap-total')?.textContent).toContain('750');
+  });
+
+  it.each(['search', 'chart'])(
+    'clears stale counts and chart origin after deleting the last %s-filtered snapshot',
+    (origin) => {
+      const snap = { ...makeSnap('2024-12'), notes: 'Final filtered snapshot' };
+      const onDelSnap = vi.fn(() => render([]));
+      const render = (snaps: Snapshot[]) =>
+        renderLog({ txs: [], snaps, importMeta: null, onEditSnap: vi.fn(), onDelSnap });
+      render([snap]);
+      const search = document.getElementById('snap-search') as HTMLInputElement;
+      if (origin === 'chart') {
+        revealSnapshot(snap.date);
+      } else {
+        search.value = 'Final filtered';
+        search.dispatchEvent(new Event('input'));
+        document.querySelector<HTMLElement>('.snap-row-compact:not(.th)')!.click();
+      }
+      const query = search.value;
+      const status = document.getElementById('snap-filter-status')!;
+      expect(status.hidden).toBe(false);
+      expect(status.textContent).toContain('1 of 1 snapshots');
+      expect(status.textContent?.includes('From chart')).toBe(origin === 'chart');
+
+      document.querySelector<HTMLButtonElement>('.js-del-snap')!.click();
+
+      expect(onDelSnap).toHaveBeenCalledWith(snap.date, expect.any(HTMLButtonElement));
+      expect(search.value).toBe(query);
+      expect(status.hidden).toBe(true);
+      expect(status.innerHTML).toBe('');
+      expect(
+        document.querySelector('#snaps-list .tbl-empty-state[role="note"]')?.textContent,
+      ).toContain('No snapshots yet');
+      expect(document.querySelector('.snap-detail')).toBeNull();
+      expect(document.querySelector('[aria-controls^="snap-detail-"]')).toBeNull();
+      expect(document.getElementById('snap-pagination')!.innerHTML).toBe('');
+
+      render([makeSnap('2025-01')]);
+      expect(search.value).toBe(query);
+      expect(status.textContent).toContain('0 of 1 snapshots');
+      expect(status.textContent).not.toContain('From chart');
+      const empty = document.querySelector('#snaps-list .tbl-empty-state')!;
+      expect(empty.textContent).toContain('No matching snapshots');
+      empty.querySelector<HTMLButtonElement>('.js-clear-snap-filters')!.click();
+      expect(search.value).toBe('');
+      expect(status.hidden).toBe(true);
+      expect(document.querySelector('.snap-row-compact:not(.th)')).not.toBeNull();
+    },
+  );
+
+  it('keeps expanded row and panel IDs stable across rerender without collapsed controls', () => {
+    const state = {
+      txs: [],
+      snaps: [makeSnap('2026-01'), makeSnap('2026-02')],
+      importMeta: null,
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+    };
+    renderLog(state);
+    const rowFor = (date: string) =>
+      document.querySelector<HTMLElement>(`.snap-row-compact[data-date="${date}"]`)!;
+    const expectLinkedPanel = (date: string) => {
+      const row = rowFor(date);
+      expect(row.getAttribute('aria-expanded')).toBe('true');
+      const id = row.getAttribute('aria-controls')!;
+      expect(id).toBeTruthy();
+      const panel = document.getElementById(id)!;
+      expect(panel).not.toBeNull();
+      expect(panel.matches('.snap-detail[role="region"]')).toBe(true);
+      expect(panel.getAttribute('aria-labelledby')).toBe(row.id);
+      expect(panel.previousElementSibling).toBe(row);
+      expect(document.querySelectorAll('.snap-detail')).toHaveLength(1);
+      return { rowId: row.id, panelId: id };
+    };
+
+    expect(rowFor('2026-01').hasAttribute('aria-controls')).toBe(false);
+    rowFor('2026-01').click();
+    const ids = expectLinkedPanel('2026-01');
+    renderLog(state);
+    expect(expectLinkedPanel('2026-01')).toEqual(ids);
+    const search = document.getElementById('snap-search') as HTMLInputElement;
+    search.value = '2026';
+    search.dispatchEvent(new Event('input'));
+    expect(expectLinkedPanel('2026-01')).toEqual(ids);
+
+    rowFor('2026-02').click();
+    expectLinkedPanel('2026-02');
+    expect(rowFor('2026-01').getAttribute('aria-expanded')).toBe('false');
+    expect(rowFor('2026-01').hasAttribute('aria-controls')).toBe(false);
+    expect(document.getElementById(ids.panelId)).toBeNull();
+    rowFor('2026-02').dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+    expect(rowFor('2026-02').hasAttribute('aria-controls')).toBe(false);
+    expect(document.querySelector('.snap-detail')).toBeNull();
+    resetRenderedFilters();
+  });
+});
+
 describe('bulk delete mode', () => {
   beforeEach(() => {
     document.body.innerHTML = BULK_DOM_FIXTURE;
@@ -723,7 +893,6 @@ const LAYOUT_DOM_FIXTURE = `
     <div id="csv-import-panel" hidden></div>
   </div>
   <div id="balance-card" hidden><span id="snap-latest-meta"></span></div>
-  <div id="snap-legend"></div>
   ${DOM_FIXTURE}
 `;
 
@@ -765,7 +934,7 @@ describe('log layout helpers', () => {
     expect(fmtCountBadge(1_250_000)).toBe('1,2M');
   });
 
-  it('fills tab counts, latest snapshot meta and the account legend', () => {
+  it('fills tab counts, latest snapshot meta and the account mix', () => {
     render(
       [makeTx(1n), makeTx(2n)],
       [makeSnap('2026-01-01', 500), { date: '2026-02-01', acct_1: 700, acct_2: 300 }],
@@ -776,10 +945,6 @@ describe('log layout helpers', () => {
       'Transactions (2)',
     );
     expect(document.getElementById('snap-latest-meta')?.textContent).toContain('Latest');
-    const legend = document.getElementById('snap-legend')!;
-    expect(legend.hidden).toBe(false);
-    expect(legend.textContent).toContain('Main');
-    expect(legend.textContent).toContain('Savings');
     expect(
       document.querySelector('.snap-row-compact:not(.th) .snap-segbar')?.getAttribute('aria-label'),
     ).toContain('Main 70%');

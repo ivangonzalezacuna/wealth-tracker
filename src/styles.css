@@ -1047,19 +1047,20 @@ details[open] > summary .card-chevron {
 /* Snapshot history - compact row */
 .snap-row-compact {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto 56px;
   align-items: center;
   gap: 10px;
   padding: 10px 2px;
   border-bottom: 1px solid var(--surface-3);
   cursor: pointer;
   min-height: 40px;
+  min-width: 0;
 }
 .snap-row-compact:last-child {
   border-bottom: none;
 }
 .snap-row-compact.snap-row-selectable {
-  grid-template-columns: 24px auto 1fr auto;
+  grid-template-columns: 24px minmax(0, 1fr) auto 56px;
   gap: 8px;
 }
 .snap-select-cell {
@@ -1088,6 +1089,16 @@ details[open] > summary .card-chevron {
   gap: 5px;
   font-weight: 500;
   font-size: 12px;
+  min-width: 0;
+}
+.snap-month,
+.snap-total {
+  white-space: nowrap;
+}
+.snap-total {
+  font-weight: 500;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
 }
 .snap-note-dot {
   width: 5px;
@@ -1099,15 +1110,19 @@ details[open] > summary .card-chevron {
 .snap-segbar {
   display: flex;
   width: 56px;
-  height: 14px;
-  border-radius: var(--radius-xs);
+  height: 6px;
+  border-radius: var(--radius-pill);
   overflow: hidden;
   flex-shrink: 0;
 }
 .snap-seg {
   flex-grow: 0;
   height: 100%;
-  min-width: 2px;
+  min-width: 0;
+  flex-basis: 0;
+}
+.snap-seg + .snap-seg {
+  box-shadow: -1px 0 0 var(--surface);
 }
 
 /* Transaction ledger */
@@ -1231,6 +1246,32 @@ details[open] > summary .card-chevron {
 /* Month + total heading: only needed in the desktop side panel */
 .snap-detail-head {
   display: none;
+}
+.snap-detail > div {
+  min-width: 0;
+  max-width: 100%;
+}
+.snap-detail .hold-detail-label,
+.snap-detail .hold-detail-value {
+  overflow-wrap: anywhere;
+}
+.snap-detail .snap-detail-note .hold-detail-value {
+  font-weight: 400;
+  white-space: pre-wrap;
+}
+.snap-detail-account .hold-detail-label {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.snap-detail-account .hold-dot {
+  flex-shrink: 0;
+}
+.snap-detail-share {
+  margin-left: 6px;
+  color: var(--ink-3);
+  font-size: 10px;
+  font-weight: 400;
 }
 
 /* ── Log tab layout ─────────────────────────────────────── */
@@ -1436,16 +1477,6 @@ details[open] > summary .card-chevron {
   display: none;
 }
 
-.snap-legend {
-  gap: 4px 12px;
-  margin: 0 0 4px;
-  font-size: 11px;
-}
-.snap-legend .leg-sq {
-  width: 8px;
-  height: 8px;
-}
-
 /* Pagination: range · rows-per-page · prev/next */
 
 .page-range {
@@ -1612,8 +1643,7 @@ details[open] > summary .card-chevron {
     column-gap: 16px;
     align-items: start;
   }
-  #snaps-list > .snap-row-compact,
-  #snaps-list > .empty-state {
+  #snaps-list > .snap-row-compact {
     grid-column: 1;
   }
   /* Details open in the side panel, so the inline expand chevron is redundant */
@@ -1643,6 +1673,14 @@ details[open] > summary .card-chevron {
   #snaps-list > .snap-detail .hold-detail-label,
   #snaps-list > .snap-detail .hold-detail-value {
     display: inline;
+  }
+  #snaps-list > .snap-detail .snap-detail-account .hold-detail-label {
+    display: flex;
+  }
+  #snaps-list > .snap-detail .hold-detail-value,
+  #snaps-list > .snap-detail .snap-detail-total {
+    flex-shrink: 0;
+    white-space: nowrap;
   }
   #snaps-list > .snap-detail > .snap-detail-head {
     padding-bottom: 6px;
@@ -3483,9 +3521,19 @@ summary.section-label {
     flex-wrap: nowrap;
     gap: 6px;
   }
+  #snap-bulk-actions {
+    flex-wrap: wrap;
+  }
 }
 
 @media (max-width: 599px) {
+  .snap-row-compact.snap-row-selectable {
+    grid-template-columns: 18px minmax(0, 1fr) auto 28px;
+    gap: 6px;
+  }
+  .snap-row-selectable .snap-segbar {
+    width: 28px;
+  }
   .hold-grid {
     grid-template-columns:
       minmax(8ch, 1fr) /* ETF */
@@ -5150,6 +5198,15 @@ input[type='color'] {
   width: 100%;
   max-width: 100%;
 }
+.snap-dialog-card .snapd-save-error {
+  margin-top: 0.75rem;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+.snap-pdf-panel .dialog-error {
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
 .snap-pdf-panel p:empty,
 .snap-pdf-panel .dialog-error:empty,
 :is(
@@ -5228,7 +5285,8 @@ textarea.dialog-input {
 }
 .snapd-review-warning {
   margin: 0;
-  color: var(--warn);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
   font-size: 11px;
 }
 .snapd-review-section .section-label {
