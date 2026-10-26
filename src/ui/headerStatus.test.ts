@@ -56,6 +56,18 @@ describe('syncChipView', () => {
     expect(view({ status: 'offline', busy: true })).toMatchObject({ label: 'Offline' });
     expect(view({ status: 'cached' })).toMatchObject({ label: 'Read-only', action: null });
   });
+  it('not connected states offer to connect and sync', () => {
+    expect(view({ status: 'local' })).toMatchObject({
+      label: 'Not connected',
+      tone: 'info',
+      action: 'sync',
+    });
+    expect(view({ status: 'pending' })).toMatchObject({
+      label: 'Not synced',
+      tone: 'warn',
+      action: 'sync',
+    });
+  });
   it('conflict resolves; empty status hides the chip', () => {
     expect(view({ status: 'conflict' })).toMatchObject({ label: 'Sync paused', action: 'resolve' });
     expect(view({ status: '' })).toBeNull();

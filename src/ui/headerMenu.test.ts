@@ -54,6 +54,15 @@ describe('header menu', () => {
     expect(list.hidden).toBe(true);
   });
 
+  it('shows the connected account email when known', () => {
+    const { menu } = setup();
+    const note = document.querySelector<HTMLElement>('.header-menu-note')!;
+    menu.setAccount('me@example.com');
+    expect(note.textContent).toBe('Signed in as me@example.com');
+    menu.setAccount(null);
+    expect(note.textContent).toBe('Signed in with Google');
+  });
+
   it('arrow keys move between items, Escape closes and refocuses the button', () => {
     const { menu, btn, list, choice, key } = setup('light');
     menu.setSignedIn(true);

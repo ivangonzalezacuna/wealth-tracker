@@ -73,7 +73,7 @@ import { accountDialog } from '../ui/accountDialog';
 import { holdingDialog } from '../ui/holdingDialog';
 import { goalDialog } from '../ui/goalDialog';
 import { ACCOUNT_TYPES } from '../model/accountTypes';
-import { isSignedIn } from '../auth/google';
+import { isSignedIn, hasEverGranted } from '../auth/google';
 import { isBackupStale } from '../backup/exportImport';
 import { applyAttention, refreshAttention } from '../ui/attention';
 import { isBusy, setBusy } from '../sync/lock';
@@ -347,7 +347,7 @@ export function renderSettings(): void {
   const el = document.getElementById('settings-content');
   if (!el) return;
 
-  if (!isConfigLoaded() || !isSignedIn()) {
+  if (!isConfigLoaded() || !(isSignedIn() || hasEverGranted())) {
     el.innerHTML = '<p class="note">Sign in and load data to manage settings.</p>';
     return;
   }

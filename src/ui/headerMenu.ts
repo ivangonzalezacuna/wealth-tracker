@@ -56,6 +56,8 @@ export interface HeaderMenu {
   setTheme(pref: UserThemePref): void;
   /** Show or hide the account section (Sign out). */
   setSignedIn(signedIn: boolean): void;
+  /** Show which Google account this browser uses (null when unknown). */
+  setAccount(email: string | null): void;
   close(): void;
 }
 
@@ -176,6 +178,12 @@ export function initHeaderMenu(opts: {
     setTheme,
     setSignedIn(signedIn) {
       account.hidden = !signedIn;
+    },
+    setAccount(email) {
+      const note = account.querySelector<HTMLElement>('.header-menu-note');
+      if (!note) return;
+      note.textContent = email ? `Signed in as ${email}` : 'Signed in with Google';
+      note.title = email ?? '';
     },
     close: () => close(),
   };

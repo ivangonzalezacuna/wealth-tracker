@@ -4,7 +4,18 @@ import { checkStorageQuota } from './storage';
 import { CONFIG } from './config';
 import { getACCTSList } from './constants';
 import { appTemplate } from './template';
-import { signIn as gisSignIn, signOut, isSignedIn, hasEverGranted } from './auth/google';
+import {
+  signIn as gisSignIn,
+  signOut,
+  isSignedIn,
+  hasEverGranted,
+  preloadGis,
+  forgetToken,
+  getRememberedAccount,
+  rememberAccount,
+} from './auth/google';
+import { NeedsAuthError } from './auth/errors';
+import { fetchAccountEmail } from './sync/drive';
 import {
   loadSnapshots,
   saveSnapshots,
@@ -33,6 +44,10 @@ import {
   getPendingSyncConflict,
   overwriteCloudWithLocal,
   replaceLocalWithCloud,
+  hasPendingChanges,
+  onPendingChange,
+  loadPendingState,
+  markLocalChange,
 } from './sync/engine';
 import {
   loadConfig,
@@ -182,17 +197,27 @@ function isSyncBusy(): boolean {
   return isBusy();
 }
 
-type WriteAccessMode = 'signed-in' | 'signed-in-or-granted';
+// Set when the user dismisses the Google popup, so later saves in this page
+// session stay local instead of reopening it every time.
+let _autoConnectDeclined = false;
 
-function ensureWriteAccess(msgId: string, mode: WriteAccessMode = 'signed-in'): boolean {
-  if (mode === 'signed-in') {
-    if (!isSignedIn()) {
-      showMsg(msgId, 'Please sign in first.', false);
-      return false;
-    }
-  } else if (!isSignedIn() && !hasEverGranted()) {
+/** True when this browser may edit: connected now, or set up before (local-first). */
+function canEdit(): boolean {
+  return isSignedIn() || hasEverGranted();
+}
+
+/**
+ * Gate for every write. Edits always land locally; when not connected, the
+ * triggering click is reused to reconnect (popups need a gesture). If that
+ * fails, the edit stays pending until the next sync.
+ */
+async function ensureWriteAccess(msgId: string): Promise<boolean> {
+  if (!canEdit()) {
     showMsg(msgId, 'Please sign in first.', false);
     return false;
+  }
+  if (!isSignedIn() && !_autoConnectDeclined && navigator.onLine && !isSyncBusy()) {
+    await connectAndSync({ auto: true });
   }
   if (isSyncBusy()) {
     showMsg(msgId, 'A sync or save is in progress. Try again in a moment.', false);
@@ -226,12 +251,20 @@ async function runSynchronizedWrite(opts: {
 }
 
 function showSyncAwareSuccess(msgId: string, onlineMessage: string, offlineMessage: string): void {
-  showMsg(msgId, state.offline || !navigator.onLine ? offlineMessage : onlineMessage, true);
+  const offline = state.offline || !navigator.onLine;
+  showMsg(
+    msgId,
+    offline
+      ? offlineMessage
+      : isSignedIn()
+        ? onlineMessage
+        : 'Saved on this device. Select the sync status at the top to sync to Drive.',
+    true,
+  );
 }
 
 async function performWriteAction(opts: {
   msgId: string;
-  access?: WriteAccessMode;
   action: () => Promise<void>;
   button?: HTMLButtonElement;
   busyText?: string;
@@ -240,7 +273,7 @@ async function performWriteAction(opts: {
   offlineMessage?: string;
   errorPrefix?: string;
 }): Promise<boolean> {
-  if (!ensureWriteAccess(opts.msgId, opts.access)) return false;
+  if (!(await ensureWriteAccess(opts.msgId))) return false;
   try {
     await runSynchronizedWrite({
       action: opts.action,
@@ -276,9 +309,9 @@ function handleSyncConflict(err: unknown): boolean {
   return true;
 }
 
-/** True when data is shown from cache but no valid auth token exists. */
+/** True when data is shown from cache and this browser was never set up to edit. */
 function isReadOnly(): boolean {
-  return state.cacheLoaded && !isSignedIn();
+  return state.cacheLoaded && !canEdit();
 }
 
 /**
@@ -571,6 +604,11 @@ function showUpdateBanner(onReload: () => void): void {
 function initOnlineListeners() {
   window.addEventListener('online', async () => {
     state.offline = false;
+    if (!isSignedIn()) {
+      // Reconnecting to Google needs a click; the chip offers it.
+      setSyncStatus(state.cacheLoaded ? 'cached' : '');
+      return;
+    }
     setSyncStatus('ok', 'Back online');
     // Push local DB immediately before any pull/resync path, so reconnect
     // never downloads cloud state on top of local offline writes.
@@ -623,10 +661,18 @@ function initHeader(): void {
     onTheme: (pref) => setUserTheme(pref),
     onSignOut: () => signOut(),
   });
-  // Keep "Synced · x min ago" current.
+  // Keep "Synced · x min ago" current, and notice when the ~1h token expires.
   window.setInterval(() => {
-    if (_syncStatus === 'ok') renderHeaderStatus();
+    if (_syncStatus === 'ok' || hasEverGranted()) renderHeaderStatus();
   }, 60_000);
+  onPendingChange(() => renderHeaderStatus());
+}
+
+/** Status for a browser that was set up before but has no token right now. */
+function disconnectedStatus(status: SyncStatus): SyncStatus {
+  if (isSignedIn() || !hasEverGranted() || isSyncBusy()) return status;
+  if (status === 'offline' || status === 'loading' || status === 'syncing') return status;
+  return hasPendingChanges() ? 'pending' : 'local';
 }
 
 function renderHeaderStatus(): void {
@@ -635,7 +681,7 @@ function renderHeaderStatus(): void {
   renderSyncChip(
     el,
     syncChipView({
-      status: getPendingSyncConflict() ? 'conflict' : _syncStatus,
+      status: getPendingSyncConflict() ? 'conflict' : disconnectedStatus(_syncStatus),
       msg: _syncStatusMsg,
       busy: isSyncBusy(),
       lastOkAt: _lastSyncOkAt,
@@ -661,34 +707,61 @@ function autoResyncIfNeeded(): void {
 
 // ── Auth ─────────────────────────────────────────────────
 function initAuth() {
-  document.getElementById('btn-signin')?.addEventListener('click', onSignInClick);
-  document.getElementById('btn-signin-global')?.addEventListener('click', onSignInClick);
+  document.getElementById('btn-signin')?.addEventListener('click', () => void connectAndSync());
+  document
+    .getElementById('btn-signin-global')
+    ?.addEventListener('click', () => void connectAndSync());
   document.getElementById('sync-status')?.addEventListener('click', () => {
     if (getPendingSyncConflict()) {
       void openSyncConflictResolver();
       return;
     }
     const action = document.getElementById('sync-status')?.dataset.action;
-    if (action === 'sync' && !isSyncBusy()) void syncInBackground({ userInitiated: true });
+    if (action !== 'sync' || isSyncBusy()) return;
+    if (isSignedIn()) void syncInBackground({ userInitiated: true });
+    else void connectAndSync();
   });
 
-  // Boot: render from cache instantly, then check for a stored token.
-  // If a valid token is already in memory (restored from localStorage at module
-  // load), proceed transparently. If not, wait for the user to click Sign in -
-  // never fire a GIS network call at boot without a prior explicit auth.
-  bootFromCache().then(() => {
+  // Boot: render from cache instantly, never open Google UI (popups need a
+  // click). A browser set up before stays editable on its local database.
+  bootFromCache().then(async () => {
     if (isSignedIn()) {
       updateAuthUI(true);
       syncInBackground();
+    } else if (hasEverGranted()) {
+      preloadGis();
+      await openLocalData();
+      updateAuthUI(false);
     } else {
       updateAuthUI(false);
     }
   });
 }
 
-const SIGNIN_TIMEOUT_MS = 90_000;
+/** Load the local database without contacting Drive (not connected right now). */
+async function openLocalData(): Promise<void> {
+  try {
+    await refreshStateFromLocalDb();
+    registerConfigListener();
+    await loadPendingState();
+  } catch (err) {
+    console.error('[boot] local database load failed:', err);
+  }
+  renderAll();
+}
 
-async function onSignInClick() {
+const SIGNIN_TIMEOUT_MS = 90_000;
+const SIGNIN_CANCELLED = new Set(['popup_closed', 'popup_failed_to_open']);
+let _connecting = false;
+
+/**
+ * Get a Google token from a click, check the account, then sync. With
+ * `auto` (a save triggered it) a dismissed popup keeps later saves local for
+ * the rest of the page session instead of reopening it.
+ */
+async function connectAndSync(opts: { auto?: boolean } = {}): Promise<boolean> {
+  if (_connecting) return false;
+  _connecting = true;
   let cancelled = false;
   showSigninOverlay(() => {
     cancelled = true;
@@ -696,34 +769,90 @@ async function onSignInClick() {
   try {
     setAuthStatus('Signing in…', false, true);
     await withTimeout(gisSignIn(), SIGNIN_TIMEOUT_MS);
-
     hideSigninOverlay();
+    setAuthStatus('');
+    if (!(await verifyAccount())) {
+      _autoConnectDeclined = true;
+      updateAuthUI(false);
+      return false;
+    }
+    _autoConnectDeclined = false;
     updateAuthUI(true);
-    await loadAllData();
+    if (state.cacheLoaded) await syncInBackground({ userInitiated: !opts.auto });
+    else await loadAllData();
+    return true;
   } catch (err) {
     hideSigninOverlay();
-    if (cancelled) return; // user already dismissed the overlay; don't also show an error
-    if ((err as Error).message === 'popup_closed') {
+    const msg = (err as Error).message;
+    if (opts.auto || cancelled || SIGNIN_CANCELLED.has(msg)) _autoConnectDeclined = true;
+    if (cancelled) {
+      setAuthStatus('');
+    } else if (msg === 'popup_closed') {
       setAuthStatus('Sign-in cancelled', true);
-    } else if ((err as Error).message === 'signin_timeout') {
+    } else if (msg === 'popup_failed_to_open') {
+      setAuthStatus('The Google sign-in window was blocked. Please try again.', true);
+    } else if (msg === 'signin_timeout') {
       setAuthStatus('Sign-in timed out, please try again', true);
     } else {
-      setAuthStatus('Sign-in failed: ' + (err as Error).message, true);
+      setAuthStatus('Sign-in failed: ' + msg, true);
+    }
+    if (hasEverGranted() && !cancelled && msg !== 'popup_closed') {
+      // The auth status line is hidden once data is shown; use a toast instead.
+      notify(
+        msg === 'popup_failed_to_open'
+          ? 'The Google sign-in window was blocked. Select the sync status to try again.'
+          : `Could not connect to Google: ${shortSyncError(msg)}`,
+        { variant: 'error', source: 'sync' },
+      );
+    }
+    renderHeaderStatus();
+    return false;
+  } finally {
+    _connecting = false;
+  }
+}
+
+/**
+ * Warn when the token belongs to a different Google account than the one
+ * this browser used before: each account has its own separate Drive data.
+ */
+async function verifyAccount(): Promise<boolean> {
+  const email = await fetchAccountEmail();
+  if (!email) return true;
+  const known = getRememberedAccount();
+  if (known && known.toLowerCase() !== email.toLowerCase()) {
+    const ok = await confirmDialog({
+      title: 'Different Google account',
+      body:
+        `This device was last synced with ${known}, but you signed in as ${email}. ` +
+        `Each Google account keeps its own separate data in Drive. Continue with ${email}?`,
+      confirmLabel: `Use ${email}`,
+      danger: true,
+    });
+    if (!ok) {
+      forgetToken();
+      return false;
     }
   }
+  rememberAccount(email);
+  _headerMenu?.setAccount(email);
+  return true;
 }
 
 function updateAuthUI(signedIn: boolean) {
   const prompt = document.getElementById('auth-prompt');
   const content = document.getElementById('log-content');
   const signinGlobal = document.getElementById('btn-signin-global');
-  _headerMenu?.setSignedIn(signedIn);
+  const setUp = signedIn || hasEverGranted();
+  _headerMenu?.setSignedIn(setUp);
+  _headerMenu?.setAccount(getRememberedAccount());
 
-  if (signedIn) {
+  if (setUp) {
     prompt?.style.setProperty('display', 'none');
     content?.style.setProperty('display', 'block');
     signinGlobal?.style.setProperty('display', 'none');
     // The sync chip and the menu's account section say it; no extra text needed.
+    // When not connected, the chip offers to connect.
     setAuthStatus('');
   } else {
     if (state.cacheLoaded) {
@@ -741,6 +870,7 @@ function updateAuthUI(signedIn: boolean) {
   }
   applyReadOnlyMode();
   renderSetupBanner();
+  renderHeaderStatus();
 }
 
 function setAuthStatus(msg: string, isErr = false, isBusy = false) {
@@ -823,21 +953,7 @@ async function syncInBackground({ userInitiated = false } = {}) {
     // Compute aggregates (with caching)
     state.pd = await computeAggregatesWithCache(txs);
 
-    // Setup config change listener
-    onConfigChange(async (changed) => {
-      if (state.txs.length) {
-        state.pd = await computeAggregatesWithCache(state.txs);
-      }
-      // Keep IndexedDB cache authoritative after every config write,
-      // so bootFromCache() never re-hydrates stale data on next refresh.
-      const cfgCached = await setCachedConfig({
-        accounts: getAccounts(),
-        holdings: getHoldings(),
-        settings: getSettings(),
-      });
-      if (!cfgCached) showCacheWriteWarning();
-      renderAll(changed);
-    });
+    registerConfigListener();
 
     // Persist to IDB cache for next boot
     const [configCached, snapsCached, txsCached] = await Promise.all([
@@ -852,10 +968,15 @@ async function syncInBackground({ userInitiated = false } = {}) {
     ]);
     if (!configCached || !snapsCached || !txsCached) showCacheWriteWarning();
 
+    await pushPendingChanges();
     setSyncStatus('ok');
     await backupCollapseToSheet();
   } catch (err) {
-    if (!handleSyncConflict(err)) {
+    if (err instanceof NeedsAuthError) {
+      // The token expired in the meantime: back to "not connected".
+      updateAuthUI(false);
+      setSyncStatus('');
+    } else if (!handleSyncConflict(err)) {
       setSyncStatus('error', (err as Error).message);
       // A tooltip is invisible on touch: tell the person who asked for the sync why it failed.
       if (userInitiated) {
@@ -919,23 +1040,15 @@ async function loadAllData() {
     await pullFromCloud();
 
     await refreshStateFromLocalDb();
-
-    onConfigChange(async (changed) => {
-      if (state.txs.length) {
-        state.pd = await computeAggregatesWithCache(state.txs);
-      }
-      const cached = await setCachedConfig({
-        accounts: getAccounts(),
-        holdings: getHoldings(),
-        settings: getSettings(),
-      });
-      if (!cached) showCacheWriteWarning();
-      renderAll(changed);
-    });
+    registerConfigListener();
+    await pushPendingChanges();
     setSyncStatus('ok');
     await backupCollapseToSheet();
   } catch (err) {
-    if (!handleSyncConflict(err)) {
+    if (err instanceof NeedsAuthError) {
+      updateAuthUI(false);
+      setSyncStatus('');
+    } else if (!handleSyncConflict(err)) {
       setSyncStatus('error', (err as Error).message);
     }
   } finally {
@@ -946,12 +1059,43 @@ async function loadAllData() {
   }
 }
 
+/** Keep derived data and the IndexedDB cache current after every config write. */
+function registerConfigListener(): void {
+  onConfigChange(async (changed) => {
+    if (state.txs.length) {
+      state.pd = await computeAggregatesWithCache(state.txs);
+    }
+    // Keep IndexedDB cache authoritative after every config write,
+    // so bootFromCache() never re-hydrates stale data on next refresh.
+    const cached = await setCachedConfig({
+      accounts: getAccounts(),
+      holdings: getHoldings(),
+      settings: getSettings(),
+    });
+    if (!cached) showCacheWriteWarning();
+    renderAll(changed);
+  });
+}
+
+/** Upload changes made while not connected (after the pull found no newer cloud copy). */
+async function pushPendingChanges(): Promise<void> {
+  if (!(await loadPendingState())) return;
+  cancelPendingUpload();
+  // Returns false only if another push is in flight or Drive failed; retry shortly.
+  if (!(await pushToCloud())) scheduleUpload();
+}
+
 // ── Force full resync ────────────────────────────────────
 /**
  * Clear the cache and do a clean full reload from local DB + Drive.
  * Exposed for the Settings UI "Force full resync" button.
  */
 export async function forceFullResync() {
+  // Needs Drive: connect first (this runs from a button click) so a missing
+  // token can't leave the app with its cache cleared and nothing loaded.
+  if (!isSignedIn()) {
+    if (!(await connectAndSync())) return;
+  }
   await clearCache();
   state.snaps = [];
   state.txs = [];
@@ -1079,7 +1223,8 @@ window.__hasSyncConflict = () => !!getPendingSyncConflict();
 
 // ── Backup restore ────────────────────────────────────────
 export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done'> {
-  if (!isSignedIn()) throw new Error('Sign in first.');
+  if (!isSignedIn())
+    throw new Error('Connect to Google first: select the sync status at the top of the page.');
   // Note: no isSyncBusy() check here - the caller (withCardGuard) already
   // holds the busy lock, so checking it would always self-deadlock.
 
@@ -1321,7 +1466,7 @@ function renderSetupBanner(): void {
   el.style.display = 'block';
 
   document.getElementById('setup-cta')?.addEventListener('click', () => {
-    if (step === 'signin') onSignInClick();
+    if (step === 'signin') void connectAndSync();
     else if (step === 'accounts') {
       showSection('settings', document.querySelector('.nav button[data-section="settings"]'));
     } else if (step === 'first-update') {
@@ -1382,7 +1527,7 @@ async function saveSnapshot(snap: Snapshot): Promise<boolean> {
  * Both paths run under the unified sync lock.
  */
 async function saveMonthlyUpdate(editDate?: string) {
-  if (!ensureWriteAccess('snap-msg')) return;
+  if (!(await ensureWriteAccess('snap-msg'))) return;
 
   const accounts = getAccounts();
   const existing = editDate ? state.snaps.find((s) => s.date === editDate) : undefined;
@@ -1401,8 +1546,8 @@ async function saveMonthlyUpdate(editDate?: string) {
     importMapping: (type) =>
       getSnapshotMapping(getSettings()[SNAPSHOT_MAPPINGS_KEY], type, getAccounts()),
     onSaveImportMapping: async (type, mapping) => {
-      if (!ensureWriteAccess('snap-msg'))
-        throw new Error('Sign in and wait for the current sync/save before saving the mapping.');
+      if (!(await ensureWriteAccess('snap-msg')))
+        throw new Error('Wait for the current sync/save to finish before saving the mapping.');
       await runSynchronizedWrite({ action: () => saveSnapshotMapping(type, mapping) });
     },
     onSave: saveSnapshot,
@@ -1426,7 +1571,7 @@ function editSnap(date: string) {
 }
 
 async function delSnap(date: string, btn?: HTMLButtonElement) {
-  if (!ensureWriteAccess('snap-msg', 'signed-in-or-granted')) return;
+  if (!(await ensureWriteAccess('snap-msg'))) return;
   const ok = await confirmDialog({
     title: `Delete snapshot for ${fmtMon(date)}?`,
     body: 'This cannot be undone.',
@@ -1436,7 +1581,6 @@ async function delSnap(date: string, btn?: HTMLButtonElement) {
   if (!ok) return;
   await performWriteAction({
     msgId: 'snap-msg',
-    access: 'signed-in-or-granted',
     button: btn,
     busyText: 'Removing...',
     keepDisabledOnSuccess: true,
@@ -1446,7 +1590,7 @@ async function delSnap(date: string, btn?: HTMLButtonElement) {
       state.snaps = state.snaps.filter((s) => s.date !== date);
       try {
         await saveSnapshots(state.snaps);
-        if (isSignedIn()) scheduleUpload();
+        scheduleUpload();
         const snapCachedDel = await setCachedSnapshots(state.snaps);
         if (!snapCachedDel) showCacheWriteWarning();
         renderAll();
@@ -1461,7 +1605,7 @@ async function delSnap(date: string, btn?: HTMLButtonElement) {
 }
 
 async function delSnapsBulk(dates: string[], btn?: HTMLButtonElement) {
-  if (!ensureWriteAccess('snap-msg', 'signed-in-or-granted')) return;
+  if (!(await ensureWriteAccess('snap-msg'))) return;
   const existingDates = new Set(state.snaps.map((s) => s.date));
   const selectedDates = [...new Set(dates)].sort().filter((date) => existingDates.has(date));
   if (!selectedDates.length) return;
@@ -1478,7 +1622,6 @@ async function delSnapsBulk(dates: string[], btn?: HTMLButtonElement) {
   if (!ok) return;
   await performWriteAction({
     msgId: 'snap-msg',
-    access: 'signed-in-or-granted',
     button: btn,
     busyText: 'Removing...',
     keepDisabledOnSuccess: true,
@@ -1490,7 +1633,7 @@ async function delSnapsBulk(dates: string[], btn?: HTMLButtonElement) {
       try {
         await saveSnapshots(state.snaps);
         const snapCachedDel = await setCachedSnapshots(state.snaps);
-        if (isSignedIn()) scheduleUpload();
+        scheduleUpload();
         if (!snapCachedDel) showCacheWriteWarning();
         renderAll();
       } catch (err) {
@@ -1527,7 +1670,7 @@ async function persistTransactionsState(nextPd: PortfolioData | null): Promise<v
 }
 
 async function addManualTransaction(): Promise<void> {
-  if (!ensureWriteAccess('tx-msg', 'signed-in-or-granted')) return;
+  if (!(await ensureWriteAccess('tx-msg'))) return;
   try {
     const suggestions = buildAppSecuritySuggestions(state.txs);
     const draft = await transactionDialog({
@@ -1542,10 +1685,9 @@ async function addManualTransaction(): Promise<void> {
     const nextPd = computePdOrThrow(candidate);
     await performWriteAction({
       msgId: 'tx-msg',
-      access: 'signed-in-or-granted',
       action: async () => {
         await insertTransaction(draft);
-        if (isSignedIn()) scheduleUpload();
+        scheduleUpload();
         await persistTransactionsState(nextPd);
         renderAll();
       },
@@ -1558,7 +1700,7 @@ async function addManualTransaction(): Promise<void> {
 }
 
 async function editManualTransaction(rowId: bigint): Promise<void> {
-  if (!ensureWriteAccess('tx-msg', 'signed-in-or-granted')) return;
+  if (!(await ensureWriteAccess('tx-msg'))) return;
   const existing = state.txs.find((t) => t.rowId === rowId);
   if (!existing) {
     showMsg('tx-msg', 'Transaction not found.', false);
@@ -1580,10 +1722,9 @@ async function editManualTransaction(rowId: bigint): Promise<void> {
     const nextPd = computePdOrThrow(candidate);
     await performWriteAction({
       msgId: 'tx-msg',
-      access: 'signed-in-or-granted',
       action: async () => {
         await updateTransaction(rowId, draft);
-        if (isSignedIn()) scheduleUpload();
+        scheduleUpload();
         await persistTransactionsState(nextPd);
         renderAll();
       },
@@ -1596,7 +1737,7 @@ async function editManualTransaction(rowId: bigint): Promise<void> {
 }
 
 async function delManualTransaction(rowId: bigint, btn?: HTMLButtonElement): Promise<void> {
-  if (!ensureWriteAccess('tx-msg', 'signed-in-or-granted')) return;
+  if (!(await ensureWriteAccess('tx-msg'))) return;
   const tx = state.txs.find((t) => t.rowId === rowId);
   if (!tx) {
     showMsg('tx-msg', 'Transaction not found.', false);
@@ -1614,14 +1755,13 @@ async function delManualTransaction(rowId: bigint, btn?: HTMLButtonElement): Pro
   const nextPd = computePdOrThrow(candidate);
   await performWriteAction({
     msgId: 'tx-msg',
-    access: 'signed-in-or-granted',
     button: btn,
     busyText: 'Deleting...',
     keepDisabledOnSuccess: true,
     errorPrefix: 'Delete failed: ',
     action: async () => {
       await deleteTransaction(rowId);
-      if (isSignedIn()) scheduleUpload();
+      scheduleUpload();
       await persistTransactionsState(nextPd);
       renderAll();
     },
@@ -1631,7 +1771,7 @@ async function delManualTransaction(rowId: bigint, btn?: HTMLButtonElement): Pro
 }
 
 async function delTransactionsBulk(rowIds: bigint[], btn?: HTMLButtonElement): Promise<void> {
-  if (!ensureWriteAccess('tx-msg', 'signed-in-or-granted')) return;
+  if (!(await ensureWriteAccess('tx-msg'))) return;
   const selectedKeys = new Set(rowIds.map((id) => id.toString()));
   const selectedTxs = state.txs.filter((tx) => tx.rowId && selectedKeys.has(tx.rowId.toString()));
   const uniqueIds = [
@@ -1656,7 +1796,6 @@ async function delTransactionsBulk(rowIds: bigint[], btn?: HTMLButtonElement): P
   if (!ok) return;
   await performWriteAction({
     msgId: 'tx-msg',
-    access: 'signed-in-or-granted',
     button: btn,
     busyText: 'Deleting...',
     keepDisabledOnSuccess: true,
@@ -1664,7 +1803,7 @@ async function delTransactionsBulk(rowIds: bigint[], btn?: HTMLButtonElement): P
     action: async () => {
       await deleteTransactions(uniqueIds);
       await persistTransactionsState(nextPd);
-      if (isSignedIn()) scheduleUpload();
+      scheduleUpload();
       renderAll();
     },
     onlineMessage: `${uniqueIds.length} transactions deleted.`,
@@ -1736,7 +1875,7 @@ function initCSVDrop() {
 }
 
 async function handleCSVFile(file: File) {
-  if (!isSignedIn()) {
+  if (!canEdit()) {
     showMsg('import-msg', 'Please sign in before importing.', false);
     return;
   }
@@ -1786,10 +1925,7 @@ async function handleCSVFile(file: File) {
 
 /** Store the reviewed rows. Validates the merged ledger before writing anything. */
 async function confirmCsvImport(result: CsvImportResult): Promise<boolean> {
-  if (isSyncBusy()) {
-    showMsg('import-msg', 'A sync or save is in progress. Try again in a moment.', false);
-    return false;
-  }
+  if (!(await ensureWriteAccess('import-msg'))) return false;
   const newTxs = selectNewTransactions(state.txs, result.rows);
   if (!newTxs.length) {
     showMsg('import-msg', 'Nothing new to import.', false);
@@ -1825,11 +1961,16 @@ async function confirmCsvImport(result: CsvImportResult): Promise<boolean> {
     showMsg(
       'import-msg',
       parts.join(' \u00B7 ') +
-        (offline ? '. Saved locally; will sync to Drive when back online.' : '.'),
+        (offline
+          ? '. Saved locally; will sync to Drive when back online.'
+          : isSignedIn()
+            ? '.'
+            : '. Saved on this device; select the sync status at the top to sync to Drive.'),
       true,
     );
-    // Push right away so a reload doesn't pull the older cloud DB over the new rows.
-    // Offline, the push fails gracefully and the rows go up on the next sync.
+    // Push now so a reload can't pull the older cloud DB over the new rows;
+    // if that's not possible they go up on the next sync.
+    markLocalChange();
     try {
       await pushToCloud();
     } catch (err) {
@@ -1994,7 +2135,7 @@ setAttentionSource(() => ({
   maxDrift: getMaxDrift(state.pd, state.snaps),
   driftThresholdPct: getAlertSettings().driftThresholdPct,
   backup:
-    isSignedIn() && isConfigLoaded()
+    canEdit() && isConfigLoaded()
       ? {
           lastBackupAt: getSettings()['last_backup_at'] || undefined,
           hasData: state.snaps.length > 0,

@@ -79,6 +79,7 @@ vi.mock('../ui/confirmDialog', () => ({
 
 vi.mock('../auth/google', () => ({
   isSignedIn: () => true,
+  hasEverGranted: () => true,
 }));
 
 vi.mock('../backup/exportImport', () => ({

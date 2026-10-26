@@ -2,7 +2,16 @@
  *  when it makes sense, acts on it (sync now, retry, resolve a conflict). */
 
 export type SyncStatus =
-  '' | 'loading' | 'syncing' | 'cached' | 'ok' | 'offline' | 'conflict' | 'error';
+  | ''
+  | 'loading'
+  | 'syncing'
+  | 'cached'
+  | 'local'
+  | 'pending'
+  | 'ok'
+  | 'offline'
+  | 'conflict'
+  | 'error';
 
 export type SyncChipAction = 'sync' | 'resolve' | null;
 
@@ -124,6 +133,24 @@ export function syncChipView(input: SyncChipInput): SyncChipView | null {
         label: 'Read-only',
         title: 'Showing data saved on this device. Sign in to sync and edit.',
         action: null,
+        busy: false,
+      };
+    case 'local':
+      return {
+        tone: 'info',
+        icon: 'cloud-off',
+        label: 'Not connected',
+        title: 'Editing on this device. Select to connect to Google Drive and sync.',
+        action: 'sync',
+        busy: false,
+      };
+    case 'pending':
+      return {
+        tone: 'warn',
+        icon: 'cloud-off',
+        label: 'Not synced',
+        title: 'Changes saved on this device are not in Google Drive yet. Select to sync.',
+        action: 'sync',
         busy: false,
       };
     case 'conflict':
