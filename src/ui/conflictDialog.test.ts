@@ -31,6 +31,15 @@ describe('conflictDialog', () => {
     expect(await p).toBe('keep-local');
   });
 
+  it('blocks keep-local when this device has no data', async () => {
+    const p = conflictDialog({ localIsEmpty: true });
+    const keepLocal = document.querySelector('.js-conflict-keep-local') as HTMLButtonElement;
+    expect(keepLocal.disabled).toBe(true);
+    expect(document.querySelector('.js-conflict-empty-note')).not.toBeNull();
+    (document.querySelector('.js-conflict-keep-cloud') as HTMLElement).click();
+    expect(await p).toBe('keep-cloud');
+  });
+
   it('returns keep-cloud when the replace action is clicked', async () => {
     const p = conflictDialog();
     (document.querySelector('.js-conflict-keep-cloud') as HTMLElement).click();

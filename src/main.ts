@@ -726,7 +726,8 @@ function autoResyncIfNeeded(): void {
     shouldAutoResync({
       signedIn: isSignedIn(),
       online: navigator.onLine,
-      syncing: isSyncBusy(),
+      // Closing the Google popup focuses the page: don't race connectAndSync.
+      syncing: isSyncBusy() || _connecting,
       lastSyncAt: _lastSyncAt,
       now: Date.now(),
       minIntervalMs: AUTO_RESYNC_MIN_INTERVAL_MS,
@@ -1227,7 +1228,8 @@ async function openSyncConflictResolver(): Promise<void> {
   }
 
   while (getPendingSyncConflict()) {
-    const choice = await conflictDialog();
+    const [snaps, txs] = await Promise.all([loadSnapshots(), loadTransactions()]);
+    const choice = await conflictDialog({ localIsEmpty: !snaps.length && !txs.length });
     if (choice === 'cancel') return;
     if (choice === 'backup') {
       await exportBackup();
@@ -1317,11 +1319,10 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
     }
 
     if (importMeta.last_import) await saveImportMeta(importMeta.last_import);
-    // Reset sync metadata before scheduling the upload so the engine treats
-    // the post-restore push as a clean first sync rather than a conflicting
-    // local change against stale pre-restore Drive version/timestamps.
+    // The restored data replaces Drive by design, so overwrite it explicitly.
     await clearSyncMetadata();
-    scheduleUpload();
+    markLocalChange();
+    if (!(await overwriteCloudWithLocal())) scheduleUpload();
 
     state.snaps = snapshots;
     state.txs = transactions;

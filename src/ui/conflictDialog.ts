@@ -6,7 +6,12 @@ const _dialog = createDialogController<ConflictResolutionChoice>('cancel', {
   overlaySelector: '.conflict-overlay',
 });
 
-export function conflictDialog(): Promise<ConflictResolutionChoice> {
+export function conflictDialog(
+  opts: { localIsEmpty?: boolean } = {},
+): Promise<ConflictResolutionChoice> {
+  const keepLocalNote = opts.localIsEmpty
+    ? '<div class="conflict-note js-conflict-empty-note">This device has no snapshots or transactions, so it can\u2019t replace the Drive copy.</div>'
+    : '';
   return new Promise<ConflictResolutionChoice>((resolve) => {
     _dialog.begin(resolve);
 
@@ -22,9 +27,9 @@ export function conflictDialog(): Promise<ConflictResolutionChoice> {
           <button class="btn btn-sm btn-ghost js-conflict-cancel">Cancel</button>
         </div>
         <div class="conflict-actions conflict-actions-destructive">
-          <button class="btn btn-sm btn-danger js-conflict-keep-local">Keep local and overwrite Drive</button>
+          <button class="btn btn-sm btn-danger js-conflict-keep-local"${opts.localIsEmpty ? ' disabled' : ''}>Keep local and overwrite Drive</button>
           <button class="btn btn-sm btn-danger js-conflict-keep-cloud">Keep cloud and replace local</button>
-        </div>
+        </div>${keepLocalNote}
       </div>`;
 
     (overlay.querySelector('.js-conflict-backup') as HTMLElement).addEventListener('click', () =>

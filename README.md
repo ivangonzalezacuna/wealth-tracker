@@ -107,6 +107,8 @@ There is no backend. Your data never leaves your browser except to your own Goog
 
 All writes (snapshots, CSV imports, settings changes, backup restores) go to local SQLite immediately, regardless of connectivity. On startup, the app checks whether the Google Drive copy is newer than the local one; if it is, the cloud copy is downloaded and replaces the local database (for example, when picking up changes made on another device). Drive sync is otherwise opportunistic: changes are pushed automatically after a short debounce when online and connected, and any writes made offline or while not connected to Google are pushed on the next sync.
 
+A browser that has never synced (new device, or site data cleared) always loads the Drive copy first and only adds the snapshots and transactions it saved itself, so it can never overwrite Drive with an empty or default database. If both copies changed, sync pauses and asks which one to keep; keeping this device's copy is blocked when it has no snapshots or transactions.
+
 ## Stack
 
 - **Vite** - build tool
@@ -477,7 +479,7 @@ There is no backend and no server-side secrets.
 Settings > **Backup & restore** provides:
 
 - **Export backup** downloads a single JSON file with everything (accounts, holdings, settings, snapshots, transactions, import metadata)
-- **Restore from file** reads that JSON back and replaces the local database entirely (asks for confirmation)
+- **Restore from file** reads that JSON back and replaces the local database entirely (asks for confirmation), then overwrites the Drive copy with it
 - If it has been 30+ days since your last export, the settings card nudges you to run a fresh one
 
 The JSON backup is human-readable and can be processed by any tool. The SQLite database can also be exported directly for raw SQL access.

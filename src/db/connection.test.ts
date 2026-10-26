@@ -261,6 +261,19 @@ describe('db importDb local-preservation merge', () => {
     expect(txs.some((t) => t.id === 'tx-local')).toBe(true);
   });
 
+  it('keeps local-only rows but not local config when preserveLocalConfig is false', async () => {
+    await setSetting('costBasisMethod', 'fifo');
+    await upsertSnapshot({ date: '2026-01', 'acct-main': 1000 });
+    const cloudData = exportDb();
+
+    await setSetting('costBasisMethod', 'hifo');
+    await upsertSnapshot({ date: '2026-02', 'acct-main': 1100 });
+    await importDb(cloudData!, { preserveLocalConfig: false });
+
+    expect((await loadSettings()).costBasisMethod).toBe('fifo');
+    expect((await loadSnapshots()).map((s) => s.date)).toEqual(['2026-01', '2026-02']);
+  });
+
   it('persists applied schema migrations so later loads see the upgraded schema', async () => {
     const db = await getDb();
     db.run("UPDATE meta SET value = '14' WHERE key = 'schema_version'");

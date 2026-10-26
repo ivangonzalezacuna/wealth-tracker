@@ -188,7 +188,8 @@ export function exportDb(): Uint8Array | null {
  * - transactions: local-only rows are reinserted
  * - accounts/holdings/settings: local rows upsert over cloud rows by key
  * - snapshots: local-only rows are inserted when date is absent in cloud
- * Callers can disable this preservation when they need a true full replacement.
+ * `preserveLocalConfig: false` skips the accounts/holdings/settings merge;
+ * `preserveLocalTransactions: false` skips every merge (true full replacement).
  *
  * The previous database is kept open until every step succeeds so that a
  * failure in mergeLocalTransactions or persistDb never leaves _db pointing
@@ -197,11 +198,12 @@ export function exportDb(): Uint8Array | null {
  */
 export async function importDb(
   data: Uint8Array,
-  opts: { preserveLocalTransactions?: boolean } = {},
+  opts: { preserveLocalTransactions?: boolean; preserveLocalConfig?: boolean } = {},
 ): Promise<void> {
   const SQL = await getSqlJs();
   const previousDb = _db;
   const preserveLocalTransactions = opts.preserveLocalTransactions !== false;
+  const preserveLocalConfig = preserveLocalTransactions && opts.preserveLocalConfig !== false;
 
   // Snapshot all local rows before replacing so we can merge them back into
   // the newly imported cloud DB, preserving any offline edits.
@@ -212,9 +214,11 @@ export async function importDb(
   let localSettingRows: unknown[][] = [];
   if (preserveLocalTransactions && previousDb) {
     localTxRows = getLocalTransactionRows(previousDb);
+    localSnapshotRows = getLocalSnapshotRows(previousDb);
+  }
+  if (preserveLocalConfig && previousDb) {
     localAccountRows = getLocalAccountRows(previousDb);
     localHoldingRows = getLocalHoldingRows(previousDb);
-    localSnapshotRows = getLocalSnapshotRows(previousDb);
     localSettingRows = getLocalSettingRows(previousDb);
   }
 
