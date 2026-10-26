@@ -5,6 +5,7 @@ import { currentMonth, fmtEur2, fmtMon, safeColor, esc } from '../utils';
 import type { Account, Holding, PortfolioData, Snapshot } from '../types';
 import { mountSnapshotImport } from './snapshotImportPanel';
 import { validateStatementMonth } from '../import/snapshotDraft';
+import { ROW_DISCLOSURE_ICON } from '../views/icons';
 import type { SnapshotMapping } from '../import/snapshotMapping';
 import {
   trackSnapshotFieldStatus,
@@ -26,6 +27,7 @@ import {
 let _activeOpts: SnapshotDialogOptions | null = null;
 let _reviewed: Snapshot | null = null;
 let _busy = false;
+let _saving = false;
 let _disposeImport: (() => void) | undefined;
 const _representedEtfKeys = new WeakMap<HTMLElement, Set<string>>();
 const _fieldStatuses = new WeakMap<HTMLElement, () => Map<string, SnapshotFieldStatus>>();
@@ -37,6 +39,7 @@ const _dialog = createDialogController<Snapshot | null>(null, {
     _activeOpts = null;
     _reviewed = null;
     _busy = false;
+    _saving = false;
   },
 });
 
@@ -53,6 +56,8 @@ export interface SnapshotDialogOptions {
   importMapping?: (type: string) => SnapshotMapping | undefined;
   onSaveImportMapping?: (type: string, mapping: SnapshotMapping) => Promise<void>;
   onReview?: (draft: Snapshot, currencies: Record<string, string>) => Promise<SnapshotReviewResult>;
+  /** Return false when persistence was rejected; the review stays open for retry. */
+  onSave?: (snapshot: Snapshot) => Promise<boolean>;
   onFxPrefetchMonth?: (yearMonth: string) => Promise<SnapshotDialogFxPrefetchResult>;
 }
 
@@ -117,6 +122,7 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
           <div class="dialog-error" id="snapd-review-err" role="alert"></div>
         </div>
         <div class="snapd-review" hidden tabindex="-1"></div>
+        <div class="dialog-error snapd-save-error" id="snapd-save-err" role="alert" tabindex="-1" hidden></div>
         <div class="dialog-actions">
           <button class="btn btn-sm btn-ghost js-snapd-cancel">Cancel</button>
           <button class="btn btn-sm btn-ghost js-snapd-back" hidden>Back to edit</button>
@@ -147,7 +153,9 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
     });
     attachInfoTips(overlay);
     overlay.querySelector('.js-snapd-back')?.addEventListener('click', () => {
+      if (_saving) return;
       _reviewed = null;
+      (overlay.querySelector('#snapd-save-err') as HTMLElement).hidden = true;
       (overlay.querySelector('.dialog-fields') as HTMLElement).hidden = false;
       (overlay.querySelector('.dialog-header') as HTMLElement).hidden = false;
       (overlay.querySelector('.snapd-review') as HTMLElement).hidden = true;
@@ -389,6 +397,7 @@ function _renderAccountFields(
               data-account-key="${_esc(acct.key)}"
               data-currency="${_esc(acct.currency)}"
               class="form-input dialog-input"
+              aria-describedby="snapd-acc-${_esc(acct.key)}-err${acct.showEtfBreakdown ? ` snapd-etf-${_esc(acct.key)}-err` : ''}"
               value="${typeof value === 'number' || typeof value === 'string' ? _esc(String(value)) : ''}"
               placeholder="${acct.currency !== 'EUR' ? `total value in ${_esc(acct.currency)}` : 'total value'}">
             ${acct.currency !== 'EUR' ? `<span id="snapd-acc-${_esc(acct.key)}-fx" class="note snapd-fx-hint" style="display:none" aria-live="polite"></span>` : ''}
@@ -491,7 +500,7 @@ function _renderEtfBreakdown(
     <div class="snap-etf-wrap">
       <button type="button" class="snap-etf-toggle btn btn-sm btn-ghost"
               data-acct-key="${_esc(acctKey)}" aria-expanded="true" aria-controls="snapd-etf-section-${_esc(acctKey)}">
-        <span class="snap-etf-chevron">\u25be</span> ETF breakdown
+        ${ROW_DISCLOSURE_ICON} ETF breakdown
       </button>
       <div class="snap-etf-section" id="snapd-etf-section-${_esc(acctKey)}">
         ${contribHtml}
@@ -501,7 +510,7 @@ function _renderEtfBreakdown(
           <span class="snap-etf-recon-sep">&middot;</span>
           <span class="snap-etf-recon-remain">Unexplained remainder (cash or unrecorded positions): <b>-</b></span>
         </div>
-        <span class="dialog-error dialog-error-compact" id="snapd-etf-${_esc(acctKey)}-err"></span>
+        <span class="dialog-error dialog-error-compact" id="snapd-etf-${_esc(acctKey)}-err" role="alert" tabindex="-1"></span>
       </div>
     </div>`;
 }
@@ -514,7 +523,47 @@ async function _submit(): Promise<void> {
   const overlay = _dialog.overlay();
   if (!overlay || !_activeOpts || _busy) return;
   if (_reviewed) {
-    _dismiss(_reviewed);
+    const snapshot = _reviewed;
+    if (!_activeOpts.onSave) {
+      _dismiss(snapshot);
+      return;
+    }
+    const error = overlay.querySelector<HTMLElement>('#snapd-save-err')!;
+    const submit = overlay.querySelector<HTMLButtonElement>('.js-snapd-submit')!;
+    const controls = Array.from(
+      overlay.querySelectorAll<HTMLButtonElement>('.dialog-actions button'),
+    );
+    _busy = true;
+    _saving = true;
+    error.hidden = true;
+    overlay.setAttribute('aria-busy', 'true');
+    for (const control of controls) control.disabled = true;
+    submit.textContent = 'Saving…';
+    let saved = false;
+    try {
+      saved = await _activeOpts.onSave(snapshot);
+      if (_dialog.overlay() !== overlay) return;
+      if (!saved)
+        error.textContent =
+          'Snapshot was not saved. Your draft is kept. Check the notification, wait for any sync to finish and retry.';
+    } catch (err) {
+      if (_dialog.overlay() !== overlay) return;
+      error.textContent = `Snapshot was not saved. Your draft is kept. ${err instanceof Error ? err.message : 'Retry saving.'}`;
+    } finally {
+      if (_dialog.overlay() === overlay) {
+        _busy = false;
+        _saving = false;
+        overlay.removeAttribute('aria-busy');
+        for (const control of controls) control.disabled = false;
+        submit.textContent = 'Save snapshot';
+      }
+    }
+    if (_dialog.overlay() !== overlay) return;
+    if (saved) _dismiss(snapshot);
+    else {
+      error.hidden = false;
+      error.focus();
+    }
     return;
   }
   const opts = _activeOpts;
@@ -637,6 +686,7 @@ async function _submit(): Promise<void> {
         acct.key,
         `${acct.label}: ETF values (${fmtEur2(allocated)}) cannot exceed the account total (${fmtEur2(totalVal)}). Reduce ETF values or increase the account total.`,
       );
+      totalInput?.setAttribute('aria-invalid', 'true');
       valid = false;
     }
   }
@@ -852,12 +902,11 @@ function _setSectionOpen(acctKey: string, open: boolean): void {
   }
   if (btn) {
     btn.setAttribute('aria-expanded', String(open));
-    const chevron = btn.querySelector('.snap-etf-chevron') as HTMLElement | null;
-    if (chevron) chevron.textContent = open ? '\u25be' : '\u25b8';
   }
 }
 
 function _dismiss(result: Snapshot | null): void {
+  if (_saving) return;
   _dialog.overlay()?.querySelector('.info-tip')?.dispatchEvent(new Event('blur'));
   _dialog.dismiss(result);
 }

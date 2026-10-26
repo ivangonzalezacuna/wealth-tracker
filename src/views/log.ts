@@ -1,9 +1,9 @@
 import { getACCTSList } from '../constants';
-import { snapTotal, fmtEur2, fmtMon, fmtDay, esc, safeColor } from '../utils';
+import { snapTotal, fmtEur2, fmtMon, fmtDay, fmtPctVal, esc, safeColor } from '../utils';
 import { sourceLabel } from '../import/profiles/index';
 import type { Snapshot, Transaction } from '../types';
 import { isCollapsed, setCollapsed } from '../ui/collapseState';
-import { EDIT_ICON, DELETE_ICON } from './icons';
+import { EDIT_ICON, DELETE_ICON, ROW_DISCLOSURE_ICON } from './icons';
 import { attachEtfPopovers } from '../ui/etfPopover';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow } from './tableColumns';
@@ -153,17 +153,6 @@ function updateLogSummary(txs: Transaction[], snaps: Snapshot[]): void {
       ? `Latest ${fmtMon(latest.date)} \u00B7 ${fmtEur2(snapTotal(latest))}`
       : '';
   }
-  const legendEl = document.getElementById('snap-legend');
-  if (legendEl) {
-    const used = getACCTSList().filter((a) => snaps.some((s) => ((s[a.key] as number) || 0) > 0));
-    legendEl.innerHTML = used
-      .map(
-        (a) =>
-          `<span class="leg-item"><span class="leg-sq" style="background:${safeColor(a.color)}" aria-hidden="true"></span><span class="leg-label">${esc(a.label)}</span></span>`,
-      )
-      .join('');
-    legendEl.hidden = used.length < 2;
-  }
   // First-time users land on an empty ledger: show the drop zone right away.
   if (!_importPanelTouched) setImportPanelOpen(txs.length === 0);
 }
@@ -259,7 +248,7 @@ function renderLedgerSummary(txs: Transaction[], importMeta: Record<string, stri
   btn.hidden = false;
   btn.innerHTML = `<span>${esc(
     `${n.toLocaleString('de-DE')} transaction${n === 1 ? '' : 's'} \u00B7 ${fmtDay(first)} \u2013 ${fmtDay(last)}`,
-  )}</span><span class="row-expand-chevron" aria-hidden="true">&#x25B8;</span>`;
+  )}</span>${ROW_DISCLOSURE_ICON}`;
   btn.setAttribute('aria-expanded', String(_ledgerSummaryOpen));
   btn.title = _ledgerSummaryOpen ? 'Hide breakdown by source' : 'Show breakdown by source';
   panel.hidden = !_ledgerSummaryOpen;
@@ -489,10 +478,9 @@ function _updateBulkControls(kind: 'tx' | 'snap'): void {
 }
 
 function snapShares(s: Snapshot) {
-  const total = snapTotal(s);
-  if (total <= 0) return [];
-  return getACCTSList()
-    .filter((a) => ((s[a.key] as number) || 0) > 0)
+  const accounts = getACCTSList().filter((a) => ((s[a.key] as number) || 0) > 0);
+  const total = accounts.reduce((sum, a) => sum + Number(s[a.key]), 0);
+  return accounts
     .map((a) => ({ a, share: ((s[a.key] as number) || 0) / total }))
     .sort((x, y) => y.share - x.share);
 }
@@ -516,7 +504,7 @@ function snapColumns(): ColumnDef<Snapshot>[] {
       label: 'Month',
       sortValue: (s) => isoDateSortValue(s.date),
       cell: (s) =>
-        `<span class="row-expand-chevron" aria-hidden="true">&#x25B8;</span><span class="snap-month">${fmtMon(s.date)}</span>${s.notes ? '<span class="snap-note-dot" title="Has a note"></span>' : ''}`,
+        `${ROW_DISCLOSURE_ICON}<span class="snap-month">${fmtMon(s.date)}</span>${s.notes ? '<span class="snap-note-dot" title="Has a note"></span>' : ''}`,
       cellClass: () => 'snap-month-cell',
     },
     {
@@ -524,7 +512,7 @@ function snapColumns(): ColumnDef<Snapshot>[] {
       label: 'Net worth',
       align: 'right',
       sortValue: (s) => snapTotal(s),
-      cell: (s) => `<span style="font-weight:500;font-size:14px">${fmtEur2(snapTotal(s))}</span>`,
+      cell: (s) => `<span class="snap-total">${fmtEur2(snapTotal(s))}</span>`,
     },
     {
       key: 'segbar',
@@ -534,15 +522,15 @@ function snapColumns(): ColumnDef<Snapshot>[] {
         const shares = snapShares(s);
         if (!shares.length) return '';
         const label = shares
-          .map(({ a, share }) => `${a.label} ${Math.round(share * 100)}%`)
+          .map(({ a, share }) => `${a.label} ${fmtPctVal(share * 100, 'auto')}`)
           .join(', ');
-        return `aria-label="Account mix: ${esc(label)}"`;
+        return `aria-label="Account mix: ${esc(label)}" title="${esc(label)}"`;
       },
       cell: (s) => {
         return snapShares(s)
           .map(
             ({ a, share }) =>
-              `<span class="snap-seg" style="flex-grow:${share.toFixed(4)};background:${safeColor(a.color)}" title="${esc(a.label)}: ${fmtEur2((s[a.key] as number) || 0)}"></span>`,
+              `<span class="snap-seg" style="flex-grow:${share};background:${safeColor(a.color)}" title="${esc(a.label)}: ${fmtEur2((s[a.key] as number) || 0)} · ${fmtPctVal(share * 100, 'auto')}"></span>`,
           )
           .join('');
       },
@@ -559,8 +547,18 @@ function renderSnapList(
   const el = document.getElementById('snaps-list')!;
   if (!snaps.length) {
     _selectedSnapDates.clear();
-    el.innerHTML =
-      '<div class="empty-state" style="padding:1.5rem;font-size:13px">No snapshots yet. Add your first one above.</div>';
+    _snapFromChart = false;
+    setTablePage(_snapTableState, 1);
+    el.style.removeProperty('--snap-rows');
+    el.innerHTML = tableEmptyStateHtml(
+      '<p class="note">No snapshots yet. Add your first one above.</p>',
+    );
+    renderFilterStatus(document.getElementById('snap-filter-status'), {
+      shown: 0,
+      total: 0,
+      noun: 'snapshots',
+      active: false,
+    });
     hidePagination();
     _updateBulkControls('snap');
     return;
@@ -576,10 +574,9 @@ function renderSnapList(
   });
 
   if (filtered.length === 0) {
-    el.innerHTML = `<div class="empty-state" style="padding:1rem;font-size:12px;color:var(--ink-3)">
-      No matching snapshots.
-      <button type="button" class="filter-clear-all js-clear-snap-filters" style="margin-left:6px">Clear filters</button>
-    </div>`;
+    el.innerHTML = tableEmptyStateHtml(
+      '<p class="note">No matching snapshots. <button type="button" class="btn-link filter-clear-all js-clear-snap-filters">Clear filters</button></p>',
+    );
     hidePagination();
     el.querySelector('.js-clear-snap-filters')?.addEventListener('click', clearSnapFilters);
     _updateBulkControls('snap');
@@ -612,7 +609,7 @@ function renderSnapList(
     ${pageItems
       .map(
         (s) =>
-          `<div class="${rowClass}" role="row" tabindex="0" aria-expanded="${String(isCollapsed('snap:' + s.date))}" data-date="${s.date}">
+          `<div class="${rowClass}" id="snap-row-${encodeURIComponent(s.date)}" role="row" tabindex="0" aria-expanded="false" data-date="${s.date}">
         ${renderTableRow(columns, s)}
       </div>`,
       )
@@ -645,10 +642,7 @@ function renderSnapList(
       !!target.closest('.js-edit-snap') ||
       !!target.closest('.js-del-snap') ||
       !!target.closest('.js-snap-select'),
-    onExpandedChange: (detailRow, expanded) => {
-      const detailDate = detailRow.dataset.date;
-      if (detailDate) setCollapsed('snap:' + detailDate, expanded);
-    },
+    onExpandedChange: onSnapExpandedChange,
   });
 
   // Restore previously expanded snap row (if still on this page)
@@ -665,10 +659,7 @@ function renderSnapList(
       const date = row.dataset.date;
       return !!date && isCollapsed('snap:' + date);
     },
-    onExpandedChange: (detailRow, expanded) => {
-      const detailDate = detailRow.dataset.date;
-      if (detailDate) setCollapsed('snap:' + detailDate, expanded);
-    },
+    onExpandedChange: onSnapExpandedChange,
   });
 
   el.querySelectorAll('.js-snap-select').forEach((input) => {
@@ -710,6 +701,14 @@ function renderSnapList(
   _updateBulkControls('snap');
 }
 
+function onSnapExpandedChange(row: HTMLElement, expanded: boolean): void {
+  const date = row.dataset.date;
+  if (!date) return;
+  setCollapsed('snap:' + date, expanded);
+  if (expanded) row.setAttribute('aria-controls', `snap-detail-${encodeURIComponent(date)}`);
+  else row.removeAttribute('aria-controls');
+}
+
 /** Build the detail panel shown beneath an expanded snapshot row. */
 function _createSnapDetail(
   snap: Snapshot,
@@ -717,16 +716,17 @@ function _createSnapDetail(
   onEdit: (d: string) => void,
   onDel: (d: string, btn?: HTMLButtonElement) => void,
 ): HTMLElement {
-  const accts = getACCTSList();
-  const detailRows = accts
-    .filter((a) => ((snap[a.key] as number) || 0) > 0)
+  const detailRows = snapShares(snap)
     .map(
-      (a) =>
-        `<div><span class="hold-detail-label">${esc(a.label)}</span><span class="hold-detail-value">${fmtEur2(snap[a.key] as number)}</span></div>`,
+      ({ a, share }) =>
+        `<div class="snap-detail-account"><span class="hold-detail-label"><span class="hold-dot" style="background:${safeColor(a.color)}" aria-hidden="true"></span>${esc(a.label)}</span><span class="hold-detail-value">${fmtEur2(snap[a.key] as number)}<span class="snap-detail-share" title="Share of positive account balances">${fmtPctVal(share * 100, 'auto')}</span></span></div>`,
     )
     .join('');
   const panel = document.createElement('div');
   panel.className = 'hold-detail snap-detail';
+  panel.id = `snap-detail-${encodeURIComponent(date)}`;
+  panel.setAttribute('role', 'region');
+  panel.setAttribute('aria-labelledby', `snap-row-${encodeURIComponent(date)}`);
   panel.innerHTML = `
     <div class="snap-detail-head"><span class="snap-detail-month">${fmtMon(snap.date)}</span><span class="snap-detail-total">${fmtEur2(snapTotal(snap))}</span></div>
     ${detailRows}
@@ -823,8 +823,7 @@ function txColumns(): ColumnDef<Transaction>[] {
       label: 'Date',
       sortValue: (t) => isoDateSortValue(t.date),
       cellAttrs: () => 'data-ledger-label="Date"',
-      cell: (t) =>
-        `<span class="row-expand-chevron" aria-hidden="true">&#x25B8;</span><span class="snap-month">${fmtDay(t.date)}</span>`,
+      cell: (t) => `${ROW_DISCLOSURE_ICON}<span class="snap-month">${fmtDay(t.date)}</span>`,
     },
     {
       key: 'type',

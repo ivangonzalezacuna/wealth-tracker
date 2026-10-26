@@ -247,6 +247,30 @@ describe('snapshotDialog', () => {
     await p;
   });
 
+  it('toggles ETF details without replacing the shared decorative disclosure or draft', async () => {
+    const p = snapshotDialog(baseOpts());
+    const toggle = document.querySelector<HTMLButtonElement>('.snap-etf-toggle')!;
+    const icon = toggle.querySelector('svg.row-expand-chevron')!;
+    const section = document.getElementById(toggle.getAttribute('aria-controls')!)!;
+    const wasOpen = toggle.getAttribute('aria-expanded') === 'true';
+    setField('snapd-etf-broker-IE00AAA', '700');
+    expect(icon.getAttribute('aria-hidden')).toBe('true');
+    expect(icon.getAttribute('focusable')).toBe('false');
+    expect(icon.hasAttribute('tabindex')).toBe(false);
+    toggle.click();
+    expect(toggle.getAttribute('aria-expanded')).toBe(String(!wasOpen));
+    expect(section.hidden).toBe(wasOpen);
+    toggle.click();
+    expect(toggle.getAttribute('aria-expanded')).toBe(String(wasOpen));
+    expect(section.hidden).toBe(!wasOpen);
+    expect(toggle.querySelector('svg.row-expand-chevron')).toBe(icon);
+    expect((document.getElementById('snapd-etf-broker-IE00AAA') as HTMLInputElement).value).toBe(
+      '700',
+    );
+    getCancel()!.click();
+    await p;
+  });
+
   it('accepts partial ETF allocation as unallocated cash', async () => {
     const p = snapshotDialog(baseOpts());
     (document.querySelector('.snap-etf-toggle') as HTMLButtonElement).click();
@@ -260,9 +284,26 @@ describe('snapshotDialog', () => {
     expect(snap!.etf_IE00AAA).toBe(700);
   });
 
+  it('shows zero rather than negative zero when ETF totals match in draft and review', async () => {
+    const p = snapshotDialog(baseOpts());
+    setField('snapd-acc-cash', '0');
+    setField('snapd-acc-broker', '0.3');
+    setField('snapd-etf-broker-IE00AAA', '0.1');
+    setField('snapd-etf-broker-IE00BBB', '0.2');
+    expect(document.querySelector('.snap-etf-recon-remain b')!.textContent).toBe(fmtEur2(0));
+    await reviewDraft();
+    const remainder = Array.from(document.querySelectorAll('.snapd-review-summary dl > div')).find(
+      (row) => row.querySelector('dt')?.textContent === 'Unexplained remainder',
+    );
+    expect(remainder?.querySelector('dd')?.textContent).toBe(fmtEur2(0));
+    getCancel()!.click();
+    await p;
+  });
+
   it('rejects ETF over-allocation inline', async () => {
     const p = snapshotDialog(baseOpts());
     (document.querySelector('.snap-etf-toggle') as HTMLButtonElement).click();
+    setField('snapd-acc-cash', '0');
     setField('snapd-acc-broker', '1000');
     setField('snapd-etf-broker-IE00AAA', '700');
     setField('snapd-etf-broker-IE00BBB', '400');
@@ -275,6 +316,11 @@ describe('snapshotDialog', () => {
     expect(settled).toBe(false);
     expect((document.querySelector('#snapd-etf-broker-err') as HTMLElement).textContent).toContain(
       'cannot exceed the account total',
+    );
+    expect(document.activeElement?.id).toBe('snapd-acc-broker');
+    expect(document.activeElement?.getAttribute('aria-invalid')).toBe('true');
+    expect(document.activeElement?.getAttribute('aria-describedby')).toContain(
+      'snapd-etf-broker-err',
     );
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     await p;
@@ -463,6 +509,80 @@ describe('snapshotDialog', () => {
     await saveDraft();
     expect((await p)!.broker).toBe(900);
     expect(onReview).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['rejected', 'exception'])(
+    'keeps review and draft after a %s save, then saves once on retry',
+    async (failure) => {
+      const onSave = vi.fn<(snapshot: Snapshot) => Promise<boolean>>();
+      if (failure === 'rejected') onSave.mockResolvedValueOnce(false);
+      else onSave.mockRejectedValueOnce(new Error('Storage unavailable'));
+      onSave.mockResolvedValueOnce(true);
+      const p = snapshotDialog(
+        baseOpts({
+          existing: { date: '2024-06', cash: 0, broker: 1000, etf_legacy: 25 },
+          onSave,
+        }),
+      );
+      setField('snapd-notes', 'Retain my draft');
+      setField('snapd-etf-broker-IE00AAA', '500');
+      await reviewDraft();
+      getSubmit()!.click();
+      await vi.waitFor(() =>
+        expect(document.querySelector('#snapd-save-err')!.textContent).toContain(
+          'Your draft is kept',
+        ),
+      );
+      expect(getOverlay()).not.toBeNull();
+      expect(document.querySelector('.snapd-review')!.hasAttribute('hidden')).toBe(false);
+      expect(document.activeElement?.id).toBe('snapd-save-err');
+      expect((getSubmit() as HTMLButtonElement).disabled).toBe(false);
+      expect((document.querySelector('#snapd-notes') as HTMLInputElement).value).toBe(
+        'Retain my draft',
+      );
+      expect((document.querySelector('#snapd-etf-broker-IE00AAA') as HTMLInputElement).value).toBe(
+        '500',
+      );
+      if (failure === 'exception') {
+        (document.querySelector('.js-snapd-back') as HTMLElement).click();
+        expect(document.querySelector('#snapd-save-err')!.hasAttribute('hidden')).toBe(true);
+        await reviewDraft();
+      }
+      getSubmit()!.click();
+      expect(await p).toMatchObject({ cash: 0, broker: 1000, etf_legacy: 25, etf_IE00AAA: 500 });
+      expect(onSave).toHaveBeenCalledTimes(2);
+      expect(onSave.mock.calls[0][0]).toEqual(onSave.mock.calls[1][0]);
+      expect(getOverlay()).toBeNull();
+    },
+  );
+
+  it('prevents duplicate writes, editing and dismissal while the final save is pending', async () => {
+    let finish!: (saved: boolean) => void;
+    const onSave = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const p = snapshotDialog(baseOpts({ onSave }));
+    setField('snapd-acc-cash', '0');
+    setField('snapd-acc-broker', '1000');
+    await reviewDraft();
+    getSubmit()!.click();
+    const overlay = getOverlay()!;
+    expect(overlay.getAttribute('aria-busy')).toBe('true');
+    expect(getSubmit()!.textContent).toBe('Saving…');
+    for (const button of overlay.querySelectorAll<HTMLButtonElement>('.dialog-actions button')) {
+      expect(button.disabled).toBe(true);
+      button.click();
+    }
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    overlay.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(getOverlay()).toBe(overlay);
+    expect(onSave).toHaveBeenCalledTimes(1);
+    finish(true);
+    expect((await p)!.broker).toBe(1000);
+    expect(getOverlay()).toBeNull();
   });
 
   it('keeps draft on failed FX review and supports explicit EUR retry', async () => {

@@ -1339,19 +1339,19 @@ function initSnapForm() {
   document.getElementById('btn-add-snap')?.addEventListener('click', () => saveMonthlyUpdate());
 }
 
-async function saveSnapshot(snap: Snapshot) {
+async function saveSnapshot(snap: Snapshot): Promise<boolean> {
   const date = snap.date;
   if (!date) {
     showMsg('snap-msg', 'Please select a month.', false);
-    return;
+    return false;
   }
   if (date > currentMonth()) {
     showMsg('snap-msg', 'Cannot log a future month.', false);
-    return;
+    return false;
   }
 
   const btn = document.getElementById('btn-add-snap') as HTMLButtonElement;
-  await performWriteAction({
+  return performWriteAction({
     msgId: 'snap-msg',
     button: btn,
     busyText: 'Saving...',
@@ -1387,7 +1387,7 @@ async function saveMonthlyUpdate(editDate?: string) {
   const accounts = getAccounts();
   const existing = editDate ? state.snaps.find((s) => s.date === editDate) : undefined;
 
-  const snap = await snapshotDialog({
+  await snapshotDialog({
     mode: existing ? 'edit' : 'add',
     existing,
     prefill: existing ? undefined : prefillSnapFormFromLatest(),
@@ -1405,9 +1405,8 @@ async function saveMonthlyUpdate(editDate?: string) {
         throw new Error('Sign in and wait for the current sync/save before saving the mapping.');
       await runSynchronizedWrite({ action: () => saveSnapshotMapping(type, mapping) });
     },
+    onSave: saveSnapshot,
   });
-  if (!snap) return;
-  await saveSnapshot(snap);
 }
 
 async function prefetchSnapshotFxMonth(

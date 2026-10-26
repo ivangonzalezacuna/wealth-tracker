@@ -136,6 +136,19 @@ Each holding can be given a **target allocation percentage** (set in the holding
 
 Go to the **+ Log** tab. Enter the closing value for each account for the selected month, review the draft, then hit **Save snapshot**. This records your net worth for the month.
 
+Holdings, snapshot history and the income **By year** table share an outline
+chevron: right means closed, down means open, on desktop and mobile alike.
+Click a row or focus it and press Enter or Space to toggle its details. The
+chevron is decorative, not a separate control. Snapshot ETF breakdowns and
+transaction/import disclosures use the same indicator.
+
+The slim colour bar beside each history total previews the positive account
+balance mix. Expand a month to see matching account colours, balances and
+percentage shares, largest first in the same order as the bar, without relying
+on hover or a separate legend. These shares exclude negative
+balances; net worth still includes them. Remainders that round to zero cents
+display as `0,00 €`, not negative zero.
+
 To avoid copying ETF values manually, click **Choose statement PDF** inside the snapshot
 dialog and select a text-based **German Trade Republic valuation statement**.
 The primary investment account is selected automatically. Set up combined,

@@ -13,6 +13,19 @@ import {
 } from './utils';
 
 describe('fmt', () => {
+  it.each([-0, -Number.EPSILON, 0.3 - (0.1 + 0.2), -0.0049, 0.0049])(
+    'renders amounts that round to zero without a minus sign (%s)',
+    (value) => {
+      expect(fmtEur2(value)).toBe(fmtEur2(0));
+    },
+  );
+
+  it('preserves real negative cents at the rounding boundary', () => {
+    expect(fmtEur2(-0.005)).toContain('-0,01');
+    expect(fmtEur2(-0.01)).toContain('-0,01');
+    expect(fmtEur2(0.005)).toContain('0,01');
+  });
+
   it('renders 2-decimal cents with comma separator (de-DE)', () => {
     const result = fmt(1234.56, 2);
     // de-DE uses comma as decimal separator

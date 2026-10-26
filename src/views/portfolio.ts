@@ -36,6 +36,7 @@ import { renderTableHeader, renderTableRow } from './tableColumns';
 import { bindExpandableRows, restoreExpandableRows } from './expandableRows';
 import { bindSortedTableHeader, sortAndPaginate } from './tableView';
 import { isCollapsed, setCollapsed } from '../ui/collapseState';
+import { ROW_DISCLOSURE_ICON } from './icons';
 import {
   disposeChart,
   drillHint,
@@ -152,7 +153,7 @@ function holdingsColumns(
       cellClass: () => 'hold-etf-cell',
       cell: (e) => {
         const isExited = e.exited || e.shares < 1e-6;
-        return `<span class="row-expand-chevron">&#x25B8;</span><span class="hold-name">${esc(e.shortName)}</span><span class="hold-dot" style="background:${safeColor(e.color)};opacity:${isExited ? '0.45' : '1'}"></span>`;
+        return `${ROW_DISCLOSURE_ICON}<span class="hold-name">${esc(e.shortName)}</span><span class="hold-dot" style="background:${safeColor(e.color)};opacity:${isExited ? '0.45' : '1'}"></span>`;
       },
     },
     {
