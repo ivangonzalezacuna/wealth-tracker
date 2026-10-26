@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy Policy · Wealth Tracker</title>
+    <link rel="icon" href="/favicon.ico" />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        max-width: 42rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        line-height: 1.6;
+        color: #1f2937;
+      }
+      h1 { font-size: 1.6rem; }
+      h2 { font-size: 1.15rem; margin-top: 1.75rem; }
+      code { background: #f3f4f6; padding: 0 0.25rem; border-radius: 3px; }
+    </style>
+  </head>
+  <body>
+    <h1>Privacy Policy</h1>
+    <p><em>Last updated: 26 October 2026</em></p>
+
+    <p>
+      Wealth Tracker is a personal, single-user web application for tracking an ETF portfolio and
+      net worth. It has no backend server and no user database.
+    </p>
+
+    <h2>Data the app accesses</h2>
+    <p>
+      When you sign in with Google, the app requests only the
+      <code>https://www.googleapis.com/auth/drive.appdata</code> scope. This grants access solely
+      to a hidden, app-specific folder in your own Google Drive. The app cannot see, read, or
+      modify any other file in your Drive, your email, contacts, or any other Google data.
+    </p>
+
+    <h2>Where your data is stored</h2>
+    <ul>
+      <li>In your browser (IndexedDB) on the devices where you use the app.</li>
+      <li>In the hidden app-data folder of your own Google Drive, as a backup and for sync.</li>
+    </ul>
+    <p>
+      Your data is never sent to the app developer or to any other server. The only external
+      services contacted are the Google APIs (authentication and Drive) and a public
+      exchange-rate API (<code>api.frankfurter.dev</code>), which receives only currency codes and
+      dates, never your financial data.
+    </p>
+
+    <h2>Use of Google user data</h2>
+    <p>
+      Data obtained through Google APIs is used only to store and synchronise your own portfolio
+      data. It is not shared, sold, transferred to third parties, used for advertising, or used to
+      train AI models. The app's use of information received from Google APIs adheres to the
+      <a href="https://developers.google.com/terms/api-services-user-data-policy"
+        >Google API Services User Data Policy</a
+      >, including the Limited Use requirements.
+    </p>
+
+    <h2>Cookies and tracking</h2>
+    <p>The app uses no analytics, no advertising, and no tracking cookies.</p>
+
+    <h2>Deleting your data</h2>
+    <p>
+      Sign out from the app menu and clear the site data in your browser to remove local data.
+      To remove the Drive copy and revoke access, open
+      <a href="https://myaccount.google.com/connections">Google Account → Third-party connections</a>,
+      select this app and choose <em>Delete all connections</em>; you can also delete the app's
+      hidden data from Google Drive → Settings → Manage apps.
+    </p>
+
+    <h2>Contact</h2>
+    <p>
+      Questions about this policy: open an issue at
+      <a href="https://github.com/ivangonzalezacuna/wealth-tracker/issues"
+        >github.com/ivangonzalezacuna/wealth-tracker</a
+      >.
+    </p>
+
+    <p><a href="/">← Back to the app</a></p>
+  </body>
+</html>
