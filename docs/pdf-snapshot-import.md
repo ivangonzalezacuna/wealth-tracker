@@ -6,6 +6,11 @@ draft and normal **Review → Save snapshot** flow remain the only way to save
 valuations. For usage and account mapping, see the
 [README](../README.md#3-log-your-first-monthly-snapshot).
 
+The final review stays open until the snapshot is saved. While saving, its
+actions are disabled to prevent duplicate writes or accidental dismissal. If a
+sync blocks saving or persistence fails, an explicit error keeps the draft and
+review available for retry or **Back to edit**, without re-importing the PDF.
+
 ## Supported reports and limits
 
 - **German Trade Republic valuation statements:** printed EUR market values,

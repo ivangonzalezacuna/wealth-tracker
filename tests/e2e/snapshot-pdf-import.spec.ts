@@ -70,6 +70,7 @@ test('actual PDF worker imports fake valuations through review, preserves them a
   await waitForSyncIdle(page);
   await page.reload();
   await openTab(page, 'tab-log');
+  await waitForSyncIdle(page);
   await snapshotRow(page, '2024-01').click();
   await page.click('.snap-detail .js-edit-snap');
   await expect(page.getByLabel('Fictional Broker (EUR)')).toHaveValue('3707.62');
@@ -144,6 +145,68 @@ test('blocks wrong months and unverified English, while keeping manual entry usa
   await page.getByLabel('Fictional Broker (EUR)').fill('1000');
   await page.click('.js-snapd-submit');
   await expect(page.locator('.snapd-review')).toBeVisible();
+});
+
+test('keeps imported review after a busy save and retries without losing the draft', async ({
+  page,
+}, testInfo) => {
+  await openImport(page);
+  await upload(page);
+  await mapCombined(page);
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('.snapd-review')).toBeVisible();
+  await waitForSyncIdle(page);
+  await page.evaluate(async () => {
+    const lockModule = `${location.origin}/src/sync/lock.ts`;
+    const { setBusy } = await import(/* @vite-ignore */ lockModule);
+    setBusy(true);
+  });
+  try {
+    await page.click('.js-snapd-submit');
+    await expect(page.locator('#snapd-save-err')).toBeVisible();
+    await expect(page.locator('#snapd-save-err')).toContainText('Your draft is kept');
+    await expect(page.locator('#snapd-save-err')).toBeFocused();
+    await expect(page.locator('#snap-msg')).toContainText('sync or save is in progress');
+    await expect(page.locator('.snapd-review')).toBeVisible();
+    await expect(snapshotRow(page, '2024-01')).toHaveCount(0);
+    for (const colorScheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme });
+      for (const width of [320, 390, 768, 1440]) {
+        await page.setViewportSize({ width, height: 844 });
+        expect(
+          await page.locator('.snap-dialog-card').evaluate((card) => ({
+            overflow: card.scrollWidth > card.clientWidth,
+            errorFits:
+              card.querySelector('#snapd-save-err')!.getBoundingClientRect().right <=
+              card.getBoundingClientRect().right,
+            actionsFit:
+              card.querySelector('.dialog-actions')!.getBoundingClientRect().bottom <= innerHeight,
+          })),
+        ).toEqual({ overflow: false, errorFits: true, actionsFit: true });
+        await page.screenshot({
+          path: testInfo.outputPath(`save-retry-${colorScheme}-${width}.png`),
+        });
+      }
+    }
+  } finally {
+    await page.evaluate(async () => {
+      const lockModule = `${location.origin}/src/sync/lock.ts`;
+      const { setBusy } = await import(/* @vite-ignore */ lockModule);
+      setBusy(false);
+    });
+  }
+  await page.click('.js-snapd-back');
+  await expect(page.getByLabel('Fictional Broker (EUR)')).toHaveValue('3707.62');
+  await expect(page.locator('.snap-etf-extra')).toHaveCount(7);
+  await expect(page.locator('[data-pdf-currency]').first()).toHaveAttribute(
+    'data-pdf-currency',
+    'EUR',
+  );
+  await page.click('.js-snapd-submit');
+  await page.click('.js-snapd-submit');
+  await expect(page.locator('.snap-dialog-overlay')).toHaveCount(0);
+  await expect(snapshotRow(page, '2024-01')).toBeVisible();
+  await expect(page.locator('#snap-msg')).toContainText('Saved');
 });
 
 test('automatically replaces values, remembers mapping across dialogs, and supports Undo on mobile', async ({
