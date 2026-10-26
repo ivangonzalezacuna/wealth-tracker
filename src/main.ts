@@ -46,6 +46,7 @@ import {
   replaceLocalWithCloud,
   hasPendingChanges,
   onPendingChange,
+  onSyncStatus,
   loadPendingState,
   markLocalChange,
 } from './sync/engine';
@@ -659,13 +660,42 @@ function initHeader(): void {
   _headerMenu = initHeaderMenu({
     getTheme: getUserThemePref,
     onTheme: (pref) => setUserTheme(pref),
-    onSignOut: () => signOut(),
+    onSignOut: () => void confirmSignOut(),
   });
   // Keep "Synced · x min ago" current, and notice when the ~1h token expires.
   window.setInterval(() => {
     if (_syncStatus === 'ok' || hasEverGranted()) renderHeaderStatus();
   }, 60_000);
   onPendingChange(() => renderHeaderStatus());
+  // Debounced pushes after a save run outside the sync flows, which own the
+  // chip while busy: surface their outcome so a failing Drive is never hidden.
+  onSyncStatus((status, detail) => {
+    if (isSyncBusy()) return;
+    if (status === 'error') setSyncStatus('error', detail ?? '');
+    else if (status === 'done') setSyncStatus('ok');
+    else if (status === 'conflict') setSyncStatus('conflict');
+  });
+}
+
+/** Signing out forgets the account; push first, and warn if changes still never reached Drive. */
+async function confirmSignOut(): Promise<void> {
+  if (hasPendingChanges() && isSignedIn() && navigator.onLine) {
+    cancelPendingUpload();
+    // A conflict or Drive error leaves the changes pending: the dialog below explains.
+    await pushToCloud().catch(() => false);
+  }
+  if (hasPendingChanges()) {
+    const ok = await confirmDialog({
+      title: 'Sign out with unsynced changes?',
+      body:
+        'Some changes on this device are not in Google Drive yet. They stay on this device ' +
+        'and sync the next time you sign in with the same account. Sync first to be safe.',
+      confirmLabel: 'Sign out anyway',
+      danger: true,
+    });
+    if (!ok) return;
+  }
+  signOut();
 }
 
 /** Status for a browser that was set up before but has no token right now. */
@@ -686,6 +716,7 @@ function renderHeaderStatus(): void {
       busy: isSyncBusy(),
       lastOkAt: _lastSyncOkAt,
       now: Date.now(),
+      pending: hasPendingChanges(),
     }),
   );
 }
@@ -1077,12 +1108,15 @@ function registerConfigListener(): void {
   });
 }
 
-/** Upload changes made while not connected (after the pull found no newer cloud copy). */
+/**
+ * Upload changes made while not connected (after the pull found no newer cloud copy).
+ * Throws when Drive fails so the caller shows "Sync failed" instead of "Synced".
+ */
 async function pushPendingChanges(): Promise<void> {
   if (!(await loadPendingState())) return;
   cancelPendingUpload();
-  // Returns false only if another push is in flight or Drive failed; retry shortly.
-  if (!(await pushToCloud())) scheduleUpload();
+  // false without throwing: another push is in flight; retry shortly.
+  if (!(await pushToCloud({ throwOnError: true }))) scheduleUpload();
 }
 
 // ── Force full resync ────────────────────────────────────

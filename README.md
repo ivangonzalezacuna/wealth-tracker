@@ -341,9 +341,9 @@ All charts share the same controls and follow the light/dark theme:
 
 ### Header, theme and sync status
 
-The **⋯ menu** in the top-right corner holds the theme choice (Light, Dark, or System, which follows your OS preference) and, when signed in, **Sign out**. The theme is saved locally and applied on each page load.
+The **⋯ menu** in the top-right corner holds the theme choice (Light, Dark, or System, which follows your OS preference) and, when signed in, **Sign out**. Signing out first tries to sync; if changes still could not reach Drive, the app asks before signing out (they stay on this device and sync the next time you sign in). The theme is saved locally and applied on each page load.
 
-The **sync chip** under the title shows the Google Drive state in one place: _Synced · 5 min ago_ (select it to sync now), _Syncing…_, _Sync failed_ (select to retry; the tooltip gives a short reason), _Sync paused_ (select to resolve a conflict), _Offline_, _Not connected_ (editing on this device; select to connect to Google and sync), _Not synced_ (changes saved on this device are not in Drive yet; select to sync), or _Read-only_ (cached data in a browser that never signed in). On narrow screens the tab bar scrolls sideways, with a fade at the edge showing more tabs.
+The **sync chip** under the title shows the Google Drive state in one place: _Synced · 5 min ago_ (select it to sync now), _Syncing…_, _Sync failed_ (select to retry; the tooltip gives a short reason and says whether changes are still waiting to reach Drive), _Sync paused_ (select to resolve a conflict), _Offline_ (or _Offline · not synced_ when changes are waiting), _Not connected_ (editing on this device; select to connect to Google and sync), _Not synced_ (changes saved on this device are not in Drive yet; select to sync), or _Read-only_ (cached data in a browser that never signed in). On narrow screens the tab bar scrolls sideways, with a fade at the edge showing more tabs.
 
 ### Currency and FX model
 

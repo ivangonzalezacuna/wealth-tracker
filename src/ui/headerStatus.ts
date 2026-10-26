@@ -31,6 +31,8 @@ export interface SyncChipInput {
   busy: boolean;
   lastOkAt: number | null;
   now: number;
+  /** True when this device has changes that are not in Google Drive yet. */
+  pending?: boolean;
 }
 
 const svg = (body: string) =>
@@ -112,7 +114,9 @@ export function syncChipView(input: SyncChipInput): SyncChipView | null {
         tone: 'err',
         icon: 'alert',
         label: 'Sync failed',
-        title: `Sync failed: ${reason}. Select to retry.`,
+        title: input.pending
+          ? `Sync failed: ${reason}. Your changes are saved on this device but not in Google Drive yet. Select to retry.`
+          : `Sync failed: ${reason}. Select to retry.`,
         action: 'sync',
         busy: false,
       };
@@ -121,8 +125,10 @@ export function syncChipView(input: SyncChipInput): SyncChipView | null {
       return {
         tone: 'warn',
         icon: 'offline',
-        label: 'Offline',
-        title: 'Offline: showing data saved on this device. Changes sync when you are back online.',
+        label: input.pending ? 'Offline \u00b7 not synced' : 'Offline',
+        title: input.pending
+          ? 'Offline: changes saved on this device are not in Google Drive yet. They sync once you are back online.'
+          : 'Offline: showing data saved on this device. Changes sync when you are back online.',
         action: null,
         busy: false,
       };

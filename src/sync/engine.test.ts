@@ -311,6 +311,30 @@ describe('sync engine pending changes', () => {
     expect(hasPendingChanges()).toBe(false);
   });
 
+  it('a failed push reports the error, keeps changes pending, and throws only on request', async () => {
+    vi.useFakeTimers();
+    const drive = await import('./drive');
+    const upload = drive.uploadDbFile as ReturnType<typeof vi.fn>;
+    upload.mockRejectedValue(new Error('Drive API 500'));
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { scheduleUpload, cancelPendingUpload, pushToCloud, hasPendingChanges, onSyncStatus } =
+      await import('./engine');
+    const seen: [string, string | undefined][] = [];
+    onSyncStatus((s, detail) => seen.push([s, detail]));
+    scheduleUpload();
+    cancelPendingUpload();
+    vi.useRealTimers();
+
+    await expect(pushToCloud()).resolves.toBe(false);
+    expect(seen.at(-1)).toEqual(['error', 'Drive API 500']);
+    expect(hasPendingChanges()).toBe(true);
+    await expect(pushToCloud({ throwOnError: true })).rejects.toThrow('Drive API 500');
+    expect(hasPendingChanges()).toBe(true);
+    upload.mockReset();
+    upload.mockResolvedValue('2026-01-01T00:00:00.000Z');
+    errSpy.mockRestore();
+  });
+
   it('loadPendingState reads stored sync metadata', async () => {
     const meta = await import('../db/repositories/meta');
     (meta.getLastSyncTimestamp as ReturnType<typeof vi.fn>).mockResolvedValueOnce(

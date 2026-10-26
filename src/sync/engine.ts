@@ -28,7 +28,7 @@ import { downloadDbFile, uploadDbFile, getCloudModifiedTime } from './drive';
 
 let _uploadTimer: ReturnType<typeof setTimeout> | null = null;
 let _syncing = false;
-let _onSyncStatusChange: ((status: SyncStatus) => void) | null = null;
+let _onSyncStatusChange: ((status: SyncStatus, detail?: string) => void) | null = null;
 let _pendingConflict: SyncConflict | null = null;
 // Local changes not yet in Drive (mirrors the meta timestamps synchronously
 // so the header can show "Not synced" without a DB round-trip).
@@ -59,8 +59,8 @@ export class SyncConflictError extends Error {
 
 // ── Public API ────────────────────────────────────────────────────
 
-/** Register a callback for sync status changes. */
-export function onSyncStatus(fn: (status: SyncStatus) => void): void {
+/** Register a callback for sync status changes ('error' carries the error message). */
+export function onSyncStatus(fn: (status: SyncStatus, detail?: string) => void): void {
   _onSyncStatusChange = fn;
 }
 
@@ -92,8 +92,8 @@ export async function loadPendingState(): Promise<boolean> {
   return _hasPendingChanges;
 }
 
-function setStatus(s: SyncStatus): void {
-  _onSyncStatusChange?.(s);
+function setStatus(s: SyncStatus, detail?: string): void {
+  _onSyncStatusChange?.(s, detail);
 }
 
 function clearPendingConflict(): void {
@@ -197,7 +197,7 @@ export async function pullFromCloud(): Promise<boolean> {
       throw err;
     }
     console.error('[sync] pull failed:', err);
-    setStatus('error');
+    setStatus('error', (err as Error)?.message);
     throw err;
   } finally {
     _syncing = false;
@@ -208,7 +208,9 @@ export async function pullFromCloud(): Promise<boolean> {
  * Push: upload the current local DB to Drive AppData.
  * Called immediately (not debounced), use scheduleUpload for debounced pushes.
  */
-export async function pushToCloud(opts: { skipConflictCheck?: boolean } = {}): Promise<boolean> {
+export async function pushToCloud(
+  opts: { skipConflictCheck?: boolean; throwOnError?: boolean } = {},
+): Promise<boolean> {
   if (_syncing) return false;
   _syncing = true;
   try {
@@ -254,7 +256,8 @@ export async function pushToCloud(opts: { skipConflictCheck?: boolean } = {}): P
       return false;
     }
     console.error('[sync] push failed:', err);
-    setStatus('error');
+    setStatus('error', (err as Error)?.message);
+    if (opts.throwOnError) throw err;
     return false;
   } finally {
     _syncing = false;
