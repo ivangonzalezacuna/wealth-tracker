@@ -255,3 +255,85 @@ describe('sync engine conflict handling', () => {
     expect(drive.uploadDbFile as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('sync engine pending changes', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('scheduleUpload marks changes pending and notifies listeners', async () => {
+    vi.useFakeTimers();
+    const { scheduleUpload, hasPendingChanges, onPendingChange, cancelPendingUpload } =
+      await import('./engine');
+    const seen: boolean[] = [];
+    onPendingChange((p) => seen.push(p));
+
+    expect(hasPendingChanges()).toBe(false);
+    scheduleUpload();
+    expect(hasPendingChanges()).toBe(true);
+    expect(seen).toEqual([true]);
+    cancelPendingUpload();
+    vi.useRealTimers();
+  });
+
+  it('pushToCloud without a token returns false quietly and keeps changes pending', async () => {
+    vi.useFakeTimers();
+    const drive = await import('./drive');
+    const { NeedsAuthError } = await import('../auth/errors');
+    (drive.getCloudModifiedTime as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new NeedsAuthError(),
+    );
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { scheduleUpload, cancelPendingUpload, pushToCloud, hasPendingChanges } =
+      await import('./engine');
+    scheduleUpload();
+    cancelPendingUpload();
+    vi.useRealTimers();
+
+    await expect(pushToCloud()).resolves.toBe(false);
+    expect(hasPendingChanges()).toBe(true);
+    expect(drive.uploadDbFile as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+    expect(errSpy).not.toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
+
+  it('a successful push clears pending changes', async () => {
+    vi.useFakeTimers();
+    const { scheduleUpload, cancelPendingUpload, pushToCloud, hasPendingChanges } =
+      await import('./engine');
+    scheduleUpload();
+    cancelPendingUpload();
+    vi.useRealTimers();
+
+    await expect(pushToCloud()).resolves.toBe(true);
+    expect(hasPendingChanges()).toBe(false);
+  });
+
+  it('loadPendingState reads stored sync metadata', async () => {
+    const meta = await import('../db/repositories/meta');
+    (meta.getLastSyncTimestamp as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      '2026-01-01T00:00:00.000Z',
+    );
+    (meta.getLastLocalChangeTimestamp as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      '2026-01-02T00:00:00.000Z',
+    );
+    const { loadPendingState, hasPendingChanges } = await import('./engine');
+    await expect(loadPendingState()).resolves.toBe(true);
+    expect(hasPendingChanges()).toBe(true);
+  });
+
+  it('pullFromCloud rethrows NeedsAuthError without logging', async () => {
+    const drive = await import('./drive');
+    const { NeedsAuthError } = await import('../auth/errors');
+    (drive.getCloudModifiedTime as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new NeedsAuthError(),
+    );
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { pullFromCloud } = await import('./engine');
+    await expect(pullFromCloud()).rejects.toBeInstanceOf(NeedsAuthError);
+    expect(errSpy).not.toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
+});
