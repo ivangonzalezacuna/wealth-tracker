@@ -125,3 +125,26 @@ describe('findDbFile', () => {
     expect(file?.id).toBe('a');
   });
 });
+
+describe('fetchAccountEmail', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns the email from the Drive about endpoint', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ user: { emailAddress: 'me@example.com' } }), {
+        status: 200,
+      }),
+    );
+    const { fetchAccountEmail } = await import('./drive');
+    await expect(fetchAccountEmail()).resolves.toBe('me@example.com');
+    expect(String(fetchSpy.mock.calls[0][0])).toContain('/about?fields=user(emailAddress)');
+  });
+
+  it('returns null on HTTP errors', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('nope', { status: 403 }));
+    const { fetchAccountEmail } = await import('./drive');
+    await expect(fetchAccountEmail()).resolves.toBeNull();
+  });
+});

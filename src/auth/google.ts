@@ -1,9 +1,13 @@
 /**
  * Google OAuth via Google Identity Services (GIS) token client.
- * Silent background refresh - no full-page redirect, no repeated consent.
- * Token kept in memory + localStorage (instant boot); ~1h lifetime, refreshed
- * silently through the user's existing Google session.
+ * Token kept in memory + localStorage (instant boot); ~1h lifetime.
+ *
+ * GIS has no hidden-iframe refresh: every token request opens a popup, which
+ * browsers only allow from a user gesture. So a new token is only ever
+ * requested from a click (signIn); background callers get NeedsAuthError.
  */
+
+import { NeedsAuthError } from './errors';
 
 declare global {
   interface Window {
@@ -28,12 +32,15 @@ const CLIENT_ID: string = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
 const STORE_KEY = 'gtoken';
 const GRANTED_KEY = 'ggranted'; // "this browser has completed a real consent grant"
+const ACCOUNT_KEY = 'gaccount'; // email of the account last used here (login_hint)
 
 let _token: StoredToken | null = null;
 let _tokenClient: google.accounts.oauth2.TokenClient | null = null;
 let _gisReady: Promise<void> | null = null;
-let _refreshTimer: ReturnType<typeof setTimeout> | null = null;
 let _pendingReject: ((e: Error) => void) | null = null;
+// Set after a failed request that wasn't a plain cancel: the next attempt
+// asks for full consent in case the earlier grant was revoked elsewhere.
+let _forceConsent = false;
 
 // ── restore cached token (survives reloads & app restarts) ──
 try {
@@ -52,23 +59,12 @@ function _save(tok: StoredToken): void {
   } catch {
     /* quota */
   }
-  _scheduleRefresh(tok);
-}
-
-// proactively refresh ~5 min before expiry so long-open sessions never fail
-function _scheduleRefresh(tok: StoredToken): void {
-  if (_refreshTimer) clearTimeout(_refreshTimer);
-  const ms = tok.expires_at - Date.now() - 5 * 60_000;
-  if (ms > 0)
-    _refreshTimer = setTimeout(() => {
-      _requestToken(false).catch(() => {});
-    }, ms);
 }
 
 // ── load GIS script once, then init the token client ───────
 function _loadGis(): Promise<void> {
   if (_gisReady) return _gisReady;
-  _gisReady = new Promise<void>((resolve, reject) => {
+  const ready = new Promise<void>((resolve, reject) => {
     if (window.google?.accounts?.oauth2) return resolve();
     const s = document.createElement('script');
     s.src = 'https://accounts.google.com/gsi/client';
@@ -90,11 +86,24 @@ function _loadGis(): Promise<void> {
       },
     });
   });
+  // Allow a later retry if the script failed to load (e.g. offline at boot).
+  _gisReady = ready.catch((err) => {
+    _gisReady = null;
+    throw err;
+  });
   return _gisReady;
 }
 
-// interactive=false → silent (no UI) via existing session
-function _requestToken(interactive: boolean): Promise<string> {
+/**
+ * Load GIS ahead of time so a later click can open the popup immediately.
+ * Browsers only allow popups during a short window after a user gesture;
+ * waiting for the script download inside that window can get it blocked.
+ */
+export function preloadGis(): void {
+  _loadGis().catch(() => {});
+}
+
+function _requestToken(): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     _loadGis()
       .then(() => {
@@ -109,10 +118,15 @@ function _requestToken(interactive: boolean): Promise<string> {
         };
         _pendingReject = reject;
         try {
-          const hasGrantedBefore = interactive && localStorage.getItem(GRANTED_KEY) === '1';
-          _tokenClient!.requestAccessToken({
-            prompt: interactive ? (hasGrantedBefore ? '' : 'consent') : '',
-          });
+          // prompt '' shows UI only when needed (first grant), so a returning
+          // user just sees a popup that closes by itself.
+          const light = hasEverGranted() && !_forceConsent;
+          const hint = getRememberedAccount();
+          _tokenClient!.requestAccessToken(
+            hint
+              ? { prompt: light ? '' : 'consent', login_hint: hint }
+              : { prompt: light ? '' : 'consent' },
+          );
         } catch (e) {
           _pendingReject = null;
           reject(e);
@@ -122,34 +136,25 @@ function _requestToken(interactive: boolean): Promise<string> {
   });
 }
 
-/** Returns a valid token, refreshing silently when possible. */
+/** Returns a valid token, or throws NeedsAuthError (never opens UI). */
 export async function getToken(): Promise<string> {
   if (_token && Date.now() < _token.expires_at - 60_000) return _token.access_token;
-  return _requestToken(false);
+  throw new NeedsAuthError();
 }
+
+const CANCEL_ERRORS = new Set(['popup_closed', 'popup_failed_to_open']);
 
 /** Interactive sign-in - must be called from a user gesture (button click). */
 export async function signIn(): Promise<string> {
   try {
-    return await _requestToken(true);
+    const token = await _requestToken();
+    _forceConsent = false;
+    return token;
   } catch (err) {
-    // The light-touch prompt may have failed because GRANTED_KEY was stale
-    // (e.g. access revoked outside this app). Clear it so the next manual
-    // attempt escalates to a full consent prompt instead of repeating the
-    // same failing request.
-    localStorage.removeItem(GRANTED_KEY);
+    // A real failure (not a closed/blocked popup) may mean the earlier grant
+    // was revoked outside this app: ask for full consent next time.
+    if (!CANCEL_ERRORS.has((err as Error).message)) _forceConsent = true;
     throw err;
-  }
-}
-
-/** Silent boot sign-in. Resolves true if a token is available without UI. */
-export async function trySilentSignIn(): Promise<boolean> {
-  if (isSignedIn()) return true;
-  try {
-    await _requestToken(false);
-    return isSignedIn();
-  } catch {
-    return false;
   }
 }
 
@@ -170,14 +175,48 @@ export function hasEverGranted(): boolean {
   }
 }
 
+/** Email of the Google account last connected in this browser, if known. */
+export function getRememberedAccount(): string | null {
+  try {
+    return localStorage.getItem(ACCOUNT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Remember the connected account so future popups preselect it. */
+export function rememberAccount(email: string): void {
+  try {
+    localStorage.setItem(ACCOUNT_KEY, email);
+  } catch {
+    /* quota */
+  }
+}
+
+function _revoke(token: string | undefined): void {
+  if (token && window.google?.accounts?.oauth2) {
+    window.google.accounts.oauth2.revoke(token, () => {});
+  }
+}
+
+/**
+ * Drop the current token (e.g. it belongs to an unexpected account) without
+ * forgetting that this browser was set up, so local data stays editable.
+ */
+export function forgetToken(): void {
+  const t = _token?.access_token;
+  _token = null;
+  localStorage.removeItem(STORE_KEY);
+  _forceConsent = true; // let the user pick an account next time
+  _revoke(t);
+}
+
 export function signOut(): void {
   const t = _token?.access_token;
   _token = null;
-  if (_refreshTimer) clearTimeout(_refreshTimer);
   localStorage.removeItem(STORE_KEY);
   localStorage.removeItem(GRANTED_KEY);
-  if (t && window.google?.accounts?.oauth2) {
-    window.google.accounts.oauth2.revoke(t, () => {});
-  }
+  localStorage.removeItem(ACCOUNT_KEY);
+  _revoke(t);
   window.location.reload();
 }

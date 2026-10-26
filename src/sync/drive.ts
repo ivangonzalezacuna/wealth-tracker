@@ -215,3 +215,25 @@ export async function getCloudModifiedTime(): Promise<string | null> {
   const file = await findDbFile();
   return file?.modifiedTime ?? null;
 }
+
+// ── Account ───────────────────────────────────────────────────────
+
+/**
+ * Email of the account the current token belongs to. The Drive "about"
+ * endpoint works with the drive.appdata scope, so no extra scope is needed.
+ * Returns null when it can't be determined.
+ */
+export async function fetchAccountEmail(): Promise<string | null> {
+  try {
+    const token = await getToken();
+    const res = await fetch(`${DRIVE_API}/about?fields=user(emailAddress)`, {
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const email = data?.user?.emailAddress;
+    return typeof email === 'string' && email ? email : null;
+  } catch {
+    return null;
+  }
+}
