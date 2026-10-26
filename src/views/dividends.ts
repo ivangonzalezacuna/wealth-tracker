@@ -14,6 +14,7 @@ import {
   renderPagination,
 } from './pagination';
 import { createTableState, setTablePage, setTableSort } from './tableState';
+import { ROW_DISCLOSURE_ICON } from './icons';
 
 const _divPageSize = createPageSizePref('wt:div:pageSize', MONTH_PAGE_SIZES);
 const _intPageSize = createPageSizePref('wt:int:pageSize', MONTH_PAGE_SIZES);
@@ -202,7 +203,7 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
         taxesPaid > 0 ? 'var(--neg)' : taxesPaid < 0 ? 'var(--pos)' : 'var(--ink-3)';
       const detailOpen = _expandedAnnualYear === y;
       return `<div class="tbl-row annual-row" role="row" tabindex="0" aria-expanded="${String(detailOpen)}" data-annual-year="${y}">
-        <div style="font-weight:500;display:flex;align-items:center;gap:5px"><span class="row-expand-chevron">&#x25B8;</span>${y}</div>
+        <div style="font-weight:500;display:flex;align-items:center;gap:5px">${ROW_DISCLOSURE_ICON}${y}</div>
         <div style="text-align:right;color:${taxesPaidColor}">${fmtEur2(taxesPaid)}</div>
         <div style="text-align:right;color:${benefitsNet >= 0 ? 'var(--pos)' : 'var(--neg)'};font-weight:500">${fmtEur2(benefitsNet)}</div>
       </div>`;

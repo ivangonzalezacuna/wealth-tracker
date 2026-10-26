@@ -907,16 +907,25 @@ details[open] > summary .card-chevron {
   padding-top: 3px;
 }
 
-/* Row expand chevron (shared by hold-row, snap-row-compact, and annual-row) */
+/* One decorative disclosure icon; the row or button owns the interaction. */
 .row-expand-chevron {
-  font-size: 9px;
+  display: inline-block;
+  width: 12px;
+  height: 12px;
   color: var(--ink-3);
-  transition: transform 0.15s;
+  transition: transform 0.15s ease;
   flex-shrink: 0;
   user-select: none;
+  pointer-events: none;
+  vertical-align: middle;
 }
 [aria-expanded='true'] .row-expand-chevron {
   transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .row-expand-chevron {
+    transition: none;
+  }
 }
 
 /* Shared hover for expandable rows */
@@ -1645,10 +1654,6 @@ details[open] > summary .card-chevron {
   }
   #snaps-list > .snap-row-compact {
     grid-column: 1;
-  }
-  /* Details open in the side panel, so the inline expand chevron is redundant */
-  #snaps-list .row-expand-chevron {
-    display: none;
   }
   #snaps-list > .snap-detail {
     grid-column: 2;
@@ -2600,10 +2605,6 @@ summary.section-label {
   gap: 5px;
   font-size: 11px;
   padding: 3px 9px;
-}
-.snap-etf-chevron {
-  font-size: 10px;
-  transition: transform 0.15s;
 }
 .snap-etf-section {
   margin-top: 8px;

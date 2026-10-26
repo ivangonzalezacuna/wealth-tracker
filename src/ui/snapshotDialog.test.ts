@@ -247,6 +247,30 @@ describe('snapshotDialog', () => {
     await p;
   });
 
+  it('toggles ETF details without replacing the shared decorative disclosure or draft', async () => {
+    const p = snapshotDialog(baseOpts());
+    const toggle = document.querySelector<HTMLButtonElement>('.snap-etf-toggle')!;
+    const icon = toggle.querySelector('svg.row-expand-chevron')!;
+    const section = document.getElementById(toggle.getAttribute('aria-controls')!)!;
+    const wasOpen = toggle.getAttribute('aria-expanded') === 'true';
+    setField('snapd-etf-broker-IE00AAA', '700');
+    expect(icon.getAttribute('aria-hidden')).toBe('true');
+    expect(icon.getAttribute('focusable')).toBe('false');
+    expect(icon.hasAttribute('tabindex')).toBe(false);
+    toggle.click();
+    expect(toggle.getAttribute('aria-expanded')).toBe(String(!wasOpen));
+    expect(section.hidden).toBe(wasOpen);
+    toggle.click();
+    expect(toggle.getAttribute('aria-expanded')).toBe(String(wasOpen));
+    expect(section.hidden).toBe(!wasOpen);
+    expect(toggle.querySelector('svg.row-expand-chevron')).toBe(icon);
+    expect((document.getElementById('snapd-etf-broker-IE00AAA') as HTMLInputElement).value).toBe(
+      '700',
+    );
+    getCancel()!.click();
+    await p;
+  });
+
   it('accepts partial ETF allocation as unallocated cash', async () => {
     const p = snapshotDialog(baseOpts());
     (document.querySelector('.snap-etf-toggle') as HTMLButtonElement).click();

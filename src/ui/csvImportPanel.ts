@@ -21,6 +21,7 @@ import { createPageSizePref, renderPagination } from '../views/pagination';
 import { createTableState, setTablePage, setTableSort } from '../views/tableState';
 import { bindChipGroup, bindSearchClear, chipButtonsHtml } from './filterBar';
 import { attachEtfPopovers } from './etfPopover';
+import { ROW_DISCLOSURE_ICON } from '../views/icons';
 
 export interface CsvImportSource {
   csvText: string;
@@ -256,8 +257,7 @@ export function openCsvImportPreview(
         label: 'Date',
         sortValue: (r) => r.tx.date,
         cellAttrs: () => 'data-ledger-label="Date"',
-        cell: (r) =>
-          `<span class="row-expand-chevron" aria-hidden="true">&#x25B8;</span><span class="snap-month">${fmtDay(r.tx.date)}</span>`,
+        cell: (r) => `${ROW_DISCLOSURE_ICON}<span class="snap-month">${fmtDay(r.tx.date)}</span>`,
       },
       {
         key: 'type',

@@ -5,6 +5,7 @@ import { currentMonth, fmtEur2, fmtMon, safeColor, esc } from '../utils';
 import type { Account, Holding, PortfolioData, Snapshot } from '../types';
 import { mountSnapshotImport } from './snapshotImportPanel';
 import { validateStatementMonth } from '../import/snapshotDraft';
+import { ROW_DISCLOSURE_ICON } from '../views/icons';
 import type { SnapshotMapping } from '../import/snapshotMapping';
 import {
   trackSnapshotFieldStatus,
@@ -499,7 +500,7 @@ function _renderEtfBreakdown(
     <div class="snap-etf-wrap">
       <button type="button" class="snap-etf-toggle btn btn-sm btn-ghost"
               data-acct-key="${_esc(acctKey)}" aria-expanded="true" aria-controls="snapd-etf-section-${_esc(acctKey)}">
-        <span class="snap-etf-chevron">\u25be</span> ETF breakdown
+        ${ROW_DISCLOSURE_ICON} ETF breakdown
       </button>
       <div class="snap-etf-section" id="snapd-etf-section-${_esc(acctKey)}">
         ${contribHtml}
@@ -901,8 +902,6 @@ function _setSectionOpen(acctKey: string, open: boolean): void {
   }
   if (btn) {
     btn.setAttribute('aria-expanded', String(open));
-    const chevron = btn.querySelector('.snap-etf-chevron') as HTMLElement | null;
-    if (chevron) chevron.textContent = open ? '\u25be' : '\u25b8';
   }
 }
 

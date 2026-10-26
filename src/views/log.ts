@@ -3,7 +3,7 @@ import { snapTotal, fmtEur2, fmtMon, fmtDay, fmtPctVal, esc, safeColor } from '.
 import { sourceLabel } from '../import/profiles/index';
 import type { Snapshot, Transaction } from '../types';
 import { isCollapsed, setCollapsed } from '../ui/collapseState';
-import { EDIT_ICON, DELETE_ICON } from './icons';
+import { EDIT_ICON, DELETE_ICON, ROW_DISCLOSURE_ICON } from './icons';
 import { attachEtfPopovers } from '../ui/etfPopover';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow } from './tableColumns';
@@ -248,7 +248,7 @@ function renderLedgerSummary(txs: Transaction[], importMeta: Record<string, stri
   btn.hidden = false;
   btn.innerHTML = `<span>${esc(
     `${n.toLocaleString('de-DE')} transaction${n === 1 ? '' : 's'} \u00B7 ${fmtDay(first)} \u2013 ${fmtDay(last)}`,
-  )}</span><span class="row-expand-chevron" aria-hidden="true">&#x25B8;</span>`;
+  )}</span>${ROW_DISCLOSURE_ICON}`;
   btn.setAttribute('aria-expanded', String(_ledgerSummaryOpen));
   btn.title = _ledgerSummaryOpen ? 'Hide breakdown by source' : 'Show breakdown by source';
   panel.hidden = !_ledgerSummaryOpen;
@@ -504,7 +504,7 @@ function snapColumns(): ColumnDef<Snapshot>[] {
       label: 'Month',
       sortValue: (s) => isoDateSortValue(s.date),
       cell: (s) =>
-        `<span class="row-expand-chevron" aria-hidden="true">&#x25B8;</span><span class="snap-month">${fmtMon(s.date)}</span>${s.notes ? '<span class="snap-note-dot" title="Has a note"></span>' : ''}`,
+        `${ROW_DISCLOSURE_ICON}<span class="snap-month">${fmtMon(s.date)}</span>${s.notes ? '<span class="snap-note-dot" title="Has a note"></span>' : ''}`,
       cellClass: () => 'snap-month-cell',
     },
     {
@@ -823,8 +823,7 @@ function txColumns(): ColumnDef<Transaction>[] {
       label: 'Date',
       sortValue: (t) => isoDateSortValue(t.date),
       cellAttrs: () => 'data-ledger-label="Date"',
-      cell: (t) =>
-        `<span class="row-expand-chevron" aria-hidden="true">&#x25B8;</span><span class="snap-month">${fmtDay(t.date)}</span>`,
+      cell: (t) => `${ROW_DISCLOSURE_ICON}<span class="snap-month">${fmtDay(t.date)}</span>`,
     },
     {
       key: 'type',

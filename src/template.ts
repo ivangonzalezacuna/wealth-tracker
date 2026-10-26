@@ -1,5 +1,6 @@
 import { CONFIG } from './config';
 import { headerMenuMarkup } from './ui/headerMenu';
+import { ROW_DISCLOSURE_ICON } from './views/icons';
 
 function metricExplainerCard(
   icon: string,
@@ -364,7 +365,7 @@ export function appTemplate(): string {
         <div class="card-title">Transaction ledger</div>
         <div class="log-panel-head-actions">
           <button type="button" class="ledger-summary-toggle log-panel-meta" id="btn-ledger-summary" aria-expanded="false" aria-controls="tx-ledger-summary" hidden></button>
-          <button type="button" class="btn btn-ghost btn-sm log-import-toggle" id="btn-toggle-import" aria-expanded="false" aria-controls="csv-import-panel"><span class="row-expand-chevron" aria-hidden="true">&#x25B8;</span> Import CSV</button>
+          <button type="button" class="btn btn-ghost btn-sm log-import-toggle" id="btn-toggle-import" aria-expanded="false" aria-controls="csv-import-panel">${ROW_DISCLOSURE_ICON} Import CSV</button>
         </div>
       </div>
       <div id="tx-ledger-summary" class="ledger-summary" hidden></div>
