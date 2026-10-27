@@ -172,6 +172,7 @@ vi.mock('../model/contributions', () => ({
 
 vi.mock('../auth/google', () => ({
   isSignedIn: () => true,
+  hasEverGranted: () => true,
 }));
 
 vi.mock('../backup/exportImport', () => ({

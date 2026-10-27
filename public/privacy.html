@@ -7,16 +7,30 @@
     <link rel="icon" href="/favicon.ico" />
     <style>
       body {
-        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
         max-width: 42rem;
         margin: 2rem auto;
         padding: 0 1rem;
         line-height: 1.6;
         color: #1f2937;
       }
-      h1 { font-size: 1.6rem; }
-      h2 { font-size: 1.15rem; margin-top: 1.75rem; }
-      code { background: #f3f4f6; padding: 0 0.25rem; border-radius: 3px; }
+      h1 {
+        font-size: 1.6rem;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin-top: 1.75rem;
+      }
+      code {
+        background: #f3f4f6;
+        padding: 0 0.25rem;
+        border-radius: 3px;
+      }
     </style>
   </head>
   <body>
@@ -31,9 +45,9 @@
     <h2>Data the app accesses</h2>
     <p>
       When you sign in with Google, the app requests only the
-      <code>https://www.googleapis.com/auth/drive.appdata</code> scope. This grants access solely
-      to a hidden, app-specific folder in your own Google Drive. The app cannot see, read, or
-      modify any other file in your Drive, your email, contacts, or any other Google data.
+      <code>https://www.googleapis.com/auth/drive.appdata</code> scope. This grants access solely to
+      a hidden, app-specific folder in your own Google Drive. The app cannot see, read, or modify
+      any other file in your Drive, your email, contacts, or any other Google data.
     </p>
 
     <h2>Where your data is stored</h2>
@@ -43,9 +57,9 @@
     </ul>
     <p>
       Your data is never sent to the app developer or to any other server. The only external
-      services contacted are the Google APIs (authentication and Drive) and a public
-      exchange-rate API (<code>api.frankfurter.dev</code>), which receives only currency codes and
-      dates, never your financial data.
+      services contacted are the Google APIs (authentication and Drive) and a public exchange-rate
+      API (<code>api.frankfurter.dev</code>), which receives only currency codes and dates, never
+      your financial data.
     </p>
 
     <h2>Use of Google user data</h2>
@@ -63,10 +77,10 @@
 
     <h2>Deleting your data</h2>
     <p>
-      Sign out from the app menu and clear the site data in your browser to remove local data.
-      To remove the Drive copy and revoke access, open
-      <a href="https://myaccount.google.com/connections">Google Account → Third-party connections</a>,
-      select this app and choose <em>Delete all connections</em>; you can also delete the app's
+      Sign out from the app menu and clear the site data in your browser to remove local data. To
+      remove the Drive copy and revoke access, open
+      <a href="https://myaccount.google.com/connections">Google Account → Third-party connections</a
+      >, select this app and choose <em>Delete all connections</em>; you can also delete the app's
       hidden data from Google Drive → Settings → Manage apps.
     </p>
 

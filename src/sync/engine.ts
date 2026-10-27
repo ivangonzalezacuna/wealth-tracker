@@ -13,6 +13,7 @@
  */
 
 import { exportDb, importDb } from '../db/connection';
+import { NeedsAuthError } from '../auth/errors';
 import {
   setLastSyncTimestamp,
   getLastSyncTimestamp,
@@ -27,8 +28,14 @@ import { downloadDbFile, uploadDbFile, getCloudModifiedTime } from './drive';
 
 let _uploadTimer: ReturnType<typeof setTimeout> | null = null;
 let _syncing = false;
-let _onSyncStatusChange: ((status: SyncStatus) => void) | null = null;
+let _onSyncStatusChange: ((status: SyncStatus, detail?: string) => void) | null = null;
 let _pendingConflict: SyncConflict | null = null;
+// Local changes not yet in Drive (mirrors the meta timestamps synchronously
+// so the header can show "Not synced" without a DB round-trip).
+let _hasPendingChanges = false;
+let _onPendingChange: ((pending: boolean) => void) | null = null;
+// Bumped on every local write, to spot edits made while a pull runs.
+let _localChangeCount = 0;
 
 const UPLOAD_DEBOUNCE_MS = 5_000; // 5 seconds after last write
 
@@ -54,8 +61,8 @@ export class SyncConflictError extends Error {
 
 // ── Public API ────────────────────────────────────────────────────
 
-/** Register a callback for sync status changes. */
-export function onSyncStatus(fn: (status: SyncStatus) => void): void {
+/** Register a callback for sync status changes ('error' carries the error message). */
+export function onSyncStatus(fn: (status: SyncStatus, detail?: string) => void): void {
   _onSyncStatusChange = fn;
 }
 
@@ -63,8 +70,32 @@ export function getPendingSyncConflict(): SyncConflict | null {
   return _pendingConflict;
 }
 
-function setStatus(s: SyncStatus): void {
-  _onSyncStatusChange?.(s);
+/** True when this device has local changes that are not in Drive yet. */
+export function hasPendingChanges(): boolean {
+  return _hasPendingChanges;
+}
+
+/** Register a callback fired whenever hasPendingChanges() flips. */
+export function onPendingChange(fn: (pending: boolean) => void): void {
+  _onPendingChange = fn;
+}
+
+function setPending(pending: boolean): void {
+  if (_hasPendingChanges === pending) return;
+  _hasPendingChanges = pending;
+  _onPendingChange?.(pending);
+}
+
+/** Initialise hasPendingChanges() from the stored sync metadata (call on boot). */
+export async function loadPendingState(): Promise<boolean> {
+  setPending(
+    hasUnsyncedLocalChanges(await getLastLocalChangeTimestamp(), await getLastSyncTimestamp()),
+  );
+  return _hasPendingChanges;
+}
+
+function setStatus(s: SyncStatus, detail?: string): void {
+  _onSyncStatusChange?.(s, detail);
 }
 
 function clearPendingConflict(): void {
@@ -92,6 +123,7 @@ async function finalizeSuccessfulSync(modifiedTime: string, syncStartedAt: strin
   const latestLocalChangeAt = await getLastLocalChangeTimestamp();
   if (!latestLocalChangeAt || new Date(latestLocalChangeAt) <= new Date(syncStartedAt)) {
     await setLastLocalChangeTimestamp(modifiedTime);
+    setPending(false);
   }
   clearPendingConflict();
 }
@@ -137,9 +169,14 @@ export async function pullFromCloud(): Promise<boolean> {
       return false;
     }
 
+    // A device that never synced has nothing Drive could overwrite: Drive wins,
+    // and only its local-only snapshots and transactions are kept.
+    const neverSynced = !localTime && !storedVersion;
+    const hadLocalChanges = hasUnsyncedLocalChanges(localChangeTime, localTime);
+
     // Conflict guard: cloud is newer, but this device has local changes that
     // were never synced to Drive yet. Refuse silent overwrite.
-    if (hasUnsyncedLocalChanges(localChangeTime, localTime)) {
+    if (!neverSynced && hadLocalChanges) {
       raiseConflict({
         source: 'pull',
         cloudModifiedTime: cloudTime,
@@ -156,14 +193,25 @@ export async function pullFromCloud(): Promise<boolean> {
       return false;
     }
 
-    await importDb(result.data);
+    const changesBefore = _localChangeCount;
+    await importDb(result.data, { preserveLocalConfig: !neverSynced });
+    // The file carries the uploader's sync state; reset it unless this device
+    // was edited during the download.
+    if (_localChangeCount === changesBefore) {
+      await setLastLocalChangeTimestamp(result.modifiedTime);
+    }
     await finalizeSuccessfulSync(result.modifiedTime, result.modifiedTime);
+    if (neverSynced && hadLocalChanges) scheduleUpload();
     setStatus('done');
     return true;
   } catch (err) {
     if (err instanceof SyncConflictError) throw err;
+    if (err instanceof NeedsAuthError) {
+      setStatus('idle');
+      throw err;
+    }
     console.error('[sync] pull failed:', err);
-    setStatus('error');
+    setStatus('error', (err as Error)?.message);
     throw err;
   } finally {
     _syncing = false;
@@ -174,7 +222,9 @@ export async function pullFromCloud(): Promise<boolean> {
  * Push: upload the current local DB to Drive AppData.
  * Called immediately (not debounced), use scheduleUpload for debounced pushes.
  */
-export async function pushToCloud(opts: { skipConflictCheck?: boolean } = {}): Promise<boolean> {
+export async function pushToCloud(
+  opts: { skipConflictCheck?: boolean; throwOnError?: boolean } = {},
+): Promise<boolean> {
   if (_syncing) return false;
   _syncing = true;
   try {
@@ -184,15 +234,13 @@ export async function pushToCloud(opts: { skipConflictCheck?: boolean } = {}): P
     const localChangeTime = await getLastLocalChangeTimestamp();
     const storedVersion = await getDriveVersion();
     const cloudTime = await getCloudModifiedTime();
+    const neverSynced = !storedVersion && !localTime;
     if (
       !opts.skipConflictCheck &&
       cloudTime &&
-      // If we have no prior sync baseline at all (both storedVersion and localTime are
-      // null, e.g. right after clearSyncMetadata() following a backup restore), there
-      // is no conflicting state to protect — treat it as a clean first-time push.
-      (storedVersion !== null || localTime !== null) &&
-      hasUnsyncedLocalChanges(localChangeTime, localTime) &&
-      (!storedVersion || storedVersion !== cloudTime)
+      // Never overwrite a Drive copy this device has not seen yet.
+      (neverSynced ||
+        (hasUnsyncedLocalChanges(localChangeTime, localTime) && storedVersion !== cloudTime))
     ) {
       raiseConflict({
         source: 'push',
@@ -214,8 +262,14 @@ export async function pushToCloud(opts: { skipConflictCheck?: boolean } = {}): P
     return true;
   } catch (err) {
     if (err instanceof SyncConflictError) throw err;
+    if (err instanceof NeedsAuthError) {
+      // Not connected: keep the change pending until the user connects.
+      setStatus('idle');
+      return false;
+    }
     console.error('[sync] push failed:', err);
-    setStatus('error');
+    setStatus('error', (err as Error)?.message);
+    if (opts.throwOnError) throw err;
     return false;
   } finally {
     _syncing = false;
@@ -227,12 +281,19 @@ export async function pushToCloud(opts: { skipConflictCheck?: boolean } = {}): P
  * Coalesces multiple rapid writes into a single upload.
  */
 export function scheduleUpload(): void {
-  void setLastLocalChangeTimestamp(new Date().toISOString());
+  markLocalChange();
   if (_uploadTimer) clearTimeout(_uploadTimer);
   _uploadTimer = setTimeout(() => {
     _uploadTimer = null;
     void pushToCloud().catch(() => {});
   }, UPLOAD_DEBOUNCE_MS);
+}
+
+/** Record a local change that is not in Drive yet, without scheduling a push. */
+export function markLocalChange(): void {
+  _localChangeCount++;
+  setPending(true);
+  void setLastLocalChangeTimestamp(new Date().toISOString());
 }
 
 /** Cancel any pending debounced upload. */

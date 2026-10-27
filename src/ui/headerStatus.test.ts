@@ -56,6 +56,28 @@ describe('syncChipView', () => {
     expect(view({ status: 'offline', busy: true })).toMatchObject({ label: 'Offline' });
     expect(view({ status: 'cached' })).toMatchObject({ label: 'Read-only', action: null });
   });
+  it('offline and failed states mention changes that are not in Drive yet', () => {
+    expect(view({ status: 'offline', pending: true })).toMatchObject({
+      label: 'Offline \u00b7 not synced',
+      action: null,
+    });
+    expect(view({ status: 'offline', pending: true })!.title).toContain('not in Google Drive yet');
+    const failed = view({ status: 'error', msg: 'Drive API 500', pending: true })!;
+    expect(failed.label).toBe('Sync failed');
+    expect(failed.title).toContain('saved on this device but not in Google Drive yet');
+  });
+  it('not connected states offer to connect and sync', () => {
+    expect(view({ status: 'local' })).toMatchObject({
+      label: 'Not connected',
+      tone: 'info',
+      action: 'sync',
+    });
+    expect(view({ status: 'pending' })).toMatchObject({
+      label: 'Not synced',
+      tone: 'warn',
+      action: 'sync',
+    });
+  });
   it('conflict resolves; empty status hides the chip', () => {
     expect(view({ status: 'conflict' })).toMatchObject({ label: 'Sync paused', action: 'resolve' });
     expect(view({ status: '' })).toBeNull();

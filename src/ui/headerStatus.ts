@@ -2,7 +2,16 @@
  *  when it makes sense, acts on it (sync now, retry, resolve a conflict). */
 
 export type SyncStatus =
-  '' | 'loading' | 'syncing' | 'cached' | 'ok' | 'offline' | 'conflict' | 'error';
+  | ''
+  | 'loading'
+  | 'syncing'
+  | 'cached'
+  | 'local'
+  | 'pending'
+  | 'ok'
+  | 'offline'
+  | 'conflict'
+  | 'error';
 
 export type SyncChipAction = 'sync' | 'resolve' | null;
 
@@ -22,6 +31,8 @@ export interface SyncChipInput {
   busy: boolean;
   lastOkAt: number | null;
   now: number;
+  /** True when this device has changes that are not in Google Drive yet. */
+  pending?: boolean;
 }
 
 const svg = (body: string) =>
@@ -103,7 +114,9 @@ export function syncChipView(input: SyncChipInput): SyncChipView | null {
         tone: 'err',
         icon: 'alert',
         label: 'Sync failed',
-        title: `Sync failed: ${reason}. Select to retry.`,
+        title: input.pending
+          ? `Sync failed: ${reason}. Your changes are saved on this device but not in Google Drive yet. Select to retry.`
+          : `Sync failed: ${reason}. Select to retry.`,
         action: 'sync',
         busy: false,
       };
@@ -112,8 +125,10 @@ export function syncChipView(input: SyncChipInput): SyncChipView | null {
       return {
         tone: 'warn',
         icon: 'offline',
-        label: 'Offline',
-        title: 'Offline: showing data saved on this device. Changes sync when you are back online.',
+        label: input.pending ? 'Offline \u00b7 not synced' : 'Offline',
+        title: input.pending
+          ? 'Offline: changes saved on this device are not in Google Drive yet. They sync once you are back online.'
+          : 'Offline: showing data saved on this device. Changes sync when you are back online.',
         action: null,
         busy: false,
       };
@@ -124,6 +139,24 @@ export function syncChipView(input: SyncChipInput): SyncChipView | null {
         label: 'Read-only',
         title: 'Showing data saved on this device. Sign in to sync and edit.',
         action: null,
+        busy: false,
+      };
+    case 'local':
+      return {
+        tone: 'info',
+        icon: 'cloud-off',
+        label: 'Not connected',
+        title: 'Editing on this device. Select to connect to Google Drive and sync.',
+        action: 'sync',
+        busy: false,
+      };
+    case 'pending':
+      return {
+        tone: 'warn',
+        icon: 'cloud-off',
+        label: 'Not synced',
+        title: 'Changes saved on this device are not in Google Drive yet. Select to sync.',
+        action: 'sync',
         busy: false,
       };
     case 'conflict':

@@ -79,6 +79,7 @@ describe('sync engine conflict handling', () => {
     await expect(pullFromCloud()).resolves.toBe(true);
     expect(connection.importDb as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
       new Uint8Array([7, 7, 7]),
+      { preserveLocalConfig: true },
     );
     expect(meta.setLastSyncTimestamp as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
       '2026-01-03T00:00:00.000Z',
@@ -86,7 +87,42 @@ describe('sync engine conflict handling', () => {
     expect(meta.setDriveVersion as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
       '2026-01-03T00:00:00.000Z',
     );
+    // The downloaded file's own sync state never counts as a change here.
+    expect(meta.setLastLocalChangeTimestamp as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+      '2026-01-03T00:00:00.000Z',
+    );
     expect(getPendingSyncConflict()).toBeNull();
+  });
+
+  it('a device that never synced downloads Drive instead of raising a conflict', async () => {
+    vi.useFakeTimers();
+    const meta = await import('../db/repositories/meta');
+    const drive = await import('./drive');
+    const connection = await import('../db/connection');
+    (meta.getLastLocalChangeTimestamp as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      '2026-01-02T00:00:00.000Z',
+    );
+    (drive.getCloudModifiedTime as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      '2026-01-03T00:00:00.000Z',
+    );
+    (drive.downloadDbFile as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      data: new Uint8Array([5]),
+      modifiedTime: '2026-01-03T00:00:00.000Z',
+    });
+
+    const { pullFromCloud, getPendingSyncConflict, hasPendingChanges, cancelPendingUpload } =
+      await import('./engine');
+
+    await expect(pullFromCloud()).resolves.toBe(true);
+    expect(connection.importDb as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+      new Uint8Array([5]),
+      { preserveLocalConfig: false },
+    );
+    expect(getPendingSyncConflict()).toBeNull();
+    // Its local-only snapshots/transactions were merged in and still need uploading.
+    expect(hasPendingChanges()).toBe(true);
+    cancelPendingUpload();
+    vi.useRealTimers();
   });
 
   it('throws when cloud changed since last sync and local has unsynced changes on push', async () => {
@@ -214,44 +250,127 @@ describe('sync engine conflict handling', () => {
     );
   });
 
-  it('does not raise a conflict when sync metadata is cleared (post-restore state)', async () => {
-    // Simulates the state immediately after restoreFromBackup() calls clearSyncMetadata():
-    // all three sync keys are null, meaning no prior sync baseline exists.
-    // pushToCloud() should upload cleanly without raising a SyncConflictError.
+  it('never overwrites a Drive copy this device has not synced with', async () => {
     const meta = await import('../db/repositories/meta');
     const drive = await import('./drive');
-    (meta.getLastSyncTimestamp as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
-    (meta.getLastLocalChangeTimestamp as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
-    (meta.getDriveVersion as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
-    (drive.getCloudModifiedTime as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      '2026-01-01T00:00:00.000Z',
-    );
+    (meta.getLastLocalChangeTimestamp as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce('2026-01-03T00:00:00.000Z')
+      .mockResolvedValueOnce('2026-01-03T00:00:00.000Z');
+    (drive.getCloudModifiedTime as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce('2025-12-01T00:00:00.000Z')
+      .mockResolvedValueOnce('2025-12-01T00:00:00.000Z');
 
-    const { pushToCloud } = await import('./engine');
+    const { pushToCloud, overwriteCloudWithLocal, SyncConflictError } = await import('./engine');
 
-    await expect(pushToCloud()).resolves.toBe(true);
+    await expect(pushToCloud()).rejects.toBeInstanceOf(SyncConflictError);
+    expect(drive.uploadDbFile as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+    // Restoring a backup overwrites Drive explicitly.
+    await expect(overwriteCloudWithLocal()).resolves.toBe(true);
     expect(drive.uploadDbFile as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1);
   });
+});
+describe('sync engine pending changes', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    vi.useRealTimers();
+  });
 
-  it('does not raise a conflict when scheduleUpload set localChangeTime after clearSyncMetadata', async () => {
-    // Reproduces the actual race: clearSyncMetadata() nulls all three keys, then
-    // scheduleUpload() immediately sets lastLocalChangeTimestamp = now before the
-    // debounced pushToCloud() fires. Without the no-baseline guard this would raise
-    // a spurious conflict because (localChangeTime > null) && storedVersion === null.
-    const meta = await import('../db/repositories/meta');
+  it('scheduleUpload marks changes pending and notifies listeners', async () => {
+    vi.useFakeTimers();
+    const { scheduleUpload, hasPendingChanges, onPendingChange, cancelPendingUpload } =
+      await import('./engine');
+    const seen: boolean[] = [];
+    onPendingChange((p) => seen.push(p));
+
+    expect(hasPendingChanges()).toBe(false);
+    scheduleUpload();
+    expect(hasPendingChanges()).toBe(true);
+    expect(seen).toEqual([true]);
+    cancelPendingUpload();
+    vi.useRealTimers();
+  });
+
+  it('pushToCloud without a token returns false quietly and keeps changes pending', async () => {
+    vi.useFakeTimers();
     const drive = await import('./drive');
-    (meta.getLastSyncTimestamp as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
-    (meta.getLastLocalChangeTimestamp as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      '2026-01-03T00:00:00.000Z', // set by scheduleUpload after clearSyncMetadata
+    const { NeedsAuthError } = await import('../auth/errors');
+    (drive.getCloudModifiedTime as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new NeedsAuthError(),
     );
-    (meta.getDriveVersion as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
-    (drive.getCloudModifiedTime as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      '2025-12-01T00:00:00.000Z',
-    );
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { scheduleUpload, cancelPendingUpload, pushToCloud, hasPendingChanges } =
+      await import('./engine');
+    scheduleUpload();
+    cancelPendingUpload();
+    vi.useRealTimers();
 
-    const { pushToCloud } = await import('./engine');
+    await expect(pushToCloud()).resolves.toBe(false);
+    expect(hasPendingChanges()).toBe(true);
+    expect(drive.uploadDbFile as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+    expect(errSpy).not.toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
+
+  it('a successful push clears pending changes', async () => {
+    vi.useFakeTimers();
+    const { scheduleUpload, cancelPendingUpload, pushToCloud, hasPendingChanges } =
+      await import('./engine');
+    scheduleUpload();
+    cancelPendingUpload();
+    vi.useRealTimers();
 
     await expect(pushToCloud()).resolves.toBe(true);
-    expect(drive.uploadDbFile as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1);
+    expect(hasPendingChanges()).toBe(false);
+  });
+
+  it('a failed push reports the error, keeps changes pending, and throws only on request', async () => {
+    vi.useFakeTimers();
+    const drive = await import('./drive');
+    const upload = drive.uploadDbFile as ReturnType<typeof vi.fn>;
+    upload.mockRejectedValue(new Error('Drive API 500'));
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { scheduleUpload, cancelPendingUpload, pushToCloud, hasPendingChanges, onSyncStatus } =
+      await import('./engine');
+    const seen: [string, string | undefined][] = [];
+    onSyncStatus((s, detail) => seen.push([s, detail]));
+    scheduleUpload();
+    cancelPendingUpload();
+    vi.useRealTimers();
+
+    await expect(pushToCloud()).resolves.toBe(false);
+    expect(seen.at(-1)).toEqual(['error', 'Drive API 500']);
+    expect(hasPendingChanges()).toBe(true);
+    await expect(pushToCloud({ throwOnError: true })).rejects.toThrow('Drive API 500');
+    expect(hasPendingChanges()).toBe(true);
+    upload.mockReset();
+    upload.mockResolvedValue('2026-01-01T00:00:00.000Z');
+    errSpy.mockRestore();
+  });
+
+  it('loadPendingState reads stored sync metadata', async () => {
+    const meta = await import('../db/repositories/meta');
+    (meta.getLastSyncTimestamp as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      '2026-01-01T00:00:00.000Z',
+    );
+    (meta.getLastLocalChangeTimestamp as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      '2026-01-02T00:00:00.000Z',
+    );
+    const { loadPendingState, hasPendingChanges } = await import('./engine');
+    await expect(loadPendingState()).resolves.toBe(true);
+    expect(hasPendingChanges()).toBe(true);
+  });
+
+  it('pullFromCloud rethrows NeedsAuthError without logging', async () => {
+    const drive = await import('./drive');
+    const { NeedsAuthError } = await import('../auth/errors');
+    (drive.getCloudModifiedTime as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new NeedsAuthError(),
+    );
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { pullFromCloud } = await import('./engine');
+    await expect(pullFromCloud()).rejects.toBeInstanceOf(NeedsAuthError);
+    expect(errSpy).not.toHaveBeenCalled();
+    errSpy.mockRestore();
   });
 });

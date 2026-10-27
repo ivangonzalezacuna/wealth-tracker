@@ -39,12 +39,21 @@ Open `http://localhost:5173`, sign in with Google, and you're running.
 
 Create a Google Cloud project (or reuse an existing one):
 
-1. **OAuth consent screen** - configure it (External, test mode is fine for personal use)
-2. **OAuth 2.0 Client ID** (Web application type):
+1. **Drive API** - enable it (APIs & Services > Library > Google Drive API)
+2. **OAuth 2.0 Client ID** (Google Auth Platform > Clients, Web application type):
    - Authorized JavaScript origins: `http://localhost:5173` + your production URL
-3. **Drive API** - enable it (APIs & Services > Library > Google Drive API)
+3. **Branding** (Google Auth Platform > Branding):
+   - App name and user support email
+   - App home page: your production URL
+   - Privacy policy: `<your production URL>/privacy.html` (shipped in `public/privacy.html`; change the contact link to your own before deploying)
+   - Authorized domain: your site's domain (for example `your-site.netlify.app`; `netlify.app` is a public suffix, so the subdomain is accepted)
+   - No logo needed: adding one triggers Google's brand verification
+4. **Data Access**: add the `.../auth/drive.appdata` scope
+5. **Audience**: User type External, then **Publish app** to move it to _In production_
 
 The app only requests the `drive.appdata` scope, which gives access to a hidden per-app folder in Drive. No Sheets, no Picker, no API keys needed.
+
+**Why publish instead of staying in Testing?** In _Testing_ mode Google shows a "Google hasn't verified this app" warning on every sign-in, and each grant expires after 7 days, forcing a full consent screen again. `drive.appdata` is a non-sensitive scope, so publishing needs no Google review: the warning disappears and the grant no longer expires. Publishing does not make your data visible to anyone: every Google account only ever reaches its own hidden AppData folder. After publishing, sign out and sign in once so the browser gets a fresh, non-expiring grant. For a development client, Testing mode is fine.
 
 ## Environment variables
 
@@ -96,7 +105,9 @@ The app stores all your data in a **local SQLite database** (sql.js WASM) runnin
 
 There is no backend. Your data never leaves your browser except to your own Google Drive.
 
-All writes (snapshots, CSV imports, settings changes, backup restores) go to local SQLite immediately, regardless of connectivity. On startup, the app checks whether the Google Drive copy is newer than the local one; if it is, the cloud copy is downloaded and replaces the local database (for example, when picking up changes made on another device). Drive sync is otherwise opportunistic: changes are pushed automatically after a short debounce when online, and any writes made offline are pushed the next time connectivity is restored.
+All writes (snapshots, CSV imports, settings changes, backup restores) go to local SQLite immediately, regardless of connectivity. On startup, the app checks whether the Google Drive copy is newer than the local one; if it is, the cloud copy is downloaded and replaces the local database (for example, when picking up changes made on another device). Drive sync is otherwise opportunistic: changes are pushed automatically after a short debounce when online and connected, and any writes made offline or while not connected to Google are pushed on the next sync.
+
+A browser that has never synced (new device, or site data cleared) always loads the Drive copy first and only adds the snapshots and transactions it saved itself, so it can never overwrite Drive with an empty or default database. If both copies changed, sync pauses and asks which one to keep; keeping this device's copy is blocked when it has no snapshots or transactions.
 
 ## Stack
 
@@ -117,6 +128,8 @@ When you open the app for the first time, a setup banner guides you through thre
 ### 1. Sign in with Google
 
 Click **Sign in** to authorize the app. It requests only the `drive.appdata` scope: access to a hidden app-specific folder that no one else can see. No access to your files, sheets, or any other Drive content.
+
+You only do this once per browser. Google access tokens last about an hour and can only be renewed from a click (Google opens a short popup that closes by itself), so the app never interrupts you on load. After the token expires the app keeps working on this device: you can keep logging snapshots, importing CSVs and changing settings. Your next save reconnects to Google from that same click and syncs; if you close that popup, changes stay on the device and the sync chip shows _Not synced_ until you select it. The popup preselects the account you used before, and the app warns you if you connect a different Google account, since each account keeps separate data.
 
 ### 2. Add your accounts
 
@@ -330,9 +343,9 @@ All charts share the same controls and follow the light/dark theme:
 
 ### Header, theme and sync status
 
-The **⋯ menu** in the top-right corner holds the theme choice (Light, Dark, or System, which follows your OS preference) and, when signed in, **Sign out**. The theme is saved locally and applied on each page load.
+The **⋯ menu** in the top-right corner holds the theme choice (Light, Dark, or System, which follows your OS preference) and, when signed in, **Sign out**. Signing out first tries to sync; if changes still could not reach Drive, the app asks before signing out (they stay on this device and sync the next time you sign in). The theme is saved locally and applied on each page load.
 
-The **sync chip** under the title shows the Google Drive state in one place: _Synced · 5 min ago_ (select it to sync now), _Syncing…_, _Sync failed_ (select to retry; the tooltip gives a short reason), _Sync paused_ (select to resolve a conflict), _Offline_, or _Read-only_ (cached data, sign in to sync). On narrow screens the tab bar scrolls sideways, with a fade at the edge showing more tabs.
+The **sync chip** under the title shows the Google Drive state in one place: _Synced · 5 min ago_ (select it to sync now), _Syncing…_, _Sync failed_ (select to retry; the tooltip gives a short reason and says whether changes are still waiting to reach Drive), _Sync paused_ (select to resolve a conflict), _Offline_ (or _Offline · not synced_ when changes are waiting), _Not connected_ (editing on this device; select to connect to Google and sync), _Not synced_ (changes saved on this device are not in Drive yet; select to sync), or _Read-only_ (cached data in a browser that never signed in). On narrow screens the tab bar scrolls sideways, with a fade at the edge showing more tabs.
 
 ### Currency and FX model
 
@@ -450,6 +463,8 @@ There is no backend and no server-side secrets.
 
 - Your data lives only in your browser and your own Drive AppData. The app never sends data anywhere except the Google Drive API, using your own OAuth grant.
 - The OAuth token only accesses a hidden app-specific folder, not your files or anything else in Drive. `drive.appdata` is the most restrictive Drive scope available.
+- Publishing the OAuth app to production lets any Google account sign in, but each account only ever sees its own AppData folder: nobody can read another person's data, including yours. Remove the browser's access at any time from your Google Account's third-party connections page, or with **Sign out**, which also revokes the token.
+- Access tokens live about an hour and are kept in `localStorage`. There is no refresh token, and the app never requests a token in the background.
 - `VITE_GOOGLE_CLIENT_ID` is visible in the built JavaScript. This is intentional: OAuth Client IDs are public by design and grant zero access alone.
 - Separate OAuth apps for dev/prod means separate Drive AppData folders. Data can never cross environments.
 - A Content-Security-Policy is enforced via headers (see `netlify.toml`), restricting script execution and outbound connections.
@@ -464,7 +479,7 @@ There is no backend and no server-side secrets.
 Settings > **Backup & restore** provides:
 
 - **Export backup** downloads a single JSON file with everything (accounts, holdings, settings, snapshots, transactions, import metadata)
-- **Restore from file** reads that JSON back and replaces the local database entirely (asks for confirmation)
+- **Restore from file** reads that JSON back and replaces the local database entirely (asks for confirmation), then overwrites the Drive copy with it
 - If it has been 30+ days since your last export, the settings card nudges you to run a fresh one
 
 The JSON backup is human-readable and can be processed by any tool. The SQLite database can also be exported directly for raw SQL access.

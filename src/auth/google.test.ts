@@ -306,44 +306,107 @@ describe('GRANTED_KEY prompt selection', () => {
     expect(storage.get('ggranted')).toBe('1');
   });
 
-  it('signOut removes both STORE_KEY and GRANTED_KEY', async () => {
+  it('signOut removes STORE_KEY, GRANTED_KEY and the remembered account', async () => {
     storage.set('gtoken', JSON.stringify({ access_token: 'x', expires_at: Date.now() + 3600_000 }));
     storage.set('ggranted', '1');
+    storage.set('gaccount', 'me@example.com');
 
     const { signOut } = await import('./google');
     signOut();
 
     expect(storage.has('gtoken')).toBe(false);
     expect(storage.has('ggranted')).toBe(false);
+    expect(storage.has('gaccount')).toBe(false);
   });
 
-  it('failed interactive signIn removes GRANTED_KEY', async () => {
+  it('closing the popup keeps GRANTED_KEY and the next attempt stays light', async () => {
     storage.set('ggranted', '1');
     const { signIn } = await import('./google');
     const p = signIn();
     await vi.advanceTimersByTimeAsync(0);
 
-    // Simulate failure via error_callback
     _capturedConfig.error_callback({ type: 'popup_closed' });
 
     await expect(p).rejects.toThrow('popup_closed');
-    expect(storage.has('ggranted')).toBe(false);
+    expect(storage.get('ggranted')).toBe('1');
+
+    _fakeClient.requestAccessToken.mockClear();
+    const p2 = signIn();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(_fakeClient.requestAccessToken).toHaveBeenCalledWith({ prompt: '' });
+    _capturedConfig.error_callback({ type: 'popup_closed' });
+    await expect(p2).rejects.toThrow();
   });
 
-  it('non-interactive getToken always requests with prompt: empty string regardless of GRANTED_KEY', async () => {
+  it('a real sign-in failure keeps GRANTED_KEY but asks for consent next time', async () => {
     storage.set('ggranted', '1');
-    const { getToken } = await import('./google');
-    const p = getToken();
+    const { signIn } = await import('./google');
+    const p = signIn();
     await vi.advanceTimersByTimeAsync(0);
+    _fakeClient.callback({ error: 'access_denied' });
+    await expect(p).rejects.toThrow('access_denied');
+    expect(storage.get('ggranted')).toBe('1');
 
-    expect(_fakeClient.requestAccessToken).toHaveBeenCalledWith({ prompt: '' });
-
+    _fakeClient.requestAccessToken.mockClear();
+    const p2 = signIn();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(_fakeClient.requestAccessToken).toHaveBeenCalledWith({ prompt: 'consent' });
     _fakeClient.callback({
-      access_token: 'silent-tok',
+      access_token: 'tok-ok',
       expires_in: 3600,
       token_type: 'Bearer',
-      scope: 'https://www.googleapis.com/auth/drive.file',
+      scope: 'https://www.googleapis.com/auth/drive.appdata',
     });
-    await p;
+    await p2;
+  });
+
+  it('passes the remembered account as login_hint', async () => {
+    storage.set('ggranted', '1');
+    storage.set('gaccount', 'me@example.com');
+    const { signIn } = await import('./google');
+    const p = signIn();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(_fakeClient.requestAccessToken).toHaveBeenCalledWith({
+      prompt: '',
+      login_hint: 'me@example.com',
+    });
+    _capturedConfig.error_callback({ type: 'popup_closed' });
+    await expect(p).rejects.toThrow();
+  });
+
+  it('getToken never opens the popup and throws NeedsAuthError without a token', async () => {
+    storage.set('ggranted', '1');
+    const { getToken } = await import('./google');
+    const { NeedsAuthError } = await import('./errors');
+
+    await expect(getToken()).rejects.toBeInstanceOf(NeedsAuthError);
+    expect(_fakeClient.requestAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('getToken returns a cached valid token', async () => {
+    storage.set(
+      'gtoken',
+      JSON.stringify({ access_token: 'cached', expires_at: Date.now() + 3600_000 }),
+    );
+    const { getToken } = await import('./google');
+    await expect(getToken()).resolves.toBe('cached');
+  });
+
+  it('forgetToken drops the token but keeps GRANTED_KEY', async () => {
+    storage.set('gtoken', JSON.stringify({ access_token: 'x', expires_at: Date.now() + 3600_000 }));
+    storage.set('ggranted', '1');
+    const { forgetToken, isSignedIn, hasEverGranted } = await import('./google');
+    forgetToken();
+    expect(isSignedIn()).toBe(false);
+    expect(storage.has('gtoken')).toBe(false);
+    expect(hasEverGranted()).toBe(true);
+  });
+
+  it('rememberAccount / getRememberedAccount round-trip', async () => {
+    const { rememberAccount, getRememberedAccount } = await import('./google');
+    expect(getRememberedAccount()).toBeNull();
+    rememberAccount('me@example.com');
+    expect(getRememberedAccount()).toBe('me@example.com');
   });
 });

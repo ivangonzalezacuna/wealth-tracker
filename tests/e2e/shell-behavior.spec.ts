@@ -96,6 +96,33 @@ test.describe('Auth state', () => {
     await expect(page.locator('#auth-prompt')).not.toBeVisible();
   });
 
+  test('a browser set up before but without a token stays editable and offers to connect', async ({
+    page,
+  }) => {
+    // Granted earlier, token expired: no Google popup or Drive call at boot.
+    await page.addInitScript(() => localStorage.setItem('ggranted', '1'));
+    await page.route('https://accounts.google.com/**', (route) =>
+      route.fulfill({ status: 200, body: '', contentType: 'application/javascript' }),
+    );
+    const driveCalls: string[] = [];
+    await page.route('https://www.googleapis.com/**', (route) => {
+      driveCalls.push(route.request().url());
+      return route.fulfill({ status: 401, body: '{}', contentType: 'application/json' });
+    });
+
+    await gotoApp(page);
+
+    const chip = page.locator('#sync-status');
+    await expect(chip).toContainText('Not connected');
+    await expect(chip).toHaveAttribute('data-action', 'sync');
+    await expect(page.locator('#btn-signin-global')).not.toBeVisible();
+    await expect(page.locator('#auth-prompt')).not.toBeVisible();
+    await page.click('#btn-header-menu');
+    await expect(page.locator('#btn-signout')).toBeVisible();
+    await page.keyboard.press('Escape');
+    expect(driveCalls).toEqual([]);
+  });
+
   test('clicking sign-out triggers a page reload clearing the session', async ({ page }) => {
     await preparePage(page);
     await gotoApp(page);
