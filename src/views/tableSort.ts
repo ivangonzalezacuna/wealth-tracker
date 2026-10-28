@@ -31,7 +31,8 @@ export function applySort<T>(
   return items.slice().sort((a, b) => {
     const av = getter(a);
     const bv = getter(b);
-    if (typeof av === 'string' && typeof bv === 'string') return av.localeCompare(bv) * strDir;
+    if (typeof av === 'string' && typeof bv === 'string')
+      return av.localeCompare(bv, 'en-GB') * strDir;
     return ((av as number) - (bv as number)) * numDir;
   });
 }

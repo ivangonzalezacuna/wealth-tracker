@@ -8,6 +8,7 @@ type Handler = (params: unknown) => void;
 export interface MockChart {
   dom: HTMLElement;
   theme: unknown;
+  initOptions: unknown;
   option: Record<string, unknown> | null;
   options: Array<Record<string, unknown>>;
   actions: Array<Record<string, unknown>>;
@@ -72,10 +73,11 @@ function isNotMerge(opts: unknown): boolean {
   return Boolean(opts && typeof opts === 'object' && (opts as { notMerge?: boolean }).notMerge);
 }
 
-export function init(dom: HTMLElement, theme?: unknown): MockChart {
+export function init(dom: HTMLElement, theme?: unknown, initOptions?: unknown): MockChart {
   const chart: MockChart = {
     dom,
     theme,
+    initOptions,
     option: null,
     options: [],
     actions: [],

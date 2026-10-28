@@ -6,6 +6,19 @@
 
 Personal ETF portfolio and net worth tracker. Runs entirely in the browser as a PWA, with offline support and Google Drive sync.
 
+## Language and formatting
+
+Application copy and formatted dates are English. Dates use `en-GB`, sortable table
+text and built-in country names use English collation, and charts explicitly use
+the English locale. Financial number formatting retains the existing European
+conventions, independently of the interface language. Country entry also accepts
+recognized non-English names.
+
+Native date/month pickers, color pickers and file dialogs may follow the browser
+or operating system language despite the page's `lang="en"` declaration. Their UI
+language cannot be guaranteed across browsers without replacing those controls.
+Date/month values remain ISO-formatted regardless of the native display language.
+
 ## Changelog note (2026-08)
 
 - Snapshot ETF breakdown now supports partial allocation: ETF subtotals may stay below the account total (tracked as unallocated cash), while over-allocation is still blocked.

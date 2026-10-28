@@ -716,7 +716,7 @@ export function renderChart(
   }
   if (!entry) {
     const ctx = makeCtx(host);
-    const chart = ec.init(host, buildChartTheme(ctx.tokens), { renderer: 'canvas' });
+    const chart = ec.init(host, buildChartTheme(ctx.tokens), { renderer: 'canvas', locale: 'EN' });
     entry = {
       id,
       host,

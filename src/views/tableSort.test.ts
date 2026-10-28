@@ -62,6 +62,22 @@ describe('applySort', () => {
     expect(result.map((i) => i.name)).toEqual(['Charlie', 'Bob', 'Alice']);
   });
 
+  it('uses English ordering for accented names in both directions', () => {
+    const names = ['Zulu', '\u00c5land', 'Alpha'];
+    const nameGetters = { name: (name: string) => name };
+    expect(applySort(names, { key: 'name', dir: 'desc' }, nameGetters)).toEqual([
+      '\u00c5land',
+      'Alpha',
+      'Zulu',
+    ]);
+    expect(applySort(names, { key: 'name', dir: 'asc' }, nameGetters)).toEqual([
+      'Zulu',
+      'Alpha',
+      '\u00c5land',
+    ]);
+    expect(names).toEqual(['Zulu', '\u00c5land', 'Alpha']);
+  });
+
   it('sorts numbers high→low on first click (desc)', () => {
     const state: SortState = { key: 'cost', dir: 'desc' };
     const result = applySort(items, state, getters);

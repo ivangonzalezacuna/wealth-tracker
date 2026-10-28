@@ -1,6 +1,8 @@
 /** Header sync chip: one compact control that shows the sync state and,
  *  when it makes sense, acts on it (sync now, retry, resolve a conflict). */
 
+import { formatEnglishDate } from '../dateFormat';
+
 export type SyncStatus =
   | ''
   | 'loading'
@@ -61,7 +63,7 @@ export function relativeTime(at: number, now: number): string {
   const h = Math.floor(min / 60);
   if (h < 24) return `${h} h ago`;
   if (h < 48) return 'yesterday';
-  return new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  return formatEnglishDate(new Date(at), { day: 'numeric', month: 'short' });
 }
 
 /** Turn a raw sync error (which may embed a Drive JSON response) into one short line. */

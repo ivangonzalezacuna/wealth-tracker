@@ -14,6 +14,13 @@ describe('relativeTime', () => {
     expect(relativeTime(NOW - 30 * 3_600_000, NOW)).toBe('yesterday');
     expect(relativeTime(NOW - 5 * 86_400_000, NOW)).not.toMatch(/ago/);
   });
+
+  it('uses English dates from 48 hours onward, including in sync labels', () => {
+    const at = new Date(2026, 4, 10, 12).getTime();
+    expect(relativeTime(at, at + 48 * 3_600_000 - 1)).toBe('yesterday');
+    expect(relativeTime(at, at + 48 * 3_600_000)).toBe('10 May');
+    expect(view({ lastOkAt: at })!.label).toBe('Synced \u00b7 10 May');
+  });
 });
 
 describe('shortSyncError', () => {

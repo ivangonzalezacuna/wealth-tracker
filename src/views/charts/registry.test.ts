@@ -76,6 +76,7 @@ describe('chart formatters', () => {
 describe('renderChart', () => {
   it('creates an instance with aria, toolbox and grid defaults', () => {
     renderChart('c-test', line);
+    expect(chartFor('c-test')!.initOptions).toEqual({ renderer: 'canvas', locale: 'EN' });
     const opt = chartFor('c-test')!.option as AnyRec;
     expect(opt.aria.enabled).toBe(true);
     expect(opt.useUTC).toBe(true);

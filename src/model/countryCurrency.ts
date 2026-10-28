@@ -137,6 +137,6 @@ export function builtInCountries(): BuiltInCountry[] {
       currency,
       name: DISPLAY_OVERRIDES[code] ?? names?.of(code) ?? code,
     }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => a.name.localeCompare(b.name, 'en-GB'));
   return _builtIns;
 }
