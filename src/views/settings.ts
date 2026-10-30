@@ -135,11 +135,12 @@ function setListDraftState(msgId: string, dirty: boolean): void {
 const NO_CHANGES_TITLE = 'No changes to save';
 
 // Reapply data-dirty after card guards and sync locks release their buttons.
-function setSaveDirty(btn: HTMLButtonElement, dirty: boolean): void {
+function setSaveDirty(btn: HTMLButtonElement, dirty: boolean, draftDirty = dirty): void {
   btn.dataset.dirty = String(dirty);
+  btn.dataset.draftDirty = String(draftDirty);
   applySaveDirtyState(btn);
   const card = btn.closest<HTMLElement>('.card');
-  card?.classList.toggle('settings-dirty', !!card.querySelector('button[data-dirty="true"]'));
+  card?.classList.toggle('settings-dirty', !!card.querySelector('button[data-draft-dirty="true"]'));
 }
 
 function applySaveDirtyState(btn: HTMLButtonElement): void {
@@ -179,7 +180,8 @@ function trackFormDirty(
   let baseline = snapshot();
   const refresh = () => {
     const btn = root.querySelector<HTMLButtonElement>(`#btn-save-${button}`);
-    if (btn) setSaveDirty(btn, forceDirty() || snapshot() !== baseline);
+    const changed = snapshot() !== baseline;
+    if (btn) setSaveDirty(btn, forceDirty() || changed, changed);
   };
   scope?.addEventListener('input', refresh);
   scope?.addEventListener('change', refresh);

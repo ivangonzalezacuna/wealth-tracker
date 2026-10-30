@@ -267,6 +267,31 @@ describe('statement mapping settings', () => {
     setupDOM();
     renderSettings();
   });
+  it('keeps suggested mappings saveable without treating them as user drafts', () => {
+    const card = document.getElementById('settings-card-integrations')!;
+    const save = document.getElementById('btn-save-statement-mapping') as HTMLButtonElement;
+    expect(save.dataset.dirty).toBe('true');
+    expect(save.disabled).toBe(false);
+    expect(card.classList.contains('settings-dirty')).toBe(false);
+    renderSettings({ preserveDrafts: true });
+    expect(document.getElementById('settings-card-integrations')).not.toBe(card);
+  });
+  it('preserves actual mapping edits across refresh and clears the draft on reverting', () => {
+    const card = document.getElementById('settings-card-integrations')!;
+    const mode = document.getElementById('settings-statement-mode') as HTMLSelectElement;
+    const original = mode.value;
+    mode.value = 'positions';
+    mode.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(card.classList.contains('settings-dirty')).toBe(true);
+    renderSettings({ preserveDrafts: true });
+    expect(document.getElementById('settings-card-integrations')).toBe(card);
+    mode.value = original;
+    mode.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(card.classList.contains('settings-dirty')).toBe(false);
+    expect(
+      (document.getElementById('btn-save-statement-mapping') as HTMLButtonElement).disabled,
+    ).toBe(false);
+  });
   it('saves through the guarded ordinary settings path', async () => {
     document.querySelector<HTMLButtonElement>('#btn-save-statement-mapping')!.click();
     await vi.waitFor(() =>
