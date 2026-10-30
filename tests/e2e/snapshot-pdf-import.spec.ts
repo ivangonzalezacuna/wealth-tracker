@@ -57,6 +57,8 @@ test('actual PDF worker imports fake valuations through review, preserves them a
   await upload(page);
   await expect(page.locator('.snap-pdf-source')).toContainText('2024-01-31');
   await mapCombined(page);
+  const accountId = await page.locator('[data-account-key]').getAttribute('data-account-key');
+  await expect(page.getByLabel('Breakdown coverage')).toHaveValue('0');
   await expect(page.getByLabel('Fictional Broker (EUR)')).toHaveValue('3707.62');
   await expect(page.locator('.snap-etf-extra')).toHaveCount(7);
   await expect(page.locator('#snap-msg')).not.toContainText('Saved');
@@ -78,6 +80,10 @@ test('actual PDF worker imports fake valuations through review, preserves them a
     await expect(page.locator(`[data-etf-isin="${FAKE_ISINS[i]}"]`)).toHaveValue(
       String(FAKE_VALUES[i]),
     );
+    await expect(page.locator(`[data-etf-isin="${FAKE_ISINS[i]}"]`)).toHaveAttribute(
+      'data-position-account',
+      accountId!,
+    );
   }
   await page.click('.js-snapd-cancel');
   await openTab(page, 'tab-settings');
@@ -92,8 +98,11 @@ test('actual PDF worker imports fake valuations through review, preserves them a
   expect(exported.data.snapshots[0]).toMatchObject({
     date: '2024-01',
     notes: '',
-    [`etf_${FAKE_ISINS[0]}`]: 101.11,
+    [`position:${accountId}:${FAKE_ISINS[0]}`]: 101.11,
+    [`position_coverage:${accountId}`]: 0,
   });
+  expect(Object.keys(exported.data.snapshots[0]).some((key) => key.startsWith('etf_'))).toBe(false);
+  expect(exported.data.settings.etf_valuation_schema).toBe('account-v1');
   for (const forbidden of [
     'fictional-July.pdf',
     'Fictional fund',
@@ -226,7 +235,8 @@ test('automatically replaces values, remembers mapping across dialogs, and suppo
   await upload(page);
   await expect(page.locator('.snap-pdf-status')).toContainText('filled automatically');
   await expect(page.locator('.snap-etf-extra')).toHaveCount(7);
-  await expect(page.locator('.snap-etf-other')).not.toHaveAttribute('open');
+  await expect(page.locator('[data-position-account]')).toHaveCount(7);
+  await expect(page.getByLabel('Breakdown coverage')).toHaveValue('0');
   await page.setViewportSize({ width: 320, height: 844 });
   expect(
     await page.locator('.dialog-fields').evaluate((el) => el.scrollWidth <= el.clientWidth),
@@ -256,7 +266,8 @@ test('maps separate securities and cash accounts without counting cash twice', a
   await expect(page.getByLabel('Fictional Cash (EUR)')).toHaveValue('876.54');
   await page.click('.js-snapd-submit');
   await expect(page.locator('.snapd-review')).toBeVisible();
-  await expect(page.locator('.snapd-review')).toContainText('Unexplained remainder');
+  await expect(page.locator('.snapd-review')).toContainText('recorded ETFs / remainder');
+  await expect(page.locator('.snapd-review')).toContainText('Partial');
   await page.click('.js-snapd-submit');
   await expect(page.locator('#snap-msg')).toContainText('Saved');
 });

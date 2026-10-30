@@ -20,6 +20,11 @@ export {
 } from './repositories/transactions';
 
 export { loadSnapshots, upsertSnapshot, saveSnapshots } from './repositories/snapshots';
+export {
+  saveAccountConfiguration,
+  convertEtfValuations,
+  reviewEtfCoverage,
+} from './repositories/lifecycle';
 
 export {
   loadAccounts,

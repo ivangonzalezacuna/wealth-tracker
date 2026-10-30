@@ -97,6 +97,10 @@ For Vercel, Cloudflare Pages, or similar:
 
 ## How it works
 
+For closing/reopening investment accounts, sharing one ETF across accounts, and
+reviewing historical assignments/completeness, see the
+[account lifecycle and snapshot workflow](docs/account-closure-plan.md).
+
 The app stores all your data in a **local SQLite database** (sql.js WASM) running in the browser. This database is:
 
 1. **Persisted locally** in IndexedDB (survives reloads and restarts) — this is the primary working store for all reads and writes
@@ -146,6 +150,19 @@ You can also configure extra contributions (employer match, state subsidies) tha
 Each holding can be given a **target allocation percentage** (set in the holding dialog). Once at least one target is configured, the Portfolio tab's allocation drift chart compares your actual allocation against those targets (one bar per holding, largest gap first, with your drift alert threshold shaded around zero; click a bar to open the holding) and the collapsible **Rebalance with contributions** section suggests top-up amounts based on your **calibration interval** (weekly / every 2 weeks / monthly / quarterly, picked from a compact select next to the 1 mo – 1 yr horizon toggles). It leads with one line showing how far max drift falls over the chosen horizon, lists funded holdings first, and folds holdings that get nothing this period under a single "N holdings get 0 €" row. It is flagged as suggested once drift reaches the high band of your alert threshold. The assumptions (new contributions only, no selling, no market moves) sit in an info tip, and a short warning appears when some holdings would still be above target after 12 months. When max drift crosses your alert threshold, a dot appears on the **Portfolio** tab and the **Holdings** chip (amber for moderate, red for high) so you can follow it to the drift card. A backup older than 30 days (or no backup yet) is flagged the same way: a dot on **Settings** and **Advanced**, and a **Backup due** badge on the Backup & restore card header. Hover a marked tab or the badge (or tap the dot or badge on touch screens) to see what needs attention; tapping the dot shows the note without switching tabs.
 
 ### 3. Log your first monthly snapshot
+
+Account lifecycle and account-linked ETF valuations are described in the
+[account lifecycle guide](docs/account-closure-plan.md). A tracker account can
+be closed and reopened without losing its history or name, including when a
+bank issues a replacement for the same logical setup. Reopening does not resume
+contributions automatically.
+
+Existing global ETF snapshot values need a one-time reviewed account assignment.
+The current primary account is a proposal, not an automatic historical mapping.
+After conversion, the same ETF may have valuations in several accounts while
+retaining one security definition and one Portfolio row. Expand that row for
+account values; the account filter selects rows, not account-specific cost basis
+or P&L. Save a recovery backup before converting.
 
 Go to the **+ Log** tab. Enter the closing value for each account for the selected month, review the draft, then hit **Save snapshot**. This records your net worth for the month.
 

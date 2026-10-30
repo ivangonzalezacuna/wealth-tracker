@@ -2,6 +2,7 @@ import { fmtEur, fmtEur2, fmtMon, esc, safeColor, kpiTile } from '../utils';
 import { getISIN_ORDERList, getISIN, getMETAMap } from '../constants';
 import { getMonthlyContribBudget, getAccounts } from '../store/config';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
+import { isAccountOpenNow } from '../model/accounts';
 import type { PortfolioData, Snapshot, Account } from '../types';
 import { bindSortedTableHeader, renderTableSection } from './tableView';
 import type { ColumnDef } from './tableColumns';
@@ -80,7 +81,7 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
   // Filter to investment + pension accounts only
   const forecastAccounts = accounts.filter((a) => {
     const type = (a.moneyType || '').toLowerCase();
-    return type === 'investment' || type === 'pension' || type === 'avd';
+    return isAccountOpenNow(a) && (type === 'investment' || type === 'pension' || type === 'avd');
   });
 
   // Monthly contribution rate: sum of all investment + pension contributions (personal + extra)

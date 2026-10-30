@@ -1,7 +1,13 @@
 import type { Account, FxRateRecord, Holding, Settings, Snapshot, Transaction } from '../types';
 import { formatEnglishDate } from '../dateFormat';
+import { validateClosedPeriods, validateAccountLifecycle } from '../model/accounts';
+import {
+  ETF_VALUATION_SCHEMA,
+  validateSnapshotPositions,
+  isScopedValuationMode,
+} from '../model/snapshotPositions';
 
-export const BACKUP_SCHEMA_VERSION = 4;
+export const BACKUP_SCHEMA_VERSION = 5;
 
 export interface BackupFile {
   schemaVersion: number;
@@ -84,6 +90,14 @@ export const MIGRATIONS: Record<number, Migration> = {
     }
     return data;
   },
+  // v4->v5: lifecycle intervals and the account-linked ETF valuation format.
+  4: (data) => ({
+    ...data,
+    accounts: data.accounts.map((account) => ({
+      ...account,
+      closedPeriods: account.closedPeriods || [],
+    })),
+  }),
 };
 
 export function migrateBackup(b: BackupFile): BackupFile {
@@ -141,6 +155,15 @@ export function validateBackup(raw: unknown): BackupFile | null {
     // migrateBackup (v3→v4) fills in an empty array.
     (d.fxRates !== undefined &&
       (!Array.isArray(d.fxRates) || !d.fxRates.every(isValidFxRateRecord)))
+  )
+    return null;
+  if (validateAccountLifecycle(d.accounts, d.snapshots)) return null;
+  if (d.settings.etf_valuation_schema && d.settings.etf_valuation_schema !== ETF_VALUATION_SCHEMA)
+    return null;
+  if (
+    d.snapshots.some((snap) =>
+      validateSnapshotPositions(snap, d.accounts!, isScopedValuationMode(d.settings!)),
+    )
   )
     return null;
   return b as BackupFile;
@@ -270,6 +293,7 @@ function isValidAccount(value: unknown): value is Account {
     isOptionalString(value.institution) &&
     isOptionalString(value.country) &&
     isOptionalString(value.group) &&
+    validateClosedPeriods(value.closedPeriods) === null &&
     isOptionalString(value.color) &&
     isOptionalBoolean(value.isPrimaryInvestment) &&
     isOptionalFiniteNumber(value.order) &&

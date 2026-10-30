@@ -161,6 +161,7 @@ describe('renderLog', () => {
       onDelSnap: vi.fn(),
       readOnly: false,
     });
+
     // Expand the row
     const row = document.querySelector('.snap-row-compact:not(.th)') as HTMLElement;
     row.click();
@@ -168,6 +169,30 @@ describe('renderLog', () => {
     expect(detail).not.toBeNull();
     expect(detail!.innerHTML).toContain('js-edit-snap');
     expect(detail!.innerHTML).toContain('js-del-snap');
+  });
+
+  it('groups scoped ETF valuations under readable account labels', () => {
+    renderLog({
+      txs: [],
+      snaps: [
+        {
+          date: '2026-06',
+          acct_1: 4000,
+          acct_2: 6000,
+          'position:acct_1:IE00B4L5Y983': 4000,
+          'position:acct_2:IE00B4L5Y983': 6000,
+        },
+      ],
+      importMeta: null,
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+    });
+    (document.querySelector('.snap-row-compact:not(.th)') as HTMLElement).click();
+    const detail = document.querySelector('.snap-detail')!.textContent!;
+    expect(detail).toContain('Main · ETF valuations');
+    expect(detail).toContain('Savings · ETF valuations');
+    expect(detail).toContain('IE00B4L5Y983');
+    expect(detail).not.toContain('position:');
   });
 
   it('supports keyboard expansion and updates aria-expanded', () => {

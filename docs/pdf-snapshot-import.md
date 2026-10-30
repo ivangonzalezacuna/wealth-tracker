@@ -27,6 +27,16 @@ review available for retry or **Back to edit**, without re-importing the PDF.
 
 ## Single source of truth
 
+After the reviewed account-linked valuation conversion, an investment mapping
+selects the destination account for each imported ETF valuation. The same ISIN
+can occur in different accounts: imports update `(account, ISIN)` fields and do
+not duplicate the global security definition. Reimporting replaces reviewed
+fields rather than adding their values again; Undo is scoped to the imported
+account. Destinations must be open for the statement month, including historical
+accounts that are no longer primary. Each account's ETF subtotal is reconciled
+against its own balance. Legacy global valuations remain supported until the
+one-time conversion; see the [lifecycle guide](account-closure-plan.md).
+
 The pipeline is **PDF text → registered parser → normalized statement → account
 mapping → editable draft → Review → Save**.
 

@@ -8,6 +8,7 @@ import {
 import { parseTradeRepublicStatement } from './snapshotTradeRepublic';
 import { FAKE_ISINS, syntheticPages } from '../../tests/fixtures/snapshot-import/synthetic';
 import type { Account } from '../types';
+import { positionKey } from '../model/snapshotPositions';
 
 const accounts: Account[] = [
   { id: 'broker', label: 'Fictional broker', moneyType: 'investment', isPrimaryInvestment: true },
@@ -19,6 +20,37 @@ afterEach(() => {
 });
 
 describe('snapshot statement mapping', () => {
+  it('scopes a historical non-primary destination and rejects all closed-month imports, even zero positions', () => {
+    const historical: Account[] = [
+      ...accounts,
+      {
+        id: 'old_broker',
+        label: 'Former broker',
+        moneyType: 'investment',
+        closedPeriods: [{ closedFromMonth: '2024-02', reopenedFromMonth: '2024-05' }],
+      },
+    ];
+    const mapping = { mode: 'positions' as const, securitiesAccount: 'old_broker' };
+    const proposals = proposeMappedStatement(statement, historical, mapping, true);
+    expect(proposals[0]).toMatchObject({
+      key: positionKey('old_broker', statement.positions[0].isin),
+      accountId: 'old_broker',
+      value: statement.positions[0].value,
+    });
+    expect(() => proposeMappedStatement(statement, historical, mapping)).toThrow('primary');
+    expect(() =>
+      proposeMappedStatement(
+        {
+          ...statement,
+          date: '2024-03-31',
+          positions: statement.positions.map((p) => ({ ...p, value: 0 })),
+        },
+        historical,
+        mapping,
+        true,
+      ),
+    ).toThrow('closed');
+  });
   it('maps verified savings balances independently of ETF accounts and rejects missing values', () => {
     snapshotParsers.push(fictionalBalanceParser);
     const statement = fictionalBalanceParser.parse(syntheticPages([fictionalBalanceLines]));

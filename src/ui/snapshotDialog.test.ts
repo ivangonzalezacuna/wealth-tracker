@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { snapshotDialog, type SnapshotDialogFxPrefetchResult } from './snapshotDialog';
 import type { Account, Holding, PortfolioData, Snapshot } from '../types';
 import { fmtEur2 } from '../utils';
+import { positionKey, coverageKey } from '../model/snapshotPositions';
+import { FAKE_ISINS } from '../../tests/fixtures/snapshot-import/synthetic';
 
 const accounts: Account[] = [
   { id: 'cash', label: 'Cash account' },
@@ -134,6 +136,225 @@ function nextMonth(): string {
 }
 
 describe('snapshotDialog', () => {
+  const scopedAccounts: Account[] = [
+    { id: 'cash', label: 'Cash' },
+    {
+      id: 'spain',
+      label: 'Spain',
+      moneyType: 'investment',
+      currency: 'USD',
+      isPrimaryInvestment: true,
+    },
+    { id: 'france', label: 'France', moneyType: 'investment', currency: 'EUR' },
+  ];
+  const scopedOpts = (extra: Partial<Parameters<typeof snapshotDialog>[0]> = {}) =>
+    baseOpts({
+      scopedValuations: true,
+      accounts: scopedAccounts,
+      holdings: {},
+      configHoldings: [{ ...configHoldings[0], isin: FAKE_ISINS[0] }],
+      ...extra,
+    });
+  const scopedInput = (accountId: string) =>
+    document.querySelector<HTMLInputElement>(`[data-position-account="${accountId}"]`)!;
+
+  it('keeps saved inactive ETFs under Other ETFs without omitting their values on review', async () => {
+    const inactive = { ...configHoldings[0], isin: FAKE_ISINS[1], active: false, targetPct: 0 };
+    const pending = snapshotDialog(
+      scopedOpts({
+        configHoldings: [
+          { ...configHoldings[0], isin: FAKE_ISINS[0], active: true, targetPct: 100 },
+          inactive,
+        ],
+        prefill: {
+          date: '2024-01',
+          cash: 0,
+          spain: 200,
+          france: 0,
+          [positionKey('spain', FAKE_ISINS[0])]: 100,
+          [positionKey('spain', FAKE_ISINS[1])]: 50,
+        },
+      }),
+    );
+    const other = document.querySelector<HTMLDetailsElement>(
+      '#snapd-etf-section-spain .snap-etf-other',
+    )!;
+    expect(other.open).toBe(false);
+    expect(other.querySelector(`[data-etf-isin="${FAKE_ISINS[1]}"]`)).not.toBeNull();
+    expect(
+      document.querySelector(
+        `#snapd-etf-section-spain [data-usual-etfs] [data-etf-isin="${FAKE_ISINS[0]}"]`,
+      ),
+    ).not.toBeNull();
+    await reviewDraft();
+    getSubmit()!.click();
+    expect(await pending).toMatchObject({
+      [positionKey('spain', FAKE_ISINS[0])]: 100,
+      [positionKey('spain', FAKE_ISINS[1])]: 50,
+    });
+  });
+
+  it('renders only saved account positions, isolates shared ISINs and omits coverage from financial review', async () => {
+    const result = snapshotDialog(
+      scopedOpts({
+        prefill: {
+          date: '2024-01',
+          cash: 0,
+          spain: 100,
+          france: 200,
+          [positionKey('spain', FAKE_ISINS[0])]: 80,
+          [positionKey('france', FAKE_ISINS[0])]: 150,
+          [coverageKey('spain')]: 1,
+          [coverageKey('france')]: 0,
+        },
+      }),
+    );
+    expect(document.querySelectorAll('[data-etf-isin]')).toHaveLength(2);
+    expect(scopedInput('spain').value).toBe('80');
+    expect(scopedInput('france').value).toBe('150');
+    expect(document.querySelectorAll('[data-cross-account]')[0].textContent).toContain(
+      '1 other account',
+    );
+    scopedInput('spain').value = '0';
+    scopedInput('spain').dispatchEvent(new Event('input', { bubbles: true }));
+    await reviewDraft();
+    const review = document.querySelector('.snapd-review')!.textContent!;
+    expect(review).toContain(`Global recorded ETF total: ${fmtEur2(150)}`);
+    expect(review).toContain('Spain · World ETF');
+    expect(review).toContain('France · World ETF');
+    expect(review).not.toContain('position_coverage:');
+    getSubmit()!.click();
+    expect(await result).toMatchObject({
+      [positionKey('spain', FAKE_ISINS[0])]: 0,
+      [positionKey('france', FAKE_ISINS[0])]: 150,
+    });
+  });
+
+  it('adds only selected existing ETFs and applies each account native currency independently', async () => {
+    const onReview = vi.fn(async (draft: Snapshot, currencies: Record<string, string>) => ({
+      snapshot: Object.fromEntries(
+        Object.entries(draft).map(([key, value]) => [
+          key,
+          typeof value === 'number' && currencies[key] === 'USD' ? value * 0.5 : value,
+        ]),
+      ) as Snapshot,
+    }));
+    snapshotDialog(scopedOpts({ onReview }));
+    expect(document.querySelectorAll('[data-etf-isin]')).toHaveLength(0);
+    setField('snapd-date', '2024-01');
+    setField('snapd-acc-cash', '0');
+    setField('snapd-acc-spain', '200');
+    setField('snapd-acc-france', '300');
+    for (const id of ['spain', 'france']) {
+      const combo = document.querySelector<HTMLInputElement>(
+        `[data-add-existing][data-acct-key="${id}"]`,
+      )!;
+      expect(combo.getAttribute('role')).toBe('combobox');
+      combo.value = FAKE_ISINS[0];
+      combo.dispatchEvent(new Event('change'));
+      scopedInput(id).value = '100';
+    }
+    await reviewDraft();
+    expect(onReview.mock.calls[0][1]).toMatchObject({
+      [positionKey('spain', FAKE_ISINS[0])]: 'USD',
+      [positionKey('france', FAKE_ISINS[0])]: 'EUR',
+    });
+    expect(document.querySelector('.snapd-review')!.textContent).toContain(
+      `Global recorded ETF total: ${fmtEur2(150)}`,
+    );
+  });
+
+  it('rejects a per-account post-FX excess that another account cannot offset', async () => {
+    snapshotDialog(
+      scopedOpts({
+        prefill: {
+          date: '2024-01',
+          cash: 0,
+          spain: 100,
+          france: 1000,
+          [positionKey('spain', FAKE_ISINS[0])]: 80,
+        },
+        onReview: async (draft) => ({
+          snapshot: { ...draft, [positionKey('spain', FAKE_ISINS[0])]: 120 },
+        }),
+      }),
+    );
+    getSubmit()!.click();
+    await vi.waitFor(() =>
+      expect(document.querySelector('#snapd-review-err')!.textContent).toContain('Spain'),
+    );
+    expect(document.querySelector<HTMLElement>('.snapd-review')!.hidden).toBe(true);
+  });
+
+  it('refreshes closed-month controls without erasing retained nonzero values, and permits historical edits', async () => {
+    snapshotDialog(
+      scopedOpts({
+        accounts: scopedAccounts.map((a) =>
+          a.id === 'spain'
+            ? {
+                ...a,
+                closedPeriods: [{ closedFromMonth: '2024-02', reopenedFromMonth: '2024-05' }],
+              }
+            : a,
+        ),
+        prefill: {
+          date: '2024-01',
+          cash: 0,
+          spain: 100,
+          france: 0,
+          [positionKey('spain', FAKE_ISINS[0])]: 80,
+        },
+      }),
+    );
+    const month = document.querySelector<HTMLInputElement>('#snapd-date')!;
+    month.value = '2024-03';
+    month.dispatchEvent(new Event('change'));
+    expect(scopedInput('spain').value).toBe('80');
+    expect(document.querySelector<HTMLInputElement>('#snapd-acc-spain')!.value).toBe('100');
+    expect(
+      document.querySelector<HTMLButtonElement>('.js-snapd-extra[data-acct-key="spain"]')!.disabled,
+    ).toBe(true);
+    getSubmit()!.click();
+    expect(document.querySelector('#snapd-acc-spain-err')!.textContent).toContain('closed');
+    expect(document.querySelector('#snapd-etf-spain-err')!.textContent).toContain('closed');
+    month.value = '2024-01';
+    month.dispatchEvent(new Event('change'));
+    expect(
+      document.querySelector<HTMLButtonElement>('.js-snapd-extra[data-acct-key="spain"]')!.disabled,
+    ).toBe(false);
+    await reviewDraft();
+  });
+
+  it('forces missing closed balances to explicit EUR zero and rechecks current lifecycle at Save', async () => {
+    let live = scopedAccounts.map((a) =>
+      a.id === 'spain'
+        ? {
+            ...a,
+            closedPeriods: [{ closedFromMonth: '2024-02' }],
+          }
+        : a,
+    );
+    snapshotDialog(
+      scopedOpts({
+        accounts: live,
+        prefill: { date: '2024-03', cash: 0, france: 0 },
+        importAccounts: () => live,
+      }),
+    );
+    expect(document.querySelector<HTMLInputElement>('#snapd-acc-spain')!.value).toBe('0');
+    expect(document.querySelector<HTMLInputElement>('#snapd-acc-spain')!.readOnly).toBe(true);
+    await reviewDraft();
+    live = [
+      ...live,
+      {
+        id: 'new_closed',
+        label: 'New closed account',
+        closedPeriods: [{ closedFromMonth: '2024-02' }],
+      },
+    ];
+    getSubmit()!.click();
+    expect(document.querySelector('#snapd-save-err')!.textContent).toContain('New closed account');
+  });
   beforeEach(() => {
     document.body.innerHTML = '';
   });

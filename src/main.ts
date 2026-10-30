@@ -77,6 +77,15 @@ import {
   migrateBackup,
 } from './backup/exportImport';
 import { getSetupState } from './model/setup';
+import {
+  ETF_VALUATION_SCHEMA,
+  isScopedValuationMode,
+  parsePositionKey,
+  coverageKey,
+} from './model/snapshotPositions';
+import { legacyPositionEntries, migratePositionSnapshots } from './model/valuationMigration';
+import { isAccountClosedInMonth } from './model/accounts';
+import { validateFinancialData } from './db/accountData';
 import type { SetupStep } from './model/setup';
 import { computePD } from './portfolio';
 import { detectProfile } from './import/parse';
@@ -131,6 +140,7 @@ import { restoreCollapseFromSheet, backupCollapseToSheet } from './ui/collapseSy
 import { confirmDialog } from './ui/confirmDialog';
 import { transactionDialog } from './ui/transactionDialog';
 import { snapshotDialog } from './ui/snapshotDialog';
+import { valuationMigrationDialog } from './ui/valuationMigrationDialog';
 import { showSigninOverlay, hideSigninOverlay } from './ui/signinOverlay';
 import { initHeaderMenu, type HeaderMenu } from './ui/headerMenu';
 import { renderSyncChip, shortSyncError, syncChipView, type SyncStatus } from './ui/headerStatus';
@@ -1008,6 +1018,13 @@ async function bootFromCache() {
       getCachedAggregates(),
     ]);
 
+    if (!cachedConfig || !cachedSnaps || !cachedTxs) return;
+    validateFinancialData({
+      accounts: cachedConfig.accounts,
+      settings: cachedConfig.settings,
+      snapshots: cachedSnaps,
+    });
+
     // Hydrate the config store first - getACCTSList()/getAccounts()/
     // primaryInvestmentValue() depend on this before renderAll() runs.
     if (cachedConfig) {
@@ -1023,8 +1040,11 @@ async function bootFromCache() {
       renderAll();
       setSyncStatus('cached');
     }
-  } catch {
-    // Cache read failed - no problem, will do full network load
+  } catch (error) {
+    console.warn(
+      '[boot] Ignoring an incomplete or inconsistent cache; reloading the local database.',
+      error,
+    );
   }
 }
 
@@ -1039,6 +1059,7 @@ async function syncInBackground({ userInitiated = false } = {}) {
     return;
   }
   if (state.offline) {
+    if (!state.cacheLoaded) await openLocalData();
     setSyncStatus('offline');
     return;
   }
@@ -1182,6 +1203,11 @@ async function loadAllData() {
 /** Keep derived data and the IndexedDB cache current after every config write. */
 function registerConfigListener(): void {
   onConfigChange(async (changed) => {
+    if (changed === 'accounts') {
+      await refreshStateFromLocalDb({ requireCache: true });
+      renderAll(changed);
+      return;
+    }
     if (state.txs.length) {
       state.pd = await computeAggregatesWithCache(state.txs);
     }
@@ -1322,6 +1348,28 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
     danger: true,
   });
   if (!ok) return 'cancelled';
+  if (!allowSyncWrite()) return 'cancelled';
+
+  if (!isScopedValuationMode(backup.data.settings)) {
+    if (legacyPositionEntries(backup.data.snapshots).length) {
+      const assignments = await valuationMigrationDialog({
+        accounts: backup.data.accounts,
+        snapshots: backup.data.snapshots,
+        exportBackup,
+      });
+      if (assignments === null) return 'cancelled';
+      backup.data.snapshots = migratePositionSnapshots(
+        backup.data.snapshots,
+        backup.data.accounts,
+        assignments.assignments,
+        assignments.coverage,
+      );
+    }
+    backup.data.settings = {
+      ...backup.data.settings,
+      etf_valuation_schema: ETF_VALUATION_SCHEMA,
+    };
+  }
   if (!allowSyncWrite()) return 'cancelled';
 
   setSyncing(true);
@@ -1624,6 +1672,7 @@ async function saveMonthlyUpdate(editDate?: string) {
 
   await snapshotDialog({
     mode: existing ? 'edit' : 'add',
+    scopedValuations: isScopedValuationMode(getSettings()),
     existing,
     prefill: existing ? undefined : prefillSnapFormFromLatest(),
     accounts,
@@ -1919,14 +1968,46 @@ function prefillSnapFormFromLatest(): Snapshot | undefined {
   if (!latest) return prefill;
 
   for (const a of getACCTSList()) {
+    const account = getAccounts().find((account) => (account.id || account.key) === a.key);
+    if (account && isAccountClosedInMonth(account, prefill.date)) {
+      prefill[a.key] = 0;
+      continue;
+    }
+    if (
+      account?.closedPeriods?.some(
+        (period) =>
+          period.closedFromMonth > String(latest.date).slice(0, 7) &&
+          period.closedFromMonth <= prefill.date,
+      )
+    )
+      continue;
     const value = latest[a.key];
     if (typeof value === 'number') prefill[a.key] = value;
   }
 
   for (const [key, val] of Object.entries(latest)) {
+    const parsed = parsePositionKey(key);
+    if (parsed && typeof val === 'number') {
+      const account = getAccounts().find((a) => (a.id || a.key) === parsed.accountId);
+      if (
+        account &&
+        !isAccountClosedInMonth(account, prefill.date) &&
+        !(account.closedPeriods || []).some(
+          (period) =>
+            period.closedFromMonth > String(latest.date).slice(0, 7) &&
+            period.closedFromMonth <= prefill.date,
+        )
+      )
+        prefill[key] = val;
+      continue;
+    }
     if (key.startsWith('etf_') && typeof val === 'number') {
       prefill[key] = val;
     }
+  }
+  for (const account of getAccounts()) {
+    const key = coverageKey(account.id || account.key || '');
+    if (latest[key] !== undefined) prefill[key] = 0;
   }
   return prefill;
 }

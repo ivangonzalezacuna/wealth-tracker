@@ -1,5 +1,6 @@
 import type { Account } from '../types';
 import { getSnapshotParser } from './snapshotParsers';
+import { isAccountClosedInMonth } from '../model/accounts';
 
 export const SNAPSHOT_MAPPINGS_KEY = 'snapshot_import_mappings';
 export const TRADE_REPUBLIC_VALUATION = 'trade-republic:valuation';
@@ -44,6 +45,7 @@ export function validateSnapshotMapping(
   value: unknown,
   accounts: Account[],
   type = TRADE_REPUBLIC_VALUATION,
+  month?: string,
 ): SnapshotMapping {
   const schema = getSnapshotParser(type).mapping;
   if (schema.kind === 'balances') {
@@ -66,6 +68,7 @@ export function validateSnapshotMapping(
       if (
         typeof key !== 'string' ||
         !account ||
+        (month && isAccountClosedInMonth(account, month)) ||
         !slot.moneyTypes.includes((account.moneyType || '').toLowerCase()) ||
         used.has(key)
       )
@@ -85,10 +88,12 @@ export function validateSnapshotMapping(
   )
     throw new Error('Set up the statement account mapping.');
   const primary = accounts.find((a) => (a.id || a.key) === value.securitiesAccount);
-  if (!primary?.isPrimaryInvestment || primary.moneyType?.toLowerCase() !== 'investment')
+  if (!primary || primary.moneyType?.toLowerCase() !== 'investment')
     throw new Error(
-      'The saved securities account is no longer the primary investment account. Update the mapping.',
+      'The saved securities account is no longer an investment account. Update the mapping.',
     );
+  if (month && isAccountClosedInMonth(primary, month))
+    throw new Error('The securities account is closed in the statement month. Update the mapping.');
   const mode = value.mode;
   if (mode !== 'split') return { mode, securitiesAccount: value.securitiesAccount };
   const cashId = 'cashAccount' in value ? value.cashAccount : undefined;
@@ -96,6 +101,7 @@ export function validateSnapshotMapping(
   if (
     typeof cashId !== 'string' ||
     !cash ||
+    (month && isAccountClosedInMonth(cash, month)) ||
     cashId === value.securitiesAccount ||
     !['cash', 'savings'].includes((cash.moneyType || '').toLowerCase())
   )

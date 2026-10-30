@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { Snapshot } from '../types';
 
 // Mock the db module and sync engine before importing the module under test
 vi.mock('../db', () => ({
@@ -10,6 +11,16 @@ vi.mock('../db', () => ({
   setSetting: vi.fn(async () => {}),
   replaceAllSettings: vi.fn(async () => {}),
   logConfigChange: vi.fn(async () => {}),
+  loadSnapshots: vi.fn(async (): Promise<Snapshot[]> => []),
+  saveAccountConfiguration: vi.fn(async () => {}),
+  convertEtfValuations: vi.fn(async () => []),
+  reviewEtfCoverage: vi.fn(async () => []),
+}));
+
+vi.mock('../cache/db', () => ({
+  clearCache: vi.fn(async () => {}),
+  setCachedConfig: vi.fn(async () => true),
+  setCachedSnapshots: vi.fn(async () => true),
 }));
 
 vi.mock('../sync/engine', () => ({
@@ -43,13 +54,25 @@ import {
   retireAccountIds,
   retireAccountIdsSafely,
   flushPendingRetiredIds,
+  loadConfig,
+  onConfigChange,
+  saveAccountLifecycle,
+  migrateEtfValuations,
+  saveEtfCoverage,
 } from './config';
 import {
   saveAccounts as dbSaveAccounts,
   saveHoldings as dbSaveHoldings,
   setSetting as dbSetSetting,
   replaceAllSettings as dbReplaceAllSettings,
+  loadSnapshots,
+  loadAccounts,
+  loadSettings,
+  saveAccountConfiguration,
+  convertEtfValuations,
+  reviewEtfCoverage,
 } from '../db';
+import { scheduleUpload } from '../sync/engine';
 import {
   getSnapshotMapping,
   SNAPSHOT_MAPPINGS_KEY,
@@ -92,6 +115,87 @@ describe('statement mapping persistence', () => {
       }),
     ).rejects.toThrow('Fake database failure');
     expect(getSettings()[SNAPSHOT_MAPPINGS_KEY]).toBeUndefined();
+  });
+});
+
+describe('lifecycle and valuation configuration publication', () => {
+  afterEach(() => {
+    onConfigChange(() => {});
+    vi.clearAllMocks();
+  });
+
+  it('does not publish failed lifecycle writes', async () => {
+    const accounts = [{ id: 'spain', label: 'Spain', moneyType: 'investment' }];
+    hydrateConfigFromCache({ accounts, holdings: [], settings: { monthly_contrib_budget: '500' } });
+    vi.mocked(saveAccountConfiguration).mockRejectedValueOnce(new Error('Storage unavailable'));
+    await expect(saveAccountLifecycle([], { monthly_contrib_budget: '0' })).rejects.toThrow(
+      'Storage unavailable',
+    );
+    expect(getAccounts()).toEqual(accounts);
+    expect(getSettings().monthly_contrib_budget).toBe('500');
+  });
+
+  it('awaits full post-conversion refresh and schedules upload before cache work', async () => {
+    hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
+    let refreshed = false;
+    onConfigChange(async (changed) => {
+      expect(changed).toBe('accounts');
+      expect(scheduleUpload).toHaveBeenCalled();
+      expect(getSettings().etf_valuation_schema).toBe('account-v1');
+      await Promise.resolve();
+      refreshed = true;
+    });
+    await migrateEtfValuations([], 'reviewed');
+    expect(convertEtfValuations).toHaveBeenCalledWith([], 'reviewed', []);
+    expect(refreshed).toBe(true);
+  });
+
+  it('keeps saved conversion scheduled when the cache refresh fails', async () => {
+    hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
+    onConfigChange(async () => {
+      throw new Error('Cache unavailable; reload saved data');
+    });
+    await expect(migrateEtfValuations([], 'reviewed')).rejects.toThrow('Cache unavailable');
+    expect(getSettings().etf_valuation_schema).toBe('account-v1');
+    expect(scheduleUpload).toHaveBeenCalled();
+  });
+
+  it('publishes a post-migration completeness review and propagates write failures', async () => {
+    hydrateConfigFromCache({
+      accounts: [],
+      holdings: [],
+      settings: { etf_valuation_schema: 'account-v1' },
+    });
+    const changed = vi.fn();
+    onConfigChange(changed);
+    const coverage = [{ month: '2026-01', accountId: 'spain', complete: true }];
+    await saveEtfCoverage(coverage, 'reviewed');
+    expect(reviewEtfCoverage).toHaveBeenCalledWith(coverage, 'reviewed');
+    expect(changed).toHaveBeenCalledWith('accounts');
+    expect(scheduleUpload).toHaveBeenCalled();
+    vi.clearAllMocks();
+    vi.mocked(reviewEtfCoverage).mockRejectedValueOnce(new Error('Storage unavailable'));
+    await expect(saveEtfCoverage(coverage, 'stale')).rejects.toThrow('Storage unavailable');
+    expect(changed).not.toHaveBeenCalled();
+    expect(scheduleUpload).not.toHaveBeenCalled();
+  });
+
+  it('leaves malformed legacy valuations for explicit review rather than auto-activating', async () => {
+    vi.mocked(loadAccounts).mockResolvedValueOnce([]);
+    vi.mocked(loadSettings).mockResolvedValueOnce({});
+    vi.mocked(loadSnapshots).mockResolvedValueOnce([{ date: '2026-01', etf_invalid: 'bad' }]);
+    await loadConfig();
+    expect(getSettings().etf_valuation_schema).toBeUndefined();
+    expect(dbSetSetting).not.toHaveBeenCalledWith('etf_valuation_schema', 'account-v1');
+  });
+
+  it('does not activate an empty browser before its first legacy cloud download', async () => {
+    vi.mocked(loadAccounts).mockResolvedValueOnce([]);
+    vi.mocked(loadSettings).mockResolvedValueOnce({});
+    vi.mocked(loadSnapshots).mockResolvedValueOnce([]);
+    await loadConfig();
+    expect(getSettings().etf_valuation_schema).toBeUndefined();
+    expect(dbSetSetting).not.toHaveBeenCalledWith('etf_valuation_schema', 'account-v1');
   });
 });
 

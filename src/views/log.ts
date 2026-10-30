@@ -1,6 +1,8 @@
 import { getACCTSList } from '../constants';
 import { snapTotal, fmtEur2, fmtMon, fmtDay, fmtPctVal, esc, safeColor } from '../utils';
 import { sourceLabel } from '../import/profiles/index';
+import { accountPositionValues } from '../model/snapshotPositions';
+import { getHoldings } from '../store/config';
 import type { Snapshot, Transaction } from '../types';
 import { isCollapsed, setCollapsed } from '../ui/collapseState';
 import { EDIT_ICON, DELETE_ICON, ROW_DISCLOSURE_ICON } from './icons';
@@ -722,6 +724,16 @@ function _createSnapDetail(
         `<div class="snap-detail-account"><span class="hold-detail-label"><span class="hold-dot" style="background:${safeColor(a.color)}" aria-hidden="true"></span>${esc(a.label)}</span><span class="hold-detail-value">${fmtEur2(snap[a.key] as number)}<span class="snap-detail-share" title="Share of positive account balances">${fmtPctVal(share * 100, 'auto')}</span></span></div>`,
     )
     .join('');
+  const holdingNames = new Map(
+    getHoldings().map((holding) => [holding.isin, holding.shortName || holding.name]),
+  );
+  const positionRows = getACCTSList()
+    .map((account) => {
+      const positions = Object.entries(accountPositionValues(snap, account.key));
+      if (!positions.length) return '';
+      return `<div><span class="hold-detail-label">${esc(account.label)} · ETF valuations</span></div>${positions.map(([isin, value]) => `<div class="snap-detail-account"><span class="hold-detail-label">${esc(holdingNames.get(isin) || isin)}</span><span class="hold-detail-value">${fmtEur2(value)}</span></div>`).join('')}`;
+    })
+    .join('');
   const panel = document.createElement('div');
   panel.className = 'hold-detail snap-detail';
   panel.id = `snap-detail-${encodeURIComponent(date)}`;
@@ -730,6 +742,7 @@ function _createSnapDetail(
   panel.innerHTML = `
     <div class="snap-detail-head"><span class="snap-detail-month">${fmtMon(snap.date)}</span><span class="snap-detail-total">${fmtEur2(snapTotal(snap))}</span></div>
     ${detailRows}
+    ${positionRows}
     ${snap.notes ? `<div class="snap-detail-note"><span class="hold-detail-label">Note</span><span class="hold-detail-value">${esc(snap.notes)}</span></div>` : ''}
     ${
       _readOnly

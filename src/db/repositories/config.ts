@@ -3,56 +3,38 @@
  * Mirrors the persistence API of the old store/config.ts module.
  */
 
-import { getDb, persistDb } from '../connection';
-import type {
-  Account,
-  Holding,
-  Settings,
-  ContribInterval,
-  Snapshot,
-  Transaction,
-} from '../../types';
+import { getDb, persistDb, atomicFinancialWrite } from '../connection';
+import {
+  ACCOUNT_COLUMNS,
+  ACCOUNT_INSERT,
+  accountValues,
+  readAccount,
+  readFinancialData,
+  validateFinancialData,
+  validateSettingsChange,
+} from '../accountData';
+import type { Account, Holding, Settings, Snapshot, Transaction } from '../../types';
 
 // ── Accounts ──────────────────────────────────────────────────────
 
 /** Load all accounts, sorted by order. */
 export async function loadAccounts(): Promise<Account[]> {
   const db = await getDb();
-  const result = db.exec(
-    'SELECT id, money_type, institution, country, "group", label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib, currency FROM accounts ORDER BY "order" ASC',
-  );
+  const result = db.exec(`SELECT ${ACCOUNT_COLUMNS} FROM accounts ORDER BY "order" ASC`);
   if (result.length === 0) return [];
-  return result[0].values.map(rowToAccount);
+  return result[0].values.map(readAccount);
 }
 
 /** Save accounts (full replace). */
 export async function saveAccounts(accounts: Account[]): Promise<void> {
   const db = await getDb();
-  const stmt = db.prepare(
-    'INSERT INTO accounts (id, money_type, institution, country, "group", label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-  );
+  validateFinancialData({ ...readFinancialData(db), accounts });
+  const stmt = db.prepare(ACCOUNT_INSERT);
   try {
     db.run('BEGIN');
     db.run('DELETE FROM accounts');
     for (const a of accounts) {
-      stmt.run([
-        a.id || a.key || '',
-        a.moneyType || '',
-        a.institution || '',
-        a.country || '',
-        a.group || '',
-        a.label || '',
-        a.color || '',
-        a.isPrimaryInvestment ? 1 : 0,
-        a.order ?? 0,
-        a.annualReturnPct ?? 0,
-        a.contribAmount ?? 0,
-        a.contribInterval || 'monthly',
-        a.locked ? 1 : 0,
-        a.lockedUntil || '',
-        a.extraContrib ?? 0,
-        a.currency || 'EUR',
-      ]);
+      stmt.run(accountValues(a));
     }
     db.run('COMMIT');
   } catch (err) {
@@ -129,6 +111,8 @@ export async function loadSettings(): Promise<Settings> {
 /** Set a single setting. */
 export async function setSetting(key: string, value: string): Promise<void> {
   const db = await getDb();
+  const current = readFinancialData(db);
+  validateSettingsChange(current, { ...current.settings, [key]: value });
   db.run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, value]);
   await persistDb();
 }
@@ -136,6 +120,10 @@ export async function setSetting(key: string, value: string): Promise<void> {
 /** Delete a single setting. */
 export async function deleteSetting(key: string): Promise<void> {
   const db = await getDb();
+  const current = readFinancialData(db);
+  const settings = { ...current.settings };
+  delete settings[key];
+  validateSettingsChange(current, settings);
   db.run('DELETE FROM settings WHERE key = ?', [key]);
   await persistDb();
 }
@@ -143,6 +131,7 @@ export async function deleteSetting(key: string): Promise<void> {
 /** Full replace of all settings (backup restore). */
 export async function replaceAllSettings(settings: Settings): Promise<void> {
   const db = await getDb();
+  validateSettingsChange(readFinancialData(db), settings);
   const stmt = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
   try {
     db.run('BEGIN');
@@ -180,113 +169,93 @@ export async function restoreAllData(data: {
   snapshots: Snapshot[];
   transactions: Transaction[];
 }): Promise<void> {
-  const db = await getDb();
+  validateFinancialData(data);
+  await atomicFinancialWrite((db) => {
+    const accountStmt = db.prepare(ACCOUNT_INSERT);
+    const holdingStmt = db.prepare(
+      'INSERT INTO holdings (isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    );
+    const settingsStmt = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
+    const snapshotStmt = db.prepare(
+      'INSERT INTO snapshots (date, values_json, notes) VALUES (?, ?, ?)',
+    );
+    const txStmt = db.prepare(
+      'INSERT INTO transactions (id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    );
 
-  const accountStmt = db.prepare(
-    'INSERT INTO accounts (id, money_type, institution, country, "group", label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-  );
-  const holdingStmt = db.prepare(
-    'INSERT INTO holdings (isin, name, short_name, color, acc, active, target_pct, asset_class, region, fold_into, "order", ter, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-  );
-  const settingsStmt = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
-  const snapshotStmt = db.prepare(
-    'INSERT INTO snapshots (date, values_json, notes) VALUES (?, ?, ?)',
-  );
-  const txStmt = db.prepare(
-    'INSERT INTO transactions (id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-  );
+    try {
+      db.run('BEGIN');
 
-  try {
-    db.run('BEGIN');
-
-    db.run('DELETE FROM accounts');
-    for (const a of data.accounts) {
-      accountStmt.run([
-        a.id || a.key || '',
-        a.moneyType || '',
-        a.institution || '',
-        a.country || '',
-        a.group || '',
-        a.label || '',
-        a.color || '',
-        a.isPrimaryInvestment ? 1 : 0,
-        a.order ?? 0,
-        a.annualReturnPct ?? 0,
-        a.contribAmount ?? 0,
-        a.contribInterval || 'monthly',
-        a.locked ? 1 : 0,
-        a.lockedUntil || '',
-        a.extraContrib ?? 0,
-        a.currency || 'EUR',
-      ]);
-    }
-
-    db.run('DELETE FROM holdings');
-    for (const h of data.holdings) {
-      holdingStmt.run([
-        h.isin,
-        h.name || '',
-        h.shortName || '',
-        h.color || '',
-        h.acc ? 1 : 0,
-        h.active ? 1 : 0,
-        h.targetPct ?? 0,
-        h.assetClass || '',
-        h.region || '',
-        h.foldInto || '',
-        h.order ?? 0,
-        h.ter ?? 0,
-        h.notes || '',
-      ]);
-    }
-
-    db.run('DELETE FROM settings');
-    for (const [k, v] of Object.entries(data.settings)) {
-      if (v !== null && v !== undefined) {
-        settingsStmt.run([k, String(v)]);
+      db.run('DELETE FROM accounts');
+      for (const a of data.accounts) {
+        accountStmt.run(accountValues(a));
       }
+
+      db.run('DELETE FROM holdings');
+      for (const h of data.holdings) {
+        holdingStmt.run([
+          h.isin,
+          h.name || '',
+          h.shortName || '',
+          h.color || '',
+          h.acc ? 1 : 0,
+          h.active ? 1 : 0,
+          h.targetPct ?? 0,
+          h.assetClass || '',
+          h.region || '',
+          h.foldInto || '',
+          h.order ?? 0,
+          h.ter ?? 0,
+          h.notes || '',
+        ]);
+      }
+
+      db.run('DELETE FROM settings');
+      for (const [k, v] of Object.entries(data.settings)) {
+        if (v !== null && v !== undefined) {
+          settingsStmt.run([k, String(v)]);
+        }
+      }
+
+      db.run('DELETE FROM snapshots');
+      for (const snap of data.snapshots) {
+        const { date, notes, ...values } = snap;
+        snapshotStmt.run([date, JSON.stringify(values), notes || '']);
+      }
+
+      db.run('DELETE FROM transactions');
+      for (const t of data.transactions) {
+        txStmt.run([
+          t.id,
+          t.date,
+          t.source || '',
+          t.type,
+          t.name,
+          t.isin || '',
+          t.shares,
+          t.price,
+          t.amount,
+          t.fee || 0,
+          t.tax || 0,
+          t.currency || 'EUR',
+          t.fxRate || 0,
+          t.note || '',
+          t.category || '',
+        ]);
+      }
+
+      db.run('COMMIT');
+    } catch (err) {
+      db.run('ROLLBACK');
+      throw err;
+    } finally {
+      accountStmt.free();
+      holdingStmt.free();
+      settingsStmt.free();
+      snapshotStmt.free();
+      txStmt.free();
     }
-
-    db.run('DELETE FROM snapshots');
-    for (const snap of data.snapshots) {
-      const { date, notes, ...values } = snap;
-      snapshotStmt.run([date, JSON.stringify(values), notes || '']);
-    }
-
-    db.run('DELETE FROM transactions');
-    for (const t of data.transactions) {
-      txStmt.run([
-        t.id,
-        t.date,
-        t.source || '',
-        t.type,
-        t.name,
-        t.isin || '',
-        t.shares,
-        t.price,
-        t.amount,
-        t.fee || 0,
-        t.tax || 0,
-        t.currency || 'EUR',
-        t.fxRate || 0,
-        t.note || '',
-        t.category || '',
-      ]);
-    }
-
-    db.run('COMMIT');
-  } catch (err) {
-    db.run('ROLLBACK');
-    throw err;
-  } finally {
-    accountStmt.free();
-    holdingStmt.free();
-    settingsStmt.free();
-    snapshotStmt.free();
-    txStmt.free();
-  }
-
-  await persistDb();
+  });
 }
 
 // ── Config history (audit log) ────────────────────────────────────
@@ -329,27 +298,6 @@ export async function loadConfigHistory(limit = 50): Promise<ConfigHistoryEntry[
 }
 
 // ── Internal helpers ──────────────────────────────────────────────
-
-function rowToAccount(row: unknown[]): Account {
-  return {
-    id: String(row[0] ?? ''),
-    moneyType: String(row[1] ?? ''),
-    institution: String(row[2] ?? ''),
-    country: String(row[3] ?? ''),
-    group: String(row[4] ?? ''),
-    label: String(row[5] ?? ''),
-    color: String(row[6] ?? ''),
-    isPrimaryInvestment: row[7] === 1 || row[7] === '1',
-    order: Number(row[8]) || 0,
-    annualReturnPct: Number(row[9]) || 0,
-    contribAmount: Number(row[10]) || 0,
-    contribInterval: (String(row[11] ?? 'monthly') as ContribInterval) || 'monthly',
-    locked: row[12] === 1 || row[12] === '1',
-    lockedUntil: String(row[13] ?? ''),
-    extraContrib: Number(row[14]) || 0,
-    currency: String(row[15] ?? 'EUR') || 'EUR',
-  };
-}
 
 function rowToHolding(row: unknown[]): Holding {
   const targetPct = Number(row[6]) || 0;
