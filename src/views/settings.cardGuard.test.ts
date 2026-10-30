@@ -91,6 +91,7 @@ describe('isCardBusy / withCardGuard', () => {
 
   beforeEach(() => {
     setBusy(false);
+    delete window.__allowSyncWrite;
     document.body.innerHTML = '<button id="btn">Save</button>';
     btn = document.getElementById('btn') as HTMLButtonElement;
   });
@@ -99,6 +100,24 @@ describe('isCardBusy / withCardGuard', () => {
     expect(isCardBusy('accounts')).toBe(false);
     expect(isCardBusy('holdings')).toBe(false);
     expect(isCardBusy('portfolio-behavior')).toBe(false);
+  });
+  it('blocks conflicted writes before taking the lock and preserves the dirty draft', async () => {
+    window.__allowSyncWrite = vi.fn(() => false);
+    btn.dataset.dirty = 'true';
+    const action = vi.fn(async () => {});
+    await expect(withCardGuard('accounts', btn, action)).rejects.toThrow(/Nothing was saved/);
+    expect(window.__allowSyncWrite).toHaveBeenCalledOnce();
+    expect(action).not.toHaveBeenCalled();
+    expect(btn.dataset.dirty).toBe('true');
+    expect(isCardBusy('accounts')).toBe(false);
+    expect(btn.disabled).toBe(false);
+  });
+  it('allows a backup export through the conflict guard', async () => {
+    window.__allowSyncWrite = vi.fn(() => false);
+    const action = vi.fn(async () => {});
+    await withCardGuard('backup', btn, action, { allowDuringConflict: true });
+    expect(action).toHaveBeenCalledOnce();
+    expect(window.__allowSyncWrite).not.toHaveBeenCalled();
   });
 
   it('withCardGuard sets isCardBusy to true during action, false after success', async () => {

@@ -748,6 +748,34 @@ describe('Portfolio contributions card', () => {
       ['calibration_interval', 'weekly'],
     ]);
   });
+
+  it('refreshes saved values while preserving another card and its draft listeners', async () => {
+    vi.mocked(setSettings).mockClear();
+    MOCK_CONTRIB_BUDGET = 203;
+    renderSettings();
+    const draft = document.getElementById('analytics-risk-free-rate') as HTMLInputElement;
+    draft.value = '4.5';
+    draft.dispatchEvent(new Event('input', { bubbles: true }));
+    const card = document.getElementById('settings-card-calc-assumptions');
+    const heading = document.getElementById('settings-heading-calc-assumptions')!;
+    const expanded = heading.getAttribute('aria-expanded');
+
+    MOCK_CONTRIB_BUDGET = 205;
+    renderSettings({ preserveDrafts: true });
+    renderSettings({ preserveDrafts: true });
+
+    expect((document.getElementById('set-contrib-budget') as HTMLInputElement).value).toBe('205');
+    expect(document.getElementById('settings-card-calc-assumptions')).toBe(card);
+    expect(document.getElementById('analytics-risk-free-rate')).toBe(draft);
+    expect(draft.value).toBe('4.5');
+    heading.click();
+    expect(heading.getAttribute('aria-expanded')).not.toBe(expanded);
+    const save = document.getElementById('btn-save-analytics') as HTMLButtonElement;
+    expect(save.dataset.dirty).toBe('true');
+    save.click();
+    await vi.waitFor(() => expect(save.dataset.dirty).toBe('false'));
+    expect(vi.mocked(setSettings).mock.calls).toEqual([[{ riskFreeRate: '4.5' }]]);
+  });
 });
 
 describe('FX integrations card', () => {
@@ -1916,5 +1944,25 @@ describe('Settings accessible controls and report states', () => {
     refreshSettingsAfterChange('settings');
     expect(document.querySelector('.settings-goal-row')?.textContent).toContain('Draft goal');
     expect(document.querySelector('#settings-card-goal.settings-dirty')).not.toBeNull();
+  });
+
+  it('keeps staged account objects and save listeners across a full data refresh', async () => {
+    const { setAccounts } = await import('../store/config');
+    vi.mocked(accountDialog).mockResolvedValueOnce({ label: 'Draft account', moneyType: 'cash' });
+    renderSettings();
+    document.getElementById('btn-add-acct')!.click();
+    const card = document.getElementById('settings-card-accounts')!;
+    await vi.waitFor(() => expect(card.classList.contains('settings-dirty')).toBe(true));
+    MOCK_CONTRIB_BUDGET = 205;
+    renderSettings({ preserveDrafts: true });
+    expect(document.getElementById('settings-card-accounts')).toBe(card);
+    expect(card.textContent).toContain('Draft account');
+    expect((document.getElementById('set-contrib-budget') as HTMLInputElement).value).toBe('205');
+    vi.mocked(setAccounts).mockClear();
+    document.getElementById('btn-save-accts')!.click();
+    await vi.waitFor(() => expect(setAccounts).toHaveBeenCalledOnce());
+    expect(setAccounts).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ label: 'Draft account' })]),
+    );
   });
 });

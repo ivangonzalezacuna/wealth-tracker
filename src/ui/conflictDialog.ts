@@ -21,7 +21,7 @@ export function conflictDialog(
       <div class="dialog-card conflict-card" role="alertdialog" aria-modal="true" aria-labelledby="conflict-title">
         <div class="dialog-title conflict-title" id="conflict-title">Sync conflict</div>
         <div class="conflict-body">Drive changed elsewhere and this device also has local changes.</div>
-        <div class="conflict-note">Sync is paused to avoid silently discarding data. Export a backup first, then choose which copy to keep.</div>
+        <div class="conflict-note">Sync is paused to avoid silently discarding data. Export a backup first, then choose which copy to keep. Closing this dialog keeps sync paused. Resolve the conflict before saving more changes; select the sync chip to return.</div>
         <div class="conflict-actions">
           <button class="btn btn-sm btn-primary js-conflict-backup">Export backup first</button>
           <button class="btn btn-sm btn-ghost js-conflict-cancel">Cancel</button>

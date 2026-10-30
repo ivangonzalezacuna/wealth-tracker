@@ -5,15 +5,19 @@ export type SyncStatus =
   | ''
   | 'loading'
   | 'syncing'
-  | 'cached'
   | 'local'
   | 'pending'
+  | 'checking'
+  | 'uploading'
+  | 'downloading'
+  | 'refreshing'
+  | 'cached'
   | 'ok'
   | 'offline'
   | 'conflict'
   | 'error';
 
-export type SyncChipAction = 'sync' | 'resolve' | null;
+export type SyncChipAction = 'sync' | 'resolve' | 'refresh' | null;
 
 export interface SyncChipView {
   tone: 'ok' | 'info' | 'warn' | 'err';
@@ -33,6 +37,8 @@ export interface SyncChipInput {
   now: number;
   /** True when this device has changes that are not in Google Drive yet. */
   pending?: boolean;
+  conflict?: boolean;
+  refreshRequired?: boolean;
 }
 
 const svg = (body: string) =>
@@ -94,7 +100,15 @@ export function syncChipView(input: SyncChipInput): SyncChipView | null {
   });
   if (status === 'loading')
     return syncing('Loading\u2026', 'Loading app data and checking sync status');
-  if (status === 'syncing' || (busy && (status === 'ok' || status === 'error')))
+  if (status === 'checking')
+    return syncing('Checking Drive\u2026', 'Checking Google Drive for changes');
+  if (status === 'uploading')
+    return syncing('Uploading\u2026', 'Uploading local data to Google Drive');
+  if (status === 'downloading')
+    return syncing('Downloading\u2026', 'Downloading the Google Drive copy');
+  if (status === 'refreshing')
+    return syncing('Updating local data\u2026', 'Updating local views and saved cache');
+  if (status === 'syncing' || (busy && status !== 'offline' && status !== 'cached'))
     return syncing('Syncing\u2026', 'Syncing local data with Google Drive');
   switch (status) {
     case 'ok': {
@@ -114,10 +128,10 @@ export function syncChipView(input: SyncChipInput): SyncChipView | null {
         tone: 'err',
         icon: 'alert',
         label: 'Sync failed',
-        title: input.pending
-          ? `Sync failed: ${reason}. Your changes are saved on this device but not in Google Drive yet. Select to retry.`
-          : `Sync failed: ${reason}. Select to retry.`,
-        action: 'sync',
+        title: input.refreshRequired
+          ? `Drive operation completed, but updating local data failed: ${reason}. Select to retry updating local data.`
+          : `Sync failed: ${reason}.${input.pending ? ' Your changes are saved on this device but not in Google Drive yet.' : ''} Select to ${input.conflict ? 'resolve the pending conflict' : 'retry'}.`,
+        action: input.refreshRequired ? 'refresh' : input.conflict ? 'resolve' : 'sync',
         busy: false,
       };
     }
@@ -154,8 +168,9 @@ export function syncChipView(input: SyncChipInput): SyncChipView | null {
       return {
         tone: 'warn',
         icon: 'cloud-off',
-        label: 'Not synced',
-        title: 'Changes saved on this device are not in Google Drive yet. Select to sync.',
+        label: 'Changes pending',
+        title:
+          'Changes are saved on this device and waiting to upload to Google Drive. Select to sync now.',
         action: 'sync',
         busy: false,
       };

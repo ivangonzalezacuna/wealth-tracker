@@ -311,6 +311,7 @@ function _submit(): void {
     focusFirstInvalid(overlay);
     return;
   }
+  if (window.__allowSyncWrite?.() === false) return;
 
   const existing = _activeExisting;
   const generatedId = `manual|${Date.now()}|${Math.random().toString(36).slice(2, 8)}`;

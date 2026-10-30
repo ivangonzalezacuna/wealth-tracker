@@ -4,6 +4,11 @@
  * an in-flight Settings card save (and vice versa).
  */
 let _busy = false;
+let _onBusyChange: (() => void) | null = null;
+
+export function onBusyChange(listener: () => void): void {
+  _onBusyChange = listener;
+}
 
 export function isBusy(): boolean {
   return _busy;
@@ -11,4 +16,5 @@ export function isBusy(): boolean {
 
 export function setBusy(v: boolean): void {
   _busy = v;
+  _onBusyChange?.();
 }

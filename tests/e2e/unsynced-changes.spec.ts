@@ -25,17 +25,17 @@ async function prepareNotConnected(page: Page): Promise<void> {
 const chip = (page: Page) => page.locator('#sync-status');
 
 test.describe('unsynced changes', () => {
-  test('stay on the device and keep showing "Not synced" across reloads', async ({ page }) => {
+  test('stay on the device and keep showing "Changes pending" across reloads', async ({ page }) => {
     await prepareNotConnected(page);
     await gotoApp(page);
     const month = monthOffsetValue(-1);
     await addSnapshot(page, { month, note: 'Never pushed' });
 
-    await expect(chip(page)).toContainText('Not synced');
+    await expect(chip(page)).toContainText('Changes pending');
     await expect(chip(page)).toHaveAttribute('data-action', 'sync');
 
     await page.reload();
-    await expect(chip(page)).toContainText('Not synced');
+    await expect(chip(page)).toContainText('Changes pending');
     await openTab(page, 'tab-log');
     await expect(snapshotRow(page, month)).toHaveCount(1);
   });
@@ -68,7 +68,7 @@ test.describe('unsynced changes', () => {
     await prepareNotConnected(page);
     await gotoApp(page);
     await addSnapshot(page, { month: monthOffsetValue(-1), note: 'Offline pending' });
-    await expect(chip(page)).toContainText('Not synced');
+    await expect(chip(page)).toContainText('Changes pending');
 
     await context.setOffline(true);
     await expect(chip(page)).toContainText('Offline · not synced');
@@ -79,7 +79,7 @@ test.describe('unsynced changes', () => {
     await prepareNotConnected(page);
     await gotoApp(page);
     await addSnapshot(page, { month: monthOffsetValue(-1), note: 'Before sign-out' });
-    await expect(chip(page)).toContainText('Not synced');
+    await expect(chip(page)).toContainText('Changes pending');
 
     await page.click('#btn-header-menu');
     await page.click('#btn-signout');

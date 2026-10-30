@@ -51,6 +51,21 @@ describe('conflictDialog', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(await p).toBe('cancel');
   });
+  it.each(['button', 'backdrop'] as const)(
+    'returns cancel on %s and restores focus',
+    async (target) => {
+      const trigger = document.createElement('button');
+      document.body.appendChild(trigger);
+      trigger.focus();
+      const p = conflictDialog();
+      const selector = target === 'button' ? '.js-conflict-cancel' : '.conflict-overlay';
+      (document.querySelector(selector) as HTMLElement).click();
+      expect(await p).toBe('cancel');
+      expect(document.querySelector('.conflict-overlay')).toBeNull();
+      expect(document.activeElement).toBe(trigger);
+      expect(document.body.style.overflow).toBe('');
+    },
+  );
 
   it('returns cancel when a second dialog replaces the first', async () => {
     const p1 = conflictDialog();

@@ -44,6 +44,9 @@ export function activateModalShell(opts: ModalShellOptions): () => void {
 
   const onKeydown = (e: KeyboardEvent): void => {
     if (e.defaultPrevented) return;
+    const dialogs = document.querySelectorAll('[aria-modal="true"]');
+    const topDialog = dialogs[dialogs.length - 1];
+    if (topDialog && !overlay.contains(topDialog)) return;
     if (e.key === 'Escape') {
       if (
         typeof CSS !== 'undefined' &&

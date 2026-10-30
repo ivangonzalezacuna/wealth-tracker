@@ -12,6 +12,7 @@ declare global {
     __restoreFromBackup?: (file: File) => Promise<'cancelled' | 'done'>;
     __openSyncConflictResolver?: () => Promise<void>;
     __hasSyncConflict?: () => boolean;
+    __allowSyncWrite?: () => boolean;
   }
 
   // Non-standard InputDeviceCapabilities API (Chrome/Android)

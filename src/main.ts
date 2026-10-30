@@ -43,13 +43,17 @@ import {
   SyncConflictError,
   getPendingSyncConflict,
   overwriteCloudWithLocal,
-  replaceLocalWithCloud,
   hasPendingChanges,
   onPendingChange,
-  onSyncStatus,
   loadPendingState,
   markLocalChange,
+  getSyncStatus,
+  getSyncError,
+  hasPendingLocalChanges,
+  onSyncStatus,
+  isSyncing as isEngineSyncing,
 } from './sync/engine';
+import { createConflictRecovery } from './sync/conflictRecovery';
 import {
   loadConfig,
   onConfigChange,
@@ -94,6 +98,7 @@ import {
   applySyncBusyState,
   setSettingsView,
   getSettingsView,
+  refreshSyncRecoveryControls,
 } from './views/settings';
 import { accountCurrencyList } from './model/accountSuggestions';
 import { renderLog, applyLogView, setImportPanelOpen, isImportPanelOpen } from './views/log';
@@ -124,7 +129,6 @@ import { shouldAutoResync } from './sync/policy';
 import { loadCollapseState, replaceCollapseState } from './ui/collapseState';
 import { restoreCollapseFromSheet, backupCollapseToSheet } from './ui/collapseSync';
 import { confirmDialog } from './ui/confirmDialog';
-import { conflictDialog } from './ui/conflictDialog';
 import { transactionDialog } from './ui/transactionDialog';
 import { snapshotDialog } from './ui/snapshotDialog';
 import { showSigninOverlay, hideSigninOverlay } from './ui/signinOverlay';
@@ -134,7 +138,7 @@ import { attachScrollHint } from './ui/scrollHint';
 import { refreshAttention, setAttentionSource } from './ui/attention';
 import { notify } from './ui/toast';
 import { withTimeout } from './sync/timeout';
-import { isBusy, setBusy } from './sync/lock';
+import { isBusy, onBusyChange, setBusy } from './sync/lock';
 import { registerSW } from 'virtual:pwa-register';
 import type { Snapshot, Transaction, PortfolioData, ImportProfile } from './types';
 import { buildAppSecuritySuggestions } from './securitySuggestions';
@@ -184,6 +188,26 @@ let _syncStatusMsg = '';
 let _lastSyncOkAt: number | null = null;
 let _headerMenu: HeaderMenu | null = null;
 let _navScrollHint: (() => void) | null = null;
+const _conflictRecovery = createConflictRecovery({
+  localIsEmpty: async () => {
+    const [snapshots, transactions] = await Promise.all([loadSnapshots(), loadTransactions()]);
+    return !snapshots.length && !transactions.length;
+  },
+  backup: exportBackup,
+  refresh: () => refreshStateFromLocalDb({ clearCaches: true, requireCache: true }),
+  setBusy: setSyncing,
+  setStatus: setSyncStatus,
+  onComplete: () => {
+    _lastSyncAt = Date.now();
+    settleSyncStatus();
+    renderAll();
+  },
+  onError: (message) =>
+    notify(`Sync recovery failed: ${shortSyncError(message)}`, {
+      variant: 'error',
+      source: 'sync',
+    }),
+});
 const AUTO_RESYNC_MIN_INTERVAL_MS = 2 * 60_000; // 2 minutes
 function setSyncing(v: boolean): void {
   setBusy(v);
@@ -195,12 +219,26 @@ function setSyncing(v: boolean): void {
   renderHeaderStatus();
 }
 function isSyncBusy(): boolean {
-  return isBusy();
+  return isBusy() || isEngineSyncing();
 }
 
 // Set when the user dismisses the Google popup, so later saves in this page
 // session stay local instead of reopening it every time.
 let _autoConnectDeclined = false;
+
+function allowSyncWrite(): boolean {
+  if (!getPendingSyncConflict() && !_conflictRecovery.needsRefresh()) return true;
+  notify(
+    'Resolve the sync conflict or finish recovery first, then retry saving. Nothing was saved.',
+    {
+      variant: 'error',
+      source: 'sync',
+    },
+  );
+  void openSyncConflictResolver();
+  return false;
+}
+window.__allowSyncWrite = allowSyncWrite;
 
 /** True when this browser may edit: connected now, or set up before (local-first). */
 function canEdit(): boolean {
@@ -217,9 +255,11 @@ async function ensureWriteAccess(msgId: string): Promise<boolean> {
     showMsg(msgId, 'Please sign in first.', false);
     return false;
   }
+  if (!allowSyncWrite()) return false;
   if (!isSignedIn() && !_autoConnectDeclined && navigator.onLine && !isSyncBusy()) {
     await connectAndSync({ auto: true });
   }
+  if (!allowSyncWrite()) return false;
   if (isSyncBusy()) {
     showMsg(msgId, 'A sync or save is in progress. Try again in a moment.', false);
     return false;
@@ -294,7 +334,7 @@ async function performWriteAction(opts: {
 
 function refreshConflictAccess(): void {
   renderHeaderStatus();
-  if (document.getElementById('settings-content')) renderSettings();
+  refreshSyncRecoveryControls();
 }
 
 /**
@@ -306,7 +346,8 @@ function handleSyncConflict(err: unknown): boolean {
   if (!(err instanceof SyncConflictError)) return false;
   setSyncStatus('conflict');
   refreshConflictAccess();
-  void openSyncConflictResolver();
+  // The caller still owns the write lock until its finally block runs.
+  window.setTimeout(() => void openSyncConflictResolver(), 0);
   return true;
 }
 
@@ -605,12 +646,16 @@ function showUpdateBanner(onReload: () => void): void {
 function initOnlineListeners() {
   window.addEventListener('online', async () => {
     state.offline = false;
+    if (getPendingSyncConflict() || _conflictRecovery.needsRefresh()) {
+      renderHeaderStatus();
+      return;
+    }
     if (!isSignedIn()) {
       // Reconnecting to Google needs a click; the chip offers it.
       setSyncStatus(state.cacheLoaded ? 'cached' : '');
       return;
     }
-    setSyncStatus('ok', 'Back online');
+    setSyncStatus('checking');
     // Push local DB immediately before any pull/resync path, so reconnect
     // never downloads cloud state on top of local offline writes.
     let pushed = false;
@@ -657,6 +702,35 @@ function initThemeListener() {
 // ── Header: sync chip + theme/account menu ───────────────
 
 function initHeader(): void {
+  onBusyChange(() => {
+    if (
+      !isSyncBusy() &&
+      !_conflictRecovery.needsRefresh() &&
+      getSyncStatus() === 'done' &&
+      ['syncing', 'checking', 'uploading', 'downloading'].includes(_syncStatus)
+    ) {
+      settleSyncStatus();
+    }
+    renderHeaderStatus();
+    applySyncBusyState();
+    applyReadOnlyMode();
+  });
+  onSyncStatus((status) => {
+    if (status === 'done') {
+      if (!isSyncBusy() && !_conflictRecovery.needsRefresh()) settleSyncStatus();
+    } else if (status === 'error') {
+      setSyncStatus('error', getSyncError());
+    } else if (status === 'idle' && !isSyncBusy()) {
+      setSyncStatus('');
+    } else if (status !== 'idle') {
+      setSyncStatus(status === 'syncing' ? 'checking' : status);
+    }
+    if (status === 'conflict' && !isSyncBusy() && !_conflictRecovery.isOpen()) {
+      window.setTimeout(() => void openSyncConflictResolver(), 0);
+    }
+    applySyncBusyState();
+    applyReadOnlyMode();
+  });
   _headerMenu = initHeaderMenu({
     getTheme: getUserThemePref,
     onTheme: (pref) => setUserTheme(pref),
@@ -667,14 +741,6 @@ function initHeader(): void {
     if (_syncStatus === 'ok' || hasEverGranted()) renderHeaderStatus();
   }, 60_000);
   onPendingChange(() => renderHeaderStatus());
-  // Debounced pushes after a save run outside the sync flows, which own the
-  // chip while busy: surface their outcome so a failing Drive is never hidden.
-  onSyncStatus((status, detail) => {
-    if (isSyncBusy()) return;
-    if (status === 'error') setSyncStatus('error', detail ?? '');
-    else if (status === 'done') setSyncStatus('ok');
-    else if (status === 'conflict') setSyncStatus('conflict');
-  });
 }
 
 /** Signing out forgets the account; push first, and warn if changes still never reached Drive. */
@@ -711,17 +777,26 @@ function renderHeaderStatus(): void {
   renderSyncChip(
     el,
     syncChipView({
-      status: getPendingSyncConflict() ? 'conflict' : disconnectedStatus(_syncStatus),
+      status:
+        state.offline || !navigator.onLine
+          ? 'offline'
+          : getPendingSyncConflict() && !isSyncBusy() && _syncStatus !== 'error'
+            ? 'conflict'
+            : disconnectedStatus(_syncStatus),
       msg: _syncStatusMsg,
       busy: isSyncBusy(),
       lastOkAt: _lastSyncOkAt,
       now: Date.now(),
       pending: hasPendingChanges(),
+      conflict: !!getPendingSyncConflict(),
+      refreshRequired: _conflictRecovery.needsRefresh(),
     }),
   );
 }
 /** Trigger syncInBackground only when shouldAutoResync passes. */
 function autoResyncIfNeeded(): void {
+  if (getPendingSyncConflict() || _conflictRecovery.needsRefresh() || _conflictRecovery.isOpen())
+    return;
   if (
     shouldAutoResync({
       signedIn: isSignedIn(),
@@ -744,7 +819,8 @@ function initAuth() {
     .getElementById('btn-signin-global')
     ?.addEventListener('click', () => void connectAndSync());
   document.getElementById('sync-status')?.addEventListener('click', () => {
-    if (getPendingSyncConflict()) {
+    if (isSyncBusy()) return;
+    if (getPendingSyncConflict() || _conflictRecovery.needsRefresh()) {
       void openSyncConflictResolver();
       return;
     }
@@ -958,6 +1034,10 @@ async function bootFromCache() {
  */
 async function syncInBackground({ userInitiated = false } = {}) {
   if (isSyncBusy()) return; // re-entrancy guard
+  if (getPendingSyncConflict() || _conflictRecovery.needsRefresh()) {
+    if (userInitiated) await openSyncConflictResolver();
+    return;
+  }
   if (state.offline) {
     setSyncStatus('offline');
     return;
@@ -967,6 +1047,11 @@ async function syncInBackground({ userInitiated = false } = {}) {
   try {
     // Pull from Drive if cloud is newer (replaces local DB if so)
     await pullFromCloud();
+    if (await hasPendingLocalChanges()) {
+      cancelPendingUpload();
+      if (!(await pushToCloud())) throw new Error(getSyncError() || 'Sync did not complete.');
+    }
+    setSyncStatus('refreshing');
 
     // Load from local SQLite
     await loadConfig();
@@ -1000,9 +1085,8 @@ async function syncInBackground({ userInitiated = false } = {}) {
     ]);
     if (!configCached || !snapsCached || !txsCached) showCacheWriteWarning();
 
-    await pushPendingChanges();
-    setSyncStatus('ok');
     await backupCollapseToSheet();
+    settleSyncStatus();
   } catch (err) {
     if (err instanceof NeedsAuthError) {
       // The token expired in the meantime: back to "not connected".
@@ -1070,12 +1154,16 @@ async function loadAllData() {
   try {
     // Pull from Drive if cloud is newer
     await pullFromCloud();
+    if (await hasPendingLocalChanges()) {
+      cancelPendingUpload();
+      if (!(await pushToCloud())) throw new Error(getSyncError() || 'Sync did not complete.');
+    }
 
+    setSyncStatus('refreshing');
     await refreshStateFromLocalDb();
     registerConfigListener();
-    await pushPendingChanges();
-    setSyncStatus('ok');
     await backupCollapseToSheet();
+    settleSyncStatus();
   } catch (err) {
     if (err instanceof NeedsAuthError) {
       updateAuthUI(false);
@@ -1109,23 +1197,13 @@ function registerConfigListener(): void {
   });
 }
 
-/**
- * Upload changes made while not connected (after the pull found no newer cloud copy).
- * Throws when Drive fails so the caller shows "Sync failed" instead of "Synced".
- */
-async function pushPendingChanges(): Promise<void> {
-  if (!(await loadPendingState())) return;
-  cancelPendingUpload();
-  // false without throwing: another push is in flight; retry shortly.
-  if (!(await pushToCloud({ throwOnError: true }))) scheduleUpload();
-}
-
 // ── Force full resync ────────────────────────────────────
 /**
  * Clear the cache and do a clean full reload from local DB + Drive.
  * Exposed for the Settings UI "Force full resync" button.
  */
 export async function forceFullResync() {
+  if (!allowSyncWrite()) return;
   // Needs Drive: connect first (this runs from a button click) so a missing
   // token can't leave the app with its cache cleared and nothing loaded.
   if (!isSignedIn()) {
@@ -1167,7 +1245,9 @@ export async function exportBackup(): Promise<void> {
 }
 window.__exportBackup = exportBackup;
 
-async function refreshStateFromLocalDb(opts: { clearCaches?: boolean } = {}): Promise<void> {
+async function refreshStateFromLocalDb(
+  opts: { clearCaches?: boolean; requireCache?: boolean } = {},
+): Promise<void> {
   if (opts.clearCaches) await clearCache();
 
   await loadConfig();
@@ -1183,7 +1263,7 @@ async function refreshStateFromLocalDb(opts: { clearCaches?: boolean } = {}): Pr
   state.pd = txs.length ? computePD(txs, { method: getCostBasisMethod() }) : null;
   state.cacheLoaded = true;
 
-  const [configCached, snapsCached, txsCached] = await Promise.all([
+  const cached = await Promise.all([
     setCachedConfig({
       accounts: getAccounts(),
       holdings: getHoldings(),
@@ -1192,7 +1272,7 @@ async function refreshStateFromLocalDb(opts: { clearCaches?: boolean } = {}): Pr
     setCachedSnapshots(snaps),
     setCachedTransactions(txs),
     setCachedImportMeta(meta),
-    state.pd ? setCachedAggregates(state.pd) : Promise.resolve(),
+    state.pd ? setCachedAggregates(state.pd) : Promise.resolve(true),
     state.pd
       ? setInputsHash(
           computeInputsHash(
@@ -1202,57 +1282,17 @@ async function refreshStateFromLocalDb(opts: { clearCaches?: boolean } = {}): Pr
             holdingsSignature(getHoldings()),
           ),
         )
-      : Promise.resolve(),
+      : Promise.resolve(true),
   ]);
-  if (!configCached || !snapsCached || !txsCached) showCacheWriteWarning();
+  if (cached.some((saved) => saved === false)) {
+    showCacheWriteWarning();
+    if (opts.requireCache)
+      throw new Error('Local cache could not be saved. Retry updating local data.');
+  }
 }
 
-async function openSyncConflictResolver(): Promise<void> {
-  async function resolveConflictWith(
-    action: () => Promise<boolean>,
-    dialog: { title: string; body: string; confirmLabel: string },
-  ): Promise<boolean> {
-    const ok = await confirmDialog({ ...dialog, danger: true });
-    if (!ok) return false;
-    setSyncing(true);
-    try {
-      await action();
-      await refreshStateFromLocalDb({ clearCaches: true });
-      setSyncStatus('ok');
-      refreshConflictAccess();
-      renderAll();
-    } finally {
-      setSyncing(false);
-    }
-    return true;
-  }
-
-  while (getPendingSyncConflict()) {
-    const [snaps, txs] = await Promise.all([loadSnapshots(), loadTransactions()]);
-    const choice = await conflictDialog({ localIsEmpty: !snaps.length && !txs.length });
-    if (choice === 'cancel') return;
-    if (choice === 'backup') {
-      await exportBackup();
-      continue;
-    }
-
-    if (choice === 'keep-local') {
-      const resolved = await resolveConflictWith(overwriteCloudWithLocal, {
-        title: 'Overwrite Drive with local data?',
-        body: 'This keeps this device as the source of truth and discards the newer Drive copy.',
-        confirmLabel: 'Overwrite Drive',
-      });
-      if (resolved) return;
-      continue;
-    }
-
-    const resolved = await resolveConflictWith(replaceLocalWithCloud, {
-      title: 'Replace local data with Drive?',
-      body: 'This discards this device\u2019s unsynced local changes and replaces the local database with the Drive copy.',
-      confirmLabel: 'Replace local',
-    });
-    if (resolved) return;
-  }
+function openSyncConflictResolver(): Promise<void> {
+  return _conflictRecovery.open();
 }
 window.__openSyncConflictResolver = openSyncConflictResolver;
 window.__hasSyncConflict = () => !!getPendingSyncConflict();
@@ -1261,6 +1301,7 @@ window.__hasSyncConflict = () => !!getPendingSyncConflict();
 export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done'> {
   if (!isSignedIn())
     throw new Error('Connect to Google first: select the sync status at the top of the page.');
+  if (!allowSyncWrite()) return 'cancelled';
   // Note: no isSyncBusy() check here - the caller (withCardGuard) already
   // holds the busy lock, so checking it would always self-deadlock.
 
@@ -1281,6 +1322,7 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
     danger: true,
   });
   if (!ok) return 'cancelled';
+  if (!allowSyncWrite()) return 'cancelled';
 
   setSyncing(true);
   // Cancel any in-flight pre-restore upload so stale data is never pushed.
@@ -1368,6 +1410,19 @@ function setSyncStatus(status: SyncStatus, msg = '') {
   _syncStatus = status;
   _syncStatusMsg = msg;
   refreshConflictAccess();
+}
+
+function settleSyncStatus(): void {
+  const status = getSyncStatus();
+  if (getPendingSyncConflict()) {
+    setSyncStatus(status === 'error' ? 'error' : 'conflict', getSyncError());
+  } else if (status === 'pending') {
+    setSyncStatus('pending');
+  } else if (status === 'error') {
+    setSyncStatus('error', getSyncError());
+  } else {
+    setSyncStatus('ok');
+  }
 }
 // ── Setup banner (onboarding checklist) ───────────────────
 let _bannerDismissed = false;
@@ -1582,7 +1637,9 @@ async function saveMonthlyUpdate(editDate?: string) {
       getSnapshotMapping(getSettings()[SNAPSHOT_MAPPINGS_KEY], type, getAccounts()),
     onSaveImportMapping: async (type, mapping) => {
       if (!(await ensureWriteAccess('snap-msg')))
-        throw new Error('Wait for the current sync/save to finish before saving the mapping.');
+        throw new Error(
+          'Resolve any pending sync conflict, sign in, and wait for the current sync/save before saving the mapping.',
+        );
       await runSynchronizedWrite({ action: () => saveSnapshotMapping(type, mapping) });
     },
     onSave: saveSnapshot,
@@ -2095,7 +2152,7 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
         if (changed) {
           refreshSettingsAfterChange(changed);
         } else {
-          renderSettings();
+          renderSettings({ preserveDrafts: true });
         }
         break;
       case 'analytics': {

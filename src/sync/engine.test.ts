@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../db/connection', () => ({
   exportDb: vi.fn(() => new Uint8Array([1, 2, 3])),
@@ -24,7 +24,194 @@ vi.mock('./drive', () => ({
 describe('sync engine conflict handling', () => {
   beforeEach(() => {
     vi.resetModules();
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+  });
+  afterEach(async () => {
+    (await import('./engine')).cancelPendingUpload();
+    vi.useRealTimers();
+  });
+
+  it('publishes pending as soon as an upload is queued', async () => {
+    vi.useFakeTimers();
+    const engine = await import('./engine');
+    const status = vi.fn();
+    engine.onSyncStatus(status);
+    engine.scheduleUpload();
+    expect(status).toHaveBeenLastCalledWith('pending');
+    expect(engine.getSyncStatus()).toBe('pending');
+  });
+
+  it('does not report success when the local database cannot be exported', async () => {
+    const connection = await import('../db/connection');
+    vi.mocked(connection.exportDb).mockReturnValueOnce(null);
+    const engine = await import('./engine');
+    const status = vi.fn();
+    engine.onSyncStatus(status);
+    expect(await engine.pushToCloud()).toBe(false);
+    expect(status).toHaveBeenLastCalledWith('error', expect.stringContaining('exported'));
+    expect(status).not.toHaveBeenCalledWith('done');
+  });
+
+  it('missing cloud data during explicit replacement is an error, not success', async () => {
+    const engine = await import('./engine');
+    const status = vi.fn();
+    engine.onSyncStatus(status);
+    await expect(engine.replaceLocalWithCloud()).rejects.toThrow(/Drive/i);
+    expect(status).toHaveBeenLastCalledWith('error', expect.stringContaining('Drive'));
+    expect(status).not.toHaveBeenCalledWith('done');
+  });
+
+  it('pauses ordinary pulls and pushes until the pending conflict is explicitly resolved', async () => {
+    const meta = await import('../db/repositories/meta');
+    const drive = await import('./drive');
+    vi.mocked(meta.getLastSyncTimestamp).mockResolvedValue('2026-01-01');
+    vi.mocked(meta.getLastLocalChangeTimestamp).mockResolvedValue('2026-01-02');
+    vi.mocked(drive.getCloudModifiedTime).mockResolvedValue('2026-01-03');
+    const engine = await import('./engine');
+    await expect(engine.pullFromCloud()).rejects.toBeInstanceOf(engine.SyncConflictError);
+    vi.mocked(drive.getCloudModifiedTime).mockClear();
+    await expect(engine.pullFromCloud()).rejects.toBeInstanceOf(engine.SyncConflictError);
+    await expect(engine.pushToCloud()).rejects.toBeInstanceOf(engine.SyncConflictError);
+    expect(drive.getCloudModifiedTime).not.toHaveBeenCalled();
+    vi.useFakeTimers();
+    engine.scheduleUpload();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(engine.getSyncStatus()).toBe('conflict');
+    expect(drive.uploadDbFile).not.toHaveBeenCalled();
+    expect(await engine.overwriteCloudWithLocal()).toBe(true);
+    expect(engine.getPendingSyncConflict()).toBeNull();
+  });
+
+  it('retains the conflict after upload or replacement failure', async () => {
+    const meta = await import('../db/repositories/meta');
+    const drive = await import('./drive');
+    vi.mocked(meta.getLastSyncTimestamp).mockResolvedValue('2026-01-01');
+    vi.mocked(meta.getLastLocalChangeTimestamp).mockResolvedValue('2026-01-02');
+    vi.mocked(drive.getCloudModifiedTime).mockResolvedValue('2026-01-03');
+    const engine = await import('./engine');
+    await expect(engine.pullFromCloud()).rejects.toBeInstanceOf(engine.SyncConflictError);
+    vi.mocked(drive.uploadDbFile).mockRejectedValueOnce(new Error('Upload failed'));
+    expect(await engine.overwriteCloudWithLocal()).toBe(false);
+    expect(engine.getPendingSyncConflict()).not.toBeNull();
+    await expect(engine.replaceLocalWithCloud()).rejects.toThrow(/Drive/i);
+    expect(engine.getPendingSyncConflict()).not.toBeNull();
+    expect(engine.getSyncStatus()).toBe('error');
+  });
+
+  it('publishes checking then uploading and waits for metadata persistence before done', async () => {
+    const meta = await import('../db/repositories/meta');
+    let finish!: () => void;
+    vi.mocked(meta.setDriveVersion).mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const engine = await import('./engine');
+    const status = vi.fn();
+    engine.onSyncStatus(status);
+    const push = engine.pushToCloud();
+    await vi.waitFor(() => expect(meta.setDriveVersion).toHaveBeenCalledOnce());
+    expect(status.mock.calls.map(([value]) => value)).toEqual(['syncing', 'uploading']);
+    finish();
+    expect(await push).toBe(true);
+    expect(status).toHaveBeenLastCalledWith('done');
+    expect(engine.isSyncing()).toBe(false);
+  });
+
+  it('keeps new edits pending if their debounce expires during a slow upload', async () => {
+    vi.useFakeTimers();
+    const drive = await import('./drive');
+    let finish!: (value: string) => void;
+    vi.mocked(drive.uploadDbFile).mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const engine = await import('./engine');
+    const pushing = engine.pushToCloud();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(drive.uploadDbFile).toHaveBeenCalledOnce();
+    engine.scheduleUpload();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(drive.uploadDbFile).toHaveBeenCalledOnce();
+    finish(new Date().toISOString());
+    expect(await pushing).toBe(true);
+    expect(engine.getSyncStatus()).toBe('pending');
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(drive.uploadDbFile).toHaveBeenCalledTimes(2);
+    expect(engine.getSyncStatus()).toBe('done');
+  });
+
+  it('surfaces local marker persistence errors instead of uploading untracked changes', async () => {
+    const meta = await import('../db/repositories/meta');
+    const drive = await import('./drive');
+    vi.mocked(meta.setLastLocalChangeTimestamp).mockRejectedValueOnce(
+      new Error('Persistence failed'),
+    );
+    const engine = await import('./engine');
+    engine.scheduleUpload();
+    expect(await engine.pushToCloud()).toBe(false);
+    expect(drive.uploadDbFile).not.toHaveBeenCalled();
+    expect(engine.getSyncStatus()).toBe('error');
+    expect(engine.getSyncError()).toBe('Persistence failed');
+  });
+
+  it('keeps edits made during final metadata persistence pending', async () => {
+    const meta = await import('../db/repositories/meta');
+    let finish!: () => void;
+    vi.mocked(meta.setLastLocalChangeTimestamp).mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const engine = await import('./engine');
+    const pushing = engine.pushToCloud();
+    await vi.waitFor(() => expect(meta.setLastLocalChangeTimestamp).toHaveBeenCalledOnce());
+    engine.scheduleUpload();
+    finish();
+    expect(await pushing).toBe(true);
+    expect(engine.getSyncStatus()).toBe('pending');
+  });
+
+  it('does not call an absent Drive backup synced when a local baseline exists', async () => {
+    const meta = await import('../db/repositories/meta');
+    vi.mocked(meta.getLastSyncTimestamp).mockResolvedValue('2026-01-01');
+    const engine = await import('./engine');
+    expect(await engine.pullFromCloud()).toBe(false);
+    expect(engine.getSyncStatus()).toBe('pending');
+    expect(await engine.hasPendingLocalChanges()).toBe(true);
+  });
+
+  it('protects queued edits even when the local clock is behind the stored Drive timestamp', async () => {
+    vi.useFakeTimers();
+    const meta = await import('../db/repositories/meta');
+    const drive = await import('./drive');
+    vi.mocked(meta.getLastSyncTimestamp).mockResolvedValue('9999-01-01');
+    vi.mocked(meta.getDriveVersion).mockResolvedValue('9999-01-01');
+    vi.mocked(meta.getLastLocalChangeTimestamp).mockResolvedValue('2026-01-01');
+    vi.mocked(drive.getCloudModifiedTime).mockResolvedValue('9999-01-03');
+    const engine = await import('./engine');
+    engine.scheduleUpload();
+    await expect(engine.pushToCloud()).rejects.toBeInstanceOf(engine.SyncConflictError);
+    expect(drive.uploadDbFile).not.toHaveBeenCalled();
+  });
+
+  it('defers scheduled uploads until a Settings write releases the shared lock', async () => {
+    vi.useFakeTimers();
+    const drive = await import('./drive');
+    const lock = await import('./lock');
+    const engine = await import('./engine');
+    lock.setBusy(true);
+    try {
+      engine.scheduleUpload();
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(drive.uploadDbFile).not.toHaveBeenCalled();
+      lock.setBusy(false);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(drive.uploadDbFile).toHaveBeenCalledOnce();
+    } finally {
+      lock.setBusy(false);
+    }
   });
 
   it('throws when cloud is newer and local has unsynced changes on pull', async () => {
@@ -236,6 +423,7 @@ describe('sync engine conflict handling', () => {
       data: new Uint8Array([9, 9, 9]),
       modifiedTime: '2026-01-03T00:00:00.000Z',
     });
+
     (meta.getLastLocalChangeTimestamp as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
 
     const { replaceLocalWithCloud } = await import('./engine');
@@ -248,6 +436,21 @@ describe('sync engine conflict handling', () => {
     expect(meta.setLastLocalChangeTimestamp as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
       '2026-01-03T00:00:00.000Z',
     );
+  });
+
+  it('does not upload again because the chosen cloud database contains an old device dirty marker', async () => {
+    const meta = await import('../db/repositories/meta');
+    const drive = await import('./drive');
+    vi.mocked(meta.getLastLocalChangeTimestamp).mockResolvedValue('9999-01-01T00:00:00.000Z');
+    vi.mocked(drive.downloadDbFile).mockResolvedValue({
+      data: new Uint8Array([9]),
+      modifiedTime: '2026-01-03T00:00:00.000Z',
+    });
+    const engine = await import('./engine');
+    expect(await engine.replaceLocalWithCloud()).toBe(true);
+    expect(meta.setLastLocalChangeTimestamp).toHaveBeenCalledWith('2026-01-03T00:00:00.000Z');
+    expect(engine.getSyncStatus()).toBe('done');
+    expect(drive.uploadDbFile).not.toHaveBeenCalled();
   });
 
   it('never overwrites a Drive copy this device has not synced with', async () => {

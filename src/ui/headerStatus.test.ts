@@ -73,7 +73,7 @@ describe('syncChipView', () => {
       action: 'sync',
     });
     expect(view({ status: 'pending' })).toMatchObject({
-      label: 'Not synced',
+      label: 'Changes pending',
       tone: 'warn',
       action: 'sync',
     });
@@ -81,6 +81,26 @@ describe('syncChipView', () => {
   it('conflict resolves; empty status hides the chip', () => {
     expect(view({ status: 'conflict' })).toMatchObject({ label: 'Sync paused', action: 'resolve' });
     expect(view({ status: '' })).toBeNull();
+  });
+  it('active conflict resolution is busy and cannot be triggered twice', () => {
+    expect(view({ status: 'conflict', busy: true })).toMatchObject({
+      busy: true,
+      action: null,
+      icon: 'spinner',
+    });
+  });
+  it.each([
+    ['pending', 'Changes pending'],
+    ['checking', 'Checking Drive'],
+    ['uploading', 'Uploading'],
+    ['downloading', 'Downloading'],
+    ['refreshing', 'Updating local data'],
+  ] as const)('explains the %s phase', (status, label) => {
+    const result = view({ status })!;
+    expect(result.label).toContain(label);
+    expect(result.label).not.toContain('Synced');
+    expect(result.title).not.toBe('');
+    if (status !== 'pending') expect(result).toMatchObject({ busy: true, action: null });
   });
 });
 
