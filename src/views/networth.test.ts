@@ -129,6 +129,10 @@ describe('renderNW', () => {
     delete (MOCK_ACCOUNTS[0] as any).lockedUntil;
     delete (MOCK_ACCOUNTS[1] as any).locked;
     delete (MOCK_ACCOUNTS[1] as any).lockedUntil;
+    for (const account of MOCK_ACCOUNTS) {
+      delete account.closedPeriods;
+      delete account.extraContrib;
+    }
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -149,6 +153,43 @@ describe('renderNW', () => {
     expect((document.getElementById('nw-empty') as HTMLElement).style.display).toBe('block');
     expect((document.getElementById('nw-content') as HTMLElement).style.display).toBe('none');
     expect(chartInstances.length).toBe(0);
+  });
+
+  it('pauses personal, extra and global contributions for closed accounts without redirecting scenarios', () => {
+    for (const account of MOCK_ACCOUNTS) {
+      account.annualReturnPct = 0;
+      account.extraContrib = 500;
+      account.closedPeriods = [{ closedFromMonth: '2026-01' }];
+    }
+    try {
+      renderNW([makeSnap('2026-06', 0, 0)]);
+      expect(chartFor('c-nw-forecast')).toBeUndefined();
+      MOCK_ACCOUNTS[1].closedPeriods = [];
+      MOCK_ACCOUNTS[1].contribAmount = 100;
+      MOCK_ACCOUNTS[1].extraContrib = 0;
+      renderNW([makeSnap('2026-06', 0, 1000)]);
+      (document.getElementById('nw-scenario-toggle') as HTMLButtonElement).click();
+      const option = chartFor('c-nw-forecast')!.option as AnyRec;
+      const baseline =
+        option.series.find((series: AnyRec) => series.name === 'Baseline') ?? option.series[1];
+      expect(baseline.data[12][1]).toBe(2200);
+      expect(document.getElementById('nw-planning')!.textContent).toContain(
+        'closed — contributions paused',
+      );
+      // Zero out return deltas so only contribution routing is under test.
+      for (const id of ['optimistic', 'pessimistic']) {
+        const input = document.getElementById(`nw-scn-${id}-ret`) as HTMLInputElement;
+        input.value = '0';
+        input.dispatchEvent(new Event('change'));
+      }
+      const updated = chartFor('c-nw-forecast')!.option as AnyRec;
+      const opt = updated.series.find((entry: AnyRec) => entry.name === 'Optimistic');
+      const pes = updated.series.find((entry: AnyRec) => entry.name === 'Pessimistic');
+      expect(opt.data).toEqual(pes.data);
+    } finally {
+      MOCK_ACCOUNTS[0].annualReturnPct = 7;
+      MOCK_ACCOUNTS[1].annualReturnPct = 2;
+    }
   });
 
   it('shows empty state when pd is provided but snaps is empty', () => {

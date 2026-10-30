@@ -21,12 +21,23 @@ import {
   getMonthlyContribBudget,
   getCalibrationInterval,
 } from '../store/config';
-import { primaryInvestmentValue } from '../model/accounts';
+import {
+  allInvestmentAccountsValue,
+  isAccountClosedInMonth,
+  isAccountOpenNow,
+} from '../model/accounts';
+import {
+  accountPositionValues,
+  aggregatePositionValues,
+  hasCompletePositionCoverage,
+  parsePositionKey,
+  coverageKey,
+} from '../model/snapshotPositions';
 import { splitHoldings, computeFeeDrag } from '../model/holdings';
 import { computeDrift, maxDrift, computeRebalancePlan, driftStatus } from '../model/drift';
 import type { DriftEntry } from '../model/drift';
 import { sourceLabel } from '../import/profiles/index';
-import type { PortfolioData, Snapshot, EtfPosition } from '../types';
+import type { PortfolioData, Snapshot, EtfPosition, Holding } from '../types';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { bindChipGroup, bindSearchClear, chipGroupHtml, searchHtml } from '../ui/filterBar';
 import { attachEtfPopovers } from '../ui/etfPopover';
@@ -60,14 +71,77 @@ import {
  * Keys prefixed "etf_" hold the ISIN market value entered by the user.
  */
 function extractSnapEtfValues(snap: Snapshot | null): Record<string, number> {
-  if (!snap) return {};
-  const out: Record<string, number> = {};
-  for (const [key, val] of Object.entries(snap)) {
-    if (key.startsWith('etf_') && typeof val === 'number' && Number.isFinite(val) && val >= 0) {
-      out[key.slice(4)] = val;
+  const values = aggregatePositionValues(snap);
+  // Keep the pre-conversion reader's permissive legacy keys until scoped activation.
+  if (snap && !scopedSnapshot(snap)) {
+    for (const [key, value] of Object.entries(snap)) {
+      if (
+        key.startsWith('etf_') &&
+        typeof value === 'number' &&
+        Number.isFinite(value) &&
+        value >= 0
+      )
+        values[key.slice(4)] = value;
     }
   }
-  return out;
+  return values;
+}
+
+function scopedSnapshot(snap: Snapshot | null): boolean {
+  return (
+    !!snap &&
+    Object.keys(snap).some(
+      (key) => parsePositionKey(key) !== null || key.startsWith('position_coverage:'),
+    )
+  );
+}
+
+type HoldingRow =
+  | (EtfPosition & { kind: 'ledger' })
+  | (Pick<Holding, 'isin' | 'name' | 'shortName' | 'color' | 'acc' | 'active'> & {
+      kind: 'valuation';
+    });
+
+let _holdingSnapshot: Snapshot | null = null;
+
+function positionAccounts(isin: string): ReturnType<typeof getAccounts> {
+  if (!_holdingSnapshot) return [];
+  return getAccounts().filter(
+    (account) =>
+      (accountPositionValues(_holdingSnapshot!, account.id || account.key || '')[isin] || 0) > 0,
+  );
+}
+
+function holdingRows(pd: PortfolioData, snap: Snapshot | null): HoldingRow[] {
+  const rows = new Map<string, HoldingRow>(
+    Object.values(pd.etfs).map((position) => [position.isin, { ...position, kind: 'ledger' }]),
+  );
+  const config = new Map(getHoldings().map((holding) => [holding.isin, holding]));
+  for (const isin of Object.keys(extractSnapEtfValues(snap))) {
+    if (rows.has(isin)) continue;
+    const holding = config.get(isin);
+    rows.set(isin, {
+      kind: 'valuation',
+      isin,
+      name: holding?.name || isin,
+      shortName: holding?.shortName || isin,
+      color: holding?.color || '#888888',
+      acc: holding?.acc ?? true,
+      active: holding?.active ?? false,
+    });
+  }
+  const order = getISIN_ORDERList();
+  return [...rows.values()].sort((a, b) => {
+    const ai = order.indexOf(a.isin);
+    const bi = order.indexOf(b.isin);
+    return (ai < 0 ? Infinity : ai) - (bi < 0 ? Infinity : bi);
+  });
+}
+
+function isExitedRow(row: HoldingRow): boolean {
+  return (
+    row.kind === 'ledger' && (row.exited || row.shares < 1e-6) && !positionAccounts(row.isin).length
+  );
 }
 
 type DriftValuationMode = 'cost' | 'market';
@@ -89,25 +163,65 @@ function getDriftValuationPolicy(pd: PortfolioData, snaps: Snapshot[]): DriftVal
   const hasAnySnapshotEtfValues = Object.keys(snapEtfValues).length > 0;
   const allEtfs = Object.values(pd.etfs);
   const { held } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
-  const hasHeldPositions = held.length > 0;
+  const hasHeldPositions =
+    held.length > 0 ||
+    (scopedSnapshot(latestSnapshot) && Object.values(snapEtfValues).some((value) => value > 0));
   const heldWithSnapshotValueCount = held.filter((e) => snapEtfValues[e.isin] !== undefined).length;
-  const hasFullCoverage = hasHeldPositions && heldWithSnapshotValueCount === held.length;
+  const hasFullCoverage = scopedSnapshot(latestSnapshot)
+    ? !!latestSnapshot && hasCompletePositionCoverage(latestSnapshot, getAccounts())
+    : hasHeldPositions && heldWithSnapshotValueCount === held.length;
   const hasPartialSnapshotCoverage = hasAnySnapshotEtfValues && !hasFullCoverage;
   const mode: DriftValuationMode = hasFullCoverage ? 'market' : 'cost';
-  const primaryInvTotal = primaryInvestmentValue(latestSnapshot, getAccounts());
+  const primaryInvTotal = allInvestmentAccountsValue(latestSnapshot, getAccounts());
   const totalValue =
     !hasHeldPositions || mode === 'market' ? (primaryInvTotal ?? pd.totalInv) : pd.totalInv;
+  const driftValues = mode === 'market' ? { ...snapEtfValues } : undefined;
+  if (driftValues && scopedSnapshot(latestSnapshot)) {
+    for (const isin of [...Object.keys(pd.etfs), ...getHoldings().map((holding) => holding.isin)]) {
+      driftValues[isin] ??= 0;
+    }
+  }
 
   return {
     mode,
     latestSnapshot,
     snapEtfValues,
-    snapEtfValuesForDrift: mode === 'market' ? snapEtfValues : undefined,
+    snapEtfValuesForDrift: driftValues,
     totalValue,
     hasHeldPositions,
     hasAnySnapshotEtfValues,
     hasPartialSnapshotCoverage,
   };
+}
+
+function portfolioDrift(pd: PortfolioData, valuation: DriftValuationPolicy): DriftEntry[] {
+  const drift = computeDrift(
+    getHoldings(),
+    pd.etfs,
+    valuation.totalValue,
+    valuation.snapEtfValuesForDrift,
+  );
+  if (valuation.mode !== 'market' || valuation.totalValue <= 0 || drift.length === 0) return drift;
+  const included = new Set(drift.map((entry) => entry.isin));
+  for (const row of holdingRows(pd, valuation.latestSnapshot)) {
+    const value = valuation.snapEtfValues[row.isin] || 0;
+    if (included.has(row.isin) || value <= 0) continue;
+    const pct = Math.round((value / valuation.totalValue) * 1000) / 10;
+    drift.push({
+      isin: row.isin,
+      name: row.name,
+      shortName: row.shortName,
+      color: row.color,
+      targetPct: 0,
+      actualPct: pct,
+      driftPct: pct,
+      actualValue: value,
+      targetValue: 0,
+      deltaValue: Math.round(value),
+      valuationMode: 'market',
+    });
+  }
+  return drift;
 }
 
 /** Render per-source sub-rows for a breakdown map (only when 2+ sources). */
@@ -130,12 +244,12 @@ const _holdPageSize = createPageSizePref('wt:holdings:pageSize', DEFAULT_PAGE_SI
 let _holdRender: (() => void) | null = null;
 const _holdTableState = createTableState({
   sort: { key: null, dir: null },
-  filters: { status: 'held', search: '' },
+  filters: { status: 'held', search: '', account: '' },
 });
 
 // Module-level references updated on each render (avoids stale closure in click handler)
-let _pageItemsByKey = new Map<string, EtfPosition>();
-let _currentColumns: ColumnDef<EtfPosition>[] = [];
+let _pageItemsByKey = new Map<string, HoldingRow>();
+let _currentColumns: ColumnDef<HoldingRow>[] = [];
 
 // mobile-visible column count must match styles.css's #port-table mobile grid-template-columns track count
 /** Single source of truth for the Holdings table's columns. `detail: true` marks
@@ -280,35 +394,71 @@ function holdingsColumns(
  * Called on filter toggle without recreating the donut, KPIs, or summary.
  */
 function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
-  const ISIN_ORDER = getISIN_ORDERList();
   const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
+  _holdingSnapshot = latSnap;
   const snapEtfValues = extractSnapEtfValues(latSnap);
-  const columns = holdingsColumns(pd, snapEtfValues);
+  const complete = !scopedSnapshot(latSnap) || hasCompletePositionCoverage(latSnap!, getAccounts());
+  const columns: ColumnDef<HoldingRow>[] = holdingsColumns(pd, complete ? snapEtfValues : {}).map(
+    (column) => ({
+      ...column,
+      sortValue: (row) =>
+        column.key === 'marketValue'
+          ? (snapEtfValues[row.isin] ?? -Infinity)
+          : row.kind === 'ledger'
+            ? (column.sortValue?.(row) ?? 0)
+            : column.key === 'shortName'
+              ? row.shortName
+              : -Infinity,
+      cellClass: () => (column.key === 'shortName' ? 'hold-etf-cell' : ''),
+      cellAttrs: (row) => {
+        if (column.key === 'marketValue')
+          return `style="text-align:right" title="${snapEtfValues[row.isin] === undefined ? 'No saved position valuation in the latest snapshot.' : !complete ? 'Partial recorded valuation; account breakdown coverage is incomplete.' : ''}"`;
+        if (column.key === 'unrealizedPnL' && !complete)
+          return 'style="text-align:right" title="P&L is unavailable until account valuation coverage is complete."';
+        return row.kind === 'ledger' ? (column.cellAttrs?.(row) ?? '') : 'style="text-align:right"';
+      },
+      detailValueClass: (row) =>
+        row.kind === 'ledger' ? (column.detailValueClass?.(row) ?? '') : '',
+      cell: (row) => {
+        if (column.key === 'shortName') {
+          const count = positionAccounts(row.isin).length;
+          const accountLabel = `${count} accounts as of ${latSnap ? fmtMon(latSnap.date) : ''}`;
+          return `${ROW_DISCLOSURE_ICON}<span class="hold-name">${esc(row.shortName)}</span>${count > 1 ? `<span class="hold-account-count" aria-label="${esc(accountLabel)}" title="${esc(accountLabel)}">${count}</span>` : ''}<span class="hold-dot" style="background:${safeColor(row.color)}"></span>`;
+        }
+        if (column.key === 'marketValue') {
+          const value = snapEtfValues[row.isin];
+          return value === undefined
+            ? '-'
+            : `${fmtEur2(value)}${!complete ? '<span class="hold-inline-meta">partial</span>' : ''}`;
+        }
+        return row.kind === 'ledger' ? (column.cell?.(row) ?? '') : '-';
+      },
+    }),
+  );
 
   // Build full ordered ETF list
-  const allEtfs: EtfPosition[] = ISIN_ORDER.map((s) => pd.etfs[s])
-    .filter((e): e is EtfPosition => !!e)
-    .concat(Object.values(pd.etfs).filter((e) => !ISIN_ORDER.includes(e.isin)));
+  const allEtfs = holdingRows(pd, latSnap);
+  const hasGlobalCostBasis = allEtfs.every((row) => row.kind === 'ledger');
   const knownMarketValues = allEtfs
     .map((e) => snapEtfValues[e.isin])
     .filter((v): v is number => v !== undefined);
   const totalKnownMarket = knownMarketValues.reduce((sum, v) => sum + v, 0);
   const totalKnownUnrealized = allEtfs.reduce((sum, e) => {
     const mv = snapEtfValues[e.isin];
-    return sum + (mv !== undefined ? mv - e.cost : 0);
+    return sum + (mv !== undefined && e.kind === 'ledger' ? mv - e.cost : 0);
   }, 0);
 
   // Split into held / exited
-  const { held, exited } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
+  const held = allEtfs.filter((row) => !isExitedRow(row));
+  const exited = allEtfs.filter(isExitedRow);
   const exitedCount = exited.length;
 
-  // Status chips only matter once something has been closed; otherwise everything is "held".
   let holdingsFilter = getTableFilter(_holdTableState, 'status') || 'held';
-  if (exitedCount === 0 && holdingsFilter !== 'held') {
-    holdingsFilter = 'held';
-    _holdTableState.filters.status = 'held';
+  if (!held.length || !exited.length) {
+    holdingsFilter = held.length ? 'held' : 'all';
+    _holdTableState.filters.status = holdingsFilter;
   }
-  let displayList: EtfPosition[];
+  let displayList: HoldingRow[];
   if (holdingsFilter === 'closed') {
     displayList = exited;
   } else if (holdingsFilter === 'all') {
@@ -317,6 +467,47 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     displayList = held;
   }
 
+  const accountChoices = [
+    ...getAccounts()
+      .filter((account) => account.moneyType?.toLowerCase() === 'investment')
+      .map((account) => ({
+        value: account.id || account.key || '',
+        label: `${account.label}${latSnap && isAccountClosedInMonth(account, latSnap.date) ? ' (closed)' : ''}`,
+      })),
+    { value: ':multiple', label: 'Multiple accounts' },
+  ]
+    .map((choice) => ({
+      ...choice,
+      members: displayList
+        .filter((row) => {
+          const accounts = positionAccounts(row.isin);
+          return choice.value === ':multiple'
+            ? accounts.length > 1
+            : accounts.some((account) => (account.id || account.key) === choice.value);
+        })
+        .map((row) => row.isin),
+    }))
+    .filter((choice) => choice.members.length > 0 && choice.members.length < displayList.length)
+    .filter(
+      (choice, index, choices) =>
+        choices.findIndex((other) => other.members.join('|') === choice.members.join('|')) ===
+        index,
+    )
+    .map(({ value, label, members }) => ({ value, label, count: members.length }));
+  let accountFilter = getTableFilter(_holdTableState, 'account');
+  if (accountFilter && !accountChoices.some((choice) => choice.value === accountFilter)) {
+    accountFilter = '';
+    _holdTableState.filters.account = '';
+  }
+  const accountTotal = displayList.length;
+  if (accountFilter) {
+    displayList = displayList.filter((row) => {
+      const accounts = positionAccounts(row.isin);
+      return accountFilter === ':multiple'
+        ? accounts.length > 1
+        : accounts.some((account) => (account.id || account.key) === accountFilter);
+    });
+  }
   // Apply text search (ISIN or name, case-insensitive)
   const holdingsSearch = getTableFilter(_holdTableState, 'search');
   if (holdingsSearch) {
@@ -326,7 +517,9 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     );
   }
 
-  const defaultOrdered = displayList.slice().sort((a, b) => (b.cost || 0) - (a.cost || 0));
+  const defaultOrdered = displayList
+    .slice()
+    .sort((a, b) => (b.kind === 'ledger' ? b.cost : 0) - (a.kind === 'ledger' ? a.cost : 0));
 
   // Apply user sort on top of the default allocation order
   const { pageItems, page, totalPages } = sortAndPaginate(
@@ -345,7 +538,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
 
   // Filter controls
   const statusChips =
-    exitedCount > 0
+    exitedCount > 0 && held.length > 0
       ? chipGroupHtml({
           id: 'port-filter-toggle',
           ariaLabel: 'Show holdings',
@@ -359,24 +552,42 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
         })
       : '';
   // Same layout as the ledger: search first, chips on their own row below.
-  const filterHtml = `
+  const filterHtml =
+    allEtfs.length > 1 || holdingsSearch || statusChips || accountChoices.length
+      ? `
     <div class="filter-bar filter-bar-stacked hold-filter-bar">
-      ${searchHtml({
-        id: 'port-holdings-search',
-        value: holdingsSearch,
-        placeholder: 'Search ISIN or name',
-        ariaLabel: 'Search holdings by ISIN or name',
-      })}
+      ${
+        allEtfs.length > 1 || holdingsSearch
+          ? searchHtml({
+              id: 'port-holdings-search',
+              value: holdingsSearch,
+              placeholder: 'Search ISIN or name',
+              ariaLabel: 'Search holdings by ISIN or name',
+            })
+          : ''
+      }
       ${statusChips}
-    </div>`;
+      ${
+        accountChoices.length
+          ? chipGroupHtml({
+              id: 'port-account-filter',
+              ariaLabel: 'Filter holdings by account. Metrics and totals remain portfolio-wide.',
+              attr: 'hold-account',
+              value: accountFilter,
+              chips: [{ value: '', label: 'All accounts', count: accountTotal }, ...accountChoices],
+            })
+          : ''
+      }
+    </div>`
+      : '';
   const noMatch =
-    pageItems.length === 0 && holdingsSearch
-      ? `<div class="empty-state hold-empty" role="row">No ${holdingsFilter === 'held' ? 'held ' : holdingsFilter === 'closed' ? 'closed ' : ''}holdings match “${esc(holdingsSearch)}”. <button type="button" class="filter-clear-all" data-clear-hold-search>Clear search</button></div>`
+    pageItems.length === 0 && (holdingsSearch || accountFilter)
+      ? `<div class="empty-state hold-empty" role="row">No holdings match${holdingsSearch ? ` “${esc(holdingsSearch)}”` : ' these filters'}. <button type="button" class="filter-clear-all" data-clear-hold-search>${accountFilter ? 'Clear filters' : 'Clear search'}</button></div>`
       : '';
 
   const rows = pageItems
     .map((e) => {
-      const isExited = e.exited || e.shares < 1e-6;
+      const isExited = isExitedRow(e);
       return `<div class="tbl-row hold-row" role="row" tabindex="0" aria-expanded="${String(isCollapsed('hold:' + e.isin))}"${isExited ? ' style="opacity:0.6"' : ''} data-etf-key="${esc(e.isin)}">
     ${renderTableRow(columns, e)}
   </div>`;
@@ -390,13 +601,13 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
         ${renderTableHeader(columns, _holdTableState.sort)}
       </div>${rows}${noMatch}
       <div class="tbl-row hold-total" role="row" style="border-top:1px solid var(--line-2);margin-top:4px">
-        <div style="font-weight:500">Total</div>
+        <div style="font-weight:500">Total (all accounts)</div>
         <div style="font-weight:500;text-align:right"><div class="hold-value-line"><span>${fmtEur(pd.totalInv)}</span><span class="hold-inline-meta">100%</span></div></div>
         <div></div><div></div>
         <div style="text-align:right;color:${pd.realizedPnL >= 0 ? 'var(--pos)' : 'var(--neg)'};font-weight:500">${pd.realizedPnL === 0 ? '-' : fmtEurNeg(pd.realizedPnL, 2)}</div>
         <div style="text-align:right;color:var(--pos);font-weight:500">${fmtEur2(pd.totalDivNet)}</div>
-        <div style="text-align:right;color:${knownMarketValues.length > 0 ? 'var(--ink)' : 'var(--ink-3)'};font-weight:500">${knownMarketValues.length > 0 ? fmtEur2(totalKnownMarket) : '-'}</div>
-        <div style="text-align:right;color:${knownMarketValues.length > 0 && totalKnownUnrealized >= 0 ? 'var(--pos)' : knownMarketValues.length > 0 ? 'var(--neg)' : 'var(--ink-3)'};font-weight:500">${knownMarketValues.length > 0 ? fmtEurNeg(totalKnownUnrealized, 2) : '-'}</div>
+        <div style="text-align:right;color:${knownMarketValues.length > 0 ? 'var(--ink)' : 'var(--ink-3)'};font-weight:500">${knownMarketValues.length > 0 ? fmtEur2(totalKnownMarket) : '-'}${!complete && knownMarketValues.length > 0 ? '<span class="hold-inline-meta">partial</span>' : ''}</div>
+        <div style="text-align:right;color:${knownMarketValues.length > 0 && totalKnownUnrealized >= 0 ? 'var(--pos)' : knownMarketValues.length > 0 ? 'var(--neg)' : 'var(--ink-3)'};font-weight:500">${complete && hasGlobalCostBasis && knownMarketValues.length > 0 ? fmtEurNeg(totalKnownUnrealized, 2) : '-'}</div>
       </div>
     </div>`;
 
@@ -416,6 +627,13 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
 
   // Delegated on the static #port-table, so they survive the innerHTML re-render.
   const portTableEl = document.getElementById('port-table');
+  bindChipGroup(document.getElementById('port-account-filter'), 'hold-account', (value) => {
+    setTableFilter(_holdTableState, 'account', value, {
+      rerender: () => renderHoldingsTable(pd, snaps),
+    });
+    const buttons = document.querySelectorAll<HTMLButtonElement>('#port-account-filter button');
+    [...buttons].find((button) => button.dataset.holdAccount === value)?.focus();
+  });
   _holdRender = () => renderHoldingsTable(pd, snaps);
   bindChipGroup(portTableEl, 'filter', (value) => {
     if (value === (getTableFilter(_holdTableState, 'status') || 'held')) return;
@@ -429,6 +647,8 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     portTableEl.dataset.holdClearBound = '1';
     portTableEl.addEventListener('click', (e) => {
       if (!(e.target as HTMLElement).closest('[data-clear-hold-search]')) return;
+      _holdTableState.filters.account = '';
+      _holdTableState.filters.status = 'held';
       setTableFilter(_holdTableState, 'search', '', { rerender: () => _holdRender?.() });
       document.getElementById('port-holdings-search')?.focus();
     });
@@ -516,7 +736,7 @@ function renderHoldPagination(
   );
 }
 
-function _createHoldingDetail(e: EtfPosition): HTMLElement {
+function _createHoldingDetail(e: HoldingRow): HTMLElement {
   const meta = getMETAMap()[e.isin] || {};
   const allocation = meta.active ? 'Active' : 'Inactive';
   const acc = e.acc ? 'Accumulating' : 'Distributing';
@@ -537,10 +757,31 @@ function _createHoldingDetail(e: EtfPosition): HTMLElement {
   panel.innerHTML = `
     <div><span class="hold-detail-label">Name</span><span class="hold-detail-value" style="font-size:11px">${esc(displayName)}</span></div>
     <div><span class="hold-detail-label">ISIN</span><span class="hold-detail-value hold-detail-isin">${esc(e.isin)}</span></div>
-    <div><span class="hold-detail-label">Position</span><span class="hold-detail-value">${e.exited ? 'Closed' : 'Held'}</span></div>
+    <div><span class="hold-detail-label">Position</span><span class="hold-detail-value"${e.kind === 'valuation' ? ' title="No transaction data; only saved valuations are available."' : ''}>${e.kind === 'valuation' ? 'Valuation only' : isExitedRow(e) ? 'Closed' : 'Held'}</span></div>
     <div><span class="hold-detail-label">Allocation</span><span class="hold-detail-value">${allocation}</span></div>
     <div><span class="hold-detail-label">Type</span><span class="hold-detail-value">${acc}</span></div>
-    ${detailColRows}`;
+    ${detailColRows}
+    ${
+      scopedSnapshot(_holdingSnapshot)
+        ? `<details class="hold-detail-accounts"><summary>Account values · ${fmtMon(_holdingSnapshot!.date)}</summary><div class="hold-account-heading"><span class="note">Values only; cost basis and P&amp;L remain portfolio-wide.</span></div>${getAccounts()
+            .map((account) => {
+              const id = account.id || account.key || '';
+              const value = accountPositionValues(_holdingSnapshot!, id)[e.isin];
+              if (value === undefined) return '';
+              const selected = getTableFilter(_holdTableState, 'account') === id;
+              const coverage = _holdingSnapshot![coverageKey(id)];
+              const status =
+                coverage === 1 ? '' : coverage === 0 ? ' · partial' : ' · coverage unknown';
+              const closed = isAccountClosedInMonth(account, _holdingSnapshot!.date)
+                ? ' · closed'
+                : '';
+              return `<div class="hold-account-row"><span>${esc(account.label)}${selected ? ' (selected)' : ''}${closed}<span class="hold-account-status">${status.replace(' · ', '')}</span></span><span class="hold-detail-value">${selected ? `<strong>${fmtEur2(value)}</strong>` : fmtEur2(value)}</span></div>`;
+            })
+            .join(
+              '',
+            )}<div class="hold-account-row hold-account-total"><span>Recorded subtotal${!hasCompletePositionCoverage(_holdingSnapshot, getAccounts()) ? '<span class="hold-account-status">Partial coverage</span>' : ''}</span><span class="hold-detail-value">${extractSnapEtfValues(_holdingSnapshot)[e.isin] === undefined ? '-' : fmtEur2(extractSnapEtfValues(_holdingSnapshot)[e.isin])}</span></div></details>`
+        : ''
+    }`;
   return panel;
 }
 
@@ -550,19 +791,47 @@ function _createHoldingDetail(e: EtfPosition): HTMLElement {
  */
 export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): void {
   const ISIN_ORDER = getISIN_ORDERList();
-  const has = pd && Object.keys(pd.etfs).length > 0;
+  const latest = snaps.length > 0 ? snaps[snaps.length - 1] : null;
+  const has =
+    (pd && Object.keys(pd.etfs).length > 0) || Object.keys(extractSnapEtfValues(latest)).length > 0;
   document.getElementById('port-empty')!.style.display = has ? 'none' : 'block';
   document.getElementById('port-content')!.style.display = has ? 'block' : 'none';
   if (!has) return;
+  pd ??= {
+    etfs: {},
+    divHist: [],
+    intHist: [],
+    monthly: {},
+    monthlyBy: {},
+    months: [],
+    totalInv: 0,
+    totalDivNet: 0,
+    totalTax: 0,
+    totalFees: 0,
+    totalInterest: 0,
+    totalIntGross: 0,
+    totalIntTax: 0,
+    realizedPnL: 0,
+    interestBySource: {},
+    taxBySource: {},
+  };
 
   setTablePage(_holdTableState, 1);
   _holdTableState.sort = { key: null, dir: null };
   _holdTableState.filters.status = 'held';
   _holdTableState.filters.search = '';
+  const accountFilter = getTableFilter(_holdTableState, 'account');
+  if (
+    accountFilter &&
+    accountFilter !== ':multiple' &&
+    !getAccounts().some((account) => (account.id || account.key) === accountFilter)
+  )
+    _holdTableState.filters.account = '';
 
   const latSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
   const snapEtfValues = extractSnapEtfValues(latSnap);
   const snapHasEtfValues = Object.keys(snapEtfValues).length > 0;
+  const complete = !scopedSnapshot(latSnap) || hasCompletePositionCoverage(latSnap!, getAccounts());
   const driftValuation = getDriftValuationPolicy(pd, snaps);
   const allEtfs = ISIN_ORDER.map((s) => pd.etfs[s])
     .filter((e): e is EtfPosition => !!e)
@@ -571,21 +840,26 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   const heldWithMarket = held.filter((e) => snapEtfValues[e.isin] !== undefined);
   const marketValueKnown = heldWithMarket.reduce((sum, e) => sum + (snapEtfValues[e.isin] || 0), 0);
   const costKnown = heldWithMarket.reduce((sum, e) => sum + e.cost, 0);
-  const hasKnownPositionValues = heldWithMarket.length > 0;
-  const hasPartialPositionValues = heldWithMarket.length > 0 && heldWithMarket.length < held.length;
+  const hasValuationOnly = holdingRows(pd, latSnap).some((row) => row.kind === 'valuation');
+  const hasKnownPositionValues = complete && !hasValuationOnly && heldWithMarket.length > 0;
+  const hasPartialPositionValues =
+    !complete || (heldWithMarket.length > 0 && heldWithMarket.length < held.length);
   const snapMarketValue = snapHasEtfValues
     ? Object.values(snapEtfValues).reduce((sum, val) => sum + val, 0)
     : null;
-  const curVal = primaryInvestmentValue(latSnap, getAccounts());
+  const curVal = allInvestmentAccountsValue(latSnap, getAccounts());
   const marketValue = snapMarketValue !== null ? snapMarketValue : curVal;
   const gain = hasKnownPositionValues ? marketValueKnown - costKnown : null;
   const gainPct = gain !== null && costKnown > 0 ? (gain / costKnown) * 100 : null;
   const summaryGainBase = snapMarketValue !== null ? snapMarketValue : curVal;
-  const summaryGain = summaryGainBase !== null ? summaryGainBase - pd.totalInv : null;
+  const summaryGain =
+    complete && !hasValuationOnly && summaryGainBase !== null
+      ? summaryGainBase - pd.totalInv
+      : null;
   const summaryGainPct =
     summaryGain !== null && pd.totalInv > 0 ? (summaryGain / pd.totalInv) * 100 : null;
   const cashUnallocated =
-    curVal !== null && snapMarketValue !== null ? curVal - snapMarketValue : null;
+    complete && curVal !== null && snapMarketValue !== null ? curVal - snapMarketValue : null;
   const gainLabel =
     snapMarketValue !== null ? 'Unrealized P&amp;L (positions)' : 'Unrealized P&amp;L';
   const totalDivGross = pd.totalDivNet + pd.totalTax;
@@ -621,7 +895,10 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
       value: marketValue !== null ? fmtEur2(marketValue) : '-',
       sub:
         marketValue !== null
-          ? 'from ' + fmtMon(latSnap!.date) + ' snapshot'
+          ? 'from ' +
+            fmtMon(latSnap!.date) +
+            ' snapshot' +
+            (!complete ? ' · partial position coverage' : '')
           : latSnap
             ? 'no primary investment account flagged'
             : 'add a snapshot',
@@ -682,7 +959,7 @@ export function renderPortfolio(pd: PortfolioData | null, snaps: Snapshot[]): vo
   );
   const mvRow =
     snapMarketValue !== null
-      ? `<div class="row"><div class="row-label">Market value (positions)</div><div class="row-val">${fmtEur2(snapMarketValue)}</div></div>`
+      ? `<div class="row"><div class="row-label">Market value (positions)${!complete ? ' · partial recorded subtotal' : ''}</div><div class="row-val">${fmtEur2(snapMarketValue)}</div></div>`
       : curVal !== null
         ? `<div class="row"><div class="row-label">Market value (snapshot)</div><div class="row-val">${fmtEur2(curVal)}</div></div>`
         : '';
@@ -764,15 +1041,13 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
   // Store a redraw callback so the month picker can trigger a re-render.
   _redrawDrift = (keepOpen = false) => _renderDriftCard(pd, snaps, keepOpen);
 
-  const holdings = getHoldings();
-
   // Extract per-ETF market values from the latest snapshot when available.
   const valuation = getDriftValuationPolicy(pd, snaps);
   const latSnap = valuation.latestSnapshot;
   const hasSnapValues = valuation.hasAnySnapshotEtfValues;
   const totalValue = valuation.totalValue;
 
-  const drift = computeDrift(holdings, pd.etfs, totalValue, valuation.snapEtfValuesForDrift);
+  const drift = portfolioDrift(pd, valuation);
 
   if (drift.length === 0) {
     disposeChart('c-port-drift');
@@ -807,7 +1082,14 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
     rawCalibrationInterval === 'quarterly'
       ? rawCalibrationInterval
       : 'monthly';
-  const monthlyBudget = getMonthlyContribBudget();
+  const monthlyBudget = getAccounts().some(
+    (account) =>
+      account.isPrimaryInvestment &&
+      account.moneyType?.toLowerCase() === 'investment' &&
+      isAccountOpenNow(account),
+  )
+    ? getMonthlyContribBudget()
+    : 0;
 
   const plan = computeRebalancePlan(
     drift,
@@ -964,14 +1246,8 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
  */
 export function getMaxDrift(pd: PortfolioData | null, snaps: Snapshot[]): number | null {
   if (!pd || Object.keys(pd.etfs).length === 0) return null;
-  const holdings = getHoldings();
   const valuation = getDriftValuationPolicy(pd, snaps);
-  const drift = computeDrift(
-    holdings,
-    pd.etfs,
-    valuation.totalValue,
-    valuation.snapEtfValuesForDrift,
-  );
+  const drift = portfolioDrift(pd, valuation);
   if (drift.length === 0) return null;
   return maxDrift(drift);
 }
@@ -1117,6 +1393,7 @@ function _renderDriftChart(
 
 /** Cost-basis drill-down: narrow the holdings table to one ISIN and expand its row. */
 function _revealHolding(pd: PortfolioData, snaps: Snapshot[], isin: string): void {
+  setTableFilter(_holdTableState, 'account', '');
   if (getTableFilter(_holdTableState, 'status') === 'closed')
     setTableFilter(_holdTableState, 'status', 'held');
   setTableFilter(_holdTableState, 'search', isin);

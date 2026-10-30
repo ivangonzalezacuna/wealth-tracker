@@ -5,7 +5,7 @@ import type { Transaction, Snapshot, PortfolioData, Settings } from '../types';
 import type { Account, Holding } from '../types';
 
 // ── Schema version - bump when cached shapes change ──────────────
-export const CACHE_VERSION = 2;
+export const CACHE_VERSION = 3;
 
 // ── Custom idb-keyval store (separate DB for our data) ───────────
 const cacheStore = createStore('wealth-tracker-cache', 'kv-store');

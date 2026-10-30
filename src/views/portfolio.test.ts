@@ -13,7 +13,7 @@ const costOption = () => chartFor('c-port-donut')!.option as AnyRec;
 const driftOption = () => chartFor('c-port-drift')!.option as AnyRec;
 
 // ── Mock store/config ──────────────────────────────────────────────
-const MOCK_ACCOUNTS = [
+const MOCK_ACCOUNTS: import('../types').Account[] = [
   {
     id: 'acct1',
     moneyType: 'investment',
@@ -182,6 +182,8 @@ const DOM_FIXTURE = `
 
 describe('renderPortfolio', () => {
   beforeEach(async () => {
+    MOCK_ACCOUNTS.splice(1);
+    delete MOCK_ACCOUNTS[0].closedPeriods;
     await loadCharts();
     resetMockCharts();
     _collapseState = {};
@@ -222,6 +224,158 @@ describe('renderPortfolio', () => {
     expect((document.getElementById('port-empty') as HTMLElement).style.display).not.toBe('none');
     expect((document.getElementById('port-content') as HTMLElement).style.display).toBe('none');
     expect(chartInstances.length).toBe(0);
+  });
+
+  it('lists a snapshot-only ETF once with account valuations and no invented ledger metrics', () => {
+    MOCK_ACCOUNTS.push({ id: 'france', label: 'France', moneyType: 'investment' });
+    const isin = 'IE00B4L5Y983';
+    renderPortfolio(null, [
+      {
+        date: '2026-06',
+        acct1: 4000,
+        france: 6000,
+        [`position:acct1:${isin}`]: 4000,
+        [`position:france:${isin}`]: 6000,
+        'position_coverage:acct1': 1,
+        'position_coverage:france': 1,
+      },
+    ]);
+    expect(document.getElementById('port-content')!.style.display).toBe('block');
+    const rows = document.querySelectorAll<HTMLElement>('.hold-row[data-etf-key]');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].querySelector('.hold-account-count')!.getAttribute('aria-label')).toContain(
+      '2 accounts',
+    );
+    const cells = rows[0].querySelectorAll('[role="cell"]');
+    expect(cells[1].textContent).toBe('-');
+    expect(cells[2].textContent).toBe('-');
+    expect(cells[7].textContent).toBe('-');
+    rows[0].click();
+    expect(document.querySelector<HTMLDetailsElement>('.hold-detail-accounts')!.open).toBe(false);
+    expect(document.querySelector('.hold-filter-scope')).toBeNull();
+    expect(document.querySelector('.hold-detail')!.textContent).toContain('Valuation only');
+    expect(document.querySelector('.hold-detail')!.textContent).toContain('France');
+    expect(document.querySelector('.hold-detail')!.textContent).toContain('Jun 2026');
+    expect(document.getElementById('port-account-filter')).toBeNull();
+    expect(document.getElementById('port-holdings-search')).toBeNull();
+    expect(document.querySelector('.hold-filter-bar')).toBeNull();
+    expect(document.querySelector('.hold-row[data-etf-key] .hold-account-count')!.textContent).toBe(
+      '2',
+    );
+    expect(document.querySelector('.hold-total')!.textContent).toContain('all accounts');
+  });
+
+  it('AND-composes account membership and search, then clears both without losing expansion', () => {
+    MOCK_ACCOUNTS.push({ id: 'france', label: 'France', moneyType: 'investment' });
+    const isin = 'IE00B4L5Y983';
+    renderPortfolio(makePD(), [
+      {
+        date: '2026-06',
+        acct1: 2000,
+        france: 1000,
+        [`position:acct1:${isin}`]: 1000,
+        [`position:france:${isin}`]: 1000,
+      },
+    ]);
+    expect(document.querySelector('[data-hold-account=":multiple"]')).toBeNull();
+    document.querySelector<HTMLButtonElement>('[data-hold-account="acct1"]')!.click();
+    expect(document.querySelectorAll('.hold-row[data-etf-key]')).toHaveLength(1);
+    const search = document.getElementById('port-holdings-search') as HTMLInputElement;
+    search.value = 'not-found';
+    search.dispatchEvent(new Event('input'));
+    expect(document.querySelectorAll('.hold-row[data-etf-key]')).toHaveLength(0);
+    expect(document.activeElement?.id).toBe('port-holdings-search');
+    (document.querySelector('[data-clear-hold-search]') as HTMLButtonElement).click();
+    expect(document.querySelector('[data-hold-account=""][aria-pressed="true"]')).not.toBeNull();
+    expect((document.getElementById('port-holdings-search') as HTMLInputElement).value).toBe('');
+    expect(document.querySelectorAll('.hold-row[data-etf-key]')).toHaveLength(2);
+  });
+
+  it('does not count zero account valuations or present partial shared-ISIN values as complete P&L', () => {
+    MOCK_ACCOUNTS.push({ id: 'france', label: 'France', moneyType: 'investment' });
+    const isin = 'IE00B4L5Y983';
+    renderPortfolio(makePD({ etfs: { [isin]: makeEtf({ isin }) } }), [
+      {
+        date: '2026-06',
+        acct1: 1000,
+        france: 0,
+        [`position:acct1:${isin}`]: 1000,
+        [`position:france:${isin}`]: 0,
+        'position_coverage:acct1': 1,
+      },
+    ]);
+    const row = document.querySelector('.hold-row[data-etf-key]')!;
+    expect(row.textContent).not.toContain('2 accounts');
+    expect(row.textContent).toContain('partial');
+    expect(row.querySelectorAll('[role="cell"]')[7].textContent).toBe('-');
+    expect(document.getElementById('port-summary')!.textContent).not.toContain('Total return');
+    expect(document.getElementById('port-drift')!.textContent).toContain('purchase cost');
+  });
+
+  it('counts useful account chips, omits empty accounts, and retains them through search', () => {
+    MOCK_ACCOUNTS.push(
+      { id: 'france', label: 'France', moneyType: 'investment' },
+      { id: 'empty', label: 'Empty', moneyType: 'investment' },
+    );
+    renderPortfolio(null, [
+      {
+        date: '2026-06',
+        'position:acct1:IE00B4L5Y983': 100,
+        'position:france:IE00B4L5Y983': 100,
+        'position:acct1:IE00B3XXRP09': 100,
+        'position:france:IE00BKM4GZ66': 100,
+      },
+    ]);
+    expect(document.querySelector('[data-hold-account="empty"]')).toBeNull();
+    expect(document.querySelector('[data-hold-account="acct1"] .chip-count')!.textContent).toBe(
+      '2',
+    );
+    expect(document.querySelector('[data-hold-account="france"] .chip-count')!.textContent).toBe(
+      '2',
+    );
+    expect(document.querySelector('[data-hold-account=":multiple"] .chip-count')!.textContent).toBe(
+      '1',
+    );
+    document.querySelector<HTMLButtonElement>('[data-hold-account=":multiple"]')!.click();
+    expect(document.querySelectorAll('.hold-row[data-etf-key]')).toHaveLength(1);
+    const search = document.getElementById('port-holdings-search') as HTMLInputElement;
+    search.value = 'no matches';
+    search.dispatchEvent(new Event('input'));
+    expect(document.querySelectorAll('.hold-row[data-etf-key]')).toHaveLength(0);
+    expect(
+      document.querySelector('[data-hold-account=":multiple"][aria-pressed="true"]'),
+    ).not.toBeNull();
+    document.querySelector<HTMLButtonElement>('[data-clear-hold-search]')!.click();
+    expect(document.querySelectorAll('.hold-row[data-etf-key]')).toHaveLength(3);
+  });
+
+  it('only offers account subsets, distinguishes IDs from Multiple accounts, and clears stale filters', () => {
+    MOCK_ACCOUNTS.push({ id: 'multiple', label: 'Individual multiple', moneyType: 'investment' });
+    const isin = 'IE00B4L5Y983';
+    const snaps: Snapshot[] = [
+      {
+        date: '2026-06',
+        acct1: 0,
+        multiple: 1000,
+        [`position:multiple:${isin}`]: 1000,
+      },
+    ];
+    renderPortfolio(makePD(), snaps);
+    expect(document.querySelector('[data-hold-account=":multiple"]')).toBeNull();
+    expect(document.querySelector('[data-hold-account="acct1"]')).toBeNull();
+    document.querySelector<HTMLButtonElement>('[data-hold-account="multiple"]')!.click();
+    expect(document.querySelectorAll('.hold-row[data-etf-key]')).toHaveLength(1);
+    renderPortfolio(null, snaps);
+    expect(document.getElementById('port-account-filter')).toBeNull();
+    expect(document.querySelectorAll('.hold-row[data-etf-key]')).toHaveLength(1);
+  });
+
+  it('does not route rebalance contributions to another account when the primary is closed', () => {
+    MOCK_ACCOUNTS[0].closedPeriods = [{ closedFromMonth: '2026-01' }];
+    MOCK_ACCOUNTS.push({ id: 'france', label: 'France', moneyType: 'investment' });
+    setRebalanceHoldings();
+    renderPortfolio(makeRebalancePd(), [makeRebalanceSnap()]);
+    expect(document.querySelector('.rebalance-collapsible')).toBeNull();
   });
 
   it('shows the empty state when pd has no etfs', () => {
@@ -459,7 +613,15 @@ describe('renderPortfolio', () => {
   });
 
   it('renders a holdings search input with a clear button', () => {
-    renderPortfolio(makePD(), []);
+    renderPortfolio(
+      makePD({
+        etfs: {
+          IE00TEST1: makeEtf(),
+          IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EIMI' }),
+        },
+      }),
+      [],
+    );
     const search = document.getElementById('port-holdings-search') as HTMLInputElement;
     expect(search).not.toBeNull();
     expect(search.placeholder).toBe('Search ISIN or name');
@@ -685,7 +847,7 @@ describe('renderPortfolio', () => {
       }),
       [],
     );
-    if (state.exited) document.querySelector<HTMLButtonElement>('[data-filter="closed"]')!.click();
+    expect(document.getElementById('port-filter-toggle')).toBeNull();
     document.querySelector<HTMLElement>('#port-table .hold-row:not(.th)')!.click();
     const values = [...document.querySelectorAll('.hold-detail > div')].map((row) => [
       row.querySelector('.hold-detail-label')?.textContent,

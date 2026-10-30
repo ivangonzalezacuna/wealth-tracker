@@ -3,6 +3,9 @@ import {
   getHoldings,
   getSettings,
   setAccounts,
+  saveAccountLifecycle,
+  migrateEtfValuations,
+  saveEtfCoverage,
   setHoldings,
   setSettings,
   setSetting,
@@ -45,7 +48,12 @@ import {
   validateAccountRanges,
   validateAccountIds,
   validateAccountLabels,
+  isAccountOpenNow,
 } from '../model/accounts';
+import { isScopedValuationMode, parsePositionKey } from '../model/snapshotPositions';
+import { valuationMigrationFingerprint } from '../model/valuationMigration';
+import { accountLifecycleDialog } from '../ui/accountLifecycleDialog';
+import { valuationMigrationDialog } from '../ui/valuationMigrationDialog';
 import { validateGoalLabels } from '../model/goals';
 import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
@@ -146,6 +154,15 @@ function setSaveDirty(btn: HTMLButtonElement, dirty: boolean, draftDirty = dirty
 function applySaveDirtyState(btn: HTMLButtonElement): void {
   if (btn.dataset.dirty === undefined) return;
   const clean = btn.dataset.dirty !== 'true';
+  btn.hidden = clean;
+  const discard = btn.parentElement?.querySelector<HTMLButtonElement>(
+    `[data-discard-for="${btn.id}"]`,
+  );
+  if (discard) {
+    discard.hidden = btn.dataset.draftDirty !== 'true';
+    discard.disabled = isBusy() || isSyncing() || isCardBusy(btnCardKey(btn));
+    btn.parentElement!.hidden = btn.hidden && discard.hidden;
+  }
   if (btn.title === SYNC_BUSY_TITLE) return;
   if (clean) {
     btn.disabled = true;
@@ -154,6 +171,31 @@ function applySaveDirtyState(btn: HTMLButtonElement): void {
     if (btn.title === NO_CHANGES_TITLE) btn.title = '';
     if (!isBusy() && !isCardBusy(btnCardKey(btn))) btn.disabled = false;
   }
+}
+
+function bindDraftActions(save: HTMLButtonElement | null, discardDraft: () => void): void {
+  if (!save || save.parentElement?.querySelector(`[data-discard-for="${save.id}"]`)) return;
+  const label = save.textContent?.trim() || 'Save';
+  save.setAttribute('aria-label', label);
+  save.textContent = 'Save';
+  const discard = document.createElement('button');
+  discard.type = 'button';
+  discard.id = save.id.replace('btn-save-', 'btn-discard-');
+  discard.className = 'btn btn-sm btn-ghost';
+  discard.dataset.discardFor = save.id;
+  discard.textContent = 'Discard';
+  discard.setAttribute('aria-label', `Discard unsaved ${label.replace(/^Save\s+/i, '')} changes`);
+  discard.hidden = true;
+  discard.addEventListener('click', () => {
+    if (isBusy() || isSyncing() || isCardBusy(btnCardKey(save))) return;
+    discardDraft();
+    save.closest<HTMLElement>('.card')?.querySelector<HTMLElement>('.js-card-toggle')?.focus();
+  });
+  const actions = document.createElement('span');
+  actions.className = 'settings-draft-actions';
+  save.before(actions);
+  actions.append(save, discard);
+  applySaveDirtyState(save);
 }
 
 function btnCardKey(btn: HTMLElement): CardKey {
@@ -174,10 +216,23 @@ function trackFormDirty(
   selector: string | HTMLElement | null,
   read?: () => string,
   forceDirty: () => boolean = () => false,
+  restore?: () => void,
 ): FormDirtyTracker {
   const scope = typeof selector === 'string' ? root.querySelector<HTMLElement>(selector) : selector;
   const snapshot = read ?? (() => fieldValues(scope));
   let baseline = snapshot();
+  const fields = () =>
+    Array.from(
+      scope?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+        'input, select, textarea',
+      ) ?? [],
+    );
+  const capture = () =>
+    fields().map((field) => ({
+      value: field.value,
+      checked: field instanceof HTMLInputElement ? field.checked : false,
+    }));
+  let savedFields = capture();
   const refresh = () => {
     const btn = root.querySelector<HTMLButtonElement>(`#btn-save-${button}`);
     const changed = snapshot() !== baseline;
@@ -185,11 +240,37 @@ function trackFormDirty(
   };
   scope?.addEventListener('input', refresh);
   scope?.addEventListener('change', refresh);
+  const discardDraft = () => {
+    if (restore) restore();
+    else {
+      const currentFields = fields();
+      if (currentFields.length !== savedFields.length) {
+        notify('Settings fields changed. Reload before discarding this draft.', {
+          variant: 'error',
+        });
+        return;
+      }
+      currentFields.forEach((field, index) => {
+        const saved = savedFields[index];
+        field.value = saved.value;
+        if (field instanceof HTMLInputElement) field.checked = saved.checked;
+      });
+      currentFields.forEach((field) => {
+        field.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    }
+    refresh();
+  };
+  const bindActions = () =>
+    bindDraftActions(root.querySelector<HTMLButtonElement>(`#btn-save-${button}`), discardDraft);
+  bindActions();
   refresh();
   return {
     refresh,
     commit() {
       baseline = snapshot();
+      savedFields = capture();
+      bindActions();
       refresh();
     },
   };
@@ -585,6 +666,8 @@ export function refreshSettingsAfterChange(changed: ConfigChangeKind): void {
 
 /** In-memory list of accounts kept in sync by add/edit/delete dialog operations. */
 let _accounts: Account[] | null = null;
+let _accountSettingsPatch: Record<string, string> = {};
+let _lifecycleDirty = false;
 
 /** Dialog suggestions from the accounts that stay (rows marked for removal don't count). */
 function accountDialogSuggestions(accounts: Account[]) {
@@ -692,6 +775,7 @@ function createEditableListController<T extends object>(opts: {
 
 let _accountsSettingsFilter = 'all'; // 'all' or an account type value ('other' for untyped)
 let _accountsSettingsSearch = '';
+let _accountsLifecycleFilter = 'all';
 
 function accountTypeKey(a: Account): string {
   return a.moneyType || 'other';
@@ -714,6 +798,8 @@ function accountTypesInUse(all: Account[]): string[] {
 function filterSettingsAccounts(all: Account[]): Account[] {
   const q = _accountsSettingsSearch.trim().toLowerCase();
   return all.filter((a) => {
+    if (_accountsLifecycleFilter === 'open' && !isAccountOpenNow(a)) return false;
+    if (_accountsLifecycleFilter === 'closed' && isAccountOpenNow(a)) return false;
     if (_accountsSettingsFilter !== 'all' && accountTypeKey(a) !== _accountsSettingsFilter)
       return false;
     if (!q) return true;
@@ -753,6 +839,20 @@ function settingsAccountRows(all: Account[]): string {
 
 /** The filter bar appears once there is something to filter; type chips only with 2+ types. */
 function syncAccountFilterBar(root: ParentNode, all: Account[]): void {
+  const lifecycle = root.querySelector<HTMLElement>('#acct-lifecycle-toggle');
+  if (lifecycle)
+    lifecycle.hidden =
+      _accountsLifecycleFilter === 'all' && !all.some((account) => !isAccountOpenNow(account));
+  if (lifecycle)
+    lifecycle.innerHTML = chipButtonsHtml({
+      attr: 'lfilter',
+      value: _accountsLifecycleFilter,
+      chips: [
+        { value: 'all', label: 'All', count: all.length },
+        { value: 'open', label: 'Open', count: all.filter(isAccountOpenNow).length },
+        { value: 'closed', label: 'Closed', count: all.filter((a) => !isAccountOpenNow(a)).length },
+      ],
+    });
   const bar = root.querySelector<HTMLElement>('.settings-acct-filter-bar');
   if (bar) bar.hidden = all.length < 2;
   const chips = root.querySelector<HTMLElement>('#acct-filter-toggle');
@@ -771,6 +871,8 @@ function applyAccountsFilter(root: HTMLElement): void {
 
 function renderAccountsCard(accounts: Account[]): string {
   _accounts = accounts.slice();
+  _accountSettingsPatch = {};
+  _lifecycleDirty = false;
   if (
     _accountsSettingsFilter !== 'all' &&
     !accountTypesInUse(accounts).includes(_accountsSettingsFilter)
@@ -784,6 +886,23 @@ function renderAccountsCard(accounts: Account[]): string {
       ${settingsCardHeader('accounts', 'Accounts', `${accounts.length} account${accounts.length === 1 ? '' : 's'}`)}
       <div class="card-body">
         <p class="note" style="margin-bottom:.5rem">One row per bank account or portfolio, tracked in each monthly snapshot.</p>
+        ${!isScopedValuationMode(getSettings()) ? `<p class="note">Review historical ETF account assignments before using account closure and reopening. Existing views remain available.</p><button class="btn btn-outline btn-sm" id="btn-migrate-valuations">Review / enable account-linked ETF values</button>` : `<details class="dialog-optional"><summary>Historical ETF completeness</summary><p class="note">Review all ETF positions by saved period/account or individual month without changing amounts.</p><button class="btn btn-outline btn-sm" id="btn-review-coverage">Review historical completeness</button></details>`}
+        <span id="valuation-migration-msg" class="form-msg" role="status"></span>
+        <div class="range-toggle filter-chips" id="acct-lifecycle-toggle" role="group" aria-label="Show account lifecycle"${accounts.some((a) => !isAccountOpenNow(a)) ? '' : ' hidden'}>${chipButtonsHtml(
+          {
+            attr: 'lfilter',
+            value: _accountsLifecycleFilter,
+            chips: [
+              { value: 'all', label: 'All', count: accounts.length },
+              { value: 'open', label: 'Open', count: accounts.filter(isAccountOpenNow).length },
+              {
+                value: 'closed',
+                label: 'Closed',
+                count: accounts.filter((a) => !isAccountOpenNow(a)).length,
+              },
+            ],
+          },
+        )}</div>
         <div class="filter-bar filter-bar-stacked settings-acct-filter-bar"${accounts.length < 2 ? ' hidden' : ''}>
           ${searchHtml({
             id: 'settings-acct-search',
@@ -825,7 +944,9 @@ function renderAccountRow(a: Account, i: number): string {
     a.locked ? `Locked${a.lockedUntil ? ' to ' + esc(a.lockedUntil) : ''}` : '',
   ].filter(Boolean);
   const badge =
-    (a.isPrimaryInvestment ? '<span class="badge b-active">Primary</span>' : '') + draftBadge(a);
+    (isAccountOpenNow(a) ? '' : '<span class="badge">Closed</span>') +
+    (a.isPrimaryInvestment ? '<span class="badge b-active">Primary</span>' : '') +
+    draftBadge(a);
   const name = esc(a.label) || 'New account';
 
   return `
@@ -863,16 +984,30 @@ async function toggleAccountRemoval(
     controller.toggleRemoval(idx);
     return;
   }
+  if (a.closedPeriods?.length) {
+    showMsg(
+      'accts-msg',
+      'Cannot remove an account with lifecycle history. Reopen this logical record instead.',
+      false,
+    );
+    return;
+  }
   const accountKeys = [a?.id, a?.key].filter((k): k is string => !!k && k.trim().length > 0);
   if (accountKeys.length > 0) {
     const snaps = await loadSnapshots();
-    const hasHistory = snaps.some((s) =>
-      accountKeys.some((key) => typeof s[key] === 'number' && Number(s[key]) !== 0),
+    const hasHistory = snaps.some(
+      (s) =>
+        accountKeys.some((key) => typeof s[key] === 'number' && Number(s[key]) !== 0) ||
+        Object.keys(s).some(
+          (key) =>
+            accountKeys.includes(parsePositionKey(key)?.accountId || '') ||
+            accountKeys.some((id) => key === `position_coverage:${id}`),
+        ),
     );
     if (hasHistory) {
       showMsg(
         'accts-msg',
-        'Cannot remove this account because it has historical snapshot values. Removing it would rewrite historical totals. Keep it and rename it (for example, "Closed - …").',
+        'Cannot remove this account because it has historical snapshot values or account-linked ETF history. Keep its identity and use Close instead.',
         false,
       );
       return;
@@ -922,6 +1057,103 @@ function attachAccountListeners(root: HTMLElement): void {
     apply: (updated) => rerenderAccountsTable(root, updated),
     msgId: 'accts-msg',
   });
+  root.querySelector('#acct-lifecycle-toggle')?.addEventListener('click', (e) => {
+    const button = (e.target as Element).closest<HTMLElement>('[data-lfilter]');
+    if (!button) return;
+    _accountsLifecycleFilter = button.dataset.lfilter || 'all';
+    applyAccountsFilter(root);
+  });
+  bindDraftActions(root.querySelector('#btn-save-accts'), () => {
+    clearDraftMarks(controller.items());
+    _accountSettingsPatch = {};
+    _lifecycleDirty = false;
+    rerenderAccountsTable(root, getAccounts().slice());
+    setListDraftState('accts-msg', false);
+  });
+  root
+    .querySelector('#btn-migrate-valuations, #btn-review-coverage')
+    ?.addEventListener('click', async () => {
+      if (controller.items().some(hasDraftMark) || _lifecycleDirty) {
+        showMsg(
+          'accts-msg',
+          'Save or discard account changes before reviewing ETF history.',
+          false,
+        );
+        return;
+      }
+      const button = root.querySelector<HTMLButtonElement>(
+        '#btn-migrate-valuations, #btn-review-coverage',
+      )!;
+      const coverageOnly = button.id === 'btn-review-coverage';
+      try {
+        const accounts = getAccounts();
+        const snapshots = await loadSnapshots();
+        const fingerprint = valuationMigrationFingerprint(accounts, snapshots);
+        const review = await valuationMigrationDialog({
+          accounts,
+          snapshots,
+          exportBackup: window.__exportBackup,
+          coverageOnly,
+        });
+        if (!review) return;
+        const saved = await withCardGuard(
+          'accounts',
+          button,
+          async () => {
+            if (coverageOnly) await saveEtfCoverage(review.coverage, fingerprint);
+            else await migrateEtfValuations(review.assignments, fingerprint, review.coverage);
+            return true;
+          },
+          { busyText: coverageOnly ? 'Saving…' : 'Converting…' },
+        );
+        if (!saved) return;
+        try {
+          await window.__exportBackup?.();
+        } catch {
+          notify('ETF review saved. Post-review backup failed; export one from Backup.', {
+            variant: 'info',
+          });
+        }
+        renderSettings({ preserveDrafts: true });
+        notify(coverageOnly ? 'ETF completeness saved' : 'Account-linked ETF values enabled', {
+          variant: 'success',
+          source: 'valuation-migration-msg',
+        });
+      } catch (error) {
+        showMsg(
+          'valuation-migration-msg',
+          `ETF review could not finish: ${errorText(error)}`,
+          false,
+        );
+      }
+    });
+  const stageLifecycle = async (
+    index: number,
+    mode: Parameters<typeof accountLifecycleDialog>[0]['mode'],
+  ) => {
+    if (isCardBusy('accounts') || !isScopedValuationMode(getSettings())) return;
+    const accounts = controller.items();
+    try {
+      const result = await accountLifecycleDialog({
+        accounts,
+        accountIndex: index,
+        snapshots: await loadSnapshots(),
+        mode,
+        contributionBudget: Number(
+          _accountSettingsPatch.monthly_contrib_budget ?? getContributionBudgetAmount(),
+        ),
+      });
+      if (!result || controller.items() !== accounts || isCardBusy('accounts')) return;
+      for (let i = 0; i < result.accounts.length; i++) {
+        if (result.accounts[i] !== accounts[i]) controller.previewUpdate(i, result.accounts[i]);
+      }
+      Object.assign(_accountSettingsPatch, result.settingsPatch);
+      _lifecycleDirty = true;
+      setListDraftState('accts-msg', true);
+    } catch (error) {
+      showMsg('accts-msg', errorText(error), false);
+    }
+  };
   root.querySelector('#acct-filter-toggle')?.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-afilter]');
     if (!btn) return;
@@ -953,6 +1185,10 @@ function attachAccountListeners(root: HTMLElement): void {
     if (!existing) return;
     const draft = await accountDialog({
       existing,
+      lifecycleEnabled: isScopedValuationMode(getSettings()),
+      onLifecycle: (mode) => {
+        void stageLifecycle(idx, mode);
+      },
       existingLabels: accounts.filter((_, i) => i !== idx).map((a) => a.label),
       ...accountDialogSuggestions(accounts),
     });
@@ -1014,8 +1250,11 @@ function attachAccountListeners(root: HTMLElement): void {
         'accounts',
         btn,
         async () => {
-          await migrateLegacySnapshotKeys(accounts);
-          await setAccounts(accounts);
+          if (_lifecycleDirty) await saveAccountLifecycle(accounts, _accountSettingsPatch);
+          else {
+            await migrateLegacySnapshotKeys(accounts);
+            await setAccounts(accounts);
+          }
           if (removedIds.length > 0 && !(await retireAccountIdsSafely(removedIds))) {
             message = 'Accounts saved (will finish reserving removed ids once back online)';
           }
@@ -1025,6 +1264,8 @@ function attachAccountListeners(root: HTMLElement): void {
       );
       if (!saved) return;
       clearDraftMarks(all);
+      _accountSettingsPatch = {};
+      _lifecycleDirty = false;
       rerenderAccountsTable(root, accounts);
       setListDraftState('accts-msg', false);
       toastResult('accts-msg', message, 'success');
@@ -1184,6 +1425,11 @@ function toggleHoldingRemoval(controller: EditableListController<Holding>, idx: 
 }
 
 function attachHoldingListeners(root: HTMLElement): void {
+  bindDraftActions(root.querySelector('#btn-save-holds'), () => {
+    clearDraftMarks(_allHoldings ?? []);
+    rerenderHoldingsTable(root, getHoldings().slice());
+    setListDraftState('holds-msg', false);
+  });
   const controller = createEditableListController<Holding>({
     getItems: () => _holdings ?? _allHoldings ?? [],
     apply: (updated) => rerenderHoldingsTable(root, updated),
@@ -1646,6 +1892,11 @@ function toggleGoalRemoval(controller: EditableListController<NamedGoal>, idx: n
 }
 
 function attachGoalListeners(root: HTMLElement): void {
+  bindDraftActions(root.querySelector('#btn-save-goal'), () => {
+    clearDraftMarks(_goals ?? []);
+    rerenderGoalsTable(root, getGoals().slice());
+    setListDraftState('goal-msg', false);
+  });
   const controller = createEditableListController<NamedGoal>({
     getItems: () => _goals ?? [],
     apply: (updated) => rerenderGoalsTable(root, updated),
@@ -1833,8 +2084,13 @@ function attachPortfolioBehaviorListeners(root: HTMLElement): void {
     'alerts',
     '#settings-card-portfolio-behavior > .card-body > .settings-field',
   );
-  const rulesDirty = trackFormDirty(root, 'rules', '#settings-rules-tbl', () =>
-    JSON.stringify(collectRules(root)),
+  const rulesDirty = trackFormDirty(
+    root,
+    'rules',
+    '#settings-rules-tbl',
+    () => JSON.stringify(collectRules(root, true)),
+    undefined,
+    () => rerenderRulesTable(root, rulesFromSettings(getSettings())),
   );
   _formDirty.set('rules', rulesDirty);
   root.querySelector('#btn-save-alerts')?.addEventListener('click', async () => {
@@ -2361,7 +2617,7 @@ function renderStatementMappingDetails(settings: Settings, type: string): string
   return `
     <p class="note">${esc(getSnapshotParser(type).label)} · ${mapping ? 'Mapping remembered' : 'Set up on first import or here'}. Preferences follow backups and sync; PDF contents and draft values do not.</p>
     ${issue ? `<p class="dialog-error" role="alert">${esc(issue)}</p>` : ''}
-    ${snapshotMappingFields(getAccounts(), 'settings-statement', mapping, type)}
+    ${snapshotMappingFields(getAccounts(), 'settings-statement', mapping, type, undefined, isScopedValuationMode(getSettings()))}
     <div class="form-actions">
       <button class="btn btn-primary btn-sm" id="btn-save-statement-mapping">Save mapping</button>
       <button class="btn btn-outline btn-sm" id="btn-reset-statement-mapping">Reset mapping</button>

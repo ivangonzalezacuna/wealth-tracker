@@ -1,5 +1,13 @@
 import { normalizeSnapshotReview, type SnapshotReviewResult } from '../model/snapshotFx';
 import { isValidISIN, normalizeISIN } from '../model/isin';
+import { isAccountClosedInMonth } from '../model/accounts';
+import {
+  positionKey,
+  parsePositionKey,
+  coverageKey,
+  validateSnapshotPositions,
+} from '../model/snapshotPositions';
+import { attachCombobox, type ComboboxHandle } from './combobox';
 import { infoTip, attachInfoTips } from './infoTip';
 import { currentMonth, fmtEur2, fmtMon, safeColor, esc } from '../utils';
 import type { Account, Holding, PortfolioData, Snapshot } from '../types';
@@ -29,6 +37,7 @@ let _reviewed: Snapshot | null = null;
 let _busy = false;
 let _saving = false;
 let _disposeImport: (() => void) | undefined;
+let _comboboxes: ComboboxHandle[] = [];
 const _representedEtfKeys = new WeakMap<HTMLElement, Set<string>>();
 const _fieldStatuses = new WeakMap<HTMLElement, () => Map<string, SnapshotFieldStatus>>();
 const _dialog = createDialogController<Snapshot | null>(null, {
@@ -36,6 +45,8 @@ const _dialog = createDialogController<Snapshot | null>(null, {
   reset: () => {
     _disposeImport?.();
     _disposeImport = undefined;
+    for (const combo of _comboboxes) combo.close();
+    _comboboxes = [];
     _activeOpts = null;
     _reviewed = null;
     _busy = false;
@@ -44,6 +55,7 @@ const _dialog = createDialogController<Snapshot | null>(null, {
 });
 
 export interface SnapshotDialogOptions {
+  scopedValuations?: boolean;
   existing?: Snapshot;
   accounts: Account[];
   holdings: PortfolioData['etfs'];
@@ -133,8 +145,10 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
     _representedEtfKeys.set(
       overlay,
       new Set(
-        Array.from(overlay.querySelectorAll<HTMLInputElement>('[data-etf-isin]')).map(
-          (input) => `etf_${input.dataset.etfIsin}`,
+        Array.from(overlay.querySelectorAll<HTMLInputElement>('[data-etf-isin]')).map((input) =>
+          opts.scopedValuations
+            ? positionKey(input.dataset.acctKey!, input.dataset.etfIsin!)
+            : `etf_${input.dataset.etfIsin}`,
         ),
       ),
     );
@@ -168,10 +182,15 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
       if (remove) {
         const row = remove.closest('.snap-etf-extra')!;
         const key = remove.dataset.acctKey || '';
+        const coverage = overlay.querySelector<HTMLSelectElement>(
+          `[data-coverage-account="${key}"]`,
+        );
+        if (coverage) coverage.value = '0';
         const group = row.parentElement!;
         const rows = Array.from(group.querySelectorAll('.snap-etf-extra'));
         const next = rows[rows.indexOf(row) + 1] || rows[rows.indexOf(row) - 1];
         row.remove();
+        updateCrossAccountCues();
         _updateRecon(key);
         (
           next?.querySelector<HTMLElement>('[data-extra-isin]') ||
@@ -182,10 +201,16 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
       const add = (e.target as HTMLElement).closest('.js-snapd-extra') as HTMLElement | null;
       if (add) {
         const key = add.dataset.acctKey || '';
+        const coverage = overlay.querySelector<HTMLSelectElement>(
+          `[data-coverage-account="${key}"]`,
+        );
+        if (coverage) coverage.value = '0';
         const row = document.createElement('div');
         row.className = 'snap-etf-row snap-etf-extra';
         row.innerHTML = _renderManualEtfFields(key);
         add.before(row);
+        refreshEligibility();
+        updateCrossAccountCues();
         fieldStatus.refresh();
         (row.firstElementChild as HTMLElement).focus();
         return;
@@ -198,12 +223,19 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
     });
     overlay.addEventListener('input', (e) => {
       const target = e.target as HTMLInputElement;
+      if (target.matches('[data-etf-isin], [data-extra-isin]')) {
+        const coverage = overlay.querySelector<HTMLSelectElement>(
+          `[data-coverage-account="${target.dataset.acctKey}"]`,
+        );
+        if (coverage) coverage.value = '0';
+      }
       if (target.dataset.pdfCurrency && !target.value.trim()) {
         delete target.dataset.pdfCurrency;
         delete target.dataset.pdfDate;
         target.removeAttribute('aria-description');
       }
       fieldStatus.refresh(target);
+      updateCrossAccountCues();
       const acctKey = target.dataset.acctKey || target.dataset.accountKey || '';
       if (acctKey) _updateRecon(acctKey);
       const acctKeyForHint = target.dataset.accountKey || '';
@@ -220,7 +252,80 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
     let prefetchRequestSeq = 0;
     let fxRates: Record<string, number> = {};
     const fieldCurrency = (field: HTMLInputElement) =>
-      field.dataset.currency || primary?.currency || 'EUR';
+      field.dataset.currency ||
+      accounts.find((a) => a.key === field.dataset.acctKey)?.currency ||
+      primary?.currency ||
+      'EUR';
+    const updateCrossAccountCues = () => {
+      if (!opts.scopedValuations) return;
+      const positions = Array.from(overlay.querySelectorAll<HTMLInputElement>('[data-etf-isin]'));
+      const accountSets = new Map<string, Set<string>>();
+      const rows = positions.map((input) => {
+        const row = input.closest('.snap-etf-row')!;
+        const isin = normalizeISIN(
+          row.querySelector<HTMLInputElement>('[data-extra-isin]')?.value ||
+            input.dataset.etfIsin ||
+            '',
+        );
+        if (isin && input.value.trim()) {
+          let ids = accountSets.get(isin);
+          if (!ids) {
+            ids = new Set();
+            accountSets.set(isin, ids);
+          }
+          ids.add(input.dataset.acctKey!);
+        }
+        return { input, row, isin };
+      });
+      for (const { input, row, isin } of rows) {
+        const ids = accountSets.get(isin);
+        const others = (ids?.size || 0) - Number(!!ids?.has(input.dataset.acctKey!));
+        let cue = row.querySelector<HTMLElement>('[data-cross-account]');
+        if (!others) {
+          cue?.remove();
+          continue;
+        }
+        if (!cue) {
+          cue = document.createElement('span');
+          cue.className = 'note';
+          cue.dataset.crossAccount = '';
+          row.append(cue);
+        }
+        cue.textContent = `Also valued in ${others} other account${others === 1 ? '' : 's'}`;
+      }
+    };
+    const refreshEligibility = () => {
+      const month = overlay.querySelector<HTMLInputElement>('#snapd-date')?.value || '';
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return;
+      for (const account of opts.accounts) {
+        const key = account.id || account.key || '';
+        const closed = isAccountClosedInMonth(account, month);
+        const total = overlay.querySelector<HTMLInputElement>(`#snapd-acc-${key}`);
+        if (!total) continue;
+        const wrapper = total.closest('.snap-dialog-account')!;
+        let note = wrapper.querySelector<HTMLElement>('[data-closed-note]');
+        if (!note && closed) {
+          note = document.createElement('p');
+          note.className = 'note';
+          note.dataset.closedNote = '';
+          wrapper.prepend(note);
+        }
+        if (note) {
+          note.hidden = !closed;
+          note.textContent =
+            'Closed for this month · balance and ETF values must be zero. Clear or move any retained nonzero values explicitly.';
+        }
+        if (closed && !total.value.trim()) total.value = '0';
+        total.readOnly = closed && parseNum(total.value) === 0;
+        for (const input of wrapper.querySelectorAll<HTMLInputElement>('[data-etf-isin]'))
+          input.readOnly = closed && (!input.value.trim() || parseNum(input.value) === 0);
+        for (const control of wrapper.querySelectorAll<HTMLButtonElement | HTMLInputElement>(
+          '.js-snapd-extra, [data-add-existing], .combo-toggle',
+        ))
+          control.disabled = closed;
+      }
+      fieldStatus.refresh();
+    };
     const fieldStatus = trackSnapshotFieldStatus(
       overlay,
       draft,
@@ -239,7 +344,10 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
         overlay.querySelectorAll<HTMLInputElement>('[data-account-key], [data-etf-isin]'),
       ).filter(
         (field) =>
-          field.value.trim() && !field.dataset.pdfCurrency && fieldCurrency(field) !== 'EUR',
+          field.value.trim() &&
+          !field.readOnly &&
+          !field.dataset.pdfCurrency &&
+          fieldCurrency(field) !== 'EUR',
       );
     const hasRate = (field: HTMLInputElement) => {
       const rate = fxRates[fieldCurrency(field)];
@@ -291,6 +399,8 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
         `Month-end balances as of ${month}-${end}.`;
     };
     monthInput?.addEventListener('change', () => {
+      for (const coverage of overlay.querySelectorAll<HTMLSelectElement>('[data-coverage-account]'))
+        if (coverage.value === '1') coverage.value = '0';
       const modeInput = overlay.querySelector('#snapd-eur') as HTMLInputElement | null;
       if (modeInput && !modeInput.checked && Object.keys(fxRates).length) {
         const fields = foreignFields();
@@ -303,6 +413,8 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
         }
       }
       updateMonthNote();
+      refreshEligibility();
+      updateCrossAccountCues();
       triggerFxPrefetch(monthInput.value.trim());
     });
     updateMonthNote();
@@ -329,6 +441,53 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
       for (const acct of accounts) _updateRecon(acct.key);
     });
     updateCurrencyLabels();
+    refreshEligibility();
+    updateCrossAccountCues();
+    if (opts.scopedValuations) {
+      const catalogue = new Map([
+        ...Object.values(opts.holdings || {}).map((h) => [h.isin, h.name] as const),
+        ...(opts.configHoldings || []).map((h) => [h.isin, h.name] as const),
+      ]);
+      for (const input of overlay.querySelectorAll<HTMLInputElement>('[data-add-existing]')) {
+        const key = input.dataset.acctKey!;
+        _comboboxes.push(
+          attachCombobox(
+            input,
+            [...catalogue]
+              .filter(([isin]) => isValidISIN(isin))
+              .map(([isin, name]) => ({ value: isin, hint: name })),
+          ),
+        );
+        input.addEventListener('change', () => {
+          const isin = normalizeISIN(input.value);
+          if (!catalogue.has(isin) || !isValidISIN(isin)) return;
+          const section = overlay.querySelector(`#snapd-etf-section-${key}`)!;
+          const existing = section.querySelector<HTMLInputElement>(`[data-etf-isin="${isin}"]`);
+          if (existing) {
+            const details = existing.closest('details');
+            if (details) details.open = true;
+            existing.focus();
+            return;
+          }
+          const row = document.createElement('div');
+          row.className = 'snap-etf-row snap-etf-extra';
+          row.innerHTML = _renderManualEtfFields(key, isin);
+          section.querySelector<HTMLSelectElement>('[data-coverage-account]')!.value = '0';
+          const usual = _usualEtfIsins(opts.configHoldings || [], opts.holdings).has(isin);
+          if (usual) section.querySelector('[data-usual-etfs]')!.append(row);
+          else {
+            section.querySelector<HTMLDetailsElement>('.snap-etf-other')!.open = true;
+            section.querySelector('.js-snapd-extra')!.before(row);
+          }
+          input.value = '';
+          fieldStatus.refresh();
+          refreshEligibility();
+          updateCrossAccountCues();
+          row.querySelector<HTMLInputElement>('[data-etf-isin]')!.focus();
+        });
+      }
+      refreshEligibility();
+    }
     if (monthInput) triggerFxPrefetch(monthInput.value.trim());
 
     for (const acct of accounts) {
@@ -342,16 +501,19 @@ export function snapshotDialog(opts: SnapshotDialogOptions): Promise<Snapshot | 
         for (const acct of accounts) _updateRecon(acct.key);
         _updateAllFxHints(overlay, eurMode?.checked ? {} : fxRates);
         fieldStatus.refresh();
+        refreshEligibility();
+        updateCrossAccountCues();
       },
-      (isin) => {
+      (isin, accountId) => {
         const row = document.createElement('div');
         row.className = 'snap-etf-row snap-etf-extra';
-        row.innerHTML = _renderManualEtfFields(primary!.key, isin);
+        row.innerHTML = _renderManualEtfFields(accountId || primary!.key, isin);
         return row;
       },
       (key) => accounts.find((account) => account.key === key)?.label || key,
     );
     _disposeImport = mountSnapshotImport(overlay.querySelector<HTMLElement>('.snap-pdf-import')!, {
+      scopedValuations: opts.scopedValuations,
       accounts: () => opts.importAccounts?.() || opts.accounts,
       mapping: (type) => opts.importMapping?.(type),
       saveMapping: async (type, mapping) => {
@@ -390,7 +552,7 @@ function _renderAccountFields(
     .map((acct) => {
       const value = draft?.[acct.key];
       return `
-        <div class="snap-dialog-account">
+        <div class="snap-dialog-account" role="group" aria-label="${_esc(acct.label)}">
           <div class="dialog-field">
             <label class="dialog-label" for="snapd-acc-${_esc(acct.key)}">${_esc(acct.label)} (${_esc(acct.currency)})</label>
             <input type="text" inputmode="decimal" id="snapd-acc-${_esc(acct.key)}"
@@ -409,25 +571,38 @@ function _renderAccountFields(
     .join('');
 }
 
+function _usualEtfIsins(configHoldings: Holding[], holdings: PortfolioData['etfs']): Set<string> {
+  const held = Object.values(holdings || {}).filter((pos) => !pos.exited && pos.shares >= 1e-6);
+  return new Set(
+    configHoldings
+      .filter(
+        (holding) =>
+          holding.active &&
+          ((holding.targetPct ?? 0) > 0 || held.some((pos) => pos.isin === holding.isin)),
+      )
+      .map((holding) => holding.isin),
+  );
+}
+
 function _renderEtfBreakdown(
   acctKey: string,
   holdings: PortfolioData['etfs'],
   configHoldings: Holding[],
   draft?: Snapshot,
 ): string {
-  const held = Object.values(holdings || {}).filter((pos) => !pos.exited && pos.shares >= 1e-6);
-  const activeIsins = new Set(
-    configHoldings
-      .filter(
-        (h) => h.active && ((h.targetPct ?? 0) > 0 || held.some((pos) => pos.isin === h.isin)),
-      )
-      .map((h) => h.isin),
-  );
+  const scoped = !!_activeOpts?.scopedValuations;
+  const valueKey = (isin: string) =>
+    scoped
+      ? isValidISIN(isin)
+        ? positionKey(acctKey, isin)
+        : `position:${acctKey}:${isin}`
+      : `etf_${isin}`;
+  const activeIsins = _usualEtfIsins(configHoldings, holdings);
   const rows = new Map<string, { isin: string; name: string; shortName: string; color: string }>(
     Object.values(holdings || {})
       .filter(
         (pos) =>
-          (!pos.exited && pos.shares >= 1e-6) || typeof draft?.[`etf_${pos.isin}`] === 'number',
+          (!pos.exited && pos.shares >= 1e-6) || typeof draft?.[valueKey(pos.isin)] === 'number',
       )
       .map((pos) => [pos.isin, pos]),
   );
@@ -436,16 +611,19 @@ function _renderEtfBreakdown(
   }
   const accountKeys = new Set(_activeOpts?.accounts.map((a) => a.id || a.key));
   for (const key of Object.keys(draft || {})) {
-    if (
-      key.startsWith('etf_') &&
-      !accountKeys.has(key) &&
-      typeof draft?.[key] === 'number' &&
-      isValidISIN(key.slice(4))
-    ) {
-      const isin = key.slice(4);
+    const position = scoped ? parsePositionKey(key) : null;
+    const isin =
+      position?.accountId === acctKey
+        ? position.isin
+        : !scoped && key.startsWith('etf_')
+          ? key.slice(4)
+          : '';
+    if (isin && !accountKeys.has(key) && typeof draft?.[key] === 'number' && isValidISIN(isin)) {
       if (!rows.has(isin)) rows.set(isin, { isin, name: isin, shortName: isin, color: '#888888' });
     }
   }
+  if (scoped)
+    for (const [isin] of rows) if (typeof draft?.[valueKey(isin)] !== 'number') rows.delete(isin);
   const contributing = Array.from(rows.values()).filter((pos) => activeIsins.has(pos.isin));
   const legacy = Array.from(rows.values()).filter((pos) => !activeIsins.has(pos.isin));
   const knownIsins = new Set([
@@ -466,12 +644,12 @@ function _renderEtfBreakdown(
     shortName: string;
     color: string;
   }): string => {
-    const value = draft?.[`etf_${pos.isin}`];
+    const value = draft?.[valueKey(pos.isin)];
     if (!knownIsins.has(pos.isin)) {
       return `<div class="snap-etf-row snap-etf-extra">${_renderManualEtfFields(acctKey, pos.isin, value)}</div>`;
     }
     return `
-      <div class="snap-etf-row">
+      <div class="snap-etf-row${scoped ? ' snap-etf-extra' : ''}">
         <div class="snap-etf-meta">
           <span class="hold-dot" style="background:${safeColor(pos.color)}"></span>
           <div class="snap-etf-name-col">
@@ -483,16 +661,18 @@ function _renderEtfBreakdown(
                id="snapd-etf-${_esc(acctKey)}-${_esc(pos.isin)}"
                data-etf-isin="${_esc(pos.isin)}"
                data-acct-key="${_esc(acctKey)}"
-               aria-label="${_esc(getName(pos.isin, pos.name, pos.shortName))} ETF value"
+               ${scoped ? `data-position-account="${_esc(acctKey)}"` : ''}
+               aria-label="${_esc(scoped ? `${_activeOpts?.accounts.find((a) => (a.id || a.key) === acctKey)?.label || acctKey} · ${pos.isin} · ` : '')}${_esc(getName(pos.isin, pos.name, pos.shortName))} ETF value"
                class="form-input form-input-sm snap-etf-input"
                value="${typeof value === 'number' || typeof value === 'string' ? _esc(String(value)) : ''}"
                placeholder="Value">
+        ${scoped ? `<button type="button" class="btn btn-sm btn-ghost js-snapd-remove" data-acct-key="${_esc(acctKey)}" aria-label="Remove ETF ${_esc(pos.isin)}">Remove</button>` : ''}
       </div>`;
   };
 
   const contribHtml =
-    contributing.length > 0
-      ? `<div class="snap-etf-group"><div class="snap-etf-group-label">Usual ETFs</div>${contributing.map(renderRow).join('')}</div>`
+    contributing.length > 0 || scoped
+      ? `<div class="snap-etf-group" data-usual-etfs><div class="snap-etf-group-label">Usual ETFs</div>${contributing.map(renderRow).join('')}</div>`
       : '';
   const legacyHtml = `<details class="snap-etf-other"><summary>Other ETFs</summary>${existingRows.length ? `<div class="snap-etf-group" role="group" aria-label="Existing holdings"><div class="snap-etf-group-label">Existing holdings</div>${existingRows.map(renderRow).join('')}</div>` : ''}<div class="snap-etf-group" role="group" aria-label="Manual entries"><div class="snap-etf-group-label">Manual entries</div>${manualRows.map(renderRow).join('')}<button type="button" class="btn btn-sm btn-ghost js-snapd-extra" data-acct-key="${_esc(acctKey)}">Add ETF</button><p class="note">Snapshot only · blank omits; 0 records zero.</p></div></details>`;
 
@@ -503,8 +683,11 @@ function _renderEtfBreakdown(
         ${ROW_DISCLOSURE_ICON} ETF breakdown
       </button>
       <div class="snap-etf-section" id="snapd-etf-section-${_esc(acctKey)}">
-        ${contribHtml}
-        ${legacyHtml}
+        ${
+          scoped
+            ? `${contribHtml}${legacyHtml}<div class="snap-etf-group"><label class="dialog-label" for="snapd-existing-${_esc(acctKey)}">Add existing ETF to this account</label><input id="snapd-existing-${_esc(acctKey)}" class="form-input form-input-sm" data-add-existing data-acct-key="${_esc(acctKey)}" placeholder="Search ISIN or ETF name"><p class="note">Choose the same ETF in another account to record its value there. The ISIN is shared; no new ETF is created. Record transfers in this snapshot's Notes.</p><label class="dialog-label" for="snapd-coverage-${_esc(acctKey)}">Breakdown coverage</label><select id="snapd-coverage-${_esc(acctKey)}" class="form-input form-input-sm" data-coverage-account="${_esc(acctKey)}"><option value="">Not reviewed · completeness unknown</option><option value="0" ${draft?.[coverageKey(acctKey)] === 0 ? 'selected' : ''}>Partial · some ETF positions may be missing</option><option value="1" ${draft?.[coverageKey(acctKey)] === 1 && !_activeOpts?.copiedFromMonth ? 'selected' : ''}>Complete · all positions reviewed</option></select><p class="note">Complete means every ETF position is listed, not that ETFs equal the account balance. The remainder can be cash. Usual/Other grouping does not change completeness.</p></div>`
+            : `${contribHtml}${legacyHtml}`
+        }
         <div class="snap-etf-recon" id="snapd-etf-recon-${_esc(acctKey)}" style="display:none">
           <span class="snap-etf-recon-alloc">Allocated: <b>-</b></span>
           <span class="snap-etf-recon-sep">&middot;</span>
@@ -516,7 +699,11 @@ function _renderEtfBreakdown(
 }
 
 function _renderManualEtfFields(acctKey: string, isin = '', value?: Snapshot[string]): string {
-  return `<input class="form-input form-input-sm" placeholder="ISIN" aria-label="Other ETF ISIN" data-extra-isin data-acct-key="${_esc(acctKey)}" value="${_esc(isin)}"><input class="form-input form-input-sm snap-etf-input" inputmode="decimal" placeholder="Value" aria-label="Other ETF value" data-etf-isin="${_esc(isin)}" data-acct-key="${_esc(acctKey)}" value="${typeof value === 'number' ? _esc(String(value)) : ''}"><button type="button" class="btn btn-sm btn-ghost js-snapd-remove" data-acct-key="${_esc(acctKey)}" aria-label="Remove other ETF">Remove</button>`;
+  const scoped = _activeOpts?.scopedValuations;
+  const accountLabel = scoped
+    ? `${_activeOpts?.accounts.find((a) => (a.id || a.key) === acctKey)?.label || acctKey} · `
+    : '';
+  return `<input class="form-input form-input-sm" placeholder="ISIN" aria-label="${_esc(accountLabel)}Other ETF ISIN" data-extra-isin data-acct-key="${_esc(acctKey)}" value="${_esc(isin)}"><input class="form-input form-input-sm snap-etf-input" inputmode="decimal" placeholder="Value" aria-label="${_esc(accountLabel)}Other ETF value" data-etf-isin="${_esc(isin)}" data-acct-key="${_esc(acctKey)}" ${scoped ? `data-position-account="${_esc(acctKey)}"` : ''} value="${typeof value === 'number' ? _esc(String(value)) : ''}"><button type="button" class="btn btn-sm btn-ghost js-snapd-remove" data-acct-key="${_esc(acctKey)}" aria-label="Remove other ETF">Remove</button>`;
 }
 
 async function _submit(): Promise<void> {
@@ -524,6 +711,14 @@ async function _submit(): Promise<void> {
   if (!overlay || !_activeOpts || _busy) return;
   if (_reviewed) {
     const snapshot = _reviewed;
+    const lifecycleError = _validateLifecycleSnapshot(_activeOpts, snapshot, overlay);
+    if (lifecycleError) {
+      const error = overlay.querySelector<HTMLElement>('#snapd-save-err')!;
+      error.textContent = lifecycleError;
+      error.hidden = false;
+      error.focus();
+      return;
+    }
     if (!_activeOpts.onSave) {
       _dismiss(snapshot);
       return;
@@ -570,7 +765,10 @@ async function _submit(): Promise<void> {
   const accounts = _getDialogAccounts(opts.accounts);
   const accountByKey = new Map(accounts.map((acct) => [acct.key, acct]));
   const primary = accounts.find((acct) => acct.showEtfBreakdown);
-  const isEtf = (key: string) => key.startsWith('etf_') && !accountByKey.has(key);
+  const isEtf = (key: string) =>
+    opts.scopedValuations
+      ? !!parsePositionKey(key)
+      : key.startsWith('etf_') && !accountByKey.has(key);
   const eurMode = !!(overlay.querySelector('#snapd-eur') as HTMLInputElement | null)?.checked;
   const currencies: Record<string, string> = {};
   (overlay.querySelector('#snapd-review-err') as HTMLElement).textContent = '';
@@ -612,8 +810,11 @@ async function _submit(): Promise<void> {
   // Remove original keys so renamed or deleted rows do not survive.
   for (const key of _representedEtfKeys.get(overlay) || []) delete snap[key];
   let valid = !(overlay.querySelector('#snapd-date-err') as HTMLElement | null)?.textContent;
+  const monthValid = /^\d{4}-(0[1-9]|1[0-2])$/.test(date);
 
   for (const acct of accounts) {
+    const sourceAccount = opts.accounts.find((a) => (a.id || a.key) === acct.key)!;
+    const closed = monthValid && isAccountClosedInMonth(sourceAccount, date);
     const totalInput = overlay.querySelector(`#snapd-acc-${acct.key}`) as HTMLInputElement | null;
     const totalRaw = totalInput?.value.trim() || '';
     const totalVal = parseNum(totalRaw);
@@ -621,11 +822,26 @@ async function _submit(): Promise<void> {
       setErr(`snapd-acc-${acct.key}`, 'Enter an explicit finite balance (0 is allowed).');
       valid = false;
     }
+    if (closed && totalVal !== 0) {
+      setErr(
+        `snapd-acc-${acct.key}`,
+        'This account is closed in this month. Clear or move the nonzero balance explicitly.',
+      );
+      valid = false;
+    }
     snap[acct.key] = totalVal;
-    currencies[acct.key] = totalInput?.dataset.pdfCurrency || (eurMode ? 'EUR' : acct.currency);
+    currencies[acct.key] =
+      closed && totalVal === 0
+        ? 'EUR'
+        : totalInput?.dataset.pdfCurrency || (eurMode ? 'EUR' : acct.currency);
 
     const section = overlay.querySelector(`#snapd-etf-section-${acct.key}`) as HTMLElement | null;
     if (!section) continue;
+    if (opts.scopedValuations) {
+      const coverage = section.querySelector<HTMLSelectElement>('[data-coverage-account]')!.value;
+      delete snap[coverageKey(acct.key)];
+      if (coverage === '0' || coverage === '1') snap[coverageKey(acct.key)] = Number(coverage);
+    }
 
     const inputs = Array.from(section.querySelectorAll<HTMLInputElement>('[data-etf-isin]'));
     let allocated = 0;
@@ -644,7 +860,7 @@ async function _submit(): Promise<void> {
         !/^[A-Z0-9]+$/.test(isin) ||
         seen.has(isin) ||
         accountByKey.has(`etf_${isin}`) ||
-        (extraIsin && !isValidISIN(isin))
+        ((extraIsin || opts.scopedValuations) && !isValidISIN(isin))
       ) {
         input.setAttribute('aria-invalid', 'true');
         if (extraIsin) extraIsin.setAttribute('aria-invalid', 'true');
@@ -653,19 +869,22 @@ async function _submit(): Promise<void> {
         continue;
       }
       seen.add(isin);
-      if (raw !== '' && (!Number.isFinite(value) || value < 0)) {
+      if (raw !== '' && (!Number.isFinite(value) || value < 0 || (closed && value !== 0))) {
         input.setAttribute('aria-invalid', 'true');
         hasInvalidEtf = true;
         valid = false;
         continue;
       }
-      const key = `etf_${isin}`;
+      const key = opts.scopedValuations ? positionKey(acct.key, isin) : `etf_${isin}`;
       delete snap[key];
       if (raw !== '') {
         anySet = true;
         allocated += value;
         snap[key] = value;
-        currencies[key] = input.dataset.pdfCurrency || (eurMode ? 'EUR' : acct.currency);
+        currencies[key] =
+          closed && value === 0
+            ? 'EUR'
+            : input.dataset.pdfCurrency || (eurMode ? 'EUR' : acct.currency);
         if (currencies[key] !== currencies[acct.key]) sameCurrency = false;
       }
     }
@@ -674,7 +893,9 @@ async function _submit(): Promise<void> {
       section.querySelectorAll('details').forEach((d) => (d.open = true));
       setSectionErr(
         acct.key,
-        'ETF values must be finite non-negative numbers; use valid, unique ISINs (no duplicates).',
+        closed
+          ? 'This account is closed in this month. Clear or move nonzero ETF values explicitly.'
+          : 'ETF values must be finite non-negative numbers; use valid, unique ISINs (no duplicates).',
       );
       continue;
     }
@@ -714,7 +935,12 @@ async function _submit(): Promise<void> {
         result.error || 'Unable to prepare review. Retry.';
       return;
     }
-    if (primary) {
+    const canonicalError = _validateLifecycleSnapshot(opts, result.snapshot, overlay);
+    if (canonicalError) {
+      (overlay.querySelector('#snapd-review-err') as HTMLElement).textContent = canonicalError;
+      return;
+    }
+    if (primary && !opts.scopedValuations) {
       const allocated = Object.entries(result.snapshot)
         .filter(([key, value]) => isEtf(key) && key in currencies && typeof value === 'number')
         .reduce((sum, [, value]) => sum + Number(value), 0);
@@ -728,8 +954,12 @@ async function _submit(): Promise<void> {
     _reviewed = result.snapshot;
     const review = overlay.querySelector<HTMLElement>('.snapd-review')!;
     const replacing = opts.existingMonths?.includes(date) || opts.existing?.date === date;
-    const numeric = Object.entries(_reviewed).filter(([, v]) => typeof v === 'number');
-    const baseline = Object.entries(opts.prefill || {}).filter(([, v]) => typeof v === 'number');
+    const numeric = Object.entries(_reviewed).filter(
+      ([key, v]) => typeof v === 'number' && !key.startsWith('position_coverage:'),
+    );
+    const baseline = Object.entries(opts.prefill || {}).filter(
+      ([key, v]) => typeof v === 'number' && !key.startsWith('position_coverage:'),
+    );
     const copiedUnchanged =
       !opts.existing &&
       !replacing &&
@@ -759,11 +989,15 @@ async function _submit(): Promise<void> {
       entries
         .map(([key, value]) => {
           const acct = accountByKey.get(key);
-          const isin = isEtf(key) ? key.slice(4) : '';
+          const position = parsePositionKey(key);
+          const isin = isEtf(key) ? position?.isin || key.slice(4) : '';
           const holding = opts.configHoldings?.find((h) => h.isin === isin);
           const source = imported?.fields.get(key);
-          const label =
+          const baseLabel =
             acct?.label || holding?.name || source?.name || (isin ? `ETF ${isin}` : key);
+          const label = position
+            ? `${accountByKey.get(position.accountId)?.label || position.accountId} · ${baseLabel}`
+            : baseLabel;
           const detail = isin ? `<span class="snapd-review-isin">${_esc(isin)}</span>` : '';
           const provenance = source
             ? `${source.before ? `Previously ${_esc(source.before)} ${_esc(source.beforeCurrency)} → ` : 'Added · '}${Number(value) === source.value ? 'Imported EUR' : 'Edited after import'}`
@@ -794,7 +1028,24 @@ async function _submit(): Promise<void> {
         <dl class="snapd-review-values">${renderValues(accountValues)}</dl>
       </section>
       ${etfValues.length ? `<section class="snapd-review-section" aria-label="ETF values"><div class="section-label">ETF breakdown · ${etfValues.length} positions</div><dl class="snapd-review-values">${renderValues(etfValues.slice(0, 10))}</dl>${etfValues.length > 10 ? `<details class="snapd-review-more"><summary>Show ${etfValues.length - 10} more positions</summary><label class="dialog-label" for="snapd-review-search">Find remaining positions</label><input id="snapd-review-search" class="form-input" type="search"><dl class="snapd-review-values">${renderValues(etfValues.slice(10))}</dl></details>` : ''}</section>` : ''}
-      ${primary && etfValues.length ? `<div class="snapd-review-summary"><dl class="snapd-review-values"><div><dt>ETF allocated</dt><dd>${fmtEur2(allocation)}</dd></div><div><dt>Unexplained remainder</dt><dd>${fmtEur2(Number(_reviewed[primary.key]) - allocation)}</dd></div></dl><p class="snapd-review-context">Remainder may be cash or unrecorded positions.</p></div>` : ''}
+      ${
+        opts.scopedValuations
+          ? `<div class="snapd-review-summary"><p class="snapd-review-context">Global recorded ETF total: ${fmtEur2(allocation)}</p><dl class="snapd-review-values">${accounts
+              .filter((a) => a.showEtfBreakdown)
+              .map((a) => {
+                const subtotal = etfValues
+                  .filter(([key]) => parsePositionKey(key)?.accountId === a.key)
+                  .reduce((sum, [, value]) => sum + Number(value), 0);
+                const coverage = _reviewed![coverageKey(a.key)];
+                return `<div><dt>${_esc(a.label)} · ${coverage === 1 ? 'Complete' : coverage === 0 ? 'Partial' : 'Coverage unknown'} · recorded ETFs / remainder</dt><dd>${fmtEur2(subtotal)} / ${fmtEur2(Number(_reviewed![a.key]) - subtotal)}</dd></div>`;
+              })
+              .join(
+                '',
+              )}</dl><p class="snapd-review-context">Remainder may be cash or unrecorded positions. Totals with partial or unknown coverage are recorded values, not verified complete valuations.</p></div>`
+          : primary && etfValues.length
+            ? `<div class="snapd-review-summary"><dl class="snapd-review-values"><div><dt>ETF allocated</dt><dd>${fmtEur2(allocation)}</dd></div><div><dt>Unexplained remainder</dt><dd>${fmtEur2(Number(_reviewed[primary.key]) - allocation)}</dd></div></dl><p class="snapd-review-context">Remainder may be cash or unrecorded positions.</p></div>`
+            : ''
+      }
       ${_reviewed.notes ? `<p class="snapd-review-context snapd-review-notes"><strong>Notes:</strong> ${_esc(_reviewed.notes)}</p>` : ''}`;
     review
       .querySelector<HTMLInputElement>('#snapd-review-search')
@@ -824,6 +1075,31 @@ async function _submit(): Promise<void> {
       submit.textContent = _reviewed ? 'Save snapshot' : 'Review';
     }
   }
+}
+
+function _validateLifecycleSnapshot(
+  opts: SnapshotDialogOptions,
+  snapshot: Snapshot,
+  overlay: HTMLElement,
+): string | null {
+  const accounts = opts.importAccounts?.() || opts.accounts;
+  const error = validateSnapshotPositions(snapshot, accounts, !!opts.scopedValuations);
+  if (error) return error;
+  for (const account of accounts) {
+    if (!isAccountClosedInMonth(account, snapshot.date)) continue;
+    const key = account.id || account.key || '';
+    if (snapshot[key] !== 0)
+      return `${account.label} is closed in this month; its balance must be zero.`;
+    const imported = Array.from(overlay.querySelectorAll<HTMLInputElement>('[data-pdf-date]')).some(
+      (input) =>
+        (input.dataset.accountKey ||
+          input.dataset.positionAccount ||
+          (!opts.scopedValuations ? input.dataset.acctKey : '')) === key && !!input.value.trim(),
+    );
+    if (imported)
+      return `${account.label} is closed in the statement month. Undo the import and choose an eligible account.`;
+  }
+  return null;
 }
 
 /** Reject partial numbers and ambiguous grouping. */
@@ -928,7 +1204,7 @@ function _getDialogAccounts(accounts: Account[]): Array<{
         currency: (acct.currency || 'EUR').trim().toUpperCase() || 'EUR',
         showEtfBreakdown: !!(
           key &&
-          acct.isPrimaryInvestment &&
+          (_activeOpts?.scopedValuations || acct.isPrimaryInvestment) &&
           (acct.moneyType || '').toLowerCase() === 'investment'
         ),
       };

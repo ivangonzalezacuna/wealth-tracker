@@ -966,6 +966,15 @@ details[open] > summary .card-chevron {
   min-width: 0;
   flex: 1 1 0;
 }
+.hold-account-count {
+  color: var(--ink-3);
+  font-size: 10px;
+  font-weight: 400;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0 4px;
+  flex-shrink: 0;
+}
 #port-table .th.hold-row > *:first-child {
   overflow: hidden;
   white-space: nowrap;
@@ -1051,6 +1060,52 @@ details[open] > summary .card-chevron {
   color: var(--ink-2);
   user-select: all;
   letter-spacing: 0.02em;
+}
+.hold-detail > .hold-detail-accounts {
+  flex: 1 1 100%;
+  min-width: 0;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+.hold-detail-accounts > summary {
+  cursor: pointer;
+  color: var(--ink-2);
+  font-size: 11px;
+}
+.hold-account-heading .note {
+  margin: 3px 0 6px;
+  display: block;
+  font-style: normal;
+}
+.hold-account-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 5px 0;
+  color: var(--ink-2);
+}
+.hold-account-row > :first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.hold-account-row > .hold-detail-value {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.hold-account-status {
+  display: block;
+  color: var(--ink-3);
+  font-size: 10px;
+  font-weight: 400;
+}
+.hold-account-status:empty {
+  display: none;
+}
+.hold-account-total {
+  border-top: 1px solid var(--line);
+  margin-top: 3px;
+  font-weight: 500;
 }
 
 /* Snapshot history - compact row */
@@ -2224,6 +2279,7 @@ body.chart-expanded-open {
   font-weight: 500;
 }
 .form-input {
+  font-family: inherit;
   width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--line);
@@ -2315,6 +2371,7 @@ input[type='checkbox']:disabled {
 
 /* Buttons */
 .btn {
+  font-family: inherit;
   padding: 8px 16px;
   border-radius: var(--radius-sm);
   font-size: 13px;
@@ -3946,6 +4003,7 @@ input[type='color'] {
     .hold-dialog-overlay,
     .goal-dialog-overlay,
     .tx-dialog-overlay,
+    .settings-dialog-overlay,
     .snap-dialog-overlay
   )
   .btn {
@@ -4423,6 +4481,7 @@ input[type='color'] {
       .hold-dialog-overlay,
       .goal-dialog-overlay,
       .tx-dialog-overlay,
+      .settings-dialog-overlay,
       .snap-dialog-overlay
     )
     .form-input {
@@ -4437,6 +4496,7 @@ input[type='color'] {
     .hold-dialog-overlay,
     .goal-dialog-overlay,
     .tx-dialog-overlay,
+    .settings-dialog-overlay,
     .snap-dialog-overlay
   )
   select.form-input {
@@ -5215,6 +5275,7 @@ input[type='color'] {
     .hold-dialog-overlay,
     .goal-dialog-overlay,
     .tx-dialog-overlay,
+    .settings-dialog-overlay,
     .snap-dialog-overlay
   )
   .dialog-error:empty {
@@ -5444,6 +5505,7 @@ textarea.dialog-input {
     .hold-dialog-overlay,
     .goal-dialog-overlay,
     .tx-dialog-overlay,
+    .settings-dialog-overlay,
     .snap-dialog-overlay
   )
   .dialog-card {
@@ -5457,6 +5519,7 @@ textarea.dialog-input {
     .hold-dialog-overlay,
     .goal-dialog-overlay,
     .tx-dialog-overlay,
+    .settings-dialog-overlay,
     .snap-dialog-overlay
   )
   .dialog-fields {
@@ -5470,6 +5533,7 @@ textarea.dialog-input {
     .hold-dialog-overlay,
     .goal-dialog-overlay,
     .tx-dialog-overlay,
+    .settings-dialog-overlay,
     .snap-dialog-overlay
   )
   .dialog-actions {
@@ -5507,6 +5571,96 @@ textarea.dialog-input {
   align-items: center;
   gap: 6px;
   cursor: pointer;
+}
+:is(.settings-dialog-overlay, .acct-dialog-overlay) .note {
+  margin: 0;
+  font-size: var(--fs-7);
+  font-style: normal;
+  line-height: 1.5;
+}
+.settings-dialog-overlay .dialog-title {
+  margin: 0;
+  line-height: 1.4;
+}
+.settings-dialog-overlay .dialog-check {
+  align-items: flex-start;
+  font-size: 12px;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+.settings-dialog-overlay .dialog-check input {
+  margin-top: 2px;
+}
+.settings-dialog-overlay .dialog-actions {
+  flex-wrap: wrap;
+}
+.settings-dialog-overlay .js-backup,
+.migration-section .js-rule {
+  align-self: flex-start;
+}
+.settings-dialog-overlay .js-snapshots {
+  font-size: 12px;
+}
+.migration-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 10px 0 0;
+  border: none;
+  border-top: 1px solid var(--line);
+}
+.migration-section legend {
+  padding: 0 6px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.migration-month-review,
+.migration-month-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.migration-month-review > .btn {
+  align-self: flex-start;
+}
+.migration-preview-title {
+  margin: 0 0 8px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.settings-draft-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.migration-reconcile-error,
+.migration-reconcile-warning {
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+}
+.migration-reconcile-error {
+  color: var(--neg);
+  border-color: var(--neg-border);
+}
+.migration-reconcile-warning {
+  color: var(--warn-fg);
+  background: var(--warn-bg);
+}
+.migration-preview-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.migration-preview-row > :first-child {
+  font-weight: 500;
+  color: var(--ink);
 }
 .dialog-row-center {
   align-items: flex-end;

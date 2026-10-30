@@ -15,6 +15,7 @@ import {
   fictionalBalanceParser,
   fictionalBalanceLines,
 } from '../../tests/fixtures/snapshot-import/balanceParser';
+import { positionKey, coverageKey } from '../model/snapshotPositions';
 
 vi.mock('../import/snapshotPdf', () => ({ extractSnapshotPdf: vi.fn() }));
 const extract = vi.mocked(extractSnapshotPdf);
@@ -101,6 +102,142 @@ afterEach(() => {
 });
 
 describe('single-review PDF import', () => {
+  it('isolates scoped shared-ISIN imports, repeated replacement, coverage and Undo by account', async () => {
+    let destination: SnapshotMapping = { mode: 'positions', securitiesAccount: 'broker' };
+    const host = open(undefined, {
+      scopedValuations: true,
+      accounts: [...accounts, { id: 'france', label: 'France', moneyType: 'investment' }],
+      importMapping: () => destination,
+      prefill: {
+        date: '2024-01',
+        cash: 25,
+        broker: 10000,
+        france: 10000,
+        [positionKey('broker', FAKE_ISINS[0])]: 10,
+        [positionKey('france', FAKE_ISINS[0])]: 20,
+        [coverageKey('broker')]: 1,
+        [coverageKey('france')]: 1,
+      },
+    });
+    const value = (accountId: string, isin = FAKE_ISINS[0]) =>
+      document.querySelector<HTMLInputElement>(
+        `[data-position-account="${accountId}"][data-etf-isin="${isin}"]`,
+      )!;
+    await upload();
+    await filled();
+    expect(value('broker').value).toBe(String(statement.positions[0].value));
+    expect(value('france').value).toBe('20');
+    expect(
+      document.querySelector<HTMLSelectElement>('[data-coverage-account="broker"]')!.value,
+    ).toBe('0');
+    destination = { mode: 'positions', securitiesAccount: 'france' };
+    await upload();
+    await filled();
+    expect(value('broker').value).toBe(String(statement.positions[0].value));
+    expect(value('france').value).toBe(String(statement.positions[0].value));
+    input('[data-position-account="france"][data-etf-isin="' + FAKE_ISINS[0] + '"]', '30');
+    click('.snap-pdf-undo');
+    expect(value('france').value).toBe('30');
+    expect(value('broker').value).toBe(String(statement.positions[0].value));
+    expect(document.querySelectorAll('[data-position-account="france"]')).toHaveLength(1);
+    expect(document.querySelectorAll('[data-position-account="broker"]')).toHaveLength(
+      statement.positions.length,
+    );
+    expect(
+      document.querySelector<HTMLSelectElement>('[data-coverage-account="france"]')!.value,
+    ).toBe('0');
+    await upload();
+    await filled();
+    expect(document.querySelectorAll('[data-position-account="france"]')).toHaveLength(
+      statement.positions.length,
+    );
+    await upload();
+    await filled();
+    expect(document.querySelectorAll('[data-position-account="france"]')).toHaveLength(
+      statement.positions.length,
+    );
+    await review();
+    expect(host.review.mock.calls[0][0]).toMatchObject({
+      [positionKey('broker', FAKE_ISINS[0])]: statement.positions[0].value,
+      [positionKey('france', FAKE_ISINS[0])]: statement.positions[0].value,
+    });
+    expect(host.review.mock.calls[0][1]).toMatchObject({
+      [positionKey('broker', FAKE_ISINS[0])]: 'EUR',
+      [positionKey('france', FAKE_ISINS[0])]: 'EUR',
+    });
+  });
+
+  it('offers historical non-primary investment destinations', async () => {
+    const historical: Account = {
+      id: 'former',
+      label: 'Former account',
+      moneyType: 'investment',
+      closedPeriods: [{ closedFromMonth: '2024-02' }],
+    };
+    open(undefined, { scopedValuations: true, accounts: [...accounts, historical] });
+    await upload();
+    expect(document.querySelector('[data-mapping-primary] option[value="former"]')).not.toBeNull();
+    input('[data-mapping-primary]', 'former');
+    input('[data-mapping-mode]', 'positions');
+    click('.snap-pdf-save');
+    await filled();
+    expect(document.querySelectorAll('[data-position-account="former"]')).toHaveLength(
+      statement.positions.length,
+    );
+  });
+  it('rejects closed-month positions-only imports even when all imported values are zero', async () => {
+    const former: Account = {
+      id: 'former',
+      label: 'Former account',
+      moneyType: 'investment',
+      closedPeriods: [{ closedFromMonth: '2024-01' }],
+    };
+    open(
+      { mode: 'positions', securitiesAccount: 'former' },
+      {
+        scopedValuations: true,
+        accounts: [...accounts, former],
+      },
+    );
+    await upload({
+      ...statement,
+      positions: statement.positions.map((p) => ({ ...p, value: 0 })),
+    });
+    expect(document.querySelector('.snap-pdf-error')!.textContent).toContain('closed');
+    expect(document.querySelectorAll('[data-position-account="former"]')).toHaveLength(0);
+    expect(document.querySelector('[data-mapping-primary] option[value="former"]')).toBeNull();
+  });
+
+  it('rechecks imported zero positions against a lifecycle change before Review', async () => {
+    let live: Account[] = [...accounts];
+    open(
+      { mode: 'positions', securitiesAccount: 'broker' },
+      {
+        scopedValuations: true,
+        importAccounts: () => live,
+        prefill: { date: '2024-01', cash: 25, broker: 0 },
+      },
+    );
+    await upload({
+      ...statement,
+      positions: statement.positions.map((p) => ({ ...p, value: 0 })),
+    });
+    await filled();
+    live = live.map((a) =>
+      a.id === 'broker'
+        ? {
+            ...a,
+            closedPeriods: [{ closedFromMonth: '2024-01' }],
+          }
+        : a,
+    );
+    click('.js-snapd-submit');
+    await vi.waitFor(() =>
+      expect(document.querySelector('#snapd-review-err')!.textContent).toContain(
+        'closed in the statement month',
+      ),
+    );
+  });
   it('connects a registered savings report to setup, remembered mapping, review and Undo without a primary investment account', async () => {
     snapshotParsers.push(fictionalBalanceParser);
     const host = open(undefined, {
@@ -292,9 +429,7 @@ describe('single-review PDF import', () => {
   it('revalidates live account eligibility and requests repair instead of applying stale mapping', async () => {
     open(combined, { importAccounts: () => accounts.filter((account) => account.id !== 'broker') });
     await upload();
-    expect(document.querySelector('.snap-pdf-error')!.textContent).toContain(
-      'primary investment account',
-    );
+    expect(document.querySelector('.snap-pdf-error')!.textContent).toContain('investment account');
     expect(document.querySelectorAll('.snap-etf-extra')).toHaveLength(0);
   });
   it('exposes invalid stored preferences and offers mapping repair', async () => {

@@ -191,8 +191,13 @@ export async function addAccount(
 }
 
 export async function openDialogOptional(page: Page, overlay: string): Promise<void> {
-  const details = page.locator(`${overlay} details.dialog-optional`);
+  const details = page.locator(`${overlay} details.dialog-optional`).first();
   if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
+}
+
+export async function openAccountStatus(page: Page, index: number): Promise<void> {
+  await page.locator(`.js-edit-acct[data-idx="${index}"]`).click();
+  await page.locator('#acctd-lifecycle > summary').click();
 }
 
 export async function addGoal(

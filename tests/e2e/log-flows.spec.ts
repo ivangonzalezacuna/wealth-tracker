@@ -17,7 +17,14 @@ import {
   waitForSyncIdle,
 } from './helpers';
 
+async function openOtherEtfs(page: Page) {
+  const details = page.locator('.snap-etf-other');
+  if (!(await details.evaluate((element) => (element as HTMLDetailsElement).open)))
+    await details.locator('summary').click();
+}
+
 async function addManualEtfs(page: Page, isins: string[], value: string) {
+  await openOtherEtfs(page);
   for (const isin of isins) {
     await page.click('.js-snapd-extra');
     const row = page.locator('.snap-etf-extra').last();
@@ -85,15 +92,16 @@ test('draft and review distinguish copied, modified and missing valuations', asy
   await page.click('#btn-add-snap');
   await page.fill('#snapd-date', '2024-01');
   await page.getByLabel('Fictional marker account (EUR)').fill('1000');
-  await page.locator('.snap-etf-other summary').click();
+  await expect(page.getByLabel('Add existing ETF')).toHaveAttribute('role', 'combobox');
+  await expect(page.locator('[data-position-account]')).toHaveCount(0);
   await addManualEtfs(page, FAKE_ISINS.slice(0, 2), '100');
   await reviewAndSaveSnapshot(page);
   await waitForSyncIdle(page);
   await page.click('#btn-add-snap');
   await page.fill('#snapd-date', '2024-02');
+  await openOtherEtfs(page);
   const account = page.locator('.snap-dialog-account > .dialog-field .snap-field-status');
   await expect(account).toHaveText('Copied');
-  await page.locator('.snap-etf-other summary').click();
   const rows = page.locator('.snap-etf-extra');
   await expect(rows.nth(0).locator('.snap-field-status')).toHaveText('Copied');
   await rows.nth(0).getByLabel('Other ETF value').fill('120');
@@ -162,14 +170,12 @@ test('snapshot review uses compact aligned rows on mobile and desktop', async ({
   await openTab(page, 'tab-log');
   await page.click('#btn-add-snap');
   await page.getByLabel(/^Primary investment account with a long label \(/).fill('19845.48');
-  await page.locator('.snap-etf-other summary').click();
+  await expect(page.locator('[data-position-account]')).toHaveCount(0);
   await addManualEtfs(page, ['IE00BYX2JD69', 'IE00B4L5Y983', 'IE00BDBRDM35'], '1314.96');
-  const summary = page.locator('.snap-etf-other > summary');
-  await expect(summary).toHaveCSS('font-size', '11px');
-  await expect(summary).toHaveCSS('border-top-style', 'solid');
-  await expect(summary).toHaveCSS('display', 'list-item');
-  await expect(summary).toHaveCSS('padding', '3px 9px');
-  await expect(page.getByRole('group', { name: 'Manual entries' })).toContainText('Add ETF');
+  await expect(page.getByLabel('Add existing ETF')).toHaveAttribute('role', 'combobox');
+  await expect(page.getByRole('button', { name: 'Add ETF', exact: true })).toBeVisible();
+  await page.getByLabel('Breakdown coverage').selectOption('1');
+  await expect(page.getByLabel('Breakdown coverage')).toHaveValue('1');
   for (const width of [390, 320, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     expect(
@@ -234,7 +240,7 @@ test('untracked ETF keys can be renamed and removed after saving without returni
   await page.click('#btn-add-snap');
   await page.fill('#snapd-date', month);
   await page.getByLabel('Manual Broker (EUR)').fill('1000');
-  await page.locator('.snap-etf-other summary').click();
+  await expect(page.locator('[data-position-account]')).toHaveCount(0);
   await addManualEtfs(page, ['IE0000000001', 'IE0000000002'], '100');
   await reviewAndSaveSnapshot(page);
 
@@ -245,7 +251,7 @@ test('untracked ETF keys can be renamed and removed after saving without returni
   await page.click('.js-snapd-submit');
   await expect(page.locator('.snapd-review')).toContainText(`Copied from ${month}`);
   await page.click('.js-snapd-back');
-  await page.locator('.snap-etf-other summary').click();
+  await openOtherEtfs(page);
   await page
     .locator('.snap-etf-extra')
     .first()
@@ -267,7 +273,7 @@ test('untracked ETF keys can be renamed and removed after saving without returni
   await snapshotRow(page, nextMonth).click();
   await waitForSyncIdle(page);
   await page.click('.snap-detail .js-edit-snap');
-  await page.locator('.snap-etf-other summary').click();
+  await openOtherEtfs(page);
   await expect(page.locator('.snap-etf-extra')).toHaveCount(1);
   await expect(page.getByLabel('Other ETF ISIN')).toHaveValue('IE0000000003');
   await page.getByRole('button', { name: 'Remove other ETF' }).click();
@@ -279,7 +285,6 @@ test('untracked ETF keys can be renamed and removed after saving without returni
   await expect(page.locator('#snap-msg')).toContainText('Saved');
   await waitForSyncIdle(page);
   await page.click('.snap-detail .js-edit-snap');
-  await page.locator('.snap-etf-other summary').click();
   await expect(page.locator('.snap-etf-extra')).toHaveCount(0);
   await page.click('.js-snapd-cancel');
 });
