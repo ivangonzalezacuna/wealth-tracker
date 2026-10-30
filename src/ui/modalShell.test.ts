@@ -10,6 +10,23 @@ afterEach(() => {
 });
 
 describe('modal keyboard handling', () => {
+  it('keeps an editing dialog open when Escape dismisses the conflict above it', () => {
+    const editor = document.createElement('div');
+    editor.innerHTML = '<div role="dialog" aria-modal="true"><input value="unsaved draft"></div>';
+    const conflict = document.createElement('div');
+    conflict.innerHTML = '<div role="alertdialog" aria-modal="true"></div>';
+    document.body.append(editor, conflict);
+    const closeEditor = vi.fn();
+    const closeConflict = vi.fn();
+    const cleanupEditor = activateModalShell({ overlay: editor, onDismiss: closeEditor });
+    const cleanupConflict = activateModalShell({ overlay: conflict, onDismiss: closeConflict });
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
+    expect(closeConflict).toHaveBeenCalledOnce();
+    expect(closeEditor).not.toHaveBeenCalled();
+    expect(editor.querySelector('input')?.value).toBe('unsaved draft');
+    cleanupConflict();
+    cleanupEditor();
+  });
   it('dismisses with Escape normally, but honors a nested control consuming the event', () => {
     const overlay = document.createElement('div');
     document.body.append(overlay);

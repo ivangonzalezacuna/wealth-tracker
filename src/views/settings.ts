@@ -77,6 +77,7 @@ import { isSignedIn, hasEverGranted } from '../auth/google';
 import { isBackupStale } from '../backup/exportImport';
 import { applyAttention, refreshAttention } from '../ui/attention';
 import { isBusy, setBusy } from '../sync/lock';
+import { isSyncing } from '../sync/engine';
 import {
   buildHoldingSecuritySuggestions,
   loadAppSecuritySuggestions,
@@ -134,11 +135,12 @@ function setListDraftState(msgId: string, dirty: boolean): void {
 const NO_CHANGES_TITLE = 'No changes to save';
 
 // Reapply data-dirty after card guards and sync locks release their buttons.
-function setSaveDirty(btn: HTMLButtonElement, dirty: boolean): void {
+function setSaveDirty(btn: HTMLButtonElement, dirty: boolean, draftDirty = dirty): void {
   btn.dataset.dirty = String(dirty);
+  btn.dataset.draftDirty = String(draftDirty);
   applySaveDirtyState(btn);
   const card = btn.closest<HTMLElement>('.card');
-  card?.classList.toggle('settings-dirty', !!card.querySelector('button[data-dirty="true"]'));
+  card?.classList.toggle('settings-dirty', !!card.querySelector('button[data-draft-dirty="true"]'));
 }
 
 function applySaveDirtyState(btn: HTMLButtonElement): void {
@@ -178,7 +180,8 @@ function trackFormDirty(
   let baseline = snapshot();
   const refresh = () => {
     const btn = root.querySelector<HTMLButtonElement>(`#btn-save-${button}`);
-    if (btn) setSaveDirty(btn, forceDirty() || snapshot() !== baseline);
+    const changed = snapshot() !== baseline;
+    if (btn) setSaveDirty(btn, forceDirty() || changed, changed);
   };
   scope?.addEventListener('input', refresh);
   scope?.addEventListener('change', refresh);
@@ -241,14 +244,17 @@ export async function withCardGuard<T>(
   cardKey: CardKey,
   btn: HTMLButtonElement,
   action: () => Promise<T>,
-  opts: { busyText?: string; keepDisabledOnSuccess?: boolean } = {},
+  opts: { busyText?: string; keepDisabledOnSuccess?: boolean; allowDuringConflict?: boolean } = {},
 ): Promise<T | undefined> {
+  if (!opts.allowDuringConflict && window.__allowSyncWrite?.() === false) {
+    throw new Error('Resolve sync recovery first, then retry saving. Nothing was saved.');
+  }
   // isBusy() is the single lock also held by main.ts during background
   // sync/import/backup writes (see sync/lock.ts). Checking it here stops
   // a Settings save from starting while an auto-resync is loadConfig()-ing
   // the same in-memory store; setting it for the duration of this card's
   // write stops the reverse race.
-  if (isCardBusy(cardKey) || isBusy()) return undefined;
+  if (isCardBusy(cardKey) || isBusy() || isSyncing()) return undefined;
   _cardBusy.add(cardKey);
   setBusy(true);
   applySyncBusyState(); // grey out every OTHER card's buttons too, not just this one's
@@ -320,7 +326,7 @@ function applySettingsDefaultCollapseState(): void {
 export function applySyncBusyState(): void {
   const root = document.getElementById('settings-content');
   if (!root) return;
-  const busy = isBusy();
+  const busy = isBusy() || isSyncing();
   root.querySelectorAll<HTMLButtonElement>('.card button').forEach((btn) => {
     if (
       SYNC_LOCK_EXEMPT_IDS.has(btn.id) ||
@@ -343,10 +349,9 @@ export function applySyncBusyState(): void {
  * Render the Settings section with user-friendly forms for Accounts, Holdings, and Settings.
  * Only shown after config is loaded (sign-in required).
  */
-export function renderSettings(): void {
+export function renderSettings(opts: { preserveDrafts?: boolean } = {}): void {
   const el = document.getElementById('settings-content');
   if (!el) return;
-
   if (!isConfigLoaded() || !(isSignedIn() || hasEverGranted())) {
     el.innerHTML = '<p class="note">Sign in and load data to manage settings.</p>';
     return;
@@ -355,6 +360,15 @@ export function renderSettings(): void {
   const accounts = getAccounts();
   const holdings = getHoldings();
   const settings = getSettings();
+  const drafts = new Map(
+    opts.preserveDrafts
+      ? Array.from(el.querySelectorAll<HTMLElement>('.settings-dirty[data-card-key]')).map(
+          (card) => [card.dataset.cardKey!, card] as const,
+        )
+      : [],
+  );
+  const cardHtml = (key: CardKey, render: () => string): string =>
+    drafts.has(key) ? `<div data-preserved-card="${key}"></div>` : render();
   applySettingsDefaultCollapseState();
 
   el.innerHTML = `
@@ -365,36 +379,36 @@ export function renderSettings(): void {
       ).join('')}
     </div>
     <div class="settings-group" id="settings-group-portfolio" role="tabpanel" aria-labelledby="settings-tab-portfolio">
-      ${renderAccountsCard(accounts)}
-      ${renderHoldingsCard(holdings)}
+      ${cardHtml('accounts', () => renderAccountsCard(accounts))}
+      ${cardHtml('holdings', () => renderHoldingsCard(holdings))}
     </div>
     <div class="settings-group" id="settings-group-tracking" role="tabpanel" aria-labelledby="settings-tab-planning">
-      ${renderContributionsCard(settings)}
-      ${renderCalcAssumptionsCard(settings)}
-      ${renderGoalCard(settings)}
+      ${cardHtml('contributions', () => renderContributionsCard(settings))}
+      ${cardHtml('calc-assumptions', () => renderCalcAssumptionsCard(settings))}
+      ${cardHtml('goal', () => renderGoalCard(settings))}
     </div>
     <div class="settings-group" id="settings-group-advanced" role="tabpanel" aria-labelledby="settings-tab-advanced">
-      ${renderPortfolioBehaviorCard(settings)}
-      ${renderFxIntegrationsCard(settings)}
-      ${renderCacheCard()}
-      ${renderBackupCard()}
-      ${renderReportCard()}
-      ${renderConfigHistoryCard([])}
+      ${cardHtml('portfolio-behavior', () => renderPortfolioBehaviorCard(settings))}
+      ${cardHtml('integrations', () => renderFxIntegrationsCard(settings))}
+      ${cardHtml('cache', renderCacheCard)}
+      ${cardHtml('backup', renderBackupCard)}
+      ${cardHtml('reports', renderReportCard)}
+      ${cardHtml('config-history', () => renderConfigHistoryCard([]))}
     </div>
   `;
 
-  attachAccountListeners(el);
-  attachHoldingListeners(el);
-  attachContributionsListeners(el);
-  attachCalcAssumptionsListeners(el);
-  attachGoalListeners(el);
-  attachPortfolioBehaviorListeners(el);
-  attachFxIntegrationListeners(el);
-  attachCacheListeners(el);
-  attachBackupListeners(el);
+  if (!drafts.has('accounts')) attachAccountListeners(el);
+  if (!drafts.has('holdings')) attachHoldingListeners(el);
+  if (!drafts.has('contributions')) attachContributionsListeners(el);
+  if (!drafts.has('calc-assumptions')) attachCalcAssumptionsListeners(el);
+  if (!drafts.has('goal')) attachGoalListeners(el);
+  if (!drafts.has('portfolio-behavior')) attachPortfolioBehaviorListeners(el);
+  if (!drafts.has('integrations')) attachFxIntegrationListeners(el);
+  if (!drafts.has('cache')) attachCacheListeners(el);
+  if (!drafts.has('backup')) attachBackupListeners(el);
   attachColorPickerSync(el);
   attachCardCollapseListeners(el);
-  attachReportListeners(el);
+  if (!drafts.has('reports')) attachReportListeners(el);
   attachSettingsGroupNavListeners(el);
   el.querySelectorAll('.form-msg, #backup-msg').forEach((message) => {
     message.setAttribute('role', 'status');
@@ -430,6 +444,11 @@ export function renderSettings(): void {
   });
 
   attachInfoTips(el);
+  // Restore the original nodes and listeners, not copies of unsaved form state.
+  for (const [key, card] of drafts) {
+    el.querySelector(`[data-preserved-card="${key}"]`)?.replaceWith(card);
+  }
+  refreshSyncRecoveryControls();
   applyAttention();
   reinjectPendingMsg();
   applySyncBusyState();
@@ -499,22 +518,26 @@ function applySettingsView(view: SettingsView): void {
 
 function refreshAccountsData(): void {
   const root = document.getElementById('settings-card-accounts');
-  if (root) rerenderAccountsTable(root, getAccounts());
+  if (root && !root.classList.contains('settings-dirty'))
+    rerenderAccountsTable(root, getAccounts());
 }
 
 function refreshHoldingsData(): void {
   const root = document.getElementById('settings-card-holdings');
-  if (root) rerenderHoldingsTable(root, getHoldings());
+  if (root && !root.classList.contains('settings-dirty'))
+    rerenderHoldingsTable(root, getHoldings());
 }
 
 function refreshRulesData(): void {
   const root = document.getElementById('settings-card-portfolio-behavior');
+  if (root?.classList.contains('settings-dirty')) return;
   if (root) rerenderRulesTable(root, rulesFromSettings(getSettings()));
   _formDirty.get('rules')?.commit();
 }
 
 function refreshCostBasisData(): void {
   const el = document.getElementById('settings-costbasis-fields');
+  if (el?.closest('.settings-dirty')) return;
   if (el) el.innerHTML = costBasisFieldsHtml(getCostBasisMethod());
   _formDirty.get('cost-basis')?.commit();
 }
@@ -2612,17 +2635,9 @@ function renderCacheCard(): string {
       ${settingsCardHeader('cache', 'Cache &amp; sync', hasConflict ? 'Sync conflict needs attention' : 'Sync recovery and local cache')}
       <div class="card-body">
         <p class="note" style="margin-bottom:.75rem">Data is stored locally in SQLite and synced to Google Drive. If sync pauses because both copies changed, resolve the conflict here and export a backup first if you want the safest path.</p>
-        ${
-          hasConflict
-            ? '<p class="note" style="margin-bottom:.75rem;color:var(--warn-fg)">Sync is paused because Drive changed elsewhere and this device also has local changes.</p>'
-            : ''
-        }
+        <p class="note js-sync-conflict-note" ${hasConflict ? '' : 'hidden'} style="margin-bottom:.75rem;color:var(--warn-fg)">Sync is paused because Drive changed elsewhere and this device also has local changes. Closing the dialog leaves sync paused; resolve it before saving more changes.</p>
         <div style="display:flex;gap:10px;margin-top:.5rem;align-items:center;flex-wrap:wrap">
-          ${
-            hasConflict
-              ? '<button class="btn btn-primary btn-sm" id="btn-resolve-sync-conflict">Resolve sync conflict</button>'
-              : ''
-          }
+          <button class="btn btn-primary btn-sm" id="btn-resolve-sync-conflict" ${hasConflict ? '' : 'hidden'}>Resolve sync conflict</button>
           <button class="btn btn-outline btn-sm" id="btn-force-resync">Force full resync</button>
           <span id="resync-msg" class="form-msg"></span>
         </div>
@@ -2631,18 +2646,18 @@ function renderCacheCard(): string {
     </div>`;
 }
 
+export function refreshSyncRecoveryControls(): void {
+  const pending = window.__hasSyncConflict?.() ?? false;
+  const button = document.getElementById('btn-resolve-sync-conflict');
+  if (button) button.hidden = !pending;
+  const note = document.querySelector<HTMLElement>('.js-sync-conflict-note');
+  if (note) note.hidden = !pending;
+}
+
 function attachCacheListeners(root: HTMLElement): void {
   root.querySelector('#btn-resolve-sync-conflict')?.addEventListener('click', async () => {
-    const btn = root.querySelector('#btn-resolve-sync-conflict') as HTMLButtonElement;
     try {
-      await withCardGuard(
-        'cache',
-        btn,
-        () => window.__openSyncConflictResolver?.() ?? Promise.resolve(),
-        {
-          busyText: 'Opening...',
-        },
-      );
+      await window.__openSyncConflictResolver?.();
     } catch (err: any) {
       toastResult('resync-msg', 'Could not open the conflict resolver: ' + errorText(err), 'error');
     }
@@ -2833,6 +2848,7 @@ function attachBackupListeners(root: HTMLElement): void {
     try {
       await withCardGuard('backup', btn, () => window.__exportBackup!(), {
         busyText: 'Exporting...',
+        allowDuringConflict: true,
       });
       refreshBackupData();
       toastResult('backup-msg', 'Backup downloaded.', 'success');
@@ -2853,7 +2869,7 @@ function attachBackupListeners(root: HTMLElement): void {
       });
       if (result === 'cancelled') {
         toastResult('backup-msg', 'Restore cancelled.', 'info');
-      } else {
+      } else if (result === 'done') {
         toastResult('backup-msg', 'Restore complete.', 'success');
       }
     } catch (err: any) {
