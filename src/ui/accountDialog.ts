@@ -43,7 +43,6 @@ export interface AccountDialogOptions {
   currencySuggestions?: string[];
   /** Existing account labels excluding the record being edited. */
   existingLabels?: string[];
-  lifecycleEnabled?: boolean;
   onLifecycle?: (mode: AccountLifecycleOptions['mode']) => void;
 }
 
@@ -233,10 +232,10 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
               <p class="note">${isAccountOpenNow(existing) ? 'Open' : 'Closed'} · Closing preserves balances and history.</p>
               ${(existing.closedPeriods || []).length ? `<div class="note">${existing.closedPeriods!.map((period) => `Closed from ${esc(period.closedFromMonth)}${period.reopenedFromMonth ? ` · Reopened ${esc(period.reopenedFromMonth)}` : ''}`).join('<br>')}</div>` : ''}
               <div class="dialog-row">
-                <button type="button" class="btn btn-sm btn-outline js-acctd-lifecycle" data-mode="${isAccountOpenNow(existing) ? 'close' : 'reopen'}"${opts.lifecycleEnabled ? '' : ' disabled'}>${isAccountOpenNow(existing) ? 'Close account…' : 'Reopen account…'}</button>
-                ${(existing.closedPeriods || []).length ? `<button type="button" class="btn btn-sm btn-outline js-acctd-lifecycle" data-mode="correct"${opts.lifecycleEnabled ? '' : ' disabled'}>Correct dates…</button>` : ''}
+                <button type="button" class="btn btn-sm btn-outline js-acctd-lifecycle" data-mode="${isAccountOpenNow(existing) ? 'close' : 'reopen'}">${isAccountOpenNow(existing) ? 'Close account…' : 'Reopen account…'}</button>
+                ${(existing.closedPeriods || []).length ? `<button type="button" class="btn btn-sm btn-outline js-acctd-lifecycle" data-mode="correct">Correct dates…</button>` : ''}
               </div>
-              <p class="note" id="acctd-lifecycle-note">${opts.lifecycleEnabled ? 'Changes are reviewed separately, then saved with Save accounts.' : 'Review ETF migration in Settings before changing account status.'}</p>
+              <p class="note" id="acctd-lifecycle-note">Changes are reviewed separately, then saved with Save in Accounts.</p>
             </div>
           </details>`
               : ''

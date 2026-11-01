@@ -15,7 +15,7 @@ import {
   fictionalBalanceParser,
   fictionalBalanceLines,
 } from '../../tests/fixtures/snapshot-import/balanceParser';
-import { positionKey, coverageKey } from '../model/snapshotPositions';
+import { positionKey } from '../model/snapshotPositions';
 
 vi.mock('../import/snapshotPdf', () => ({ extractSnapshotPdf: vi.fn() }));
 const extract = vi.mocked(extractSnapshotPdf);
@@ -105,7 +105,6 @@ describe('single-review PDF import', () => {
   it('isolates scoped shared-ISIN imports, repeated replacement, coverage and Undo by account', async () => {
     let destination: SnapshotMapping = { mode: 'positions', securitiesAccount: 'broker' };
     const host = open(undefined, {
-      scopedValuations: true,
       accounts: [...accounts, { id: 'france', label: 'France', moneyType: 'investment' }],
       importMapping: () => destination,
       prefill: {
@@ -115,8 +114,6 @@ describe('single-review PDF import', () => {
         france: 10000,
         [positionKey('broker', FAKE_ISINS[0])]: 10,
         [positionKey('france', FAKE_ISINS[0])]: 20,
-        [coverageKey('broker')]: 1,
-        [coverageKey('france')]: 1,
       },
     });
     const value = (accountId: string, isin = FAKE_ISINS[0]) =>
@@ -170,7 +167,7 @@ describe('single-review PDF import', () => {
       moneyType: 'investment',
       closedPeriods: [{ closedFromMonth: '2024-02' }],
     };
-    open(undefined, { scopedValuations: true, accounts: [...accounts, historical] });
+    open(undefined, { accounts: [...accounts, historical] });
     await upload();
     expect(document.querySelector('[data-mapping-primary] option[value="former"]')).not.toBeNull();
     input('[data-mapping-primary]', 'former');
@@ -191,7 +188,6 @@ describe('single-review PDF import', () => {
     open(
       { mode: 'positions', securitiesAccount: 'former' },
       {
-        scopedValuations: true,
         accounts: [...accounts, former],
       },
     );
@@ -209,7 +205,6 @@ describe('single-review PDF import', () => {
     open(
       { mode: 'positions', securitiesAccount: 'broker' },
       {
-        scopedValuations: true,
         importAccounts: () => live,
         prefill: { date: '2024-01', cash: 25, broker: 0 },
       },
@@ -319,7 +314,7 @@ describe('single-review PDF import', () => {
     expect(host.review.mock.calls[0][1]).toMatchObject({
       broker: 'EUR',
       cash: 'EUR',
-      [`etf_${FAKE_ISINS[0]}`]: 'EUR',
+      [`position:broker:${FAKE_ISINS[0]}`]: 'EUR',
     });
     expect(document.querySelector('.snapd-review')!.textContent).toContain('Previously 9000 USD');
     expect(document.querySelector('.snapd-review')!.textContent).toContain('Fictional fund');
@@ -334,7 +329,7 @@ describe('single-review PDF import', () => {
       date: '2024-01',
       broker: 3707.62,
       cash: 25,
-      [`etf_${FAKE_ISINS[0]}`]: 101.11,
+      [`position:broker:${FAKE_ISINS[0]}`]: 101.11,
     });
   });
   it('undoes only untouched imported fields and preserves subsequent edits', async () => {
@@ -446,7 +441,7 @@ describe('single-review PDF import', () => {
     await review();
     expect(host.review.mock.calls[0][1]).toMatchObject({
       broker: 'USD',
-      [`etf_${FAKE_ISINS[0]}`]: 'EUR',
+      [`position:broker:${FAKE_ISINS[0]}`]: 'EUR',
     });
     expect(document.querySelector('.snapd-review')!.textContent).toContain('not verified');
   });

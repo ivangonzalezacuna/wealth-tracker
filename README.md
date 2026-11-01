@@ -152,12 +152,12 @@ including when a
 bank issues a replacement for the same logical setup. Reopening does not resume
 contributions automatically.
 
-Existing global ETF snapshot values need a one-time reviewed account assignment.
-The current primary account is a proposal, not an automatic historical mapping.
-After conversion, the same ETF may have valuations in several accounts while
+The same ETF may have valuations in several accounts while
 retaining one security definition and one Portfolio row. Expand that row for
 account values; the account filter selects rows, not account-specific cost basis
-or P&L. Save a recovery backup before converting.
+or P&L. ETF valuations require account links. Backups containing old global ETF
+values are rejected without replacing live data; use an account-linked backup
+exported after conversion in the previous release.
 
 Go to the **+ Log** tab. Enter the closing value for each account for the selected month, review the draft, then hit **Save snapshot**. This records your net worth for the month.
 
@@ -251,7 +251,7 @@ This is optional, but enables two additional features:
 
 **Storage format**
 
-Per-ETF market values are stored in the snapshot record as `etf_<ISIN>` keys alongside the regular account balance keys (e.g. `etf_IE00B4L5Y983: 12500`). No separate database migration is needed; missing keys are treated as "no data".
+Per-ETF market values are stored in the snapshot record as `position:<accountId>:<ISIN>` keys alongside the regular account balance keys (e.g. `position:broker:IE00B4L5Y983: 12500`). Values for the same ISIN are summed across accounts without adding them again to net worth. Missing keys are treated as "no data".
 
 To fill these values from a supported PDF, use the
 [monthly snapshot import workflow](#3-log-your-first-monthly-snapshot).

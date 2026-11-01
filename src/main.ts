@@ -77,13 +77,7 @@ import {
   migrateBackup,
 } from './backup/exportImport';
 import { getSetupState } from './model/setup';
-import {
-  ETF_VALUATION_SCHEMA,
-  isScopedValuationMode,
-  parsePositionKey,
-  coverageKey,
-} from './model/snapshotPositions';
-import { legacyPositionEntries, migratePositionSnapshots } from './model/valuationMigration';
+import { parsePositionKey } from './model/snapshotPositions';
 import { isAccountClosedInMonth } from './model/accounts';
 import { validateFinancialData } from './db/accountData';
 import type { SetupStep } from './model/setup';
@@ -140,7 +134,6 @@ import { restoreCollapseFromSheet, backupCollapseToSheet } from './ui/collapseSy
 import { confirmDialog } from './ui/confirmDialog';
 import { transactionDialog } from './ui/transactionDialog';
 import { snapshotDialog } from './ui/snapshotDialog';
-import { valuationMigrationDialog } from './ui/valuationMigrationDialog';
 import { showSigninOverlay, hideSigninOverlay } from './ui/signinOverlay';
 import { initHeaderMenu, type HeaderMenu } from './ui/headerMenu';
 import { renderSyncChip, shortSyncError, syncChipView, type SyncStatus } from './ui/headerStatus';
@@ -1350,28 +1343,6 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
   if (!ok) return 'cancelled';
   if (!allowSyncWrite()) return 'cancelled';
 
-  if (!isScopedValuationMode(backup.data.settings)) {
-    if (legacyPositionEntries(backup.data.snapshots).length) {
-      const assignments = await valuationMigrationDialog({
-        accounts: backup.data.accounts,
-        snapshots: backup.data.snapshots,
-        exportBackup,
-      });
-      if (assignments === null) return 'cancelled';
-      backup.data.snapshots = migratePositionSnapshots(
-        backup.data.snapshots,
-        backup.data.accounts,
-        assignments.assignments,
-        assignments.coverage,
-      );
-    }
-    backup.data.settings = {
-      ...backup.data.settings,
-      etf_valuation_schema: ETF_VALUATION_SCHEMA,
-    };
-  }
-  if (!allowSyncWrite()) return 'cancelled';
-
   setSyncing(true);
   // Cancel any in-flight pre-restore upload so stale data is never pushed.
   cancelPendingUpload();
@@ -1672,7 +1643,6 @@ async function saveMonthlyUpdate(editDate?: string) {
 
   await snapshotDialog({
     mode: existing ? 'edit' : 'add',
-    scopedValuations: isScopedValuationMode(getSettings()),
     existing,
     prefill: existing ? undefined : prefillSnapFormFromLatest(),
     accounts,
@@ -2001,13 +1971,6 @@ function prefillSnapFormFromLatest(): Snapshot | undefined {
         prefill[key] = val;
       continue;
     }
-    if (key.startsWith('etf_') && typeof val === 'number') {
-      prefill[key] = val;
-    }
-  }
-  for (const account of getAccounts()) {
-    const key = coverageKey(account.id || account.key || '');
-    if (latest[key] !== undefined) prefill[key] = 0;
   }
   return prefill;
 }

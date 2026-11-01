@@ -1,11 +1,7 @@
 import type { Account, FxRateRecord, Holding, Settings, Snapshot, Transaction } from '../types';
 import { formatEnglishDate } from '../dateFormat';
 import { validateClosedPeriods, validateAccountLifecycle } from '../model/accounts';
-import {
-  ETF_VALUATION_SCHEMA,
-  validateSnapshotPositions,
-  isScopedValuationMode,
-} from '../model/snapshotPositions';
+import { ETF_VALUATION_SCHEMA, validateSnapshotPositions } from '../model/snapshotPositions';
 
 export const BACKUP_SCHEMA_VERSION = 5;
 
@@ -90,14 +86,6 @@ export const MIGRATIONS: Record<number, Migration> = {
     }
     return data;
   },
-  // v4->v5: lifecycle intervals and the account-linked ETF valuation format.
-  4: (data) => ({
-    ...data,
-    accounts: data.accounts.map((account) => ({
-      ...account,
-      closedPeriods: account.closedPeriods || [],
-    })),
-  }),
 };
 
 export function migrateBackup(b: BackupFile): BackupFile {
@@ -125,7 +113,7 @@ export function backupFilename(now: Date = new Date()): string {
   return `wealth-tracker-backup-${now.toISOString().slice(0, 10)}.json`;
 }
 
-/** Returns the typed BackupFile on success, null on any shape mismatch - never throws. */
+/** Returns null on shape mismatch; unsupported legacy ETF data throws an actionable error. */
 export function validateBackup(raw: unknown): BackupFile | null {
   if (!isRecord(raw)) return null;
   const b = raw as Partial<BackupFile>;
@@ -157,15 +145,22 @@ export function validateBackup(raw: unknown): BackupFile | null {
       (!Array.isArray(d.fxRates) || !d.fxRates.every(isValidFxRateRecord)))
   )
     return null;
+  for (const snapshot of d.snapshots) {
+    if (
+      Object.keys(snapshot).some(
+        (key) =>
+          key.startsWith('etf_') &&
+          !d.accounts!.some((account) => account.id === key || account.key === key),
+      )
+    )
+      throw new Error(
+        'Legacy ETF valuations are no longer supported. Restore an account-linked backup exported after migration in the previous release.',
+      );
+  }
   if (validateAccountLifecycle(d.accounts, d.snapshots)) return null;
   if (d.settings.etf_valuation_schema && d.settings.etf_valuation_schema !== ETF_VALUATION_SCHEMA)
     return null;
-  if (
-    d.snapshots.some((snap) =>
-      validateSnapshotPositions(snap, d.accounts!, isScopedValuationMode(d.settings!)),
-    )
-  )
-    return null;
+  if (d.snapshots.some((snap) => validateSnapshotPositions(snap, d.accounts!))) return null;
   return b as BackupFile;
 }
 

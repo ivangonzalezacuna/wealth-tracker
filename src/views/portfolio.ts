@@ -66,32 +66,10 @@ import {
 
 /**
  * Extract per-ETF market values from a snapshot.
- * Keys prefixed "etf_" hold the ISIN market value entered by the user.
+ * Values are summed across investment accounts for each ISIN.
  */
 function extractSnapEtfValues(snap: Snapshot | null): Record<string, number> {
-  const values = aggregatePositionValues(snap);
-  // Keep the pre-conversion reader's permissive legacy keys until scoped activation.
-  if (snap && !scopedSnapshot(snap)) {
-    for (const [key, value] of Object.entries(snap)) {
-      if (
-        key.startsWith('etf_') &&
-        typeof value === 'number' &&
-        Number.isFinite(value) &&
-        value >= 0
-      )
-        values[key.slice(4)] = value;
-    }
-  }
-  return values;
-}
-
-function scopedSnapshot(snap: Snapshot | null): boolean {
-  return (
-    !!snap &&
-    Object.keys(snap).some(
-      (key) => parsePositionKey(key) !== null || key.startsWith('position_coverage:'),
-    )
-  );
+  return aggregatePositionValues(snap);
 }
 
 type HoldingRow =
@@ -162,8 +140,7 @@ function getDriftValuationPolicy(pd: PortfolioData, snaps: Snapshot[]): DriftVal
   const allEtfs = Object.values(pd.etfs);
   const { held } = splitHoldings(allEtfs as (EtfPosition & { [key: string]: unknown })[]);
   const hasHeldPositions =
-    held.length > 0 ||
-    (scopedSnapshot(latestSnapshot) && Object.values(snapEtfValues).some((value) => value > 0));
+    held.length > 0 || Object.values(snapEtfValues).some((value) => value > 0);
   const heldWithSnapshotValueCount = held.filter((e) => snapEtfValues[e.isin] !== undefined).length;
   const hasFullCoverage = hasHeldPositions && heldWithSnapshotValueCount === held.length;
   const hasPartialSnapshotCoverage = hasAnySnapshotEtfValues && !hasFullCoverage;
@@ -336,7 +313,7 @@ function holdingsColumns(
         `style="text-align:right;color:${snapEtfValues[e.isin] !== undefined ? 'var(--ink)' : 'var(--ink-3)'}" title="${
           snapEtfValues[e.isin] !== undefined
             ? ''
-            : 'Add etf_' + e.isin + ' value in your next snapshot to populate this field.'
+            : 'Add this ETF value to its account in your next snapshot to populate this field.'
         }"`,
       cell: (e) => {
         const mv = snapEtfValues[e.isin];
@@ -360,7 +337,7 @@ function holdingsColumns(
         const color = pnl === null ? 'var(--ink-3)' : pnl >= 0 ? 'var(--pos)' : 'var(--neg)';
         const title =
           pnl === null
-            ? `title="Add etf_${e.isin} value in your next snapshot to populate this field."`
+            ? 'title="Add this ETF value to its account in your next snapshot to populate this field."'
             : '';
         return `style="text-align:right;color:${color}" ${title}`;
       },
@@ -746,7 +723,7 @@ function _createHoldingDetail(e: HoldingRow): HTMLElement {
     <div><span class="hold-detail-label">Type</span><span class="hold-detail-value">${acc}</span></div>
     ${detailColRows}
     ${
-      scopedSnapshot(_holdingSnapshot) && positionAccounts(e.isin).length > 1
+      _holdingSnapshot && positionAccounts(e.isin).length > 1
         ? `<details class="hold-detail-accounts"><summary>Account values · ${fmtMon(_holdingSnapshot!.date)}</summary><div class="hold-account-heading"><span class="note">Values only; cost basis and P&amp;L remain portfolio-wide.</span></div>${getAccounts()
             .map((account) => {
               const id = account.id || account.key || '';

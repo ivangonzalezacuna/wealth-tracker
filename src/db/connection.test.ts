@@ -350,55 +350,6 @@ describe('db importDb local-preservation merge', () => {
     expect((await loadSnapshots()).length).toBe(1);
   });
 
-  it('converts all history exactly once and rejects stale previews without altering data', async () => {
-    const { convertEtfValuations } = await import('../db');
-    const { valuationMigrationFingerprint } = await import('../model/valuationMigration');
-    await saveAccounts([{ id: 'spain', label: 'Spain', moneyType: 'investment' }]);
-    await upsertSnapshot({ date: '2026-01', spain: 10000, etf_IE00B4L5Y983: 10000 });
-    const fingerprint = valuationMigrationFingerprint(await loadAccounts(), await loadSnapshots());
-    const assignments = [{ month: '2026-01', isin: 'IE00B4L5Y983', allocations: { spain: 10000 } }];
-    await expect(convertEtfValuations(assignments, 'stale')).rejects.toThrow('changed');
-    expect((await loadSnapshots())[0].etf_IE00B4L5Y983).toBe(10000);
-    await convertEtfValuations(assignments, fingerprint, [
-      { month: '2026-01', accountId: 'spain', complete: true },
-    ]);
-    expect((await loadSettings()).etf_valuation_schema).toBe('account-v1');
-    expect((await loadSnapshots())[0]['position:spain:IE00B4L5Y983']).toBe(10000);
-    expect((await loadSnapshots())[0].etf_IE00B4L5Y983).toBeUndefined();
-    expect((await loadSnapshots())[0]['position_coverage:spain']).toBe(1);
-    await expect(convertEtfValuations(assignments, fingerprint)).rejects.toThrow('already');
-    await expect(
-      upsertSnapshot({ date: '2026-02', spain: 10000, etf_IE00B4L5Y983: 10000 }),
-    ).rejects.toThrow('legacy');
-  });
-
-  it('atomically reviews migrated historical completeness without changing values or notes', async () => {
-    const { reviewEtfCoverage } = await import('../db');
-    const { valuationMigrationFingerprint } = await import('../model/valuationMigration');
-    await saveAccounts([{ id: 'france', label: 'France', moneyType: 'investment' }]);
-    await setSetting('etf_valuation_schema', 'account-v1');
-    await upsertSnapshot({
-      date: '2026-01',
-      france: 7000,
-      'position:france:IE00B4L5Y983': 6000,
-      notes: 'Transfer',
-    });
-    let fingerprint = valuationMigrationFingerprint(await loadAccounts(), await loadSnapshots());
-    const coverage = [{ month: '2026-01', accountId: 'france', complete: true }];
-    await expect(reviewEtfCoverage(coverage, 'stale')).rejects.toThrow('changed');
-    expect((await loadSnapshots())[0]['position_coverage:france']).toBeUndefined();
-    await reviewEtfCoverage(coverage, fingerprint);
-    expect((await loadSnapshots())[0]).toMatchObject({
-      france: 7000,
-      'position:france:IE00B4L5Y983': 6000,
-      'position_coverage:france': 1,
-      notes: 'Transfer',
-    });
-    fingerprint = valuationMigrationFingerprint(await loadAccounts(), await loadSnapshots());
-    await reviewEtfCoverage([{ ...coverage[0], complete: null }], fingerprint);
-    expect((await loadSnapshots())[0]['position_coverage:france']).toBeUndefined();
-  });
-
   it('rejects future-schema database imports without swapping the live database', async () => {
     const db = await getDb();
     db.run("UPDATE meta SET value = '999' WHERE key = 'schema_version'");
@@ -445,36 +396,58 @@ describe('db importDb local-preservation merge', () => {
     const db = await getDb();
     // Simulate an old client retaining a local-only legacy month.
     db.run("DELETE FROM settings WHERE key='etf_valuation_schema'");
-    await upsertSnapshot({ date: '2026-01', spain: 100, etf_IE00B4L5Y983: 100 });
+    db.run('INSERT INTO snapshots (date, values_json) VALUES (?, ?)', [
+      '2026-01',
+      JSON.stringify({ spain: 100, etf_IE00B4L5Y983: 100 }),
+    ]);
     await expect(importDb(cloud, { preserveLocalConfig: false })).rejects.toThrow('legacy');
     expect((await loadSnapshots())[0].etf_IE00B4L5Y983).toBe(100);
     expect((await loadSettings()).etf_valuation_schema).toBeUndefined();
   });
 
-  it('prevents settings from activating legacy data or downgrading linked data', async () => {
-    const { replaceAllSettings, deleteSetting } = await import('../db');
+  it('rejects legacy cloud replacement without changing live or durable data', async () => {
     await saveAccounts([{ id: 'spain', label: 'Spain', moneyType: 'investment' }]);
-    await upsertSnapshot({ date: '2026-01', spain: 100, etf_IE00B4L5Y983: 100 });
-    await expect(setSetting('etf_valuation_schema', 'account-v1')).rejects.toThrow('legacy');
-    expect((await loadSettings()).etf_valuation_schema).toBeUndefined();
-    (await getDb()).run('DELETE FROM snapshots');
-    await setSetting('etf_valuation_schema', 'account-v1');
-    await expect(deleteSetting('etf_valuation_schema')).rejects.toThrow('cannot');
-    await expect(replaceAllSettings({})).rejects.toThrow('cannot');
-    await expect(setSetting('etf_valuation_schema', 'future')).rejects.toThrow('cannot');
-  });
-
-  it('does not downgrade an activated database during cloud replacement', async () => {
-    await saveAccounts([{ id: 'spain', label: 'Spain', moneyType: 'investment' }]);
-    await upsertSnapshot({ date: '2026-01', spain: 100, etf_IE00B4L5Y983: 100 });
+    (await getDb()).run('INSERT INTO snapshots (date, values_json) VALUES (?, ?)', [
+      '2026-01',
+      JSON.stringify({ spain: 100, etf_IE00B4L5Y983: 100 }),
+    ]);
     const legacy = exportDb()!;
     (await getDb()).run('DELETE FROM snapshots');
     await setSetting('etf_valuation_schema', 'account-v1');
+    const before = Array.from(idbStore.get('main.db')!);
     await expect(
       importDb(legacy, { preserveLocalTransactions: false, preserveLocalConfig: false }),
-    ).rejects.toThrow('reviewed backup');
+    ).rejects.toThrow('no longer supported');
     expect((await loadSettings()).etf_valuation_schema).toBe('account-v1');
     expect(await loadSnapshots()).toEqual([]);
+    expect(Array.from(idbStore.get('main.db')!)).toEqual(before);
+  });
+
+  it('rejects legacy snapshot writes, including explicit zero, without changing stored data', async () => {
+    await saveAccounts([{ id: 'spain', label: 'Spain', moneyType: 'investment' }]);
+    await upsertSnapshot({ date: '2026-01', spain: 100, 'position:spain:IE00B4L5Y983': 80 });
+    const before = Array.from(idbStore.get('main.db')!);
+    for (const value of [0, 100]) {
+      await expect(
+        upsertSnapshot({ date: '2026-02', spain: 100, etf_IE00B4L5Y983: value }),
+      ).rejects.toThrow('no longer supported');
+    }
+    expect(await loadSnapshots()).toHaveLength(1);
+    expect(Array.from(idbStore.get('main.db')!)).toEqual(before);
+  });
+
+  it('rejects unsupported local data repeatedly without leaking the database or rewriting bytes', async () => {
+    await saveAccounts([{ id: 'spain', label: 'Spain', moneyType: 'investment' }]);
+    (await getDb()).run('INSERT INTO snapshots (date, values_json) VALUES (?, ?)', [
+      '2026-01',
+      JSON.stringify({ spain: 100, etf_IE00B4L5Y983: 100 }),
+    ]);
+    const bytes = exportDb()!;
+    await destroyDb();
+    idbStore.set('main.db', bytes);
+    await expect(getDb()).rejects.toThrow('no longer supported');
+    await expect(getDb()).rejects.toThrow('no longer supported');
+    expect(Array.from(idbStore.get('main.db')!)).toEqual(Array.from(bytes));
   });
 
   it('protects historical case-insensitive account balances from deletion', async () => {

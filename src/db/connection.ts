@@ -19,7 +19,6 @@ import {
   readFinancialData,
   validateFinancialData,
 } from './accountData';
-import { isScopedValuationMode } from '../model/snapshotPositions';
 
 // IndexedDB key where the raw database file is stored.
 const IDB_DB_NAME = 'wealth-tracker-sqlite';
@@ -120,9 +119,14 @@ export async function getDb(): Promise<Database> {
       _db = null;
       throw new Error('This database needs a newer app version. Update before opening it.');
     }
-    if (currentVersion < SCHEMA_VERSION) {
-      applyMigrations(_db, currentVersion);
-      await persistDb();
+    try {
+      if (currentVersion < SCHEMA_VERSION) applyMigrations(_db, currentVersion);
+      validateFinancialData(readFinancialData(_db));
+      if (currentVersion < SCHEMA_VERSION) await persistDb();
+    } catch (error) {
+      _db.close();
+      _db = null;
+      throw error;
     }
   } else {
     // Fresh database
@@ -270,16 +274,7 @@ export async function importDb(
     if (localSnapshotRows.length > 0) mergeLocalSnapshots(newDb, localSnapshotRows);
     if (localSettingRows.length > 0) mergeLocalSettings(newDb, localSettingRows);
 
-    const imported = readFinancialData(newDb);
-    if (
-      previousDb &&
-      isScopedValuationMode(readFinancialData(previousDb).settings) &&
-      !isScopedValuationMode(imported.settings)
-    )
-      throw new Error(
-        'This database uses the legacy ETF format. Restore a reviewed backup with account assignments before replacing account-linked data.',
-      );
-    validateFinancialData(imported);
+    validateFinancialData(readFinancialData(newDb));
     // Persist the imported DB before swapping it into the live singleton.
     await persistDb(newDb);
 

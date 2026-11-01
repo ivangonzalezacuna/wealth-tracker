@@ -4,7 +4,6 @@ import {
   getSettings,
   setAccounts,
   saveAccountLifecycle,
-  migrateEtfValuations,
   setHoldings,
   setSettings,
   setSetting,
@@ -49,10 +48,8 @@ import {
   validateAccountLabels,
   isAccountOpenNow,
 } from '../model/accounts';
-import { isScopedValuationMode, parsePositionKey } from '../model/snapshotPositions';
-import { valuationMigrationFingerprint } from '../model/valuationMigration';
+import { parsePositionKey } from '../model/snapshotPositions';
 import { accountLifecycleDialog } from '../ui/accountLifecycleDialog';
-import { valuationMigrationDialog } from '../ui/valuationMigrationDialog';
 import { validateGoalLabels } from '../model/goals';
 import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
@@ -885,8 +882,6 @@ function renderAccountsCard(accounts: Account[]): string {
       ${settingsCardHeader('accounts', 'Accounts', `${accounts.length} account${accounts.length === 1 ? '' : 's'}`)}
       <div class="card-body">
         <p class="note" style="margin-bottom:.5rem">One row per bank account or portfolio, tracked in each monthly snapshot.</p>
-        ${!isScopedValuationMode(getSettings()) ? `<p class="note">Review historical ETF account assignments before using account closure and reopening. Existing views remain available.</p><button class="btn btn-outline btn-sm" id="btn-migrate-valuations">Review / enable account-linked ETF values</button>` : ''}
-        <span id="valuation-migration-msg" class="form-msg" role="status"></span>
         <div class="range-toggle filter-chips" id="acct-lifecycle-toggle" role="group" aria-label="Show account lifecycle"${accounts.some((a) => !isAccountOpenNow(a)) ? '' : ' hidden'}>${chipButtonsHtml(
           {
             attr: 'lfilter',
@@ -997,11 +992,7 @@ async function toggleAccountRemoval(
     const hasHistory = snaps.some(
       (s) =>
         accountKeys.some((key) => typeof s[key] === 'number' && Number(s[key]) !== 0) ||
-        Object.keys(s).some(
-          (key) =>
-            accountKeys.includes(parsePositionKey(key)?.accountId || '') ||
-            accountKeys.some((id) => key === `position_coverage:${id}`),
-        ),
+        Object.keys(s).some((key) => accountKeys.includes(parsePositionKey(key)?.accountId || '')),
     );
     if (hasHistory) {
       showMsg(
@@ -1069,58 +1060,11 @@ function attachAccountListeners(root: HTMLElement): void {
     rerenderAccountsTable(root, getAccounts().slice());
     setListDraftState('accts-msg', false);
   });
-  root.querySelector('#btn-migrate-valuations')?.addEventListener('click', async () => {
-    if (controller.items().some(hasDraftMark) || _lifecycleDirty) {
-      showMsg('accts-msg', 'Save or discard account changes before reviewing ETF history.', false);
-      return;
-    }
-    const button = root.querySelector<HTMLButtonElement>('#btn-migrate-valuations')!;
-    try {
-      const accounts = getAccounts();
-      const snapshots = await loadSnapshots();
-      const fingerprint = valuationMigrationFingerprint(accounts, snapshots);
-      const review = await valuationMigrationDialog({
-        accounts,
-        snapshots,
-        exportBackup: window.__exportBackup,
-        onSave: async (review) => {
-          const saved = await withCardGuard(
-            'accounts',
-            button,
-            async () => {
-              await migrateEtfValuations(review.assignments, fingerprint, review.coverage);
-              return true;
-            },
-            { busyText: 'Converting…' },
-          );
-          if (!saved)
-            throw new Error(
-              'Sync is busy. Wait for it to finish, then retry Save; your reviewed assignments are kept.',
-            );
-        },
-      });
-      if (!review) return;
-      try {
-        await window.__exportBackup?.();
-      } catch {
-        notify('ETF review saved. Post-review backup failed; export one from Backup.', {
-          variant: 'info',
-        });
-      }
-      renderSettings({ preserveDrafts: true });
-      notify('Account-linked ETF values enabled', {
-        variant: 'success',
-        source: 'valuation-migration-msg',
-      });
-    } catch (error) {
-      showMsg('valuation-migration-msg', `ETF review could not finish: ${errorText(error)}`, false);
-    }
-  });
   const stageLifecycle = async (
     index: number,
     mode: Parameters<typeof accountLifecycleDialog>[0]['mode'],
   ) => {
-    if (isCardBusy('accounts') || !isScopedValuationMode(getSettings())) return;
+    if (isCardBusy('accounts')) return;
     const accounts = controller.items();
     try {
       const result = await accountLifecycleDialog({
@@ -1174,7 +1118,6 @@ function attachAccountListeners(root: HTMLElement): void {
     if (!existing) return;
     const draft = await accountDialog({
       existing,
-      lifecycleEnabled: isScopedValuationMode(getSettings()),
       onLifecycle: (mode) => {
         void stageLifecycle(idx, mode);
       },
@@ -2606,7 +2549,7 @@ function renderStatementMappingDetails(settings: Settings, type: string): string
   return `
     <p class="note">${esc(getSnapshotParser(type).label)} · ${mapping ? 'Mapping remembered' : 'Set up on first import or here'}. Preferences follow backups and sync; PDF contents and draft values do not.</p>
     ${issue ? `<p class="dialog-error" role="alert">${esc(issue)}</p>` : ''}
-    ${snapshotMappingFields(getAccounts(), 'settings-statement', mapping, type, undefined, isScopedValuationMode(getSettings()))}
+    ${snapshotMappingFields(getAccounts(), 'settings-statement', mapping, type)}
     <div class="form-actions">
       <button class="btn btn-primary btn-sm" id="btn-save-statement-mapping">Save mapping</button>
       <button class="btn btn-outline btn-sm" id="btn-reset-statement-mapping">Reset mapping</button>

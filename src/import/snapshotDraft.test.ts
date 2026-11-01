@@ -31,13 +31,12 @@ describe('snapshot statement mapping', () => {
       },
     ];
     const mapping = { mode: 'positions' as const, securitiesAccount: 'old_broker' };
-    const proposals = proposeMappedStatement(statement, historical, mapping, true);
+    const proposals = proposeMappedStatement(statement, historical, mapping);
     expect(proposals[0]).toMatchObject({
       key: positionKey('old_broker', statement.positions[0].isin),
       accountId: 'old_broker',
       value: statement.positions[0].value,
     });
-    expect(() => proposeMappedStatement(statement, historical, mapping)).toThrow('primary');
     expect(() =>
       proposeMappedStatement(
         {
@@ -47,7 +46,6 @@ describe('snapshot statement mapping', () => {
         },
         historical,
         mapping,
-        true,
       ),
     ).toThrow('closed');
   });
@@ -78,9 +76,9 @@ describe('snapshot statement mapping', () => {
       'separate',
     );
   });
-  it('requires explicit primary mapping and preserves reserved account keys', () => {
-    expect(() => proposeStatement(statement, accounts, 'combined', '', '')).toThrow('primary');
-    expect(() =>
+  it('requires an explicit investment destination and preserves reserved account balances', () => {
+    expect(() => proposeStatement(statement, accounts, 'combined', '', '')).toThrow('investment');
+    expect(
       proposeStatement(
         statement,
         [...accounts, { id: `etf_${FAKE_ISINS[0]}`, label: 'Legacy key' }],
@@ -88,7 +86,11 @@ describe('snapshot statement mapping', () => {
         'broker',
         '',
       ),
-    ).toThrow('conflicts');
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: positionKey('broker', FAKE_ISINS[0]) }),
+      ]),
+    );
   });
   it('allows positions only but never invents missing totals', () => {
     const partial = { ...statement, total: undefined, securities: undefined };

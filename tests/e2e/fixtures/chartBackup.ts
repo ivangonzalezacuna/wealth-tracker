@@ -59,7 +59,6 @@ export function chartBackup(): BackupFile {
       cash: 4000 + 50 * m,
       [`position:broker:${holdings[0].isin}`]: 110 * (m + 1),
       [`position:broker:${holdings[1].isin}`]: 210 * (m + 1),
-      'position_coverage:broker': 1,
     });
   }
   return {

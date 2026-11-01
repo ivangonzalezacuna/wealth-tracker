@@ -58,7 +58,6 @@ test('actual PDF worker imports fake valuations through review, preserves them a
   await expect(page.locator('.snap-pdf-source')).toContainText('2024-01-31');
   await mapCombined(page);
   const accountId = await page.locator('[data-account-key]').getAttribute('data-account-key');
-  await expect(page.getByLabel('Breakdown coverage')).toHaveCount(0);
   await expect(page.getByLabel('Fictional Broker (EUR)')).toHaveValue('3707.62');
   await expect(page.locator('.snap-etf-extra')).toHaveCount(7);
   await expect(page.locator('#snap-msg')).not.toContainText('Saved');
@@ -101,7 +100,6 @@ test('actual PDF worker imports fake valuations through review, preserves them a
     [`position:${accountId}:${FAKE_ISINS[0]}`]: 101.11,
   });
   expect(Object.keys(exported.data.snapshots[0]).some((key) => key.startsWith('etf_'))).toBe(false);
-  expect(exported.data.settings.etf_valuation_schema).toBe('account-v1');
   for (const forbidden of [
     'fictional-July.pdf',
     'Fictional fund',
@@ -235,7 +233,6 @@ test('automatically replaces values, remembers mapping across dialogs, and suppo
   await expect(page.locator('.snap-pdf-status')).toContainText('filled automatically');
   await expect(page.locator('.snap-etf-extra')).toHaveCount(7);
   await expect(page.locator('[data-position-account]')).toHaveCount(7);
-  await expect(page.getByLabel('Breakdown coverage')).toHaveCount(0);
   await page.setViewportSize({ width: 320, height: 844 });
   expect(
     await page.locator('.dialog-fields').evaluate((el) => el.scrollWidth <= el.clientWidth),
