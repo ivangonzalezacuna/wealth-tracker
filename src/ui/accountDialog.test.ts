@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { accountDialog } from './accountDialog';
 import type { Account } from '../types';
 
@@ -29,6 +29,57 @@ const EXISTING_ACCOUNT: Account = {
 };
 
 describe('accountDialog', () => {
+  it('keeps lifecycle actions collapsed and hands off without saving metadata', async () => {
+    const onLifecycle = vi.fn();
+    const pending = accountDialog({
+      existing: { ...EXISTING_ACCOUNT, closedPeriods: [{ closedFromMonth: '2020-01' }] },
+      lifecycleEnabled: true,
+      onLifecycle,
+    });
+    expect(document.querySelector<HTMLDetailsElement>('#acctd-lifecycle')!.open).toBe(false);
+    expect(document.querySelector('#acctd-lifecycle')!.textContent).toContain('2020-01');
+    document.querySelector<HTMLButtonElement>('[data-mode="reopen"]')!.click();
+    expect(await pending).toBeNull();
+    expect(getOverlay()).toBeNull();
+    expect(onLifecycle).toHaveBeenCalledWith('reopen');
+  });
+  it('requires updating metadata drafts before changing lifecycle', () => {
+    const onLifecycle = vi.fn();
+    accountDialog({ existing: EXISTING_ACCOUNT, lifecycleEnabled: true, onLifecycle });
+    const input = document.getElementById('acctd-label') as HTMLInputElement;
+    input.value = 'Changed';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    const action = document.querySelector<HTMLButtonElement>('[data-mode="close"]')!;
+    expect(action.disabled).toBe(true);
+    action.click();
+    expect(onLifecycle).not.toHaveBeenCalled();
+    expect(document.querySelector('#acctd-lifecycle-note')!.textContent).toContain(
+      'Update this draft',
+    );
+  });
+  it('gates lifecycle changes until migration and omits them for new accounts', () => {
+    accountDialog({ existing: EXISTING_ACCOUNT, lifecycleEnabled: false, onLifecycle: vi.fn() });
+    expect(document.querySelector<HTMLButtonElement>('[data-mode="close"]')!.disabled).toBe(true);
+    accountDialog({ onLifecycle: vi.fn() });
+    expect(document.querySelector('#acctd-lifecycle')).toBeNull();
+  });
+  it('preserves lifecycle and legacy identity when editing metadata', async () => {
+    const existing = {
+      ...EXISTING_ACCOUNT,
+      key: 'legacy',
+      closedPeriods: [{ closedFromMonth: '2025-01', reopenedFromMonth: '2025-06' }],
+    };
+    const pending = accountDialog({ existing });
+    expect(document.getElementById('acctd-history-warning')?.textContent).toContain(
+      'global account metadata',
+    );
+    setField('acctd-label', 'Updated name');
+    getSubmit()!.click();
+    const result = await pending;
+    expect(result?.key).toBe('legacy');
+    expect(result?.closedPeriods).toEqual(existing.closedPeriods);
+    expect(result?.closedPeriods).not.toBe(existing.closedPeriods);
+  });
   beforeEach(() => {
     document.body.innerHTML = '';
   });

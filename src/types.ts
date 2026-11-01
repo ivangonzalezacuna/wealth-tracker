@@ -38,6 +38,11 @@ export interface Transaction {
 
 // ─── Account ─────────────────────────────────────────────────────
 
+export interface AccountClosedPeriod {
+  closedFromMonth: string;
+  reopenedFromMonth?: string;
+}
+
 export interface Account {
   id?: string;
   key?: string;
@@ -56,6 +61,7 @@ export interface Account {
   lockedUntil?: string; // year when funds become accessible, e.g. "2055"
   extraContrib?: number; // additional contribution per execution (employer match, state subsidy, etc.)
   currency?: string; // account denomination currency, e.g. "USD"; defaults to "EUR"
+  closedPeriods?: AccountClosedPeriod[];
 }
 
 // ─── Contribution cadence ────────────────────────────────────────

@@ -13,6 +13,13 @@ import initSqlJs, { type Database } from 'sql.js';
 import sqlWasmBrowserUrl from 'sql.js/dist/sql-wasm-browser.wasm?url';
 import { SCHEMA_VERSION, SCHEMA_DDL } from './schema';
 import { MIGRATIONS } from './migrations';
+import {
+  ACCOUNT_COLUMNS,
+  ACCOUNT_INSERT,
+  readFinancialData,
+  validateFinancialData,
+} from './accountData';
+import { isScopedValuationMode } from '../model/snapshotPositions';
 
 // IndexedDB key where the raw database file is stored.
 const IDB_DB_NAME = 'wealth-tracker-sqlite';
@@ -108,6 +115,11 @@ export async function getDb(): Promise<Database> {
     _db = new SQL.Database(existing);
     // Apply pending migrations
     const currentVersion = getDbVersion(_db);
+    if (currentVersion > SCHEMA_VERSION) {
+      _db.close();
+      _db = null;
+      throw new Error('This database needs a newer app version. Update before opening it.');
+    }
     if (currentVersion < SCHEMA_VERSION) {
       applyMigrations(_db, currentVersion);
       await persistDb();
@@ -179,6 +191,23 @@ export function exportDb(): Uint8Array | null {
   return _db.export();
 }
 
+/** Stage multi-table edits so failed persistence cannot change the live database. */
+export async function atomicFinancialWrite(action: (db: Database) => void): Promise<void> {
+  const previous = await getDb();
+  const SQL = await getSqlJs();
+  const staged = new SQL.Database(previous.export());
+  try {
+    action(staged);
+    validateFinancialData(readFinancialData(staged));
+    await persistDb(staged);
+    _db = staged;
+    previous.close();
+  } catch (error) {
+    staged.close();
+    throw error;
+  }
+}
+
 /**
  * Replace the local database with a downloaded copy (from Drive AppData).
  * Re-initializes the singleton and persists to IndexedDB.
@@ -228,6 +257,8 @@ export async function importDb(
 
     // Ensure schema is up to date after import
     const currentVersion = getDbVersion(newDb);
+    if (currentVersion > SCHEMA_VERSION)
+      throw new Error('This database needs a newer app version. Update before importing it.');
     if (currentVersion < SCHEMA_VERSION) {
       applyMigrations(newDb, currentVersion);
     }
@@ -239,6 +270,16 @@ export async function importDb(
     if (localSnapshotRows.length > 0) mergeLocalSnapshots(newDb, localSnapshotRows);
     if (localSettingRows.length > 0) mergeLocalSettings(newDb, localSettingRows);
 
+    const imported = readFinancialData(newDb);
+    if (
+      previousDb &&
+      isScopedValuationMode(readFinancialData(previousDb).settings) &&
+      !isScopedValuationMode(imported.settings)
+    )
+      throw new Error(
+        'This database uses the legacy ETF format. Restore a reviewed backup with account assignments before replacing account-linked data.',
+      );
+    validateFinancialData(imported);
     // Persist the imported DB before swapping it into the live singleton.
     await persistDb(newDb);
 
@@ -269,9 +310,7 @@ function getLocalTransactionRows(db: Database): unknown[][] {
 }
 
 function getLocalAccountRows(db: Database): unknown[][] {
-  const result = db.exec(
-    'SELECT id, money_type, institution, country, "group", label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib, currency FROM accounts ORDER BY rowid ASC',
-  );
+  const result = db.exec(`SELECT ${ACCOUNT_COLUMNS} FROM accounts ORDER BY rowid ASC`);
   if (result.length === 0) return [];
   return result[0].values;
 }
@@ -315,7 +354,7 @@ function mergeLocalTransactions(db: Database, rows: unknown[][]): void {
 
 function mergeLocalAccounts(db: Database, rows: unknown[][]): void {
   const stmt = db.prepare(
-    'INSERT INTO accounts (id, money_type, institution, country, "group", label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET money_type=excluded.money_type, institution=excluded.institution, country=excluded.country, "group"=excluded."group", label=excluded.label, color=excluded.color, is_primary_investment=excluded.is_primary_investment, "order"=excluded."order", annual_return_pct=excluded.annual_return_pct, contrib_amount=excluded.contrib_amount, contrib_interval=excluded.contrib_interval, locked=excluded.locked, locked_until=excluded.locked_until, extra_contrib=excluded.extra_contrib, currency=excluded.currency',
+    `${ACCOUNT_INSERT} ON CONFLICT(id) DO UPDATE SET money_type=excluded.money_type, institution=excluded.institution, country=excluded.country, "group"=excluded."group", label=excluded.label, color=excluded.color, is_primary_investment=excluded.is_primary_investment, "order"=excluded."order", annual_return_pct=excluded.annual_return_pct, contrib_amount=excluded.contrib_amount, contrib_interval=excluded.contrib_interval, locked=excluded.locked, locked_until=excluded.locked_until, extra_contrib=excluded.extra_contrib, currency=excluded.currency, closed_periods_json=excluded.closed_periods_json`,
   );
   for (const row of rows) {
     stmt.run(row as (string | number | null)[]);

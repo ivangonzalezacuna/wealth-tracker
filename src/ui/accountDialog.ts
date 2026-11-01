@@ -7,7 +7,8 @@ import { esc } from '../utils';
 import type { Account, ContribInterval } from '../types';
 import { INTERVAL_LABELS } from '../model/contributions';
 import { ACCOUNT_TYPES } from '../model/accountTypes';
-import { normalizeAccountLabel } from '../model/accounts';
+import { isAccountOpenNow, normalizeAccountLabel } from '../model/accounts';
+import type { AccountLifecycleOptions } from './accountLifecycleDialog';
 import {
   bindColorInputs,
   createDialogController,
@@ -42,6 +43,8 @@ export interface AccountDialogOptions {
   currencySuggestions?: string[];
   /** Existing account labels excluding the record being edited. */
   existingLabels?: string[];
+  lifecycleEnabled?: boolean;
+  onLifecycle?: (mode: AccountLifecycleOptions['mode']) => void;
 }
 
 let _activeExisting: Account | undefined = undefined;
@@ -134,6 +137,7 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
                 autocomplete="off">
             </div>
           </div>
+          ${existing ? '<p class="note" id="acctd-history-warning">Type, country and currency are global account metadata, not dated changes. Editing them can change historical classification, country attribution and currency interpretation across all months. For a transfer, record actual balances and ETF values in Monthly snapshots; changing metadata does not move holdings.</p>' : ''}
           <div class="dialog-subhead">Tracking &amp; access</div>
           <div class="dialog-field">
             <div class="dialog-check">
@@ -221,6 +225,22 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
               </div>
             </div>
           </details>
+          ${
+            existing?.id && opts.onLifecycle
+              ? `<details class="dialog-optional" id="acctd-lifecycle">
+            <summary>Account status</summary>
+            <div class="dialog-optional-body">
+              <p class="note">${isAccountOpenNow(existing) ? 'Open' : 'Closed'} · Closing preserves balances and history.</p>
+              ${(existing.closedPeriods || []).length ? `<div class="note">${existing.closedPeriods!.map((period) => `Closed from ${esc(period.closedFromMonth)}${period.reopenedFromMonth ? ` · Reopened ${esc(period.reopenedFromMonth)}` : ''}`).join('<br>')}</div>` : ''}
+              <div class="dialog-row">
+                <button type="button" class="btn btn-sm btn-outline js-acctd-lifecycle" data-mode="${isAccountOpenNow(existing) ? 'close' : 'reopen'}"${opts.lifecycleEnabled ? '' : ' disabled'}>${isAccountOpenNow(existing) ? 'Close account…' : 'Reopen account…'}</button>
+                ${(existing.closedPeriods || []).length ? `<button type="button" class="btn btn-sm btn-outline js-acctd-lifecycle" data-mode="correct"${opts.lifecycleEnabled ? '' : ' disabled'}>Correct dates…</button>` : ''}
+              </div>
+              <p class="note" id="acctd-lifecycle-note">${opts.lifecycleEnabled ? 'Changes are reviewed separately, then saved with Save accounts.' : 'Review ETF migration in Settings before changing account status.'}</p>
+            </div>
+          </details>`
+              : ''
+          }
         </div>
         <div class="dialog-actions">
           <button class="btn btn-sm btn-ghost js-acctd-cancel">Cancel</button>
@@ -270,6 +290,22 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
     });
     attachInfoTips(overlay);
     bindColorInputs(overlay, 'acctd-color', 'acctd-color-hex');
+    overlay.querySelectorAll<HTMLButtonElement>('.js-acctd-lifecycle').forEach((button) => {
+      button.addEventListener('click', () => {
+        const mode = button.dataset.mode as AccountLifecycleOptions['mode'];
+        _dismiss(null);
+        opts.onLifecycle!(mode);
+      });
+    });
+    const disableLifecycleWhileEditing = () => {
+      overlay.querySelectorAll<HTMLButtonElement>('.js-acctd-lifecycle').forEach((button) => {
+        button.disabled = true;
+      });
+      const note = overlay.querySelector('#acctd-lifecycle-note');
+      if (note) note.textContent = 'Update this draft before changing account status.';
+    };
+    overlay.addEventListener('input', disableLifecycleWhileEditing);
+    overlay.addEventListener('change', disableLifecycleWhileEditing);
 
     // Primary investment: its contribution comes from Holdings, so swap the block for a note
     const primaryCb = overlay.querySelector('#acctd-primary') as HTMLInputElement | null;
@@ -346,6 +382,7 @@ function _submit(): void {
 
   const existing = _activeExisting;
   const draft: Account = {
+    ...existing,
     id: existing?.id,
     label: labelVal,
     moneyType: typeVal,
@@ -362,6 +399,7 @@ function _submit(): void {
     lockedUntil: isLocked ? lockedUntilVal : '',
     extraContrib: isLocked ? parseFloat(extraContribRaw) || 0 : 0,
     currency: currencyVal,
+    closedPeriods: existing?.closedPeriods?.map((period) => ({ ...period })),
   };
 
   _dismiss(draft);

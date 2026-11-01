@@ -9,6 +9,10 @@ import {
   setSetting as dbSetSetting,
   replaceAllSettings as dbReplaceAllSettings,
   logConfigChange,
+  saveAccountConfiguration,
+  convertEtfValuations,
+  reviewEtfCoverage,
+  loadSnapshots,
 } from '../db';
 import { scheduleUpload } from '../sync/engine';
 import { CONFIG } from '../config';
@@ -19,11 +23,15 @@ import type {
   ContribInterval,
   NamedGoal,
   AlertSettings,
+  Snapshot,
 } from '../types';
 import { INTERVAL_PER_YEAR } from '../model/contributions';
 import type { CachedConfig } from '../cache/db';
 import { validateAccountIds } from '../model/accounts';
 import { configureFxService } from '../services/fxRateService';
+import { clearCache, setCachedConfig, setCachedSnapshots } from '../cache/db';
+import type { LegacyPositionAssignment, LegacyCoverageReview } from '../model/valuationMigration';
+import { ETF_VALUATION_SCHEMA } from '../model/snapshotPositions';
 import {
   SNAPSHOT_MAPPINGS_KEY,
   updateSnapshotMapping,
@@ -62,7 +70,7 @@ let _holdings: Holding[] = [];
 let _settings: Settings = {};
 let _loaded = false;
 export type ConfigChangeKind = 'accounts' | 'holdings' | 'settings';
-let _onChange: ((changed: ConfigChangeKind) => void) | null = null;
+let _onChange: ((changed: ConfigChangeKind) => void | Promise<void>) | null = null;
 let _warnedReservedAccountPrefix = false;
 
 // ── Public accessors (read at render time) ───────────────
@@ -241,7 +249,7 @@ export function getAlertSettings(): AlertSettings {
 }
 
 // ── Register re-render callback ──────────────────────────
-export function onConfigChange(fn: (changed: ConfigChangeKind) => void): void {
+export function onConfigChange(fn: (changed: ConfigChangeKind) => void | Promise<void>): void {
   _onChange = fn;
 }
 
@@ -261,6 +269,20 @@ export async function loadConfig(): Promise<void> {
   _accounts = await dbLoadAccounts();
   _holdings = await dbLoadHoldings();
   _settings = await dbLoadSettings();
+  const snapshots = await loadSnapshots();
+  const hasLegacyValues = snapshots.some((snap) =>
+    Object.keys(snap).some(
+      (key) => key.startsWith('etf_') && !_accounts.some((a) => a.id === key || a.key === key),
+    ),
+  );
+  if (
+    !_settings.etf_valuation_schema &&
+    !hasLegacyValues &&
+    (_accounts.length > 0 || snapshots.length > 0)
+  ) {
+    await dbSetSetting('etf_valuation_schema', ETF_VALUATION_SCHEMA);
+    _settings.etf_valuation_schema = ETF_VALUATION_SCHEMA;
+  }
 
   if (!_warnedReservedAccountPrefix && _accounts.some((a) => (a.id || '').startsWith('etf_'))) {
     _warnedReservedAccountPrefix = true;
@@ -307,6 +329,53 @@ export async function setAccounts(accounts: Account[]): Promise<void> {
   } catch (err) {
     _accounts = previous;
     throw err;
+  }
+}
+export async function saveAccountLifecycle(
+  accounts: Account[],
+  settingsPatch: Record<string, string>,
+): Promise<void> {
+  await saveAccountConfiguration(accounts, settingsPatch);
+  _accounts = accounts;
+  _settings = { ..._settings, ...settingsPatch };
+  scheduleUpload();
+  await _onChange?.('accounts');
+}
+
+export async function migrateEtfValuations(
+  assignments: LegacyPositionAssignment[],
+  expectedFingerprint: string,
+  coverage: LegacyCoverageReview[] = [],
+): Promise<void> {
+  const snapshots = await convertEtfValuations(assignments, expectedFingerprint, coverage);
+  _settings = { ..._settings, etf_valuation_schema: ETF_VALUATION_SCHEMA };
+  await publishEtfReview(snapshots);
+}
+
+export async function saveEtfCoverage(
+  coverage: LegacyCoverageReview[],
+  expectedFingerprint: string,
+): Promise<void> {
+  await publishEtfReview(await reviewEtfCoverage(coverage, expectedFingerprint));
+}
+
+async function publishEtfReview(snapshots: Snapshot[]): Promise<void> {
+  scheduleUpload();
+  // Invalidate first: a partial cache refresh must fall back to the SQLite source.
+  await clearCache();
+  if (_onChange) {
+    await _onChange('accounts');
+  } else if (
+    !(await setCachedSnapshots(snapshots)) ||
+    !(await setCachedConfig({
+      accounts: _accounts,
+      holdings: _holdings,
+      settings: _settings,
+    }))
+  ) {
+    throw new Error(
+      'ETF review was saved, but cache refresh failed. Reload to read the saved database.',
+    );
   }
 }
 

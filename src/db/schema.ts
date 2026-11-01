@@ -6,7 +6,7 @@
  */
 
 /** Schema version - bump when DDL changes require a migration. */
-export const SCHEMA_VERSION = 15;
+export const SCHEMA_VERSION = 16;
 
 /**
  * SQL statements executed on first database creation (version 0 → 1).
@@ -51,7 +51,8 @@ export const SCHEMA_DDL: string[] = [
     locked INTEGER NOT NULL DEFAULT 0,
     locked_until TEXT NOT NULL DEFAULT '',
     extra_contrib REAL NOT NULL DEFAULT 0,
-    currency TEXT NOT NULL DEFAULT 'EUR'
+    currency TEXT NOT NULL DEFAULT 'EUR',
+    closed_periods_json TEXT NOT NULL DEFAULT '[]'
   )`,
 
   // ── Holdings ──────────────────────────────────────────────────

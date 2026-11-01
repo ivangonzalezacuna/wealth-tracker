@@ -1,5 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { addAccount, ensureCardExpanded, gotoApp, openTab, preparePage } from './helpers';
+import {
+  addAccount,
+  ensureCardExpanded,
+  gotoApp,
+  openTab,
+  preparePage,
+  waitForSyncIdle,
+} from './helpers';
 import { expectToast, openDialogOptional } from './helpers';
 
 test.beforeEach(async ({ page }) => {
@@ -29,6 +36,7 @@ test('account edit and delete flows update settings table', async ({ page }) => 
   await expectToast(page, 'accts-msg', 'Accounts saved');
 
   // Verify persistence after reload
+  await waitForSyncIdle(page);
   await page.reload();
   await gotoApp(page);
   await openTab(page, 'tab-settings');

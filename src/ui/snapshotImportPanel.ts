@@ -16,6 +16,7 @@ import { currentMonth, fmtEur2 } from '../utils';
 import type { Account } from '../types';
 
 export interface SnapshotImportHost {
+  scopedValuations?: boolean;
   accounts(): Account[];
   month(): string;
   selectMonth(month: string): void;
@@ -84,13 +85,20 @@ export function mountSnapshotImport(panel: HTMLElement, host: SnapshotImportHost
       'snapd-pdf',
       mapping,
       statement.documentType,
+      statement.date.slice(0, 7),
+      host.scopedValuations,
     );
     wireSnapshotMappingFields(fields);
     setup.hidden = false;
   };
   const fill = (mapping: SnapshotMapping) => {
     if (!statement || applied) return;
-    mapping = validateSnapshotMapping(mapping, host.accounts(), statement.documentType);
+    mapping = validateSnapshotMapping(
+      mapping,
+      host.accounts(),
+      statement.documentType,
+      statement.date.slice(0, 7),
+    );
     const issue = validateStatementMonth(statement.date, host.month(), currentMonth());
     month.hidden = !issue;
     if (issue) {
@@ -103,7 +111,12 @@ export function mountSnapshotImport(panel: HTMLElement, host: SnapshotImportHost
       (statement.securities === undefined ||
         statement.cash === undefined ||
         statement.total === undefined);
-    const values = proposeMappedStatement(statement, host.accounts(), mapping);
+    const values = proposeMappedStatement(
+      statement,
+      host.accounts(),
+      mapping,
+      host.scopedValuations,
+    );
     host.apply(values, statement, mapping);
     applied = true;
     setup.hidden = true;
@@ -119,7 +132,12 @@ export function mountSnapshotImport(panel: HTMLElement, host: SnapshotImportHost
     try {
       const saved = host.mapping(statement.documentType);
       mapping = saved
-        ? validateSnapshotMapping(saved, host.accounts(), statement.documentType)
+        ? validateSnapshotMapping(
+            saved,
+            host.accounts(),
+            statement.documentType,
+            statement.date.slice(0, 7),
+          )
         : undefined;
     } catch (reason) {
       error.textContent = reason instanceof Error ? reason.message : 'Mapping needs repair.';
@@ -136,6 +154,7 @@ export function mountSnapshotImport(panel: HTMLElement, host: SnapshotImportHost
       error.textContent =
         reason instanceof Error ? reason.message : 'The draft could not be filled.';
       status.textContent = 'No values filled. Check the mapping or use manual entry.';
+      showSetup(mapping);
     }
   };
   const stop = () => {
@@ -230,7 +249,12 @@ export function mountSnapshotImport(panel: HTMLElement, host: SnapshotImportHost
     const request = sequence;
     let mapping: SnapshotMapping;
     try {
-      mapping = readSnapshotMappingFields(fields, host.accounts(), current.documentType);
+      mapping = readSnapshotMappingFields(
+        fields,
+        host.accounts(),
+        current.documentType,
+        current.date.slice(0, 7),
+      );
     } catch (reason) {
       error.textContent = reason instanceof Error ? reason.message : 'Invalid mapping.';
       return;

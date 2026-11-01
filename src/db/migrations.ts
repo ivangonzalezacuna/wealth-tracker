@@ -186,4 +186,6 @@ export const MIGRATIONS: string[][] = [
       error_count INTEGER NOT NULL DEFAULT 0
     )`,
   ],
+  // [16] version 15 -> 16: preserve account closure/reopening intervals.
+  [`ALTER TABLE accounts ADD COLUMN closed_periods_json TEXT NOT NULL DEFAULT '[]'`],
 ];

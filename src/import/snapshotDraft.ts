@@ -2,12 +2,15 @@ import type { Account } from '../types';
 import type { SnapshotStatement } from './snapshotStatement';
 import { getSnapshotParser } from './snapshotParsers';
 import { validateSnapshotMapping, type SnapshotMapping } from './snapshotMapping';
+import { positionKey } from '../model/snapshotPositions';
+import { isAccountClosedInMonth } from '../model/accounts';
 
 export interface SnapshotProposal {
   key: string;
   label: string;
   value: number;
   isin?: string;
+  accountId?: string;
 }
 
 export function validateStatementMonth(
@@ -32,15 +35,29 @@ export function proposeStatement(
   mode: 'positions' | 'combined' | 'split',
   primaryKey: string,
   cashKey: string,
+  scopedValuations = false,
 ): SnapshotProposal[] {
   const primary = accounts.find((a) => (a.id || a.key) === primaryKey);
-  if (!primary?.isPrimaryInvestment || primary.moneyType?.toLowerCase() !== 'investment')
+  if (
+    !primary ||
+    (!scopedValuations && !primary.isPrimaryInvestment) ||
+    primary.moneyType?.toLowerCase() !== 'investment'
+  )
     throw new Error('Select the configured primary investment account for ETF values.');
+  if (isAccountClosedInMonth(primary, statement.date.slice(0, 7)))
+    throw new Error('The securities account is closed in the statement month.');
   const reserved = new Set(accounts.map((a) => a.id || a.key));
   const proposals: SnapshotProposal[] = statement.positions.map((p) => {
-    if (reserved.has(`etf_${p.isin}`))
+    const key = scopedValuations ? positionKey(primaryKey, p.isin) : `etf_${p.isin}`;
+    if (reserved.has(key))
       throw new Error('An ETF identifier conflicts with a configured account key.');
-    return { key: `etf_${p.isin}`, isin: p.isin, label: p.name, value: p.value };
+    return {
+      key,
+      isin: p.isin,
+      label: p.name,
+      value: p.value,
+      ...(scopedValuations ? { accountId: primaryKey } : {}),
+    };
   });
   if (mode === 'positions') return proposals;
   if (mode === 'combined') {
@@ -55,6 +72,7 @@ export function proposeStatement(
     const cash = accounts.find((a) => (a.id || a.key) === cashKey);
     if (
       !cash ||
+      isAccountClosedInMonth(cash, statement.date.slice(0, 7)) ||
       cashKey === primaryKey ||
       !['cash', 'savings'].includes((cash.moneyType || '').toLowerCase())
     )
@@ -76,8 +94,14 @@ export function proposeMappedStatement(
   statement: SnapshotStatement,
   accounts: Account[],
   mapping: SnapshotMapping,
+  scopedValuations = false,
 ): SnapshotProposal[] {
-  mapping = validateSnapshotMapping(mapping, accounts, statement.documentType);
+  mapping = validateSnapshotMapping(
+    mapping,
+    accounts,
+    statement.documentType,
+    statement.date.slice(0, 7),
+  );
   if (mapping.mode !== 'balances') {
     const partial =
       statement.securities === undefined ||
@@ -89,6 +113,7 @@ export function proposeMappedStatement(
       partial ? 'positions' : mapping.mode,
       mapping.securitiesAccount,
       mapping.cashAccount || '',
+      scopedValuations,
     );
   }
   const schema = getSnapshotParser(statement.documentType).mapping;
