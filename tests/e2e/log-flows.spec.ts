@@ -174,7 +174,6 @@ test('snapshot review uses compact aligned rows on mobile and desktop', async ({
   await addManualEtfs(page, ['IE00BYX2JD69', 'IE00B4L5Y983', 'IE00BDBRDM35'], '1314.96');
   await expect(page.getByLabel('Add existing ETF')).toHaveAttribute('role', 'combobox');
   await expect(page.getByRole('button', { name: 'Add ETF', exact: true })).toBeVisible();
-  await expect(page.getByLabel('Breakdown coverage')).toHaveCount(0);
   for (const width of [390, 320, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     expect(

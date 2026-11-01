@@ -33,7 +33,6 @@ describe('accountDialog', () => {
     const onLifecycle = vi.fn();
     const pending = accountDialog({
       existing: { ...EXISTING_ACCOUNT, closedPeriods: [{ closedFromMonth: '2020-01' }] },
-      lifecycleEnabled: true,
       onLifecycle,
     });
     expect(document.querySelector<HTMLDetailsElement>('#acctd-lifecycle')!.open).toBe(false);
@@ -45,7 +44,7 @@ describe('accountDialog', () => {
   });
   it('requires updating metadata drafts before changing lifecycle', () => {
     const onLifecycle = vi.fn();
-    accountDialog({ existing: EXISTING_ACCOUNT, lifecycleEnabled: true, onLifecycle });
+    accountDialog({ existing: EXISTING_ACCOUNT, onLifecycle });
     const input = document.getElementById('acctd-label') as HTMLInputElement;
     input.value = 'Changed';
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -56,12 +55,6 @@ describe('accountDialog', () => {
     expect(document.querySelector('#acctd-lifecycle-note')!.textContent).toContain(
       'Update this draft',
     );
-  });
-  it('gates lifecycle changes until migration and omits them for new accounts', () => {
-    accountDialog({ existing: EXISTING_ACCOUNT, lifecycleEnabled: false, onLifecycle: vi.fn() });
-    expect(document.querySelector<HTMLButtonElement>('[data-mode="close"]')!.disabled).toBe(true);
-    accountDialog({ onLifecycle: vi.fn() });
-    expect(document.querySelector('#acctd-lifecycle')).toBeNull();
   });
   it('preserves lifecycle and legacy identity when editing metadata', async () => {
     const existing = {

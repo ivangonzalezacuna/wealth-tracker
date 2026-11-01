@@ -35,28 +35,20 @@ export function proposeStatement(
   mode: 'positions' | 'combined' | 'split',
   primaryKey: string,
   cashKey: string,
-  scopedValuations = false,
 ): SnapshotProposal[] {
   const primary = accounts.find((a) => (a.id || a.key) === primaryKey);
-  if (
-    !primary ||
-    (!scopedValuations && !primary.isPrimaryInvestment) ||
-    primary.moneyType?.toLowerCase() !== 'investment'
-  )
-    throw new Error('Select the configured primary investment account for ETF values.');
+  if (!primary || primary.moneyType?.toLowerCase() !== 'investment')
+    throw new Error('Select an investment account for ETF values.');
   if (isAccountClosedInMonth(primary, statement.date.slice(0, 7)))
     throw new Error('The securities account is closed in the statement month.');
-  const reserved = new Set(accounts.map((a) => a.id || a.key));
   const proposals: SnapshotProposal[] = statement.positions.map((p) => {
-    const key = scopedValuations ? positionKey(primaryKey, p.isin) : `etf_${p.isin}`;
-    if (reserved.has(key))
-      throw new Error('An ETF identifier conflicts with a configured account key.');
+    const key = positionKey(primaryKey, p.isin);
     return {
       key,
       isin: p.isin,
       label: p.name,
       value: p.value,
-      ...(scopedValuations ? { accountId: primaryKey } : {}),
+      accountId: primaryKey,
     };
   });
   if (mode === 'positions') return proposals;
@@ -94,7 +86,6 @@ export function proposeMappedStatement(
   statement: SnapshotStatement,
   accounts: Account[],
   mapping: SnapshotMapping,
-  scopedValuations = false,
 ): SnapshotProposal[] {
   mapping = validateSnapshotMapping(
     mapping,
@@ -113,7 +104,6 @@ export function proposeMappedStatement(
       partial ? 'positions' : mapping.mode,
       mapping.securitiesAccount,
       mapping.cashAccount || '',
-      scopedValuations,
     );
   }
   const schema = getSnapshotParser(statement.documentType).mapping;

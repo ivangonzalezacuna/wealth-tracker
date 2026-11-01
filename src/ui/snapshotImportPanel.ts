@@ -16,7 +16,6 @@ import { currentMonth, fmtEur2 } from '../utils';
 import type { Account } from '../types';
 
 export interface SnapshotImportHost {
-  scopedValuations?: boolean;
   accounts(): Account[];
   month(): string;
   selectMonth(month: string): void;
@@ -86,7 +85,6 @@ export function mountSnapshotImport(panel: HTMLElement, host: SnapshotImportHost
       mapping,
       statement.documentType,
       statement.date.slice(0, 7),
-      host.scopedValuations,
     );
     wireSnapshotMappingFields(fields);
     setup.hidden = false;
@@ -111,12 +109,7 @@ export function mountSnapshotImport(panel: HTMLElement, host: SnapshotImportHost
       (statement.securities === undefined ||
         statement.cash === undefined ||
         statement.total === undefined);
-    const values = proposeMappedStatement(
-      statement,
-      host.accounts(),
-      mapping,
-      host.scopedValuations,
-    );
+    const values = proposeMappedStatement(statement, host.accounts(), mapping);
     host.apply(values, statement, mapping);
     applied = true;
     setup.hidden = true;

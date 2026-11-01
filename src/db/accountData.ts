@@ -1,11 +1,7 @@
 import type { Database } from 'sql.js';
 import type { Account, ContribInterval, Settings, Snapshot } from '../types';
 import { validateAccountLifecycle, validateClosedPeriods } from '../model/accounts';
-import {
-  ETF_VALUATION_SCHEMA,
-  isScopedValuationMode,
-  validateSnapshotPositions,
-} from '../model/snapshotPositions';
+import { ETF_VALUATION_SCHEMA, validateSnapshotPositions } from '../model/snapshotPositions';
 
 export const ACCOUNT_COLUMNS =
   'id, money_type, institution, country, "group", label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib, currency, closed_periods_json';
@@ -94,9 +90,8 @@ export function validateFinancialData(data: {
     throw new Error('Unsupported ETF valuation format. Update the app before using this data.');
   const lifecycleError = validateAccountLifecycle(data.accounts, data.snapshots);
   if (lifecycleError) throw new Error(lifecycleError);
-  const scoped = isScopedValuationMode(data.settings);
   for (const snapshot of data.snapshots) {
-    const error = validateSnapshotPositions(snapshot, data.accounts, scoped);
+    const error = validateSnapshotPositions(snapshot, data.accounts);
     if (error) throw new Error(error);
   }
 }
@@ -105,7 +100,5 @@ export function validateSettingsChange(
   current: ReturnType<typeof readFinancialData>,
   settings: Settings,
 ): void {
-  if (isScopedValuationMode(current.settings) && !isScopedValuationMode(settings))
-    throw new Error('Account-linked ETF valuations cannot be switched back to the legacy format.');
   validateFinancialData({ ...current, settings });
 }

@@ -1,4 +1,4 @@
-import type { Account, Snapshot } from '../../types';
+import type { Account } from '../../types';
 import { atomicFinancialWrite } from '../connection';
 import {
   ACCOUNT_INSERT,
@@ -6,13 +6,6 @@ import {
   readFinancialData,
   validateSettingsChange,
 } from '../accountData';
-import {
-  migratePositionSnapshots,
-  valuationMigrationFingerprint,
-  type LegacyPositionAssignment,
-  type LegacyCoverageReview,
-} from '../../model/valuationMigration';
-import { ETF_VALUATION_SCHEMA } from '../../model/snapshotPositions';
 
 export async function saveAccountConfiguration(
   accounts: Account[],
@@ -54,58 +47,4 @@ export async function saveAccountConfiguration(
       'Saved account lifecycle and contribution routing',
     ]);
   });
-}
-
-export async function convertEtfValuations(
-  assignments: LegacyPositionAssignment[],
-  expectedFingerprint: string,
-  coverage: LegacyCoverageReview[] = [],
-): Promise<Snapshot[]> {
-  let converted: Snapshot[] = [];
-  await atomicFinancialWrite((db) => {
-    const { accounts, snapshots, settings } = readFinancialData(db);
-    if (settings.etf_valuation_schema === ETF_VALUATION_SCHEMA)
-      throw new Error('ETF valuations are already account-linked. Reload before continuing.');
-    if (valuationMigrationFingerprint(accounts, snapshots) !== expectedFingerprint)
-      throw new Error('Accounts or snapshots changed since Review. Review the migration again.');
-    converted = migratePositionSnapshots(snapshots, accounts, assignments, coverage);
-    for (const snap of converted) {
-      const { date, notes, ...values } = snap;
-      db.run('UPDATE snapshots SET values_json = ? WHERE date = ?', [JSON.stringify(values), date]);
-    }
-    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('etf_valuation_schema', ?)", [
-      ETF_VALUATION_SCHEMA,
-    ]);
-    db.run('INSERT INTO config_history (timestamp, source, entity, summary) VALUES (?, ?, ?, ?)', [
-      new Date().toISOString(),
-      'web',
-      'ETF valuations',
-      `Assigned ETF valuations in ${converted.length} snapshots to accounts; ${coverage.length} account/month coverage decisions reviewed`,
-    ]);
-  });
-  return converted;
-}
-
-export async function reviewEtfCoverage(
-  coverage: LegacyCoverageReview[],
-  expectedFingerprint: string,
-): Promise<Snapshot[]> {
-  let reviewed: Snapshot[] = [];
-  await atomicFinancialWrite((db) => {
-    const { accounts, snapshots, settings } = readFinancialData(db);
-    if (settings.etf_valuation_schema !== ETF_VALUATION_SCHEMA)
-      throw new Error('Enable account-linked ETF values before reviewing completeness.');
-    if (valuationMigrationFingerprint(accounts, snapshots) !== expectedFingerprint)
-      throw new Error('Accounts or snapshots changed since Review. Review completeness again.');
-    reviewed = migratePositionSnapshots(snapshots, accounts, [], coverage);
-    for (const { date, notes, ...values } of reviewed)
-      db.run('UPDATE snapshots SET values_json = ? WHERE date = ?', [JSON.stringify(values), date]);
-    db.run('INSERT INTO config_history (timestamp, source, entity, summary) VALUES (?, ?, ?, ?)', [
-      new Date().toISOString(),
-      'web',
-      'ETF valuations',
-      `Reviewed ${coverage.length} account/month completeness decisions; amounts unchanged`,
-    ]);
-  });
-  return reviewed;
 }

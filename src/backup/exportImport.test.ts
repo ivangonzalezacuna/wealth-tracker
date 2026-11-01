@@ -119,9 +119,9 @@ describe('buildBackup', () => {
         date: '2026-01',
         a1: 5000,
         retired_account: 123.45,
-        etf_IE00B4L5Y983: 0,
-        etf_IE0000000001: 250.75,
-        etf_IE0000000002: 100,
+        'position:a1:IE00B4L5Y983': 0,
+        'position:a1:IE0000000001': 250.75,
+        'position:a1:IE0000000002': 100,
         notes: 'Extra positions recorded only in snapshot',
       },
     ];
@@ -130,7 +130,7 @@ describe('buildBackup', () => {
     expect(restored).not.toBeNull();
     expect(restored!.schemaVersion).toBe(BACKUP_SCHEMA_VERSION);
     expect(restored!.data.snapshots).toEqual(snapshots);
-    expect(restored!.data.snapshots[0]).not.toHaveProperty('etf_IE0000000003');
+    expect(restored!.data.snapshots[0]).not.toHaveProperty('position:a1:IE0000000003');
     expect(restored!.data.holdings).toEqual(FIXTURE_DATA.holdings);
     expect(restored!.data.transactions).toEqual(FIXTURE_DATA.transactions);
     expect(restored!.data.accounts).toEqual(FIXTURE_DATA.accounts);
@@ -145,6 +145,18 @@ describe('backupFilename', () => {
 });
 
 describe('validateBackup', () => {
+  it.each([1, 4, 5])(
+    'rejects legacy ETF values in schema %s rather than converting or dropping them',
+    (schemaVersion) => {
+      const backup = { ...validBackupObj(), schemaVersion };
+      backup.data.snapshots = [{ date: '2026-01', a1: 100, etf_IE00B4L5Y983: 100 }];
+      const before = JSON.stringify(backup);
+      expect(() => validateBackup(backup)).toThrow('Legacy ETF valuations are no longer supported');
+      expect(JSON.stringify(backup)).toBe(before);
+      backup.data.snapshots[0].etf_IE00B4L5Y983 = 0;
+      expect(() => validateBackup(backup)).toThrow('account-linked backup');
+    },
+  );
   it('valid fixture returns object', () => {
     const result = validateBackup(validBackupObj());
     expect(result).not.toBeNull();

@@ -42,23 +42,23 @@ describe('normalizeSnapshotReview', () => {
       broker: 1000,
       etf_broker: 100,
       gbp_cash: 20,
-      etf_ABC: 500,
+      'position:broker:IE00B4L5Y983': 500,
       retired: 250.123456789,
-      etf_hidden: 0,
+      'position:broker:IE00B3F81R35': 0,
       metadata: 'preserved',
     });
     const result = await normalizeSnapshotReview(snap, {
       broker: 'USD',
       etf_broker: 'GBP',
       gbp_cash: 'GBP',
-      etf_ABC: 'USD',
+      'position:broker:IE00B4L5Y983': 'USD',
     });
     expect(result.snapshot).toEqual({
       ...snap,
       broker: 900,
       etf_broker: 125,
       gbp_cash: 25,
-      etf_ABC: 450,
+      'position:broker:IE00B4L5Y983': 450,
     });
     expect(result.snapshot).not.toBe(snap);
     expect(snap.broker).toBe(1000);
@@ -83,8 +83,10 @@ describe('normalizeSnapshotReview', () => {
   );
 
   it('allows explicit EUR amounts, including zero, without fetching rates', async () => {
-    const snap = { date: '2024-01', broker: 900, etf_ABC: 0 };
-    expect(await normalizeSnapshotReview(snap, { broker: 'EUR', etf_ABC: 'EUR' })).toEqual({
+    const snap = { date: '2024-01', broker: 900, 'position:broker:IE00B4L5Y983': 0 };
+    expect(
+      await normalizeSnapshotReview(snap, { broker: 'EUR', 'position:broker:IE00B4L5Y983': 'EUR' }),
+    ).toEqual({
       snapshot: snap,
       rates: {},
     });

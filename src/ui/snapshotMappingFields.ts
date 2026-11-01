@@ -14,7 +14,6 @@ export function snapshotMappingFields(
   mapping?: SnapshotMapping,
   type = TRADE_REPUBLIC_VALUATION,
   month?: string,
-  scopedValuations = false,
 ): string {
   accounts = accounts.filter((a) => !month || !isAccountClosedInMonth(a, month));
   const schema = getSnapshotParser(type).mapping;
@@ -42,17 +41,13 @@ export function snapshotMappingFields(
   );
   const key = mapping?.securitiesAccount || primary?.id || primary?.key || '';
   return `
-    ${
-      scopedValuations
-        ? `<div class="dialog-field"><label class="dialog-label" for="${prefix}-securities">Securities account</label><select id="${prefix}-securities" class="form-input dialog-input" data-mapping-primary><option value="">Choose investment account</option>${accounts
-            .filter((a) => a.moneyType?.toLowerCase() === 'investment')
-            .map(
-              (a) =>
-                `<option value="${esc(a.id || a.key || '')}" ${(a.id || a.key) === key ? 'selected' : ''}>${esc(a.label)}</option>`,
-            )
-            .join('')}</select></div>`
-        : `<p class="note">Securities account: <strong>${esc(primary?.label || 'Configure a primary investment account first')}</strong></p><input type="hidden" data-mapping-primary value="${esc(primary?.id || primary?.key || '')}">`
-    }
+    <div class="dialog-field"><label class="dialog-label" for="${prefix}-securities">Securities account</label><select id="${prefix}-securities" class="form-input dialog-input" data-mapping-primary><option value="">Choose investment account</option>${accounts
+      .filter((a) => a.moneyType?.toLowerCase() === 'investment')
+      .map(
+        (a) =>
+          `<option value="${esc(a.id || a.key || '')}" ${(a.id || a.key) === key ? 'selected' : ''}>${esc(a.label)}</option>`,
+      )
+      .join('')}</select></div>
     <div class="dialog-field">
       <label class="dialog-label" for="${prefix}-mode">Balance mapping</label>
       <select id="${prefix}-mode" class="form-input dialog-input" data-mapping-mode>

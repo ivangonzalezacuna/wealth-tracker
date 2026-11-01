@@ -173,7 +173,7 @@ test.describe('first sign-in on a new browser', () => {
     await expect.poll(() => uploads.length, { timeout: 15_000 }).toBeGreaterThan(0);
   });
 
-  test('an empty new browser downloads legacy ETF history without auto-assigning it', async ({
+  test('an empty new browser rejects legacy cloud history without uploading over it', async ({
     browser,
     page,
   }) => {
@@ -197,8 +197,12 @@ test.describe('first sign-in on a new browser', () => {
         holdings: [],
         settings: {},
         transactions: [],
-        snapshots: [{ date: month, broker: 1000, etf_IE00B4L5Y983: 1000 }],
+        snapshots: [],
       });
+      (await db.getDb()).run('INSERT INTO snapshots (date, values_json) VALUES (?, ?)', [
+        month,
+        JSON.stringify({ broker: 1000, etf_IE00B4L5Y983: 1000 }),
+      ]);
       return Array.from(db.exportDb()!);
     }, MONTH);
     await seed.close();
@@ -219,11 +223,12 @@ test.describe('first sign-in on a new browser', () => {
     });
     await gotoApp(page);
     await openTab(page, 'tab-log');
-    await expect(snapshotRow(page, MONTH)).toHaveCount(1, { timeout: 15_000 });
-    await expect(page.locator('#sync-status')).not.toContainText('Sync paused');
-    await openTab(page, 'tab-settings');
-    await ensureCardExpanded(page, 'settings-card-accounts');
-    await expect(page.locator('#btn-migrate-valuations')).toBeVisible();
+    await expect(page.locator('#sync-status')).toContainText('Sync failed', { timeout: 15_000 });
+    await expect(page.locator('#sync-status')).toHaveAttribute(
+      'title',
+      /legacy ETF valuations are no longer supported/,
+    );
+    await expect(snapshotRow(page, MONTH)).toHaveCount(0);
     expect(uploads).toEqual([]);
   });
 });

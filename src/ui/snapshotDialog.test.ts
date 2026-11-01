@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { snapshotDialog, type SnapshotDialogFxPrefetchResult } from './snapshotDialog';
 import type { Account, Holding, PortfolioData, Snapshot } from '../types';
 import { fmtEur2 } from '../utils';
-import { positionKey, coverageKey } from '../model/snapshotPositions';
+import { positionKey } from '../model/snapshotPositions';
 import { FAKE_ISINS } from '../../tests/fixtures/snapshot-import/synthetic';
 
 const accounts: Account[] = [
@@ -21,7 +21,7 @@ const accounts: Account[] = [
 
 const configHoldings: Holding[] = [
   {
-    isin: 'IE00AAA',
+    isin: 'IE00B4L5Y983',
     name: 'World ETF',
     shortName: 'WORLD',
     color: '#111111',
@@ -34,7 +34,7 @@ const configHoldings: Holding[] = [
     order: 1,
   },
   {
-    isin: 'IE00BBB',
+    isin: 'IE00B3F81R35',
     name: 'Legacy ETF',
     shortName: 'LEGACY',
     color: '#222222',
@@ -48,8 +48,8 @@ const configHoldings: Holding[] = [
 ];
 
 const holdings: PortfolioData['etfs'] = {
-  IE00AAA: {
-    isin: 'IE00AAA',
+  IE00B4L5Y983: {
+    isin: 'IE00B4L5Y983',
     shortName: 'WORLD',
     name: 'World ETF',
     color: '#111111',
@@ -64,8 +64,8 @@ const holdings: PortfolioData['etfs'] = {
     totalFees: 0,
     exited: false,
   },
-  IE00BBB: {
-    isin: 'IE00BBB',
+  IE00B3F81R35: {
+    isin: 'IE00B3F81R35',
     shortName: 'LEGACY',
     name: 'Legacy ETF',
     color: '#222222',
@@ -113,11 +113,21 @@ function fxPrefetchResult(
   };
 }
 function setField(id: string, value: string) {
-  const el = document.querySelector('#' + id) as HTMLInputElement | null;
-  if (el) {
-    el.value = value;
-    el.dispatchEvent(new Event('input', { bubbles: true }));
+  let el = document.getElementById(id) as HTMLInputElement | null;
+  if (!el && id.startsWith('snapd-etf-')) {
+    const match = /^snapd-etf-(.+)-([A-Z0-9]+)$/.exec(id)!;
+    const selector = `[data-position-account="${match[1]}"][data-etf-isin="${match[2]}"]`;
+    el = document.querySelector<HTMLInputElement>(selector);
+    if (!el) {
+      const search = document.querySelector<HTMLInputElement>(`#snapd-existing-${match[1]}`)!;
+      search.value = match[2];
+      search.dispatchEvent(new Event('change', { bubbles: true }));
+      el = document.querySelector<HTMLInputElement>(selector);
+    }
   }
+  expect(el, `Missing snapshot field ${id}`).not.toBeNull();
+  el!.value = value;
+  el!.dispatchEvent(new Event('input', { bubbles: true }));
 }
 function baseOpts(extra: Partial<Parameters<typeof snapshotDialog>[0]> = {}) {
   return {
@@ -149,7 +159,6 @@ describe('snapshotDialog', () => {
   ];
   const scopedOpts = (extra: Partial<Parameters<typeof snapshotDialog>[0]> = {}) =>
     baseOpts({
-      scopedValuations: true,
       accounts: scopedAccounts,
       holdings: {},
       configHoldings: [{ ...configHoldings[0], isin: FAKE_ISINS[0] }],
@@ -204,8 +213,6 @@ describe('snapshotDialog', () => {
           france: 200,
           [positionKey('spain', FAKE_ISINS[0])]: 80,
           [positionKey('france', FAKE_ISINS[0])]: 150,
-          [coverageKey('spain')]: 1,
-          [coverageKey('france')]: 0,
         },
       }),
     );
@@ -235,7 +242,6 @@ describe('snapshotDialog', () => {
     expect(review).toContain(`Global recorded ETF total: ${fmtEur2(150)}`);
     expect(review).toContain('Spain · World ETF');
     expect(review).toContain('France · World ETF');
-    expect(review).not.toContain('position_coverage:');
     getSubmit()!.click();
     expect(await result).toMatchObject({
       [positionKey('spain', FAKE_ISINS[0])]: 0,
@@ -381,7 +387,7 @@ describe('snapshotDialog', () => {
   it('marks copied and modified account/ETF values in both draft and Review, including reverts', async () => {
     snapshotDialog(
       baseOpts({
-        prefill: { date: '2024-01', cash: 0, broker: 1000, etf_IE00AAA: 200 },
+        prefill: { date: '2024-01', cash: 0, broker: 1000, 'position:broker:IE00B4L5Y983': 200 },
         copiedFromMonth: '2024-01',
       }),
     );
@@ -391,21 +397,22 @@ describe('snapshotDialog', () => {
         .parentElement!.querySelector<HTMLElement>('.snap-field-status')!;
     expect(marker('#snapd-acc-cash').textContent).toBe('Copied');
     expect(marker('#snapd-acc-broker').textContent).toBe('Copied');
-    expect(marker('[data-etf-isin="IE00AAA"]').textContent).toBe('Copied');
-    expect(marker('[data-etf-isin="IE00BBB"]').textContent).toBe('Missing');
+    expect(marker('[data-etf-isin="IE00B4L5Y983"]').textContent).toBe('Copied');
+    setField('snapd-etf-broker-IE00B3F81R35', '');
+    expect(marker('[data-etf-isin="IE00B3F81R35"]').textContent).toBe('Missing');
     setField('snapd-acc-cash', '0.00');
     expect(marker('#snapd-acc-cash').textContent).toBe('Copied');
     setField('snapd-acc-broker', '1100');
     expect(marker('#snapd-acc-broker').textContent).toBe('Modified');
     setField('snapd-acc-broker', '1000');
     expect(marker('#snapd-acc-broker').textContent).toBe('Copied');
-    setField('snapd-etf-broker-IE00AAA', '250');
+    setField('snapd-etf-broker-IE00B4L5Y983', '250');
     await reviewDraft();
     expect(document.querySelector('.snapd-review [data-field-status="copied"]')).not.toBeNull();
     expect(document.querySelector('.snapd-review [data-field-status="modified"]')).not.toBeNull();
     expect(document.querySelector('.snapd-review')!.textContent).toContain('will be omitted');
     document.querySelector<HTMLElement>('.js-snapd-back')!.click();
-    expect(marker('[data-etf-isin="IE00AAA"]').textContent).toBe('Modified');
+    expect(marker('[data-etf-isin="IE00B4L5Y983"]').textContent).toBe('Modified');
   });
 
   it('uses Unchanged for saved snapshots and New for values without a baseline', async () => {
@@ -413,9 +420,9 @@ describe('snapshotDialog', () => {
     expect(document.querySelector('#snapd-acc-cash')!.parentElement!.textContent).toContain(
       'Unchanged',
     );
-    setField('snapd-etf-broker-IE00AAA', '100');
+    setField('snapd-etf-broker-IE00B4L5Y983', '100');
     expect(
-      document.querySelector('[data-etf-isin="IE00AAA"]')!.parentElement!.textContent,
+      document.querySelector('[data-etf-isin="IE00B4L5Y983"]')!.parentElement!.textContent,
     ).toContain('New');
     await reviewDraft();
     expect(document.querySelectorAll('.snapd-review [data-field-status="unchanged"]')).toHaveLength(
@@ -487,7 +494,7 @@ describe('snapshotDialog', () => {
     const icon = toggle.querySelector('svg.row-expand-chevron')!;
     const section = document.getElementById(toggle.getAttribute('aria-controls')!)!;
     const wasOpen = toggle.getAttribute('aria-expanded') === 'true';
-    setField('snapd-etf-broker-IE00AAA', '700');
+    setField('snapd-etf-broker-IE00B4L5Y983', '700');
     expect(icon.getAttribute('aria-hidden')).toBe('true');
     expect(icon.getAttribute('focusable')).toBe('false');
     expect(icon.hasAttribute('tabindex')).toBe(false);
@@ -498,9 +505,9 @@ describe('snapshotDialog', () => {
     expect(toggle.getAttribute('aria-expanded')).toBe(String(wasOpen));
     expect(section.hidden).toBe(!wasOpen);
     expect(toggle.querySelector('svg.row-expand-chevron')).toBe(icon);
-    expect((document.getElementById('snapd-etf-broker-IE00AAA') as HTMLInputElement).value).toBe(
-      '700',
-    );
+    expect(
+      (document.querySelector('[data-etf-isin="IE00B4L5Y983"]') as HTMLInputElement).value,
+    ).toBe('700');
     getCancel()!.click();
     await p;
   });
@@ -510,26 +517,26 @@ describe('snapshotDialog', () => {
     (document.querySelector('.snap-etf-toggle') as HTMLButtonElement).click();
     setField('snapd-acc-cash', '0');
     setField('snapd-acc-broker', '1000');
-    setField('snapd-etf-broker-IE00AAA', '700');
+    setField('snapd-etf-broker-IE00B4L5Y983', '700');
     await saveDraft();
     const snap = await p;
     expect(snap).not.toBeNull();
     expect(snap!.broker).toBe(1000);
-    expect(snap!.etf_IE00AAA).toBe(700);
+    expect(snap!['position:broker:IE00B4L5Y983']).toBe(700);
   });
 
   it('shows zero rather than negative zero when ETF totals match in draft and review', async () => {
     const p = snapshotDialog(baseOpts());
     setField('snapd-acc-cash', '0');
     setField('snapd-acc-broker', '0.3');
-    setField('snapd-etf-broker-IE00AAA', '0.1');
-    setField('snapd-etf-broker-IE00BBB', '0.2');
+    setField('snapd-etf-broker-IE00B4L5Y983', '0.1');
+    setField('snapd-etf-broker-IE00B3F81R35', '0.2');
     expect(document.querySelector('.snap-etf-recon-remain b')!.textContent).toBe(fmtEur2(0));
     await reviewDraft();
     const remainder = Array.from(document.querySelectorAll('.snapd-review-summary dl > div')).find(
-      (row) => row.querySelector('dt')?.textContent === 'Unexplained remainder',
+      (row) => row.querySelector('dt')?.textContent === 'Broker · recorded ETFs / remainder',
     );
-    expect(remainder?.querySelector('dd')?.textContent).toBe(fmtEur2(0));
+    expect(remainder?.querySelector('dd')?.textContent).toBe(`${fmtEur2(0.3)} / ${fmtEur2(0)}`);
     getCancel()!.click();
     await p;
   });
@@ -539,8 +546,8 @@ describe('snapshotDialog', () => {
     (document.querySelector('.snap-etf-toggle') as HTMLButtonElement).click();
     setField('snapd-acc-cash', '0');
     setField('snapd-acc-broker', '1000');
-    setField('snapd-etf-broker-IE00AAA', '700');
-    setField('snapd-etf-broker-IE00BBB', '400');
+    setField('snapd-etf-broker-IE00B4L5Y983', '700');
+    setField('snapd-etf-broker-IE00B3F81R35', '400');
     let settled = false;
     void p.then(() => {
       settled = true;
@@ -567,8 +574,8 @@ describe('snapshotDialog', () => {
     setField('snapd-notes', 'Done');
     setField('snapd-acc-cash', '500');
     setField('snapd-acc-broker', '1000');
-    setField('snapd-etf-broker-IE00AAA', '750');
-    setField('snapd-etf-broker-IE00BBB', '250');
+    setField('snapd-etf-broker-IE00B4L5Y983', '750');
+    setField('snapd-etf-broker-IE00B3F81R35', '250');
     await saveDraft();
     const snap = await p;
     expect(snap).not.toBeNull();
@@ -576,8 +583,8 @@ describe('snapshotDialog', () => {
     expect(snap!.notes).toBe('Done');
     expect(snap!.cash).toBe(500);
     expect(snap!.broker).toBe(1000);
-    expect(snap!.etf_IE00AAA).toBe(750);
-    expect(snap!.etf_IE00BBB).toBe(250);
+    expect(snap!['position:broker:IE00B4L5Y983']).toBe(750);
+    expect(snap!['position:broker:IE00B3F81R35']).toBe(250);
   });
 
   it('title shows edit mode and prefills existing values', () => {
@@ -586,16 +593,16 @@ describe('snapshotDialog', () => {
       notes: 'Prefilled',
       cash: 200,
       broker: 800,
-      etf_IE00AAA: 500,
+      'position:broker:IE00B4L5Y983': 500,
     };
     snapshotDialog(baseOpts({ existing, mode: 'edit' }));
     expect((document.querySelector('.dialog-title') as HTMLElement).textContent).toContain('Edit');
     expect((document.querySelector('#snapd-date') as HTMLInputElement).value).toBe('2024-04');
     expect((document.querySelector('#snapd-notes') as HTMLInputElement).value).toBe('Prefilled');
     expect((document.querySelector('#snapd-acc-broker') as HTMLInputElement).value).toBe('800');
-    expect((document.querySelector('#snapd-etf-broker-IE00AAA') as HTMLInputElement).value).toBe(
-      '500',
-    );
+    expect(
+      (document.querySelector('[data-etf-isin="IE00B4L5Y983"]') as HTMLInputElement).value,
+    ).toBe('500');
     expect(
       (document.querySelector('.snap-etf-toggle') as HTMLElement).getAttribute('aria-expanded'),
     ).toBe('true');
@@ -720,11 +727,13 @@ describe('snapshotDialog', () => {
     setField('snapd-date', '2024-06');
     setField('snapd-acc-cash', '0');
     setField('snapd-acc-broker', '1000');
-    setField('snapd-etf-broker-IE00AAA', '500');
+    setField('snapd-etf-broker-IE00B4L5Y983', '500');
     await reviewDraft();
     expect(document.querySelector('.snapd-review')!.textContent).toContain('replace');
     expect(document.querySelector('.snapd-review')!.textContent).not.toContain('Copied from');
-    expect(document.querySelector('.snapd-review')!.textContent).toContain('Unexplained remainder');
+    expect(document.querySelector('.snapd-review')!.textContent).toContain(
+      'recorded ETFs / remainder',
+    );
     expect(document.querySelector('.snapd-review')!.textContent).toContain('900');
     expect(document.querySelector('.dialog-header')!.hasAttribute('hidden')).toBe(true);
     expect(document.querySelector('.snapd-review .dialog-title')!.textContent).toContain(
@@ -735,7 +744,7 @@ describe('snapshotDialog', () => {
       expect(value.textContent).toContain('€');
       expect(value.textContent).not.toContain('EUR');
     }
-    expect(document.querySelector('.snapd-review-isin')!.textContent).toBe('IE00AAA');
+    expect(document.querySelector('.snapd-review-isin')!.textContent).toBe('IE00B4L5Y983');
     expect(document.querySelector('.snapd-review')!.textContent).toContain('World ETF');
     (document.querySelector('.js-snapd-back') as HTMLElement).click();
     expect(document.querySelector('.dialog-header')!.hasAttribute('hidden')).toBe(false);
@@ -754,12 +763,12 @@ describe('snapshotDialog', () => {
       onSave.mockResolvedValueOnce(true);
       const p = snapshotDialog(
         baseOpts({
-          existing: { date: '2024-06', cash: 0, broker: 1000, etf_legacy: 25 },
+          existing: { date: '2024-06', cash: 0, broker: 1000, historical_metadata: 25 },
           onSave,
         }),
       );
       setField('snapd-notes', 'Retain my draft');
-      setField('snapd-etf-broker-IE00AAA', '500');
+      setField('snapd-etf-broker-IE00B4L5Y983', '500');
       await reviewDraft();
       getSubmit()!.click();
       await vi.waitFor(() =>
@@ -774,16 +783,21 @@ describe('snapshotDialog', () => {
       expect((document.querySelector('#snapd-notes') as HTMLInputElement).value).toBe(
         'Retain my draft',
       );
-      expect((document.querySelector('#snapd-etf-broker-IE00AAA') as HTMLInputElement).value).toBe(
-        '500',
-      );
+      expect(
+        (document.querySelector('[data-etf-isin="IE00B4L5Y983"]') as HTMLInputElement).value,
+      ).toBe('500');
       if (failure === 'exception') {
         (document.querySelector('.js-snapd-back') as HTMLElement).click();
         expect(document.querySelector('#snapd-save-err')!.hasAttribute('hidden')).toBe(true);
         await reviewDraft();
       }
       getSubmit()!.click();
-      expect(await p).toMatchObject({ cash: 0, broker: 1000, etf_legacy: 25, etf_IE00AAA: 500 });
+      expect(await p).toMatchObject({
+        cash: 0,
+        broker: 1000,
+        historical_metadata: 25,
+        'position:broker:IE00B4L5Y983': 500,
+      });
       expect(onSave).toHaveBeenCalledTimes(2);
       expect(onSave.mock.calls[0][0]).toEqual(onSave.mock.calls[1][0]);
       expect(getOverlay()).toBeNull();
@@ -849,13 +863,15 @@ describe('snapshotDialog', () => {
       broker: 1000,
       retired: 123,
       future: 'metadata',
-      etf_IE00CCC: 250,
-      etf_IE00AAA: 0,
+      'position:broker:IE00B4L5YC18': 250,
+      'position:broker:IE00B4L5Y983': 0,
     };
     const p = snapshotDialog(baseOpts({ existing }));
     expect((document.querySelector('.snap-etf-other') as HTMLDetailsElement).open).toBe(false);
-    expect(document.querySelector('[data-etf-isin="IE00CCC"]')).toBeNull();
-    expect(document.querySelector('[data-extra-isin]')).toBeNull();
+    expect(document.querySelector('[data-etf-isin="IE00B4L5YC18"]')).not.toBeNull();
+    expect(document.querySelector<HTMLInputElement>('[data-extra-isin]')!.value).toBe(
+      'IE00B4L5YC18',
+    );
     await saveDraft();
     expect(await p).toEqual({ ...existing, notes: '' });
   });
@@ -864,7 +880,7 @@ describe('snapshotDialog', () => {
     const onFxPrefetchMonth = vi.fn().mockResolvedValue(fxPrefetchResult());
     snapshotDialog(
       baseOpts({
-        prefill: { date: '2024-06', cash: 0, broker: 900, etf_IE00AAA: 450 },
+        prefill: { date: '2024-06', cash: 0, broker: 900, 'position:broker:IE00B4L5Y983': 450 },
         onFxPrefetchMonth,
       }),
     );
@@ -880,17 +896,17 @@ describe('snapshotDialog', () => {
     (document.querySelector('#snapd-eur') as HTMLInputElement).click();
     expect(badge()).toBe('modified');
     expect((document.querySelector('#snapd-acc-broker') as HTMLInputElement).value).toBe('1000');
-    expect((document.querySelector('#snapd-etf-broker-IE00AAA') as HTMLInputElement).value).toBe(
-      '500',
-    );
+    expect(
+      (document.querySelector('#snapd-etf-broker-IE00B4L5Y983') as HTMLInputElement).value,
+    ).toBe('500');
     setField('snapd-date', '2024-07');
     document.querySelector('#snapd-date')!.dispatchEvent(new Event('change'));
     expect((document.querySelector('#snapd-eur') as HTMLInputElement).checked).toBe(true);
     expect((document.querySelector('#snapd-acc-broker') as HTMLInputElement).value).toBe('900');
     expect(badge()).toBe('unchanged');
-    expect((document.querySelector('#snapd-etf-broker-IE00AAA') as HTMLInputElement).value).toBe(
-      '450',
-    );
+    expect(
+      (document.querySelector('#snapd-etf-broker-IE00B4L5Y983') as HTMLInputElement).value,
+    ).toBe('450');
     getCancel()!.click();
   });
 
@@ -906,7 +922,7 @@ describe('snapshotDialog', () => {
     async (rates) => {
       snapshotDialog(
         baseOpts({
-          prefill: { date: '2024-06', cash: 0, broker: 900, etf_IE00AAA: 450 },
+          prefill: { date: '2024-06', cash: 0, broker: 900, 'position:broker:IE00B4L5Y983': 450 },
           onFxPrefetchMonth: async () => fxPrefetchResult({ rates }),
         }),
       );
@@ -922,9 +938,9 @@ describe('snapshotDialog', () => {
       document.querySelector('#snapd-date')!.dispatchEvent(new Event('change'));
       expect(eurMode.checked).toBe(false);
       expect(document.querySelector<HTMLInputElement>('#snapd-acc-broker')!.value).toBe('900');
-      expect(document.querySelector<HTMLInputElement>('[data-etf-isin="IE00AAA"]')!.value).toBe(
-        '450',
-      );
+      expect(
+        document.querySelector<HTMLInputElement>('[data-etf-isin="IE00B4L5Y983"]')!.value,
+      ).toBe('450');
       getCancel()!.click();
     },
   );
@@ -956,7 +972,13 @@ describe('snapshotDialog', () => {
   );
 
   it('keeps an etf-prefixed account out of ETF review totals', async () => {
-    const existing = { date: '2024-06', cash: 0, broker: 900, etf_broker: 125, etf_IE00AAA: 450 };
+    const existing = {
+      date: '2024-06',
+      cash: 0,
+      broker: 900,
+      etf_broker: 125,
+      'position:broker:IE00B4L5Y983': 450,
+    };
     const p = snapshotDialog(
       baseOpts({
         accounts: [...accounts, { id: 'etf_broker', label: 'GBP account', currency: 'GBP' }],
@@ -970,7 +992,7 @@ describe('snapshotDialog', () => {
     expect(etfValues.textContent).not.toContain('GBP account');
     expect(
       Array.from(document.querySelectorAll('.snapd-review-summary dd')).map((el) => el.textContent),
-    ).toEqual([fmtEur2(450), fmtEur2(450)]);
+    ).toEqual([`${fmtEur2(450)} / ${fmtEur2(450)}`]);
     getSubmit()!.click();
     expect(await p).toEqual({ ...existing, notes: '' });
   });
@@ -1029,7 +1051,16 @@ describe('snapshotDialog', () => {
 
   it('keeps active held ETFs without strategic targets in the usual group', () => {
     snapshotDialog(
-      baseOpts({ configHoldings: configHoldings.map((h) => ({ ...h, targetPct: undefined })) }),
+      baseOpts({
+        configHoldings: configHoldings.map((h) => ({ ...h, targetPct: undefined })),
+        prefill: {
+          date: '2024-01',
+          cash: 0,
+          broker: 150,
+          'position:broker:IE00B4L5Y983': 100,
+          'position:broker:IE00B3F81R35': 50,
+        },
+      }),
     );
     const usual = document.querySelector('.snap-etf-group')!;
     expect(usual.textContent).toContain('World ETF');
@@ -1042,7 +1073,7 @@ describe('snapshotDialog', () => {
     const p = snapshotDialog(baseOpts({ holdings: {} }));
     setField('snapd-acc-cash', '0');
     setField('snapd-acc-broker', '1000');
-    setField('snapd-etf-broker-IE00AAA', '100');
+    setField('snapd-etf-broker-IE00B4L5Y983', '100');
     for (const isin of ['IE0000000001', 'IE0000000002']) {
       (document.querySelector('.js-snapd-extra') as HTMLElement).click();
       const rows = document.querySelectorAll('.snap-etf-extra');
@@ -1050,26 +1081,32 @@ describe('snapshotDialog', () => {
       (row.querySelector('[data-extra-isin]') as HTMLInputElement).value = isin;
       (row.querySelector('[data-etf-isin]') as HTMLInputElement).value = '100';
     }
-    const isins = document.querySelectorAll<HTMLInputElement>('[data-extra-isin]');
+    const isins = document.querySelectorAll<HTMLInputElement>(
+      '[aria-label="Manual entries"] [data-extra-isin]',
+    );
     isins[1].value = isins[0].value;
     getSubmit()!.click();
     expect(document.querySelector('#snapd-etf-broker-err')!.textContent).toContain('duplicates');
     isins[1].value = 'IE0000000002';
     await saveDraft();
     expect(await p).toMatchObject({
-      etf_IE0000000001: 100,
-      etf_IE0000000002: 100,
-      etf_IE00AAA: 100,
+      'position:broker:IE0000000001': 100,
+      'position:broker:IE0000000002': 100,
+      'position:broker:IE00B4L5Y983': 100,
     });
   });
 
   it.each([
     ['unchanged', {}, true],
     ['changed balance', { broker: 901 }, false],
-    ['changed ETF', { etf_IE00AAA: 451 }, false],
-    ['omitted zero', { etf_IE00BBB: undefined }, false],
-    ['added zero', { etf_IE0000000001: 0 }, false],
-    ['renamed zero', { etf_IE00BBB: undefined, etf_IE0000000001: 0 }, false],
+    ['changed ETF', { 'position:broker:IE00B4L5Y983': 451 }, false],
+    ['omitted zero', { 'position:broker:IE00B3F81R35': undefined }, false],
+    ['added zero', { 'position:broker:IE0000000001': 0 }, false],
+    [
+      'renamed zero',
+      { 'position:broker:IE00B3F81R35': undefined, 'position:broker:IE0000000001': 0 },
+      false,
+    ],
     ['changed hidden balance', { retired: 124 }, false],
   ])('compares canonical numeric keys symmetrically: %s', async (_, changes, warning) => {
     const baseline: Snapshot = {
@@ -1078,8 +1115,8 @@ describe('snapshotDialog', () => {
       cash: 0,
       broker: 900,
       retired: 123,
-      etf_IE00AAA: 450,
-      etf_IE00BBB: 0,
+      'position:broker:IE00B4L5Y983': 450,
+      'position:broker:IE00B3F81R35': 0,
     };
     const p = snapshotDialog(
       baseOpts({
@@ -1111,7 +1148,12 @@ describe('snapshotDialog', () => {
   it.each(['add', 'edit'] as const)(
     'never warns about copying in %s for the source month',
     async (mode) => {
-      const baseline = { date: '2024-06', cash: 0, broker: 900, etf_IE00AAA: 450 };
+      const baseline = {
+        date: '2024-06',
+        cash: 0,
+        broker: 900,
+        'position:broker:IE00B4L5Y983': 450,
+      };
       snapshotDialog(
         baseOpts({
           prefill: baseline,
@@ -1156,7 +1198,7 @@ describe('snapshotDialog', () => {
     snapshotDialog(
       baseOpts({
         mode: 'add',
-        prefill: { date: '2024-06', cash: 0, broker: 900, etf_IE00AAA: 450 },
+        prefill: { date: '2024-06', cash: 0, broker: 900, 'position:broker:IE00B4L5Y983': 450 },
         copiedFromMonth: '2024-05',
         existingMonths: ['2024-04'],
       }),
@@ -1172,26 +1214,27 @@ describe('snapshotDialog', () => {
     snapshotDialog(
       baseOpts({
         holdings: {
-          IE00AAA: { ...holdings.IE00AAA, shares: 0, exited: true },
-          IE0000000004: { ...holdings.IE00AAA, isin: 'IE0000000004', shares: 0, exited: true },
+          IE00B4L5Y983: { ...holdings.IE00B4L5Y983, shares: 0, exited: true },
+          IE0000000004: { ...holdings.IE00B4L5Y983, isin: 'IE0000000004', shares: 0, exited: true },
         },
         configHoldings: [configHoldings[1]],
         existing: {
           date: '2024-06',
           cash: 0,
           broker: 900,
-          etf_IE00AAA: 150,
-          etf_IE0000000001: 0,
+          'position:broker:IE00B4L5Y983': 150,
+          'position:broker:IE0000000001': 0,
         },
       }),
     );
-    for (const isin of ['IE00AAA', 'IE00BBB']) {
+    for (const isin of ['IE00B4L5Y983']) {
       const row = document.querySelector(`[data-etf-isin="${isin}"]`)!.parentElement!;
       expect(row.querySelector('[data-extra-isin]')).toBeNull();
-      expect(row.querySelector('.js-snapd-remove')).toBeNull();
+      expect(row.querySelector('.js-snapd-remove')).not.toBeNull();
       expect(row.closest('[aria-label="Existing holdings"]')).not.toBeNull();
     }
-    expect(document.querySelectorAll('.snap-etf-extra')).toHaveLength(1);
+    expect(document.querySelectorAll('.snap-etf-extra:has([data-extra-isin])')).toHaveLength(1);
+    expect(document.querySelector('[data-etf-isin="IE00B3F81R35"]')).toBeNull();
     expect(document.querySelector('[data-etf-isin="IE0000000004"]')).toBeNull();
     expect(document.querySelector('[aria-label="Manual entries"] .snap-etf-extra')).not.toBeNull();
     expect((document.querySelector('[data-extra-isin]') as HTMLInputElement).value).toBe(
@@ -1208,13 +1251,13 @@ describe('snapshotDialog', () => {
         cash: 0,
         broker: 1000,
         retired: 123,
-        etf_unsupported_key: 321,
-        etf_IE0000000001: 100,
-        etf_IE0000000002: 200,
-        etf_IE00AAA: 300,
+        historical_metadata: 321,
+        'position:broker:IE0000000001': 100,
+        'position:broker:IE0000000002': 200,
+        'position:broker:IE00B4L5Y983': 300,
       };
       const p = snapshotDialog(baseOpts({ [source]: baseline }));
-      const rows = document.querySelectorAll('.snap-etf-extra');
+      const rows = document.querySelectorAll('.snap-etf-extra:has([data-extra-isin])');
       (rows[0].querySelector('.js-snapd-remove') as HTMLElement).click();
       expect(document.activeElement).toBe(rows[1].querySelector('[data-extra-isin]'));
       expect(document.querySelector('.snap-etf-recon-alloc b')!.textContent).toContain('500');
@@ -1224,7 +1267,7 @@ describe('snapshotDialog', () => {
       expect(document.querySelector('.snapd-review')!.textContent).not.toContain('IE0000000001');
       expect(document.querySelector('.snapd-review')!.textContent).not.toContain('IE0000000002');
       (document.querySelector('.js-snapd-back') as HTMLElement).click();
-      expect(document.querySelectorAll('.snap-etf-extra')).toHaveLength(1);
+      expect(document.querySelectorAll('.snap-etf-extra:has([data-extra-isin])')).toHaveLength(1);
       expect((document.querySelector('[data-extra-isin]') as HTMLInputElement).value).toBe(
         'IE0000000003',
       );
@@ -1235,16 +1278,21 @@ describe('snapshotDialog', () => {
         cash: 0,
         broker: 1000,
         retired: 123,
-        etf_unsupported_key: 321,
-        etf_IE00AAA: 300,
-        etf_IE0000000003: 0,
+        historical_metadata: 321,
+        'position:broker:IE00B4L5Y983': 300,
+        'position:broker:IE0000000003': 0,
       });
-      expect(baseline.etf_IE0000000001).toBe(100);
+      expect(baseline['position:broker:IE0000000001']).toBe(100);
     },
   );
 
   it('validates persisted/manual duplicates, removes new rows, and cancels without mutation', async () => {
-    const baseline = { date: '2024-06', cash: 0, broker: 1000, etf_IE0000000001: 100 };
+    const baseline = {
+      date: '2024-06',
+      cash: 0,
+      broker: 1000,
+      'position:broker:IE0000000001': 100,
+    };
     const p = snapshotDialog(baseOpts({ existing: baseline }));
     (document.querySelector('.js-snapd-extra') as HTMLElement).click();
     const rows = document.querySelectorAll('.snap-etf-extra');
@@ -1266,7 +1314,7 @@ describe('snapshotDialog', () => {
       date: '2024-06',
       cash: 0,
       broker: 1000,
-      etf_IE0000000001: 100,
+      'position:broker:IE0000000001': 100,
     });
   });
 

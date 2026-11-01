@@ -26,11 +26,9 @@ export function trackSnapshotFieldStatus(
     const isin = normalizeISIN(extra?.value || input.dataset.etfIsin || '');
     return (
       input.dataset.accountKey ||
-      (input.dataset.positionAccount
-        ? isValidISIN(isin)
-          ? positionKey(input.dataset.positionAccount, isin)
-          : `position:${input.dataset.positionAccount}:${isin}`
-        : `etf_${isin}`)
+      (isValidISIN(isin)
+        ? positionKey(input.dataset.positionAccount!, isin)
+        : `position:${input.dataset.positionAccount}:${isin}`)
     );
   };
   const statusFor = (input: HTMLInputElement): SnapshotFieldStatus => {

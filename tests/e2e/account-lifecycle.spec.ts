@@ -201,101 +201,31 @@ test('Spain account closes and reopens with history; a shared ISIN stays one row
   expect(exported.data.snapshots.at(-1)[`position:france:${ISIN}`]).toBe(700);
   await restore(page, exported);
   await expectToast(page, 'backup-msg', 'Restore complete.');
-  await expect(page.locator('.valuation-migration-overlay')).toHaveCount(0);
 });
 
-test('legacy backup conversion is reviewed before replacing live account-linked data', async ({
+test('legacy backup is rejected before confirmation without replacing live history', async ({
   page,
-}) => {
+}, info) => {
   await restore(page, backup());
   await expectToast(page, 'backup-msg', 'Restore complete.');
-  await restore(page, backup(true));
-  await expect(page.locator('.valuation-migration-overlay')).toBeVisible();
-  await page
-    .locator('.valuation-migration-overlay')
-    .getByRole('button', { name: 'Cancel', exact: true })
-    .click();
-  await expect(page.locator('.valuation-migration-overlay')).toHaveCount(0);
+  await openTab(page, 'tab-settings');
+  await ensureCardExpanded(page, 'settings-card-backup');
+  await waitForSyncIdle(page);
+  await page.setInputFiles('#backup-file-input', {
+    name: 'unsupported-backup.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(backup(true))),
+  });
+  await expectToast(page, 'backup-msg', 'Legacy ETF valuations are no longer supported.');
+  await expect(page.locator('.js-confirm-ok')).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath('unsupported-backup.png'), fullPage: true });
+  await page.reload();
+  await gotoApp(page);
   await openTab(page, 'tab-log');
   await expect(page.locator(`.snap-row-compact[data-date="${monthOffsetValue(-5)}"]`)).toHaveCount(
     1,
   );
-
-  await restore(page, backup(true));
-  await page.fill('[data-entry="0"][data-account="spain"]', '400');
-  await page.fill('[data-entry="0"][data-account="france"]', '600');
-  await page.locator('.valuation-migration-overlay .js-review').click();
-  await page.check('#migration-confirm');
-  await page.locator('.valuation-migration-overlay .js-submit').click();
-  await expectToast(page, 'backup-msg', 'Restore complete.');
-  await openTab(page, 'tab-portfolio');
-  await expect(
-    page.locator(`#port-table .hold-row[data-etf-key="${ISIN}"] .hold-account-count`),
-  ).toHaveAttribute('aria-label', /2 accounts/);
-  // Simulate interruption between the marker and snapshot cache writes.
-  await page.evaluate(async () => {
-    await new Promise<void>((resolve, reject) => {
-      const request = indexedDB.open('wealth-tracker-cache');
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        const db = request.result;
-        const tx = db.transaction('kv-store', 'readwrite');
-        tx.objectStore('kv-store').put(
-          [{ date: '2020-01', daily: 200, spain: 400, france: 600, etf_IE00B4L5Y983: 9999 }],
-          'snapshots',
-        );
-        tx.oncomplete = () => {
-          db.close();
-          resolve();
-        };
-        tx.onerror = () => {
-          db.close();
-          reject(tx.error);
-        };
-      };
-    });
-  });
-  const cacheWarnings: string[] = [];
-  page.on('console', (message) => {
-    if (message.type() === 'warning') cacheWarnings.push(message.text());
-  });
-  await page.reload();
-  await gotoApp(page);
-  await openTab(page, 'tab-portfolio');
-  await expect(page.locator(`#port-table .hold-row[data-etf-key="${ISIN}"]`)).toHaveCount(1);
-  expect(cacheWarnings.some((message) => message.includes('inconsistent cache'))).toBe(true);
-});
-
-test('existing legacy history converts once through Settings without changing totals', async ({
-  page,
-}) => {
-  await waitForSyncIdle(page);
-  await page.evaluate(async (data) => {
-    const modulePath = '/src/db/index.ts';
-    const db: typeof import('../../src/db') = await import(/* @vite-ignore */ modulePath);
-    await db.restoreAllData(data.data);
-  }, backup(true));
-  await page.reload();
-  await gotoApp(page);
-  await openTab(page, 'tab-settings');
-  await ensureCardExpanded(page, 'settings-card-accounts');
-  await waitForSyncIdle(page);
-  await page.click('#btn-migrate-valuations');
-  await page.fill('[data-entry="0"][data-account="spain"]', '400');
-  await page.fill('[data-entry="0"][data-account="france"]', '600');
-  await page.locator('.valuation-migration-overlay .js-review').click();
-  await page.check('#migration-confirm');
-  await page.locator('.valuation-migration-overlay .js-submit').click();
-  await expect(page.locator('.valuation-migration-overlay')).toHaveCount(0);
-  await expect(page.locator('#btn-migrate-valuations')).toHaveCount(0);
-  await page.reload();
-  await gotoApp(page);
-  await openTab(page, 'tab-portfolio');
-  await expect(
-    page.locator(`#port-table .hold-row[data-etf-key="${ISIN}"] .hold-account-count`),
-  ).toHaveAttribute('aria-label', /2 accounts/);
-  await openTab(page, 'tab-log');
-  await expect(
-    page.locator(`.snap-row-compact[data-date="${monthOffsetValue(-1)}"]`),
-  ).toContainText('1.200');
+  await expect(page.locator(`.snap-row-compact[data-date="${monthOffsetValue(-1)}"]`)).toHaveCount(
+    0,
+  );
 });

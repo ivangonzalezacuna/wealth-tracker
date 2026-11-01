@@ -71,7 +71,6 @@ vi.mock('../store/config', () => ({
   getCalibrationInterval: () => MOCK_CALIBRATION_INTERVAL,
   setAccounts: vi.fn(async () => {}),
   saveAccountLifecycle: vi.fn(async () => {}),
-  migrateEtfValuations: vi.fn(async () => {}),
   setHoldings: vi.fn(async () => {}),
   setSettings: vi.fn(async () => {}),
   setSetting: vi.fn(async () => {}),
@@ -1896,14 +1895,14 @@ describe('Settings account lifecycle', () => {
     ).toMatch(/^\d{4}-\d{2}$/);
     expect(vi.mocked(saveAccountLifecycle).mock.calls[0][1]).toEqual({});
   });
-  it('gates lifecycle actions but keeps legacy accounts and migration review visible', () => {
+  it('keeps lifecycle actions available without a transitional format setting', () => {
     delete MOCK_SETTINGS.etf_valuation_schema;
     renderSettings();
     expect(document.querySelectorAll('.settings-acct-row')).toHaveLength(2);
     expect(document.querySelector('.js-lifecycle-acct')).toBeNull();
     document.querySelector<HTMLButtonElement>('.js-edit-acct[data-idx="1"]')!.click();
-    expect(vi.mocked(accountDialog).mock.calls.at(-1)![0]!.lifecycleEnabled).toBe(false);
-    expect(document.querySelector('#btn-migrate-valuations')).not.toBeNull();
+    expect(vi.mocked(accountDialog).mock.calls.at(-1)![0]!.onLifecycle).toBeTypeOf('function');
+    expect(document.querySelector('#btn-migrate-valuations')).toBeNull();
   });
 });
 

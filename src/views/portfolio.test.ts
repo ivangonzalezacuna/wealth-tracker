@@ -26,7 +26,7 @@ const MOCK_ACCOUNTS: import('../types').Account[] = [
 ];
 const MOCK_HOLDINGS = [
   {
-    isin: 'IE00TEST1',
+    isin: 'IE00B4L5Y983',
     shortName: 'IWDA',
     name: 'iShares Core MSCI World',
     color: '#222222',
@@ -46,13 +46,13 @@ vi.mock('../store/config', () => ({
   getMonthlyContribBudget: () => 500,
   getCalibrationInterval: () => 'monthly',
   isConfigLoaded: () => true,
-  getISIN_ORDER: () => ['IE00TEST1'],
+  getISIN_ORDER: () => ['IE00B4L5Y983'],
   getMETA: () => ({ IWDA: { color: '#222222', acc: true, active: true } }),
   getACCTS: () => [{ key: 'acct1', label: 'Trade Republic', color: '#111111' }],
 }));
 
 vi.mock('../constants', () => ({
-  getISIN_ORDERList: () => ['IE00TEST1'],
+  getISIN_ORDERList: () => ['IE00B4L5Y983'],
   getMETAMap: () => Object.fromEntries(MOCK_HOLDINGS.map((holding) => [holding.isin, holding])),
 }));
 
@@ -72,7 +72,7 @@ import type { PortfolioData, Snapshot, EtfPosition } from '../types';
 
 function makeEtf(overrides: Partial<EtfPosition> = {}): EtfPosition {
   return {
-    isin: 'IE00TEST1',
+    isin: 'IE00B4L5Y983',
     shortName: 'IWDA',
     name: 'iShares Core MSCI World',
     color: '#222222',
@@ -92,7 +92,7 @@ function makeEtf(overrides: Partial<EtfPosition> = {}): EtfPosition {
 
 function makePD(overrides: Partial<PortfolioData> = {}): PortfolioData {
   return {
-    etfs: { IE00TEST1: makeEtf() },
+    etfs: { IE00B4L5Y983: makeEtf() },
     divHist: [],
     intHist: [],
     monthly: {},
@@ -117,7 +117,7 @@ function setRebalanceHoldings(): void {
     0,
     MOCK_HOLDINGS.length,
     {
-      isin: 'IE00TEST1',
+      isin: 'IE00B4L5Y983',
       shortName: 'IWDA',
       name: 'World',
       color: '#222222',
@@ -130,7 +130,7 @@ function setRebalanceHoldings(): void {
       order: 1,
     } as any,
     {
-      isin: 'IE00TEST2',
+      isin: 'IE00B3F81R35',
       shortName: 'EM',
       name: 'Emerging',
       color: '#333333',
@@ -148,8 +148,8 @@ function setRebalanceHoldings(): void {
 function makeRebalancePd(overrides: Partial<PortfolioData> = {}): PortfolioData {
   return makePD({
     etfs: {
-      IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 8000 }),
-      IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 2000 }),
+      IE00B4L5Y983: makeEtf({ isin: 'IE00B4L5Y983', shortName: 'IWDA', cost: 8000 }),
+      IE00B3F81R35: makeEtf({ isin: 'IE00B3F81R35', shortName: 'EM', cost: 2000 }),
     },
     totalInv: 10000,
     ...overrides,
@@ -161,8 +161,8 @@ function makeRebalanceSnap(overrides: Record<string, number> = {}): Snapshot {
   return {
     date: '2026-06-01',
     acct1: 10000,
-    etf_IE00TEST1: 8000,
-    etf_IE00TEST2: 2000,
+    'position:acct1:IE00B4L5Y983': 8000,
+    'position:acct1:IE00B3F81R35': 2000,
     ...overrides,
   };
 }
@@ -191,7 +191,7 @@ describe('renderPortfolio', () => {
     localStorage.removeItem('drift-rebalance-months');
     localStorage.removeItem('drift-calibration-interval');
     MOCK_HOLDINGS.splice(0, MOCK_HOLDINGS.length, {
-      isin: 'IE00TEST1',
+      isin: 'IE00B4L5Y983',
       shortName: 'IWDA',
       name: 'iShares Core MSCI World',
       color: '#222222',
@@ -236,8 +236,6 @@ describe('renderPortfolio', () => {
         france: 6000,
         [`position:acct1:${isin}`]: 4000,
         [`position:france:${isin}`]: 6000,
-        'position_coverage:acct1': 1,
-        'position_coverage:france': 1,
       },
     ]);
     expect(document.getElementById('port-content')!.style.display).toBe('block');
@@ -268,15 +266,23 @@ describe('renderPortfolio', () => {
   it('AND-composes account membership and search, then clears both without losing expansion', () => {
     MOCK_ACCOUNTS.push({ id: 'france', label: 'France', moneyType: 'investment' });
     const isin = 'IE00B4L5Y983';
-    renderPortfolio(makePD(), [
-      {
-        date: '2026-06',
-        acct1: 2000,
-        france: 1000,
-        [`position:acct1:${isin}`]: 1000,
-        [`position:france:${isin}`]: 1000,
-      },
-    ]);
+    renderPortfolio(
+      makePD({
+        etfs: {
+          IE00B4L5Y983: makeEtf(),
+          IE00B3F81R35: makeEtf({ isin: 'IE00B3F81R35', name: 'Other ETF' }),
+        },
+      }),
+      [
+        {
+          date: '2026-06',
+          acct1: 2000,
+          france: 1000,
+          [`position:acct1:${isin}`]: 1000,
+          [`position:france:${isin}`]: 1000,
+        },
+      ],
+    );
     expect(document.querySelector('[data-hold-account=":multiple"]')).toBeNull();
     document.querySelector<HTMLButtonElement>('[data-hold-account="acct1"]')!.click();
     expect(document.querySelectorAll('.hold-row[data-etf-key]')).toHaveLength(1);
@@ -291,32 +297,28 @@ describe('renderPortfolio', () => {
     expect(document.querySelectorAll('.hold-row[data-etf-key]')).toHaveLength(2);
   });
 
-  it.each([undefined, 0, 1])(
-    'trusts recorded values independently of old completeness metadata (%s)',
-    (coverage) => {
-      MOCK_ACCOUNTS.push({ id: 'france', label: 'France', moneyType: 'investment' });
-      const isin = 'IE00B4L5Y983';
-      MOCK_HOLDINGS[0].isin = isin;
-      renderPortfolio(makePD({ etfs: { [isin]: makeEtf({ isin }) } }), [
-        {
-          date: '2026-06',
-          acct1: 1000,
-          france: 0,
-          [`position:acct1:${isin}`]: 1000,
-          [`position:france:${isin}`]: 0,
-          ...(coverage === undefined ? {} : { 'position_coverage:acct1': coverage }),
-        },
-      ]);
-      const row = document.querySelector('.hold-row[data-etf-key]')!;
-      expect(row.textContent).not.toContain('2 accounts');
-      expect(row.textContent).not.toContain('partial');
-      expect(row.querySelectorAll('[role="cell"]')[7].textContent).not.toBe('-');
-      expect(document.getElementById('port-summary')!.textContent).toContain('Total return');
-      expect(document.getElementById('port-drift')!.textContent).not.toContain('purchase cost');
-      (row as HTMLElement).click();
-      expect(document.querySelector('.hold-detail-accounts')).toBeNull();
-    },
-  );
+  it('trusts recorded values and hides account details when only one account has a value', () => {
+    MOCK_ACCOUNTS.push({ id: 'france', label: 'France', moneyType: 'investment' });
+    const isin = 'IE00B4L5Y983';
+    MOCK_HOLDINGS[0].isin = isin;
+    renderPortfolio(makePD({ etfs: { [isin]: makeEtf({ isin }) } }), [
+      {
+        date: '2026-06',
+        acct1: 1000,
+        france: 0,
+        [`position:acct1:${isin}`]: 1000,
+        [`position:france:${isin}`]: 0,
+      },
+    ]);
+    const row = document.querySelector('.hold-row[data-etf-key]')!;
+    expect(row.textContent).not.toContain('2 accounts');
+    expect(row.textContent).not.toContain('partial');
+    expect(row.querySelectorAll('[role="cell"]')[7].textContent).not.toBe('-');
+    expect(document.getElementById('port-summary')!.textContent).toContain('Total return');
+    expect(document.getElementById('port-drift')!.textContent).not.toContain('purchase cost');
+    (row as HTMLElement).click();
+    expect(document.querySelector('.hold-detail-accounts')).toBeNull();
+  });
 
   it('counts useful account chips, omits empty accounts, and retains them through search', () => {
     MOCK_ACCOUNTS.push(
@@ -366,7 +368,15 @@ describe('renderPortfolio', () => {
         [`position:multiple:${isin}`]: 1000,
       },
     ];
-    renderPortfolio(makePD(), snaps);
+    renderPortfolio(
+      makePD({
+        etfs: {
+          IE00B4L5Y983: makeEtf(),
+          IE00B3F81R35: makeEtf({ isin: 'IE00B3F81R35', name: 'Other ETF' }),
+        },
+      }),
+      snaps,
+    );
     expect(document.querySelector('[data-hold-account=":multiple"]')).toBeNull();
     expect(document.querySelector('[data-hold-account="acct1"]')).toBeNull();
     document.querySelector<HTMLButtonElement>('[data-hold-account="multiple"]')!.click();
@@ -418,7 +428,7 @@ describe('renderPortfolio', () => {
   });
 
   it('uses ETF market values for unrealized gain and shows option-2 summary rows', () => {
-    const snap: Snapshot = { date: '2026-06-01', acct1: 1600, etf_IE00TEST1: 1200 };
+    const snap: Snapshot = { date: '2026-06-01', acct1: 1600, 'position:acct1:IE00B4L5Y983': 1200 };
     renderPortfolio(makePD(), [snap]);
 
     const kpis = document.getElementById('port-kpis')!.textContent!;
@@ -448,7 +458,7 @@ describe('renderPortfolio', () => {
   });
 
   it('treats an explicit zero ETF market value as recorded rather than omitted', () => {
-    renderPortfolio(makePD(), [{ date: '2026-06', acct1: 1200, etf_IE00TEST1: 0 }]);
+    renderPortfolio(makePD(), [{ date: '2026-06', acct1: 1200, 'position:acct1:IE00B4L5Y983': 0 }]);
     const summary = document.getElementById('port-summary')!.textContent!;
     expect(summary).toContain('Market value (positions)');
     expect(summary).toContain('Unrealized P&L (positions)');
@@ -456,7 +466,7 @@ describe('renderPortfolio', () => {
   });
 
   it('hides Account value row when it equals Market value (no unallocated cash)', () => {
-    const snap: Snapshot = { date: '2026-06-01', acct1: 1200, etf_IE00TEST1: 1200 };
+    const snap: Snapshot = { date: '2026-06-01', acct1: 1200, 'position:acct1:IE00B4L5Y983': 1200 };
     renderPortfolio(makePD(), [snap]);
     const summary = document.getElementById('port-summary')!.textContent!;
     expect(summary).toContain('Market value (positions)');
@@ -469,7 +479,7 @@ describe('renderPortfolio', () => {
       0,
       MOCK_HOLDINGS.length,
       {
-        isin: 'IE00TEST1',
+        isin: 'IE00B4L5Y983',
         shortName: 'IWDA',
         name: 'World',
         color: '#222222',
@@ -483,7 +493,7 @@ describe('renderPortfolio', () => {
         ter: 1,
       } as any,
       {
-        isin: 'IE00TEST2',
+        isin: 'IE00B3F81R35',
         shortName: 'EM',
         name: 'Emerging',
         color: '#333333',
@@ -499,12 +509,16 @@ describe('renderPortfolio', () => {
     );
     const pd = makePD({
       etfs: {
-        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 8000 }),
-        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 2000 }),
+        IE00B4L5Y983: makeEtf({ isin: 'IE00B4L5Y983', shortName: 'IWDA', cost: 8000 }),
+        IE00B3F81R35: makeEtf({ isin: 'IE00B3F81R35', shortName: 'EM', cost: 2000 }),
       },
       totalInv: 10000,
     });
-    const snap: Snapshot = { date: '2026-06-01', acct1: 20000, etf_IE00TEST1: 15000 };
+    const snap: Snapshot = {
+      date: '2026-06-01',
+      acct1: 20000,
+      'position:acct1:IE00B4L5Y983': 15000,
+    };
     renderPortfolio(pd, [snap]);
     const kpis = document.getElementById('port-kpis')!.textContent || '';
     expect(kpis).toContain('Annual fee drag');
@@ -583,8 +597,13 @@ describe('renderPortfolio', () => {
   it('renders multiple ETF rows', () => {
     const pd = makePD({
       etfs: {
-        IE00TEST1: makeEtf(),
-        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EIMI', color: '#333', cost: 500 }),
+        IE00B4L5Y983: makeEtf(),
+        IE00B3F81R35: makeEtf({
+          isin: 'IE00B3F81R35',
+          shortName: 'EIMI',
+          color: '#333',
+          cost: 500,
+        }),
       },
       totalInv: 1500,
     });
@@ -597,9 +616,19 @@ describe('renderPortfolio', () => {
   it('defaults holdings and chart order to largest allocation first', () => {
     const pd = makePD({
       etfs: {
-        IE00TEST1: makeEtf({ cost: 1000, shortName: 'IWDA' }),
-        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EIMI', color: '#333', cost: 500 }),
-        IE00TEST3: makeEtf({ isin: 'IE00TEST3', shortName: 'BOND', color: '#444', cost: 250 }),
+        IE00B4L5Y983: makeEtf({ cost: 1000, shortName: 'IWDA' }),
+        IE00B3F81R35: makeEtf({
+          isin: 'IE00B3F81R35',
+          shortName: 'EIMI',
+          color: '#333',
+          cost: 500,
+        }),
+        IE00B4L5YC18: makeEtf({
+          isin: 'IE00B4L5YC18',
+          shortName: 'BOND',
+          color: '#444',
+          cost: 250,
+        }),
       },
       totalInv: 1750,
     });
@@ -622,8 +651,8 @@ describe('renderPortfolio', () => {
     renderPortfolio(
       makePD({
         etfs: {
-          IE00TEST1: makeEtf(),
-          IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EIMI' }),
+          IE00B4L5Y983: makeEtf(),
+          IE00B3F81R35: makeEtf({ isin: 'IE00B3F81R35', shortName: 'EIMI' }),
         },
       }),
       [],
@@ -644,8 +673,12 @@ describe('renderPortfolio', () => {
   it('keeps the holdings search focused while filtering', () => {
     const pd = makePD({
       etfs: {
-        IE00TEST1: makeEtf(),
-        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EIMI', name: 'Emerging Markets' }),
+        IE00B4L5Y983: makeEtf(),
+        IE00B3F81R35: makeEtf({
+          isin: 'IE00B3F81R35',
+          shortName: 'EIMI',
+          name: 'Emerging Markets',
+        }),
       },
       totalInv: 2000,
     });
@@ -663,7 +696,7 @@ describe('renderPortfolio', () => {
   it('filter toggle switches between held and closed positions', () => {
     const pd = makePD({
       etfs: {
-        IE00TEST1: makeEtf(),
+        IE00B4L5Y983: makeEtf(),
         IE00CLOSED: makeEtf({
           isin: 'IE00CLOSED',
           shortName: 'EXITED',
@@ -717,8 +750,8 @@ describe('renderPortfolio', () => {
     expect(drift.textContent).not.toContain('Allocation weights use');
   });
 
-  it('drift note mentions market values when snapshot has etf_ keys', () => {
-    const snap: Snapshot = { date: '2026-06-01', acct1: 1500, etf_IE00TEST1: 1500 };
+  it('drift note mentions market values when snapshot has account-linked keys', () => {
+    const snap: Snapshot = { date: '2026-06-01', acct1: 1500, 'position:acct1:IE00B4L5Y983': 1500 };
     renderPortfolio(makePD(), [snap]);
     const drift = document.getElementById('port-drift')!;
     expect(drift.innerHTML).toContain('market values');
@@ -729,7 +762,7 @@ describe('renderPortfolio', () => {
       0,
       MOCK_HOLDINGS.length,
       {
-        isin: 'IE00TEST1',
+        isin: 'IE00B4L5Y983',
         shortName: 'IWDA',
         name: 'World',
         color: '#222222',
@@ -742,7 +775,7 @@ describe('renderPortfolio', () => {
         order: 1,
       } as any,
       {
-        isin: 'IE00TEST2',
+        isin: 'IE00B3F81R35',
         shortName: 'BOND',
         name: 'Bond',
         color: '#333333',
@@ -757,12 +790,12 @@ describe('renderPortfolio', () => {
     );
     const pd = makePD({
       etfs: {
-        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 1000 }),
-        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'BOND', cost: 500 }),
+        IE00B4L5Y983: makeEtf({ isin: 'IE00B4L5Y983', shortName: 'IWDA', cost: 1000 }),
+        IE00B3F81R35: makeEtf({ isin: 'IE00B3F81R35', shortName: 'BOND', cost: 500 }),
       },
       totalInv: 1500,
     });
-    const snap: Snapshot = { date: '2026-06-01', acct1: 3500, etf_IE00TEST1: 3000 };
+    const snap: Snapshot = { date: '2026-06-01', acct1: 3500, 'position:acct1:IE00B4L5Y983': 3000 };
     renderPortfolio(pd, [snap]);
     const note = document.getElementById('port-drift')!.innerHTML;
     expect(note).toContain('Allocation is based on purchase cost');
@@ -773,12 +806,16 @@ describe('renderPortfolio', () => {
     setRebalanceHoldings();
     const pd = makeRebalancePd({
       etfs: {
-        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 7000 }),
-        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 3000 }),
+        IE00B4L5Y983: makeEtf({ isin: 'IE00B4L5Y983', shortName: 'IWDA', cost: 7000 }),
+        IE00B3F81R35: makeEtf({ isin: 'IE00B3F81R35', shortName: 'EM', cost: 3000 }),
       },
       totalInv: 10000,
     });
-    const snap: Snapshot = { date: '2026-06-01', acct1: 20000, etf_IE00TEST1: 9000 };
+    const snap: Snapshot = {
+      date: '2026-06-01',
+      acct1: 20000,
+      'position:acct1:IE00B4L5Y983': 9000,
+    };
     renderPortfolio(pd, [snap]);
     const opt = driftOption();
     const values = opt.series[0].data.map((d: AnyRec) => d.value as number);
@@ -802,12 +839,16 @@ describe('renderPortfolio', () => {
     setRebalanceHoldings();
     const pd = makeRebalancePd({
       etfs: {
-        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 7000 }),
-        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 3000 }),
+        IE00B4L5Y983: makeEtf({ isin: 'IE00B4L5Y983', shortName: 'IWDA', cost: 7000 }),
+        IE00B3F81R35: makeEtf({ isin: 'IE00B3F81R35', shortName: 'EM', cost: 3000 }),
       },
       totalInv: 10000,
     });
-    const snap: Snapshot = { date: '2026-06-01', acct1: 20000, etf_IE00TEST1: 9000 };
+    const snap: Snapshot = {
+      date: '2026-06-01',
+      acct1: 20000,
+      'position:acct1:IE00B4L5Y983': 9000,
+    };
     renderPortfolio(pd, [snap]);
     const max = getMaxDrift(pd, [snap]);
     expect(max).not.toBeNull();
@@ -849,7 +890,7 @@ describe('renderPortfolio', () => {
     MOCK_HOLDINGS[0].active = state.active;
     renderPortfolio(
       makePD({
-        etfs: { IE00TEST1: makeEtf({ active: state.active, exited: state.exited }) },
+        etfs: { IE00B4L5Y983: makeEtf({ active: state.active, exited: state.exited }) },
       }),
       [],
     );
@@ -863,8 +904,8 @@ describe('renderPortfolio', () => {
     expect(values).toContainEqual(['Allocation', state.allocation]);
   });
 
-  it('tap-to-expand shows market value and unrealized gain when snapshot has etf_ values', () => {
-    const snap: Snapshot = { date: '2026-06-01', acct1: 1400, etf_IE00TEST1: 1400 };
+  it('tap-to-expand shows market value and unrealized gain when snapshot has account-linked values', () => {
+    const snap: Snapshot = { date: '2026-06-01', acct1: 1400, 'position:acct1:IE00B4L5Y983': 1400 };
     renderPortfolio(makePD(), [snap]);
     const table = document.getElementById('port-table')!;
     const row = table.querySelector('.hold-row:not(.th)') as HTMLElement;
@@ -876,7 +917,7 @@ describe('renderPortfolio', () => {
     expect(detail.innerHTML).toContain('hold-detail-value pos');
   });
 
-  it('tap-to-expand shows placeholder market columns when no etf_ snapshot values', () => {
+  it('tap-to-expand shows placeholder market columns when no account-linked snapshot values', () => {
     renderPortfolio(makePD(), []);
     const table = document.getElementById('port-table')!;
     const row = table.querySelector('.hold-row:not(.th)') as HTMLElement;
@@ -939,7 +980,7 @@ describe('renderPortfolio', () => {
     expect(opt.series[0].label.formatter({ dataIndex: 0 })).toBe('100%');
     const html = opt.tooltip.formatter({ dataIndex: 0 });
     expect(html).toContain('IWDA');
-    expect(html).toContain('IE00TEST1');
+    expect(html).toContain('IE00B4L5Y983');
   });
 
   it('sizes the chart to its rows', () => {
@@ -1009,11 +1050,14 @@ describe('renderPortfolio', () => {
     setRebalanceHoldings();
     const pd = makeRebalancePd({
       etfs: {
-        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 9500 }),
-        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 500 }),
+        IE00B4L5Y983: makeEtf({ isin: 'IE00B4L5Y983', shortName: 'IWDA', cost: 9500 }),
+        IE00B3F81R35: makeEtf({ isin: 'IE00B3F81R35', shortName: 'EM', cost: 500 }),
       },
     });
-    const snap = makeRebalanceSnap({ etf_IE00TEST1: 9500, etf_IE00TEST2: 500 });
+    const snap = makeRebalanceSnap({
+      'position:acct1:IE00B4L5Y983': 9500,
+      'position:acct1:IE00B3F81R35': 500,
+    });
     renderPortfolio(pd, [snap]);
     const drift = document.getElementById('port-drift')!;
     const details = drift.querySelector('.rebalance-collapsible') as HTMLDetailsElement;
@@ -1028,15 +1072,15 @@ describe('renderPortfolio', () => {
     setRebalanceHoldings();
     const pd = makeRebalancePd({
       etfs: {
-        IE00TEST1: makeEtf({
-          isin: 'IE00TEST1',
+        IE00B4L5Y983: makeEtf({
+          isin: 'IE00B4L5Y983',
           shortName: 'IWDA',
           cost: 0,
           shares: 0,
           exited: true,
         }),
-        IE00TEST2: makeEtf({
-          isin: 'IE00TEST2',
+        IE00B3F81R35: makeEtf({
+          isin: 'IE00B3F81R35',
           shortName: 'EM',
           cost: 0,
           shares: 0,
@@ -1170,12 +1214,16 @@ describe('renderPortfolio', () => {
     setRebalanceHoldings();
     const pd = makeRebalancePd({
       etfs: {
-        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 80000 }),
-        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 20000 }),
+        IE00B4L5Y983: makeEtf({ isin: 'IE00B4L5Y983', shortName: 'IWDA', cost: 80000 }),
+        IE00B3F81R35: makeEtf({ isin: 'IE00B3F81R35', shortName: 'EM', cost: 20000 }),
       },
       totalInv: 100000,
     });
-    const snap = makeRebalanceSnap({ acct1: 100000, etf_IE00TEST1: 80000, etf_IE00TEST2: 20000 });
+    const snap = makeRebalanceSnap({
+      acct1: 100000,
+      'position:acct1:IE00B4L5Y983': 80000,
+      'position:acct1:IE00B3F81R35': 20000,
+    });
     renderPortfolio(pd, [snap]);
     const drift = document.getElementById('port-drift')!;
     expect(drift.querySelector('.rebalance-sell-note')?.textContent).toContain('stay above target');
@@ -1192,7 +1240,7 @@ describe('renderPortfolio', () => {
       0,
       MOCK_HOLDINGS.length,
       {
-        isin: 'IE00TEST1',
+        isin: 'IE00B4L5Y983',
         shortName: 'IWDA',
         name: 'World',
         color: '#222222',
@@ -1205,7 +1253,7 @@ describe('renderPortfolio', () => {
         order: 1,
       } as any,
       {
-        isin: 'IE00TEST2',
+        isin: 'IE00B3F81R35',
         shortName: 'EM',
         name: 'Emerging',
         color: '#333333',
@@ -1218,7 +1266,7 @@ describe('renderPortfolio', () => {
         order: 2,
       } as any,
       {
-        isin: 'IE00TEST3',
+        isin: 'IE00B4L5YC18',
         shortName: 'Bond',
         name: 'Bond',
         color: '#444444',
@@ -1233,18 +1281,18 @@ describe('renderPortfolio', () => {
     );
     const pd = makePD({
       etfs: {
-        IE00TEST1: makeEtf({ isin: 'IE00TEST1', shortName: 'IWDA', cost: 6200 }),
-        IE00TEST2: makeEtf({ isin: 'IE00TEST2', shortName: 'EM', cost: 2500 }),
-        IE00TEST3: makeEtf({ isin: 'IE00TEST3', shortName: 'Bond', cost: 1300 }),
+        IE00B4L5Y983: makeEtf({ isin: 'IE00B4L5Y983', shortName: 'IWDA', cost: 6200 }),
+        IE00B3F81R35: makeEtf({ isin: 'IE00B3F81R35', shortName: 'EM', cost: 2500 }),
+        IE00B4L5YC18: makeEtf({ isin: 'IE00B4L5YC18', shortName: 'Bond', cost: 1300 }),
       },
       totalInv: 10000,
     });
     const snap: Snapshot = {
       date: '2026-06-01',
       acct1: 10000,
-      etf_IE00TEST1: 6200,
-      etf_IE00TEST2: 2500,
-      etf_IE00TEST3: 1300,
+      'position:acct1:IE00B4L5Y983': 6200,
+      'position:acct1:IE00B3F81R35': 2500,
+      'position:acct1:IE00B4L5YC18': 1300,
     };
     renderPortfolio(pd, [snap]);
     const drift = document.getElementById('port-drift')!;

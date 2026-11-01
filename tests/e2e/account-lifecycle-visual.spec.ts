@@ -12,227 +12,6 @@ import {
 } from './helpers';
 
 const ISIN = 'IE00B4L5Y983';
-const dialogButtonStyles = new WeakMap<Page, Record<string, string>[]>();
-
-for (const theme of ['light', 'dark']) {
-  for (const width of [390, 1280]) {
-    test(`total-only history is accepted without completeness flags: ${theme} ${width}px`, async ({
-      page,
-    }, info) => {
-      await page.setViewportSize({ width, height: 900 });
-      await preparePage(page);
-      await gotoApp(page);
-      await waitForSyncIdle(page);
-      await page.evaluate(async (isin) => {
-        const modulePath = '/src/db/index.ts';
-        const db: typeof import('../../src/db') = await import(/* @vite-ignore */ modulePath);
-        await db.restoreAllData({
-          accounts: [
-            {
-              id: 'broker',
-              label: 'Historical broker',
-              moneyType: 'investment',
-              isPrimaryInvestment: true,
-            },
-          ],
-          holdings: [],
-          settings: {},
-          transactions: [],
-          snapshots: Array.from({ length: 20 }, (_, i) => ({
-            date: `${2024 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}`,
-            broker: 1500,
-            ...(i >= 10 ? { [`etf_${isin}`]: 1000 } : {}),
-            notes: 'Historical statement',
-          })),
-        });
-      }, ISIN);
-      await page.reload();
-      await gotoApp(page);
-      await page.locator('#btn-header-menu').click();
-      await page.locator(`[data-theme-choice="${theme}"]`).click();
-      await page.keyboard.press('Escape');
-      await openTab(page, 'tab-settings');
-      await ensureCardExpanded(page, 'settings-card-accounts');
-      await waitForSyncIdle(page);
-      await page.click('#btn-migrate-valuations');
-      await expect(page.locator('[data-entry]')).toHaveCount(0);
-      await expect(page.locator('[data-account-check="0"]')).toContainText(
-        'No ETF breakdown recorded. Add it later if needed.',
-      );
-      await expect(page.locator('.migration-reconcile-warning')).toHaveCount(0);
-      await expect(page.locator('[data-coverage-review]')).toHaveCount(0);
-      await capture(page, info, 'migration-total-only', '.valuation-migration-overlay');
-      await page.fill('#migration-month', '2024-11');
-      await page.locator('#migration-month').press('Tab');
-      await expect(page.locator('[data-entry="0"]')).toHaveValue('1000');
-      await expect(page.locator('#migration-month-editor')).toContainText('Saved 1.000,00');
-      await expect(page.locator('#migration-month-editor')).toContainText(
-        'Prefilled for Historical broker',
-      );
-      await capture(page, info, 'migration-saved-prefill', '.valuation-migration-overlay');
-      await page.fill('#migration-month', '2024-01');
-      await page.locator('#migration-month').press('Tab');
-      await page.getByText('Bulk actions', { exact: true }).click();
-      await page.locator('.js-rule').click();
-      await page.getByText('Bulk actions', { exact: true }).click();
-      await page.locator('.js-review').click();
-      await expect(page.locator('#migration-error')).toBeEmpty();
-      await expect(page.locator('#migration-preview')).not.toContainText('Not reviewed');
-      await page.check('#migration-confirm');
-      await waitForSyncIdle(page);
-      if (theme === 'light' && width === 390) {
-        const setBusy = async (busy: boolean) =>
-          page.evaluate(async (busy) => {
-            const modulePath = '/src/sync/lock.ts';
-            const lock: typeof import('../../src/sync/lock') = await import(
-              /* @vite-ignore */ modulePath
-            );
-            lock.setBusy(busy);
-          }, busy);
-        await setBusy(true);
-        try {
-          await page.locator('.js-submit').click();
-          await expect(page.locator('#migration-error')).toContainText('Sync is busy');
-          await expect(page.locator('#migration-confirm')).toBeChecked();
-          await capture(page, info, 'migration-busy-retry', '.valuation-migration-overlay');
-        } finally {
-          await setBusy(false);
-        }
-      }
-      await page.locator('.js-submit').click();
-      await expectToast(page, 'valuation-migration-msg', 'Account-linked ETF values enabled');
-      await waitForSyncIdle(page);
-      await page.reload();
-      await gotoApp(page);
-      expect(
-        await page.evaluate(async () => {
-          const modulePath = '/src/db/index.ts';
-          const db: typeof import('../../src/db') = await import(/* @vite-ignore */ modulePath);
-          const history = await db.loadSnapshots();
-          return { count: history.length, first: history[0], last: history[19] };
-        }),
-      ).toEqual({
-        count: 20,
-        first: { date: '2024-01', broker: 1500, notes: 'Historical statement' },
-        last: {
-          date: '2025-08',
-          broker: 1500,
-          [`position:broker:${ISIN}`]: 1000,
-          notes: 'Historical statement',
-        },
-      });
-    });
-  }
-}
-
-for (const width of [390, 1280]) {
-  test(`long migration history stays bounded and retains cents: ${width}px`, async ({
-    page,
-  }, info) => {
-    await page.setViewportSize({ width, height: 900 });
-    await preparePage(page);
-    await gotoApp(page);
-    await waitForSyncIdle(page);
-    await page.evaluate(async (isin) => {
-      const modulePath = '/src/db/index.ts';
-      const db: typeof import('../../src/db') = await import(/* @vite-ignore */ modulePath);
-      await db.restoreAllData({
-        accounts: [
-          {
-            id: 'spain',
-            label: 'Spain investment',
-            moneyType: 'investment',
-            isPrimaryInvestment: true,
-          },
-          { id: 'france', label: 'France investment', moneyType: 'investment' },
-        ],
-        holdings: [],
-        settings: {},
-        transactions: [],
-        snapshots: Array.from({ length: 240 }, (_, i) => ({
-          date: `${2000 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}`,
-          spain: 4000.12,
-          france: 20000.67,
-          [`etf_${isin}`]: 10000.46,
-          notes: 'Original history',
-        })),
-      });
-    }, ISIN);
-    await page.reload();
-    await gotoApp(page);
-    await openTab(page, 'tab-settings');
-    await ensureCardExpanded(page, 'settings-card-accounts');
-    await waitForSyncIdle(page);
-    await page.click('#btn-migrate-valuations');
-    await expect(page.locator('#migration-progress')).toHaveText(
-      'Month 1 of 240 · 240 months unassigned',
-    );
-    await expect(page.locator('[data-entry]')).toHaveCount(2);
-    await expect(page.locator('[data-coverage-review]')).toHaveCount(0);
-    await expect(page.locator('#migration-from')).toHaveAttribute('type', 'month');
-    await page.getByText('Bulk actions', { exact: true }).click();
-    await page.fill('#migration-from', '2005-01');
-    await page.fill('#migration-to', '2006-12');
-    await capture(page, info, 'long-history-month-range', '.valuation-migration-overlay');
-    await page.locator('.js-all-months').click();
-    await expect(page.locator('#migration-from')).toHaveValue('');
-    await expect(page.locator('#migration-to')).toHaveValue('');
-    await page.selectOption('#migration-account', 'france');
-    await page.locator('.js-rule').click();
-    await expect(page.locator('#migration-progress')).toContainText('0 months unassigned');
-    await page.fill('[data-entry="0"][data-account="spain"]', '4000.12');
-    await page.fill('[data-entry="0"][data-account="france"]', '6000.34');
-    await page.locator('.js-month-next').click();
-    await expect(page.locator('#migration-month')).toHaveValue('2000-02');
-    await page.locator('.js-month-prev').click();
-    await expect(page.locator('[data-entry="0"][data-account="spain"]')).toHaveValue('4000.12');
-    await page.getByText('Bulk actions', { exact: true }).click();
-    await capture(page, info, 'long-history-unified-review', '.valuation-migration-overlay');
-    await page.locator('.js-review').click();
-    await expect(page.locator('#migration-preview')).toContainText(
-      'All 240 month/ISIN totals conserved',
-    );
-    await expect(page.locator('#migration-preview')).toContainText('Before 10.000,46');
-    await expect(page.locator('#migration-preview')).toContainText('After 10.000,46');
-    await expect(page.locator('#migration-preview')).toContainText('4.000,12');
-    await expect(page.locator('#migration-preview .migration-preview-row')).toHaveCount(3);
-    await page.locator('#migration-preview').scrollIntoViewIfNeeded();
-    await capture(page, info, 'long-history-before-after-cents', '.valuation-migration-overlay');
-    await page.fill('#migration-month', '2010-06');
-    await page.locator('#migration-month').press('Tab');
-    await expect(page.locator('#migration-progress')).toContainText('Month 126 of 240');
-    await expect(page.locator('#migration-preview')).toContainText('Showing 2010-06');
-    await expect(page.locator('#migration-confirm')).toBeEnabled();
-    await page.check('#migration-confirm');
-    await page.locator('.js-submit').click();
-    await expectToast(page, 'valuation-migration-msg', 'Account-linked ETF values enabled');
-    await waitForSyncIdle(page);
-    await page.reload();
-    await gotoApp(page);
-    await waitForSyncIdle(page);
-    expect(
-      await page.evaluate(async () => {
-        const modulePath = '/src/db/index.ts';
-        const db: typeof import('../../src/db') = await import(/* @vite-ignore */ modulePath);
-        const snapshots = await db.loadSnapshots();
-        return {
-          count: snapshots.length,
-          first: snapshots[0],
-          last: snapshots[snapshots.length - 1],
-        };
-      }),
-    ).toMatchObject({
-      count: 240,
-      first: {
-        'position:spain:IE00B4L5Y983': 4000.12,
-        'position:france:IE00B4L5Y983': 6000.34,
-        notes: 'Original history',
-      },
-      last: { 'position:france:IE00B4L5Y983': 10000.46 },
-    });
-  });
-}
-
 async function capture(page: Page, info: TestInfo, name: string, selector?: string) {
   for (const dismiss of await page.getByRole('button', { name: 'Dismiss notification' }).all())
     await dismiss.click();
@@ -252,53 +31,6 @@ async function capture(page: Page, info: TestInfo, name: string, selector?: stri
     await expect(card).toHaveCSS('max-width', selector.includes('snap-dialog') ? '720px' : '640px');
     await expect(target.locator('.dialog-fields')).toHaveCSS('overflow-y', 'auto');
     await expect(actions).toBeInViewport();
-    const referenceButtons = dialogButtonStyles.get(page);
-    if (selector.includes('valuation-migration') && referenceButtons)
-      await expect(actions.locator('.btn-primary:visible')).toHaveCSS(
-        'background-color',
-        referenceButtons[referenceButtons.length - 1].background,
-      );
-    const footerStyles = await actions.locator('.btn:visible').evaluateAll((buttons) =>
-      buttons.map((button) => {
-        const style = getComputedStyle(button);
-        return {
-          padding: style.padding,
-          radius: style.borderRadius,
-          fontSize: style.fontSize,
-          height: style.height,
-          lineHeight: style.lineHeight,
-          background: style.backgroundColor,
-          color: style.color,
-          border: style.border,
-        };
-      }),
-    );
-    if (name === 'existing-account-dialog-reference') dialogButtonStyles.set(page, footerStyles);
-    if (selector.includes('valuation-migration')) {
-      await expect(actions.locator('.btn-primary:visible')).toHaveCount(1);
-      const bounds = await actions.boundingBox();
-      expect(bounds!.height).toBeLessThan(35);
-      const reference = dialogButtonStyles.get(page);
-      if (reference) {
-        expect(footerStyles[0]).toEqual(reference[0]);
-        expect(footerStyles[footerStyles.length - 1]).toEqual(reference[reference.length - 1]);
-      }
-      const geometry = await target.locator('.btn:visible').evaluateAll((buttons) =>
-        buttons.map((button) => ({
-          height: button.getBoundingClientRect().height,
-          arrow: !!button.closest('.pagination-nav'),
-          minWidth: getComputedStyle(button).minWidth,
-          width: getComputedStyle(button).width,
-        })),
-      );
-      for (const button of geometry) {
-        expect(button.height).toBeLessThan(35);
-        if (button.arrow) {
-          expect(button.minWidth).toBe('28px');
-          expect(button.width).toBe('28px');
-        }
-      }
-    }
     expect(await card.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(
       true,
     );
@@ -379,8 +111,22 @@ for (const theme of ['light', 'dark'] as const) {
             ],
             settings: { monthly_contrib_budget: '500' },
             snapshots: [
-              { date: earlier, daily: 200, spain: 400, france: 600, [`etf_${isin}`]: 1000 },
-              { date: latest, daily: 200, spain: 0, france: 1000, [`etf_${isin}`]: 1000 },
+              {
+                date: earlier,
+                daily: 200,
+                spain: 400,
+                france: 600,
+                [`position:spain:${isin}`]: 400,
+                [`position:france:${isin}`]: 600,
+              },
+              {
+                date: latest,
+                daily: 200,
+                spain: 0,
+                france: 1000,
+                [`position:spain:${isin}`]: 0,
+                [`position:france:${isin}`]: 1000,
+              },
             ],
             transactions: [],
           });
@@ -399,84 +145,6 @@ for (const theme of ['light', 'dark'] as const) {
       await page.locator('.js-edit-acct').first().click();
       await capture(page, info, 'existing-account-dialog-reference', '.acct-dialog-overlay');
       await page.locator('.js-acctd-cancel').click();
-      await page.click('#btn-migrate-valuations');
-      await capture(page, info, 'migration-assignment', '.valuation-migration-overlay');
-      await expect(page.locator('#migration-month-editor')).toContainText('Saved ETF breakdown');
-      await page.locator('.js-assign-month[data-account-id="france"]').click();
-      await expect(page.locator('[data-entry="0"][data-account="france"]')).toHaveValue('1000');
-      await expect(page.locator('[data-coverage-review]')).toHaveCount(0);
-      await capture(page, info, 'migration-saved-reuse', '.valuation-migration-overlay');
-      await page.getByText('Dates and splits', { exact: true }).click();
-      await capture(page, info, 'migration-date-guidance', '.valuation-migration-overlay');
-      await page.getByText('Dates and splits', { exact: true }).click();
-      await page.locator('.valuation-migration-overlay .js-review').click();
-      await expect(page.locator('#migration-error')).not.toBeEmpty();
-      await expect(page.locator('#migration-error')).toBeFocused();
-      await expect(page.locator('#migration-error')).toBeInViewport();
-      await capture(page, info, 'migration-validation', '.valuation-migration-overlay');
-      await page.fill('[data-entry="0"][data-account="spain"]', '400');
-      await page.fill('[data-entry="0"][data-account="france"]', '590');
-      await expect(page.locator('[data-total="0"]')).toContainText('10,00 € still missing');
-      await expect(page.locator('[data-total="0"]')).toHaveClass(/migration-reconcile-error/);
-      await page.locator('[data-total="0"]').scrollIntoViewIfNeeded();
-      await capture(page, info, 'migration-shortfall', '.valuation-migration-overlay');
-      await page.fill('[data-entry="0"][data-account="france"]', '610');
-      await expect(page.locator('[data-total="0"]')).toContainText('10,00 € too high');
-      await expect(page.locator('[data-account-check="2"]')).toHaveCount(0);
-      await expect(page.locator('[data-account-check="1"]')).toContainText(
-        'exceed the account balance by 10,00 €',
-      );
-      await page.locator('[data-account-check="1"]').scrollIntoViewIfNeeded();
-      await capture(page, info, 'migration-excess', '.valuation-migration-overlay');
-      await page.locator('.valuation-migration-overlay .js-review').click();
-      await expect(page.locator('#migration-confirm')).toBeDisabled();
-      await expect(page.locator('#migration-error')).not.toBeEmpty();
-      for (const [entry, account, value] of [
-        ['0', 'spain', '400'],
-        ['0', 'france', '600'],
-      ])
-        await page.fill(`[data-entry="${entry}"][data-account="${account}"]`, value);
-      await capture(page, info, 'migration-accepted-assignments', '.valuation-migration-overlay');
-      await page.locator('.js-month-next').click();
-      await page.fill('[data-entry="1"][data-account="france"]', '1000');
-      await expect(page.locator('#migration-progress')).toContainText('Month 2 of 2');
-      await expect(page.locator('[data-entry]')).toHaveCount(2);
-      await page.locator('.valuation-migration-overlay .js-review').click();
-      await expect(page.locator('#migration-preview')).toContainText('totals conserved');
-      await expect(page.locator('#migration-preview')).not.toContainText('Complete');
-      await page.locator('.js-month-prev').click();
-      await expect(page.locator('[data-entry="0"][data-account="spain"]')).toHaveValue('400');
-      await page.locator('#migration-preview').scrollIntoViewIfNeeded();
-      await page.locator('#migration-confirm').scrollIntoViewIfNeeded();
-      await capture(page, info, 'migration-review', '.valuation-migration-overlay');
-      await page.check('#migration-confirm');
-      await page.locator('.valuation-migration-overlay .js-submit').click();
-      await expect(page.locator('.valuation-migration-overlay')).toHaveCount(0);
-      await expectToast(page, 'valuation-migration-msg', 'Account-linked ETF values enabled');
-      await expect(page.locator('#btn-migrate-valuations')).toHaveCount(0);
-      await waitForSyncIdle(page);
-      await page.reload();
-      await gotoApp(page);
-      await openTab(page, 'tab-settings');
-      await ensureCardExpanded(page, 'settings-card-accounts');
-      await expect
-        .poll(() =>
-          page.evaluate(async () => {
-            const modulePath = '/src/db/index.ts';
-            const db: typeof import('../../src/db') = await import(/* @vite-ignore */ modulePath);
-            return (await db.loadSnapshots()).map((snapshot) => [
-              snapshot['position_coverage:spain'] ?? null,
-              snapshot['position_coverage:france'] ?? null,
-            ]);
-          }),
-        )
-        .toEqual([
-          [null, null],
-          [null, null],
-        ]);
-      await waitForSyncIdle(page);
-      await expect(page.locator('#btn-review-coverage')).toHaveCount(0);
-
       await expect(page.locator('#settings-accounts-tbl .js-acctd-lifecycle')).toHaveCount(0);
       await expect(page.locator('#acct-lifecycle-toggle')).toBeHidden();
       await capture(page, info, 'compact-account-settings', '#settings-accounts-tbl');
