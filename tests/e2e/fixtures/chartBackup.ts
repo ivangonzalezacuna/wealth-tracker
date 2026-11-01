@@ -57,13 +57,14 @@ export function chartBackup(): BackupFile {
       date,
       broker: 320 * (m + 1),
       cash: 4000 + 50 * m,
-      [`etf_${holdings[0].isin}`]: 110 * (m + 1),
-      [`etf_${holdings[1].isin}`]: 210 * (m + 1),
+      [`position:broker:${holdings[0].isin}`]: 110 * (m + 1),
+      [`position:broker:${holdings[1].isin}`]: 210 * (m + 1),
+      'position_coverage:broker': 1,
     });
   }
   return {
     app: 'wealth-tracker',
-    schemaVersion: 4,
+    schemaVersion: 5,
     exportedAt: '2025-07-01T12:00:00.000Z',
     data: {
       accounts: [
@@ -86,7 +87,7 @@ export function chartBackup(): BackupFile {
         },
       ],
       holdings,
-      settings: { fx_integration_enabled: '0' },
+      settings: { fx_integration_enabled: '0', etf_valuation_schema: 'account-v1' },
       snapshots,
       transactions,
       importMeta: {},

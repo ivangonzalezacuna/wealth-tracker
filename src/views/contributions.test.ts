@@ -11,7 +11,7 @@ import { addMonths, loadCharts } from './charts';
 type AnyRec = any;
 
 // ── Mock dependencies ──────────────────────────────────────────────
-const MOCK_ACCOUNTS = [
+const MOCK_ACCOUNTS: import('../types').Account[] = [
   {
     id: 'acct1',
     moneyType: 'investment',
@@ -96,6 +96,8 @@ const DOM_FIXTURE = `
 
 describe('renderDCA', () => {
   beforeEach(async () => {
+    MOCK_ACCOUNTS.splice(1);
+    delete MOCK_ACCOUNTS[0].closedPeriods;
     await loadCharts();
     resetMockCharts();
     document.body.innerHTML = DOM_FIXTURE;
@@ -119,6 +121,19 @@ describe('renderDCA', () => {
     expect((document.getElementById('dca-empty') as HTMLElement).style.display).not.toBe('none');
     expect((document.getElementById('dca-content') as HTMLElement).style.display).toBe('none');
     expect(chartInstances.length).toBe(0);
+  });
+
+  it('excludes closed contributions and does not redirect their primary budget', () => {
+    MOCK_ACCOUNTS[0].closedPeriods = [{ closedFromMonth: '2026-01' }];
+    MOCK_ACCOUNTS.push({
+      id: 'france',
+      label: 'France',
+      moneyType: 'investment',
+      contribAmount: 0,
+    });
+    renderDCA(makePD(), []);
+    expect(document.getElementById('dca-proj-card')!.textContent).toBe('');
+    expect(document.getElementById('dca-kpis')!.textContent).toContain('Current cost basis');
   });
 
   it('shows empty state when pd has no months', () => {

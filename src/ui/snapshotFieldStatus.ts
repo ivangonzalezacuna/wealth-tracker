@@ -1,6 +1,7 @@
 import type { Snapshot } from '../types';
-import { normalizeISIN } from '../model/isin';
+import { isValidISIN, normalizeISIN } from '../model/isin';
 import { esc } from '../utils';
+import { positionKey } from '../model/snapshotPositions';
 
 export interface SnapshotFieldStatus {
   kind: 'copied' | 'unchanged' | 'modified' | 'new' | 'missing' | 'imported';
@@ -22,9 +23,14 @@ export function trackSnapshotFieldStatus(
   const markers = new WeakMap<HTMLInputElement, HTMLElement>();
   const keyFor = (input: HTMLInputElement) => {
     const extra = input.parentElement?.querySelector<HTMLInputElement>('[data-extra-isin]');
+    const isin = normalizeISIN(extra?.value || input.dataset.etfIsin || '');
     return (
       input.dataset.accountKey ||
-      `etf_${normalizeISIN(extra?.value || input.dataset.etfIsin || '')}`
+      (input.dataset.positionAccount
+        ? isValidISIN(isin)
+          ? positionKey(input.dataset.positionAccount, isin)
+          : `position:${input.dataset.positionAccount}:${isin}`
+        : `etf_${isin}`)
     );
   };
   const statusFor = (input: HTMLInputElement): SnapshotFieldStatus => {

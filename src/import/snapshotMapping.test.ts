@@ -74,7 +74,7 @@ describe('provider/document mapping preferences', () => {
     );
     expect(getSnapshotMapping('', type, accounts)).toBeUndefined();
   });
-  it('survives renames but rejects deleted, retyped or no-longer-primary targets', () => {
+  it('survives renames and primary changes but rejects deleted or retyped targets', () => {
     const raw = updateSnapshotMapping('', type, combined, accounts);
     expect(
       getSnapshotMapping(
@@ -83,12 +83,33 @@ describe('provider/document mapping preferences', () => {
         accounts.map((a) => ({ ...a, label: 'Renamed' })),
       ),
     ).toEqual(combined);
-    for (const changed of [
-      accounts.slice(1),
-      accounts.map((a) => ({ ...a, isPrimaryInvestment: false })),
-      accounts.map((a) => ({ ...a, moneyType: 'cash' })),
-    ])
-      expect(() => getSnapshotMapping(raw, type, changed)).toThrow('primary');
+    expect(
+      getSnapshotMapping(
+        raw,
+        type,
+        accounts.map((a) => ({ ...a, isPrimaryInvestment: false })),
+      ),
+    ).toEqual(combined);
+    for (const changed of [accounts.slice(1), accounts.map((a) => ({ ...a, moneyType: 'cash' }))])
+      expect(() => getSnapshotMapping(raw, type, changed)).toThrow('investment');
+  });
+  it('separates structural preferences from eligibility in a historical statement month', () => {
+    const closed = accounts.map((a) => ({
+      ...a,
+      closedPeriods: [{ closedFromMonth: '2024-02', reopenedFromMonth: '2024-05' }],
+    }));
+    expect(validateSnapshotMapping(combined, closed, type)).toEqual(combined);
+    expect(validateSnapshotMapping(combined, closed, type, '2024-01')).toEqual(combined);
+    expect(validateSnapshotMapping(combined, closed, type, '2024-05')).toEqual(combined);
+    expect(() => validateSnapshotMapping(combined, closed, type, '2024-03')).toThrow('closed');
+    expect(() =>
+      validateSnapshotMapping(
+        { mode: 'split', securitiesAccount: 'broker', cashAccount: 'cash' },
+        [accounts[0], closed[1]],
+        type,
+        '2024-03',
+      ),
+    ).toThrow('cash or savings');
   });
   it('accepts only distinct cash/savings targets for split mapping', () => {
     for (const cashAccount of ['cash', 'savings'])

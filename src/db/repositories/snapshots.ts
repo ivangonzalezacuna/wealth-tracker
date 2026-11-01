@@ -9,6 +9,7 @@
 
 import { getDb, persistDb } from '../connection';
 import type { Snapshot } from '../../types';
+import { readFinancialData, validateFinancialData } from '../accountData';
 
 /** Load all snapshots, sorted by date ascending. */
 export async function loadSnapshots(): Promise<Snapshot[]> {
@@ -23,6 +24,11 @@ export async function loadSnapshots(): Promise<Snapshot[]> {
  */
 export async function upsertSnapshot(snap: Snapshot): Promise<void> {
   const db = await getDb();
+  const data = readFinancialData(db);
+  validateFinancialData({
+    ...data,
+    snapshots: [...data.snapshots.filter((s) => s.date !== snap.date), snap],
+  });
   const { date, notes, ...values } = snap;
   // Remove 'notes' from values object - it's stored separately
   const valuesJson = JSON.stringify(values);
@@ -39,6 +45,7 @@ export async function upsertSnapshot(snap: Snapshot): Promise<void> {
  */
 export async function saveSnapshots(snaps: Snapshot[]): Promise<void> {
   const db = await getDb();
+  validateFinancialData({ ...readFinancialData(db), snapshots: snaps });
   const stmt = db.prepare('INSERT INTO snapshots (date, values_json, notes) VALUES (?, ?, ?)');
   try {
     db.run('BEGIN');

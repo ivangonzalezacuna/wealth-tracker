@@ -23,6 +23,7 @@ import {
   setSettings,
 } from '../store/config';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
+import { isAccountOpenNow } from '../model/accounts';
 import { cagrPerAccount } from '../model/insights';
 import {
   formatMonthsEta,
@@ -233,7 +234,7 @@ function _buildAccountForecastInputs(snap: Snapshot, accounts: Account[]): Accou
       ? annualizeContrib(globalContribAmount, globalContribInterval)
       : annualizeContrib(a.contribAmount || 0, accountContribInterval);
     const extraContribAnnual = annualizeContrib(a.extraContrib || 0, accountContribInterval);
-    const annualContrib = personalContribAnnual + extraContribAnnual;
+    const annualContrib = isAccountOpenNow(a) ? personalContribAnnual + extraContribAnnual : 0;
     const contribInterval = isPrimaryInvestment ? globalContribInterval : accountContribInterval;
     return { current, annualContrib, annualReturnPct, contribInterval };
   });
@@ -301,8 +302,8 @@ function _applyScenarioToAccountInputs(
   if (adjusted.length === 0 || scenario.contribDeltaAmt === 0) return adjusted;
 
   const annualDelta = scenario.contribDeltaAmt * 12;
-  const targetIdx = accounts.findIndex((a) => _isPrimaryInvestmentAccount(a));
-  const idx = targetIdx >= 0 ? targetIdx : 0;
+  const idx = accounts.findIndex((a) => _isPrimaryInvestmentAccount(a) && isAccountOpenNow(a));
+  if (idx < 0) return adjusted;
   adjusted[idx] = {
     ...adjusted[idx],
     annualContrib: Math.max(0, adjusted[idx].annualContrib + annualDelta),
@@ -975,7 +976,9 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       const inp = accountInputs[idx];
       const retStr = `${a.annualReturnPct ?? 0}%/yr`;
       let contribStr: string;
-      if (_isPrimaryInvestmentAccount(a)) {
+      if (!isAccountOpenNow(a)) {
+        contribStr = 'closed — contributions paused';
+      } else if (_isPrimaryInvestmentAccount(a)) {
         contribStr =
           inp.annualContrib > 0
             ? `${fmtEur(globalContribAmount)} ${esc(globalContribIntervalLabel)} (from Holdings)`

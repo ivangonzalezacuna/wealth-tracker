@@ -1,11 +1,13 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import {
   addSnapshot,
+  ensureCardExpanded,
   gotoApp,
   monthOffsetValue,
   openTab,
   preparePage,
   snapshotRow,
+  waitForSyncIdle,
 } from './helpers';
 
 // A new browser (no local data) that signs in must load the data already in
@@ -169,5 +171,59 @@ test.describe('first sign-in on a new browser', () => {
     await expect(snapshotRow(page, LOCAL_MONTH)).toHaveCount(1);
     await expect(page.locator('.conflict-overlay')).toHaveCount(0);
     await expect.poll(() => uploads.length, { timeout: 15_000 }).toBeGreaterThan(0);
+  });
+
+  test('an empty new browser downloads legacy ETF history without auto-assigning it', async ({
+    browser,
+    page,
+  }) => {
+    const seed = await browser.newContext();
+    const seedPage = await seed.newPage();
+    await preparePage(seedPage);
+    await gotoApp(seedPage);
+    await waitForSyncIdle(seedPage);
+    const binary = await seedPage.evaluate(async (month) => {
+      const modulePath = '/src/db/index.ts';
+      const db: typeof import('../../src/db') = await import(/* @vite-ignore */ modulePath);
+      await db.restoreAllData({
+        accounts: [
+          {
+            id: 'broker',
+            label: 'Legacy broker',
+            moneyType: 'investment',
+            isPrimaryInvestment: true,
+          },
+        ],
+        holdings: [],
+        settings: {},
+        transactions: [],
+        snapshots: [{ date: month, broker: 1000, etf_IE00B4L5Y983: 1000 }],
+      });
+      return Array.from(db.exportDb()!);
+    }, MONTH);
+    await seed.close();
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'gtoken',
+        JSON.stringify({
+          access_token: 'e2e-token',
+          expires_at: Date.now() + 3_600_000,
+        }),
+      );
+      localStorage.setItem('ggranted', '1');
+    });
+    await fakeGoogleSignIn(page);
+    const uploads = await driveWith(page, {
+      data: Buffer.from(binary),
+      modifiedTime: new Date().toISOString(),
+    });
+    await gotoApp(page);
+    await openTab(page, 'tab-log');
+    await expect(snapshotRow(page, MONTH)).toHaveCount(1, { timeout: 15_000 });
+    await expect(page.locator('#sync-status')).not.toContainText('Sync paused');
+    await openTab(page, 'tab-settings');
+    await ensureCardExpanded(page, 'settings-card-accounts');
+    await expect(page.locator('#btn-migrate-valuations')).toBeVisible();
+    expect(uploads).toEqual([]);
   });
 });

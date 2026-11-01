@@ -147,6 +147,18 @@ Each holding can be given a **target allocation percentage** (set in the holding
 
 ### 3. Log your first monthly snapshot
 
+A tracker account can be closed and reopened without losing its history or name,
+including when a
+bank issues a replacement for the same logical setup. Reopening does not resume
+contributions automatically.
+
+Existing global ETF snapshot values need a one-time reviewed account assignment.
+The current primary account is a proposal, not an automatic historical mapping.
+After conversion, the same ETF may have valuations in several accounts while
+retaining one security definition and one Portfolio row. Expand that row for
+account values; the account filter selects rows, not account-specific cost basis
+or P&L. Save a recovery backup before converting.
+
 Go to the **+ Log** tab. Enter the closing value for each account for the selected month, review the draft, then hit **Save snapshot**. This records your net worth for the month.
 
 Holdings, snapshot history and the income **By year** table share an outline

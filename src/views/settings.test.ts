@@ -4,8 +4,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { snapshotParsers } from '../import/snapshotParsers';
 import { fictionalBalanceParser } from '../../tests/fixtures/snapshot-import/balanceParser';
-import type { Settings } from '../types';
-import { getSettings, saveSnapshotMapping, setSettings } from '../store/config';
+import type { Account, Settings } from '../types';
+import {
+  getSettings,
+  saveSnapshotMapping,
+  setSettings,
+  saveAccountLifecycle,
+} from '../store/config';
 import { showMsg } from '../utils';
 import { notify } from '../ui/toast';
 import { confirmDialog } from '../ui/confirmDialog';
@@ -18,7 +23,7 @@ import { applySyncBusyState } from './settings';
 // ── Mocks ───────────────────────────────────────────────────────
 
 // Minimal account / holding / settings shapes sufficient for renderSettings
-const MOCK_ACCOUNTS = [
+const MOCK_ACCOUNTS: Account[] = [
   {
     id: 'acct1',
     moneyType: 'investment',
@@ -65,6 +70,8 @@ vi.mock('../store/config', () => ({
   getContributionInterval: () => MOCK_CONTRIB_INTERVAL,
   getCalibrationInterval: () => MOCK_CALIBRATION_INTERVAL,
   setAccounts: vi.fn(async () => {}),
+  saveAccountLifecycle: vi.fn(async () => {}),
+  migrateEtfValuations: vi.fn(async () => {}),
   setHoldings: vi.fn(async () => {}),
   setSettings: vi.fn(async () => {}),
   setSetting: vi.fn(async () => {}),
@@ -154,7 +161,8 @@ vi.mock('../utils', async (importOriginal) => ({
 
 vi.mock('../theme', () => ({}));
 
-vi.mock('../model/accounts', () => ({
+vi.mock('../model/accounts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../model/accounts')>()),
   validateAccountIds: () => null,
   validatePrimaryInvestment: () => null,
   validateAccountRanges: () => null,
@@ -292,6 +300,27 @@ describe('statement mapping settings', () => {
       (document.getElementById('btn-save-statement-mapping') as HTMLButtonElement).disabled,
     ).toBe(false);
   });
+  it('discards mapping fields without resetting a neighboring FX draft', () => {
+    const mode = document.getElementById('settings-statement-mode') as HTMLSelectElement;
+    const original = mode.value;
+    const fx = document.getElementById('fx-integration-enabled') as HTMLInputElement;
+    fx.checked = !fx.checked;
+    fx.dispatchEvent(new Event('change', { bubbles: true }));
+    mode.value = 'positions';
+    mode.dispatchEvent(new Event('change', { bubbles: true }));
+    document.getElementById('btn-discard-statement-mapping')!.click();
+    expect(mode.value).toBe(original);
+    expect(
+      (document.getElementById('btn-discard-statement-mapping') as HTMLButtonElement).hidden,
+    ).toBe(true);
+    expect(
+      (document.getElementById('btn-save-statement-mapping') as HTMLButtonElement).hidden,
+    ).toBe(false);
+    expect(
+      (document.getElementById('btn-discard-fx-integration') as HTMLButtonElement).hidden,
+    ).toBe(false);
+    expect(saveSnapshotMapping).not.toHaveBeenCalled();
+  });
   it('saves through the guarded ordinary settings path', async () => {
     document.querySelector<HTMLButtonElement>('#btn-save-statement-mapping')!.click();
     await vi.waitFor(() =>
@@ -326,7 +355,19 @@ describe('statement mapping settings', () => {
     selector.dispatchEvent(new Event('change'));
     expect(document.querySelectorAll('[data-mapping-balance]')).toHaveLength(1);
     expect(document.querySelector('[data-mapping-mode]')).toBeNull();
-    document.querySelector<HTMLSelectElement>('[data-mapping-balance]')!.value = 'acct1';
+    const account = document.querySelector<HTMLSelectElement>('[data-mapping-balance]')!;
+    const original = account.value;
+    account.value = original === 'acct1' ? '' : 'acct1';
+    account.dispatchEvent(new Event('change', { bubbles: true }));
+    const discard = document.getElementById('btn-discard-statement-mapping') as HTMLButtonElement;
+    expect(discard.hidden).toBe(false);
+    discard.click();
+    expect(account.value).toBe(original);
+    expect(discard.hidden).toBe(true);
+    expect(
+      document.querySelectorAll('[data-discard-for="btn-save-statement-mapping"]'),
+    ).toHaveLength(1);
+    account.value = 'acct1';
     document.querySelector<HTMLButtonElement>('#btn-save-statement-mapping')!.click();
     await vi.waitFor(() =>
       expect(saveSnapshotMapping).toHaveBeenCalledWith('fictional:29', {
@@ -874,7 +915,7 @@ describe('Busy state - cost-basis, goal, cache, backup', () => {
     resolveWrite!();
     await new Promise((r) => setTimeout(r, 0));
     expect(btn.disabled).toBe(true);
-    expect(btn.textContent).toBe('Save cost-basis method');
+    expect(btn.textContent).toBe('Save');
   });
 
   it('Save goal button shows busy text during save', async () => {
@@ -898,7 +939,7 @@ describe('Busy state - cost-basis, goal, cache, backup', () => {
     resolveWrite!();
     await new Promise((r) => setTimeout(r, 0));
     expect(btn.disabled).toBe(true);
-    expect(btn.textContent).toBe('Save goals');
+    expect(btn.textContent).toBe('Save');
   });
 
   it('Force resync button shows busy text during resync', async () => {
@@ -1010,7 +1051,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
       resolveWrite();
       await tick();
       expect(btn.disabled).toBe(true);
-      expect(btn.textContent).toBe('Save accounts');
+      expect(btn.textContent).toBe('Save');
     });
 
     it('re-enables and shows error on failure', async () => {
@@ -1029,7 +1070,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
       await tick();
 
       expect(btn.disabled).toBe(false);
-      expect(btn.textContent).toBe('Save accounts');
+      expect(btn.textContent).toBe('Save');
       expect(notify).toHaveBeenCalledWith('Could not save accounts: Network error', {
         variant: 'error',
         source: 'accts-msg',
@@ -1231,7 +1272,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
       resolveWrite();
       await tick();
       expect(btn.disabled).toBe(true);
-      expect(btn.textContent).toBe('Save holdings');
+      expect(btn.textContent).toBe('Save');
     });
 
     it('re-enables and shows error on failure', async () => {
@@ -1333,7 +1374,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
       resolveWrite();
       await tick();
       expect(btn.disabled).toBe(true);
-      expect(btn.textContent).toBe('Save rules');
+      expect(btn.textContent).toBe('Save');
     });
 
     it('re-enables and shows error on failure', async () => {
@@ -1429,7 +1470,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
       resolveWrite();
       await tick();
       expect(btn.disabled).toBe(true);
-      expect(btn.textContent).toBe('Save cost-basis method');
+      expect(btn.textContent).toBe('Save');
     });
 
     it('re-enables and shows error on failure', async () => {
@@ -1486,7 +1527,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
       resolveWrite();
       await tick();
       expect(btn.disabled).toBe(true);
-      expect(btn.textContent).toBe('Save goals');
+      expect(btn.textContent).toBe('Save');
       (setSettings as ReturnType<typeof vi.fn>).mockImplementation(async () => {});
     });
 
@@ -1755,6 +1796,117 @@ describe('_getEligibleYears', () => {
   });
 });
 
+describe('Settings account lifecycle', () => {
+  const baseline = MOCK_ACCOUNTS.map((account) => ({ ...account }));
+  const openLifecycle = (mode: 'close' | 'reopen' | 'correct') => {
+    document.querySelector<HTMLButtonElement>('.js-edit-acct[data-idx="1"]')!.click();
+    const options = vi.mocked(accountDialog).mock.calls.at(-1)![0]!;
+    options.onLifecycle!(mode);
+  };
+  beforeEach(() => {
+    setupDOM();
+    setBusy(false);
+    MOCK_SETTINGS.etf_valuation_schema = 'account-v1';
+    MOCK_ACCOUNTS.splice(0, MOCK_ACCOUNTS.length, ...baseline.map((a) => ({ ...a })), {
+      id: 'closed',
+      label: 'Closed savings',
+      moneyType: 'cash',
+      closedPeriods: [{ closedFromMonth: '2020-01' }],
+    });
+    vi.mocked(loadSnapshots)
+      .mockReset()
+      .mockResolvedValue([{ date: '2020-01', closed: 0 }]);
+    vi.mocked(saveAccountLifecycle).mockClear();
+    renderSettings();
+  });
+  afterEach(() => {
+    MOCK_ACCOUNTS.splice(0, MOCK_ACCOUNTS.length, ...baseline);
+    delete MOCK_SETTINGS.etf_valuation_schema;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    document.body.innerHTML = '';
+  });
+  it('filters All/Open/Closed independently of account type', () => {
+    const root = document.getElementById('settings-card-accounts')!;
+    const rows = () => root.querySelectorAll('.settings-acct-row');
+    expect(rows()).toHaveLength(2);
+    root.querySelector<HTMLButtonElement>('[data-lfilter="closed"]')!.click();
+    expect(rows()).toHaveLength(1);
+    expect(rows()[0].textContent).toContain('Closed savings');
+    root.querySelector<HTMLButtonElement>('[data-afilter="investment"]')!.click();
+    expect(rows()).toHaveLength(0);
+    root.querySelector<HTMLButtonElement>('[data-lfilter="open"]')!.click();
+    expect(rows()).toHaveLength(1);
+    root.querySelector<HTMLButtonElement>('[data-afilter="all"]')!.click();
+    root.querySelector<HTMLButtonElement>('[data-lfilter="all"]')!.click();
+  });
+  it('stages reopening until Save accounts and supports discarding the entire draft', async () => {
+    const root = document.getElementById('settings-card-accounts')!;
+    expect(root.querySelector('.js-lifecycle-acct')).toBeNull();
+    openLifecycle('reopen');
+    await vi.waitFor(() =>
+      expect(document.querySelector('.lifecycle-dialog-overlay')).not.toBeNull(),
+    );
+    document.querySelector<HTMLInputElement>('#lifecycle-confirm')!.checked = true;
+    document.querySelector<HTMLButtonElement>('.lifecycle-dialog-overlay .js-submit')!.click();
+    await vi.waitFor(() =>
+      expect(root.querySelector('#btn-save-accts')!.getAttribute('data-dirty')).toBe('true'),
+    );
+    expect(MOCK_ACCOUNTS[1].closedPeriods![0].reopenedFromMonth).toBeUndefined();
+    expect(saveAccountLifecycle).not.toHaveBeenCalled();
+    root.querySelector<HTMLButtonElement>('#btn-discard-accts')!.click();
+    expect(root.querySelector('.settings-acct-row[data-idx="1"]')!.textContent).toContain('Closed');
+    expect(root.querySelector<HTMLButtonElement>('#btn-save-accts')!.disabled).toBe(true);
+  });
+  it('guards permanent removal of lifecycle and scoped ETF history', async () => {
+    const root = document.getElementById('settings-card-accounts')!;
+    root.querySelector<HTMLButtonElement>('.js-del-acct[data-idx="1"]')!.click();
+    await Promise.resolve();
+    expect(showMsg).toHaveBeenLastCalledWith(
+      'accts-msg',
+      expect.stringContaining('lifecycle history'),
+      false,
+    );
+    vi.mocked(loadSnapshots).mockResolvedValueOnce([
+      { date: '2020-01', 'position:acct1:IE00B4L5Y983': 0 },
+    ]);
+    root.querySelector<HTMLButtonElement>('.js-del-acct[data-idx="0"]')!.click();
+    await vi.waitFor(() =>
+      expect(showMsg).toHaveBeenLastCalledWith(
+        'accts-msg',
+        expect.stringContaining('account-linked ETF history'),
+        false,
+      ),
+    );
+  });
+  it('saves staged lifecycle using the atomic account/settings operation', async () => {
+    const root = document.getElementById('settings-card-accounts')!;
+    openLifecycle('reopen');
+    await vi.waitFor(() =>
+      expect(document.querySelector('.lifecycle-dialog-overlay')).not.toBeNull(),
+    );
+    document.querySelector<HTMLInputElement>('#lifecycle-confirm')!.checked = true;
+    document.querySelector<HTMLButtonElement>('.lifecycle-dialog-overlay .js-submit')!.click();
+    await vi.waitFor(() =>
+      expect(root.querySelector('#btn-save-accts')!.getAttribute('data-dirty')).toBe('true'),
+    );
+    root.querySelector<HTMLButtonElement>('#btn-save-accts')!.click();
+    await vi.waitFor(() => expect(saveAccountLifecycle).toHaveBeenCalledOnce());
+    expect(
+      vi.mocked(saveAccountLifecycle).mock.calls[0][0][1].closedPeriods![0].reopenedFromMonth,
+    ).toMatch(/^\d{4}-\d{2}$/);
+    expect(vi.mocked(saveAccountLifecycle).mock.calls[0][1]).toEqual({});
+  });
+  it('gates lifecycle actions but keeps legacy accounts and migration review visible', () => {
+    delete MOCK_SETTINGS.etf_valuation_schema;
+    renderSettings();
+    expect(document.querySelectorAll('.settings-acct-row')).toHaveLength(2);
+    expect(document.querySelector('.js-lifecycle-acct')).toBeNull();
+    document.querySelector<HTMLButtonElement>('.js-edit-acct[data-idx="1"]')!.click();
+    expect(vi.mocked(accountDialog).mock.calls.at(-1)![0]!.lifecycleEnabled).toBe(false);
+    expect(document.querySelector('#btn-migrate-valuations')).not.toBeNull();
+  });
+});
+
 describe('Settings accessible controls and report states', () => {
   beforeEach(() => {
     setBusy(false);
@@ -1881,6 +2033,166 @@ describe('Settings accessible controls and report states', () => {
       expect(save.disabled).toBe(!dirty);
       expect(save.dataset.dirty).toBe(String(dirty));
       expect(save.title).toBe(dirty ? '' : 'No changes to save');
+      expect(save.hidden).toBe(!dirty);
+      expect((document.getElementById('btn-discard-analytics') as HTMLButtonElement).hidden).toBe(
+        !dirty,
+      );
+    }
+  });
+
+  it.each([
+    ['contributions', 'set-contrib-budget', '650'],
+    ['cost-basis', 'set-cost-basis-method', 'fifo'],
+    ['analytics', 'analytics-risk-free-rate', '4'],
+    ['alerts', 'alert-drift-threshold', '8'],
+    ['fx-integration', 'fx-integration-enabled', ''],
+  ])('discards only the %s form without writing saved configuration', (section, fieldId, value) => {
+    renderSettings();
+    const field = document.getElementById(fieldId) as HTMLInputElement;
+    const original = field.type === 'checkbox' ? field.checked : field.value;
+    const save = document.getElementById(`btn-save-${section}`) as HTMLButtonElement;
+    const discard = document.getElementById(`btn-discard-${section}`) as HTMLButtonElement;
+    expect(save.hidden).toBe(true);
+    expect(discard.hidden).toBe(true);
+    if (field.type === 'checkbox') field.checked = !field.checked;
+    else field.value = value;
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(save.hidden).toBe(false);
+    expect(discard.hidden).toBe(false);
+    expect(save.textContent).toBe('Save');
+    expect(discard.textContent).toBe('Discard');
+    vi.mocked(setSettings).mockClear();
+    discard.click();
+    expect(field.type === 'checkbox' ? field.checked : field.value).toBe(original);
+    expect(save.hidden).toBe(true);
+    expect(discard.hidden).toBe(true);
+    expect(setSettings).not.toHaveBeenCalled();
+  });
+
+  it('keeps failed-save drafts available and uses the successful save as the next discard baseline', async () => {
+    renderSettings();
+    const rate = document.getElementById('analytics-risk-free-rate') as HTMLInputElement;
+    const original = rate.value;
+    const save = document.getElementById('btn-save-analytics') as HTMLButtonElement;
+    const discard = document.getElementById('btn-discard-analytics') as HTMLButtonElement;
+    rate.value = '3.25';
+    rate.dispatchEvent(new Event('input', { bubbles: true }));
+    vi.mocked(setSettings).mockRejectedValueOnce(new Error('Network failed'));
+    save.click();
+    await vi.waitFor(() =>
+      expect(notify).toHaveBeenCalledWith(
+        expect.stringContaining('Could not save analytics'),
+        expect.objectContaining({ variant: 'error' }),
+      ),
+    );
+    expect(save.hidden).toBe(false);
+    expect(discard.hidden).toBe(false);
+    discard.click();
+    expect(rate.value).toBe(original);
+    rate.value = '3.25';
+    rate.dispatchEvent(new Event('input', { bubbles: true }));
+    vi.mocked(setSettings).mockResolvedValueOnce(undefined);
+    save.click();
+    await vi.waitFor(() => expect(save.hidden).toBe(true));
+    rate.value = '4.5';
+    rate.dispatchEvent(new Event('input', { bubbles: true }));
+    discard.click();
+    expect(rate.value).toBe('3.25');
+    expect(save.hidden).toBe(true);
+    expect(discard.hidden).toBe(true);
+  });
+
+  it('does not discard a draft while writes are locked and enables it after release', () => {
+    renderSettings();
+    const rate = document.getElementById('analytics-risk-free-rate') as HTMLInputElement;
+    const original = rate.value;
+    const discard = document.getElementById('btn-discard-analytics') as HTMLButtonElement;
+    rate.value = '3.25';
+    setBusy(true);
+    rate.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(discard.disabled).toBe(true);
+    discard.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(rate.value).toBe('3.25');
+    setBusy(false);
+    rate.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(discard.disabled).toBe(false);
+    discard.click();
+    expect(rate.value).toBe(original);
+  });
+
+  it('discards one subsection while preserving another draft in the same card and across refreshes', () => {
+    renderSettings();
+    const method = document.getElementById('set-cost-basis-method') as HTMLSelectElement;
+    const rate = document.getElementById('analytics-risk-free-rate') as HTMLInputElement;
+    method.value = 'fifo';
+    method.dispatchEvent(new Event('change', { bubbles: true }));
+    rate.value = '7';
+    rate.dispatchEvent(new Event('input', { bubbles: true }));
+    renderSettings({ preserveDrafts: true });
+    document.getElementById('btn-discard-cost-basis')!.click();
+    expect(method.value).toBe('avgco');
+    expect(rate.value).toBe('7');
+    expect(
+      document
+        .getElementById('settings-card-calc-assumptions')!
+        .classList.contains('settings-dirty'),
+    ).toBe(true);
+    expect((document.getElementById('btn-discard-analytics') as HTMLButtonElement).hidden).toBe(
+      false,
+    );
+    document.getElementById('btn-discard-analytics')!.click();
+    expect(
+      document
+        .getElementById('settings-card-calc-assumptions')!
+        .classList.contains('settings-dirty'),
+    ).toBe(false);
+  });
+
+  it('discards structural rule edits and leaves unrelated alert edits intact', () => {
+    renderSettings();
+    const threshold = document.getElementById('alert-drift-threshold') as HTMLInputElement;
+    threshold.value = '9';
+    threshold.dispatchEvent(new Event('input', { bubbles: true }));
+    const initialRows = document.querySelectorAll('.settings-rule-row').length;
+    document.getElementById('btn-add-rule')!.click();
+    expect((document.getElementById('btn-discard-rules') as HTMLButtonElement).hidden).toBe(false);
+    document.getElementById('btn-discard-rules')!.click();
+    expect(document.querySelectorAll('.settings-rule-row')).toHaveLength(initialRows);
+    expect((document.getElementById('btn-save-rules') as HTMLButtonElement).hidden).toBe(true);
+    expect(threshold.value).toBe('9');
+  });
+
+  it('discards new account, holding and goal drafts independently', async () => {
+    const { holdingDialog } = await import('../ui/holdingDialog');
+    const { goalDialog } = await import('../ui/goalDialog');
+    vi.mocked(accountDialog).mockResolvedValueOnce({ label: 'Unsaved account', moneyType: 'cash' });
+    vi.mocked(holdingDialog).mockResolvedValueOnce({
+      ...MOCK_HOLDINGS[0],
+      isin: 'IE00B3XXRP09',
+      shortName: 'Draft ETF',
+    });
+    vi.mocked(goalDialog).mockResolvedValueOnce({
+      label: 'Draft goal',
+      targetNetWorth: '1000',
+      targetDate: '',
+    });
+    renderSettings();
+    for (const [add, section, row] of [
+      ['acct', 'accts', '.settings-acct-row'],
+      ['hold', 'holds', '.settings-hold-row'],
+      ['goal', 'goal', '.settings-goal-row'],
+    ]) {
+      const count = document.querySelectorAll(row).length;
+      document.getElementById(`btn-add-${add}`)!.click();
+      await vi.waitFor(() => expect(document.querySelectorAll(row)).toHaveLength(count + 1));
+      const discard = document.getElementById(`btn-discard-${section}`) as HTMLButtonElement;
+      expect(discard.hidden).toBe(false);
+      discard.click();
+      expect(document.querySelectorAll(row)).toHaveLength(count);
+      expect(discard.hidden).toBe(true);
+      expect((document.getElementById(`btn-save-${section}`) as HTMLButtonElement).hidden).toBe(
+        true,
+      );
     }
   });
 
