@@ -17,7 +17,6 @@ describe('filterBar', () => {
       ariaLabel: 'Status',
       attr: 'filter',
       value: 'held',
-      scroll: true,
       chips: [
         { value: 'held', label: 'Held', count: 3 },
         { value: 'all', label: 'All', count: 1200 },
@@ -25,7 +24,7 @@ describe('filterBar', () => {
     });
     const group = document.getElementById('g')!;
     expect(group.getAttribute('role')).toBe('group');
-    expect(group.classList.contains('filter-chips-scroll')).toBe(true);
+    expect(group.classList.contains('filter-chips')).toBe(true);
     expect(group.textContent).toBe('Held 3All 1.200');
     const [held, all] = group.querySelectorAll('button');
     expect(held.getAttribute('aria-pressed')).toBe('true');
@@ -45,6 +44,28 @@ describe('filterBar', () => {
     group.querySelector('span')!.click();
     expect(pick).toHaveBeenCalledTimes(1);
     expect(pick).toHaveBeenCalledWith('BUY');
+  });
+
+  it('scrolls to the strip edges when focusing the first or last chip', () => {
+    document.body.innerHTML = chipGroupHtml({
+      id: 'g',
+      ariaLabel: 'Status',
+      attr: 'filter',
+      value: 'all',
+      chips: [
+        { value: 'all', label: 'All' },
+        { value: 'held', label: 'Held' },
+        { value: 'closed', label: 'Closed' },
+      ],
+    });
+    const group = document.getElementById('g')!;
+    Object.defineProperty(group, 'scrollWidth', { value: 500 });
+    bindChipGroup(group, 'filter', vi.fn());
+    const buttons = group.querySelectorAll('button');
+    buttons[2].focus();
+    expect(group.scrollLeft).toBe(500);
+    buttons[0].focus();
+    expect(group.scrollLeft).toBe(0);
   });
 
   it('clears the search input and fires input', () => {

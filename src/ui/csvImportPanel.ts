@@ -140,7 +140,7 @@ export function openCsvImportPreview(
           <button type="button" class="btn btn-ghost btn-sm" id="btn-import-select"></button>
           <button type="button" class="btn btn-ghost btn-sm" id="btn-import-clear"></button>
         </div>
-        <div id="import-status-filter" class="range-toggle filter-chips filter-chips-scroll" role="group" aria-label="Filter import rows by status"></div>
+        <div id="import-status-filter" class="range-toggle filter-chips" role="group" aria-label="Filter import rows by status"></div>
       </div>
       <div class="tbl">
         <div id="import-preview-wrap"><div id="import-preview-list" class="tx-ledger-grid" role="table" aria-label="Rows to import"></div></div>
@@ -382,15 +382,18 @@ export function openCsvImportPreview(
   }
 
   function renderChips(): void {
-    const count = (f: StatusFilter) => rows.filter((r) => matchesStatus(r, f)).length;
+    const context = rows.filter(matchesSearch);
+    const count = (f: StatusFilter) => context.filter((r) => matchesStatus(r, f)).length;
     const chips: { value: StatusFilter; label: string; count: number }[] = [
-      { value: '', label: 'All', count: rows.length },
+      { value: '', label: 'All', count: context.length },
       { value: 'new', label: 'New', count: count('new') },
       { value: 'review', label: 'Needs review', count: count('review') },
       { value: 'stored', label: 'In ledger', count: count('stored') },
     ];
     const visible = chips.filter((c) => c.value === '' || c.count > 0 || c.value === statusFilter);
-    chipsEl.hidden = visible.length < 3;
+    chipsEl.hidden =
+      !statusFilter &&
+      chips.filter((c) => c.value === '' || rows.some((r) => matchesStatus(r, c.value))).length < 3;
     chipsEl.innerHTML = chipButtonsHtml({
       attr: 'import-status',
       value: statusFilter,

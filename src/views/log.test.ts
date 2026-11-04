@@ -195,6 +195,34 @@ describe('renderLog', () => {
     expect(detail).not.toContain('position:');
   });
 
+  it('counts transaction types after search but before type selection and pagination', () => {
+    renderLog({
+      txs: [
+        ...Array.from({ length: 20 }, (_, i) =>
+          makeTx(BigInt(i + 1), { name: 'Match', type: 'BUY' }),
+        ),
+        makeTx(21n, { name: 'Match', type: 'DIVIDEND' }),
+        makeTx(22n, { name: 'Other', type: 'DIVIDEND' }),
+      ],
+      snaps: [],
+      importMeta: null,
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+    });
+    const search = document.getElementById('tx-search') as HTMLInputElement;
+    search.value = 'match';
+    search.dispatchEvent(new Event('input'));
+    const count = (type: string) =>
+      document.querySelector(`#tx-type-filter [data-tx-type="${type}"] .chip-count`)!.textContent;
+    expect(count('')).toBe('21');
+    expect(count('BUY')).toBe('20');
+    expect(count('DIVIDEND')).toBe('1');
+    document.querySelector<HTMLButtonElement>('[data-tx-type="DIVIDEND"]')!.click();
+    expect(count('BUY')).toBe('20');
+    expect(document.querySelectorAll('#tx-ledger-list .tx-row:not(.th)')).toHaveLength(1);
+    resetRenderedFilters();
+  });
+
   it('supports keyboard expansion and updates aria-expanded', () => {
     const snaps = [makeSnap('2026-01-01')];
     renderLog({

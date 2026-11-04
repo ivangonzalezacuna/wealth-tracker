@@ -153,14 +153,14 @@ code,
 .nav::-webkit-scrollbar {
   display: none;
 }
-/* Fade the edge where more tabs are hidden (src/ui/scrollHint.ts). */
-.nav.can-scroll-right {
+/* Fade edges where more tabs or filters are hidden (src/ui/scrollHint.ts). */
+:is(.nav, .filter-chips).can-scroll-right {
   mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
 }
-.nav.can-scroll-left {
+:is(.nav, .filter-chips).can-scroll-left {
   mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
 }
-.nav.can-scroll-left.can-scroll-right {
+:is(.nav, .filter-chips).can-scroll-left.can-scroll-right {
   mask-image: linear-gradient(
     to right,
     transparent,
@@ -2929,18 +2929,14 @@ summary.section-label {
 }
 /* Shared filter controls (src/ui/filterBar.ts). */
 .filter-chips {
-  flex-wrap: wrap;
-  min-width: 0;
-}
-.filter-chips-scroll {
   flex-wrap: nowrap;
+  min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
+  padding: 3px;
   scrollbar-width: none;
-  /* Fade the right edge so a cut-off chip reads as "scroll for more". */
-  mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
-  padding-right: 18px;
 }
-.filter-chips-scroll::-webkit-scrollbar {
+.filter-chips::-webkit-scrollbar {
   display: none;
 }
 .filter-chip {

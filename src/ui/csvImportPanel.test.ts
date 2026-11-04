@@ -161,6 +161,25 @@ describe('csvImportPanel', () => {
     expect(dataRows()).toHaveLength(1);
   });
 
+  it('counts status alternatives after search and keeps a selected empty choice visible', () => {
+    open(csv(BUY_1, DIV_1, ODD_1), makeHost([storedBuy]));
+    const search = document.getElementById('import-search') as HTMLInputElement;
+    search.value = 'World';
+    search.dispatchEvent(new Event('input'));
+    expect(document.querySelector('[data-import-status=""] .chip-count')!.textContent).toBe('2');
+    expect(document.querySelector('[data-import-status="stored"] .chip-count')!.textContent).toBe(
+      '1',
+    );
+    document.querySelector<HTMLButtonElement>('[data-import-status="stored"]')!.click();
+    search.value = 'Coin';
+    search.dispatchEvent(new Event('input'));
+    expect(
+      document.querySelector('[data-import-status="stored"][aria-pressed="true"] .chip-count')!
+        .textContent,
+    ).toBe('0');
+    expect(document.getElementById('import-status-filter')!.hidden).toBe(false);
+  });
+
   it('opens on the New filter when some rows are already in the ledger', () => {
     open(csv(BUY_1, DIV_1), makeHost([storedBuy]));
     const active = document.querySelector('#import-status-filter [aria-pressed="true"]');

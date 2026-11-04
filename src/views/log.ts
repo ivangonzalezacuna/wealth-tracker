@@ -313,12 +313,12 @@ function getFilteredSnaps(snaps: Snapshot[]): Snapshot[] {
   return filtered;
 }
 
-function getFilteredTxs(txs: Transaction[]): Transaction[] {
+function getFilteredTxs(txs: Transaction[], omitType = false): Transaction[] {
   // Newest first by default, matching the snapshot history.
   let filtered = [...txs].reverse();
   const txType = getTableFilter(_txTableState, 'type');
   const txSearch = getTableFilter(_txTableState, 'search');
-  if (txType) filtered = filtered.filter((t) => t.type === txType);
+  if (txType && !omitType) filtered = filtered.filter((t) => t.type === txType);
   if (txSearch) {
     filtered = filtered.filter((t) =>
       [t.date, t.name, t.isin, t.source, t.type].join(' ').toLowerCase().includes(txSearch),
@@ -1001,8 +1001,9 @@ function renderTxList(txs: Transaction[]): void {
 
   // Type chips: only types present in the ledger, each with its count; hidden for a single type.
   const typeCounts = new Map<string, number>();
-  for (const t of txs) if (t.type) typeCounts.set(t.type, (typeCounts.get(t.type) ?? 0) + 1);
-  const types = [...typeCounts.keys()].sort();
+  const context = getFilteredTxs(txs, true);
+  for (const t of context) if (t.type) typeCounts.set(t.type, (typeCounts.get(t.type) ?? 0) + 1);
+  const types = [...new Set<string>(txs.map((t) => t.type).filter(Boolean))].sort();
   if (!types.includes(getTableFilter(_txTableState, 'type'))) _txTableState.filters.type = '';
   const currentType = getTableFilter(_txTableState, 'type');
   if (typeEl) {
@@ -1014,11 +1015,11 @@ function renderTxList(txs: Transaction[]): void {
             attr: 'tx-type',
             value: currentType,
             chips: [
-              { value: '', label: 'All', count: txs.length },
+              { value: '', label: 'All', count: context.length },
               ...types.map((type) => ({
                 value: type,
                 label: txTypeLabel(type),
-                count: typeCounts.get(type),
+                count: typeCounts.get(type) ?? 0,
               })),
             ],
           });

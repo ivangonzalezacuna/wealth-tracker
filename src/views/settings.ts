@@ -70,7 +70,7 @@ import { formatEnglishDate, formatEnglishDateTime, formatEnglishMonth } from '..
 import { accountSuggestions } from '../model/accountSuggestions';
 import { isCollapsed, setCollapsed, toggleCollapsed } from '../ui/collapseState';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
-import { bindSearchClear, chipButtonsHtml, searchHtml } from '../ui/filterBar';
+import { bindChipGroup, bindSearchClear, chipButtonsHtml, searchHtml } from '../ui/filterBar';
 import { confirmDialog } from '../ui/confirmDialog';
 import { notify, type ToastVariant } from '../ui/toast';
 import { accountDialog } from '../ui/accountDialog';
@@ -791,12 +791,18 @@ function accountTypesInUse(all: Account[]): string[] {
   return known.concat([...used].filter((v) => !known.includes(v)).sort());
 }
 
-function filterSettingsAccounts(all: Account[]): Account[] {
+function filterSettingsAccounts(all: Account[], omit?: 'type' | 'lifecycle'): Account[] {
   const q = _accountsSettingsSearch.trim().toLowerCase();
   return all.filter((a) => {
-    if (_accountsLifecycleFilter === 'open' && !isAccountOpenNow(a)) return false;
-    if (_accountsLifecycleFilter === 'closed' && isAccountOpenNow(a)) return false;
-    if (_accountsSettingsFilter !== 'all' && accountTypeKey(a) !== _accountsSettingsFilter)
+    if (omit !== 'lifecycle' && _accountsLifecycleFilter === 'open' && !isAccountOpenNow(a))
+      return false;
+    if (omit !== 'lifecycle' && _accountsLifecycleFilter === 'closed' && isAccountOpenNow(a))
+      return false;
+    if (
+      omit !== 'type' &&
+      _accountsSettingsFilter !== 'all' &&
+      accountTypeKey(a) !== _accountsSettingsFilter
+    )
       return false;
     if (!q) return true;
     return [
@@ -811,16 +817,19 @@ function filterSettingsAccounts(all: Account[]): Account[] {
 }
 
 function settingsAccountChips(all: Account[]): string {
+  const context = filterSettingsAccounts(all, 'type');
   return chipButtonsHtml({
     attr: 'afilter',
     value: _accountsSettingsFilter,
     chips: [
-      { value: 'all', label: 'All', count: all.length },
-      ...accountTypesInUse(all).map((type) => ({
-        value: type,
-        label: accountTypeChipLabel(type),
-        count: all.filter((a) => accountTypeKey(a) === type).length,
-      })),
+      { value: 'all', label: 'All', count: context.length },
+      ...accountTypesInUse(all)
+        .map((type) => ({
+          value: type,
+          label: accountTypeChipLabel(type),
+          count: context.filter((a) => accountTypeKey(a) === type).length,
+        }))
+        .filter((chip) => chip.count > 0 || chip.value === _accountsSettingsFilter),
     ],
   });
 }
@@ -833,28 +842,42 @@ function settingsAccountRows(all: Account[]): string {
   return filtered.map((a) => renderAccountRow(a, all.indexOf(a))).join('');
 }
 
+function settingsLifecycleChips(all: Account[]): string {
+  const context = filterSettingsAccounts(all, 'lifecycle');
+  return chipButtonsHtml({
+    attr: 'lfilter',
+    value: _accountsLifecycleFilter,
+    chips: [
+      { value: 'all', label: 'All', count: context.length },
+      { value: 'open', label: 'Open', count: context.filter(isAccountOpenNow).length },
+      {
+        value: 'closed',
+        label: 'Closed',
+        count: context.filter((a) => !isAccountOpenNow(a)).length,
+      },
+    ],
+  });
+}
+
 /** The filter bar appears once there is something to filter; type chips only with 2+ types. */
 function syncAccountFilterBar(root: ParentNode, all: Account[]): void {
   const lifecycle = root.querySelector<HTMLElement>('#acct-lifecycle-toggle');
   if (lifecycle)
     lifecycle.hidden =
       _accountsLifecycleFilter === 'all' && !all.some((account) => !isAccountOpenNow(account));
-  if (lifecycle)
-    lifecycle.innerHTML = chipButtonsHtml({
-      attr: 'lfilter',
-      value: _accountsLifecycleFilter,
-      chips: [
-        { value: 'all', label: 'All', count: all.length },
-        { value: 'open', label: 'Open', count: all.filter(isAccountOpenNow).length },
-        { value: 'closed', label: 'Closed', count: all.filter((a) => !isAccountOpenNow(a)).length },
-      ],
-    });
+  if (lifecycle) lifecycle.innerHTML = settingsLifecycleChips(all);
   const bar = root.querySelector<HTMLElement>('.settings-acct-filter-bar');
-  if (bar) bar.hidden = all.length < 2;
+  if (bar)
+    bar.hidden =
+      all.length < 2 &&
+      !_accountsSettingsSearch &&
+      _accountsSettingsFilter === 'all' &&
+      _accountsLifecycleFilter === 'all' &&
+      !all.some((account) => !isAccountOpenNow(account));
   const chips = root.querySelector<HTMLElement>('#acct-filter-toggle');
   if (chips) {
     chips.innerHTML = settingsAccountChips(all);
-    chips.hidden = accountTypesInUse(all).length < 2;
+    chips.hidden = accountTypesInUse(all).length < 2 && _accountsSettingsFilter === 'all';
   }
 }
 
@@ -882,28 +905,14 @@ function renderAccountsCard(accounts: Account[]): string {
       ${settingsCardHeader('accounts', 'Accounts', `${accounts.length} account${accounts.length === 1 ? '' : 's'}`)}
       <div class="card-body">
         <p class="note" style="margin-bottom:.5rem">One row per bank account or portfolio, tracked in each monthly snapshot.</p>
-        <div class="range-toggle filter-chips" id="acct-lifecycle-toggle" role="group" aria-label="Show account lifecycle"${accounts.some((a) => !isAccountOpenNow(a)) ? '' : ' hidden'}>${chipButtonsHtml(
-          {
-            attr: 'lfilter',
-            value: _accountsLifecycleFilter,
-            chips: [
-              { value: 'all', label: 'All', count: accounts.length },
-              { value: 'open', label: 'Open', count: accounts.filter(isAccountOpenNow).length },
-              {
-                value: 'closed',
-                label: 'Closed',
-                count: accounts.filter((a) => !isAccountOpenNow(a)).length,
-              },
-            ],
-          },
-        )}</div>
-        <div class="filter-bar filter-bar-stacked settings-acct-filter-bar"${accounts.length < 2 ? ' hidden' : ''}>
+        <div class="filter-bar filter-bar-stacked settings-acct-filter-bar"${accounts.length < 2 && !_accountsSettingsSearch && _accountsSettingsFilter === 'all' && _accountsLifecycleFilter === 'all' && !accounts.some((account) => !isAccountOpenNow(account)) ? ' hidden' : ''}>
           ${searchHtml({
             id: 'settings-acct-search',
             value: _accountsSettingsSearch,
             placeholder: 'Search name, institution or group',
             ariaLabel: 'Search accounts by name, institution, group or country',
           })}
+          <div class="range-toggle filter-chips" id="acct-lifecycle-toggle" role="group" aria-label="Show account lifecycle"${_accountsLifecycleFilter === 'all' && !accounts.some((a) => !isAccountOpenNow(a)) ? ' hidden' : ''}>${settingsLifecycleChips(accounts)}</div>
           <div class="range-toggle filter-chips" id="acct-filter-toggle" role="group" aria-label="Show account types"${types.length < 2 ? ' hidden' : ''}>${settingsAccountChips(accounts)}</div>
         </div>
         <div id="settings-accounts-tbl" class="settings-items settings-list">
@@ -1047,10 +1056,8 @@ function attachAccountListeners(root: HTMLElement): void {
     apply: (updated) => rerenderAccountsTable(root, updated),
     msgId: 'accts-msg',
   });
-  root.querySelector('#acct-lifecycle-toggle')?.addEventListener('click', (e) => {
-    const button = (e.target as Element).closest<HTMLElement>('[data-lfilter]');
-    if (!button) return;
-    _accountsLifecycleFilter = button.dataset.lfilter || 'all';
+  bindChipGroup(root.querySelector('#acct-lifecycle-toggle'), 'lfilter', (value) => {
+    _accountsLifecycleFilter = value || 'all';
     applyAccountsFilter(root);
   });
   bindDraftActions(root.querySelector('#btn-save-accts'), () => {
@@ -1087,10 +1094,8 @@ function attachAccountListeners(root: HTMLElement): void {
       showMsg('accts-msg', errorText(error), false);
     }
   };
-  root.querySelector('#acct-filter-toggle')?.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-afilter]');
-    if (!btn) return;
-    _accountsSettingsFilter = btn.dataset.afilter || 'all';
+  bindChipGroup(root.querySelector('#acct-filter-toggle'), 'afilter', (value) => {
+    _accountsSettingsFilter = value || 'all';
     applyAccountsFilter(root);
   });
   root.querySelector<HTMLInputElement>('#settings-acct-search')?.addEventListener('input', (e) => {
@@ -1243,25 +1248,26 @@ let _holdingsSettingsSearch = '';
 let _allHoldings: Holding[] | null = null; // cached full holdings list for filtered views
 let _suggestionTransactions: Transaction[] = [];
 
-function filterSettingsHoldings(all: Holding[]): Holding[] {
+function filterSettingsHoldings(all: Holding[], omitStatus = false): Holding[] {
   const q = _holdingsSettingsSearch.trim().toLowerCase();
   return all.filter((h) => {
-    if (_holdingsSettingsFilter === 'active' && !h.active) return false;
-    if (_holdingsSettingsFilter === 'closed' && h.active) return false;
+    if (!omitStatus && _holdingsSettingsFilter === 'active' && !h.active) return false;
+    if (!omitStatus && _holdingsSettingsFilter === 'closed' && h.active) return false;
     if (!q) return true;
     return [h.shortName, h.name, h.isin].some((v) => (v || '').toLowerCase().includes(q));
   });
 }
 
 function settingsHoldingChips(all: Holding[]): string {
-  const activeCount = all.filter((h) => h.active).length;
+  const context = filterSettingsHoldings(all, true);
+  const activeCount = context.filter((h) => h.active).length;
   return chipButtonsHtml({
     attr: 'hfilter',
     value: _holdingsSettingsFilter,
     chips: [
-      { value: 'all', label: 'All', count: all.length },
+      { value: 'all', label: 'All', count: context.length },
       { value: 'active', label: 'Active', count: activeCount },
-      { value: 'closed', label: 'Closed', count: all.length - activeCount },
+      { value: 'closed', label: 'Closed', count: context.length - activeCount },
     ],
   });
 }
@@ -1374,15 +1380,10 @@ function attachHoldingListeners(root: HTMLElement): void {
     .catch(() => undefined);
 
   // Filter toggle - scoped repaint, does NOT rebuild sibling cards
-  const filterToggle = root.querySelector('#hold-filter-toggle');
-  if (filterToggle) {
-    filterToggle.addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest('[data-hfilter]') as HTMLElement | null;
-      if (!btn) return;
-      _holdingsSettingsFilter = btn.dataset.hfilter || 'all';
-      applyHoldingsFilter(root);
-    });
-  }
+  bindChipGroup(root.querySelector('#hold-filter-toggle'), 'hfilter', (value) => {
+    _holdingsSettingsFilter = value || 'all';
+    applyHoldingsFilter(root);
+  });
   root.querySelector<HTMLInputElement>('#settings-hold-search')?.addEventListener('input', (e) => {
     _holdingsSettingsSearch = (e.currentTarget as HTMLInputElement).value;
     applyHoldingsFilter(root);
