@@ -158,12 +158,14 @@ test('Spain account closes and reopens with history; a shared ISIN stays one row
   const row = page.locator(`#port-table .hold-row[data-etf-key="${ISIN}"]`);
   await expect(row).toHaveCount(1);
   await expect(row.locator('.hold-account-count')).toHaveAttribute('aria-label', /2 accounts/);
-  await expect(page.locator('.hold-filter-bar')).toHaveCount(0);
+  await expect(page.locator('#port-account-filter')).toBeVisible();
+  await expect(page.locator('[data-hold-account="spain"] .chip-count')).toHaveText('1');
+  await expect(page.locator('[data-hold-account="france"] .chip-count')).toHaveText('1');
   await row.focus();
   await row.press('Enter');
   await expect(row).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.locator('.hold-detail-accounts')).not.toHaveAttribute('open', '');
-  await page.locator('.hold-detail-accounts > summary').click();
+  await expect(page.locator('#port-table .hold-detail-accounts')).not.toHaveAttribute('open', '');
+  await page.locator('#port-table .hold-detail-accounts > summary').click();
   await expect(page.locator('.hold-detail')).toContainText('Spain ETF');
   await expect(page.locator('.hold-detail')).toContainText('France ETF');
 

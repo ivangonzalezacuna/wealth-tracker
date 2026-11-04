@@ -26,8 +26,14 @@ async function setup(page: Page, contributionBudget?: { local: string; cloud: st
     const db = await import(/* @vite-ignore */ dbPath);
     if (budget) await db.setSetting('monthly_contrib_budget', budget.cloud);
     const engine = await import(/* @vite-ignore */ enginePath);
-    engine.cancelPendingUpload();
-    if (!(await engine.pushToCloud())) throw new Error('Fixture sync failed');
+    // A background Drive check can briefly hold the sync lock; retry until it settles.
+    let pushed = false;
+    for (let attempt = 0; attempt < 50 && !pushed; attempt++) {
+      engine.cancelPendingUpload();
+      pushed = await engine.pushToCloud();
+      if (!pushed) await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    if (!pushed) throw new Error('Fixture sync failed');
     const { exportDb } = await import(/* @vite-ignore */ connectionPath);
     return Array.from(exportDb() as Uint8Array);
   }, contributionBudget);
