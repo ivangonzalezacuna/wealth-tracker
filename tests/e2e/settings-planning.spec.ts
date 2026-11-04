@@ -97,8 +97,10 @@ test('retirement withdrawal keeps the Fixed amount after typing a % rate and rel
     month: monthOffsetValue(-1),
     accountValues: { 'Retirement Broker': 100000 },
   });
+  await waitForSyncIdle(page);
 
   await openTab(page, 'tab-networth');
+  await expect(page.locator('#c-nw-forecast canvas')).toHaveCount(1);
   await page.click('[data-planning-tab="drawdown"]');
   const suggested = await page.locator('#dd-withdrawal').inputValue();
   expect(Number(suggested)).toBeGreaterThan(100);

@@ -153,14 +153,14 @@ code,
 .nav::-webkit-scrollbar {
   display: none;
 }
-/* Fade the edge where more tabs are hidden (src/ui/scrollHint.ts). */
-.nav.can-scroll-right {
+/* Fade edges where more tabs or filters are hidden (src/ui/scrollHint.ts). */
+:is(.nav, .filter-chips).can-scroll-right {
   mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
 }
-.nav.can-scroll-left {
+:is(.nav, .filter-chips).can-scroll-left {
   mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
 }
-.nav.can-scroll-left.can-scroll-right {
+:is(.nav, .filter-chips).can-scroll-left.can-scroll-right {
   mask-image: linear-gradient(
     to right,
     transparent,
@@ -1307,10 +1307,6 @@ details[open] > summary .card-chevron {
   padding-top: 8px;
   border-top: 1px solid var(--line);
 }
-/* Month + total heading: only needed in the desktop side panel */
-.snap-detail-head {
-  display: none;
-}
 .snap-detail > div {
   min-width: 0;
   max-width: 100%;
@@ -1696,89 +1692,131 @@ details[open] > summary .card-chevron {
   min-width: 0;
 }
 
-/* Desktop: snapshot history as master/detail (list left, details right) */
-@media (min-width: 1024px) {
-  #snaps-list {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
-    /* A trailing filler row absorbs a detail panel taller than the rows, so short
-       (e.g. filtered) lists keep their rows at the top. */
-    grid-template-rows: repeat(var(--snap-rows, 13), auto) 1fr;
-    column-gap: 16px;
-    align-items: start;
+/* Snapshot detail: shares the flush .hold-detail panel; only inner layout differs. */
+#snaps-list > .snap-detail {
+  display: block;
+  min-width: 0;
+}
+.snap-account-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 0 24px;
+}
+.snap-account-grid .snap-detail-account {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+.snap-account-grid .hold-detail-label {
+  min-width: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.snap-account-grid .hold-detail-value {
+  flex-shrink: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+.hold-detail > .snap-detail-positions {
+  margin-top: 6px;
+  padding-top: 0;
+  border-top: none;
+}
+.snap-detail-positions > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  list-style: none;
+}
+.snap-detail-positions > summary::-webkit-details-marker {
+  display: none;
+}
+.snap-detail-positions[open] > summary .row-expand-chevron {
+  transform: rotate(90deg);
+}
+.snap-position-table {
+  width: 100%;
+  margin-top: 6px;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.snap-position-table :is(th, td) {
+  padding: 4px 0 4px 16px;
+  text-align: right;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line-2);
+}
+.snap-position-table :is(th, td):first-child {
+  width: 100%;
+  padding-left: 0;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.snap-position-table th[scope='row'] {
+  font-weight: 400;
+  color: var(--ink-2);
+}
+.snap-position-table thead th,
+.snap-position-group th {
+  color: var(--ink-3);
+  font-size: 10px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.snap-position-group th {
+  padding-top: 10px;
+  color: var(--ink-2);
+}
+.snap-position-table tbody:last-child tr:last-child :is(th, td) {
+  border-bottom: none;
+}
+.snap-position-table .snap-position-change {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+.snap-position-table .snap-position-change.pos {
+  color: var(--pos);
+}
+.snap-position-table .snap-position-change.neg {
+  color: var(--neg);
+}
+.snap-position-pct {
+  margin-left: 6px;
+  font-size: 11px;
+  opacity: 0.85;
+}
+.snap-detail .snap-position-note {
+  margin: 6px 0 0;
+  font-size: 10px;
+  font-style: normal;
+}
+@media (max-width: 500px) {
+  .snap-account-grid .hold-detail-label {
+    font-size: 11px;
   }
-  #snaps-list > .snap-row-compact {
-    grid-column: 1;
+  .snap-position-table {
+    font-size: 11px;
   }
-  #snaps-list > .snap-detail {
-    grid-column: 2;
-    grid-row: 1 / -1;
-    position: sticky;
-    top: 12px;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: 6px;
-    margin: 0;
-    padding: 12px 14px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-md);
+  .snap-position-table :is(th, td) {
+    padding-left: 10px;
   }
-  #snaps-list > .snap-detail > div {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-    min-width: 0;
-  }
-  #snaps-list > .snap-detail .hold-detail-label,
-  #snaps-list > .snap-detail .hold-detail-value {
-    display: inline;
-  }
-  #snaps-list > .snap-detail .snap-detail-account .hold-detail-label {
-    display: flex;
-  }
-  #snaps-list > .snap-detail .hold-detail-value,
-  #snaps-list > .snap-detail .snap-detail-total {
-    flex-shrink: 0;
-    white-space: nowrap;
-  }
-  #snaps-list > .snap-detail > .snap-detail-head {
-    padding-bottom: 6px;
-    margin-bottom: 2px;
-    border-bottom: 1px solid var(--line);
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--ink);
-  }
-  #snaps-list > .snap-detail > .snap-detail-note {
-    flex-direction: column;
-    gap: 2px;
-  }
-  #snaps-list > .snap-detail > .snap-detail-note .hold-detail-value {
-    font-weight: 400;
-    white-space: pre-wrap;
-  }
-  #snaps-list > .snap-detail > .snap-detail-actions {
-    justify-content: flex-end;
-  }
-  /* The row keeps its separator; the selected row is highlighted instead */
-  #snaps-list > [aria-expanded='true'].snap-row-compact {
-    border-bottom: 1px solid var(--surface-3);
-    background: var(--brand-weak);
-  }
-  #snaps-list:has(> .snap-row-compact:not(.th)):not(:has(> .snap-detail))::after {
-    content: 'Select a month to see its account breakdown';
-    grid-column: 2;
-    grid-row: 1 / -1;
-    align-self: start;
-    position: sticky;
-    top: 12px;
-    padding: 1.25rem 1rem;
-    border: 1px dashed var(--line);
-    border-radius: var(--radius-md);
-    color: var(--ink-3);
-    font-size: 12px;
-    text-align: center;
+}
+@media (max-width: 360px) {
+  .snap-position-pct {
+    display: block;
+    margin-left: 0;
+    font-size: 10px;
   }
 }
 
@@ -2742,23 +2780,6 @@ summary.section-label {
   width: auto;
   padding: 0 4px;
 }
-.snap-detail-positions {
-  flex: 1 1 100%;
-  min-width: 0;
-  font-size: 11px;
-  color: var(--ink-3);
-}
-.snap-detail-positions .snap-detail-account {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 2px 0;
-}
-.snap-detail-positions > summary {
-  cursor: pointer;
-  padding: 6px 0;
-}
 .snap-etf-name {
   font-size: 12px;
   color: var(--ink);
@@ -2929,18 +2950,14 @@ summary.section-label {
 }
 /* Shared filter controls (src/ui/filterBar.ts). */
 .filter-chips {
-  flex-wrap: wrap;
-  min-width: 0;
-}
-.filter-chips-scroll {
   flex-wrap: nowrap;
+  min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
+  padding: 3px;
   scrollbar-width: none;
-  /* Fade the right edge so a cut-off chip reads as "scroll for more". */
-  mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
-  padding-right: 18px;
 }
-.filter-chips-scroll::-webkit-scrollbar {
+.filter-chips::-webkit-scrollbar {
   display: none;
 }
 .filter-chip {

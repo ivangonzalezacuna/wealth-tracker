@@ -3,6 +3,7 @@
  * "x of y · Clear filters" status line. Views keep their own filter state and semantics.
  */
 import { esc } from '../utils';
+import { attachScrollHint } from './scrollHint';
 
 export interface FilterChip {
   value: string;
@@ -17,15 +18,12 @@ export interface ChipGroupOptions {
   attr: string;
   chips: FilterChip[];
   value: string;
-  /** Single row that scrolls sideways instead of wrapping (phones). */
-  scroll?: boolean;
 }
 
 const fmtCount = (n: number) => n.toLocaleString('de-DE');
 
 export function chipGroupHtml(o: ChipGroupOptions): string {
-  const cls = `range-toggle filter-chips${o.scroll ? ' filter-chips-scroll' : ''}`;
-  return `<div class="${cls}"${o.id ? ` id="${esc(o.id)}"` : ''} role="group" aria-label="${esc(o.ariaLabel)}">${chipButtonsHtml(o)}</div>`;
+  return `<div class="range-toggle filter-chips"${o.id ? ` id="${esc(o.id)}"` : ''} role="group" aria-label="${esc(o.ariaLabel)}">${chipButtonsHtml(o)}</div>`;
 }
 
 /** Just the chip buttons, for a static group container in the template. */
@@ -52,18 +50,45 @@ export function setChipValue(group: HTMLElement | null, attr: string, value: str
 
 const _boundChips = new WeakSet<HTMLElement>();
 
-/** Delegated chip clicks on a container that outlives re-renders (bound once). */
+/**
+ * Delegated chip clicks on a container that outlives re-renders (bound once).
+ * Also fades scrollable chip rows and keeps keyboard focus on the picked chip,
+ * even when the handler re-renders the group itself.
+ */
 export function bindChipGroup(
   container: HTMLElement | null,
   attr: string,
   onPick: (value: string) => void,
 ): void {
-  if (!container || _boundChips.has(container)) return;
+  if (!container) return;
+  for (const group of container.matches('.filter-chips')
+    ? [container]
+    : [...container.querySelectorAll<HTMLElement>('.filter-chips')]) {
+    attachScrollHint(group);
+  }
+  if (_boundChips.has(container)) return;
   _boundChips.add(container);
+  // Native focus scrolling stops short of the edge fades; snap the end chips fully.
+  container.addEventListener('focusin', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>('.filter-chip');
+    const group = btn?.closest<HTMLElement>('.filter-chips');
+    if (!btn || !group) return;
+    if (btn === group.firstElementChild) group.scrollLeft = 0;
+    else if (btn === group.lastElementChild) group.scrollLeft = group.scrollWidth;
+  });
   container.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>(`[data-${attr}]`);
     if (!btn || !container.contains(btn)) return;
-    onPick(btn.getAttribute(`data-${attr}`) ?? '');
+    const value = btn.getAttribute(`data-${attr}`) ?? '';
+    const hadFocus = document.activeElement === btn;
+    const groupId = btn.closest<HTMLElement>('.filter-chips')?.id;
+    onPick(value);
+    if (!hadFocus) return;
+    const root = (groupId && document.getElementById(groupId)) || container;
+    if (!root.isConnected) return;
+    [...root.querySelectorAll<HTMLElement>(`[data-${attr}]`)]
+      .find((candidate) => candidate.getAttribute(`data-${attr}`) === value)
+      ?.focus();
   });
 }
 

@@ -267,13 +267,19 @@ for (const theme of ['light', 'dark'] as const) {
       ).toBeLessThanOrEqual(40);
       await capture(page, info, 'holdings-compact', '#port-table');
       await row.click();
-      await expect(page.locator('.hold-detail-accounts')).not.toHaveAttribute('open', '');
+      await expect(page.locator('#port-table .hold-detail-accounts')).not.toHaveAttribute(
+        'open',
+        '',
+      );
       await expect(page.locator('.hold-account-row').first()).toBeHidden();
       await capture(page, info, 'holdings-details-compact', '#port-table');
-      await page.locator('.hold-detail-accounts > summary').click();
-      await expect(page.locator('.hold-detail-accounts .hold-account-row')).toHaveCount(3);
+      await page.locator('#port-table .hold-detail-accounts > summary').click();
+      await expect(page.locator('#port-table .hold-detail-accounts .hold-account-row')).toHaveCount(
+        3,
+      );
       await capture(page, info, 'holdings-accounts', '#port-table');
-      await expect(page.locator('.hold-filter-bar')).toHaveCount(0);
+      await expect(page.locator('#port-account-filter')).toBeVisible();
+      await expect(page.locator('#port-account-filter')).toHaveClass(/filter-chips/);
       await page.evaluate(async () => {
         const modulePath = '/src/db/index.ts';
         const db: typeof import('../../src/db') = await import(/* @vite-ignore */ modulePath);
@@ -299,22 +305,22 @@ for (const theme of ['light', 'dark'] as const) {
       await page.reload();
       await gotoApp(page);
       await openTab(page, 'tab-portfolio');
-      await expect(page.locator('#port-account-filter [data-hold-account="france"]')).toHaveCount(
-        0,
-      );
+      await expect(
+        page.locator('#port-account-filter [data-hold-account="france"] .chip-count'),
+      ).toHaveText('2');
       await expect(page.locator('#port-account-filter [data-hold-account="spain"]')).toBeVisible();
       await capture(page, info, 'holdings-useful-chips', '#port-table');
       if ((await row.getAttribute('aria-expanded')) === 'true') await row.click();
       const single = page.locator('.hold-row[data-etf-key="IE00B3XXRP09"]');
       await single.click();
-      await expect(page.locator('.hold-detail-accounts')).toHaveCount(0);
+      await expect(page.locator('#port-table .hold-detail-accounts')).toHaveCount(0);
       await capture(page, info, 'holdings-single-account', '#port-table');
       await single.click();
       await page.locator('[data-hold-account="spain"]').click();
       await expect(page.locator('.hold-row[data-etf-key]')).toHaveCount(1);
       if ((await row.getAttribute('aria-expanded')) !== 'true') await row.click();
-      await page.locator('.hold-detail-accounts > summary').click();
-      await expect(page.locator('.hold-detail-accounts')).toContainText(
+      await page.locator('#port-table .hold-detail-accounts > summary').click();
+      await expect(page.locator('#port-table .hold-detail-accounts')).toContainText(
         'Spain investment (selected)',
       );
       await capture(page, info, 'holdings-filtered', '#port-table');

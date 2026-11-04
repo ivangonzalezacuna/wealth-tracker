@@ -242,8 +242,18 @@ export async function addSnapshot(
   await waitForSyncIdle(page);
   await page.click('.js-snapd-submit');
   await expect(page.locator('.snapd-review')).toBeVisible();
-  await page.click('.js-snapd-submit');
-  await expect(page.locator('#snap-msg')).toContainText('Saved');
+  // A background sync can start between the idle check and the click; the dialog then keeps
+  // the draft and asks to retry, so retry like a user would.
+  await expect
+    .poll(async () => {
+      await waitForSyncIdle(page);
+      const submit = page.locator('.js-snapd-submit');
+      if ((await submit.isVisible()) && (await submit.isEnabled())) await submit.click();
+      if (await page.locator('.snap-dialog-overlay').count()) return '';
+      return (await page.locator('#snap-msg').textContent()) ?? '';
+    })
+    .toContain('Saved');
+  await waitForSyncIdle(page);
 }
 
 export async function addHolding(

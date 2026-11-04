@@ -444,7 +444,7 @@ test('snapshot expanded relationships survive sorting and fit narrow selection w
           side: bounds.left >= row.right,
         };
       }),
-    ).toEqual({ fits: true, inline: width < 1024, side: width >= 1024 });
+    ).toEqual({ fits: true, inline: true, side: false });
   }
   await captureSnapshotList(page, testInfo, 'expanded-long-labels');
 

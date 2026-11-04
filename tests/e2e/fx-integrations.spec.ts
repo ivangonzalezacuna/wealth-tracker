@@ -254,6 +254,11 @@ test('transaction dialog renders FX rate hint span and hides it for EUR currency
 test('transaction dialog shows FX rate hint for non-EUR currency when integration is enabled', async ({
   page,
 }) => {
+  await page.route('https://api.frankfurter.dev/**', async (route) => {
+    await route.fulfill({
+      json: { date: '2024-01-15', base: 'USD', quote: 'EUR', rate: 0.92 },
+    });
+  });
   await gotoApp(page);
 
   // Ensure FX integration is enabled
@@ -278,11 +283,11 @@ test('transaction dialog shows FX rate hint for non-EUR currency when integratio
   await page.fill('#txd-currency', 'USD');
   await page.locator('#txd-currency').dispatchEvent('input');
 
-  // The hint may resolve (if network available) or stay hidden (offline/cache miss).
-  // Either way the span must be present in the DOM and the fxrate field must remain editable.
   const hintEl = page.locator('#txd-fxrate-hint');
-  await expect(hintEl).toBeAttached();
+  await expect(hintEl).toContainText('1 USD = 0.9200 EUR');
+  await expect(hintEl).toBeVisible();
   const rateInput = page.locator('#txd-fxrate');
+  await expect(rateInput).toHaveValue('0.92');
   await rateInput.fill('0.95');
   await expect(rateInput).toHaveValue('0.95');
 

@@ -1831,11 +1831,25 @@ describe('Settings account lifecycle', () => {
     root.querySelector<HTMLButtonElement>('[data-lfilter="closed"]')!.click();
     expect(rows()).toHaveLength(1);
     expect(rows()[0].textContent).toContain('Closed savings');
+    expect(root.querySelector('[data-afilter="investment"]')).toBeNull();
+    root.querySelector<HTMLButtonElement>('[data-lfilter="all"]')!.click();
     root.querySelector<HTMLButtonElement>('[data-afilter="investment"]')!.click();
+    root.querySelector<HTMLButtonElement>('[data-lfilter="closed"]')!.click();
     expect(rows()).toHaveLength(0);
+    expect(root.querySelector('[data-afilter="investment"] .chip-count')!.textContent).toBe('0');
     root.querySelector<HTMLButtonElement>('[data-lfilter="open"]')!.click();
     expect(rows()).toHaveLength(1);
     root.querySelector<HTMLButtonElement>('[data-afilter="all"]')!.click();
+    root.querySelector<HTMLButtonElement>('[data-lfilter="all"]')!.click();
+  });
+  it('keeps lifecycle filters available for a single closed account', () => {
+    MOCK_ACCOUNTS.splice(0, 1);
+    renderSettings();
+    const root = document.getElementById('settings-card-accounts')!;
+    expect(root.querySelector<HTMLElement>('.settings-acct-filter-bar')!.hidden).toBe(false);
+    expect(root.querySelector<HTMLElement>('#acct-lifecycle-toggle')!.hidden).toBe(false);
+    root.querySelector<HTMLButtonElement>('[data-lfilter="open"]')!.click();
+    expect(root.querySelectorAll('.settings-acct-row')).toHaveLength(0);
     root.querySelector<HTMLButtonElement>('[data-lfilter="all"]')!.click();
   });
   it('stages reopening until Save accounts and supports discarding the entire draft', async () => {
@@ -1919,6 +1933,33 @@ describe('Settings accessible controls and report states', () => {
   afterEach(() => {
     setBusy(false);
     setSettingsView('portfolio');
+  });
+
+  it('counts holding status choices after search while retaining alternatives', () => {
+    const original = MOCK_HOLDINGS.slice();
+    MOCK_HOLDINGS.push({
+      ...MOCK_HOLDINGS[0],
+      isin: 'IE00B3F81R35',
+      shortName: 'CLOSED',
+      active: false,
+    });
+    try {
+      renderSettings();
+      const root = document.getElementById('settings-card-holdings')!;
+      const search = root.querySelector<HTMLInputElement>('#settings-hold-search')!;
+      search.value = 'IWDA';
+      search.dispatchEvent(new Event('input'));
+      expect(root.querySelector('[data-hfilter="all"] .chip-count')!.textContent).toBe('1');
+      expect(root.querySelector('[data-hfilter="closed"] .chip-count')!.textContent).toBe('0');
+      root.querySelector<HTMLButtonElement>('[data-hfilter="closed"]')!.click();
+      expect(root.querySelectorAll('.settings-hold-row')).toHaveLength(0);
+      expect(root.querySelector('[data-hfilter="active"] .chip-count')!.textContent).toBe('1');
+      search.value = '';
+      search.dispatchEvent(new Event('input'));
+      root.querySelector<HTMLButtonElement>('[data-hfilter="all"]')!.click();
+    } finally {
+      MOCK_HOLDINGS.splice(0, MOCK_HOLDINGS.length, ...original);
+    }
   });
 
   it('associates accordion headings and preserves expansion during history loading', async () => {
@@ -2260,6 +2301,8 @@ describe('Settings accessible controls and report states', () => {
     search.value = 'nothing';
     search.dispatchEvent(new Event('input'));
     expect(card.querySelector('.settings-acct-empty')).not.toBeNull();
+    expect(chips.querySelector('[data-afilter="cash"] .chip-count')!.textContent).toBe('0');
+    expect(chips.querySelector('[data-afilter="investment"]')).toBeNull();
 
     document.getElementById('btn-add-acct')!.click();
     await vi.waitFor(() => expect(rows()).toHaveLength(3));

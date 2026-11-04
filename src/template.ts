@@ -388,7 +388,7 @@ export function appTemplate(): string {
             <button class="btn btn-outline btn-sm" id="btn-start-del-txs" aria-pressed="false">Select</button>
             <button class="btn btn-outline btn-sm" id="btn-add-tx">Add transaction</button>
           </div>
-          <div id="tx-type-filter" class="range-toggle filter-chips filter-chips-scroll" role="group" aria-label="Filter transactions by type"></div>
+          <div id="tx-type-filter" class="range-toggle filter-chips" role="group" aria-label="Filter transactions by type"></div>
           <div class="bulk-actions" id="tx-bulk-actions" hidden>
             <button class="btn btn-ghost btn-sm" id="btn-tx-select-all">Select all</button>
             <button class="btn btn-ghost btn-sm" id="btn-tx-clear-all">Deselect all</button>

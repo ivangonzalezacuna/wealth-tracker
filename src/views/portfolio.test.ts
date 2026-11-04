@@ -254,9 +254,11 @@ describe('renderPortfolio', () => {
     expect(document.querySelector('.hold-detail')!.textContent).toContain('Valuation only');
     expect(document.querySelector('.hold-detail')!.textContent).toContain('France');
     expect(document.querySelector('.hold-detail')!.textContent).toContain('Jun 2026');
-    expect(document.getElementById('port-account-filter')).toBeNull();
+    expect(document.querySelector('[data-hold-account="acct1"] .chip-count')!.textContent).toBe(
+      '1',
+    );
     expect(document.getElementById('port-holdings-search')).toBeNull();
-    expect(document.querySelector('.hold-filter-bar')).toBeNull();
+    expect(document.querySelector('.hold-filter-bar')).not.toBeNull();
     expect(document.querySelector('.hold-row[data-etf-key] .hold-account-count')!.textContent).toBe(
       '2',
     );
@@ -283,7 +285,9 @@ describe('renderPortfolio', () => {
         },
       ],
     );
-    expect(document.querySelector('[data-hold-account=":multiple"]')).toBeNull();
+    expect(document.querySelector('[data-hold-account=":multiple"] .chip-count')!.textContent).toBe(
+      '1',
+    );
     document.querySelector<HTMLButtonElement>('[data-hold-account="acct1"]')!.click();
     expect(document.querySelectorAll('.hold-row[data-etf-key]')).toHaveLength(1);
     const search = document.getElementById('port-holdings-search') as HTMLInputElement;
@@ -353,11 +357,51 @@ describe('renderPortfolio', () => {
     expect(
       document.querySelector('[data-hold-account=":multiple"][aria-pressed="true"]'),
     ).not.toBeNull();
+    expect(document.querySelector('[data-hold-account=":multiple"] .chip-count')!.textContent).toBe(
+      '0',
+    );
+    expect(document.querySelector('[data-hold-account="france"]')).toBeNull();
     document.querySelector<HTMLButtonElement>('[data-clear-hold-search]')!.click();
     expect(document.querySelectorAll('.hold-row[data-etf-key]')).toHaveLength(3);
   });
 
-  it('only offers account subsets, distinguishes IDs from Multiple accounts, and clears stale filters', () => {
+  it('omits account chips for a single investment account without hiding holdings', () => {
+    renderPortfolio(makePD(), [
+      {
+        date: '2026-06',
+        acct1: 1000,
+        'position:acct1:IE00B4L5Y983': 1000,
+      },
+    ]);
+    expect(document.getElementById('port-account-filter')).toBeNull();
+    expect(document.querySelectorAll('.hold-row[data-etf-key]')).toHaveLength(1);
+  });
+
+  it('clears the account restriction when only one investment account remains', () => {
+    MOCK_ACCOUNTS.push({ id: 'france', label: 'France', moneyType: 'investment' });
+    const pd = makePD({
+      etfs: {
+        IE00B4L5Y983: makeEtf(),
+        IE00B3F81R35: makeEtf({ isin: 'IE00B3F81R35', name: 'Other ETF' }),
+      },
+    });
+    const snaps: Snapshot[] = [
+      {
+        date: '2026-06',
+        'position:france:IE00B4L5Y983': 100,
+        'position:acct1:IE00B3F81R35': 100,
+      },
+    ];
+    renderPortfolio(pd, snaps);
+    document.querySelector<HTMLButtonElement>('[data-hold-account="france"]')!.click();
+    expect(document.querySelectorAll('.hold-row[data-etf-key]')).toHaveLength(1);
+    MOCK_ACCOUNTS.splice(1);
+    renderPortfolio(pd, snaps);
+    expect(document.getElementById('port-account-filter')).toBeNull();
+    expect(document.querySelectorAll('.hold-row[data-etf-key]')).toHaveLength(2);
+  });
+
+  it('distinguishes account IDs from Multiple accounts and preserves selection after data refresh', () => {
     MOCK_ACCOUNTS.push({ id: 'multiple', label: 'Individual multiple', moneyType: 'investment' });
     const isin = 'IE00B4L5Y983';
     const snaps: Snapshot[] = [
@@ -382,7 +426,9 @@ describe('renderPortfolio', () => {
     document.querySelector<HTMLButtonElement>('[data-hold-account="multiple"]')!.click();
     expect(document.querySelectorAll('.hold-row[data-etf-key]')).toHaveLength(1);
     renderPortfolio(null, snaps);
-    expect(document.getElementById('port-account-filter')).toBeNull();
+    expect(
+      document.querySelector('[data-hold-account="multiple"][aria-pressed="true"]'),
+    ).not.toBeNull();
     expect(document.querySelectorAll('.hold-row[data-etf-key]')).toHaveLength(1);
   });
 
@@ -732,6 +778,13 @@ describe('renderPortfolio', () => {
     allBtn.click();
     expect(table.textContent).toContain('IWDA');
     expect(table.textContent).toContain('EXITED');
+    const search = document.getElementById('port-holdings-search') as HTMLInputElement;
+    search.value = 'IE00B4L5Y983';
+    search.dispatchEvent(new Event('input'));
+    expect(document.querySelector('[data-filter="all"] .chip-count')!.textContent).toBe('1');
+    expect(document.querySelector('[data-filter="closed"] .chip-count')!.textContent).toBe('0');
+    search.value = '';
+    search.dispatchEvent(new Event('input'));
   });
 
   it('renders drift card when holdings have contribution targets', () => {

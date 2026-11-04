@@ -412,71 +412,53 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
   // Split into held / exited
   const held = allEtfs.filter((row) => !isExitedRow(row));
   const exited = allEtfs.filter(isExitedRow);
-  const exitedCount = exited.length;
-
   let holdingsFilter = getTableFilter(_holdTableState, 'status') || 'held';
-  if (!held.length || !exited.length) {
-    holdingsFilter = held.length ? 'held' : 'all';
+  if (!held.length && holdingsFilter === 'held') {
+    holdingsFilter = 'all';
     _holdTableState.filters.status = holdingsFilter;
   }
-  let displayList: HoldingRow[];
-  if (holdingsFilter === 'closed') {
-    displayList = exited;
-  } else if (holdingsFilter === 'all') {
-    displayList = allEtfs;
-  } else {
-    displayList = held;
-  }
+  const investmentAccounts = getAccounts().filter(
+    (account) => account.moneyType?.toLowerCase() === 'investment',
+  );
+  const showAccountFilter = investmentAccounts.length > 1;
+  if (!showAccountFilter) _holdTableState.filters.account = '';
+  const accountFilter = getTableFilter(_holdTableState, 'account');
+  const holdingsSearch = getTableFilter(_holdTableState, 'search');
+  const q = holdingsSearch.toLowerCase();
+  const matchesSearch = (row: HoldingRow) =>
+    !q || row.isin.toLowerCase().includes(q) || (row.name || '').toLowerCase().includes(q);
+  const matchesStatus = (row: HoldingRow) =>
+    holdingsFilter === 'all' ||
+    (holdingsFilter === 'closed' ? isExitedRow(row) : !isExitedRow(row));
+  const matchesAccount = (row: HoldingRow, value: string) => {
+    if (!value) return true;
+    const accounts = positionAccounts(row.isin);
+    return value === ':multiple'
+      ? accounts.length > 1
+      : accounts.some((account) => (account.id || account.key) === value);
+  };
+  const searchContext = allEtfs.filter(matchesSearch);
+  const statusContext = searchContext.filter((row) => matchesAccount(row, accountFilter));
+  const accountContext = searchContext.filter(matchesStatus);
+  const heldCount = statusContext.filter((row) => !isExitedRow(row)).length;
+  const exitedCount = statusContext.length - heldCount;
 
   const accountChoices = [
-    ...getAccounts()
-      .filter((account) => account.moneyType?.toLowerCase() === 'investment')
-      .map((account) => ({
-        value: account.id || account.key || '',
-        label: `${account.label}${latSnap && isAccountClosedInMonth(account, latSnap.date) ? ' (closed)' : ''}`,
-      })),
+    ...investmentAccounts.map((account) => ({
+      value: account.id || account.key || '',
+      label: `${account.label}${latSnap && isAccountClosedInMonth(account, latSnap.date) ? ' (closed)' : ''}`,
+    })),
     { value: ':multiple', label: 'Multiple accounts' },
   ]
     .map((choice) => ({
       ...choice,
-      members: displayList
-        .filter((row) => {
-          const accounts = positionAccounts(row.isin);
-          return choice.value === ':multiple'
-            ? accounts.length > 1
-            : accounts.some((account) => (account.id || account.key) === choice.value);
-        })
-        .map((row) => row.isin),
+      count: accountContext.filter((row) => matchesAccount(row, choice.value)).length,
     }))
-    .filter((choice) => choice.members.length > 0 && choice.members.length < displayList.length)
-    .filter(
-      (choice, index, choices) =>
-        choices.findIndex((other) => other.members.join('|') === choice.members.join('|')) ===
-        index,
-    )
-    .map(({ value, label, members }) => ({ value, label, count: members.length }));
-  let accountFilter = getTableFilter(_holdTableState, 'account');
-  if (accountFilter && !accountChoices.some((choice) => choice.value === accountFilter)) {
-    accountFilter = '';
-    _holdTableState.filters.account = '';
-  }
-  const accountTotal = displayList.length;
-  if (accountFilter) {
-    displayList = displayList.filter((row) => {
-      const accounts = positionAccounts(row.isin);
-      return accountFilter === ':multiple'
-        ? accounts.length > 1
-        : accounts.some((account) => (account.id || account.key) === accountFilter);
-    });
-  }
-  // Apply text search (ISIN or name, case-insensitive)
-  const holdingsSearch = getTableFilter(_holdTableState, 'search');
-  if (holdingsSearch) {
-    const q = holdingsSearch.toLowerCase();
-    displayList = displayList.filter(
-      (e) => e.isin.toLowerCase().includes(q) || (e.name || '').toLowerCase().includes(q),
-    );
-  }
+    .filter((choice) => choice.count > 0 || choice.value === accountFilter);
+  if (accountFilter && !accountChoices.some((choice) => choice.value === accountFilter))
+    accountChoices.push({ value: accountFilter, label: 'Unavailable account', count: 0 });
+  const accountTotal = accountContext.length;
+  const displayList = accountContext.filter((row) => matchesAccount(row, accountFilter));
 
   const defaultOrdered = displayList
     .slice()
@@ -499,22 +481,25 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
 
   // Filter controls
   const statusChips =
-    exitedCount > 0 && held.length > 0
+    (exited.length > 0 && held.length > 0) || (holdingsFilter === 'closed' && held.length > 0)
       ? chipGroupHtml({
           id: 'port-filter-toggle',
           ariaLabel: 'Show holdings',
           attr: 'filter',
           value: holdingsFilter,
           chips: [
-            { value: 'all', label: 'All', count: allEtfs.length },
-            { value: 'held', label: 'Held', count: held.length },
+            { value: 'all', label: 'All', count: statusContext.length },
+            { value: 'held', label: 'Held', count: heldCount },
             { value: 'closed', label: 'Closed', count: exitedCount },
           ],
         })
       : '';
   // Same layout as the ledger: search first, chips on their own row below.
   const filterHtml =
-    allEtfs.length > 1 || holdingsSearch || statusChips || accountChoices.length
+    allEtfs.length > 1 ||
+    holdingsSearch ||
+    statusChips ||
+    (showAccountFilter && accountChoices.length)
       ? `
     <div class="filter-bar filter-bar-stacked hold-filter-bar">
       ${
@@ -529,7 +514,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
       }
       ${statusChips}
       ${
-        accountChoices.length
+        showAccountFilter && accountChoices.length
           ? chipGroupHtml({
               id: 'port-account-filter',
               ariaLabel: 'Filter holdings by account. Metrics and totals remain portfolio-wide.',
@@ -592,8 +577,6 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     setTableFilter(_holdTableState, 'account', value, {
       rerender: () => renderHoldingsTable(pd, snaps),
     });
-    const buttons = document.querySelectorAll<HTMLButtonElement>('#port-account-filter button');
-    [...buttons].find((button) => button.dataset.holdAccount === value)?.focus();
   });
   _holdRender = () => renderHoldingsTable(pd, snaps);
   bindChipGroup(portTableEl, 'filter', (value) => {
