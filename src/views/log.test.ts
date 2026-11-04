@@ -189,10 +189,77 @@ describe('renderLog', () => {
     });
     (document.querySelector('.snap-row-compact:not(.th)') as HTMLElement).click();
     const detail = document.querySelector('.snap-detail')!.textContent!;
-    expect(detail).toContain('Main · ETF valuations');
-    expect(detail).toContain('Savings · ETF valuations');
+    expect(
+      [...document.querySelectorAll('.snap-position-group th')].map((el) => el.textContent),
+    ).toEqual(['Main', 'Savings']);
+    expect(document.querySelector('.snap-detail-positions > summary')!.textContent).toBe(
+      'ETF positions · 2 · no prior snapshot',
+    );
+    expect(document.querySelectorAll('.snap-position-table thead th')).toHaveLength(2);
+    expect(document.querySelector('.snap-detail-head')).toBeNull();
+    expect(document.querySelector('.snap-position-table')!.getAttribute('aria-label')).toBe(
+      'ETF valuations by account, Jun 2026',
+    );
     expect(detail).toContain('IE00B4L5Y983');
     expect(detail).not.toContain('position:');
+  });
+
+  it('compares saved position values with the previous available month, not filtered rows', () => {
+    const snaps: Snapshot[] = [
+      { date: '2026-01', acct_1: 100, 'position:acct_1:IE00B4L5Y983': 100 },
+      { date: '2026-03', acct_1: 110, acct_2: 0, 'position:acct_1:IE00B4L5Y983': 110 },
+    ];
+    renderLog({
+      txs: [],
+      snaps: snaps.slice().reverse(),
+      importMeta: null,
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+    });
+    revealSnapshot('2026-03');
+    const detail = document.querySelector('.snap-detail')!;
+    expect(detail.querySelectorAll('.snap-account-grid .snap-detail-account')).toHaveLength(1);
+    expect(detail.querySelector('.snap-detail-positions > summary')!.textContent).toBe(
+      'ETF positions · Main · 1 · change vs Jan 2026 (2-month gap)',
+    );
+    expect(detail.querySelectorAll('.snap-position-group')).toHaveLength(0);
+    expect(detail.querySelector('.snap-position-change')!.classList.contains('pos')).toBe(true);
+    expect(detail.textContent).toContain('+10,00');
+    expect(detail.textContent).toContain('+10.00%');
+    expect(snaps[1].acct_2).toBe(0);
+  });
+
+  it('distinguishes an absent baseline from explicit zero and preserves recorded exits', () => {
+    const snaps: Snapshot[] = [
+      {
+        date: '2026-01',
+        acct_1: 100,
+        'position:acct_1:IE00B4L5Y983': 0,
+        'position:acct_1:IE00B3F81R35': 100,
+      },
+      {
+        date: '2026-02',
+        acct_1: 120,
+        'position:acct_1:IE00B4L5Y983': 120,
+        'position:acct_1:IE00B3F81R35': 0,
+        'position:acct_1:IE00BKM4GZ66': 0,
+      },
+    ];
+    renderLog({ txs: [], snaps, importMeta: null, onEditSnap: vi.fn(), onDelSnap: vi.fn() });
+    revealSnapshot('2026-02');
+    const cells = [
+      ...document.querySelectorAll<HTMLElement>('.snap-position-table td.snap-position-change'),
+    ];
+    const changes = cells.map((el) => el.textContent!);
+    expect(changes[0]).toContain('+120,00');
+    expect(changes[0]).toContain('n/a');
+    expect(cells[0].querySelector<HTMLElement>('.snap-position-pct')!.title).toContain(
+      'Percentage unavailable',
+    );
+    expect(changes[1]).toContain('-100,00');
+    expect(changes[1]).toContain('-100.00%');
+    expect(cells[1].classList.contains('neg')).toBe(true);
+    expect(changes[2]).toBe('Not recorded');
   });
 
   it('counts transaction types after search but before type selection and pagination', () => {

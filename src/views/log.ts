@@ -551,7 +551,6 @@ function renderSnapList(
     _selectedSnapDates.clear();
     _snapFromChart = false;
     setTablePage(_snapTableState, 1);
-    el.style.removeProperty('--snap-rows');
     el.innerHTML = tableEmptyStateHtml(
       '<p class="note">No snapshots yet. Add your first one above.</p>',
     );
@@ -597,7 +596,6 @@ function renderSnapList(
     _snapPageSize,
   );
   setTablePage(_snapTableState, page);
-  el.style.setProperty('--snap-rows', String(pageItems.length + 1));
   const rowClass =
     _snapBulkMode && !_readOnly && !!_lastOnBulkDel
       ? 'snap-row-compact snap-row-selectable'
@@ -727,22 +725,62 @@ function _createSnapDetail(
   const holdingNames = new Map(
     getHoldings().map((holding) => [holding.isin, holding.shortName || holding.name]),
   );
-  const positionRows = getACCTSList()
-    .map((account) => {
-      const positions = Object.entries(accountPositionValues(snap, account.key));
-      if (!positions.length) return '';
-      return `<div><span class="hold-detail-label">${esc(account.label)} · ETF valuations</span></div>${positions.map(([isin, value]) => `<div class="snap-detail-account"><span class="hold-detail-label">${esc(holdingNames.get(isin) || isin)}</span><span class="hold-detail-value">${fmtEur2(value)}</span></div>`).join('')}`;
+  const previous = _snaps
+    .filter((candidate) => candidate.date.slice(0, 7) < snap.date.slice(0, 7))
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  const monthIndex = (value: string) => Number(value.slice(0, 4)) * 12 + Number(value.slice(5, 7));
+  const interval = previous ? monthIndex(snap.date) - monthIndex(previous.date) : 0;
+  const comparisonLabel = previous
+    ? `change vs ${fmtMon(previous.date)}${interval > 1 ? ` (${interval}-month gap)` : ''}`
+    : 'no prior snapshot';
+  const positionGroups = getACCTSList()
+    .map((account) => ({
+      account,
+      positions: Object.entries(accountPositionValues(snap, account.key)),
+      baseline: accountPositionValues(previous ?? null, account.key),
+    }))
+    .filter((group) => group.positions.length);
+  const positionCount = positionGroups.reduce((sum, group) => sum + group.positions.length, 0);
+  const changeCell = (value: number, priorValue: number | undefined): string => {
+    if (priorValue === undefined)
+      return '<td class="snap-position-change" title="No saved value in the comparison month">Not recorded</td>';
+    const delta = value - priorValue;
+    const sign = delta > 0 ? '+' : '';
+    const tone = delta > 0 ? ' pos' : delta < 0 ? ' neg' : '';
+    const pct =
+      priorValue === 0
+        ? '<span class="snap-position-pct" title="Percentage unavailable: the comparison value was zero">n/a</span>'
+        : `<span class="snap-position-pct">${sign}${fmtPctVal((delta / priorValue) * 100, 2)}</span>`;
+    return `<td class="snap-position-change${tone}">${sign}${fmtEur2(delta)}${pct}</td>`;
+  };
+  const positionBody = positionGroups
+    .map(({ account, positions, baseline }) => {
+      const group =
+        positionGroups.length > 1
+          ? `<tr class="snap-position-group"><th scope="colgroup" colspan="${previous ? 3 : 2}">${esc(account.label)}</th></tr>`
+          : '';
+      const rows = positions
+        .map(
+          ([isin, value]) =>
+            `<tr><th scope="row">${esc(holdingNames.get(isin) || isin)}</th><td>${fmtEur2(value)}</td>${previous ? changeCell(value, baseline[isin]) : ''}</tr>`,
+        )
+        .join('');
+      return `<tbody>${group}${rows}</tbody>`;
     })
     .join('');
+  const positionAccountLabel =
+    positionGroups.length === 1 ? ` · ${esc(positionGroups[0].account.label)}` : '';
+  const positionTable = positionCount
+    ? `<details class="hold-detail-accounts snap-detail-positions"><summary>${ROW_DISCLOSURE_ICON}ETF positions${positionAccountLabel} · ${positionCount} · ${esc(comparisonLabel)}</summary><table class="snap-position-table" aria-label="ETF valuations by account, ${esc(fmtMon(snap.date))}"><thead><tr><th scope="col">ETF</th><th scope="col">Value</th>${previous ? '<th scope="col">Change</th>' : ''}</tr></thead>${positionBody}</table>${previous ? '<p class="note snap-position-note">Valuation movement, not investment returns. Trades and transfers also affect it.</p>' : ''}</details>`
+    : '';
   const panel = document.createElement('div');
   panel.className = 'hold-detail snap-detail';
   panel.id = `snap-detail-${encodeURIComponent(date)}`;
   panel.setAttribute('role', 'region');
   panel.setAttribute('aria-labelledby', `snap-row-${encodeURIComponent(date)}`);
   panel.innerHTML = `
-    <div class="snap-detail-head"><span class="snap-detail-month">${fmtMon(snap.date)}</span><span class="snap-detail-total">${fmtEur2(snapTotal(snap))}</span></div>
-    ${detailRows}
-    ${positionRows ? `<details class="snap-detail-positions"><summary>ETF breakdown by account</summary>${positionRows}</details>` : ''}
+    <div class="snap-account-grid">${detailRows}</div>
+    ${positionTable}
     ${snap.notes ? `<div class="snap-detail-note"><span class="hold-detail-label">Note</span><span class="hold-detail-value">${esc(snap.notes)}</span></div>` : ''}
     ${
       _readOnly
