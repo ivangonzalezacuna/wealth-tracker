@@ -56,6 +56,10 @@ export function attachInfoTips(root: HTMLElement | Document = document): void {
 
     // Single tap on mobile / click on desktop - show/hide
     el.addEventListener('click', (e) => {
+      if ((el as HTMLElement).dataset.tipClick === 'navigate') {
+        _hidePopover(el as HTMLElement);
+        return;
+      }
       e.stopPropagation();
       e.preventDefault();
       _togglePopover(el as HTMLElement);

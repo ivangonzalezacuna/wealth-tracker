@@ -23,6 +23,7 @@ function mount(): void {
       <button id="tab-log" aria-label="Log data (add snapshot)">Log data</button>
     </nav>
     <button id="tab-holdings">Holdings</button>
+    <div id="holdings-attention" hidden></div>
     <button id="settings-tab-advanced">Advanced</button>
     <button id="settings-heading-backup"><span class="card-title">Backup &amp; restore</span></button>`;
 }
@@ -110,22 +111,25 @@ describe('attention trail', () => {
     expect(el('tab-portfolio').textContent).toBe('Portfolio');
   });
 
-  it('hovering the tab shows the custom popover; tapping the dot does not switch tabs', () => {
+  it('only hovering the dot shows help and clicking it still selects the tab', () => {
     show({ maxDrift: 7, driftThresholdPct: 5 });
     const tab = el('tab-portfolio');
     tab.dispatchEvent(new MouseEvent('mouseenter'));
-    expect(document.querySelector('.info-tip-pop')?.textContent).toContain('Moderate drift');
-    tab.dispatchEvent(new MouseEvent('mouseleave'));
     expect(document.querySelector('.info-tip-pop')).toBeNull();
+    const dot = tab.querySelector<HTMLElement>('.attn-dot')!;
+    dot.dispatchEvent(new MouseEvent('mouseenter'));
+    expect(document.querySelector('.info-tip-pop')?.textContent).toContain('Moderate drift');
 
     let navigated = false;
     tab.addEventListener('click', () => (navigated = true));
-    (tab.querySelector('.attn-dot') as HTMLElement).click();
-    expect(navigated).toBe(false);
-    expect(document.querySelector('.info-tip-pop--warn')).not.toBeNull();
-    // The open popover goes away with its dot.
-    show({ maxDrift: 1, driftThresholdPct: 5 });
+    dot.click();
+    expect(navigated).toBe(true);
     expect(document.querySelector('.info-tip-pop')).toBeNull();
+    expect(el('holdings-attention').hidden).toBe(false);
+    expect(el('holdings-attention').textContent).toContain('Moderate drift');
+    show({ maxDrift: 1, driftThresholdPct: 5 });
+    expect(el('holdings-attention').hidden).toBe(true);
+    expect(el('holdings-attention').textContent).toBe('');
   });
 
   it('the backup badge opens the same popover', () => {

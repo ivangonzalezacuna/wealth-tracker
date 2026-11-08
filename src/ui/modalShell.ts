@@ -142,7 +142,7 @@ export function bootstrapDialog(opts: DialogBootstrapOptions): () => void {
   (initialFocusSelector
     ? (overlay.querySelector(initialFocusSelector) as HTMLElement | null)
     : null
-  )?.focus();
+  )?.focus({ preventScroll: true });
 
   return () => {
     cancelEl?.removeEventListener('click', handleCancel);
@@ -162,7 +162,7 @@ export function openDialogShell<Result>(
 }
 
 export function restoreFocus(target: HTMLElement | null): void {
-  if (target && document.body.contains(target)) target.focus();
+  if (target && document.body.contains(target)) target.focus({ preventScroll: true });
 }
 
 /** Returns lightweight field-access helpers scoped to a dialog overlay element. */

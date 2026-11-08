@@ -99,26 +99,19 @@ function markWithDot(el: HTMLElement, items: AttentionItem[]): void {
   const name = el.getAttribute('aria-label') ?? el.textContent?.trim() ?? '';
   el.dataset.attnLabel = el.getAttribute('aria-label') ?? NO_LABEL;
   el.setAttribute('aria-label', `${name}, needs attention: ${text}`);
-  el.append(tipTrigger(`attn-dot attn-dot--${level}`, text, level, true));
+  const dot = tipTrigger(`attn-dot attn-dot--${level}`, text, level);
+  dot.dataset.tipClick = 'navigate';
+  dot.setAttribute('aria-hidden', 'true');
+  el.append(dot);
 }
 
-// The dot and badge open the app's own popover: hover on desktop (the whole tab for dots),
-// tap on touch, where the click stays on the dot instead of switching tabs.
-function tipTrigger(
-  className: string,
-  text: string,
-  level: AttentionLevel,
-  hoverParent = false,
-): HTMLElement {
+// Navigation dots explain on hover but never intercept selection.
+function tipTrigger(className: string, text: string, level: AttentionLevel): HTMLElement {
   const el = document.createElement('span');
   el.className = className;
   el.dataset.tipTrigger = '';
   el.dataset.tip = text;
   el.dataset.tipVariant = level;
-  if (hoverParent) {
-    el.dataset.tipHover = 'parent';
-    el.setAttribute('aria-hidden', 'true');
-  }
   return el;
 }
 
@@ -131,6 +124,12 @@ function group(items: AttentionItem[], key: 'tabId' | 'chipId'): Map<string, Att
 /** Draws the current trail on whatever part of the page is mounted. */
 export function applyAttention(root: Document = document): void {
   clear(root);
+  const holdingsWarning = root.getElementById('holdings-attention');
+  if (holdingsWarning) {
+    const items = _items.filter((item) => item.chipId === 'tab-holdings');
+    holdingsWarning.textContent = items.map((item) => item.text).join('. ');
+    holdingsWarning.hidden = items.length === 0;
+  }
   for (const key of ['tabId', 'chipId'] as const) {
     for (const [id, items] of group(_items, key)) {
       const el = root.getElementById(id);

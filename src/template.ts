@@ -2,6 +2,9 @@ import { CONFIG } from './config';
 import { headerMenuMarkup } from './ui/headerMenu';
 import { ROW_DISCLOSURE_ICON } from './views/icons';
 
+const navIcon = (body: string) =>
+  `<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+
 function metricExplainerCard(
   icon: string,
   title: string,
@@ -34,11 +37,11 @@ export function appTemplate(): string {
 </header>
 
 <nav class="nav" role="tablist" aria-label="Main sections">
-  <button id="tab-networth" class="active" data-section="networth" role="tab" aria-selected="true" aria-controls="networth">Net worth</button>
-  <button id="tab-portfolio" data-section="portfolio" role="tab" aria-selected="false" aria-controls="portfolio">Portfolio</button>
-  <button id="tab-analytics" data-section="analytics" role="tab" aria-selected="false" aria-controls="analytics">Analytics</button>
-  <button id="tab-settings" data-section="settings" role="tab" aria-selected="false" aria-controls="settings">Settings</button>
-  <button id="tab-log" class="log-btn" data-section="log" role="tab" aria-selected="false" aria-controls="log" aria-label="Log data (add snapshot or import CSV)">Log data</button>
+  <button id="tab-networth" class="active" data-section="networth" role="tab" aria-selected="true" aria-controls="networth">${navIcon('<path d="M3 11 12 3l9 8v10h-6v-7H9v7H3Z"/>')}<span>Net worth</span></button>
+  <button id="tab-portfolio" data-section="portfolio" role="tab" aria-selected="false" aria-controls="portfolio">${navIcon('<rect x="3" y="7" width="18" height="14" rx="3"/><path d="M8 7V3h8v4M3 12h18M10 12v3h4v-3"/>')}<span>Portfolio</span></button>
+  <button id="tab-analytics" data-section="analytics" role="tab" aria-selected="false" aria-controls="analytics">${navIcon('<path d="M4 20V12M10 20V7M16 20V3M3 21h18"/>')}<span>Analytics</span></button>
+  <button id="tab-settings" data-section="settings" role="tab" aria-selected="false" aria-controls="settings">${navIcon('<path d="m9 3-1 3-3 1 1 3-2 2 2 2-1 3 3 1 1 3h6l1-3 3-1-1-3 2-2-2-2 1-3-3-1-1-3Z"/><circle cx="12" cy="12" r="3"/>')}<span>Settings</span></button>
+  <button id="tab-log" class="log-btn" data-section="log" role="tab" aria-selected="false" aria-controls="log" aria-label="Log data (add snapshot or import CSV)">${navIcon('<rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/>')}<span>Log data</span></button>
 </nav>
 
 <div id="setup-banner" style="display:none"></div>
@@ -74,6 +77,7 @@ export function appTemplate(): string {
     <button id="tab-dividends" class="btn btn-sm btn-ghost" data-subview="dividends" role="tab" aria-selected="false" aria-controls="subview-dividends">Dividends</button>
   </div>
   <div class="subview" id="subview-holdings" role="tabpanel" aria-labelledby="tab-holdings" style="display:block">
+    <div id="holdings-attention" class="status-bar status-warn" hidden></div>
     <div id="port-empty" style="display:none"><div class="card"><div class="empty-state">
       <div class="empty-icon">📂</div>
       <div class="empty-title">No transaction data imported</div>
