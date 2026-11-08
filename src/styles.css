@@ -5060,7 +5060,8 @@ input[type='color'] {
   align-items: flex-start;
   justify-content: center;
   padding: 1.5rem 1rem;
-  overflow-y: auto;
+  overflow: clip;
+  overscroll-behavior: none;
   animation: confirm-fade 0.12s ease-out;
 }
 .dialog-overlay.confirm-overlay,
@@ -5081,8 +5082,17 @@ input[type='color'] {
   width: 100%;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   margin: auto;
+  max-height: calc(100dvh - 3rem);
+  overflow-y: auto;
+  overscroll-behavior: none;
+  position: relative;
+}
+.confirm-card,
+.conflict-card {
+  max-height: calc(100dvh - 2rem);
 }
 .dialog-header {
+  flex-shrink: 0;
   margin-bottom: 1rem;
 }
 .dialog-title {
@@ -5555,6 +5565,7 @@ textarea.dialog-input {
   max-height: calc(100dvh - 3rem);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 :is(
     .acct-dialog-overlay,
@@ -5565,7 +5576,9 @@ textarea.dialog-input {
     .snap-dialog-overlay
   )
   .dialog-fields {
+  position: relative;
   overflow-y: auto;
+  overscroll-behavior: none;
   min-height: 0;
   padding: 3px;
   scroll-padding: 12px;
@@ -5585,7 +5598,9 @@ textarea.dialog-input {
   max-width: 720px;
 }
 .snap-dialog-overlay .snapd-review {
+  position: relative;
   overflow-y: auto;
+  overscroll-behavior: none;
   min-height: 0;
   padding: 3px;
 }
