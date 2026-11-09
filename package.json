@@ -23,9 +23,9 @@
     "pdf-lib": "^1.17.1",
     "prettier": "^3.9.10",
     "typescript": "^6.0.3",
-    "vite": "^8.3.5",
+    "vite": "^8.3.6",
     "vite-plugin-pwa": "^2.0.0",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   },
   "dependencies": {
     "echarts": "6.1.0",
