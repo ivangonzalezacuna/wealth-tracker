@@ -145,7 +145,8 @@ test('compact Settings rows and dialogs fit mobile, tablet, desktop and short la
         inputs: true,
         identities: true,
         actions: true,
-        navPosition: 'static',
+        // Section tabs scroll with the page; relative only anchors the sliding highlight.
+        navPosition: 'relative',
       });
     }
     for (const [section, opener, overlay, cancel] of [

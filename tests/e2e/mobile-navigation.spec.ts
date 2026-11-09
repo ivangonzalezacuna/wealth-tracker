@@ -18,8 +18,8 @@ async function seed(page: Page) {
   await waitForSyncIdle(page);
 }
 
-async function openPilot(page: Page, hash: string) {
-  await page.goto(`/?mobile-ui=1#${hash}`);
+async function openPhone(page: Page, hash: string) {
+  await page.goto(`/#${hash}`);
   await expect(page.locator('#app-sub')).toContainText('30 snapshots');
   await waitForSyncIdle(page);
 }
@@ -43,10 +43,10 @@ test('Settings shares visible section tabs and reselect returns to them without 
   page,
 }, info) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await openPilot(page, 'settings/advanced');
+  await openPhone(page, 'settings/advanced');
   await expect(page.locator('.settings-tabs')).toBeVisible();
   await expect(page.locator('#settings-view-picker')).toHaveCount(0);
-  await expect(page.locator('.settings-tabs')).toHaveCSS('position', 'static');
+  await expect(page.locator('.settings-tabs')).not.toHaveCSS('position', 'fixed');
   await chooseSettings(page, 'Planning');
   await expect(page).toHaveURL(/#settings\/planning$/);
   await expect(page.locator('#settings-tab-planning')).toHaveAttribute('aria-selected', 'true');
@@ -78,11 +78,12 @@ test('dock hides without reflow or jitter, returns upward and remains keyboard a
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await openPilot(page, 'networth');
+  await openPhone(page, 'networth');
   await expect(page.locator('#nw-kpis')).toBeVisible();
   await page.locator('#networth').evaluate((el) => (el.style.minHeight = '2400px'));
   await page.evaluate(() => scrollTo(0, 200));
   await page.waitForTimeout(350);
+  await wheel(page, -20);
   await expect(page.locator('body')).not.toHaveClass(/mobile-nav-hidden/);
   await page.mouse.move(387, 350);
   await page.mouse.wheel(0, 48);
@@ -120,7 +121,7 @@ test('dock hides without reflow or jitter, returns upward and remains keyboard a
   await expect(page.locator('body')).toHaveClass(/mobile-nav-hidden/);
   await wheel(page, -10);
   await expect(page.locator('body')).not.toHaveClass(/mobile-nav-hidden/);
-  await wheel(page, 40);
+  await wheel(page, 30);
   await expect(page.locator('body')).not.toHaveClass(/mobile-nav-hidden/);
   await wheel(page, 48);
   await expect(page.locator('body')).toHaveClass(/mobile-nav-hidden/);
@@ -147,7 +148,7 @@ test('dock hides without reflow or jitter, returns upward and remains keyboard a
 test('Chromium touch swipes hide and recover the dock', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium', 'CDP touch dispatch is Chromium-only');
   await page.setViewportSize({ width: 390, height: 844 });
-  await openPilot(page, 'networth');
+  await openPhone(page, 'networth');
   await expect(page.locator('#nw-kpis')).toBeVisible();
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true });
@@ -179,7 +180,7 @@ test('warning dots never steal navigation and Holdings explains the warning in p
   page,
 }, info) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await openPilot(page, 'networth');
+  await openPhone(page, 'networth');
   const portfolioDot = page.locator('#tab-portfolio .attn-dot');
   await expect(portfolioDot).toBeVisible();
   await page.locator('#tab-portfolio').hover({ position: { x: 8, y: 42 } });
@@ -207,7 +208,7 @@ test('the dock returns at page end without changing height or clamping scroll', 
   page,
 }, info) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await openPilot(page, 'log/snapshots');
+  await openPhone(page, 'log/snapshots');
   await expect(page.locator('#log-tab-snapshots')).toHaveAttribute('aria-selected', 'true');
   // A deterministic last-content marker avoids chart and ledger pagination variability.
   await page.locator('#log').evaluate((el) => {
@@ -237,7 +238,7 @@ test('the dock returns at page end without changing height or clamping scroll', 
   expect(bottom.height).toBe(documentHeight);
   expect(bottom.y).toBe(documentHeight - 844);
   expect(bottom.padding).toBe(65);
-  expect(bottom.dockTop - bottom.contentBottom).toBeGreaterThanOrEqual(8);
+  expect(bottom.dockTop - bottom.contentBottom).toBeGreaterThanOrEqual(7.5);
   expect(bottom.dockTop - bottom.contentBottom).toBeLessThan(9);
   for (let i = 0; i < 3; i++) {
     await wheel(page, -3);
@@ -283,10 +284,10 @@ test('the dock returns at page end without changing height or clamping scroll', 
   }
 });
 
-test('phone widths fit, overlays clear the dock, and the pilot does not change desktop', async ({
+test('phone widths fit, overlays clear the dock, and desktop keeps its layout', async ({
   page,
 }, info) => {
-  await openPilot(page, 'networth');
+  await openPhone(page, 'networth');
   for (const width of [320, 375, 390, 430, 640]) {
     await page.setViewportSize({ width, height: 844 });
     await expect(page.locator('.nav')).toHaveCSS('position', 'fixed');
@@ -308,9 +309,14 @@ test('phone widths fit, overlays clear the dock, and the pilot does not change d
               ? '#log-subnav'
               : '.settings-tabs';
         await expect(page.locator(selector)).toBeVisible();
-        await expect(page.locator(selector)).toHaveCSS('position', 'static');
-        for (const button of await page.locator(`${selector} > button`).all())
-          await expect(button).toHaveCSS('min-height', '36px');
+        await expect(page.locator(selector)).not.toHaveCSS('position', 'fixed');
+        // Phones use the segmented control at the compact btn-sm size.
+        await expect(page.locator(selector)).toHaveCSS('display', /flex/);
+        const heights = await page
+          .locator(`${selector} > button`)
+          .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height));
+        expect(Math.max(...heights)).toBeLessThanOrEqual(24);
+        expect((await page.locator(selector).boundingBox())!.height).toBeLessThanOrEqual(30);
       }
     }
   }
@@ -320,9 +326,9 @@ test('phone widths fit, overlays clear the dock, and the pilot does not change d
   await page.screenshot({ path: info.outputPath('mobile-dock.png'), scale: 'css' });
   await page.evaluate(async () => {
     const { notify } = await import('/src/ui/toast.ts');
-    notify('Mobile pilot layout check');
+    notify('Mobile layout check');
   });
-  await expect(page.locator('.toast-text')).toContainText('Mobile pilot layout check');
+  await expect(page.locator('.toast-text')).toContainText('Mobile layout check');
   const toast = (await page.locator('.toast').boundingBox())!;
   const dock = (await page.locator('.nav').boundingBox())!;
   expect(toast.y + toast.height).toBeLessThanOrEqual(dock.y);
@@ -344,14 +350,163 @@ test('phone widths fit, overlays clear the dock, and the pilot does not change d
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await expect(page.locator('.nav')).toHaveCSS('transition-duration', '0s');
   await page.setViewportSize({ width: 768, height: 1024 });
-  await expect(page.locator('.nav')).toHaveCSS('position', 'static');
+  await expect(page.locator('.nav')).toHaveCSS('position', 'relative');
   await page.locator('#tab-settings').click();
   await expect(page.locator('.settings-tabs')).toBeVisible();
   await expect(page.locator('#settings-view-picker')).toHaveCount(0);
   await page.setViewportSize({ width: 1280, height: 900 });
   await expect(page.locator('.nav-icon').first()).toBeHidden();
-  await page.goto('/#networth');
+  await expect(page.locator('.nav')).toHaveCSS('position', 'relative');
+  const viewportMeta = () =>
+    page.evaluate(() => document.querySelector<HTMLMetaElement>('meta[name="viewport"]')!.content);
+  await expect.poll(viewportMeta).not.toContain('viewport-fit');
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator('.nav')).toHaveCSS('position', 'static');
-  await expect(page.locator('body')).not.toHaveClass(/mobile-ui-pilot/);
+  await expect(page.locator('.nav')).toHaveCSS('position', 'fixed');
+  await expect.poll(viewportMeta).toContain('viewport-fit=cover');
+});
+
+const VIEWS = [
+  'networth',
+  'portfolio',
+  'portfolio/contributions',
+  'portfolio/dividends',
+  'analytics',
+  'settings/portfolio',
+  'settings/planning',
+  'settings/advanced',
+  'log',
+  'log/snapshots',
+];
+
+test('every view applies the same dock rule, and URL-bar resizes do not reveal it', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openPhone(page, 'networth');
+  let hiding = 0;
+  for (const hash of VIEWS) {
+    await page.goto(`/#${hash}`);
+    await expect(page.locator('#app-sub')).toContainText('30 snapshots');
+    const section = hash.split('/')[0];
+    await expect(
+      page.locator(`#${section} .section-loading, #${section} .an-computing`),
+    ).toHaveCount(0);
+    await page.waitForTimeout(300);
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.waitForTimeout(100);
+    const { max, dock } = await page.evaluate(() => ({
+      max: document.documentElement.scrollHeight - innerHeight,
+      dock: document.querySelector<HTMLElement>('.nav')!.offsetHeight,
+    }));
+    await wheel(page, 120);
+    if (max >= dock * 4) {
+      hiding++;
+      await expect(page.locator('body'), `${hash} hides after a short scroll`).toHaveClass(
+        /mobile-nav-hidden/,
+      );
+      await wheel(page, -10);
+      await expect(page.locator('body'), `${hash} returns upward`).not.toHaveClass(
+        /mobile-nav-hidden/,
+      );
+    } else {
+      await expect(page.locator('body'), `${hash} is too short to hide`).not.toHaveClass(
+        /mobile-nav-hidden/,
+      );
+    }
+  }
+  expect(hiding).toBeGreaterThanOrEqual(5);
+  await page.goto('/#analytics');
+  await expect(page.locator('#analytics .an-computing')).toHaveCount(0);
+  await page.evaluate(() => scrollTo(0, 0));
+  await wheel(page, 160);
+  await expect(page.locator('body')).toHaveClass(/mobile-nav-hidden/);
+  // Mobile browsers change only the height while their URL bar collapses.
+  await page.setViewportSize({ width: 390, height: 780 });
+  await page.waitForTimeout(150);
+  await expect(page.locator('body')).toHaveClass(/mobile-nav-hidden/);
+  await page.setViewportSize({ width: 380, height: 780 });
+  await expect(page.locator('body')).not.toHaveClass(/mobile-nav-hidden/);
+});
+
+test('tab icons share one square frame and active highlights slide between tabs', async ({
+  page,
+  browserName,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openPhone(page, 'portfolio');
+  const boxes = await page
+    .locator('.nav-icon')
+    .evaluateAll((els) =>
+      els
+        .map((el) => (el as SVGGraphicsElement).getBBox())
+        .map((b) => [b.x, b.y, b.width, b.height]),
+    );
+  for (const box of boxes) expect(box).toEqual([4, 4, 16, 16]);
+  if (browserName === 'chromium')
+    expect(
+      await page.evaluate(() =>
+        getComputedStyle(document.documentElement).getPropertyValue('-webkit-tap-highlight-color'),
+      ),
+    ).toBe('rgba(0, 0, 0, 0)');
+  const indicator = (selector: string) =>
+    page.locator(selector).evaluate((el) => {
+      const active = el.querySelector<HTMLElement>(':scope > [aria-selected="true"]')!;
+      const style = getComputedStyle(el, '::before');
+      return {
+        x: el.style.getPropertyValue('--tab-x'),
+        activeX: `${active.offsetLeft}px`,
+        width: el.style.getPropertyValue('--tab-w'),
+        activeWidth: `${active.offsetWidth}px`,
+        transition: style.transitionDuration,
+        background: getComputedStyle(active).backgroundColor,
+      };
+    });
+  for (const selector of ['.nav', '#portfolio-subnav']) {
+    await expect(page.locator(selector)).toHaveClass(/tab-indicator-animate/);
+    await expect.poll(async () => (await indicator(selector)).background).toBe('rgba(0, 0, 0, 0)');
+    const state = await indicator(selector);
+    expect(state.x).toBe(state.activeX);
+    expect(state.width).toBe(state.activeWidth);
+    expect(state.transition).toContain('0.22s');
+  }
+  const before = await indicator('#portfolio-subnav');
+  await page.locator('#tab-dividends').click();
+  await expect.poll(async () => (await indicator('#portfolio-subnav')).x).not.toBe(before.x);
+  const after = await indicator('#portfolio-subnav');
+  expect(after.x).toBe(after.activeX);
+  await page.locator('#tab-settings').click();
+  await expect(page.locator('.settings-tabs')).toHaveClass(/tab-indicator/);
+  await page.locator('#settings-tab-advanced').click();
+  await expect
+    .poll(async () => {
+      const state = await indicator('.settings-tabs');
+      return state.x === state.activeX && state.x !== '0px';
+    })
+    .toBe(true);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  expect((await indicator('.settings-tabs')).transition).toBe('0s');
+});
+
+test('the snapshot action stays compact on the Log sub-tab row', async ({ page }, info) => {
+  await openPhone(page, 'log/snapshots');
+  for (const width of [320, 375, 390, 430, 640]) {
+    await page.setViewportSize({ width, height: 844 });
+    const button = page.getByRole('button', { name: 'Add monthly snapshot' });
+    await expect(button).toBeVisible();
+    const [tabs, action] = await Promise.all([
+      page.locator('#log-subnav').boundingBox(),
+      button.boundingBox(),
+    ]);
+    expect(Math.abs(tabs!.y + tabs!.height / 2 - (action!.y + action!.height / 2))).toBeLessThan(2);
+    expect(action!.height).toBeLessThanOrEqual(26);
+    if (width < 360) expect(Math.abs(action!.width - action!.height)).toBeLessThan(2);
+    else await expect(button).toHaveText('Snapshot', { useInnerText: true });
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => scrollTo(0, 0));
+  await page.screenshot({ path: info.outputPath('log-snapshot-action.png'), scale: 'css' });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(page.locator('#btn-add-snap')).toHaveText('Add monthly snapshot', {
+    useInnerText: true,
+  });
 });

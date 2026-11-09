@@ -137,6 +137,7 @@ import { snapshotDialog } from './ui/snapshotDialog';
 import { showSigninOverlay, hideSigninOverlay } from './ui/signinOverlay';
 import { initHeaderMenu, type HeaderMenu } from './ui/headerMenu';
 import { initMobileNavigation, isMobileLayout } from './ui/mobileNavigation';
+import { initTabIndicators } from './ui/tabIndicator';
 import { renderSyncChip, shortSyncError, syncChipView, type SyncStatus } from './ui/headerStatus';
 import { attachScrollHint } from './ui/scrollHint';
 import { refreshAttention, setAttentionSource } from './ui/attention';
@@ -464,6 +465,7 @@ injectEnvBanner();
 setUserTheme(getUserThemePref());
 initHeader();
 const mobileNavigation = initMobileNavigation();
+initTabIndicators();
 void checkStorageQuota(); // fire-and-forget storage check
 loadCollapseState(); // fire-and-forget: loads persisted UI collapse state from IDB
 initNav();

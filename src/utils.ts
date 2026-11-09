@@ -149,19 +149,20 @@ export async function withButtonGuard<T>(
   action: () => Promise<T>,
   opts: { busyText?: string; keepDisabledOnSuccess?: boolean } = {},
 ): Promise<T> {
-  const originalText = btn.textContent;
+  // Keep icon markup intact, not just the text.
+  const original = [...btn.childNodes];
   btn.disabled = true;
   if (opts.busyText) btn.textContent = opts.busyText;
   try {
     const result = await action();
     if (!opts.keepDisabledOnSuccess) {
       btn.disabled = false;
-      if (opts.busyText) btn.textContent = originalText;
+      if (opts.busyText) btn.replaceChildren(...original);
     }
     return result;
   } catch (err) {
     btn.disabled = false;
-    if (opts.busyText) btn.textContent = originalText;
+    if (opts.busyText) btn.replaceChildren(...original);
     throw err;
   }
 }
