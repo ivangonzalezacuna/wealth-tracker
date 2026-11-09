@@ -1,9 +1,6 @@
 const TABLISTS = '.nav[role="tablist"], .subnav.range-toggle[role="tablist"]';
 
-/**
- * Draw the active-tab highlight as one element per tablist so switching tabs slides it across
- * instead of swapping backgrounds. Lists that are hidden snap into place when they reappear.
- */
+/** Slides one active-tab highlight per tablist instead of swapping button backgrounds. */
 export function initTabIndicators(root: HTMLElement = document.body): void {
   let frame = 0;
   const observed = new WeakSet<Element>();
@@ -43,7 +40,6 @@ export function initTabIndicators(root: HTMLElement = document.body): void {
   }
 
   new MutationObserver((records) => {
-    // Tab state, badges and counts inside a tablist move the highlight; so does a new tablist.
     const relevant = records.some(
       (record) =>
         (record.target instanceof Element && !!record.target.closest(TABLISTS)) ||

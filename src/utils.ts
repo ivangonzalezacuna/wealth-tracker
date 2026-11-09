@@ -149,7 +149,6 @@ export async function withButtonGuard<T>(
   action: () => Promise<T>,
   opts: { busyText?: string; keepDisabledOnSuccess?: boolean } = {},
 ): Promise<T> {
-  // Keep icon markup intact, not just the text.
   const original = [...btn.childNodes];
   btn.disabled = true;
   if (opts.busyText) btn.textContent = opts.busyText;

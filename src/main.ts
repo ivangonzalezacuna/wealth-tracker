@@ -590,7 +590,6 @@ function showSection(id: string, btn: Element | null) {
   btn?.setAttribute('aria-selected', 'true');
   btn?.setAttribute('tabindex', '0');
   _activeSection = id;
-  document.body.dataset.section = id;
   if (_dirty.has(id)) {
     _dirty.delete(id);
     renderSection(id);
