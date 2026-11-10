@@ -1,14 +1,17 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { headerMenuMarkup, initHeaderMenu } from './headerMenu';
+import { whenOverlayHistorySettled } from './overlayHistory';
 import type { UserThemePref } from '../theme';
 
+const closeMenus: (() => void)[] = [];
 function setup(theme: UserThemePref = 'system') {
   document.body.innerHTML = `<header>${headerMenuMarkup()}</header><main id="out">x</main>`;
   let current = theme;
   const onTheme = vi.fn((t: UserThemePref) => (current = t));
   const onSignOut = vi.fn();
   const menu = initHeaderMenu({ getTheme: () => current, onTheme, onSignOut })!;
+  closeMenus.push(menu.close);
   const btn = document.getElementById('btn-header-menu') as HTMLButtonElement;
   const list = document.getElementById('header-menu')!;
   const choice = (t: string) => list.querySelector<HTMLElement>(`[data-theme-choice="${t}"]`)!;
@@ -18,8 +21,16 @@ function setup(theme: UserThemePref = 'system') {
 }
 
 describe('header menu', () => {
-  afterEach(() => {
+  beforeEach(() => {
+    vi.spyOn(history, 'back').mockImplementation(() =>
+      queueMicrotask(() => window.dispatchEvent(new PopStateEvent('popstate'))),
+    );
+  });
+  afterEach(async () => {
+    closeMenus.splice(0).forEach((close) => close());
+    await whenOverlayHistorySettled();
     document.body.innerHTML = '';
+    vi.restoreAllMocks();
   });
 
   it('opens on click with the current theme checked and focused', () => {
@@ -42,7 +53,7 @@ describe('header menu', () => {
     expect(list.hidden).toBe(false);
   });
 
-  it('only offers Sign out when signed in', () => {
+  it('only offers Sign out when signed in, after its history entry settles', async () => {
     const { menu, btn, onSignOut, list } = setup();
     const signOut = document.getElementById('btn-signout')!;
     expect(signOut.closest('[hidden]')).not.toBeNull();
@@ -50,6 +61,8 @@ describe('header menu', () => {
     btn.click();
     expect(signOut.closest('[hidden]')).toBeNull();
     signOut.click();
+    expect(onSignOut).not.toHaveBeenCalled();
+    await whenOverlayHistorySettled();
     expect(onSignOut).toHaveBeenCalledTimes(1);
     expect(list.hidden).toBe(true);
   });

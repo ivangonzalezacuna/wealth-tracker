@@ -1,3 +1,4 @@
+import { bindRowGestures } from '../ui/rowGestures';
 import {
   getAccounts,
   getHoldings,
@@ -487,6 +488,16 @@ export function renderSettings(opts: { preserveDrafts?: boolean } = {}): void {
   attachCardCollapseListeners(el);
   if (!drafts.has('reports')) attachReportListeners(el);
   attachSettingsGroupNavListeners(el);
+  bindRowGestures(el, '.settings-item', (row) => {
+    if (row.matches('.settings-item-removed, [data-removed="true"]')) return [];
+    const edit = row.querySelector<HTMLButtonElement>('.settings-row-actions [class*="js-edit-"]');
+    const remove = row.querySelector<HTMLButtonElement>('.settings-row-actions [class*="js-del-"]');
+    if (!edit || edit.disabled || !remove || remove.disabled) return [];
+    return [
+      { label: 'Edit', run: () => edit.click() },
+      { label: 'Delete', run: () => remove.click() },
+    ];
+  });
   if (!el.dataset.rowTapBound) {
     el.dataset.rowTapBound = '1';
     // Phones hide the row icons, so tapping the row opens its editor.

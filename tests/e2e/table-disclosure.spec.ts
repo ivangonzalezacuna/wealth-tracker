@@ -32,6 +32,8 @@ const tables = [
     row: '#snaps-list .snap-row-compact:not(.th)',
     detail: '#snaps-list .snap-detail',
     panel: '#balance-card',
+    // Phone snapshot rows are ledger-style list items without a chevron.
+    phoneChevron: false,
   },
   {
     name: 'by-year',
@@ -63,7 +65,8 @@ for (const table of tables) {
         await expect(row).toBeVisible();
         if ((await row.getAttribute('aria-expanded')) === 'true') await row.click();
         await expect(row).toHaveAttribute('aria-expanded', 'false');
-        await expect(icon).toBeVisible();
+        const chevron = width > 480 || table.phoneChevron !== false;
+        await (chevron ? expect(icon).toBeVisible() : expect(icon).toBeHidden());
         await expect(icon).toHaveCount(1);
         await expect(icon).toHaveAttribute('aria-hidden', 'true');
         await expect(icon).toHaveAttribute('focusable', 'false');
@@ -78,7 +81,7 @@ for (const table of tables) {
         await row.press('Enter');
         await expect(row).toBeFocused();
         await expect(row).toHaveAttribute('aria-expanded', 'true');
-        await expect(icon).toHaveCSS('transform', 'matrix(0, 1, -1, 0, 0, 0)');
+        if (chevron) await expect(icon).toHaveCSS('transform', 'matrix(0, 1, -1, 0, 0, 0)');
         await expect(detail).toBeVisible();
         await row.screenshot({
           path: testInfo.outputPath(`${table.name}-${theme}-${width}-open.png`),

@@ -809,7 +809,8 @@ function ensureGlobalListeners(): void {
     { passive: true, capture: true },
   );
   document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
+    if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('[aria-modal="true"]'))
+      return;
     const el = document.querySelector('.chart-expanded');
     if (!el) return;
     el.classList.remove('chart-expanded');

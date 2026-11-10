@@ -1,3 +1,4 @@
+import { bindRowGestures } from '../ui/rowGestures';
 import { getACCTSList } from '../constants';
 import { snapTotal, fmtEur2, fmtMon, fmtDay, fmtPctVal, esc, safeColor } from '../utils';
 import { sourceLabel } from '../import/profiles/index';
@@ -489,6 +490,20 @@ function snapShares(s: Snapshot) {
 
 function snapColumns(): ColumnDef<Snapshot>[] {
   const columns: ColumnDef<Snapshot>[] = [];
+  const chronological = [..._snaps].sort((a, b) => a.date.localeCompare(b.date));
+  const change = new Map(
+    chronological.map((s, i) => [
+      s.date,
+      i ? snapTotal(s) - snapTotal(chronological[i - 1]) : undefined,
+    ]),
+  );
+  const snapSub = (s: Snapshot) => {
+    const delta = change.get(s.date);
+    const tone = delta && delta > 0 ? 'pos' : delta && delta < 0 ? 'neg' : '';
+    const text =
+      delta === undefined ? 'First snapshot' : `${delta > 0 ? '+' : ''}${fmtEur2(delta)}`;
+    return `<span class="snap-sub" aria-hidden="true"><span class="${tone}">${text}</span>${s.notes ? ' · Note' : ''}</span>`;
+  };
   if (_snapBulkMode && !_readOnly && !!_lastOnBulkDel) {
     columns.push({
       key: 'select',
@@ -506,7 +521,7 @@ function snapColumns(): ColumnDef<Snapshot>[] {
       label: 'Month',
       sortValue: (s) => isoDateSortValue(s.date),
       cell: (s) =>
-        `${ROW_DISCLOSURE_ICON}<span class="snap-month">${fmtMon(s.date)}</span>${s.notes ? '<span class="snap-note-dot" title="Has a note"></span>' : ''}`,
+        `${ROW_DISCLOSURE_ICON}<span class="snap-month">${fmtMon(s.date)}</span>${s.notes ? '<span class="snap-note-dot" title="Has a note"></span>' : ''}${snapSub(s)}`,
       cellClass: () => 'snap-month-cell',
     },
     {
@@ -629,6 +644,14 @@ function renderSnapList(
 
   // Row tap-to-expand detail panel (delegated on #snaps-list)
   const listEl = document.getElementById('snaps-list');
+  bindRowGestures(listEl, '.snap-row-compact:not(.th)', (row) => {
+    const date = row.dataset.date;
+    if (!date || _readOnly || _snapBulkMode) return [];
+    return [
+      { label: 'Edit', run: () => _lastOnEdit?.(date) },
+      { label: 'Delete', run: () => _lastOnDel?.(date) },
+    ];
+  });
   bindExpandableRows({
     container: listEl,
     rowSelector: '.snap-row-compact:not(.th)',
@@ -1041,6 +1064,15 @@ function renderTxList(txs: Transaction[]): void {
   const statusEl = document.getElementById('tx-filter-status');
   const addBtn = document.getElementById('btn-add-tx') as HTMLButtonElement | null;
   if (!listEl) return;
+  bindRowGestures(listEl, '.tx-row:not(.th)', (row) => {
+    const tx = row.dataset.txkey ? _txByKey.get(row.dataset.txkey) : undefined;
+    if (!tx?.rowId || _readOnly || _txBulkMode) return [];
+    const id = tx.rowId;
+    return [
+      ...(_lastOnEditTx ? [{ label: 'Edit', run: () => _lastOnEditTx?.(id) }] : []),
+      ...(_lastOnDelTx ? [{ label: 'Delete', run: () => _lastOnDelTx?.(id) }] : []),
+    ];
+  });
   if (addBtn) addBtn.disabled = _readOnly;
   if (addBtn) addBtn.hidden = _txBulkMode;
   listEl.className = `tx-ledger-grid${_readOnly ? ' tx-ledger-grid-readonly' : ''}`;

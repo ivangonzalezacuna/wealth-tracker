@@ -1,3 +1,4 @@
+import { trackOverlay } from '../../ui/overlayHistory';
 import { fmtEur, fmtEur2, fmtMon } from '../../utils';
 import type { ToolboxComponentOption } from 'echarts/components';
 import { timeToMonth } from './format';
@@ -92,7 +93,10 @@ function toggleExpanded(dom: HTMLElement): void {
     target as HTMLElement & { webkitRequestFullscreen?: () => void }
   ).requestFullscreen?.bind(target);
   if (req) {
-    req().catch(() => expandFallback(target));
+    req().then(
+      () => trackExpanded(target),
+      () => expandFallback(target),
+    );
   } else {
     expandFallback(target);
   }
@@ -101,6 +105,25 @@ function toggleExpanded(dom: HTMLElement): void {
 function expandFallback(target: HTMLElement): void {
   target.classList.add('chart-expanded');
   document.body.classList.add('chart-expanded-open');
+  trackExpanded(target);
+}
+
+const expandedHistory = new WeakSet<HTMLElement>();
+function trackExpanded(target: HTMLElement): void {
+  if (expandedHistory.has(target)) return;
+  expandedHistory.add(target);
+  const release = trackOverlay(() => toggleExpanded(target));
+  const check = () => {
+    if (target.classList.contains('chart-expanded') || document.fullscreenElement === target)
+      return;
+    release();
+    expandedHistory.delete(target);
+    observer.disconnect();
+    document.removeEventListener('fullscreenchange', check);
+  };
+  const observer = new MutationObserver(check);
+  observer.observe(target, { attributes: true, attributeFilter: ['class'] });
+  document.addEventListener('fullscreenchange', check);
 }
 
 /** Title bar with a visible close, shown only while the chart is expanded. */

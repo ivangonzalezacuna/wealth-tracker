@@ -1,3 +1,6 @@
+import { trackOverlay } from './overlayHistory';
+import { bindSheetGesture } from './sheetGesture';
+
 export interface ModalShellOptions {
   overlay: HTMLElement;
   onDismiss: () => void;
@@ -37,6 +40,8 @@ export interface DialogController<Result> {
 
 export function activateModalShell(opts: ModalShellOptions): () => void {
   const { overlay, onDismiss } = opts;
+  const releaseHistory = trackOverlay(onDismiss);
+  const cleanupGesture = bindSheetGesture(overlay, onDismiss);
   const priorOverflow = document.body.style.overflow;
   document.body.style.overflow = 'hidden';
 
@@ -97,6 +102,8 @@ export function activateModalShell(opts: ModalShellOptions): () => void {
   document.addEventListener('keydown', onKeydown);
 
   return () => {
+    releaseHistory();
+    cleanupGesture();
     overlay.removeEventListener('click', onOverlayClick);
     document.removeEventListener('keydown', onKeydown);
     document.body.style.overflow = priorOverflow;
