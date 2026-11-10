@@ -8,6 +8,8 @@
  * Clicking the element shows a small popover. Clicking elsewhere dismisses it.
  */
 
+import { closeOnScroll, stackAboveLayer } from './popoverLayer';
+
 const ATTR = 'data-etf-isin';
 const POP_CLASS = 'etf-pop';
 
@@ -15,21 +17,7 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-/** Extended HTMLElement with a reference to its scroll cleanup function. */
-interface _PopEl extends HTMLElement {
-  _etfScrollCleanup?: () => void;
-}
-
-/** Walk up the DOM to find the nearest scrollable ancestor, if any. */
-function _findScrollAncestor(el: HTMLElement): HTMLElement | null {
-  let node = el.parentElement;
-  while (node && node !== document.body) {
-    const { overflow, overflowY, overflowX } = getComputedStyle(node);
-    if (/(auto|scroll)/.test(overflow + overflowY + overflowX)) return node;
-    node = node.parentElement;
-  }
-  return null;
-}
+let _cleanup: (() => void) | null = null;
 
 /**
  * Attach click-to-show popover on elements within `root` that have `data-etf-isin`.
@@ -50,7 +38,7 @@ function _toggle(trigger: HTMLElement): void {
   const existing = document.querySelector(`.${POP_CLASS}`) as HTMLElement | null;
   if (existing) {
     const wasThis = existing.dataset.forEl === _id(trigger);
-    existing.remove();
+    _dismissAll();
     if (wasThis) return;
   }
   _show(trigger);
@@ -69,22 +57,8 @@ function _show(trigger: HTMLElement): void {
   if (isin) html += `<div class="etf-pop-isin">${esc(isin)}</div>`;
   pop.innerHTML = html;
   document.body.appendChild(pop);
-
-  // Dismiss when the page or any scroll ancestor scrolls / resizes
-  const scrollAncestor = _findScrollAncestor(trigger);
-  const dismiss = () => _dismissAll();
-  window.addEventListener('scroll', dismiss, { passive: true, capture: true });
-  window.addEventListener('resize', dismiss, { passive: true });
-  if (scrollAncestor) {
-    scrollAncestor.addEventListener('scroll', dismiss, { passive: true });
-  }
-  (trigger as _PopEl)._etfScrollCleanup = () => {
-    window.removeEventListener('scroll', dismiss, { capture: true } as EventListenerOptions);
-    window.removeEventListener('resize', dismiss);
-    if (scrollAncestor) {
-      scrollAncestor.removeEventListener('scroll', dismiss);
-    }
-  };
+  stackAboveLayer(trigger, pop);
+  _cleanup = closeOnScroll(_dismissAll);
 
   // Position below the trigger
   const rect = trigger.getBoundingClientRect();
@@ -117,13 +91,8 @@ function _id(el: HTMLElement): string {
 }
 
 function _dismissAll(): void {
-  document.querySelectorAll<HTMLElement>(`[data-etf-bound]`).forEach((el) => {
-    const popEl = el as _PopEl;
-    if (popEl._etfScrollCleanup) {
-      popEl._etfScrollCleanup();
-      delete popEl._etfScrollCleanup;
-    }
-  });
+  _cleanup?.();
+  _cleanup = null;
   document.querySelectorAll(`.${POP_CLASS}`).forEach((p) => p.remove());
 }
 

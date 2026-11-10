@@ -195,7 +195,7 @@ code,
 .nav .log-btn {
   color: var(--ink-2);
 }
-/* Attention trail: dot on the tab and sub-tab chip, badge on the card header. */
+/* Attention trail: dot on the tab and sub-tab chip, warning state on the affected card. */
 .attn-dot {
   display: inline-block;
   flex-shrink: 0;
@@ -237,7 +237,19 @@ code,
 .attn-badge--alert {
   background: var(--err-bg);
   color: var(--err-fg);
-} /* Sections */
+}
+.attn-card--warn {
+  border-color: var(--warn);
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+.attn-card--alert {
+  border-color: var(--neg);
+  box-shadow: inset 3px 0 0 var(--neg);
+}
+.attn-note {
+  margin: 8px 0 12px;
+}
+/* Sections */
 .section {
   display: none;
 }
@@ -4845,7 +4857,7 @@ input[type='color'] {
   font-size: 11px;
   line-height: 1.4;
   white-space: normal;
-  z-index: 9999;
+  z-index: 90; /* below the phone dock (.nav); stackAboveLayer lifts popovers inside fixed layers */
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   pointer-events: none;
   color: var(--ink);
@@ -4885,7 +4897,7 @@ input[type='color'] {
   white-space: normal;
   width: max-content;
   max-width: 260px;
-  z-index: 9999;
+  z-index: 90;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   pointer-events: none;
 }
@@ -6027,9 +6039,6 @@ html {
 .btn-add-snap-icon,
 .btn-add-snap-short {
   display: none;
-}
-#holdings-attention:not([hidden]) {
-  margin-bottom: 12px;
 }
 @media (max-width: 640px) {
   body {

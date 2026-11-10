@@ -23,9 +23,11 @@ function mount(): void {
       <button id="tab-log" aria-label="Log data (add snapshot)">Log data</button>
     </nav>
     <button id="tab-holdings">Holdings</button>
-    <div id="holdings-attention" hidden></div>
+    <div class="card" id="port-drift-card"><div class="card-title">Allocation drift</div></div>
     <button id="settings-tab-advanced">Advanced</button>
-    <button id="settings-heading-backup"><span class="card-title">Backup &amp; restore</span></button>`;
+    <div class="card" id="settings-card-backup">
+      <button id="settings-heading-backup"><span class="card-title">Backup &amp; restore</span></button>
+    </div>`;
 }
 
 function show(input: AttentionInput): void {
@@ -49,7 +51,12 @@ describe('collectAttention', () => {
 
   it('flags moderate drift as a warning and high drift as an alert', () => {
     const [moderate] = collectAttention({ maxDrift: 7, driftThresholdPct: 5 });
-    expect(moderate).toMatchObject({ id: 'drift', level: 'warn', chipId: 'tab-holdings' });
+    expect(moderate).toMatchObject({
+      id: 'drift',
+      level: 'warn',
+      chipId: 'tab-holdings',
+      cardId: 'port-drift-card',
+    });
     expect(moderate.text).toContain('Moderate drift');
     expect(moderate.text).toContain('(threshold)');
     const [high] = collectAttention({ maxDrift: -12, driftThresholdPct: 5 });
@@ -125,11 +132,16 @@ describe('attention trail', () => {
     dot.click();
     expect(navigated).toBe(true);
     expect(document.querySelector('.info-tip-pop')).toBeNull();
-    expect(el('holdings-attention').hidden).toBe(false);
-    expect(el('holdings-attention').textContent).toContain('Moderate drift');
-    show({ maxDrift: 1, driftThresholdPct: 5 });
-    expect(el('holdings-attention').hidden).toBe(true);
-    expect(el('holdings-attention').textContent).toBe('');
+  });
+
+  it('puts the warning state on the affected card and removes it once resolved', () => {
+    show({ maxDrift: 12, driftThresholdPct: 5, backup: { hasData: true } });
+    expect(el('port-drift-card').className).toBe('card attn-card attn-card--alert');
+    expect(el('port-drift-card').querySelector('.attn-badge')).toBeNull();
+    expect(el('settings-card-backup').classList).toContain('attn-card--warn');
+    show({ maxDrift: 1, driftThresholdPct: 5, backup: { lastBackupAt: FRESH, hasData: true } });
+    expect(el('port-drift-card').className).toBe('card');
+    expect(el('settings-card-backup').className).toBe('card');
   });
 
   it('the backup badge opens the same popover', () => {

@@ -77,7 +77,6 @@ export function appTemplate(): string {
     <button id="tab-dividends" class="btn btn-sm btn-ghost" data-subview="dividends" role="tab" aria-selected="false" aria-controls="subview-dividends">Dividends</button>
   </div>
   <div class="subview" id="subview-holdings" role="tabpanel" aria-labelledby="tab-holdings" style="display:block">
-    <div id="holdings-attention" class="status-bar status-warn" hidden></div>
     <div id="port-empty" style="display:none"><div class="card"><div class="empty-state">
       <div class="empty-icon">📂</div>
       <div class="empty-title">No transaction data imported</div>

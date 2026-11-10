@@ -169,7 +169,7 @@ test('phone widths fit compact sub-tabs, the snapshot action and toasts above th
   await expect.poll(viewportMeta).toContain('viewport-fit=cover');
 });
 
-test('warning dots never steal navigation and Holdings explains the warning in place', async ({
+test('warning dots never steal navigation and the affected card carries the warning', async ({
   page,
 }) => {
   await openPhone(page, 'networth');
@@ -178,12 +178,31 @@ test('warning dots never steal navigation and Holdings explains the warning in p
   await expect(page.locator('.info-tip-pop')).toHaveCount(0);
   await portfolioDot.hover();
   await expect(page.locator('.info-tip-pop')).toBeVisible();
+  await expect(page.locator('.info-tip-pop')).toHaveCSS('z-index', '101');
   await portfolioDot.click();
   await expect(page).toHaveURL(/#portfolio$/);
-  await expect(page.locator('#holdings-attention')).toContainText('allocation drift');
+  const driftCard = page.locator('#port-drift-card');
+  await expect(driftCard).toHaveClass(/attn-card--(warn|alert)/);
+  await expect(driftCard.locator('.attn-note')).toContainText('allocation drift');
   await page.locator('#tab-contributions').click();
   await page.locator('#tab-holdings .attn-dot').click();
   await expect(page.locator('#tab-holdings')).toHaveAttribute('aria-selected', 'true');
+});
+
+test('chart tooltips stay below the dock and close on scroll', async ({ page }) => {
+  await openPhone(page, 'analytics');
+  const host = page.locator('#analytics .chart-host').first();
+  await host.scrollIntoViewIfNeeded();
+  await page.evaluate(() => scrollBy(0, -200));
+  await expect(host.locator('canvas').first()).toBeVisible();
+  const tip = host.locator('div[style*="z-index: 90"]');
+  await expect(async () => {
+    await page.mouse.move(5, 5);
+    await host.hover({ position: { x: 150, y: 120 } });
+    await expect(tip).toBeVisible({ timeout: 1000 });
+  }).toPass();
+  await page.evaluate(() => scrollBy(0, 120));
+  await expect(tip).toBeHidden();
 });
 
 test('tab icons share one square frame and active highlights slide between tabs', async ({
