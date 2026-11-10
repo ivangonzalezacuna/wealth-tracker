@@ -1,10 +1,14 @@
-const PHONE_QUERY = '(max-width: 640px)';
+const PHONE_QUERY = '(max-width: 640px), (max-height: 500px) and (pointer: coarse)';
 const HIDE_AFTER = 40;
 const REVEAL_AFTER = 10;
 const TOP_ZONE = 64;
 
 export function isMobileLayout(): boolean {
   return matchMedia(PHONE_QUERY).matches;
+}
+
+export function touchInput(): boolean {
+  return matchMedia('(pointer: coarse)').matches;
 }
 
 export interface MobileNavigation {

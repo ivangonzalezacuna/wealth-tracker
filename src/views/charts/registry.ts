@@ -346,6 +346,21 @@ function compose(entry: Entry): ChartOption {
       },
     };
   }
+  const categoryX =
+    out.xAxis && !Array.isArray(out.xAxis) && (out.xAxis as { type?: string }).type === 'category'
+      ? (out.xAxis as Record<string, unknown>)
+      : null;
+  if (categoryX) {
+    // Edge labels hug the plot so the last month is not clipped at the card edge.
+    out.xAxis = {
+      ...categoryX,
+      axisLabel: {
+        alignMinLabel: 'left',
+        alignMaxLabel: 'right',
+        ...((categoryX.axisLabel as object) ?? {}),
+      },
+    } as ChartOption['xAxis'];
+  }
   if (!Array.isArray(out.grid)) {
     out.grid = {
       left: 4,

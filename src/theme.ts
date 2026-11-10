@@ -24,8 +24,16 @@ export function setUserTheme(pref: UserThemePref): void {
   }
   if (typeof document !== 'undefined') {
     document.documentElement.setAttribute('data-theme', pref);
+    syncThemeColor();
   }
   for (const fn of _themeListeners) fn();
+}
+
+/** Match the browser/OS chrome (status bar, task switcher) to the page background. */
+function syncThemeColor(): void {
+  const bg = resolvedT().bg;
+  for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]'))
+    meta.content = bg;
 }
 
 /** Shared design tokens used from TS - mirror the CSS :root tokens in styles.css. */
@@ -92,6 +100,7 @@ function _ensureMediaQueryListener(): void {
   if (_mq || typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
   _mq = window.matchMedia('(prefers-color-scheme: dark)');
   const notify = () => {
+    syncThemeColor();
     for (const fn of _themeListeners) fn();
   };
   // addEventListener is the modern API; Safari <14 only has the deprecated

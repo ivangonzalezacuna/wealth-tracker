@@ -3743,9 +3743,8 @@ summary.section-label {
   .form-group {
     margin-bottom: 0.6rem;
   }
-  .form-input {
-    font-size: 14px;
-    padding: 10px;
+  .form-input:not(.form-input-sm) {
+    padding: 7px 10px;
   }
   .btn {
     padding: 10px 14px;
@@ -3817,7 +3816,7 @@ summary.section-label {
     font-size: 10px;
   }
   #port-table .th.hold-row {
-    font-size: 9px;
+    font-size: 10px;
   }
 }
 
@@ -4302,6 +4301,11 @@ input[type='color'] {
   padding: 0 1rem;
 }
 @media (max-width: 640px) {
+  .settings-card-label {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+  }
   #settings-content .card-collapsible .card-header {
     gap: 0.65rem;
     padding: 0 0.95rem;
@@ -6037,12 +6041,19 @@ html {
 .btn-add-snap-short {
   display: none;
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 500px) and (pointer: coarse) {
   body {
     --mobile-dock-height: calc(57px + env(safe-area-inset-bottom, 0px));
     --mobile-overlay-offset: 57px;
     padding: max(12px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
       calc(var(--mobile-dock-height) + 8px) max(10px, env(safe-area-inset-left));
+  }
+  .note,
+  .kpi-sub,
+  .kpi-group-sub,
+  .hold-inline-meta,
+  .an-annual-months {
+    font-size: 11px;
   }
   body.mobile-nav-hidden,
   body:has(.dialog-overlay),
@@ -6191,5 +6202,41 @@ html {
   .nav,
   .tab-indicator-animate::before {
     transition: none;
+  }
+}
+/* Touch: small controls keep their look with a larger hit area. */
+@media (pointer: coarse) {
+  :is(.info-tip, .range-toggle > .btn, .pagination-nav .btn, .sync-chip) {
+    position: relative;
+  }
+  :is(.info-tip, .range-toggle > .btn, .pagination-nav .btn, .sync-chip)::after {
+    content: '';
+    position: absolute;
+    inset: -8px -2px;
+  }
+  .info-tip::after {
+    inset: -10px;
+  }
+  .filter-chips {
+    padding-block: 8px;
+    margin-block: -5px;
+  }
+  .drop-zone {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-width: 1px;
+  }
+  .drop-zone-icon {
+    font-size: 16px;
+    margin: 0;
+  }
+  .drop-zone-label {
+    margin: 0;
+  }
+  .drop-zone:not(.drop-zone-disabled) .drop-zone-hint {
+    display: none;
   }
 }

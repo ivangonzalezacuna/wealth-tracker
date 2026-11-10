@@ -380,7 +380,7 @@ function dividendColumns(pd: PortfolioData): ColumnDef<DivHistEntry>[] {
       align: 'right',
       sortValue: (d) => d.tax,
       cell: (d) =>
-        `<span style="color:var(--neg)" aria-label="Tax ${fmtEur2(d.tax)}">${fmtEur2(d.tax)}</span>`,
+        `<span style="color:var(${d.tax > 0 ? '--neg' : d.tax < 0 ? '--pos' : '--ink-3'})" aria-label="Tax ${fmtEur2(d.tax)}">${fmtEur2(d.tax)}</span>`,
     },
     {
       key: 'net',
