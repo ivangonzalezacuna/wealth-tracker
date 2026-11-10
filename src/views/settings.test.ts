@@ -1153,11 +1153,10 @@ describe('Button-disable verification: synchronous disable and double-click prev
       await tick();
 
       expect(setAccounts as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
-      expect(showMsg as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
-        'accts-msg',
-        expect.stringContaining('Cannot remove this account'),
-        false,
-      );
+      expect(notify).toHaveBeenCalledWith(expect.stringContaining('Cannot remove this account'), {
+        variant: 'error',
+        source: 'accts-msg',
+      });
     });
 
     it('marks the account for removal without writing, and Undo restores it', async () => {
@@ -1874,20 +1873,21 @@ describe('Settings account lifecycle', () => {
     const root = document.getElementById('settings-card-accounts')!;
     root.querySelector<HTMLButtonElement>('.js-del-acct[data-idx="1"]')!.click();
     await Promise.resolve();
-    expect(showMsg).toHaveBeenLastCalledWith(
-      'accts-msg',
-      expect.stringContaining('lifecycle history'),
-      false,
-    );
+    expect(notify).toHaveBeenLastCalledWith(expect.stringContaining('lifecycle history'), {
+      variant: 'error',
+      source: 'accts-msg',
+    });
     vi.mocked(loadSnapshots).mockResolvedValueOnce([
       { date: '2020-01', 'position:acct1:IE00B4L5Y983': 0 },
     ]);
     root.querySelector<HTMLButtonElement>('.js-del-acct[data-idx="0"]')!.click();
     await vi.waitFor(() =>
-      expect(showMsg).toHaveBeenLastCalledWith(
-        'accts-msg',
+      expect(notify).toHaveBeenLastCalledWith(
         expect.stringContaining('account-linked ETF history'),
-        false,
+        {
+          variant: 'error',
+          source: 'accts-msg',
+        },
       ),
     );
   });

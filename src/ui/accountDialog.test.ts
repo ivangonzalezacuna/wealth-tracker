@@ -63,7 +63,7 @@ describe('accountDialog', () => {
       closedPeriods: [{ closedFromMonth: '2025-01', reopenedFromMonth: '2025-06' }],
     };
     const pending = accountDialog({ existing });
-    expect(document.getElementById('acctd-history-warning')?.textContent).toContain(
+    expect(document.getElementById('acctd-history-warning')?.innerHTML).toContain(
       'global account metadata',
     );
     setField('acctd-label', 'Updated name');

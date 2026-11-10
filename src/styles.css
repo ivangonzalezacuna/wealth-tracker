@@ -1933,6 +1933,32 @@ body.chart-expanded-open {
 .chart-wrap:fullscreen .chart-host,
 .chart-wrap.chart-expanded .chart-host {
   inset: 16px;
+  top: calc(max(8px, env(safe-area-inset-top)) + 40px);
+}
+.chart-expanded-bar {
+  display: none;
+}
+.chart-wrap:is(:fullscreen, .chart-expanded) > .chart-expanded-bar {
+  position: absolute;
+  top: max(8px, env(safe-area-inset-top));
+  left: 16px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 32px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.chart-expanded-bar > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.chart-expanded-bar > .chart-dataview-close {
+  align-self: center;
 }
 /* HTML legend over the chart header (wraps instead of paging). */
 .chart-legend {
@@ -5213,6 +5239,9 @@ input[type='color'] {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   margin: auto;
 }
+.dialog-card:focus {
+  outline: none;
+}
 .dialog-header {
   margin-bottom: 1rem;
 }
@@ -6189,6 +6218,29 @@ html {
     gap: 4px;
     width: 100%;
   }
+  .dialog-overlay:not(.confirm-overlay, .conflict-overlay) {
+    align-items: flex-end;
+    padding: max(48px, calc(env(safe-area-inset-top) + 24px)) 0 0;
+  }
+  .dialog-overlay:not(.confirm-overlay, .conflict-overlay) > .dialog-card {
+    max-width: none;
+    max-height: 100%;
+    margin: 0;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    border-bottom: 0;
+    border-radius: 16px 16px 0 0;
+    animation: sheet-up 0.2s ease-out;
+  }
+  .dialog-overlay:not(.confirm-overlay, .conflict-overlay) > .dialog-card::before {
+    content: '';
+    flex: none;
+    align-self: center;
+    width: 36px;
+    height: 4px;
+    margin: -8px auto 12px;
+    border-radius: 2px;
+    background: var(--line-2);
+  }
   body.mobile-nav-hidden,
   body:has(.dialog-overlay),
   body.chart-expanded-open {
@@ -6363,8 +6415,16 @@ html {
 }
 @media (prefers-reduced-motion: reduce) {
   .nav,
-  .tab-indicator-animate::before {
+  .tab-indicator-animate::before,
+  .dialog-card {
     transition: none;
+    animation: none;
+  }
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
   }
 }
 /* Touch: small controls keep their look with a larger hit area. */

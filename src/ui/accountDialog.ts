@@ -137,7 +137,7 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
                 autocomplete="off">
             </div>
           </div>
-          ${existing ? '<p class="note" id="acctd-history-warning">Type, country and currency are global account metadata, not dated changes. Editing them can change historical classification, country attribution and currency interpretation across all months. For a transfer, record actual balances and ETF values in Monthly snapshots; changing metadata does not move holdings.</p>' : ''}
+          ${existing ? `<p class="note" id="acctd-history-warning">Edits apply to all months${infoTip('Type, country and currency are global account metadata, not dated changes. Editing them can change historical classification, country attribution and currency interpretation across all months. For a transfer, record actual balances and ETF values in Monthly snapshots; changing metadata does not move holdings.')}</p>` : ''}
           <div class="dialog-subhead">Tracking &amp; access</div>
           <div class="dialog-field">
             <div class="dialog-check">

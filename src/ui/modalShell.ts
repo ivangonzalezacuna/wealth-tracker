@@ -152,10 +152,21 @@ export function bootstrapDialog(opts: DialogBootstrapOptions): () => void {
     focusablesSelector,
   });
 
-  (initialFocusSelector
+  const initial = initialFocusSelector
     ? (overlay.querySelector(initialFocusSelector) as HTMLElement | null)
-    : null
-  )?.focus({ preventScroll: true });
+    : null;
+  // Touch: don't open the keyboard on open; focus the card so Tab/Escape still work.
+  const card = overlay.querySelector<HTMLElement>('.dialog-card');
+  if (
+    initial?.matches('input, textarea, select') &&
+    card &&
+    window.matchMedia?.('(pointer: coarse)').matches
+  ) {
+    card.tabIndex = -1;
+    card.focus({ preventScroll: true });
+  } else {
+    initial?.focus({ preventScroll: true });
+  }
 
   return () => {
     cancelEl?.removeEventListener('click', handleCancel);

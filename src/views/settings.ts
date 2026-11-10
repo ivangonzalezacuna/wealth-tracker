@@ -1016,11 +1016,10 @@ async function toggleAccountRemoval(
     return;
   }
   if (a.closedPeriods?.length) {
-    showMsg(
-      'accts-msg',
-      'Cannot remove an account with lifecycle history. Reopen this logical record instead.',
-      false,
-    );
+    notify('Cannot remove an account with lifecycle history. Reopen this logical record instead.', {
+      variant: 'error',
+      source: 'accts-msg',
+    });
     return;
   }
   const accountKeys = [a?.id, a?.key].filter((k): k is string => !!k && k.trim().length > 0);
@@ -1032,10 +1031,9 @@ async function toggleAccountRemoval(
         Object.keys(s).some((key) => accountKeys.includes(parsePositionKey(key)?.accountId || '')),
     );
     if (hasHistory) {
-      showMsg(
-        'accts-msg',
+      notify(
         'Cannot remove this account because it has historical snapshot values or account-linked ETF history. Keep its identity and use Close instead.',
-        false,
+        { variant: 'error', source: 'accts-msg' },
       );
       return;
     }

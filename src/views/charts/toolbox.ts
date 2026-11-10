@@ -87,6 +87,7 @@ function toggleExpanded(dom: HTMLElement): void {
     document.body.classList.remove('chart-expanded-open');
     return;
   }
+  ensureExpandedBar(target, dom);
   const req = (
     target as HTMLElement & { webkitRequestFullscreen?: () => void }
   ).requestFullscreen?.bind(target);
@@ -100,6 +101,26 @@ function toggleExpanded(dom: HTMLElement): void {
 function expandFallback(target: HTMLElement): void {
   target.classList.add('chart-expanded');
   document.body.classList.add('chart-expanded-open');
+}
+
+/** Title bar with a visible close, shown only while the chart is expanded. */
+function ensureExpandedBar(target: HTMLElement, dom: HTMLElement): void {
+  if (target.querySelector(':scope > .chart-expanded-bar')) return;
+  const bar = document.createElement('div');
+  bar.className = 'chart-expanded-bar';
+  const title = document.createElement('span');
+  title.textContent =
+    target.closest('.card')?.querySelector('.card-title')?.textContent?.trim() ||
+    dom.dataset.chartLabel ||
+    'Chart';
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'chart-dataview-close';
+  close.setAttribute('aria-label', 'Close full screen');
+  close.textContent = '\u00d7';
+  close.addEventListener('click', () => toggleExpanded(dom));
+  bar.append(title, close);
+  target.prepend(bar);
 }
 
 export function fullscreenIcons(expanded: boolean): { icon: string; title: string } {
