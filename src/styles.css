@@ -6194,13 +6194,42 @@ html {
   body.chart-expanded-open {
     --mobile-overlay-offset: 0px;
   }
+  header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 8px;
+    margin-bottom: 12px;
+  }
   header h1 {
+    grid-area: 1 / 1;
+    margin: 0;
     font-size: 18px;
     font-weight: 600;
-    padding-right: 40px;
+    white-space: nowrap;
+  }
+  header #app-sub {
+    grid-area: 2 / 1 / 3 / 4;
+    margin: 0;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   #auth-bar {
-    margin-bottom: 12px;
+    grid-area: 1 / 2;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    gap: 6px;
+    min-width: 0;
+    margin: 0;
+  }
+  #auth-bar > * {
+    min-width: 0;
+  }
+  header .header-menu {
+    grid-area: 1 / 3;
+    position: relative;
   }
   .nav {
     position: fixed;
