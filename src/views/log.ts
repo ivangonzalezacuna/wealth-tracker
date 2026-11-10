@@ -520,8 +520,7 @@ function snapColumns(): ColumnDef<Snapshot>[] {
       key: 'month',
       label: 'Month',
       sortValue: (s) => isoDateSortValue(s.date),
-      cell: (s) =>
-        `${ROW_DISCLOSURE_ICON}<span class="snap-month">${fmtMon(s.date)}</span>${s.notes ? '<span class="snap-note-dot" title="Has a note"></span>' : ''}${snapSub(s)}`,
+      cell: (s) => `<span class="snap-month">${fmtMon(s.date)}</span>${snapSub(s)}`,
       cellClass: () => 'snap-month-cell',
     },
     {
@@ -905,7 +904,7 @@ function txColumns(): ColumnDef<Transaction>[] {
       label: 'Date',
       sortValue: (t) => isoDateSortValue(t.date),
       cellAttrs: () => 'data-ledger-label="Date"',
-      cell: (t) => `${ROW_DISCLOSURE_ICON}<span class="snap-month">${fmtDay(t.date)}</span>`,
+      cell: (t) => `<span class="snap-month">${fmtDay(t.date)}</span>`,
     },
     {
       key: 'type',
@@ -1201,15 +1200,18 @@ function renderTxList(txs: Transaction[]): void {
             : '';
         prevMonth = month;
         const day = byDate ? fmtDay(tx.date).replace(/ \d{4}$/, '') : fmtDay(tx.date);
-        const sub = [day, txTypeLabel(tx.type || '-'), tx.source ? sourceLabel(tx.source) : '']
+        const sub = [
+          day,
+          tx.name ? txTypeLabel(tx.type || '-') : '',
+          tx.source ? sourceLabel(tx.source) : '',
+        ]
           .filter(Boolean)
           .map(esc)
           .join(' · ');
         const title = tx.name
           ? ''
-          : `<span class="tx-row-title" aria-hidden="true">${esc(txTypeLabel(tx.type || '-'))}</span>`;
+          : `<span class="tx-row-title" role="cell">${esc(txTypeLabel(tx.type || '-'))}</span>`;
         return `${monthHead}<div class="tbl-row tx-row" role="row" tabindex="0" aria-expanded="false" aria-controls="${txDetailId(key)}"         data-txkey="${esc(key)}">
-          <span class="tx-row-badge ${(tx.amount || 0) < 0 ? 'neg' : 'pos'}" aria-hidden="true">${esc(txTypeLabel(tx.type || '-').charAt(0))}</span>
           <div class="tx-card-header">${headerCells}${sourceChip}${mobileActionsCell}</div>
           ${bodyCells}${title}
           <div role="cell" class="tx-row-sub">${sub}</div>

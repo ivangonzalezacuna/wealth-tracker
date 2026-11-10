@@ -525,6 +525,23 @@ describe('renderLog', () => {
     expect(ledger.querySelector('.tx-ledger-amount.neg')?.textContent).toContain('€');
     expect(ledger.querySelector('[data-ledger-label="Name"]')?.textContent).toContain('IWDA');
     expect(ledger.querySelector('[data-ledger-label="Amount"]')?.textContent).toContain('€');
+    expect(ledger.querySelector('.tx-row-badge')).toBeNull();
+    expect(ledger.querySelector('.tx-row-sub')?.textContent).toContain('Buy');
+  });
+
+  it('uses the type as the unnamed transaction title without repeating it in metadata', () => {
+    renderLog({
+      txs: [makeTx(11n, { name: '', type: 'INTEREST', amount: 3.75 })],
+      snaps: [],
+      importMeta: null,
+      onEditSnap: vi.fn(),
+      onDelSnap: vi.fn(),
+    });
+    const row = document.querySelector('#tx-ledger-list .tx-row:not(.th)')!;
+    expect(row.querySelector('.tx-row-title')?.textContent).toBe('Interest');
+    expect(row.querySelector('.tx-row-title')?.getAttribute('aria-hidden')).toBeNull();
+    expect(row.querySelector('.tx-row-sub')?.textContent).not.toContain('Interest');
+    expect(row.querySelector('.tx-row-sub')?.textContent).toContain('Manual');
   });
 
   it('shows tax alongside ledger interest amounts when present', () => {

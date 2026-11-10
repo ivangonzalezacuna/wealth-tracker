@@ -78,10 +78,24 @@ body {
 h1 {
   font-size: 20px;
   font-weight: 500;
-  margin-bottom: 0.2rem;
 }
 header {
-  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
+  margin-bottom: 12px;
+}
+header h1 {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+}
+header #app-sub {
+  grid-area: 2 / 1 / 3 / 4;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .sub {
   font-size: 13px;
@@ -112,12 +126,16 @@ code,
 
 /* Auth bar */
 #auth-bar {
+  grid-area: 1 / 2;
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 1.25rem;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
   min-height: 22px;
-  flex-wrap: wrap;
+}
+#auth-bar > * {
+  min-width: 0;
 }
 .auth-status {
   font-size: 12px;
@@ -1158,8 +1176,10 @@ details[open] > summary .card-chevron {
 }
 .snap-month-cell {
   display: flex;
-  align-items: center;
-  gap: 5px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
   font-weight: 500;
   font-size: 12px;
   min-width: 0;
@@ -1173,15 +1193,20 @@ details[open] > summary .card-chevron {
   font-size: 14px;
   font-variant-numeric: tabular-nums;
 }
-.snap-note-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: var(--radius-round);
-  background: var(--brand);
-  flex-shrink: 0;
-}
 .snap-sub {
-  display: none;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.snap-sub > .pos {
+  color: var(--pos);
+}
+.snap-sub > .neg {
+  color: var(--neg);
 }
 .snap-segbar {
   display: flex;
@@ -1599,7 +1624,7 @@ details[open] > summary .card-chevron {
 .tx-detail {
   grid-column: 1 / -1;
 }
-#tx-ledger-list .tx-row > :is(.tx-row-badge, .tx-row-title, .tx-row-sub),
+#tx-ledger-list .tx-row > :is(.tx-row-title, .tx-row-sub),
 .tx-month-head,
 .tx-detail > .tx-detail-actions {
   display: none;
@@ -3832,11 +3857,6 @@ summary.section-label {
     margin: 0 -0.75rem;
     padding: 0 0.75rem;
   }
-  /* Auth bar */
-  #auth-bar {
-    flex-wrap: wrap;
-    gap: 6px;
-  }
   /* Holdings table smallest phones */
   .hold-grid {
     grid-template-columns:
@@ -4038,16 +4058,17 @@ summary.section-label {
     background: var(--surface);
   }
 
-  /* Native list rows: badge, title over "date · type · source", trailing amount. */
+  /* Title over date, type and source, with a trailing amount. */
   #tx-ledger-list .tx-row:not(.th) {
-    grid-template-columns: 28px minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
-      'badge name amount'
-      'badge sub amount';
+      'name amount'
+      'sub amount';
     align-items: center;
     row-gap: 1px;
     margin: 0;
-    padding: 8px 2px;
+    padding: 6px 2px;
+    min-height: 44px;
     border: 0;
     border-bottom: 1px solid var(--line);
     border-radius: 0;
@@ -4057,30 +4078,19 @@ summary.section-label {
     display: contents;
   }
   #tx-ledger-list .tx-card-header > [role='cell']:not(.tx-actions-mobile),
-  #tx-ledger-list .tx-actions-mobile:not(:has(.js-tx-select)),
-  #tx-ledger-list .tx-row:has(.js-tx-select) > .tx-row-badge {
+  #tx-ledger-list .tx-actions-mobile:not(:has(.js-tx-select)) {
     display: none;
   }
+  #tx-ledger-list .tx-row:has(.js-tx-select) {
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'select name amount'
+      'select sub amount';
+  }
   #tx-ledger-list .tx-actions-mobile {
-    grid-area: badge;
+    grid-area: select;
     justify-content: center;
     margin: 0;
-  }
-  #tx-ledger-list .tx-row > .tx-row-badge {
-    grid-area: badge;
-    display: grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: var(--brand-weak);
-    color: var(--brand);
-    font-size: 12px;
-    font-weight: 600;
-  }
-  #tx-ledger-list .tx-row > .tx-row-badge.pos {
-    background: color-mix(in srgb, var(--pos) 14%, transparent);
-    color: var(--pos);
   }
   #tx-ledger-list .tx-row > .tx-row-title {
     grid-area: name;
@@ -4127,13 +4137,8 @@ summary.section-label {
     border-radius: 0;
     background: var(--surface-2);
   }
-  #tx-ledger-list .tx-detail > .tx-detail-actions {
-    display: flex;
-  }
-
   /* Snapshot rows match the ledger: month over change, total over the account mix. */
-  #snaps-list .snap-row-compact.th,
-  #snaps-list .snap-row-compact :is(.row-expand-chevron, .snap-note-dot) {
+  #snaps-list .snap-row-compact.th {
     display: none;
   }
   #snaps-list .snap-row-compact:not(.th) {
@@ -4154,30 +4159,7 @@ summary.section-label {
     justify-self: end;
     width: 56px;
   }
-  #snaps-list .snap-month-cell {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: center;
-    gap: 1px;
-    font-size: inherit;
-  }
-  #snaps-list .snap-sub {
-    display: block;
-    max-width: 100%;
-    overflow: hidden;
-    color: var(--ink-3);
-    font-size: 11px;
-    font-weight: 400;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  #snaps-list .snap-sub > .pos {
-    color: var(--pos);
-  }
-  #snaps-list .snap-sub > .neg {
-    color: var(--neg);
-  }
+  #snaps-list .snap-month-cell,
   #snaps-list .snap-total {
     font-size: inherit;
   }
@@ -4187,6 +4169,9 @@ summary.section-label {
     border-bottom: 1px solid var(--line);
     border-radius: 0;
     background: var(--surface-2);
+  }
+  #snaps-list .snap-detail-actions {
+    display: none;
   }
 }
 
@@ -5983,9 +5968,8 @@ textarea.dialog-input {
 }
 /* ── Header menu (theme + account) ─────────────────────── */
 .header-menu {
-  position: absolute;
-  top: 0;
-  right: 0;
+  grid-area: 1 / 3;
+  position: relative;
   z-index: 30;
 }
 .header-menu-btn {
@@ -6293,6 +6277,35 @@ html {
   border-color: transparent;
   background: transparent;
 }
+/* Segmented sub-tabs. */
+.subnav.range-toggle {
+  display: inline-flex;
+  width: max-content;
+  max-width: 100%;
+  gap: 0;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-3);
+}
+.subnav.range-toggle > .btn {
+  padding: 3px 9px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+}
+.subnav.range-toggle > .btn.active,
+.subnav.range-toggle.tab-indicator::before {
+  border: 0;
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--brand);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.subnav.range-toggle.tab-indicator > .btn.active {
+  background: transparent;
+  box-shadow: none;
+}
 
 /* Phone shell. */
 .nav-icon,
@@ -6366,42 +6379,12 @@ html {
   body.chart-expanded-open {
     --mobile-overlay-offset: 0px;
   }
-  header {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    column-gap: 8px;
-    margin-bottom: 12px;
-  }
   header h1 {
-    grid-area: 1 / 1;
-    margin: 0;
     font-size: 18px;
     font-weight: 600;
-    white-space: nowrap;
   }
   header #app-sub {
-    grid-area: 2 / 1 / 3 / 4;
-    margin: 0;
     font-size: 12px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  #auth-bar {
-    grid-area: 1 / 2;
-    flex-wrap: nowrap;
-    justify-content: flex-end;
-    gap: 6px;
-    min-width: 0;
-    margin: 0;
-  }
-  #auth-bar > * {
-    min-width: 0;
-  }
-  header .header-menu {
-    grid-area: 1 / 3;
-    position: relative;
   }
   .nav {
     position: fixed;
@@ -6472,35 +6455,6 @@ html {
   }
   .pwa-update-banner {
     bottom: calc(12px + env(safe-area-inset-bottom, 0px) + var(--mobile-overlay-offset));
-  }
-  /* Compact segmented sub-tabs. */
-  :is(#portfolio-subnav, #log-subnav, .settings-tabs) {
-    display: inline-flex;
-    width: max-content;
-    max-width: 100%;
-    gap: 0;
-    padding: 2px;
-    border: 1px solid var(--line);
-    border-radius: 7px;
-    background: var(--surface-3);
-  }
-  :is(#portfolio-subnav, #log-subnav, .settings-tabs) > button {
-    padding: 3px 9px;
-    border: 0;
-    border-radius: 5px;
-    background: transparent;
-  }
-  :is(#portfolio-subnav, #log-subnav, .settings-tabs) > button.active,
-  :is(#portfolio-subnav, #log-subnav, .settings-tabs).tab-indicator::before {
-    border: 0;
-    border-radius: 5px;
-    background: var(--surface);
-    color: var(--brand);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-  }
-  :is(#portfolio-subnav, #log-subnav, .settings-tabs).tab-indicator > button.active {
-    background: transparent;
-    box-shadow: none;
   }
   /* Snapshot action: "+ Snapshot" on the Log sub-tab row, icon-only below 360px. */
   .btn-add-snap {

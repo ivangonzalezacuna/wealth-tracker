@@ -365,6 +365,7 @@ test('deleting the last filtered snapshot clears stale status but preserves sear
   await expect(page.locator('#snaps-list .tbl-empty-state')).toContainText('No matching snapshots');
   await expect(page.locator('#snap-filter-status')).toContainText('0 of 1 snapshots');
   await captureSnapshotList(page, testInfo, 'filtered-empty');
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.locator('#snap-search').fill('Final filtered');
   await expect(page.locator('#snap-filter-status')).toContainText('1 of 1 snapshots');
   await snapshotRow(page, month).click();

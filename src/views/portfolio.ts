@@ -46,7 +46,6 @@ import { renderTableHeader, renderTableRow } from './tableColumns';
 import { bindExpandableRows, restoreExpandableRows } from './expandableRows';
 import { bindSortedTableHeader, sortAndPaginate } from './tableView';
 import { isCollapsed, setCollapsed } from '../ui/collapseState';
-import { ROW_DISCLOSURE_ICON } from './icons';
 import {
   disposeChart,
   drillHint,
@@ -236,7 +235,7 @@ function holdingsColumns(
       cellClass: () => 'hold-etf-cell',
       cell: (e) => {
         const isExited = e.exited || e.shares < 1e-6;
-        return `${ROW_DISCLOSURE_ICON}<span class="hold-name">${esc(e.shortName)}</span><span class="hold-dot" style="background:${safeColor(e.color)};opacity:${isExited ? '0.45' : '1'}"></span>`;
+        return `<span class="hold-name">${esc(e.shortName)}</span><span class="hold-dot" style="background:${safeColor(e.color)};opacity:${isExited ? '0.45' : '1'}"></span>`;
       },
     },
     {
@@ -388,7 +387,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
       if (column.key === 'shortName') {
         const count = positionAccounts(row.isin).length;
         const accountLabel = `${count} accounts as of ${latSnap ? fmtMon(latSnap.date) : ''}`;
-        return `${ROW_DISCLOSURE_ICON}<span class="hold-name">${esc(row.shortName)}</span>${count > 1 ? `<span class="hold-account-count" aria-label="${esc(accountLabel)}" title="${esc(accountLabel)}">${count}</span>` : ''}<span class="hold-dot" style="background:${safeColor(row.color)}"></span>`;
+        return `<span class="hold-name">${esc(row.shortName)}</span>${count > 1 ? `<span class="hold-account-count" aria-label="${esc(accountLabel)}" title="${esc(accountLabel)}">${count}</span>` : ''}<span class="hold-dot" style="background:${safeColor(row.color)}"></span>`;
       }
       if (column.key === 'marketValue') {
         const value = snapEtfValues[row.isin];
