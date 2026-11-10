@@ -1,3 +1,4 @@
+import { trackOverlay, whenOverlayHistorySettled } from './overlayHistory';
 import type { UserThemePref } from '../theme';
 
 /** Top-right header menu: theme choice (Light / Dark / System) and Sign out. */
@@ -84,15 +85,21 @@ export function initHeaderMenu(opts: {
     btn!.dataset.theme = pref;
   }
 
+  let releaseHistory: (() => void) | undefined;
+
   function close(returnFocus = false): void {
     if (!isOpen()) return;
     menu!.hidden = true;
+    releaseHistory?.();
+    releaseHistory = undefined;
     btn!.setAttribute('aria-expanded', 'false');
     document.removeEventListener('pointerdown', onOutside, true);
     if (returnFocus) btn!.focus();
   }
 
   function open(focus: 'checked' | 'first' | 'last' | null): void {
+    if (isOpen()) return;
+    releaseHistory = trackOverlay(() => close(true));
     setTheme(opts.getTheme());
     menu!.hidden = false;
     btn!.setAttribute('aria-expanded', 'true');
@@ -137,7 +144,7 @@ export function initHeaderMenu(opts: {
     }
     if (item.id === 'btn-signout') {
       close(true);
-      opts.onSignOut();
+      void whenOverlayHistorySettled().then(opts.onSignOut);
     }
   });
 

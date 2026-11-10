@@ -139,6 +139,7 @@ import { showSigninOverlay, hideSigninOverlay } from './ui/signinOverlay';
 import { initHeaderMenu, type HeaderMenu } from './ui/headerMenu';
 import { initMobileNavigation, isMobileLayout, touchInput } from './ui/mobileNavigation';
 import { initTabIndicators } from './ui/tabIndicator';
+import { replaceRoute } from './ui/overlayHistory';
 import { renderSyncChip, shortSyncError, syncChipView, type SyncStatus } from './ui/headerStatus';
 import { attachScrollHint } from './ui/scrollHint';
 import { refreshAttention, setAttentionSource } from './ui/attention';
@@ -579,7 +580,7 @@ function showSection(id: string, btn: Element | null) {
   if (alreadyActive && id !== 'settings') {
     // Still worth a defensive re-sync of the hash in case it drifted (e.g. via
     // popstate or a stale deep link) - cheap, no DOM/render cost.
-    history.replaceState(null, '', navHash(id, sectionSubview(id)));
+    replaceRoute(navHash(id, sectionSubview(id)));
     return;
   }
   if (resetShowMore() && _activeSection) _dirty.add(_activeSection);
@@ -602,7 +603,7 @@ function showSection(id: string, btn: Element | null) {
   } // settings reflects live config; always repaint
   if (id === 'portfolio') showPortfolioSubview(_portfolioSubview);
   if (id === 'log') applyLogView(_logView);
-  history.replaceState(null, '', navHash(id, sectionSubview(id)));
+  replaceRoute(navHash(id, sectionSubview(id)));
   if (isMobileLayout() && !alreadyActive) {
     window.scrollTo({ top: 0, behavior: 'instant' });
     mobileNavigation.reset();
@@ -613,7 +614,7 @@ function showSection(id: string, btn: Element | null) {
 function showLogView(view: LogView): void {
   _logView = (LOG_VIEWS as readonly string[]).includes(view) ? view : 'transactions';
   applyLogView(_logView);
-  if (_activeSection === 'log') history.replaceState(null, '', navHash('log', _logView));
+  if (_activeSection === 'log') replaceRoute(navHash('log', _logView));
 }
 
 // ── PWA update detection ──────────────────────────────────
@@ -2163,7 +2164,7 @@ function showPortfolioSubview(sub: string, force = false): void {
     _portfolioSubview === sub &&
     document.getElementById(`subview-${sub}`)?.style.display === 'block';
   if (alreadyActive) {
-    history.replaceState(null, '', navHash('portfolio', sub));
+    replaceRoute(navHash('portfolio', sub));
     return;
   }
   _portfolioSubview = sub as typeof _portfolioSubview;
@@ -2178,7 +2179,7 @@ function showPortfolioSubview(sub: string, force = false): void {
     b.setAttribute('tabindex', isActive ? '0' : '-1');
   });
   renderPortfolioSubview(sub);
-  history.replaceState(null, '', navHash('portfolio', sub));
+  replaceRoute(navHash('portfolio', sub));
 }
 
 function renderPortfolioSubview(sub: string): void {

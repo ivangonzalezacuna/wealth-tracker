@@ -1,3 +1,4 @@
+import { bindRowGestures } from '../ui/rowGestures';
 import { getACCTSList } from '../constants';
 import { snapTotal, fmtEur2, fmtMon, fmtDay, fmtPctVal, esc, safeColor } from '../utils';
 import { sourceLabel } from '../import/profiles/index';
@@ -629,6 +630,14 @@ function renderSnapList(
 
   // Row tap-to-expand detail panel (delegated on #snaps-list)
   const listEl = document.getElementById('snaps-list');
+  bindRowGestures(listEl, '.snap-row-compact:not(.th)', (row) => {
+    const date = row.dataset.date;
+    if (!date || _readOnly || _snapBulkMode) return [];
+    return [
+      { label: 'Edit', run: () => _lastOnEdit?.(date) },
+      { label: 'Delete', run: () => _lastOnDel?.(date) },
+    ];
+  });
   bindExpandableRows({
     container: listEl,
     rowSelector: '.snap-row-compact:not(.th)',
@@ -1041,6 +1050,15 @@ function renderTxList(txs: Transaction[]): void {
   const statusEl = document.getElementById('tx-filter-status');
   const addBtn = document.getElementById('btn-add-tx') as HTMLButtonElement | null;
   if (!listEl) return;
+  bindRowGestures(listEl, '.tx-row:not(.th)', (row) => {
+    const tx = row.dataset.txkey ? _txByKey.get(row.dataset.txkey) : undefined;
+    if (!tx?.rowId || _readOnly || _txBulkMode) return [];
+    const id = tx.rowId;
+    return [
+      ...(_lastOnEditTx ? [{ label: 'Edit', run: () => _lastOnEditTx?.(id) }] : []),
+      ...(_lastOnDelTx ? [{ label: 'Delete', run: () => _lastOnDelTx?.(id) }] : []),
+    ];
+  });
   if (addBtn) addBtn.disabled = _readOnly;
   if (addBtn) addBtn.hidden = _txBulkMode;
   listEl.className = `tx-ledger-grid${_readOnly ? ' tx-ledger-grid-readonly' : ''}`;

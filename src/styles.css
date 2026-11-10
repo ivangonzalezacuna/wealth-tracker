@@ -6519,3 +6519,102 @@ html {
     display: none;
   }
 }
+
+.sheet-grip {
+  display: none;
+}
+.gesture-menu {
+  position: fixed;
+  right: auto;
+  width: 132px;
+  z-index: 1100;
+  min-width: 132px;
+}
+.gesture-delete {
+  color: var(--neg);
+}
+@media (max-width: 640px), (max-height: 500px) and (pointer: coarse) {
+  .dialog-card:has(> .sheet-grip)::before {
+    display: none;
+  }
+  .sheet-grip {
+    display: flex;
+    flex: none;
+    justify-content: center;
+    height: 16px;
+    margin: -8px -1.25rem 0;
+    touch-action: pan-x pinch-zoom;
+  }
+  .sheet-grip::before {
+    content: '';
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--line-2);
+  }
+  .dialog-header,
+  .dialog-card.sheet-at-top {
+    touch-action: pan-x pan-down;
+  }
+  :is(.tx-row, .snap-row-compact, .settings-item) {
+    -webkit-touch-callout: none;
+    user-select: none;
+    touch-action: pan-y;
+  }
+  /* Swipe: the row content slides left and the action panel follows its right edge. */
+  .gesture-row {
+    position: relative;
+    overflow: hidden;
+  }
+  .gesture-row > :not(.gesture-row-actions),
+  .gesture-row > .gesture-row-actions {
+    transition: transform 180ms ease-out;
+  }
+  .gesture-row > :not(.gesture-row-actions) {
+    transform: translateX(var(--swipe-x, 0px));
+  }
+  .gesture-row > .gesture-row-actions {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    transform: translateX(calc(100% + var(--swipe-x, 0px)));
+  }
+  .gesture-row.gesture-dragging > * {
+    transition: none;
+  }
+  .gesture-action {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 64px;
+    padding: 0;
+    border: 0;
+    background: var(--brand);
+    color: var(--surface);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .gesture-action.gesture-delete {
+    background: var(--neg);
+    color: var(--surface);
+  }
+  .gesture-action:active {
+    filter: brightness(0.9);
+  }
+  .gesture-action svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gesture-row > * {
+    transition: none;
+  }
+}
