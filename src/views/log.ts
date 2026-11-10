@@ -490,6 +490,20 @@ function snapShares(s: Snapshot) {
 
 function snapColumns(): ColumnDef<Snapshot>[] {
   const columns: ColumnDef<Snapshot>[] = [];
+  const chronological = [..._snaps].sort((a, b) => a.date.localeCompare(b.date));
+  const change = new Map(
+    chronological.map((s, i) => [
+      s.date,
+      i ? snapTotal(s) - snapTotal(chronological[i - 1]) : undefined,
+    ]),
+  );
+  const snapSub = (s: Snapshot) => {
+    const delta = change.get(s.date);
+    const tone = delta && delta > 0 ? 'pos' : delta && delta < 0 ? 'neg' : '';
+    const text =
+      delta === undefined ? 'First snapshot' : `${delta > 0 ? '+' : ''}${fmtEur2(delta)}`;
+    return `<span class="snap-sub" aria-hidden="true"><span class="${tone}">${text}</span>${s.notes ? ' · Note' : ''}</span>`;
+  };
   if (_snapBulkMode && !_readOnly && !!_lastOnBulkDel) {
     columns.push({
       key: 'select',
@@ -507,7 +521,7 @@ function snapColumns(): ColumnDef<Snapshot>[] {
       label: 'Month',
       sortValue: (s) => isoDateSortValue(s.date),
       cell: (s) =>
-        `${ROW_DISCLOSURE_ICON}<span class="snap-month">${fmtMon(s.date)}</span>${s.notes ? '<span class="snap-note-dot" title="Has a note"></span>' : ''}`,
+        `${ROW_DISCLOSURE_ICON}<span class="snap-month">${fmtMon(s.date)}</span>${s.notes ? '<span class="snap-note-dot" title="Has a note"></span>' : ''}${snapSub(s)}`,
       cellClass: () => 'snap-month-cell',
     },
     {

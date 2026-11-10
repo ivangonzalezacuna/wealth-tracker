@@ -60,6 +60,7 @@ async function captureSnapshotList(
           const fits = (el: Element) => {
             const bounds = el.getBoundingClientRect();
             return Array.from(el.children).every((child) => {
+              if (!child.getClientRects().length) return true;
               const rect = child.getBoundingClientRect();
               return rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1;
             });
