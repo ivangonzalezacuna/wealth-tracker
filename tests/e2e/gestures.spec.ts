@@ -44,6 +44,35 @@ async function seedTransaction(page: Page) {
   return row;
 }
 
+test('compact transaction rows keep readable metadata and a separate bulk selection column', async ({
+  page,
+}) => {
+  const row = await seedTransaction(page);
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(row.locator('.tx-row-badge')).toHaveCount(0);
+    await expect(row.locator('.tx-row-title')).toContainText('Interest');
+    await expect(row.locator('.tx-row-sub')).not.toContainText('Interest');
+    await expect(row).toHaveCSS('min-height', '44px');
+    expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(43.99);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+
+    await page.locator('#btn-start-del-txs').click();
+    const selection = row.locator('.tx-actions-mobile .js-tx-select');
+    await expect(selection).toBeVisible();
+    const checkbox = (await selection.boundingBox())!;
+    const title = (await row.locator('.tx-row-title').boundingBox())!;
+    expect(checkbox.x + checkbox.width).toBeLessThanOrEqual(title.x);
+    await selection.check();
+    await expect(selection).toBeChecked();
+    await expect(row).toHaveAttribute('aria-expanded', 'false');
+    await page.locator('#btn-start-del-txs').click();
+    await expect(selection).toHaveCount(0);
+  }
+});
+
 test('Back closes a dialog without changing the selected route, then closes the header menu', async ({
   page,
 }) => {
@@ -103,6 +132,10 @@ test('swipe reveals actions, tapping closes without expansion, Delete still conf
   page,
 }, info) => {
   const row = await seedTransaction(page);
+  await row.click();
+  await expect(page.locator('.tx-detail')).toBeVisible();
+  await expect(page.locator('.tx-detail-actions')).toBeHidden();
+  await row.click();
   const swipe = async () => {
     const box = (await row.boundingBox())!;
     await pointer(row, 'pointerdown', 250, box.y + 20);
@@ -144,6 +177,10 @@ test('snapshot rows support long press and swipe actions too', async ({ page }) 
   await page.locator('#log-tab-snapshots').click();
   const row = page.locator('.snap-row-compact[data-date]').first();
   await row.scrollIntoViewIfNeeded();
+  await row.click();
+  await expect(page.locator('.snap-detail')).toBeVisible();
+  await expect(page.locator('.snap-detail-actions')).toBeHidden();
+  await row.click();
   const box = (await row.boundingBox())!;
   await pointer(row, 'pointerdown', 120, box.y + 15);
   await expect(page.locator('.gesture-menu')).toBeVisible();

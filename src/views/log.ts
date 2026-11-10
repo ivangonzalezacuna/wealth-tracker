@@ -1200,7 +1200,11 @@ function renderTxList(txs: Transaction[]): void {
             : '';
         prevMonth = month;
         const day = byDate ? fmtDay(tx.date).replace(/ \d{4}$/, '') : fmtDay(tx.date);
-        const sub = [day, txTypeLabel(tx.type || '-'), tx.source ? sourceLabel(tx.source) : '']
+        const sub = [
+          day,
+          tx.name ? txTypeLabel(tx.type || '-') : '',
+          tx.source ? sourceLabel(tx.source) : '',
+        ]
           .filter(Boolean)
           .map(esc)
           .join(' · ');
@@ -1208,7 +1212,6 @@ function renderTxList(txs: Transaction[]): void {
           ? ''
           : `<span class="tx-row-title" aria-hidden="true">${esc(txTypeLabel(tx.type || '-'))}</span>`;
         return `${monthHead}<div class="tbl-row tx-row" role="row" tabindex="0" aria-expanded="false" aria-controls="${txDetailId(key)}"         data-txkey="${esc(key)}">
-          <span class="tx-row-badge ${(tx.amount || 0) < 0 ? 'neg' : 'pos'}" aria-hidden="true">${esc(txTypeLabel(tx.type || '-').charAt(0))}</span>
           <div class="tx-card-header">${headerCells}${sourceChip}${mobileActionsCell}</div>
           ${bodyCells}${title}
           <div role="cell" class="tx-row-sub">${sub}</div>

@@ -54,7 +54,7 @@ for (const table of tables) {
       await page.setViewportSize({ width, height: 1000 });
       await expect(row).toBeVisible();
       if ((await row.getAttribute('aria-expanded')) === 'true')
-        await row.click({ position: { x: 12, y: 12 } });
+        await row.click({ position: { x: 2, y: 2 } });
       await expect(row).toHaveAttribute('aria-expanded', 'false');
       await expect(row.locator('.row-expand-chevron')).toHaveCount(0);
       await row.focus();
@@ -62,12 +62,15 @@ for (const table of tables) {
       await expect(row).toBeFocused();
       await expect(row).toHaveAttribute('aria-expanded', 'true');
       await expect(detail).toBeVisible();
+      if (table.name === 'snapshots') {
+        await expect(detail.locator('.snap-detail-actions')).toBeVisible({ visible: width > 640 });
+      }
       await row.press('Space');
       await expect(row).toHaveAttribute('aria-expanded', 'false');
       await expect(detail).toHaveCount(0);
-      await row.click({ position: { x: 12, y: 12 } });
+      await row.click({ position: { x: 2, y: 2 } });
       await expect(detail).toBeVisible();
-      await row.click({ position: { x: 12, y: 12 } });
+      await row.click({ position: { x: 2, y: 2 } });
       await expect(row).toHaveAttribute('aria-expanded', 'false');
     }
   });

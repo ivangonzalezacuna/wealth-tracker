@@ -1624,7 +1624,7 @@ details[open] > summary .card-chevron {
 .tx-detail {
   grid-column: 1 / -1;
 }
-#tx-ledger-list .tx-row > :is(.tx-row-badge, .tx-row-title, .tx-row-sub),
+#tx-ledger-list .tx-row > :is(.tx-row-title, .tx-row-sub),
 .tx-month-head,
 .tx-detail > .tx-detail-actions {
   display: none;
@@ -4058,16 +4058,17 @@ summary.section-label {
     background: var(--surface);
   }
 
-  /* Native list rows: badge, title over "date · type · source", trailing amount. */
+  /* Title over date, type and source, with a trailing amount. */
   #tx-ledger-list .tx-row:not(.th) {
-    grid-template-columns: 28px minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
-      'badge name amount'
-      'badge sub amount';
+      'name amount'
+      'sub amount';
     align-items: center;
     row-gap: 1px;
     margin: 0;
-    padding: 8px 2px;
+    padding: 6px 2px;
+    min-height: 44px;
     border: 0;
     border-bottom: 1px solid var(--line);
     border-radius: 0;
@@ -4077,30 +4078,19 @@ summary.section-label {
     display: contents;
   }
   #tx-ledger-list .tx-card-header > [role='cell']:not(.tx-actions-mobile),
-  #tx-ledger-list .tx-actions-mobile:not(:has(.js-tx-select)),
-  #tx-ledger-list .tx-row:has(.js-tx-select) > .tx-row-badge {
+  #tx-ledger-list .tx-actions-mobile:not(:has(.js-tx-select)) {
     display: none;
   }
+  #tx-ledger-list .tx-row:has(.js-tx-select) {
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'select name amount'
+      'select sub amount';
+  }
   #tx-ledger-list .tx-actions-mobile {
-    grid-area: badge;
+    grid-area: select;
     justify-content: center;
     margin: 0;
-  }
-  #tx-ledger-list .tx-row > .tx-row-badge {
-    grid-area: badge;
-    display: grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: var(--brand-weak);
-    color: var(--brand);
-    font-size: 12px;
-    font-weight: 600;
-  }
-  #tx-ledger-list .tx-row > .tx-row-badge.pos {
-    background: color-mix(in srgb, var(--pos) 14%, transparent);
-    color: var(--pos);
   }
   #tx-ledger-list .tx-row > .tx-row-title {
     grid-area: name;
@@ -4147,10 +4137,6 @@ summary.section-label {
     border-radius: 0;
     background: var(--surface-2);
   }
-  #tx-ledger-list .tx-detail > .tx-detail-actions {
-    display: flex;
-  }
-
   /* Snapshot rows match the ledger: month over change, total over the account mix. */
   #snaps-list .snap-row-compact.th {
     display: none;
@@ -4183,6 +4169,9 @@ summary.section-label {
     border-bottom: 1px solid var(--line);
     border-radius: 0;
     background: var(--surface-2);
+  }
+  #snaps-list .snap-detail-actions {
+    display: none;
   }
 }
 
