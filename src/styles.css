@@ -1596,6 +1596,11 @@ details[open] > summary .card-chevron {
 .tx-detail {
   grid-column: 1 / -1;
 }
+#tx-ledger-list .tx-row > :is(.tx-row-badge, .tx-row-title, .tx-row-sub),
+.tx-month-head,
+.tx-detail > .tx-detail-actions {
+  display: none;
+}
 
 /* CSV import preview: ledger rows plus an include checkbox and a status column */
 .import-preview-head {
@@ -1928,6 +1933,32 @@ body.chart-expanded-open {
 .chart-wrap:fullscreen .chart-host,
 .chart-wrap.chart-expanded .chart-host {
   inset: 16px;
+  top: calc(max(8px, env(safe-area-inset-top)) + 40px);
+}
+.chart-expanded-bar {
+  display: none;
+}
+.chart-wrap:is(:fullscreen, .chart-expanded) > .chart-expanded-bar {
+  position: absolute;
+  top: max(8px, env(safe-area-inset-top));
+  left: 16px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 32px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.chart-expanded-bar > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.chart-expanded-bar > .chart-dataview-close {
+  align-self: center;
 }
 /* HTML legend over the chart header (wraps instead of paging). */
 .chart-legend {
@@ -3743,9 +3774,8 @@ summary.section-label {
   .form-group {
     margin-bottom: 0.6rem;
   }
-  .form-input {
-    font-size: 14px;
-    padding: 10px;
+  .form-input:not(.form-input-sm) {
+    padding: 7px 10px;
   }
   .btn {
     padding: 10px 14px;
@@ -3817,7 +3847,7 @@ summary.section-label {
     font-size: 10px;
   }
   #port-table .th.hold-row {
-    font-size: 9px;
+    font-size: 10px;
   }
 }
 
@@ -4003,6 +4033,99 @@ summary.section-label {
     border-top: 1px dashed var(--surface-3);
     border-radius: 0 0 var(--radius-md) var(--radius-md);
     background: var(--surface);
+  }
+
+  /* Native list rows: badge, title over "date · type · source", trailing amount. */
+  #tx-ledger-list .tx-row:not(.th) {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'badge name amount'
+      'badge sub amount';
+    align-items: center;
+    row-gap: 1px;
+    margin: 0;
+    padding: 8px 2px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: none;
+  }
+  #tx-ledger-list .tx-card-header {
+    display: contents;
+  }
+  #tx-ledger-list .tx-card-header > [role='cell']:not(.tx-actions-mobile),
+  #tx-ledger-list .tx-actions-mobile:not(:has(.js-tx-select)),
+  #tx-ledger-list .tx-row:has(.js-tx-select) > .tx-row-badge {
+    display: none;
+  }
+  #tx-ledger-list .tx-actions-mobile {
+    grid-area: badge;
+    justify-content: center;
+    margin: 0;
+  }
+  #tx-ledger-list .tx-row > .tx-row-badge {
+    grid-area: badge;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--brand-weak);
+    color: var(--brand);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  #tx-ledger-list .tx-row > .tx-row-badge.pos {
+    background: color-mix(in srgb, var(--pos) 14%, transparent);
+    color: var(--pos);
+  }
+  #tx-ledger-list .tx-row > .tx-row-title {
+    grid-area: name;
+    display: block;
+    overflow: hidden;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #tx-ledger-list .tx-row > .tx-row-sub {
+    grid-area: sub;
+    display: block;
+    padding: 0;
+    overflow: hidden;
+    color: var(--ink-3);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #tx-ledger-list .tx-row > .tx-row-sub::before {
+    display: none;
+  }
+  .tbl:has(> #tx-ledger-wrap) {
+    overflow: visible;
+  }
+  #tx-ledger-list .tx-month-head {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 1;
+    display: block;
+    padding: 10px 2px 4px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink-3);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  #tx-ledger-list .tx-detail {
+    margin: 0;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: var(--surface-2);
+  }
+  #tx-ledger-list .tx-detail > .tx-detail-actions {
+    display: flex;
   }
 }
 
@@ -4302,6 +4425,11 @@ input[type='color'] {
   padding: 0 1rem;
 }
 @media (max-width: 640px) {
+  .settings-card-label {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+  }
   #settings-content .card-collapsible .card-header {
     gap: 0.65rem;
     padding: 0 0.95rem;
@@ -4359,6 +4487,26 @@ input[type='color'] {
   }
   .settings-list .settings-goal-row .settings-item-header > .settings-row-actions {
     grid-column: 2 / 3;
+  }
+  /* Tap-to-edit rows: the icons give way to a chevron; Remove lives in the dialog. */
+  .settings-list .settings-item-header > .settings-row-actions:has([class*='js-edit-']) {
+    display: none;
+  }
+  .settings-list .settings-item:has([class*='js-edit-']) {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .settings-list .settings-item:has([class*='js-edit-']) > .settings-item-header::after {
+    content: '';
+    grid-column: -2;
+    grid-row: 1 / span 2;
+    align-self: center;
+    width: 7px;
+    height: 7px;
+    margin: 0 4px 0 6px;
+    border-top: 1.5px solid var(--ink-4);
+    border-right: 1.5px solid var(--ink-4);
+    transform: rotate(45deg);
   }
 }
 .settings-items {
@@ -5100,6 +5248,9 @@ input[type='color'] {
 .conflict-card {
   max-height: calc(100dvh - 2rem);
 }
+.dialog-card:focus {
+  outline: none;
+}
 .dialog-header {
   flex-shrink: 0;
   margin-bottom: 1rem;
@@ -5136,6 +5287,36 @@ input[type='color'] {
 }
 .dialog-input {
   font-size: 13px;
+}
+input:is([type='date'], [type='month']) {
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+/* Android draws no calendar icon, so paint one; the invisible native indicator stays its click target. */
+@supports selector(::-webkit-calendar-picker-indicator) {
+  input:is([type='date'], [type='month']),
+  input:is([type='date'], [type='month']):focus {
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%238a8780' stroke-width='1.4' stroke-linecap='round'%3E%3Crect x='2.5' y='3.5' width='11' height='10' rx='2'/%3E%3Cpath d='M2.5 7h11M5.5 2v3M10.5 2v3'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-size: 14px;
+    background-position: right 10px center;
+  }
+  input.planning-input:is([type='date'], [type='month']),
+  input.planning-input:is([type='date'], [type='month']):focus {
+    background-position: right 7px center;
+  }
+  input:is([type='date'], [type='month'])::-webkit-calendar-picker-indicator {
+    display: block;
+    width: 14px;
+    height: 14px;
+    margin: 0 0 0 4px;
+    padding: 0;
+    background: none;
+    opacity: 0;
+    cursor: pointer;
+  }
 }
 .dialog-input-uppercase {
   text-transform: uppercase;
@@ -5275,6 +5456,9 @@ input[type='color'] {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 1rem;
+}
+.dialog-actions > .dialog-remove {
+  margin-right: auto;
 }
 .dialog-field {
   display: flex;
@@ -5523,7 +5707,7 @@ textarea.dialog-input {
   gap: 4px;
   min-width: 0;
 }
-/* Clear button sits inside the input's right edge (after the native picker icon). */
+/* Clear button sits inside the input's right edge. */
 .ms-date-control {
   position: relative;
   display: flex;
@@ -5552,6 +5736,18 @@ textarea.dialog-input {
 .ms-date-control > .ms-date-clear-btn:hover {
   color: var(--ink);
   background: var(--surface-2);
+}
+/* The indicator's margin reserves the clear button's slot, left of the calendar icon. */
+@supports selector(::-webkit-calendar-picker-indicator) {
+  .ms-date-wrap.has-clear .ms-date {
+    padding-right: 10px;
+  }
+  .ms-date-wrap.has-clear .ms-date::-webkit-calendar-picker-indicator {
+    margin-left: 28px;
+  }
+  .ms-date-control > .ms-date-clear-btn {
+    right: 26px;
+  }
 }
 .month-input-error,
 .month-input-hint {
@@ -5976,6 +6172,9 @@ button.sync-chip:focus-visible {
 .pagination:empty {
   display: none;
 }
+.page-more {
+  display: none;
+}
 .pagination-nav .btn {
   display: inline-flex;
   align-items: center;
@@ -6052,25 +6251,108 @@ html {
 .btn-add-snap-short {
   display: none;
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 500px) and (pointer: coarse) {
   body {
     --mobile-dock-height: calc(57px + env(safe-area-inset-bottom, 0px));
     --mobile-overlay-offset: 57px;
     padding: max(12px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
       calc(var(--mobile-dock-height) + 8px) max(10px, env(safe-area-inset-left));
   }
+  .note,
+  .kpi-sub,
+  .kpi-group-sub,
+  .hold-inline-meta,
+  .an-annual-months {
+    font-size: 11px;
+  }
+  .pagination-more > :not(.page-more) {
+    display: none;
+  }
+  #div-history {
+    grid-template-columns: 16px minmax(0, 1fr) repeat(3, auto);
+  }
+  #div-interest {
+    grid-template-columns: minmax(0, 1fr) repeat(3, auto);
+  }
+  :is(.div-row, .int-row) > * {
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .div-row > :nth-child(2) > * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pagination-more > .page-more {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+  }
+  .dialog-overlay:not(.confirm-overlay, .conflict-overlay) {
+    align-items: flex-end;
+    padding: max(48px, calc(env(safe-area-inset-top) + 24px)) 0 0;
+  }
+  .dialog-overlay:not(.confirm-overlay, .conflict-overlay) > .dialog-card {
+    max-width: none;
+    max-height: 100%;
+    margin: 0;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    border-bottom: 0;
+    border-radius: 16px 16px 0 0;
+    animation: sheet-up 0.2s ease-out;
+  }
+  .dialog-overlay:not(.confirm-overlay, .conflict-overlay) > .dialog-card::before {
+    content: '';
+    flex: none;
+    align-self: center;
+    width: 36px;
+    height: 4px;
+    margin: -8px auto 12px;
+    border-radius: 2px;
+    background: var(--line-2);
+  }
   body.mobile-nav-hidden,
   body:has(.dialog-overlay),
   body.chart-expanded-open {
     --mobile-overlay-offset: 0px;
   }
+  header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 8px;
+    margin-bottom: 12px;
+  }
   header h1 {
+    grid-area: 1 / 1;
+    margin: 0;
     font-size: 18px;
     font-weight: 600;
-    padding-right: 40px;
+    white-space: nowrap;
+  }
+  header #app-sub {
+    grid-area: 2 / 1 / 3 / 4;
+    margin: 0;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   #auth-bar {
-    margin-bottom: 12px;
+    grid-area: 1 / 2;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    gap: 6px;
+    min-width: 0;
+    margin: 0;
+  }
+  #auth-bar > * {
+    min-width: 0;
+  }
+  header .header-menu {
+    grid-area: 1 / 3;
+    position: relative;
   }
   .nav {
     position: fixed;
@@ -6204,7 +6486,51 @@ html {
 }
 @media (prefers-reduced-motion: reduce) {
   .nav,
-  .tab-indicator-animate::before {
+  .tab-indicator-animate::before,
+  .dialog-card {
     transition: none;
+    animation: none;
+  }
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+/* Touch: small controls keep their look with a larger hit area. */
+@media (pointer: coarse) {
+  :is(.info-tip, .range-toggle > .btn, .pagination-nav .btn, .sync-chip) {
+    position: relative;
+  }
+  :is(.info-tip, .range-toggle > .btn, .pagination-nav .btn, .sync-chip)::after {
+    content: '';
+    position: absolute;
+    inset: -8px -2px;
+  }
+  .info-tip::after {
+    inset: -10px;
+  }
+  .filter-chips {
+    padding-block: 8px;
+    margin-block: -5px;
+  }
+  .drop-zone {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-width: 1px;
+  }
+  .drop-zone-icon {
+    font-size: 16px;
+    margin: 0;
+  }
+  .drop-zone-label {
+    margin: 0;
+  }
+  .drop-zone:not(.drop-zone-disabled) .drop-zone-hint {
+    display: none;
   }
 }

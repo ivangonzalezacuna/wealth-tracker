@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, onTestFinished } from 'vitest';
 import { snapshotParsers } from '../import/snapshotParsers';
 import { fictionalBalanceParser } from '../../tests/fixtures/snapshot-import/balanceParser';
 import type { Account, Settings } from '../types';
@@ -1153,11 +1153,10 @@ describe('Button-disable verification: synchronous disable and double-click prev
       await tick();
 
       expect(setAccounts as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
-      expect(showMsg as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
-        'accts-msg',
-        expect.stringContaining('Cannot remove this account'),
-        false,
-      );
+      expect(notify).toHaveBeenCalledWith(expect.stringContaining('Cannot remove this account'), {
+        variant: 'error',
+        source: 'accts-msg',
+      });
     });
 
     it('marks the account for removal without writing, and Undo restores it', async () => {
@@ -1874,20 +1873,21 @@ describe('Settings account lifecycle', () => {
     const root = document.getElementById('settings-card-accounts')!;
     root.querySelector<HTMLButtonElement>('.js-del-acct[data-idx="1"]')!.click();
     await Promise.resolve();
-    expect(showMsg).toHaveBeenLastCalledWith(
-      'accts-msg',
-      expect.stringContaining('lifecycle history'),
-      false,
-    );
+    expect(notify).toHaveBeenLastCalledWith(expect.stringContaining('lifecycle history'), {
+      variant: 'error',
+      source: 'accts-msg',
+    });
     vi.mocked(loadSnapshots).mockResolvedValueOnce([
       { date: '2020-01', 'position:acct1:IE00B4L5Y983': 0 },
     ]);
     root.querySelector<HTMLButtonElement>('.js-del-acct[data-idx="0"]')!.click();
     await vi.waitFor(() =>
-      expect(showMsg).toHaveBeenLastCalledWith(
-        'accts-msg',
+      expect(notify).toHaveBeenLastCalledWith(
         expect.stringContaining('account-linked ETF history'),
-        false,
+        {
+          variant: 'error',
+          source: 'accts-msg',
+        },
       ),
     );
   });
@@ -2274,10 +2274,16 @@ describe('Settings accessible controls and report states', () => {
     });
   });
 
-  it('shows account filters once there are 2+ accounts and resets them on edits', async () => {
+  it('shows account filters once there are 6+ accounts and resets them on edits', async () => {
     vi.mocked(accountDialog)
       .mockResolvedValueOnce({ label: 'Draft account', moneyType: 'cash' })
       .mockResolvedValueOnce({ label: 'Second draft', moneyType: 'cash' });
+    const baseline = MOCK_ACCOUNTS.slice();
+    for (let i = 0; i < 4; i++)
+      MOCK_ACCOUNTS.push({ id: `reserve${i}`, label: `Reserve ${i}`, moneyType: 'cash' });
+    onTestFinished(() => {
+      MOCK_ACCOUNTS.splice(0, MOCK_ACCOUNTS.length, ...baseline);
+    });
     renderSettings();
     const card = document.getElementById('settings-card-accounts')!;
     const bar = card.querySelector<HTMLElement>('.settings-acct-filter-bar')!;
@@ -2289,13 +2295,14 @@ describe('Settings accessible controls and report states', () => {
     expect(bar.hidden).toBe(true);
 
     document.getElementById('btn-add-acct')!.click();
-    await vi.waitFor(() => expect(rows()).toHaveLength(2));
+    await vi.waitFor(() => expect(rows()).toHaveLength(6));
     expect(bar.hidden).toBe(false);
     expect(chips.hidden).toBe(false);
-    expect(chips.textContent?.replace(/\s+/g, '')).toBe('All2Investment1Cash1');
+    expect(chips.textContent?.replace(/\s+/g, '')).toBe('All6Investment1Cash5');
 
     chips.querySelector<HTMLButtonElement>('[data-afilter="cash"]')!.click();
-    expect(rows()).toEqual(['Draft account']);
+    expect(rows()).toContain('Draft account');
+    expect(rows()).toHaveLength(5);
 
     const search = card.querySelector<HTMLInputElement>('#settings-acct-search')!;
     search.value = 'nothing';
@@ -2305,7 +2312,7 @@ describe('Settings accessible controls and report states', () => {
     expect(chips.querySelector('[data-afilter="investment"]')).toBeNull();
 
     document.getElementById('btn-add-acct')!.click();
-    await vi.waitFor(() => expect(rows()).toHaveLength(3));
+    await vi.waitFor(() => expect(rows()).toHaveLength(7));
     expect(card.querySelector<HTMLInputElement>('#settings-acct-search')!.value).toBe('');
     expect(chips.querySelector('[data-afilter="all"]')!.getAttribute('aria-pressed')).toBe('true');
   });

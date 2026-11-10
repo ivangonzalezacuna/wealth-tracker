@@ -51,6 +51,40 @@ export function createPageSizePref(key: string, options: readonly number[]): Pag
   };
   return pref;
 }
+
+/** "Show more" growth per list, dropped once its item count changes. */
+const shownMore = new Map<string, { size: number; total: number }>();
+
+/** Rows to render for a list: its page size, or the larger size reached through "Show more". */
+export function rowsFor(containerId: string, pageSize: number, totalItems: number): number {
+  const more = shownMore.get(containerId);
+  if (more?.total === totalItems) return Math.max(pageSize, more.size);
+  shownMore.delete(containerId);
+  return pageSize;
+}
+
+/** Collapse every "Show more" list back to its page size; true when any list was grown. */
+export function resetShowMore(): boolean {
+  const had = shownMore.size > 0;
+  shownMore.clear();
+  return had;
+}
+
+/** Phone footer: "Show N more" grows the list in place instead of paging. */
+function moreHtml(page: number, extras: PaginationExtras, enabled: boolean): string {
+  if (!enabled) return '';
+  const shown = Math.min(page * extras.pageSize, extras.totalItems);
+  const next = Math.min(
+    Math.min(...(extras.pageSizeOptions ?? [extras.pageSize])),
+    extras.totalItems - shown,
+  );
+  return `<span class="page-more">${
+    next > 0
+      ? `<button type="button" class="btn btn-sm btn-outline js-page-more">Show ${next} more</button>`
+      : ''
+  }<span>Showing ${shown} of ${extras.totalItems}</span></span>`;
+}
+
 /**
  * Render prev/next pagination controls. Hidden when totalPages <= 1, unless
  * a page-size selector is requested and there are more items than the
@@ -100,7 +134,17 @@ export function renderPagination(
   </span>`
       : '';
 
-  el.innerHTML = extras ? `${rangeHtml}${sizeHtml}${navHtml}` : navHtml;
+  el.innerHTML = extras
+    ? `${rangeHtml}${sizeHtml}${navHtml}${moreHtml(page, extras, showSizes)}`
+    : navHtml;
+  el.classList.toggle('pagination-more', !!extras && showSizes);
+  el.querySelector('.js-page-more')?.addEventListener('click', () => {
+    shownMore.set(containerId, {
+      size: page * extras!.pageSize + Math.min(...sizes),
+      total: extras!.totalItems,
+    });
+    onPageChange(1);
+  });
   el.querySelector('.js-page-prev')?.addEventListener('click', () => {
     if (page > 1) onPageChange(page - 1);
   });
@@ -109,6 +153,7 @@ export function renderPagination(
   });
   el.querySelector<HTMLSelectElement>('.js-page-size')?.addEventListener('change', (ev) => {
     const size = Number((ev.currentTarget as HTMLSelectElement).value);
+    shownMore.delete(containerId);
     if (Number.isFinite(size) && size > 0) extras?.onPageSizeChange?.(size);
   });
 }

@@ -487,6 +487,18 @@ export function renderSettings(opts: { preserveDrafts?: boolean } = {}): void {
   attachCardCollapseListeners(el);
   if (!drafts.has('reports')) attachReportListeners(el);
   attachSettingsGroupNavListeners(el);
+  if (!el.dataset.rowTapBound) {
+    el.dataset.rowTapBound = '1';
+    // Phones hide the row icons, so tapping the row opens its editor.
+    el.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('button, a, input, select, label, textarea, summary')) return;
+      const edit = target
+        .closest('.settings-item')
+        ?.querySelector<HTMLElement>('.settings-row-actions [class*="js-edit-"]');
+      if (edit && !edit.offsetParent) edit.click();
+    });
+  }
   el.querySelectorAll('.form-msg, #backup-msg').forEach((message) => {
     message.setAttribute('role', 'status');
     message.setAttribute('aria-live', 'polite');
@@ -859,7 +871,29 @@ function settingsLifecycleChips(all: Account[]): string {
   });
 }
 
-/** The filter bar appears once there is something to filter; type chips only with 2+ types. */
+/** Search and chips show on longer lists, or while filtering or with closed items. */
+const FILTER_MIN_ITEMS = 6;
+
+function accountFilterHidden(all: Account[]): boolean {
+  return (
+    all.length < FILTER_MIN_ITEMS &&
+    !_accountsSettingsSearch &&
+    _accountsSettingsFilter === 'all' &&
+    _accountsLifecycleFilter === 'all' &&
+    !all.some((account) => !isAccountOpenNow(account))
+  );
+}
+
+function holdingFilterHidden(all: Holding[]): boolean {
+  return (
+    all.length < FILTER_MIN_ITEMS &&
+    !_holdingsSettingsSearch &&
+    _holdingsSettingsFilter === 'all' &&
+    all.every((h) => h.active)
+  );
+}
+
+/** Type chips only show with 2+ types. */
 function syncAccountFilterBar(root: ParentNode, all: Account[]): void {
   const lifecycle = root.querySelector<HTMLElement>('#acct-lifecycle-toggle');
   if (lifecycle)
@@ -867,13 +901,7 @@ function syncAccountFilterBar(root: ParentNode, all: Account[]): void {
       _accountsLifecycleFilter === 'all' && !all.some((account) => !isAccountOpenNow(account));
   if (lifecycle) lifecycle.innerHTML = settingsLifecycleChips(all);
   const bar = root.querySelector<HTMLElement>('.settings-acct-filter-bar');
-  if (bar)
-    bar.hidden =
-      all.length < 2 &&
-      !_accountsSettingsSearch &&
-      _accountsSettingsFilter === 'all' &&
-      _accountsLifecycleFilter === 'all' &&
-      !all.some((account) => !isAccountOpenNow(account));
+  if (bar) bar.hidden = accountFilterHidden(all);
   const chips = root.querySelector<HTMLElement>('#acct-filter-toggle');
   if (chips) {
     chips.innerHTML = settingsAccountChips(all);
@@ -905,7 +933,7 @@ function renderAccountsCard(accounts: Account[]): string {
       ${settingsCardHeader('accounts', 'Accounts', `${accounts.length} account${accounts.length === 1 ? '' : 's'}`)}
       <div class="card-body">
         <p class="note" style="margin-bottom:.5rem">One row per bank account or portfolio, tracked in each monthly snapshot.</p>
-        <div class="filter-bar filter-bar-stacked settings-acct-filter-bar"${accounts.length < 2 && !_accountsSettingsSearch && _accountsSettingsFilter === 'all' && _accountsLifecycleFilter === 'all' && !accounts.some((account) => !isAccountOpenNow(account)) ? ' hidden' : ''}>
+        <div class="filter-bar filter-bar-stacked settings-acct-filter-bar"${accountFilterHidden(accounts) ? ' hidden' : ''}>
           ${searchHtml({
             id: 'settings-acct-search',
             value: _accountsSettingsSearch,
@@ -988,11 +1016,10 @@ async function toggleAccountRemoval(
     return;
   }
   if (a.closedPeriods?.length) {
-    showMsg(
-      'accts-msg',
-      'Cannot remove an account with lifecycle history. Reopen this logical record instead.',
-      false,
-    );
+    notify('Cannot remove an account with lifecycle history. Reopen this logical record instead.', {
+      variant: 'error',
+      source: 'accts-msg',
+    });
     return;
   }
   const accountKeys = [a?.id, a?.key].filter((k): k is string => !!k && k.trim().length > 0);
@@ -1004,10 +1031,9 @@ async function toggleAccountRemoval(
         Object.keys(s).some((key) => accountKeys.includes(parsePositionKey(key)?.accountId || '')),
     );
     if (hasHistory) {
-      showMsg(
-        'accts-msg',
+      notify(
         'Cannot remove this account because it has historical snapshot values or account-linked ETF history. Keep its identity and use Close instead.',
-        false,
+        { variant: 'error', source: 'accts-msg' },
       );
       return;
     }
@@ -1128,6 +1154,7 @@ function attachAccountListeners(root: HTMLElement): void {
       },
       existingLabels: accounts.filter((_, i) => i !== idx).map((a) => a.label),
       ...accountDialogSuggestions(accounts),
+      onRemove: () => void toggleAccountRemoval(controller, idx),
     });
     if (!draft) return;
     draft.order = existing.order;
@@ -1292,7 +1319,7 @@ function renderHoldingsCard(holdings: Holding[]): string {
       ${settingsCardHeader('holdings', 'Holdings (ETFs)', `${holdings.length} holdings · ${activeCount} active for allocation`)}
       <div class="card-body">
         <p class="note" style="margin-bottom:.5rem">Set a target % on active holdings for drift and rebalancing. Closed positions can fold into a successor fund.</p>
-        <div class="filter-bar filter-bar-stacked settings-hold-filter-bar">
+        <div class="filter-bar filter-bar-stacked settings-hold-filter-bar"${holdingFilterHidden(holdings) ? ' hidden' : ''}>
           ${searchHtml({
             id: 'settings-hold-search',
             value: _holdingsSettingsSearch,
@@ -1354,6 +1381,8 @@ function applyHoldingsFilter(root: HTMLElement): void {
   if (tbl) tbl.innerHTML = settingsHoldingRows(all);
   const chips = root.querySelector('#hold-filter-toggle');
   if (chips) chips.innerHTML = settingsHoldingChips(all);
+  const bar = root.querySelector<HTMLElement>('.settings-hold-filter-bar');
+  if (bar) bar.hidden = holdingFilterHidden(all);
 }
 
 /** Mark a holding for removal (or undo the mark); Save holdings commits it. */
@@ -1419,6 +1448,7 @@ function attachHoldingListeners(root: HTMLElement): void {
         holds.filter((h) => h.isin !== existing.isin).map((h) => h.isin),
       ),
       existingIsins: holds.filter((h) => h.isin !== existing.isin).map((h) => h.isin),
+      onRemove: () => toggleHoldingRemoval(controller, idx),
     });
     if (!draft) return;
     controller.previewUpdate(idx, { ...draft, order: existing.order });
@@ -1854,6 +1884,7 @@ function attachGoalListeners(root: HTMLElement): void {
         const draft = await goalDialog({
           existing,
           existingLabels: goals.filter((_, i) => i !== idx).map((goal) => goal.label),
+          onRemove: () => toggleGoalRemoval(controller, idx),
         });
         if (!draft) return;
         controller.previewUpdate(idx, draft);

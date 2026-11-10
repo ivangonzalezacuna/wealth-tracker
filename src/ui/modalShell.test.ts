@@ -102,4 +102,20 @@ describe('modal keyboard handling', () => {
     controller.dismiss(false);
     expect(document.activeElement).toBe(trigger);
   });
+
+  it('focuses the card instead of a text field on touch so the keyboard stays closed', () => {
+    vi.stubGlobal('matchMedia', (q: string) => ({ matches: q === '(pointer: coarse)' }));
+    const overlay = document.createElement('div');
+    overlay.innerHTML = '<div class="dialog-card"><input id="initial"></div>';
+    const controller = createDialogController(false);
+    controller.begin(vi.fn());
+    openDialogShell(controller, {
+      overlay,
+      onDismiss: () => controller.dismiss(false),
+      initialFocusSelector: '#initial',
+    });
+    expect(document.activeElement).toBe(overlay.querySelector('.dialog-card'));
+    controller.dismiss(false);
+    vi.unstubAllGlobals();
+  });
 });

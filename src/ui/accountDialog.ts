@@ -44,6 +44,7 @@ export interface AccountDialogOptions {
   /** Existing account labels excluding the record being edited. */
   existingLabels?: string[];
   onLifecycle?: (mode: AccountLifecycleOptions['mode']) => void;
+  onRemove?: () => void;
 }
 
 let _activeExisting: Account | undefined = undefined;
@@ -136,7 +137,7 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
                 autocomplete="off">
             </div>
           </div>
-          ${existing ? '<p class="note" id="acctd-history-warning">Type, country and currency are global account metadata, not dated changes. Editing them can change historical classification, country attribution and currency interpretation across all months. For a transfer, record actual balances and ETF values in Monthly snapshots; changing metadata does not move holdings.</p>' : ''}
+          ${existing ? `<p class="note" id="acctd-history-warning">Edits apply to all months${infoTip('Type, country and currency are global account metadata, not dated changes. Editing them can change historical classification, country attribution and currency interpretation across all months. For a transfer, record actual balances and ETF values in Monthly snapshots; changing metadata does not move holdings.')}</p>` : ''}
           <div class="dialog-subhead">Tracking &amp; access</div>
           <div class="dialog-field">
             <div class="dialog-check">
@@ -286,6 +287,7 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
       submitSelector: '.js-acctd-submit',
       focusablesSelector: `${DIALOG_FOCUSABLES}, summary`,
       initialFocusSelector: '#acctd-label',
+      onRemove: existing ? opts.onRemove : undefined,
     });
     attachInfoTips(overlay);
     bindColorInputs(overlay, 'acctd-color', 'acctd-color-hex');

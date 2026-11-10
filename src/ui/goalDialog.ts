@@ -15,6 +15,7 @@ import { CLEAR_ICON, DELETE_ICON } from '../views/icons';
 export interface GoalDialogOptions {
   existing?: NamedGoal;
   existingLabels?: string[];
+  onRemove?: () => void;
 }
 
 let _activeExistingLabels: string[] = [];
@@ -242,6 +243,7 @@ export function goalDialog(opts: GoalDialogOptions = {}): Promise<NamedGoal | nu
       submitSelector: '.js-goald-submit',
       focusablesSelector: DIALOG_INPUT_FOCUSABLES,
       initialFocusSelector: '#goald-label',
+      onRemove: opts.existing ? opts.onRemove : undefined,
     });
     attachInfoTips(overlay);
   });

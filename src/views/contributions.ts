@@ -6,7 +6,7 @@ import { isAccountOpenNow } from '../model/accounts';
 import type { PortfolioData, Snapshot, Account } from '../types';
 import { bindSortedTableHeader, renderTableSection } from './tableView';
 import type { ColumnDef } from './tableColumns';
-import { createPageSizePref, MONTH_PAGE_SIZES, renderPagination } from './pagination';
+import { createPageSizePref, MONTH_PAGE_SIZES, renderPagination, rowsFor } from './pagination';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { createTableState, setTablePage, setTableSort } from './tableState';
 import {
@@ -335,7 +335,7 @@ function renderDCATable(pd: PortfolioData): void {
     columns,
     sortState: _dcaTableState.sort,
     page: _dcaTableState.page,
-    pageSize: _dcaPageSize.size,
+    pageSize: rowsFor('dca-pagination', _dcaPageSize.size, months.length),
     rowClassName: 'tbl-row dca-row',
     headerId: 'dca-table-header',
     emptyHtml: '',
@@ -371,7 +371,7 @@ function renderDCAPagination(totalPages: number, totalItems: number, pd: Portfol
     },
     {
       totalItems,
-      pageSize: _dcaPageSize.size,
+      pageSize: rowsFor('dca-pagination', _dcaPageSize.size, totalItems),
       pageSizeOptions: _dcaPageSize.options,
       itemLabel: 'months',
       onPageSizeChange: (size) => {

@@ -16,6 +16,8 @@ export interface DialogBootstrapOptions {
   focusablesSelector?: string;
   initialFocusSelector?: string;
   submitWhenActive?: (active: HTMLElement | null) => boolean;
+  /** Adds a Remove button to the dialog footer; the dialog closes before it runs. */
+  onRemove?: () => void;
 }
 
 const DEFAULT_FOCUSABLES =
@@ -128,6 +130,17 @@ export function bootstrapDialog(opts: DialogBootstrapOptions): () => void {
 
   cancelEl?.addEventListener('click', handleCancel);
   submitEl?.addEventListener('click', handleSubmit);
+  if (opts.onRemove) {
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn btn-sm btn-danger dialog-remove';
+    remove.textContent = 'Remove';
+    remove.addEventListener('click', () => {
+      (onCancel ?? onDismiss)();
+      opts.onRemove!();
+    });
+    overlay.querySelector('.dialog-actions')?.prepend(remove);
+  }
 
   const cleanupShell = activateModalShell({
     overlay,
@@ -139,10 +152,21 @@ export function bootstrapDialog(opts: DialogBootstrapOptions): () => void {
     focusablesSelector,
   });
 
-  (initialFocusSelector
+  const initial = initialFocusSelector
     ? (overlay.querySelector(initialFocusSelector) as HTMLElement | null)
-    : null
-  )?.focus({ preventScroll: true });
+    : null;
+  // Touch: don't open the keyboard on open; focus the card so Tab/Escape still work.
+  const card = overlay.querySelector<HTMLElement>('.dialog-card');
+  if (
+    initial?.matches('input, textarea, select') &&
+    card &&
+    window.matchMedia?.('(pointer: coarse)').matches
+  ) {
+    card.tabIndex = -1;
+    card.focus({ preventScroll: true });
+  } else {
+    initial?.focus({ preventScroll: true });
+  }
 
   return () => {
     cancelEl?.removeEventListener('click', handleCancel);

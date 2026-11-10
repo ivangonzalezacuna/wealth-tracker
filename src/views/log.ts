@@ -9,7 +9,7 @@ import { EDIT_ICON, DELETE_ICON, ROW_DISCLOSURE_ICON } from './icons';
 import { attachEtfPopovers } from '../ui/etfPopover';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow } from './tableColumns';
-import { loadPageSize, renderPagination, savePageSize } from './pagination';
+import { loadPageSize, renderPagination, rowsFor, savePageSize } from './pagination';
 import { bindExpandableRows, restoreExpandableRows } from './expandableRows';
 import { bindSortedTableHeader, sortAndPaginate, tableEmptyStateHtml } from './tableView';
 import { LOG_VIEWS, type LogView } from '../nav';
@@ -586,6 +586,7 @@ function renderSnapList(
 
   // Column definitions
   const columns = snapColumns();
+  const snapRows = rowsFor('snap-pagination', _snapPageSize, filtered.length);
 
   // Apply sort (before pagination)
   const { pageItems, page, totalPages } = sortAndPaginate(
@@ -593,7 +594,7 @@ function renderSnapList(
     columns,
     _snapTableState.sort,
     _snapTableState.page,
-    _snapPageSize,
+    snapRows,
   );
   setTablePage(_snapTableState, page);
   const rowClass =
@@ -687,7 +688,7 @@ function renderSnapList(
     },
     {
       totalItems: filtered.length,
-      pageSize: _snapPageSize,
+      pageSize: snapRows,
       pageSizeOptions: SNAP_PAGE_SIZES,
       itemLabel: 'snapshots',
       onPageSizeChange: (size) => {
@@ -844,7 +845,14 @@ export function createTxDetail(tx: Transaction, key: string): HTMLElement {
   panel.dataset.txkey = key;
   panel.setAttribute('role', 'region');
   panel.setAttribute('aria-label', `Transaction details, ${fmtDay(tx.date)}`);
-  panel.innerHTML = parts.join('');
+  panel.innerHTML =
+    parts.join('') +
+    (_readOnly || _txBulkMode || tx.rowId == null
+      ? ''
+      : `<div class="snap-detail-actions tx-detail-actions">
+      <button class="btn btn-sm btn-outline js-edit-tx" data-rowid="${tx.rowId}">Edit</button>
+      <button class="btn btn-sm btn-danger js-del-tx" data-rowid="${tx.rowId}">Delete</button>
+    </div>`);
   return panel;
 }
 
@@ -1093,17 +1101,20 @@ function renderTxList(txs: Transaction[]): void {
   }
 
   const columns = txColumns();
+  const txRows = rowsFor('tx-pagination', _txPageSize, filtered.length);
   const { pageItems, page, totalPages } = sortAndPaginate(
     filtered,
     columns,
     _txTableState.sort,
     _txTableState.page,
-    _txPageSize,
+    txRows,
   );
   setTablePage(_txTableState, page);
   const showActions = !_readOnly;
   const showSelection = !_readOnly && !!_lastOnBulkDelTxs && _txBulkMode;
-  const pageStart = (page - 1) * _txPageSize;
+  const pageStart = (page - 1) * txRows;
+  const byDate = !_txTableState.sort.key || _txTableState.sort.key === 'date';
+  let prevMonth = '';
   _txByKey = new Map();
 
   listEl.innerHTML = `
@@ -1151,9 +1162,25 @@ function renderTxList(txs: Transaction[]): void {
             ${actionBtns}
           </div>`;
         const bodyCells = renderTableRow(restCols, tx);
-        return `<div class="tbl-row tx-row" role="row" tabindex="0" aria-expanded="false" aria-controls="${txDetailId(key)}"         data-txkey="${esc(key)}">
+        const month = (tx.date || '').slice(0, 7);
+        const monthHead =
+          byDate && month && month !== prevMonth
+            ? `<div class="tx-month-head" aria-hidden="true">${fmtMon(month)}</div>`
+            : '';
+        prevMonth = month;
+        const day = byDate ? fmtDay(tx.date).replace(/ \d{4}$/, '') : fmtDay(tx.date);
+        const sub = [day, txTypeLabel(tx.type || '-'), tx.source ? sourceLabel(tx.source) : '']
+          .filter(Boolean)
+          .map(esc)
+          .join(' · ');
+        const title = tx.name
+          ? ''
+          : `<span class="tx-row-title" aria-hidden="true">${esc(txTypeLabel(tx.type || '-'))}</span>`;
+        return `${monthHead}<div class="tbl-row tx-row" role="row" tabindex="0" aria-expanded="false" aria-controls="${txDetailId(key)}"         data-txkey="${esc(key)}">
+          <span class="tx-row-badge ${(tx.amount || 0) < 0 ? 'neg' : 'pos'}" aria-hidden="true">${esc(txTypeLabel(tx.type || '-').charAt(0))}</span>
           <div class="tx-card-header">${headerCells}${sourceChip}${mobileActionsCell}</div>
-          ${bodyCells}
+          ${bodyCells}${title}
+          <div role="cell" class="tx-row-sub">${sub}</div>
           ${desktopActionsCell}
         </div>`;
       })
@@ -1190,7 +1217,7 @@ function renderTxList(txs: Transaction[]): void {
     },
     {
       totalItems: filtered.length,
-      pageSize: _txPageSize,
+      pageSize: txRows,
       pageSizeOptions: TX_PAGE_SIZES,
       itemLabel: 'transactions',
       onPageSizeChange: (size) => {

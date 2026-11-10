@@ -17,7 +17,7 @@ import { TX_PAGE_SIZES, createTxDetail, fmtTxMoney, txDetailId, txTypeLabel } fr
 import type { ColumnDef } from '../views/tableColumns';
 import { renderTableHeader, renderTableRow } from '../views/tableColumns';
 import { bindSortedTableHeader, sortAndPaginate, tableEmptyStateHtml } from '../views/tableView';
-import { createPageSizePref, renderPagination } from '../views/pagination';
+import { createPageSizePref, renderPagination, rowsFor } from '../views/pagination';
 import { createTableState, setTablePage, setTableSort } from '../views/tableState';
 import { bindChipGroup, bindSearchClear, chipButtonsHtml } from './filterBar';
 import { attachEtfPopovers } from './etfPopover';
@@ -414,12 +414,13 @@ export function openCsvImportPreview(
       return;
     }
     const cols = columns(oversells);
+    const importRows = rowsFor('import-pagination', pageSizePref.size, shown.length);
     const { pageItems, page, totalPages } = sortAndPaginate(
       shown,
       cols,
       table.sort,
       table.page,
-      pageSizePref.size,
+      importRows,
     );
     setTablePage(table, page);
     const [dateCol, typeCol, ...restCols] = cols;
@@ -478,7 +479,7 @@ export function openCsvImportPreview(
       },
       {
         totalItems: shown.length,
-        pageSize: pageSizePref.size,
+        pageSize: importRows,
         pageSizeOptions: TX_PAGE_SIZES,
         itemLabel: 'rows',
         onPageSizeChange: (size) => {

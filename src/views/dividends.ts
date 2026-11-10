@@ -12,6 +12,7 @@ import {
   DEFAULT_PAGE_SIZES,
   MONTH_PAGE_SIZES,
   renderPagination,
+  rowsFor,
 } from './pagination';
 import { createTableState, setTablePage, setTableSort } from './tableState';
 import { ROW_DISCLOSURE_ICON } from './icons';
@@ -189,7 +190,7 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
     }
     return out;
   }
-  const annualSize = _annualPageSize.size;
+  const annualSize = rowsFor('div-annual-pagination', _annualPageSize.size, years.length);
   const totalPages = Math.max(1, Math.ceil(years.length / annualSize));
   if (_annualPage > totalPages) _annualPage = totalPages;
   const pageYears = years.slice((_annualPage - 1) * annualSize, _annualPage * annualSize);
@@ -359,7 +360,7 @@ function dividendColumns(pd: PortfolioData): ColumnDef<DivHistEntry>[] {
       label: '',
       raw: true,
       cell: (d) =>
-        `<span class="leg-sq" style="background:${safeColor(d.color)};display:inline-block;margin-top:2px"></span>`,
+        `<span class="leg-sq" style="background:${safeColor(d.color)};display:block"></span>`,
     },
     {
       key: 'date',
@@ -380,7 +381,7 @@ function dividendColumns(pd: PortfolioData): ColumnDef<DivHistEntry>[] {
       align: 'right',
       sortValue: (d) => d.tax,
       cell: (d) =>
-        `<span style="color:var(--neg)" aria-label="Tax ${fmtEur2(d.tax)}">${fmtEur2(d.tax)}</span>`,
+        `<span style="color:var(${d.tax > 0 ? '--neg' : d.tax < 0 ? '--pos' : '--ink-3'})" aria-label="Tax ${fmtEur2(d.tax)}">${fmtEur2(d.tax)}</span>`,
     },
     {
       key: 'net',
@@ -409,7 +410,7 @@ function renderDivTable(pd: PortfolioData): void {
     columns,
     sortState: _divTableState.sort,
     page: _divTableState.page,
-    pageSize: _divPageSize.size,
+    pageSize: rowsFor('div-pagination', _divPageSize.size, list.length),
     rowClassName: 'tbl-row div-row',
     headerId: 'div-table-header',
     emptyHtml:
@@ -459,7 +460,7 @@ function renderDivPagination(totalPages: number, totalItems: number, pd: Portfol
     },
     {
       totalItems,
-      pageSize: _divPageSize.size,
+      pageSize: rowsFor('div-pagination', _divPageSize.size, totalItems),
       pageSizeOptions: _divPageSize.options,
       itemLabel: 'dividend payments',
       onPageSizeChange: (size) => {
@@ -525,7 +526,7 @@ function renderIntTable(pd: PortfolioData): void {
     columns,
     sortState: _intTableState.sort,
     page: _intTableState.page,
-    pageSize: _intPageSize.size,
+    pageSize: rowsFor('int-pagination', _intPageSize.size, list.length),
     rowClassName: 'tbl-row int-row',
     headerId: 'int-table-header',
     emptyHtml:
@@ -571,7 +572,7 @@ function renderIntPagination(totalPages: number, totalItems: number, pd: Portfol
     },
     {
       totalItems,
-      pageSize: _intPageSize.size,
+      pageSize: rowsFor('int-pagination', _intPageSize.size, totalItems),
       pageSizeOptions: _intPageSize.options,
       itemLabel: 'interest payments',
       onPageSizeChange: (size) => {

@@ -5,6 +5,7 @@ import {
   gotoApp,
   monthOffsetValue,
   openTab,
+  openAccountEditor,
   openAccountStatus,
   preparePage,
   saveSettings,
@@ -28,7 +29,12 @@ async function capture(page: Page, info: TestInfo, name: string, selector?: stri
   if (selector?.includes('overlay')) {
     const card = target.locator('.dialog-card');
     const actions = target.locator('.dialog-actions');
-    await expect(card).toHaveCSS('max-width', selector.includes('snap-dialog') ? '720px' : '640px');
+    // Phones show dialogs as full-width bottom sheets.
+    const sheet = (page.viewportSize()?.width ?? 1280) <= 640;
+    await expect(card).toHaveCSS(
+      'max-width',
+      sheet ? 'none' : selector.includes('snap-dialog') ? '720px' : '640px',
+    );
     await expect(target.locator('.dialog-fields')).toHaveCSS('overflow-y', 'auto');
     await expect(actions).toBeInViewport();
     expect(await card.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(
@@ -142,7 +148,7 @@ for (const theme of ['light', 'dark'] as const) {
       await ensureCardExpanded(page, 'settings-card-accounts');
       await waitForSyncIdle(page);
 
-      await page.locator('.js-edit-acct').first().click();
+      await openAccountEditor(page, 0);
       await capture(page, info, 'existing-account-dialog-reference', '.acct-dialog-overlay');
       await page.locator('.js-acctd-cancel').click();
       await expect(page.locator('#settings-accounts-tbl .js-acctd-lifecycle')).toHaveCount(0);
