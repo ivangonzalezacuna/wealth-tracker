@@ -1210,7 +1210,7 @@ function renderTxList(txs: Transaction[]): void {
           .join(' · ');
         const title = tx.name
           ? ''
-          : `<span class="tx-row-title" aria-hidden="true">${esc(txTypeLabel(tx.type || '-'))}</span>`;
+          : `<span class="tx-row-title" role="cell">${esc(txTypeLabel(tx.type || '-'))}</span>`;
         return `${monthHead}<div class="tbl-row tx-row" role="row" tabindex="0" aria-expanded="false" aria-controls="${txDetailId(key)}"         data-txkey="${esc(key)}">
           <div class="tx-card-header">${headerCells}${sourceChip}${mobileActionsCell}</div>
           ${bodyCells}${title}

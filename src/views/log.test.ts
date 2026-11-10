@@ -539,6 +539,7 @@ describe('renderLog', () => {
     });
     const row = document.querySelector('#tx-ledger-list .tx-row:not(.th)')!;
     expect(row.querySelector('.tx-row-title')?.textContent).toBe('Interest');
+    expect(row.querySelector('.tx-row-title')?.getAttribute('aria-hidden')).toBeNull();
     expect(row.querySelector('.tx-row-sub')?.textContent).not.toContain('Interest');
     expect(row.querySelector('.tx-row-sub')?.textContent).toContain('Manual');
   });

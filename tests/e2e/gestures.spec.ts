@@ -52,6 +52,7 @@ test('compact transaction rows keep readable metadata and a separate bulk select
     await page.setViewportSize({ width, height: 844 });
     await expect(row.locator('.tx-row-badge')).toHaveCount(0);
     await expect(row.locator('.tx-row-title')).toContainText('Interest');
+    await expect(row.getByRole('cell', { name: 'Interest', exact: true })).toBeVisible();
     await expect(row.locator('.tx-row-sub')).not.toContainText('Interest');
     await expect(row).toHaveCSS('min-height', '44px');
     expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(43.99);
