@@ -6253,6 +6253,20 @@ html {
   .pagination-more > :not(.page-more) {
     display: none;
   }
+  #div-history {
+    grid-template-columns: 16px minmax(0, 1fr) repeat(3, auto);
+  }
+  #div-interest {
+    grid-template-columns: minmax(0, 1fr) repeat(3, auto);
+  }
+  :is(.div-row, .int-row) > * {
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .div-row > :nth-child(2) > * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .pagination-more > .page-more {
     display: flex;
     flex-direction: column;

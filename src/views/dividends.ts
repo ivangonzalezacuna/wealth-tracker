@@ -360,7 +360,7 @@ function dividendColumns(pd: PortfolioData): ColumnDef<DivHistEntry>[] {
       label: '',
       raw: true,
       cell: (d) =>
-        `<span class="leg-sq" style="background:${safeColor(d.color)};display:inline-block;margin-top:2px"></span>`,
+        `<span class="leg-sq" style="background:${safeColor(d.color)};display:block"></span>`,
     },
     {
       key: 'date',
