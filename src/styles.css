@@ -5278,6 +5278,36 @@ input[type='color'] {
 .dialog-input {
   font-size: 13px;
 }
+input:is([type='date'], [type='month']) {
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+/* Android draws no calendar icon, so paint one; the invisible native indicator stays its click target. */
+@supports selector(::-webkit-calendar-picker-indicator) {
+  input:is([type='date'], [type='month']),
+  input:is([type='date'], [type='month']):focus {
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%238a8780' stroke-width='1.4' stroke-linecap='round'%3E%3Crect x='2.5' y='3.5' width='11' height='10' rx='2'/%3E%3Cpath d='M2.5 7h11M5.5 2v3M10.5 2v3'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-size: 14px;
+    background-position: right 10px center;
+  }
+  input.planning-input:is([type='date'], [type='month']),
+  input.planning-input:is([type='date'], [type='month']):focus {
+    background-position: right 7px center;
+  }
+  input:is([type='date'], [type='month'])::-webkit-calendar-picker-indicator {
+    display: block;
+    width: 14px;
+    height: 14px;
+    margin: 0 0 0 4px;
+    padding: 0;
+    background: none;
+    opacity: 0;
+    cursor: pointer;
+  }
+}
 .dialog-input-uppercase {
   text-transform: uppercase;
 }
@@ -5667,7 +5697,7 @@ textarea.dialog-input {
   gap: 4px;
   min-width: 0;
 }
-/* Clear button sits inside the input's right edge (after the native picker icon). */
+/* Clear button sits inside the input's right edge. */
 .ms-date-control {
   position: relative;
   display: flex;
@@ -5696,6 +5726,18 @@ textarea.dialog-input {
 .ms-date-control > .ms-date-clear-btn:hover {
   color: var(--ink);
   background: var(--surface-2);
+}
+/* The indicator's margin reserves the clear button's slot, left of the calendar icon. */
+@supports selector(::-webkit-calendar-picker-indicator) {
+  .ms-date-wrap.has-clear .ms-date {
+    padding-right: 10px;
+  }
+  .ms-date-wrap.has-clear .ms-date::-webkit-calendar-picker-indicator {
+    margin-left: 28px;
+  }
+  .ms-date-control > .ms-date-clear-btn {
+    right: 26px;
+  }
 }
 .month-input-error,
 .month-input-hint {
