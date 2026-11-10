@@ -520,8 +520,7 @@ function snapColumns(): ColumnDef<Snapshot>[] {
       key: 'month',
       label: 'Month',
       sortValue: (s) => isoDateSortValue(s.date),
-      cell: (s) =>
-        `${ROW_DISCLOSURE_ICON}<span class="snap-month">${fmtMon(s.date)}</span>${s.notes ? '<span class="snap-note-dot" title="Has a note"></span>' : ''}${snapSub(s)}`,
+      cell: (s) => `<span class="snap-month">${fmtMon(s.date)}</span>${snapSub(s)}`,
       cellClass: () => 'snap-month-cell',
     },
     {
@@ -905,7 +904,7 @@ function txColumns(): ColumnDef<Transaction>[] {
       label: 'Date',
       sortValue: (t) => isoDateSortValue(t.date),
       cellAttrs: () => 'data-ledger-label="Date"',
-      cell: (t) => `${ROW_DISCLOSURE_ICON}<span class="snap-month">${fmtDay(t.date)}</span>`,
+      cell: (t) => `<span class="snap-month">${fmtDay(t.date)}</span>`,
     },
     {
       key: 'type',

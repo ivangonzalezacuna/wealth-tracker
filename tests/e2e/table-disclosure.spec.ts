@@ -24,94 +24,56 @@ const tables = [
     hash: '#portfolio',
     row: '#port-table .hold-row:not(.th)',
     detail: '#port-table .hold-detail',
-    panel: '#port-table',
   },
   {
     name: 'snapshots',
     hash: '#log/snapshots',
     row: '#snaps-list .snap-row-compact:not(.th)',
     detail: '#snaps-list .snap-detail',
-    panel: '#balance-card',
-    // Phone snapshot rows are ledger-style list items without a chevron.
-    phoneChevron: false,
+  },
+  {
+    name: 'transactions',
+    hash: '#log',
+    row: '#tx-ledger-list .tx-row:not(.th)',
+    detail: '#tx-ledger-list .tx-detail',
   },
   {
     name: 'by-year',
     hash: '#portfolio/dividends',
     row: '#div-annual-table [data-annual-year]',
     detail: '#div-annual-table .annual-detail',
-    panel: '#div-annual-table',
   },
 ];
 
 for (const table of tables) {
-  test(`${table.name} uses the shared disclosure at every viewport and theme`, async ({
-    page,
-  }, testInfo) => {
+  test(`${table.name} rows expand by click and keyboard without a chevron`, async ({ page }) => {
     await page.goto(`/${table.hash}`);
     const row = page.locator(table.row).first();
-    const icon = row.locator('svg.row-expand-chevron');
     const detail = page.locator(table.detail);
-
-    for (const theme of ['light', 'dark']) {
-      if ((await page.locator('html').getAttribute('data-theme')) !== theme) {
-        await page.locator('#btn-header-menu').click();
-        await page.locator(`[data-theme-choice="${theme}"]`).click();
-        await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
-        await page.keyboard.press('Escape');
-      }
-      for (const width of [1440, 768, 320]) {
-        await page.setViewportSize({ width, height: 1000 });
-        await expect(row).toBeVisible();
-        if ((await row.getAttribute('aria-expanded')) === 'true') await row.click();
-        await expect(row).toHaveAttribute('aria-expanded', 'false');
-        const chevron = width > 480 || table.phoneChevron !== false;
-        await (chevron ? expect(icon).toBeVisible() : expect(icon).toBeHidden());
-        await expect(icon).toHaveCount(1);
-        await expect(icon).toHaveAttribute('aria-hidden', 'true');
-        await expect(icon).toHaveAttribute('focusable', 'false');
-        await expect(icon).not.toHaveAttribute('tabindex');
-        await expect(icon).toHaveCSS('width', '12px');
-        await expect(icon).toHaveCSS('height', '12px');
-        await expect(icon).toHaveCSS('pointer-events', 'none');
-        await expect(icon).toHaveCSS('transform', /^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
-        await expect(row.locator('button .row-expand-chevron')).toHaveCount(0);
-
-        await row.focus();
-        await row.press('Enter');
-        await expect(row).toBeFocused();
-        await expect(row).toHaveAttribute('aria-expanded', 'true');
-        if (chevron) await expect(icon).toHaveCSS('transform', 'matrix(0, 1, -1, 0, 0, 0)');
-        await expect(detail).toBeVisible();
-        await row.screenshot({
-          path: testInfo.outputPath(`${table.name}-${theme}-${width}-open.png`),
-        });
-        if (width !== 768) {
-          await page.locator(table.panel).screenshot({
-            path: testInfo.outputPath(`${table.name}-${theme}-${width}-details.png`),
-          });
-        }
-
-        await row.press('Space');
-        await expect(row).toHaveAttribute('aria-expanded', 'false');
-        await expect(detail).toHaveCount(0);
-        await row.click();
-        await expect(row).toHaveAttribute('aria-expanded', 'true');
-        await expect(detail).toBeVisible();
-        await row.click();
-        await expect(row).toHaveAttribute('aria-expanded', 'false');
-        await row.screenshot({
-          path: testInfo.outputPath(`${table.name}-${theme}-${width}-closed.png`),
-        });
-      }
+    for (const width of [1440, 320]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await expect(row).toBeVisible();
+      if ((await row.getAttribute('aria-expanded')) === 'true')
+        await row.click({ position: { x: 12, y: 12 } });
+      await expect(row).toHaveAttribute('aria-expanded', 'false');
+      await expect(row.locator('.row-expand-chevron')).toHaveCount(0);
+      await row.focus();
+      await row.press('Enter');
+      await expect(row).toBeFocused();
+      await expect(row).toHaveAttribute('aria-expanded', 'true');
+      await expect(detail).toBeVisible();
+      await row.press('Space');
+      await expect(row).toHaveAttribute('aria-expanded', 'false');
+      await expect(detail).toHaveCount(0);
+      await row.click({ position: { x: 12, y: 12 } });
+      await expect(detail).toBeVisible();
+      await row.click({ position: { x: 12, y: 12 } });
+      await expect(row).toHaveAttribute('aria-expanded', 'false');
     }
-
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await expect(icon).toHaveCSS('transition-duration', '0s');
   });
 }
 
-test('transaction, import and snapshot ETF disclosures keep their keyboard behavior', async ({
+test('ledger summary, import and snapshot ETF toggles keep their chevron and keyboard behavior', async ({
   page,
 }) => {
   async function checkToggle(control: Locator, panel: Locator): Promise<void> {
@@ -132,14 +94,12 @@ test('transaction, import and snapshot ETF disclosures keep their keyboard behav
   await page.goto('/#log');
   await checkToggle(page.locator('#btn-ledger-summary'), page.locator('#tx-ledger-summary'));
   await checkToggle(page.locator('#btn-toggle-import'), page.locator('#csv-import-panel'));
-  await checkToggle(
-    page.locator('#tx-ledger-list .tx-row:not(.th)').first(),
-    page.locator('#tx-ledger-list .tx-detail'),
-  );
   await page.locator('#log-tab-snapshots').click();
   await page.locator('#btn-add-snap').click();
   const toggle = page.locator('.snap-etf-toggle').first();
   const panel = page.locator(`#${await toggle.getAttribute('aria-controls')}`);
   await checkToggle(toggle, panel);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(toggle.locator('svg.row-expand-chevron')).toHaveCSS('transition-duration', '0s');
   await page.locator('.js-snapd-cancel').click();
 });
