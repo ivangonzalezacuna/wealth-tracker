@@ -28,8 +28,7 @@ export interface AttentionInput {
   now?: Date;
 }
 
-/** The drift warning shown on the tabs and the drift card, or null when drift is fine. */
-export function driftAttention(
+function driftAttention(
   maxDrift: number,
   thresholdPct?: number,
 ): { level: AttentionLevel; text: string } | null {

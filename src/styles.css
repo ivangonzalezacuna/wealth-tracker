@@ -246,9 +246,6 @@ code,
   border-color: var(--neg);
   box-shadow: inset 3px 0 0 var(--neg);
 }
-.attn-note {
-  margin: 8px 0 12px;
-}
 /* Sections */
 .section {
   display: none;

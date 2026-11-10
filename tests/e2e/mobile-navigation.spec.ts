@@ -183,7 +183,7 @@ test('warning dots never steal navigation and the affected card carries the warn
   await expect(page).toHaveURL(/#portfolio$/);
   const driftCard = page.locator('#port-drift-card');
   await expect(driftCard).toHaveClass(/attn-card--(warn|alert)/);
-  await expect(driftCard.locator('.attn-note')).toContainText('allocation drift');
+  await expect(driftCard.locator('.drift-title-status')).toContainText('drift');
   await page.locator('#tab-contributions').click();
   await page.locator('#tab-holdings .attn-dot').click();
   await expect(page.locator('#tab-holdings')).toHaveAttribute('aria-selected', 'true');
