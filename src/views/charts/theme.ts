@@ -119,7 +119,8 @@ export function buildChartTheme(t: ChartTokens = readChartTokens()): Record<stri
       borderWidth: 1,
       padding: 10,
       textStyle: { color: t.ink2, fontSize: 12 },
-      extraCssText: 'border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);',
+      // ECharts defaults to z-index 9999999; keep the tooltip below the phone dock.
+      extraCssText: 'border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:90;',
       axisPointer: {
         lineStyle: { color: t.line2 },
         crossStyle: { color: t.line2 },

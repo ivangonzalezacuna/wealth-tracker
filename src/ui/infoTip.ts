@@ -12,6 +12,8 @@
  *   `attachInfoTips(rootElement)`
  */
 
+import { closeOnScroll, stackAboveLayer } from './popoverLayer';
+
 /** Visual variants for the info-tip icon and popover. */
 export type InfoTipVariant = 'warn' | 'alert';
 
@@ -56,6 +58,10 @@ export function attachInfoTips(root: HTMLElement | Document = document): void {
 
     // Single tap on mobile / click on desktop - show/hide
     el.addEventListener('click', (e) => {
+      if ((el as HTMLElement).dataset.tipClick === 'navigate') {
+        _hidePopover(el as HTMLElement);
+        return;
+      }
       e.stopPropagation();
       e.preventDefault();
       _togglePopover(el as HTMLElement);
@@ -153,22 +159,8 @@ function _showPopover(trigger: HTMLElement, source: 'click' | 'hover' | 'focus')
   (trigger as _TipEl)._tipPop = pop;
   // Position using fixed coordinates (escapes overflow:hidden/transform ancestors)
   _positionPopover(trigger, pop);
-
-  // Dismiss when the page or any scroll ancestor scrolls / resizes
-  const scrollAncestor = _findScrollAncestor(trigger);
-  const dismiss = () => _hidePopover(trigger);
-  window.addEventListener('scroll', dismiss, { passive: true, capture: true });
-  window.addEventListener('resize', dismiss, { passive: true });
-  if (scrollAncestor) {
-    scrollAncestor.addEventListener('scroll', dismiss, { passive: true });
-  }
-  (trigger as _TipEl)._tipScrollCleanup = () => {
-    window.removeEventListener('scroll', dismiss, { capture: true } as EventListenerOptions);
-    window.removeEventListener('resize', dismiss);
-    if (scrollAncestor) {
-      scrollAncestor.removeEventListener('scroll', dismiss);
-    }
-  };
+  stackAboveLayer(trigger, pop);
+  tipEl._tipScrollCleanup = closeOnScroll(() => _hidePopover(trigger));
 }
 
 function _hidePopover(trigger: HTMLElement): void {
@@ -235,17 +227,6 @@ function _positionPopover(trigger: HTMLElement, pop: HTMLElement): void {
     pop.style.left = `${nextLeft}px`;
     pop.style.visibility = '';
   });
-}
-
-/** Walk up the DOM to find the nearest scrollable ancestor, if any. */
-function _findScrollAncestor(el: HTMLElement): HTMLElement | null {
-  let node = el.parentElement;
-  while (node && node !== document.body) {
-    const { overflow, overflowY, overflowX } = getComputedStyle(node);
-    if (/(auto|scroll)/.test(overflow + overflowY + overflowX)) return node;
-    node = node.parentElement;
-  }
-  return null;
 }
 
 function _dismissAll(): void {

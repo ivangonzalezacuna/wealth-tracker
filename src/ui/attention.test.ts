@@ -23,8 +23,11 @@ function mount(): void {
       <button id="tab-log" aria-label="Log data (add snapshot)">Log data</button>
     </nav>
     <button id="tab-holdings">Holdings</button>
+    <div class="card" id="port-drift-card"><div class="card-title">Allocation drift</div></div>
     <button id="settings-tab-advanced">Advanced</button>
-    <button id="settings-heading-backup"><span class="card-title">Backup &amp; restore</span></button>`;
+    <div class="card" id="settings-card-backup">
+      <button id="settings-heading-backup"><span class="card-title">Backup &amp; restore</span></button>
+    </div>`;
 }
 
 function show(input: AttentionInput): void {
@@ -48,7 +51,12 @@ describe('collectAttention', () => {
 
   it('flags moderate drift as a warning and high drift as an alert', () => {
     const [moderate] = collectAttention({ maxDrift: 7, driftThresholdPct: 5 });
-    expect(moderate).toMatchObject({ id: 'drift', level: 'warn', chipId: 'tab-holdings' });
+    expect(moderate).toMatchObject({
+      id: 'drift',
+      level: 'warn',
+      chipId: 'tab-holdings',
+      cardId: 'port-drift-card',
+    });
     expect(moderate.text).toContain('Moderate drift');
     expect(moderate.text).toContain('(threshold)');
     const [high] = collectAttention({ maxDrift: -12, driftThresholdPct: 5 });
@@ -110,22 +118,30 @@ describe('attention trail', () => {
     expect(el('tab-portfolio').textContent).toBe('Portfolio');
   });
 
-  it('hovering the tab shows the custom popover; tapping the dot does not switch tabs', () => {
+  it('only hovering the dot shows help and clicking it still selects the tab', () => {
     show({ maxDrift: 7, driftThresholdPct: 5 });
     const tab = el('tab-portfolio');
     tab.dispatchEvent(new MouseEvent('mouseenter'));
-    expect(document.querySelector('.info-tip-pop')?.textContent).toContain('Moderate drift');
-    tab.dispatchEvent(new MouseEvent('mouseleave'));
     expect(document.querySelector('.info-tip-pop')).toBeNull();
+    const dot = tab.querySelector<HTMLElement>('.attn-dot')!;
+    dot.dispatchEvent(new MouseEvent('mouseenter'));
+    expect(document.querySelector('.info-tip-pop')?.textContent).toContain('Moderate drift');
 
     let navigated = false;
     tab.addEventListener('click', () => (navigated = true));
-    (tab.querySelector('.attn-dot') as HTMLElement).click();
-    expect(navigated).toBe(false);
-    expect(document.querySelector('.info-tip-pop--warn')).not.toBeNull();
-    // The open popover goes away with its dot.
-    show({ maxDrift: 1, driftThresholdPct: 5 });
+    dot.click();
+    expect(navigated).toBe(true);
     expect(document.querySelector('.info-tip-pop')).toBeNull();
+  });
+
+  it('puts the warning state on the affected card and removes it once resolved', () => {
+    show({ maxDrift: 12, driftThresholdPct: 5, backup: { hasData: true } });
+    expect(el('port-drift-card').className).toBe('card attn-card attn-card--alert');
+    expect(el('port-drift-card').querySelector('.attn-badge')).toBeNull();
+    expect(el('settings-card-backup').classList).toContain('attn-card--warn');
+    show({ maxDrift: 1, driftThresholdPct: 5, backup: { lastBackupAt: FRESH, hasData: true } });
+    expect(el('port-drift-card').className).toBe('card');
+    expect(el('settings-card-backup').className).toBe('card');
   });
 
   it('the backup badge opens the same popover', () => {

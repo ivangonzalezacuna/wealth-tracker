@@ -37,6 +37,7 @@ import type { DriftEntry } from '../model/drift';
 import { sourceLabel } from '../import/profiles/index';
 import type { PortfolioData, Snapshot, EtfPosition, Holding } from '../types';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
+import { applyAttention } from '../ui/attention';
 import { bindChipGroup, bindSearchClear, chipGroupHtml, searchHtml } from '../ui/filterBar';
 import { attachEtfPopovers } from '../ui/etfPopover';
 import { createPageSizePref, DEFAULT_PAGE_SIZES, renderPagination } from './pagination';
@@ -1132,7 +1133,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
   const driftTip = `${noteSource} Drift = actual minus target share, in percentage points. The shaded band is your alert threshold (±${fmtPctVal(status.threshold, 'auto')}, set in Settings). Hover or tap a bar for target, actual and the euro gap; click it to open the holding.`;
   const keptWrap = document.getElementById('c-port-drift')?.parentElement ?? null;
   driftEl.innerHTML = `
-    <div class="card">
+    <div class="card" id="port-drift-card">
       <div class="card-title drift-title">Allocation drift ${infoTip(driftTip)}<span class="drift-title-status" style="color:${status.color}">${status.label} · max ${fmtPctVal(max)}</span></div>
       ${costModeBanner}
       <div class="chart-wrap chart-h-fit"><div id="c-port-drift" class="chart-host" role="img" aria-label="Allocation drift per holding: ${esc(status.label)}, max ${esc(fmtPctVal(max))}"></div></div>
@@ -1171,6 +1172,7 @@ function _renderDriftCard(pd: PortfolioData, snaps: Snapshot[], keepRebalanceOpe
 
   attachEtfPopovers(driftEl);
   attachInfoTips(driftEl);
+  applyAttention();
 }
 
 /**

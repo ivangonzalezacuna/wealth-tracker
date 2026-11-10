@@ -136,6 +136,8 @@ import { transactionDialog } from './ui/transactionDialog';
 import { snapshotDialog } from './ui/snapshotDialog';
 import { showSigninOverlay, hideSigninOverlay } from './ui/signinOverlay';
 import { initHeaderMenu, type HeaderMenu } from './ui/headerMenu';
+import { initMobileNavigation, isMobileLayout } from './ui/mobileNavigation';
+import { initTabIndicators } from './ui/tabIndicator';
 import { renderSyncChip, shortSyncError, syncChipView, type SyncStatus } from './ui/headerStatus';
 import { attachScrollHint } from './ui/scrollHint';
 import { refreshAttention, setAttentionSource } from './ui/attention';
@@ -462,6 +464,8 @@ injectEnvBanner();
 // Apply persisted theme preference before first render to avoid flash
 setUserTheme(getUserThemePref());
 initHeader();
+const mobileNavigation = initMobileNavigation();
+initTabIndicators();
 void checkStorageQuota(); // fire-and-forget storage check
 loadCollapseState(); // fire-and-forget: loads persisted UI collapse state from IDB
 initNav();
@@ -476,9 +480,14 @@ initPwaUpdate();
 function initNav() {
   document.querySelectorAll<HTMLElement>('.nav button[data-section]').forEach((btn) => {
     btn.addEventListener('click', () => {
+      if (isMobileLayout() && btn.classList.contains('active')) {
+        window.scrollTo({ top: 0, behavior: 'instant' });
+        mobileNavigation.reset();
+        return;
+      }
       showSection(btn.dataset.section!, btn);
       // Bring a half-hidden tab fully into view on narrow screens.
-      btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      if (!isMobileLayout()) btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     });
   });
   const mainNav = document.querySelector<HTMLElement>('.nav[role="tablist"]');
@@ -539,8 +548,9 @@ function initRovingTabindex(tablist: Element | null): void {
     else next = items.length - 1; // End
     for (const t of items) t.setAttribute('tabindex', '-1');
     items[next].setAttribute('tabindex', '0');
-    items[next].focus();
-    items[next].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    items[next].focus({ preventScroll: isMobileLayout() });
+    if (!isMobileLayout() || tablist !== document.querySelector('.nav'))
+      items[next].scrollIntoView({ block: 'nearest', inline: 'nearest' });
   });
 }
 
@@ -559,6 +569,7 @@ function resolveInitialSection(): void {
 }
 
 function showSection(id: string, btn: Element | null) {
+  mobileNavigation.reset();
   const alreadyActive =
     _activeSection === id && document.getElementById(id)?.classList.contains('active');
   // Settings always repaints to reflect live config edits; others are no-ops when re-clicking.
@@ -588,6 +599,10 @@ function showSection(id: string, btn: Element | null) {
   if (id === 'portfolio') showPortfolioSubview(_portfolioSubview);
   if (id === 'log') applyLogView(_logView);
   history.replaceState(null, '', navHash(id, sectionSubview(id)));
+  if (isMobileLayout() && !alreadyActive) {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    mobileNavigation.reset();
+  }
 }
 
 /** Switch the Log tab between the transaction ledger and the snapshot history. */

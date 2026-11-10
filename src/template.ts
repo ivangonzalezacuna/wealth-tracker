@@ -2,6 +2,9 @@ import { CONFIG } from './config';
 import { headerMenuMarkup } from './ui/headerMenu';
 import { ROW_DISCLOSURE_ICON } from './views/icons';
 
+const navIcon = (body: string) =>
+  `<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+
 function metricExplainerCard(
   icon: string,
   title: string,
@@ -34,11 +37,11 @@ export function appTemplate(): string {
 </header>
 
 <nav class="nav" role="tablist" aria-label="Main sections">
-  <button id="tab-networth" class="active" data-section="networth" role="tab" aria-selected="true" aria-controls="networth">Net worth</button>
-  <button id="tab-portfolio" data-section="portfolio" role="tab" aria-selected="false" aria-controls="portfolio">Portfolio</button>
-  <button id="tab-analytics" data-section="analytics" role="tab" aria-selected="false" aria-controls="analytics">Analytics</button>
-  <button id="tab-settings" data-section="settings" role="tab" aria-selected="false" aria-controls="settings">Settings</button>
-  <button id="tab-log" class="log-btn" data-section="log" role="tab" aria-selected="false" aria-controls="log" aria-label="Log data (add snapshot or import CSV)">Log data</button>
+  <button id="tab-networth" class="active" data-section="networth" role="tab" aria-selected="true" aria-controls="networth">${navIcon('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8 15 3-3 2 2 3-4"/>')}<span>Net worth</span></button>
+  <button id="tab-portfolio" data-section="portfolio" role="tab" aria-selected="false" aria-controls="portfolio">${navIcon('<circle cx="12" cy="12" r="8"/><path d="M12 4v8h8"/>')}<span>Portfolio</span></button>
+  <button id="tab-analytics" data-section="analytics" role="tab" aria-selected="false" aria-controls="analytics">${navIcon('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8.5 16v-3M12 16V8M15.5 16v-5"/>')}<span>Analytics</span></button>
+  <button id="tab-settings" data-section="settings" role="tab" aria-selected="false" aria-controls="settings">${navIcon('<path d="M4 6h8M16 6h4M4 12h2M10 12h10M4 18h10M18 18h2"/><circle cx="14" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="18" r="2"/>')}<span>Settings</span></button>
+  <button id="tab-log" class="log-btn" data-section="log" role="tab" aria-selected="false" aria-controls="log" aria-label="Log data (add snapshot or import CSV)">${navIcon('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/>')}<span>Log data</span></button>
 </nav>
 
 <div id="setup-banner" style="display:none"></div>
@@ -356,7 +359,7 @@ export function appTemplate(): string {
       </div>
       <div class="log-toolbar-actions" id="snap-add-row">
         <span id="snap-msg" class="log-inline-msg" role="status" aria-live="polite"></span>
-        <button class="btn btn-primary btn-sm" id="btn-add-snap" title="Log month-end balances. Saving the same month overwrites the previous entry.">Add monthly snapshot</button>
+        <button class="btn btn-primary btn-sm btn-add-snap" id="btn-add-snap" aria-label="Add monthly snapshot" title="Log month-end balances. Saving the same month overwrites the previous entry."><svg class="btn-add-snap-icon" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M6 2v8M2 6h8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="btn-add-snap-long">Add monthly snapshot</span><span class="btn-add-snap-short" aria-hidden="true">Snapshot</span></button>
       </div>
     </div>
 

@@ -72,6 +72,8 @@ interface Entry {
 }
 
 const registry = new Map<string, Entry>();
+/** Charts whose tooltip is open; closed on any scroll (ECharts has no option for that). */
+const openTips = new Set<ChartInstance>();
 type EChartsNs = (typeof import('./core'))['echarts'];
 let ec: EChartsNs | null = null;
 let loading: Promise<void> | null = null;
@@ -524,6 +526,12 @@ function bindEvents(entry: Entry): void {
   chart.off('updateaxispointer');
   chart.off('globalout');
   chart.off('legendselectchanged');
+  chart.off('showtip');
+  chart.off('hidetip');
+  chart.on('showtip', () => {
+    openTips.add(chart);
+  });
+  chart.on('hidetip', () => openTips.delete(chart));
   chart.on('datazoom', () => {
     if (syncing) return;
     entry.zoomed = true;
@@ -758,6 +766,7 @@ export function disposeChart(id: string): void {
   entry.legend?.remove();
   closeDataTable(entry.host);
   if (!entry.chart.isDisposed()) entry.chart.dispose();
+  openTips.delete(entry.chart);
   registry.delete(id);
 }
 
@@ -777,6 +786,13 @@ let _globalListeners = false;
 function ensureGlobalListeners(): void {
   if (_globalListeners || typeof document === 'undefined') return;
   _globalListeners = true;
+  window.addEventListener(
+    'scroll',
+    () => {
+      for (const chart of openTips) chart.dispatchAction({ type: 'hideTip' });
+    },
+    { passive: true, capture: true },
+  );
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     const el = document.querySelector('.chart-expanded');
