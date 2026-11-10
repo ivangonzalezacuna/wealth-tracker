@@ -162,7 +162,8 @@ test('compact Settings rows and dialogs fit mobile, tablet, desktop and short la
         await optional.locator('summary').press('Enter');
         await expect(optional).toHaveAttribute('open');
       }
-      const bounds = await page.locator(`${overlay} .dialog-card`).evaluate((card) => {
+      const bounds = await page.locator(`${overlay} .dialog-card`).evaluate(async (card) => {
+        await Promise.all(card.getAnimations().map((a) => a.finished));
         const box = card.getBoundingClientRect();
         const actions = card.querySelector('.dialog-actions')!.getBoundingClientRect();
         // Phone sheets sit flush with the bottom edge, so allow sub-pixel rounding.

@@ -180,14 +180,18 @@ test('keeps imported review after a busy save and retries without losing the dra
       for (const width of [320, 390, 768, 1440]) {
         await page.setViewportSize({ width, height: 844 });
         expect(
-          await page.locator('.snap-dialog-card').evaluate((card) => ({
-            overflow: card.scrollWidth > card.clientWidth,
-            errorFits:
-              card.querySelector('#snapd-save-err')!.getBoundingClientRect().right <=
-              card.getBoundingClientRect().right,
-            actionsFit:
-              card.querySelector('.dialog-actions')!.getBoundingClientRect().bottom <= innerHeight,
-          })),
+          await page.locator('.snap-dialog-card').evaluate(async (card) => {
+            await Promise.all(card.getAnimations().map((a) => a.finished));
+            return {
+              overflow: card.scrollWidth > card.clientWidth,
+              errorFits:
+                card.querySelector('#snapd-save-err')!.getBoundingClientRect().right <=
+                card.getBoundingClientRect().right,
+              actionsFit:
+                card.querySelector('.dialog-actions')!.getBoundingClientRect().bottom <=
+                innerHeight,
+            };
+          }),
         ).toEqual({ overflow: false, errorFits: true, actionsFit: true });
         await page.screenshot({
           path: testInfo.outputPath(`save-retry-${colorScheme}-${width}.png`),

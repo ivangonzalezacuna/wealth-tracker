@@ -195,8 +195,15 @@ export async function openDialogOptional(page: Page, overlay: string): Promise<v
   if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
 }
 
+/** Phones hide the row icons; tapping the row opens the same editor. */
+export async function openAccountEditor(page: Page, index: number): Promise<void> {
+  const edit = page.locator(`.js-edit-acct[data-idx="${index}"]`);
+  if (await edit.isVisible()) await edit.click();
+  else await page.locator(`.settings-acct-row[data-idx="${index}"] .settings-item-title`).click();
+}
+
 export async function openAccountStatus(page: Page, index: number): Promise<void> {
-  await page.locator(`.js-edit-acct[data-idx="${index}"]`).click();
+  await openAccountEditor(page, index);
   await page.locator('#acctd-lifecycle > summary').click();
 }
 
