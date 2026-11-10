@@ -16,6 +16,8 @@ export interface DialogBootstrapOptions {
   focusablesSelector?: string;
   initialFocusSelector?: string;
   submitWhenActive?: (active: HTMLElement | null) => boolean;
+  /** Adds a Remove button to the dialog footer; the dialog closes before it runs. */
+  onRemove?: () => void;
 }
 
 const DEFAULT_FOCUSABLES =
@@ -128,6 +130,17 @@ export function bootstrapDialog(opts: DialogBootstrapOptions): () => void {
 
   cancelEl?.addEventListener('click', handleCancel);
   submitEl?.addEventListener('click', handleSubmit);
+  if (opts.onRemove) {
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn btn-sm btn-danger dialog-remove';
+    remove.textContent = 'Remove';
+    remove.addEventListener('click', () => {
+      (onCancel ?? onDismiss)();
+      opts.onRemove!();
+    });
+    overlay.querySelector('.dialog-actions')?.prepend(remove);
+  }
 
   const cleanupShell = activateModalShell({
     overlay,

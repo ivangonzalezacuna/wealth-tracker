@@ -12,6 +12,7 @@ import {
   DEFAULT_PAGE_SIZES,
   MONTH_PAGE_SIZES,
   renderPagination,
+  rowsFor,
 } from './pagination';
 import { createTableState, setTablePage, setTableSort } from './tableState';
 import { ROW_DISCLOSURE_ICON } from './icons';
@@ -189,7 +190,7 @@ function renderAnnualSummary(pd: PortfolioData, txs: Transaction[]): void {
     }
     return out;
   }
-  const annualSize = _annualPageSize.size;
+  const annualSize = rowsFor('div-annual-pagination', _annualPageSize.size, years.length);
   const totalPages = Math.max(1, Math.ceil(years.length / annualSize));
   if (_annualPage > totalPages) _annualPage = totalPages;
   const pageYears = years.slice((_annualPage - 1) * annualSize, _annualPage * annualSize);
@@ -409,7 +410,7 @@ function renderDivTable(pd: PortfolioData): void {
     columns,
     sortState: _divTableState.sort,
     page: _divTableState.page,
-    pageSize: _divPageSize.size,
+    pageSize: rowsFor('div-pagination', _divPageSize.size, list.length),
     rowClassName: 'tbl-row div-row',
     headerId: 'div-table-header',
     emptyHtml:
@@ -459,7 +460,7 @@ function renderDivPagination(totalPages: number, totalItems: number, pd: Portfol
     },
     {
       totalItems,
-      pageSize: _divPageSize.size,
+      pageSize: rowsFor('div-pagination', _divPageSize.size, totalItems),
       pageSizeOptions: _divPageSize.options,
       itemLabel: 'dividend payments',
       onPageSizeChange: (size) => {
@@ -525,7 +526,7 @@ function renderIntTable(pd: PortfolioData): void {
     columns,
     sortState: _intTableState.sort,
     page: _intTableState.page,
-    pageSize: _intPageSize.size,
+    pageSize: rowsFor('int-pagination', _intPageSize.size, list.length),
     rowClassName: 'tbl-row int-row',
     headerId: 'int-table-header',
     emptyHtml:
@@ -571,7 +572,7 @@ function renderIntPagination(totalPages: number, totalItems: number, pd: Portfol
     },
     {
       totalItems,
-      pageSize: _intPageSize.size,
+      pageSize: rowsFor('int-pagination', _intPageSize.size, totalItems),
       pageSizeOptions: _intPageSize.options,
       itemLabel: 'interest payments',
       onPageSizeChange: (size) => {

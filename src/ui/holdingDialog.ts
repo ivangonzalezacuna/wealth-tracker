@@ -25,6 +25,7 @@ export interface HoldingDialogOptions {
   /** Order index to assign to a new holding. */
   order?: number;
   existingIsins?: string[];
+  onRemove?: () => void;
 }
 
 let _activeExisting: Holding | undefined = undefined;
@@ -209,6 +210,7 @@ export function holdingDialog(opts: HoldingDialogOptions = {}): Promise<Holding 
       submitSelector: '.js-holdd-submit',
       focusablesSelector: `${DIALOG_FOCUSABLES}, textarea:not([disabled]), summary`,
       initialFocusSelector: '#holdd-isin',
+      onRemove: existing ? opts.onRemove : undefined,
     });
     attachInfoTips(overlay);
 

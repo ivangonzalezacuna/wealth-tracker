@@ -40,7 +40,7 @@ import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { applyAttention } from '../ui/attention';
 import { bindChipGroup, bindSearchClear, chipGroupHtml, searchHtml } from '../ui/filterBar';
 import { attachEtfPopovers } from '../ui/etfPopover';
-import { createPageSizePref, DEFAULT_PAGE_SIZES, renderPagination } from './pagination';
+import { createPageSizePref, DEFAULT_PAGE_SIZES, renderPagination, rowsFor } from './pagination';
 import type { ColumnDef } from './tableColumns';
 import { renderTableHeader, renderTableRow } from './tableColumns';
 import { bindExpandableRows, restoreExpandableRows } from './expandableRows';
@@ -471,7 +471,7 @@ function renderHoldingsTable(pd: PortfolioData, snaps: Snapshot[]): void {
     columns,
     _holdTableState.sort,
     _holdTableState.page,
-    _holdPageSize.size,
+    rowsFor('port-pagination', _holdPageSize.size, defaultOrdered.length),
   );
   setTablePage(_holdTableState, page);
   const pageItemsByKey = new Map(pageItems.map((e) => [e.isin, e]));
@@ -669,7 +669,7 @@ function renderHoldPagination(
     },
     {
       totalItems,
-      pageSize: _holdPageSize.size,
+      pageSize: rowsFor('port-pagination', _holdPageSize.size, totalItems),
       pageSizeOptions: _holdPageSize.options,
       itemLabel: 'holdings',
       onPageSizeChange: (size) => {

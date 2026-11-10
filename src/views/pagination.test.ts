@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderPagination } from './pagination';
+import { renderPagination, resetShowMore, rowsFor } from './pagination';
 
 describe('renderPagination', () => {
   let container: HTMLElement;
@@ -103,5 +103,36 @@ describe('renderPagination', () => {
       onPageSizeChange: vi.fn(),
     });
     expect(container.innerHTML).toBe('');
+  });
+
+  it('grows the list with "Show more" without saving the page size', () => {
+    const onPage = vi.fn();
+    const onSize = vi.fn();
+    const extras = {
+      totalItems: 40,
+      pageSize: 10,
+      pageSizeOptions: [10, 25, 50],
+      onPageSizeChange: onSize,
+    };
+    renderPagination('test-pagination', 1, 4, onPage, extras);
+    (container.querySelector('.js-page-more') as HTMLButtonElement).click();
+    expect(onSize).not.toHaveBeenCalled();
+    expect(onPage).toHaveBeenCalledWith(1);
+    expect(rowsFor('test-pagination', 10, 40)).toBe(20);
+    expect(rowsFor('test-pagination', 10, 35)).toBe(10);
+    expect(rowsFor('test-pagination', 10, 40)).toBe(10);
+  });
+
+  it('resetShowMore collapses grown lists', () => {
+    renderPagination('test-pagination', 1, 4, vi.fn(), {
+      totalItems: 40,
+      pageSize: 10,
+      pageSizeOptions: [10, 25, 50],
+      onPageSizeChange: vi.fn(),
+    });
+    (container.querySelector('.js-page-more') as HTMLButtonElement).click();
+    expect(resetShowMore()).toBe(true);
+    expect(rowsFor('test-pagination', 10, 40)).toBe(10);
+    expect(resetShowMore()).toBe(false);
   });
 });

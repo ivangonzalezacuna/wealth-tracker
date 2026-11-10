@@ -4,6 +4,7 @@ import { checkStorageQuota } from './storage';
 import { CONFIG } from './config';
 import { getACCTSList } from './constants';
 import { appTemplate } from './template';
+import { resetShowMore } from './views/pagination';
 import {
   signIn as gisSignIn,
   signOut,
@@ -581,6 +582,7 @@ function showSection(id: string, btn: Element | null) {
     history.replaceState(null, '', navHash(id, sectionSubview(id)));
     return;
   }
+  if (resetShowMore() && _activeSection) _dirty.add(_activeSection);
   document.querySelectorAll('.section').forEach((s) => s.classList.remove('active'));
   document.querySelectorAll('.nav button').forEach((b) => {
     b.classList.remove('active');

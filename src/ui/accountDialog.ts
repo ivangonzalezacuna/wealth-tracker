@@ -44,6 +44,7 @@ export interface AccountDialogOptions {
   /** Existing account labels excluding the record being edited. */
   existingLabels?: string[];
   onLifecycle?: (mode: AccountLifecycleOptions['mode']) => void;
+  onRemove?: () => void;
 }
 
 let _activeExisting: Account | undefined = undefined;
@@ -286,6 +287,7 @@ export function accountDialog(opts: AccountDialogOptions = {}): Promise<Account 
       submitSelector: '.js-acctd-submit',
       focusablesSelector: `${DIALOG_FOCUSABLES}, summary`,
       initialFocusSelector: '#acctd-label',
+      onRemove: existing ? opts.onRemove : undefined,
     });
     attachInfoTips(overlay);
     bindColorInputs(overlay, 'acctd-color', 'acctd-color-hex');

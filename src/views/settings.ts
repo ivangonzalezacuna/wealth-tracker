@@ -487,6 +487,18 @@ export function renderSettings(opts: { preserveDrafts?: boolean } = {}): void {
   attachCardCollapseListeners(el);
   if (!drafts.has('reports')) attachReportListeners(el);
   attachSettingsGroupNavListeners(el);
+  if (!el.dataset.rowTapBound) {
+    el.dataset.rowTapBound = '1';
+    // Phones hide the row icons, so tapping the row opens its editor.
+    el.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('button, a, input, select, label, textarea, summary')) return;
+      const edit = target
+        .closest('.settings-item')
+        ?.querySelector<HTMLElement>('.settings-row-actions [class*="js-edit-"]');
+      if (edit && !edit.offsetParent) edit.click();
+    });
+  }
   el.querySelectorAll('.form-msg, #backup-msg').forEach((message) => {
     message.setAttribute('role', 'status');
     message.setAttribute('aria-live', 'polite');
@@ -1144,6 +1156,7 @@ function attachAccountListeners(root: HTMLElement): void {
       },
       existingLabels: accounts.filter((_, i) => i !== idx).map((a) => a.label),
       ...accountDialogSuggestions(accounts),
+      onRemove: () => void toggleAccountRemoval(controller, idx),
     });
     if (!draft) return;
     draft.order = existing.order;
@@ -1437,6 +1450,7 @@ function attachHoldingListeners(root: HTMLElement): void {
         holds.filter((h) => h.isin !== existing.isin).map((h) => h.isin),
       ),
       existingIsins: holds.filter((h) => h.isin !== existing.isin).map((h) => h.isin),
+      onRemove: () => toggleHoldingRemoval(controller, idx),
     });
     if (!draft) return;
     controller.previewUpdate(idx, { ...draft, order: existing.order });
@@ -1872,6 +1886,7 @@ function attachGoalListeners(root: HTMLElement): void {
         const draft = await goalDialog({
           existing,
           existingLabels: goals.filter((_, i) => i !== idx).map((goal) => goal.label),
+          onRemove: () => toggleGoalRemoval(controller, idx),
         });
         if (!draft) return;
         controller.previewUpdate(idx, draft);

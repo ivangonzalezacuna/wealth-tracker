@@ -1596,6 +1596,11 @@ details[open] > summary .card-chevron {
 .tx-detail {
   grid-column: 1 / -1;
 }
+#tx-ledger-list .tx-row > :is(.tx-row-badge, .tx-row-title, .tx-row-sub),
+.tx-month-head,
+.tx-detail > .tx-detail-actions {
+  display: none;
+}
 
 /* CSV import preview: ledger rows plus an include checkbox and a status column */
 .import-preview-head {
@@ -4003,6 +4008,99 @@ summary.section-label {
     border-radius: 0 0 var(--radius-md) var(--radius-md);
     background: var(--surface);
   }
+
+  /* Native list rows: badge, title over "date · type · source", trailing amount. */
+  #tx-ledger-list .tx-row:not(.th) {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'badge name amount'
+      'badge sub amount';
+    align-items: center;
+    row-gap: 1px;
+    margin: 0;
+    padding: 8px 2px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: none;
+  }
+  #tx-ledger-list .tx-card-header {
+    display: contents;
+  }
+  #tx-ledger-list .tx-card-header > [role='cell']:not(.tx-actions-mobile),
+  #tx-ledger-list .tx-actions-mobile:not(:has(.js-tx-select)),
+  #tx-ledger-list .tx-row:has(.js-tx-select) > .tx-row-badge {
+    display: none;
+  }
+  #tx-ledger-list .tx-actions-mobile {
+    grid-area: badge;
+    justify-content: center;
+    margin: 0;
+  }
+  #tx-ledger-list .tx-row > .tx-row-badge {
+    grid-area: badge;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--brand-weak);
+    color: var(--brand);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  #tx-ledger-list .tx-row > .tx-row-badge.pos {
+    background: color-mix(in srgb, var(--pos) 14%, transparent);
+    color: var(--pos);
+  }
+  #tx-ledger-list .tx-row > .tx-row-title {
+    grid-area: name;
+    display: block;
+    overflow: hidden;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #tx-ledger-list .tx-row > .tx-row-sub {
+    grid-area: sub;
+    display: block;
+    padding: 0;
+    overflow: hidden;
+    color: var(--ink-3);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #tx-ledger-list .tx-row > .tx-row-sub::before {
+    display: none;
+  }
+  .tbl:has(> #tx-ledger-wrap) {
+    overflow: visible;
+  }
+  #tx-ledger-list .tx-month-head {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 1;
+    display: block;
+    padding: 10px 2px 4px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink-3);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  #tx-ledger-list .tx-detail {
+    margin: 0;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: var(--surface-2);
+  }
+  #tx-ledger-list .tx-detail > .tx-detail-actions {
+    display: flex;
+  }
 }
 
 /* Ensure color inputs don't overflow on mobile */
@@ -4363,6 +4461,26 @@ input[type='color'] {
   }
   .settings-list .settings-goal-row .settings-item-header > .settings-row-actions {
     grid-column: 2 / 3;
+  }
+  /* Tap-to-edit rows: the icons give way to a chevron; Remove lives in the dialog. */
+  .settings-list .settings-item-header > .settings-row-actions:has([class*='js-edit-']) {
+    display: none;
+  }
+  .settings-list .settings-item:has([class*='js-edit-']) {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .settings-list .settings-item:has([class*='js-edit-']) > .settings-item-header::after {
+    content: '';
+    grid-column: -2;
+    grid-row: 1 / span 2;
+    align-self: center;
+    width: 7px;
+    height: 7px;
+    margin: 0 4px 0 6px;
+    border-top: 1.5px solid var(--ink-4);
+    border-right: 1.5px solid var(--ink-4);
+    transform: rotate(45deg);
   }
 }
 .settings-items {
@@ -5270,6 +5388,9 @@ input[type='color'] {
   gap: 8px;
   margin-top: 1rem;
 }
+.dialog-actions > .dialog-remove {
+  margin-right: auto;
+}
 .dialog-field {
   display: flex;
   flex-direction: column;
@@ -5965,6 +6086,9 @@ button.sync-chip:focus-visible {
 .pagination:empty {
   display: none;
 }
+.page-more {
+  display: none;
+}
 .pagination-nav .btn {
   display: inline-flex;
   align-items: center;
@@ -6054,6 +6178,16 @@ html {
   .hold-inline-meta,
   .an-annual-months {
     font-size: 11px;
+  }
+  .pagination-more > :not(.page-more) {
+    display: none;
+  }
+  .pagination-more > .page-more {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
   }
   body.mobile-nav-hidden,
   body:has(.dialog-overlay),
