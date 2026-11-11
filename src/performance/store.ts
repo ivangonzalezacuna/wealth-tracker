@@ -59,18 +59,42 @@ export async function readRecords(): Promise<ProfileRecord[]> {
 
 export async function writeRecords(records: ProfileRecord[], now = Date.now()): Promise<void> {
   if (records.length === 0) return;
-  await pruneRecords(now);
   const database = await openDatabase();
   try {
     const transaction = database.transaction(RECORD_STORE, 'readwrite');
     const done = transactionDone(transaction);
     const store = transaction.objectStore(RECORD_STORE);
     for (const record of records) store.put(record);
+    pruneStore(store, now);
     await done;
   } finally {
     database.close();
   }
-  await pruneRecords(now);
+}
+
+function pruneStore(store: IDBObjectStore, now: number): void {
+  const timestamp = store.index('timestamp');
+  const expired = timestamp.openKeyCursor(IDBKeyRange.upperBound(now - PROFILE_RETENTION_MS, true));
+  expired.onsuccess = () => {
+    const cursor = expired.result;
+    if (cursor) {
+      store.delete(cursor.primaryKey);
+      cursor.continue();
+      return;
+    }
+    const count = store.count();
+    count.onsuccess = () => {
+      let overflow = count.result - PROFILE_MAX_RECORDS;
+      if (overflow <= 0) return;
+      const oldest = timestamp.openKeyCursor();
+      oldest.onsuccess = () => {
+        const cursor = oldest.result;
+        if (!cursor || overflow <= 0) return;
+        store.delete(cursor.primaryKey);
+        if (--overflow > 0) cursor.continue();
+      };
+    };
+  };
 }
 
 export async function pruneRecords(now = Date.now()): Promise<void> {
@@ -78,26 +102,7 @@ export async function pruneRecords(now = Date.now()): Promise<void> {
   try {
     const transaction = database.transaction(RECORD_STORE, 'readwrite');
     const done = transactionDone(transaction);
-    const store = transaction.objectStore(RECORD_STORE);
-    const timestamp = store.index('timestamp');
-    const cutoff = now - PROFILE_RETENTION_MS;
-    const liveCountRequest = timestamp.count(IDBKeyRange.lowerBound(cutoff));
-    liveCountRequest.onsuccess = () => {
-      let overflow = Math.max(0, liveCountRequest.result - PROFILE_MAX_RECORDS);
-      const cursorRequest = timestamp.openCursor();
-      cursorRequest.onsuccess = () => {
-        const cursor = cursorRequest.result;
-        if (!cursor) return;
-        const record = cursor.value as ProfileRecord;
-        if (record.timestamp < cutoff) {
-          cursor.delete();
-        } else if (overflow > 0) {
-          cursor.delete();
-          overflow--;
-        }
-        cursor.continue();
-      };
-    };
+    pruneStore(transaction.objectStore(RECORD_STORE), now);
     await done;
   } finally {
     database.close();
