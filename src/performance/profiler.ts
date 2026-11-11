@@ -201,6 +201,28 @@ function record(category: ProfileCategory, name: string, input: ProfileRecordInp
   else scheduleFlush();
 }
 
+function recordFirstRender(startedAt: number, input: ProfileRecordInput): void {
+  const completedAt = performance.now();
+  let wasHidden = document.visibilityState === 'hidden';
+  const visibilityChanged = () => {
+    if (document.visibilityState === 'hidden') wasHidden = true;
+  };
+  const context = sanitizeProfileInput(input);
+  record('app', 'first-render-complete', {
+    ...context,
+    durationMs: completedAt - startedAt,
+  });
+  document.addEventListener('visibilitychange', visibilityChanged);
+  requestAnimationFrame(() => {
+    document.removeEventListener('visibilitychange', visibilityChanged);
+    const hidden = wasHidden || document.visibilityState === 'hidden';
+    record('app', hidden ? 'first-frame-delay-hidden' : 'first-frame-delay-visible', {
+      ...context,
+      durationMs: performance.now() - completedAt,
+    });
+  });
+}
+
 async function flush(): Promise<void> {
   if (_flushInProgress) return _flushInProgress;
   if (_flushTimer !== undefined) {
@@ -351,8 +373,17 @@ function initializeObservers(): void {
     }
   });
   window.addEventListener('pagehide', () => void flush());
-  window.addEventListener('error', () => {
-    record('error', 'javascript-error', { outcome: 'error' });
+  window.addEventListener('error', (event) => {
+    const resizeLoop =
+      event.message === 'ResizeObserver loop completed with undelivered notifications.' ||
+      event.message === 'ResizeObserver loop limit exceeded';
+    record(
+      resizeLoop ? 'browser' : 'error',
+      resizeLoop ? 'resize-observer-loop' : 'javascript-error',
+      {
+        outcome: 'error',
+      },
+    );
   });
   window.addEventListener('unhandledrejection', () => {
     record('error', 'unhandled-rejection', { outcome: 'error' });
@@ -372,6 +403,7 @@ export function initProfiler(): void {
   _initialized = true;
   globalThis.__wtProfiler = {
     record,
+    recordFirstRender,
     flush,
     getStatus: () => ({
       enabled: true,

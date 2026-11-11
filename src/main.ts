@@ -2346,11 +2346,9 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
       });
       if (rendered && id === _activeSection && !_usableUiRecorded) {
         _usableUiRecorded = true;
-        requestAnimationFrame(() => {
-          globalThis.__wtProfiler?.record('app', 'first-usable-render', {
-            durationMs: performance.now() - APP_MODULE_START,
-            cacheState: state.cacheLoaded ? 'cached' : 'uncached',
-          });
+        globalThis.__wtProfiler?.recordFirstRender(APP_MODULE_START, {
+          route: id,
+          cacheState: state.cacheLoaded ? 'cached' : 'uncached',
         });
       }
     }
