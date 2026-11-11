@@ -14,12 +14,17 @@ export function txKey(t: Transaction): string {
 
 /** Load all transactions, sorted by date ascending. */
 export async function loadTransactions(): Promise<Transaction[]> {
+  const startedAt = performance.now();
   const db = await getDb();
   const result = db.exec(
     'SELECT rowid, id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category FROM transactions ORDER BY date ASC, rowid ASC',
   );
-  if (result.length === 0) return [];
-  return result[0].values.map(rowToTransaction);
+  const transactions = result.length === 0 ? [] : result[0].values.map(rowToTransaction);
+  globalThis.__wtProfiler?.record('database', 'transactions-load', {
+    durationMs: performance.now() - startedAt,
+    recordCount: transactions.length,
+  });
+  return transactions;
 }
 
 /** Insert one transaction row. */
@@ -117,46 +122,60 @@ export async function mergeTransactions(
   existing: Transaction[],
   incoming: Transaction[],
 ): Promise<Transaction[]> {
-  const newTxs = selectNewTransactions(existing, incoming);
+  const startedAt = performance.now();
+  let newCount = 0;
+  let outcome: 'success' | 'error' = 'success';
+  try {
+    const newTxs = selectNewTransactions(existing, incoming);
+    newCount = newTxs.length;
 
-  if (newTxs.length > 0) {
-    const db = await getDb();
-    const stmt = db.prepare(
-      'INSERT OR IGNORE INTO transactions (id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    );
-    try {
-      db.run('BEGIN');
-      for (const t of newTxs) {
-        stmt.run([
-          t.id,
-          t.date,
-          t.source || '',
-          t.type,
-          t.name || '',
-          t.isin || '',
-          t.shares,
-          t.price,
-          t.amount,
-          t.fee || 0,
-          t.tax || 0,
-          t.currency || 'EUR',
-          t.fxRate || 0,
-          t.note || '',
-          t.category || '',
-        ]);
+    if (newTxs.length > 0) {
+      const db = await getDb();
+      const stmt = db.prepare(
+        'INSERT OR IGNORE INTO transactions (id, date, source, type, name, isin, shares, price, amount, fee, tax, currency, fx_rate, note, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      );
+      try {
+        db.run('BEGIN');
+        for (const t of newTxs) {
+          stmt.run([
+            t.id,
+            t.date,
+            t.source || '',
+            t.type,
+            t.name || '',
+            t.isin || '',
+            t.shares,
+            t.price,
+            t.amount,
+            t.fee || 0,
+            t.tax || 0,
+            t.currency || 'EUR',
+            t.fxRate || 0,
+            t.note || '',
+            t.category || '',
+          ]);
+        }
+        db.run('COMMIT');
+      } catch (err) {
+        db.run('ROLLBACK');
+        throw err;
+      } finally {
+        stmt.free();
       }
-      db.run('COMMIT');
-    } catch (err) {
-      db.run('ROLLBACK');
-      throw err;
-    } finally {
-      stmt.free();
+      await persistDb();
     }
-    await persistDb();
-  }
 
-  const merged = [...existing, ...newTxs].sort((a, b) => a.date.localeCompare(b.date));
-  return merged;
+    return [...existing, ...newTxs].sort((a, b) => a.date.localeCompare(b.date));
+  } catch (error) {
+    outcome = 'error';
+    throw error;
+  } finally {
+    globalThis.__wtProfiler?.record('database', 'transactions-merge', {
+      durationMs: performance.now() - startedAt,
+      recordCount: newCount,
+      outcome,
+    });
+  }
 }
 
 /** A stored row and its re-imported version share a txKey but differ in a data field. */
