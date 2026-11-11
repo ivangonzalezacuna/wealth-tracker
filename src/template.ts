@@ -45,13 +45,17 @@ export function appTemplate(): string {
   <button id="tab-log" class="log-btn" data-section="log" role="tab" aria-selected="false" aria-controls="log" aria-label="Log data (add snapshot or import CSV)">${navIcon('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/>')}<span>Log data</span></button>
 </nav>
 
-${diagnosticsEnabled ? `<section id="diagnostics" class="section" aria-labelledby="diagnostics-title">
+${
+  diagnosticsEnabled
+    ? `<section id="diagnostics" class="section" aria-labelledby="diagnostics-title">
   <div class="card">
     <h2 class="card-title" id="diagnostics-title">Performance diagnostics</h2>
     <p class="note">Measurements are stored on this device only. Exported reports contain aggregated, sanitized data.</p>
     <div id="performance-diagnostics-content" aria-live="polite"></div>
   </div>
-</section>` : ''}
+</section>`
+    : ''
+}
 
 <div id="setup-banner" style="display:none"></div>
 

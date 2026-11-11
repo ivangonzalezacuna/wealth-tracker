@@ -100,10 +100,14 @@ async function checkedFetch(input: RequestInfo, init?: RequestInit): Promise<Res
     throw error;
   } finally {
     const method = (init?.method ?? 'GET').toUpperCase();
-    globalThis.__wtProfiler?.record('drive', method === 'POST' || method === 'PATCH' ? 'network-write' : 'network-read', {
-      durationMs: performance.now() - startedAt,
-      outcome,
-    });
+    globalThis.__wtProfiler?.record(
+      'drive',
+      method === 'POST' || method === 'PATCH' ? 'network-write' : 'network-read',
+      {
+        durationMs: performance.now() - startedAt,
+        outcome,
+      },
+    );
   }
 }
 
