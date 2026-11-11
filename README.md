@@ -59,12 +59,12 @@ The app only requests the `drive.appdata` scope, which gives access to a hidden 
 
 All configuration lives in `.env.local` (git-ignored). See `.env.example` for the full reference:
 
-| Variable                | Purpose                                                 |
-| ----------------------- | ------------------------------------------------------- |
-| `VITE_GOOGLE_CLIENT_ID` | Your OAuth Client ID from Google Cloud Console          |
-| `VITE_APP_ENV`          | `DEVELOPMENT` or `PRODUCTION` (controls the dev banner) |
+| Variable                | Purpose                                                                   |
+| ----------------------- | ------------------------------------------------------------------------- |
+| `VITE_GOOGLE_CLIENT_ID` | Your OAuth Client ID from Google Cloud Console                            |
+| `VITE_APP_ENV`          | `DEVELOPMENT` or `PRODUCTION` (controls the dev banner)                   |
 | `VITE_ENABLE_PROFILING` | Set to `true` to enable local performance profiling; defaults to disabled |
-| `VITE_BUILD_ID`         | Optional release/commit ID for comparing profiler data across builds |
+| `VITE_BUILD_ID`         | Optional release/commit ID for comparing profiler data across builds      |
 
 The temporary performance profiler is disabled by default. See
 [docs/performance-profiler.md](./docs/performance-profiler.md) for setup, local data handling,
