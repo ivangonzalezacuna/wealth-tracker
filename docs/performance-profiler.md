@@ -38,6 +38,8 @@ These are real-user browser observations, not controlled benchmarks. Results dep
 
 Records are stored in the browser's separate IndexedDB database, `wealth-tracker-profiler`. They persist across app releases in that browser profile, but are not part of the application SQLite database, backup, or Drive sync. Retention is capped at 90 days and 10,000 records, whichever limit is reached first. Pruning occurs as records are written.
 
+Each batch is inserted and pruned in one read-write transaction. Pruning visits expired timestamp-index keys, counts the remaining records, and deletes only the oldest overflow when the cap is exceeded. It does not walk every retained record on each batch, and concurrent batches cannot leave the store over the cap. A record exactly 90 days old is retained until it passes that boundary.
+
 The profiler stores aggregated measurements and allowlisted metadata, not transaction, account, or snapshot contents. It does not retain full URLs, query strings, DOM selectors, error messages, or stack traces. Resource attribution is reduced to safe metadata such as resource type, and browser error records count events without storing their message. Exported JSON contains the filtered report, release/run summaries, comparisons, and recommendations, not the underlying raw records. Export size is limited to 3 MiB.
 
 The profiler is opt-in, but its measurements can still reveal operational characteristics of the app and environment. Review the exported JSON before sharing it. Do not treat it as anonymous telemetry or include it in a public issue without checking its contents.
@@ -58,3 +60,14 @@ To remove the profiler implementation from the project, remove the performance m
 - A run is a page session, not a unique user. Runs from separate tabs or browser profiles are independent.
 - Percentiles are descriptive summaries, especially for small or uneven samples. Compare similar devices, browsers, and workloads where possible.
 - The diagnostics report is capped at 3 MiB. Narrow the date range or filters if an export exceeds the limit.
+
+## Retention pruning comparison
+
+The bounded implementation was compared with the original profiler storage at `512b841` in isolated local Chrome IndexedDB databases. Medians use nine operations per case against the actual implementations, with no expired records. At the cap, writes include overflow deletion. These synthetic measurements are device-specific, not field performance guarantees.
+
+| Median measurement                                   | Original pruning | Bounded pruning |
+| ---------------------------------------------------- | ---------------: | --------------: |
+| Prune, 2,000 records                                 |          44.0 ms |          1.3 ms |
+| Prune, 10,000 records                                |         178.4 ms |          1.5 ms |
+| Write a 25-record batch, approximately 2,000 records |          89.6 ms |          4.2 ms |
+| Write a 25-record batch at the 10,000-record cap     |         374.6 ms |         14.2 ms |
