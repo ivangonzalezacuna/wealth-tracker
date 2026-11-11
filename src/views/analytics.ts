@@ -573,6 +573,7 @@ function _renderContribChart(points: MonthlyGrowthPoint[]): void {
     {
       zoom: true,
       xAxisType: 'category',
+      deferUntilVisible: true,
     },
   );
 }
@@ -790,7 +791,7 @@ function _renderHeatmap(
         ],
       };
     },
-    { toolbox: false },
+    { toolbox: false, deferUntilVisible: true },
   );
   return years;
 }
@@ -1208,7 +1209,7 @@ function _renderAllocDonut(key: 'acct' | 'hold', slices: AllocSlice[], seriesNam
         ],
       };
     },
-    { valueFormatter: fmtEur2 },
+    { valueFormatter: fmtEur2, deferUntilVisible: true },
   );
 }
 
@@ -1272,6 +1273,7 @@ function _renderDrawdownChart(series: { date: string; drawdown: number }[]): voi
       xAxisType: 'time',
       valueFormatter: pct,
       group: TIMELINE_GROUP,
+      deferUntilVisible: true,
     },
   );
 }
@@ -1345,6 +1347,7 @@ function _renderRollingCagrChart(
       xAxisType: 'time',
       valueFormatter: pct,
       group: TIMELINE_GROUP,
+      deferUntilVisible: true,
     },
   );
 }
@@ -1464,6 +1467,7 @@ function _renderIncomeChart(monthlyBreakdown: { month: string; amount: number }[
     {
       zoom: n > 12,
       xAxisType: 'category',
+      deferUntilVisible: true,
       // Opens on the last year; zoom out (slider / pinch) for the full history.
       window: n > 12 ? { startValue: n - 12, endValue: n - 1 } : undefined,
       drill: {

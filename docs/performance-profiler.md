@@ -71,3 +71,23 @@ The bounded implementation was compared with the original profiler storage at `5
 | Prune, 10,000 records                                |         178.4 ms |          1.5 ms |
 | Write a 25-record batch, approximately 2,000 records |          89.6 ms |          4.2 ms |
 | Write a 25-record batch at the 10,000-record cap     |         374.6 ms |         14.2 ms |
+
+## Rendering quick wins and comparison
+
+ECharts is already code-split and warmed during idle time. Secondary Analytics charts now defer their first initialization until they approach the viewport (200 px margin) or receive keyboard focus. The lead net-worth growth chart remains eager. Existing charts continue updating immediately; theme, resize, legend, drill-down, data-table and linked-zoom behavior remain in the shared registry. A newly initialized timeline chart inherits an earlier linked zoom. Without `IntersectionObserver`, initialization falls back to the existing eager path.
+
+Chart wrappers reserve their plot and slider space while deferred. Pending hosts retain their accessible labels, expose `aria-busy`, and temporarily accept keyboard focus so keyboard users can initialize them too. Disposing or replacing a host cancels its request. Chunk-load failures show a message and are logged; reload the page to retry. Data calculations, storage, backup formats, Drive discovery/conflict behavior and the five-second upload debounce are unchanged.
+
+### Local synthetic comparison
+
+Compare production builds on the same browser and device. The local website comparison used isolated Chrome contexts, blocked service workers, mocked Google/Drive traffic, no real financial data, and a synthetic backup with 60 monthly snapshots, 180 transactions, two accounts and two holdings. It alternated the original build (`512b841`) and chart-deferral candidate across five contexts per build with profiling disabled. Disabling profiling isolates the website improvement from the profiler retention optimization above.
+
+The measured interaction was the first Analytics visit after restoring the backup and visiting Net Worth and Portfolio. Lead-chart readiness was measured from the tab click to two animation frames after its canvas appeared, not a fixed sleep or the earlier route-render marker. Every run also scrolled/expanded all secondary charts, navigated away and back, reloaded, and exported a backup to verify every synthetic snapshot value and transaction survived.
+
+| Median measurement                        | Parent | Quick wins |
+| ----------------------------------------- | -----: | ---------: |
+| Analytics lead chart ready, profiling off | 314 ms |     105 ms |
+
+In the initial Analytics viewport, two charts initialized instead of eight; the remaining six rendered when approached or expanded. The same functional and backup-integrity scenarios also passed with profiling enabled. For instrumented release comparisons, use distinct `VITE_BUILD_ID` values for the builds being compared.
+
+These are small, local synthetic samples, not field INP, cold-start measurements, or a promise for every device. Deferral moves secondary-chart work to scrolling/expansion rather than eliminating it. Route markers can finish before deferred rendering and must not be used alone to claim a faster fully rendered view. Drive lookup reuse was deliberately deferred rather than changing canonical-file selection or conflict semantics in this small optimization.

@@ -169,6 +169,60 @@ test('analytics timeline charts share their zoom window', async ({ page }) => {
   expect((await zoomWindow(page, 'c-an-drawdown'))?.startValue).toBe(growth.startValue);
 });
 
+test('secondary analytics charts initialize on demand and inherit earlier zoom', async ({
+  page,
+}) => {
+  await openTab(page, 'tab-analytics');
+  await showChart(page, 'c-an-growth');
+  await expect(page.locator('#c-an-drawdown')).toHaveAttribute('aria-busy', 'true');
+  await expect(page.locator('#c-an-drawdown canvas')).toHaveCount(0);
+  await wheelZoom(page, 'c-an-growth');
+  await expect
+    .poll(async () => (await zoomWindow(page, 'c-an-growth'))?.startValue)
+    .toBeGreaterThan(monthStart('2023-01'));
+  const growth = (await zoomWindow(page, 'c-an-growth'))!;
+  await page.locator('#an-advanced > summary').click();
+  await showChart(page, 'c-an-drawdown');
+  await expect(page.locator('#c-an-drawdown')).not.toHaveAttribute('aria-busy', 'true');
+  await expect
+    .poll(async () => (await zoomWindow(page, 'c-an-drawdown'))?.startValue)
+    .toBe(growth.startValue);
+  expect((await zoomWindow(page, 'c-an-drawdown'))?.endValue).toBe(growth.endValue);
+  await clickToolbox(page, 'c-an-drawdown', 'Data table');
+  await expect(page.locator('#c-an-drawdown .chart-dataview-table')).toContainText('Feb 2023');
+  await page.keyboard.press('Escape');
+  await openTab(page, 'tab-networth');
+  await openTab(page, 'tab-analytics');
+  await showChart(page, 'c-an-drawdown');
+  await page.setViewportSize({ width: 900, height: 700 });
+  await expect(page.locator('#c-an-drawdown canvas')).toBeVisible();
+});
+
+test('deferred charts support keyboard focus and the current phone theme', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openTab(page, 'tab-analytics');
+  await expect(page.locator('#c-an-drawdown')).toHaveAttribute('aria-busy', 'true');
+  await page.locator('#btn-header-menu').click();
+  await page.locator('[data-theme-choice="dark"]').click();
+  await page.evaluate(() => {
+    document.querySelector<HTMLDetailsElement>('#an-advanced')!.open = true;
+    document.getElementById('c-an-drawdown')!.focus();
+  });
+  await expect(page.locator('#c-an-drawdown')).toBeFocused();
+  await expect(page.locator('#c-an-drawdown canvas')).toBeVisible();
+  const colors = await page.evaluate(async () => {
+    const { getChart } = await import('/src/views/charts/index.ts');
+    const option = getChart('c-an-drawdown')!.getOption() as {
+      series: Array<{ lineStyle: { color: string } }>;
+    };
+    return {
+      actual: option.series[0].lineStyle.color,
+      expected: getComputedStyle(document.documentElement).getPropertyValue('--neg').trim(),
+    };
+  });
+  expect(colors.actual).toBe(colors.expected);
+});
+
 test('clicking a history point opens that snapshot in the log', async ({ page }) => {
   await openTab(page, 'tab-networth');
   const pt = await pointAt(page, 'c-nw-hist', -2);

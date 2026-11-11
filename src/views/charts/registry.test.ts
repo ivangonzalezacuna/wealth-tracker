@@ -13,6 +13,7 @@ import {
   getChart,
   refreshChartsTheme,
   renderChart,
+  type ChartCtx,
 } from './registry';
 import type { ChartOption } from './core';
 import { addMonths, fmtEurCompact, fmtPctAxis, monthToTime, timeToMonth } from './format';
@@ -42,6 +43,146 @@ beforeEach(async () => {
 afterEach(() => {
   _resetChartsForTests();
   resetMockCharts();
+  vi.unstubAllGlobals();
+  document.documentElement.style.removeProperty('--brand-chart');
+});
+
+describe('deferred chart initialization', () => {
+  const observers: TestObserver[] = [];
+  class TestObserver implements IntersectionObserver {
+    readonly root = null;
+    readonly rootMargin = '200px 0px';
+    readonly scrollMargin = '0px';
+    readonly thresholds = [0];
+    observe = vi.fn();
+    unobserve = vi.fn();
+    disconnect = vi.fn();
+    takeRecords = () => [];
+    constructor(private callback: IntersectionObserverCallback) {
+      observers.push(this);
+    }
+    intersect(target: Element, isIntersecting: boolean): void {
+      const rect = target.getBoundingClientRect();
+      this.callback(
+        [
+          {
+            target,
+            isIntersecting,
+            time: 0,
+            boundingClientRect: rect,
+            intersectionRect: rect,
+            rootBounds: null,
+            intersectionRatio: isIntersecting ? 1 : 0,
+          },
+        ],
+        this,
+      );
+    }
+  }
+
+  beforeEach(() => {
+    observers.length = 0;
+    vi.stubGlobal('IntersectionObserver', TestObserver);
+  });
+
+  it('initializes near the viewport using the latest data and current theme', () => {
+    const first = vi.fn(line);
+    const latest = vi.fn(({ tokens }: ChartCtx) => ({ ...line(), color: [tokens.brand] }));
+    const host = document.getElementById('c-test')!;
+    expect(renderChart('c-test', first, { deferUntilVisible: true })).toBeNull();
+    renderChart('c-test', latest, { deferUntilVisible: true });
+    document.documentElement.style.setProperty('--brand-chart', '#123456');
+    refreshChartsTheme();
+    expect(observers).toHaveLength(1);
+    expect(first).not.toHaveBeenCalled();
+    expect(latest).not.toHaveBeenCalled();
+    expect(host.getAttribute('aria-busy')).toBe('true');
+    observers[0].intersect(host, false);
+    expect(getChart('c-test')).toBeNull();
+    observers[0].intersect(host, true);
+    expect(latest).toHaveBeenCalledOnce();
+    expect(latest.mock.calls[0][0].tokens.brand).toBe('#123456');
+    expect(first).not.toHaveBeenCalled();
+    expect(host.hasAttribute('aria-busy')).toBe(false);
+    expect(observers[0].disconnect).toHaveBeenCalledOnce();
+    expect(getChart('c-test')).not.toBeNull();
+    renderChart('c-test', latest, { deferUntilVisible: true });
+    expect(latest).toHaveBeenCalledTimes(2);
+    expect(observers).toHaveLength(1);
+  });
+
+  it('cancels disposed requests and ignores callbacks for replaced hosts', () => {
+    const build = vi.fn(line);
+    const host = document.getElementById('c-test')!;
+    renderChart('c-test', build, { deferUntilVisible: true });
+    disposeChart('c-test');
+    observers[0].intersect(host, true);
+    expect(build).not.toHaveBeenCalled();
+    renderChart('c-test', build, { deferUntilVisible: true });
+    host.outerHTML = '<div id="c-test"></div>';
+    observers[1].intersect(host, true);
+    expect(build).not.toHaveBeenCalled();
+    expect(observers[1].disconnect).toHaveBeenCalledOnce();
+  });
+
+  it('renders immediately when visibility observation is unavailable', () => {
+    vi.stubGlobal('IntersectionObserver', undefined);
+    renderChart('c-test', line, { deferUntilVisible: true });
+    expect(getChart('c-test')).not.toBeNull();
+  });
+
+  it('initializes on keyboard focus and removes only its own temporary tab stop', () => {
+    const host = document.getElementById('c-test')!;
+    renderChart('c-test', line, { deferUntilVisible: true });
+    expect(host.tabIndex).toBe(0);
+    host.focus();
+    expect(getChart('c-test')).not.toBeNull();
+    expect(host.tabIndex).toBe(-1);
+    expect(document.activeElement).toBe(host);
+    host.blur();
+    expect(host.hasAttribute('tabindex')).toBe(false);
+    disposeChart('c-test');
+    host.tabIndex = 0;
+    renderChart('c-test', line, { deferUntilVisible: true });
+    disposeChart('c-test');
+    expect(host.tabIndex).toBe(0);
+  });
+
+  it('reserves the touch slider space before initialization', () => {
+    document.body.innerHTML = '<div class="chart-wrap"><div id="c-test"></div></div>';
+    vi.mocked(window.matchMedia).mockReturnValue({ matches: true } as MediaQueryList);
+    renderChart('c-test', line, { deferUntilVisible: true, zoom: true });
+    expect(document.querySelector('.chart-wrap')?.className).toContain('chart-zoomable');
+    expect(document.querySelector('.chart-wrap')?.className).toContain('chart-touch');
+  });
+
+  it('does not initialize a host hidden before a queued intersection callback', () => {
+    const host = document.getElementById('c-test')!;
+    host.checkVisibility = vi.fn(() => false);
+    renderChart('c-test', line, { deferUntilVisible: true });
+    observers[0].intersect(host, true);
+    expect(getChart('c-test')).toBeNull();
+    host.checkVisibility = vi.fn(() => true);
+    observers[0].intersect(host, true);
+    expect(getChart('c-test')).not.toBeNull();
+  });
+
+  it('inherits a linked zoom applied before the deferred chart existed', () => {
+    document.body.insertAdjacentHTML('beforeend', '<div id="c-peer"></div>');
+    const opts = { zoom: true, group: 'deferred-test' };
+    const start = monthToTime('2026-01');
+    renderChart('c-peer', line, opts);
+    renderChart('c-test', line, { ...opts, deferUntilVisible: true });
+    const peer = chartFor('c-peer')!;
+    peer.option = { ...peer.option, dataZoom: [{ startValue: start, endValue: start }] };
+    peer.trigger('datazoom', {});
+    observers[0].intersect(document.getElementById('c-test')!, true);
+    expect(chartFor('c-test')!.actions.at(-1)).toEqual({
+      type: 'dataZoom',
+      startValue: start,
+      endValue: start,
+    });
+  });
 });
 
 describe('chart formatters', () => {

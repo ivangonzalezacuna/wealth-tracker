@@ -26,6 +26,8 @@ export interface ChartCtx {
 }
 
 export interface RenderChartOpts {
+  /** Initialize secondary charts only when they approach the viewport. Live charts still update immediately. */
+  deferUntilVisible?: boolean;
   /** Initial zoom window, also restored by "Reset view"; omit to show the whole axis. */
   window?: ZoomWindow;
   /** Add inside + slider dataZoom on the first x axis (zoom / pan / range slider). */
@@ -79,6 +81,111 @@ let ec: EChartsNs | null = null;
 let loading: Promise<void> | null = null;
 /** Charts requested before the ECharts chunk finished loading (latest request per host id wins). */
 const pending = new Map<string, { build: (ctx: ChartCtx) => ChartOption; opts: RenderChartOpts }>();
+const deferred = new Map<
+  string,
+  {
+    host: HTMLElement;
+    build: (ctx: ChartCtx) => ChartOption;
+    opts: RenderChartOpts;
+    observer: IntersectionObserver;
+    visible: boolean;
+    focus: () => void;
+    addedTabIndex: boolean;
+  }
+>();
+
+function cancelDeferred(id: string): void {
+  const request = deferred.get(id);
+  if (!request) return;
+  request.observer.disconnect();
+  request.host.removeEventListener('focus', request.focus);
+  if (request.addedTabIndex) {
+    if (document.activeElement === request.host) {
+      request.host.tabIndex = -1;
+      request.host.addEventListener('blur', () => request.host.removeAttribute('tabindex'), {
+        once: true,
+      });
+    } else {
+      request.host.removeAttribute('tabindex');
+    }
+  }
+  request.host.removeAttribute('aria-busy');
+  deferred.delete(id);
+}
+
+function deferChart(
+  id: string,
+  host: HTMLElement,
+  build: (ctx: ChartCtx) => ChartOption,
+  opts: RenderChartOpts,
+): void {
+  reserveChartSpace(host, opts, mq('(pointer: coarse)'));
+  const previous = deferred.get(id);
+  if (previous?.host === host) {
+    previous.build = build;
+    previous.opts = opts;
+    return;
+  }
+  cancelDeferred(id);
+  const activate = () => {
+    const request = deferred.get(id);
+    if (!request || request.observer !== observer || !request.visible) return;
+    if (!host.isConnected || document.getElementById(id) !== host) {
+      cancelDeferred(id);
+      return;
+    }
+    if (typeof host.checkVisibility === 'function' && !host.checkVisibility()) {
+      request.visible = false;
+      return;
+    }
+    if (!ec) {
+      void loadCharts().then(activate, (error: unknown) => {
+        if (deferred.get(id)?.observer !== observer) return;
+        cancelDeferred(id);
+        host.textContent = 'Chart could not be loaded. Reload the page to retry.';
+        console.error('[charts] Deferred chart initialization failed:', error);
+      });
+      return;
+    }
+    cancelDeferred(id);
+    renderChart(id, request.build, { ...request.opts, deferUntilVisible: false });
+    const entry = registry.get(id);
+    const peer = entry?.opts.zoom
+      ? groupPeers(entry).find((candidate) => candidate.zoomed)
+      : undefined;
+    const window = peer && zoomWindow(peer);
+    if (entry && window) {
+      withSync(() => {
+        entry.zoomed = true;
+        entry.chart.dispatchAction({ type: 'dataZoom', ...clampWindow(entry, window) });
+        notifyZoom(entry);
+      });
+    }
+  };
+  const observer = new IntersectionObserver(
+    (entries) => {
+      const request = deferred.get(id);
+      if (!request || request.observer !== observer) return;
+      for (const entry of entries) {
+        if (entry.target === host) request.visible = entry.isIntersecting;
+      }
+      activate();
+    },
+    { rootMargin: '200px 0px' },
+  );
+  const focus = () => {
+    const request = deferred.get(id);
+    if (!request || request.observer !== observer) return;
+    request.visible = true;
+    activate();
+  };
+  const addedTabIndex = !host.hasAttribute('tabindex');
+  if (addedTabIndex) host.tabIndex = 0;
+  host.addEventListener('focus', focus);
+  deferred.set(id, { host, build, opts, observer, visible: false, focus, addedTabIndex });
+  host.setAttribute('aria-busy', 'true');
+  observer.observe(host);
+}
 
 /** Load the ECharts chunk once (code-split from the app bundle). */
 export function loadCharts(): Promise<void> {
@@ -408,15 +515,19 @@ function render(entry: Entry, keepState: boolean): void {
     const sel = (option.legend as { selected?: Record<string, boolean> } | undefined)?.selected;
     syncLegend(entry.legend, sel ?? {});
   }
-  const wrap = entry.host.closest('.chart-wrap');
+  reserveChartSpace(entry.host, entry.opts, entry.ctx.touch);
+  entry.chart.setOption(option, { notMerge: true });
+}
+
+function reserveChartSpace(host: HTMLElement, opts: RenderChartOpts, touch: boolean): void {
+  const wrap = host.closest('.chart-wrap');
   if (wrap) {
     // Wrapper padding reserves room for the slider / header around the fixed plot height.
-    const slider = Boolean(entry.opts.zoom) && entry.opts.slider !== false;
+    const slider = Boolean(opts.zoom) && opts.slider !== false;
     wrap.classList.toggle('chart-zoomable', slider);
-    wrap.classList.toggle('chart-touch', slider && entry.ctx.touch);
-    wrap.classList.toggle('chart-tools', !slider && entry.opts.toolbox !== false);
+    wrap.classList.toggle('chart-touch', slider && touch);
+    wrap.classList.toggle('chart-tools', !slider && opts.toolbox !== false);
   }
-  entry.chart.setOption(option, { notMerge: true });
 }
 
 // ── Group sync ───────────────────────────────────────────
@@ -732,6 +843,12 @@ export function renderChart(
     entry = undefined;
   }
   if (!host.dataset.chartLabel) host.dataset.chartLabel = host.getAttribute('aria-label') ?? '';
+  if (!entry && opts.deferUntilVisible && typeof IntersectionObserver !== 'undefined') {
+    pending.delete(id);
+    deferChart(id, host, build, opts);
+    return null;
+  }
+  cancelDeferred(id);
   if (!ec) {
     pending.set(id, { build, opts });
     void loadCharts();
@@ -774,6 +891,7 @@ export function getChart(id: string): ChartInstance | null {
 }
 
 export function disposeChart(id: string): void {
+  cancelDeferred(id);
   pending.delete(id);
   const entry = registry.get(id);
   if (!entry) return;
@@ -821,5 +939,7 @@ ensureGlobalListeners();
 
 /** Test helper. */
 export function _resetChartsForTests(): void {
+  for (const id of [...deferred.keys()]) cancelDeferred(id);
+  pending.clear();
   for (const id of [...registry.keys()]) disposeChart(id);
 }

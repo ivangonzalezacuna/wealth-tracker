@@ -98,6 +98,7 @@ test('account allocation donut shows correct labels when switching to By country
   await expect(page.locator('#an-content')).toBeVisible();
 
   // Default "By account" shows account names
+  await page.locator('#c-an-alloc-acct').scrollIntoViewIfNeeded();
   await expect(page.locator('#c-an-alloc-acct')).toHaveAttribute('aria-label', /German Account/);
 
   // Switch to "By country" — chart data should show country names instead
