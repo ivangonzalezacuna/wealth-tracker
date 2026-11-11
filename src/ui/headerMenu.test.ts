@@ -5,19 +5,20 @@ import { whenOverlayHistorySettled } from './overlayHistory';
 import type { UserThemePref } from '../theme';
 
 const closeMenus: (() => void)[] = [];
-function setup(theme: UserThemePref = 'system') {
-  document.body.innerHTML = `<header>${headerMenuMarkup()}</header><main id="out">x</main>`;
+function setup(theme: UserThemePref = 'system', diagnosticsEnabled = false) {
+  document.body.innerHTML = `<header>${headerMenuMarkup(diagnosticsEnabled)}</header><main id="out">x</main>`;
   let current = theme;
   const onTheme = vi.fn((t: UserThemePref) => (current = t));
   const onSignOut = vi.fn();
-  const menu = initHeaderMenu({ getTheme: () => current, onTheme, onSignOut })!;
+  const onDiagnostics = vi.fn();
+  const menu = initHeaderMenu({ getTheme: () => current, onTheme, onSignOut, onDiagnostics })!;
   closeMenus.push(menu.close);
   const btn = document.getElementById('btn-header-menu') as HTMLButtonElement;
   const list = document.getElementById('header-menu')!;
   const choice = (t: string) => list.querySelector<HTMLElement>(`[data-theme-choice="${t}"]`)!;
   const key = (target: HTMLElement, k: string) =>
     target.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
-  return { menu, btn, list, choice, onTheme, onSignOut, key };
+  return { menu, btn, list, choice, onTheme, onSignOut, onDiagnostics, key };
 }
 
 describe('header menu', () => {
@@ -74,6 +75,16 @@ describe('header menu', () => {
     expect(note.textContent).toBe('Signed in as me@example.com');
     menu.setAccount(null);
     expect(note.textContent).toBe('Signed in with Google');
+  });
+
+  it('only shows and opens diagnostics when the build enables profiling', () => {
+    setup();
+    expect(document.getElementById('btn-performance-diagnostics')).toBeNull();
+    const { btn, list, onDiagnostics } = setup('system', true);
+    btn.click();
+    document.getElementById('btn-performance-diagnostics')!.click();
+    expect(onDiagnostics).toHaveBeenCalledTimes(1);
+    expect(list.hidden).toBe(true);
   });
 
   it('arrow keys move between items, Escape closes and refocuses the button', () => {
