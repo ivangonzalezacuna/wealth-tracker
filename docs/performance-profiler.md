@@ -30,6 +30,10 @@ The profiler records measurements in these categories:
 - **Drive and sync:** request timing, outcome, retries, payload size, total sync duration, and time spent waiting for pending sync work.
 - **Browser and errors:** selected browser performance observations, resource metadata, JavaScript errors, and unhandled promise rejections.
 
+Startup reporting separates `first-render-complete` (synchronous section render completion since app-module initialization) from `first-frame-delay-visible` and `first-frame-delay-hidden` (the subsequent animation-frame wait). The hidden variant means the document was hidden at some point during that wait. Both retain the route captured at render completion. These are scheduling/render markers, not proof that all deferred charts or asynchronous data work have finished. Older `first-usable-render` samples included the frame wait; do not directly compare them with the new completion metric.
+
+Known ResizeObserver loop notifications are counted separately as browser `resize-observer-loop` events, rather than ordinary `javascript-error` events. They remain visible diagnostics, not suppressed errors. Other error messages and stack traces are not retained.
+
 Durations are milliseconds unless a report row specifies another unit. Payload sizes are bytes. The diagnostics page reports sample counts and distributions, including median, p75, p95, and maximum when applicable. It also shows success and failure counts, retry counts, or average payload size for operations that provide those values.
 
 These are real-user browser observations, not controlled benchmarks. Results depend on the device, browser, network, app state, and workload. Use normal representative activity for a release comparison, and treat small samples as directional. In particular, p75 values based on fewer than 20 samples are marked descriptive. A comparison shows differences in measured medians and sample counts; it does not establish that a release caused the difference.

@@ -11,6 +11,7 @@ declare global {
   var __wtProfiler:
     | {
         record: (category: ProfileCategory, name: string, input?: ProfileRecordInput) => void;
+        recordFirstRender: (startedAt: number, input: ProfileRecordInput) => void;
         flush: () => Promise<void>;
         getStatus: () => {
           enabled: boolean;
