@@ -13,10 +13,15 @@ import { readFinancialData, validateFinancialData } from '../accountData';
 
 /** Load all snapshots, sorted by date ascending. */
 export async function loadSnapshots(): Promise<Snapshot[]> {
+  const startedAt = performance.now();
   const db = await getDb();
   const result = db.exec('SELECT date, values_json, notes FROM snapshots ORDER BY date ASC');
-  if (result.length === 0) return [];
-  return result[0].values.map(rowToSnapshot);
+  const snapshots = result.length === 0 ? [] : result[0].values.map(rowToSnapshot);
+  globalThis.__wtProfiler?.record('database', 'snapshots-load', {
+    durationMs: performance.now() - startedAt,
+    recordCount: snapshots.length,
+  });
+  return snapshots;
 }
 
 /**
@@ -44,6 +49,8 @@ export async function upsertSnapshot(snap: Snapshot): Promise<void> {
  * Full overwrite of all snapshots - used by backup restore and delete operations.
  */
 export async function saveSnapshots(snaps: Snapshot[]): Promise<void> {
+  const startedAt = performance.now();
+  let outcome: 'success' | 'error' = 'success';
   const db = await getDb();
   validateFinancialData({ ...readFinancialData(db), snapshots: snaps });
   const stmt = db.prepare('INSERT INTO snapshots (date, values_json, notes) VALUES (?, ?, ?)');
@@ -56,12 +63,24 @@ export async function saveSnapshots(snaps: Snapshot[]): Promise<void> {
     }
     db.run('COMMIT');
   } catch (err) {
+    outcome = 'error';
     db.run('ROLLBACK');
     throw err;
   } finally {
     stmt.free();
   }
-  await persistDb();
+  try {
+    await persistDb();
+  } catch (error) {
+    outcome = 'error';
+    throw error;
+  } finally {
+    globalThis.__wtProfiler?.record('database', 'snapshots-bulk-save', {
+      durationMs: performance.now() - startedAt,
+      recordCount: snaps.length,
+      outcome,
+    });
+  }
 }
 
 // ── Internal helpers ──────────────────────────────────────────────

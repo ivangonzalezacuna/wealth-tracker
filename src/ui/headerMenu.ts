@@ -1,7 +1,7 @@
 import { trackOverlay, whenOverlayHistorySettled } from './overlayHistory';
 import type { UserThemePref } from '../theme';
 
-/** Top-right header menu: theme choice (Light / Dark / System) and Sign out. */
+/** Top-right header menu: theme choice, optional diagnostics, and account actions. */
 
 const svg = (body: string) =>
   `<svg class="header-menu-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">${body}</svg>`;
@@ -31,7 +31,7 @@ const THEME_LABELS: Record<UserThemePref, string> = {
   system: 'System',
 };
 
-export function headerMenuMarkup(): string {
+export function headerMenuMarkup(diagnosticsEnabled = false): string {
   const themes = (Object.keys(THEME_LABELS) as UserThemePref[])
     .map(
       (t) =>
@@ -39,10 +39,15 @@ export function headerMenuMarkup(): string {
     )
     .join('');
   return `<div class="header-menu">
-    <button type="button" id="btn-header-menu" class="header-menu-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="header-menu" aria-label="Menu: theme and account" title="Theme and account">${MORE_ICON}</button>
+    <button type="button" id="btn-header-menu" class="header-menu-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="header-menu" aria-label="Menu: theme${diagnosticsEnabled ? ', diagnostics' : ''} and account" title="Theme and account">${MORE_ICON}</button>
     <div id="header-menu" class="header-menu-list" role="menu" aria-label="Theme and account" hidden>
       <div class="header-menu-label" id="header-menu-theme-label">Theme</div>
       <div role="group" aria-labelledby="header-menu-theme-label">${themes}</div>
+      ${
+        diagnosticsEnabled
+          ? `<button type="button" id="btn-performance-diagnostics" role="menuitem" class="header-menu-item" tabindex="-1"><span>Performance diagnostics</span></button>`
+          : ''
+      }
       <div class="header-menu-account" hidden>
         <div class="header-menu-sep" role="separator"></div>
         <div class="header-menu-note">Signed in with Google</div>
@@ -66,6 +71,7 @@ export function initHeaderMenu(opts: {
   getTheme: () => UserThemePref;
   onTheme: (pref: UserThemePref) => void;
   onSignOut: () => void;
+  onDiagnostics?: () => void;
 }): HeaderMenu | null {
   const btn = document.getElementById('btn-header-menu') as HTMLButtonElement | null;
   const menu = document.getElementById('header-menu');
@@ -145,6 +151,9 @@ export function initHeaderMenu(opts: {
     if (item.id === 'btn-signout') {
       close(true);
       void whenOverlayHistorySettled().then(opts.onSignOut);
+    } else if (item.id === 'btn-performance-diagnostics') {
+      close(true);
+      opts.onDiagnostics?.();
     }
   });
 

@@ -24,11 +24,12 @@ function metricExplainerCard(
 }
 
 export function appTemplate(): string {
+  const diagnosticsEnabled = import.meta.env.VITE_ENABLE_PROFILING === 'true';
   return `
 <header>
   <h1>${CONFIG.app.title}</h1>
   <div class="sub" id="app-sub">${CONFIG.app.subtitle}</div>
-  ${headerMenuMarkup()}
+  ${headerMenuMarkup(diagnosticsEnabled)}
   <div id="auth-bar">
     <span id="auth-status" class="auth-status"></span>
     <button type="button" id="sync-status" class="status-pill sync-chip" hidden></button>
@@ -43,6 +44,14 @@ export function appTemplate(): string {
   <button id="tab-settings" data-section="settings" role="tab" aria-selected="false" aria-controls="settings">${navIcon('<path d="M4 6h8M16 6h4M4 12h2M10 12h10M4 18h10M18 18h2"/><circle cx="14" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="18" r="2"/>')}<span>Settings</span></button>
   <button id="tab-log" class="log-btn" data-section="log" role="tab" aria-selected="false" aria-controls="log" aria-label="Log data (add snapshot or import CSV)">${navIcon('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/>')}<span>Log data</span></button>
 </nav>
+
+${diagnosticsEnabled ? `<section id="diagnostics" class="section" aria-labelledby="diagnostics-title">
+  <div class="card">
+    <h2 class="card-title" id="diagnostics-title">Performance diagnostics</h2>
+    <p class="note">Measurements are stored on this device only. Exported reports contain aggregated, sanitized data.</p>
+    <div id="performance-diagnostics-content" aria-live="polite"></div>
+  </div>
+</section>` : ''}
 
 <div id="setup-banner" style="display:none"></div>
 

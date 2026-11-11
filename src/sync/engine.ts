@@ -37,6 +37,7 @@ let _error = '';
 let _localChangeWrite: Promise<void> = Promise.resolve();
 let _changeGeneration = 0;
 let _uploadRequested = false;
+let _pendingStartedAt: number | null = null;
 
 const UPLOAD_DEBOUNCE_MS = 5_000; // 5 seconds after last write
 
@@ -84,6 +85,15 @@ export function onPendingChange(fn: (pending: boolean) => void): void {
 function setPending(pending: boolean): void {
   if (_uploadRequested === pending) return;
   _uploadRequested = pending;
+  if (pending) {
+    _pendingStartedAt = performance.now();
+  } else if (_pendingStartedAt !== null) {
+    globalThis.__wtProfiler?.record('sync', 'pending-to-sync', {
+      durationMs: performance.now() - _pendingStartedAt,
+      outcome: 'success',
+    });
+    _pendingStartedAt = null;
+  }
   _onPendingChange?.(pending);
 }
 
@@ -182,6 +192,8 @@ export function isSyncing(): boolean {
 export async function pullFromCloud(): Promise<boolean> {
   if (_syncing) return false;
   if (_pendingConflict) throw new SyncConflictError(_pendingConflict);
+  const startedAt = performance.now();
+  let outcome: 'success' | 'error' = 'success';
   _syncing = true;
   try {
     setStatus('syncing');
@@ -243,6 +255,7 @@ export async function pullFromCloud(): Promise<boolean> {
     if (neverSynced && hadLocalChanges) scheduleUpload();
     return true;
   } catch (err) {
+    outcome = 'error';
     if (err instanceof SyncConflictError) throw err;
     if (err instanceof NeedsAuthError) {
       setStatus('idle');
@@ -254,6 +267,10 @@ export async function pullFromCloud(): Promise<boolean> {
     _syncing = false;
     setStatus(_status);
     resumeQueuedUpload();
+    globalThis.__wtProfiler?.record('sync', 'pull', {
+      durationMs: performance.now() - startedAt,
+      outcome,
+    });
   }
 }
 
@@ -266,6 +283,8 @@ export async function pushToCloud(
 ): Promise<boolean> {
   if (_syncing) return false;
   if (_pendingConflict && !opts.skipConflictCheck) throw new SyncConflictError(_pendingConflict);
+  const startedAt = performance.now();
+  let outcome: 'success' | 'error' = 'success';
   cancelPendingUpload();
   _syncing = true;
   try {
@@ -304,6 +323,7 @@ export async function pushToCloud(
     await finalizeSuccessfulSync(modifiedTime, syncStartedAt, generation);
     return true;
   } catch (err) {
+    outcome = 'error';
     if (err instanceof SyncConflictError) throw err;
     if (err instanceof NeedsAuthError) {
       // Not connected: keep the change pending until the user connects.
@@ -317,6 +337,10 @@ export async function pushToCloud(
     _syncing = false;
     setStatus(_status);
     resumeQueuedUpload();
+    globalThis.__wtProfiler?.record('sync', 'push', {
+      durationMs: performance.now() - startedAt,
+      outcome,
+    });
   }
 }
 
