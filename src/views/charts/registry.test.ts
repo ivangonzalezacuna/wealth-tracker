@@ -214,6 +214,80 @@ describe('chart formatters', () => {
   });
 });
 
+describe('chart resize lifecycle', () => {
+  let resize: () => void;
+  beforeEach(() => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+        constructor(callback: () => void) {
+          resize = callback;
+        }
+      },
+    );
+  });
+
+  it('leaves hidden chart geometry and state intact, then resizes on reveal', () => {
+    const host = document.getElementById('c-test')!;
+    const visible = vi.fn(() => true);
+    host.checkVisibility = visible;
+    const build = vi.fn(line);
+    renderChart('c-test', build, { zoom: true });
+    const chart = chartFor('c-test')!;
+    const spy = vi.spyOn(chart, 'resize');
+    const original = chart.option;
+    visible.mockReturnValue(false);
+    resize();
+    expect(spy).not.toHaveBeenCalled();
+    expect(build).toHaveBeenCalledOnce();
+    expect(chart.option).toBe(original);
+    visible.mockReturnValue(true);
+    resize();
+    expect(spy).toHaveBeenCalledOnce();
+    host.remove();
+    resize();
+    expect(spy).toHaveBeenCalledOnce();
+    document.body.append(host);
+    resize();
+    expect(spy).toHaveBeenCalledTimes(2);
+    disposeChart('c-test');
+    resize();
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses laid-out rectangles when checkVisibility is unavailable', () => {
+    const host = document.getElementById('c-test')!;
+    Object.defineProperty(host, 'checkVisibility', { value: undefined });
+    renderChart('c-test', line);
+    const spy = vi.spyOn(chartFor('c-test')!, 'resize');
+    resize();
+    expect(spy).not.toHaveBeenCalled();
+    vi.spyOn(host, 'getClientRects').mockReturnValue({
+      length: 1,
+      item: () => host.getBoundingClientRect(),
+      0: host.getBoundingClientRect(),
+      [Symbol.iterator]: () => [host.getBoundingClientRect()].values(),
+    });
+    resize();
+    expect(spy).toHaveBeenCalledOnce();
+  });
+
+  it('still rebuilds a visible chart when the host crosses the compact breakpoint', () => {
+    const host = document.getElementById('c-test')!;
+    host.checkVisibility = () => true;
+    Object.defineProperty(host, 'clientWidth', { configurable: true, value: 600 });
+    const build = vi.fn((_ctx: ChartCtx) => line());
+    renderChart('c-test', build);
+    expect(build.mock.calls[0][0].compact).toBe(false);
+    Object.defineProperty(host, 'clientWidth', { configurable: true, value: 390 });
+    resize();
+    expect(build).toHaveBeenCalledTimes(2);
+    expect(build.mock.calls[1][0].compact).toBe(true);
+  });
+});
+
 describe('renderChart', () => {
   it('creates an instance with aria, toolbox and grid defaults', () => {
     renderChart('c-test', line);

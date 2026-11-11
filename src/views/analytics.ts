@@ -573,7 +573,6 @@ function _renderContribChart(points: MonthlyGrowthPoint[]): void {
     {
       zoom: true,
       xAxisType: 'category',
-      deferUntilVisible: true,
     },
   );
 }

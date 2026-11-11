@@ -3,15 +3,66 @@ import {
   addAccount,
   addGoal,
   addSnapshot,
+  ensureCardExpanded,
   gotoApp,
   monthOffsetValue,
   openTab,
   preparePage,
+  saveSettings,
   waitForSyncIdle,
 } from './helpers';
 
 test.beforeEach(async ({ page }) => {
   await preparePage(page);
+});
+
+test('contributions save together with three database persists and survive reload', async ({
+  page,
+}) => {
+  await gotoApp(page);
+  await openTab(page, 'tab-settings');
+  await ensureCardExpanded(page, 'settings-card-contributions');
+  await waitForSyncIdle(page);
+  const previousHistoryId = await page.evaluate(async () => {
+    const { loadConfigHistory } = await import('/src/db/index.ts');
+    return (await loadConfigHistory())[0]?.id ?? 0;
+  });
+  const writes: string[] = [];
+  page.on('console', (message) => {
+    if (message.text() === 'contribution-test:sqlite-write') writes.push(message.text());
+  });
+  await page.evaluate(() => {
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (
+      this: IDBObjectStore,
+      ...args: Parameters<typeof put>
+    ) {
+      if (this.transaction.db.name === 'wealth-tracker-sqlite' && args[1] === 'main.db') {
+        console.info('contribution-test:sqlite-write');
+      }
+      return put.apply(this, args);
+    };
+  });
+  await page.fill('#set-contrib-budget', '345');
+  await page.selectOption('#set-contribution-interval', 'biweekly');
+  await page.selectOption('#set-calibration-interval', 'weekly');
+  await saveSettings(page, 'contributions', 'Contributions saved');
+  await expect.poll(() => writes.length).toBe(3);
+  const history = await page.evaluate(async () => {
+    const { loadConfigHistory } = await import('/src/db/index.ts');
+    return loadConfigHistory();
+  });
+  expect(history.filter((entry) => entry.id > previousHistoryId)).toEqual([
+    expect.objectContaining({
+      summary: 'updated monthly_contrib_budget, contribution_interval, calibration_interval',
+    }),
+  ]);
+  await gotoApp(page);
+  await openTab(page, 'tab-settings');
+  await ensureCardExpanded(page, 'settings-card-contributions');
+  await expect(page.locator('#set-contrib-budget')).toHaveValue('345');
+  await expect(page.locator('#set-contribution-interval')).toHaveValue('biweekly');
+  await expect(page.locator('#set-calibration-interval')).toHaveValue('weekly');
 });
 
 test('settings-driven account and goal changes propagate into net worth planning', async ({

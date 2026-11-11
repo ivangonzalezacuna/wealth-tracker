@@ -803,7 +803,14 @@ function bindDrill(entry: Entry): void {
 function observe(entry: Entry): void {
   if (typeof ResizeObserver === 'undefined') return;
   entry.ro = new ResizeObserver(() => {
-    if (!registry.has(entry.id) || entry.chart.isDisposed()) return;
+    if (registry.get(entry.id) !== entry || entry.chart.isDisposed()) return;
+    if (
+      !entry.host.isConnected ||
+      (typeof entry.host.checkVisibility === 'function'
+        ? !entry.host.checkVisibility()
+        : entry.host.getClientRects().length === 0)
+    )
+      return;
     const prev = entry.ctx;
     const next = makeCtx(entry.host);
     entry.chart.resize();

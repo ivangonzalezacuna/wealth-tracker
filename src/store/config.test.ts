@@ -57,6 +57,7 @@ import {
   loadAccounts,
   loadSettings,
   saveAccountConfiguration,
+  logConfigChange,
 } from '../db';
 import { scheduleUpload } from '../sync/engine';
 import {
@@ -471,6 +472,35 @@ describe('rollback on failure', () => {
     vi.mocked(dbSaveHoldings).mockReset().mockResolvedValue(undefined);
     vi.mocked(dbSetSetting).mockReset().mockResolvedValue(undefined);
     vi.mocked(dbReplaceAllSettings).mockReset().mockResolvedValue(undefined);
+  });
+
+  it('batches related settings with one audit entry, change event and upload schedule', async () => {
+    hydrateConfigFromCache({ accounts: [], holdings: [], settings: ORIGINAL_SETTINGS });
+    vi.mocked(logConfigChange).mockClear();
+    vi.mocked(scheduleUpload).mockClear();
+    const changed = vi.fn();
+    onConfigChange(changed);
+    try {
+      await setSettings({
+        monthly_contrib_budget: '345',
+        contribution_interval: 'biweekly',
+        calibration_interval: 'weekly',
+      });
+      expect(dbReplaceAllSettings).toHaveBeenCalledExactlyOnceWith({
+        ...ORIGINAL_SETTINGS,
+        monthly_contrib_budget: '345',
+        contribution_interval: 'biweekly',
+        calibration_interval: 'weekly',
+      });
+      expect(logConfigChange).toHaveBeenCalledExactlyOnceWith(
+        'Settings',
+        'updated monthly_contrib_budget, contribution_interval, calibration_interval',
+      );
+      expect(scheduleUpload).toHaveBeenCalledOnce();
+      expect(changed).toHaveBeenCalledExactlyOnceWith('settings');
+    } finally {
+      onConfigChange(() => {});
+    }
   });
 
   it('setAccounts rolls back _accounts on dbSaveAccounts failure', async () => {

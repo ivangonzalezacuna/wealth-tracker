@@ -223,6 +223,74 @@ test('deferred charts support keyboard focus and the current phone theme', async
   expect(colors.actual).toBe(colors.expected);
 });
 
+test('phone chart navigation preserves header space without resize loops or loading shifts', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const problems: string[] = [];
+  page.on('console', (message) => {
+    if (message.text().startsWith('chart-regression:')) problems.push(message.text());
+  });
+  page.on('pageerror', (error) => problems.push(error.message));
+  await page.evaluate(() => {
+    window.addEventListener('error', (event) => {
+      console.warn(`chart-regression:${event.message}`);
+    });
+    document.getElementById('tab-analytics')!.click();
+    document.getElementById('tab-networth')!.click();
+  });
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  await openTab(page, 'tab-analytics');
+  await showChart(page, 'c-an-contrib');
+  const header = () =>
+    page
+      .locator('#c-an-contrib')
+      .evaluate((el) =>
+        el.closest<HTMLElement>('.chart-wrap')!.style.getPropertyValue('--chart-head-extra'),
+      );
+  expect(await header()).toBe('28px');
+  for (let i = 0; i < 4; i++) {
+    for (const id of ['tab-networth', 'tab-portfolio', 'tab-analytics']) {
+      await page.evaluate(async (tabId) => {
+        document.getElementById(tabId)!.click();
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        );
+      }, id);
+    }
+    expect(await header()).toBe('28px');
+  }
+  await page.evaluate(() => {
+    new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (node instanceof Element && node.matches('.an-computing')) {
+            console.warn('chart-regression:loading-placeholder');
+          }
+        }
+      }
+    }).observe(document.getElementById('an-content')!, { childList: true });
+  });
+  await page.locator('#btn-header-menu').click();
+  await page.locator('[data-theme-choice="dark"]').click();
+  await expect(page.locator('#c-an-contrib canvas')).toHaveCount(1);
+  expect(await header()).toBe('28px');
+  await page.setViewportSize({ width: 1365, height: 900 });
+  await expect.poll(header).toBe('6px');
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  expect(problems).toEqual([]);
+});
+
 test('clicking a history point opens that snapshot in the log', async ({ page }) => {
   await openTab(page, 'tab-networth');
   const pt = await pointAt(page, 'c-nw-hist', -2);
