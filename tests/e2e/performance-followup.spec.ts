@@ -87,3 +87,66 @@ test('an unchanged successful sync preserves current DOM and drafts, but changed
   expect(await kpis!.evaluate((el) => el.isConnected)).toBe(false);
   await expect(page.locator('#nw-kpis .kpi').first()).toContainText('15.150');
 });
+
+for (const width of [1365, 390]) {
+  for (const [section, chartId] of [
+    ['portfolio', 'c-port-donut'],
+    ['analytics', 'c-an-growth'],
+  ] as const) {
+    test(`${section} retains same-size charts without resizing at ${width}px, but adapts after a hidden resize`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await openTab(page, `tab-${section}`);
+      const host = page.locator(`#${chartId}`);
+      await expect(host.locator('canvas')).toHaveCount(1);
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          ),
+      );
+      await page.evaluate(async (id) => {
+        const { getChart } = await import('/src/views/charts/registry.ts');
+        const chart = getChart(id)!;
+        const host = document.getElementById(id)!;
+        const resize = chart.resize.bind(chart);
+        host.dataset.resizeCalls = '0';
+        chart.resize = (...args) => {
+          host.dataset.resizeCalls = String(Number(host.dataset.resizeCalls) + 1);
+          resize(...args);
+        };
+      }, chartId);
+      const canvas = await host.locator('canvas').elementHandle();
+      await openTab(page, 'tab-log');
+      await openTab(page, `tab-${section}`);
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          ),
+      );
+      await expect(host).toHaveAttribute('data-resize-calls', '0');
+      expect(await canvas!.evaluate((el) => el.isConnected)).toBe(true);
+
+      await openTab(page, 'tab-log');
+      await page.setViewportSize({ width: width === 390 ? 800 : 450, height: 700 });
+      await openTab(page, `tab-${section}`);
+      await expect
+        .poll(() =>
+          page.evaluate(async (id) => {
+            const { getChart } = await import('/src/views/charts/registry.ts');
+            const chart = getChart(id)!;
+            const host = document.getElementById(id)!;
+            return (
+              Number(host.dataset.resizeCalls) > 0 &&
+              chart.getWidth() === host.clientWidth &&
+              chart.getHeight() === host.clientHeight
+            );
+          }, chartId),
+        )
+        .toBe(true);
+      expect(await canvas!.evaluate((el) => el.isConnected)).toBe(true);
+    });
+  }
+}

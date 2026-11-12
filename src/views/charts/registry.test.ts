@@ -217,6 +217,11 @@ describe('chart formatters', () => {
 describe('chart resize lifecycle', () => {
   let resize: () => void;
   beforeEach(() => {
+    const host = document.getElementById('c-test')!;
+    Object.defineProperties(host, {
+      clientWidth: { configurable: true, value: 600 },
+      clientHeight: { configurable: true, value: 200 },
+    });
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -239,6 +244,7 @@ describe('chart resize lifecycle', () => {
     const spy = vi.spyOn(chart, 'resize');
     const original = chart.option;
     visible.mockReturnValue(false);
+    Object.defineProperty(host, 'clientWidth', { configurable: true, value: 700 });
     resize();
     expect(spy).not.toHaveBeenCalled();
     expect(build).toHaveBeenCalledOnce();
@@ -251,10 +257,10 @@ describe('chart resize lifecycle', () => {
     expect(spy).toHaveBeenCalledOnce();
     document.body.append(host);
     resize();
-    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenCalledOnce();
     disposeChart('c-test');
     resize();
-    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenCalledOnce();
   });
 
   it('uses laid-out rectangles when checkVisibility is unavailable', () => {
@@ -264,6 +270,7 @@ describe('chart resize lifecycle', () => {
     const spy = vi.spyOn(chartFor('c-test')!, 'resize');
     resize();
     expect(spy).not.toHaveBeenCalled();
+    Object.defineProperty(host, 'clientWidth', { configurable: true, value: 700 });
     vi.spyOn(host, 'getClientRects').mockReturnValue({
       length: 1,
       item: () => host.getBoundingClientRect(),
@@ -272,6 +279,74 @@ describe('chart resize lifecycle', () => {
     });
     resize();
     expect(spy).toHaveBeenCalledOnce();
+  });
+
+  it('skips unchanged observations and same-size reveals without rebuilding chart state', () => {
+    const host = document.getElementById('c-test')!;
+    host.checkVisibility = () => true;
+    const build = vi.fn(line);
+    renderChart('c-test', build, { zoom: true });
+    const chart = chartFor('c-test')!;
+    const spy = vi.spyOn(chart, 'resize');
+    resize();
+    resize();
+    expect(spy).not.toHaveBeenCalled();
+    expect(build).toHaveBeenCalledOnce();
+    Object.defineProperty(host, 'clientHeight', { configurable: true, value: 250 });
+    resize();
+    expect(spy).toHaveBeenCalledOnce();
+    expect(build).toHaveBeenCalledOnce();
+    resize();
+    expect(spy).toHaveBeenCalledOnce();
+    Object.defineProperty(host, 'clientWidth', { configurable: true, value: 0 });
+    Object.defineProperty(host, 'clientHeight', { configurable: true, value: 0 });
+    resize();
+    expect(spy).toHaveBeenCalledOnce();
+  });
+
+  it('still resizes when display density changes without a CSS-size change', () => {
+    const host = document.getElementById('c-test')!;
+    host.checkVisibility = () => true;
+    vi.stubGlobal('devicePixelRatio', 1);
+    renderChart('c-test', line);
+    const spy = vi.spyOn(chartFor('c-test')!, 'resize');
+    vi.stubGlobal('devicePixelRatio', 2);
+    resize();
+    expect(spy).toHaveBeenCalledOnce();
+    resize();
+    expect(spy).toHaveBeenCalledOnce();
+  });
+
+  it('still rebuilds a wrapping legend when the chart size is unchanged', () => {
+    const host = document.getElementById('c-test')!;
+    host.checkVisibility = () => true;
+    const build = vi.fn(() => ({ ...line(), legend: {} }));
+    renderChart('c-test', build);
+    const legend = host.querySelector<HTMLElement>('.chart-legend')!;
+    Object.defineProperty(legend, 'offsetHeight', { configurable: true, value: 44 });
+    const spy = vi.spyOn(chartFor('c-test')!, 'resize');
+    resize();
+    expect(spy).not.toHaveBeenCalled();
+    expect(build).toHaveBeenCalledTimes(2);
+    resize();
+    expect(build).toHaveBeenCalledTimes(2);
+  });
+
+  it('still rebuilds fullscreen and touch layouts without a size change', () => {
+    const host = document.getElementById('c-test')!;
+    host.checkVisibility = () => true;
+    const build = vi.fn((_ctx: ChartCtx) => line());
+    renderChart('c-test', build, { zoom: true });
+    const spy = vi.spyOn(chartFor('c-test')!, 'resize');
+    host.classList.add('chart-expanded');
+    resize();
+    expect(build.mock.calls.at(-1)?.[0].expanded).toBe(true);
+    host.classList.remove('chart-expanded');
+    vi.mocked(window.matchMedia).mockReturnValue({ matches: true } as MediaQueryList);
+    resize();
+    expect(build.mock.calls.at(-1)?.[0]).toMatchObject({ expanded: false, touch: true });
+    expect(build).toHaveBeenCalledTimes(3);
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it('still rebuilds a visible chart when the host crosses the compact breakpoint', () => {

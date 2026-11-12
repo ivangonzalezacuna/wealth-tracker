@@ -68,6 +68,7 @@ interface Entry {
   legend: HTMLElement | null;
   legendH: number;
   ctx: ChartCtx;
+  pixelRatio: number;
   ro: ResizeObserver | null;
   /** Touch drill-down: the key under the last tap, opened by the tooltip's action button. */
   drillTap: { key: string; at: number } | null;
@@ -812,13 +813,31 @@ function observe(entry: Entry): void {
     )
       return;
     const prev = entry.ctx;
-    const next = makeCtx(entry.host);
-    entry.chart.resize();
+    const width = entry.host.clientWidth || entry.host.getBoundingClientRect().width;
+    const height = entry.host.clientHeight || entry.host.getBoundingClientRect().height;
+    if (width <= 0 || height <= 0) return;
+    const pixelRatio = window.devicePixelRatio || 1;
+    if (
+      entry.chart.getWidth() !== width ||
+      entry.chart.getHeight() !== height ||
+      entry.pixelRatio !== pixelRatio
+    ) {
+      entry.chart.resize();
+      entry.pixelRatio = pixelRatio;
+    }
+    const next = {
+      ...prev,
+      width,
+      compact: width < 480,
+      expanded: isExpanded(entry.host),
+      touch: mq('(pointer: coarse)'),
+    };
     // A legend that re-wraps to a different number of rows moves the plot's top edge.
     const legendH = entry.legend ? entry.legend.offsetHeight : 0;
     if (
       next.compact !== prev.compact ||
       next.expanded !== prev.expanded ||
+      next.touch !== prev.touch ||
       (entry.legend != null && legendH > 0 && legendH !== entry.legendH)
     ) {
       render(entry, true);
@@ -874,6 +893,7 @@ export function renderChart(
       legend: null,
       legendH: 0,
       ctx,
+      pixelRatio: window.devicePixelRatio || 1,
       ro: null,
       drillTap: null,
     };

@@ -26,6 +26,7 @@ export interface MockChart {
   containPixel(finder: unknown, value: unknown): boolean;
   getZr(): MockZr;
   zr: MockZr;
+  getWidth(): number;
   getHeight(): number;
   setTheme(theme: unknown): void;
   dispose(): void;
@@ -73,6 +74,8 @@ function isNotMerge(opts: unknown): boolean {
 }
 
 export function init(dom: HTMLElement, theme?: unknown): MockChart {
+  let width = dom.clientWidth;
+  let height = dom.clientHeight || 200;
   const chart: MockChart = {
     dom,
     theme,
@@ -105,7 +108,10 @@ export function init(dom: HTMLElement, theme?: unknown): MockChart {
     trigger(event, params) {
       for (const h of this.handlers.get(event) ?? []) h(params);
     },
-    resize() {},
+    resize() {
+      width = dom.clientWidth;
+      height = dom.clientHeight || 200;
+    },
     convertToPixel(_finder, value) {
       return Number(value);
     },
@@ -121,7 +127,10 @@ export function init(dom: HTMLElement, theme?: unknown): MockChart {
       return this.zr;
     },
     getHeight() {
-      return 200;
+      return height;
+    },
+    getWidth() {
+      return width;
     },
     setTheme(t) {
       this.theme = t;
