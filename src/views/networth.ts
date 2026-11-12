@@ -25,6 +25,7 @@ import {
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import { isAccountOpenNow } from '../model/accounts';
 import { cagrPerAccount } from '../model/insights';
+import { measureRender } from '../performance/measure';
 import {
   formatMonthsEta,
   forecastMultiAccountSeries,
@@ -505,7 +506,7 @@ function _renderGoalCards(): void {
       const btn = (e.target as HTMLElement).closest('[data-goal-tab]') as HTMLElement | null;
       if (!btn) return;
       _activeGoalIdx = parseInt(btn.dataset.goalTab!);
-      _renderGoalCards();
+      measureRender('networth-goals', 'networth', _renderGoalCards);
     });
   }
   attachInfoTips(goalEl);
@@ -636,8 +637,10 @@ export function renderNW(snaps: Snapshot[]): void {
         ' (add more snapshots to see growth over time)'
       : 'Net worth over time: total + per account';
 
-  if (snaps.length === 1) _renderNWBreakdownChart(s, chartA);
-  else _renderNWHistChart(snaps, chartA);
+  measureRender('networth-history', 'networth', () => {
+    if (snaps.length === 1) _renderNWBreakdownChart(s, chartA);
+    else _renderNWHistChart(snaps, chartA);
+  });
 
   const bkA = ACCTS.filter((a) => ((s[a.key] as number) || 0) > 0);
 
@@ -671,10 +674,10 @@ export function renderNW(snaps: Snapshot[]): void {
     detailTitle.innerHTML = `Accounts · ${fmtMon(s.date)} snapshot${infoTip('CAGR is the yearly growth rate of each account balance between its first and latest snapshots with a balance (shown after 12 months). It includes money you added or withdrew, so it is not the same as your investment return.')}`;
 
   // Goal progress cards (one per named goal)
-  _renderGoalCards();
+  measureRender('networth-goals', 'networth', _renderGoalCards);
 
   // Forecast + retirement planning card (tabbed)
-  _renderPlanningCard(snaps, accounts);
+  measureRender('networth-planning', 'networth', () => _renderPlanningCard(snaps, accounts));
 
   attachInfoTips(document.getElementById('networth')!);
 }
@@ -912,7 +915,9 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
 
   const latestDate = latestSnap.date;
   const forecastMonths = _fcMonths;
-  const baselineSeries = forecastMultiAccountSeries(accountInputs, FORECAST_MAX_MONTHS, latestDate);
+  const baselineSeries = measureRender('networth-forecast-calculation', 'networth', () =>
+    forecastMultiAccountSeries(accountInputs, FORECAST_MAX_MONTHS, latestDate),
+  );
   const scenarioSeries = _showScenarioComparison
     ? _scenarios.map((scenario) => ({
         scenario,
