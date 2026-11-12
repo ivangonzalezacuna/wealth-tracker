@@ -6640,8 +6640,14 @@ html {
 /* ── Local performance diagnostics ─────────────────────── */
 .performance-diagnostics {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   padding-top: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.performance-diagnostics > *,
+.performance-stat {
+  min-width: 0;
 }
 .performance-toolbar {
   display: flex;
@@ -6660,6 +6666,7 @@ html {
   display: grid;
   gap: 3px;
   min-width: 120px;
+  max-width: 100%;
   color: var(--ink-2);
   font-size: 11px;
 }
@@ -6672,6 +6679,11 @@ html {
   background: var(--surface);
   color: var(--ink);
   font: inherit;
+}
+.performance-filter select,
+.performance-filter input {
+  min-width: 0;
+  box-sizing: border-box;
 }
 .performance-toolbar > .btn {
   padding: 5px 9px;

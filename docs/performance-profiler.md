@@ -20,6 +20,8 @@ The app version still comes from `package.json`; it need not change for every de
 
 With profiling enabled, open the three-dot header menu and choose **Performance diagnostics**. The page can filter measurements by the last 7, 30, or 90 days, inclusive UTC dates, individual run, category, route, and release. It can compare two releases and export the current filtered report as JSON. The app continues to work if profiler storage is unavailable; the diagnostics page reports storage or export errors rather than silently presenting a successful result.
 
+Long build IDs wrap within diagnostics cards and comparison text; wide tables scroll independently without widening the page. Full build IDs remain visible and unchanged in filters and JSON exports.
+
 ## What is measured
 
 The profiler records measurements in these categories:
