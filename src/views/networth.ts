@@ -518,6 +518,8 @@ function _renderGoalCards(): void {
  */
 /** Resets module-level tab state. Exposed only for unit test teardown. */
 export function _resetPlanningTabForTest(): void {
+  cancelPlanningRender();
+  _planningReadyHost = null;
   _planningTab = 'forecast';
   _scenarios = [
     {
@@ -560,7 +562,13 @@ export function renderNW(snaps: Snapshot[]): void {
   const has = snaps.length > 0;
   document.getElementById('nw-empty')!.style.display = has ? 'none' : 'block';
   document.getElementById('nw-content')!.style.display = has ? 'block' : 'none';
-  if (!has) return;
+  if (!has) {
+    cancelPlanningRender();
+    _planningReadyHost = null;
+    disposeChart('c-nw-forecast');
+    disposeChart('c-nw-decumulation');
+    return;
+  }
 
   const s = snaps[snaps.length - 1];
   const total = snapTotal(s);
@@ -677,7 +685,7 @@ export function renderNW(snaps: Snapshot[]): void {
   measureRender('networth-goals', 'networth', _renderGoalCards);
 
   // Forecast + retirement planning card (tabbed)
-  measureRender('networth-planning', 'networth', () => _renderPlanningCard(snaps, accounts));
+  schedulePlanningRender();
 
   attachInfoTips(document.getElementById('networth')!);
 }
@@ -685,6 +693,75 @@ export function renderNW(snaps: Snapshot[]): void {
 // ── History chart (total + per-account lines) ──
 
 type ChartAccount = { key: string; label: string; color: string };
+
+let _planningReadyHost: HTMLElement | null = null;
+let _pendingPlanning: {
+  host: HTMLElement;
+  observer: IntersectionObserver;
+  activate: () => void;
+} | null = null;
+
+function cancelPlanningRender(): void {
+  if (!_pendingPlanning) return;
+  _pendingPlanning.observer.disconnect();
+  _pendingPlanning.host.removeEventListener('focusin', _pendingPlanning.activate);
+  _pendingPlanning.host.removeAttribute('aria-busy');
+  _pendingPlanning = null;
+}
+
+function schedulePlanningRender(): void {
+  const host = document.getElementById('nw-planning');
+  if (!host) {
+    cancelPlanningRender();
+    return;
+  }
+  if (_planningReadyHost === host || typeof IntersectionObserver === 'undefined') {
+    cancelPlanningRender();
+    measureRender('networth-planning', 'networth', () =>
+      _renderPlanningCard(_lastSnaps, _lastAccounts),
+    );
+    _planningReadyHost = host;
+    return;
+  }
+  if (_pendingPlanning?.host === host) return;
+  cancelPlanningRender();
+  host.innerHTML =
+    '<div class="card"><div class="card-title">Projections</div><p class="note">Forecast and retirement projections load when visible.</p><button class="btn btn-outline btn-sm" type="button">Load projections</button><div class="chart-wrap chart-h-lg" aria-hidden="true"></div></div>';
+  host.setAttribute('aria-busy', 'true');
+  const activate = () => {
+    if (_pendingPlanning?.host !== host) return;
+    if (!host.isConnected || document.getElementById('nw-planning') !== host) {
+      cancelPlanningRender();
+      return;
+    }
+    if (typeof host.checkVisibility === 'function' && !host.checkVisibility()) return;
+    const focused = host.contains(document.activeElement);
+    cancelPlanningRender();
+    try {
+      measureRender('networth-planning', 'networth', () =>
+        _renderPlanningCard(_lastSnaps, _lastAccounts),
+      );
+      _planningReadyHost = host;
+      if (focused)
+        host
+          .querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]')
+          ?.focus({ preventScroll: true });
+    } catch (error) {
+      console.error('[networth] Deferred projections failed:', error);
+      host.textContent = 'Projections could not be loaded. Reload the page to retry.';
+    }
+  };
+  const observer = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((entry) => entry.target === host && entry.isIntersecting)) activate();
+    },
+    { rootMargin: '0px' },
+  );
+  _pendingPlanning = { host, observer, activate };
+  host.addEventListener('focusin', activate);
+  host.querySelector('button')!.addEventListener('click', activate);
+  observer.observe(host);
+}
 
 function _renderNWBreakdownChart(s: Snapshot, chartA: ChartAccount[]): void {
   renderChart(

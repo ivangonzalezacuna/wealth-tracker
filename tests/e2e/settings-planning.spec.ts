@@ -92,6 +92,7 @@ test('settings-driven account and goal changes propagate into net worth planning
   await expect(page.locator('#nw-goal')).toContainText('FIRE');
   await expect(page.locator('#nw-goal')).toContainText('Counted now10.000');
   await expect(page.locator('#nw-goal')).toContainText('50% complete');
+  await page.locator('#nw-planning').scrollIntoViewIfNeeded();
   await expect(page.locator('#c-nw-forecast canvas')).toHaveCount(1);
   await expect(page.locator('.forecast-scenario-card')).toBeHidden();
 
@@ -129,6 +130,7 @@ test('forecast shows grouped summary when accounts belong to different groups', 
   });
 
   await openTab(page, 'tab-networth');
+  await page.locator('#nw-planning').scrollIntoViewIfNeeded();
   await expect(page.locator('#nw-fc-panel')).toContainText('Grouped forecast summary');
   await expect(page.locator('#nw-fc-panel')).toContainText('Tax-Sheltered');
   await expect(page.locator('#nw-fc-panel')).toContainText('Taxable');
@@ -151,6 +153,7 @@ test('retirement withdrawal keeps the Fixed amount after typing a % rate and rel
   await waitForSyncIdle(page);
 
   await openTab(page, 'tab-networth');
+  await page.locator('#nw-planning').scrollIntoViewIfNeeded();
   await expect(page.locator('#c-nw-forecast canvas')).toHaveCount(1);
   await page.click('[data-planning-tab="drawdown"]');
   const suggested = await page.locator('#dd-withdrawal').inputValue();

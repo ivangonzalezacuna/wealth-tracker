@@ -119,6 +119,60 @@ function switchToDrawdownTab(): HTMLElement {
 }
 
 describe('renderNW', () => {
+  it('defers projections, uses the latest snapshots, and cancels stale observations', async () => {
+    let activate!: () => void;
+    const disconnect = vi.fn();
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(callback: (entries: { target: Element; isIntersecting: boolean }[]) => void) {
+          activate = () =>
+            callback([{ target: document.getElementById('nw-planning')!, isIntersecting: true }]);
+        }
+        observe() {}
+        disconnect = disconnect;
+      },
+    );
+    try {
+      const host = document.getElementById('nw-planning')!;
+      host.checkVisibility = () => true;
+      renderNW([makeSnap('2025-01', 1000)]);
+      expect(chartFor('c-nw-forecast')).toBeUndefined();
+      expect(host.getAttribute('aria-busy')).toBe('true');
+      renderNW([makeSnap('2025-01', 3000)]);
+      activate();
+      expect(host.hasAttribute('aria-busy')).toBe(false);
+      expect(chartFor('c-nw-forecast')).toBeDefined();
+      const option = chartFor('c-nw-forecast')!.option as AnyRec;
+      expect(option.series[0].data.at(-1)[1]).toBe(3500);
+      expect(disconnect).toHaveBeenCalledOnce();
+      renderNW([]);
+      activate();
+      expect(chartFor('c-nw-forecast')).toBeUndefined();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('loads deferred projections on keyboard focus and transfers focus to its active tab', () => {
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    try {
+      const host = document.getElementById('nw-planning')!;
+      renderNW([makeSnap('2025-01')]);
+      host.querySelector<HTMLButtonElement>('button')!.focus();
+      expect(chartFor('c-nw-forecast')).toBeDefined();
+      expect(document.activeElement).toBe(host.querySelector('[aria-selected="true"]'));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   beforeEach(async () => {
     await loadCharts();
     resetMockCharts();

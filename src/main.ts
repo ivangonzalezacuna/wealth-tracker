@@ -1128,6 +1128,22 @@ async function bootFromCache() {
 }
 
 // ── Background sync ──────────────────────────────────────
+function viewDataSignature(): string {
+  return JSON.stringify(
+    {
+      accounts: getAccounts(),
+      holdings: getHoldings(),
+      settings: getSettings(),
+      snaps: state.snaps,
+      txs: state.txs,
+      importMeta: state.importMeta,
+      pd: state.pd,
+    },
+    (_key: string, value: unknown) =>
+      typeof value === 'bigint' ? { bigint: value.toString() } : value,
+  );
+}
+
 /**
  * Sync data from local SQLite DB, with Drive AppData pull if cloud is newer.
  */
@@ -1142,9 +1158,11 @@ async function syncInBackground({ userInitiated = false } = {}) {
     setSyncStatus('offline');
     return;
   }
+  let unchanged = false;
   setSyncing(true);
   setSyncStatus('syncing');
   try {
+    const previousView = state.cacheLoaded ? viewDataSignature() : null;
     // Pull from Drive if cloud is newer (replaces local DB if so)
     await pullFromCloud();
     if (await hasPendingLocalChanges()) {
@@ -1186,8 +1204,11 @@ async function syncInBackground({ userInitiated = false } = {}) {
     if (!configCached || !snapsCached || !txsCached) showCacheWriteWarning();
 
     await backupCollapseToSheet();
+    state.cacheLoaded = true;
+    unchanged = previousView !== null && previousView === viewDataSignature();
     settleSyncStatus();
   } catch (err) {
+    unchanged = false;
     if (err instanceof NeedsAuthError) {
       // The token expired in the meantime: back to "not connected".
       updateAuthUI(false);
@@ -1209,7 +1230,12 @@ async function syncInBackground({ userInitiated = false } = {}) {
   } finally {
     setSyncing(false);
     _lastSyncAt = Date.now();
-    renderAll();
+    if (!unchanged) renderAll();
+    else {
+      applyReadOnlyMode();
+      renderSetupBanner();
+      refreshAttention();
+    }
   }
 }
 
