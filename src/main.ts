@@ -173,12 +173,12 @@ const state: {
 // ── Render-on-show state ─────────────────────────────────
 let _activeSection = 'networth';
 const _dirty = new Set<string>();
-let _analyticsRenderTimer: ReturnType<typeof setTimeout> | undefined;
 const ALL_SECTIONS = ['networth', 'portfolio', 'analytics', 'settings', 'log'] as const;
 
 // ── Portfolio sub-view state ─────────────────────────────
 let _portfolioSubview: 'holdings' | 'contributions' | 'dividends' = 'holdings';
 let _logView: LogView = 'transactions';
+let _analyticsRenderTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** Subview to encode in the URL hash for a top-level section. */
 function sectionSubview(id: string): string | undefined {
@@ -2234,17 +2234,15 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
           }
           _analyticsRenderTimer = setTimeout(() => {
             _analyticsRenderTimer = undefined;
-            anContent.querySelector('.an-computing')?.remove();
             if (_activeSection !== 'analytics') {
               _dirty.add('analytics');
               return;
             }
+            anContent.querySelector('.an-computing')?.remove();
             renderAnalytics(state.pd, state.snaps, state.txs);
-            anContent.dataset.rendered = 'true';
           }, 0);
         } else {
           renderAnalytics(state.pd, state.snaps, state.txs);
-          if (anContent) delete anContent.dataset.rendered;
         }
         break;
       }
