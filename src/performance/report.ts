@@ -16,6 +16,9 @@ export interface ReportFilters {
   release?: string | 'all';
   compareFrom?: string;
   compareTo?: string;
+  from?: number;
+  to?: number;
+  runId?: string;
 }
 
 export interface ReleaseComparison {
@@ -59,6 +62,7 @@ export interface PerformanceReport {
     syncCount: number;
   }>;
   comparison: ReleaseComparison | null;
+  selection: { from: string | null; to: string; singleRun: boolean };
   recommendations: Array<{ title: string; detail: string; sampleCount: number; threshold: string }>;
   limitations: string[];
 }
@@ -143,8 +147,30 @@ function groupRecords(records: ProfileRecord[]): ProfileGroup[] {
       .map((record) => record.payloadBytes)
       .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
     const ratingCounts: Record<string, number> = {};
+    const attributionValues: Record<string, number[]> = {};
+    const attributionCounts: Record<string, Record<string, number>> = {};
     for (const record of group.records) {
       if (record.rating) ratingCounts[record.rating] = (ratingCounts[record.rating] ?? 0) + 1;
+      for (const [key, value] of Object.entries(record.attribution ?? {})) {
+        if (record.name !== 'INP') continue;
+        if (
+          ['inputDelay', 'processingDuration', 'presentationDelay'].includes(key) &&
+          typeof value === 'number' &&
+          Number.isFinite(value) &&
+          value >= 0
+        ) {
+          (attributionValues[key] ??= []).push(value);
+        } else if (
+          (key === 'interactionType' && ['pointer', 'keyboard'].includes(String(value))) ||
+          (key === 'loadState' &&
+            ['loading', 'dom-interactive', 'dom-content-loaded', 'complete'].includes(
+              String(value),
+            ))
+        ) {
+          const counts = (attributionCounts[key] ??= {});
+          counts[String(value)] = (counts[String(value)] ?? 0) + 1;
+        }
+      }
     }
     return {
       appVersion,
@@ -162,6 +188,14 @@ function groupRecords(records: ProfileRecord[]): ProfileGroup[] {
         ? { meanPayloadBytes: payloads.reduce((sum, value) => sum + value, 0) / payloads.length }
         : {}),
       ...(Object.keys(ratingCounts).length ? { ratingCounts } : {}),
+      ...(Object.keys(attributionValues).length
+        ? {
+            attribution: Object.fromEntries(
+              Object.entries(attributionValues).map(([key, values]) => [key, distribution(values)]),
+            ),
+          }
+        : {}),
+      ...(Object.keys(attributionCounts).length ? { attributionCounts } : {}),
     };
   });
 }
@@ -318,26 +352,36 @@ function recommendations(groups: ProfileGroup[]): PerformanceReport['recommendat
   return findings.slice(0, 20);
 }
 
+export function filterProfileRecords(
+  records: ProfileRecord[],
+  filters: ReportFilters,
+  now: number,
+): ProfileRecord[] {
+  const cutoff =
+    filters.days === 'all' ? Number.NEGATIVE_INFINITY : now - filters.days * 24 * 60 * 60 * 1000;
+  return records.filter(
+    (record) =>
+      record.timestamp >= Math.max(cutoff, filters.from ?? Number.NEGATIVE_INFINITY) &&
+      record.timestamp <= Math.min(now, filters.to ?? now) &&
+      (!filters.runId || record.runId === filters.runId) &&
+      (!filters.category || filters.category === 'all' || record.category === filters.category) &&
+      (!filters.route || filters.route === 'all' || record.route === filters.route) &&
+      (!filters.release || filters.release === 'all' || releaseKey(record) === filters.release),
+  );
+}
+
 export function buildReport(
   records: ProfileRecord[],
   filters: ReportFilters = { days: 'all' },
   now = Date.now(),
 ): PerformanceReport {
-  const cutoff =
-    filters.days === 'all' ? Number.NEGATIVE_INFINITY : now - filters.days * 24 * 60 * 60 * 1000;
-  const periodRecords = records.filter(
-    (record) => record.timestamp >= cutoff && record.timestamp <= now,
+  const periodRecords = filterProfileRecords(
+    records,
+    { days: filters.days, from: filters.from, to: filters.to, runId: filters.runId },
+    now,
   );
   const releases = summarizeReleases(periodRecords);
-  const releaseFilter =
-    filters.release && filters.release !== 'all'
-      ? periodRecords.filter((record) => releaseKey(record) === filters.release)
-      : periodRecords;
-  const selected = releaseFilter.filter(
-    (record) =>
-      (!filters.category || filters.category === 'all' || record.category === filters.category) &&
-      (!filters.route || filters.route === 'all' || record.route === filters.route),
-  );
+  const selected = filterProfileRecords(records, filters, now);
   const groups = groupRecords(selected);
   const seenVersions = new Map<string, { appVersion: string; buildId: string }>();
   for (const record of selected) {
@@ -379,6 +423,11 @@ export function buildReport(
     releases,
     runs: summarizeRuns(selected),
     comparison: compareReleases(comparisonGroups, filters.compareFrom, filters.compareTo),
+    selection: {
+      from: filters.from === undefined ? null : new Date(filters.from).toISOString(),
+      to: new Date(Math.min(now, filters.to ?? now)).toISOString(),
+      singleRun: !!filters.runId,
+    },
     recommendations: recommendations(groups),
     limitations: [
       'Performance measurements are local browser observations and are not controlled benchmarks.',

@@ -90,4 +90,6 @@ export interface ProfileGroup {
   retryCount?: number;
   meanPayloadBytes?: number | null;
   ratingCounts?: Record<string, number>;
+  attribution?: Record<string, Distribution>;
+  attributionCounts?: Record<string, Record<string, number>>;
 }
