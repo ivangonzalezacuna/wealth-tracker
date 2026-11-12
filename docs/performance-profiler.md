@@ -38,7 +38,9 @@ The UTC date and run filters apply to the page and exported report, including re
 
 INP reports include separate distributions for input delay, processing duration and presentation delay, plus allowlisted interaction/load-state counts. These components are aggregated independently; their percentiles must not be added together. No selectors, interaction targets or user content are included.
 
-Startup records also include `startup-hidden-time` before first render, `auth-token-ready` (popup/token wait), `local-data-ready`, and `initial-data-load`. Cache lookup remains `cache-boot`. These phases may overlap and are not additive. A long first-render interval can include waiting for a user to sign in, rather than blocking JavaScript. Net Worth rendering has separate history, goals, planning and forecast-calculation markers; nested markers likewise must not be added to their parent durations.
+Startup records also include `startup-hidden-time` before first render, `sign-in-requested` (elapsed module time until the user requests connection), `auth-token-ready` (popup/token wait), `local-data-ready`, and `initial-data-load`. Cache lookup remains `cache-boot`. These phases may overlap and are not additive. A long first-render interval can include waiting for a user to sign in, rather than blocking JavaScript. Net Worth rendering has separate history, goals, planning and forecast-calculation markers; nested markers likewise must not be added to their parent durations.
+
+If the profiler chunk finishes loading after the first section render, that completion retains its original timestamp and is published when the profiler becomes ready. Its frame-delay marker includes the wait for profiler initialization and the subsequent scheduled animation frame; it is not proof of when the first actual paint occurred.
 
 Durations are milliseconds unless a report row specifies another unit. Payload sizes are bytes. The diagnostics page reports sample counts and distributions, including median, p75, p95, and maximum when applicable. It also shows success and failure counts, retry counts, or average payload size for operations that provide those values.
 
