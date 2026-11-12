@@ -89,6 +89,29 @@ describe('performance profiler', () => {
     window.location.hash = '';
   });
 
+  it('retains the actual completion timestamp when profiler loading finishes later', async () => {
+    vi.mocked(writeRecords).mockClear();
+    const callbacks: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callbacks.push(callback);
+      return 1;
+    });
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    const now = vi.spyOn(performance, 'now').mockReturnValue(2600);
+    const profiler = globalThis.__wtProfiler!;
+    profiler.recordFirstRender(20, { route: 'settings' }, 100);
+    now.mockReturnValue(2610);
+    callbacks[0](2610);
+    await profiler.flush();
+    const records = vi.mocked(writeRecords).mock.calls.flatMap(([batch]) => batch);
+    expect(records).toContainEqual(
+      expect.objectContaining({ name: 'first-render-complete', durationMs: 80 }),
+    );
+    expect(records).toContainEqual(
+      expect.objectContaining({ name: 'first-frame-delay-visible', durationMs: 2510 }),
+    );
+  });
+
   it('labels frames delayed across a hidden interval separately', async () => {
     vi.mocked(writeRecords).mockClear();
     let callback!: FrameRequestCallback;

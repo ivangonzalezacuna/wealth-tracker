@@ -201,8 +201,11 @@ function record(category: ProfileCategory, name: string, input: ProfileRecordInp
   else scheduleFlush();
 }
 
-function recordFirstRender(startedAt: number, input: ProfileRecordInput): void {
-  const completedAt = performance.now();
+function recordFirstRender(
+  startedAt: number,
+  input: ProfileRecordInput,
+  completedAt = performance.now(),
+): void {
   let wasHidden = document.visibilityState === 'hidden';
   const visibilityChanged = () => {
     if (document.visibilityState === 'hidden') wasHidden = true;
