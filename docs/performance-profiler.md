@@ -10,15 +10,15 @@ Set the Vite environment variable before building or starting the app:
 VITE_ENABLE_PROFILING=true
 ```
 
-For release comparisons, also set a stable identifier for that build, such as a release tag or commit SHA:
+Builds automatically use Netlify's `COMMIT_REF`, GitHub Actions' `GITHUB_SHA`, or the local Git HEAD, in that order. You can override that identity with a release label:
 
 ```env
 VITE_BUILD_ID=release-1.2.3
 ```
 
-When `VITE_BUILD_ID` is unset, the package version is used as the build ID. The app version and build ID together identify a release in reports, so use a distinct build ID for each build you want to compare. Set the variables in `.env.local` for local work or in the hosting provider's build environment for a deployed build. The feature flag is evaluated at build time.
+The app version still comes from `package.json`; it need not change for every deployment. The app version and commit-based build ID together identify a release. Remove any old fixed `VITE_BUILD_ID` override to enable automatic commit IDs. If neither deployment metadata nor Git is available, the build warns and uses `local-unversioned`; set an explicit ID in that environment. Set variables in `.env.local` or the hosting provider's build environment. The feature flag is evaluated at build time.
 
-With profiling enabled, open the three-dot header menu and choose **Performance diagnostics**. The page can filter measurements by the last 7, 30, or 90 days, category, route, and release. It can compare two releases and export the current filtered report as JSON. The app continues to work if profiler storage is unavailable; the diagnostics page reports storage or export errors rather than silently presenting a successful result.
+With profiling enabled, open the three-dot header menu and choose **Performance diagnostics**. The page can filter measurements by the last 7, 30, or 90 days, inclusive UTC dates, individual run, category, route, and release. It can compare two releases and export the current filtered report as JSON. The app continues to work if profiler storage is unavailable; the diagnostics page reports storage or export errors rather than silently presenting a successful result.
 
 ## What is measured
 
@@ -33,6 +33,12 @@ The profiler records measurements in these categories:
 Startup reporting separates `first-render-complete` (synchronous section render completion since app-module initialization) from `first-frame-delay-visible` and `first-frame-delay-hidden` (the subsequent animation-frame wait). The hidden variant means the document was hidden at some point during that wait. Both retain the route captured at render completion. These are scheduling/render markers, not proof that all deferred charts or asynchronous data work have finished. Older `first-usable-render` samples included the frame wait; do not directly compare them with the new completion metric.
 
 Known ResizeObserver loop notifications are counted separately as browser `resize-observer-loop` events, rather than ordinary `javascript-error` events. They remain visible diagnostics, not suppressed errors. Other error messages and stack traces are not retained.
+
+The UTC date and run filters apply to the page and exported report, including release comparisons. Run identifiers stay local and are not exported. The export records the chosen date bounds and whether a single run was selected. Use a single run or a date range to avoid mixing older activity with a new test session.
+
+INP reports include separate distributions for input delay, processing duration and presentation delay, plus allowlisted interaction/load-state counts. These components are aggregated independently; their percentiles must not be added together. No selectors, interaction targets or user content are included.
+
+Startup records also include `startup-hidden-time` before first render, `auth-token-ready` (popup/token wait), `local-data-ready`, and `initial-data-load`. Cache lookup remains `cache-boot`. These phases may overlap and are not additive. A long first-render interval can include waiting for a user to sign in, rather than blocking JavaScript. Net Worth rendering has separate history, goals, planning and forecast-calculation markers; nested markers likewise must not be added to their parent durations.
 
 Durations are milliseconds unless a report row specifies another unit. Payload sizes are bytes. The diagnostics page reports sample counts and distributions, including median, p75, p95, and maximum when applicable. It also shows success and failure counts, retry counts, or average payload size for operations that provide those values.
 

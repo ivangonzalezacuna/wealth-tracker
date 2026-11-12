@@ -36,6 +36,52 @@ function makeRecord(
 }
 
 describe('performance report aggregation', () => {
+  it('isolates an inclusive date interval and run without exporting the run identifier', () => {
+    const records = [
+      makeRecord('before', 999, { runId: 'private-a', durationMs: 1000 }),
+      makeRecord('first', 1000, { runId: 'private-a', durationMs: 10 }),
+      makeRecord('other', 1500, { runId: 'private-b', durationMs: 900 }),
+      makeRecord('last', 2000, { runId: 'private-a', durationMs: 20 }),
+      makeRecord('after', 2001, { runId: 'private-a', durationMs: 1000 }),
+    ];
+    const report = buildReport(
+      records,
+      { days: 'all', from: 1000, to: 2000, runId: 'private-a' },
+      3000,
+    );
+    expect(report.summary).toEqual({ measurementCount: 2, runCount: 1 });
+    expect(report.groups[0].distribution.median).toBe(15);
+    expect(report.selection.singleRun).toBe(true);
+    expect(serializeReport(report)).not.toContain('private-a');
+  });
+
+  it('exports only allowlisted INP attribution distributions and categories', () => {
+    const a = makeRecord('a', 1000, { category: 'vital', name: 'INP', value: 100 });
+    const b = makeRecord('b', 1100, { category: 'vital', name: 'INP', value: 200 });
+    a.attribution = {
+      inputDelay: 10,
+      processingDuration: 20,
+      presentationDelay: 70,
+      interactionType: 'pointer',
+      target: 'secret-selector',
+    };
+    b.attribution = {
+      inputDelay: 30,
+      processingDuration: 40,
+      presentationDelay: 130,
+      interactionType: 'keyboard',
+      loadState: 'complete',
+    };
+    const report = buildReport([a, b], { days: 'all' }, 2000);
+    expect(report.groups[0].attribution?.inputDelay).toMatchObject({ sampleCount: 2, median: 20 });
+    expect(report.groups[0].attribution?.processingDuration.median).toBe(30);
+    expect(report.groups[0].attributionCounts).toEqual({
+      interactionType: { pointer: 1, keyboard: 1 },
+      loadState: { complete: 1 },
+    });
+    expect(serializeReport(report)).not.toContain('secret-selector');
+    expect(serializeReport(report)).not.toContain('"target"');
+  });
   it('calculates interpolated median, p75, p95, and maximum', () => {
     expect(distribution([10, 20, 30, 40])).toEqual({
       sampleCount: 4,

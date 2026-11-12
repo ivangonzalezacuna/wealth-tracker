@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { defineConfig, loadEnv } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { resolveBuildId } from './scripts/buildIdentity.mjs';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
@@ -8,7 +9,7 @@ export default defineConfig(({ mode }) => {
   return {
     define: {
       __APP_VERSION__: JSON.stringify(packageJson.version),
-      __BUILD_ID__: JSON.stringify(env.VITE_BUILD_ID || packageJson.version),
+      __BUILD_ID__: JSON.stringify(resolveBuildId({ ...process.env, ...env })),
     },
     build: {
       outDir: 'dist',
