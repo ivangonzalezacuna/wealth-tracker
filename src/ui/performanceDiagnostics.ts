@@ -1,5 +1,6 @@
 import {
   buildReport,
+  filterProfileRecords,
   releaseKey,
   serializeReport,
   type PeriodDays,
@@ -19,6 +20,18 @@ let _route = 'all';
 let _release = 'all';
 let _compareFrom = '';
 let _compareTo = '';
+let _from = '';
+let _to = '';
+let _runId = '';
+
+function timeFilters(): Pick<ReportFilters, 'days' | 'from' | 'to' | 'runId'> {
+  return {
+    days: _days,
+    ...(_from ? { from: Date.parse(`${_from}T00:00:00Z`) } : {}),
+    ...(_to ? { to: Date.parse(`${_to}T23:59:59.999Z`) } : {}),
+    ...(_runId ? { runId: _runId } : {}),
+  };
+}
 
 function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -324,9 +337,62 @@ function makeFilters(
       rerender();
     }),
   );
+  for (const [text, value, update] of [
+    [
+      'From date (UTC)',
+      _from,
+      (value: string) => {
+        _from = value;
+      },
+    ],
+    [
+      'Through date (UTC)',
+      _to,
+      (value: string) => {
+        _to = value;
+      },
+    ],
+  ] as const) {
+    const label = element('label', undefined, 'performance-filter');
+    const input = element('input', undefined, 'form-input');
+    input.type = 'date';
+    input.value = value;
+    input.setAttribute('aria-label', text);
+    label.append(element('span', text), input);
+    input.addEventListener('change', () => {
+      update(input.value);
+      rerender();
+    });
+    filters.append(label);
+  }
+  const runRecords = filterProfileRecords(
+    records,
+    { ...timeFilters(), runId: undefined },
+    Date.now(),
+  );
+  const runs = new Map<string, number>();
+  for (const record of runRecords)
+    runs.set(record.runId, Math.min(runs.get(record.runId) ?? Infinity, record.timestamp));
+  filters.append(
+    selectControl(
+      'Run',
+      [
+        { value: '', label: 'All runs' },
+        ...[...runs]
+          .sort((a, b) => b[1] - a[1])
+          .map(([value, timestamp]) => ({ value, label: new Date(timestamp).toISOString() })),
+      ],
+      _runId,
+      (value) => {
+        _runId = value;
+        rerender();
+      },
+    ),
+  );
   const categoryOptions: Array<{ value: ProfileCategory | 'all'; label: string }> = [
     { value: 'all', label: 'All categories' },
     { value: 'vital', label: 'Web vitals' },
+    { value: 'app', label: 'Startup and application' },
     { value: 'route', label: 'Page routes' },
     { value: 'render', label: 'Rendering' },
     { value: 'database', label: 'IndexedDB / database' },
@@ -389,13 +455,31 @@ export async function renderPerformanceDiagnostics(): Promise<void> {
   try {
     const records = await readRecords();
     const now = Date.now();
-    const baseFilters: ReportFilters = { days: _days };
+    if (
+      _runId &&
+      !filterProfileRecords(records, { ...timeFilters(), runId: undefined }, now).some(
+        (record) => record.runId === _runId,
+      )
+    )
+      _runId = '';
+    const baseFilters: ReportFilters = timeFilters();
+    if (
+      baseFilters.from !== undefined &&
+      baseFilters.to !== undefined &&
+      baseFilters.from > baseFilters.to
+    ) {
+      host.replaceChildren(
+        element('p', 'From date must not be after through date.', 'performance-warning'),
+        makeFilters(records, [], () => void renderPerformanceDiagnostics()),
+      );
+      return;
+    }
     const baseReport = buildReport(records, baseFilters, now);
     const releases = baseReport.releases;
     if (!_compareFrom && releases.length > 1) _compareFrom = releaseKey(releases[0]);
     if (!_compareTo && releases.length > 1) _compareTo = releaseKey(releases[releases.length - 1]);
     const filters: ReportFilters = {
-      days: _days,
+      ...timeFilters(),
       category: _category,
       route: _route,
       release: _release,
@@ -403,18 +487,8 @@ export async function renderPerformanceDiagnostics(): Promise<void> {
       compareTo: _compareTo,
     };
     const report = buildReport(records, filters, now);
-    const cutoff = _days === 'all' ? Number.NEGATIVE_INFINITY : now - _days * 24 * 60 * 60 * 1000;
-    const filteredRecords = records.filter(
-      (record) =>
-        record.timestamp >= cutoff &&
-        record.timestamp <= now &&
-        (!filters.category || filters.category === 'all' || record.category === filters.category) &&
-        (!filters.route || filters.route === 'all' || record.route === filters.route) &&
-        (!filters.release || filters.release === 'all' || releaseKey(record) === filters.release),
-    );
-    const periodRecords = records.filter(
-      (record) => record.timestamp >= cutoff && record.timestamp <= now,
-    );
+    const filteredRecords = filterProfileRecords(records, filters, now);
+    const periodRecords = filterProfileRecords(records, baseFilters, now);
     const status = globalThis.__wtProfiler?.getStatus();
     const content = element('div', undefined, 'performance-diagnostics');
     const toolbar = element('div', undefined, 'performance-toolbar');
@@ -480,6 +554,24 @@ export async function renderPerformanceDiagnostics(): Promise<void> {
       overview.append(card);
     }
     content.append(overview);
+    const attributionGroups = report.groups.flatMap((group) =>
+      Object.entries(group.attribution ?? {}).map(([name, distribution]) => ({
+        ...group,
+        name: `INP: ${name}`,
+        distribution,
+        sampleCount: distribution.sampleCount,
+      })),
+    );
+    appendGroupTable(
+      content,
+      'INP breakdown (input, processing and presentation)',
+      attributionGroups,
+    );
+    appendGroupTable(
+      content,
+      'Startup and application',
+      report.groups.filter((group) => group.category === 'app'),
+    );
     const visibleGroups = report.groups;
     appendGroupTable(
       content,
