@@ -156,6 +156,7 @@ import { prefetchMonthEndRates, type FxPrefetchResult } from './services/fxRateS
 const PROFILING_ENABLED = import.meta.env.VITE_ENABLE_PROFILING === 'true';
 const APP_MODULE_START = performance.now();
 let _usableUiRecorded = false;
+let _pendingFirstRender: (() => void) | undefined;
 let _startupHiddenAt = PROFILING_ENABLED && document.hidden ? APP_MODULE_START : null;
 let _startupHiddenMs = 0;
 const startupVisibilityChanged = () => {
@@ -169,7 +170,11 @@ const startupVisibilityChanged = () => {
 if (PROFILING_ENABLED) {
   document.addEventListener('visibilitychange', startupVisibilityChanged);
   void import('./performance/profiler')
-    .then(({ initProfiler }) => initProfiler())
+    .then(({ initProfiler }) => {
+      initProfiler();
+      _pendingFirstRender?.();
+      _pendingFirstRender = undefined;
+    })
     .catch((error: unknown) => console.error('[profiler] Initialization failed:', error));
 }
 
@@ -948,6 +953,9 @@ async function connectAndSync(opts: { auto?: boolean } = {}): Promise<boolean> {
   if (_connecting) return false;
   _connecting = true;
   const authStartedAt = PROFILING_ENABLED ? performance.now() : 0;
+  globalThis.__wtProfiler?.record('app', 'sign-in-requested', {
+    durationMs: authStartedAt - APP_MODULE_START,
+  });
   let cancelled = false;
   showSigninOverlay(() => {
     cancelled = true;
@@ -2410,14 +2418,21 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
         document.removeEventListener('visibilitychange', startupVisibilityChanged);
         const hiddenMs =
           _startupHiddenMs + (_startupHiddenAt === null ? 0 : performance.now() - _startupHiddenAt);
-        globalThis.__wtProfiler?.record('app', 'startup-hidden-time', {
-          route: id,
-          durationMs: hiddenMs,
-        });
-        globalThis.__wtProfiler?.recordFirstRender(APP_MODULE_START, {
-          route: id,
-          cacheState: state.cacheLoaded ? 'cached' : 'uncached',
-        });
+        const completedAt = performance.now();
+        const cacheState = state.cacheLoaded ? 'cached' : 'uncached';
+        const publish = () => {
+          globalThis.__wtProfiler?.record('app', 'startup-hidden-time', {
+            route: id,
+            durationMs: hiddenMs,
+          });
+          globalThis.__wtProfiler?.recordFirstRender(
+            APP_MODULE_START,
+            { route: id, cacheState },
+            completedAt,
+          );
+        };
+        if (globalThis.__wtProfiler) publish();
+        else _pendingFirstRender = publish;
       }
     }
   }
