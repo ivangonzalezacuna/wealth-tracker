@@ -42,6 +42,92 @@ beforeEach(async () => {
 afterEach(() => {
   _resetChartsForTests();
   resetMockCharts();
+  vi.unstubAllGlobals();
+});
+
+describe('chart resize guards', () => {
+  let observe: () => void;
+  let host: HTMLElement;
+  let visible: boolean;
+  beforeEach(() => {
+    host = document.getElementById('c-test')!;
+    visible = true;
+    host.checkVisibility = () => visible;
+    Object.defineProperties(host, {
+      clientWidth: { configurable: true, value: 600 },
+      clientHeight: { configurable: true, value: 200 },
+    });
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          observe = callback;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+  });
+
+  it('skips unchanged, hidden, detached and zero-size hosts, but resizes changed dimensions', () => {
+    renderChart('c-test', line);
+    const resize = vi.spyOn(chartFor('c-test')!, 'resize');
+    observe();
+    expect(resize).not.toHaveBeenCalled();
+    visible = false;
+    Object.defineProperty(host, 'clientWidth', { configurable: true, value: 700 });
+    observe();
+    host.remove();
+    visible = true;
+    observe();
+    expect(resize).not.toHaveBeenCalled();
+    document.body.append(host);
+    observe();
+    expect(resize).toHaveBeenCalledOnce();
+    Object.defineProperty(host, 'clientHeight', { configurable: true, value: 250 });
+    observe();
+    expect(resize).toHaveBeenCalledTimes(2);
+    Object.defineProperty(host, 'clientWidth', { configurable: true, value: 0 });
+    observe();
+    expect(resize).toHaveBeenCalledTimes(2);
+    disposeChart('c-test');
+    observe();
+    expect(resize).toHaveBeenCalledTimes(2);
+  });
+
+  it('retains density, compact, fullscreen, touch and wrapping-legend updates', () => {
+    vi.stubGlobal('devicePixelRatio', 1);
+    const build = vi.fn(() => ({ ...line(), legend: {} }));
+    renderChart('c-test', build);
+    const resize = vi.spyOn(chartFor('c-test')!, 'resize');
+    vi.stubGlobal('devicePixelRatio', 2);
+    observe();
+    expect(resize).toHaveBeenCalledOnce();
+    expect(build).toHaveBeenCalledOnce();
+    Object.defineProperty(host, 'clientWidth', { configurable: true, value: 390 });
+    observe();
+    host.classList.add('chart-expanded');
+    observe();
+    vi.mocked(window.matchMedia).mockReturnValue({ matches: true } as MediaQueryList);
+    observe();
+    Object.defineProperty(host.querySelector('.chart-legend'), 'offsetHeight', { value: 44 });
+    observe();
+    observe();
+    expect(build).toHaveBeenCalledTimes(5);
+    expect(resize).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses laid-out rectangles when checkVisibility is unavailable', () => {
+    Object.defineProperty(host, 'checkVisibility', { value: undefined });
+    renderChart('c-test', line);
+    const resize = vi.spyOn(chartFor('c-test')!, 'resize');
+    Object.defineProperty(host, 'clientWidth', { configurable: true, value: 700 });
+    observe();
+    expect(resize).not.toHaveBeenCalled();
+    vi.spyOn(host, 'getClientRects').mockReturnValue({ length: 1 } as DOMRectList);
+    observe();
+    expect(resize).toHaveBeenCalledOnce();
+  });
 });
 
 describe('chart formatters', () => {

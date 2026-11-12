@@ -153,7 +153,10 @@ export function renderAnalytics(
   const has = snaps.length > 0;
   document.getElementById('an-empty')!.style.display = has ? 'none' : 'block';
   document.getElementById('an-content')!.style.display = has ? 'block' : 'none';
-  if (!has) return;
+  if (!has) {
+    delete document.getElementById('an-content')!.dataset.rendered;
+    return;
+  }
 
   const accounts = getAccounts();
   const holdings = getHoldings();
@@ -440,6 +443,7 @@ export function renderAnalytics(
   }
 
   attachInfoTips(document.getElementById('analytics')!);
+  document.getElementById('an-content')!.dataset.rendered = 'true';
 }
 
 // ── Portfolio growth chart ─────────────────────────────────

@@ -169,6 +169,135 @@ test('analytics timeline charts share their zoom window', async ({ page }) => {
   expect((await zoomWindow(page, 'c-an-drawdown'))?.startValue).toBe(growth.startValue);
 });
 
+for (const width of [390, 1365]) {
+  test(`chart returns skip redundant resizes but adapt to changed dimensions at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const problems: string[] = [];
+    page.on('console', (message) => {
+      if (message.text().startsWith('chart-regression:')) problems.push(message.text());
+    });
+    await page.evaluate(() =>
+      window.addEventListener('error', (event) =>
+        console.warn(`chart-regression:${event.message}`),
+      ),
+    );
+    for (const [section, id] of [
+      ['portfolio', 'c-port-donut'],
+      ['analytics', 'c-an-growth'],
+    ]) {
+      await openTab(page, `tab-${section}`);
+      await showChart(page, id);
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          ),
+      );
+      await page.evaluate(async (id) => {
+        const { getChart } = await import('/src/views/charts/registry.ts');
+        const chart = getChart(id)!;
+        const host = document.getElementById(id)!;
+        const resize = chart.resize.bind(chart);
+        host.dataset.resizes = '0';
+        chart.resize = (...args) => {
+          host.dataset.resizes = String(Number(host.dataset.resizes) + 1);
+          resize(...args);
+        };
+      }, id);
+      const canvas = await page.locator(`#${id} canvas`).elementHandle();
+      await openTab(page, 'tab-log');
+      await openTab(page, `tab-${section}`);
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          ),
+      );
+      await expect(page.locator(`#${id}`)).toHaveAttribute('data-resizes', '0');
+      await openTab(page, 'tab-log');
+      await page.setViewportSize({ width: width === 390 ? 800 : 450, height: 700 });
+      await openTab(page, `tab-${section}`);
+      await expect
+        .poll(() =>
+          page.evaluate(async (id) => {
+            const { getChart } = await import('/src/views/charts/registry.ts');
+            const chart = getChart(id)!,
+              host = document.getElementById(id)!;
+            return (
+              Number(host.dataset.resizes) > 0 &&
+              chart.getWidth() === host.clientWidth &&
+              chart.getHeight() === host.clientHeight
+            );
+          }, id),
+        )
+        .toBe(true);
+      expect(await canvas!.evaluate((el) => el.isConnected)).toBe(true);
+      await page.setViewportSize({ width, height: 900 });
+    }
+    expect(problems).toEqual([]);
+  });
+}
+
+test('Analytics refreshes keep existing content stable and interrupted work refreshes on return', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openTab(page, 'tab-analytics');
+  await showChart(page, 'c-an-contrib');
+  await page.evaluate(() => {
+    const content = document.getElementById('an-content')!;
+    content.dataset.loadingRows = '0';
+    new MutationObserver((records) => {
+      for (const record of records)
+        for (const node of record.addedNodes)
+          if (node instanceof Element && node.matches('.an-computing'))
+            content.dataset.loadingRows = String(Number(content.dataset.loadingRows) + 1);
+    }).observe(content, { childList: true });
+  });
+  const extra = await page
+    .locator('#c-an-contrib')
+    .evaluate((el) =>
+      el.closest<HTMLElement>('.chart-wrap')!.style.getPropertyValue('--chart-head-extra'),
+    );
+  await page.locator('#btn-header-menu').click();
+  await page.locator('[data-theme-choice="dark"]').click();
+  await expect(page.locator('#c-an-contrib canvas')).toHaveCount(1);
+  await expect(page.locator('#an-content')).toHaveAttribute('data-loading-rows', '0');
+  expect(
+    await page
+      .locator('#c-an-contrib')
+      .evaluate((el) =>
+        el.closest<HTMLElement>('.chart-wrap')!.style.getPropertyValue('--chart-head-extra'),
+      ),
+  ).toBe(extra);
+  await page.reload();
+  await page.locator('#app-sub').filter({ hasText: '30 snapshots' }).waitFor();
+  await page.evaluate(() => {
+    document.getElementById('tab-analytics')!.click();
+    document.getElementById('tab-networth')!.click();
+  });
+  await openTab(page, 'tab-analytics');
+  await expect(page.locator('#an-content')).toHaveAttribute('data-rendered', 'true');
+  await expect(page.locator('#an-content .an-computing')).toHaveCount(0);
+});
+
+test('contribution batch saves persist all three values across reload', async ({ page }) => {
+  await openTab(page, 'tab-settings');
+  await ensureCardExpanded(page, 'settings-card-contributions');
+  await page.fill('#set-contrib-budget', '650');
+  await page.selectOption('#set-contribution-interval', 'biweekly');
+  await page.selectOption('#set-calibration-interval', 'weekly');
+  await page.locator('#btn-save-contributions').click();
+  await expect(page.locator('.toast-text').last()).toContainText('Contributions saved');
+  await page.reload();
+  await ensureCardExpanded(page, 'settings-card-contributions');
+  await expect(page.locator('#set-contrib-budget')).toHaveValue('650');
+  await expect(page.locator('#set-contribution-interval')).toHaveValue('biweekly');
+  await expect(page.locator('#set-calibration-interval')).toHaveValue('weekly');
+});
+
 test('clicking a history point opens that snapshot in the log', async ({ page }) => {
   await openTab(page, 'tab-networth');
   const pt = await pointAt(page, 'c-nw-hist', -2);
