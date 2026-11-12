@@ -796,7 +796,8 @@ describe('Portfolio contributions card', () => {
   it('saves amount, contribution cadence, and calibration cadence', async () => {
     renderSettings();
     const { setSetting } = await import('../store/config');
-    (setSetting as ReturnType<typeof vi.fn>).mockClear();
+    vi.mocked(setSetting).mockClear();
+    vi.mocked(setSettings).mockClear();
 
     (document.getElementById('set-contrib-budget') as HTMLInputElement).value = '300';
     (document.getElementById('set-contribution-interval') as HTMLSelectElement).value = 'biweekly';
@@ -807,11 +808,29 @@ describe('Portfolio contributions card', () => {
     (document.getElementById('btn-save-contributions') as HTMLButtonElement).click();
     await new Promise((r) => setTimeout(r, 0));
 
-    expect((setSetting as ReturnType<typeof vi.fn>).mock.calls).toEqual([
-      ['monthly_contrib_budget', '300'],
-      ['contribution_interval', 'biweekly'],
-      ['calibration_interval', 'weekly'],
-    ]);
+    expect(setSetting).not.toHaveBeenCalled();
+    expect(setSettings).toHaveBeenCalledExactlyOnceWith({
+      monthly_contrib_budget: '300',
+      contribution_interval: 'biweekly',
+      calibration_interval: 'weekly',
+    });
+  });
+
+  it('keeps contribution drafts dirty and reports a failed batch save', async () => {
+    renderSettings();
+    vi.mocked(setSettings).mockRejectedValueOnce(new Error('Synthetic persistence failure'));
+    const amount = document.getElementById('set-contrib-budget') as HTMLInputElement;
+    amount.value = '345';
+    amount.dispatchEvent(new Event('input', { bubbles: true }));
+    document.getElementById('btn-save-contributions')!.click();
+    await vi.waitFor(() =>
+      expect(notify).toHaveBeenCalledWith(
+        'Could not save contributions: Synthetic persistence failure',
+        { variant: 'error', source: 'contributions-msg' },
+      ),
+    );
+    expect(amount.value).toBe('345');
+    expect(document.getElementById('btn-save-contributions')!.dataset.dirty).toBe('true');
   });
 
   it('refreshes saved values while preserving another card and its draft listeners', async () => {

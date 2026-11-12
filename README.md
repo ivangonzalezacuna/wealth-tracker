@@ -520,6 +520,10 @@ The app installs like a native app and works offline. All writes (snapshots, imp
 
 ---
 
+## Rendering behavior
+
+Charts retain their canvases on navigation and only resize when their dimensions or display density change. Hidden charts wait until visible; legend wrapping and compact/fullscreen layouts still update. Analytics refreshes preserve the existing layout and coalesce pending work. Contribution amount and both cadences save together through the existing guarded batch-settings API. These rendering fixes do not alter calculations, data formats, chart loading, projections or synchronization.
+
 ## Known limitations
 
 - **Selling is not supported.** The app is designed for long-term buy-and-hold portfolios. SELL transactions are recognized by the cost-basis engine (FIFO, LIFO, HIFO, and average-cost all dequeue lots correctly), but there is no UI to record a sale and the monthly investment KPIs do not subtract sell proceeds.

@@ -173,6 +173,7 @@ const state: {
 // ── Render-on-show state ─────────────────────────────────
 let _activeSection = 'networth';
 const _dirty = new Set<string>();
+let _analyticsRenderTimer: ReturnType<typeof setTimeout> | undefined;
 const ALL_SECTIONS = ['networth', 'portfolio', 'analytics', 'settings', 'log'] as const;
 
 // ── Portfolio sub-view state ─────────────────────────────
@@ -2220,9 +2221,10 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
         }
         break;
       case 'analytics': {
+        clearTimeout(_analyticsRenderTimer);
         const anContent = document.getElementById('an-content');
         if (anContent && state.snaps.length > 0) {
-          if (!anContent.querySelector('.an-computing')) {
+          if (!anContent.dataset.rendered && !anContent.querySelector('.an-computing')) {
             const placeholder = document.createElement('div');
             placeholder.className = 'an-computing';
             placeholder.innerHTML = '<span class="spinner"></span> Computing\u2026';
@@ -2230,12 +2232,19 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
               'display:flex;align-items:center;gap:0.5rem;padding:2rem 1rem;font-size:13px;color:var(--ink-2)';
             anContent.prepend(placeholder);
           }
-          setTimeout(() => {
+          _analyticsRenderTimer = setTimeout(() => {
+            _analyticsRenderTimer = undefined;
             anContent.querySelector('.an-computing')?.remove();
+            if (_activeSection !== 'analytics') {
+              _dirty.add('analytics');
+              return;
+            }
             renderAnalytics(state.pd, state.snaps, state.txs);
+            anContent.dataset.rendered = 'true';
           }, 0);
         } else {
           renderAnalytics(state.pd, state.snaps, state.txs);
+          if (anContent) delete anContent.dataset.rendered;
         }
         break;
       }

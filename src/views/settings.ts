@@ -1693,9 +1693,11 @@ function attachContributionsListeners(root: HTMLElement): void {
         'contributions',
         btn,
         async () => {
-          await setSetting('monthly_contrib_budget', budget);
-          await setSetting('contribution_interval', contributionInterval);
-          await setSetting('calibration_interval', interval);
+          await setSettings({
+            monthly_contrib_budget: budget,
+            contribution_interval: contributionInterval,
+            calibration_interval: interval,
+          });
         },
         { busyText: 'Saving...' },
       );
