@@ -154,6 +154,31 @@ import { getNonBaseCurrencies } from './model/snapshotFx';
 import { APP_CURRENCY } from './fx';
 import { prefetchMonthEndRates, type FxPrefetchResult } from './services/fxRateService';
 
+const PROFILING_ENABLED = import.meta.env.VITE_ENABLE_PROFILING === 'true';
+const APP_MODULE_START = performance.now();
+let _usableUiRecorded = false;
+let _pendingFirstRender: (() => void) | undefined;
+let _startupHiddenAt = PROFILING_ENABLED && document.hidden ? APP_MODULE_START : null;
+let _startupHiddenMs = 0;
+const startupVisibilityChanged = () => {
+  const now = performance.now();
+  if (document.hidden && _startupHiddenAt === null) _startupHiddenAt = now;
+  else if (!document.hidden && _startupHiddenAt !== null) {
+    _startupHiddenMs += now - _startupHiddenAt;
+    _startupHiddenAt = null;
+  }
+};
+if (PROFILING_ENABLED) {
+  document.addEventListener('visibilitychange', startupVisibilityChanged);
+  void import('./performance/profiler')
+    .then(({ initProfiler }) => {
+      initProfiler();
+      _pendingFirstRender?.();
+      _pendingFirstRender = undefined;
+    })
+    .catch((error: unknown) => console.error('[profiler] Initialization failed:', error));
+}
+
 // ── App state ────────────────────────────────────────────
 const state: {
   snaps: Snapshot[];
@@ -174,7 +199,14 @@ const state: {
 // ── Render-on-show state ─────────────────────────────────
 let _activeSection = 'networth';
 const _dirty = new Set<string>();
-const ALL_SECTIONS = ['networth', 'portfolio', 'analytics', 'settings', 'log'] as const;
+const ALL_SECTIONS = [
+  'networth',
+  'portfolio',
+  'analytics',
+  'settings',
+  'log',
+  ...(PROFILING_ENABLED ? ['diagnostics'] : []),
+];
 
 // ── Portfolio sub-view state ─────────────────────────────
 let _portfolioSubview: 'holdings' | 'contributions' | 'dividends' = 'holdings';
@@ -561,7 +593,10 @@ function initRovingTabindex(tablist: Element | null): void {
 }
 
 function resolveInitialSection(): void {
-  const { section: targetSection, subview } = parseNavHash(window.location.hash);
+  const parsed = parseNavHash(window.location.hash);
+  const targetSection =
+    parsed.section === 'diagnostics' && !PROFILING_ENABLED ? 'networth' : parsed.section;
+  const { subview } = parsed;
   const targetBtn = document.querySelector(
     `.nav button[data-section="${targetSection}"]`,
   ) as HTMLElement | null;
@@ -575,6 +610,8 @@ function resolveInitialSection(): void {
 }
 
 function showSection(id: string, btn: Element | null) {
+  const routeStartedAt =
+    PROFILING_ENABLED && _activeSection !== id && id !== 'diagnostics' ? performance.now() : null;
   mobileNavigation.reset();
   const alreadyActive =
     _activeSection === id && document.getElementById(id)?.classList.contains('active');
@@ -609,6 +646,17 @@ function showSection(id: string, btn: Element | null) {
   if (isMobileLayout() && !alreadyActive) {
     window.scrollTo({ top: 0, behavior: 'instant' });
     mobileNavigation.reset();
+  }
+  if (routeStartedAt !== null) {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        globalThis.__wtProfiler?.record('route', 'section-transition', {
+          route: id,
+          durationMs: performance.now() - routeStartedAt,
+          cacheState: state.cacheLoaded ? 'cached' : 'uncached',
+        });
+      });
+    });
   }
 }
 
@@ -671,6 +719,7 @@ function showUpdateBanner(onReload: () => void): void {
 function initOnlineListeners() {
   window.addEventListener('online', async () => {
     state.offline = false;
+    globalThis.__wtProfiler?.record('browser', 'connectivity-change', { outcome: 'online' });
     if (getPendingSyncConflict() || _conflictRecovery.needsRefresh()) {
       renderHeaderStatus();
       return;
@@ -700,6 +749,7 @@ function initOnlineListeners() {
   });
   window.addEventListener('offline', () => {
     state.offline = true;
+    globalThis.__wtProfiler?.record('browser', 'connectivity-change', { outcome: 'offline' });
     setSyncStatus('offline');
   });
 
@@ -760,6 +810,7 @@ function initHeader(): void {
     getTheme: getUserThemePref,
     onTheme: (pref) => setUserTheme(pref),
     onSignOut: () => void confirmSignOut(),
+    onDiagnostics: () => showSection('diagnostics', null),
   });
   // Keep "Synced · x min ago" current, and notice when the ~1h token expires.
   window.setInterval(() => {
@@ -873,14 +924,21 @@ function initAuth() {
 
 /** Load the local database without contacting Drive (not connected right now). */
 async function openLocalData(): Promise<void> {
+  const startedAt = PROFILING_ENABLED ? performance.now() : 0;
+  let outcome: 'success' | 'error' = 'success';
   try {
     await refreshStateFromLocalDb();
     registerConfigListener();
     await loadPendingState();
   } catch (err) {
+    outcome = 'error';
     console.error('[boot] local database load failed:', err);
   }
   renderAll();
+  globalThis.__wtProfiler?.record('app', 'local-data-ready', {
+    durationMs: performance.now() - startedAt,
+    outcome,
+  });
 }
 
 const SIGNIN_TIMEOUT_MS = 90_000;
@@ -895,6 +953,10 @@ let _connecting = false;
 async function connectAndSync(opts: { auto?: boolean } = {}): Promise<boolean> {
   if (_connecting) return false;
   _connecting = true;
+  const authStartedAt = PROFILING_ENABLED ? performance.now() : 0;
+  globalThis.__wtProfiler?.record('app', 'sign-in-requested', {
+    durationMs: authStartedAt - APP_MODULE_START,
+  });
   let cancelled = false;
   showSigninOverlay(() => {
     cancelled = true;
@@ -902,6 +964,9 @@ async function connectAndSync(opts: { auto?: boolean } = {}): Promise<boolean> {
   try {
     setAuthStatus('Signing in…', false, true);
     await withTimeout(gisSignIn(), SIGNIN_TIMEOUT_MS);
+    globalThis.__wtProfiler?.record('app', 'auth-token-ready', {
+      durationMs: performance.now() - authStartedAt,
+    });
     hideSigninOverlay();
     setAuthStatus('');
     if (!(await verifyAccount())) {
@@ -1021,6 +1086,7 @@ function setAuthStatus(msg: string, isErr = false, isBusy = false) {
  * This allows offline-first UX and instant second-boot.
  */
 async function bootFromCache() {
+  const startedAt = PROFILING_ENABLED ? performance.now() : 0;
   try {
     const valid = await isCacheValid();
     if (!valid) return;
@@ -1060,6 +1126,13 @@ async function bootFromCache() {
       '[boot] Ignoring an incomplete or inconsistent cache; reloading the local database.',
       error,
     );
+  } finally {
+    if (PROFILING_ENABLED) {
+      globalThis.__wtProfiler?.record('app', 'cache-boot', {
+        durationMs: performance.now() - startedAt,
+        cacheState: state.cacheLoaded ? 'cached' : 'uncached',
+      });
+    }
   }
 }
 
@@ -1187,6 +1260,7 @@ async function computeAggregatesWithCache(txs: Transaction[]): Promise<Portfolio
 
 // ── Data loading (full, used for first sign-in or force resync) ──
 async function loadAllData() {
+  const startedAt = PROFILING_ENABLED ? performance.now() : 0;
   _initialLoad = !state.cacheLoaded;
   setSyncStatus('loading');
   setSyncing(true);
@@ -1215,6 +1289,9 @@ async function loadAllData() {
     setSyncing(false);
     _lastSyncAt = Date.now();
     renderAll();
+    globalThis.__wtProfiler?.record('app', 'initial-data-load', {
+      durationMs: performance.now() - startedAt,
+    });
   }
 }
 
@@ -2195,7 +2272,11 @@ function renderPortfolioSubview(sub: string): void {
 
 // ── Section dispatcher ────────────────────────────────────
 function renderSection(id: string, changed?: ConfigChangeKind): void {
+  const startedAt = PROFILING_ENABLED && id !== 'diagnostics' ? performance.now() : 0;
+  let skipMeasurement = false;
+  let rendered = false;
   if (isInitialLoad()) {
+    skipMeasurement = true;
     const section = document.getElementById(id);
     if (section && !section.querySelector('.section-loading')) {
       const overlay = document.createElement('div');
@@ -2243,7 +2324,15 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
               return;
             }
             anContent.querySelector('.an-computing')?.remove();
+            const deferredStartedAt = PROFILING_ENABLED ? performance.now() : 0;
             renderAnalytics(state.pd, state.snaps, state.txs);
+            if (PROFILING_ENABLED) {
+              globalThis.__wtProfiler?.record('render', 'analytics-deferred-render', {
+                route: 'analytics',
+                durationMs: performance.now() - deferredStartedAt,
+                cacheState: state.cacheLoaded ? 'cached' : 'uncached',
+              });
+            }
           }, 0);
         } else {
           renderAnalytics(state.pd, state.snaps, state.txs);
@@ -2268,7 +2357,19 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
           onBulkDelTxs: typeof delTransactionsBulk;
         });
         break;
+      case 'diagnostics':
+        if (PROFILING_ENABLED) {
+          void import('./ui/performanceDiagnostics')
+            .then(({ renderPerformanceDiagnostics }) => renderPerformanceDiagnostics())
+            .catch((error: unknown) => {
+              console.error('[profiler] Could not render diagnostics:', error);
+              const content = document.getElementById('performance-diagnostics-content');
+              if (content) content.textContent = 'Diagnostics could not be loaded.';
+            });
+        }
+        break;
     }
+    rendered = true;
   } catch (err: unknown) {
     console.error(`[renderSection] error in section "${id}":`, err);
     const section = document.getElementById(id);
@@ -2279,6 +2380,36 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
       msg.textContent =
         'Something went wrong rendering this section. Try a Force full resync from Settings, or reload the page.';
       section.prepend(msg);
+    }
+  } finally {
+    if (PROFILING_ENABLED && id !== 'diagnostics' && !skipMeasurement) {
+      globalThis.__wtProfiler?.record('render', 'section-render', {
+        route: id,
+        durationMs: performance.now() - startedAt,
+        outcome: rendered ? 'success' : 'error',
+        cacheState: state.cacheLoaded ? 'cached' : 'uncached',
+      });
+      if (rendered && id === _activeSection && !_usableUiRecorded) {
+        _usableUiRecorded = true;
+        document.removeEventListener('visibilitychange', startupVisibilityChanged);
+        const hiddenMs =
+          _startupHiddenMs + (_startupHiddenAt === null ? 0 : performance.now() - _startupHiddenAt);
+        const completedAt = performance.now();
+        const cacheState = state.cacheLoaded ? 'cached' : 'uncached';
+        const publish = () => {
+          globalThis.__wtProfiler?.record('app', 'startup-hidden-time', {
+            route: id,
+            durationMs: hiddenMs,
+          });
+          globalThis.__wtProfiler?.recordFirstRender(
+            APP_MODULE_START,
+            { route: id, cacheState },
+            completedAt,
+          );
+        };
+        if (globalThis.__wtProfiler) publish();
+        else _pendingFirstRender = publish;
+      }
     }
   }
 }

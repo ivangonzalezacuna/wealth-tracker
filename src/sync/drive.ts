@@ -32,27 +32,42 @@ const RETRY_BASE_MS = 500;
  * are thrown immediately so callers can react to auth/not-found failures
  * without delay.
  */
-async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+async function withRetry<T>(operation: string, fn: () => Promise<T>): Promise<T> {
+  const startedAt = performance.now();
   let lastErr: unknown;
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    if (attempt > 0) {
-      // Exponential backoff with full jitter: random(0, base * 2^attempt)
-      const cap = RETRY_BASE_MS * Math.pow(2, attempt);
-      const delay = Math.random() * cap;
-      await new Promise((r) => setTimeout(r, delay));
+  let retries = 0;
+  let outcome: 'success' | 'error' = 'success';
+  try {
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      if (attempt > 0) {
+        retries = attempt;
+        // Exponential backoff with full jitter: random(0, base * 2^attempt)
+        const cap = RETRY_BASE_MS * Math.pow(2, attempt);
+        const delay = Math.random() * cap;
+        await new Promise((r) => setTimeout(r, delay));
+      }
+      try {
+        return await fn();
+      } catch (err) {
+        lastErr = err;
+        // Retry only on retryable HTTP status errors or network-level failures
+        // (TypeError from fetch when offline). Other errors are re-thrown immediately.
+        const isRetryable =
+          err instanceof RetryableError || (err instanceof TypeError && attempt < MAX_RETRIES);
+        if (!isRetryable) throw err;
+      }
     }
-    try {
-      return await fn();
-    } catch (err) {
-      lastErr = err;
-      // Retry only on retryable HTTP status errors or network-level failures
-      // (TypeError from fetch when offline). Other errors are re-thrown immediately.
-      const isRetryable =
-        err instanceof RetryableError || (err instanceof TypeError && attempt < MAX_RETRIES);
-      if (!isRetryable) throw err;
-    }
+    throw lastErr;
+  } catch (error) {
+    outcome = 'error';
+    throw error;
+  } finally {
+    globalThis.__wtProfiler?.record('drive', `operation-${operation}`, {
+      durationMs: performance.now() - startedAt,
+      retryCount: retries,
+      outcome,
+    });
   }
-  throw lastErr;
 }
 
 /** Sentinel error used internally to signal a retryable HTTP status. */
@@ -70,12 +85,30 @@ class RetryableError extends Error {
  * withRetry can distinguish them from permanent failures.
  */
 async function checkedFetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
-  const res = await fetch(input, init);
-  if (!res.ok && RETRY_STATUSES.has(res.status)) {
-    const body = await res.text().catch(() => '');
-    throw new RetryableError(res.status, `Drive API ${res.status}: ${body.slice(0, 200)}`);
+  const startedAt = performance.now();
+  let outcome: 'success' | 'error' = 'success';
+  try {
+    const res = await fetch(input, init);
+    if (!res.ok) outcome = 'error';
+    if (!res.ok && RETRY_STATUSES.has(res.status)) {
+      const body = await res.text().catch(() => '');
+      throw new RetryableError(res.status, `Drive API ${res.status}: ${body.slice(0, 200)}`);
+    }
+    return res;
+  } catch (error) {
+    outcome = 'error';
+    throw error;
+  } finally {
+    const method = (init?.method ?? 'GET').toUpperCase();
+    globalThis.__wtProfiler?.record(
+      'drive',
+      method === 'POST' || method === 'PATCH' ? 'network-write' : 'network-read',
+      {
+        durationMs: performance.now() - startedAt,
+        outcome,
+      },
+    );
   }
-  return res;
 }
 
 // ── File discovery ────────────────────────────────────────────────
@@ -94,7 +127,7 @@ function pickCanonicalDbFile(files: DriveFile[]): DriveFile | null {
 
 /** Find the DB file in appDataFolder. Returns file metadata or null. */
 export async function findDbFile(): Promise<DriveFile | null> {
-  return withRetry(async () => {
+  return withRetry('list', async () => {
     const token = await getToken();
     const query = encodeURIComponent(`name='${DB_FILENAME}' and trashed=false`);
     const url = `${DRIVE_API}/files?spaces=appDataFolder&q=${query}&fields=files(id,name,modifiedTime)`;
@@ -119,7 +152,7 @@ export async function findDbFile(): Promise<DriveFile | null> {
 export async function downloadDbFile(): Promise<{ data: Uint8Array; modifiedTime: string } | null> {
   const file = await findDbFile();
   if (!file) return null;
-  return withRetry(async () => {
+  return withRetry('download', async () => {
     const token = await getToken();
     const url = `${DRIVE_API}/files/${file.id}?alt=media`;
     const res = await checkedFetch(url, {
@@ -131,7 +164,9 @@ export async function downloadDbFile(): Promise<{ data: Uint8Array; modifiedTime
       throw new Error(`Drive download error: ${res.status} ${await res.text()}`);
     }
     const buf = await res.arrayBuffer();
-    return { data: new Uint8Array(buf), modifiedTime: file.modifiedTime };
+    const data = new Uint8Array(buf);
+    globalThis.__wtProfiler?.record('drive', 'download-payload', { payloadBytes: data.byteLength });
+    return { data, modifiedTime: file.modifiedTime };
   });
 }
 
@@ -147,7 +182,7 @@ export async function uploadDbFile(data: Uint8Array): Promise<string> {
 
   if (existing) {
     // Update existing file (PATCH with media)
-    return withRetry(async () => {
+    return withRetry('upload-update', async () => {
       const token = await getToken();
       const url = `${UPLOAD_API}/files/${existing.id}?uploadType=media&fields=id%2CmodifiedTime`;
       const res = await checkedFetch(url, {
@@ -160,11 +195,12 @@ export async function uploadDbFile(data: Uint8Array): Promise<string> {
       });
       if (!res.ok) throw new Error(`Drive upload error: ${res.status} ${await res.text()}`);
       const result = await res.json();
+      globalThis.__wtProfiler?.record('drive', 'upload-payload', { payloadBytes: data.byteLength });
       return result.modifiedTime || new Date().toISOString();
     });
   } else {
     // Create new file in appDataFolder (multipart)
-    return withRetry(async () => {
+    return withRetry('upload-create', async () => {
       const token = await getToken();
       const metadata = JSON.stringify({
         name: DB_FILENAME,
@@ -200,6 +236,9 @@ export async function uploadDbFile(data: Uint8Array): Promise<string> {
       });
       if (!res.ok) throw new Error(`Drive create error: ${res.status} ${await res.text()}`);
       const result = await res.json();
+      globalThis.__wtProfiler?.record('drive', 'upload-payload', {
+        payloadBytes: combined.byteLength,
+      });
       return result.modifiedTime || new Date().toISOString();
     });
   }

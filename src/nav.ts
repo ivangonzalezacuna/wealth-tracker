@@ -1,5 +1,12 @@
 // ── Hash-based navigation helpers ────────────────────────
-const VALID_SECTIONS = ['networth', 'portfolio', 'settings', 'log', 'analytics'] as const;
+const VALID_SECTIONS = [
+  'networth',
+  'portfolio',
+  'settings',
+  'log',
+  'analytics',
+  'diagnostics',
+] as const;
 const VALID_SUBVIEWS = ['holdings', 'contributions', 'dividends'] as const;
 export const LOG_VIEWS = ['transactions', 'snapshots'] as const;
 export type LogView = (typeof LOG_VIEWS)[number];

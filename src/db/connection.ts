@@ -56,32 +56,62 @@ function openIdb(): Promise<IDBDatabase> {
 }
 
 async function idbGet(): Promise<Uint8Array | null> {
-  const db = await openIdb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE, 'readonly');
-    const store = tx.objectStore(IDB_STORE);
-    const req = store.get(IDB_KEY);
-    req.onsuccess = () => resolve(req.result ?? null);
-    req.onerror = () => reject(req.error);
-    tx.oncomplete = () => db.close();
-  });
+  const startedAt = performance.now();
+  let bytes = 0;
+  try {
+    const db = await openIdb();
+    const result = await new Promise<Uint8Array | null>((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(IDB_KEY);
+      req.onsuccess = () => resolve(req.result ?? null);
+      req.onerror = () => {
+        db.close();
+        reject(req.error ?? new Error('Could not read the local database.'));
+      };
+      tx.oncomplete = () => {
+        db.close();
+      };
+      tx.onabort = tx.onerror = () => {
+        db.close();
+        reject(tx.error ?? new Error('Could not complete the local database read.'));
+      };
+    });
+    bytes = result?.byteLength ?? 0;
+    return result;
+  } finally {
+    globalThis.__wtProfiler?.record('database', 'sqlite-indexeddb-read', {
+      durationMs: performance.now() - startedAt,
+      bytes,
+    });
+  }
 }
 
 async function idbSet(data: Uint8Array): Promise<void> {
-  const db = await openIdb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE, 'readwrite');
-    const store = tx.objectStore(IDB_STORE);
-    store.put(data, IDB_KEY);
-    tx.oncomplete = () => {
+  const startedAt = performance.now();
+  let outcome: 'success' | 'error' = 'success';
+  try {
+    const db = await openIdb();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).put(data, IDB_KEY);
+        tx.oncomplete = () => resolve();
+        tx.onabort = tx.onerror = () =>
+          reject(tx.error ?? new Error('Could not persist the local database.'));
+      });
+    } finally {
       db.close();
-      resolve();
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
-  });
+    }
+  } catch (error) {
+    outcome = 'error';
+    throw error;
+  } finally {
+    globalThis.__wtProfiler?.record('database', 'sqlite-indexeddb-write', {
+      durationMs: performance.now() - startedAt,
+      bytes: data.byteLength,
+      outcome,
+    });
+  }
 }
 
 // ── Schema version bookkeeping ────────────────────────────────────
@@ -172,19 +202,39 @@ function applyMigrations(db: Database, currentVersion: number): void {
  */
 export function persistDb(db: Database | null = _db): Promise<void> {
   if (!db) return Promise.resolve();
+  const startedAt = performance.now();
+  let bytes = 0;
   // Capture the db reference now; the export happens when the slot opens.
   const capture = db;
   const slot = _persistChain.then(() => {
     const data = capture.export();
+    bytes = data.byteLength;
     return idbSet(data);
   });
   // Advance the chain regardless of success/failure so later callers are
   // never blocked by a transient error in an earlier slot.
-  _persistChain = slot.then(
+  const measured = slot.then(
+    () => {
+      globalThis.__wtProfiler?.record('database', 'sqlite-export-and-persist', {
+        durationMs: performance.now() - startedAt,
+        bytes,
+        outcome: 'success',
+      });
+    },
+    (error: unknown) => {
+      globalThis.__wtProfiler?.record('database', 'sqlite-export-and-persist', {
+        durationMs: performance.now() - startedAt,
+        bytes,
+        outcome: 'error',
+      });
+      throw error;
+    },
+  );
+  _persistChain = measured.then(
     () => {},
     () => {},
   );
-  return slot;
+  return measured;
 }
 
 /**

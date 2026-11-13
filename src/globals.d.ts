@@ -5,7 +5,27 @@
  */
 export {};
 
+import type { ProfileCategory, ProfileRecordInput } from './performance/types';
+
 declare global {
+  var __wtProfiler:
+    | {
+        record: (category: ProfileCategory, name: string, input?: ProfileRecordInput) => void;
+        recordFirstRender: (
+          startedAt: number,
+          input: ProfileRecordInput,
+          completedAt?: number,
+        ) => void;
+        flush: () => Promise<void>;
+        getStatus: () => {
+          enabled: boolean;
+          queuedRecords: number;
+          storageError: string | null;
+          runId: string;
+        };
+      }
+    | undefined;
+
   interface Window {
     __forceFullResync?: () => Promise<void>;
     __exportBackup?: () => Promise<void>;
