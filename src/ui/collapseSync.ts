@@ -19,25 +19,28 @@ const SETTINGS_KEY = 'ui_collapse_state';
  * Restore collapse state from the Sheet-backed settings if IDB was empty.
  * Should be called after config is loaded (so getSettings() is available).
  * Only applies if the local collapse state is empty (fresh device / cleared cache).
+ * Returns true when it restored a state (rendered cards need a repaint to show it).
  */
-export function restoreCollapseFromSheet(): void {
-  if (!isCollapseStateLoaded()) return;
+export function restoreCollapseFromSheet(): boolean {
+  if (!isCollapseStateLoaded()) return false;
   const current = getCollapseSnapshot();
   // Only restore if local state is empty (fresh start)
-  if (Object.keys(current).length > 0) return;
+  if (Object.keys(current).length > 0) return false;
 
   const settings = getSettings();
   const raw = settings[SETTINGS_KEY];
-  if (!raw) return;
+  if (!raw) return false;
 
   try {
     const parsed = JSON.parse(raw) as CollapseState;
     if (parsed && typeof parsed === 'object') {
       replaceCollapseState(parsed);
+      return true;
     }
   } catch {
     // Malformed JSON - ignore, local state stays empty
   }
+  return false;
 }
 
 /**

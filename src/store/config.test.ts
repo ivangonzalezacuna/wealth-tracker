@@ -54,6 +54,7 @@ import {
   saveHoldings as dbSaveHoldings,
   setSetting as dbSetSetting,
   replaceAllSettings as dbReplaceAllSettings,
+  logConfigChange,
   loadAccounts,
   loadSettings,
   saveAccountConfiguration,
@@ -119,6 +120,33 @@ describe('lifecycle and valuation configuration publication', () => {
     );
     expect(getAccounts()).toEqual(accounts);
     expect(getSettings().monthly_contrib_budget).toBe('500');
+  });
+});
+
+describe('setSetting UI-only keys', () => {
+  afterEach(() => {
+    onConfigChange(() => {});
+    vi.clearAllMocks();
+  });
+
+  it('backs up the collapse state without auditing it or re-rendering', async () => {
+    hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
+    const listener = vi.fn();
+    onConfigChange(listener);
+    await setSetting('ui_collapse_state', '{"card:accounts":true}');
+    expect(dbSetSetting).toHaveBeenCalledWith('ui_collapse_state', '{"card:accounts":true}');
+    expect(scheduleUpload).toHaveBeenCalled();
+    expect(logConfigChange).not.toHaveBeenCalled();
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('still audits and publishes regular settings', async () => {
+    hydrateConfigFromCache({ accounts: [], holdings: [], settings: {} });
+    const listener = vi.fn();
+    onConfigChange(listener);
+    await setSetting('costBasisMethod', 'fifo');
+    expect(logConfigChange).toHaveBeenCalledWith('Settings', 'costBasisMethod = fifo');
+    expect(listener).toHaveBeenCalledWith('settings');
   });
 });
 

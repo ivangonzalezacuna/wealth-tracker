@@ -132,6 +132,7 @@ import { loadCharts, refreshChartsTheme } from './views/charts';
 import { shouldAutoResync } from './sync/policy';
 import { loadCollapseState, replaceCollapseState } from './ui/collapseState';
 import { restoreCollapseFromSheet, backupCollapseToSheet } from './ui/collapseSync';
+import { renderSignature } from './renderSignature';
 import { confirmDialog } from './ui/confirmDialog';
 import { transactionDialog } from './ui/transactionDialog';
 import { snapshotDialog } from './ui/snapshotDialog';
@@ -1079,9 +1080,11 @@ async function syncInBackground({ userInitiated = false } = {}) {
   }
   setSyncing(true);
   setSyncStatus('syncing');
+  // A downloaded Drive copy (or restored UI prefs) always repaints; otherwise only changed data does.
+  let forceRender = false;
   try {
     // Pull from Drive if cloud is newer (replaces local DB if so)
-    await pullFromCloud();
+    forceRender = await pullFromCloud();
     if (await hasPendingLocalChanges()) {
       cancelPendingUpload();
       if (!(await pushToCloud())) throw new Error(getSyncError() || 'Sync did not complete.');
@@ -1090,7 +1093,8 @@ async function syncInBackground({ userInitiated = false } = {}) {
 
     // Load from local SQLite
     await loadConfig();
-    restoreCollapseFromSheet(); // restore UI prefs if IDB was empty (new device)
+    // Restore UI prefs if IDB was empty (new device)
+    if (restoreCollapseFromSheet()) forceRender = true;
     const [snaps, txs, meta] = await Promise.all([
       loadSnapshots(),
       loadTransactions(),
@@ -1144,7 +1148,7 @@ async function syncInBackground({ userInitiated = false } = {}) {
   } finally {
     setSyncing(false);
     _lastSyncAt = Date.now();
-    renderAll();
+    renderAllIfChanged(forceRender);
   }
 }
 
@@ -2280,7 +2284,37 @@ function renderSection(id: string, changed?: ConfigChangeKind): void {
 }
 
 // ── Render all ────────────────────────────────────────────
+/** Fingerprint of the inputs behind the last full render (null: nothing rendered yet). */
+let _renderedSignature: string | null = null;
+
+function currentRenderSignature(): string {
+  return renderSignature({
+    snaps: state.snaps,
+    txs: state.txs,
+    pd: state.pd,
+    importMeta: state.importMeta,
+    accounts: getAccounts(),
+    holdings: getHoldings(),
+    settings: getSettings(),
+    readOnly: isReadOnly(),
+  });
+}
+
+/** Repaint only when the render inputs changed, so a no-op sync does not rebuild the charts. */
+function renderAllIfChanged(force = false): void {
+  if (force || _renderedSignature === null || currentRenderSignature() !== _renderedSignature) {
+    renderAll();
+    return;
+  }
+  // Sync-dependent chrome still needs a refresh (the banner hides while syncing).
+  renderSetupBanner();
+  applyReadOnlyMode();
+  refreshAttention();
+}
+
 function renderAll(changed?: ConfigChangeKind) {
+  // Sections show a loading overlay during the initial load, so nothing real is on screen yet.
+  _renderedSignature = isInitialLoad() ? null : currentRenderSignature();
   updateSub();
   renderSetupBanner(); // update onboarding checklist
   _dirty.clear();
