@@ -221,6 +221,15 @@ describe('renderDCA', () => {
     expect(opt.series[1].markArea.data[0][0].name).toBe('Projected');
   });
 
+  it('reuses the projection chart host on re-render', () => {
+    renderDCA(makePD(), []);
+    const chart = chartFor('c-dca-proj')!;
+    renderDCA(makePD(), []);
+    expect(chartFor('c-dca-proj')).toBe(chart);
+    expect(chart.dom.isConnected).toBe(true);
+    expect(chartInstances.filter((c) => c.dom.id === 'c-dca-proj')).toHaveLength(1);
+  });
+
   it('forecast opens on 5 years and the title follows the zoom', () => {
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
       cb(0);

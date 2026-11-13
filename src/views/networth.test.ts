@@ -268,6 +268,25 @@ describe('renderNW', () => {
     expect(hist!.disposed).toBe(false);
   });
 
+  it('keeps the projection charts and open details across re-renders', () => {
+    const snaps = [makeSnap('2026-01-01', 5000, 2000), makeSnap('2026-02-01', 5100, 2050)];
+    renderNW(snaps);
+    const forecast = chartFor('c-nw-forecast')!;
+    const details = document.querySelector<HTMLDetailsElement>('#nw-fc-panel details')!;
+    details.open = true;
+    renderNW(snaps);
+    expect(chartFor('c-nw-forecast')).toBe(forecast);
+    expect(forecast.dom.isConnected).toBe(true);
+    expect(document.querySelector<HTMLDetailsElement>('#nw-fc-panel details')!.open).toBe(true);
+
+    switchToDrawdownTab();
+    expect(forecast.disposed).toBe(true);
+    const drawdown = chartFor('c-nw-decumulation')!;
+    renderNW(snaps);
+    expect(chartFor('c-nw-decumulation')).toBe(drawdown);
+    expect(drawdown.dom.isConnected).toBe(true);
+  });
+
   it('renders lead KPI tile with net worth total and MoM delta for 2+ snapshots', () => {
     const snaps = [makeSnap('2026-01-01', 1000, 500), makeSnap('2026-02-01', 1100, 550)];
     renderNW(snaps);

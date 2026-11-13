@@ -11,6 +11,7 @@ import {
   loadCharts,
   disposeChart,
   getChart,
+  keepChartHosts,
   refreshChartsTheme,
   renderChart,
 } from './registry';
@@ -156,6 +157,37 @@ describe('chart formatters', () => {
     expect(toRgba('#2a78d6', 0.5)).toBe('rgba(42,120,214,0.5)');
     expect(toRgba('#fff', 1)).toBe('rgba(255,255,255,1)');
     expect(toRgba('red', 1)).toBe('red');
+  });
+});
+
+describe('keepChartHosts', () => {
+  const card = (label: string) =>
+    `<p>${label}</p><div class="chart-wrap"><div id="c-test" aria-label="${label}"></div></div>`;
+
+  it('swaps the fresh placeholder for the live chart wrap and updates its label', () => {
+    document.body.innerHTML = `<section id="root">${card('Old')}</section>`;
+    const root = document.getElementById('root')!;
+    renderChart('c-test', line);
+    const chart = chartFor('c-test')!;
+    const wrap = chart.dom.parentElement;
+    keepChartHosts(root, () => (root.innerHTML = card('New')));
+    expect(document.getElementById('c-test')).toBe(chart.dom);
+    expect(chart.dom.parentElement).toBe(wrap);
+    expect(root.querySelector('p')!.textContent).toBe('New');
+    expect(chart.dom.getAttribute('aria-label')).toBe('New');
+    renderChart('c-test', line);
+    expect(chartFor('c-test')).toBe(chart);
+    expect(chart.disposed).toBe(false);
+  });
+
+  it('disposes charts the rebuild dropped', () => {
+    document.body.innerHTML = `<section id="root">${card('Old')}</section>`;
+    const root = document.getElementById('root')!;
+    renderChart('c-test', line);
+    const chart = chartFor('c-test')!;
+    keepChartHosts(root, () => (root.innerHTML = ''));
+    expect(chart.disposed).toBe(true);
+    expect(getChart('c-test')).toBeNull();
   });
 });
 

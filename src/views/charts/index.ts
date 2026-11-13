@@ -10,6 +10,7 @@ export {
   loadCharts,
   disposeChart,
   getChart,
+  keepChartHosts,
   refreshChartsTheme,
   type ChartCtx,
   type ChartDrill,

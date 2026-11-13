@@ -800,6 +800,33 @@ export function getChart(id: string): ChartInstance | null {
   return registry.get(id)?.chart ?? null;
 }
 
+/** Run `rebuild` under `root`, keeping its live chart wraps in place and disposing dropped charts. */
+export function keepChartHosts(root: Element, rebuild: () => void): void {
+  const kept: { id: string; node: HTMLElement }[] = [];
+  for (const [id, entry] of registry) {
+    if (!root.contains(entry.host)) continue;
+    kept.push({ id, node: entry.host.closest<HTMLElement>('.chart-wrap') ?? entry.host });
+  }
+  rebuild();
+  for (const { id, node } of kept) {
+    const entry = registry.get(id);
+    const fresh = document.getElementById(id);
+    if (!entry || fresh === entry.host) continue;
+    if (!fresh) {
+      disposeChart(id);
+      continue;
+    }
+    const label = fresh.getAttribute('aria-label');
+    if (label !== null) {
+      entry.host.setAttribute('aria-label', label);
+      entry.host.dataset.chartLabel = label;
+    }
+    const freshNode =
+      node === entry.host ? fresh : (fresh.closest<HTMLElement>('.chart-wrap') ?? fresh);
+    freshNode.replaceWith(node);
+  }
+}
+
 export function disposeChart(id: string): void {
   pending.delete(id);
   const entry = registry.get(id);

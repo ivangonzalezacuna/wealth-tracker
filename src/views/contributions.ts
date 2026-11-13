@@ -16,6 +16,7 @@ import {
   fmtEurCompact,
   horizonLabel,
   horizonMonths,
+  keepChartHosts,
   monthTimeAxis,
   monthToTime,
   renderChart,
@@ -95,7 +96,7 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
   }, 0);
 
   if (forecastAccounts.length === 0 || monthlyContrib <= 0) {
-    projCard.innerHTML = '';
+    keepChartHosts(projCard, () => (projCard.innerHTML = ''));
     return;
   }
 
@@ -120,7 +121,7 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
   // Forecast starts from the last CSV month
   const lastMonth = histMonths.length > 0 ? histMonths[histMonths.length - 1] : null;
   if (!lastMonth) {
-    projCard.innerHTML = '';
+    keepChartHosts(projCard, () => (projCard.innerHTML = ''));
     return;
   }
 
@@ -163,7 +164,10 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
     })
     .join('<br>');
 
-  projCard.innerHTML = `
+  keepChartHosts(
+    projCard,
+    () =>
+      (projCard.innerHTML = `
     <div class="card">
       <div class="card-title">Cumulative contributions: <span id="dca-proj-range">${horizonLabel(_dcaFcMonths)}</span></div>
       <div class="chart-wrap chart-h-md"><div id="c-dca-proj" class="chart-host" role="img" aria-label="Cumulative contributions forecast chart"></div></div>
@@ -172,7 +176,8 @@ function _renderDCAForecast(pd: PortfolioData, accounts: Account[]): void {
         ${acctSummaryLines}
         <div style="margin-top:6px;color:var(--ink-4)">Shows cash moved into investments &amp; pensions. Returns are reflected in the Net Worth forecast.</div>
       </div>
-    </div>`;
+    </div>`),
+  );
 
   renderChart(
     'c-dca-proj',

@@ -40,6 +40,7 @@ import {
   addMonths,
   axisTooltip,
   disposeChart,
+  keepChartHosts,
   drillHint,
   fmtEurCompact,
   monthTimeAxis,
@@ -817,7 +818,7 @@ function _renderPlanningCard(snaps: Snapshot[], accounts: Account[]): void {
   if (!el) return;
 
   if (snaps.length === 0) {
-    el.innerHTML = '';
+    keepChartHosts(el, () => (el.innerHTML = ''));
     return;
   }
 
@@ -825,37 +826,32 @@ function _renderPlanningCard(snaps: Snapshot[], accounts: Account[]): void {
     _inflationRate > 0
       ? 'Inflation-adjusted projection shown as dashed line on charts.'
       : 'Set above 0 to overlay an inflation-adjusted projection on all charts.';
+  const inflTip = `${inflHint} Applies to Forecast and Retirement withdrawals.`;
 
-  el.innerHTML = `
+  // Built once, then updated in place so the active chart host survives re-renders.
+  if (!el.querySelector('#nw-planning-card')) {
+    el.innerHTML = `
     <div class="card" id="nw-planning-card">
       <div class="card-title">Projections</div>
       <div class="proj-head">
         <div class="range-toggle" id="nw-planning-tabs" role="tablist" aria-label="Projections">
-          <button class="btn btn-sm btn-ghost${_planningTab === 'forecast' ? ' active' : ''}" role="tab" aria-selected="${_planningTab === 'forecast'}" aria-controls="nw-fc-panel" data-planning-tab="forecast">Forecast</button>
-          <button class="btn btn-sm btn-ghost${_planningTab === 'drawdown' ? ' active' : ''}" role="tab" aria-selected="${_planningTab === 'drawdown'}" aria-controls="nw-dd-panel" data-planning-tab="drawdown">Retirement withdrawals</button>
+          <button class="btn btn-sm btn-ghost" role="tab" aria-controls="nw-fc-panel" data-planning-tab="forecast">Forecast</button>
+          <button class="btn btn-sm btn-ghost" role="tab" aria-controls="nw-dd-panel" data-planning-tab="drawdown">Retirement withdrawals</button>
         </div>
         <div class="proj-inflation">
           <label for="nw-forecast-inflation">Inflation</label>
           <input id="nw-forecast-inflation" class="planning-input" type="number" inputmode="decimal" min="0" max="20" step="0.1"
-                 value="${_inflationRate}"
                  aria-label="Annual inflation rate for real-return projection">
-          <span class="proj-unit">%/yr</span>${infoTip(`${inflHint} Applies to Forecast and Retirement withdrawals.`)}
+          <span class="proj-unit">%/yr</span>${infoTip(inflTip)}
         </div>
       </div>
-      <div id="nw-fc-panel" role="tabpanel"${_planningTab !== 'forecast' ? ' hidden' : ''}></div>
-      <div id="nw-dd-panel" role="tabpanel"${_planningTab !== 'drawdown' ? ' hidden' : ''}></div>
+      <div id="nw-fc-panel" role="tabpanel"></div>
+      <div id="nw-dd-panel" role="tabpanel"></div>
     </div>`;
-  attachInfoTips(el);
+    attachInfoTips(el);
 
-  if (_planningTab === 'forecast') {
-    _renderForecastChart(snaps, accounts);
-  } else {
-    _renderDecumulationCard(snaps, accounts);
-  }
-
-  // Bind shared inflation input: on change, update state and re-render the active tab
-  const inflInput = document.getElementById('nw-forecast-inflation') as HTMLInputElement | null;
-  if (inflInput) {
+    // Shared inflation input: on change, update state and re-render the active tab
+    const inflInput = el.querySelector<HTMLInputElement>('#nw-forecast-inflation')!;
     inflInput.addEventListener('change', () => {
       const v = parseFloat(inflInput.value);
       _inflationRate = isFinite(v) && v >= 0 ? Math.min(v, 20) : 0;
@@ -863,16 +859,59 @@ function _renderPlanningCard(snaps: Snapshot[], accounts: Account[]): void {
       _renderGoalCards();
       _renderPlanningCard(_lastSnaps, _lastAccounts);
     });
+
+    el.querySelector('#nw-planning-tabs')!.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('[data-planning-tab]') as HTMLElement | null;
+      if (!btn) return;
+      const tab = btn.dataset.planningTab as 'forecast' | 'drawdown';
+      if (tab === _planningTab) return;
+      _planningTab = tab;
+      _renderPlanningCard(_lastSnaps, _lastAccounts);
+    });
   }
 
-  document.getElementById('nw-planning-tabs')?.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest('[data-planning-tab]') as HTMLElement | null;
-    if (!btn) return;
-    const tab = btn.dataset.planningTab as 'forecast' | 'drawdown';
-    if (tab === _planningTab) return;
-    _planningTab = tab;
-    _renderPlanningCard(_lastSnaps, _lastAccounts);
+  el.querySelectorAll<HTMLElement>('[data-planning-tab]').forEach((btn) => {
+    const active = btn.dataset.planningTab === _planningTab;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-selected', String(active));
   });
+  const inflInput = el.querySelector<HTMLInputElement>('#nw-forecast-inflation')!;
+  if (document.activeElement !== inflInput) inflInput.value = String(_inflationRate);
+  const tip = el.querySelector<HTMLElement>('.proj-inflation .info-tip');
+  if (tip) {
+    tip.dataset.tip = inflTip;
+    tip.setAttribute('aria-label', inflTip);
+  }
+
+  const fcPanel = el.querySelector<HTMLElement>('#nw-fc-panel')!;
+  const ddPanel = el.querySelector<HTMLElement>('#nw-dd-panel')!;
+  fcPanel.hidden = _planningTab !== 'forecast';
+  ddPanel.hidden = _planningTab !== 'drawdown';
+  // Only the active tab is drawn; clearing the hidden one disposes its chart.
+  const inactive = _planningTab === 'forecast' ? ddPanel : fcPanel;
+  if (inactive.hasChildNodes()) keepChartHosts(inactive, () => (inactive.innerHTML = ''));
+
+  if (_planningTab === 'forecast') {
+    _renderForecastChart(snaps, accounts);
+  } else {
+    _renderDecumulationCard(snaps, accounts);
+  }
+}
+
+/** Rewrite a panel, keeping its chart host and the `<details>` the user opened. */
+function _setPanelHtml(panel: HTMLElement, html: string): void {
+  const openDetails = new Set(
+    [...panel.querySelectorAll<HTMLDetailsElement>('details[open]')].map(_detailsKey),
+  );
+  keepChartHosts(panel, () => (panel.innerHTML = html));
+  if (openDetails.size === 0) return;
+  panel.querySelectorAll<HTMLDetailsElement>('details').forEach((d) => {
+    if (openDetails.has(_detailsKey(d))) d.open = true;
+  });
+}
+
+function _detailsKey(d: HTMLDetailsElement): string {
+  return d.id || d.querySelector('summary')?.textContent?.trim() || '';
 }
 
 // ── Forecast chart ──
@@ -891,7 +930,7 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
   if (!forecastEl) return;
 
   if (snaps.length === 0) {
-    forecastEl.innerHTML = '';
+    _setPanelHtml(forecastEl, '');
     return;
   }
   const latestSnap = snaps[snaps.length - 1];
@@ -905,8 +944,10 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
     (a) => a.annualContrib > 0 || a.annualReturnPct > 0,
   );
   if (!hasGrowthPotential) {
-    forecastEl.innerHTML =
-      '<p class="note" style="color:var(--ink-3)">Configure return rates or contributions in Settings \u2192 Accounts to see a forecast.</p>';
+    _setPanelHtml(
+      forecastEl,
+      '<p class="note" style="color:var(--ink-3)">Configure return rates or contributions in Settings \u2192 Accounts to see a forecast.</p>',
+    );
     return;
   }
 
@@ -1021,7 +1062,9 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
       ${real != null ? `<div class="proj-answer-sub">${fmtEur(real)} in today's euros</div>` : ''}`;
   };
 
-  forecastEl.innerHTML = `
+  _setPanelHtml(
+    forecastEl,
+    `
       <div class="proj-answer-head">
         <div class="proj-answer" id="nw-fc-answer" aria-live="polite">${answerHtml(forecastMonths)}</div>
         <button
@@ -1067,7 +1110,8 @@ function _renderForecastChart(snaps: Snapshot[], accounts: Account[]): void {
           <li>Assumes zero rebalancing costs; spreads, commissions and capital-gains tax can reduce long-horizon returns.</li>
         </ul>
       </details>
-    `;
+    `,
+  );
 
   const optimistic = scenarioPoints.find((x) => x.scenario.id === 'optimistic');
   const pessimistic = scenarioPoints.find((x) => x.scenario.id === 'pessimistic');
@@ -1489,7 +1533,7 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
   if (!el) return;
 
   if (snaps.length === 0) {
-    el.innerHTML = '';
+    _setPanelHtml(el, '');
     return;
   }
 
@@ -1611,7 +1655,9 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
   const resetBtn = (id: string, title: string) =>
     `<button id="${id}" class="btn btn-sm btn-ghost proj-reset" type="button" title="${title}" aria-label="${title}">↺</button>`;
 
-  el.innerHTML = `
+  _setPanelHtml(
+    el,
+    `
       ${answerHtml ? `<div class="proj-answer" id="nw-dd-answer">${answerHtml}</div>` : ''}
       ${
         liquid > 0 && withdrawal > 0
@@ -1693,7 +1739,8 @@ function _renderDecumulationCard(snaps: Snapshot[], accounts: Account[]): void {
           <li>Only accounts accessible at the start date are drawn down; the return defaults to the value-weighted average of your configured account returns.</li>
         </ul>
       </details>
-    `;
+    `,
+  );
 
   if (ddSeries.length > 0 && liquid > 0) {
     _renderDecumulationChart(ddSeries, ddRealSeries, liquid, endMonth);
