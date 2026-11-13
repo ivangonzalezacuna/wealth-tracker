@@ -25,6 +25,7 @@ import { INTERVAL_PER_YEAR } from '../model/contributions';
 import type { CachedConfig } from '../cache/db';
 import { validateAccountIds } from '../model/accounts';
 import { configureFxService } from '../services/fxRateService';
+import { UI_ONLY_SETTINGS } from '../renderSignature';
 import {
   SNAPSHOT_MAPPINGS_KEY,
   updateSnapshotMapping,
@@ -337,15 +338,17 @@ export async function setHoldings(holdings: Holding[]): Promise<void> {
 export async function setSetting(key: string, value: string): Promise<void> {
   const previous = { ..._settings };
   _settings[key] = value;
+  // UI-only keys (collapse state backup) change nothing on screen: no audit entry, no re-render.
+  const uiOnly = UI_ONLY_SETTINGS.has(key);
   try {
     await dbSetSetting(key, value);
     // Integration-toggle settings are kept out of the config history audit log.
-    if (key !== 'fx_integration_enabled') {
+    if (key !== 'fx_integration_enabled' && !uiOnly) {
       await logConfigChange('Settings', `${key} = ${value}`);
     }
     if (key === 'fx_integration_enabled') applyFxServiceConfig();
     scheduleUpload();
-    if (_onChange) _onChange('settings');
+    if (_onChange && !uiOnly) _onChange('settings');
   } catch (err) {
     _settings = previous;
     throw err;
