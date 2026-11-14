@@ -1,13 +1,6 @@
 /**
- * Environment indicator - visual safeguard against accidentally using
- * production data during development.
- *
- * In DEVELOPMENT mode:
- *  - A persistent banner is shown at the top of the page.
- *  - The document title is prefixed with [DEV].
- *  - A console.info line logs the active environment on boot.
- *
- * In PRODUCTION mode: no banner, no title prefix, silent boot log only.
+ * DEVELOPMENT adds a banner and title prefix; it does not disable Drive sync.
+ * The active environment is logged in both modes.
  */
 
 const ENV_LABEL: string = import.meta.env.VITE_APP_ENV || 'PRODUCTION';
@@ -25,12 +18,10 @@ export function logEnvironment(): void {
 export function injectEnvBanner(): void {
   if (!isDev()) return;
 
-  // Prefix document title
   if (!document.title.startsWith('[DEV]')) {
     document.title = `[DEV] ${document.title}`;
   }
 
-  // Inject banner element (idempotent)
   if (document.getElementById('env-banner')) return;
   const banner = document.createElement('div');
   banner.id = 'env-banner';

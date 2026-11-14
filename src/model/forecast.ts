@@ -9,8 +9,8 @@ import type { ContribInterval } from '../types';
 /** Strategy for the decumulation simulation. */
 export type DecumulationStrategy =
   | 'fixed' // withdraw a fixed €/month (nominal, never adjusted)
-  | 'pct' // withdraw withdrawalParam % of the current balance each month
-  | 'four-pct'; // 4% SWR: initial monthly amount = startBalance * 0.04 / 12, inflation-indexed annually
+  | 'pct' // annual percentage of the current balance, paid monthly
+  | 'four-pct'; // configurable initial monthly amount, inflation-indexed annually
 
 export interface DecumulationPoint {
   month: string;
@@ -26,7 +26,7 @@ export interface DecumulationPoint {
  *   2. Subtract the month's withdrawal (capped at remaining balance; balance floors at 0).
  *
  * @param startBalance  Starting portfolio value.
- * @param strategy      'fixed' — flat €/month; 'four-pct' — 4% SWR (inflation-indexed annually);
+ * @param strategy      'fixed': flat monthly amount; 'four-pct': inflation-linked amount;
  *                      'pct' — % of current balance.
  * @param withdrawalParam  For 'fixed'/'four-pct': initial monthly withdrawal in €.
  *                          For 'pct': annual withdrawal % (e.g. 4 means 4 %/yr = 0.333 %/mo).
@@ -63,7 +63,7 @@ export function decumulationSeries(
 
   let balance = startBalance;
   let [year, mon] = startDate.split('-').map(Number);
-  // 'four-pct' SWR: track the current annual withdrawal amount and index it each year.
+  // Track the inflation-linked monthly withdrawal amount.
   let swrMonthly = fixedMonthly; // adjusted annually for 'four-pct'
   let yearsElapsed = 0; // full years since retirement start
 

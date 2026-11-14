@@ -350,9 +350,7 @@ export async function withCardGuard<T>(
   }
 }
 
-/** Card-content refresh functions never touch buttons - these ids never
- *  go through withCardGuard/Sheets writes, so they stay clickable even
- *  while a sync/write is in progress elsewhere in the app. */
+/** Draft-only actions remain available while another card is saving or syncing. */
 const SYNC_LOCK_EXEMPT_IDS = new Set([
   'btn-add-acct',
   'btn-add-hold',
@@ -3049,7 +3047,7 @@ function renderBackupCard(): string {
     <div class="card card-collapsible" id="settings-card-backup" data-card-key="backup">
       ${settingsCardHeader('backup', 'Backup &amp; restore', 'Export a copy or restore your data')}
       <div class="card-body">
-        <p class="note" style="margin-bottom:.85rem">Export everything as one file you can keep somewhere safe. If anything happens to your Sheet, restore from that file.</p>
+        <p class="note" style="margin-bottom:.85rem">Export your data as one file you can keep somewhere safe and restore later.</p>
         <div id="settings-backup-nudge">${backupNudgeHtml(getSettings())}</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-outline btn-sm" id="btn-export-backup">Export backup</button>

@@ -1,9 +1,6 @@
 /**
  * Snapshot FX normalization converts non-EUR account balances to the
  * reporting currency (EUR) at the month-end rate for the snapshot month.
- *
- * The logic is kept in its own module so it can be unit-tested without
- * importing the full main.ts side-effect tree.
  */
 
 import type { Snapshot, Account } from '../types';

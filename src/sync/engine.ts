@@ -3,13 +3,9 @@
  * Google Drive AppData.
  *
  * Strategy:
- *  - On boot: check cloud modifiedTime. If cloud is newer → download & replace.
+ *  - On boot: compare local and cloud versions; pull only when safe.
  *  - After local writes: debounced upload (coalesces rapid writes into one push).
  *  - Conflicting changes pause sync until the user explicitly chooses a copy.
- *
- * The engine never runs in development builds unless explicitly triggered by
- * the user (env isolation is handled by separate OAuth apps, but this adds
- * a second layer of defence against accidental syncs during testing).
  */
 
 import { exportDb, importDb } from '../db/connection';

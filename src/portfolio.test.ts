@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { TxType } from './types';
 import type { Transaction } from './types';
 
-// Stub constants module so computePD doesn't reach into Google Sheets
+// Isolate portfolio calculations from the configured accounts and holdings.
 vi.mock('./constants', () => ({
   getISIN: () => ({
     IE00B4L5Y983: 'IWDA',

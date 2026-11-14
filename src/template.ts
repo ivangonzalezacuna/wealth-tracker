@@ -176,7 +176,7 @@ export function appTemplate(): string {
       <div class="chart-wrap chart-h-lg chart-zoomable"><div id="c-an-growth" class="chart-host" role="img" aria-label="Portfolio growth chart"></div></div>
     </div>
 
-    <!-- Level 2: Heatmap + Allocation (2+ snapshots) -->
+    <!-- Investment returns and allocation -->
     <div id="an-level2">
       <div class="card">
         <div class="card-title">Investment balance breakdown: external flows vs market</div>

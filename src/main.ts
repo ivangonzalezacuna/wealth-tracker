@@ -366,15 +366,8 @@ function isReadOnly(): boolean {
 }
 
 /**
- * Disable every write-triggering control outside Settings for one of two
- * independent reasons: not signed in (isReadOnly - persistent, until the
- * user signs in) or a sync/write in flight elsewhere (isSyncBusy -
- * transient, clears itself). Read-only always wins the tooltip when both
- * are true - "sign in" is the more actionable message in that case.
- * Deliberately does NOT touch the monthly-update card's collapsed/expanded
- * layout for the busy case (only for readOnly) - collapsing and restoring
- * the form every time a two-second background sync starts would be a much
- * louder, flashier change than a brief disabled state calls for.
+ * Lock write controls while read-only or busy. Read-only takes tooltip priority.
+ * Only read-only changes the entry-card layout; brief syncs must not collapse it.
  */
 function applyReadOnlyMode(): void {
   const readOnly = isReadOnly();
@@ -424,11 +417,7 @@ function applyReadOnlyMode(): void {
     csvInput.disabled = disabled;
   }
 
-  // Per-row snapshot Delete button, if a history row is currently expanded.
-  // Edit is deliberately left alone - it only populates the form locally,
-  // it never itself writes to Sheets (the write happens on a later, already
-  // guarded Save click), so blocking it here would add friction for no
-  // correctness benefit.
+  // Editing prepares a draft; only Delete and the later guarded Save write data.
   document.querySelectorAll<HTMLButtonElement>('.js-del-snap').forEach((el) => {
     el.disabled = disabled;
     el.title = hint;
@@ -1375,8 +1364,7 @@ export async function restoreFromBackup(file: File): Promise<'cancelled' | 'done
     const { accounts, holdings, settings, snapshots, transactions, importMeta, fxRates } =
       backup.data;
 
-    // Write all five tables atomically in one SQLite transaction.
-    // Either everything is replaced or nothing is (full rollback on error).
+    // Replace core financial data atomically; auxiliary metadata is restored below.
     await restoreAllData({ accounts, holdings, settings, snapshots, transactions });
 
     // Restore FX rate cache (non-critical; failures are tolerated).

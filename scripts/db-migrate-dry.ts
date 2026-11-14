@@ -1,31 +1,7 @@
 /**
- * db-migrate-dry — Schema migration dry-run script.
- *
- * Validates that any PENDING migration entries (those with index > SCHEMA_VERSION)
- * apply cleanly against the current in-memory schema. Exits with code 0 on
- * success, code 1 on the first SQL error.
- *
- * Usage:
- *   yarn db:migrate-dry
- *
- * Recommended workflow when adding a new migration:
- *   1. Add SQL statements to MIGRATIONS[SCHEMA_VERSION + 1] in src/db/migrations.ts.
- *      (Do NOT yet bump SCHEMA_VERSION — leave it pointing at the last known-good version.)
- *   2. Run `yarn db:migrate-dry` to verify the new statements apply cleanly
- *      against the current schema (SCHEMA_DDL at SCHEMA_VERSION).
- *   3. Once the dry-run passes, also update SCHEMA_DDL to reflect the changes
- *      and bump SCHEMA_VERSION by 1.
- *
- * How the simulation works:
- *   - A fresh in-memory SQLite database is created from SCHEMA_DDL (the up-to-date
- *     schema that reflects all migrations up to and including SCHEMA_VERSION).
- *   - The simulated DB version is set to SCHEMA_VERSION.
- *   - Any MIGRATIONS entries at indices > SCHEMA_VERSION are treated as pending
- *     and executed in order.
- *   - If there are no pending entries, the script reports that the schema is
- *     current and exits cleanly.
- *
- * This is a pure dry-run: it never touches any real user data.
+ * Run pending migrations above SCHEMA_VERSION against a fresh in-memory schema.
+ * Never reads or writes user data; it does not test historical upgrade paths.
+ * Add pending SQL before bumping the version/DDL. See docs/sqljs-wasm.md.
  */
 
 import { resolve, dirname } from 'path';

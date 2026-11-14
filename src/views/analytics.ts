@@ -60,7 +60,7 @@ import type { Snapshot, PortfolioData, Transaction, Holding } from '../types';
 let _lastSnaps: Snapshot[] = [];
 let _lastPd: PortfolioData | null = null;
 
-// Heatmap paging: page 0 = most recent 3 years
+// Page 0 contains the most recent heatmap years.
 let _heatmapPage = 0;
 
 // Allocation panels: account grouping, holding dimension (null = auto) and inactive filter.

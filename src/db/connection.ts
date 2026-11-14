@@ -4,9 +4,8 @@
  * Uses sql.js (WASM) for in-browser SQLite. The database binary is saved
  * to IndexedDB after every write operation so it survives page reloads.
  *
- * On first load: creates the schema from scratch (fresh start, no migration
- * from Sheets). On subsequent loads: opens the persisted DB and applies any
- * pending schema migrations.
+ * Creates the current schema on first load, or opens the persisted database
+ * and applies pending migrations.
  */
 
 import initSqlJs, { type Database } from 'sql.js';
