@@ -7,7 +7,6 @@ vi.mock('echarts/core', () => import('./charts/echartsMock'));
 import { chartFor, instances as chartInstances, resetMockCharts } from './charts/echartsMock';
 import { loadCharts } from './charts';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRec = any;
 const costOption = () => chartFor('c-port-donut')!.option as AnyRec;
 const driftOption = () => chartFor('c-port-drift')!.option as AnyRec;

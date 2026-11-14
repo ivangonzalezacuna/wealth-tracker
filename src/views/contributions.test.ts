@@ -7,7 +7,6 @@ vi.mock('echarts/core', () => import('./charts/echartsMock'));
 import { chartFor, instances as chartInstances, resetMockCharts } from './charts/echartsMock';
 import { addMonths, loadCharts } from './charts';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRec = any;
 
 // ── Mock dependencies ──────────────────────────────────────────────
