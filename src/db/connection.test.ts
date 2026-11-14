@@ -3,6 +3,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, beforeAll, vi } from 'vitest';
 import { TxType } from '../types';
+import { PROPERTIES_KEY, serializeProperties } from '../model/properties';
 
 const wasmAssetPath = vi.hoisted(() => {
   const cwd = (globalThis as typeof globalThis & { process: { cwd(): string } }).process.cwd();
@@ -120,6 +121,32 @@ describe('db importDb local-preservation merge', () => {
 
   afterEach(async () => {
     await destroyDb();
+  });
+
+  it('persists and transports a property register without creating financial data', async () => {
+    const raw = serializeProperties([
+      {
+        id: 'home',
+        label: 'Home',
+        use: 'Home',
+        value: 300000,
+        share: 100,
+        valueDate: '2026-10-31',
+        mortgage: 'none',
+        debt: null,
+        debtDate: null,
+      },
+    ]);
+    await setSetting(PROPERTIES_KEY, raw);
+    const bytes = exportDb()!;
+    await destroyDb();
+    await importDb(bytes);
+    expect((await loadSettings())[PROPERTIES_KEY]).toBe(raw);
+    expect(await loadAccounts()).toEqual([]);
+    expect(await loadSnapshots()).toEqual([]);
+    expect(await loadTransactions()).toEqual([]);
+    await expect(setSetting(PROPERTIES_KEY, '{}')).rejects.toThrow(/property register/);
+    expect((await loadSettings())[PROPERTIES_KEY]).toBe(raw);
   });
 
   it('preserves local structural edits (accounts/holdings/snapshots/settings/transactions) on import', async () => {

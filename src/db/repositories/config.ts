@@ -14,6 +14,7 @@ import {
   validateSettingsChange,
 } from '../accountData';
 import type { Account, Holding, Settings, Snapshot, Transaction } from '../../types';
+import { parseProperties, PROPERTIES_KEY } from '../../model/properties';
 
 // ── Accounts ──────────────────────────────────────────────────────
 
@@ -169,6 +170,7 @@ export async function restoreAllData(data: {
   snapshots: Snapshot[];
   transactions: Transaction[];
 }): Promise<void> {
+  parseProperties(data.settings[PROPERTIES_KEY]);
   validateFinancialData(data);
   await atomicFinancialWrite((db) => {
     const accountStmt = db.prepare(ACCOUNT_INSERT);

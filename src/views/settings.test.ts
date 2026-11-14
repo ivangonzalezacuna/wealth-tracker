@@ -1990,7 +1990,7 @@ describe('Settings accessible controls and report states', () => {
     );
     renderSettings();
     const headings = [...document.querySelectorAll<HTMLButtonElement>('.js-card-toggle')];
-    expect(headings).toHaveLength(11);
+    expect(headings).toHaveLength(12);
     for (const heading of headings) {
       const body = document.getElementById(heading.getAttribute('aria-controls')!)!;
       expect(heading.tagName).toBe('BUTTON');

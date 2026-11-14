@@ -103,6 +103,88 @@ header #app-sub {
   margin-bottom: 0.5rem;
 }
 
+.property-overview summary,
+.property-heading,
+.property-actions,
+.property-value-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+.property-overview summary {
+  cursor: pointer;
+  list-style: disclosure-closed inside;
+}
+.property-overview summary::before {
+  content: '+';
+}
+.property-overview[open] summary::before {
+  content: '-';
+}
+.property-item {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.property-item h3,
+.property-preview h3 {
+  font-size: var(--fs-6);
+  margin: 0;
+}
+.property-item p,
+.property-help p {
+  margin: 8px 0;
+}
+.property-actions {
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+.property-value-row {
+  padding: 6px 0;
+}
+.property-value-row strong {
+  font-variant-numeric: tabular-nums;
+}
+.property-equity {
+  border-top: 1px solid var(--line);
+}
+.property-fieldset {
+  min-width: 0;
+  margin: 12px 0;
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.property-fieldset legend {
+  font-size: var(--fs-6);
+  font-weight: 600;
+  padding-right: 8px;
+}
+.property-form .dialog-field {
+  margin-bottom: 12px;
+}
+.property-dialog-overlay .dialog-card {
+  max-width: 560px;
+}
+.property-form small,
+.property-help {
+  color: var(--ink-2);
+  font-size: var(--fs-7);
+}
+.property-help summary {
+  cursor: pointer;
+}
+.property-preview {
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+.property-overview > .property-heading {
+  margin-top: 12px;
+}
+
 /* Tabular numerics */
 .kpi-val,
 .metric-val,

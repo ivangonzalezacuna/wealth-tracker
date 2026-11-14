@@ -10,7 +10,7 @@ export function conflictDialog(
   opts: { localIsEmpty?: boolean } = {},
 ): Promise<ConflictResolutionChoice> {
   const keepLocalNote = opts.localIsEmpty
-    ? '<div class="conflict-note js-conflict-empty-note">This device has no snapshots or transactions, so it can\u2019t replace the Drive copy.</div>'
+    ? '<div class="conflict-note js-conflict-empty-note">This device has no snapshots, transactions or property entries, so it can\u2019t replace the Drive copy.</div>'
     : '';
   return new Promise<ConflictResolutionChoice>((resolve) => {
     _dialog.begin(resolve);
