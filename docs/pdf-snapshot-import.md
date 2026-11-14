@@ -4,7 +4,7 @@ Snapshot PDF imports populate monthly account valuations and supplemental ETF
 values, not transactions. Files are processed locally with PDF.js. The editable
 draft and normal **Review → Save snapshot** flow remain the only way to save
 valuations. For usage and account mapping, see the
-[README](../README.md#3-log-your-first-monthly-snapshot).
+[README](../README.md#monthly-snapshots).
 
 The final review stays open until the snapshot is saved. While saving, its
 actions are disabled to prevent duplicate writes or accidental dismissal. If a
@@ -70,8 +70,8 @@ by [netlify.toml](../netlify.toml), and precached with parser assets by
    [snapshotParsers.ts](../src/import/snapshotParsers.ts), with the stable ID,
    display label, recognition/parse functions and one mapping schema:
    - **`investment`:** use `positions` for supplemental ETF allocations and
-     `securities`, `cash`, `total` for verified balances. Reuses the primary
-     investment account's combined/split/positions-only mapping. Omit unverified
+     `securities`, `cash`, `total` for verified balances. Reuses the existing
+     investment mapping's combined/split/positions-only modes. Omit unverified
      totals on partial reports; never invent missing values.
    - **`balances`:** declare named slots with `key`, `label` and eligible
      `moneyTypes`. Return verified values under those keys in
@@ -142,7 +142,7 @@ contain local private files.
   for a verified account total.
 - **Mapping needs repair:** edit the selected report in
   **Settings → Integrations → Statement imports**. Check account type, existence
-  and primary-investment status where applicable.
+  and whether the destination was open in the statement month.
 - **Unexpected currency conversion:** imported values remain explicitly EUR,
   even in native-account mode. Check retained fields' currencies and final
   Review; a USD fund name does not change a printed EUR valuation.
