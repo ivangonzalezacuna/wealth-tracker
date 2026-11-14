@@ -134,7 +134,7 @@ position changes include trades and transfers, so they are not investment return
 
 #### Import values from a statement PDF
 
-Choose **Choose statement PDF** inside the snapshot dialog. Text-based **German
+Select **Choose statement PDF** inside the snapshot dialog. Text-based **German
 Trade Republic valuation statements** are supported. The statement must be dated
 at month-end and match the selected completed month.
 
