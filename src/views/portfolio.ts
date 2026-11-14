@@ -26,11 +26,7 @@ import {
   isAccountClosedInMonth,
   isAccountOpenNow,
 } from '../model/accounts';
-import {
-  accountPositionValues,
-  aggregatePositionValues,
-  parsePositionKey,
-} from '../model/snapshotPositions';
+import { accountPositionValues, aggregatePositionValues } from '../model/snapshotPositions';
 import { splitHoldings, computeFeeDrag } from '../model/holdings';
 import { computeDrift, maxDrift, computeRebalancePlan, driftStatus } from '../model/drift';
 import type { DriftEntry } from '../model/drift';
@@ -244,7 +240,7 @@ function holdingsColumns(
       align: 'right',
       sortValue: (e) => e.cost || 0,
       tip: 'Total amount invested (net of sells). Calculated from your imported CSV transactions using the method chosen in Settings.',
-      cellAttrs: (e) => 'style="text-align:right;font-weight:500"',
+      cellAttrs: () => 'style="text-align:right;font-weight:500"',
       cell: (e) => {
         const pct = pd.totalInv > 0 ? (e.cost / pd.totalInv) * 100 : 0;
         const isExited = e.exited || e.shares < 1e-6;

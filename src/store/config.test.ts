@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { Snapshot } from '../types';
 
 // Mock the db module and sync engine before importing the module under test
 vi.mock('../db', () => ({
@@ -45,7 +44,6 @@ import {
   retireAccountIds,
   retireAccountIdsSafely,
   flushPendingRetiredIds,
-  loadConfig,
   onConfigChange,
   saveAccountLifecycle,
 } from './config';
@@ -55,8 +53,6 @@ import {
   setSetting as dbSetSetting,
   replaceAllSettings as dbReplaceAllSettings,
   logConfigChange,
-  loadAccounts,
-  loadSettings,
   saveAccountConfiguration,
 } from '../db';
 import { scheduleUpload } from '../sync/engine';

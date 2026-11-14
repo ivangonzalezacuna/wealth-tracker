@@ -1,8 +1,7 @@
 /**
  * Frankfurter provider — pure HTTP fetcher for historical and latest FX rates.
  *
- * This module has no side effects: it only fetches from the Frankfurter API
- * and returns typed records. Caching and persistence are handled by
+ * It returns typed records without changing local state. Caching and persistence are handled by
  * fxRateService.ts, not here.
  *
  * Frankfurter v2 (https://frankfurter.dev) is a multi-provider blended API and

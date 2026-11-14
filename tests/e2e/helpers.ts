@@ -376,11 +376,7 @@ export async function addManualTransaction(
 }
 
 /**
- * Open the add-transaction dialog. Waits for any in-flight sync/save so
- * `ensureWriteAccess()` doesn't reject with "A sync or save is in progress",
- * and then waits for the dialog overlay to be attached before returning.
- * This shields callers from a Firefox 155 timing race where the click can
- * arrive between renders of `#btn-add-tx`.
+ * Retry only a known sync-lock race; unexpected dialog failures must surface.
  */
 export async function openTransactionDialog(page: Page): Promise<void> {
   await waitForSyncIdle(page);
@@ -392,7 +388,7 @@ export async function openTransactionDialog(page: Page): Promise<void> {
       await expect(overlay).toBeVisible({ timeout: 2_000 });
       await expect(page.locator('#txd-date')).toBeVisible({ timeout: 2_000 });
       return;
-    } catch {
+    } catch (error) {
       const msg = (await page.locator('#tx-msg').textContent()) ?? '';
       if (
         msg.includes('A sync or save is in progress') ||
@@ -401,8 +397,7 @@ export async function openTransactionDialog(page: Page): Promise<void> {
         await waitForSyncIdle(page);
         continue;
       }
-      // Dialog didn't open for another reason — retry after a short wait.
-      await page.waitForTimeout(200);
+      throw error;
     }
   }
   throw new Error('Transaction dialog did not open after retries.');

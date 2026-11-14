@@ -346,7 +346,7 @@ describe('renderDividends', () => {
     renderDividends(makePD({ divHist: entries }));
     const paginationEl = document.getElementById('div-pagination')!;
     expect(paginationEl.innerHTML).toContain('1 / 2');
-    // Only 12 data rows should appear (PAGE_SIZE = 12) plus header row plus total row
+    // The page contains 12 income rows plus its total.
     const rows = document.getElementById('div-history')!.querySelectorAll('.div-row:not(.th)');
     // 12 data rows + 1 total row = 13
     expect(rows.length).toBe(13);

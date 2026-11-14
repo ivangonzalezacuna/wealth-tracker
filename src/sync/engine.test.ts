@@ -409,7 +409,7 @@ describe('sync engine conflict handling', () => {
     // Cloud still at the time of our last upload (no external changes)
     (drive.getCloudModifiedTime as ReturnType<typeof vi.fn>).mockResolvedValue(DRIVE_ACTUAL_TIME);
 
-    const { pushToCloud, SyncConflictError } = await import('./engine');
+    const { pushToCloud } = await import('./engine');
 
     await expect(pushToCloud()).resolves.not.toThrow();
     await expect(pushToCloud()).resolves.toBe(true);

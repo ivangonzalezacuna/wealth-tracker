@@ -21,7 +21,6 @@ import {
   recordFxCacheHit,
   recordFxPrefetch,
   recordFxRequest,
-  recordFxNormalize,
 } from '../db/repositories/fxTelemetry';
 
 // ── Integration enablement ─────────────────────────────────────────

@@ -168,7 +168,9 @@ test('saved month details align responsive accounts and historical ETF changes',
       const geometry = await detail.evaluate((panel) => {
         const grid = panel.querySelector('.snap-account-grid')!;
         const table = panel.querySelector('.snap-position-table')!;
-        const rows = [...table.querySelectorAll('tbody tr:not(.snap-position-group)')];
+        const rows = [
+          ...table.querySelectorAll<HTMLTableRowElement>('tbody tr:not(.snap-position-group)'),
+        ];
         return {
           width: panel.getBoundingClientRect().width,
           available: panel.parentElement!.getBoundingClientRect().width,

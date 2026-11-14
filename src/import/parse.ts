@@ -11,7 +11,6 @@ import type {
   Transaction,
   TxTypeValue,
   DecimalMode,
-  DateFormat,
   ParseResult,
   UnmappedType,
   PreviewSummary,

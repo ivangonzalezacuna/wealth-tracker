@@ -42,7 +42,6 @@ import {
 import { getAccounts, getHoldings, getNumberSetting } from '../store/config';
 import { allInvestmentAccountsValue } from '../model/accounts';
 import { infoTip, attachInfoTips } from '../ui/infoTip';
-import { resolvedT } from '../theme';
 import {
   axisTooltip,
   disposeChart,
@@ -60,9 +59,8 @@ import type { Snapshot, PortfolioData, Transaction, Holding } from '../types';
 
 let _lastSnaps: Snapshot[] = [];
 let _lastPd: PortfolioData | null = null;
-let _lastTxs: Transaction[] = [];
 
-// Heatmap paging: page 0 = most recent 3 years
+// Page 0 contains the most recent heatmap years.
 let _heatmapPage = 0;
 
 // Allocation panels: account grouping, holding dimension (null = auto) and inactive filter.
@@ -148,7 +146,6 @@ export function renderAnalytics(
 ): void {
   _lastSnaps = snaps;
   _lastPd = pd;
-  _lastTxs = txs;
 
   const has = snaps.length > 0;
   document.getElementById('an-empty')!.style.display = has ? 'none' : 'block';
@@ -458,7 +455,6 @@ function _renderGrowthChart(snaps: Snapshot[]): void {
   }
 
   const points = snaps.map((s) => [monthToTime(s.date), snapTotal(s)] as [number, number]);
-  const last = points[points.length - 1][0];
   const months = snaps.map((s) => s.date);
 
   renderChart(
@@ -528,7 +524,6 @@ function _renderContribChart(points: MonthlyGrowthPoint[]): void {
   if (card) card.style.display = '';
 
   const months = points.map((p) => fmtMon(p.month));
-  const n = months.length;
 
   renderChart(
     'c-an-contrib',
@@ -1229,7 +1224,6 @@ function _renderDrawdownChart(series: { date: string; drawdown: number }[]): voi
   card.style.display = '';
 
   const points = series.map((p) => [monthToTime(p.date), p.drawdown * 100] as [number, number]);
-  const last = points[points.length - 1][0];
   const pct = (v: number) => `${v.toFixed(1)}%`;
   const hasDrawdown = points.some((p) => p[1] < 0);
 
@@ -1315,7 +1309,6 @@ function _renderRollingCagrChart(
   if (wrap) wrap.style.display = '';
 
   const data = points.map((p) => [monthToTime(p.month), p.cagr * 100] as [number, number]);
-  const last = data[data.length - 1][0];
   const pct = (v: number) => `${v.toFixed(1)}%`;
 
   renderChart(

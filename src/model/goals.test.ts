@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { GoalMilestone, NamedGoal } from '../types';
+import type { NamedGoal } from '../types';
 import { validateGoalLabels, validateMilestones } from './goals';
 
 describe('validateGoalLabels', () => {

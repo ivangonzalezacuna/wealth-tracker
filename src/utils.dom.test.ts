@@ -113,13 +113,39 @@ describe('withButtonGuard', () => {
     expect(btn.textContent).toBe('Save');
   });
 
-  it('restores both and re-throws on rejection', async () => {
-    const err = new Error('fail');
-    await expect(
-      withButtonGuard(btn, () => Promise.reject(err), { busyText: 'Saving...' }),
-    ).rejects.toThrow('fail');
+  it.each([false, true])(
+    'restores both on rejection (keepDisabledOnSuccess=%s)',
+    async (keepDisabledOnSuccess) => {
+      const err = new Error('fail');
+      await expect(
+        withButtonGuard(btn, () => Promise.reject(err), {
+          busyText: 'Saving...',
+          keepDisabledOnSuccess,
+        }),
+      ).rejects.toThrow('fail');
+      expect(btn.disabled).toBe(false);
+      expect(btn.textContent).toBe('Save');
+    },
+  );
+
+  it('prevents a second DOM click while an action is pending', async () => {
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const action = vi.fn(() => pending);
+    let guarded: Promise<void> | undefined;
+    btn.addEventListener('click', () => {
+      guarded = withButtonGuard(btn, action);
+    });
+
+    btn.click();
+    btn.click();
+    expect(action).toHaveBeenCalledOnce();
+    expect(btn.disabled).toBe(true);
+    finish();
+    await guarded;
     expect(btn.disabled).toBe(false);
-    expect(btn.textContent).toBe('Save');
   });
 
   it('keepDisabledOnSuccess leaves button disabled with busy label after success', async () => {

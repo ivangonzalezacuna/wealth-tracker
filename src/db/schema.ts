@@ -1,15 +1,10 @@
-/**
- * Database schema - SQLite table definitions for the wealth tracker.
- *
- * Tables mirror the existing data models (Transaction, Account, Holding,
- * Snapshot, Settings) that previously lived in Google Sheets tabs.
- */
+/** Current SQLite schema; existing databases upgrade through migrations.ts. */
 
 /** Schema version - bump when DDL changes require a migration. */
 export const SCHEMA_VERSION = 16;
 
 /**
- * SQL statements executed on first database creation (version 0 → 1).
+ * SQL statements executed on first creation at SCHEMA_VERSION.
  * Each statement is executed separately so individual failures are clear.
  */
 export const SCHEMA_DDL: string[] = [

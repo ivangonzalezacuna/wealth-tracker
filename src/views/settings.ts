@@ -62,7 +62,6 @@ import type {
   FxTelemetryMonthly,
   Holding,
   Settings,
-  ContribInterval,
   NamedGoal,
   Transaction,
   Snapshot,
@@ -87,16 +86,6 @@ import {
   buildHoldingSecuritySuggestions,
   loadAppSecuritySuggestions,
 } from '../securitySuggestions';
-
-/** Build <option> HTML for an interval <select>, marking `selected` the matching value. */
-function intervalOptionsHtml(selected: ContribInterval): string {
-  return Object.entries(INTERVAL_LABELS)
-    .map(
-      ([val, label]) =>
-        `<option value="${val}" ${selected === val ? 'selected' : ''}>${label}</option>`,
-    )
-    .join('');
-}
 
 import { EDIT_ICON, DELETE_ICON, UNDO_ICON } from './icons';
 import { navHash, SETTINGS_VIEWS, type SettingsView } from '../nav';
@@ -361,9 +350,7 @@ export async function withCardGuard<T>(
   }
 }
 
-/** Card-content refresh functions never touch buttons - these ids never
- *  go through withCardGuard/Sheets writes, so they stay clickable even
- *  while a sync/write is in progress elsewhere in the app. */
+/** Draft-only actions remain available while another card is saving or syncing. */
 const SYNC_LOCK_EXEMPT_IDS = new Set([
   'btn-add-acct',
   'btn-add-hold',
@@ -1255,10 +1242,6 @@ function attachAccountListeners(root: HTMLElement): void {
     const idx = parseInt(delBtn.dataset.idx ?? '');
     if (!isNaN(idx)) void toggleAccountRemoval(controller, idx);
   });
-}
-
-function collectAccounts(_root: HTMLElement): Account[] {
-  return _accounts ?? [];
 }
 
 function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {
@@ -3064,7 +3047,7 @@ function renderBackupCard(): string {
     <div class="card card-collapsible" id="settings-card-backup" data-card-key="backup">
       ${settingsCardHeader('backup', 'Backup &amp; restore', 'Export a copy or restore your data')}
       <div class="card-body">
-        <p class="note" style="margin-bottom:.85rem">Export everything as one file you can keep somewhere safe. If anything happens to your Sheet, restore from that file.</p>
+        <p class="note" style="margin-bottom:.85rem">Export your data as one file you can keep somewhere safe and restore later.</p>
         <div id="settings-backup-nudge">${backupNudgeHtml(getSettings())}</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-outline btn-sm" id="btn-export-backup">Export backup</button>

@@ -7,7 +7,6 @@ vi.mock('echarts/core', () => import('./charts/echartsMock'));
 import { chartFor, instances as chartInstances, resetMockCharts } from './charts/echartsMock';
 import { addMonths, loadCharts } from './charts';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRec = any;
 
 // ── Mock dependencies ──────────────────────────────────────────────
@@ -54,7 +53,7 @@ vi.mock('../constants', () => ({
 }));
 
 import { renderDCA } from './contributions';
-import type { PortfolioData, Snapshot } from '../types';
+import type { PortfolioData } from '../types';
 
 function makePD(overrides: Partial<PortfolioData> = {}): PortfolioData {
   return {
@@ -117,7 +116,7 @@ describe('renderDCA', () => {
   });
 
   it('shows empty state when pd is null', () => {
-    renderDCA(null, []);
+    renderDCA(null);
     expect((document.getElementById('dca-empty') as HTMLElement).style.display).not.toBe('none');
     expect((document.getElementById('dca-content') as HTMLElement).style.display).toBe('none');
     expect(chartInstances.length).toBe(0);
@@ -131,20 +130,20 @@ describe('renderDCA', () => {
       moneyType: 'investment',
       contribAmount: 0,
     });
-    renderDCA(makePD(), []);
+    renderDCA(makePD());
     expect(document.getElementById('dca-proj-card')!.textContent).toBe('');
     expect(document.getElementById('dca-kpis')!.textContent).toContain('Current cost basis');
   });
 
   it('shows empty state when pd has no months', () => {
-    renderDCA(makePD({ months: [], monthly: {}, monthlyBy: {} }), []);
+    renderDCA(makePD({ months: [], monthly: {}, monthlyBy: {} }));
     expect((document.getElementById('dca-empty') as HTMLElement).style.display).not.toBe('none');
     expect((document.getElementById('dca-content') as HTMLElement).style.display).toBe('none');
     expect(chartInstances.length).toBe(0);
   });
 
   it('renders four KPI tiles with correct values', () => {
-    renderDCA(makePD(), []);
+    renderDCA(makePD());
     const kpis = document.getElementById('dca-kpis')!.textContent!;
     expect(kpis).toContain('Current cost basis');
     expect(kpis).toContain('Active months');
@@ -155,7 +154,7 @@ describe('renderDCA', () => {
   });
 
   it('creates DCA bar chart with one stacked series per ETF', () => {
-    renderDCA(makePD(), []);
+    renderDCA(makePD());
     const opt = chartFor('c-dca-bar')!.option as AnyRec;
     expect(opt.xAxis.data).toHaveLength(3);
     expect(opt.series).toHaveLength(1);
@@ -166,9 +165,9 @@ describe('renderDCA', () => {
   });
 
   it('reuses the bar chart instance on re-render', () => {
-    renderDCA(makePD(), []);
+    renderDCA(makePD());
     const chart = chartFor('c-dca-bar');
-    renderDCA(makePD(), []);
+    renderDCA(makePD());
     expect(chartFor('c-dca-bar')).toBe(chart);
     expect(chartInstances.filter((c) => c.dom.id === 'c-dca-bar')).toHaveLength(1);
   });
@@ -185,7 +184,7 @@ describe('renderDCA', () => {
       monthly[mo] = 100;
       monthlyBy[mo] = { IE00TEST1: 100 };
     });
-    renderDCA(makePD({ months, monthly, monthlyBy, totalInv: 2000 }), []);
+    renderDCA(makePD({ months, monthly, monthlyBy, totalInv: 2000 }));
     const chart = chartFor('c-dca-bar')!;
     const opt = chart.option as AnyRec;
     expect(opt.xAxis.data).toHaveLength(20);
@@ -194,7 +193,7 @@ describe('renderDCA', () => {
   });
 
   it('bar tooltip skips zero rows and only totals multiple ETFs', () => {
-    renderDCA(makePD(), []);
+    renderDCA(makePD());
     const fmt = (chartFor('c-dca-bar')!.option as AnyRec).tooltip.formatter;
     const html = fmt([
       { seriesName: 'IWDA', value: 100, axisValue: 'Jan 25', axisValueLabel: 'Jan 25' },
@@ -211,7 +210,7 @@ describe('renderDCA', () => {
   });
 
   it('projection chart renders actual and projected series', () => {
-    renderDCA(makePD(), []);
+    renderDCA(makePD());
     const opt = chartFor('c-dca-proj')!.option as AnyRec;
     expect(opt.series.map((x: AnyRec) => x.name)).toEqual(['Actual', 'Projected']);
     expect(opt.series[0].data).toHaveLength(3);
@@ -222,9 +221,9 @@ describe('renderDCA', () => {
   });
 
   it('reuses the projection chart host on re-render', () => {
-    renderDCA(makePD(), []);
+    renderDCA(makePD());
     const chart = chartFor('c-dca-proj')!;
-    renderDCA(makePD(), []);
+    renderDCA(makePD());
     expect(chartFor('c-dca-proj')).toBe(chart);
     expect(chart.dom.isConnected).toBe(true);
     expect(chartInstances.filter((c) => c.dom.id === 'c-dca-proj')).toHaveLength(1);
@@ -236,7 +235,7 @@ describe('renderDCA', () => {
       return 0;
     });
     try {
-      renderDCA(makePD(), []);
+      renderDCA(makePD());
       const chart = chartFor('c-dca-proj')!;
       const title = document.getElementById('dca-proj-range')!;
       expect(title.textContent).toBe('5 years');
@@ -268,7 +267,7 @@ describe('renderDCA', () => {
   });
 
   it('DCA table renders rows for each month plus a total row', () => {
-    renderDCA(makePD(), []);
+    renderDCA(makePD());
     const table = document.getElementById('dca-table')!;
     // 3 data rows + 1 total row + 1 header row = 5 total .tbl-row elements
     // .th for header, data rows and total row are not .th
@@ -287,7 +286,7 @@ describe('renderDCA', () => {
       monthly[mo] = 100;
       monthlyBy[mo] = { IE00TEST1: 100 };
     });
-    renderDCA(makePD({ months, monthly, monthlyBy, totalInv: 1400 }), []);
+    renderDCA(makePD({ months, monthly, monthlyBy, totalInv: 1400 }));
 
     const rows = () => document.querySelectorAll('#dca-table .tbl-row:not(.th)');
     // 12 months + total row
@@ -305,17 +304,17 @@ describe('renderDCA', () => {
   });
 
   it('re-render does not throw or duplicate KPI tiles', () => {
-    renderDCA(makePD(), []);
-    renderDCA(makePD(), []);
+    renderDCA(makePD());
+    renderDCA(makePD());
     const kpis = document.getElementById('dca-kpis')!;
     expect(kpis.children.length).toBe(4);
   });
 
   it('re-render does not duplicate table rows', () => {
-    renderDCA(makePD(), []);
+    renderDCA(makePD());
     const table = document.getElementById('dca-table')!;
     const rowsAfterFirst = table.querySelectorAll('.tbl-row:not(.th)').length;
-    renderDCA(makePD(), []);
+    renderDCA(makePD());
     const rowsAfterSecond = table.querySelectorAll('.tbl-row:not(.th)').length;
     expect(rowsAfterSecond).toBe(rowsAfterFirst);
   });

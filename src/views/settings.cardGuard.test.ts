@@ -254,7 +254,7 @@ describe('applySyncBusyState', () => {
     const filter = document.querySelector('[data-hfilter="all"]') as HTMLButtonElement;
     const saveHolds = document.getElementById('btn-save-holds') as HTMLButtonElement;
 
-    // Local-only buttons (no Sheets write) stay clickable
+    // Draft-only buttons stay clickable.
     expect(addAcct.disabled).toBe(false);
     expect(filter.disabled).toBe(false);
 

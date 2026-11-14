@@ -1,6 +1,6 @@
 /** IndexedDB cache for offline-first boot. CACHE_VERSION mismatch forces full resync. */
 
-import { createStore, get, set, del, clear } from 'idb-keyval';
+import { createStore, get, set, clear } from 'idb-keyval';
 import type { Transaction, Snapshot, PortfolioData, Settings } from '../types';
 import type { Account, Holding } from '../types';
 

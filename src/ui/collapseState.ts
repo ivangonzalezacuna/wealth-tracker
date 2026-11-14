@@ -55,12 +55,12 @@ export function toggleCollapsed(key: string): boolean {
   return next;
 }
 
-/** Get a snapshot of the full state (for Sheet backup). */
+/** Snapshot for backup in synced settings. */
 export function getCollapseSnapshot(): CollapseState {
   return { ..._state };
 }
 
-/** Replace the full state (e.g. when restoring from Sheet). */
+/** Replace local preferences with restored settings. */
 export function replaceCollapseState(state: CollapseState): void {
   _state = { ...state };
   _schedulePersist();

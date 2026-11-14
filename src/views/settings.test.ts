@@ -244,7 +244,6 @@ import {
 } from './settings';
 import { isCollapsed } from '../ui/collapseState';
 import { isBackupStale } from '../backup/exportImport';
-import { withButtonGuard } from '../utils';
 
 // ── Test setup ──────────────────────────────────────────────────
 
@@ -1298,7 +1297,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
       (setHoldings as ReturnType<typeof vi.fn>).mockClear();
       (showMsg as ReturnType<typeof vi.fn>).mockClear();
       (setHoldings as ReturnType<typeof vi.fn>).mockImplementationOnce(() =>
-        Promise.reject(new Error('Sheets API error')),
+        Promise.reject(new Error('Local persistence failed')),
       );
 
       const btn = document.getElementById('btn-save-holds') as HTMLButtonElement;
@@ -1307,7 +1306,7 @@ describe('Button-disable verification: synchronous disable and double-click prev
       await tick();
 
       expect(btn.disabled).toBe(false);
-      expect(notify).toHaveBeenCalledWith('Could not save holdings: Sheets API error', {
+      expect(notify).toHaveBeenCalledWith('Could not save holdings: Local persistence failed', {
         variant: 'error',
         source: 'holds-msg',
       });
