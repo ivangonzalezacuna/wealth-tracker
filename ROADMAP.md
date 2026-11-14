@@ -10,17 +10,6 @@ These are candidates, not delivery commitments.
 
 - **Chart accessibility:** provide keyboard access to the in-canvas toolbox.
   The chart data table and HTML legend are the current accessible alternatives.
-- **Personal property overview:** evaluate the standalone
-  [UI pilot](docs/property-pilot.html). Manage a few dated property estimates in
-  Settings and show a secondary, collapsible Net worth card only when entries
-  exist. Keep personal equity informational and separate from account snapshots,
-  financial net worth, liquid goals, returns, forecasts and annual reports.
-  Prefer occasional valuation/debt updates over payment tracking. A production
-  version would still need explicit persistence, backup/restore and sync support;
-  the pilot stores only fictional, temporary in-page data.
-  Validate the beginner-friendly entry flow: whole-property value, ownership
-  share, and remaining personal mortgage debt excluding future interest, with a
-  live equity breakdown. Unknown debt must not default to debt-free ownership.
 - **Configurable reporting currency:** native account currencies and month-end
   snapshot conversion already work, but calculation/display currency is fixed
   to EUR. Any change needs a plan for historical transaction rates and snapshots,
@@ -51,9 +40,11 @@ These are candidates, not delivery commitments.
   estimated owned value and personally attributable outstanding mortgage debt,
   not rent, bills or individual repayments. Exclude mortgage simulation,
   automatic appreciation, future inheritance and assumed finished-house values
-  from this pilot. Do not treat property as an ordinary investment account or
-  pension that unlocks into spendable cash. Choose whether to proceed only after
-  reviewing the pilot and accepting occasional manual balance confirmation.
+  from the initial feature. Do not treat property as an ordinary investment account
+  or pension that unlocks into spendable cash. The implemented register uses
+  occasional manual balance confirmation, not recurring payment entry. The
+  [standalone UI pilot](docs/property-pilot.html) remains a fictional-data
+  discovery reference, separate from the live feature.
 
 ## Delivered capabilities
 
@@ -64,6 +55,12 @@ The app already includes:
   ETF valuations, manual transactions and bulk deletion.
 - Account lifecycle, groups/countries, holding notes/TER/targets, contribution
   planning, goals/milestones, forecast scenarios and annual HTML reports.
+- Optional property management in Settings and a secondary Net worth overview,
+  hidden when empty. Beginner-friendly entry shows owned value minus remaining
+  personal mortgage debt, with dates, unknown-debt handling and signed equity.
+  The versioned register uses existing local persistence, Drive sync and JSON
+  backup/restore. Property remains outside all financial-account calculations,
+  goals, returns, forecasts, retirement calculations and annual reports.
 - Interactive ECharts charts and shared dialog keyboard/focus handling.
 - Local-first persistence, explicit sync-conflict recovery and JSON backup/restore.
 - Frankfurter FX caching, native account-currency entry, month-end normalization,

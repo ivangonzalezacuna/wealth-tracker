@@ -87,7 +87,7 @@ If both copies changed, sync pauses. Select the chip or use
 **Settings > Advanced > Cache & sync > Resolve sync conflict** to export a backup
 and choose which copy to keep. Cancelling preserves both copies. Drafts remain
 available, but saving requires resolution and an explicit retry. Keeping a local
-copy with no snapshots or transactions is blocked.
+copy with no snapshots, transactions or property entries is blocked.
 
 Signing out attempts to sync and warns if changes remain local. It revokes the
 current token but does not erase local data. See the [privacy policy](public/privacy.html)
@@ -111,6 +111,42 @@ Additional accounts can have their own contribution amounts and cadences.
 Holding targets enable allocation drift and buy-only rebalancing suggestions;
 TER values enable annual fee estimates. These projections are illustrative,
 not trading advice.
+
+### Properties (optional)
+
+In **Settings > Portfolio > Properties**, add a home or another property you own.
+Enter the estimated value of the **whole property**, your ownership percentage
+and the date of the estimate. If you have a mortgage, enter **your share of the
+remaining borrowed amount**, not the whole shared loan, monthly payments or
+future interest. Use the date on your statement. If unsure, leave the mortgage
+amount unknown rather than assuming it is zero.
+
+The app shows your share's value minus your remaining mortgage debt as **equity**.
+For example, half of a EUR 420,000 apartment less EUR 140,000 of personal mortgage
+debt gives EUR 70,000 equity. Equity is not profit or available cash and excludes
+selling costs and taxes. An agreed debt split is for personal tracking, not a
+limit on your legal liability to the lender.
+
+The **Net worth** page has a separate, initially collapsed property overview.
+It is hidden when no properties exist and also works without account snapshots.
+Property entries **do not change account totals, financial net worth, goals,
+investment returns, forecasts, retirement calculations or annual reports**.
+Unknown mortgage debt prevents a complete property-equity total; negative equity
+remains negative.
+
+Update estimates and mortgage balances occasionally. Values retain their dates;
+there is no automatic appreciation, repayment calculation or monthly entry
+requirement. For a house under construction, use the present value of the land
+and completed work and only debt already drawn. Do not enter expected inheritance
+or a future completed-house value. There is no rent, bill or tenant tracking.
+
+All property amounts are entered in **EUR**, including explicit EUR equivalents
+for foreign property or debt; this register does not fetch or apply FX rates.
+Entries are saved locally and included in normal Drive sync and JSON
+backup/restore through a versioned settings value. No new accounts, transactions
+or snapshot balances are created. Editing replaces the latest estimate; this is
+not a property-history ledger. Removing an entry does not record a sale or move
+cash.
 
 ### Monthly snapshots
 
