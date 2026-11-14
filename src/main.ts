@@ -131,7 +131,7 @@ import { onThemeChange, setUserTheme, getUserThemePref } from './theme';
 import { loadCharts, refreshChartsTheme } from './views/charts';
 import { shouldAutoResync } from './sync/policy';
 import { loadCollapseState, replaceCollapseState } from './ui/collapseState';
-import { restoreCollapseFromSheet, backupCollapseToSheet } from './ui/collapseSync';
+import { restoreCollapseFromSettings, backupCollapseToSettings } from './ui/collapseSync';
 import { renderSignature } from './renderSignature';
 import { confirmDialog } from './ui/confirmDialog';
 import { transactionDialog } from './ui/transactionDialog';
@@ -1083,7 +1083,7 @@ async function syncInBackground({ userInitiated = false } = {}) {
     // Load from local SQLite
     await loadConfig();
     // Restore UI prefs if IDB was empty (new device)
-    if (restoreCollapseFromSheet()) forceRender = true;
+    if (restoreCollapseFromSettings()) forceRender = true;
     const [snaps, txs, meta] = await Promise.all([
       loadSnapshots(),
       loadTransactions(),
@@ -1113,7 +1113,7 @@ async function syncInBackground({ userInitiated = false } = {}) {
     ]);
     if (!configCached || !snapsCached || !txsCached) showCacheWriteWarning();
 
-    await backupCollapseToSheet();
+    await backupCollapseToSettings();
     settleSyncStatus();
   } catch (err) {
     if (err instanceof NeedsAuthError) {
@@ -1190,7 +1190,7 @@ async function loadAllData() {
     setSyncStatus('refreshing');
     await refreshStateFromLocalDb();
     registerConfigListener();
-    await backupCollapseToSheet();
+    await backupCollapseToSettings();
     settleSyncStatus();
   } catch (err) {
     if (err instanceof NeedsAuthError) {
@@ -1284,7 +1284,7 @@ async function refreshStateFromLocalDb(
   if (opts.clearCaches) await clearCache();
 
   await loadConfig();
-  restoreCollapseFromSheet();
+  restoreCollapseFromSettings();
   const [snaps, txs, meta] = await Promise.all([
     loadSnapshots(),
     loadTransactions(),

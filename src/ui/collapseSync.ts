@@ -17,7 +17,7 @@ const SETTINGS_KEY = 'ui_collapse_state';
  * Only applies if the local collapse state is empty (fresh device / cleared cache).
  * Returns true when it restored a state (rendered cards need a repaint to show it).
  */
-export function restoreCollapseFromSheet(): boolean {
+export function restoreCollapseFromSettings(): boolean {
   if (!isCollapseStateLoaded()) return false;
   const current = getCollapseSnapshot();
   // Only restore if local state is empty (fresh start)
@@ -42,7 +42,7 @@ export function restoreCollapseFromSheet(): boolean {
 /**
  * Back up changed preferences after a successful sync; failure is non-critical.
  */
-export async function backupCollapseToSheet(): Promise<void> {
+export async function backupCollapseToSettings(): Promise<void> {
   try {
     const snapshot = getCollapseSnapshot();
     const json = JSON.stringify(snapshot);
