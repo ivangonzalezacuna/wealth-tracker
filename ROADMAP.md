@@ -10,11 +10,17 @@ These are candidates, not delivery commitments.
 
 - **Chart accessibility:** provide keyboard access to the in-canvas toolbox.
   The chart data table and HTML legend are the current accessible alternatives.
-- **Diversification analysis:** evaluate whether correlations from sufficiently
-  complete per-holding return histories can provide a useful concentration
-  warning. Validate data quality and interpretation before adding a score.
-- **Cash-flow calendar:** explore projected dividends, interest and scheduled
-  contributions in one monthly view. Distinguish estimates from recorded income.
+- **Personal property overview:** evaluate the standalone
+  [UI pilot](docs/property-pilot.html). Manage a few dated property estimates in
+  Settings and show a secondary, collapsible Net worth card only when entries
+  exist. Keep personal equity informational and separate from account snapshots,
+  financial net worth, liquid goals, returns, forecasts and annual reports.
+  Prefer occasional valuation/debt updates over payment tracking. A production
+  version would still need explicit persistence, backup/restore and sync support;
+  the pilot stores only fictional, temporary in-page data.
+  Validate the beginner-friendly entry flow: whole-property value, ownership
+  share, and remaining personal mortgage debt excluding future interest, with a
+  live equity breakdown. Unknown debt must not default to debt-free ownership.
 - **Configurable reporting currency:** native account currencies and month-end
   snapshot conversion already work, but calculation/display currency is fixed
   to EUR. Any change needs a plan for historical transaction rates and snapshots,
@@ -22,6 +28,32 @@ These are candidates, not delivery commitments.
 - **ETF mergers:** implement and verify cost-basis carryover for multi-leg fund
   mergers before relying on `foldInto`. Current affected results require checking
   against broker statements.
+
+## Product discovery decisions
+
+- **Cash-flow calendar: discarded.** Existing investment transaction history is
+  not a household recurring-payment feed. Manually maintaining rent, fixed costs
+  and payment schedules would add complexity without enough value. No calendar,
+  recurring-payment ledger or household budgeting work is queued.
+- **Additional allocation/diversification views: not pursued.** Analytics already
+  groups accounts by account, country, group and type, and holdings by asset class,
+  region and holding. Holding allocation is cost-based, not current market
+  exposure; another donut would not resolve that distinction or reveal ETF
+  look-through overlap.
+- **Return correlation: deferred.** It could reveal funds moving together, but
+  its incremental value is unproven and the current data model lacks verified,
+  aligned per-holding total-return histories. Position-value changes include
+  trades and are not returns. Revisit only with a useful user decision and a
+  maintainable data source; no score, feed or correlation pilot is queued.
+- **Property scope: informational first.** Focus on a home, shared ownership,
+  inherited property or a house under construction; check that two or three
+  properties remain understandable without landlord-management features. Track
+  estimated owned value and personally attributable outstanding mortgage debt,
+  not rent, bills or individual repayments. Exclude mortgage simulation,
+  automatic appreciation, future inheritance and assumed finished-house values
+  from this pilot. Do not treat property as an ordinary investment account or
+  pension that unlocks into spendable cash. Choose whether to proceed only after
+  reviewing the pilot and accepting occasional manual balance confirmation.
 
 ## Delivered capabilities
 

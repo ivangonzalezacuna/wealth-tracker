@@ -1,0 +1,955 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Wealth Tracker: simple property UI pilot</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: system-ui, sans-serif;
+        font-size: 13px;
+        line-height: 1.5;
+        color: #0b0b0b;
+        background: #f5f4f0;
+        --line: #e0ddd6;
+        --muted: #52514e;
+        --brand: #185fa5;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        max-width: 940px;
+        margin: auto;
+        padding: 24px;
+      }
+      h1 {
+        font-size: 20px;
+        font-weight: 500;
+        margin: 0;
+      }
+      h2,
+      h3 {
+        font-size: 14px;
+        margin: 0;
+        font-weight: 650;
+      }
+      p {
+        margin: 8px 0;
+      }
+      a {
+        color: var(--brand);
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+        color: inherit;
+        border: 1px solid #ccc9c0;
+        border-radius: 5px;
+        background: white;
+      }
+      button {
+        padding: 4px 10px;
+        cursor: pointer;
+        min-height: 29px;
+      }
+      button:hover {
+        background: #f0f7ff;
+      }
+      button.primary {
+        background: var(--brand);
+        color: white;
+        border-color: var(--brand);
+      }
+      button.danger {
+        color: #a32d2d;
+      }
+      :focus-visible {
+        outline: 3px solid #378add;
+        outline-offset: 3px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .muted,
+      small {
+        color: var(--muted);
+      }
+      .notice {
+        padding: 12px 14px;
+        background: #e6f1fb;
+        border: 1px solid #c1d9ee;
+        border-radius: 7px;
+        margin: 14px 0;
+      }
+      .toolbar,
+      .heading,
+      .actions,
+      .tabs {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .heading {
+        justify-content: space-between;
+      }
+      .toolbar {
+        padding: 10px 0;
+        border-block: 1px solid var(--line);
+        margin-bottom: 20px;
+      }
+      .toolbar label {
+        font-weight: 600;
+      }
+      .toolbar select {
+        padding: 4px 6px;
+        max-width: 100%;
+      }
+      .tabs {
+        border-bottom: 1px solid var(--line);
+        margin: 16px 0 20px;
+        gap: 0;
+      }
+      .tabs button {
+        background: transparent;
+        border: 0;
+        border-radius: 0;
+        padding: 8px 14px;
+        color: var(--muted);
+        border-bottom: 2px solid transparent;
+      }
+      .tabs button[aria-selected='true'] {
+        border-color: var(--brand);
+        color: var(--brand);
+      }
+      .card {
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: white;
+        margin-bottom: 16px;
+      }
+      .kpis {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .kpi {
+        padding: 14px;
+        background: white;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+      .metric {
+        font-size: 23px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .kpi .metric {
+        display: block;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        justify-content: space-between;
+        padding: 9px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .row:last-child {
+        border: 0;
+      }
+      .row strong {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      summary {
+        cursor: pointer;
+      }
+      summary .summary-line {
+        display: inline-flex;
+        gap: 8px 18px;
+        justify-content: space-between;
+        width: calc(100% - 24px);
+        flex-wrap: wrap;
+        vertical-align: middle;
+      }
+      .property-item {
+        padding: 14px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .property-item:last-child {
+        border: 0;
+        padding-bottom: 0;
+      }
+      .tag {
+        font-size: 11px;
+        background: #f0ede6;
+        padding: 2px 6px;
+        border-radius: 4px;
+        display: inline-block;
+      }
+      .warning {
+        color: #856404;
+      }
+      .negative {
+        color: #a32d2d;
+      }
+      .empty {
+        color: var(--muted);
+        padding: 12px 0;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0 14px;
+      }
+      label.field {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 12px;
+      }
+      label.field input,
+      label.field select {
+        display: block;
+        width: 100%;
+        min-width: 0;
+        padding: 7px 8px;
+        margin: 4px 0;
+      }
+      label.field small {
+        display: block;
+        font-weight: 400;
+      }
+      dialog {
+        width: min(530px, calc(100% - 28px));
+        max-height: calc(100dvh - 40px);
+        overflow: auto;
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+      }
+      dialog::backdrop {
+        background: #0006;
+      }
+      dialog .actions {
+        justify-content: flex-end;
+        margin-top: 16px;
+      }
+      form {
+        margin-top: 14px;
+      }
+      .status {
+        min-height: 20px;
+        color: #0f6e56;
+      }
+      .preview {
+        margin: 14px 0;
+        padding: 12px;
+        background: #faf9f6;
+        border-radius: 6px;
+      }
+      fieldset {
+        min-width: 0;
+        margin: 18px 0;
+        padding: 14px 0 0;
+        border: 0;
+        border-top: 1px solid var(--line);
+      }
+      legend {
+        padding-right: 10px;
+        font-weight: 650;
+      }
+      .help {
+        margin: 10px 0;
+        color: var(--muted);
+      }
+      .help p {
+        padding-left: 14px;
+      }
+      .equity-result {
+        font-weight: 650;
+        background: #faf9f6;
+        padding-inline: 8px;
+      }
+      .property-item h3 {
+        overflow-wrap: anywhere;
+      }
+      .preview .row {
+        align-items: baseline;
+      }
+      footer {
+        border-top: 1px solid var(--line);
+        margin-top: 28px;
+        padding-top: 16px;
+      }
+      footer li {
+        margin: 8px 0;
+      }
+      @media (max-width: 600px) {
+        body {
+          padding: 16px;
+        }
+        .kpis {
+          grid-template-columns: 1fr;
+          gap: 8px;
+        }
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .metric {
+          font-size: 21px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Wealth Tracker</h1>
+      <p class="muted">A simple overview of your home and other property.</p>
+    </header>
+    <div class="notice">
+      <strong>Standalone prototype. Fictional data only.</strong> Entries live in this page's memory
+      and disappear on reload. Nothing is saved to the app, browser storage or Drive. Do not enter
+      real financial information.
+    </div>
+    <div class="toolbar" aria-label="Pilot controls">
+      <label for="fixture">Explore an example</label>
+      <select id="fixture">
+        <option value="home">One shared home</option>
+        <option value="empty">No properties</option>
+        <option value="several">Three properties</option>
+        <option value="construction">Under construction</option>
+        <option value="incomplete">Unknown mortgage</option>
+        <option value="negative">Mortgage higher than property value</option>
+      </select>
+      <button id="restart" type="button">Reset example</button>
+      <small>Choosing an example replaces your temporary entries.</small>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Pilot sections">
+      <button
+        id="tab-networth"
+        type="button"
+        role="tab"
+        aria-selected="true"
+        aria-controls="networth"
+        tabindex="0"
+      >
+        Net worth
+      </button>
+      <button
+        id="tab-settings"
+        type="button"
+        role="tab"
+        aria-selected="false"
+        aria-controls="settings"
+        tabindex="-1"
+      >
+        Settings
+      </button>
+    </nav>
+    <main>
+      <section id="networth" role="tabpanel" aria-labelledby="tab-networth">
+        <div class="kpis">
+          <div class="kpi">
+            <span class="muted">Financial net worth</span
+            ><strong class="metric" id="financial-total">EUR 140,000</strong
+            ><small>Account snapshots only</small>
+          </div>
+          <div class="kpi">
+            <span class="muted">Liquid goal balance</span><strong class="metric">EUR 100,000</strong
+            ><small>Unchanged by property</small>
+          </div>
+          <div class="kpi">
+            <span class="muted">Pension balance</span><strong class="metric">EUR 40,000</strong
+            ><small>Existing locked-account treatment</small>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Accounts</h2>
+          <div class="row"><span>Investments</span><strong>EUR 80,000</strong></div>
+          <div class="row"><span>Savings</span><strong>EUR 20,000</strong></div>
+          <div class="row"><span>Pension</span><strong>EUR 40,000</strong></div>
+          <small>Fixed fictional context. No account data is read or changed.</small>
+        </div>
+        <details id="property-summary" class="card" hidden>
+          <summary>
+            <span class="summary-line"
+              ><strong>Property overview <span id="property-count" class="tag"></span></strong
+              ><span id="property-total"></span
+            ></span>
+          </summary>
+          <p class="muted">
+            What your share is worth, minus your remaining mortgage debt. Shown separately from your
+            accounts, not as money you can spend.
+          </p>
+          <div id="property-display"></div>
+          <div class="heading" style="margin-top: 12px">
+            <small>Based on your latest estimates. Update them when you have new figures.</small
+            ><button type="button" id="manage">Manage properties</button>
+          </div>
+        </details>
+        <div class="card">
+          <h2>Goals and projections</h2>
+          <p class="muted">
+            Continue using financial accounts only. Property does not enter goal progress,
+            investment performance, return assumptions or retirement withdrawals.
+          </p>
+        </div>
+      </section>
+      <section id="settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+        <div class="card">
+          <h2>Accounts and holdings</h2>
+          <p class="muted">
+            Existing settings remain unchanged. This pilot only demonstrates the optional property
+            card below.
+          </p>
+        </div>
+        <section class="card" aria-labelledby="settings-properties-title">
+          <div class="heading">
+            <h2 id="settings-properties-title">Properties <span class="tag">Optional</span></h2>
+            <button id="add" type="button">Add property</button>
+          </div>
+          <p class="muted">
+            Add an estimate of your property's value and any mortgage you still owe. Update it
+            occasionally, not every month.
+          </p>
+          <div id="property-management"></div>
+          <p class="muted">
+            <small>Optional. Your account totals, goals and forecasts stay the same.</small>
+          </p>
+        </section>
+      </section>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </main>
+    <footer>
+      <details>
+        <summary>Proposed scope and next decision</summary>
+        <p>
+          <strong>Recommended layout:</strong> an optional Settings card and one secondary,
+          initially collapsed Net worth card. No new main navigation tab, chart, combined headline,
+          forecast or monthly-entry workflow. Settings remains discoverable when there is no data.
+        </p>
+        <p>
+          <strong>Small record:</strong> label, use, whole-property estimate, owned percentage,
+          valuation date and personally attributable mortgage principal/date, or explicit
+          debt-free/unknown status. Enter your own debt directly, rather than configure loan rates,
+          payment allocations or amortization. Ownership and debt need not have equal shares.
+        </p>
+        <p>
+          <strong>Examples:</strong> an inherited home can be debt-free; a build uses present as-is
+          land/work value and drawn debt, never finished value or the approved facility. Two or
+          three properties use the same list, with no rental accounting. A rented-property label
+          does not produce income estimates.
+        </p>
+        <p>
+          <strong>History boundary:</strong> this is a latest-known informational register, not
+          historical property performance. No reconstruction of past ownership, inheritance returns,
+          purchase flows or mortgage amortization is attempted. Values retain their actual dates.
+          Unknown debt prevents a complete equity total; negative equity stays signed.
+        </p>
+        <p>
+          <strong>If approved for production:</strong> implement a small separately stored register,
+          explicit validation and errors, and deliberate SQLite persistence, backup/restore, Drive
+          sync and compatibility tests. Do not use device-only localStorage as a shortcut. Keep it
+          outside account snapshots and existing financial calculations. Removing a record would
+          remove it from this register only; there is no sale transaction or automatic cash
+          movement.
+        </p>
+        <p>
+          <strong>Not implemented:</strong> any of that production storage, real data entry,
+          history, reports or app wiring. The current deliverables are this disposable interaction
+          pilot and the roadmap findings. Approval should establish that occasional manual estimates
+          are acceptable and that the small card is useful enough to keep.
+        </p>
+      </details>
+    </footer>
+    <dialog id="editor" aria-labelledby="editor-title">
+      <h2 id="editor-title">Add property</h2>
+      <p class="muted">Use made-up figures to try this out. Nothing is saved after a reload.</p>
+      <form id="property-form">
+        <label class="field" for="label"
+          >Name<input id="label" maxlength="60" required autocomplete="off" placeholder="Home"
+        /></label>
+        <label class="field" for="use"
+          >Property type<select id="use">
+            <option value="Home">Home</option>
+            <option value="Inherited property">Inherited property</option>
+            <option value="Under construction">Under construction</option>
+            <option value="Rented property">Rented property</option>
+            <option value="Other">Other</option>
+          </select></label
+        >
+        <fieldset>
+          <legend>1. What is the property worth?</legend>
+          <p class="muted">
+            Start with the value of the whole property, even if you only own part of it.
+          </p>
+          <div class="grid">
+            <label class="field" for="value"
+              >Estimated value of the whole property (EUR)<input
+                id="value"
+                type="number"
+                min="0"
+                max="100000000"
+                step="0.01"
+                aria-describedby="value-help"
+                required
+              /><small id="value-help"
+                >Your best estimate of its value today. If building, include only the land and work
+                already completed.</small
+              ></label
+            >
+            <label class="field" for="share"
+              >How much do you own? (%)<input
+                id="share"
+                type="number"
+                min="0.000001"
+                max="100"
+                step="any"
+                value="100"
+                aria-describedby="share-help"
+                required
+              /><small id="share-help"
+                >100 if you own it all, 50 for half, or your agreed ownership share.</small
+              ></label
+            >
+            <label class="field" for="value-date"
+              >Date of this estimate<input id="value-date" type="date" min="1900-01-01" required
+            /></label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>2. What mortgage debt do you still owe?</legend>
+          <label class="field" for="debt-state"
+            >Your mortgage situation<select id="debt-state">
+              <option value="unknown">I'm not sure of the remaining amount</option>
+              <option value="none">I have no mortgage debt on this property</option>
+              <option value="known">I know how much mortgage debt I have left</option>
+            </select></label
+          >
+          <div class="grid" id="debt-fields" hidden>
+            <label class="field" for="debt"
+              >My remaining mortgage debt (EUR)<input
+                id="debt"
+                type="number"
+                min="0"
+                max="100000000"
+                step="0.01"
+                aria-describedby="debt-help"
+              /><small id="debt-help"
+                >The borrowed amount you still owe, from your latest statement. Exclude future
+                interest and monthly payments.</small
+              ></label
+            >
+            <label class="field" for="debt-date"
+              >Date on the mortgage statement<input id="debt-date" type="date" min="1900-01-01"
+            /></label>
+          </div>
+          <details class="help">
+            <summary>Sharing a mortgage, or unsure what to enter?</summary>
+            <p>
+              Enter only the remaining debt you count as yours. If the remaining loan is EUR 280,000
+              and your agreed split is half, enter EUR 140,000. Your debt split may differ from your
+              ownership share; we do not calculate it automatically.
+            </p>
+            <p>
+              A monthly payment includes interest and repayment of borrowed money. We only need the
+              borrowed amount still unpaid, not all future payments added together.
+            </p>
+            <p>
+              If you are unsure, leave the amount unknown. We will not assume you are debt-free.
+              Your agreement for tracking shared debt does not change what the lender can legally
+              require you to repay.
+            </p>
+          </details>
+        </fieldset>
+        <section class="preview" aria-labelledby="preview-title">
+          <h3 id="preview-title">Your property at a glance</h3>
+          <div id="equity-preview" aria-live="polite"></div>
+          <small
+            >This is called equity. It is not profit or available cash, and does not include selling
+            costs or taxes.</small
+          >
+        </section>
+        <p id="form-error" class="negative" role="alert" hidden></p>
+        <div class="actions">
+          <button id="cancel" type="button">Cancel</button
+          ><button class="primary" type="submit">Add to preview</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="delete-dialog" aria-labelledby="delete-title">
+      <h2 id="delete-title">Remove property?</h2>
+      <p id="delete-message"></p>
+      <p class="muted">
+        Removes this temporary entry only. No account balance or cash transaction changes.
+      </p>
+      <div class="actions">
+        <button id="delete-cancel" type="button">Cancel</button
+        ><button id="delete-confirm" type="button" class="danger">Remove</button>
+      </div>
+    </dialog>
+    <noscript
+      ><p class="notice">
+        JavaScript is required for this local interaction pilot. No production feature is installed.
+      </p></noscript
+    >
+    <script>
+      'use strict';
+      const $ = (id) => document.getElementById(id);
+      const money = (amount) =>
+        new Intl.NumberFormat('en-IE', {
+          style: 'currency',
+          currency: 'EUR',
+          maximumFractionDigits: 0,
+        }).format(amount);
+      const today = new Date();
+      const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      const base = {
+        id: 'home',
+        label: 'Shared apartment',
+        use: 'Home',
+        value: 420000,
+        share: 50,
+        valueDate: '2026-10-31',
+        state: 'known',
+        debt: 140000,
+        debtDate: '2026-10-31',
+      };
+      const fixtures = {
+        home: [base],
+        empty: [],
+        several: [
+          base,
+          {
+            ...base,
+            id: 'inherited',
+            label: 'Inherited family home',
+            use: 'Inherited property',
+            value: 360000,
+            share: 100 / 3,
+            state: 'none',
+            debt: null,
+            debtDate: null,
+          },
+          {
+            ...base,
+            id: 'rental',
+            label: 'Small rented flat',
+            use: 'Rented property',
+            value: 190000,
+            share: 50,
+            debt: 40000,
+          },
+        ],
+        construction: [
+          {
+            ...base,
+            id: 'build',
+            label: 'House being built',
+            use: 'Under construction',
+            value: 180000,
+            share: 100,
+            debt: 100000,
+          },
+        ],
+        incomplete: [{ ...base, state: 'unknown', debt: null, debtDate: null }],
+        negative: [{ ...base, value: 200000, share: 100, debt: 240000 }],
+      };
+      let properties = [];
+      let editingId = null;
+      let deletingId = null;
+      let opener = null;
+      const equity = (property) =>
+        property.state === 'unknown'
+          ? null
+          : (property.value * property.share) / 100 -
+            (property.state === 'none' ? 0 : property.debt);
+      function element(tag, text, className = '') {
+        const node = document.createElement(tag);
+        node.textContent = text;
+        if (className) node.className = className;
+        return node;
+      }
+      function showTab(tab, focus = false) {
+        for (const id of ['networth', 'settings']) {
+          const active = id === tab;
+          $(id).hidden = !active;
+          $(`tab-${id}`).setAttribute('aria-selected', String(active));
+          $(`tab-${id}`).tabIndex = active ? 0 : -1;
+        }
+        if (focus) $(`tab-${tab}`).focus();
+      }
+      function reset() {
+        properties = fixtures[$('fixture').value].map((property) => ({ ...property }));
+        $('property-summary').open = false;
+        $('status').textContent = 'Fictional example loaded. Changes are temporary.';
+        render();
+      }
+      function valueRow(label, value, className = '') {
+        const row = element('div', '', `row ${className}`.trim());
+        row.append(element('span', label), element('strong', value));
+        return row;
+      }
+      function dateLabel(date) {
+        return new Intl.DateTimeFormat('en-GB', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        }).format(new Date(`${date}T12:00:00`));
+      }
+      function equityRows(value, debt, state) {
+        const rows = [valueRow('Value of your share', money(value))];
+        rows.push(
+          valueRow(
+            'Minus your remaining mortgage debt',
+            state === 'unknown' ? 'Not known yet' : money(state === 'none' ? 0 : debt),
+          ),
+        );
+        rows.push(
+          valueRow(
+            'Your share after mortgage (equity)',
+            state === 'unknown'
+              ? 'Not calculated yet'
+              : money(value - (state === 'none' ? 0 : debt)),
+            'equity-result',
+          ),
+        );
+        if (state === 'unknown')
+          rows.push(
+            element(
+              'p',
+              'Add your remaining mortgage debt when you know it to see what is left.',
+              'warning',
+            ),
+          );
+        else if (value - (state === 'none' ? 0 : debt) < 0)
+          rows.push(
+            element('p', 'Your remaining debt is higher than the value of your share.', 'negative'),
+          );
+        return rows;
+      }
+      function item(property, management) {
+        const node = element('article', '', 'property-item');
+        const heading = element('div', '', 'heading');
+        heading.append(element('h3', property.label), element('span', property.use, 'tag'));
+        node.append(heading);
+        const ownValue = (property.value * property.share) / 100;
+        node.append(
+          element(
+            'p',
+            `You own ${Number(property.share.toFixed(4))}% of a property estimated at ${money(property.value)}.`,
+            'muted',
+          ),
+        );
+        node.append(...equityRows(ownValue, property.debt, property.state));
+        node.append(
+          element(
+            'p',
+            `Property estimate: ${dateLabel(property.valueDate)}.${property.state === 'known' ? ` Mortgage statement: ${dateLabel(property.debtDate)}.` : ''}`,
+            'muted',
+          ),
+        );
+        if (management) {
+          const actions = element('div', '', 'actions');
+          const edit = element('button', 'Edit');
+          edit.type = 'button';
+          edit.setAttribute('aria-label', `Edit ${property.label}`);
+          edit.addEventListener('click', () => openEditor(property.id, edit));
+          const remove = element('button', 'Remove', 'danger');
+          remove.type = 'button';
+          remove.setAttribute('aria-label', `Remove ${property.label}`);
+          remove.addEventListener('click', () => {
+            deletingId = property.id;
+            opener = remove;
+            $('delete-message').textContent = `Remove "${property.label}" from this pilot?`;
+            $('delete-dialog').showModal();
+            $('delete-cancel').focus();
+          });
+          actions.append(edit, remove);
+          node.append(actions);
+        }
+        return node;
+      }
+      function render() {
+        $('property-summary').hidden = properties.length === 0;
+        $('property-count').textContent = String(properties.length);
+        const complete = properties.every((property) => equity(property) !== null);
+        const total = properties.reduce((sum, property) => sum + (equity(property) ?? 0), 0);
+        $('property-total').textContent = complete
+          ? `${money(total)} after mortgage`
+          : 'Mortgage details missing';
+        $('property-total').className = complete && total < 0 ? 'negative' : '';
+        $('property-display').replaceChildren(
+          ...properties.map((property) => item(property, false)),
+        );
+        $('property-management').replaceChildren(
+          ...properties.map((property) => item(property, true)),
+        );
+        if (properties.length === 0)
+          $('property-management').append(
+            element(
+              'p',
+              'No properties yet. Add your home or another property you own, or leave this section empty.',
+              'empty',
+            ),
+          );
+      }
+      function updatePreview() {
+        const state = $('debt-state').value;
+        const fields = ['value', 'share', ...(state === 'known' ? ['debt'] : [])];
+        if (
+          fields.some(
+            (id) =>
+              !$(id).validity.valid || $(id).value === '' || !Number.isFinite($(id).valueAsNumber),
+          )
+        ) {
+          $('equity-preview').replaceChildren(
+            element(
+              'p',
+              'Enter a property value and your ownership share above. If you have a mortgage, add your remaining debt or choose that you are not sure.',
+              'muted',
+            ),
+          );
+          return;
+        }
+        $('equity-preview').replaceChildren(
+          ...equityRows(
+            ($('value').valueAsNumber * $('share').valueAsNumber) / 100,
+            state === 'known' ? $('debt').valueAsNumber : null,
+            state,
+          ),
+        );
+      }
+      function debtFields() {
+        const known = $('debt-state').value === 'known';
+        $('debt-fields').hidden = !known;
+        for (const id of ['debt', 'debt-date']) {
+          $(id).disabled = !known;
+          $(id).required = known;
+        }
+        updatePreview();
+      }
+      function openEditor(id, source) {
+        editingId = id;
+        opener = source;
+        $('property-form').reset();
+        $('form-error').hidden = true;
+        $('editor-title').textContent = id === null ? 'Add property' : 'Edit property';
+        $('property-form').querySelector('[type="submit"]').textContent =
+          id === null ? 'Add to preview' : 'Update preview';
+        const property =
+          id === null
+            ? {
+                label: '',
+                use: 'Home',
+                value: '',
+                share: 100,
+                valueDate: todayISO,
+                state: 'unknown',
+                debt: '',
+                debtDate: todayISO,
+              }
+            : properties.find((entry) => entry.id === id);
+        for (const [field, key] of Object.entries({
+          label: 'label',
+          use: 'use',
+          value: 'value',
+          share: 'share',
+          'value-date': 'valueDate',
+          'debt-state': 'state',
+          debt: 'debt',
+          'debt-date': 'debtDate',
+        }))
+          $(field).value = property[key] ?? '';
+        $('value-date').max = todayISO;
+        $('debt-date').max = todayISO;
+        debtFields();
+        $('editor').showModal();
+        $('label').focus();
+      }
+      $('property-form').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const label = $('label').value.trim();
+        if (!label) {
+          $('form-error').textContent = 'Enter a property name, not just spaces.';
+          $('form-error').hidden = false;
+          $('label').focus();
+          return;
+        }
+        if (!$('property-form').reportValidity()) return;
+        const state = $('debt-state').value;
+        const property = {
+          id: editingId ?? crypto.randomUUID(),
+          label,
+          use: $('use').value,
+          value: $('value').valueAsNumber,
+          share: $('share').valueAsNumber,
+          valueDate: $('value-date').value,
+          state,
+          debt: state === 'known' ? $('debt').valueAsNumber : null,
+          debtDate: state === 'known' ? $('debt-date').value : null,
+        };
+        if (editingId === null) properties.push(property);
+        else properties = properties.map((entry) => (entry.id === editingId ? property : entry));
+        $('editor').close();
+        render();
+        $('status').textContent =
+          `${label} ${editingId === null ? 'added' : 'updated'} in this temporary pilot. Financial calculations are unchanged.`;
+      });
+      $('cancel').addEventListener('click', () => $('editor').close());
+      $('delete-cancel').addEventListener('click', () => $('delete-dialog').close());
+      $('delete-confirm').addEventListener('click', () => {
+        const label = properties.find((property) => property.id === deletingId).label;
+        properties = properties.filter((property) => property.id !== deletingId);
+        $('delete-dialog').close();
+        render();
+        $('add').focus();
+        $('status').textContent =
+          `${label} removed from this pilot. Financial calculations are unchanged.`;
+      });
+      for (const id of ['editor', 'delete-dialog'])
+        $(id).addEventListener('close', () => {
+          if (opener?.isConnected) opener.focus();
+          else $('add').focus();
+        });
+      $('debt-state').addEventListener('change', debtFields);
+      for (const id of ['value', 'share', 'debt']) $(id).addEventListener('input', updatePreview);
+      $('fixture').addEventListener('change', reset);
+      $('restart').addEventListener('click', reset);
+      $('add').addEventListener('click', () => openEditor(null, $('add')));
+      $('manage').addEventListener('click', () => {
+        showTab('settings');
+        $('add').focus();
+      });
+      for (const id of ['networth', 'settings']) {
+        $(`tab-${id}`).addEventListener('click', () => showTab(id));
+        $(`tab-${id}`).addEventListener('keydown', (event) => {
+          if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+            event.preventDefault();
+            showTab(
+              event.key === 'Home'
+                ? 'networth'
+                : event.key === 'End'
+                  ? 'settings'
+                  : id === 'networth'
+                    ? 'settings'
+                    : 'networth',
+              true,
+            );
+          }
+        });
+      }
+      reset();
+    </script>
+  </body>
+</html>
