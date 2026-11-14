@@ -195,7 +195,8 @@ export function summarizeBackup(b: BackupFile): string {
       : formatEnglishDate(d, { month: 'short', year: 'numeric' });
   }
 
-  const counts = `${accounts.length} accounts · ${holdings.length} holdings · ${snapshots.length} snapshots · ${transactions.length} transactions`;
+  const properties = parseProperties(b.data.settings[PROPERTIES_KEY]);
+  const counts = `${accounts.length} accounts · ${holdings.length} holdings · ${snapshots.length} snapshots · ${transactions.length} transactions${properties.length ? ` · ${properties.length} ${properties.length === 1 ? 'property' : 'properties'}` : ''}`;
   const detailLines = [
     txRange ? `Transactions: ${txRange}` : '',
     lastSnap ? `Last snapshot: ${lastSnap}` : '',

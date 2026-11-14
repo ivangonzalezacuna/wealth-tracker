@@ -22,6 +22,7 @@ import {
   saveSnapshots,
   upsertSnapshot,
   loadTransactions,
+  loadSettings,
   mergeTransactions,
   selectNewTransactions,
   insertTransaction,
@@ -80,6 +81,7 @@ import {
 import { getSetupState } from './model/setup';
 import { parsePositionKey } from './model/snapshotPositions';
 import { isAccountClosedInMonth } from './model/accounts';
+import { parseProperties, PROPERTIES_KEY } from './model/properties';
 import { validateFinancialData } from './db/accountData';
 import type { SetupStep } from './model/setup';
 import { computePD } from './portfolio';
@@ -199,8 +201,14 @@ let _headerMenu: HeaderMenu | null = null;
 let _navScrollHint: (() => void) | null = null;
 const _conflictRecovery = createConflictRecovery({
   localIsEmpty: async () => {
-    const [snapshots, transactions] = await Promise.all([loadSnapshots(), loadTransactions()]);
-    return !snapshots.length && !transactions.length;
+    const [snapshots, transactions, settings] = await Promise.all([
+      loadSnapshots(),
+      loadTransactions(),
+      loadSettings(),
+    ]);
+    return (
+      !snapshots.length && !transactions.length && !parseProperties(settings[PROPERTIES_KEY]).length
+    );
   },
   backup: exportBackup,
   refresh: () => refreshStateFromLocalDb({ clearCaches: true, requireCache: true }),

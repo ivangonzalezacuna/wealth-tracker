@@ -95,6 +95,7 @@ describe('buildBackup', () => {
     expect(restored?.data.accounts).toEqual(FIXTURE_DATA.accounts);
     expect(restored?.data.snapshots).toEqual(FIXTURE_DATA.snapshots);
     expect(restored?.data.transactions).toEqual(FIXTURE_DATA.transactions);
+    expect(summarizeBackup(backup)).toContain('1 property');
   });
   it('rejects malformed or unsupported property registers before restoring', () => {
     const backup = validBackupObj();
