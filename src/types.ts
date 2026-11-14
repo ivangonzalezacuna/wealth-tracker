@@ -97,6 +97,8 @@ export interface Snapshot {
 // ─── Settings ────────────────────────────────────────────────────
 
 export interface Settings {
+  /** Versioned informational property register. Never part of financial-account calculations. */
+  property_register?: string;
   /** Versioned provider/document-type mappings; contains only internal account IDs and modes. */
   snapshot_import_mappings?: string;
   /** Cost-basis calculation method. */

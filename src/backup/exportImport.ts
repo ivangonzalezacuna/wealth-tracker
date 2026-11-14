@@ -2,6 +2,7 @@ import type { Account, FxRateRecord, Holding, Settings, Snapshot, Transaction } 
 import { formatEnglishDate } from '../dateFormat';
 import { validateClosedPeriods, validateAccountLifecycle } from '../model/accounts';
 import { ETF_VALUATION_SCHEMA, validateSnapshotPositions } from '../model/snapshotPositions';
+import { parseProperties, PROPERTIES_KEY } from '../model/properties';
 
 export const BACKUP_SCHEMA_VERSION = 5;
 
@@ -157,6 +158,7 @@ export function validateBackup(raw: unknown): BackupFile | null {
         'Legacy ETF valuations are no longer supported. Restore an account-linked backup exported after migration in the previous release.',
       );
   }
+  parseProperties(d.settings[PROPERTIES_KEY]);
   if (validateAccountLifecycle(d.accounts, d.snapshots)) return null;
   if (d.settings.etf_valuation_schema && d.settings.etf_valuation_schema !== ETF_VALUATION_SCHEMA)
     return null;

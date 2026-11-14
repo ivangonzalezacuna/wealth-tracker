@@ -10,6 +10,7 @@ import {
   BACKUP_SCHEMA_VERSION,
 } from './exportImport';
 import type { BackupFile } from './exportImport';
+import { PROPERTIES_KEY, serializeProperties } from '../model/properties';
 
 const FIXTURE_DATA: BackupFile['data'] = {
   accounts: [
@@ -71,6 +72,35 @@ function validBackupObj(): BackupFile {
 }
 
 describe('buildBackup', () => {
+  it('roundtrips informational properties without adding accounts, balances or transactions', () => {
+    const raw = serializeProperties([
+      {
+        id: 'home',
+        label: 'Home',
+        use: 'Home',
+        value: 420000,
+        share: 50,
+        valueDate: '2026-10-31',
+        mortgage: 'known',
+        debt: 140000,
+        debtDate: '2026-10-31',
+      },
+    ]);
+    const backup = buildBackup({
+      ...FIXTURE_DATA,
+      settings: { ...FIXTURE_DATA.settings, [PROPERTIES_KEY]: raw },
+    });
+    const restored = validateBackup(JSON.parse(JSON.stringify(backup)));
+    expect(restored?.data.settings[PROPERTIES_KEY]).toBe(raw);
+    expect(restored?.data.accounts).toEqual(FIXTURE_DATA.accounts);
+    expect(restored?.data.snapshots).toEqual(FIXTURE_DATA.snapshots);
+    expect(restored?.data.transactions).toEqual(FIXTURE_DATA.transactions);
+  });
+  it('rejects malformed or unsupported property registers before restoring', () => {
+    const backup = validBackupObj();
+    backup.data.settings[PROPERTIES_KEY] = '{"version":2,"properties":[]}';
+    expect(() => validateBackup(backup)).toThrow(/property register/);
+  });
   it('roundtrips statement mapping preferences without document metadata or a schema bump', () => {
     const raw = JSON.stringify({
       version: 1,
