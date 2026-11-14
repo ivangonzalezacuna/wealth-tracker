@@ -13,9 +13,22 @@ async function openPhone(page: Page, hash: string) {
 }
 
 async function wheel(page: Page, delta: number) {
+  const target = await page.evaluate(
+    (delta) =>
+      Math.max(0, Math.min(scrollY + delta, document.documentElement.scrollHeight - innerHeight)),
+    delta,
+  );
   await page.mouse.move(387, 350);
   await page.mouse.wheel(0, delta);
-  await page.waitForTimeout(180);
+  await expect
+    .poll(() => page.evaluate((target) => Math.abs(scrollY - target), target))
+    .toBeLessThanOrEqual(1);
+  await nextFrame(page);
+}
+
+async function nextFrame(page: Page) {
+  // Scroll/resize observers update the dock during the next rendering step.
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
 }
 
 const body = (page: Page) => page.locator('body');
@@ -78,10 +91,10 @@ test('dock hides on long pages without reflow and returns upward, on focus and a
 
   // URL bars change only the height mid-scroll; that must not reveal the dock.
   await page.setViewportSize({ width: 390, height: 780 });
-  await page.waitForTimeout(150);
+  await nextFrame(page);
   await expect(body(page)).toHaveClass(HIDDEN);
   await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight - innerHeight - 120));
-  await page.waitForTimeout(150);
+  await nextFrame(page);
   await expect(body(page)).toHaveClass(HIDDEN);
   // A collapsing URL bar can expose the reserved dock space without any scroll event.
   await page.setViewportSize({ width: 390, height: 880 });
@@ -152,7 +165,7 @@ test('phone widths fit compact sub-tabs, the snapshot action and toasts above th
   await page.locator('#btn-add-snap').click();
   await page.locator('.snap-dialog-overlay .dialog-fields').hover();
   await page.mouse.wheel(0, 600);
-  await page.waitForTimeout(350);
+  await nextFrame(page);
   await expect(body(page)).not.toHaveClass(HIDDEN);
   await page.keyboard.press('Escape');
 
@@ -234,6 +247,7 @@ test('tab icons share one square frame and active highlights slide between tabs'
       };
     });
   await expect(page.locator('.nav')).toHaveClass(/tab-indicator-animate/);
+  await expect(page.locator('#portfolio-subnav')).toHaveClass(/tab-indicator-animate/);
   const before = await indicator('#portfolio-subnav');
   expect(before.x).toBe(before.activeX);
   expect(before.transition).toContain('0.22s');
@@ -245,7 +259,7 @@ test('tab icons share one square frame and active highlights slide between tabs'
     })
     .toBe(true);
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  expect((await indicator('#portfolio-subnav')).transition).toBe('0s');
+  await expect.poll(async () => (await indicator('#portfolio-subnav')).transition).toBe('0s');
 });
 
 test('Settings sub-tabs keep drafts and reselecting returns to the top', async ({ page }) => {
@@ -258,7 +272,7 @@ test('Settings sub-tabs keep drafts and reselecting returns to the top', async (
   await page.locator('#settings-tab-planning').click();
   await expect(page.locator('#set-contrib-budget')).toHaveValue('765');
   await page.evaluate(() => scrollTo(0, 280));
-  await page.waitForTimeout(200);
+  await expect.poll(() => page.evaluate(() => scrollY)).toBe(280);
   await page.locator('#tab-settings').click();
   expect(await page.evaluate(() => scrollY)).toBe(0);
   await expect(page.locator('#set-contrib-budget')).toHaveValue('765');
