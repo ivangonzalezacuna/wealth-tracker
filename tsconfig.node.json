@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "checkJs": true,
+    "allowImportingTsExtensions": true,
+    "paths": { "/src/*": ["./src/*"] }
+  },
+  "include": [
+    "tests/**/*.ts",
+    "tests/**/*.mjs",
+    "src/**/*.d.ts",
+    "scripts/**/*.ts",
+    "*.config.ts",
+    "*.config.mjs"
+  ]
+}

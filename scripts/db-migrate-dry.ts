@@ -41,7 +41,7 @@ const __dirname = dirname(__filename);
 // sql.js ships a native WASM file. We read it from disk so we don't need a
 // browser environment or a Vite ?url import shim.
 const wasmPath = resolve(__dirname, '../node_modules/sql.js/dist/sql-wasm.wasm');
-const wasmBinary = readFileSync(wasmPath);
+const wasmBinary = new Uint8Array(readFileSync(wasmPath)).buffer;
 
 async function main(): Promise<void> {
   console.log('wealth-tracker — schema migration dry-run\n');

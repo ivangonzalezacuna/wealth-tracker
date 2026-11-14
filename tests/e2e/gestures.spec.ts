@@ -306,7 +306,7 @@ test('settings rows run Edit and Delete from swipe and long press', async ({ pag
 
 async function realTouch(page: Page) {
   const cdp = await page.context().newCDPSession(page);
-  const touch = (type: string, x: number, y: number) =>
+  const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', x: number, y: number) =>
     cdp.send('Input.dispatchTouchEvent', {
       type,
       touchPoints: type === 'touchEnd' ? [] : [{ x, y, id: 1 }],

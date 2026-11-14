@@ -10,7 +10,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:ci": "playwright test",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.node.json",
     "lint": "eslint . --max-warnings 0 && yarn format:check",
     "lint:fix": "eslint . --fix && yarn format",
     "format:check": "prettier --check .",

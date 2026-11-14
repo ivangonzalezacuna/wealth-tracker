@@ -6,6 +6,7 @@ const root = path.resolve('dist');
 const config = await readFile('netlify.toml', 'utf8');
 const csp = config.match(/Content-Security-Policy = "([^"]+)"/)?.[1];
 if (!csp) throw new Error('Production CSP is missing.');
+/** @type {Record<string, string>} */
 const types = {
   '.html': 'text/html',
   '.js': 'application/javascript',
@@ -21,6 +22,10 @@ const types = {
 createServer(async (request, response) => {
   response.setHeader('Content-Security-Policy', csp);
   response.setHeader('X-Content-Type-Options', 'nosniff');
+  if (!request.url) {
+    response.writeHead(400).end();
+    return;
+  }
   try {
     const pathname = decodeURIComponent(new URL(request.url, 'http://127.0.0.1').pathname);
     const file = path.resolve(root, `.${pathname === '/' ? '/index.html' : pathname}`);
@@ -33,7 +38,8 @@ createServer(async (request, response) => {
     response.end(data);
   } catch (error) {
     if (error instanceof URIError) response.writeHead(400).end();
-    else if (error?.code === 'ENOENT') response.writeHead(404).end();
+    else if (error instanceof Error && 'code' in error && error.code === 'ENOENT')
+      response.writeHead(404).end();
     else {
       console.error('Production test server failed to read an asset.', error);
       response.writeHead(500).end();
