@@ -18,7 +18,7 @@ test.beforeEach(async ({ page }) => {
 test('Settings tabs and accordions support keyboard navigation and hide inactive fields', async ({
   page,
 }) => {
-  await expect(page.locator('#settings-content .js-card-toggle')).toHaveCount(11);
+  await expect(page.locator('#settings-content .js-card-toggle')).toHaveCount(12);
   for (const view of ['portfolio', 'planning', 'advanced']) {
     const tab = page.locator(`[data-settings-view="${view}"]`);
     await tab.focus();

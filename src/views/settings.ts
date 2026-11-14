@@ -89,10 +89,13 @@ import {
 
 import { EDIT_ICON, DELETE_ICON, UNDO_ICON } from './icons';
 import { navHash, SETTINGS_VIEWS, type SettingsView } from '../nav';
+import { attachPropertySettings, propertiesSettingsBody } from './properties';
+import { PROPERTIES_KEY, serializeProperties } from '../model/properties';
 
 /** Card key: identifies which settings card an action belongs to. */
 type CardKey =
   | 'accounts'
+  | 'properties'
   | 'holdings'
   | 'contributions'
   | 'calc-assumptions'
@@ -446,6 +449,10 @@ export function renderSettings(opts: { preserveDrafts?: boolean } = {}): void {
     <div class="settings-group" id="settings-group-portfolio" role="tabpanel" aria-labelledby="settings-tab-portfolio">
       ${cardHtml('accounts', () => renderAccountsCard(accounts))}
       ${cardHtml('holdings', () => renderHoldingsCard(holdings))}
+      <div class="card card-collapsible" id="settings-card-properties" data-card-key="properties">
+        ${settingsCardHeader('properties', 'Properties', 'Optional overview, separate from financial calculations')}
+        <div class="card-body">${propertiesSettingsBody()}</div>
+      </div>
     </div>
     <div class="settings-group" id="settings-group-tracking" role="tabpanel" aria-labelledby="settings-tab-planning">
       ${cardHtml('contributions', () => renderContributionsCard(settings))}
@@ -464,6 +471,7 @@ export function renderSettings(opts: { preserveDrafts?: boolean } = {}): void {
 
   if (!drafts.has('accounts')) attachAccountListeners(el);
   if (!drafts.has('holdings')) attachHoldingListeners(el);
+  attachProperties(el);
   if (!drafts.has('contributions')) attachContributionsListeners(el);
   if (!drafts.has('calc-assumptions')) attachCalcAssumptionsListeners(el);
   if (!drafts.has('goal')) attachGoalListeners(el);
@@ -666,6 +674,33 @@ export function refreshSettingsAfterChange(changed: ConfigChangeKind): void {
   refreshGoalData();
   refreshBackupData();
   refreshFxIntegrationsData();
+  const root = document.getElementById('settings-card-properties');
+  const body = root?.querySelector<HTMLElement>('.card-body');
+  if (root && body) {
+    body.innerHTML = propertiesSettingsBody();
+    attachProperties(root);
+    applySyncBusyState();
+  }
+}
+
+function attachProperties(root: HTMLElement): void {
+  attachPropertySettings(root, async (properties, baseline, button) => {
+    const saved = await withCardGuard(
+      'properties',
+      button,
+      async () => {
+        if (getSettings()[PROPERTIES_KEY] !== baseline) {
+          throw new Error(
+            'Properties changed while this dialog was open. Cancel and reopen it before saving.',
+          );
+        }
+        await setSettings({ [PROPERTIES_KEY]: serializeProperties(properties) });
+        return true;
+      },
+      { busyText: 'Saving...' },
+    );
+    if (!saved) throw new Error('A sync or another save is in progress. Try again in a moment.');
+  });
 }
 
 // ── Accounts ──────────────────────────────────────────────

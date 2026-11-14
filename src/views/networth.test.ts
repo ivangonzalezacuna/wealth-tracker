@@ -82,6 +82,7 @@ vi.mock('../constants', () => ({
 import { renderNW, _resetPlanningTabForTest } from './networth';
 import type { Snapshot } from '../types';
 import * as configStore from '../store/config';
+import { PROPERTIES_KEY, serializeProperties } from '../model/properties';
 
 function makeSnap(date: string, acct1 = 1000, acct2 = 500): Snapshot {
   return { date, acct1, acct2 };
@@ -109,6 +110,7 @@ const DOM_FIXTURE = `
     <div id="nw-detail"></div>
   </div>
   <div id="networth"></div>
+  <div id="nw-properties"></div>
 `;
 
 /** Switches the planning card to the drawdown tab and returns the panel element. */
@@ -153,6 +155,43 @@ describe('renderNW', () => {
     expect((document.getElementById('nw-empty') as HTMLElement).style.display).toBe('block');
     expect((document.getElementById('nw-content') as HTMLElement).style.display).toBe('none');
     expect(chartInstances.length).toBe(0);
+  });
+
+  it('keeps financial KPIs, goals, forecasts and retirement output identical with property data', () => {
+    vi.mocked(configStore.getGoals).mockReturnValue([
+      { label: 'Goal', targetNetWorth: '100000', targetDate: '2035-01' },
+    ]);
+    try {
+      const snaps = [makeSnap('2026-01', 1000, 500)];
+      const rendered = () =>
+        ['nw-kpis', 'nw-goal', 'nw-planning'].map((id) => document.getElementById(id)!.textContent);
+      renderNW(snaps);
+      const before = rendered();
+      const forecast = JSON.stringify(chartFor('c-nw-forecast')?.option);
+      switchToDrawdownTab();
+      const retirement = document.getElementById('nw-planning')!.textContent;
+      mockSettings[PROPERTIES_KEY] = serializeProperties([
+        {
+          id: 'home',
+          label: 'Home',
+          use: 'Home',
+          value: 420000,
+          share: 50,
+          valueDate: '2026-01-01',
+          mortgage: 'known',
+          debt: 140000,
+          debtDate: '2026-01-01',
+        },
+      ]);
+      renderNW(snaps);
+      expect(document.getElementById('nw-planning')!.textContent).toBe(retirement);
+      (document.querySelector('[data-planning-tab="forecast"]') as HTMLButtonElement).click();
+      expect(rendered()).toEqual(before);
+      expect(JSON.stringify(chartFor('c-nw-forecast')?.option)).toBe(forecast);
+      expect(document.getElementById('nw-properties')!.textContent).toContain('70.000');
+    } finally {
+      vi.mocked(configStore.getGoals).mockReturnValue([]);
+    }
   });
 
   it('pauses personal, extra and global contributions for closed accounts without redirecting scenarios', () => {
