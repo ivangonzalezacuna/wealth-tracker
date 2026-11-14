@@ -244,7 +244,6 @@ import {
 } from './settings';
 import { isCollapsed } from '../ui/collapseState';
 import { isBackupStale } from '../backup/exportImport';
-import { withButtonGuard } from '../utils';
 
 // ── Test setup ──────────────────────────────────────────────────
 

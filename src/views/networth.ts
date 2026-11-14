@@ -9,7 +9,6 @@ import {
   fmtPctVal,
   esc,
   safeColor,
-  kpiTile,
 } from '../utils';
 import { getACCTSList } from '../constants';
 import {
@@ -737,7 +736,6 @@ function _renderNWHistChart(snaps: Snapshot[], chartA: ChartAccount[]): void {
   const notes = new Map(
     snaps.map((sn, i) => [times[i], String(sn.notes || '').trim()] as [number, string]),
   );
-  const last = times[times.length - 1];
   const totalName = 'Total net worth';
   const months = snaps.map((sn) => sn.date);
 
@@ -1359,7 +1357,6 @@ function _renderDecumulationChart(
     ? `Portfolio balance (real, ${_inflationRate}% inflation)`
     : 'Portfolio balance';
   const balance = (ddRealSeries ?? ddSeries).map((p, i) => [times[i], p.value] as Pt);
-  const first = times[0];
   const last = times[times.length - 1];
   const depletion = endMonth ? monthToTime(endMonth) : null;
 

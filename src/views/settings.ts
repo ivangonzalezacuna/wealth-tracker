@@ -62,7 +62,6 @@ import type {
   FxTelemetryMonthly,
   Holding,
   Settings,
-  ContribInterval,
   NamedGoal,
   Transaction,
   Snapshot,
@@ -87,16 +86,6 @@ import {
   buildHoldingSecuritySuggestions,
   loadAppSecuritySuggestions,
 } from '../securitySuggestions';
-
-/** Build <option> HTML for an interval <select>, marking `selected` the matching value. */
-function intervalOptionsHtml(selected: ContribInterval): string {
-  return Object.entries(INTERVAL_LABELS)
-    .map(
-      ([val, label]) =>
-        `<option value="${val}" ${selected === val ? 'selected' : ''}>${label}</option>`,
-    )
-    .join('');
-}
 
 import { EDIT_ICON, DELETE_ICON, UNDO_ICON } from './icons';
 import { navHash, SETTINGS_VIEWS, type SettingsView } from '../nav';
@@ -1255,10 +1244,6 @@ function attachAccountListeners(root: HTMLElement): void {
     const idx = parseInt(delBtn.dataset.idx ?? '');
     if (!isNaN(idx)) void toggleAccountRemoval(controller, idx);
   });
-}
-
-function collectAccounts(_root: HTMLElement): Account[] {
-  return _accounts ?? [];
 }
 
 function rerenderAccountsTable(root: HTMLElement, accounts: Account[]): void {

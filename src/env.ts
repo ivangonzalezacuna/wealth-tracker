@@ -16,10 +16,6 @@ export function isDev(): boolean {
   return ENV_LABEL === 'DEVELOPMENT';
 }
 
-function getEnvLabel(): string {
-  return ENV_LABEL;
-}
-
 /** Log the active environment to the console on boot. */
 export function logEnvironment(): void {
   console.info('[wealth-tracker] env=%s', ENV_LABEL);

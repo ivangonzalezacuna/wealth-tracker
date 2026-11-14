@@ -5,7 +5,7 @@ import { infoTip, attachInfoTips } from '../ui/infoTip';
 import { attachEtfPopovers } from '../ui/etfPopover';
 import { getCostBasisMethod, getHoldings } from '../store/config';
 import { computeCostBasis } from '../model/costbasis';
-import { bindSortedTableHeader, renderTableSection, sortAndPaginate } from './tableView';
+import { bindSortedTableHeader, renderTableSection } from './tableView';
 import type { ColumnDef } from './tableColumns';
 import {
   createPageSizePref,

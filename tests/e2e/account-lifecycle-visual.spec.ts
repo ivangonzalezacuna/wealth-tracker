@@ -1,7 +1,6 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import {
   ensureCardExpanded,
-  expectToast,
   gotoApp,
   monthOffsetValue,
   openTab,

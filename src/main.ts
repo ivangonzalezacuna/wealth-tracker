@@ -148,7 +148,7 @@ import { notify } from './ui/toast';
 import { withTimeout } from './sync/timeout';
 import { isBusy, onBusyChange, setBusy } from './sync/lock';
 import { registerSW } from 'virtual:pwa-register';
-import type { Snapshot, Transaction, PortfolioData, ImportProfile } from './types';
+import type { Snapshot, Transaction, PortfolioData } from './types';
 import { buildAppSecuritySuggestions } from './securitySuggestions';
 import { getNonBaseCurrencies } from './model/snapshotFx';
 import { APP_CURRENCY } from './fx';
@@ -2189,7 +2189,7 @@ function showPortfolioSubview(sub: string, force = false): void {
 
 function renderPortfolioSubview(sub: string): void {
   if (sub === 'holdings') renderPortfolio(state.pd, state.snaps);
-  else if (sub === 'contributions') renderDCA(state.pd, state.snaps);
+  else if (sub === 'contributions') renderDCA(state.pd);
   else if (sub === 'dividends') renderDividends(state.pd, state.txs);
 }
 

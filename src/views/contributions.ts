@@ -3,7 +3,7 @@ import { getISIN_ORDERList, getISIN, getMETAMap } from '../constants';
 import { getMonthlyContribBudget, getAccounts } from '../store/config';
 import { annualizeContrib, INTERVAL_LABELS } from '../model/contributions';
 import { isAccountOpenNow } from '../model/accounts';
-import type { PortfolioData, Snapshot, Account } from '../types';
+import type { PortfolioData, Account } from '../types';
 import { bindSortedTableHeader, renderTableSection } from './tableView';
 import type { ColumnDef } from './tableColumns';
 import { createPageSizePref, MONTH_PAGE_SIZES, renderPagination, rowsFor } from './pagination';
@@ -27,14 +27,13 @@ import { TxType } from '../types';
 
 const _dcaPageSize = createPageSizePref('wt:dca:pageSize', MONTH_PAGE_SIZES);
 const _dcaTableState = createTableState({ sort: { key: null, dir: null }, filters: {} });
-let _lastPd: PortfolioData | null = null;
 let _dcaFcMonths = 60; // visible forecast horizon (follows the chart zoom)
 
 /**
  * Renders the Contributions (DCA) tab: monthly-total KPI tiles, the
  * per-ETF stacked contribution chart, and the month-by-month table.
  */
-export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
+export function renderDCA(pd: PortfolioData | null): void {
   const ISIN_ORDER = getISIN_ORDERList();
   const ISIN = getISIN();
   const META = getMETAMap();
@@ -42,8 +41,6 @@ export function renderDCA(pd: PortfolioData | null, snaps: Snapshot[]): void {
   document.getElementById('dca-empty')!.style.display = has ? 'none' : 'block';
   document.getElementById('dca-content')!.style.display = has ? 'block' : 'none';
   if (!has) return;
-
-  _lastPd = pd;
 
   const total = pd.totalInv;
   const n = pd.months.length;

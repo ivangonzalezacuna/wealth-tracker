@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 // ── Module mocks ──────────────────────────────────────────────────
 // Both the fetcher and the cache repository are mocked so tests run
