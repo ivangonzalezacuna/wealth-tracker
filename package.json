@@ -35,6 +35,6 @@
     "echarts": "6.1.0",
     "idb-keyval": "^6.3.0",
     "pdfjs-dist": "6.5.438",
-    "sql.js": "1.15.2"
+    "sql.js": "1.16.0"
   }
 }

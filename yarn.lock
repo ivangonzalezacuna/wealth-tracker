@@ -4862,10 +4862,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"sql.js@npm:1.15.2":
-  version: 1.15.2
-  resolution: "sql.js@npm:1.15.2"
-  checksum: 10c0/734faff4e430c4dbc0b347f03b55bb72a475395c6e0b51cd458fd53c47db89997c4c584e827cf869dab286f92f417a725f21024999ece3973d03969afc025437
+"sql.js@npm:1.16.0":
+  version: 1.16.0
+  resolution: "sql.js@npm:1.16.0"
+  checksum: 10c0/6b16130f79e6bd7b60e9104ab19e816e6370d9d09689e9ac2922367a37d84754dd97b03b8d48f746014dae53867c8c0a065bf52fb828c4585f401ab21520ea52
   languageName: node
   linkType: hard
 
@@ -5485,7 +5485,7 @@ __metadata:
     pdf-lib: "npm:^1.17.1"
     pdfjs-dist: "npm:6.5.438"
     prettier: "npm:^3.10.1"
-    sql.js: "npm:1.15.2"
+    sql.js: "npm:1.16.0"
     typescript: "npm:^6.0.3"
     typescript-eslint: "npm:^8.72.2"
     vite: "npm:^8.3.6"
