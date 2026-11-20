@@ -114,51 +114,28 @@ not trading advice.
 
 ### Properties (optional)
 
-In **Settings > Portfolio > Properties**, add a home or another property you own.
-Enter the estimated value of the **whole property**, your ownership percentage
-and the date of the estimate. If you have a mortgage, enter **your share of the
-remaining borrowed amount**, not the whole shared loan, monthly payments or
-future interest. Use the date on your statement. If unsure, leave the mortgage
-amount unknown rather than assuming it is zero.
+In **Settings > Portfolio > Properties**, enter the estimated value of the
+**whole property** in EUR, your ownership percentage and the estimate date.
+For a mortgage, enter **your share of the outstanding principal** and its
+statement date. Exclude future interest and leave the amount unknown if unsure.
+Changes stay in draft until you select **Save** on the Properties card.
 
-Property forms use the same compact controls and inline validation as account
-forms. Additions, edits and removals stay in a draft until you select **Save**
-on the Properties card; **Discard** restores the saved entries. On phones,
-tap a property row to edit it; **Remove** is also available inside the edit form.
-Removed rows can be restored with **Undo** before saving.
+The separate **Net worth** overview shows equity: half of a EUR 420,000 home
+minus EUR 140,000 of personal mortgage debt is EUR 70,000 before selling costs
+and taxes. It is hidden when empty, and missing mortgage amounts prevent a
+complete equity total. Property tracking **does not affect financial totals,
+goals, returns, forecasts, retirement calculations or annual reports**.
 
-The app shows your share's value minus your remaining mortgage debt as **equity**.
-For example, half of a EUR 420,000 apartment less EUR 140,000 of personal mortgage
-debt gives EUR 70,000 equity. Equity is not profit or available cash and excludes
-selling costs and taxes. An agreed debt split is for personal tracking, not a
-limit on your legal liability to the lender.
+The optional **Payoff estimate** uses your annual loan interest rate and your
+share of the monthly principal-and-interest payment. It assumes both stay
+constant and payments start the month after the statement. After an extra
+repayment, update the balance and statement date; only change the rate or payment
+if needed. The estimate never updates the recorded balance or marks it paid.
 
-The **Net worth** page has a separate, initially collapsed property overview.
-It is hidden when no properties exist and also works without account snapshots.
-Property entries **do not change account totals, financial net worth, goals,
-investment returns, forecasts, retirement calculations or annual reports**.
-Unknown mortgage debt prevents a complete property-equity total; negative equity
-remains negative.
-
-For a known balance, **Payoff estimate** uses your loan's annual interest rate and
-your monthly principal-and-interest payment (the same share as your balance).
-It assumes both stay unchanged and the next payment is in the month after the
-statement. After an extra repayment, update the balance and statement date; update
-the rate or regular payment only if they changed. Saving recalculates the payoff
-month without marking debt paid or changing the recorded balance.
-
-No automatic appreciation or monthly entry is required. For a house under
-construction, use the present value of the land
-and completed work and only debt already drawn. Do not enter expected inheritance
-or a future completed-house value. There is no rent, bill or tenant tracking.
-
-All property amounts are entered in **EUR**, including explicit EUR equivalents
-for foreign property or debt; this register does not fetch or apply FX rates.
-Entries are saved locally and included in normal Drive sync and JSON
-backup/restore through a versioned settings value. No new accounts, transactions
-or snapshot balances are created. Editing replaces the latest estimate; this is
-not a property-history ledger. Removing an entry does not record a sale or move
-cash.
+Entries sync to Drive and are included in JSON backups. The register keeps only
+the latest estimates, with no automatic appreciation, currency conversion or
+rent tracking. For a home under construction, enter the current value of land
+and completed work and only debt already drawn.
 
 ### Monthly snapshots
 

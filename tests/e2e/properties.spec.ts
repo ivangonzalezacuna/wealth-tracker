@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
 import { ensureCardExpanded, gotoApp, preparePage, waitForSyncIdle, expectToast } from './helpers';
 
 test.beforeEach(async ({ page }) => {
@@ -158,6 +158,16 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
   await testInfo.attach(name, { path: screenshot, contentType: 'image/png' });
 }
 
+async function expectCompactHeading(heading: Locator) {
+  await expect(heading).toHaveAttribute('aria-expanded', 'false');
+  const padding = await heading.evaluate((button) => {
+    const outer = button.getBoundingClientRect();
+    const inner = button.querySelector('.settings-card-label')!.getBoundingClientRect();
+    return Math.min(inner.top - outer.top, outer.bottom - inner.bottom);
+  });
+  expect(padding).toBeGreaterThanOrEqual(7);
+}
+
 async function dialogMetrics(page: Page, overlay: string) {
   return page.locator(overlay).evaluate((root) => {
     const styles = (selector: string) => {
@@ -229,46 +239,35 @@ for (const profile of [
       await page.click('#btn-add-acct');
       await expect(page.locator('.acct-dialog-overlay .dialog-card')).toBeVisible();
       const reference = await dialogMetrics(page, '.acct-dialog-overlay');
-      await capture(page, testInfo, 'account-reference');
       await page.keyboard.press('Escape');
 
       await ensureCardExpanded(page, 'settings-card-properties');
       const heading = page.locator('#settings-heading-properties');
       await heading.click();
-      await expect(heading).toHaveAttribute('aria-expanded', 'false');
-      const spacing = await heading.evaluate((button) => {
-        const outer = button.getBoundingClientRect();
-        const inner = button.querySelector('.settings-card-label')!.getBoundingClientRect();
-        return { top: inner.top - outer.top, bottom: outer.bottom - inner.bottom };
-      });
-      expect(spacing.top).toBeGreaterThanOrEqual(7);
-      expect(spacing.bottom).toBeGreaterThanOrEqual(7);
-      await capture(page, testInfo, 'properties-collapsed');
+      await expectCompactHeading(heading);
       await heading.click();
-      await capture(page, testInfo, 'properties-empty');
       await page.click('#btn-add-property');
       await expect(page.locator('.property-dialog-overlay .dialog-card')).toBeVisible();
       expect(await dialogMetrics(page, '.property-dialog-overlay')).toEqual(reference);
       await expectDialogFits(page);
-      await capture(page, testInfo, 'property-empty');
       await page.click('.js-property-save');
       await expect(page.locator('#property-name')).toHaveAttribute('aria-invalid', 'true');
       await expect(page.locator('#property-value')).toHaveAttribute('aria-invalid', 'true');
       await expectDialogFits(page);
-      await capture(page, testInfo, 'property-validation');
       const name = 'Family apartment with a shared mortgage and a long name';
-      await page.fill('#property-name', name);
-      await page.fill('#property-value', '420000');
-      await page.fill('#property-share', '50');
-      await page.selectOption('#property-mortgage', 'known');
-      await page.fill('#property-debt', '240000');
+      const fillSharedHome = async () => {
+        await page.fill('#property-name', name);
+        await page.fill('#property-value', '420000');
+        await page.fill('#property-share', '50');
+        await page.selectOption('#property-mortgage', 'known');
+        await page.fill('#property-debt', '240000');
+      };
+      await fillSharedHome();
       await expect(page.locator('#property-preview')).toContainText('-30.000');
       const negativeColor = await page
         .locator('#property-preview .neg')
         .evaluate((element) => getComputedStyle(element).color);
-      await page.locator('#property-preview').scrollIntoViewIfNeeded();
       await expectDialogFits(page);
-      await capture(page, testInfo, 'property-negative-equity');
       await page.locator('#property-payoff summary').click();
       await page.fill('#property-rate', '3.5');
       await page.fill('#property-payment', '1450');
@@ -281,35 +280,24 @@ for (const profile of [
       const row = page.locator('#settings-card-properties .settings-item');
       await expect(row).toContainText('-30.000');
       await expect(row.locator('.neg')).toHaveCSS('color', negativeColor);
-      await row.scrollIntoViewIfNeeded();
       await expect(row.locator('.b-draft-new')).toBeVisible();
-      await capture(page, testInfo, 'properties-list');
       await heading.click();
-      await expect(heading).toHaveAttribute('aria-expanded', 'false');
+      await expectCompactHeading(heading);
       await expect(page.locator('#settings-card-properties')).toHaveClass(/settings-dirty/);
-      expect(
-        await heading.evaluate((button) => {
-          const outer = button.getBoundingClientRect();
-          const inner = button.querySelector('.settings-card-label')!.getBoundingClientRect();
-          return inner.top >= outer.top + 7 && inner.bottom <= outer.bottom - 7;
-        }),
-      ).toBe(true);
       await capture(page, testInfo, 'properties-draft-collapsed');
       await heading.click();
       await page.click('#btn-discard-properties');
       await expect(row).toHaveCount(0);
       await page.click('#btn-add-property');
-      await page.fill('#property-name', name);
-      await page.fill('#property-value', '420000');
-      await page.fill('#property-share', '50');
-      await page.selectOption('#property-mortgage', 'known');
-      await page.fill('#property-debt', '240000');
+      await fillSharedHome();
       await page.click('.js-property-save');
       await expect(page.locator('.property-dialog-overlay')).toHaveCount(0);
       await saveProperties(page);
       const edit = row.locator('.js-edit-property');
-      if (await edit.isVisible()) await edit.click();
-      else await row.click();
+      const openEdit = async () => {
+        await ((await edit.isVisible()) ? edit : row).click();
+      };
+      await openEdit();
       await expect(page.locator('#property-name')).toHaveValue(name);
       await page.selectOption('#property-mortgage', 'none');
       await expect(page.locator('#property-preview')).toContainText('210.000');
@@ -332,14 +320,12 @@ for (const profile of [
       await expect(page.locator('#nw-properties a')).toHaveCount(0);
       await page.click('#tab-settings');
       await ensureCardExpanded(page, 'settings-card-properties');
-      if (await edit.isVisible()) await edit.click();
-      else await row.click();
+      await openEdit();
       await page.click('.property-dialog-overlay .dialog-remove');
       await expect(row.locator('.b-draft-removed')).toBeVisible();
       await row.getByRole('button', { name: `Undo remove property ${name}`, exact: true }).click();
       await expect(row).toContainText(name);
-      if (await edit.isVisible()) await edit.click();
-      else await row.click();
+      await openEdit();
       await page.click('.property-dialog-overlay .dialog-remove');
       await saveProperties(page);
       await expect(page.locator('#settings-card-properties')).toContainText('No properties yet');

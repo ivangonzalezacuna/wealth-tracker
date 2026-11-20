@@ -20,29 +20,16 @@ These are candidates, not delivery commitments.
 
 ## Product discovery decisions
 
-- **Cash-flow calendar: discarded.** Existing investment transaction history is
-  not a household recurring-payment feed. Manually maintaining rent, fixed costs
-  and payment schedules would add complexity without enough value. No calendar,
-  recurring-payment ledger or household budgeting work is queued.
-- **Additional allocation/diversification views: not pursued.** Analytics already
-  groups accounts by account, country, group and type, and holdings by asset class,
-  region and holding. Holding allocation is cost-based, not current market
-  exposure; another donut would not resolve that distinction or reveal ETF
-  look-through overlap.
-- **Return correlation: deferred.** It could reveal funds moving together, but
-  its incremental value is unproven and the current data model lacks verified,
-  aligned per-holding total-return histories. Position-value changes include
-  trades and are not returns. Revisit only with a useful user decision and a
-  maintainable data source; no score, feed or correlation pilot is queued.
-- **Property scope: informational first.** Focus on a home, shared ownership,
-  inherited property or a house under construction; check that two or three
-  properties remain understandable without landlord-management features. Track
-  estimated owned value and personally attributable outstanding mortgage debt,
-  not rent, bills or individual repayments. Exclude detailed repayment schedules,
-  automatic appreciation, future inheritance and assumed finished-house values
-  from the initial feature. Do not treat property as an ordinary investment account
-  or pension that unlocks into spendable cash. The implemented register uses
-  occasional manual balance confirmation, not recurring payment entry.
+- **Cash-flow calendar: discarded.** Investment transactions do not cover household
+  bills, and maintaining recurring payments manually would add too much work.
+- **More diversification charts: not pursued.** Existing allocation views cover
+  the main breakdowns. Another donut would not resolve cost versus market
+  exposure or show overlap within ETFs.
+- **Return correlation: deferred.** The added value is unclear without verified,
+  aligned per-holding return histories. Position values also reflect trades.
+- **Property scope: informational only.** Cover a home, shared ownership,
+  an inheritance already received or construction in progress. Support a few
+  properties without adding rent tracking, repayment ledgers or forecasting.
 
 ## Delivered capabilities
 
@@ -53,13 +40,8 @@ The app already includes:
   ETF valuations, manual transactions and bulk deletion.
 - Account lifecycle, groups/countries, holding notes/TER/targets, contribution
   planning, goals/milestones, forecast scenarios and annual HTML reports.
-- Optional property management in Settings and a secondary Net worth overview,
-  hidden when empty. Beginner-friendly entry shows owned value minus remaining
-  personal mortgage debt, with dates, unknown-debt handling and signed equity.
-  An optional payoff month estimate assumes a constant rate and monthly payment.
-  The versioned register uses existing local persistence, Drive sync and JSON
-  backup/restore. Property remains outside all financial-account calculations,
-  goals, returns, forecasts, retirement calculations and annual reports.
+- Optional property register and payoff estimate, separate from financial totals,
+  with normal Drive sync and JSON backup/restore.
 - Interactive ECharts charts and shared dialog keyboard/focus handling.
 - Local-first persistence, explicit sync-conflict recovery and JSON backup/restore.
 - Frankfurter FX caching, native account-currency entry, month-end normalization,
