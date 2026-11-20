@@ -48,10 +48,10 @@ Drive data; the development banner alone does not prevent sync.
 
 Keep local configuration in the git-ignored `.env.local`; see [.env.example](.env.example).
 
-| Variable                | Purpose                                             |
-| ----------------------- | --------------------------------------------------- |
-| `VITE_GOOGLE_CLIENT_ID` | Public OAuth Client ID                              |
-| `VITE_APP_ENV`          | `DEVELOPMENT` shows a banner; `PRODUCTION` hides it |
+| Variable                | Purpose                                                                   |
+| ----------------------- | ------------------------------------------------------------------------- |
+| `VITE_GOOGLE_CLIENT_ID` | Public OAuth Client ID                                                    |
+| `VITE_APP_ENV`          | `DEVELOPMENT` shows a banner; `PRODUCTION` hides it                       |
 | `VITE_ENABLE_PROFILING` | Set to `true` to enable local performance profiling; defaults to disabled |
 | `VITE_BUILD_ID`         | Optional release/commit ID for comparing profiler data across builds      |
 
