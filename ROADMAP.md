@@ -10,11 +10,6 @@ These are candidates, not delivery commitments.
 
 - **Chart accessibility:** provide keyboard access to the in-canvas toolbox.
   The chart data table and HTML legend are the current accessible alternatives.
-- **Diversification analysis:** evaluate whether correlations from sufficiently
-  complete per-holding return histories can provide a useful concentration
-  warning. Validate data quality and interpretation before adding a score.
-- **Cash-flow calendar:** explore projected dividends, interest and scheduled
-  contributions in one monthly view. Distinguish estimates from recorded income.
 - **Configurable reporting currency:** native account currencies and month-end
   snapshot conversion already work, but calculation/display currency is fixed
   to EUR. Any change needs a plan for historical transaction rates and snapshots,
@@ -22,6 +17,19 @@ These are candidates, not delivery commitments.
 - **ETF mergers:** implement and verify cost-basis carryover for multi-leg fund
   mergers before relying on `foldInto`. Current affected results require checking
   against broker statements.
+
+## Product discovery decisions
+
+- **Cash-flow calendar: discarded.** Investment transactions do not cover household
+  bills, and maintaining recurring payments manually would add too much work.
+- **More diversification charts: not pursued.** Existing allocation views cover
+  the main breakdowns. Another donut would not resolve cost versus market
+  exposure or show overlap within ETFs.
+- **Return correlation: deferred.** The added value is unclear without verified,
+  aligned per-holding return histories. Position values also reflect trades.
+- **Property scope: informational only.** Cover a home, shared ownership,
+  an inheritance already received or construction in progress. Support a few
+  properties without adding rent tracking, repayment ledgers or forecasting.
 
 ## Delivered capabilities
 
@@ -32,6 +40,8 @@ The app already includes:
   ETF valuations, manual transactions and bulk deletion.
 - Account lifecycle, groups/countries, holding notes/TER/targets, contribution
   planning, goals/milestones, forecast scenarios and annual HTML reports.
+- Optional property register and payoff estimate, separate from financial totals,
+  with normal Drive sync and JSON backup/restore.
 - Interactive ECharts charts and shared dialog keyboard/focus handling.
 - Local-first persistence, explicit sync-conflict recovery and JSON backup/restore.
 - Frankfurter FX caching, native account-currency entry, month-end normalization,

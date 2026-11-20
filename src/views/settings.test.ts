@@ -18,6 +18,13 @@ import { SNAPSHOT_MAPPINGS_KEY, TRADE_REPUBLIC_VALUATION } from '../import/snaps
 import { setBusy } from '../sync/lock';
 import { loadConfigHistory, loadSnapshots } from '../db';
 import { accountDialog } from '../ui/accountDialog';
+import { propertyDialog } from '../ui/propertyDialog';
+import {
+  PROPERTIES_KEY,
+  parseProperties,
+  serializeProperties,
+  type Property,
+} from '../model/properties';
 import { applySyncBusyState } from './settings';
 
 // ── Mocks ───────────────────────────────────────────────────────
@@ -222,6 +229,10 @@ vi.mock('../ui/holdingDialog', () => ({
 
 vi.mock('../ui/goalDialog', () => ({
   goalDialog: vi.fn(async () => null),
+}));
+
+vi.mock('../ui/propertyDialog', () => ({
+  propertyDialog: vi.fn(async () => false),
 }));
 
 vi.mock('../model/accountTypes', () => ({
@@ -764,6 +775,181 @@ describe('Data region IDs exist after renderSettings', () => {
   it('has #settings-backup-nudge wrapping the backup staleness nudge', () => {
     const el = document.getElementById('settings-backup-nudge');
     expect(el).not.toBeNull();
+  });
+});
+
+describe('Property drafts', () => {
+  const home: Property = {
+    id: 'home',
+    label: 'Shared home',
+    use: 'Home',
+    value: 420000,
+    share: 50,
+    valueDate: '2026-01-01',
+    mortgage: 'known',
+    debt: 140000,
+    debtDate: '2026-01-01',
+  };
+  const button = (selector: string) => document.querySelector<HTMLButtonElement>(selector)!;
+  const stage = async (property: Property, existing = false) => {
+    button(existing ? '.js-edit-property' : '#btn-add-property').click();
+    const options = vi.mocked(propertyDialog).mock.calls.at(-1)![0];
+    await options.onSave(property, document.createElement('button'));
+  };
+  beforeEach(() => {
+    setupDOM();
+    setBusy(false);
+    _collapseState = {};
+    MOCK_SETTINGS[PROPERTIES_KEY] = serializeProperties([home]);
+    vi.mocked(setSettings).mockReset().mockResolvedValue(undefined);
+    vi.mocked(propertyDialog).mockClear();
+    vi.mocked(notify).mockClear();
+    renderSettings();
+  });
+  afterEach(() => {
+    delete MOCK_SETTINGS[PROPERTIES_KEY];
+    vi.mocked(setSettings).mockReset().mockResolvedValue(undefined);
+  });
+
+  it('stages additions and edits without persisting, then discards them', async () => {
+    await stage({ ...home, id: 'second', label: '<b>Inherited</b>' });
+    expect(document.querySelector('.settings-item-new')?.textContent).toContain('<b>Inherited</b>');
+    expect(document.querySelector('#settings-properties-tbl b')).toBeNull();
+    expect(button('#btn-save-properties').dataset.dirty).toBe('true');
+    expect(document.querySelector('#settings-heading-properties')?.textContent).toContain(
+      '2 properties',
+    );
+    expect(setSettings).not.toHaveBeenCalled();
+    button('#btn-discard-properties').click();
+    expect(document.querySelectorAll('#settings-properties-tbl .settings-item')).toHaveLength(1);
+    expect(button('#btn-save-properties').hidden).toBe(true);
+    await stage({ ...home, debt: 130000 }, true);
+    expect(document.querySelector('.settings-item-edited')?.textContent).toContain('80.000');
+    button('#btn-discard-properties').click();
+    expect(document.querySelector('#settings-properties-tbl')?.textContent).toContain('70.000');
+    expect(setSettings).not.toHaveBeenCalled();
+  });
+
+  it('supports removing, undoing and saving through the shared card guard', async () => {
+    button('.js-del-property').click();
+    expect(document.querySelector('.settings-item-removed')).not.toBeNull();
+    expect(button('.js-del-property').getAttribute('aria-label')).toContain('Undo remove');
+    expect(setSettings).not.toHaveBeenCalled();
+    button('.js-del-property').click();
+    expect(document.querySelector('.settings-item-removed')).toBeNull();
+    button('.js-del-property').click();
+    setBusy(true);
+    applySyncBusyState();
+    expect(button('#btn-save-properties').disabled).toBe(true);
+    setBusy(false);
+    applySyncBusyState();
+    button('#btn-save-properties').click();
+    await vi.waitFor(() =>
+      expect(setSettings).toHaveBeenCalledExactlyOnceWith({
+        [PROPERTIES_KEY]: serializeProperties([]),
+      }),
+    );
+    await vi.waitFor(() => expect(button('#btn-save-properties').dataset.dirty).toBe('false'));
+    expect(document.querySelectorAll('#settings-properties-tbl .settings-item')).toHaveLength(0);
+    expect(notify).toHaveBeenCalledWith('Properties saved', {
+      variant: 'success',
+      source: 'properties-msg',
+    });
+  });
+
+  it('preserves drafts and listeners through partial and whole Settings refreshes', async () => {
+    await stage({ ...home, debt: 130000 }, true);
+    const card = document.getElementById('settings-card-properties');
+    refreshSettingsAfterChange('settings');
+    renderSettings({ preserveDrafts: true });
+    renderSettings({ preserveDrafts: true });
+    expect(document.getElementById('settings-card-properties')).toBe(card);
+    expect(card?.textContent).toContain('80.000');
+    button('#btn-save-properties').click();
+    await vi.waitFor(() => expect(setSettings).toHaveBeenCalledOnce());
+    expect(parseProperties(vi.mocked(setSettings).mock.calls[0][0][PROPERTIES_KEY])[0].debt).toBe(
+      130000,
+    );
+  });
+
+  it('keeps failed saves dirty and allows retrying', async () => {
+    await stage({ ...home, debt: 130000 }, true);
+    vi.mocked(setSettings).mockRejectedValueOnce(new Error('Storage unavailable'));
+    button('#btn-save-properties').click();
+    await vi.waitFor(() =>
+      expect(notify).toHaveBeenCalledWith('Could not save properties: Storage unavailable', {
+        variant: 'error',
+        source: 'properties-msg',
+      }),
+    );
+    expect(button('#btn-save-properties').dataset.dirty).toBe('true');
+    expect(document.querySelector('.settings-item-edited')?.textContent).toContain('80.000');
+    button('#btn-save-properties').click();
+    await vi.waitFor(() => expect(button('#btn-save-properties').dataset.dirty).toBe('false'));
+  });
+
+  it('blocks stale drafts and reloads current entries on discard', async () => {
+    await stage({ ...home, debt: 130000 }, true);
+    MOCK_SETTINGS[PROPERTIES_KEY] = serializeProperties([{ ...home, label: 'Updated elsewhere' }]);
+    refreshSettingsAfterChange('settings');
+    expect(document.querySelector('.settings-item-edited')?.textContent).toContain('Shared home');
+    button('#btn-save-properties').click();
+    await vi.waitFor(() =>
+      expect(notify).toHaveBeenCalledWith(expect.stringContaining('Properties changed elsewhere'), {
+        variant: 'error',
+        source: 'properties-msg',
+      }),
+    );
+    expect(setSettings).not.toHaveBeenCalled();
+    button('#btn-discard-properties').click();
+    expect(document.querySelector('#settings-properties-tbl')?.textContent).toContain(
+      'Updated elsewhere',
+    );
+    expect(button('#btn-save-properties').hidden).toBe(true);
+  });
+
+  it('does not stage edits or removal from a dialog after saved properties change', async () => {
+    button('.js-edit-property').click();
+    const options = vi.mocked(propertyDialog).mock.calls.at(-1)![0];
+    MOCK_SETTINGS[PROPERTIES_KEY] = serializeProperties([{ ...home, label: 'Updated elsewhere' }]);
+    refreshSettingsAfterChange('settings');
+    await expect(
+      options.onSave({ ...home, debt: 130000 }, document.createElement('button')),
+    ).rejects.toThrow('Properties changed elsewhere');
+    options.onRemove!();
+    expect(document.querySelector('.settings-item-removed')).toBeNull();
+    expect(document.querySelector('#settings-properties-tbl')?.textContent).toContain(
+      'Updated elsewhere',
+    );
+    expect(setSettings).not.toHaveBeenCalled();
+  });
+
+  it('retains the draft when sync recovery blocks saving', async () => {
+    await stage({ ...home, debt: 130000 }, true);
+    const allow = window.__allowSyncWrite;
+    window.__allowSyncWrite = () => false;
+    onTestFinished(() => {
+      window.__allowSyncWrite = allow;
+    });
+    button('#btn-save-properties').click();
+    await vi.waitFor(() =>
+      expect(notify).toHaveBeenCalledWith(expect.stringContaining('Resolve sync recovery first'), {
+        variant: 'error',
+        source: 'properties-msg',
+      }),
+    );
+    expect(button('#btn-save-properties').dataset.dirty).toBe('true');
+    expect(setSettings).not.toHaveBeenCalled();
+  });
+
+  it('refuses corrupt saved data instead of exposing an empty editable register', () => {
+    MOCK_SETTINGS[PROPERTIES_KEY] = '{"version":2}';
+    renderSettings();
+    expect(
+      document.querySelector('#settings-card-properties [role="alert"]')?.textContent,
+    ).toContain('unsupported');
+    expect(document.getElementById('btn-add-property')).toBeNull();
+    expect(document.getElementById('btn-save-properties')).toBeNull();
   });
 });
 
@@ -1990,7 +2176,7 @@ describe('Settings accessible controls and report states', () => {
     );
     renderSettings();
     const headings = [...document.querySelectorAll<HTMLButtonElement>('.js-card-toggle')];
-    expect(headings).toHaveLength(11);
+    expect(headings).toHaveLength(12);
     for (const heading of headings) {
       const body = document.getElementById(heading.getAttribute('aria-controls')!)!;
       expect(heading.tagName).toBe('BUTTON');

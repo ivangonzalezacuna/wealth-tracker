@@ -2,6 +2,7 @@ import type { Database } from 'sql.js';
 import type { Account, ContribInterval, Settings, Snapshot } from '../types';
 import { validateAccountLifecycle, validateClosedPeriods } from '../model/accounts';
 import { ETF_VALUATION_SCHEMA, validateSnapshotPositions } from '../model/snapshotPositions';
+import { parseProperties, PROPERTIES_KEY } from '../model/properties';
 
 export const ACCOUNT_COLUMNS =
   'id, money_type, institution, country, "group", label, color, is_primary_investment, "order", annual_return_pct, contrib_amount, contrib_interval, locked, locked_until, extra_contrib, currency, closed_periods_json';
@@ -100,5 +101,8 @@ export function validateSettingsChange(
   current: ReturnType<typeof readFinancialData>,
   settings: Settings,
 ): void {
+  if (current.settings[PROPERTIES_KEY] !== settings[PROPERTIES_KEY]) {
+    parseProperties(settings[PROPERTIES_KEY]);
+  }
   validateFinancialData({ ...current, settings });
 }

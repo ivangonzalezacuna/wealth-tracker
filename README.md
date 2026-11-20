@@ -87,7 +87,7 @@ If both copies changed, sync pauses. Select the chip or use
 **Settings > Advanced > Cache & sync > Resolve sync conflict** to export a backup
 and choose which copy to keep. Cancelling preserves both copies. Drafts remain
 available, but saving requires resolution and an explicit retry. Keeping a local
-copy with no snapshots or transactions is blocked.
+copy with no snapshots, transactions or property entries is blocked.
 
 Signing out attempts to sync and warns if changes remain local. It revokes the
 current token but does not erase local data. See the [privacy policy](public/privacy.html)
@@ -111,6 +111,31 @@ Additional accounts can have their own contribution amounts and cadences.
 Holding targets enable allocation drift and buy-only rebalancing suggestions;
 TER values enable annual fee estimates. These projections are illustrative,
 not trading advice.
+
+### Properties (optional)
+
+In **Settings > Portfolio > Properties**, enter the estimated value of the
+**whole property** in EUR, your ownership percentage and the estimate date.
+For a mortgage, enter **your share of the outstanding principal** and its
+statement date. Exclude future interest and leave the amount unknown if unsure.
+Changes stay in draft until you select **Save** on the Properties card.
+
+The separate **Net worth** overview shows equity: half of a EUR 420,000 home
+minus EUR 140,000 of personal mortgage debt is EUR 70,000 before selling costs
+and taxes. It is hidden when empty, and missing mortgage amounts prevent a
+complete equity total. Property tracking **does not affect financial totals,
+goals, returns, forecasts, retirement calculations or annual reports**.
+
+The optional **Payoff estimate** uses your annual loan interest rate and your
+share of the monthly principal-and-interest payment. It assumes both stay
+constant and payments start the month after the statement. After an extra
+repayment, update the balance and statement date; only change the rate or payment
+if needed. The estimate never updates the recorded balance or marks it paid.
+
+Entries sync to Drive and are included in JSON backups. The register keeps only
+the latest estimates, with no automatic appreciation, currency conversion or
+rent tracking. For a home under construction, enter the current value of land
+and completed work and only debt already drawn.
 
 ### Monthly snapshots
 
