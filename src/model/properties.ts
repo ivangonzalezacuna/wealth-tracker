@@ -8,6 +8,14 @@ export const PROPERTY_USES = [
 ] as const;
 export type PropertyUse = (typeof PROPERTY_USES)[number];
 
+interface MortgageTerms {
+  annualRate: number;
+  monthlyPayment: number;
+}
+
+export const MAX_MORTGAGE_RATE = 100;
+export const MAX_PROPERTY_AMOUNT = 100_000_000;
+
 export interface Property {
   id: string;
   label: string;
@@ -18,6 +26,7 @@ export interface Property {
   mortgage: 'unknown' | 'none' | 'known';
   debt: number | null;
   debtDate: string | null;
+  mortgageTerms?: MortgageTerms;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -25,7 +34,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isAmount(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100_000_000;
+  return (
+    typeof value === 'number' &&
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= MAX_PROPERTY_AMOUNT
+  );
 }
 
 function isDate(value: unknown): value is string {
@@ -33,6 +47,16 @@ function isDate(value: unknown): value is string {
     return false;
   const date = new Date(`${value}T12:00:00Z`);
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function isMortgageTerms(value: unknown): value is MortgageTerms {
+  return (
+    isRecord(value) &&
+    isAmount(value.annualRate) &&
+    value.annualRate <= MAX_MORTGAGE_RATE &&
+    isAmount(value.monthlyPayment) &&
+    value.monthlyPayment >= 0.01
+  );
 }
 
 function isProperty(value: unknown): value is Property {
@@ -51,6 +75,11 @@ function isProperty(value: unknown): value is Property {
     value.share > 0 &&
     value.share <= 100 &&
     isDate(value.valueDate) &&
+    (value.mortgageTerms === undefined ||
+      (value.mortgage === 'known' &&
+        isAmount(value.debt) &&
+        value.debt > 0 &&
+        isMortgageTerms(value.mortgageTerms))) &&
     (value.mortgage === 'known'
       ? isAmount(value.debt) && isDate(value.debtDate)
       : (value.mortgage === 'none' || value.mortgage === 'unknown') &&
@@ -59,7 +88,6 @@ function isProperty(value: unknown): value is Property {
   );
 }
 
-/** Absent in older databases/backups. Malformed or future versions must never become an empty register. */
 export function parseProperties(raw: string | null | undefined): Property[] {
   if (raw == null) return [];
   let parsed: unknown;
@@ -101,4 +129,28 @@ export function propertyEquity(property: Property): number | null {
 export function totalPropertyEquity(properties: Property[]): number | null {
   if (properties.some((property) => propertyEquity(property) === null)) return null;
   return properties.reduce((sum, property) => sum + propertyEquity(property)!, 0);
+}
+
+export function estimateMortgagePayoff(
+  balance: number,
+  statementDate: string,
+  { annualRate, monthlyPayment }: MortgageTerms,
+): { month: string } | { reason: 'interest' | 'limit' } {
+  let remaining = Math.round(balance * 100);
+  const payment = Math.round(monthlyPayment * 100);
+  const monthlyRate = annualRate / 1200;
+  const [year, month] = statementDate.split('-').map(Number);
+  // Use cents and start with the first payment in the month after the statement.
+  for (let elapsed = 1; elapsed <= 600; elapsed++) {
+    const principal = payment - Math.round(remaining * monthlyRate);
+    if (principal <= 0) return { reason: 'interest' };
+    remaining -= principal;
+    if (remaining <= 0) {
+      const index = year * 12 + month - 1 + elapsed;
+      const payoffYear = Math.floor(index / 12);
+      if (payoffYear > 9999) break;
+      return { month: `${payoffYear}-${String((index % 12) + 1).padStart(2, '0')}` };
+    }
+  }
+  return { reason: 'limit' };
 }

@@ -1,5 +1,8 @@
-import { esc, fmtEur2 } from '../utils';
+import { esc, fmtEur2, fmtMon } from '../utils';
 import {
+  estimateMortgagePayoff,
+  MAX_MORTGAGE_RATE,
+  MAX_PROPERTY_AMOUNT,
   PROPERTY_USES,
   propertyEquity,
   serializeProperties,
@@ -44,7 +47,7 @@ export function propertyDialog(options: {
           </div>
           <div class="dialog-subhead">Property value</div>
             <div class="dialog-field"><label class="dialog-label" for="property-value">Whole-property estimate (EUR)${infoTip('Enter the value of the whole property, even if you only own part. If building, count only the land and work already completed, not the finished-house value.')}</label>
-              <input id="property-value" class="form-input dialog-input" type="number" inputmode="decimal" min="0" max="100000000" step="0.01" required value="${existing?.value ?? ''}" placeholder="e.g. 420000" aria-describedby="property-value-err">
+              <input id="property-value" class="form-input dialog-input" type="number" inputmode="decimal" min="0" max="${MAX_PROPERTY_AMOUNT}" step="0.01" required value="${existing?.value ?? ''}" placeholder="e.g. 420000" aria-describedby="property-value-err">
               <span class="dialog-error" id="property-value-err"></span></div>
             <div class="dialog-row">
               <div class="dialog-field"><label class="dialog-label" for="property-share">Your ownership (%)${infoTip('Enter 100 if you own all of it, 50 for half, or your agreed ownership share. Your mortgage debt share can be different.')}</label>
@@ -62,23 +65,29 @@ export function propertyDialog(options: {
                 <option value="known">I know how much mortgage debt I have left</option>
               </select></div>
             <div id="property-debt-fields" class="dialog-row">
-              <div class="dialog-field dialog-field-wide"><label class="dialog-label" for="property-debt">My remaining mortgage debt (EUR)</label>
-                <input id="property-debt" class="form-input dialog-input" type="number" inputmode="decimal" min="0" max="100000000" step="0.01" value="${existing?.debt ?? ''}" aria-describedby="property-debt-help property-debt-err">
-                <span class="dialog-error" id="property-debt-err"></span>
-                <p class="note dialog-note" id="property-debt-help">Your share of the borrowed amount still unpaid. Exclude future interest and monthly payments.</p></div>
+              <div class="dialog-field dialog-field-wide"><label class="dialog-label" for="property-debt">My remaining mortgage debt (EUR)${infoTip('Use your share of the outstanding principal, excluding future interest. For example, enter EUR 140,000 for half of a EUR 280,000 balance. This tracking split does not change your liability to the lender.')}</label>
+                <input id="property-debt" class="form-input dialog-input" type="number" inputmode="decimal" min="0" max="${MAX_PROPERTY_AMOUNT}" step="0.01" value="${existing?.debt ?? ''}" aria-describedby="property-debt-err">
+                <span class="dialog-error" id="property-debt-err"></span></div>
               <div class="dialog-field dialog-field-wide"><label class="dialog-label" for="property-debt-date">Date on the mortgage statement</label>
                 <input id="property-debt-date" class="form-input dialog-input" type="date" min="1900-01-01" max="${today}" value="${esc(existing?.debtDate ?? today)}" aria-describedby="property-debt-date-err">
                 <span class="dialog-error" id="property-debt-date-err"></span></div>
             </div>
-            <details class="dialog-optional"><summary>Sharing a mortgage, or unsure what to enter?</summary>
+            <details class="dialog-optional" id="property-payoff"><summary>Payoff estimate (optional)</summary>
               <div class="dialog-optional-body">
-              <p class="note">If the remaining loan is EUR 280,000 and your agreed split is half, enter EUR 140,000. Your debt split may differ from your ownership share; we do not calculate it automatically.</p>
-              <p class="note">We need the borrowed amount still unpaid, not all future payments added together. If unsure, leave it unknown. Your tracking split does not change what the lender can legally require you to repay.</p>
+                <div class="dialog-row">
+                  <div class="dialog-field"><label class="dialog-label" for="property-rate">Annual interest (%)${infoTip('Use your loan interest rate, not an APR that includes fees.')}</label>
+                    <input id="property-rate" class="form-input dialog-input" type="number" inputmode="decimal" min="0" max="${MAX_MORTGAGE_RATE}" step="any" placeholder="e.g. 3.5" value="${existing?.mortgageTerms?.annualRate ?? ''}" aria-describedby="property-rate-err">
+                    <span class="dialog-error" id="property-rate-err"></span></div>
+                  <div class="dialog-field"><label class="dialog-label" for="property-payment">My monthly payment (EUR)${infoTip('Enter principal and interest only, without taxes, insurance or fees. Use the same share as for your mortgage debt.')}</label>
+                    <input id="property-payment" class="form-input dialog-input" type="number" inputmode="decimal" min="0.01" max="${MAX_PROPERTY_AMOUNT}" step="0.01" placeholder="e.g. 900" value="${existing?.mortgageTerms?.monthlyPayment ?? ''}" aria-describedby="property-payment-err">
+                    <span class="dialog-error" id="property-payment-err"></span></div>
+                </div>
+                <p class="note" id="property-payoff-result" aria-live="polite"></p>
+                <p class="note">Assumes the same rate and payment each month.</p>
               </div>
             </details>
-          <div class="dialog-subhead">Your property at a glance${infoTip('Equity is the value of your share minus your remaining mortgage debt. It is not profit or available cash, and excludes selling costs and taxes. This overview does not change account totals, goals or forecasts.')}</div>
+          <div class="dialog-subhead">Your property at a glance${infoTip('Equity is what your share is worth minus your remaining mortgage debt, before selling costs and taxes.')}</div>
           <div id="property-preview" class="property-preview" aria-live="polite"></div>
-          <p class="note">Informational only. Your account totals, goals and forecasts stay the same.</p>
         </div>
         <p id="property-error" class="dialog-error dialog-error-compact" role="alert"></p>
         <div class="dialog-actions"><button type="button" class="btn btn-sm btn-ghost js-property-cancel">Cancel</button><button type="submit" class="btn btn-sm btn-primary js-property-save">${existing ? 'Apply changes' : 'Add to draft'}</button></div>
@@ -88,7 +97,17 @@ export function propertyDialog(options: {
     form.noValidate = true;
     const { setErr } = makeDialogHelpers(overlay);
     const mortgage = overlay.querySelector<HTMLSelectElement>('#property-mortgage')!;
+    const payoff = overlay.querySelector<HTMLDetailsElement>('#property-payoff')!;
+    const payoffResult = overlay.querySelector<HTMLElement>('#property-payoff-result')!;
+    const debt = input('debt');
+    const debtDate = input('debt-date');
+    const rate = input('rate');
+    const payment = input('payment');
     mortgage.value = existing?.mortgage ?? 'unknown';
+    const mortgageTerms = () =>
+      !payoff.hidden && rate.value && payment.value
+        ? { annualRate: rate.valueAsNumber, monthlyPayment: payment.valueAsNumber }
+        : undefined;
     const read = (): Property => ({
       id,
       label: input('name').value.trim(),
@@ -97,16 +116,33 @@ export function propertyDialog(options: {
       share: input('share').valueAsNumber,
       valueDate: input('value-date').value,
       mortgage: mortgage.value as Property['mortgage'],
-      debt: mortgage.value === 'known' ? input('debt').valueAsNumber : null,
-      debtDate: mortgage.value === 'known' ? input('debt-date').value : null,
+      debt: mortgage.value === 'known' ? debt.valueAsNumber : null,
+      debtDate: mortgage.value === 'known' ? debtDate.value : null,
+      mortgageTerms: mortgageTerms(),
     });
     const update = () => {
       const known = mortgage.value === 'known';
       overlay.querySelector<HTMLElement>('#property-debt-fields')!.hidden = !known;
-      for (const id of ['debt', 'debt-date']) {
-        input(id).disabled = !known;
-        input(id).required = known;
+      for (const field of [debt, debtDate]) {
+        field.disabled = !known;
+        field.required = known;
       }
+      payoff.hidden = !known || debt.valueAsNumber === 0;
+      rate.disabled = payment.disabled = payoff.hidden;
+      rate.required = !payoff.hidden && (Boolean(payment.value) || payment.validity.badInput);
+      payment.required = !payoff.hidden && (Boolean(rate.value) || rate.validity.badInput);
+      const terms = mortgageTerms();
+      const result =
+        terms && [debt, debtDate, rate, payment].every((field) => field.validity.valid)
+          ? estimateMortgagePayoff(debt.valueAsNumber, debtDate.value, terms)
+          : null;
+      payoffResult.textContent = !result
+        ? ''
+        : 'month' in result
+          ? `Estimated payoff: ${fmtMon(result.month)}`
+          : result.reason === 'interest'
+            ? 'This payment does not reduce your balance.'
+            : 'No payoff estimate within 50 years.';
       const preview = overlay.querySelector<HTMLElement>('#property-preview')!;
       const fields = ['value', 'share', ...(known ? ['debt'] : [])];
       if (fields.some((id) => !input(id).value || !input(id).validity.valid)) {
@@ -130,6 +166,15 @@ export function propertyDialog(options: {
     const onChange = (event: Event) => {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) {
         setErr(event.target.id, '');
+        if (
+          event.target === rate ||
+          event.target === payment ||
+          event.target === mortgage ||
+          event.target === debt
+        ) {
+          setErr(rate.id, '');
+          setErr(payment.id, '');
+        }
       }
       overlay.querySelector<HTMLElement>('#property-error')!.textContent = '';
       update();

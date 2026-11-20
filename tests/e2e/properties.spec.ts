@@ -27,7 +27,22 @@ test('property register persists, backs up and restores without creating financi
   await page.fill('#property-share', '50');
   await page.selectOption('#property-mortgage', 'known');
   await page.fill('#property-debt', '140000');
+  await page.fill('#property-debt-date', '2020-11-30');
   await expect(page.locator('#property-preview')).toContainText('70.000');
+  const payoff = page.locator('#property-payoff');
+  const payoffSummary = payoff.locator('summary');
+  await expect(payoff).not.toHaveAttribute('open', '');
+  await payoffSummary.click();
+  await page.fill('#property-rate', '3.5');
+  await payoffSummary.click();
+  await page.click('.js-property-save');
+  await expect(page.locator('#property-payment')).toBeFocused();
+  await page.fill('#property-payment', '400');
+  await expect(page.locator('#property-payoff-result')).toHaveText(
+    'This payment does not reduce your balance.',
+  );
+  await page.fill('#property-payment', '900');
+  await expect(page.locator('#property-payoff-result')).toHaveText('Estimated payoff: Mar 2038');
   await page.click('.js-property-save');
   await expect(page.locator('.property-dialog-overlay')).toHaveCount(0);
   await expect(page.locator('#settings-card-properties')).toContainText('Shared home');
@@ -46,17 +61,24 @@ test('property register persists, backs up and restores without creating financi
   await expect(page.locator('#nw-empty')).toBeVisible();
   await page.locator('#nw-properties summary').click();
   await expect(page.locator('#nw-properties')).toContainText('70.000');
+  await expect(page.locator('#nw-properties')).toContainText('Estimated payoff: Mar 2038');
   await expect(page.locator('#nw-properties a')).toHaveCount(0);
   await page.click('#tab-settings');
   await ensureCardExpanded(page, 'settings-card-properties');
   await page.getByRole('button', { name: 'Edit property Shared home', exact: true }).click();
+  await payoffSummary.click();
+  await expect(page.locator('#property-rate')).toHaveValue('3.5');
+  await expect(page.locator('#property-payment')).toHaveValue('900');
   await page.fill('#property-debt', '130000');
+  await page.fill('#property-debt-date', '2020-12-31');
+  await expect(page.locator('#property-payoff-result')).toHaveText('Estimated payoff: Aug 2036');
   await page.click('.js-property-save');
   await expect(page.locator('.property-dialog-overlay')).toHaveCount(0);
   await expect(page.locator('#settings-card-properties')).toContainText('80.000');
   await page.click('#tab-networth');
   await expect(page.locator('#nw-properties')).toContainText('70.000');
   await expect(page.locator('#nw-properties')).not.toContainText('80.000');
+  await expect(page.locator('#nw-properties')).toContainText('Estimated payoff: Mar 2038');
   await page.click('#tab-settings');
   await ensureCardExpanded(page, 'settings-card-properties');
   await saveProperties(page);
@@ -71,7 +93,11 @@ test('property register persists, backs up and restores without creating financi
   expect(backup.data.accounts).toEqual([]);
   expect(backup.data.snapshots).toEqual([]);
   expect(backup.data.transactions).toEqual([]);
-  expect(JSON.parse(backup.data.settings.property_register).properties[0].debt).toBe(130000);
+  expect(JSON.parse(backup.data.settings.property_register).properties[0]).toMatchObject({
+    debt: 130000,
+    debtDate: '2020-12-31',
+    mortgageTerms: { annualRate: 3.5, monthlyPayment: 900 },
+  });
   await ensureCardExpanded(page, 'settings-card-properties');
   await page.getByRole('button', { name: 'Delete property Shared home', exact: true }).click();
   await expect(page.locator('#settings-card-properties .b-draft-removed')).toBeVisible();
@@ -88,6 +114,18 @@ test('property register persists, backs up and restores without creating financi
   await expect(page.locator('#nw-properties')).toBeVisible();
   await page.locator('#nw-properties summary').click();
   await expect(page.locator('#nw-properties')).toContainText('80.000');
+  await expect(page.locator('#nw-properties')).toContainText('Estimated payoff: Aug 2036');
+  await page.click('#tab-settings');
+  await ensureCardExpanded(page, 'settings-card-properties');
+  await page.getByRole('button', { name: 'Edit property Shared home', exact: true }).click();
+  await payoffSummary.click();
+  await page.fill('#property-rate', '');
+  await page.fill('#property-payment', '');
+  await page.click('.js-property-save');
+  await saveProperties(page);
+  await page.click('#tab-networth');
+  await expect(page.locator('#nw-properties')).toContainText('80.000');
+  await expect(page.locator('#nw-properties')).not.toContainText('Estimated payoff');
 });
 
 test('property dialog and summary fit a phone and allow unknown debt', async ({ page }) => {
@@ -231,6 +269,13 @@ for (const profile of [
       await page.locator('#property-preview').scrollIntoViewIfNeeded();
       await expectDialogFits(page);
       await capture(page, testInfo, 'property-negative-equity');
+      await page.locator('#property-payoff summary').click();
+      await page.fill('#property-rate', '3.5');
+      await page.fill('#property-payment', '1450');
+      await expect(page.locator('#property-payoff-result')).toContainText('Estimated payoff:');
+      await page.locator('#property-payoff-result').scrollIntoViewIfNeeded();
+      await expectDialogFits(page);
+      await capture(page, testInfo, 'property-payoff');
       await page.click('.js-property-save');
       await expect(page.locator('.property-dialog-overlay')).toHaveCount(0);
       const row = page.locator('#settings-card-properties .settings-item');

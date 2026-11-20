@@ -181,6 +181,7 @@ describe('renderNW', () => {
           mortgage: 'known',
           debt: 140000,
           debtDate: '2026-01-01',
+          mortgageTerms: { annualRate: 3.5, monthlyPayment: 900 },
         },
       ]);
       renderNW(snaps);
@@ -189,6 +190,9 @@ describe('renderNW', () => {
       expect(rendered()).toEqual(before);
       expect(JSON.stringify(chartFor('c-nw-forecast')?.option)).toBe(forecast);
       expect(document.getElementById('nw-properties')!.textContent).toContain('70.000');
+      expect(document.getElementById('nw-properties')!.textContent).toContain(
+        'Estimated payoff: May 2043',
+      );
     } finally {
       vi.mocked(configStore.getGoals).mockReturnValue([]);
     }
