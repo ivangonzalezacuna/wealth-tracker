@@ -52,6 +52,7 @@ import {
   toRgba,
 } from './charts';
 import { drillToSnapshot } from './drill';
+import { renderPropertyOverview } from './properties';
 
 type Pt = [number, number];
 let _fcMonths = 60; // visible forecast horizon (follows the chart zoom)
@@ -554,6 +555,7 @@ export function _resetPlanningTabForTest(): void {
 }
 
 export function renderNW(snaps: Snapshot[]): void {
+  renderPropertyOverview();
   _loadPersistedState();
   const ACCTS = getACCTSList();
   const has = snaps.length > 0;

@@ -54,7 +54,15 @@ import { accountLifecycleDialog } from '../ui/accountLifecycleDialog';
 import { validateGoalLabels } from '../model/goals';
 import { validateHoldings } from '../model/holdings';
 import { INTERVAL_LABELS } from '../model/contributions';
-import { showMsg, reinjectPendingMsg, withButtonGuard, esc, fmtEur, fmtPctNeg } from '../utils';
+import {
+  showMsg,
+  reinjectPendingMsg,
+  withButtonGuard,
+  esc,
+  fmtEur,
+  fmtEur2,
+  fmtPctNeg,
+} from '../utils';
 import { buildAnnualReport, renderAnnualReportHtml } from '../model/annualReport';
 import type {
   Account,
@@ -89,10 +97,19 @@ import {
 
 import { EDIT_ICON, DELETE_ICON, UNDO_ICON } from './icons';
 import { navHash, SETTINGS_VIEWS, type SettingsView } from '../nav';
+import { propertyDialog } from '../ui/propertyDialog';
+import {
+  parseProperties,
+  PROPERTIES_KEY,
+  propertyEquity,
+  serializeProperties,
+  type Property,
+} from '../model/properties';
 
 /** Card key: identifies which settings card an action belongs to. */
 type CardKey =
   | 'accounts'
+  | 'properties'
   | 'holdings'
   | 'contributions'
   | 'calc-assumptions'
@@ -356,6 +373,7 @@ const SYNC_LOCK_EXEMPT_IDS = new Set([
   'btn-add-hold',
   'btn-add-rule',
   'btn-add-goal',
+  'btn-add-property',
   'btn-retry-report',
 ]);
 const SYNC_BUSY_TITLE = 'Sync in progress, try again in a moment';
@@ -446,6 +464,7 @@ export function renderSettings(opts: { preserveDrafts?: boolean } = {}): void {
     <div class="settings-group" id="settings-group-portfolio" role="tabpanel" aria-labelledby="settings-tab-portfolio">
       ${cardHtml('accounts', () => renderAccountsCard(accounts))}
       ${cardHtml('holdings', () => renderHoldingsCard(holdings))}
+      ${cardHtml('properties', renderPropertiesCard)}
     </div>
     <div class="settings-group" id="settings-group-tracking" role="tabpanel" aria-labelledby="settings-tab-planning">
       ${cardHtml('contributions', () => renderContributionsCard(settings))}
@@ -464,6 +483,7 @@ export function renderSettings(opts: { preserveDrafts?: boolean } = {}): void {
 
   if (!drafts.has('accounts')) attachAccountListeners(el);
   if (!drafts.has('holdings')) attachHoldingListeners(el);
+  if (!drafts.has('properties')) attachProperties(el);
   if (!drafts.has('contributions')) attachContributionsListeners(el);
   if (!drafts.has('calc-assumptions')) attachCalcAssumptionsListeners(el);
   if (!drafts.has('goal')) attachGoalListeners(el);
@@ -666,6 +686,170 @@ export function refreshSettingsAfterChange(changed: ConfigChangeKind): void {
   refreshGoalData();
   refreshBackupData();
   refreshFxIntegrationsData();
+  const root = document.getElementById('settings-card-properties');
+  const body = root?.querySelector<HTMLElement>('.card-body');
+  if (root && body && !root.classList.contains('settings-dirty')) {
+    body.innerHTML = propertiesSettingsBody();
+    rerenderPropertiesTable(root, _properties);
+    attachProperties(root);
+    applySyncBusyState();
+  }
+}
+
+let _properties: Property[] = [];
+let _propertiesBaseline: string | null | undefined;
+
+function propertiesSummary(properties: Property[]): string {
+  const count = keptItems(properties).length;
+  return `${count} ${count === 1 ? 'property' : 'properties'}`;
+}
+
+function renderPropertyRow(property: Property, idx: number): string {
+  const equity = propertyEquity(property);
+  return `<div class="settings-item${draftRowClass(property)}" data-idx="${idx}">
+    <div class="settings-item-header">
+      <span class="settings-item-copy">
+        <span class="settings-item-title">${esc(property.label)}</span>
+        <span class="settings-item-meta">${esc(property.use)} · ${esc(String(Number(property.share.toFixed(4))))}% owned</span>
+      </span>
+      ${settingsItemFacts([`<span class="${equity !== null && equity < 0 ? 'neg' : ''}">${equity === null ? 'Mortgage unknown' : `${fmtEur2(equity)} equity`}</span>`], draftBadge(property))}
+      ${rowActionsHtml(property, idx, 'property', 'property', esc(property.label))}
+    </div>
+  </div>`;
+}
+
+function propertiesSettingsBody(): string {
+  _properties = [];
+  try {
+    const baseline = getSettings()[PROPERTIES_KEY];
+    const properties = parseProperties(baseline);
+    _properties = properties;
+    _propertiesBaseline = baseline;
+    return `<p class="note">Optional estimates in EUR, separate from financial totals.</p>
+      <div id="settings-properties-tbl" class="settings-items settings-list">${properties.map(renderPropertyRow).join('')}</div>
+      <p id="properties-empty" class="note" ${properties.length ? 'hidden' : ''}>No properties yet.</p>
+      <div class="form-actions">
+        <button type="button" class="btn btn-outline btn-sm" id="btn-add-property">+ Add property</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btn-save-properties" data-save-for="properties-msg" data-dirty="false" disabled>Save properties</button>
+        <span class="settings-draft-status" role="status"></span>
+        <span id="properties-msg" class="form-msg" role="status" aria-live="polite"></span>
+      </div>`;
+  } catch (error) {
+    return `<p class="dialog-error" role="alert">${esc(errorText(error))}</p>`;
+  }
+}
+
+function renderPropertiesCard(): string {
+  const body = propertiesSettingsBody();
+  return `<div class="card card-collapsible" id="settings-card-properties" data-card-key="properties">
+    ${settingsCardHeader('properties', 'Properties', propertiesSummary(_properties))}
+    <div class="card-body">${body}</div>
+  </div>`;
+}
+
+function rerenderPropertiesTable(root: HTMLElement, properties: Property[]): void {
+  _properties = properties;
+  const table = root.querySelector('#settings-properties-tbl');
+  if (table) table.innerHTML = properties.map(renderPropertyRow).join('');
+  const empty = root.querySelector<HTMLElement>('#properties-empty');
+  if (empty) empty.hidden = properties.length > 0;
+  const summary = root.querySelector('#settings-heading-properties .settings-card-summary');
+  if (summary) summary.textContent = propertiesSummary(properties);
+}
+
+function attachProperties(root: HTMLElement): void {
+  bindDraftActions(root.querySelector('#btn-save-properties'), () => {
+    try {
+      const baseline = getSettings()[PROPERTIES_KEY];
+      const properties = parseProperties(baseline);
+      clearDraftMarks(_properties);
+      _propertiesBaseline = baseline;
+      rerenderPropertiesTable(root, properties);
+      setListDraftState('properties-msg', false);
+    } catch (error) {
+      toastResult('properties-msg', 'Could not discard properties: ' + errorText(error), 'error');
+    }
+  });
+  const controller = createEditableListController<Property>({
+    getItems: () => _properties,
+    apply: (properties) => rerenderPropertiesTable(root, properties),
+    msgId: 'properties-msg',
+  });
+  const edit = async (idx?: number) => {
+    if (isCardBusy('properties')) return;
+    const existing = idx === undefined ? undefined : controller.items()[idx];
+    const baseline = _propertiesBaseline;
+    try {
+      const applied = await propertyDialog({
+        existing,
+        onRemove:
+          idx === undefined
+            ? undefined
+            : () => {
+                if (getSettings()[PROPERTIES_KEY] !== baseline) {
+                  toastResult(
+                    'properties-msg',
+                    'Properties changed elsewhere. Reopen the property before removing it.',
+                    'error',
+                  );
+                  return;
+                }
+                controller.toggleRemoval(idx);
+                root.querySelector<HTMLButtonElement>('#btn-add-property')?.focus();
+              },
+        onSave: async (property) => {
+          if (getSettings()[PROPERTIES_KEY] !== baseline) {
+            throw new Error(
+              'Properties changed elsewhere. Cancel and discard this draft to reload them.',
+            );
+          }
+          if (idx === undefined) controller.previewAdd(property);
+          else controller.previewUpdate(idx, property);
+        },
+      });
+      if (applied) root.querySelector<HTMLButtonElement>('#btn-add-property')?.focus();
+    } catch (error) {
+      toastResult('properties-msg', 'Could not edit property: ' + errorText(error), 'error');
+    }
+  };
+  root.querySelector('#btn-add-property')?.addEventListener('click', () => void edit());
+  root.querySelector('#settings-properties-tbl')?.addEventListener('click', (event) => {
+    const button = (event.target as Element).closest<HTMLButtonElement>(
+      '.js-edit-property, .js-del-property',
+    );
+    if (!button || button.disabled || isCardBusy('properties')) return;
+    const idx = Number(button.dataset.idx);
+    if (!Number.isInteger(idx) || !controller.items()[idx]) return;
+    if (button.matches('.js-edit-property')) void edit(idx);
+    else controller.toggleRemoval(idx);
+  });
+  root.querySelector('#btn-save-properties')?.addEventListener('click', async () => {
+    const button = root.querySelector<HTMLButtonElement>('#btn-save-properties')!;
+    const all = controller.items();
+    const properties = keptItems(all);
+    try {
+      const saved = await withCardGuard(
+        'properties',
+        button,
+        async () => {
+          if (getSettings()[PROPERTIES_KEY] !== _propertiesBaseline) {
+            throw new Error('Properties changed elsewhere. Discard this draft to reload them.');
+          }
+          await setSettings({ [PROPERTIES_KEY]: serializeProperties(properties) });
+          return true;
+        },
+        { busyText: 'Saving...' },
+      );
+      if (!saved) return;
+      clearDraftMarks(all);
+      _propertiesBaseline = getSettings()[PROPERTIES_KEY];
+      rerenderPropertiesTable(root, properties);
+      setListDraftState('properties-msg', false);
+      toastResult('properties-msg', 'Properties saved', 'success');
+    } catch (error) {
+      toastResult('properties-msg', 'Could not save properties: ' + errorText(error), 'error');
+    }
+  });
 }
 
 // ── Accounts ──────────────────────────────────────────────

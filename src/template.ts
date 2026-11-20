@@ -67,6 +67,7 @@ export function appTemplate(): string {
     <div id="nw-goal"></div>
     <div id="nw-planning"></div>
   </div>
+  <div id="nw-properties" hidden></div>
 </div>
 
 <!-- ════ PORTFOLIO ════ -->

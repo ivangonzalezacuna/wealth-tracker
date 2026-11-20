@@ -103,6 +103,50 @@ header #app-sub {
   margin-bottom: 0.5rem;
 }
 
+.property-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+.property-item {
+  padding: 8px 0;
+  overflow-wrap: anywhere;
+}
+.property-item + .property-item {
+  border-top: 1px solid var(--line);
+}
+.property-item:first-child {
+  padding-top: 0;
+}
+.property-title {
+  font-size: 13px;
+  font-weight: 500;
+  margin: 0;
+}
+.property-meta {
+  font-size: var(--fs-7);
+  color: var(--ink-3);
+  line-height: 1.4;
+  margin: 4px 0 0;
+}
+.property-preview {
+  font-size: var(--fs-7);
+}
+.property-preview .neg,
+#settings-card-properties .settings-item-fact .neg,
+.property-overview .settings-card-summary.neg {
+  color: var(--neg);
+}
+.property-heading .property-meta {
+  margin: 0;
+}
+.property-overview .row {
+  flex-wrap: wrap;
+  padding: 5px 0;
+}
+
 /* Tabular numerics */
 .kpi-val,
 .metric-val,
@@ -4219,6 +4263,7 @@ input[type='color'] {
 /* ── Settings card items ───────────────────────────────── */
 #settings-content .btn,
 :is(
+    .property-dialog-overlay,
     .acct-dialog-overlay,
     .hold-dialog-overlay,
     .goal-dialog-overlay,
@@ -4444,7 +4489,7 @@ input[type='color'] {
   gap: 0.75rem;
   box-sizing: border-box;
   min-height: 2.75rem;
-  padding: 0 1rem;
+  padding: 0.5rem 1rem;
 }
 #settings-content .card-collapsible .card-title {
   flex: 1 1 auto;
@@ -4478,7 +4523,7 @@ input[type='color'] {
   }
   #settings-content .card-collapsible .card-header {
     gap: 0.65rem;
-    padding: 0 0.95rem;
+    padding: 0.5rem 0.95rem;
   }
   #settings-content .card-collapsible:not(.collapsed) .card-body {
     padding-right: 0.95rem;
@@ -4710,6 +4755,7 @@ input[type='color'] {
   }
   #settings-content .form-input,
   :is(
+      .property-dialog-overlay,
       .acct-dialog-overlay,
       .hold-dialog-overlay,
       .goal-dialog-overlay,
@@ -4725,6 +4771,7 @@ input[type='color'] {
 /* WebKit ignores select padding; pin the compact input height. */
 #settings-content select.form-input,
 :is(
+    .property-dialog-overlay,
     .acct-dialog-overlay,
     .hold-dialog-overlay,
     .goal-dialog-overlay,
@@ -5514,6 +5561,7 @@ input:is([type='date'], [type='month']) {
 .snap-dialog-card {
   max-width: 720px;
 }
+.property-dialog-overlay [hidden],
 .snap-dialog-card [hidden] {
   display: none !important;
 }
@@ -5550,6 +5598,7 @@ input:is([type='date'], [type='month']) {
 .snap-pdf-panel p:empty,
 .snap-pdf-panel .dialog-error:empty,
 :is(
+    .property-dialog-overlay,
     .acct-dialog-overlay,
     .hold-dialog-overlay,
     .goal-dialog-overlay,
@@ -5792,6 +5841,7 @@ textarea.dialog-input {
   color: var(--ink-3);
 }
 :is(
+    .property-dialog-overlay,
     .acct-dialog-overlay,
     .hold-dialog-overlay,
     .goal-dialog-overlay,
@@ -5807,6 +5857,7 @@ textarea.dialog-input {
   overflow: hidden;
 }
 :is(
+    .property-dialog-overlay,
     .acct-dialog-overlay,
     .hold-dialog-overlay,
     .goal-dialog-overlay,
@@ -5823,6 +5874,7 @@ textarea.dialog-input {
   scroll-padding: 12px;
 }
 :is(
+    .property-dialog-overlay,
     .acct-dialog-overlay,
     .hold-dialog-overlay,
     .goal-dialog-overlay,
@@ -5868,7 +5920,7 @@ textarea.dialog-input {
   gap: 6px;
   cursor: pointer;
 }
-:is(.settings-dialog-overlay, .acct-dialog-overlay) .note {
+:is(.settings-dialog-overlay, .acct-dialog-overlay, .property-dialog-overlay) .note {
   margin: 0;
   font-size: var(--fs-7);
   font-style: normal;
