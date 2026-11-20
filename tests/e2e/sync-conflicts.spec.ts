@@ -134,6 +134,43 @@ async function resolveWith(page: Page, choice: 'local' | 'cloud') {
   await page.click('.js-confirm-ok');
 }
 
+test('property-only local data can be kept during conflict recovery', async ({ page }) => {
+  const server = await setup(page);
+  await page.evaluate(async () => {
+    const dbPath = '/src/db/index.ts';
+    const propertiesPath = '/src/model/properties.ts';
+    const db = await import(/* @vite-ignore */ dbPath);
+    const { serializeProperties, PROPERTIES_KEY } = await import(/* @vite-ignore */ propertiesPath);
+    await db.saveSnapshots([]);
+    await db.setSetting(
+      PROPERTIES_KEY,
+      serializeProperties([
+        {
+          id: 'home',
+          label: 'Local home',
+          use: 'Home',
+          value: 300000,
+          share: 100,
+          valueDate: '2026-01-01',
+          mortgage: 'none',
+          debt: null,
+          debtDate: null,
+        },
+      ]),
+    );
+  });
+  await detectConflict(page);
+  await expect(page.locator('.js-conflict-keep-local')).toBeEnabled();
+  await resolveWith(page, 'local');
+  await expect(page.locator('#sync-status')).toContainText('Synced');
+  await page.click('#tab-networth');
+  await expect(page.locator('#nw-properties')).toBeVisible();
+  await page.locator('#nw-properties summary').click();
+  await expect(page.locator('#nw-properties')).toContainText('Local home');
+  expect(server.uploads).toBe(1);
+  expect(await snapshots(page)).toEqual([]);
+});
+
 test('all dismissal routes preserve data and allow reopening; reload redetects the conflict', async ({
   page,
 }) => {
