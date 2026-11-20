@@ -48,10 +48,12 @@ Drive data; the development banner alone does not prevent sync.
 
 Keep local configuration in the git-ignored `.env.local`; see [.env.example](.env.example).
 
-| Variable                | Purpose                                             |
-| ----------------------- | --------------------------------------------------- |
-| `VITE_GOOGLE_CLIENT_ID` | Public OAuth Client ID                              |
-| `VITE_APP_ENV`          | `DEVELOPMENT` shows a banner; `PRODUCTION` hides it |
+| Variable                | Purpose                                                                   |
+| ----------------------- | ------------------------------------------------------------------------- |
+| `VITE_GOOGLE_CLIENT_ID` | Public OAuth Client ID                                                    |
+| `VITE_APP_ENV`          | `DEVELOPMENT` shows a banner; `PRODUCTION` hides it                       |
+| `VITE_ENABLE_PROFILING` | Set to `true` to enable local performance profiling; defaults to disabled |
+| `VITE_BUILD_ID`         | Optional release/commit ID for comparing profiler data across builds      |
 
 Deploy to any static host with build command `yarn build` and output directory
 `dist/`. Set the environment variables in the host's settings and authorize its
@@ -60,6 +62,10 @@ origin in Google Cloud.
 [netlify.toml](netlify.toml) supplies the Netlify build and security headers.
 Other hosts should apply equivalent headers, including the CSP permissions for
 WASM, the same-origin PDF worker, Google APIs and `api.frankfurter.dev`.
+
+The temporary performance profiler is disabled by default. See
+[docs/performance-profiler.md](./docs/performance-profiler.md) for setup, local data handling,
+release comparisons, export, and removal instructions.
 
 ## Data, privacy and sync
 
