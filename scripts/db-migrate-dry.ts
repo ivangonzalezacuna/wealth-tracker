@@ -26,7 +26,7 @@ async function main(): Promise<void> {
     `Total migration slots:  ${MIGRATIONS.length - 1} (indices 1–${MIGRATIONS.length - 1})\n`,
   );
 
-  const SQL = await initSqlJs({ wasmBinary });
+  const SQL = await initSqlJs({ wasmBinary, useOldExtensionFunctions: false });
   const db = new SQL.Database();
 
   // ── Step 1: create the current schema from SCHEMA_DDL ────────────────────
