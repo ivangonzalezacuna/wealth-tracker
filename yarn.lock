@@ -2038,13 +2038,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/sql.js@npm:^1.4.11":
-  version: 1.4.11
-  resolution: "@types/sql.js@npm:1.4.11"
+"@types/sql.js@npm:^1.16.0":
+  version: 1.16.0
+  resolution: "@types/sql.js@npm:1.16.0"
   dependencies:
     "@types/emscripten": "npm:*"
     "@types/node": "npm:*"
-  checksum: 10c0/eefb0408235cb645879103414b8ef0f13c2e7f2eac69c2a6c2838b72ec0be49985d6c6711b95bc8d79c208c7c5db95a51576a6ce7bfb49dd9edcc17721ffb40f
+  checksum: 10c0/837dfaa691152f010638b86751e6613c55616f92baf779a4189c534ffafdfc5866dc29af70a9b385415fd3c3a19b28896813c902eb916a63a39c33f5827dd9a5
   languageName: node
   linkType: hard
 
@@ -4929,10 +4929,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"sql.js@npm:1.16.0":
-  version: 1.16.0
-  resolution: "sql.js@npm:1.16.0"
-  checksum: 10c0/6b16130f79e6bd7b60e9104ab19e816e6370d9d09689e9ac2922367a37d84754dd97b03b8d48f746014dae53867c8c0a065bf52fb828c4585f401ab21520ea52
+"sql.js@npm:1.17.0":
+  version: 1.17.0
+  resolution: "sql.js@npm:1.17.0"
+  checksum: 10c0/3b60eeeb3258d4f22c27d3ba9af744e45d7d2b8209d76dd2e0034a457c9a36d4549a31c8e5239aead3074724698fe2c9fc524cee96cab5acbd45b35ce4966e2f
   languageName: node
   linkType: hard
 
@@ -5551,7 +5551,7 @@ __metadata:
   dependencies:
     "@playwright/test": "npm:^1.65.1"
     "@types/node": "npm:^26.6.6"
-    "@types/sql.js": "npm:^1.4.11"
+    "@types/sql.js": "npm:^1.16.0"
     echarts: "npm:6.1.0"
     eslint: "npm:^10.15.0"
     idb-keyval: "npm:^6.3.0"
@@ -5559,7 +5559,7 @@ __metadata:
     pdf-lib: "npm:^1.17.1"
     pdfjs-dist: "npm:6.5.438"
     prettier: "npm:^3.10.1"
-    sql.js: "npm:1.16.0"
+    sql.js: "npm:1.17.0"
     typescript: "npm:^6.0.3"
     typescript-eslint: "npm:^8.73.0"
     vite: "npm:^8.3.8"
