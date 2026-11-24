@@ -20,7 +20,7 @@
   "devDependencies": {
     "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.6",
-    "@types/sql.js": "^1.4.11",
+    "@types/sql.js": "^1.16.0",
     "eslint": "^10.15.0",
     "jsdom": "^31.0.1",
     "pdf-lib": "^1.17.1",
@@ -35,6 +35,6 @@
     "echarts": "6.1.0",
     "idb-keyval": "^6.3.0",
     "pdfjs-dist": "6.5.438",
-    "sql.js": "1.16.0"
+    "sql.js": "1.17.0"
   }
 }

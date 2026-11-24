@@ -36,6 +36,8 @@ function getSqlJs(): ReturnType<typeof initSqlJs> {
     _sqlPromise = initSqlJs({
       // Use Vite-managed asset URL so JS and WASM always resolve from the same package version.
       locateFile: () => sqlWasmBrowserUrl,
+      // Use SQLite's native math functions; the legacy sql.js extension functions are deprecated.
+      useOldExtensionFunctions: false,
     });
   }
   return _sqlPromise;
