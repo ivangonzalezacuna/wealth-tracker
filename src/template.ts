@@ -37,11 +37,11 @@ export function appTemplate(): string {
 </header>
 
 <nav class="nav" role="tablist" aria-label="Main sections">
-  <button id="tab-networth" class="active" data-section="networth" role="tab" aria-selected="true" aria-controls="networth">${navIcon('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8 15 3-3 2 2 3-4"/>')}<span>Net worth</span></button>
-  <button id="tab-portfolio" data-section="portfolio" role="tab" aria-selected="false" aria-controls="portfolio">${navIcon('<circle cx="12" cy="12" r="8"/><path d="M12 4v8h8"/>')}<span>Portfolio</span></button>
-  <button id="tab-analytics" data-section="analytics" role="tab" aria-selected="false" aria-controls="analytics">${navIcon('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8.5 16v-3M12 16V8M15.5 16v-5"/>')}<span>Analytics</span></button>
+  <button id="tab-networth" class="active" data-section="networth" role="tab" aria-selected="true" aria-controls="networth">${navIcon('<path d="M3 20h18"/><path d="M4 15l5-5 4 3 7-7"/><path d="M15 6h5v5"/>')}<span>Net worth</span></button>
+  <button id="tab-portfolio" data-section="portfolio" role="tab" aria-selected="false" aria-controls="portfolio">${navIcon('<path d="M11 3.1A9 9 0 1 0 20.9 13H11z"/><path d="M14 2.2A8 8 0 0 1 21.8 10H14z"/>')}<span>Portfolio</span></button>
+  <button id="tab-analytics" data-section="analytics" role="tab" aria-selected="false" aria-controls="analytics">${navIcon('<path d="M4 4v16h16"/><path d="M8 16v-4M12 16V8M16 16v-6"/>')}<span>Analytics</span></button>
   <button id="tab-settings" data-section="settings" role="tab" aria-selected="false" aria-controls="settings">${navIcon('<path d="M4 6h8M16 6h4M4 12h2M10 12h10M4 18h10M18 18h2"/><circle cx="14" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="18" r="2"/>')}<span>Settings</span></button>
-  <button id="tab-log" class="log-btn" data-section="log" role="tab" aria-selected="false" aria-controls="log" aria-label="Log data (add snapshot or import CSV)">${navIcon('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/>')}<span>Log data</span></button>
+  <button id="tab-log" class="log-btn" data-section="log" role="tab" aria-selected="false" aria-controls="log" aria-label="Log data (add snapshot or import CSV)">${navIcon('<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M8 3v4M16 3v4M4 10h16M12 13v5M9.5 15.5h5"/>')}<span>Log data</span></button>
 </nav>
 
 <div id="setup-banner" style="display:none"></div>

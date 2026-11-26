@@ -218,7 +218,7 @@ test('chart tooltips stay below the dock and close on scroll', async ({ page }) 
   await expect(tip).toBeHidden();
 });
 
-test('tab icons share one square frame and active highlights slide between tabs', async ({
+test('tab icons keep a consistent size and active highlights slide between tabs', async ({
   page,
   browserName,
 }) => {
@@ -230,7 +230,17 @@ test('tab icons share one square frame and active highlights slide between tabs'
         .map((el) => (el as SVGGraphicsElement).getBBox())
         .map((b) => [b.x, b.y, b.width, b.height]),
     );
-  for (const box of boxes) expect(box).toEqual([4, 4, 16, 16]);
+  // Icons are frameless 24px glyphs: bounds differ per icon and slightly per engine for arcs,
+  // so check they stay inside the viewBox and have a similar visual size.
+  expect(boxes).toHaveLength(5);
+  for (const [x, y, width, height] of boxes) {
+    expect(x).toBeGreaterThanOrEqual(1);
+    expect(y).toBeGreaterThanOrEqual(1);
+    expect(x + width).toBeLessThanOrEqual(23);
+    expect(y + height).toBeLessThanOrEqual(23);
+    expect(Math.max(width, height)).toBeGreaterThanOrEqual(15);
+    expect(Math.max(width, height)).toBeLessThanOrEqual(20.5);
+  }
   if (browserName === 'chromium')
     expect(
       await page.evaluate(() =>
